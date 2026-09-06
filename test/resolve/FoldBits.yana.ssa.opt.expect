@@ -1,0 +1,136 @@
+module ResolveTest
+
+fn check(ok: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  %7: I32 trivial = load inspect %4
+  %6: I32 trivial = const 0
+  %8: I32 trivial = select inspect %5 inspect %7 inspect %6
+  return consume %8
+}
+
+fn unsignedWrap() -> I32 {
+bb0:
+  %5: I32 trivial = const 1
+  return consume %5
+}
+
+fn signedWrap() -> I32 {
+bb0:
+  %7: I32 trivial = const 2
+  return consume %7
+}
+
+fn narrowShift() -> I32 {
+bb0:
+  %5: I32 trivial = const 4
+  return consume %5
+}
+
+fn packed() -> Packed {
+bb0:
+  %10: @bits(4) U32 trivial = const 12
+  %12: @bits(5) I32 trivial = const -12
+  %8: Packed trivial = aggregate.Packed consume %10 consume %12
+  return consume %8
+}
+
+fn refinedUnsigned() -> I32 {
+bb0:
+  %0: %Packed address = alloc frame Packed
+  %9: @bits(4) U32 trivial = const 12
+  %10: @bits(5) I32 trivial = const -12
+  %11: Packed trivial = aggregate.Packed consume %9 consume %10
+  store inspect %0 consume %11
+  %2: %@bits(4) U32 address = field.addr .small inspect %0
+  %3: @bits(4) U32 trivial = load inspect %2
+  %4: U32 trivial = convert inspect %3
+  %5: U32 trivial = const 12
+  %6: Bool trivial = eq inspect %4 inspect %5
+  %7: I32 trivial = const 8
+  %16: I32 trivial = const 0
+  %17: I32 trivial = select inspect %6 inspect %7 inspect %16
+  return consume %17
+}
+
+fn refinedSigned() -> I32 {
+bb0:
+  %0: %Packed address = alloc frame Packed
+  %11: @bits(4) U32 trivial = const 12
+  %12: @bits(5) I32 trivial = const -12
+  %13: Packed trivial = aggregate.Packed consume %11 consume %12
+  store inspect %0 consume %13
+  %2: %@bits(5) I32 address = field.addr .signed inspect %0
+  %3: @bits(5) I32 trivial = load inspect %2
+  %4: I32 trivial = convert inspect %3
+  %20: I32 trivial = const -12
+  %8: Bool trivial = eq inspect %4 inspect %20
+  %9: I32 trivial = const 16
+  %18: I32 trivial = const 0
+  %19: I32 trivial = select inspect %8 inspect %9 inspect %18
+  return consume %19
+}
+
+fn signedCompare() -> I32 {
+bb0:
+  %5: I32 trivial = const 32
+  return consume %5
+}
+
+fn unsignedCompare() -> I32 {
+bb0:
+  %3: I32 trivial = const 64
+  return consume %3
+}
+
+fn narrowComplement() -> I32 {
+bb0:
+  %4: I32 trivial = const 128
+  return consume %4
+}
+
+fn main() -> I32 {
+bb0:
+  %46: I32 trivial = const 7
+  %18: %Packed address = alloc frame Packed
+  %19: @bits(4) U32 trivial = const 12
+  %20: @bits(5) I32 trivial = const -12
+  %21: Packed trivial = aggregate.Packed consume %19 consume %20
+  store inspect %18 consume %21
+  %22: %@bits(4) U32 address = field.addr .small inspect %18
+  %23: @bits(4) U32 trivial = load inspect %22
+  %24: U32 trivial = convert inspect %23
+  %25: U32 trivial = const 12
+  %26: Bool trivial = eq inspect %24 inspect %25
+  %27: I32 trivial = const 8
+  %28: I32 trivial = const 0
+  %29: I32 trivial = select inspect %26 inspect %27 inspect %28
+  %6: I32 trivial = add inspect %46 inspect %29
+  %30: %Packed address = alloc frame Packed
+  %31: @bits(4) U32 trivial = const 12
+  %32: @bits(5) I32 trivial = const -12
+  %33: Packed trivial = aggregate.Packed consume %31 consume %32
+  store inspect %30 consume %33
+  %34: %@bits(5) I32 address = field.addr .signed inspect %30
+  %35: @bits(5) I32 trivial = load inspect %34
+  %36: I32 trivial = convert inspect %35
+  %37: I32 trivial = const -12
+  %38: Bool trivial = eq inspect %36 inspect %37
+  %39: I32 trivial = const 16
+  %40: I32 trivial = const 0
+  %41: I32 trivial = select inspect %38 inspect %39 inspect %40
+  %8: I32 trivial = add inspect %6 inspect %41
+  %42: I32 trivial = const 32
+  %10: I32 trivial = add inspect %8 inspect %42
+  %43: I32 trivial = const 64
+  %12: I32 trivial = add inspect %10 inspect %43
+  %44: I32 trivial = const 128
+  %14: I32 trivial = add inspect %12 inspect %44
+  return consume %14
+}
+
+entry main

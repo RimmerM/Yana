@@ -1,43 +1,7 @@
 
-sum<complex>(%p: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %p, 4: I32
-    %v_2 = add %p, 4: Ptr
-    %v_3 = loads %v_2, 4: I32
-    %v_4 = add %v_1, %v_3: I32
-    ret %v_4
-  }
-}
-
-first<complex>(%t: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %t, 4: I32
-    ret %v_1
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    %v_3 = alloca 8, 4: Ptr
-    store %v_3, 20, 4
-    %v_4 = add %v_3, 4: Ptr
-    store %v_4, 22, 4
-    copy %v_1, %v_3, 8
-    %v_5 = alloca 8, 4: Ptr
-    store %v_5, 100, 4
-    %v_6 = add %v_5, 4: Ptr
-    store %v_6, 0, 4
-    copy %v_2, %v_5, 8
-    %v_7 = alloca 8, 4: Ptr
-    copy %v_7, %v_1, 8
-    %v_8 = call_complex sum, %v_7: I32
-    %v_9 = alloca 8, 4: Ptr
-    copy %v_9, %v_2, 8
-    %v_10 = call_complex first, %v_9: I32
-    %v_11 = add %v_8, %v_10: I32
-    ret %v_11
+    ret 142
   }
 }
 

@@ -1,84 +1,48 @@
 mut @counter = [0, 0, 0, 0]
 
-bump<complex>(%step: I32) {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %step, 4
-    %v_2 = loads @counter, 4: I32
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = add %v_2, %v_3: I32
-    store @counter, %v_4, 4
-    ret 
-  }
-}
-
-area<complex>(%w: I32, %h: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_1, %w, 4
-    store %v_2, %h, 4
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = loads %v_2, 4: I32
-    %v_5 = imul %v_3, %v_4: I32
-    ret %v_5
-  }
-}
-
-twice<complex>(%n: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %n, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = add %v_2, %v_3: I32
-    ret %v_4
-  }
-}
-
 fib<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %n, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = cmp_ilt %v_2, 2: I32
-    je %v_3, b_4, b_5
+    %v_1 = phi [b_2, %n], [b_3, %v_4]: I32
+    %v_5 = phi [b_2, 0], [b_3, %v_6]: I32
+    %v_7 = cmp_ilt %v_1, 2: I32
+    je %v_7, b_8, b_3
   }
 
-  b_5 {
-    %v_6 = loads %v_1, 4: I32
-    %v_7 = sub %v_6, 1: I32
-    %v_8 = call_complex fib, %v_7: I32
-    %v_9 = loads %v_1, 4: I32
-    %v_10 = sub %v_9, 2: I32
-    %v_11 = call_complex fib, %v_10: I32
-    %v_12 = add %v_8, %v_11: I32
-    jmp b_13
+  b_3 {
+    %v_9 = sub %v_1, 1: I32
+    %v_10 = call_complex fib, %v_9: I32
+    %v_4 = sub %v_1, 2: I32
+    %v_6 = add %v_5, %v_10: I32
+    jmp b_0
   }
 
-  b_13 {
-    %v_14 = phi [b_5, %v_12], [b_4, %v_15]: I32
-    ret %v_14
+  b_11 {
+    %v_12 = add %v_5, %v_1: I32
+    ret %v_12
   }
 
-  b_4 {
-    %v_15 = loads %v_1, 4: I32
-    jmp b_13
+  b_8 {
+    jmp b_11
+  }
+
+  b_2 {
+    jmp b_0
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    call_complex bump, 4
-    call_complex bump, 6
-    %v_1 = call_complex area, 3, 5: I32
-    %v_2 = call_complex twice, 11: I32
-    %v_3 = add %v_1, %v_2: I32
-    %v_4 = call_complex fib, 10: I32
-    %v_5 = add %v_3, %v_4: I32
-    %v_6 = loads @counter, 4: I32
-    %v_7 = add %v_5, %v_6: I32
-    ret %v_7
+    %v_1 = loads @counter, 4: I32
+    %v_2 = add %v_1, 4: I32
+    store @counter, %v_2, 4
+    %v_3 = loads @counter, 4: I32
+    %v_4 = add %v_3, 6: I32
+    store @counter, %v_4, 4
+    %v_5 = call_complex fib, 10: I32
+    %v_6 = add 37, %v_5: I32
+    %v_7 = loads @counter, 4: I32
+    %v_8 = add %v_6, %v_7: I32
+    ret %v_8
   }
 }
 

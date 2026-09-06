@@ -1,0 +1,314 @@
+module ResolveTest
+
+let & live: I32 = 0
+
+let & trace: I32 = 0
+
+let string: [CodeUnit *6] = [97, 98, 99, 100, 101, 102]
+
+fn Held.drop(self: Held) -> {} {
+bb0(%0: Held owned):
+  %1: %Held address = alloc frame Held
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr live
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = sub inspect %3 inspect %4
+  %6: %I32 address = global.addr live
+  store inspect %6 consume %5
+  %7: %I32 address = global.addr trace
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = const 10
+  %10: I32 trivial = mul inspect %8 inspect %9
+  %11: %I32 address = field.addr .id inspect %1
+  %12: I32 trivial = load inspect %11
+  %13: I32 trivial = add inspect %10 inspect %12
+  %14: %I32 address = global.addr trace
+  store inspect %14 consume %13
+  return
+}
+
+fn held(id: I32 [shared call]) -> Held {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: %I32 address = global.addr live
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr live
+  store inspect %6 consume %5
+  %7: I32 trivial = load inspect %1
+  %8: Held owned = aggregate.Held consume %7
+  return consume %8
+}
+
+fn discarded() -> I32 {
+bb0:
+  %0: %Held address = alloc frame Held
+  %1: I32 trivial = const 4
+  %2: Held owned = call held borrow %1
+  store inspect %0 consume %2
+  drop Held inspect %0
+  %3: I32 trivial = const 0
+  return consume %3
+}
+
+fn overwritten(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %I32 address = alloc frame I32
+  store inspect %1 borrow %0
+  %3: I32 trivial = const 0
+  store inspect %2 consume %3
+  %4: I32 trivial = load inspect %1
+  %5: I32 trivial = const 1
+  %6: I32 trivial = add inspect %4 inspect %5
+  store inspect %2 consume %6
+  %7: I32 trivial = load inspect %1
+  %8: I32 trivial = const 2
+  %9: I32 trivial = mul inspect %7 inspect %8
+  store inspect %2 consume %9
+  %10: I32 trivial = load inspect %2
+  return consume %10
+}
+
+fn bump(v: I32 [unique call]) -> {} {
+bb0(%0: I32 [unique call] guaranteed):
+  %1: I32 trivial = load inspect %0
+  %2: I32 trivial = const 100
+  %3: I32 trivial = add inspect %1 inspect %2
+  store inspect %0 consume %3
+  return
+}
+
+fn acrossCall(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %I32 address = alloc frame I32
+  store inspect %1 borrow %0
+  %3: I32 trivial = load inspect %1
+  store inspect %2 consume %3
+  %4: I32 [unique call] guaranteed from{%2} = load inspect %2
+  call bump borrow %4
+  %5: I32 trivial = load inspect %2
+  return consume %5
+}
+
+fn siblings(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %Pair address = alloc frame Pair
+  store inspect %1 borrow %0
+  %3: I32 trivial = const 0
+  %4: I32 trivial = const 0
+  %5: Pair trivial = aggregate.Pair consume %3 consume %4
+  store inspect %2 consume %5
+  %6: I32 trivial = load inspect %1
+  %7: I32 trivial = const 1
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: %I32 address = field.addr .a inspect %2
+  store inspect %9 consume %8
+  %10: I32 trivial = load inspect %1
+  %11: I32 trivial = const 2
+  %12: I32 trivial = add inspect %10 inspect %11
+  %13: %I32 address = field.addr .b inspect %2
+  store inspect %13 consume %12
+  %14: %I32 address = field.addr .a inspect %2
+  %15: I32 trivial = load inspect %14
+  %16: I32 trivial = const 10
+  %17: I32 trivial = mul inspect %15 inspect %16
+  %18: %I32 address = field.addr .b inspect %2
+  %19: I32 trivial = load inspect %18
+  %20: I32 trivial = add inspect %17 inspect %19
+  return consume %20
+}
+
+fn refreshed(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %Pair address = alloc frame Pair
+  %3: %I32 address = alloc frame I32
+  store inspect %1 borrow %0
+  %4: I32 trivial = const 1
+  %5: I32 trivial = const 2
+  %6: Pair trivial = aggregate.Pair consume %4 consume %5
+  store inspect %2 consume %6
+  %7: %I32 address = field.addr .a inspect %2
+  %8: I32 trivial = load inspect %7
+  store inspect %3 consume %8
+  %9: I32 trivial = load inspect %1
+  %10: I32 trivial = load inspect %1
+  %11: Pair trivial = aggregate.Pair consume %9 consume %10
+  store inspect %2 consume %11
+  %12: I32 trivial = load inspect %3
+  %13: I32 trivial = const 100
+  %14: I32 trivial = mul inspect %12 inspect %13
+  %15: %I32 address = field.addr .a inspect %2
+  %16: I32 trivial = load inspect %15
+  %17: I32 trivial = add inspect %14 inspect %16
+  return consume %17
+}
+
+fn nestedDead(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %Nested address = alloc frame Nested
+  store inspect %1 borrow %0
+  %3: I32 trivial = const 0
+  %4: I32 trivial = const 0
+  %5: Pair trivial = aggregate.Pair consume %3 consume %4
+  %6: I32 trivial = const 0
+  %7: I32 trivial = const 0
+  %8: Pair trivial = aggregate.Pair consume %6 consume %7
+  %9: Nested trivial = aggregate.Nested consume %5 consume %8
+  store inspect %2 consume %9
+  %10: I32 trivial = load inspect %1
+  %11: I32 trivial = const 1
+  %12: I32 trivial = add inspect %10 inspect %11
+  %13: %Pair address = field.addr .p inspect %2
+  %14: %I32 address = field.addr .a inspect %13
+  store inspect %14 consume %12
+  %15: I32 trivial = load inspect %1
+  %16: I32 trivial = const 2
+  %17: I32 trivial = add inspect %15 inspect %16
+  %18: %Pair address = field.addr .q inspect %2
+  %19: %I32 address = field.addr .b inspect %18
+  store inspect %19 consume %17
+  %20: I32 trivial = load inspect %1
+  %21: I32 trivial = const 3
+  %22: I32 trivial = add inspect %20 inspect %21
+  %23: %Pair address = field.addr .p inspect %2
+  %24: %I32 address = field.addr .b inspect %23
+  store inspect %24 consume %22
+  %25: I32 trivial = load inspect %1
+  %26: I32 trivial = const 2
+  %27: I32 trivial = mul inspect %25 inspect %26
+  return consume %27
+}
+
+fn size(s: String) -> I32 {
+bb0(%0: String owned):
+  %1: %String address = alloc frame String
+  store inspect %1 consume %0
+  %2: String [shared call] guaranteed from{%1} = load inspect %1
+  jump -> bb1
+
+bb1:
+  %4: %Array(CodeUnit) address = field.addr .units inspect %2
+  %5: %Run(CodeUnit) address = field.addr .run inspect %4
+  %6: %%CodeUnit address = field.addr .items inspect %5
+  %7: %CodeUnit trivial = load inspect %6
+  %8: %Array(CodeUnit) address = field.addr .units inspect %2
+  %9: %@bits(30) U32 address = field.addr .length inspect %8
+  %10: @bits(30) U32 trivial = load inspect %9
+  %11: U32 trivial = convert inspect %10
+  %12: Size trivial = convert inspect %11
+  %13: StringView trivial = aggregate.StringView consume %7 consume %12
+  %14: String [shared slot 0 view] guaranteed = represent inspect %13
+  jump -> bb2(borrow %14)
+
+bb2(%3: String [shared slot 0 view] guaranteed from{%1}):
+  jump -> bb3
+
+bb3:
+  %16: %Size address = field.addr .length inspect %3
+  %17: Size trivial = load inspect %16
+  jump -> bb4(consume %17)
+
+bb4(%15: Size trivial):
+  drop String inspect %1
+  %18: I32 trivial = convert inspect %15
+  return consume %18
+}
+
+fn handed() -> I32 {
+bb0:
+  %0: %String address = alloc frame String
+  %1: %[CodeUnit *6] address = global.addr string
+  %2: [CodeUnit *6] [shared slot 0] guaranteed = load inspect %1
+  %3: %[CodeUnit *6] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %2
+  %4: %CodeUnit trivial = bitcast inspect %3
+  %5: Size trivial = const 6
+  jump -> bb1
+
+bb1:
+  %7: %%CodeUnit address = alloc frame %CodeUnit [shared call]
+  %8: %Size address = alloc frame Size [shared call]
+  store inspect %7 borrow %4
+  store inspect %8 borrow %5
+  %9: %CodeUnit trivial = load inspect %7
+  %10: Size trivial = load inspect %8
+  %11: U32 trivial = convert inspect %10
+  %12: @bits(30) U32 trivial = convert inspect %11
+  %13: %U32 address = global.addr runBorrowed
+  %14: U32 trivial = load inspect %13
+  %15: @bits(2) U32 trivial = convert inspect %14
+  %16: Run(CodeUnit) owned = aggregate.Run consume %9 consume %12 consume %15
+  %17: Size trivial = load inspect %8
+  %18: U32 trivial = convert inspect %17
+  %19: @bits(30) U32 trivial = convert inspect %18
+  %20: Array(CodeUnit) owned = aggregate.Array consume %16 consume %19
+  %21: String owned = aggregate.String consume %20
+  jump -> bb2(consume %21)
+
+bb2(%6: String owned):
+  store inspect %0 consume %6
+  %22: String owned = load inspect %0
+  %23: I32 trivial = call size consume %22
+  return consume %23
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  %7: I32 trivial = call discarded
+  store inspect %0 consume %7
+  %8: I32 trivial = const 5
+  %9: I32 trivial = call overwritten borrow %8
+  store inspect %1 consume %9
+  %10: I32 trivial = const 7
+  %11: I32 trivial = call acrossCall borrow %10
+  store inspect %2 consume %11
+  %12: I32 trivial = const 2
+  %13: I32 trivial = call siblings borrow %12
+  store inspect %3 consume %13
+  %14: I32 trivial = const 6
+  %15: I32 trivial = call refreshed borrow %14
+  store inspect %4 consume %15
+  %16: I32 trivial = call handed
+  store inspect %5 consume %16
+  %17: I32 trivial = const 4
+  %18: I32 trivial = call nestedDead borrow %17
+  store inspect %6 consume %18
+  %19: I32 trivial = load inspect %0
+  %20: I32 trivial = load inspect %1
+  %21: I32 trivial = add inspect %19 inspect %20
+  %22: I32 trivial = load inspect %2
+  %23: I32 trivial = add inspect %21 inspect %22
+  %24: I32 trivial = load inspect %3
+  %25: I32 trivial = add inspect %23 inspect %24
+  %26: I32 trivial = load inspect %4
+  %27: I32 trivial = add inspect %25 inspect %26
+  %28: I32 trivial = load inspect %5
+  %29: I32 trivial = add inspect %27 inspect %28
+  %30: I32 trivial = load inspect %6
+  %31: I32 trivial = add inspect %29 inspect %30
+  %32: %I32 address = global.addr live
+  %33: I32 trivial = load inspect %32
+  %34: I32 trivial = const 1000
+  %35: I32 trivial = mul inspect %33 inspect %34
+  %36: I32 trivial = add inspect %31 inspect %35
+  %37: %I32 address = global.addr trace
+  %38: I32 trivial = load inspect %37
+  %39: I32 trivial = add inspect %36 inspect %38
+  return consume %39
+}
+
+entry main

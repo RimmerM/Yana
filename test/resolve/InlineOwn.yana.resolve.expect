@@ -1,0 +1,355 @@
+let image$base: () = <none>
+
+let &live: I32 = 0
+
+let &trace: I32 = 0
+
+let &seed: I32 = 3
+
+fn held(%id: I32) -> Held {
+  b0:
+    %v1 = load live : I32
+    %v4 = add %v1, 1 : I32
+    assign live, %v4
+    %v6 = alloc : Held
+    aggregate %local0@Held.id = %id
+    ret %v6
+}
+
+fn scaled(%v: I32, %by: I32) -> I32 {
+  b0:
+    %v2 = mul %v, %by : I32
+    %v3 = add %v2, %v : I32
+    ret %v3
+}
+
+fn scales(%a: I32, %b: I32) -> I32 {
+  b0:
+    %v2 = call scaled, %a, %b : I32
+    %v5 = mul %v2, 100 : I32
+    %v6 = call scaled, %b, %a : I32
+    %v7 = add %v5, %v6 : I32
+    ret %v7
+}
+
+fn consumes(%id: I32) -> I32 {
+  b0:
+    %doomed = call held, %id : Held
+    %v2 = load %local0@Held.id : I32
+    drop %local0 via Drop(Held).drop
+    %v5 = mul %v2, 2 : I32
+    ret %v5
+}
+
+fn bumped(%n: I32) -> () {
+  b0:
+    %v1 = load %n : I32
+    %v4 = mul %v1, 3 : I32
+    assign %n, %v4
+    ret
+}
+
+fn borrows(%start: I32) -> I32 {
+  b0:
+    %n = alloc : I32
+    init %n, %start
+    %v3 = load %n : I32
+    %v4 = borrow_mut %n : &I32
+    call bumped, %v4
+    %first = load %n : I32
+    %v7 = load %n : I32
+    %v8 = borrow_mut %n : &I32
+    call bumped, %v8
+    %v12 = mul %first, 1000 : I32
+    %v13 = load %n : I32
+    %v14 = add %v12, %v13 : I32
+    ret %v14
+}
+
+fn idOf(%subject: Held) -> I32 {
+  b0:
+    %v1 = load %subject@Held.id : I32
+    %v4 = mul %v1, 7 : I32
+    ret %v4
+}
+
+fn inspected(%id: I32) -> I32 {
+  b0:
+    %subject = call held, %id : Held
+    %v2 = call idOf, %subject : I32
+    drop %local0 via Drop(Held).drop
+    %v5 = mul %v2, 2 : I32
+    ret %v5
+}
+
+fn produced(%id: I32) -> Held {
+  b0:
+    %value = call held, %id : Held
+    ret %value
+}
+
+fn discards(%id: I32) -> I32 {
+  b0:
+    %taken = call produced, %id : Held
+    %v2 = load %local0@Held.id : I32
+    drop %local0 via Drop(Held).drop
+    %v5 = add %v2, 1 : I32
+    ret %v5
+}
+
+fn clamped(%v: I32) -> I32 {
+  b0:
+    %v3 = cmp_gt %v, 100 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret 100
+
+  b2:
+    jmp b3
+
+  b3:
+    ret %v
+}
+
+fn stepped(%i: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %v5 = load %acc : I32
+    %v6 = add %v5, %i : I32
+    assign %acc, %v6
+    %v8 = load %acc : I32
+    %v11 = mul %v8, 2 : I32
+    assign %acc, %v11
+    %v13 = load %acc : I32
+    ret %v13
+}
+
+fn loops(%n: I32) -> I32 {
+  b0:
+    %total = alloc : I32
+    init %total, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v10 = load %i : I32
+    %v11 = cmp_lt %v10, %n : Bool
+    je %v11, b3, b2
+
+  b2:
+    %v24 = load %total : I32
+    ret %v24
+
+  b3:
+    %v13 = load %total : I32
+    %v14 = load %i : I32
+    %v15 = call stepped, %v14 : I32
+    %v16 = add %v13, %v15 : I32
+    assign %total, %v16
+    %v18 = load %i : I32
+    %v21 = add %v18, 1 : I32
+    assign %i, %v21
+    jmp b1
+}
+
+fn wideChain(%a: I32, %b: I32) -> I32 {
+  b0:
+    %v4 = mul %a, 3 : I32
+    %v7 = mul %b, 5 : I32
+    %v8 = add %v4, %v7 : I32
+    %c1 = sub %v8, %a : I32
+    %v12 = mul %c1, 2 : I32
+    %v15 = mul %a, 7 : I32
+    %v16 = add %v12, %v15 : I32
+    %c2 = sub %v16, %b : I32
+    %v20 = mul %c2, 2 : I32
+    %v23 = mul %b, 11 : I32
+    %v24 = add %v20, %v23 : I32
+    %c3 = sub %v24, %c1 : I32
+    %v28 = mul %c3, 2 : I32
+    %v31 = mul %c1, 13 : I32
+    %v32 = add %v28, %v31 : I32
+    %c4 = sub %v32, %c2 : I32
+    %v36 = mul %c4, 2 : I32
+    %v39 = mul %c2, 3 : I32
+    %v40 = add %v36, %v39 : I32
+    %c5 = sub %v40, %c3 : I32
+    %v44 = mul %c5, 2 : I32
+    %v47 = mul %c3, 5 : I32
+    %v48 = add %v44, %v47 : I32
+    %c6 = sub %v48, %c4 : I32
+    %v52 = mul %c6, 2 : I32
+    %v55 = mul %c4, 7 : I32
+    %v56 = add %v52, %v55 : I32
+    %c7 = sub %v56, %c5 : I32
+    %v60 = mul %c7, 2 : I32
+    %v63 = mul %c5, 11 : I32
+    %v64 = add %v60, %v63 : I32
+    %c8 = sub %v64, %c6 : I32
+    %v66 = sub %c8, %c7 : I32
+    %v67 = add %v66, %c6 : I32
+    %v68 = sub %v67, %c5 : I32
+    %v69 = add %v68, %c4 : I32
+    %v70 = sub %v69, %c3 : I32
+    %v71 = add %v70, %c2 : I32
+    %v72 = sub %v71, %c1 : I32
+    ret %v72
+}
+
+fn onceOnly(%a: I32, %b: I32) -> I32 {
+  b0:
+    %v4 = mul %a, 5 : I32
+    %v7 = mul %b, 3 : I32
+    %v8 = add %v4, %v7 : I32
+    %d1 = sub %v8, %b : I32
+    %v12 = mul %d1, 2 : I32
+    %v15 = mul %b, 7 : I32
+    %v16 = add %v12, %v15 : I32
+    %d2 = sub %v16, %a : I32
+    %v20 = mul %d2, 3 : I32
+    %v23 = mul %a, 11 : I32
+    %v24 = add %v20, %v23 : I32
+    %d3 = sub %v24, %d1 : I32
+    %v28 = mul %d3, 2 : I32
+    %v31 = mul %d1, 13 : I32
+    %v32 = add %v28, %v31 : I32
+    %d4 = sub %v32, %d2 : I32
+    %v36 = mul %d4, 2 : I32
+    %v39 = mul %d2, 3 : I32
+    %v40 = add %v36, %v39 : I32
+    %d5 = sub %v40, %d3 : I32
+    %v44 = mul %d5, 2 : I32
+    %v47 = mul %d3, 5 : I32
+    %v48 = add %v44, %v47 : I32
+    %d6 = sub %v48, %d4 : I32
+    %v52 = mul %d6, 2 : I32
+    %v55 = mul %d4, 7 : I32
+    %v56 = add %v52, %v55 : I32
+    %d7 = sub %v56, %d5 : I32
+    %v60 = mul %d7, 2 : I32
+    %v63 = mul %d5, 11 : I32
+    %v64 = add %v60, %v63 : I32
+    %d8 = sub %v64, %d6 : I32
+    %v66 = sub %d8, %d7 : I32
+    %v67 = add %v66, %d6 : I32
+    %v68 = sub %v67, %d5 : I32
+    %v69 = add %v68, %d4 : I32
+    %v70 = sub %v69, %d3 : I32
+    %v71 = add %v70, %d2 : I32
+    %v72 = sub %v71, %d1 : I32
+    ret %v72
+}
+
+fn countDown(%n: I32) -> I32 {
+  b0:
+    %v3 = cmp_le %n, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = sub %n, 1 : I32
+    %v11 = call countDown, %v10 : I32
+    %v12 = add %n, %v11 : I32
+    ret %v12
+}
+
+fn main() -> I32 {
+  b0:
+    %n = load seed : I32
+    %total = alloc : I32
+    init %total, 0
+    %v5 = load %total : I32
+    %v8 = add %n, 1 : I32
+    %v9 = call scales, %n, %v8 : I32
+    %v12 = mul %v9, 2 : I32
+    %v13 = add %v5, %v12 : I32
+    assign %total, %v13
+    %v15 = load %total : I32
+    %v16 = call consumes, %n : I32
+    %v19 = mul %v16, 3 : I32
+    %v20 = add %v15, %v19 : I32
+    assign %total, %v20
+    %v22 = load %total : I32
+    %v23 = call borrows, %n : I32
+    %v26 = mul %v23, 5 : I32
+    %v27 = add %v22, %v26 : I32
+    assign %total, %v27
+    %v29 = load %total : I32
+    %v30 = call discards, %n : I32
+    %v33 = mul %v30, 7 : I32
+    %v34 = add %v29, %v33 : I32
+    assign %total, %v34
+    %v36 = load %total : I32
+    %v38 = call inspected, 9 : I32
+    %v41 = mul %v38, 11 : I32
+    %v42 = add %v36, %v41 : I32
+    assign %total, %v42
+    %v44 = load %total : I32
+    %v47 = mul %n, 50 : I32
+    %v48 = call clamped, %v47 : I32
+    %v51 = mul %v48, 13 : I32
+    %v52 = add %v44, %v51 : I32
+    assign %total, %v52
+    %v54 = load %total : I32
+    %v57 = mul %n, 4 : I32
+    %v58 = call clamped, %v57 : I32
+    %v61 = mul %v58, 17 : I32
+    %v62 = add %v54, %v61 : I32
+    assign %total, %v62
+    %v64 = load %total : I32
+    %v65 = call loops, %n : I32
+    %v68 = mul %v65, 19 : I32
+    %v69 = add %v64, %v68 : I32
+    assign %total, %v69
+    %v71 = load %total : I32
+    %v74 = add %n, 1 : I32
+    %v75 = call wideChain, %n, %v74 : I32
+    %v78 = mul %v75, 23 : I32
+    %v79 = add %v71, %v78 : I32
+    assign %total, %v79
+    %v81 = load %total : I32
+    %v84 = add %n, 1 : I32
+    %v85 = call wideChain, %v84, %n : I32
+    %v88 = mul %v85, 29 : I32
+    %v89 = add %v81, %v88 : I32
+    assign %total, %v89
+    %v91 = load %total : I32
+    %v94 = add %n, 1 : I32
+    %v95 = call onceOnly, %n, %v94 : I32
+    %v98 = mul %v95, 31 : I32
+    %v99 = add %v91, %v98 : I32
+    assign %total, %v99
+    %v101 = load %total : I32
+    %v102 = call countDown, %n : I32
+    %v105 = mul %v102, 37 : I32
+    %v106 = add %v101, %v105 : I32
+    assign %total, %v106
+    %v108 = load %total : I32
+    %v109 = load live : I32
+    %v112 = mul %v109, 41 : I32
+    %v113 = add %v108, %v112 : I32
+    %v114 = load trace : I32
+    %v115 = add %v113, %v114 : I32
+    ret %v115
+}
+
+fn Drop(Held).drop(%self: Held) -> () {
+  b0:
+    %v1 = load live : I32
+    %v4 = sub %v1, 1 : I32
+    assign live, %v4
+    %v6 = load trace : I32
+    %v9 = mul %v6, 10 : I32
+    %v10 = load %self@Held.id : I32
+    %v11 = add %v9, %v10 : I32
+    assign trace, %v11
+    ret
+}

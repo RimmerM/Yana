@@ -1,66 +1,7 @@
 
-sum<complex>(%both: Ptr): I64 {
-  b_0 {
-    %v_1 = load %both, 8: I64
-    %v_2 = add %both, 8: Ptr
-    %v_3 = load %v_2, 8: I64
-    %v_4 = add %v_1, %v_3: I64
-    ret %v_4
-  }
-}
-
-narrowFirst<complex>(%narrow: I64, %plain: I64): I64 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    %v_2 = alloca 8, 8: Ptr
-    %v_3 = alloca 16, 8: Ptr
-    store %v_1, %narrow, 8
-    store %v_2, %plain, 8
-    %v_4 = load %v_1, 8: I64
-    %v_5 = cast %v_4: I64
-    %v_6 = load %v_2, 8: I64
-    %v_7 = alloca 16, 8: Ptr
-    store %v_7, %v_5, 8
-    %v_8 = add %v_7, 8: Ptr
-    store %v_8, %v_6, 8
-    copy %v_3, %v_7, 16
-    %v_9 = alloca 16, 8: Ptr
-    copy %v_9, %v_3, 16
-    %v_10 = call_complex sum, %v_9: I64
-    ret %v_10
-  }
-}
-
-plainFirst<complex>(%plain: I64, %narrow: I64): I64 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    %v_2 = alloca 8, 8: Ptr
-    %v_3 = alloca 16, 8: Ptr
-    store %v_1, %plain, 8
-    store %v_2, %narrow, 8
-    %v_4 = load %v_1, 8: I64
-    %v_5 = load %v_2, 8: I64
-    %v_6 = cast %v_5: I64
-    %v_7 = alloca 16, 8: Ptr
-    store %v_7, %v_4, 8
-    %v_8 = add %v_7, 8: Ptr
-    store %v_8, %v_6, 8
-    copy %v_3, %v_7, 16
-    %v_9 = alloca 16, 8: Ptr
-    copy %v_9, %v_3, 16
-    %v_10 = call_complex sum, %v_9: I64
-    ret %v_10
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex narrowFirst, 21, 4000: I64
-    %v_2 = cast %v_1: I32
-    %v_3 = call_complex plainFirst, 300, 5: I64
-    %v_4 = cast %v_3: I32
-    %v_5 = add %v_2, %v_4: I32
-    ret %v_5
+    ret 4326
   }
 }
 

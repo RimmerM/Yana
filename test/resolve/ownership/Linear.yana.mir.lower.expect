@@ -2,177 +2,12 @@ mut @trace = [0, 0, 0, 0]
 
 Guard.drop<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    copy %v_1, %value, 4
+    %v_1 = load %value, 4: I32
     %v_2 = loads @trace, 4: I32
     %v_3 = imul %v_2, 10: I32
-    %v_4 = loads %v_1, 4: I32
-    %v_5 = add %v_3, %v_4: I32
-    store @trace, %v_5, 4
+    %v_4 = add %v_3, %v_1: I32
+    store @trace, %v_4, 4
     ret 
-  }
-}
-
-guard<complex>(%v_0: Ptr, %id: I32) {
-  b_1 {
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, %id, 4
-    %v_3 = loads %v_2, 4: I32
-    %v_4 = alloca 4, 4: Ptr
-    store %v_4, %v_3, 4
-    copy %v_0, %v_4, 4
-    ret 
-  }
-}
-
-eat<complex>(%g: Ptr): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    copy %v_1, %g, 4
-    %v_4 = loads %v_1, 4: I32
-    store %v_2, %v_4, 4
-    copy %v_3, %v_1, 4
-    call_complex Guard.drop, %v_3
-    %v_5 = loads %v_2, 4: I32
-    ret %v_5
-  }
-}
-
-idOf<complex>(%g: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %g, 4: I32
-    ret %v_1
-  }
-}
-
-disposed<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    call_complex guard, %v_3, 1
-    copy %v_1, %v_3, 4
-    copy %v_2, %v_1, 4
-    call_complex Guard.drop, %v_2
-    ret 0
-  }
-}
-
-ordered<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    %v_5 = alloca 4, 4: Ptr
-    call_complex guard, %v_5, 2
-    copy %v_1, %v_5, 4
-    %v_6 = alloca 4, 4: Ptr
-    call_complex guard, %v_6, 3
-    copy %v_2, %v_6, 4
-    copy %v_3, %v_2, 4
-    call_complex Guard.drop, %v_3
-    copy %v_4, %v_1, 4
-    call_complex Guard.drop, %v_4
-    ret 0
-  }
-}
-
-extended<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    call_complex guard, %v_4, 4
-    copy %v_1, %v_4, 4
-    %v_5 = call_complex idOf, %v_1: I32
-    store %v_2, %v_5, 4
-    %v_6 = loads @trace, 4: I32
-    %v_7 = imul %v_6, 10: I32
-    %v_8 = add %v_7, 9: I32
-    store @trace, %v_8, 4
-    copy %v_3, %v_1, 4
-    call_complex Guard.drop, %v_3
-    %v_9 = loads %v_2, 4: I32
-    ret %v_9
-  }
-}
-
-release<complex>(%g: Ptr) {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    copy %v_1, %g, 4
-    copy %v_2, %v_1, 4
-    call_complex Guard.drop, %v_2
-    ret 
-  }
-}
-
-handedOver<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    call_complex guard, %v_2, 5
-    copy %v_1, %v_2, 4
-    %v_3 = call_complex eat, %v_1: I32
-    ret %v_3
-  }
-}
-
-released<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    call_complex guard, %v_2, 1
-    copy %v_1, %v_2, 4
-    call_complex release, %v_1
-    ret 0
-  }
-}
-
-wholeRecord<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    call_complex guard, %v_3, 6
-    %v_4 = alloca 4, 4: Ptr
-    call_complex guard, %v_4, 7
-    %v_5 = alloca 8, 4: Ptr
-    copy %v_5, %v_3, 4
-    %v_6 = add %v_5, 4: Ptr
-    copy %v_6, %v_4, 4
-    copy %v_1, %v_5, 8
-    copy %v_2, %v_1, 8
-    call_complex Guard.drop, %v_2
-    %v_7 = add %v_2, 4: Ptr
-    call_complex Guard.drop, %v_7
-    ret 0
-  }
-}
-
-byMember<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    call_complex guard, %v_3, 8
-    %v_4 = alloca 4, 4: Ptr
-    call_complex guard, %v_4, 9
-    %v_5 = alloca 8, 4: Ptr
-    copy %v_5, %v_3, 4
-    %v_6 = add %v_5, 4: Ptr
-    copy %v_6, %v_4, 4
-    copy %v_1, %v_5, 8
-    copy %v_2, %v_1, 4
-    call_complex Guard.drop, %v_2
-    %v_7 = add %v_1, 4: Ptr
-    %v_8 = call_complex eat, %v_7: I32
-    ret %v_8
   }
 }
 
@@ -191,252 +26,145 @@ Pool.drop<complex>(%value: Ptr) {
   }
 }
 
-pooled<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    call_complex guard, %v_2, 2
-    %v_3 = alloca 4, 4: Ptr
-    copy %v_3, %v_2, 4
-    copy %v_1, %v_3, 4
-    call_complex Pool.drop, %v_1
-    ret 0
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex disposed: I32
-    %v_2 = cmp_neq %v_1, 0: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 1, 4
+    call_complex Guard.drop, %v_1
+    %v_2 = loads @trace, 4: I32
+    %v_3 = cmp_neq %v_2, 1: I32
+    je %v_3, b_4, b_5
   }
 
   b_5 {
-    %v_6 = loads @trace, 4: I32
-    %v_7 = cmp_neq %v_6, 1: I32
-    je %v_7, b_8, b_9
-  }
-
-  b_3 {
-    ret 18446744073709551615
-  }
-
-  b_9 {
-    jmp b_10
-  }
-
-  b_10 {
     store @trace, 0, 4
-    %v_11 = call_complex ordered: I32
-    %v_12 = cmp_neq %v_11, 0: I32
-    je %v_12, b_13, b_14
+    %v_6 = alloca 4, 4: Ptr
+    %v_7 = alloca 4, 4: Ptr
+    store %v_6, 3, 4
+    call_complex Guard.drop, %v_6
+    store %v_7, 2, 4
+    call_complex Guard.drop, %v_7
+    %v_8 = loads @trace, 4: I32
+    %v_9 = cmp_neq %v_8, 32: I32
+    je %v_9, b_10, b_11
   }
 
-  b_8 {
+  b_4 {
     ret 18446744073709551614
   }
 
-  b_14 {
-    jmp b_15
+  b_11 {
+    store @trace, 0, 4
+    %v_12 = alloca 4, 4: Ptr
+    %v_13 = loads @trace, 4: I32
+    %v_14 = imul %v_13, 10: I32
+    %v_15 = add %v_14, 9: I32
+    store @trace, %v_15, 4
+    store %v_12, 4, 4
+    call_complex Guard.drop, %v_12
+    jmp b_16
   }
 
-  b_15 {
-    %v_16 = loads @trace, 4: I32
-    %v_17 = cmp_neq %v_16, 32: I32
-    je %v_17, b_18, b_19
+  b_10 {
+    ret 18446744073709551612
   }
 
-  b_13 {
-    ret 18446744073709551613
-  }
-
-  b_19 {
-    jmp b_20
+  b_16 {
+    %v_17 = loads @trace, 4: I32
+    %v_18 = cmp_neq %v_17, 94: I32
+    je %v_18, b_19, b_20
   }
 
   b_20 {
     store @trace, 0, 4
-    %v_21 = call_complex extended: I32
-    %v_22 = cmp_neq %v_21, 4: I32
-    je %v_22, b_23, b_24
+    %v_21 = alloca 4, 4: Ptr
+    store %v_21, 5, 4
+    call_complex Guard.drop, %v_21
+    jmp b_22
   }
 
-  b_18 {
-    ret 18446744073709551612
-  }
-
-  b_24 {
-    jmp b_25
-  }
-
-  b_25 {
-    %v_26 = loads @trace, 4: I32
-    %v_27 = cmp_neq %v_26, 94: I32
-    je %v_27, b_28, b_29
-  }
-
-  b_23 {
-    ret 18446744073709551611
-  }
-
-  b_29 {
-    jmp b_30
-  }
-
-  b_30 {
-    store @trace, 0, 4
-    %v_31 = call_complex handedOver: I32
-    %v_32 = cmp_neq %v_31, 5: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_28 {
+  b_19 {
     ret 18446744073709551610
   }
 
-  b_34 {
-    jmp b_35
+  b_22 {
+    %v_23 = loads @trace, 4: I32
+    %v_24 = cmp_neq %v_23, 5: I32
+    je %v_24, b_25, b_26
   }
 
-  b_35 {
-    %v_36 = loads @trace, 4: I32
-    %v_37 = cmp_neq %v_36, 5: I32
-    je %v_37, b_38, b_39
-  }
-
-  b_33 {
-    ret 18446744073709551609
-  }
-
-  b_39 {
-    jmp b_40
-  }
-
-  b_40 {
+  b_26 {
     store @trace, 0, 4
-    %v_41 = call_complex released: I32
-    %v_42 = cmp_neq %v_41, 0: I32
-    je %v_42, b_43, b_44
+    %v_27 = alloca 4, 4: Ptr
+    store %v_27, 1, 4
+    call_complex Guard.drop, %v_27
+    %v_28 = loads @trace, 4: I32
+    %v_29 = cmp_neq %v_28, 1: I32
+    je %v_29, b_30, b_31
   }
 
-  b_38 {
+  b_25 {
     ret 18446744073709551608
   }
 
-  b_44 {
-    jmp b_45
-  }
-
-  b_45 {
-    %v_46 = loads @trace, 4: I32
-    %v_47 = cmp_neq %v_46, 1: I32
-    je %v_47, b_48, b_49
-  }
-
-  b_43 {
-    ret 18446744073709551601
-  }
-
-  b_49 {
-    jmp b_50
-  }
-
-  b_50 {
+  b_31 {
     store @trace, 0, 4
-    %v_51 = call_complex wholeRecord: I32
-    %v_52 = cmp_neq %v_51, 0: I32
-    je %v_52, b_53, b_54
+    %v_32 = alloca 8, 4: Ptr
+    store %v_32, 6, 4
+    %v_33 = add %v_32, 4: Ptr
+    store %v_33, 7, 4
+    call_complex Guard.drop, %v_32
+    %v_34 = add %v_32, 4: Ptr
+    call_complex Guard.drop, %v_34
+    %v_35 = loads @trace, 4: I32
+    %v_36 = cmp_neq %v_35, 67: I32
+    je %v_36, b_37, b_38
   }
 
-  b_48 {
+  b_30 {
     ret 18446744073709551600
   }
 
-  b_54 {
-    jmp b_55
-  }
-
-  b_55 {
-    %v_56 = loads @trace, 4: I32
-    %v_57 = cmp_neq %v_56, 67: I32
-    je %v_57, b_58, b_59
-  }
-
-  b_53 {
-    ret 18446744073709551607
-  }
-
-  b_59 {
-    jmp b_60
-  }
-
-  b_60 {
+  b_38 {
     store @trace, 0, 4
-    %v_61 = call_complex byMember: I32
-    %v_62 = cmp_neq %v_61, 9: I32
-    je %v_62, b_63, b_64
+    %v_39 = alloca 4, 4: Ptr
+    store %v_39, 8, 4
+    call_complex Guard.drop, %v_39
+    %v_40 = alloca 4, 4: Ptr
+    store %v_40, 9, 4
+    call_complex Guard.drop, %v_40
+    jmp b_41
   }
 
-  b_58 {
+  b_37 {
     ret 18446744073709551606
   }
 
-  b_64 {
-    jmp b_65
+  b_41 {
+    %v_42 = loads @trace, 4: I32
+    %v_43 = cmp_neq %v_42, 89: I32
+    je %v_43, b_44, b_45
   }
 
-  b_65 {
-    %v_66 = loads @trace, 4: I32
-    %v_67 = cmp_neq %v_66, 89: I32
-    je %v_67, b_68, b_69
-  }
-
-  b_63 {
-    ret 18446744073709551605
-  }
-
-  b_69 {
-    jmp b_70
-  }
-
-  b_70 {
+  b_45 {
     store @trace, 0, 4
-    %v_71 = call_complex pooled: I32
-    %v_72 = cmp_neq %v_71, 0: I32
-    je %v_72, b_73, b_74
+    %v_46 = alloca 4, 4: Ptr
+    store %v_46, 2, 4
+    call_complex Pool.drop, %v_46
+    %v_47 = loads @trace, 4: I32
+    %v_48 = cmp_neq %v_47, 12: I32
+    je %v_48, b_49, b_50
   }
 
-  b_68 {
+  b_44 {
     ret 18446744073709551604
   }
 
-  b_74 {
-    jmp b_75
-  }
-
-  b_75 {
-    %v_76 = loads @trace, 4: I32
-    %v_77 = cmp_neq %v_76, 12: I32
-    je %v_77, b_78, b_79
-  }
-
-  b_73 {
-    ret 18446744073709551603
-  }
-
-  b_79 {
-    jmp b_80
-  }
-
-  b_80 {
+  b_50 {
     ret 0
   }
 
-  b_78 {
+  b_49 {
     ret 18446744073709551602
   }
 }

@@ -50,6 +50,20 @@ struct Pipeline {
     // Verified MIR to verified SSA.
     bool convert();
 
+    /*
+     * The optimizer over that SSA - `opt/`, and `settings.optimizeIr` decides whether any pass runs.
+     *
+     * Between `convert` and `lower`, and **after `releaseMir`**: the optimizer reads declarations,
+     * which live in the decl region and survive, and never MIR. Which is also why the SSA dump is
+     * below this rather than above it - `-mode ssa` prints what the backend gets, exactly as
+     * `-mode ir` does for the shipping stage, and `-no-ir-opt` is how the form before it is asked
+     * for.
+     *
+     * False if a pass produced IR the verifier rejects, which has been reported by then. A program
+     * that failed above this answers true and does nothing, on the same terms as `lower`.
+     */
+    bool optimize();
+
     // Verified SSA to the shared lower IR. Null if anything above failed.
     Ptr<LowerModule> lower();
 

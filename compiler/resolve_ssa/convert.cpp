@@ -2238,7 +2238,7 @@ struct Conversion {
         // What parameter `i` arrived as - the entry's argument, or the call's.
         auto incomingArgument = [&](U32 i) -> Value* {
             if(grafting) return base()[grafting->arguments[i].value()];
-            return base()[entry->arguments.get(base(), i)];
+            return base()[entry->argumentAt(base(), i)];
         };
 
         for(U32 i = 0; i < source.blocks.size(); i++) {
@@ -2258,7 +2258,7 @@ struct Conversion {
                 if(!outlining || !count) continue;
 
                 auto& argument = *mir[block->arguments.get(mir, 0)];
-                produced[argument.id.index] = entry->arguments.get(base(), 1);
+                produced[argument.id.index] = entry->argumentAt(base(), 1);
                 continue;
             }
 
@@ -2299,7 +2299,7 @@ struct Conversion {
         Array<SsaPtr<Value>> captured;
 
         if(outlining) {
-            environment = entry->arguments.get(base(), 0);
+            environment = entry->argumentAt(base(), 0);
 
             auto& record = *(mir::RecordType*)decl()[outlining->environment];
 

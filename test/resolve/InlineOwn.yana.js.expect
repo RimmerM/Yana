@@ -1,0 +1,73 @@
+"use strict";
+var live = 0;
+var trace = 0;
+var seed = 3;
+
+// ResolveTest
+function clamped(v) {
+  if (v > 100) {
+    return 100;
+  } else {
+    return v;
+  }
+}
+
+function loops(n) {
+  var total = 0;
+  var i = 0;
+  while (i < n) {
+    total = total + Math.imul(i, 2) | 0;
+    i = i + 1 | 0;
+  }
+  return total;
+}
+
+function wideChain(a, b) {
+  var c1 = (Math.imul(a, 3) + Math.imul(b, 5) | 0) - a | 0;
+  var c2 = (Math.imul(c1, 2) + Math.imul(a, 7) | 0) - b | 0;
+  var c3 = (Math.imul(c2, 2) + Math.imul(b, 11) | 0) - c1 | 0;
+  var c4 = (Math.imul(c3, 2) + Math.imul(c1, 13) | 0) - c2 | 0;
+  var c5 = (Math.imul(c4, 2) + Math.imul(c2, 3) | 0) - c3 | 0;
+  var c6 = (Math.imul(c5, 2) + Math.imul(c3, 5) | 0) - c4 | 0;
+  var c7 = (Math.imul(c6, 2) + Math.imul(c4, 7) | 0) - c5 | 0;
+  return ((((((((Math.imul(c7, 2) + Math.imul(c5, 11) | 0) - c6 | 0) - c7 | 0) + c6 | 0) - c5 | 0) + c4 | 0) - c3 | 0) + c2 | 0) - c1 | 0;
+}
+
+function countDown(n) {
+  if (n <= 0) {
+    return 0;
+  } else {
+    return n + countDown(n - 1 | 0) | 0;
+  }
+}
+
+function main() {
+  var v8 = seed + 1 | 0;
+  var v117 = Math.imul(seed, v8);
+  var v12 = Math.imul(Math.imul(v117 + seed | 0, 100) + (v117 + v8 | 0) | 0, 2);
+  live = live + 1 | 0;
+  Drop_Held_drop(seed);
+  var v27 = (v12 + Math.imul(seed, 6) | 0) + Math.imul(Math.imul(seed, 3000) + Math.imul(seed, 9) | 0, 5) | 0;
+  live = live + 1 | 0;
+  Drop_Held_drop(seed);
+  var v33 = Math.imul(v8, 7);
+  var v34 = v27 + v33 | 0;
+  live = live + 1 | 0;
+  Drop_Held_drop(9);
+  var v89 = (((((v34 + 1386 | 0) + Math.imul(clamped(Math.imul(seed, 50)), 13) | 0) + Math.imul(clamped(Math.imul(seed, 4)), 17) | 0) + Math.imul(loops(seed), 19) | 0) + Math.imul(wideChain(seed, v8), 23) | 0) + Math.imul(wideChain(v8, seed), 29) | 0;
+  var d1 = (Math.imul(seed, 5) + Math.imul(v8, 3) | 0) - v8 | 0;
+  var d2 = (Math.imul(d1, 2) + v33 | 0) - seed | 0;
+  var v168 = Math.imul(d2, 3);
+  var d3 = (v168 + Math.imul(seed, 11) | 0) - d1 | 0;
+  var d4 = (Math.imul(d3, 2) + Math.imul(d1, 13) | 0) - d2 | 0;
+  var d5 = (Math.imul(d4, 2) + v168 | 0) - d3 | 0;
+  var d6 = (Math.imul(d5, 2) + Math.imul(d3, 5) | 0) - d4 | 0;
+  var d7 = (Math.imul(d6, 2) + Math.imul(d4, 7) | 0) - d5 | 0;
+  return (((v89 + Math.imul(((((((((Math.imul(d7, 2) + Math.imul(d5, 11) | 0) - d6 | 0) - d7 | 0) + d6 | 0) - d5 | 0) + d4 | 0) - d3 | 0) + d2 | 0) - d1 | 0, 31) | 0) + Math.imul(countDown(seed), 37) | 0) + Math.imul(live, 41) | 0) + trace | 0;
+}
+
+function Drop_Held_drop(self) {
+  live = live - 1 | 0;
+  trace = Math.imul(trace, 10) + self | 0;
+}
+main();

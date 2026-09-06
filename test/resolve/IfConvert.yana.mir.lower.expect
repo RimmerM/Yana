@@ -1,0 +1,182 @@
+mut @live = [0, 0, 0, 0]
+mut @calls = [0, 0, 0, 0]
+
+Held.drop<complex>(%self: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    copy %v_1, %self, 4
+    %v_2 = loads @live, 4: I32
+    %v_3 = sub %v_2, 1: I32
+    store @live, %v_3, 4
+    ret 
+  }
+}
+
+truth<complex>(%a: I32, %b: I32): I32 {
+  b_0 {
+    %v_1 = cmp_igt %a, 0: I32
+    %v_2 = cmp_igt %b, 0: I32
+    %v_3 = and %v_1, %v_2: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_0, 0], [b_4, 1]: I32
+    %v_7 = cmp_igt %a, 0: I32
+    %v_8 = cmp_igt %b, 0: I32
+    %v_9 = or %v_7, %v_8: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_11 {
+    %v_12 = phi [b_5, %v_6], [b_10, %v_13]: I32
+    %v_14 = cmp_igt %a, 0: I32
+    %v_15 = xor %v_14, 1: I32
+    %v_16 = cmp_igt %b, 0: I32
+    %v_17 = and %v_15, %v_16: I32
+    je %v_17, b_18, b_19
+  }
+
+  b_10 {
+    %v_13 = add %v_6, 2: I32
+    jmp b_11
+  }
+
+  b_19 {
+    %v_20 = phi [b_11, %v_12], [b_18, %v_21]: I32
+    %v_22 = cmp_igt %a, 0: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_18 {
+    %v_21 = add %v_12, 4: I32
+    jmp b_19
+  }
+
+  b_24 {
+    %v_25 = phi [b_19, %v_20], [b_23, %v_20], [b_26, %v_27]: I32
+    %v_28 = cmp_igt %a, 0: I32
+    je %v_28, b_29, b_30
+  }
+
+  b_26 {
+    %v_27 = add %v_20, 8: I32
+    jmp b_24
+  }
+
+  b_29 {
+    %v_31 = phi [b_24, %v_25], [b_30, %v_32]: I32
+    %v_33 = cmp_igt %a, 0: I32
+    je %v_33, b_34, b_35
+  }
+
+  b_30 {
+    %v_32 = add %v_25, 16: I32
+    jmp b_29
+  }
+
+  b_35 {
+    %v_36 = phi [b_29, %v_31], [b_34, %v_37]: I32
+    ret %v_36
+  }
+
+  b_34 {
+    %v_37 = add %v_31, 32: I32
+    jmp b_35
+  }
+
+  b_23 {
+    %v_38 = cmp_igt %b, 0: I32
+    je %v_38, b_24, b_26
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex truth, 1, 1: I32
+    %v_2 = imul %v_1, 23: I32
+    %v_3 = add 1019, %v_2: I32
+    %v_4 = call_complex truth, 1, 0: I32
+    %v_5 = imul %v_4, 29: I32
+    %v_6 = add %v_3, %v_5: I32
+    %v_7 = call_complex truth, 0, 1: I32
+    %v_8 = imul %v_7, 31: I32
+    %v_9 = add %v_6, %v_8: I32
+    %v_10 = call_complex truth, 0, 0: I32
+    %v_11 = imul %v_10, 37: I32
+    %v_12 = add %v_9, %v_11: I32
+    %v_13 = add %v_12, 492: I32
+    %v_14 = loads @calls, 4: I32
+    %v_15 = add %v_14, 1: I32
+    store @calls, %v_15, 4
+    %v_16 = add %v_13, 53: I32
+    %v_17 = add %v_16, 610: I32
+    %v_18 = alloca 4, 4: Ptr
+    %v_19 = loads @live, 4: I32
+    %v_20 = add %v_19, 1: I32
+    store @live, %v_20, 4
+    jmp b_21
+  }
+
+  b_21 {
+    %v_22 = alloca 4, 4: Ptr
+    store %v_22, 3, 4
+    jmp b_23
+  }
+
+  b_23 {
+    copy %v_18, %v_22, 4
+    %v_24 = alloca 4, 4: Ptr
+    copy %v_24, %v_18, 4
+    %v_25 = loads %v_24, 4: I32
+    call_complex Held.drop, %v_24
+    %v_26 = imul %v_25, 67: I32
+    %v_27 = add %v_17, %v_26: I32
+    %v_28 = alloca 4, 4: Ptr
+    %v_29 = loads @live, 4: I32
+    %v_30 = add %v_29, 1: I32
+    store @live, %v_30, 4
+    jmp b_31
+  }
+
+  b_31 {
+    %v_32 = alloca 4, 4: Ptr
+    store %v_32, 4, 4
+    jmp b_33
+  }
+
+  b_33 {
+    copy %v_28, %v_32, 4
+    %v_34 = alloca 4, 4: Ptr
+    copy %v_34, %v_28, 4
+    %v_35 = loads %v_34, 4: I32
+    call_complex Held.drop, %v_34
+    %v_36 = imul %v_35, 71: I32
+    %v_37 = add %v_27, %v_36: I32
+    %v_38 = loads @live, 4: I32
+    %v_39 = add %v_38, 1: I32
+    store @live, %v_39, 4
+    %v_40 = alloca 4, 4: Ptr
+    store %v_40, 7, 4
+    call_complex Held.drop, %v_40
+    %v_41 = add %v_37, 584: I32
+    %v_42 = loads @live, 4: I32
+    %v_43 = add %v_42, 1: I32
+    store @live, %v_43, 4
+    %v_44 = alloca 4, 4: Ptr
+    store %v_44, 7, 4
+    call_complex Held.drop, %v_44
+    %v_45 = imul %v_41, 1000: I32
+    %v_46 = loads @calls, 4: I32
+    %v_47 = imul %v_46, 10: I32
+    %v_48 = add %v_45, %v_47: I32
+    %v_49 = loads @live, 4: I32
+    %v_50 = add %v_48, %v_49: I32
+    ret %v_50
+  }
+}
+

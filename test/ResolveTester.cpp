@@ -976,6 +976,81 @@ static bool runLlvmPass(const String& path, const String& llvmPath, Context& con
 }
 
 /*
+ * The same fixture through the rewritten stage with its optimizer switched off.
+ *
+ * The half `runUnoptimizedPass` does for the shipping stage, on the same argument: an optimization
+ * may make a program faster and may not make it different, so the honest test is compiling it both
+ * ways and comparing what it does. Only the *result* is compared - the two forms legitimately
+ * produce different IR, and that they do is the point.
+ *
+ * **Against the optimized build's own answer rather than against `.run.expect`**, which is what
+ * makes this an assertion of its own instead of a second copy of the run check: the expectation
+ * file is a number a human worked out, and this compares the compiler with itself.
+ *
+ * A second `Pipeline` from the same source rather than a second lowering of the same SSA, for the
+ * reason the shipping stage's version gives: the optimizer rewrites the body in place, and there is
+ * no way to un-optimize one.
+ *
+ * `-no-ir-opt` reaches the lower tier as well now (see `lower/lower_pipeline.h`), so what this
+ * compares is the whole of what the flag switches off rather than this directory alone. There is no
+ * JavaScript half, because this stage has no JS backend - which is most of why it is a third of the
+ * size of the shipping stage's version.
+ */
+static bool runUnoptimizedOwnershipPass(const String& path, StringView source, I64 optimized) {
+    TestProvider provider;
+    provider.source = source;
+    PrintDiagnostics diagnostics(provider);
+    Context context(diagnostics);
+    applyFixtureDirectives(context.settings, source);
+    context.settings.resolver = ResolverStage::Ownership;
+    context.settings.optimizeIr = false;
+    provider.context = &context;
+
+    auto name = context.addUnqualifiedName("ResolveTest", 11);
+    Lexer lexer(context, diagnostics, source, name);
+    Parser parser(context, lexer, name);
+    auto ast = parser.parseModule();
+
+    ssa::Pipeline pipeline(context);
+    if(!pipeline.resolve(ast, &provider) || !pipeline.convert()) {
+        println("Fail (%@): the unoptimized ownership pipeline produced %@ diagnostics.", path,
+                diagnostics.errorCount());
+        return false;
+    }
+
+    auto decl = *pipeline.program->decl;
+    auto entry = pipeline.program->entry ? decl[pipeline.program->entry] : nullptr;
+    auto resultType = entry ? decl[entry->result.type] : nullptr;
+    auto unitResult = !resultType || resultType->kind == mir::Type::Unit;
+    auto wideResult = resultType && resultType->kind == mir::Type::Int &&
+                      ((mir::IntType*)resultType)->bits == 64;
+
+    // The same call order the optimized build takes, including the optimizer itself - whose gate
+    // returns immediately here. The two builds differ in the setting rather than in which calls the
+    // tester makes, which is what keeps this a test of the setting.
+    pipeline.releaseMir();
+    pipeline.optimize();
+
+    auto lowered = pipeline.lower();
+    if(!lowered || diagnostics.errorCount()) {
+        println("Fail (%@): the unoptimized ownership pipeline did not lower.", path);
+        return false;
+    }
+
+    if(!validateLowerModule(&diagnostics, lowered.get())) {
+        println("Fail (%@): the unoptimized ownership pipeline produced invalid lower IR.", path);
+        return false;
+    }
+
+    auto actual = executeModule(context, *lowered, unitResult, wideResult);
+    if(actual && actual.unwrap() == optimized) return true;
+
+    println("Fail (%@): the SSA optimizer changed the answer - unoptimized main returned %@, optimized %@.",
+            path, actual ? actual.unwrap() : I64(-1), optimized);
+    return false;
+}
+
+/*
  * The same fixture through the rewritten stage - Analysis-IR.md part 11.3.
  *
  * Opted into by a `.mir.expect` beside the source, on the same terms as every other mode here, and
@@ -984,10 +1059,19 @@ static bool runLlvmPass(const String& path, const String& llvmPath, Context& con
  * `.ssa.expect` and `.mir.lower.expect` are separately optional, for a fixture that is about one of
  * those and not the other.
  *
+ * `.ssa.opt.expect` is the fifth, and it is the SSA after `resolve_ssa/opt` has run. It is opt-in on
+ * the stricter terms `.mir.repr.expect` has - the file exists or it does not, and `generate` never
+ * creates one - because most fixtures are not about the optimizer and would otherwise grow a second
+ * copy of their IR that moves whenever any pass changes. `.ssa.expect` stays the **conversion's**
+ * output, printed before the optimizer runs, so the two side by side are the before and after of the
+ * whole stage.
+ *
  * The run expectation is deliberately **not** a file of its own. `.run.expect` is what the current
  * stage is checked against, and the first thing worth asserting about the second stage is that it
  * agrees: two implementations of one language that answer differently is the failure this catches,
- * and a second expected value would let it pass.
+ * and a second expected value would let it pass. What it does buy is a second run: a fixture that
+ * has one is also compiled with the optimizer switched off and the two answers compared - see
+ * `runUnoptimizedOwnershipPass`, which is where that argument is.
  *
  * A separate `Context` rather than the one above, because the two stages resolve the same source
  * independently - the new one does not build Core, and sharing a context would mean sharing the
@@ -1067,6 +1151,45 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
         pass = compareText(ssaPath, ssaWriter.getBuffered()) && pass;
     }
 
+    /*
+     * The MIR region, released here - the driver's order, kept because it is the one that is
+     * checked. Nothing below conversion may hold an MIR handle (Analysis-IR.md §8.8), and a released
+     * region is what makes an accidental one fail loudly; a tester that held the region open would
+     * be the one place in the compilation where that rule is not tested.
+     */
+    pipeline.releaseMir();
+
+    /*
+     * And the optimizer over that SSA - `resolve_ssa/opt`.
+     *
+     * After the `.ssa.expect` comparison above, deliberately: that golden is the **conversion's**
+     * output and is the ownership fixture's assertion, so it must not move when a pass is added. The
+     * pair of goldens is then the before and after of the whole stage.
+     */
+    if(!pipeline.optimize()) {
+        println("Fail (%@): the SSA optimizer produced IR the verifier rejects.", path);
+        return false;
+    }
+
+    /*
+     * The optimized form, opt-in per fixture and **not** created by `generate` - the same terms as
+     * `.mir.repr.expect` above, and for the same reason. Most fixtures are not about the optimizer
+     * and would otherwise grow a second copy of their IR that churns whenever any pass changes; an
+     * empty file beside the source is how one opts in.
+     */
+    auto ssaOptPath = path + String(".ssa.opt.expect");
+    if(fileExists(ssaOptPath)) {
+        if(generate) {
+            writeText(ssaOptPath, [&](Net::Writer& writer) {
+                ssa::printProgram(writer, context, *pipeline.program, pipeline.converted);
+            });
+        }
+
+        Net::Writer optWriter(16384);
+        ssa::printProgram(optWriter, context, *pipeline.program, pipeline.converted);
+        pass = compareText(ssaOptPath, optWriter.getBuffered()) && pass;
+    }
+
     // Whether the entry answers nothing, and whether it answers something wider than a register
     // half - read off the declaration, which is where both stages keep it.
     auto decl = *pipeline.program->decl;
@@ -1111,6 +1234,12 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
                     actual ? actual.unwrap() : I64(-1), expected.unwrap());
             pass = false;
         }
+
+        // And the same program with the SSA optimizer switched off, compared against what this run
+        // answered rather than against any file - see `runUnoptimizedOwnershipPass`. Only where the
+        // optimized build produced an answer at all: a second complaint about a failure already
+        // reported would only make the first harder to find.
+        if(actual) pass = runUnoptimizedOwnershipPass(path, source, actual.unwrap()) && pass;
     }
 
     return pass;

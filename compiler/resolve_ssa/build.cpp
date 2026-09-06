@@ -34,10 +34,22 @@ Editor::Editor(Context& context, mir::Program& program, SsaArena& arena, mir::Fu
     currentRegion = ContinuationId(0);
 }
 
+Editor::Editor(Context& context, mir::Program& program, SsaArena& arena, mir::Function& function,
+               Body& body, bool* changed):
+    context(context), program(program), arena(arena), function(function), body(body),
+    changed(changed)
+{
+    // No insertion point until `setBlock` names one - see the note on the declaration. The region is
+    // the entry's, because `addBlock` needs one and there is no "no region" a block may be in.
+    current = nullptr;
+    currentRegion = base()[body.entry]->region;
+}
+
 Block* Editor::addBlock(StringId name) {
     auto index = BlockId(body.blocks.size());
     auto block = new (arena) Block(index, name, currentRegion);
     body.blocks.push(arena, block - base());
+    markBlocks();
 
     // The first block made inside a region is its entry - see `Continuation::entry`. Here rather
     // than an argument to `enterRegion`, because the block does not exist yet when the region is
@@ -74,12 +86,13 @@ void Editor::leaveRegion() {
 }
 
 Value* Editor::addBlockArgument(Block& block, const Occurrence& occurrence, Convention convention) {
-    assertTrue(block.instructions.size() == 0);
+    assertTrue(block.instructionList.size() == 0);
 
     auto value = new (arena) Value(occurrence, convention);
     value->id = ValueId(body.values.push(arena, value - base()));
     value->block = &block - base();
-    block.arguments.push(arena, value - base());
+    block.argumentList.push(arena, value - base());
+    markValues();
 
     /*
      * A borrowed parameter's loan is the caller's, and so is a borrowed block argument's.
@@ -128,6 +141,25 @@ void Editor::setDependency(Value& value, Loan& loan) {
 
 void Editor::setBlock(Block& block) {
     current = &block;
+    cursor = kAppend;
+}
+
+void Editor::setInsertBefore(Inst& before) {
+    auto block = base()[before.block];
+    assertTrue(block != nullptr && !block->deleted);
+
+    auto pointer = &before - base();
+    for(Size i = 0; i < block->instructionList.size(); i++) {
+        if(block->instructionList.get(base(), i) != pointer) continue;
+
+        current = block;
+        cursor = i;
+        return;
+    }
+
+    // An instruction that is not in the block it names is one an erase has already unlinked, and
+    // inserting in front of it is a caller that has lost track of what it removed.
+    assertTrue(false);
 }
 
 Value* Editor::addResult(Inst& inst, const Occurrence& occurrence, Convention convention) {
@@ -170,21 +202,32 @@ Use Editor::use(Value& value, UseKind kind) {
 
 void Editor::recordUse(Inst& inst, Use used) {
     if(!used.isSet()) return;
-    base()[used.value()]->uses.push(arena, &inst - base());
+    base()[used.value()]->useList.push(arena, &inst - base());
 }
 
 Inst* Editor::append(Inst* inst) {
     assertTrue(current != nullptr);
-
-    auto count = current->instructions.size();
-    if(count) {
-        auto last = base()[current->instructions.get(base(), count - 1)];
-        assertTrue(!isTerminator(last->kind));
-    }
+    assertTrue(!current->deleted);
 
     inst->id = InstId(body.insts.push(arena, inst - base()));
-    inst->block = current - base();
-    current->instructions.push(arena, inst - base());
+
+    if(cursor == kAppend) {
+        auto count = current->instructionList.size();
+        if(count) {
+            auto last = base()[current->instructionList.get(base(), count - 1)];
+            assertTrue(!isTerminator(last->kind));
+        }
+
+        inst->block = current - base();
+        current->instructionList.push(arena, inst - base());
+    } else {
+        // Behind whatever was placed here last, so that a caller adding two instructions gets them
+        // in the order it wrote them - see `setInsertBefore`.
+        insertInst(*current, cursor, *inst);
+        cursor++;
+    }
+
+    markValues();
 
     // The use lists, updated in the same call that made the instruction - which is the whole reason
     // instructions are created through this and not with `new`.
@@ -510,25 +553,25 @@ Inst* Editor::addVecReduce(LocationId source, Use from, mir::ReduceOp reduce,
     return inst;
 }
 
-Inst* Editor::addReturn(LocationId source, const Use* values, Size count) {
+Inst* Editor::makeReturn(LocationId source, const Use* values, Size count) {
     auto inst = new (arena) InstReturn(source);
     for(Size i = 0; i < count; i++) inst->values.push(arena, values[i]);
-    return append(inst);
+    return inst;
 }
 
-Inst* Editor::addJump(LocationId source, Block& target, const Use* arguments, Size count) {
-    assertTrue(count == target.arguments.size());
+Inst* Editor::makeJump(LocationId source, Block& target, const Use* arguments, Size count) {
+    assertTrue(count == target.argumentList.size());
 
     auto inst = new (arena) InstJump(source);
     inst->to.target = &target - base();
     for(Size i = 0; i < count; i++) inst->to.arguments.push(arena, arguments[i]);
 
-    return append(inst);
+    return inst;
 }
 
-Inst* Editor::addBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse,
-                        const Use* arguments, Size count) {
-    assertTrue(count == whenTrue.arguments.size() && count == whenFalse.arguments.size());
+Inst* Editor::makeBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse,
+                         const Use* arguments, Size count) {
+    assertTrue(count == whenTrue.argumentList.size() && count == whenFalse.argumentList.size());
 
     auto inst = new (arena) InstBranch(source, condition);
     inst->whenTrue.target = &whenTrue - base();
@@ -539,27 +582,569 @@ Inst* Editor::addBranch(LocationId source, Use condition, Block& whenTrue, Block
         inst->whenFalse.arguments.push(arena, arguments[i]);
     }
 
-    return append(inst);
+    return inst;
+}
+
+Inst* Editor::makeUnreachable(LocationId source) {
+    return new (arena) InstUnreachable(source);
+}
+
+Inst* Editor::addReturn(LocationId source, const Use* values, Size count) {
+    return append(makeReturn(source, values, count));
+}
+
+Inst* Editor::addJump(LocationId source, Block& target, const Use* arguments, Size count) {
+    return append(makeJump(source, target, arguments, count));
+}
+
+Inst* Editor::addBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse,
+                        const Use* arguments, Size count) {
+    return append(makeBranch(source, condition, whenTrue, whenFalse, arguments, count));
 }
 
 Inst* Editor::addUnreachable(LocationId source) {
-    return append(new (arena) InstUnreachable(source));
+    return append(makeUnreachable(source));
 }
 
 void Editor::seal() {
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(base(), BlockId(i));
-        auto count = block->instructions.size();
-        if(!count) continue;
-
-        auto last = base()[block->instructions.get(base(), count - 1)];
-        if(!isTerminator(last->kind)) continue;
+        auto last = block->terminator(base());
+        if(!last) continue;
 
         forEachEdge(*last, [&](Edge& edge) {
             if(!edge.target) return;
-            base()[edge.target]->incoming.push(arena, block - base());
+            base()[edge.target]->incomingList.push(arena, block - base());
         });
     }
+
+    markBlocks();
+}
+
+/*
+ * Every operand slot of one instruction, rewritten - the mutating half of `forEachUse`.
+ *
+ * A switch of its own rather than a flag on that walk, because the two shapes of operand are written
+ * back differently and only one of them can be handed out by reference at all. A plain `Use` member
+ * - `InstBinary::lhs` - is a field and `eachUse` passes it as one; an entry of a `UseList` is not,
+ * because `contents` unmasks into a copy (`util/README.md`'s trap), so a rewrite driven from that
+ * walk would assign a temporary and say nothing.
+ *
+ * Being a *second* statement of the operand relation is a property rather than a cost, and it is the
+ * same one the old stage's `recordUses` is a switch for: `verifyBody` checks the use lists against
+ * `forEachUse`, so a slot this walk invents or misses is a use count that never balances.
+ */
+template<class F>
+static void mapUses(SsaBase base, Inst& inst, F&& f) {
+    auto one = [&](Use& used) { if(used.isSet()) used = f(used); };
+    auto many = [&](UseList& list) {
+        for(U32 i = 0; i < list.size(); i++) {
+            auto used = list.get(base, i);
+            if(used.isSet()) list.set(base, i, f(used));
+        }
+    };
+
+    switch(inst.kind) {
+        case Inst::Const:
+        case Inst::GlobalAddress:
+        case Inst::GenValue:
+        case Inst::Metric:
+        case Inst::Alloc:
+        case Inst::Unreachable:
+            break;
+
+        case Inst::Native:   many(((InstNative&)inst).arguments); break;
+        case Inst::Atomic:   many(((InstAtomic&)inst).arguments); break;
+        case Inst::AtomicOk: one(((InstAtomicOk&)inst).cas); break;
+
+        case Inst::Fma: {
+            auto& written = (InstFma&)inst;
+            one(written.lhs); one(written.rhs); one(written.addend);
+            break;
+        }
+
+        case Inst::Select: {
+            auto& written = (InstSelect&)inst;
+            one(written.condition); one(written.whenTrue); one(written.whenFalse);
+            break;
+        }
+
+        case Inst::VecSplat: one(((InstVecSplat&)inst).from); break;
+        case Inst::VecLane:  one(((InstVecLane&)inst).from); break;
+
+        case Inst::VecWithLane: {
+            auto& written = (InstVecLane&)inst;
+            one(written.from); one(written.value);
+            break;
+        }
+
+        case Inst::VecShuffle: {
+            auto& written = (InstVecShuffle&)inst;
+            one(written.left); one(written.right);
+            break;
+        }
+
+        case Inst::VecReduce: one(((InstVecReduce&)inst).from); break;
+        case Inst::FieldAddress: one(((InstFieldAddress&)inst).base); break;
+
+        case Inst::ElementAddress: {
+            auto& written = (InstElementAddress&)inst;
+            one(written.base); one(written.index);
+            break;
+        }
+
+        case Inst::Load: one(((InstLoad&)inst).address); break;
+        case Inst::Copy: one(((InstCopy&)inst).address); break;
+
+        case Inst::Store: {
+            auto& written = (InstStore&)inst;
+            one(written.address); one(written.value);
+            break;
+        }
+
+        case Inst::Binary: {
+            auto& written = (InstBinary&)inst;
+            one(written.lhs); one(written.rhs);
+            break;
+        }
+
+        case Inst::Unary: one(((InstUnary&)inst).value); break;
+        case Inst::Aggregate: many(((InstAggregate&)inst).components); break;
+        case Inst::Drop: one(((InstDrop&)inst).address); break;
+
+        case Inst::FunValue: {
+            auto& written = (InstFunValue&)inst;
+            if(written.capturing) one(written.environment);
+            break;
+        }
+
+        case Inst::Call: {
+            auto& written = (InstCall&)inst;
+            if(written.through == mir::CallThrough::Value) one(written.target);
+            many(written.arguments);
+            break;
+        }
+
+        case Inst::Return: many(((InstReturn&)inst).values); break;
+        case Inst::Jump:   many(((InstJump&)inst).to.arguments); break;
+
+        case Inst::Branch: {
+            auto& written = (InstBranch&)inst;
+            one(written.condition);
+            many(written.whenTrue.arguments);
+            many(written.whenFalse.arguments);
+            break;
+        }
+
+        case Inst::KindCount: assertTrue(false); break;
+    }
+}
+
+// One entry, not every entry: an instruction that names a value twice is in its use list twice and
+// the list has to keep saying so.
+void Editor::dropUse(Value& value, Inst& user) {
+    auto pointer = &user - base();
+
+    for(Size i = 0; i < value.useList.size(); i++) {
+        if(value.useList.get(base(), i) != pointer) continue;
+
+        value.useList.remove(base(), i);
+        return;
+    }
+
+    // A use that is not in the list is a list that was already wrong, and unrecording is not where
+    // that should first be noticed - the verifier is. Loud here anyway, because the alternative is
+    // an editor that quietly tolerates the state it exists to prevent.
+    assertTrue(false);
+}
+
+void Editor::dropUses(Inst& inst) {
+    forEachUse(base(), inst, [&](Use used) {
+        if(used.isSet()) dropUse(*base()[used.value()], inst);
+    });
+
+    forEachEdge(inst, [&](Edge& edge) {
+        for(auto used: edge.arguments.contents(base())) {
+            if(used.isSet()) dropUse(*base()[used.value()], inst);
+        }
+    });
+}
+
+void Editor::unlinkInst(Inst& inst) {
+    auto block = base()[inst.block];
+    auto pointer = &inst - base();
+
+    for(Size i = 0; i < block->instructionList.size(); i++) {
+        if(block->instructionList.get(base(), i) != pointer) continue;
+
+        block->instructionList.remove(base(), i);
+        inst.block = nullptr;
+        return;
+    }
+
+    assertTrue(false);
+}
+
+// Appended and then shifted down, because the embedded and the plain list forms both have `push`,
+// `set` and `remove` and neither has an insert - and a list written by hand would be one more place
+// for the two directions to disagree.
+void Editor::insertInst(Block& block, Size position, Inst& inst) {
+    auto pointer = &inst - base();
+    assertTrue(position <= block.instructionList.size());
+
+    block.instructionList.push(arena, pointer);
+    for(auto i = block.instructionList.size() - 1; i > position; i--) {
+        block.instructionList.set(base(), i, block.instructionList.get(base(), i - 1));
+    }
+
+    block.instructionList.set(base(), position, pointer);
+    inst.block = &block - base();
+}
+
+void Editor::dropIncoming(Block& target, Block& from) {
+    auto pointer = &from - base();
+
+    for(Size i = 0; i < target.incomingList.size(); i++) {
+        if(target.incomingList.get(base(), i) != pointer) continue;
+
+        target.incomingList.remove(base(), i);
+        return;
+    }
+
+    assertTrue(false);
+}
+
+void Editor::addIncoming(Block& target, Block& from) {
+    target.incomingList.push(arena, &from - base());
+}
+
+void Editor::forgetStorage(SsaPtr<Value> storage) {
+    for(auto loanPointer: body.loans.contents(base())) {
+        auto loan = base()[loanPointer];
+
+        for(Size i = 0; i < loan->storage.size(); ) {
+            if(loan->storage.get(base(), i) != storage) { i++; continue; }
+            loan->storage.remove(base(), i);
+        }
+    }
+}
+
+void Editor::repointStorage(SsaPtr<Value> from, SsaPtr<Value> to) {
+    for(auto loanPointer: body.loans.contents(base())) {
+        auto loan = base()[loanPointer];
+
+        for(Size i = 0; i < loan->storage.size(); ) {
+            if(loan->storage.get(base(), i) != from) { i++; continue; }
+
+            // A **set** - see `Loan::storage`. A lender that is already a member absorbs the entry
+            // rather than being named twice, since the loan ends when any member is released and
+            // naming one of them twice states the same fact twice.
+            auto present = false;
+            for(auto held: loan->storage.contents(base())) {
+                if(held == to) present = true;
+            }
+
+            if(present) {
+                loan->storage.remove(base(), i);
+            } else {
+                loan->storage.set(base(), i, to);
+                i++;
+            }
+        }
+    }
+}
+
+void Editor::eraseInst(Inst& inst) {
+    // The precondition every caller that removes a live value has already satisfied by pointing its
+    // readers somewhere - see `replaceAllUses`.
+    for(auto resultPointer: inst.results.contents(base())) {
+        assertTrue(base()[resultPointer]->useList.size() == 0);
+    }
+
+    // The edges before the uses, because a terminator's targets record one predecessor entry per
+    // arm and this is where those end.
+    auto from = base()[inst.block];
+    forEachEdge(inst, [&](Edge& edge) {
+        if(edge.target) dropIncoming(*base()[edge.target], *from);
+    });
+
+    dropUses(inst);
+    unlinkInst(inst);
+
+    for(auto resultPointer: inst.results.contents(base())) forgetStorage(resultPointer);
+
+    if(isTerminator(inst.kind)) markBlocks(); else markValues();
+    markChanged();
+}
+
+void Editor::replaceAllUses(Value& from, Value& to) {
+    assertTrue(&from != &to);
+
+    // The two rules, asserted rather than checked - the note on the declaration is where each of
+    // them is argued.
+    assertTrue(isTracked(from.convention) == isTracked(to.convention));
+
+    auto borrowed = from.convention == Convention::Guaranteed;
+    assertTrue(borrowed == (to.convention == Convention::Guaranteed));
+
+    if(borrowed) {
+        assertTrue(to.loan != nullptr);
+        assertTrue(to.loan == from.loan || base()[to.loan]->storage.size() == 0);
+    }
+
+    auto replaced = &from - base();
+    auto with = &to - base();
+
+    while(from.useList.size()) {
+        auto userPointer = from.useList.get(base(), 0);
+
+        /*
+         * Every slot this instruction reads `from` through, in one go, with the kind of each kept.
+         *
+         * An instruction that names the value twice has two entries, so this runs once per entry
+         * and is a no-op the second time round - a handful of pointers against a loop that would
+         * otherwise have to carry a set of the users it had already rewritten.
+         */
+        mapUses(base(), *base()[userPointer], [&](Use used) {
+            return used.value() == replaced ? Use(with, used.kind()) : used;
+        });
+
+        from.useList.remove(base(), 0);
+        to.useList.push(arena, userPointer);
+    }
+
+    repointStorage(replaced, with);
+
+    markValues();
+    markChanged();
+}
+
+void Editor::moveInst(Inst& inst, Block& target, Size position) {
+    // A terminator moves with the edges it owns, which is `replaceTerminator` and `splitBlock`.
+    assertTrue(!isTerminator(inst.kind));
+    assertTrue(!target.deleted);
+
+    unlinkInst(inst);
+
+    // Never behind the terminator: `checkStructure` reports a terminator in the middle and a block
+    // that does not end in one, and landing there produces both at once.
+    auto last = target.terminator(base());
+    assertTrue(position + (last ? 1 : 0) <= target.instructionList.size());
+
+    insertInst(target, position, inst);
+
+    markValues();
+    markChanged();
+}
+
+Block* Editor::splitBlock(Block& block, Size position) {
+    assertTrue(!block.deleted);
+    assertTrue(position <= block.instructionList.size());
+
+    // Built here rather than through `addBlock`, for two reasons that are both about the region: it
+    // is the *split* block's and not whatever the cursor last left current, and the new block must
+    // not claim the region's entry - control still enters at the half that kept the identity.
+    auto index = BlockId(body.blocks.size());
+    auto made = new (arena) Block(index, block.name, block.region);
+    body.blocks.push(arena, made - base());
+
+    // The tail, in order, by unlink and relink: the operands already name these instructions, so
+    // nothing about a use list changes here and what does is the block each one says it is in.
+    auto moved = block.instructionList.size() - position;
+    for(Size i = 0; i < moved; i++) {
+        auto pointer = block.instructionList.get(base(), position);
+        block.instructionList.remove(base(), position);
+
+        made->instructionList.push(arena, pointer);
+        base()[pointer]->block = made - base();
+    }
+
+    // The edges went with the terminator, so every successor is told they now leave from the new
+    // block - one entry per edge, which is what makes `branch %c, X, X` two repointings.
+    if(auto last = made->terminator(base())) {
+        forEachEdge(*last, [&](Edge& edge) {
+            if(!edge.target) return;
+
+            dropIncoming(*base()[edge.target], block);
+            addIncoming(*base()[edge.target], *made);
+        });
+    }
+
+    markBlocks();
+    markChanged();
+    return made;
+}
+
+void Editor::deleteBlock(Block& block) {
+    assertTrue(!block.deleted);
+    assertTrue(&block != base()[body.entry]);
+    assertTrue(block.incomingList.size() == 0);
+
+    // Last first, which is what makes each erase legal: the terminator goes before anything it
+    // named, and inside a block a definition always precedes its readers.
+    while(block.instructionList.size()) {
+        auto count = block.instructionList.size();
+        eraseInst(*base()[block.instructionList.get(base(), count - 1)]);
+    }
+
+    while(block.argumentList.size()) {
+        assertTrue(base()[block.argumentList.get(base(), 0)]->useList.size() == 0);
+        block.argumentList.remove(base(), 0);
+    }
+
+    block.deleted = true;
+
+    markBlocks();
+    markChanged();
+}
+
+void Editor::redirectEdge(Inst& terminator, Size arm, Block& to) {
+    assertTrue(isTerminator(terminator.kind));
+    assertTrue(!to.deleted);
+
+    Edge* found = nullptr;
+    Size at = 0;
+    forEachEdge(terminator, [&](Edge& edge) { if(at++ == arm) found = &edge; });
+
+    assertTrue(found != nullptr && found->target != nullptr);
+
+    // The shape the target declares, which the edge already supplies - see the note on the
+    // declaration for why a redirect to a block of a different shape is a different operation.
+    assertTrue(found->arguments.size() == to.argumentList.size());
+
+    auto from = base()[terminator.block];
+    dropIncoming(*base()[found->target], *from);
+    found->target = &to - base();
+    addIncoming(to, *from);
+
+    markBlocks();
+    markChanged();
+}
+
+void Editor::removeBlockArgument(Block& block, Size index) {
+    assertTrue(index < block.argumentList.size());
+    assertTrue(base()[block.argumentList.get(base(), index)]->useList.size() == 0);
+
+    /*
+     * One removal per **edge**, with each predecessor visited once.
+     *
+     * A block that lands here on both arms of its branch appears twice in `incoming` and owns two
+     * edges, so walking the predecessor list and then that predecessor's edges would drop four
+     * operands from two lists of one.
+     */
+    auto target = &block - base();
+
+    for(Size i = 0; i < block.incomingList.size(); i++) {
+        auto predecessorPointer = block.incomingList.get(base(), i);
+
+        auto seen = false;
+        for(Size k = 0; k < i; k++) {
+            if(block.incomingList.get(base(), k) == predecessorPointer) seen = true;
+        }
+
+        if(seen) continue;
+
+        auto terminator = base()[predecessorPointer]->terminator(base());
+        if(!terminator) continue;
+
+        forEachEdge(*terminator, [&](Edge& edge) {
+            if(edge.target != target) return;
+
+            auto used = edge.arguments.get(base(), index);
+            if(used.isSet()) dropUse(*base()[used.value()], *terminator);
+
+            edge.arguments.remove(base(), index);
+        });
+    }
+
+    block.argumentList.remove(base(), index);
+
+    markValues();
+    markChanged();
+}
+
+Inst* Editor::replaceTerminator(Block& block, Inst* terminator) {
+    assertTrue(!block.deleted);
+    assertTrue(terminator != nullptr && isTerminator(terminator->kind));
+
+    // Two arms is what the kinds have today. Asserted rather than sized from the instruction,
+    // because a kind with more owes this function a wider array rather than a silent truncation.
+    static constexpr Size kMaxEdges = 4;
+
+    Edge* before[kMaxEdges] = {};
+    Edge* after[kMaxEdges] = {};
+    bool keptOld[kMaxEdges] = {};
+    bool keptNew[kMaxEdges] = {};
+    Size old = 0;
+    Size made = 0;
+
+    auto existing = block.terminator(base());
+    if(existing) {
+        forEachEdge(*existing, [&](Edge& edge) { assertTrue(old < kMaxEdges); before[old++] = &edge; });
+    }
+
+    forEachEdge(*terminator, [&](Edge& edge) { assertTrue(made < kMaxEdges); after[made++] = &edge; });
+
+    /*
+     * The multiset match, greedy by ordinal - the one idea from the old stage's `setTerminator`
+     * worth copying verbatim.
+     *
+     * An edge present in both keeps its `incoming` entry and the arguments it was carrying, over
+     * whatever the caller supplied: folding `branch %c, then, else` into `jump then` is a fold whose
+     * site has no way of knowing what `then` was being handed, and removing and re-adding the edge
+     * would take those arguments and put none back.
+     */
+    for(Size j = 0; j < made; j++) {
+        for(Size i = 0; i < old; i++) {
+            if(keptOld[i] || !before[i]->target || before[i]->target != after[j]->target) continue;
+
+            after[j]->arguments.clear();
+            for(auto used: before[i]->arguments.contents(base())) {
+                after[j]->arguments.push(arena, used);
+            }
+
+            keptOld[i] = true;
+            keptNew[j] = true;
+            break;
+        }
+    }
+
+    for(Size i = 0; i < old; i++) {
+        if(!keptOld[i] && before[i]->target) dropIncoming(*base()[before[i]->target], block);
+    }
+
+    if(existing) {
+        assertTrue(existing->results.size() == 0);
+        dropUses(*existing);
+        unlinkInst(*existing);
+    }
+
+    // Through `append`, which is what records the new terminator's uses - the edge arguments above
+    // included, which is why the copy happens before this and not after.
+    //
+    // The cursor is forced to the end as well as the block, because `append` honours whatever
+    // `setInsertBefore` left there: a pass replacing a terminator with its cursor still parked
+    // inside a block - its own or another's - would otherwise put the terminator in the middle
+    // of the instruction list. A terminator has exactly one legal position, so the cursor is not
+    // this operation's to consult.
+    auto saved = current;
+    auto savedCursor = cursor;
+    current = &block;
+    cursor = kAppend;
+    append(terminator);
+    current = saved;
+    cursor = savedCursor;
+
+    for(Size j = 0; j < made; j++) {
+        if(!after[j]->target) continue;
+
+        assertTrue(after[j]->arguments.size() == base()[after[j]->target]->argumentList.size());
+        if(!keptNew[j]) addIncoming(*base()[after[j]->target], block);
+    }
+
+    markBlocks();
+    markChanged();
+    return terminator;
 }
 
 } // namespace ssa

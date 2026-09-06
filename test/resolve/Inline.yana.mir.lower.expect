@@ -1,481 +1,93 @@
 
-scaled<complex>(%v: I32, %by: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_1, %v, 4
-    store %v_2, %by, 4
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = loads %v_2, 4: I32
-    %v_5 = imul %v_3, %v_4: I32
-    %v_6 = add %v_5, 1: I32
-    ret %v_6
-  }
-}
-
-makePoint<complex>(%v_0: Ptr, %x: I32, %y: I32) {
-  b_1 {
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    store %v_2, %x, 4
-    store %v_3, %y, 4
-    %v_4 = loads %v_2, 4: I32
-    %v_5 = loads %v_3, 4: I32
-    %v_6 = alloca 8, 4: Ptr
-    store %v_6, %v_4, 4
-    %v_7 = add %v_6, 4: Ptr
-    store %v_7, %v_5, 4
-    copy %v_0, %v_6, 8
-    ret 
-  }
-}
-
-twice<complex>(%n: Ptr) {
-  b_0 {
-    %v_1 = loads %n, 4: I32
-    %v_2 = imul %v_1, 2: I32
-    store %n, %v_2, 4
-    ret 
-  }
-}
-
-onlyCaller<complex>(%a: I32, %b: I32, %c: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 8, 4: Ptr
-    %v_5 = alloca 8, 4: Ptr
-    store %v_1, %a, 4
-    store %v_2, %b, 4
-    store %v_3, %c, 4
-    %v_6 = loads %v_1, 4: I32
-    %v_7 = loads %v_2, 4: I32
-    %v_8 = alloca 8, 4: Ptr
-    call_complex makePoint, %v_8, %v_6, %v_7
-    copy %v_4, %v_8, 8
-    %v_9 = loads %v_2, 4: I32
-    %v_10 = loads %v_3, 4: I32
-    %v_11 = alloca 8, 4: Ptr
-    call_complex makePoint, %v_11, %v_9, %v_10
-    copy %v_5, %v_11, 8
-    %v_12 = loads %v_4, 4: I32
-    %v_13 = add %v_5, 4: Ptr
-    %v_14 = loads %v_13, 4: I32
-    %v_15 = imul %v_12, %v_14: I32
-    %v_16 = add %v_4, 4: Ptr
-    %v_17 = loads %v_16, 4: I32
-    %v_18 = loads %v_5, 4: I32
-    %v_19 = imul %v_17, %v_18: I32
-    %v_20 = add %v_15, %v_19: I32
-    %v_21 = loads %v_1, 4: I32
-    %v_22 = add %v_20, %v_21: I32
-    %v_23 = loads %v_2, 4: I32
-    %v_24 = add %v_22, %v_23: I32
-    %v_25 = loads %v_3, 4: I32
-    %v_26 = add %v_24, %v_25: I32
-    ret %v_26
-  }
-}
-
-clamped<complex>(%v: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %v, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = cmp_igt %v_2, 100: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = loads %v_1, 4: I32
-    ret %v_7
-  }
-
-  b_4 {
-    ret 100
-  }
-}
-
-graded<complex>(%score: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %score, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = cmp_ilt %v_2, 10: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = loads %v_1, 4: I32
-    %v_7 = cmp_ilt %v_6, 100: I32
-    je %v_7, b_8, b_9
-  }
-
-  b_9 {
-    jmp b_10
-  }
-
-  b_10 {
-    %v_11 = phi [b_9, 3], [b_4, 1], [b_8, 2]: I32
-    ret %v_11
-  }
-
-  b_4 {
-    jmp b_10
-  }
-
-  b_8 {
-    jmp b_10
-  }
-}
-
-stepsTo<complex>(%limit: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    store %v_1, %limit, 4
-    store %v_2, 1, 4
-    store %v_3, 0, 4
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = loads %v_2, 4: I32
-    %v_6 = loads %v_1, 4: I32
-    %v_7 = cmp_ilt %v_5, %v_6: I32
-    je %v_7, b_8, b_9
-  }
-
-  b_9 {
-    %v_10 = loads %v_3, 4: I32
-    ret %v_10
-  }
-
-  b_8 {
-    %v_11 = loads %v_2, 4: I32
-    %v_12 = loads %v_2, 4: I32
-    %v_13 = add %v_11, %v_12: I32
-    store %v_2, %v_13, 4
-    %v_14 = loads %v_3, 4: I32
-    %v_15 = add %v_14, 1: I32
-    store %v_3, %v_15, 4
-    jmp b_4
-  }
-}
-
-onceBranching<complex>(%a: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %a, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = cmp_igt %v_2, 3: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = loads %v_1, 4: I32
-    %v_8 = add %v_7, 1: I32
-    ret %v_8
-  }
-
-  b_4 {
-    %v_9 = loads %v_1, 4: I32
-    %v_10 = imul %v_9, 2: I32
-    ret %v_10
-  }
-}
-
 countDown<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %n, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = cmp_ile %v_2, 0: I32
-    je %v_3, b_4, b_5
+    %v_1 = phi [b_2, %n], [b_3, %v_4]: I32
+    %v_5 = phi [b_2, 0], [b_3, %v_6]: I32
+    %v_7 = cmp_ile %v_1, 0: I32
+    je %v_7, b_8, b_3
   }
 
-  b_5 {
-    jmp b_6
+  b_3 {
+    %v_4 = sub %v_1, 1: I32
+    %v_6 = add %v_5, %v_1: I32
+    jmp b_0
   }
 
-  b_6 {
-    %v_7 = loads %v_1, 4: I32
-    %v_8 = loads %v_1, 4: I32
-    %v_9 = sub %v_8, 1: I32
-    %v_10 = call_complex countDown, %v_9: I32
-    %v_11 = add %v_7, %v_10: I32
-    ret %v_11
+  b_8 {
+    ret %v_5
   }
 
-  b_4 {
-    ret 0
+  b_2 {
+    jmp b_0
   }
 }
 
 evenLength<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %n, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = cmp_ile %v_2, 0: I32
-    je %v_3, b_4, b_5
+    %v_1 = cmp_ile %n, 0: I32
+    je %v_1, b_2, b_3
   }
 
-  b_5 {
-    jmp b_6
+  b_3 {
+    %v_4 = sub %n, 1: I32
+    %v_5 = call_complex oddLength, %v_4: I32
+    ret %v_5
   }
 
-  b_6 {
-    %v_7 = loads %v_1, 4: I32
-    %v_8 = sub %v_7, 1: I32
-    %v_9 = call_complex oddLength, %v_8: I32
-    ret %v_9
-  }
-
-  b_4 {
+  b_2 {
     ret 1
   }
 }
 
 oddLength<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %n, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = cmp_ile %v_2, 0: I32
-    je %v_3, b_4, b_5
+    %v_1 = cmp_ile %n, 0: I32
+    je %v_1, b_2, b_3
   }
 
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = loads %v_1, 4: I32
-    %v_8 = sub %v_7, 1: I32
-    %v_9 = call_complex evenLength, %v_8: I32
-    ret %v_9
-  }
-
-  b_4 {
-    ret 0
-  }
-}
-
-constants<complex>(): I32 {
-  b_0 {
-    %v_1 = call_complex scaled, 3, 4: I32
-    %v_2 = call_complex scaled, 5, 6: I32
-    %v_3 = add %v_1, %v_2: I32
-    ret %v_3
-  }
-}
-
-unknowns<complex>(%a: I32, %b: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_1, %a, 4
-    store %v_2, %b, 4
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = loads %v_2, 4: I32
-    %v_5 = call_complex scaled, %v_3, %v_4: I32
-    %v_6 = loads %v_2, 4: I32
-    %v_7 = loads %v_1, 4: I32
-    %v_8 = call_complex scaled, %v_6, %v_7: I32
-    %v_9 = add %v_5, %v_8: I32
-    ret %v_9
-  }
-}
-
-constructed<complex>(%a: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    store %v_1, %a, 4
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = loads %v_1, 4: I32
-    %v_5 = add %v_4, 1: I32
-    %v_6 = alloca 8, 4: Ptr
-    call_complex makePoint, %v_6, %v_3, %v_5
-    copy %v_2, %v_6, 8
-    %v_7 = loads %v_2, 4: I32
-    %v_8 = add %v_2, 4: Ptr
-    %v_9 = loads %v_8, 4: I32
-    %v_10 = add %v_7, %v_9: I32
-    ret %v_10
-  }
-}
-
-mutated<complex>(%seed: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_1, %seed, 4
-    %v_3 = loads %v_1, 4: I32
-    store %v_2, %v_3, 4
-    call_complex twice, %v_2
-    call_complex twice, %v_2
-    %v_4 = loads %v_2, 4: I32
-    ret %v_4
-  }
-}
-
-measured<complex>(%v: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %v, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %v_2, 1: I32
-    ret %v_3
-  }
-}
-
-worthIt<complex>(%a: I32, %b: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_1, %a, 4
-    store %v_2, %b, 4
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = loads %v_2, 4: I32
-    %v_5 = add %v_3, %v_4: I32
-    %v_6 = imul %v_5, 2: I32
-    %v_7 = loads %v_1, 4: I32
-    %v_8 = loads %v_2, 4: I32
-    %v_9 = sub %v_7, %v_8: I32
-    %v_10 = imul %v_9, 3: I32
-    %v_11 = add %v_6, %v_10: I32
-    %v_12 = loads %v_1, 4: I32
-    %v_13 = imul %v_12, 5: I32
-    %v_14 = add %v_11, %v_13: I32
-    %v_15 = loads %v_2, 4: I32
-    %v_16 = imul %v_15, 7: I32
-    %v_17 = add %v_14, %v_16: I32
-    %v_18 = imul %v_17, 2: I32
-    %v_19 = loads %v_1, 4: I32
-    %v_20 = add %v_18, %v_19: I32
-    %v_21 = loads %v_2, 4: I32
-    %v_22 = sub %v_20, %v_21: I32
-    ret %v_22
-  }
-}
-
-branching<complex>(%a: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %a, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = call_complex clamped, %v_2: I32
-    %v_4 = loads %v_1, 4: I32
-    %v_5 = imul %v_4, 3: I32
-    %v_6 = call_complex clamped, %v_5: I32
-    %v_7 = add %v_3, %v_6: I32
-    ret %v_7
-  }
-}
-
-grading<complex>(): I32 {
-  b_0 {
-    %v_1 = call_complex graded, 5: I32
-    %v_2 = call_complex graded, 50: I32
-    %v_3 = add %v_1, %v_2: I32
-    %v_4 = call_complex graded, 500: I32
-    %v_5 = add %v_3, %v_4: I32
+  b_3 {
+    %v_4 = sub %n, 1: I32
+    %v_5 = call_complex evenLength, %v_4: I32
     ret %v_5
   }
-}
 
-stepped<complex>(): I32 {
-  b_0 {
-    %v_1 = call_complex stepsTo, 20: I32
-    ret %v_1
-  }
-}
-
-soleBranch<complex>(): I32 {
-  b_0 {
-    %v_1 = call_complex onceBranching, 9: I32
-    ret %v_1
-  }
-}
-
-alternating<complex>(): I32 {
-  b_0 {
-    %v_1 = call_complex evenLength, 6: I32
-    %v_2 = call_complex oddLength, 6: I32
-    %v_3 = add %v_1, %v_2: I32
-    ret %v_3
-  }
-}
-
-pinned<complex>(): I32 {
-  b_0 {
-    %v_1 = call_complex measured, 1: I32
-    %v_2 = call_complex measured, 2: I32
-    %v_3 = add %v_1, %v_2: I32
-    ret %v_3
-  }
-}
-
-requested<complex>(%a: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %a, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = call_complex worthIt, %v_2, 2: I32
-    %v_4 = loads %v_1, 4: I32
-    %v_5 = call_complex worthIt, 3, %v_4: I32
-    %v_6 = add %v_3, %v_5: I32
-    ret %v_6
-  }
-}
-
-recursive<complex>(): I32 {
-  b_0 {
-    %v_1 = call_complex countDown, 4: I32
-    ret %v_1
+  b_2 {
+    ret 0
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex constants: I32
-    %v_2 = call_complex unknowns, 2, 3: I32
-    %v_3 = add %v_1, %v_2: I32
-    %v_4 = call_complex constructed, 5: I32
-    %v_5 = add %v_3, %v_4: I32
-    %v_6 = call_complex mutated, 7: I32
-    %v_7 = add %v_5, %v_6: I32
-    %v_8 = call_complex branching, 50: I32
-    %v_9 = add %v_7, %v_8: I32
-    %v_10 = call_complex recursive: I32
-    %v_11 = add %v_9, %v_10: I32
-    %v_12 = call_complex onlyCaller, 1, 2, 3: I32
-    %v_13 = add %v_11, %v_12: I32
-    %v_14 = call_complex pinned: I32
-    %v_15 = add %v_13, %v_14: I32
-    %v_16 = call_complex requested, 4: I32
+    %v_1 = call_complex countDown, 4: I32
+    %v_2 = add 247, %v_1: I32
+    %v_3 = add %v_2, 13: I32
+    %v_4 = add %v_3, 5: I32
+    %v_5 = add %v_4, 213: I32
+    %v_6 = add %v_5, 6: I32
+    jmp b_7
+  }
+
+  b_8 {
+    %v_9 = cmp_ilt %v_10, 20: I32
+    je %v_9, b_7, b_11
+  }
+
+  b_11 {
+    %v_12 = add %v_6, %v_13: I32
+    %v_14 = add %v_12, 18: I32
+    %v_15 = call_complex evenLength, 6: I32
+    %v_16 = call_complex oddLength, 6: I32
     %v_17 = add %v_15, %v_16: I32
-    %v_18 = call_complex grading: I32
-    %v_19 = add %v_17, %v_18: I32
-    %v_20 = call_complex stepped: I32
-    %v_21 = add %v_19, %v_20: I32
-    %v_22 = call_complex soleBranch: I32
-    %v_23 = add %v_21, %v_22: I32
-    %v_24 = call_complex alternating: I32
-    %v_25 = add %v_23, %v_24: I32
-    ret %v_25
+    %v_18 = add %v_14, %v_17: I32
+    ret %v_18
+  }
+
+  b_7 {
+    %v_19 = phi [b_8, %v_10], [b_0, 1]: I32
+    %v_20 = phi [b_8, %v_13], [b_0, 0]: I32
+    %v_10 = add %v_19, %v_19: I32
+    %v_13 = add %v_20, 1: I32
+    jmp b_8
   }
 }
 

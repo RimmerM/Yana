@@ -1,0 +1,70 @@
+module ResolveTest
+
+let string: [CodeUnit *5] = [104, 101, 108, 108, 111]
+
+fn litLen(n: Size [shared call]) -> Size {
+bb0(%0: Size [shared call] guaranteed):
+  %1: %Size address = alloc frame Size [shared call]
+  %2: %String address = alloc frame String
+  store inspect %1 borrow %0
+  %3: %[CodeUnit *5] address = global.addr string
+  %4: [CodeUnit *5] [shared slot 0] guaranteed = load inspect %3
+  %5: %[CodeUnit *5] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %4
+  %6: %CodeUnit trivial = bitcast inspect %5
+  %7: Size trivial = const 5
+  %13: U32 trivial = convert inspect %7
+  %14: @bits(30) U32 trivial = convert inspect %13
+  %15: %U32 address = global.addr runBorrowed
+  %16: U32 trivial = load inspect %15
+  %17: @bits(2) U32 trivial = convert inspect %16
+  %18: Run(CodeUnit) owned = aggregate.Run consume %6 consume %14 consume %17
+  %20: U32 trivial = convert inspect %7
+  %21: @bits(30) U32 trivial = convert inspect %20
+  %22: Array(CodeUnit) owned = aggregate.Array consume %18 consume %21
+  %23: String owned = aggregate.String consume %22
+  store inspect %2 consume %23
+  %24: String [shared call] guaranteed from{%2} = load inspect %2
+  %26: %Array(CodeUnit) address = field.addr .units inspect %24
+  %27: %Run(CodeUnit) address = field.addr .run inspect %26
+  %28: %%CodeUnit address = field.addr .items inspect %27
+  %29: %CodeUnit trivial = load inspect %28
+  %31: %@bits(30) U32 address = field.addr .length inspect %26
+  %32: @bits(30) U32 trivial = load inspect %31
+  %33: U32 trivial = convert inspect %32
+  %34: Size trivial = convert inspect %33
+  %35: StringView trivial = aggregate.StringView consume %29 consume %34
+  %36: String [shared slot 0 view] guaranteed = represent inspect %35
+  %38: %Size address = field.addr .length inspect %36
+  %39: Size trivial = load inspect %38
+  drop String inspect %2
+  %40: Size trivial = load inspect %1
+  %41: Size trivial = add inspect %39 inspect %40
+  return consume %41
+}
+
+fn twice(n: Size [shared call]) -> Size {
+bb0(%0: Size [shared call] guaranteed):
+  %1: %Size address = alloc frame Size [shared call]
+  store inspect %1 borrow %0
+  %2: Size trivial = load inspect %1
+  %3: Size trivial = call litLen borrow %2
+  %5: Size trivial = const 1
+  %6: Size trivial = add inspect %2 inspect %5
+  %7: Size trivial = call litLen borrow %6
+  %8: Size trivial = add inspect %3 inspect %7
+  return consume %8
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Size trivial = const 3
+  %5: Size trivial = call litLen borrow %0
+  %6: Size trivial = const 1
+  %7: Size trivial = add inspect %0 inspect %6
+  %8: Size trivial = call litLen borrow %7
+  %9: Size trivial = add inspect %5 inspect %8
+  %2: I32 trivial = convert inspect %9
+  return consume %2
+}
+
+entry main

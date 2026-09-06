@@ -2,6 +2,7 @@
 #include "verify.h"
 #include "../resolve_mir/verify.h"
 #include "lower/gen.h"
+#include "opt/opt.h"
 
 namespace ssa {
 
@@ -25,6 +26,11 @@ bool Pipeline::convert() {
     if(!convertProgram(context, *program, converted)) return false;
 
     return verifyProgram(context, *program, converted);
+}
+
+bool Pipeline::optimize() {
+    if(!program) return true;
+    return optimizeProgram(context, *program, converted);
 }
 
 Ptr<LowerModule> Pipeline::lower() {

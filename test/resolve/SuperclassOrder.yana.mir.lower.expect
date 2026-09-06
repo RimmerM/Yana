@@ -1,107 +1,19 @@
 
-Money.compare<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %lhs, 8: I64
-    %v_2 = loads %rhs, 8: I64
-    %v_3 = call_complex I64.compare, %v_1, %v_2: I32
-    ret %v_3
-  }
-}
-
-Money.+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
-  b_1 {
-    %v_2 = loads %lhs, 8: I64
-    %v_3 = loads %rhs, 8: I64
-    %v_4 = add %v_2, %v_3: I64
-    %v_5 = alloca 8, 8: Ptr
-    store %v_5, %v_4, 8
-    copy %v_0, %v_5, 8
-    ret 
-  }
-}
-
-Money.fromInt<complex>(%v_0: Ptr, %value: I64) {
-  b_1 {
-    %v_2 = alloca 8, 8: Ptr
-    store %v_2, %value, 8
-    %v_3 = loads %v_2, 8: I64
-    %v_4 = alloca 8, 8: Ptr
-    store %v_4, %v_3, 8
-    copy %v_0, %v_4, 8
-    ret 
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    %v_2 = alloca 8, 8: Ptr
-    call_complex Money.fromInt, %v_2, 2
-    %v_3 = alloca 8, 8: Ptr
-    call_complex Money.fromInt, %v_3, 3
-    %v_4 = alloca 8, 8: Ptr
-    call_complex Money.+, %v_4, %v_2, %v_3
-    copy %v_1, %v_4, 8
-    %v_5 = alloca 8, 8: Ptr
-    copy %v_5, %v_1, 8
-    %v_6 = alloca 8, 8: Ptr
-    call_complex Money.fromInt, %v_6, 4
-    %v_7 = call_complex >(Money), %v_5, %v_6: I32
-    je %v_7, b_8, b_9
+    jmp b_1
   }
 
-  b_9 {
-    jmp b_10
+  b_2 {
+    ret 5
   }
 
-  b_10 {
-    ret 0
+  b_1 {
+    jmp b_3
   }
 
-  b_8 {
-    %v_11 = loads %v_1, 8: I64
-    %v_12 = sext %v_11: I32
-    ret %v_12
-  }
-}
-
-I64.compare<complex>(%lhs: I64, %rhs: I64): I32 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    %v_2 = alloca 8, 8: Ptr
-    store %v_1, %lhs, 8
-    store %v_2, %rhs, 8
-    %v_3 = loads %v_1, 8: I64
-    %v_4 = loads %v_2, 8: I64
-    %v_5 = cmp_ilt %v_3, %v_4: I32
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    ret 0
-  }
-
-  b_7 {
-    %v_8 = loads %v_1, 8: I64
-    %v_9 = loads %v_2, 8: I64
-    %v_10 = cmp_eq %v_8, %v_9: I32
-    je %v_10, b_11, b_12
-  }
-
-  b_11 {
-    ret 1
-  }
-
-  b_12 {
-    ret 2
-  }
-}
-
->(Money)<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
-  b_0 {
-    %v_1 = call_complex Money.compare, %lhs, %rhs: I32
-    %v_2 = cmp_eq %v_1, 2: I32
-    ret %v_2
+  b_3 {
+    jmp b_2
   }
 }
 

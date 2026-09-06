@@ -1,0 +1,262 @@
+@image$base = []
+mut @live = [0, 0, 0, 0]
+mut @calls = [0, 0, 0, 0]
+
+take<complex>(%h: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %h, 4: I32
+    %v_2 = loads @live, 4: I32
+    %v_3 = sub %v_2, 1: I32
+    store @live, %v_3, 4
+    ret %v_1
+  }
+}
+
+truth<complex>(%a: I32, %b: I32): I32 {
+  b_0 {
+    %v_1 = cmp_igt %a, 0: I32
+    %v_2 = cmp_igt %b, 0: I32
+    %v_3 = and %v_1, %v_2: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_4, 1], [b_5, 0]: I32
+    %v_8 = cmp_igt %a, 0: I32
+    %v_9 = cmp_igt %b, 0: I32
+    %v_10 = or %v_8, %v_9: I32
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = add %v_7, 2: I32
+    jmp b_14
+  }
+
+  b_12 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_11, %v_13], [b_12, %v_7]: I32
+    %v_16 = cmp_igt %a, 0: I32
+    %v_17 = xor %v_16, 1: I32
+    %v_18 = cmp_igt %b, 0: I32
+    %v_19 = and %v_17, %v_18: I32
+    je %v_19, b_20, b_21
+  }
+
+  b_20 {
+    %v_22 = add %v_15, 4: I32
+    jmp b_23
+  }
+
+  b_21 {
+    jmp b_23
+  }
+
+  b_23 {
+    %v_24 = phi [b_20, %v_22], [b_21, %v_15]: I32
+    %v_25 = cmp_igt %a, 0: I32
+    %v_26 = cmp_igt %b, 0: I32
+    %v_27 = xor %v_26, 1: I32
+    %v_28 = and %v_25, %v_27: I32
+    je %v_28, b_29, b_30
+  }
+
+  b_29 {
+    %v_31 = add %v_24, 8: I32
+    jmp b_32
+  }
+
+  b_30 {
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = phi [b_29, %v_31], [b_30, %v_24]: I32
+    %v_34 = cmp_igt %a, 0: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_36 {
+    %v_37 = add %v_33, 16: I32
+    jmp b_38
+  }
+
+  b_35 {
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = phi [b_36, %v_37], [b_35, %v_33]: I32
+    %v_40 = cmp_igt %a, 0: I32
+    je %v_40, b_41, b_42
+  }
+
+  b_41 {
+    %v_43 = add %v_39, 32: I32
+    jmp b_44
+  }
+
+  b_42 {
+    jmp b_44
+  }
+
+  b_44 {
+    %v_45 = phi [b_41, %v_43], [b_42, %v_39]: I32
+    ret %v_45
+  }
+}
+
+doubled<complex>(%value: I32): I32 {
+  b_0 {
+    %v_1 = shl %value, 1: I32
+    ret %v_1
+  }
+}
+
+zero<complex>(): I32 {
+  b_0 {
+    ret 0
+  }
+}
+
+owners<complex>(%c: I32): I32 {
+  b_0 {
+    %v_1 = loads @live, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @live, %v_2, 4
+    je %c, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, 4, 4
+    jmp b_6
+  }
+
+  b_3 {
+    %v_7 = alloca 4, 4: Ptr
+    store %v_7, 3, 4
+    jmp b_6
+  }
+
+  b_6 {
+    %h = phi [b_3, %v_7], [b_4, %v_5]: Ptr
+    %v_8 = call_complex take, %h: I32
+    ret %v_8
+  }
+}
+
+released<complex>(%c: I32, %h: Ptr): I32 {
+  b_0 {
+    je %c, b_1, b_2
+  }
+
+  b_1 {
+    %v_3 = call_complex take, %h: I32
+    %v_4 = add %v_3, 1: I32
+    jmp b_5
+  }
+
+  b_6 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_7 = phi [b_1, %v_4], [b_6, 0]: I32
+    ret %v_7
+  }
+
+  b_2 {
+    %v_8 = loads @live, 4: I32
+    %v_9 = sub %v_8, 1: I32
+    store @live, %v_9, 4
+    jmp b_6
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex truth, 1, 1: I32
+    %v_2 = imul %v_1, 23: I32
+    %v_3 = add %v_2, 1019: I32
+    %v_4 = call_complex truth, 1, 0: I32
+    %v_5 = imul %v_4, 29: I32
+    %v_6 = add %v_3, %v_5: I32
+    %v_7 = call_complex truth, 0, 1: I32
+    %v_8 = imul %v_7, 31: I32
+    %v_9 = add %v_6, %v_8: I32
+    %v_10 = call_complex truth, 0, 0: I32
+    %v_11 = imul %v_10, 37: I32
+    %v_12 = add %v_9, %v_11: I32
+    %v_13 = call_complex doubled, 6: I32
+    %v_14 = imul %v_13, 41: I32
+    %v_15 = add %v_12, %v_14: I32
+    %v_16 = loads @calls, 4: I32
+    %v_17 = add %v_16, 1: I32
+    store @calls, %v_17, 4
+    %v_18 = add %v_15, 53: I32
+    %v_19 = call_complex zero: I32
+    %v_20 = cmp_neq %v_19, 0: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    jmp b_23
+  }
+
+  b_21 {
+    %v_24 = cmp_eq %v_19, 4294967295: I32
+    %v_25 = select %v_24, 1, %v_19: I32
+    %v_26 = idiv 30, %v_25: I32
+    %v_27 = select %v_24, 4294967266, %v_26: I32
+    jmp b_23
+  }
+
+  b_23 {
+    %v_28 = phi [b_21, %v_27], [b_22, 0]: I32
+    %v_29 = imul %v_28, 59: I32
+    %v_30 = add %v_18, %v_29: I32
+    %v_31 = add %v_30, 610: I32
+    %v_32 = call_complex owners, 1: I32
+    %v_33 = imul %v_32, 67: I32
+    %v_34 = add %v_31, %v_33: I32
+    %v_35 = call_complex owners, 0: I32
+    %v_36 = imul %v_35, 71: I32
+    %v_37 = add %v_34, %v_36: I32
+    %v_38 = loads @live, 4: I32
+    %v_39 = add %v_38, 1: I32
+    store @live, %v_39, 4
+    %v_40 = alloca 4, 4: Ptr
+    store %v_40, 7, 4
+    %v_41 = call_complex released, 1, %v_40: I32
+    %v_42 = imul %v_41, 73: I32
+    %v_43 = add %v_37, %v_42: I32
+    %v_44 = loads @live, 4: I32
+    %v_45 = add %v_44, 1: I32
+    store @live, %v_45, 4
+    %v_46 = alloca 4, 4: Ptr
+    store %v_46, 7, 4
+    %v_47 = call_complex released, 0, %v_46: I32
+    %v_48 = imul %v_47, 79: I32
+    %v_49 = add %v_43, %v_48: I32
+    %v_50 = imul %v_49, 1000: I32
+    %v_51 = loads @calls, 4: I32
+    %v_52 = imul %v_51, 10: I32
+    %v_53 = add %v_50, %v_52: I32
+    %v_54 = loads @live, 4: I32
+    %v_55 = add %v_53, %v_54: I32
+    ret %v_55
+  }
+}
+

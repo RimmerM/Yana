@@ -15,6 +15,24 @@ struct Block;
 struct Body;
 
 /*
+ * The one thing allowed to write the four two-sided lists below - `Editor`, in build.h.
+ *
+ * Forward-declared here rather than included, because the editor names every instruction kind this
+ * file declares and a header that named it back would be a cycle.
+ */
+struct Editor;
+
+/*
+ * And the one exception, which is a test's - `test/OssaTester.cpp`.
+ *
+ * The driver's whole method is to break a record by hand the way a pass would break it and assert
+ * that the verifier reports it, which is exactly what going through the editor cannot do: the
+ * editor's guarantee is that a half-updated structure is not writable. Declared here so that the
+ * exception is a name in this file rather than a cast in that one.
+ */
+struct Mutation;
+
+/*
  * What an SSA value is, in ownership terms - Analysis-IR.md §7.1.
  *
  * Five conventions, and every value has exactly one. This is the whole of the ownership model at
@@ -212,10 +230,23 @@ struct Value {
      */
     SsaPtr<Loan> loan = nullptr;
 
-    SsaList<SsaPtr<Inst>> uses;
-
     DeclPtr<mir::Type> type() const { return occurrence.type; }
     Contract contract() const { return occurrence.contract; }
+
+    // The reading half of the use list. Contents rather than the list, so that a reader cannot
+    // push, remove or set - see `Editor`, which is the only thing that may.
+    auto uses(SsaBase base) { return useList.contents(base); }
+    Size useCount() { return useList.size(); }
+    SsaPtr<Inst> useAt(SsaBase base, Size index) { return useList.get(base, index); }
+
+private:
+    friend struct Editor;
+    friend struct Mutation;
+
+    // One entry per naming **operand**, not per naming instruction: an instruction that reads a
+    // value twice appears twice, and the verifier's def-use check counts the multiplicity of the
+    // pair rather than testing membership.
+    SsaList<SsaPtr<Inst>> useList;
 };
 
 /*
@@ -1059,16 +1090,42 @@ struct Continuation {
     Multiplicity multiplicity = Once;
 };
 
+/*
+ * A basic block, and the three lists that make it one.
+ *
+ * All three are private and `Editor` is the only friend, which is the discipline the old stage's
+ * `Block` arrived at the hard way: each list is half of a statement the IR makes twice - an
+ * instruction names its block back, a successor records which blocks its edges came from - and a
+ * pass that could push into one of them directly is a pass that could state half of it. What is
+ * left here is the reading half, which hands out contents rather than the list.
+ */
 struct Block {
     Block(BlockId index, StringId name, ContinuationId region):
         name(name), index(index), region(region) {}
 
-    // Embedded: a merge usually carries none or one, and the non-embedding form allocated an
-    // eight-entry buffer for each of those.
-    SsaList<SsaPtr<Value>, true> arguments;
+    auto arguments(SsaBase base) { return argumentList.contents(base); }
+    Size argumentCount() { return argumentList.size(); }
+    SsaPtr<Value> argumentAt(SsaBase base, Size index) { return argumentList.get(base, index); }
 
-    SsaList<SsaPtr<Inst>, false> instructions;
-    SsaList<SsaPtr<Block>> incoming;
+    auto instructions(SsaBase base) { return instructionList.contents(base); }
+    Size instructionCount() { return instructionList.size(); }
+    SsaPtr<Inst> instructionAt(SsaBase base, Size index) { return instructionList.get(base, index); }
+
+    /*
+     * The predecessors - **one entry per edge**, not per block.
+     *
+     * `branch %c, X, X` is legal, so a block may name the same predecessor twice, and every edit
+     * that moves one edge moves exactly one entry. A list that held distinct blocks would make
+     * "redirect the `then` arm" and "redirect the edge to X" two different operations with one
+     * spelling, which is the bug the old stage's `splitEdge` had.
+     */
+    auto incoming(SsaBase base) { return incomingList.contents(base); }
+    Size predecessorCount() { return incomingList.size(); }
+    SsaPtr<Block> predecessorAt(SsaBase base, Size index) { return incomingList.get(base, index); }
+
+    // The instruction control leaves by, or null while the block is half-built - which is what a
+    // block has between `Editor::splitBlock` and the jump the caller gives its first half.
+    Inst* terminator(SsaBase base);
 
     StringId name {};
     BlockId index;
@@ -1076,12 +1133,79 @@ struct Block {
     // Which continuation region owns this block - `Continuation`. Set when the block is made and
     // never derived: the builder knows, and afterwards nobody can.
     ContinuationId region;
+
+    /*
+     * Whether this block has been taken out of the body - `Editor::deleteBlock`.
+     *
+     * A flag rather than a removal, because `Body::blocks` is a `RegionArray` indexed by `BlockId`
+     * and every side table in the verifier and the lowering is indexed by the same number: taking
+     * an entry out would renumber every block after it, which is the renumbering `reorderBlocksIn
+     * Rpo` used to cost the old stage. So the entry stays and this is what says it is no longer a
+     * block - the verifier and the lowering skip it, and nothing may enter it, which `deleteBlock`
+     * asserts before setting this.
+     *
+     * A flag rather than "empty with no predecessors", which is the same state and a strictly worse
+     * statement of it: an empty block the conversion built and never filled is a bug the verifier
+     * reports today, and a derived predicate would make it silent.
+     */
+    bool deleted = false;
+
+private:
+    friend struct Editor;
+    friend struct Mutation;
+
+    // Embedded: a merge usually carries none or one, and the non-embedding form allocated an
+    // eight-entry buffer for each of those.
+    SsaList<SsaPtr<Value>, true> argumentList;
+
+    SsaList<SsaPtr<Inst>, false> instructionList;
+    SsaList<SsaPtr<Block>> incomingList;
+};
+
+/*
+ * How many times each of a body's two structures has been written, for whoever caches an answer
+ * derived from one of them.
+ *
+ * An analysis over a body is a function of the IR, so it stops being the answer exactly when the IR
+ * it was read from changes - and "changed" is not one question. A dominator tree is a statement
+ * about the blocks and the edges between them and no amount of rewriting *inside* a block can make
+ * it wrong; which allocations a callee can reach is a statement about instructions and use lists and
+ * no amount of moving blocks around can. `opt/`'s fixed point runs its passes over a body several
+ * times and most of the later rounds change nothing, which is the difference between computing each
+ * analysis once and computing it once per round.
+ *
+ * A counter rather than a flag, because there is no point at which a reader may clear one: two
+ * analyses over the same structure are cached independently and would each clear the other's notice.
+ * A cache holds the counter it was built at and compares.
+ *
+ * **On the body rather than passed to the editor**, which is where the old stage put it. There is
+ * one body per function and the editor is constructed per rewrite, so a counter the constructor
+ * took would be one a caller could leave out - and an analysis stamped against a counter the editor
+ * was never given is a cache that never goes stale, which is the failure that has no symptom until a
+ * pass reads a dominator tree from before the branch it folded. `bool* changed` stays a constructor
+ * argument for the opposite reason: "did this pass change anything" is the pass's question and there
+ * is nothing about the body that answers it.
+ *
+ * A CFG edit bumps both, deliberately. Every operation that moves an edge also moves the block
+ * arguments arriving over it, which are uses, and distinguishing the two that arguably do not would
+ * buy nothing but a second rule to get wrong.
+ */
+struct IrVersion {
+    // Instructions, their operands and the use lists.
+    U64 values = 1;
+
+    // The block set and the edges between blocks.
+    U64 blocks = 1;
 };
 
 struct Body {
     Body() = default;
 
     SsaPtr<Block> entry = nullptr;
+
+    // What has been written since this body was made - see `IrVersion`. Bumped by the editor and by
+    // nothing else, which is the same rule the four lists above follow.
+    IrVersion version;
 
     RegionArray<SsaRegion, SsaPtr<Block>> blocks;
     RegionArray<SsaRegion, SsaPtr<Value>> values;
@@ -1132,5 +1256,16 @@ using mir::storageClassName;
 inline bool isTerminator(Inst::Kind kind) { return (instFlags(kind) & kSsaTerminator) != 0; }
 inline bool isPure(Inst::Kind kind) { return (instFlags(kind) & kSsaPure) != 0; }
 inline bool mayConsume(Inst::Kind kind) { return (instFlags(kind) & kSsaConsumes) != 0; }
+
+// Here rather than in the class, because it asks `isTerminator` and the traits are declared above
+// this line. Null for a block that is empty or whose last instruction is not one, which is the
+// state a half-built block and a deleted block are both in.
+inline Inst* Block::terminator(SsaBase base) {
+    auto count = instructionList.size();
+    if(!count) return nullptr;
+
+    auto last = base[instructionList.get(base, count - 1)];
+    return isTerminator(last->kind) ? last : nullptr;
+}
 
 } // namespace ssa

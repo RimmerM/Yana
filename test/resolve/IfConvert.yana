@@ -1,0 +1,191 @@
+{-
+   If-conversion: the branch that decides a value rather than a path becomes one `select` -
+   `compiler/resolve_ssa/opt/select.cpp`, and the `Bool` rewrite in `opt/simplify.cpp` that is what
+   most of those selects then turn into.
+
+   Every claim here is a **number**. A select whose two arms were swapped answers the other side of
+   every condition, and that is invisible in the emitted bytes and invisible in a golden anybody
+   reads quickly - so each function below is weighted by a distinct prime in `main` and each is
+   called with arguments that make its two arms disagree. The optimized/unoptimized run comparison
+   is what turns a swap into a failure; `.ssa.opt.expect` beside this is what says which shape the
+   pass actually left behind.
+
+   Half of these exist to *not* convert, which is the other half of the pass. `live` is the ownership
+   balance - a teardown that ran twice takes it negative and one that never ran leaves it positive -
+   and `calls` counts what a short circuit is supposed to skip. Both are in the answer.
+-}
+
+let &live = 0 :: Int
+let &calls = 0 :: Int
+
+data Held {id: Int}
+
+instance Drop(Held):
+    fn drop(->self: Held):
+        live = live - 1
+
+fn held(id: Int) -> Held:
+    live = live + 1
+    return Held {id: id}
+
+fn take(->h: Held) -> Int = h.id
+
+-- The plain shape: two arms that produce a value and do nothing else. Each arm is one `load` of a
+-- parameter slot, which is the read `speculatable` admits and the only non-pure instruction it does.
+fn larger(a: Int, b: Int) -> Int = if a > b then a else b
+
+-- The same with real arithmetic in one arm, which is what the cost bound is counted against: three
+-- instructions on one side and one on the other is the budget exactly.
+fn scaled(a: Int, b: Int) -> Int = if a > b then a else b - 7
+
+-- A float, which selects through a form of its own on amd64 - there is no conditional move for a
+-- vector register, so the machine form is a jump over a move.
+fn nearer(x: Float, y: Float) -> Float = if x > y then x else y
+
+fn floats() -> Int = truncate((nearer(2.5, 7.25) * 4.0)) :: Int
+
+-- Nested, which converts from the inside out: the inner diamond becomes a select in the arm of the
+-- outer one, and whether that arm then fits the budget is what the next round asks.
+fn clamped(v: Int, lo: Int, hi: Int) -> Int = if v < lo then lo else (if v > hi then hi else v)
+
+{-
+   The four rules the `Bool` rewrite states, and the shapes that reach each of them.
+
+   A `Bool` select is a boolean function of two truth values and every one of those is bitwise, so
+   what if-conversion produces here should not survive as a conditional move: `c ? b : False` is
+   `c & b`, `c ? True : b` is `c | b`, `c ? False : True` is `!c`, and `c ? True : False` is `c`
+   itself, which the folder answers before the rewrite is reached. All four are asserted in
+   `.ssa.opt.expect` - no `select` at a `Bool` survives this file.
+
+   Over computed booleans rather than over `Bool` parameters, because that is the shape the language
+   emits: the skipped arm of a short circuit is the literal the operator settles on, which is what
+   makes the constant arm a constant at all.
+
+   `negRight` is the one that does **not** convert, and it is here for the cost bound rather than for
+   a rule: a load, a constant, a comparison and a complement on one side plus the literal on the
+   other is five instructions where the budget is four, so it stays a branch while its three siblings
+   become one `and` or one `or`. That is where the number bites, asserted rather than argued.
+-}
+fn conj(a: Int, b: Int) -> Bool = a > 0 && b > 0
+fn disj(a: Int, b: Int) -> Bool = a > 0 || b > 0
+fn negLeft(a: Int, b: Int) -> Bool = !(a > 0) && b > 0
+fn negRight(a: Int, b: Int) -> Bool = a > 0 && !(b > 0)
+fn flipped(a: Int) -> Bool = if a > 0 then False else True
+fn plain(a: Int) -> Bool = if a > 0 then True else False
+
+fn truth(a: Int, b: Int) -> Int:
+    let &n = 0 :: Int
+    if conj(a, b) then n = n + 1
+    if disj(a, b) then n = n + 2
+    if negLeft(a, b) then n = n + 4
+    if negRight(a, b) then n = n + 8
+    if flipped(a) then n = n + 16
+    if plain(a) then n = n + 32
+    return n
+
+@noinline
+fn doubled(value: Int) -> Int = value * 2
+
+-- A call is not speculatable, so this stays a branch. It is the decline the whole pass rests on:
+-- an arm that may do anything is an arm that may not be made unconditional.
+fn guarded(value: Int) -> Int = if value > 0 then doubled(value) else 0
+
+fn count() -> Bool:
+    calls = calls + 1
+    return True
+
+-- The same decline reached through a short circuit, and the one whose failure is a *number*:
+-- `count()` runs exactly when `&&` says it does, and a speculated call is a different `calls`.
+fn skipped(a: Int) -> Int = if a > 0 && count() then 1 else 0
+
+@noinline
+fn zero() -> Int = 0
+
+{-
+   A division, which is pure and is declined anyway.
+
+   Not for the shipping stage's reason - `makeDivisionTotal` runs one tier down and gives `x / 0` the
+   answer `doc/spec/types.md` specifies, so speculating one cannot fault and cannot change this
+   answer. It is a cost: the divide and the zero test totalization adds would both be straight-lined
+   onto the path written not to have them. So this is the one decline in this file that the run
+   cannot assert and `.ssa.opt.expect` has to.
+-}
+fn ratio(value: Int, divisor: Int) -> Int = if divisor != 0 then value / divisor else 0
+
+{-
+   The ownership decline, which is where the linear rule is a precondition rather than a check.
+
+   Both arms hand an **owner** to the join - `bb2` declares a `Held owned` - so a select would
+   consume both on every path where the branch consumed one on each. `selectableJoin` refuses a join
+   argument that is not `Trivial` before anything moves, and that is one of two refusals this shape
+   meets: an `aggregate` is `kSsaConsumes` and not `kSsaPure`, so the arms decline as well.
+
+   The two coincide here and, measured over the corpus, they coincide everywhere - every way this
+   stage produces an owner is a `call` or an `aggregate`, and neither is speculatable, so the
+   convention rule has no case of its own to fire on. It is written because the two are independent
+   statements and the first kind that makes an owner purely would arrive silently.
+
+   `live` is what says the refusal kept the program right: one `Held` is made and taken, and the
+   balance comes back to zero however the branch went.
+-}
+fn chosen(c: Bool, n: Int) -> Int:
+    -- Written here rather than through `held`, because a call in an arm is the decline this one is
+    -- not about: an `aggregate` is what puts an owner on the edge without a call above it. The
+    -- balance is kept by hand for the same reason.
+    live = live + 1
+
+    let h = if c then Held {id: n} else Held {id: n + 1}
+    return take(h)
+
+fn owners(c: Bool) -> Int = chosen(c, 3)
+
+{-
+   And a `Drop` in an arm, which is the same refusal seen from the teardown side.
+
+   The value is handed over on one path and released on the other, so the arm that does not hand it
+   over holds the teardown and nothing else - and a teardown made unconditional is a double free.
+   `Drop` is not `kSsaPure`, so that one instruction declines the whole diamond; the other arm holds
+   a call and would decline it too.
+-}
+fn released(c: Bool, ->h: Held) -> Int:
+    let &n = 0 :: Int
+    if c: n = take(h) + 1
+
+    return n
+
+fn releases(c: Bool) -> Int = released(c, held(7))
+
+fn main() -> Int:
+    let &total = 0
+
+    total = total + larger(3, 8) * 2
+    total = total + larger(8, 3) * 3
+    total = total + scaled(9, 4) * 5
+    total = total + scaled(4, 9) * 7
+
+    total = total + floats() * 11
+
+    total = total + clamped(1, 4, 20) * 13
+    total = total + clamped(30, 4, 20) * 17
+    total = total + clamped(11, 4, 20) * 19
+
+    total = total + truth(1, 1) * 23
+    total = total + truth(1, 0) * 29
+    total = total + truth(0, 1) * 31
+    total = total + truth(0, 0) * 37
+
+    total = total + guarded(6) * 41
+    total = total + guarded(-6) * 43
+
+    total = total + skipped(0) * 47
+    total = total + skipped(1) * 53
+
+    total = total + ratio(30, zero()) * 59
+    total = total + ratio(30, 3) * 61
+
+    total = total + owners(True) * 67
+    total = total + owners(False) * 71
+    total = total + releases(True) * 73
+    total = total + releases(False) * 79
+
+    return total * 1000 + calls * 10 + live

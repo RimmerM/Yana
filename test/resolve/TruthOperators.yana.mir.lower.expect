@@ -3,797 +3,347 @@
 @write = [2, 0, 0, 0, 0, 0, 0, 0]
 mut @effects = [0, 0, 0, 0]
 
-Flags.and<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
-  b_1 {
-    %v_2 = loads %lhs, 8: I64
-    %v_3 = loads %rhs, 8: I64
-    %v_4 = and %v_2, %v_3: I64
-    %v_5 = alloca 8, 8: Ptr
-    store %v_5, %v_4, 8
-    copy %v_0, %v_5, 8
-    ret 
-  }
-}
-
-Flags.or<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
-  b_1 {
-    %v_2 = loads %lhs, 8: I64
-    %v_3 = loads %rhs, 8: I64
-    %v_4 = or %v_2, %v_3: I64
-    %v_5 = alloca 8, 8: Ptr
-    store %v_5, %v_4, 8
-    copy %v_0, %v_5, 8
-    ret 
-  }
-}
-
-Flags.not<complex>(%v_0: Ptr, %value: Ptr) {
-  b_1 {
-    %v_2 = loads %value, 8: I64
-    %v_3 = not %v_2: I64
-    %v_4 = alloca 8, 8: Ptr
-    store %v_4, %v_3, 8
-    copy %v_0, %v_4, 8
-    ret 
-  }
-}
-
-Flags.truthy<complex>(%value: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %value, 8: I64
-    %v_2 = cmp_neq %v_1, 0: I32
-    ret %v_2
-  }
-}
-
-Flags.==<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %lhs, 8: I64
-    %v_2 = loads %rhs, 8: I64
-    %v_3 = cmp_eq %v_1, %v_2: I32
-    ret %v_3
-  }
-}
-
-isEmpty<complex>(%f: Ptr): I32 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    copy %v_1, %f, 8
-    %v_2 = call_complex Flags.truthy, %v_1: I32
-    %v_3 = xor %v_2, 1: I32
-    ret %v_3
-  }
-}
-
-complement<complex>(%v_0: Ptr, %f: Ptr) {
-  b_1 {
-    %v_2 = alloca 8, 8: Ptr
-    copy %v_2, %f, 8
-    %v_3 = alloca 8, 8: Ptr
-    call_complex Flags.not, %v_3, %v_2
-    copy %v_0, %v_3, 8
-    ret 
-  }
-}
-
-noneLeft<complex>(%count: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %count, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = cmp_neq %v_2, 0: I32
-    %v_4 = xor %v_3, 1: I32
-    ret %v_4
-  }
-}
-
-negate<complex>(%b: I32): I32 {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, %b, 1
-    %v_2 = load %v_1, 1: I32
-    %v_3 = xor %v_2, 1: I32
-    ret %v_3
-  }
-}
-
-bump<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = loads @effects, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store @effects, %v_3, 4
-    %v_4 = alloca 8, 8: Ptr
-    copy %v_4, @read, 8
-    copy %v_0, %v_4, 8
-    ret 
-  }
-}
-
-shortCircuits<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    copy %v_1, @empty, 8
-    %v_2 = call_complex Flags.truthy, %v_1: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_4, 0], [b_3, %v_7]: I32
-    ret %v_6
-  }
-
-  b_3 {
-    %v_8 = alloca 8, 8: Ptr
-    call_complex bump, %v_8
-    %v_7 = call_complex Flags.truthy, %v_8: I32
-    jmp b_5
-  }
-}
-
-flagsAndCount<complex>(%f: Ptr, %n: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %n, 4
-    %v_2 = alloca 8, 8: Ptr
-    copy %v_2, %f, 8
-    %v_3 = call_complex Flags.truthy, %v_2: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_5, 0], [b_4, %v_8]: I32
-    ret %v_7
-  }
-
-  b_4 {
-    %v_9 = loads %v_1, 4: I32
-    %v_8 = cmp_neq %v_9, 0: I32
-    jmp b_6
-  }
-}
-
-flagsOrCount<complex>(%f: Ptr, %n: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %n, 4
-    %v_2 = alloca 8, 8: Ptr
-    copy %v_2, %f, 8
-    %v_3 = call_complex Flags.truthy, %v_2: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = loads %v_1, 4: I32
-    %v_7 = cmp_neq %v_6, 0: I32
-    jmp b_8
-  }
-
-  b_8 {
-    %v_9 = phi [b_5, %v_7], [b_4, 1]: I32
-    ret %v_9
-  }
-
-  b_4 {
-    jmp b_8
-  }
-}
-
-againstLiteral<complex>(%f: Ptr): I32 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    copy %v_1, %f, 8
-    %v_2 = call_complex Flags.truthy, %v_1: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_4, 0], [b_3, %v_7]: I32
-    ret %v_6
-  }
-
-  b_3 {
-    %v_7 = cmp_neq 1, 0: I32
-    jmp b_5
-  }
-}
-
-runsRight<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    copy %v_1, @read, 8
-    %v_2 = call_complex Flags.truthy, %v_1: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_4, 0], [b_3, %v_7]: I32
-    ret %v_6
-  }
-
-  b_3 {
-    %v_8 = alloca 8, 8: Ptr
-    call_complex bump, %v_8
-    %v_7 = call_complex Flags.truthy, %v_8: I32
-    jmp b_5
-  }
-}
-
-orSkips<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    copy %v_1, @read, 8
-    %v_2 = call_complex Flags.truthy, %v_1: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = alloca 8, 8: Ptr
-    call_complex bump, %v_5
-    %v_6 = call_complex Flags.truthy, %v_5: I32
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = phi [b_4, %v_6], [b_3, 1]: I32
-    ret %v_8
-  }
-
-  b_3 {
-    jmp b_7
-  }
-}
-
-truthEquals<complex>(%f: Ptr, %expected: I32): I32 {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, %expected, 1
-    %v_2 = alloca 8, 8: Ptr
-    copy %v_2, %f, 8
-    %v_3 = call_complex Flags.truthy, %v_2: I32
-    %v_4 = load %v_1, 1: I32
-    %v_5 = cmp_eq %v_3, %v_4: I32
-    ret %v_5
-  }
-}
-
-truthDiffers<complex>(%f: Ptr, %other: Ptr): I32 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    copy %v_1, %f, 8
-    %v_2 = call_complex Flags.truthy, %v_1: I32
-    %v_3 = alloca 8, 8: Ptr
-    copy %v_3, %other, 8
-    %v_4 = call_complex Flags.truthy, %v_3: I32
-    %v_5 = cmp_neq %v_2, %v_4: I32
-    ret %v_5
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 8, 8: Ptr
-    store %v_1, 0, 4
-    %v_3 = alloca 8, 8: Ptr
-    copy %v_3, @empty, 8
-    %v_4 = call_complex Flags.truthy, %v_3: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = alloca 8, 8: Ptr
-    copy %v_8, @empty, 8
-    %v_9 = call_complex isEmpty, %v_8: I32
-    %v_10 = xor %v_9, 1: I32
-    je %v_10, b_11, b_12
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = load @empty, 8: I64
+    %v_3 = cmp_neq %v_2, 0: I32
+    je %v_3, b_4, b_5
   }
 
   b_5 {
+    %v_6 = alloca 8, 8: Ptr
+    copy %v_6, @empty, 8
+    %v_7 = load %v_6, 8: I64
+    %v_8 = cmp_neq %v_7, 0: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_4 {
     ret 1
   }
 
-  b_12 {
-    jmp b_13
+  b_10 {
+    %v_11 = alloca 8, 8: Ptr
+    copy %v_11, @read, 8
+    %v_12 = load %v_11, 8: I64
+    %v_13 = cmp_neq %v_12, 0: I32
+    je %v_13, b_14, b_15
   }
 
-  b_13 {
-    %v_14 = alloca 8, 8: Ptr
-    copy %v_14, @read, 8
-    %v_15 = call_complex isEmpty, %v_14: I32
-    je %v_15, b_16, b_17
-  }
-
-  b_11 {
+  b_9 {
     ret 2
   }
 
-  b_17 {
-    jmp b_18
+  b_14 {
+    %v_16 = alloca 8, 8: Ptr
+    copy %v_16, @empty, 8
+    %v_17 = load %v_16, 8: I64
+    %v_18 = not %v_17: I64
+    %v_19 = cmp_neq %v_18, 0: I32
+    je %v_19, b_20, b_21
   }
 
-  b_18 {
-    %v_19 = alloca 8, 8: Ptr
-    copy %v_19, @empty, 8
-    %v_20 = alloca 8, 8: Ptr
-    call_complex complement, %v_20, %v_19
-    %v_21 = call_complex Flags.truthy, %v_20: I32
-    %v_22 = xor %v_21, 1: I32
-    je %v_22, b_23, b_24
-  }
-
-  b_16 {
+  b_15 {
     ret 3
   }
 
-  b_24 {
-    jmp b_25
+  b_20 {
+    %v_22 = alloca 8, 8: Ptr
+    copy %v_22, @read, 8
+    %v_23 = load %v_22, 8: I64
+    %v_24 = not %v_23: I64
+    %v_25 = load @read, 8: I64
+    %v_26 = cmp_eq %v_24, %v_25: I32
+    je %v_26, b_27, b_28
   }
 
-  b_25 {
-    %v_26 = alloca 8, 8: Ptr
-    copy %v_26, @read, 8
-    %v_27 = alloca 8, 8: Ptr
-    call_complex complement, %v_27, %v_26
-    %v_28 = alloca 8, 8: Ptr
-    copy %v_28, @read, 8
-    %v_29 = call_complex Flags.==, %v_27, %v_28: I32
-    je %v_29, b_30, b_31
-  }
-
-  b_23 {
+  b_21 {
     ret 4
   }
 
-  b_31 {
-    jmp b_32
+  b_28 {
+    %v_29 = load @empty, 8: I64
+    %v_30 = cmp_neq %v_29, 0: I32
+    je %v_30, b_31, b_32
   }
 
-  b_32 {
-    %v_33 = call_complex noneLeft, 0: I32
-    %v_34 = xor %v_33, 1: I32
-    je %v_34, b_35, b_36
-  }
-
-  b_30 {
+  b_27 {
     ret 5
   }
 
-  b_36 {
-    jmp b_37
+  b_32 {
+    %v_33 = load @read, 8: I64
+    %v_34 = cmp_neq %v_33, 0: I32
+    je %v_34, b_35, b_36
   }
 
   b_37 {
-    %v_38 = call_complex noneLeft, 7: I32
-    je %v_38, b_39, b_40
-  }
-
-  b_35 {
-    ret 6
-  }
-
-  b_40 {
-    jmp b_41
-  }
-
-  b_41 {
-    %v_42 = call_complex negate, 0: I32
-    %v_43 = xor %v_42, 1: I32
-    je %v_43, b_44, b_45
-  }
-
-  b_39 {
-    ret 7
-  }
-
-  b_45 {
-    jmp b_46
-  }
-
-  b_46 {
-    %v_47 = call_complex shortCircuits: I32
-    je %v_47, b_48, b_49
-  }
-
-  b_44 {
-    ret 8
-  }
-
-  b_49 {
-    jmp b_50
-  }
-
-  b_50 {
-    %v_51 = call_complex runsRight: I32
-    %v_52 = xor %v_51, 1: I32
-    je %v_52, b_53, b_54
-  }
-
-  b_48 {
     ret 9
   }
 
-  b_54 {
-    jmp b_55
+  b_38 {
+    %v_39 = load @read, 8: I64
+    %v_40 = cmp_neq %v_39, 0: I32
+    je %v_40, b_41, b_42
   }
 
-  b_55 {
-    %v_56 = call_complex orSkips: I32
-    %v_57 = xor %v_56, 1: I32
+  b_43 {
+    ret 10
+  }
+
+  b_44 {
+    %v_45 = loads @effects, 4: I32
+    %v_46 = cmp_neq %v_45, 1: I32
+    je %v_46, b_47, b_48
+  }
+
+  b_49 {
+    ret 11
+  }
+
+  b_48 {
+    %v_50 = alloca 8, 8: Ptr
+    copy %v_50, @empty, 8
+    %v_51 = load %v_50, 8: I64
+    %v_52 = cmp_neq %v_51, 0: I32
+    je %v_52, b_53, b_54
+  }
+
+  b_47 {
+    ret 12
+  }
+
+  b_54 {
+    %v_55 = alloca 8, 8: Ptr
+    copy %v_55, @read, 8
+    %v_56 = load %v_55, 8: I64
+    %v_57 = cmp_neq %v_56, 0: I32
     je %v_57, b_58, b_59
   }
 
   b_53 {
-    ret 10
-  }
-
-  b_59 {
-    jmp b_60
-  }
-
-  b_60 {
-    %v_61 = loads @effects, 4: I32
-    %v_62 = cmp_neq %v_61, 1: I32
-    je %v_62, b_63, b_64
-  }
-
-  b_58 {
-    ret 11
-  }
-
-  b_64 {
-    jmp b_65
-  }
-
-  b_65 {
-    %v_66 = alloca 8, 8: Ptr
-    copy %v_66, @empty, 8
-    %v_67 = call_complex flagsAndCount, %v_66, 7: I32
-    je %v_67, b_68, b_69
-  }
-
-  b_63 {
-    ret 12
-  }
-
-  b_69 {
-    jmp b_70
-  }
-
-  b_70 {
-    %v_71 = alloca 8, 8: Ptr
-    copy %v_71, @read, 8
-    %v_72 = call_complex flagsAndCount, %v_71, 7: I32
-    %v_73 = xor %v_72, 1: I32
-    je %v_73, b_74, b_75
-  }
-
-  b_68 {
     ret 21
   }
 
-  b_75 {
-    jmp b_76
+  b_58 {
+    %v_60 = alloca 8, 8: Ptr
+    copy %v_60, @read, 8
+    %v_61 = load %v_60, 8: I64
+    %v_62 = alloca 8, 8: Ptr
+    copy %v_62, @empty, 8
+    %v_63 = load %v_62, 8: I64
+    %v_64 = alloca 8, 8: Ptr
+    copy %v_64, @empty, 8
+    %v_65 = load %v_64, 8: I64
+    %v_66 = cmp_neq %v_65, 0: I32
+    je %v_66, b_67, b_68
   }
 
-  b_76 {
-    %v_77 = alloca 8, 8: Ptr
-    copy %v_77, @read, 8
-    %v_78 = call_complex flagsAndCount, %v_77, 0: I32
-    je %v_78, b_79, b_80
-  }
-
-  b_74 {
+  b_59 {
     ret 22
   }
 
-  b_80 {
-    jmp b_81
+  b_68 {
+    %v_69 = alloca 8, 8: Ptr
+    copy %v_69, @read, 8
+    %v_70 = load %v_69, 8: I64
+    %v_71 = cmp_neq %v_70, 0: I32
+    je %v_71, b_72, b_73
   }
 
-  b_81 {
-    %v_82 = alloca 8, 8: Ptr
-    copy %v_82, @empty, 8
-    %v_83 = call_complex flagsOrCount, %v_82, 7: I32
-    %v_84 = xor %v_83, 1: I32
-    je %v_84, b_85, b_86
-  }
-
-  b_79 {
-    ret 23
-  }
-
-  b_86 {
-    jmp b_87
-  }
-
-  b_87 {
-    %v_88 = alloca 8, 8: Ptr
-    copy %v_88, @empty, 8
-    %v_89 = call_complex flagsOrCount, %v_88, 0: I32
-    je %v_89, b_90, b_91
-  }
-
-  b_85 {
-    ret 24
-  }
-
-  b_91 {
-    jmp b_92
-  }
-
-  b_92 {
-    %v_93 = alloca 8, 8: Ptr
-    copy %v_93, @read, 8
-    %v_94 = call_complex againstLiteral, %v_93: I32
-    %v_95 = xor %v_94, 1: I32
-    je %v_95, b_96, b_97
-  }
-
-  b_90 {
+  b_67 {
     ret 25
   }
 
-  b_97 {
-    jmp b_98
+  b_72 {
+    %v_74 = load @empty, 8: I64
+    %v_75 = cmp_neq %v_74, 0: I32
+    %v_76 = xor %v_75, 1: I32
+    %v_77 = alloca 8, 8: Ptr
+    copy %v_77, @empty, 8
+    %v_78 = load %v_77, 8: I64
+    %v_79 = cmp_neq %v_78, 0: I32
+    %v_80 = xor %v_79, 1: I32
+    %v_81 = cmp_neq %v_76, %v_80: I32
+    je %v_81, b_82, b_83
   }
 
-  b_98 {
-    %v_99 = alloca 8, 8: Ptr
-    copy %v_99, @empty, 8
-    %v_100 = call_complex genericNot(Flags), %v_99: I32
-    %v_101 = alloca 8, 8: Ptr
-    copy %v_101, @empty, 8
-    %v_102 = call_complex isEmpty, %v_101: I32
-    %v_103 = cmp_neq %v_100, %v_102: I32
-    je %v_103, b_104, b_105
-  }
-
-  b_96 {
+  b_73 {
     ret 26
   }
 
-  b_105 {
-    jmp b_106
+  b_83 {
+    %v_84 = load @read, 8: I64
+    %v_85 = cmp_neq %v_84, 0: I32
+    %v_86 = xor %v_85, 1: I32
+    %v_87 = alloca 8, 8: Ptr
+    copy %v_87, @read, 8
+    %v_88 = load %v_87, 8: I64
+    %v_89 = cmp_neq %v_88, 0: I32
+    %v_90 = xor %v_89, 1: I32
+    %v_91 = cmp_neq %v_86, %v_90: I32
+    je %v_91, b_92, b_93
   }
 
-  b_106 {
-    %v_107 = alloca 8, 8: Ptr
-    copy %v_107, @read, 8
-    %v_108 = call_complex genericNot(Flags), %v_107: I32
-    %v_109 = alloca 8, 8: Ptr
-    copy %v_109, @read, 8
-    %v_110 = call_complex isEmpty, %v_109: I32
-    %v_111 = cmp_neq %v_108, %v_110: I32
-    je %v_111, b_112, b_113
-  }
-
-  b_104 {
+  b_82 {
     ret 14
   }
 
-  b_113 {
-    jmp b_114
+  b_93 {
+    jmp b_94
   }
 
-  b_114 {
-    %v_115 = call_complex genericNot(I32), 0: I32
-    %v_116 = call_complex noneLeft, 0: I32
-    %v_117 = cmp_neq %v_115, %v_116: I32
-    je %v_117, b_118, b_119
-  }
-
-  b_112 {
+  b_92 {
     ret 15
   }
 
-  b_119 {
-    jmp b_120
+  b_94 {
+    %v_95 = alloca 8, 8: Ptr
+    copy %v_95, @read, 8
+    %v_96 = load %v_95, 8: I64
+    %v_97 = cmp_neq %v_96, 0: I32
+    je %v_97, b_98, b_99
   }
 
-  b_120 {
-    %v_121 = alloca 8, 8: Ptr
-    copy %v_121, @read, 8
-    %v_122 = call_complex truthEquals, %v_121, 1: I32
-    %v_123 = xor %v_122, 1: I32
-    je %v_123, b_124, b_125
+  b_98 {
+    %v_100 = alloca 8, 8: Ptr
+    copy %v_100, @read, 8
+    %v_101 = load %v_100, 8: I64
+    %v_102 = cmp_neq %v_101, 0: I32
+    je %v_102, b_103, b_104
   }
 
-  b_118 {
-    ret 16
-  }
-
-  b_125 {
-    jmp b_126
-  }
-
-  b_126 {
-    %v_127 = alloca 8, 8: Ptr
-    copy %v_127, @read, 8
-    %v_128 = call_complex truthEquals, %v_127, 0: I32
-    je %v_128, b_129, b_130
-  }
-
-  b_124 {
+  b_99 {
     ret 31
   }
 
-  b_130 {
-    jmp b_131
+  b_103 {
+    %v_105 = alloca 8, 8: Ptr
+    copy %v_105, @empty, 8
+    %v_106 = load %v_105, 8: I64
+    %v_107 = cmp_neq %v_106, 0: I32
+    je %v_107, b_108, b_109
   }
 
-  b_131 {
-    %v_132 = alloca 8, 8: Ptr
-    copy %v_132, @empty, 8
-    %v_133 = call_complex truthEquals, %v_132, 0: I32
-    %v_134 = xor %v_133, 1: I32
-    je %v_134, b_135, b_136
-  }
-
-  b_129 {
+  b_104 {
     ret 32
   }
 
-  b_136 {
-    jmp b_137
+  b_109 {
+    %v_110 = alloca 8, 8: Ptr
+    copy %v_110, @empty, 8
+    %v_111 = load %v_110, 8: I64
+    %v_112 = cmp_neq %v_111, 0: I32
+    je %v_112, b_113, b_114
   }
 
-  b_137 {
-    %v_138 = alloca 8, 8: Ptr
-    copy %v_138, @empty, 8
-    %v_139 = call_complex truthEquals, %v_138, 1: I32
-    je %v_139, b_140, b_141
-  }
-
-  b_135 {
+  b_108 {
     ret 33
   }
 
-  b_141 {
-    jmp b_142
+  b_114 {
+    %v_115 = alloca 8, 8: Ptr
+    copy %v_115, @read, 8
+    %v_116 = alloca 8, 8: Ptr
+    copy %v_116, @empty, 8
+    %v_117 = load %v_115, 8: I64
+    %v_118 = cmp_neq %v_117, 0: I32
+    %v_119 = load %v_116, 8: I64
+    %v_120 = cmp_neq %v_119, 0: I32
+    %v_121 = cmp_neq %v_118, %v_120: I32
+    je %v_121, b_122, b_123
   }
 
-  b_142 {
-    %v_143 = alloca 8, 8: Ptr
-    copy %v_143, @read, 8
-    %v_144 = alloca 8, 8: Ptr
-    copy %v_144, @empty, 8
-    %v_145 = call_complex truthDiffers, %v_143, %v_144: I32
-    %v_146 = xor %v_145, 1: I32
-    je %v_146, b_147, b_148
-  }
-
-  b_140 {
+  b_113 {
     ret 34
   }
 
-  b_148 {
-    jmp b_149
+  b_122 {
+    %v_124 = alloca 8, 8: Ptr
+    copy %v_124, @read, 8
+    %v_125 = alloca 8, 8: Ptr
+    copy %v_125, @write, 8
+    %v_126 = load %v_124, 8: I64
+    %v_127 = cmp_neq %v_126, 0: I32
+    %v_128 = load %v_125, 8: I64
+    %v_129 = cmp_neq %v_128, 0: I32
+    %v_130 = cmp_neq %v_127, %v_129: I32
+    je %v_130, b_131, b_132
   }
 
-  b_149 {
-    %v_150 = alloca 8, 8: Ptr
-    copy %v_150, @read, 8
-    %v_151 = alloca 8, 8: Ptr
-    copy %v_151, @write, 8
-    %v_152 = call_complex truthDiffers, %v_150, %v_151: I32
-    je %v_152, b_153, b_154
-  }
-
-  b_147 {
+  b_123 {
     ret 35
   }
 
-  b_154 {
-    jmp b_155
+  b_132 {
+    %v_133 = load @read, 8: I64
+    %v_134 = load @write, 8: I64
+    %v_135 = or %v_133, %v_134: I64
+    store %v_1, %v_135, 8
+    %v_136 = load @read, 8: I64
+    %v_137 = and %v_135, %v_136: I64
+    %v_138 = load @read, 8: I64
+    %v_139 = cmp_eq %v_137, %v_138: I32
+    je %v_139, b_140, b_141
   }
 
-  b_155 {
-    %v_156 = alloca 8, 8: Ptr
-    copy %v_156, @read, 8
-    %v_157 = alloca 8, 8: Ptr
-    copy %v_157, @write, 8
-    %v_158 = alloca 8, 8: Ptr
-    call_complex Flags.or, %v_158, %v_156, %v_157
-    copy %v_2, %v_158, 8
-    %v_159 = alloca 8, 8: Ptr
-    copy %v_159, %v_2, 8
-    %v_160 = alloca 8, 8: Ptr
-    copy %v_160, @read, 8
-    %v_161 = alloca 8, 8: Ptr
-    call_complex Flags.and, %v_161, %v_159, %v_160
-    %v_162 = alloca 8, 8: Ptr
-    copy %v_162, @read, 8
-    %v_163 = call_complex Flags.==, %v_161, %v_162: I32
-    %v_164 = xor %v_163, 1: I32
-    je %v_164, b_165, b_166
-  }
-
-  b_153 {
+  b_131 {
     ret 36
   }
 
-  b_166 {
-    jmp b_167
+  b_140 {
+    %v_142 = sext %v_135: I32
+    ret %v_142
   }
 
-  b_167 {
-    %v_168 = loads %v_1, 4: I32
-    %v_169 = alloca 8, 8: Ptr
-    copy %v_169, %v_2, 8
-    %v_170 = call_complex bitsOf, %v_169: I64
-    %v_171 = sext %v_170: I32
-    %v_172 = add %v_168, %v_171: I32
-    store %v_1, %v_172, 4
-    %v_173 = loads %v_1, 4: I32
-    ret %v_173
-  }
-
-  b_165 {
+  b_141 {
     ret 13
   }
-}
 
-bitsOf<complex>(%f: Ptr): I64 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    %v_2 = loads %f, 8: I64
-    store %v_1, %v_2, 8
-    %v_3 = loads %v_1, 8: I64
-    jmp b_4
+  b_31 {
+    %v_143 = loads @effects, 4: I32
+    %v_144 = add %v_143, 1: I32
+    store @effects, %v_144, 4
+    %v_145 = load @read, 8: I64
+    %v_146 = cmp_neq %v_145, 0: I32
+    je %v_146, b_37, b_32
   }
 
-  b_4 {
-    %v_5 = phi [b_0, %v_3]: I64
-    ret %v_5
+  b_36 {
+    jmp b_147
   }
-}
 
-genericNot(Flags)<complex>(%x: Ptr): I32 {
-  b_0 {
-    %v_1 = call_complex Flags.truthy, %x: I32
-    %v_2 = xor %v_1, 1: I32
-    ret %v_2
+  b_35 {
+    %v_148 = loads @effects, 4: I32
+    %v_149 = add %v_148, 1: I32
+    store @effects, %v_149, 4
+    %v_150 = load @read, 8: I64
+    %v_151 = cmp_neq %v_150, 0: I32
+    jmp b_147
   }
-}
 
-genericNot(I32)<complex>(%x: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %x, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = call_complex I32.truthy, %v_2: I32
-    %v_4 = xor %v_3, 1: I32
-    ret %v_4
+  b_147 {
+    %v_152 = phi [b_36, 0], [b_35, %v_151]: I32
+    je %v_152, b_38, b_43
   }
-}
 
-I32.truthy<complex>(%value: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %value, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = cmp_neq %v_2, 0: I32
-    ret %v_3
+  b_42 {
+    %v_153 = loads @effects, 4: I32
+    %v_154 = add %v_153, 1: I32
+    store @effects, %v_154, 4
+    %v_155 = load @read, 8: I64
+    %v_156 = cmp_neq %v_155, 0: I32
+    jmp b_157
+  }
+
+  b_41 {
+    jmp b_157
+  }
+
+  b_157 {
+    %v_158 = phi [b_42, %v_156], [b_41, 1]: I32
+    je %v_158, b_44, b_49
   }
 }
 

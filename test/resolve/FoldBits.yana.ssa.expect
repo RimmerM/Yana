@@ -1,0 +1,161 @@
+module ResolveTest
+
+fn check(ok: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  jump -> bb2(consume %6)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %7: I32 trivial = load inspect %4
+  jump -> bb2(consume %7)
+}
+
+fn unsignedWrap() -> I32 {
+bb0:
+  %0: U8 trivial = const 200
+  %1: U8 trivial = const 100
+  %2: U8 trivial = add inspect %0 inspect %1
+  %3: U8 trivial = const 44
+  %4: Bool trivial = eq inspect %2 inspect %3
+  %5: I32 trivial = const 1
+  %6: I32 trivial = call check borrow %4 borrow %5
+  return consume %6
+}
+
+fn signedWrap() -> I32 {
+bb0:
+  %0: I8 trivial = const 100
+  %1: I8 trivial = const 100
+  %2: I8 trivial = add inspect %0 inspect %1
+  %3: I8 trivial = const 0
+  %4: I8 trivial = const 56
+  %5: I8 trivial = sub inspect %3 inspect %4
+  %6: Bool trivial = eq inspect %2 inspect %5
+  %7: I32 trivial = const 2
+  %8: I32 trivial = call check borrow %6 borrow %7
+  return consume %8
+}
+
+fn narrowShift() -> I32 {
+bb0:
+  %0: U8 trivial = const 200
+  %1: U8 trivial = const 1
+  %2: U8 trivial = shl inspect %0 inspect %1
+  %3: U8 trivial = const 144
+  %4: Bool trivial = eq inspect %2 inspect %3
+  %5: I32 trivial = const 4
+  %6: I32 trivial = call check borrow %4 borrow %5
+  return consume %6
+}
+
+fn packed() -> Packed {
+bb0:
+  %0: U32 trivial = const 250
+  %1: U32 trivial = const 50
+  %2: U32 trivial = add inspect %0 inspect %1
+  %3: @bits(4) U32 trivial = convert inspect %2
+  %4: I32 trivial = const 10
+  %5: I32 trivial = const 10
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: @bits(5) I32 trivial = convert inspect %6
+  %8: Packed trivial = aggregate.Packed consume %3 consume %7
+  return consume %8
+}
+
+fn refinedUnsigned() -> I32 {
+bb0:
+  %0: %Packed address = alloc frame Packed
+  %1: Packed trivial = call packed
+  store inspect %0 consume %1
+  %2: %@bits(4) U32 address = field.addr .small inspect %0
+  %3: @bits(4) U32 trivial = load inspect %2
+  %4: U32 trivial = convert inspect %3
+  %5: U32 trivial = const 12
+  %6: Bool trivial = eq inspect %4 inspect %5
+  %7: I32 trivial = const 8
+  %8: I32 trivial = call check borrow %6 borrow %7
+  return consume %8
+}
+
+fn refinedSigned() -> I32 {
+bb0:
+  %0: %Packed address = alloc frame Packed
+  %1: Packed trivial = call packed
+  store inspect %0 consume %1
+  %2: %@bits(5) I32 address = field.addr .signed inspect %0
+  %3: @bits(5) I32 trivial = load inspect %2
+  %4: I32 trivial = convert inspect %3
+  %5: I32 trivial = const 0
+  %6: I32 trivial = const 12
+  %7: I32 trivial = sub inspect %5 inspect %6
+  %8: Bool trivial = eq inspect %4 inspect %7
+  %9: I32 trivial = const 16
+  %10: I32 trivial = call check borrow %8 borrow %9
+  return consume %10
+}
+
+fn signedCompare() -> I32 {
+bb0:
+  %0: I8 trivial = const 0
+  %1: I8 trivial = const 1
+  %2: I8 trivial = sub inspect %0 inspect %1
+  %3: I8 trivial = const 0
+  %4: Bool trivial = lt inspect %2 inspect %3
+  %5: I32 trivial = const 32
+  %6: I32 trivial = call check borrow %4 borrow %5
+  return consume %6
+}
+
+fn unsignedCompare() -> I32 {
+bb0:
+  %0: U8 trivial = const 255
+  %1: U8 trivial = const 1
+  %2: Bool trivial = gt inspect %0 inspect %1
+  %3: I32 trivial = const 64
+  %4: I32 trivial = call check borrow %2 borrow %3
+  return consume %4
+}
+
+fn narrowComplement() -> I32 {
+bb0:
+  %0: U8 trivial = const 0
+  %1: U8 trivial = not inspect %0
+  %2: U8 trivial = const 255
+  %3: Bool trivial = eq inspect %1 inspect %2
+  %4: I32 trivial = const 128
+  %5: I32 trivial = call check borrow %3 borrow %4
+  return consume %5
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call unsignedWrap
+  %1: I32 trivial = call signedWrap
+  %2: I32 trivial = add inspect %0 inspect %1
+  %3: I32 trivial = call narrowShift
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: I32 trivial = call refinedUnsigned
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: I32 trivial = call refinedSigned
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: I32 trivial = call signedCompare
+  %10: I32 trivial = add inspect %8 inspect %9
+  %11: I32 trivial = call unsignedCompare
+  %12: I32 trivial = add inspect %10 inspect %11
+  %13: I32 trivial = call narrowComplement
+  %14: I32 trivial = add inspect %12 inspect %13
+  return consume %14
+}
+
+entry main

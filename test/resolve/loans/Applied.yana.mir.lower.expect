@@ -2,166 +2,34 @@ mut @trace = [0, 0, 0, 0]
 
 Guard.drop<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    copy %v_1, %value, 4
+    %v_1 = load %value, 4: I32
     %v_2 = loads @trace, 4: I32
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = add %v_2, %v_3: I32
-    store @trace, %v_4, 4
+    %v_3 = add %v_2, %v_1: I32
+    store @trace, %v_3, 4
     ret 
-  }
-}
-
-guard<complex>(%v_0: Ptr, %id: I32) {
-  b_1 {
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, %id, 4
-    %v_3 = loads %v_2, 4: I32
-    %v_4 = alloca 4, 4: Ptr
-    store %v_4, %v_3, 4
-    copy %v_0, %v_4, 4
-    ret 
-  }
-}
-
-readerId<complex>(%r: Ptr): I32 {
-  b_0 {
-    %v_1 = load %r, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    ret %v_2
-  }
-}
-
-readerOf<complex>(%v_0: Ptr, %g: Ptr) {
-  b_1 {
-    %v_2 = alloca 12, 8: Ptr
-    store %v_2, %g, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, 7, 4
-    copy %v_0, %v_2, 12
-    ret 
-  }
-}
-
-returnsApplied<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 12, 8: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    call_complex guard, %v_3, 1
-    copy %v_1, %v_3, 4
-    %v_4 = alloca 12, 8: Ptr
-    call_complex readerOf, %v_4, %v_1
-    copy %v_2, %v_4, 12
-    %v_5 = alloca 12, 8: Ptr
-    copy %v_5, %v_2, 12
-    %v_6 = call_complex readerId, %v_5: I32
-    call_complex Guard.drop, %v_1
-    %v_7 = imul %v_6, 10: I32
-    %v_8 = add %v_2, 8: Ptr
-    %v_9 = loads %v_8, 4: I32
-    %v_10 = add %v_7, %v_9: I32
-    ret %v_10
-  }
-}
-
-forward<complex>(%v_0: Ptr, %g: Ptr) {
-  b_1 {
-    %v_2 = alloca 12, 8: Ptr
-    call_complex readerOf, %v_2, %g
-    copy %v_0, %v_2, 12
-    ret 
-  }
-}
-
-renamedSlot<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 12, 8: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    call_complex guard, %v_3, 2
-    copy %v_1, %v_3, 4
-    %v_4 = alloca 12, 8: Ptr
-    call_complex forward, %v_4, %v_1
-    copy %v_2, %v_4, 12
-    %v_5 = alloca 12, 8: Ptr
-    copy %v_5, %v_2, 12
-    %v_6 = call_complex readerId, %v_5: I32
-    call_complex Guard.drop, %v_1
-    %v_7 = imul %v_6, 10: I32
-    %v_8 = add %v_2, 8: Ptr
-    %v_9 = loads %v_8, 4: I32
-    %v_10 = add %v_7, %v_9: I32
-    ret %v_10
-  }
-}
-
-pairId<complex>(%v: Ptr): I32 {
-  b_0 {
-    %v_1 = load %v, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = imul %v_2, 10: I32
-    %v_4 = add %v, 8: Ptr
-    %v_5 = load %v_4, 8: Ptr
-    %v_6 = loads %v_5, 4: I32
-    %v_7 = add %v_3, %v_6: I32
-    ret %v_7
-  }
-}
-
-crossed<complex>(%v_0: Ptr, %one: Ptr, %two: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, %two, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %one, 8
-    copy %v_0, %v_2, 16
-    ret 
-  }
-}
-
-twoSlots<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 16, 8: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    call_complex guard, %v_4, 3
-    copy %v_1, %v_4, 4
-    %v_5 = alloca 4, 4: Ptr
-    call_complex guard, %v_5, 4
-    copy %v_2, %v_5, 4
-    %v_6 = alloca 16, 8: Ptr
-    call_complex crossed, %v_6, %v_1, %v_2
-    copy %v_3, %v_6, 16
-    %v_7 = alloca 16, 8: Ptr
-    copy %v_7, %v_3, 16
-    %v_8 = call_complex pairId, %v_7: I32
-    call_complex Guard.drop, %v_1
-    call_complex Guard.drop, %v_2
-    ret %v_8
   }
 }
 
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
+    store %v_1, 1, 4
+    call_complex Guard.drop, %v_1
     %v_2 = alloca 4, 4: Ptr
+    store %v_2, 2, 4
+    call_complex Guard.drop, %v_2
     %v_3 = alloca 4, 4: Ptr
-    %v_4 = call_complex returnsApplied: I32
-    store %v_1, %v_4, 4
-    %v_5 = call_complex renamedSlot: I32
-    store %v_2, %v_5, 4
-    %v_6 = call_complex twoSlots: I32
-    store %v_3, %v_6, 4
-    %v_7 = loads %v_1, 4: I32
-    %v_8 = loads %v_2, 4: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_3, 3, 4
+    store %v_4, 4, 4
+    %v_5 = loads %v_3, 4: I32
+    %v_6 = add 40, %v_5: I32
+    call_complex Guard.drop, %v_3
+    call_complex Guard.drop, %v_4
+    %v_7 = add 44, %v_6: I32
+    %v_8 = loads @trace, 4: I32
     %v_9 = add %v_7, %v_8: I32
-    %v_10 = loads %v_3, 4: I32
-    %v_11 = add %v_9, %v_10: I32
-    %v_12 = loads @trace, 4: I32
-    %v_13 = add %v_11, %v_12: I32
-    ret %v_13
+    ret %v_9
   }
 }
 

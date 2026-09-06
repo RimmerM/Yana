@@ -1,59 +1,9 @@
 
-adopted<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, 1, 4
-    copy %v_1, %v_2, 4
-    store %v_1, 41, 4
-    %v_3 = loads %v_1, 4: I32
-    ret %v_3
-  }
-}
-
-copied<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 1, 4
-    copy %v_1, %v_3, 4
-    %v_4 = alloca 4, 4: Ptr
-    copy %v_4, %v_1, 4
-    copy %v_2, %v_4, 4
-    store %v_2, 99, 4
-    %v_5 = loads %v_1, 4: I32
-    %v_6 = loads %v_2, 4: I32
-    %v_7 = add %v_5, %v_6: I32
-    ret %v_7
-  }
-}
-
-field<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 7, 4
-    copy %v_1, %v_3, 4
-    %v_4 = loads %v_1, 4: I32
-    store %v_2, %v_4, 4
-    %v_5 = loads %v_2, 4: I32
-    %v_6 = add %v_5, 1: I32
-    store %v_2, %v_6, 4
-    %v_7 = loads %v_2, 4: I32
-    ret %v_7
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex adopted: I32
-    %v_2 = call_complex copied: I32
-    %v_3 = add %v_1, %v_2: I32
-    %v_4 = call_complex field: I32
-    %v_5 = add %v_3, %v_4: I32
-    ret %v_5
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 1, 4
+    ret 149
   }
 }
 

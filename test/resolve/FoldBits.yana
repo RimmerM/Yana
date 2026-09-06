@@ -1,0 +1,83 @@
+{-
+   Constant folding **at the type's own width**, which is the one thing a folder can get wrong in a
+   way no golden shows.
+
+   Every case here is arithmetic over literals, so both resolve stages answer it in their optimizers
+   rather than at run time, and every case is at a width **narrower than the register holding it**.
+   That is the whole point: `200 + 100` is 300 in a thirty-two bit register and 44 in a `U8`, and a
+   folder that computes the first and stores it as the second has produced a number the machine never
+   would. `.run.expect` is shared between the two stages, so what this asserts is that the two of them
+   - which fold these through completely different code - agree with each other and with the machine.
+
+   The `-no-ir-opt` comparison the drivers make is the other half: with the optimizer off, none of
+   this folds and the answers come from `lower/width.cpp`'s masks. A fold at the wrong width shows up
+   there as two different numbers for one program. The `.js.expect` beside this file is a third
+   reading of the same claim - `codegen/js` masks narrow integers itself and folds the whole of `main`
+   to 255 - which costs a golden and covers the one target neither of the other two is.
+
+   Six of the eight cases discriminate on their own - fold them at thirty-two bits and `main` is not
+   255. The two refinement cases do not, because a value on its way into a field is narrowed by the
+   store whether or not anything folded it; what they assert is that the refinement's own width is
+   what the fold used, which is visible in `.ssa.opt.expect` as the answer rather than as the
+   arithmetic. That is the case the two stages disagree about *who* computes: the shipping stage
+   declines refinement arithmetic outright, because its two backends spell the width differently, and
+   this stage has one backend and `resolve_ssa/lower/width.cpp` states the width - see the note in
+   `resolve_ssa/opt/fold.cpp`.
+
+   Each case contributes a distinct power of two and `main` is 255 when they all pass.
+-}
+
+fn check(ok: Bool, weight: Int) -> Int = if ok then weight else 0
+
+-- An unsigned narrow type, wrapping. 300 is not a `U8`, and 44 is what one holds.
+fn unsignedWrap() -> Int = check((200 :: U8) + 100 == 44, 1)
+
+-- The signed half, whose wrap goes the other way: 200 has the eighth bit set, so an `I8` reads it as
+-- -56. Written as `0 - 56` rather than with a unary minus, which the shipping stage types as an `I32`
+-- whatever the position wants.
+fn signedWrap() -> Int = check((100 :: I8) + 100 == (0 :: I8) - 56, 2)
+
+-- A shift is `Wraps` in `op.def` for exactly this reason: the bits it moves out of the declared width
+-- are gone, and 400 masked to eight is 144.
+fn narrowShift() -> Int = check((200 :: U8) `shl` 1 == 144, 4)
+
+{-
+   The two refinements, reached the way `doc/spec/repr.md` says one is: a value at the natural width
+   converted on its way into the field, and widened back on the way out.
+
+   `@bits(4) U32` keeps four bits of 300, which is 12. `@bits(5) I32` keeps five of 20 - and the fifth
+   is the sign, so what comes back out is -12 rather than 20. The signed one is the case that says the
+   fold sign-extends at the refinement's width rather than masking at it.
+-}
+alias Small = @bits(4) U32
+alias SmallSigned = @bits(5) I32
+
+data Packed {small: Small, signed: SmallSigned}
+
+fn packed() -> Packed = Packed {small: (250 :: U32) + 50, signed: (10 :: I32) + 10}
+
+fn refinedUnsigned() -> Int = check(packed().small == 12, 8)
+
+fn refinedSigned() -> Int = check(packed().signed == (0 :: I32) - 12, 16)
+
+{-
+   The two narrow comparisons, which are the same eight bits ordered two ways.
+
+   A comparison happens at the *operands'* signedness and not at its own result type, and each of
+   these is false under the other reading: `-1 < 0` is true signed and false unsigned, and `255 > 1`
+   is true unsigned and false signed. A folder that took the signedness off the `Bool` it answers
+   would fail both.
+-}
+fn signedCompare() -> Int = check((0 :: I8) - 1 < (0 :: I8), 32)
+
+fn unsignedCompare() -> Int = check((255 :: U8) > (1 :: U8), 64)
+
+-- And a complement, which is the one bitwise operation that takes an in-range operand out of range:
+-- every bit of a `U8` zero is set, and the value that is, is 255 rather than the register's own
+-- thirty-two ones.
+fn narrowComplement() -> Int = check(not(0 :: U8) == 255, 128)
+
+fn main() -> Int =
+    unsignedWrap() + signedWrap() + narrowShift() +
+    refinedUnsigned() + refinedSigned() +
+    signedCompare() + unsignedCompare() + narrowComplement()

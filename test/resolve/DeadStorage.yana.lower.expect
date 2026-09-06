@@ -1,0 +1,102 @@
+@image$base = []
+mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+mut @live = [0, 0, 0, 0]
+mut @trace = [0, 0, 0, 0]
+@ResolveTest.string$0 = [97, 98, 99, 100, 101, 102]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0]
+
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_6, 8: I64
+    %v_7 = load @heapFree, 8: Ptr
+    %v_8 = shl %sizeClass, 3: I64
+    %v_9 = add %v_7, %v_8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    store %allocation, %v_10, 8
+    %v_11 = load @heapFree, 8: Ptr
+    %v_12 = add %v_11, %v_8: Ptr
+    store %v_12, %allocation, 8
+    ret 
+  }
+}
+
+bump<complex>(%v: Ptr) {
+  b_0 {
+    %v_1 = loads %v, 4: I32
+    %v_2 = add %v_1, 100: I32
+    store %v, %v_2, 4
+    ret 
+  }
+}
+
+size<complex>(%s: Ptr): I32 {
+  b_0 {
+    %v_1 = add %s, 12: Ptr
+    %v_2 = load %v_1, 4: I32
+    %v_3 = add %s, 8: Ptr
+    %v_4 = load %v_3, 4: I64
+    %v_5 = shr %v_4, 30: I64
+    %v_6 = cast %v_5: I32
+    %v_7 = cmp_eq %v_6, 1: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_8 {
+    %v_11 = load %s, 8: Ptr
+    call_complex freeHeap, %v_11
+    jmp b_10
+  }
+
+  b_10 {
+    ret %v_2
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = loads @live, 4: I32
+    %v_2 = add %v_1, 1: I32
+    %v_3 = sub %v_2, 1: I32
+    store @live, %v_3, 4
+    %v_4 = loads @trace, 4: I32
+    %v_5 = imul %v_4, 10: I32
+    %v_6 = add %v_5, 4: I32
+    store @trace, %v_6, 4
+    %v = alloca 4, 4: Ptr
+    store %v, 7, 4
+    call_complex bump, %v
+    %v_7 = loads %v, 4: I32
+    %text = alloca 16, 8: Ptr
+    copy %text, @ResolveTest.literal$1, 16
+    %v_8 = call_complex size, %text: I32
+    %v_9 = add %v_7, 150: I32
+    %v_10 = add %v_9, %v_8: I32
+    %v_11 = add %v_10, 8: I32
+    %v_12 = loads @live, 4: I32
+    %v_13 = imul %v_12, 1000: I32
+    %v_14 = add %v_11, %v_13: I32
+    %v_15 = loads @trace, 4: I32
+    %v_16 = add %v_14, %v_15: I32
+    ret %v_16
+  }
+}
+

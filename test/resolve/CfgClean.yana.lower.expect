@@ -1,0 +1,161 @@
+@image$base = []
+mut @live = [0, 0, 0, 0]
+mut @trace = [0, 0, 0, 0]
+
+take<complex>(%h: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %h, 4: I32
+    %v_2 = loads @live, 4: I32
+    %v_3 = sub %v_2, 1: I32
+    store @live, %v_3, 4
+    %v_4 = loads @trace, 4: I32
+    %v_5 = imul %v_4, 10: I32
+    %v_6 = add %v_5, %v_1: I32
+    store @trace, %v_6, 4
+    ret %v_1
+  }
+}
+
+nested<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = loads @live, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @live, %v_2, 4
+    %h = alloca 4, 4: Ptr
+    store %h, %n, 4
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: I32
+    %v_7 = phi [b_0, 0], [b_5, %v_8]: I32
+    %v_9 = cmp_ilt %v_7, %n: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    call_complex Drop(Held).drop, %h
+    jmp b_12
+  }
+
+  b_10 {
+    %v_13 = cmp_igt %v_7, 2: I32
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    %v_16 = cmp_igt %v_7, 4: I32
+    je %v_16, b_17, b_18
+  }
+
+  b_18 {
+    %v_19 = imul %v_4, 10: I32
+    %v_20 = add %v_19, %v_7: I32
+    jmp b_21
+  }
+
+  b_17 {
+    jmp b_21
+  }
+
+  b_21 {
+    %v_6 = phi [b_18, %v_20], [b_17, %v_4]: I32
+    %v_22 = phi [b_18, 0], [b_17, 1]: I32
+    %v_23 = imm 24: I32
+    %v_24 = shl %v_22, %v_23: I32
+    %v_25 = sar %v_24, %v_23: I32
+    %v_26 = cmp_eq %v_25, 1: I32
+    je %v_26, b_27, b_5
+  }
+
+  b_5 {
+    %v_8 = add %v_7, 1: I32
+    jmp b_3
+  }
+
+  b_27 {
+    call_complex Drop(Held).drop, %h
+    jmp b_28
+  }
+
+  b_14 {
+    %v_29 = call_complex take, %h: I32
+    %v_30 = cmp_igt %v_29, 4: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_32 {
+    %v_33 = imul %v_4, 10: I32
+    %v_34 = add %v_33, %v_29: I32
+    jmp b_35
+  }
+
+  b_31 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_36 = phi [b_32, %v_34], [b_31, %v_4]: I32
+    %v_37 = phi [b_32, 0], [b_31, 1]: I32
+    %v_38 = imm 24: I32
+    %v_39 = shl %v_37, %v_38: I32
+    %v_40 = sar %v_39, %v_38: I32
+    %v_41 = cmp_eq %v_40, 1: I32
+    je %v_41, b_42, b_43
+  }
+
+  b_43 {
+    jmp b_12
+  }
+
+  b_12 {
+    %v_44 = phi [b_11, %v_4], [b_43, %v_36]: I32
+    jmp b_28
+  }
+
+  b_42 {
+    jmp b_28
+  }
+
+  b_28 {
+    %v_45 = phi [b_27, %v_6], [b_12, %v_44], [b_42, %v_36]: I32
+    ret %v_45
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex nested, 0: I32
+    %v_2 = imul %v_1, 3: I32
+    %v_3 = add %v_2, 35: I32
+    %v_4 = call_complex nested, 3: I32
+    %v_5 = imul %v_4, 5: I32
+    %v_6 = add %v_3, %v_5: I32
+    %v_7 = call_complex nested, 6: I32
+    %v_8 = imul %v_7, 7: I32
+    %v_9 = add %v_6, %v_8: I32
+    %v_10 = add %v_9, 769: I32
+    %v_11 = imul %v_10, 1000: I32
+    %v_12 = loads @trace, 4: I32
+    %v_13 = imul %v_12, 10: I32
+    %v_14 = add %v_11, %v_13: I32
+    %v_15 = loads @live, 4: I32
+    %v_16 = add %v_14, %v_15: I32
+    ret %v_16
+  }
+}
+
+Drop(Held).drop<complex>(%self: Ptr) {
+  b_0 {
+    %v_1 = loads @live, 4: I32
+    %v_2 = sub %v_1, 1: I32
+    store @live, %v_2, 4
+    %v_3 = loads @trace, 4: I32
+    %v_4 = imul %v_3, 10: I32
+    %v_5 = loads %self, 4: I32
+    %v_6 = add %v_4, %v_5: I32
+    store @trace, %v_6, 4
+    ret 
+  }
+}
+

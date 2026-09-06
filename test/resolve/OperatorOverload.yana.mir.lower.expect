@@ -1,74 +1,7 @@
 
-+<complex>(%lhs: Ptr, %rhs: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %rhs, 4
-    %v_2 = loads %lhs, 4: I32
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = add %v_2, %v_3: I32
-    ret %v_4
-  }
-}
-
--<complex>(%value: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %value, 4: I32
-    %v_2 = sub 0, %v_1: I32
-    ret %v_2
-  }
-}
-
-*<complex>(%lhs: Ptr, %rhs: I32, %scale: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_1, %rhs, 4
-    store %v_2, %scale, 4
-    %v_3 = loads %lhs, 4: I32
-    %v_4 = loads %v_1, 4: I32
-    %v_5 = imul %v_3, %v_4: I32
-    %v_6 = loads %v_2, 4: I32
-    %v_7 = imul %v_5, %v_6: I32
-    ret %v_7
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    %v_5 = alloca 4, 4: Ptr
-    %v_6 = add 3, 4: I32
-    store %v_1, %v_6, 4
-    %v_7 = alloca 4, 4: Ptr
-    store %v_7, 5, 4
-    %v_8 = call_complex +, %v_7, 6: I32
-    store %v_2, %v_8, 4
-    %v_9 = alloca 4, 4: Ptr
-    store %v_9, 2, 4
-    %v_10 = imul 3, 4: I32
-    %v_11 = call_complex +, %v_9, %v_10: I32
-    store %v_3, %v_11, 4
-    %v_12 = alloca 4, 4: Ptr
-    store %v_12, 7, 4
-    %v_13 = call_complex -, %v_12: I32
-    store %v_4, %v_13, 4
-    %v_14 = alloca 4, 4: Ptr
-    store %v_14, 3, 4
-    %v_15 = call_complex *, %v_14, 4, 10: I32
-    store %v_5, %v_15, 4
-    %v_16 = loads %v_1, 4: I32
-    %v_17 = loads %v_2, 4: I32
-    %v_18 = add %v_16, %v_17: I32
-    %v_19 = loads %v_3, 4: I32
-    %v_20 = add %v_18, %v_19: I32
-    %v_21 = loads %v_4, 4: I32
-    %v_22 = add %v_20, %v_21: I32
-    %v_23 = loads %v_5, 4: I32
-    %v_24 = add %v_22, %v_23: I32
-    ret %v_24
+    ret 145
   }
 }
 

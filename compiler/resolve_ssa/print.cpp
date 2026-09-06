@@ -333,10 +333,10 @@ struct Printer {
         writer.writeString("bb"_v);
         uint(value.index.index);
 
-        if(value.arguments.size()) {
+        if(value.argumentCount()) {
             writer.writeString("("_v);
             auto first = true;
-            for(auto argument: value.arguments.contents(base)) {
+            for(auto argument: value.arguments(base)) {
                 if(!first) writer.writeString(", "_v);
                 first = false;
                 declaration(*base[argument]);
@@ -358,7 +358,7 @@ struct Printer {
         }
 
         writer.writeString(":\n"_v);
-        for(auto instPointer: value.instructions.contents(base)) inst(*base[instPointer]);
+        for(auto instPointer: value.instructions(base)) inst(*base[instPointer]);
     }
 
     void function(mir::Function& value) {
@@ -393,9 +393,16 @@ struct Printer {
         auto& body = *base[value.ssa];
         current = &body;
         owner = &value;
+        // A deleted block keeps its table entry so that every `BlockId` keeps meaning what it did -
+        // see `Block::deleted` - and printing one would be printing a block that is not there.
+        auto printed = false;
         for(U32 i = 0; i < body.blocks.size(); i++) {
-            if(i) writer.writeString("\n"_v);
-            block(*body.block(base, BlockId(i)));
+            auto at = body.block(base, BlockId(i));
+            if(at->deleted) continue;
+
+            if(printed) writer.writeString("\n"_v);
+            printed = true;
+            block(*at);
         }
 
         writer.writeString("}\n"_v);

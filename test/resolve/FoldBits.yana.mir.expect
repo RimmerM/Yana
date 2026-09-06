@@ -1,0 +1,159 @@
+module ResolveTest
+
+data Packed {small: @bits(4) U32, signed: @bits(5) I32}
+
+fn check(ok: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (ok)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = read copy.trivial (weight)
+  jump -> bb2(take %2)
+}
+
+fn unsignedWrap() -> I32 {
+bb0:
+  %0: U8 = const 200
+  %1: U8 = const 100
+  %2: U8 = add inspect %0 inspect %1
+  %3: U8 = const 44
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 1
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  return take %6
+}
+
+fn signedWrap() -> I32 {
+bb0:
+  %0: I8 = const 100
+  %1: I8 = const 100
+  %2: I8 = add inspect %0 inspect %1
+  %3: I8 = const 0
+  %4: I8 = const 56
+  %5: I8 = sub inspect %3 inspect %4
+  %6: Bool = eq inspect %2 inspect %5
+  %7: I32 = const 2
+  %8: I32 = call check borrow.shared %6 borrow.shared %7
+  return take %8
+}
+
+fn narrowShift() -> I32 {
+bb0:
+  %0: U8 = const 200
+  %1: U8 = const 1
+  %2: U8 = shl inspect %0 inspect %1
+  %3: U8 = const 144
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 4
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  return take %6
+}
+
+fn packed() -> Packed {
+bb0:
+  %0: U32 = const 250
+  %1: U32 = const 50
+  %2: U32 = add inspect %0 inspect %1
+  %3: @bits(4) U32 = convert inspect %2
+  %4: I32 = const 10
+  %5: I32 = const 10
+  %6: I32 = add inspect %4 inspect %5
+  %7: @bits(5) I32 = convert inspect %6
+  %8: Packed = aggregate.Packed take %3 take %7
+  return take %8
+}
+
+fn refinedUnsigned() -> I32 {
+  local local0: Packed
+
+bb0:
+  %0: Packed = call packed
+  write.init borrow.unique (local0) take %0
+  %2: @bits(4) U32 = read copy.trivial (local0.small)
+  %3: U32 = convert inspect %2
+  %4: U32 = const 12
+  %5: Bool = eq inspect %3 inspect %4
+  %6: I32 = const 8
+  %7: I32 = call check borrow.shared %5 borrow.shared %6
+  return take %7
+}
+
+fn refinedSigned() -> I32 {
+  local local0: Packed
+
+bb0:
+  %0: Packed = call packed
+  write.init borrow.unique (local0) take %0
+  %2: @bits(5) I32 = read copy.trivial (local0.signed)
+  %3: I32 = convert inspect %2
+  %4: I32 = const 0
+  %5: I32 = const 12
+  %6: I32 = sub inspect %4 inspect %5
+  %7: Bool = eq inspect %3 inspect %6
+  %8: I32 = const 16
+  %9: I32 = call check borrow.shared %7 borrow.shared %8
+  return take %9
+}
+
+fn signedCompare() -> I32 {
+bb0:
+  %0: I8 = const 0
+  %1: I8 = const 1
+  %2: I8 = sub inspect %0 inspect %1
+  %3: I8 = const 0
+  %4: Bool = lt inspect %2 inspect %3
+  %5: I32 = const 32
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  return take %6
+}
+
+fn unsignedCompare() -> I32 {
+bb0:
+  %0: U8 = const 255
+  %1: U8 = const 1
+  %2: Bool = gt inspect %0 inspect %1
+  %3: I32 = const 64
+  %4: I32 = call check borrow.shared %2 borrow.shared %3
+  return take %4
+}
+
+fn narrowComplement() -> I32 {
+bb0:
+  %0: U8 = const 0
+  %1: U8 = not inspect %0
+  %2: U8 = const 255
+  %3: Bool = eq inspect %1 inspect %2
+  %4: I32 = const 128
+  %5: I32 = call check borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call unsignedWrap
+  %1: I32 = call signedWrap
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call narrowShift
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call refinedUnsigned
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call refinedSigned
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call signedCompare
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = call unsignedCompare
+  %12: I32 = add inspect %10 inspect %11
+  %13: I32 = call narrowComplement
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+entry main

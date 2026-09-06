@@ -1,28 +1,7 @@
 
-provided<complex>(): I32 {
-  b_0 {
-    ret 10
-  }
-}
-
-onlyInBootstrap<complex>(): I32 {
-  b_0 {
-    ret 5
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = call_complex provided: I32
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 1, 4
-    copy %v_1, %v_3, 4
-    %v_4 = loads %v_1, 4: I32
-    %v_5 = add %v_2, %v_4: I32
-    %v_6 = call_complex onlyInBootstrap: I32
-    %v_7 = add %v_5, %v_6: I32
-    ret %v_7
+    ret 16
   }
 }
 

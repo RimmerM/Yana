@@ -55,8 +55,29 @@
 #include "../compiler/parse/parser.h"
 #include "../compiler/resolve_ssa/pipeline.h"
 #include "../compiler/resolve_ssa/verify.h"
+#include "../compiler/resolve_ssa/build.h"
 
 using namespace Tritium;
+
+/*
+ * The one thing allowed to write the four two-sided lists by hand - `ssa::Mutation`, declared in
+ * `resolve_ssa/inst.h` and defined here and nowhere else.
+ *
+ * Every case below breaks a record the way a pass would break it and asserts that the verifier
+ * reports it, and going through `ssa::Editor` cannot reach any of them: the editor's whole guarantee
+ * is that a half-updated structure is not writable. So the exception is a named friend rather than a
+ * cast through the layout, and it lives in the driver that needs it.
+ */
+namespace ssa {
+
+struct Mutation {
+    static auto& instructions(Block& block) { return block.instructionList; }
+    static auto& arguments(Block& block) { return block.argumentList; }
+    static auto& incoming(Block& block) { return block.incomingList; }
+    static auto& uses(Value& value) { return value.useList; }
+};
+
+} // namespace ssa
 
 static Size failures = 0;
 static const char* currentTest = "";
@@ -207,14 +228,14 @@ struct AdjacentPair {
 static AdjacentPair findAdjacentUse(SsaBase base, ssa::Body& body) {
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(base, BlockId(i));
-        auto count = block->instructions.size();
+        auto count = block->instructionCount();
         if(count < 3) continue;
 
         // `count - 1` is the terminator and is left where it is, so the pair has to end at
         // `count - 2` at the latest.
         for(U32 position = 0; position + 2 < count; position++) {
-            auto definer = base[block->instructions.get(base, position)];
-            auto user = base[block->instructions.get(base, position + 1)];
+            auto definer = base[block->instructionAt(base, position)];
+            auto user = base[block->instructionAt(base, position + 1)];
 
             auto names = false;
             for(auto resultPointer: definer->results.contents(base)) {
@@ -231,10 +252,11 @@ static AdjacentPair findAdjacentUse(SsaBase base, ssa::Body& body) {
 }
 
 static void swapInstructions(SsaBase base, ssa::Block& block, U32 position) {
-    auto first = block.instructions.get(base, position);
-    auto second = block.instructions.get(base, position + 1);
-    block.instructions.set(base, position, second);
-    block.instructions.set(base, position + 1, first);
+    auto& list = ssa::Mutation::instructions(block);
+    auto first = list.get(base, position);
+    auto second = list.get(base, position + 1);
+    list.set(base, position, second);
+    list.set(base, position + 1, first);
 }
 
 /*
@@ -299,7 +321,7 @@ static void testSelfUse(Compiled& compiled) {
     for(U32 i = 0; i < body.blocks.size() && !subject; i++) {
         auto block = body.block(base, BlockId(i));
 
-        for(auto instPointer: block->instructions.contents(base)) {
+        for(auto instPointer: block->instructions(base)) {
             auto inst = base[instPointer];
             if(!inst->results.size()) continue;
 
@@ -406,8 +428,8 @@ static AdjacentPair findDropAfterBorrow(SsaBase base, ssa::Body& body) {
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(base, BlockId(i));
 
-        for(U32 position = 1; position < block->instructions.size(); position++) {
-            auto inst = base[block->instructions.get(base, position)];
+        for(U32 position = 1; position < block->instructionCount(); position++) {
+            auto inst = base[block->instructionAt(base, position)];
             if(inst->kind != ssa::Inst::Drop) continue;
 
             SsaPtr<ssa::Value> released = nullptr;
@@ -417,7 +439,7 @@ static AdjacentPair findDropAfterBorrow(SsaBase base, ssa::Body& body) {
 
             if(!released) continue;
 
-            auto user = base[block->instructions.get(base, position - 1)];
+            auto user = base[block->instructionAt(base, position - 1)];
             auto borrows = false;
 
             ssa::forEachUse(base, *user, [&](ssa::Use used) {
@@ -567,12 +589,12 @@ static void testUseListMultiplicity(Compiled& compiled) {
 
     for(U32 i = 0; i < body.values.size() && !subject; i++) {
         auto value = body.value(base, ValueId(i));
-        if(value->uses.size() < 2) continue;
+        if(value->useCount() < 2) continue;
 
-        auto first = value->uses.get(base, 0);
+        auto first = value->useAt(base, 0);
 
-        for(Size k = 1; k < value->uses.size(); k++) {
-            if(value->uses.get(base, k) == first) continue;
+        for(Size k = 1; k < value->useCount(); k++) {
+            if(value->useAt(base, k) == first) continue;
 
             subject = value;
             kept = first;
@@ -584,9 +606,10 @@ static void testUseListMultiplicity(Compiled& compiled) {
     check(subject != nullptr, "no value in `chain` has two distinct users");
     if(!subject) return;
 
-    auto lost = subject->uses.get(base, dropped);
-    subject->uses.remove(base, dropped);
-    subject->uses.push(arena, kept);
+    auto& list = ssa::Mutation::uses(*subject);
+    auto lost = list.get(base, dropped);
+    list.remove(base, dropped);
+    list.push(arena, kept);
 
     check(!compiled.verify(*function), "a use list with the wrong multiplicity was accepted");
     check(compiled.diagnostics.said("more often than it names it"_v),
@@ -595,8 +618,8 @@ static void testUseListMultiplicity(Compiled& compiled) {
     // The row total is unchanged by the mutation, which is the whole point - so restoring it is a
     // matter of putting the lost entry back and dropping the duplicate. Order within a use list is
     // not a fact the verifier checks, so it does not have to go back where it came from.
-    subject->uses.remove(base, subject->uses.size() - 1);
-    subject->uses.push(arena, lost);
+    list.remove(base, list.size() - 1);
+    list.push(arena, lost);
 
     check(compiled.verify(*function), "the restored body did not verify");
 }
@@ -630,7 +653,7 @@ static void testRegionNesting(Compiled& compiled) {
     ssa::Block* nested = nullptr;
     for(U32 i = 0; i < body.blocks.size() && !nested; i++) {
         auto block = body.block(base, BlockId(i));
-        if(block->incoming.size()) nested = block;
+        if(block->predecessorCount()) nested = block;
     }
 
     check(nested != nullptr, "no block in `chain` has a predecessor");
@@ -775,14 +798,16 @@ static void moveInstruction(SsaBase base, ssa::Block& block, U32 from, U32 to) {
  */
 template<class A>
 static void moveUseEntry(SsaBase base, A& arena, ssa::Inst& user, ssa::Value& from, ssa::Value& to) {
-    for(Size i = 0; i < from.uses.size(); i++) {
-        if(from.uses.get(base, i) != &user - base) continue;
+    auto& fromList = ssa::Mutation::uses(from);
 
-        from.uses.remove(base, i);
+    for(Size i = 0; i < fromList.size(); i++) {
+        if(fromList.get(base, i) != &user - base) continue;
+
+        fromList.remove(base, i);
         break;
     }
 
-    to.uses.push(arena, &user - base);
+    ssa::Mutation::uses(to).push(arena, &user - base);
 }
 
 /*
@@ -797,15 +822,15 @@ static AdjacentPair findBorrowBeforeHandover(SsaBase base, ssa::Body& body) {
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(base, BlockId(i));
 
-        for(U32 position = 0; position + 1 < block->instructions.size(); position++) {
-            auto next = base[block->instructions.get(base, position + 1)];
+        for(U32 position = 0; position + 1 < block->instructionCount(); position++) {
+            auto next = base[block->instructionAt(base, position + 1)];
             if(next->kind != ssa::Inst::Load || !next->results.size()) continue;
             if(!ssa::isTracked(base[next->results.get(base, 0)]->convention)) continue;
 
             auto address = ((ssa::InstLoad*)next)->address;
             if(!address.isSet()) continue;
 
-            auto inst = base[block->instructions.get(base, position)];
+            auto inst = base[block->instructionAt(base, position)];
             if(usesBorrowOf(base, *inst, address.value())) {
                 return AdjacentPair { block, position, true };
             }
@@ -836,17 +861,17 @@ struct MovePair {
 static MovePair findBorrowBeforeReplacement(SsaBase base, ssa::Body& body) {
     for(U32 b = 0; b < body.blocks.size(); b++) {
         auto block = body.block(base, BlockId(b));
-        auto count = block->instructions.size();
+        auto count = block->instructionCount();
 
         for(U32 j = 0; j < count; j++) {
-            auto store = base[block->instructions.get(base, j)];
+            auto store = base[block->instructionAt(base, j)];
             if(store->kind != ssa::Inst::Store) continue;
 
             auto address = ((ssa::InstStore*)store)->address;
             if(!address.isSet()) continue;
 
             for(U32 i = 0; i < j; i++) {
-                auto inst = base[block->instructions.get(base, i)];
+                auto inst = base[block->instructionAt(base, i)];
                 if(inst->results.size() || inst->kind == ssa::Inst::Store) continue;
                 if(!usesBorrowOf(base, *inst, address.value())) continue;
 
@@ -953,11 +978,11 @@ static void duplicateParameter(Compiled& compiled, bool reject) {
     check(compiled.verify(*function), "the unmodified body did not verify");
 
     auto entry = base[body.entry];
-    check(entry->arguments.size() != 0, "`sink` has no parameter to duplicate");
-    if(!entry->arguments.size() || !entry->instructions.size()) return;
+    check(entry->argumentCount() != 0, "`sink` has no parameter to duplicate");
+    if(!entry->argumentCount() || !entry->instructionCount()) return;
 
-    auto parameter = base[entry->arguments.get(base, 0)];
-    auto last = base[entry->instructions.get(base, entry->instructions.size() - 1)];
+    auto parameter = base[entry->argumentAt(base, 0)];
+    auto last = base[entry->instructionAt(base, entry->instructionCount() - 1)];
 
     check(last->kind == ssa::Inst::Return, "`sink` does not end in a return");
     if(last->kind != ssa::Inst::Return) return;
@@ -1062,7 +1087,7 @@ static void testRegionEntry(Compiled& compiled) {
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(base, BlockId(i));
 
-        if(!nested) { if(block->incoming.size()) nested = block; continue; }
+        if(!nested) { if(block->predecessorCount()) nested = block; continue; }
         if(!other) other = block;
     }
 
@@ -1105,10 +1130,9 @@ static bool findBackEdge(SsaBase base, ssa::Body& body, ssa::Block*& tail, ssa::
 
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(base, BlockId(i));
-        auto count = block->instructions.size();
-        if(!count) continue;
+        auto last = block->terminator(base);
+        if(!last) continue;
 
-        auto last = base[block->instructions.get(base, count - 1)];
         ssa::forEachEdge(*last, [&](ssa::Edge& edge) {
             if(!edge.target || tail) return;
 
@@ -1521,6 +1545,573 @@ static void testGenericCallSubstitution() {
           "the report did not name the argument the substitution moved");
 }
 
+/*
+ * The editor's destructive half, over a body with everything the operations need in it.
+ *
+ * `pick` converts to four blocks: an entry that ends in a branch, two arms that each end in a jump
+ * carrying one value, and a merge that declares one block argument. That is the shape every case
+ * below is about - a branch to redirect an arm of, an edge whose arguments a fold has to preserve,
+ * a block argument fed by two edges, and a block to cut in two.
+ *
+ * These are the operations the verifier cannot be asked about from a fixture, for the reason the
+ * whole driver exists: a conversion emits a body and never rewrites one, so nothing in the corpus
+ * exercises an edit at all. What each case asserts is the *structure* the operation owes - the two
+ * records of an edge, the multiplicity of a use, which arguments survived - and then that the body
+ * still verifies, which is the independent statement of most of the same facts.
+ */
+static const char* kEditSource =
+    "fn pick(a: I32, b: I32, c: I32) -> I32:\n"
+    "    let x = if c < 1 then a else b\n"
+    "    return x + 1\n"
+    "\n"
+    "fn main() -> I32 = pick(1, 2, 3)\n";
+
+static ssa::Inst* findBranch(SsaBase base, ssa::Body& body) {
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto last = body.block(base, BlockId(i))->terminator(base);
+        if(last && last->kind == ssa::Inst::Branch) return last;
+    }
+
+    return nullptr;
+}
+
+/*
+ * An arm of the diamond - a block reached by an edge and left by a jump, with something in front of
+ * the jump to cut in front of.
+ *
+ * Both halves matter to the split case. The incoming edge is what makes the region rule a statement
+ * about something (a region is entered at its entry), and the outgoing one is what the second half
+ * inherits: a block that ended in a `return` owns no edge, so splitting one says nothing about the
+ * successors being told where their edges now leave from.
+ */
+static ssa::Block* findArm(SsaBase base, ssa::Body& body) {
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto block = body.block(base, BlockId(i));
+        if(block->instructionCount() < 2 || !block->predecessorCount()) continue;
+
+        auto last = block->terminator(base);
+        if(last && last->kind == ssa::Inst::Jump) return block;
+    }
+
+    return nullptr;
+}
+
+// The merge - one block argument and more than one edge into it, which is what makes the argument's
+// removal a statement about every predecessor rather than about one.
+static ssa::Block* findMerge(SsaBase base, ssa::Body& body) {
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto block = body.block(base, BlockId(i));
+        if(block->argumentCount() == 1 && block->predecessorCount() >= 2) return block;
+    }
+
+    return nullptr;
+}
+
+static U32 countPredecessors(SsaBase base, ssa::Block& block, ssa::Block& from) {
+    U32 count = 0;
+
+    for(auto pointer: block.incoming(base)) {
+        if(base[pointer] == &from) count++;
+    }
+
+    return count;
+}
+
+/*
+ * A second value the entry block defines that an edge declaring `wanted` would accept.
+ *
+ * Both halves of the occurrence and the convention, because that is what `checkEdge` compares: a
+ * merge that declares an owner and an arm that hands over a borrow agree on the type and on nothing
+ * that matters. The entry block, because whatever it defines dominates every edge in this body.
+ */
+static ssa::Value* findLikeInEntry(SsaBase base, ssa::Body& body, ssa::Value& wanted,
+                                   ssa::Value* except) {
+    auto entry = base[body.entry];
+
+    for(auto instPointer: entry->instructions(base)) {
+        for(auto resultPointer: base[instPointer]->results.contents(base)) {
+            auto value = base[resultPointer];
+            if(value == except || value == &wanted) continue;
+            if(value->convention != wanted.convention) continue;
+            if(value->occurrence != wanted.occurrence) continue;
+
+            return value;
+        }
+    }
+
+    return nullptr;
+}
+
+// The two `Alloc`s the erase case needs: one whose readers can be pointed at the other, which is
+// what makes the first erasable at all.
+static bool findAllocPair(SsaBase base, ssa::Body& body, ssa::Inst*& first, ssa::Value*& second) {
+    auto entry = base[body.entry];
+    first = nullptr;
+    second = nullptr;
+
+    for(auto instPointer: entry->instructions(base)) {
+        auto inst = base[instPointer];
+        if(inst->kind != ssa::Inst::Alloc || !inst->results.size()) continue;
+
+        auto value = base[inst->results.get(base, 0)];
+
+        if(!first) { first = inst; continue; }
+        if(base[first->results.get(base, 0)]->occurrence != value->occurrence) continue;
+        if(base[first->results.get(base, 0)]->convention != value->convention) continue;
+
+        second = value;
+        return true;
+    }
+
+    return false;
+}
+
+static ssa::Editor editorFor(Compiled& compiled, mir::Function& function, ssa::Body& body,
+                             bool* changed) {
+    return ssa::Editor(compiled.context, compiled.program(), compiled.pipeline.converted.arena,
+                       function, body, changed);
+}
+
+/*
+ * One arm of a branch redirected, and the duplicate that leaves behind.
+ *
+ * `branch %c, X, X` is legal and is the whole reason `redirectEdge` takes an ordinal: told a target
+ * instead, it could only guess which of the two edges was meant. The case runs the shape in both
+ * directions - into the duplicate and back out of it - because the second half is what says the
+ * predecessor record is kept **per edge**: a version that dropped every entry naming the block, or
+ * that dropped none, agrees with the first half and empties or doubles the list on the way back.
+ */
+static void testEditorDuplicateArm(Compiled& compiled) {
+    currentTest = "one arm of a branch redirected, and the duplicate it leaves";
+
+    auto function = compiled.functionNamed("pick"_v);
+    check(function != nullptr, "the editor source did not produce a `pick` body");
+    if(!function) return;
+
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    auto branch = findBranch(base, body);
+    check(branch != nullptr, "`pick` has no branch to redirect an arm of");
+    if(!branch) return;
+
+    auto& written = *(ssa::InstBranch*)branch;
+    auto owner = base[branch->block];
+    auto kept = base[written.whenTrue.target];
+    auto moved = base[written.whenFalse.target];
+
+    check(kept != moved, "`pick`'s branch already has both arms at one block");
+    if(kept == moved) return;
+
+    auto keptBefore = kept->predecessorCount();
+    auto movedBefore = moved->predecessorCount();
+
+    bool changed = false;
+    auto editor = editorFor(compiled, *function, body, &changed);
+
+    editor.redirectEdge(*branch, 1, *kept);
+
+    check(changed, "a redirect did not set the fixed point's flag");
+    check(kept->predecessorCount() == keptBefore + 1,
+          "the block both arms now name did not gain a predecessor entry");
+    check(moved->predecessorCount() == movedBefore - 1,
+          "the block the arm left did not lose its predecessor entry");
+    check(countPredecessors(base, *kept, *owner) == 2,
+          "a block reached by both arms of one branch records one edge");
+
+    editor.redirectEdge(*branch, 1, *moved);
+
+    check(countPredecessors(base, *kept, *owner) == 1,
+          "redirecting one of two arms away moved the wrong number of predecessor entries");
+    check(kept->predecessorCount() == keptBefore && moved->predecessorCount() == movedBefore,
+          "the arm did not come back");
+
+    check(compiled.verify(*function), "the restored body did not verify");
+}
+
+/*
+ * A branch folded to a jump, and the arguments the surviving edge was carrying.
+ *
+ * The multiset rule. Comparing the old and new successor lists as multisets and leaving an edge
+ * present in both exactly as it was is what stops a fold from destroying the values its successor is
+ * handed: the fold site knows the condition was constant and has no idea what the block argument was
+ * being fed. So the case builds a branch whose two arms both land on the merge, folds it to a jump
+ * that deliberately supplies a *different* value, and asserts the original survived - and that the
+ * value the fold supplied was never recorded as a use at all.
+ */
+static void testEditorTerminatorMultiset(Compiled& compiled) {
+    currentTest = "a branch folded to a jump, and the surviving edge's arguments";
+
+    auto function = compiled.functionNamed("pick"_v);
+    if(!function) return;
+
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    auto branch = findBranch(base, body);
+    auto merge = findMerge(base, body);
+    check(branch && merge, "`pick` has no branch and merge to build the case on");
+    if(!branch || !merge) return;
+
+    auto condition = base[((ssa::InstBranch*)branch)->condition.value()];
+    auto declared = base[merge->argumentAt(base, 0)];
+
+    // An arm of the diamond: it ends in a jump into the merge, and the branch above it dominates it,
+    // so the condition is a value it may name.
+    auto arm = base[merge->predecessorAt(base, 0)];
+    auto jump = arm->terminator(base);
+    check(jump && jump->kind == ssa::Inst::Jump, "the merge's first predecessor does not jump to it");
+    if(!jump || jump->kind != ssa::Inst::Jump) return;
+
+    auto original = ((ssa::InstJump*)jump)->to.arguments.get(base, 0);
+
+    auto other = findLikeInEntry(base, body, *declared, base[original.value()]);
+    check(other != nullptr, "`pick`'s entry defines no second value the merge would accept");
+    if(!other) return;
+
+    auto otherUses = other->useCount();
+    auto mergeBefore = merge->predecessorCount();
+
+    bool changed = false;
+    auto editor = editorFor(compiled, *function, body, &changed);
+
+    // Both arms of a fresh branch at the merge, which is the state the fold below has to reduce by
+    // exactly one edge.
+    ssa::Use carried[1] = { original };
+    editor.replaceTerminator(*arm, editor.makeBranch(jump->source,
+                                                     editor.use(*condition, ssa::UseKind::Inspect),
+                                                     *merge, *merge, carried, 1));
+
+    check(countPredecessors(base, *merge, *arm) == 2,
+          "a branch with both arms at the merge did not record two edges");
+    check(compiled.verify(*function), "a branch with both arms at one block was reported");
+
+    // And the fold, supplying something else. The surviving edge keeps what it had.
+    ssa::Use supplied[1] = { editor.use(*other, original.kind()) };
+    auto folded = editor.replaceTerminator(*arm, editor.makeJump(jump->source, *merge, supplied, 1));
+
+    auto surviving = ((ssa::InstJump*)folded)->to.arguments.get(base, 0);
+
+    check(surviving.value() == original.value(),
+          "folding a branch to a jump replaced the surviving edge's argument");
+    check(surviving.kind() == original.kind(),
+          "folding a branch to a jump changed the surviving edge's use kind");
+    check(other->useCount() == otherUses,
+          "the value the fold supplied for a surviving edge was recorded as a use of it");
+    check(countPredecessors(base, *merge, *arm) == 1,
+          "folding one of two edges to a block left the wrong number of predecessor entries");
+    check(merge->predecessorCount() == mergeBefore, "the merge lost an unrelated predecessor");
+
+    check(compiled.verify(*function), "the folded body did not verify");
+}
+
+/*
+ * An instruction moved, and the use counts that must not move with it.
+ *
+ * Unlink and relink, never a remove followed by an add: the operands already name the instruction,
+ * so re-adding registers every use a second time. The symptom is quiet - an inflated count reads as
+ * "more than one reader", and every single-reader rewrite then declines - which is why the case
+ * asserts the count rather than the position alone. The verifier's def-use check is the independent
+ * half of it, and it counts the multiplicity of each pair.
+ */
+static void testEditorMoveInst(Compiled& compiled) {
+    currentTest = "an instruction moved without its operands gaining a reader";
+
+    auto function = compiled.functionNamed("pick"_v);
+    if(!function) return;
+
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    auto entry = base[body.entry];
+
+    // A load with something above it that defines nothing, so moving it up one is a move whose only
+    // consequence is the one under test.
+    ssa::Inst* subject = nullptr;
+    U32 position = 0;
+
+    for(U32 i = 1; i + 1 < entry->instructionCount() && !subject; i++) {
+        auto inst = base[entry->instructionAt(base, i)];
+        if(inst->kind != ssa::Inst::Load) continue;
+        if(base[entry->instructionAt(base, i - 1)]->results.size()) continue;
+
+        subject = inst;
+        position = i;
+    }
+
+    check(subject != nullptr, "`pick`'s entry has no load to move");
+    if(!subject) return;
+
+    auto address = base[((ssa::InstLoad*)subject)->address.value()];
+    auto before = address->useCount();
+
+    bool changed = false;
+    auto editor = editorFor(compiled, *function, body, &changed);
+
+    editor.moveInst(*subject, *entry, position - 1);
+
+    check(changed, "a move did not set the fixed point's flag");
+    check(base[entry->instructionAt(base, position - 1)] == subject,
+          "the instruction did not land where it was moved to");
+    check(address->useCount() == before,
+          "moving an instruction registered its operand a second time");
+    check(compiled.verify(*function), "the moved body did not verify");
+
+    editor.moveInst(*subject, *entry, position);
+
+    check(address->useCount() == before, "moving the instruction back registered its operand again");
+    check(compiled.verify(*function), "the restored body did not verify");
+}
+
+/*
+ * An instruction erased whose result a loan named as its lender.
+ *
+ * A loan is found by its storage, so one still naming a value nothing defines is a loan whose
+ * endpoints are never reached - and the endpoint rule then passes on IR that reads storage handed
+ * back. The case points an allocation's readers at another of the same shape, mints a loan on the
+ * one left with no readers, erases it and asserts the loan stopped naming it.
+ *
+ * The order matters and is the point: minting the loan *after* the substitution is what leaves the
+ * erase with something to repair, since `replaceAllUses` repoints a storage set it finds rather than
+ * leaving it behind.
+ */
+static void testEditorEraseEndsLoan(Compiled& compiled) {
+    currentTest = "an instruction erased whose result a loan named";
+
+    auto function = compiled.functionNamed("pick"_v);
+    if(!function) return;
+
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    ssa::Inst* alloc = nullptr;
+    ssa::Value* replacement = nullptr;
+    check(findAllocPair(base, body, alloc, replacement), "`pick` has no pair of matching allocations");
+    if(!alloc || !replacement) return;
+
+    auto storage = base[alloc->results.get(base, 0)];
+
+    bool changed = false;
+    auto editor = editorFor(compiled, *function, body, &changed);
+
+    editor.replaceAllUses(*storage, *replacement);
+    check(storage->useCount() == 0, "the replaced allocation still has readers");
+
+    SsaPtr<ssa::Value> lender[1] = { storage - base };
+    auto loan = editor.loanOn(function->source, lender, 1, ssa::Access::Shared);
+
+    check(loan->storage.size() == 1, "the minted loan does not name the storage it was made on");
+    if(loan->storage.size() != 1) return;
+
+    editor.eraseInst(*alloc);
+
+    check(loan->storage.size() == 0,
+          "erasing a storage-defining instruction left the loan naming its result");
+    check(compiled.verify(*function), "the body did not verify after the erase");
+}
+
+/*
+ * A block argument replaced by a value from above, then removed - and the operand every incoming
+ * edge was feeding it dropped with it.
+ *
+ * Two operations and one case, because the first is what makes the second legal: the argument has
+ * readers, and `removeBlockArgument` refuses a parameter the block still uses. What it asserts about
+ * `replaceAllUses` is the half that has no symptom before the machine - a **consuming** use of the
+ * old value is a consuming use of the new one, and silently demoting one is how an owner comes to be
+ * consumed twice.
+ */
+static void testEditorRemoveBlockArgument(Compiled& compiled) {
+    currentTest = "a block argument removed, and every edge that fed it";
+
+    auto function = compiled.functionNamed("pick"_v);
+    if(!function) return;
+
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    auto merge = findMerge(base, body);
+    check(merge != nullptr, "`pick` has no merge with an argument to remove");
+    if(!merge) return;
+
+    auto declared = base[merge->argumentAt(base, 0)];
+    auto other = findLikeInEntry(base, body, *declared, nullptr);
+    check(other != nullptr, "`pick`'s entry defines no value the merge's readers would accept");
+    if(!other) return;
+
+    // A consuming reader of the argument, which is what the kind assertion is about. Every edge into
+    // the merge hands the argument over as one, so the block's own use of it is the interesting end.
+    ssa::Inst* consumer = nullptr;
+    for(auto instPointer: merge->instructions(base)) {
+        auto inst = base[instPointer];
+
+        ssa::forEachUse(base, *inst, [&](ssa::Use used) {
+            if(consumer || !used.isSet()) return;
+            if(used.value() != declared - base || used.kind() != ssa::UseKind::Consume) return;
+
+            consumer = inst;
+        });
+    }
+
+    check(consumer != nullptr, "nothing in the merge consumes its block argument");
+    if(!consumer) return;
+
+    auto arguments = declared->useCount();
+    auto otherBefore = other->useCount();
+
+    bool changed = false;
+    auto editor = editorFor(compiled, *function, body, &changed);
+
+    editor.replaceAllUses(*declared, *other);
+
+    check(declared->useCount() == 0, "the replaced block argument still has readers");
+    check(other->useCount() == otherBefore + arguments,
+          "the replacement did not gain one entry per operand the old value was named by");
+
+    auto kept = false;
+    ssa::forEachUse(base, *consumer, [&](ssa::Use used) {
+        if(used.isSet() && used.value() == other - base && used.kind() == ssa::UseKind::Consume) {
+            kept = true;
+        }
+    });
+
+    check(kept, "a consuming use of the old value is not a consuming use of the new one");
+    check(compiled.verify(*function), "the body did not verify after the substitution");
+
+    // What each edge was feeding the argument, so that the drop can be counted rather than assumed.
+    Array<SsaPtr<ssa::Value>> fed;
+    Array<U32> counts;
+
+    for(auto pointer: merge->incoming(base)) {
+        auto terminator = base[pointer]->terminator(base);
+        if(!terminator) continue;
+
+        ssa::forEachEdge(*terminator, [&](ssa::Edge& edge) {
+            if(edge.target != merge - base) return;
+
+            auto used = edge.arguments.get(base, 0);
+            fed.push(used.value());
+            counts.push(base[used.value()]->useCount());
+        });
+    }
+
+    editor.removeBlockArgument(*merge, 0);
+
+    check(merge->argumentCount() == 0, "the block argument was not removed");
+
+    auto supplied = Size(0);
+    for(auto pointer: merge->incoming(base)) {
+        auto terminator = base[pointer]->terminator(base);
+        if(!terminator) continue;
+
+        ssa::forEachEdge(*terminator, [&](ssa::Edge& edge) {
+            if(edge.target != merge - base) return;
+            supplied += edge.arguments.size();
+        });
+    }
+
+    check(supplied == 0, "an edge into the block still supplies the argument that was removed");
+
+    for(Size i = 0; i < fed.size(); i++) {
+        check(base[fed[i]]->useCount() == counts[i] - 1,
+              "the value an edge was feeding the argument did not lose its use");
+    }
+
+    check(compiled.verify(*function), "the body did not verify after the argument was removed");
+}
+
+/*
+ * A block cut in two, and the continuation region the halves are both in.
+ *
+ * A block created by a pass takes the region of the block it was split from - a split is one block
+ * written as two, and the region is a statement about what those blocks are the arm of rather than
+ * about the graph. The case declares a region around a block first, so that "the same region" is a
+ * claim about something other than the body's own, and asserts that the region's entry still names
+ * the half control arrives at.
+ */
+static void testEditorSplitBlock(Compiled& compiled) {
+    currentTest = "a block split, and the region both halves are in";
+
+    auto function = compiled.functionNamed("pick"_v);
+    if(!function) return;
+
+    auto& arena = compiled.pipeline.converted.arena;
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    auto arm = findArm(base, body);
+    check(arm != nullptr, "`pick` has no arm to split");
+    if(!arm) return;
+
+    auto successor = base[((ssa::InstJump*)arm->terminator(base))->to.target];
+
+    // A region of its own, entered at the block itself and left to its parent - which is legal with
+    // no declared destination, and is what makes the region claim below a real one rather than a
+    // restatement of "everything is in the body's region".
+    auto id = ContinuationId(U32(body.regions.size()));
+    auto region = new (arena) ssa::Continuation(id, ssa::Continuation::Cleanup,
+                                                ssa::Continuation::Once, arm->region);
+    region->entry = arm->index;
+    body.regions.push(arena, region - base);
+    arm->region = id;
+
+    check(compiled.verify(*function), "the arm declared as a region of its own was reported");
+
+    auto before = countPredecessors(base, *successor, *arm);
+
+    bool changed = false;
+    auto editor = editorFor(compiled, *function, body, &changed);
+
+    auto made = editor.splitBlock(*arm, arm->instructionCount() - 1);
+    check(made != nullptr, "the split produced no block");
+    if(!made) return;
+
+    check(made->region == id, "the second half of a split is not in the region the first is");
+    check(region->entry == arm->index, "the split moved the region's entry to the new half");
+    check(arm->terminator(base) == nullptr, "the first half of a split kept a terminator");
+
+    check(countPredecessors(base, *successor, *arm) == before - 1,
+          "the successor still records the edge as leaving from the block that was split");
+    check(countPredecessors(base, *successor, *made) == 1,
+          "the successor does not record the edge as leaving from the second half");
+
+    // The jump that finishes the split, through the one operation that records an edge in both of
+    // the places an edge is written down.
+    editor.replaceTerminator(*arm, editor.makeJump(function->source, *made, nullptr, 0));
+
+    check(countPredecessors(base, *made, *arm) == 1,
+          "the second half of the split does not record the edge into it");
+    check(compiled.verify(*function), "the split body did not verify");
+
+    /*
+     * And a block taken back out again, which is what `Block::deleted` is for.
+     *
+     * A fresh block nothing enters, given a terminator and then deleted. What it asserts is that the
+     * table entry survives with its `BlockId` intact - every side table in the verifier and the
+     * lowering is indexed by that number - and that a body holding one still verifies, which is the
+     * statement `cleanCfg` is going to depend on.
+     */
+    auto count = body.blocks.size();
+    auto spare = editor.addBlock(StringId());
+    editor.replaceTerminator(*spare, editor.makeUnreachable(function->source));
+
+    check(body.blocks.size() == count + 1, "the block was not added to the body's table");
+    check(compiled.verify(*function), "a block nothing enters was reported");
+
+    editor.deleteBlock(*spare);
+
+    check(spare->deleted, "the deleted block does not say so");
+    check(body.blocks.size() == count + 1, "deleting a block took its table entry with it");
+    check(body.block(base, spare->index) == spare, "deleting a block renumbered the table");
+    check(spare->instructionCount() == 0, "the deleted block kept its instructions");
+    check(compiled.verify(*function), "the body did not verify after a block was deleted");
+}
+
 int main() {
     {
         Compiled compiled { StringView { kSource, stringLength(kSource) } };
@@ -1560,6 +2151,38 @@ int main() {
             testBorrowAcrossHandover(endpoints);
             testBorrowAcrossReplacement(endpoints);
         }
+    }
+
+    /*
+     * The editor's destructive half, in three scopes for the reason every source here is in one: a
+     * pipeline reserves a large address range and `test/run-tests.sh` runs the drivers under
+     * `ulimit -v`. The first four cases restore what they change; the last two do not, and each of
+     * them therefore gets a body of its own rather than one the case after it has to read around.
+     */
+    {
+        Compiled editing { view(kEditSource) };
+        currentTest = "compiling the editor source";
+        check(editing.ready, "the editor source did not compile through the ownership pipeline");
+
+        if(!editing.ready) {
+            println("%@", StringView { editing.diagnostics.recorded.pointer(),
+                                       editing.diagnostics.recorded.size() });
+        } else {
+            testEditorDuplicateArm(editing);
+            testEditorTerminatorMultiset(editing);
+            testEditorMoveInst(editing);
+            testEditorEraseEndsLoan(editing);
+        }
+    }
+
+    {
+        Compiled editing { view(kEditSource) };
+        if(editing.ready) testEditorRemoveBlockArgument(editing);
+    }
+
+    {
+        Compiled editing { view(kEditSource) };
+        if(editing.ready) testEditorSplitBlock(editing);
     }
 
     testGenericCallArity();

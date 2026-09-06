@@ -1,35 +1,7 @@
 
-I32.fill<complex>(%into: Ptr, %from: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %from, 4
-    %v_2 = loads %v_1, 4: I32
-    store %into, %v_2, 4
-    %v_3 = loads %into, 4: I32
-    ret %v_3
-  }
-}
-
-Slot.fill<complex>(%into: Ptr, %from: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %from, 4: I32
-    %v_2 = call_complex I32.fill, %into, %v_1: I32
-    ret %v_2
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, 1, 4
-    copy %v_1, %v_2, 4
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 7, 4
-    %v_4 = call_complex Slot.fill, %v_1, %v_3: I32
-    %v_5 = loads %v_1, 4: I32
-    %v_6 = add %v_4, %v_5: I32
-    ret %v_6
+    ret 14
   }
 }
 

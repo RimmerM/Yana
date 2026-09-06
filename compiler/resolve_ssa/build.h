@@ -18,13 +18,33 @@ namespace ssa {
  * `mir::Function`, never another body's instruction.
  */
 struct Editor {
+    // The building constructor: it *makes* a body, with its entry block and its root region, and
+    // hands the function to it.
     Editor(Context& context, mir::Program& program, SsaArena& arena, mir::Function& function);
+
+    /*
+     * The attaching constructor, for a pass that rewrites a body somebody else built.
+     *
+     * There is no insertion point until `setBlock` says so - the creating form starts at the entry
+     * because that is where a conversion begins, and a pass that appended wherever the last edit
+     * happened to leave the cursor would be a pass whose output depends on the order of its own
+     * rewrites. The region *is* set, to the entry's, because `addBlock` needs one and a block made
+     * without a region is a block the verifier reports.
+     *
+     * `changed` is the fixed point's flag and is null everywhere else: only the destructive half
+     * sets it, since appending to a body being built is not a reason to run the rounds again. What
+     * is *not* a constructor argument is the version counter - it lives on the body, and `IrVersion`
+     * is where the reason is written.
+     */
+    Editor(Context& context, mir::Program& program, SsaArena& arena, mir::Function& function,
+           Body& body, bool* changed = nullptr);
 
     Context& context;
     mir::Program& program;
     SsaArena& arena;
     mir::Function& function;
     Body& body;
+    bool* changed = nullptr;
 
     SsaBase base() { return *arena; }
     DeclBase declBase() { return *program.decl; }
@@ -60,6 +80,22 @@ struct Editor {
 
     void setBlock(Block& block);
     Block* currentBlock() { return current; }
+
+    /*
+     * Where the next instruction goes: immediately in front of `before`, rather than at the end of
+     * the current block.
+     *
+     * A pass needs this and a conversion does not, which is why it arrives with the destructive half
+     * rather than beside `setBlock`. Every block a pass sees already has a terminator, so `append`
+     * refuses all of them - and what a fold has to do is put the constant it made *above* the
+     * instruction that reads it, since a value defined below its use is the first thing `checkUse`
+     * reports.
+     *
+     * The cursor advances behind each instruction placed through it, so two of them added in a row
+     * arrive in the order they were written and both still stand above `before`. It is cleared by
+     * `setBlock`, which is the appending form and is what a builder wants.
+     */
+    void setInsertBefore(Inst& before);
 
     /*
      * Instructions. Each returns the instruction; `resultOf` is how a caller names what it defined,
@@ -192,11 +228,34 @@ struct Editor {
                     const Use* arguments, Size count);
     Inst* addUnreachable(LocationId source);
 
+    /*
+     * The same four terminators, built and **not placed** - what `replaceTerminator` takes.
+     *
+     * Detached because a terminator that replaces another cannot be appended first: the block
+     * already has one, and `append` refuses to put an instruction behind a terminator. Nothing is
+     * recorded for one of these until it is placed, so a caller that builds one and drops it costs
+     * an allocation in a region that is released whole.
+     */
+    Inst* makeReturn(LocationId source, const Use* values, Size count);
+    Inst* makeJump(LocationId source, Block& target, const Use* arguments, Size count);
+    Inst* makeBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse,
+                     const Use* arguments, Size count);
+    Inst* makeUnreachable(LocationId source);
+
     Value* resultOf(Inst& inst, Size index = 0);
     Use use(Value& value, UseKind kind);
 
-    // Fills the predecessor lists from the edges. Derived, so it is computed once the forward
-    // direction is complete rather than maintained twice while it is being built.
+    /*
+     * Fills the predecessor lists from the edges. Derived, so it is computed once the forward
+     * direction is complete rather than maintained twice while it is being built.
+     *
+     * Which is the one thing that separates the building half above from the destructive half
+     * below: `addJump` and `addBranch` create an edge and record **no** predecessor entry, because
+     * a conversion emits every block before it seals any of them. A *pass* has no such point, so a
+     * pass gives a block its terminator through `replaceTerminator`, which keeps both records of
+     * every edge it moves. `verifyBody` compares the two, so getting it wrong is reported rather
+     * than carried.
+     */
     void seal();
 
     /*
@@ -220,13 +279,188 @@ struct Editor {
      */
     void setDependency(Value& value, Loan& loan);
 
+    /*
+     * ## The destructive half
+     *
+     * Everything above builds; everything below takes something out or moves it, and each of them
+     * bumps `Body::version` and sets `changed`. What they have in common is that none of them is a
+     * policy: whether a block *should* be merged or a branch *may* be folded is a pass's question
+     * and lives in `opt/`, and what is here is the mechanical consequence of having decided.
+     */
+
+    /*
+     * One instruction taken out of circulation: it stops counting as a user of everything it read,
+     * the edges it owned stop counting in their targets' `incoming`, and it is dropped from its
+     * block's list.
+     *
+     * **The table entry is left standing.** `Body::insts` is a `RegionArray` indexed by `InstId` and
+     * so is every side table over instructions, so an erase is an unlink and never a compaction -
+     * the same rule `Block::deleted` follows one level up.
+     *
+     * Refuses an instruction whose results still have readers, which is the assertion every caller
+     * that removes a *live* value has already satisfied by pointing its readers somewhere with
+     * `replaceAllUses`. A caller that has not is the bug this catches.
+     *
+     * A loan whose storage set names one of the results has that entry removed. A set that empties
+     * becomes the caller's loan - one that never ends inside this body - and that is sound here for
+     * exactly the reason above: the result has no readers, so no live borrow depends on it.
+     */
+    void eraseInst(Inst& inst);
+
+    /*
+     * Every reader of one value pointed at another - the operand slots and the use-list entries
+     * moved together, and **each use's `UseKind` preserved**: a consuming use of the old value is a
+     * consuming use of the new one, and silently demoting one is how an owner comes to be consumed
+     * twice.
+     *
+     * Two conventions are asserted rather than checked, because a caller that wants either of them
+     * is a caller that has already decided something the linear rule can see:
+     *
+     *  - `isTracked` must agree. Replacing an owner by a trivial value drops a consumption
+     *    obligation from every path that had one, and replacing a trivial value by an owner invents
+     *    one; neither is a substitution, and both read as a correct rewrite afterwards.
+     *  - a **borrow is replaced only by a borrow, on the same loan or on the caller's**. The loan is
+     *    what the extent rule is checked against, so a borrow rerouted onto a different body-local
+     *    loan is one whose uses are now measured against endpoints in a different place - and a use
+     *    that was inside the old extent may be outside the new one with nothing in the IR changed to
+     *    say so. The caller's loan (an empty storage set) is admitted because it never ends inside
+     *    this body, so it is the one substitution that cannot move an endpoint past a use; it is
+     *    also the default `addResult` gives every borrow it makes.
+     *
+     * Loans whose storage set named `from` are repointed at `to`, and that half is not optional: a
+     * loan is found by its lender, so one still naming a value nothing defines is a loan whose
+     * endpoints are never reached and a borrow of storage that has been handed back then verifies.
+     */
+    void replaceAllUses(Value& from, Value& to);
+
+    /*
+     * One instruction moved, by unlink and relink and **never by a remove followed by an add**.
+     *
+     * The operands already name the instruction, so re-adding registers every use a second time -
+     * and the symptom is quiet, because an inflated use count reads as "more than one reader" and
+     * every single-reader rewrite then declines. That is the lower IR's `addInst` bug, which cost a
+     * day and one instruction per container `push` across thirty fixtures.
+     *
+     * `position` is the index the instruction ends up at in `target`, counted after it has left
+     * where it was. A terminator is refused: moving one changes the CFG, and `replaceTerminator`
+     * and `splitBlock` are the two operations that do.
+     */
+    void moveInst(Inst& inst, Block& target, Size position);
+
+    /*
+     * One block cut in two at `position`: the instructions from that point on, the terminator
+     * included, move to a fresh block, whose successors are told their edges now leave from it.
+     *
+     * The new block is in **the same continuation region**, which is the rule for every block a pass
+     * makes: a split is one block written as two and the region is a statement about what those
+     * blocks are the arm of. It does not claim the region's `entry` - control still enters at the
+     * first half, which is the block that kept the identity.
+     *
+     * The first half is left with **no terminator**, which is the one state a block may be in that
+     * the verifier reports: the caller decides what leaves it, and a `jump` to the answer is the
+     * ordinary one.
+     */
+    Block* splitBlock(Block& block, Size position);
+
+    /*
+     * A block taken out of the body - see `Block::deleted`, where the reason the entry stays in the
+     * table is written.
+     *
+     * Asserts it has no incoming edges and is not the body's entry, then erases its instructions
+     * from the last to the first. Last first is what makes the erases legal: the terminator goes
+     * before anything it named, and inside a block a definition always precedes its readers. What is
+     * *not* covered is a value defined here and read from another block, which `eraseInst`'s own
+     * assertion catches - a caller deleting a block whose values something still reads has skipped a
+     * step rather than found a special case.
+     */
+    void deleteBlock(Block& block);
+
+    /*
+     * Where one arm of a terminator goes, changed: the edge's target, one `incoming` entry moved
+     * from the old block to the new.
+     *
+     * By **ordinal**, not by target. `branch %c, X, X` is legal, so "the edge from here to X" names
+     * two of them, and the old stage's version that took a target changed one arm of the branch,
+     * both edge records and every matching predecessor entry - three different answers to one
+     * question. Told which arm, this moves exactly one of each.
+     *
+     * The new target must declare the arguments the edge already supplies. An edge whose list does
+     * not match its target is IR the verifier rejects, so it is refused where it is made rather than
+     * reported two passes later; a redirect to a block of a different shape is a *different* edge,
+     * and `replaceTerminator` is what builds one.
+     */
+    void redirectEdge(Inst& terminator, Size arm, Block& to);
+
+    /*
+     * One block argument removed, with the operand it was fed by dropped from every incoming edge.
+     *
+     * Every edge, not every predecessor: a predecessor whose two arms both land here supplies the
+     * argument twice and owes two removals, which is the same duplicate-arm rule `incoming` follows.
+     *
+     * The argument must have no readers. A caller that has pointed them somewhere with
+     * `replaceAllUses` has already satisfied that, and one that has not is removing a parameter the
+     * block still uses.
+     */
+    void removeBlockArgument(Block& block, Size index);
+
+    /*
+     * A block's terminator replaced, and with it the edges the old one owned.
+     *
+     * The two successor lists are compared **as multisets** rather than swapped wholesale, and that
+     * is the whole of what makes this usable. An edge present in both is left exactly as it was -
+     * its `incoming` entry stays and the arguments it carried are copied onto the new edge, over
+     * whatever the caller supplied. Fold `branch %c, then, else` into `jump then` and the edge into
+     * `then` is one that was already there: removing and re-adding it would take the arguments
+     * `then` was being handed and put none back, and there is nothing at the fold site that knows
+     * what they were. Only surplus old edges lose their `incoming` entry and only surplus new ones
+     * gain one.
+     *
+     * `branch %c, X, X` needs no case of its own and gets none: there were two edges into `X`, the
+     * match is greedy by ordinal, and folding leaves one of each record.
+     *
+     * The terminator is one of the `make*` forms above - built and not placed, because the block
+     * still has the one being replaced. A block with no terminator is allowed to have this called on
+     * it, which is how a split's first half is finished.
+     */
+    Inst* replaceTerminator(Block& block, Inst* terminator);
+
 private:
     Block* current = nullptr;
     ContinuationId currentRegion;
 
+    // Where `append` puts what it is given: at the end of `current` where this is `kAppend`, and at
+    // this index otherwise - see `setInsertBefore`.
+    static constexpr Size kAppend = ~Size(0);
+    Size cursor = kAppend;
+
     Inst* append(Inst* inst);
     Value* addResult(Inst& inst, const Occurrence& occurrence, Convention convention);
     void recordUse(Inst& inst, Use used);
+
+    // The half-update primitives, private for the reason the old stage's are: with them in reach,
+    // "drop the old use, repoint the operand, record the new one" is three statements a pass can get
+    // two-thirds of.
+    void dropUse(Value& value, Inst& user);
+    void dropUses(Inst& inst);
+    void unlinkInst(Inst& inst);
+    void insertInst(Block& block, Size position, Inst& inst);
+
+    // One `incoming` entry naming `from` taken out of `target`, and one put in. One rather than all,
+    // because the list holds an entry per edge - see `Block::incoming`.
+    void dropIncoming(Block& target, Block& from);
+    void addIncoming(Block& target, Block& from);
+
+    // One value taken out of every loan's storage set, and one exchanged for another - the half of
+    // `eraseInst` and `replaceAllUses` that is about the lender rather than about an operand.
+    void forgetStorage(SsaPtr<Value> storage);
+    void repointStorage(SsaPtr<Value> from, SsaPtr<Value> to);
+
+    void markChanged() { if(changed) *changed = true; }
+
+    // The two halves of `IrVersion`. A CFG edit is a value edit as well - see the type, where the
+    // reason the coarser of the two answers is the right one is written down.
+    void markValues() { body.version.values++; }
+    void markBlocks() { body.version.blocks++; body.version.values++; }
 };
 
 } // namespace ssa

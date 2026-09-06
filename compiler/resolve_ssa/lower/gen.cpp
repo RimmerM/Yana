@@ -1,5 +1,6 @@
 #include "internal.h"
-#include "../../lower/lower_divide.h"
+#include "../dominance.h"
+#include "../../lower/lower_pipeline.h"
 
 namespace ssa {
 
@@ -239,7 +240,7 @@ void Lowering::supplyEdge(LowerBlock& from, Edge& edge) {
         auto value = mapped(used.value());
         if(!value) continue;
 
-        auto argument = ssa[target->arguments.get(ssa, i)];
+        auto argument = ssa[target->argumentAt(ssa, i)];
         auto index = phiOf.getValue(argument->id.index);
         if(!index) continue;
 
@@ -252,6 +253,90 @@ void Lowering::supplyEdge(LowerBlock& from, Edge& edge) {
         pending.phi->used()[pending.filled] = value - lower;
         pending.phi->sources()[pending.filled] = &from - lower;
         pending.filled++;
+    }
+}
+
+/*
+ * A declared range the lower IR has no room for, and the two kinds of type that state one.
+ *
+ * `LowerType` is a register class and nothing else, so `@bits(30) U64`, `U8` and `U64` all arrive
+ * below this boundary as `Int64` or `Int32` and the distinction is gone. Reconstructing it later
+ * means walking backwards to a load or a mask and cannot work for an argument or a phi at all, so
+ * the useful half is preserved instead: an unsigned value of an n-bit type has every bit above n
+ * clear, and `LowerValue::hintUnsignedWidth` is where the lower passes read it.
+ *
+ * **An unsigned integer answers its own width**, refinements included - `Repr::scalarBits` is that
+ * number for every integer, which is `@bits(n)`'s whole appearance at this tier.
+ *
+ * **A payload-free sum answers the width its constructors need.** That one is the fact the shipping
+ * stage found was worth the most: a `Bool` is `data Bool = False | True`, one bit, and without this
+ * it reaches the lower passes as an `Int32` nothing can tell from a counter - which is what
+ * `isBooleanValued` in `lower_fold.cpp` reconstructs by walking the instruction graph, and that walk
+ * can only answer for a value some instruction *computed* as a truth value.
+ *
+ * The shape differs between the stages in one place worth naming. The shipping stage's `EnumRange`
+ * carries the logical bit count and `mir::TagRange::bits` carries the **stored** width - 8, 16, 32
+ * or 64 - so asking the tag range here would hint eight bits for a `Bool` and claim nothing. The
+ * number this wants is the one the packer uses, `Repr::scalarBits`, which `layoutEnum` computes as
+ * `bitsUpTo(highest)` for exactly that reason.
+ *
+ * A negative constructor value is declined, and so is a signed integer: such a value takes the whole
+ * of its register, since its top bit is a sign rather than a bit that is clear.
+ */
+static Maybe<U32> normalFormBits(Layout layout, DeclPtr<mir::Type> type) {
+    if(!type) return Nothing();
+
+    auto& logical = *layout.base[type];
+
+    if(logical.kind == mir::Type::Int) {
+        auto& integer = (mir::IntType&)logical;
+        if(integer.isSigned) return Nothing();
+
+        auto bits = reprOf(layout, type).scalarBits;
+        return bits ? Just(bits) : Nothing();
+    }
+
+    if(logical.kind != mir::Type::Record) return Nothing();
+
+    auto& record = (mir::RecordType&)logical;
+    if(record.layout != mir::RecordLayout::Enum || !record.cons.size()) return Nothing();
+    if(mir::tagRangeOf(layout.base, record).isSigned) return Nothing();
+
+    auto bits = reprOf(layout, type).scalarBits;
+    return bits ? Just(bits) : Nothing();
+}
+
+/*
+ * Every value this body mapped, hinted with what its type declared.
+ *
+ * One walk over the finished mapping rather than a hint at each of the forty sites that fill it -
+ * the shipping stage's `hintUnsignedRanges` makes the same choice for the same reason, and the map
+ * is what both of them have that the individual sites do not. Several SSA values may share one
+ * lower value; `hintUnsignedWidth` keeps the narrowest, which is sound because each mapping is a
+ * claim that the shared value is in that type's normal form.
+ *
+ * A value wider than its register, one in a vector lane and one that is an address are all left
+ * alone: the hint is a statement about the high bits of an integer register and there are none to
+ * make about any of those.
+ */
+void Lowering::hintDeclaredRanges(Body& body) {
+    for(auto valuePointer: body.values.contents(ssa)) {
+        auto value = ssa[valuePointer];
+
+        auto bits = normalFormBits(layout, value->type());
+        if(!bits) continue;
+
+        auto found = values.getValue(value->id.index);
+        if(!found) continue;
+
+        auto lowered = lower[found.unwrap()];
+        if(lowered->type.laneShift || lowered->type.mask) continue;
+
+        auto registerBits = lowered->type.lane == LowerLane::Int32 ? 32u
+                          : lowered->type.lane == LowerLane::Int64 ? 64u : 0u;
+        if(!registerBits || bits.unwrap() >= registerBits) continue;
+
+        lowered->hintUnsignedWidth(U8(bits.unwrap()));
     }
 }
 
@@ -276,6 +361,12 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
      */
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(ssa, BlockId(i));
+
+        // A deleted block keeps its `BlockId` so that every side table keeps meaning what it did -
+        // see `Block::deleted` - and nothing may enter it. Giving it a lower block would leave one
+        // with no terminator, which is what `validateLowerModule` reports.
+        if(block->deleted) continue;
+
         blocks.add(i, target.addBlock(lower, block->name) - lower);
     }
 
@@ -318,8 +409,8 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
      */
     auto closure = source.environment != nullptr;
 
-    for(U32 i = 0; i < entryBlock->arguments.size(); i++) {
-        auto argument = ssa[entryBlock->arguments.get(ssa, i)];
+    for(U32 i = 0; i < entryBlock->argumentCount(); i++) {
+        auto argument = ssa[entryBlock->argumentAt(ssa, i)];
         auto index = closure && i == 0 ? 0u : i + leading;
         auto declared = lower[target.args.get(lower, index)];
         values.add(argument->id.index, &declared->result - lower);
@@ -336,12 +427,12 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
      */
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(ssa, BlockId(i));
-        if(i == 0 || !block->arguments.size()) continue;
+        if(i == 0 || !block->argumentCount()) continue;
 
         auto into = lower[blocks.getValue(i).unwrap()];
-        auto incoming = block->incoming.size();
+        auto incoming = block->predecessorCount();
 
-        for(auto argumentPointer: block->arguments.contents(ssa)) {
+        for(auto argumentPointer: block->arguments(ssa)) {
             auto argument = ssa[argumentPointer];
             auto manifest = manifestOf(*argument);
 
@@ -364,19 +455,60 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
         }
     }
 
-    for(U32 i = 0; i < body.blocks.size(); i++) {
+    /*
+     * The instructions, over the blocks in **reverse postorder** rather than in table order.
+     *
+     * A `BlockId` is handed out at creation and `Body::blocks` is indexed by it, so the table order
+     * is the order blocks were made and nothing keeps that in step with the graph: a pass that
+     * appends a block and points an existing branch at it leaves a block whose values are read by a
+     * block earlier in the table. This walk maps each SSA value as it goes, so in table order that
+     * is a lookup with nothing in it. The old stage restored the invariant with a pass of its own
+     * (`reorderBlocksInRpo`, which renumbered the blocks); taking the order here instead removes it
+     * from every pass author's burden rather than restating it.
+     *
+     * Reverse postorder is what makes the lookup answerable: a definition dominates its uses, and
+     * dominance implies coming earlier in reverse postorder. A back edge is the exception and is why
+     * the phis above are made before any of this and attached after all of it.
+     *
+     * Then the blocks the entry cannot reach, in table order, rather than skipped. They have a lower
+     * block already - the creation loop above made one per SSA block - and a lower block with no
+     * terminator is what `validateLowerModule` reports; an edge out of one also feeds a phi that was
+     * sized from the SSA predecessor count and owes an alternative per edge. So they are lowered,
+     * last, where nothing they define can be wanted: a reachable block cannot read a value defined
+     * in one, since its definition would not dominate the use.
+     */
+    Array<U32> order;
+    reversePostorder(ssa, body, order);
+
+    auto lowerBlockAt = [&](U32 i) {
         auto block = body.block(ssa, BlockId(i));
         auto into = lower[blocks.getValue(i).unwrap()];
 
-        for(auto instPointer: block->instructions.contents(ssa)) {
+        for(auto instPointer: block->instructions(ssa)) {
             lowerInst(*into, *ssa[instPointer]);
         }
+    };
+
+    IndexSet reached;
+    reached.reset(body.blocks.size());
+
+    for(auto i: order) {
+        reached.set(i, true);
+        lowerBlockAt(i);
+    }
+
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        if(!reached[i] && !body.block(ssa, BlockId(i))->deleted) lowerBlockAt(i);
     }
 
     // Attached last, which is what registers their alternatives as uses - see `PendingPhi`. A phi
     // that did not receive one alternative per edge is a lowering bug rather than a program error,
     // and `validateLowerModule` is where it stops.
     for(auto& pending: phis) lower[pending.block]->addInst(lower, pending.phi);
+
+    // And the ranges the types stated and `LowerType` has nowhere to keep, over the mapping this
+    // walk has just finished filling - see `hintDeclaredRanges`, which is where the argument is.
+    hintDeclaredRanges(body);
 }
 
 void Lowering::run() {
@@ -480,29 +612,24 @@ void Lowering::run() {
             lowerBody(*function, target);
 
             /*
-             * And the divisions the machine would fault on, given the answers the language defines
-             * for them - `lower/lower_divide.h`, which is where the rewrite is written and is shared
-             * with the other stage for exactly that reason.
+             * And the run of passes over the lower IR every producer of it owes its output - see
+             * `lower/lower_pipeline.h`, which is where the order between them is argued and where
+             * it is shared from. This stage used to call one of them, `makeDivisionTotal`, and say
+             * so; the rest were written out at the bottom of the other stage's driver and were the
+             * whole of the code-quality gap between the two.
              *
-             * **A correctness pass and not an optimization**, which is why it is here rather than
-             * among whatever passes eventually run over this module: `doc/spec/types.md` makes
-             * integer division total - `x / 0` is 0, `x % 0` is `x`, `minimum / -1` is `minimum` -
-             * and neither native machine provides any of it. Without this a runtime zero divisor
-             * raises `#DE` and takes the process down instead of answering, which is not a slower
-             * program but a different one.
+             * Gated on `-no-ir-opt` inside the pipeline, division totalization excepted: that one is
+             * a correctness pass and not an optimization, since `doc/spec/types.md` makes integer
+             * division total and neither native machine does.
              *
              * Per function and immediately behind its body, rather than a walk of its own after the
              * loop, because there is nothing in between the two that could care: what it reads is
-             * the function's own blocks, and what it leaves is the premise every pass below the
-             * lower IR rests on - `mayFault` in `lower/lower_inst.h`, and therefore whether a
-             * division may be hoisted at all.
-             *
-             * The shipping stage runs a constant fold behind it and this does not, which costs
-             * nothing but a few instructions in the one case that is a literal: `x / 0` written out
-             * becomes a select chain over constants here rather than the `0` it folds to there.
-             * Every backend folds; nothing about the answer differs.
+             * the function's own blocks.
              */
-            makeDivisionTotal(lower, to, target);
+            auto place = returnPlaces.getValue(functionPointer.offset);
+            optimizeLowerFunction(lower, to, target,
+                                  place ? place.unwrap() : LowerPtr<LowerValue>(nullptr),
+                                  context.settings.optimizeIr);
         }
     }
 }

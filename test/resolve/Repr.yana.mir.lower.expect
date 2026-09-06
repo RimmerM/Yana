@@ -1,135 +1,23 @@
 
-idOr<complex>(%m: Ptr, %fallback: I64): I64 {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    %v_2 = alloca 8, 8: Ptr
-    store %v_1, %fallback, 8
-    %v_3 = load %m, 8: I64
-    %v_4 = cmp_le %v_3, 9007199254740991: I32
-    %v_5 = select %v_4, 1, 0: I32
-    %v_6 = cmp_eq %v_5, 1: I32
-    je %v_6, b_7, b_8
-  }
-
-  b_8 {
-    %v_9 = load %v_1, 8: I64
-    jmp b_10
-  }
-
-  b_10 {
-    %v_11 = phi [b_8, %v_9], [b_7, %v_12]: I64
-    ret %v_11
-  }
-
-  b_7 {
-    %v_13 = load %m, 8: I64
-    store %v_2, %v_13, 8
-    %v_12 = load %v_2, 8: I64
-    jmp b_10
-  }
-}
-
-useFlags<complex>(%it: Ptr): I32 {
-  b_0 {
-    %v_1 = bitcast %it: I64
-    %v_2 = and %v_1, 281474976710655: I64
-    %v_3 = bitcast %v_2: Ptr
-    %v_4 = shr %v_1, 48: I64
-    %v_5 = load %v_3, 1: I64
-    %v_6 = shr %v_5, %v_4: I64
-    %v_7 = and %v_6, 1: I64
-    %v_8 = cast %v_7: I32
-    ret %v_8
-  }
-}
-
-useWrapped<complex>(%it: Ptr): I64 {
-  b_0 {
-    %v_1 = bitcast %it: I64
-    %v_2 = and %v_1, 281474976710655: I64
-    %v_3 = bitcast %v_2: Ptr
-    %v_4 = shr %v_1, 48: I64
-    %v_5 = load %v_3, 8: I64
-    %v_6 = shr %v_5, %v_4: I64
-    %v_7 = and %v_6, 9007199254740991: I64
-    ret %v_7
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, 0, 1
-    %v_2 = alloca 8, 8: Ptr
-    %v_3 = alloca 8, 8: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    %v_5 = alloca 4, 4: Ptr
-    %v_6 = imm 1: I32
-    %v_7 = imm 0: I32
-    %v_8 = alloca 1, 1: Ptr
-    store %v_8, 0, 1
-    %v_9 = load %v_8, 1: I64
-    %v_10 = imm 1: I64
-    %v_11 = imm 1: I64
-    %v_12 = and %v_9, 18446744073709551614: I64
-    %v_13 = or %v_12, 1: I64
-    store %v_8, %v_13, 1
-    %v_14 = load %v_8, 1: I64
-    %v_15 = imm 0: I64
-    %v_16 = imm 1: I64
-    %v_17 = imm 0: I64
-    %v_18 = imm 1: I64
-    %v_19 = imm 0: I64
-    %v_20 = and %v_14, 18446744073709551613: I64
-    store %v_8, %v_20, 1
-    copy %v_1, %v_8, 1
-    %v_21 = alloca 8, 8: Ptr
-    store %v_21, 7, 8
-    copy %v_2, %v_21, 8
-    %v_22 = alloca 8, 8: Ptr
-    copy %v_22, %v_2, 8
-    %v_23 = call_complex useWrapped, %v_22: I64
-    %v_24 = cast %v_23: I64
-    store %v_3, %v_24, 8
-    %v_25 = alloca 8, 8: Ptr
-    store %v_25, 5, 8
-    %v_26 = call_complex idOr, %v_25, 0: I64
-    %v_27 = cast %v_26: I64
-    %v_28 = cast %v_27: I32
-    store %v_4, %v_28, 4
-    %v_29 = alloca 8, 8: Ptr
-    store %v_29, 9007199254740992, 8
-    %v_30 = call_complex idOr, %v_29, 6: I64
-    %v_31 = cast %v_30: I64
-    %v_32 = cast %v_31: I32
-    store %v_5, %v_32, 4
-    %v_33 = alloca 1, 1: Ptr
-    store %v_33, 0, 1
-    copy %v_33, %v_1, 1
-    %v_34 = call_complex useFlags, %v_33: I32
-    je %v_34, b_35, b_36
+    jmp b_1
   }
 
-  b_36 {
-    jmp b_37
+  b_1 {
+    jmp b_2
   }
 
-  b_37 {
-    %v_38 = phi [b_36, 0], [b_35, 1]: I32
-    %v_39 = load %v_3, 8: I64
-    %v_40 = cast %v_39: I32
-    %v_41 = add %v_38, %v_40: I32
-    %v_42 = loads %v_4, 4: I32
-    %v_43 = imul %v_42, 10: I32
-    %v_44 = add %v_41, %v_43: I32
-    %v_45 = loads %v_5, 4: I32
-    %v_46 = imul %v_45, 100: I32
-    %v_47 = add %v_44, %v_46: I32
-    ret %v_47
+  b_2 {
+    jmp b_3
   }
 
-  b_35 {
-    jmp b_37
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    ret 658
   }
 }
 

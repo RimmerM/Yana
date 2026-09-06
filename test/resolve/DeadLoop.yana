@@ -1,0 +1,162 @@
+{-
+   A loop that counts and does nothing else, decided false at its header -
+   `compiler/resolve_ssa/opt/loop.cpp`, and the five shapes that must keep theirs.
+
+   Every claim here is a **number**. A loop removed that should have run answers with the value its
+   accumulator started at, and a loop kept that should have gone is invisible in an answer - so each
+   function below is weighted by a distinct prime in `main` and is called with arguments that make
+   the loop run more than zero times. `.run.expect` and the optimized/unoptimized comparison the
+   driver runs beside it are what turn a wrong removal into a failure; `.ssa.opt.expect` says which
+   loops are actually still there.
+
+   The loop this pass exists for is not in this file and cannot be: it is `Reclaim(Array(a))` in
+   `prelude/Core/Array.yana`, one traversal over the live elements of an array whose element type
+   has nothing to run - and a library body is left out of both dumps. `LiteralReclaim.yana`'s
+   lowered golden is where it shows.
+
+   The last two functions are not about loops at all. They are the two shapes phase 8 built the
+   branch-implied facts for, measured, and did not keep - see `opt/README.md`'s note. They are here
+   because what they record is a *structural* fact about this tier that a later change could undo:
+   both need one SSA value to survive a block boundary, and at this tier every named value round
+   trips through a slot, so the second test reads a second `load`. If cross-block promotion ever
+   arrives here, this file's golden is what says so.
+-}
+
+data Held {id: Int}
+
+let &live = 0 :: Int
+
+instance Drop(Held):
+    fn drop(->self: Held):
+        live = live - 1
+
+fn held(id: Int) -> Held:
+    live = live + 1
+    return Held {id: id}
+
+-- The plain case. The body computes a value nothing reads, out of a local the loop only reads and a
+-- counter nothing outside it reads, so the whole loop goes and `k` is the answer.
+fn counted(n: Int, k: Int) -> Int:
+    let &i = 0
+
+    while i < n:
+        let unused = k * i + 7
+        i = i + 1
+
+    return k
+
+-- The body writes. `total` is a second store in the loop and the pass takes exactly one, which is
+-- the counter's step - so this loop stays and its answer is the sum.
+fn accumulates(n: Int) -> Int:
+    let &total = 0
+    let &i = 0
+
+    while i < n:
+        total = total + i
+        i = i + 1
+
+    return total
+
+-- The counter is read afterwards. Removing the loop would leave `i` holding what it started at
+-- rather than the bound, which is why the pass asks about the *allocation*'s use list and not only
+-- about the values the loop defines.
+fn survives(n: Int) -> Int:
+    let &i = 0
+
+    while i < n:
+        i = i + 1
+
+    return i
+
+{-
+   A tracked value in the body.
+
+   `held` is a call, so the purity clause refuses this loop before the ownership clause is reached -
+   which is the same meeting point `IfConvert.yana`'s `chosen` records for if-conversion, and it is
+   stated here rather than left to be discovered. Every way this stage produces an owner is a `call`
+   or an `aggregate`, and the drop that ends one is not pure either, so the ownership clause has no
+   case the purity clause has not already taken. It is here because "needs no rule of its own" and
+   "never arrives" are different statements.
+-}
+fn owning(n: Int) -> Int:
+    let &i = 0
+
+    while i < n:
+        let doomed = held(i)
+        i = i + 1
+
+    return 0
+
+-- Two ways out. A `break` gives the loop a second exit edge, so "the header's test is false" stops
+-- being a complete description of not running it and the pass declines.
+fn escapes(n: Int, stop: Int) -> Int:
+    let &i = 0
+
+    while i < n:
+        if i == stop then break
+        i = i + 1
+
+    return i
+
+-- Nested, with the inner one dead and the outer one not. The inner goes on the first round and the
+-- outer keeps its own step, which is what the innermost-first order buys.
+fn nested(rows: Int, columns: Int) -> Int:
+    let &total = 0
+    let &row = 0
+
+    while row < rows:
+        let &column = 0
+        while column < columns:
+            let unused = column + row
+            column = column + 1
+
+        total = total + row
+        row = row + 1
+
+    return total
+
+{-
+   The first shape phase 8 measured and did not keep: a zero test a dominating branch already
+   decided.
+
+   `d != 0` guards the division and `d == 0` inside the arm asks the same question again, which over
+   in the shipping stage `foldProvenZeroTests` answers outright. Here the two tests are not tests of
+   one value: `d` lives in a slot, `forwardMemory` is a per-block scan, and the guard's block and
+   the arm's block therefore each hold their own `load`. Measured over the whole corpus, the walk
+   asked 627 times and never once found a second zero test of the same SSA value in one body.
+
+   Division needs no guard in this language - `doc/spec/types.md` makes it total and
+   `makeDivisionTotal` at the lower tier implements it - so this shape is one a program has to be
+   written to contain, which is the other half of why there is no pass for it.
+-}
+fn guarded(x: Int, d: Int) -> Int:
+    if d != 0:
+        let quotient = x / d
+        if d == 0 then return -1
+        return quotient
+
+    return 0
+
+{-
+   The second: the sign/zero extension pair a checked subscript emits over there, which no subscript
+   emits here.
+
+   An index at this tier is a `Size` handed straight to `element.addr`, with the stride multiply the
+   lowering's, and the bounds test `prelude/Core/Array.yana` writes is a `bitcast` to `USize` rather
+   than a widening conversion - so a subscript produces no extension at all. Written out by hand, as
+   below, the two extensions are still not of one value, because the unsigned one goes through a
+   `bitcast` first. Measured over the whole corpus: no value is both sign-extended and zero-extended
+   anywhere.
+-}
+fn widened(i: Int, n: UInt) -> Long:
+    if (bitcast(i) :: UInt) < n:
+        let wide = i :: Long
+        let unsignedWide = (bitcast(i) :: UInt) :: ULong
+        return wide + (bitcast(unsignedWide) :: Long)
+
+    return 0
+
+fn main() -> Int =
+    counted(4, 3) * 2 + accumulates(5) * 3 + survives(6) * 5 + owning(4) * 7 +
+    escapes(9, 4) * 11 + nested(3, 4) * 13 + guarded(84, 4) * 17 +
+    (truncate(widened(6, 9)) :: Int) * 19 + live * 23

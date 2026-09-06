@@ -294,10 +294,24 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
      * returns before this, which is the one caller that needs the region and the reason the release
      * is the driver's call rather than something `convert` does behind it.
      *
-     * The SSA dump below reads declarations and the SSA region and never MIR, so it is on this side
-     * of the release rather than the other.
+     * The optimizer and the SSA dump below both read declarations and the SSA region and never MIR,
+     * so they are on this side of the release rather than the other.
      */
     pipeline.releaseMir();
+
+    /*
+     * The optimizer, between the conversion and everything that reads its output - `resolve_ssa/opt`.
+     *
+     * Above the dump rather than below it, so that `-mode ssa` prints the program the backend is
+     * given and `-no-ir-opt` prints the form the conversion produced. That is exactly what
+     * `-mode ir` means for the shipping stage - see `compileIr`, where the same sentence is - and
+     * two dumps of one pipeline that disagreed about which form they show would be two flags to
+     * remember instead of one.
+     */
+    if(!pipeline.optimize()) {
+        context.diagnostics.error("the ownership optimizer produced SSA the verifier rejects"_v, nullptr);
+        return false;
+    }
 
     if(settings.mode == CompileMode::Ssa) {
         return writeText(context, joinPath(outputDir, name, ".ssa"_v), [&](Net::Writer& writer) {

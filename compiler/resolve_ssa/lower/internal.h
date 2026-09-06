@@ -202,6 +202,7 @@ struct Lowering {
 
     void lowerGlobal(DeclPtr<mir::Global> pointer);
     void lowerBody(mir::Function& source, LowerFunction& target);
+    void hintDeclaredRanges(Body& body);
     void supplyEdge(LowerBlock& from, Edge& edge);
     void run();
 

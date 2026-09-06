@@ -6,88 +6,60 @@ mut @recorded = [0, 0, 0, 0]
 mut @first = [0, 0, 0, 0]
 mut @second = [0, 0, 0, 0]
 
-seedFrom<complex>(%n: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %n, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = imul %v_2, 5: I32
-    ret %v_3
-  }
-}
-
-area<complex>(%s: Ptr): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = load %s, 1: I32
-    %v_4 = cmp_eq %v_3, 0: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = add %s, 4: Ptr
-    %v_8 = loads %v_7, 4: I32
-    store %v_2, %v_8, 4
-    %v_9 = loads %v_2, 4: I32
-    %v_10 = loads %v_2, 4: I32
-    %v_11 = imul %v_9, %v_10: I32
-    ret %v_11
-  }
-
-  b_5 {
-    %v_12 = add %s, 4: Ptr
-    %v_13 = loads %v_12, 4: I32
-    store %v_1, %v_13, 4
-    %v_14 = loads %v_1, 4: I32
-    %v_15 = loads %v_1, 4: I32
-    %v_16 = imul %v_14, %v_15: I32
-    ret %v_16
-  }
-}
-
-main<complex>(): I32 {
-  b_0 {
-    %v_1 = loads @bonus, 4: I32
-    %v_2 = loads @counter, 4: I32
-    %v_3 = add %v_1, %v_2: I32
-    %v_4 = loads @recorded, 4: I32
-    %v_5 = imul %v_4, 100: I32
-    %v_6 = add %v_3, %v_5: I32
-    %v_7 = loads @first, 4: I32
-    %v_8 = imul %v_7, 10000: I32
-    %v_9 = add %v_6, %v_8: I32
-    %v_10 = loads @second, 4: I32
-    %v_11 = imul %v_10, 1000000: I32
-    %v_12 = add %v_9, %v_11: I32
-    ret %v_12
-  }
-}
-
 main$<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex seedFrom, 4: I32
-    store @seed, %v_1, 4
-    %v_2 = loads @counter, 4: I32
-    %v_3 = loads @seed, 4: I32
-    %v_4 = add %v_2, %v_3: I32
-    store @counter, %v_4, 4
-    %v_5 = loads @counter, 4: I32
-    %v_6 = alloca 8, 4: Ptr
-    copy %v_6, @shape, 8
-    %v_7 = call_complex area, %v_6: I32
-    %v_8 = add %v_5, %v_7: I32
-    store @counter, %v_8, 4
-    %v_9 = loads @counter, 4: I32
-    store @recorded, %v_9, 4
-    %v_10 = loads @counter, 4: I32
-    %v_11 = add %v_10, 1: I32
-    store @first, %v_11, 4
-    %v_12 = loads @first, 4: I32
-    %v_13 = add %v_12, 1: I32
-    store @second, %v_13, 4
-    %v_14 = call_complex main: I32
-    ret %v_14
+    store @seed, 20, 4
+    %v_1 = loads @counter, 4: I32
+    %v_2 = loads @seed, 4: I32
+    %v_3 = add %v_1, %v_2: I32
+    store @counter, %v_3, 4
+    %v_4 = loads @counter, 4: I32
+    %shape = global @shape: Ptr
+    %v_5 = alloca 3, 4: Ptr
+    %v_6 = load %shape, 1: I32
+    %v_7 = add %shape, 1: Ptr
+    copy %v_5, %v_7, 3
+    %v_8 = add %shape, 4: Ptr
+    %v_9 = load %v_8, 4: I32
+    %v_10 = cmp_eq %v_6, 0: I32
+    je %v_10, b_11, b_12
+  }
+
+  b_13 {
+    %v_14 = phi [b_12, %v_15], [b_11, %v_16]: I32
+    %v_17 = add %v_4, %v_14: I32
+    store @counter, %v_17, 4
+    %v_18 = loads @counter, 4: I32
+    store @recorded, %v_18, 4
+    %v_19 = loads @counter, 4: I32
+    %v_20 = add %v_19, 1: I32
+    store @first, %v_20, 4
+    %v_21 = loads @first, 4: I32
+    %v_22 = add %v_21, 1: I32
+    store @second, %v_22, 4
+    %v_23 = loads @bonus, 4: I32
+    %v_24 = loads @counter, 4: I32
+    %v_25 = add %v_23, %v_24: I32
+    %v_26 = loads @recorded, 4: I32
+    %v_27 = imul %v_26, 100: I32
+    %v_28 = add %v_25, %v_27: I32
+    %v_29 = loads @first, 4: I32
+    %v_30 = imul %v_29, 10000: I32
+    %v_31 = add %v_28, %v_30: I32
+    %v_32 = loads @second, 4: I32
+    %v_33 = imul %v_32, 1000000: I32
+    %v_34 = add %v_31, %v_33: I32
+    ret %v_34
+  }
+
+  b_12 {
+    %v_15 = imul %v_9, %v_9: I32
+    jmp b_13
+  }
+
+  b_11 {
+    %v_16 = imul %v_9, %v_9: I32
+    jmp b_13
   }
 }
 

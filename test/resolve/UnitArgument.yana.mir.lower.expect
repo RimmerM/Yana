@@ -1,63 +1,7 @@
 
-{}.wrap<complex>(%value: I32): I32 {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    ret 7
-  }
-}
-
-I32.wrap<complex>(%value: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %value, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %v_2, 1: I32
-    ret %v_3
-  }
-}
-
-nothing<complex>() {
-  b_0 {
-    ret 
-  }
-}
-
-wrap'2<complex>(%a: I32, %b: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_1, %a, 4
-    store %v_2, %b, 4
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = loads %v_2, 4: I32
-    %v_5 = add %v_3, %v_4: I32
-    ret %v_5
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    %v_5 = call_complex {}.wrap, 0: I32
-    store %v_1, %v_5, 4
-    call_complex nothing
-    %v_6 = call_complex {}.wrap, 0: I32
-    store %v_2, %v_6, 4
-    %v_7 = call_complex I32.wrap, 3: I32
-    store %v_3, %v_7, 4
-    %v_8 = call_complex wrap'2, 10, 20: I32
-    store %v_4, %v_8, 4
-    %v_9 = loads %v_1, 4: I32
-    %v_10 = loads %v_2, 4: I32
-    %v_11 = add %v_9, %v_10: I32
-    %v_12 = loads %v_3, 4: I32
-    %v_13 = add %v_11, %v_12: I32
-    %v_14 = loads %v_4, 4: I32
-    %v_15 = add %v_13, %v_14: I32
-    ret %v_15
+    ret 48
   }
 }
 

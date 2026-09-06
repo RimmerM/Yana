@@ -1,213 +1,10 @@
 #include "verify.h"
+#include "dominance.h"
 #include "lower/manifest.h"
 
 namespace ssa {
 
 namespace {
-
-/*
- * The dominator tree, by the iterative algorithm over reverse postorder.
- *
- * Needed and not optional. "Defined before used" in a graph is *dominance*, and the walk this
- * replaces approximated it with block index order - which is neither sound nor complete: a value
- * defined in one arm of a branch and used in the other has a lower index and does not dominate, and
- * a loop body legitimately uses a value defined in a block it precedes in index order. Both were
- * silent.
- *
- * It is also what makes the linear rule checkable: an owned value's consumption dataflow is only
- * meaningful over the blocks its definition dominates, and without that a value defined inside a
- * loop conflicts with itself across the back edge.
- */
-// Every block one block's terminator can reach. A callback rather than a list, because the two
-// walks that ask for it ask once per block per visit and a list would be an allocation each time.
-template<class F>
-static void forEachSuccessor(SsaBase base, Block& block, F&& f) {
-    auto count = block.instructions.size();
-    if(!count) return;
-
-    auto last = base[block.instructions.get(base, count - 1)];
-    if(!isTerminator(last->kind)) return;
-
-    forEachEdge(*last, [&](Edge& edge) {
-        if(edge.target) f(base[edge.target]->index.index);
-    });
-}
-
-struct Dominators {
-    // Reverse postorder, and the position of each block in it. Unreachable blocks are absent from
-    // the order and have no position, which is how the walk skips them without a second flag.
-    Array<U32> order;
-    Array<U32> position;
-    Array<U32> idom;
-
-    /*
-     * The dominator tree, as an interval per block - what makes `dominates` a comparison.
-     *
-     * `a` dominates `b` exactly when `b` is in `a`'s subtree of the dominator tree, so a preorder
-     * walk stamping each block with the range its subtree spans turns the question into two integer
-     * comparisons. The walk this replaces climbed `b`'s idom chain to the root, and it is asked once
-     * per operand of the body plus once per pair the linear rule compares - which is the
-     * `uses x blocks` term in the bound over this file.
-     *
-     * The children are one CSR table rather than a list per block, which is the containers guidance
-     * answer for a table indexed by block: two arrays reset per body instead of an allocation per
-     * block per function.
-     */
-    Array<U32> childStart;
-    Array<U32> childList;
-    Array<U32> enter;
-    Array<U32> leave;
-
-    static constexpr U32 kNone = ~U32(0);
-
-    void build(SsaBase base, Body& body) {
-        auto count = body.blocks.size();
-
-        order.clear();
-        position.clear();
-        idom.clear();
-
-        for(U32 i = 0; i < count; i++) { position.push(kNone); idom.push(kNone); }
-        if(!count) return;
-
-        // Postorder by an explicit stack: a body is not bounded by anything that makes recursion
-        // over its CFG safe.
-        SmallArray<U32, 64> stack, next, postorder;
-        IndexSet seen;
-
-        seen.reset(count);
-        for(U32 i = 0; i < count; i++) next.push(0);
-
-        auto entry = base[body.entry]->index.index;
-        stack.push(entry);
-        seen.set(entry, true);
-
-        while(stack.size()) {
-            auto index = stack[stack.size() - 1];
-            auto block = body.block(base, BlockId(index));
-
-            SmallArray<U32, 4> successors;
-            forEachSuccessor(base, *block, [&](U32 target) { successors.push(target); });
-
-            if(next[index] < successors.size()) {
-                auto successor = successors[next[index]++];
-                if(seen.add(successor)) stack.push(successor);
-                continue;
-            }
-
-            postorder.push(index);
-            stack.pop();
-        }
-
-        for(Size i = postorder.size(); i > 0; i--) {
-            position[postorder[i - 1]] = U32(order.size());
-            order.push(postorder[i - 1]);
-        }
-
-        idom[entry] = entry;
-
-        auto changed = true;
-        while(changed) {
-            changed = false;
-
-            for(auto index: order) {
-                if(index == entry) continue;
-
-                auto block = body.block(base, BlockId(index));
-                U32 candidate = kNone;
-
-                for(auto predecessorPointer: block->incoming.contents(base)) {
-                    auto predecessor = base[predecessorPointer]->index.index;
-                    if(position[predecessor] == kNone || idom[predecessor] == kNone) continue;
-
-                    candidate = candidate == kNone ? predecessor : intersect(candidate, predecessor);
-                }
-
-                if(candidate != kNone && idom[index] != candidate) {
-                    idom[index] = candidate;
-                    changed = true;
-                }
-            }
-        }
-
-        numberTree(count, entry);
-    }
-
-    bool isReachable(U32 index) const { return position[index] != kNone; }
-
-    // Two comparisons: `b` is dominated by `a` exactly where it sits inside `a`'s subtree.
-    bool dominates(U32 a, U32 b) const {
-        if(!isReachable(a) || !isReachable(b)) return false;
-        return enter[a] <= enter[b] && leave[b] <= leave[a];
-    }
-
-private:
-    // The two blocks' common dominator, by walking both up the tree until they meet - the standard
-    // step of the Cooper/Harvey/Kennedy formulation, over reverse-postorder numbers.
-    U32 intersect(U32 a, U32 b) const {
-        while(a != b) {
-            while(position[a] > position[b]) a = idom[a];
-            while(position[b] > position[a]) b = idom[b];
-        }
-
-        return a;
-    }
-
-    // The children of each block in the dominator tree, then a preorder walk of it stamping the
-    // interval each subtree spans.
-    void numberTree(U32 count, U32 entry) {
-        childStart.clear();
-        childList.clear();
-        enter.clear();
-        leave.clear();
-
-        for(U32 i = 0; i <= count; i++) childStart.push(0);
-        for(U32 i = 0; i < count; i++) { enter.push(0); leave.push(0); }
-
-        for(auto index: order) {
-            if(index == entry) continue;
-            childStart[idom[index] + 1]++;
-        }
-
-        for(U32 i = 0; i < count; i++) childStart[i + 1] += childStart[i];
-        for(U32 i = 0; i < childStart[count]; i++) childList.push(0);
-
-        SmallArray<U32, 64> filled;
-        for(U32 i = 0; i < count; i++) filled.push(0);
-
-        for(auto index: order) {
-            if(index == entry) continue;
-
-            auto parent = idom[index];
-            childList[childStart[parent] + filled[parent]++] = index;
-        }
-
-        // The same explicit stack, for the same reason. A block is stamped on the way down and
-        // closed on the way up, so the interval it spans is exactly its subtree.
-        SmallArray<U32, 64> stack, cursor;
-        for(U32 i = 0; i < count; i++) cursor.push(0);
-
-        U32 clock = 0;
-        stack.push(entry);
-        enter[entry] = clock++;
-
-        while(stack.size()) {
-            auto index = stack[stack.size() - 1];
-            auto first = childStart[index];
-            auto last = childStart[index + 1];
-
-            if(first + cursor[index] < last) {
-                auto child = childList[first + cursor[index]++];
-                stack.push(child);
-                enter[child] = clock++;
-                continue;
-            }
-
-            leave[index] = clock++;
-            stack.pop();
-        }
-    }
-};
 
 /*
  * What is known about one owned value at one program point.
@@ -422,6 +219,21 @@ struct Verifier {
     void checkLoans() {
         for(U32 i = 0; i < body.values.size(); i++) {
             auto value = body.value(base, ValueId(i));
+
+            /*
+             * A value whose defining instruction was erased, skipped.
+             *
+             * `Body::values` is indexed by `ValueId` and an erase is never a compaction, so the
+             * table entry of a value a pass removed stays behind - see `Editor::eraseInst`. Such a
+             * value is defined nowhere and read nowhere, and the rules below are all about a borrow
+             * being *used* at a point, so there is nothing here for it to be measured against; a
+             * check that reported anyway would report on every dead borrow a pass removes.
+             *
+             * Both halves, because only the pair is inert: a value defined nowhere that something
+             * still reads is a real defect and `checkUse` is where it is reported.
+             */
+            if(definedIn[i] == Dominators::kNone && !value->useCount()) continue;
+
             auto borrowed = value->convention == Convention::Guaranteed;
 
             if(!borrowed) {
@@ -551,11 +363,11 @@ struct Verifier {
         }
 
         auto target = base[edge.target];
-        if(edge.arguments.size() != target->arguments.size()) {
+        if(edge.arguments.size() != target->argumentCount()) {
             report(inst.source,
                    "internal: %@ supplies %@ arguments to block %@, which declares %@"_v,
                    instMnemonic(inst.kind), edge.arguments.size(), target->index.index,
-                   target->arguments.size());
+                   target->argumentCount());
             return;
         }
 
@@ -565,7 +377,7 @@ struct Verifier {
             if(!used.isSet()) continue;
 
             auto supplied = base[used.value()];
-            auto declared = base[target->arguments.get(base, i)];
+            auto declared = base[target->argumentAt(base, i)];
 
             // Both halves of the occurrence, not the type alone: a merge that declares an owner and
             // an arm that hands over a borrow agree on the type and on nothing that matters.
@@ -967,14 +779,103 @@ struct Verifier {
         }
     }
 
+    // How many edges leave `from` for `to`, and how many times `to` says one does. Two independent
+    // statements of one relation, which is what makes the check below a check.
+    U32 edgesBetween(Block& from, Block& to) {
+        U32 count = 0;
+
+        if(auto last = from.terminator(base)) {
+            forEachEdge(*last, [&](Edge& edge) {
+                if(edge.target && base[edge.target] == &to) count++;
+            });
+        }
+
+        return count;
+    }
+
+    U32 listedBetween(Block& to, Block& from) {
+        U32 count = 0;
+        for(auto pointer: to.incoming(base)) {
+            if(base[pointer] == &from) count++;
+        }
+
+        return count;
+    }
+
+    /*
+     * An edge is written down twice - in the predecessor's terminator and in the successor's
+     * `incoming` - and this is the two compared.
+     *
+     * **By count, not by membership.** `branch %c, X, X` is legal, so `X` names its predecessor
+     * twice and an edit that folds one of the two arms owes exactly one removal; a check that asked
+     * only whether the block appears at all would pass on a fold that removed both entries and on
+     * one that removed neither. That is the same argument the def-use check makes for counting the
+     * multiplicity of a pair, and the same shape of bug: the old stage's `splitEdge` changed one arm
+     * of a branch, both edge records and every matching predecessor entry - three different answers
+     * to one question.
+     *
+     * Nothing a conversion emits breaks it, which is the point: what it stands behind is the
+     * destructive half of `Editor`, where every operation that moves an edge has to move both
+     * records of it.
+     */
+    void checkPredecessors() {
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto to = body.block(base, BlockId(i));
+            if(to->deleted) continue;
+
+            for(U32 k = 0; k < to->predecessorCount(); k++) {
+                auto pointer = to->predecessorAt(base, k);
+
+                // Once per distinct predecessor: every entry naming the same block would make the
+                // same report.
+                auto seen = false;
+                for(U32 j = 0; j < k; j++) {
+                    if(to->predecessorAt(base, j) == pointer) seen = true;
+                }
+
+                if(seen) continue;
+
+                auto from = base[pointer];
+                auto listed = listedBetween(*to, *from);
+                auto edges = edgesBetween(*from, *to);
+                if(listed == edges) continue;
+
+                report(function.source,
+                       "internal: block %@ names block %@ as a predecessor %@ times, and it branches here %@"_v,
+                       i, from->index.index, listed, edges);
+            }
+        }
+
+        // And the other direction, which the walk above cannot reach: an edge whose target records
+        // nothing at all has no entry for that walk to start from.
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto from = body.block(base, BlockId(i));
+            if(from->deleted) continue;
+
+            auto last = from->terminator(base);
+            if(!last) continue;
+
+            forEachEdge(*last, [&](Edge& edge) {
+                if(!edge.target) return;
+
+                auto to = base[edge.target];
+                auto listed = listedBetween(*to, *from);
+                if(listed == edgesBetween(*from, *to)) return;
+
+                report(last->source,
+                       "internal: %@ branches to block %@, which names block %@ as a predecessor %@ times"_v,
+                       instMnemonic(last->kind), to->index.index, i, listed);
+            });
+        }
+    }
+
     // Every block a terminator names, with the terminator - the walk the two region rules above and
     // below share, so that "an edge of this block" means one thing here.
     template<class F>
     void forEachEdgeTarget(Block& block, F&& f) {
-        auto count = block.instructions.size();
-        if(!count) return;
+        auto last = block.terminator(base);
+        if(!last) return;
 
-        auto last = base[block.instructions.get(base, count - 1)];
         forEachEdge(*last, [&](Edge& edge) {
             if(edge.target) f(*last, *base[edge.target]);
         });
@@ -1035,14 +936,14 @@ struct Verifier {
     }
 
     void checkStructure(Block& block) {
-        auto count = block.instructions.size();
+        auto count = block.instructionCount();
         if(!count) {
             report(function.source, "internal: block %@ is empty"_v, block.index.index);
             return;
         }
 
         for(Size i = 0; i < count; i++) {
-            auto inst = base[block.instructions.get(base, i)];
+            auto inst = base[block.instructionAt(base, i)];
             auto last = i + 1 == count;
 
             if(isTerminator(inst->kind) != last) {
@@ -1129,7 +1030,7 @@ struct Verifier {
         for(U32 i = 0; i < body.blocks.size(); i++) {
             auto block = body.block(base, BlockId(i));
 
-            for(auto instPointer: block->instructions.contents(base)) {
+            for(auto instPointer: block->instructions(base)) {
                 auto inst = base[instPointer];
 
                 forEachUse(base, *inst, [&](Use used) { record(*inst, used); });
@@ -1157,7 +1058,7 @@ struct Verifier {
                 pairs[user]++;
             }
 
-            for(auto userPointer: value->uses.contents(base)) {
+            for(auto userPointer: value->uses(base)) {
                 auto user = base[userPointer];
 
                 if(user->id.index >= instructions || stamp[user->id.index] != i) {
@@ -1295,7 +1196,7 @@ struct Verifier {
                     auto merged = Linear::OutOfScope;
                     auto first = true;
 
-                    for(auto predecessorPointer: block->incoming.contents(base)) {
+                    for(auto predecessorPointer: block->incoming(base)) {
                         auto predecessor = base[predecessorPointer]->index.index;
                         if(!dominators.isReachable(predecessor)) continue;
 
@@ -1319,7 +1220,7 @@ struct Verifier {
                  */
                 BitMatrix::zero(live.pointer(), words);
 
-                for(auto predecessorPointer: block->incoming.contents(base)) {
+                for(auto predecessorPointer: block->incoming(base)) {
                     auto predecessor = base[predecessorPointer]->index.index;
                     if(!dominators.isReachable(predecessor)) continue;
 
@@ -1413,7 +1314,7 @@ struct Verifier {
         };
 
         // A block's parameters are defined on entry, which is where their obligation starts.
-        for(auto argumentPointer: block.arguments.contents(base)) {
+        for(auto argumentPointer: block.arguments(base)) {
             auto argument = base[argumentPointer];
             beginLoan(*argument);
             if(!isTracked(argument->convention)) continue;
@@ -1421,7 +1322,7 @@ struct Verifier {
             state[trackedIndex[argument->id.index]] = Linear::Unconsumed;
         }
 
-        for(auto instPointer: block.instructions.contents(base)) {
+        for(auto instPointer: block.instructions(base)) {
             auto inst = base[instPointer];
 
             auto visit = [&](Use used) {
@@ -1589,13 +1490,13 @@ struct Verifier {
         for(U32 i = 0; i < body.blocks.size(); i++) {
             auto block = body.block(base, BlockId(i));
 
-            for(auto argumentPointer: block->arguments.contents(base)) {
+            for(auto argumentPointer: block->arguments(base)) {
                 definedIn[base[argumentPointer]->id.index] = i;
                 definedAt[base[argumentPointer]->id.index] = 0;
             }
 
-            for(U32 position = 0; position < block->instructions.size(); position++) {
-                auto inst = base[block->instructions.get(base, position)];
+            for(U32 position = 0; position < block->instructionCount(); position++) {
+                auto inst = base[block->instructionAt(base, position)];
                 for(auto resultPointer: inst->results.contents(base)) {
                     definedIn[base[resultPointer]->id.index] = i;
                     definedAt[base[resultPointer]->id.index] = position + 1;
@@ -1620,18 +1521,39 @@ struct Verifier {
         for(U32 i = 0; i < body.blocks.size(); i++) {
             auto block = body.block(base, BlockId(i));
 
+            /*
+             * A deleted block, checked for being *deleted* rather than for being a block.
+             *
+             * `Body::blocks` is indexed by `BlockId`, so a block a pass removed keeps its table
+             * entry and says so with a flag - see `Block::deleted`. What is left to state about one
+             * is that it really is gone: nothing reaches it and nothing is in it. Running the
+             * structural walk instead would report the one thing that is true of every deleted
+             * block, that it is empty.
+             */
+            if(block->deleted) {
+                if(block->instructionCount() || block->predecessorCount() ||
+                   block->argumentCount()) {
+                    report(function.source,
+                           "internal: block %@ is deleted and still holds instructions, arguments or edges"_v,
+                           i);
+                }
+
+                continue;
+            }
+
             // An unreachable block is still checked structurally - it is IR someone built - and is
             // left out of the dataflow, which is about paths a program can take.
             checkStructure(*block);
         }
 
         checkUseLists();
+        checkPredecessors();
         checkRegions();
         checkLoans();
         checkLinear();
 
         auto entry = base[body.entry];
-        if(entry->incoming.size()) {
+        if(entry->predecessorCount()) {
             report(function.source, "internal: the entry block of %@ has predecessors"_v,
                    context.findName(function.name));
         }

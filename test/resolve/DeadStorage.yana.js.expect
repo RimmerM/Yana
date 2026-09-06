@@ -1,0 +1,17 @@
+"use strict";
+var live = 0;
+var trace = 0;
+
+// ResolveTest
+function bump(v$o, v$k, v$s) {
+  v$o[v$k] = v$o[v$k] + 100 | 0;
+}
+
+function main() {
+  live = (live + 1 | 0) - 1 | 0;
+  trace = Math.imul(trace, 10) + 4 | 0;
+  var v = { $v: 7 };
+  bump(v, "$v", 1);
+  return ((v.$v + 164 | 0) + Math.imul(live, 1000) | 0) + trace | 0;
+}
+main();

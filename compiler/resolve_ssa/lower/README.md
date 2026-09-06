@@ -273,6 +273,20 @@ can be built, since a call names a signature another function declared. `inst.cp
 instruction at a time, plus `emitTeardown`, `fieldAddress`, `frameStorage` and `install`. The split
 is where the *questions* differ rather than where the line count did.
 
+Two things about the driver are worth knowing before changing one. **The block walk takes the shared
+reverse postorder** (`../dominance.h`) rather than the table order: a `BlockId` is handed out at
+creation and nothing keeps that in step with the graph, so a block appended after the block that
+reads its values fails a walk that maps values as it goes. The blocks the entry cannot reach are
+lowered last rather than skipped, because their lower blocks exist and each owes a terminator and
+whatever phi alternative its edges promised. And **the declared ranges are hinted in one place**,
+`hintDeclaredRanges`, over the finished value mapping: `LowerType` is a register class, so an
+unsigned type's width and a payload-free sum's tag range are facts the lower passes would otherwise
+have to reconstruct from instructions - and cannot, for an argument or a phi.
+
+Behind both of them is `lower/lower_pipeline.h`, the run of shared lower passes both resolve stages
+owe their output. This stage called one member of it - `makeDivisionTotal` - until phase 1 of
+[`../opt/README.md`](../opt/README.md).
+
 `erase.cpp` is the third, and it is the ABI a generic body compiled **once** is called across.
 `fun.cpp` is the fourth, on the same terms: the two words a **function value** is, and the thunk
 that makes a plain function callable across them.
@@ -321,6 +335,16 @@ only in where the number came from.
 
 It is also not a fold: the mask on a value already known to be in range is removed by the builders'
 own constant folding and by the backends, not by a test here.
+
+**`bitcast` needs the normal form re-established and `op.def` cannot say so**, which is the one place
+the width column and this tier's question come apart. The column asks whether the arithmetic can
+leave the type's range, and a bitcast's result is the same bits under a type of the same width - so
+`Closed` is right there. What changes is which extension the register is *required* to carry, and a
+bitcast between the two readings of one narrow width is exactly where that flips. `inst.cpp`'s unary
+arm therefore puts a bitcast in range beside the column's answer. It was invisible for as long as it
+was because a store discards the register above the byte, so writing the value to a local repaired
+it; `BitcastNarrow.yana` is the fixture, and the shipping stage carries the same correction with the
+wrong answers it produced.
 
 ## A vector is a register value, and an atomic is a location
 

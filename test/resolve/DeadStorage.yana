@@ -1,0 +1,158 @@
+{-
+   Storage: what is forwarded out of it, what is written into it and never read, and what is removed
+   with it - `compiler/resolve_ssa/opt/memory.cpp`.
+
+   Every function here is a **number** rather than a shape, for the reason `CfgClean.yana` states:
+   a read answered by the wrong write, a store deleted that something saw and an allocation removed
+   that a teardown still names are all invisible in the emitted bytes and all three change what this
+   program answers. The optimized/unoptimized run comparison is what turns each of them into a
+   failure; `.ssa.opt.expect` beside this is what says which of them the pass actually performed.
+
+   `live` and `trace` are the pair every ownership fixture here carries - the balance and the order -
+   because a teardown that ran twice takes `live` negative and one that never ran leaves it positive,
+   and neither of those shows up in a digit of `trace`.
+-}
+
+let &live = 0 :: Int
+let &trace = 0 :: Int
+
+data Held {id: Int}
+
+instance Drop(Held):
+    fn drop(->self: Held):
+        live = live - 1
+        trace = trace * 10 + self.id
+
+fn held(id: Int) -> Held:
+    live = live + 1
+    return Held {id: id}
+
+data Pair {a: Int, b: Int}
+data Nested {p: Pair, q: Pair}
+
+{-
+   The decline `removeDeadStorage` exists to make: an allocation nothing reads, whose held occurrence
+   owes a teardown.
+
+   Every condition the removal asks for holds except that one - the slot is written once and read
+   never - so the allocation, the store and the `Drop` all have to still be there in `.ssa.opt.expect`,
+   and `trace` is what says the teardown ran exactly once. What makes the removal safe where the type
+   owes nothing is that `Lowering::emitTeardown` emits no instruction at all for such a type; here it
+   emits the `Drop(Held)` instance's call, and deleting the drop would be deleting that.
+-}
+fn discarded() -> Int:
+    let unread = held(4)
+    return 0
+
+{-
+   A trivial local written twice with nothing reading it in between, and read once at the end.
+
+   Both stores of the three are dead - `let &v = 0` is overwritten by `v = n + 1`, which is
+   overwritten by `v = n * 2` - and the surviving one is forwarded into the return, which leaves the
+   allocation with no reads for `removeDeadStorage`. A rule that erased the *later* store of a pair
+   rather than the earlier one answers `n + 1` here rather than `n * 2`.
+-}
+fn overwritten(n: Int) -> Int:
+    let &v = 0 :: Int
+    v = n + 1
+    v = n * 2
+    return v
+
+{-
+   And the barrier, which is the assertion the run comparison is really for.
+
+   `bump` is handed the address of `v`, so `Contained` refuses the allocation and every call becomes
+   a write of it - which is exactly what the callee is. A forward across it answers `n` where the
+   program answers `n + 100`, and neither `.ssa.expect` nor the emitted bytes would say which
+   happened.
+
+   `@noinline` for `Contain.Call.yana`'s reason: an inlined callee was never handed anything, and the
+   shipping stage would otherwise splice this one away before its own optimizer looked at it.
+-}
+@noinline
+fn bump(&v: Int):
+    v = v + 100
+
+fn acrossCall(n: Int) -> Int:
+    let &v = n
+    bump(v)
+    return v
+
+{-
+   Two fields of one record, each read back across a write of the other.
+
+   Two different fields of a single-constructor record are two pieces of storage by construction, so
+   neither write ends the other's fact and both reads are answered without a load. That is the rule
+   this tier exists to be able to state - below the fork the same question is arithmetic over one
+   base pointer - and it is why the fields have to be a **single-constructor** record: a sum's fields
+   are one flat list over shared payload storage, and a niche-folded discriminant is a pattern of
+   that payload.
+-}
+fn siblings(n: Int) -> Int:
+    let &p = Pair {a: 0, b: 0}
+    p.a = n + 1
+    p.b = n + 2
+    return p.a * 10 + p.b
+
+{-
+   And the other direction: a write of the *whole* record ends every field's fact.
+
+   A shorter path is a prefix of a longer one and a prefix is not a separation, so the read of `p.a`
+   below the second construction cannot be answered by the first. Getting it wrong is worth `1`
+   against `n` in the second term, which is what makes this a number rather than a golden.
+-}
+fn refreshed(n: Int) -> Int:
+    let &p = Pair {a: 1, b: 2}
+    let first = p.a
+    p = Pair {a: n, b: n}
+
+    return first * 100 + p.a
+
+{-
+   An allocation nothing reads, written through a chain **two** projections long.
+
+   Every other removal in this file reaches its writes in one step, so none of them says anything
+   about the order the projections themselves come out in - and that order is the whole of what this
+   case is. `v.p.a = n` is a `store` through a `field.addr` of a `field.addr`, so taking the
+   allocation out means taking both projections out as well, and an address may not go before the
+   projection taken off it. Erasing `v.p` while `v.p.a` still named it is exactly what `eraseInst`
+   asserts against, which made this shape stop the compiler rather than answer a number wrongly.
+
+   `.ssa.opt.expect` is what says the allocation and both chains went; the number here is `n * 2`,
+   which is what is left once nothing reads the record.
+-}
+fn nestedDead(n: Int) -> Int:
+    let &v = Nested {p: Pair {a: 0, b: 0}, q: Pair {a: 0, b: 0}}
+    v.p.a = n + 1
+    v.q.b = n + 2
+    v.p.b = n + 3
+
+    return n * 2
+
+{-
+   The handover, which is the load this pass declines to forward.
+
+   `size` takes its argument by `->`, so the owner leaves the slot as a **tracked** load - a
+   destructive read that empties it - and the store above it installed the same owner. Forwarding the
+   one into the other is a rewrite that also has to erase the store, which is what `memory.cpp`
+   declines and says why. What is asserted here is that the shape still compiles, still runs, and
+   still holds the slot: the allocation and both instructions are in `.ssa.opt.expect`.
+-}
+fn size(->s: String) -> Int = truncate(length(s)) :: Int
+
+fn handed() -> Int:
+    let text = "abcdef" :: String
+    return size(text)
+
+fn main() -> Int:
+    let a = discarded()       -- 0, and `trace` becomes 4
+    let b = overwritten(5)    -- 10
+    let c = acrossCall(7)     -- 107
+    let d = siblings(2)       -- 3 * 10 + 4 = 34
+    let e = refreshed(6)      -- 1 * 100 + 6 = 106
+    let f = handed()          -- 6
+    let g = nestedDead(4)     -- 8
+
+    -- `live` weighted so that a teardown run twice or not at all is a different number rather than a
+    -- different digit, and `trace` last because it is the order rather than the count.
+    return a + b + c + d + e + f + g + live * 1000 + trace

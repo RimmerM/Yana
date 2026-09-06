@@ -1,108 +1,48 @@
 
 double<complex>(%x: I32): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %x, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = imul %v_2, 2: I32
-    ret %v_3
+    %v_1 = shl %x, 1: I32
+    ret %v_1
   }
 }
 
 triple<complex>(%x: I32): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %x, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = imul %v_2, 3: I32
-    ret %v_3
+    %v_1 = imul %x, 3: I32
+    ret %v_1
   }
 }
 
 negate<complex>(%x: I32): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %x, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = sub 0, %v_2: I32
-    ret %v_3
-  }
-}
-
-retarget<complex>(%slot: Ptr) {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, funvalue(triple), 8
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 0, 8
-    copy %slot, %v_1, 16
-    ret 
-  }
-}
-
-reweight<complex>(%step: Ptr, %weight: I32) {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %weight, 4
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %step, 16: Ptr
-    store %v_3, %v_2, 4
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, funvalue(negate), 8
-    %v_5 = add %v_4, 8: Ptr
-    store %v_5, 0, 8
-    copy %step, %v_4, 16
-    ret 
+    %v_1 = sub 0, %x: I32
+    ret %v_1
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 20, 8: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    %v_5 = alloca 16, 8: Ptr
-    store %v_5, funvalue(double), 8
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, 0, 8
-    %v_7 = alloca 20, 8: Ptr
-    %v_8 = add %v_7, 16: Ptr
-    store %v_8, 1, 4
-    copy %v_7, %v_5, 16
-    copy %v_1, %v_7, 20
-    %v_9 = load %v_1, 8: Ptr
-    %v_10 = add %v_1, 8: Ptr
-    %v_11 = load %v_10, 8: Ptr
-    %v_12 = call_complex %v_9, %v_11, 10: I32
-    %v_13 = add %v_1, 16: Ptr
-    %v_14 = loads %v_13, 4: I32
-    %v_15 = imul %v_12, %v_14: I32
-    store %v_2, %v_15, 4
-    call_complex retarget, %v_1
-    %v_16 = load %v_1, 8: Ptr
-    %v_17 = add %v_1, 8: Ptr
-    %v_18 = load %v_17, 8: Ptr
-    %v_19 = call_complex %v_16, %v_18, 10: I32
-    %v_20 = add %v_1, 16: Ptr
-    %v_21 = loads %v_20, 4: I32
-    %v_22 = imul %v_19, %v_21: I32
-    store %v_3, %v_22, 4
-    call_complex reweight, %v_1, 4
-    %v_23 = load %v_1, 8: Ptr
-    %v_24 = add %v_1, 8: Ptr
-    %v_25 = load %v_24, 8: Ptr
-    %v_26 = call_complex %v_23, %v_25, 10: I32
-    %v_27 = add %v_1, 16: Ptr
-    %v_28 = loads %v_27, 4: I32
-    %v_29 = imul %v_26, %v_28: I32
-    store %v_4, %v_29, 4
-    %v_30 = loads %v_2, 4: I32
-    %v_31 = loads %v_3, 4: I32
-    %v_32 = add %v_30, %v_31: I32
-    %v_33 = loads %v_4, 4: I32
-    %v_34 = add %v_32, %v_33: I32
-    ret %v_34
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 0, 8
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = call_complex funvalue(double), %v_2, 10: I32
+    store %v_1, 0, 8
+    %v_4 = load %v_1, 8: Ptr
+    %v_5 = call_complex funvalue(triple), %v_4, 10: I32
+    store %v_1, 0, 8
+    %v_6 = load %v_1, 8: Ptr
+    %v_7 = call_complex funvalue(negate), %v_6, 10: I32
+    %v_8 = shl %v_7, 2: I32
+    %v_9 = add %v_3, %v_5: I32
+    %v_10 = add %v_9, %v_8: I32
+    ret %v_10
+  }
+}
+
+funvalue(double)<complex>(%v_0: Ptr, %v_1: I32): I32 {
+  b_2 {
+    %v_3 = call_complex double, %v_1: I32
+    ret %v_3
   }
 }
 
@@ -116,13 +56,6 @@ funvalue(triple)<complex>(%v_0: Ptr, %v_1: I32): I32 {
 funvalue(negate)<complex>(%v_0: Ptr, %v_1: I32): I32 {
   b_2 {
     %v_3 = call_complex negate, %v_1: I32
-    ret %v_3
-  }
-}
-
-funvalue(double)<complex>(%v_0: Ptr, %v_1: I32): I32 {
-  b_2 {
-    %v_3 = call_complex double, %v_1: I32
     ret %v_3
   }
 }

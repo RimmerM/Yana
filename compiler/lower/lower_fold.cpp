@@ -1,5 +1,11 @@
 #include "lower_fold.h"
 #include "lower_builder.h"
+#include "fold_arith.h"
+
+// The two's-complement arithmetic itself is `fold_arith.h`, shared with `resolve_ssa/opt/fold.cpp`:
+// what an operation means at a width is one question, and this file is the lower IR's half of the
+// answer rather than a second copy of it.
+using namespace foldArith;
 
 namespace {
 
@@ -8,10 +14,6 @@ namespace {
 // `And`/`Or` at a pointer result mean the tagging arithmetic rather than plain bit operations.
 U32 widthOf(LowerType type) {
     return type == LowerType::Int32 ? 32 : 64;
-}
-
-U64 maskOf(U32 bits) {
-    return bits >= 64 ? maxLimit<U64> : (U64(1) << bits) - 1;
 }
 
 // Whether this value is an integer constant, and what it is - the low bits of its own type, so that
@@ -23,15 +25,6 @@ bool lowerConstantOf(LowerBase base, LowerValue* value, U64& into) {
 
     into = ((LowerImm*)inst)->i & maskOf(widthOf(value->type));
     return true;
-}
-
-// The same pattern read as a signed number of that width, which is what every operation that has a
-// signed and an unsigned form needs and what a widening cast of a signed source produces.
-I64 signedValue(U64 value, U32 bits) {
-    if(bits >= 64) return I64(value);
-
-    auto spare = 64 - bits;
-    return I64(value << spare) >> spare;
 }
 
 // How many bits a constant needs to survive being written out at that width and read back
@@ -46,151 +39,6 @@ U32 immediateWidthOf(U64 value, U32 bits) {
     }
 
     return 64;
-}
-
-/*
- * The top 64 bits of a 64x64 product, out of 32-bit pieces.
- *
- * By hand rather than through a wider integer type because there is no portable one: `__int128` is
- * a GNU extension and this builds under MSVC too. Four partial products, and the only subtle line
- * is the carry - the two cross terms and the top half of the low product all land in the same
- * 32-bit column, and their sum can reach into the next.
- */
-U64 highProduct(U64 a, U64 b) {
-    auto aLow = a & 0xffffffffu, aHigh = a >> 32;
-    auto bLow = b & 0xffffffffu, bHigh = b >> 32;
-
-    auto low = aLow * bLow;
-    auto crossA = aHigh * bLow;
-    auto crossB = aLow * bHigh;
-
-    auto carry = ((low >> 32) + (crossA & 0xffffffffu) + (crossB & 0xffffffffu)) >> 32;
-    return aHigh * bHigh + (crossA >> 32) + (crossB >> 32) + carry;
-}
-
-// The same half read as a signed number. The unsigned product treats each sign bit as magnitude
-// worth 2^64, so a negative operand has contributed the other operand's whole value one place too
-// high, and subtracting it once per negative operand is the correction.
-I64 signedHighProduct(I64 a, I64 b) {
-    auto high = I64(highProduct(U64(a), U64(b)));
-    if(a < 0) high -= b;
-    if(b < 0) high -= a;
-    return high;
-}
-
-// Both operands known: the operation itself, at `bits`. False where the answer is not one this may
-// state, which since the division rule below is only a shift by a distance the machine would have
-// masked.
-bool evaluate(LowerInst::Kind kind, U64 a, U64 b, U32 bits, U64& into) {
-    auto sa = signedValue(a, bits);
-    auto sb = signedValue(b, bits);
-    auto lowest = signedValue(U64(1) << (bits - 1), bits);
-
-    switch(kind) {
-        case LowerInst::Add: into = a + b; break;
-        case LowerInst::Sub: into = a - b; break;
-
-        // Signed and unsigned multiplication answer the same low bits, which is why the IR keeps the
-        // two apart only because the machine does - see the LLVM backend, which merges them too.
-        case LowerInst::Mul:
-        case LowerInst::IMul: into = a * b; break;
-
-        // `x / 0` is 0 and `x % 0` is `x`, which the language answers rather than the machine - see
-        // the ruling beside `Div` in resolve/inst.def. There is no divisor these may not state.
-        case LowerInst::Div: into = b ? a / b : 0; break;
-        case LowerInst::Rem: into = b ? a % b : a; break;
-
-        // The signed pair has one more: the quotient the width cannot hold, which wraps back to the
-        // minimum as every other signed overflow does, and whose remainder is 0. Both are written
-        // out rather than computed, `INT64_MIN / -1` being undefined in the C++ this runs in too.
-        case LowerInst::IDiv:
-            if(!sb) into = 0;
-            else if(sa == lowest && sb == -1) into = U64(lowest);
-            else into = U64(sa / sb);
-            break;
-        case LowerInst::IRem:
-            if(!sb) into = a;
-            else if(sa == lowest && sb == -1) into = 0;
-            else into = U64(sa % sb);
-            break;
-
-        // The half of the product that does not fit, which is the one thing here that has to be
-        // computed at *twice* the operands' width. A 32-bit pair fits a U64; a 64-bit pair is the
-        // schoolbook split, because there is no wider integer to hold it.
-        case LowerInst::MulHi:
-            into = bits <= 32 ? (a * b) >> bits : highProduct(a, b);
-            break;
-        case LowerInst::IMulHi:
-            into = bits <= 32 ? U64(sa * sb) >> bits : U64(signedHighProduct(sa, sb));
-            break;
-
-        case LowerInst::Shl: if(b >= bits) return false; into = a << b; break;
-        case LowerInst::Shr: if(b >= bits) return false; into = a >> b; break;
-        case LowerInst::Sar: if(b >= bits) return false; into = U64(sa >> b); break;
-
-        /*
-         * The rotations, which unlike the three above have an answer for *every* distance: the count
-         * is defined modulo the width (see the kinds), so there is no out-of-range case to decline.
-         *
-         * `a` arrives masked to the width already - `foldBinaryValue`'s callers narrow it - so the
-         * halves are the value's own bits and nothing above them travels. The `% bits` before the
-         * shifts is the modulus and the `(bits - n) % bits` is what keeps a zero count from shifting
-         * by the whole width, which is the one distance C++ leaves undefined.
-         */
-        case LowerInst::Rol: {
-            auto n = b % bits;
-            into = (a << n) | (a >> ((bits - n) % bits));
-            break;
-        }
-        case LowerInst::Ror: {
-            auto n = b % bits;
-            into = (a >> n) | (a << ((bits - n) % bits));
-            break;
-        }
-
-        case LowerInst::And: into = a & b; break;
-        case LowerInst::Or:  into = a | b; break;
-        case LowerInst::Xor: into = a ^ b; break;
-
-        /*
-         * The three BMI2 operations, which unlike the shifts have an answer for every operand pair -
-         * see the kinds. The count saturates rather than being refused, and a permutation has no
-         * count at all.
-         */
-        case LowerInst::BitsUpTo: into = b >= bits ? a : a & maskOf(U32(b)); break;
-
-        case LowerInst::GatherBits: {
-            U64 out = 0;
-            U64 target = 1;
-
-            for(auto mask = b & maskOf(bits); mask != 0; mask &= mask - 1) {
-                if(a & (mask & (0 - mask))) out |= target;
-                target <<= 1;
-            }
-
-            into = out;
-            break;
-        }
-
-        case LowerInst::ScatterBits: {
-            U64 out = 0;
-            U64 source = 1;
-
-            for(auto mask = b & maskOf(bits); mask != 0; mask &= mask - 1) {
-                auto low = mask & (0 - mask);
-                if(a & source) out |= low;
-                source <<= 1;
-            }
-
-            into = out;
-            break;
-        }
-
-        default: return false;
-    }
-
-    into &= maskOf(bits);
-    return true;
 }
 
 /*
@@ -369,7 +217,7 @@ Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, Lo
 
     if(knownLhs && knownRhs) {
         U64 result;
-        if(!evaluate(kind, a, b, bits, result)) return Folded::nothing();
+        if(!evaluateBinary(kind, a, b, bits, result)) return Folded::nothing();
 
         return Folded::value(result);
     }
@@ -453,7 +301,7 @@ Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, Lo
             break;
 
         // A permutation through a mask that names every position is the value, and through one that
-        // names none is nothing. Neither is a special case of the loop in `evaluate` above: this is
+        // names none is nothing. Neither is a special case of the loop in `evaluateBinary` above: this is
         // the half where only the *mask* is known, which is what a permutation against a literal is.
         case LowerInst::GatherBits:
         case LowerInst::ScatterBits:

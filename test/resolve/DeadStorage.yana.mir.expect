@@ -1,0 +1,247 @@
+module ResolveTest
+
+data Held {id: I32} drop authored
+
+data Pair {a: I32, b: I32}
+
+data Nested {p: Pair, q: Pair}
+
+instance Drop(Held): Held.drop
+
+let & live: I32 = 0
+
+let & trace: I32 = 0
+
+let string: [CodeUnit *6] = [97, 98, 99, 100, 101, 102]
+
+fn Held.drop(self: Held) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global live)
+  %1: I32 = const 1
+  %2: I32 = sub inspect %0 inspect %1
+  write.assign borrow.unique (global live) take %2
+  %4: I32 = read copy.trivial (global trace)
+  %5: I32 = const 10
+  %6: I32 = mul inspect %4 inspect %5
+  %7: I32 = read copy.trivial (self.id)
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (global trace) take %8
+  return
+}
+
+fn held(id: I32 [shared call]) -> Held {
+bb0:
+  %0: I32 = read copy.trivial (global live)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global live) take %2
+  %4: I32 = read copy.trivial (id)
+  %5: Held = aggregate.Held take %4
+  return take %5
+}
+
+fn discarded() -> I32 {
+  local unread: Held
+
+bb0:
+  %0: I32 = const 4
+  %1: Held = call held borrow.shared %0
+  write.init borrow.unique (unread) take %1
+  drop (unread)
+  %3: I32 = const 0
+  return take %3
+}
+
+fn overwritten(n: I32 [shared call]) -> I32 {
+  local & v: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (v) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 1
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (v) take %4
+  %6: I32 = read copy.trivial (n)
+  %7: I32 = const 2
+  %8: I32 = mul inspect %6 inspect %7
+  write.assign borrow.unique (v) take %8
+  %10: I32 = read copy.trivial (v)
+  return take %10
+}
+
+fn bump(v: I32 [unique call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (v)
+  %1: I32 = const 100
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (v) take %2
+  return
+}
+
+fn acrossCall(n: I32 [shared call]) -> I32 {
+  local & v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  write.init borrow.unique (v) take %0
+  %2: I32 [unique call] = read borrow.unique (v) loan0
+  %3: {} = call bump borrow.unique %2
+  %4: I32 = read copy.trivial (v)
+  return take %4
+}
+
+fn siblings(n: I32 [shared call]) -> I32 {
+  local & p: Pair
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 0
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = read copy.trivial (n)
+  %5: I32 = const 1
+  %6: I32 = add inspect %4 inspect %5
+  write.assign borrow.unique (p.a) take %6
+  %8: I32 = read copy.trivial (n)
+  %9: I32 = const 2
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (p.b) take %10
+  %12: I32 = read copy.trivial (p.a)
+  %13: I32 = const 10
+  %14: I32 = mul inspect %12 inspect %13
+  %15: I32 = read copy.trivial (p.b)
+  %16: I32 = add inspect %14 inspect %15
+  return take %16
+}
+
+fn refreshed(n: I32 [shared call]) -> I32 {
+  local & p: Pair
+  local first: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = read copy.trivial (p.a)
+  write.init borrow.unique (first) take %4
+  %6: I32 = read copy.trivial (n)
+  %7: I32 = read copy.trivial (n)
+  %8: Pair = aggregate.Pair take %6 take %7
+  write.assign borrow.unique (p) take %8
+  %10: I32 = read copy.trivial (first)
+  %11: I32 = const 100
+  %12: I32 = mul inspect %10 inspect %11
+  %13: I32 = read copy.trivial (p.a)
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+fn nestedDead(n: I32 [shared call]) -> I32 {
+  local & v: Nested
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 0
+  %2: Pair = aggregate.Pair take %0 take %1
+  %3: I32 = const 0
+  %4: I32 = const 0
+  %5: Pair = aggregate.Pair take %3 take %4
+  %6: Nested = aggregate.Nested take %2 take %5
+  write.init borrow.unique (v) take %6
+  %8: I32 = read copy.trivial (n)
+  %9: I32 = const 1
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (v.p.a) take %10
+  %12: I32 = read copy.trivial (n)
+  %13: I32 = const 2
+  %14: I32 = add inspect %12 inspect %13
+  write.assign borrow.unique (v.q.b) take %14
+  %16: I32 = read copy.trivial (n)
+  %17: I32 = const 3
+  %18: I32 = add inspect %16 inspect %17
+  write.assign borrow.unique (v.p.b) take %18
+  %20: I32 = read copy.trivial (n)
+  %21: I32 = const 2
+  %22: I32 = mul inspect %20 inspect %21
+  return take %22
+}
+
+fn size(s: String) -> I32 {
+bb0:
+  %0: String [shared call] = read borrow.shared (s) loan0
+  %1: String [shared slot 0 view] = call.derivation view(String) borrow.shared %0 roots{0}
+  %2: Size = call length(String) borrow.shared %1
+  drop (s)
+  %3: I32 = convert inspect %2
+  return take %3
+}
+
+fn handed() -> I32 {
+  local text: String
+
+bb0:
+  %0: [CodeUnit *6] [shared slot 0] = read borrow.shared (global string) loan0
+  %1: %[CodeUnit *6] [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: %CodeUnit = bitcast inspect %1
+  %3: Size = const 6
+  %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
+  write.init borrow.unique (text) take %4
+  %6: String = read take (text)
+  %7: I32 = call size take %6
+  return take %7
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+  local d: I32
+  local e: I32
+  local f: I32
+  local g: I32
+
+bb0:
+  %0: I32 = call discarded
+  write.init borrow.unique (a) take %0
+  %2: I32 = const 5
+  %3: I32 = call overwritten borrow.shared %2
+  write.init borrow.unique (b) take %3
+  %5: I32 = const 7
+  %6: I32 = call acrossCall borrow.shared %5
+  write.init borrow.unique (c) take %6
+  %8: I32 = const 2
+  %9: I32 = call siblings borrow.shared %8
+  write.init borrow.unique (d) take %9
+  %11: I32 = const 6
+  %12: I32 = call refreshed borrow.shared %11
+  write.init borrow.unique (e) take %12
+  %14: I32 = call handed
+  write.init borrow.unique (f) take %14
+  %16: I32 = const 4
+  %17: I32 = call nestedDead borrow.shared %16
+  write.init borrow.unique (g) take %17
+  %19: I32 = read copy.trivial (a)
+  %20: I32 = read copy.trivial (b)
+  %21: I32 = add inspect %19 inspect %20
+  %22: I32 = read copy.trivial (c)
+  %23: I32 = add inspect %21 inspect %22
+  %24: I32 = read copy.trivial (d)
+  %25: I32 = add inspect %23 inspect %24
+  %26: I32 = read copy.trivial (e)
+  %27: I32 = add inspect %25 inspect %26
+  %28: I32 = read copy.trivial (f)
+  %29: I32 = add inspect %27 inspect %28
+  %30: I32 = read copy.trivial (g)
+  %31: I32 = add inspect %29 inspect %30
+  %32: I32 = read copy.trivial (global live)
+  %33: I32 = const 1000
+  %34: I32 = mul inspect %32 inspect %33
+  %35: I32 = add inspect %31 inspect %34
+  %36: I32 = read copy.trivial (global trace)
+  %37: I32 = add inspect %35 inspect %36
+  return take %37
+}
+
+entry main

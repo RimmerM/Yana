@@ -843,7 +843,7 @@ What to build:
                           lower      the lowered program as IR text (native only)
                           llvm       LLVM IR text (native only)
                           mir        the ownership MIR (-resolver ownership)
-                          ssa        the ownership SSA (-resolver ownership)
+                          ssa        the optimized ownership SSA (-resolver ownership)
   -platform <p>         native (default) or js. Decides which @platform declarations exist.
   -main <module>        the module the program starts in, when the input holds several
   -test                 build the @test declarations into a test program

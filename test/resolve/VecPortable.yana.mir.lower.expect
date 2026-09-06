@@ -2,715 +2,420 @@ mut @seed = [2, 0, 0, 0]
 
 construction<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 16: Ptr
-    %v_2 = alloca 16, 16: Ptr
-    %v_3 = vsplat 0: i32x4
-    store %v_1, %v_3, 16
-    %v_4 = vsplat 0: i32x4
-    %v_5 = vwithlane %v_4, 1, 1: i32x4
-    %v_6 = vwithlane %v_5, 2, 2: i32x4
-    %v_7 = vwithlane %v_6, 3, 3: i32x4
-    store %v_2, %v_7, 16
-    %v_8 = load %v_1, 16: i32x4
-    %v_9 = imm 0: I32
-    %v_10 = vlane %v_8, 0: I32
-    %v_11 = cmp_neq %v_10, 0: I32
-    je %v_11, b_12, b_13
+    %v_1 = vsplat 0: i32x4
+    %v_2 = vwithlane %v_1, 1, 1: i32x4
+    %v_3 = vwithlane %v_2, 2, 2: i32x4
+    %v_4 = vwithlane %v_3, 3, 3: i32x4
+    %v_5 = vlane %v_1, 0: I32
+    %v_6 = cmp_neq %v_5, 0: I32
+    je %v_6, b_7, b_8
   }
 
-  b_13 {
-    jmp b_14
+  b_8 {
+    %v_9 = vlane %v_1, 1: I32
+    %v_10 = cmp_neq %v_9, 0: I32
+    je %v_10, b_11, b_12
   }
 
-  b_14 {
-    %v_15 = load %v_1, 16: i32x4
-    %v_16 = imm 1: I32
-    %v_17 = vlane %v_15, 1: I32
-    %v_18 = cmp_neq %v_17, 0: I32
-    je %v_18, b_19, b_20
-  }
-
-  b_12 {
+  b_7 {
     ret 18446744073709551615
   }
 
-  b_20 {
-    jmp b_21
+  b_12 {
+    %v_13 = vlane %v_4, 0: I32
+    %v_14 = cmp_neq %v_13, 0: I32
+    je %v_14, b_15, b_16
   }
 
-  b_21 {
-    %v_22 = load %v_2, 16: i32x4
-    %v_23 = imm 0: I32
-    %v_24 = vlane %v_22, 0: I32
-    %v_25 = cmp_neq %v_24, 0: I32
-    je %v_25, b_26, b_27
-  }
-
-  b_19 {
+  b_11 {
     ret 18446744073709551614
   }
 
-  b_27 {
-    jmp b_28
+  b_16 {
+    %v_17 = vlane %v_4, 1: I32
+    %v_18 = cmp_neq %v_17, 1: I32
+    je %v_18, b_19, b_20
   }
 
-  b_28 {
-    %v_29 = load %v_2, 16: i32x4
-    %v_30 = imm 1: I32
-    %v_31 = vlane %v_29, 1: I32
-    %v_32 = cmp_neq %v_31, 1: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_26 {
+  b_15 {
     ret 18446744073709551613
   }
 
-  b_34 {
-    jmp b_35
+  b_20 {
+    %v_21 = vreduce_add %v_4: I32
+    %v_22 = cmp_neq %v_21, 6: I32
+    je %v_22, b_23, b_24
   }
 
-  b_35 {
-    %v_36 = load %v_2, 16: i32x4
-    %v_37 = cmp_ilt 4, 2: I32
-    je %v_37, b_38, b_39
-  }
-
-  b_33 {
+  b_19 {
     ret 18446744073709551612
   }
 
-  b_39 {
-    jmp b_40
-  }
-
-  b_40 {
-    %v_41 = load %v_2, 16: i32x4
-    %v_42 = vreduce_add %v_41: I32
-    %v_43 = load %v_2, 16: i32x4
-    %v_44 = load %v_2, 16: i32x4
-    %v_45 = sub 4, 1: I32
-    %v_46 = imul 4, %v_45: I32
-    %v_47 = idiv %v_46, 2: I32
-    %v_48 = cmp_neq %v_42, %v_47: I32
-    je %v_48, b_49, b_50
-  }
-
-  b_38 {
-    ret 18446744073709551611
-  }
-
-  b_50 {
-    jmp b_51
-  }
-
-  b_51 {
+  b_24 {
     ret 0
   }
 
-  b_49 {
+  b_23 {
     ret 18446744073709551610
   }
 }
 
 arithmetic<complex>(%v: i32x4): I32 {
   b_0 {
-    %v_1 = alloca 16, 16: Ptr
-    %v_2 = alloca 16, 16: Ptr
-    %v_3 = alloca 16, 16: Ptr
-    %v_4 = alloca 16, 16: Ptr
-    %v_5 = alloca 16, 16: Ptr
-    %v_6 = alloca 16, 16: Ptr
-    store %v_1, %v, 16
-    %v_7 = vsplat 0: i32x4
-    %v_8 = vwithlane %v_7, 1, 1: i32x4
-    %v_9 = vwithlane %v_8, 2, 2: i32x4
-    %v_10 = vwithlane %v_9, 3, 3: i32x4
-    store %v_2, %v_10, 16
-    %v_11 = vsplat 0: i32x4
-    store %v_3, %v_11, 16
-    %v_12 = load %v_1, 16: i32x4
-    %v_13 = load %v_2, 16: i32x4
-    %v_14 = cmp_ilt %v_12, %v_13: m32x4
-    %v_15 = select %v_14, %v_12, %v_13: i32x4
-    store %v_4, %v_15, 16
-    %v_16 = load %v_1, 16: i32x4
-    %v_17 = load %v_2, 16: i32x4
-    %v_18 = cmp_igt %v_16, %v_17: m32x4
-    %v_19 = select %v_18, %v_16, %v_17: i32x4
-    store %v_5, %v_19, 16
-    %v_20 = load %v_4, 16: i32x4
-    %v_21 = imm 0: I32
-    %v_22 = vlane %v_20, 0: I32
-    %v_23 = cmp_neq %v_22, 0: I32
-    je %v_23, b_24, b_25
+    %v_1 = vsplat 0: i32x4
+    %v_2 = vwithlane %v_1, 1, 1: i32x4
+    %v_3 = vwithlane %v_2, 2, 2: i32x4
+    %v_4 = vwithlane %v_3, 3, 3: i32x4
+    %v_5 = cmp_ilt %v, %v_4: m32x4
+    %v_6 = select %v_5, %v, %v_4: i32x4
+    %v_7 = cmp_igt %v, %v_4: m32x4
+    %v_8 = select %v_7, %v, %v_4: i32x4
+    %v_9 = vlane %v_6, 0: I32
+    %v_10 = cmp_neq %v_9, 0: I32
+    je %v_10, b_11, b_12
   }
 
-  b_25 {
-    jmp b_26
+  b_12 {
+    %v_13 = vlane %v_8, 0: I32
+    %v_14 = cmp_neq %v_13, 2: I32
+    je %v_14, b_15, b_16
   }
 
-  b_26 {
-    %v_27 = load %v_5, 16: i32x4
-    %v_28 = imm 0: I32
-    %v_29 = vlane %v_27, 0: I32
-    %v_30 = cmp_neq %v_29, 2: I32
-    je %v_30, b_31, b_32
-  }
-
-  b_24 {
+  b_11 {
     ret 18446744073709551615
   }
 
-  b_32 {
-    jmp b_33
+  b_16 {
+    %v_17 = vlane %v_6, 1: I32
+    %v_18 = cmp_neq %v_17, 1: I32
+    je %v_18, b_19, b_20
   }
 
-  b_33 {
-    %v_34 = load %v_4, 16: i32x4
-    %v_35 = imm 1: I32
-    %v_36 = vlane %v_34, 1: I32
-    %v_37 = cmp_neq %v_36, 1: I32
-    je %v_37, b_38, b_39
-  }
-
-  b_31 {
+  b_15 {
     ret 18446744073709551614
   }
 
-  b_39 {
-    jmp b_40
+  b_20 {
+    %v_21 = vlane %v_8, 1: I32
+    %v_22 = cmp_neq %v_21, 2: I32
+    je %v_22, b_23, b_24
   }
 
-  b_40 {
-    %v_41 = load %v_5, 16: i32x4
-    %v_42 = imm 1: I32
-    %v_43 = vlane %v_41, 1: I32
-    %v_44 = cmp_neq %v_43, 2: I32
-    je %v_44, b_45, b_46
-  }
-
-  b_38 {
+  b_19 {
     ret 18446744073709551613
   }
 
-  b_46 {
-    jmp b_47
+  b_24 {
+    %v_25 = sub %v_1, %v: i32x4
+    %v_26 = abs %v_25: i32x4
+    %v_27 = vlane %v_26, 0: I32
+    %v_28 = cmp_neq %v_27, 2: I32
+    je %v_28, b_29, b_30
   }
 
-  b_47 {
-    %v_48 = load %v_3, 16: i32x4
-    %v_49 = load %v_1, 16: i32x4
-    %v_50 = sub %v_48, %v_49: i32x4
-    store %v_6, %v_50, 16
-    %v_51 = load %v_6, 16: i32x4
-    %v_52 = abs %v_51: i32x4
-    %v_53 = imm 0: I32
-    %v_54 = vlane %v_52, 0: I32
-    %v_55 = cmp_neq %v_54, 2: I32
-    je %v_55, b_56, b_57
-  }
-
-  b_45 {
+  b_23 {
     ret 18446744073709551612
   }
 
-  b_57 {
-    jmp b_58
+  b_30 {
+    %v_31 = abs %v: i32x4
+    %v_32 = vlane %v_31, 1: I32
+    %v_33 = cmp_neq %v_32, 2: I32
+    je %v_33, b_34, b_35
   }
 
-  b_58 {
-    %v_59 = load %v_1, 16: i32x4
-    %v_60 = abs %v_59: i32x4
-    %v_61 = imm 1: I32
-    %v_62 = vlane %v_60, 1: I32
-    %v_63 = cmp_neq %v_62, 2: I32
-    je %v_63, b_64, b_65
-  }
-
-  b_56 {
+  b_29 {
     ret 18446744073709551611
   }
 
-  b_65 {
-    jmp b_66
-  }
-
-  b_66 {
+  b_35 {
     ret 0
   }
 
-  b_64 {
+  b_34 {
     ret 18446744073709551610
   }
 }
 
 floats<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 16: Ptr
-    %v_2 = alloca 16, 16: Ptr
-    %v_3 = vsplat -1.5: f32x4
-    store %v_1, %v_3, 16
-    %v_4 = vsplat 0: f32x4
-    store %v_2, %v_4, 16
-    %v_5 = load %v_1, 16: f32x4
-    %v_6 = abs %v_5: f32x4
-    %v_7 = imm 0: I32
-    %v_8 = vlane %v_6, 0: F32
-    %v_9 = cmp_neq %v_8, 1.5: I32
-    je %v_9, b_10, b_11
+    %v_1 = vsplat -1.5: f32x4
+    %v_2 = vsplat 0: f32x4
+    %v_3 = abs %v_1: f32x4
+    %v_4 = vlane %v_3, 0: F32
+    %v_5 = cmp_neq %v_4, 1.5: I32
+    je %v_5, b_6, b_7
   }
 
-  b_11 {
-    jmp b_12
+  b_7 {
+    %v_8 = cmp_lt %v_1, %v_2: m32x4
+    %v_9 = select %v_8, %v_1, %v_2: f32x4
+    %v_10 = vlane %v_9, 0: F32
+    %v_11 = cmp_neq %v_10, -1.5: I32
+    je %v_11, b_12, b_13
   }
 
-  b_12 {
-    %v_13 = load %v_1, 16: f32x4
-    %v_14 = load %v_2, 16: f32x4
-    %v_15 = cmp_lt %v_13, %v_14: m32x4
-    %v_16 = select %v_15, %v_13, %v_14: f32x4
-    %v_17 = imm 0: I32
-    %v_18 = vlane %v_16, 0: F32
-    %v_19 = cmp_neq %v_18, -1.5: I32
-    je %v_19, b_20, b_21
-  }
-
-  b_10 {
+  b_6 {
     ret 18446744073709551615
   }
 
-  b_21 {
-    jmp b_22
+  b_13 {
+    %v_14 = cmp_gt %v_1, %v_2: m32x4
+    %v_15 = select %v_14, %v_1, %v_2: f32x4
+    %v_16 = vlane %v_15, 1: F32
+    %v_17 = cmp_neq %v_16, 0: I32
+    je %v_17, b_18, b_19
   }
 
-  b_22 {
-    %v_23 = load %v_1, 16: f32x4
-    %v_24 = load %v_2, 16: f32x4
-    %v_25 = cmp_gt %v_23, %v_24: m32x4
-    %v_26 = select %v_25, %v_23, %v_24: f32x4
-    %v_27 = imm 1: I32
-    %v_28 = vlane %v_26, 1: F32
-    %v_29 = cmp_neq %v_28, 0: I32
-    je %v_29, b_30, b_31
-  }
-
-  b_20 {
+  b_12 {
     ret 18446744073709551614
   }
 
-  b_31 {
-    jmp b_32
+  b_19 {
+    %v_20 = abs %v_2: f32x4
+    %v_21 = vlane %v_20, 0: F32
+    %v_22 = div 1, %v_21: F32
+    %v_23 = cmp_lt %v_22, 0: I32
+    je %v_23, b_24, b_25
   }
 
-  b_32 {
-    %v_33 = load %v_2, 16: f32x4
-    %v_34 = abs %v_33: f32x4
-    %v_35 = imm 0: I32
-    %v_36 = vlane %v_34, 0: F32
-    %v_37 = div 1, %v_36: F32
-    %v_38 = cmp_lt %v_37, 0: I32
-    je %v_38, b_39, b_40
-  }
-
-  b_30 {
+  b_18 {
     ret 18446744073709551613
   }
 
-  b_40 {
-    jmp b_41
-  }
-
-  b_41 {
+  b_25 {
     ret 0
   }
 
-  b_39 {
+  b_24 {
     ret 18446744073709551612
   }
 }
 
 rearrangement<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 16: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 16, 16: Ptr
-    %v_4 = alloca 16, 16: Ptr
-    %v_5 = alloca 16, 16: Ptr
-    %v_6 = alloca 16, 16: Ptr
-    %v_7 = vsplat 0: i32x4
-    %v_8 = vwithlane %v_7, 1, 1: i32x4
-    %v_9 = vwithlane %v_8, 2, 2: i32x4
-    %v_10 = vwithlane %v_9, 3, 3: i32x4
-    store %v_1, %v_10, 16
-    %v_11 = load %v_1, 16: i32x4
-    store %v_2, 4, 4
-    %v_12 = load %v_1, 16: i32x4
-    %v_13 = vshuffle %v_12, %v_12, 3, 2, 1, 0: i32x4
-    store %v_3, %v_13, 16
-    %v_14 = load %v_3, 16: i32x4
-    %v_15 = imm 0: I32
-    %v_16 = vlane %v_14, 0: I32
-    %v_17 = loads %v_2, 4: I32
-    %v_18 = sub %v_17, 1: I32
-    %v_19 = cmp_neq %v_16, %v_18: I32
-    je %v_19, b_20, b_21
+    %v_1 = vsplat 0: i32x4
+    %v_2 = vwithlane %v_1, 1, 1: i32x4
+    %v_3 = vwithlane %v_2, 2, 2: i32x4
+    %v_4 = vwithlane %v_3, 3, 3: i32x4
+    %v_5 = vshuffle %v_4, %v_4, 3, 2, 1, 0: i32x4
+    %v_6 = vlane %v_5, 0: I32
+    %v_7 = cmp_neq %v_6, 3: I32
+    je %v_7, b_8, b_9
   }
 
-  b_21 {
-    jmp b_22
+  b_9 {
+    %v_10 = vlane %v_5, 1: I32
+    %v_11 = cmp_neq %v_10, 2: I32
+    je %v_11, b_12, b_13
   }
 
-  b_22 {
-    %v_23 = load %v_3, 16: i32x4
-    %v_24 = imm 1: I32
-    %v_25 = vlane %v_23, 1: I32
-    %v_26 = loads %v_2, 4: I32
-    %v_27 = sub %v_26, 2: I32
-    %v_28 = cmp_neq %v_25, %v_27: I32
-    je %v_28, b_29, b_30
-  }
-
-  b_20 {
+  b_8 {
     ret 18446744073709551615
   }
 
-  b_30 {
-    jmp b_31
+  b_13 {
+    %v_14 = vshuffle %v_4, %v_4, 1, 2, 3, 0: i32x4
+    %v_15 = vlane %v_14, 0: I32
+    %v_16 = cmp_neq %v_15, 1: I32
+    je %v_16, b_17, b_18
   }
 
-  b_31 {
-    %v_32 = load %v_1, 16: i32x4
-    %v_33 = imm 1: I32
-    %v_34 = vshuffle %v_32, %v_32, 1, 2, 3, 0: i32x4
-    %v_35 = imm 0: I32
-    %v_36 = vlane %v_34, 0: I32
-    %v_37 = cmp_neq %v_36, 1: I32
-    je %v_37, b_38, b_39
-  }
-
-  b_29 {
+  b_12 {
     ret 18446744073709551614
   }
 
-  b_39 {
-    jmp b_40
+  b_18 {
+    %v_19 = vshuffle %v_4, %v_4, 3, 0, 1, 2: i32x4
+    %v_20 = vlane %v_19, 0: I32
+    %v_21 = cmp_neq %v_20, 3: I32
+    je %v_21, b_22, b_23
   }
 
-  b_40 {
-    %v_41 = load %v_1, 16: i32x4
-    %v_42 = imm 18446744073709551615: I32
-    %v_43 = vshuffle %v_41, %v_41, 3, 0, 1, 2: i32x4
-    %v_44 = imm 0: I32
-    %v_45 = vlane %v_43, 0: I32
-    %v_46 = loads %v_2, 4: I32
-    %v_47 = sub %v_46, 1: I32
-    %v_48 = cmp_neq %v_45, %v_47: I32
-    je %v_48, b_49, b_50
-  }
-
-  b_38 {
+  b_17 {
     ret 18446744073709551613
   }
 
-  b_50 {
-    jmp b_51
+  b_23 {
+    %v_24 = vsplat 9: i32x4
+    %v_25 = vshuffle %v_4, %v_24, 0, 4, 1, 5: i32x4
+    %v_26 = vshuffle %v_4, %v_24, 2, 6, 3, 7: i32x4
+    %v_27 = vlane %v_25, 0: I32
+    %v_28 = cmp_neq %v_27, 0: I32
+    je %v_28, b_29, b_30
   }
 
-  b_51 {
-    %v_52 = vsplat 9: i32x4
-    store %v_4, %v_52, 16
-    %v_53 = load %v_1, 16: i32x4
-    %v_54 = load %v_4, 16: i32x4
-    %v_55 = vshuffle %v_53, %v_54, 0, 4, 1, 5: i32x4
-    store %v_5, %v_55, 16
-    %v_56 = load %v_1, 16: i32x4
-    %v_57 = load %v_4, 16: i32x4
-    %v_58 = vshuffle %v_56, %v_57, 2, 6, 3, 7: i32x4
-    store %v_6, %v_58, 16
-    %v_59 = load %v_5, 16: i32x4
-    %v_60 = imm 0: I32
-    %v_61 = vlane %v_59, 0: I32
-    %v_62 = cmp_neq %v_61, 0: I32
-    je %v_62, b_63, b_64
-  }
-
-  b_49 {
+  b_22 {
     ret 18446744073709551612
   }
 
-  b_64 {
-    jmp b_65
+  b_30 {
+    %v_31 = vlane %v_25, 1: I32
+    %v_32 = cmp_neq %v_31, 9: I32
+    je %v_32, b_33, b_34
   }
 
-  b_65 {
-    %v_66 = load %v_5, 16: i32x4
-    %v_67 = imm 1: I32
-    %v_68 = vlane %v_66, 1: I32
-    %v_69 = cmp_neq %v_68, 9: I32
-    je %v_69, b_70, b_71
-  }
-
-  b_63 {
+  b_29 {
     ret 18446744073709551611
   }
 
-  b_71 {
-    jmp b_72
+  b_34 {
+    %v_35 = vlane %v_26, 0: I32
+    %v_36 = cmp_neq %v_35, 2: I32
+    je %v_36, b_37, b_38
   }
 
-  b_72 {
-    %v_73 = load %v_6, 16: i32x4
-    %v_74 = imm 0: I32
-    %v_75 = vlane %v_73, 0: I32
-    %v_76 = loads %v_2, 4: I32
-    %v_77 = idiv %v_76, 2: I32
-    %v_78 = cmp_neq %v_75, %v_77: I32
-    je %v_78, b_79, b_80
-  }
-
-  b_70 {
+  b_33 {
     ret 18446744073709551610
   }
 
-  b_80 {
-    jmp b_81
+  b_38 {
+    %v_39 = vlane %v_26, 1: I32
+    %v_40 = cmp_neq %v_39, 9: I32
+    je %v_40, b_41, b_42
   }
 
-  b_81 {
-    %v_82 = load %v_6, 16: i32x4
-    %v_83 = imm 1: I32
-    %v_84 = vlane %v_82, 1: I32
-    %v_85 = cmp_neq %v_84, 9: I32
-    je %v_85, b_86, b_87
-  }
-
-  b_79 {
+  b_37 {
     ret 18446744073709551609
   }
 
-  b_87 {
-    jmp b_88
-  }
-
-  b_88 {
+  b_42 {
     ret 0
   }
 
-  b_86 {
+  b_41 {
     ret 18446744073709551608
   }
 }
 
 regrouping<complex>(%v: i32x4): I32 {
   b_0 {
-    %v_1 = alloca 16, 16: Ptr
-    %v_2 = alloca 16, 16: Ptr
-    %v_3 = alloca 16, 16: Ptr
-    %v_4 = alloca 16, 16: Ptr
-    %v_5 = alloca 16, 16: Ptr
-    store %v_1, %v, 16
-    %v_6 = load %v_1, 16: i32x4
-    %v_7 = imm 0: I32
-    %v_8 = vwithlane %v_6, 5, 0: i32x4
-    store %v_2, %v_8, 16
-    %v_9 = load %v_1, 16: i32x4
-    %v_10 = load %v_2, 16: i32x4
-    %v_11 = cast %v_9: i16x4
-    %v_12 = cast %v_10: i16x4
-    %v_13 = vshuffle %v_11, %v_12, 0, 1, 2, 3, 4, 5, 6, 7: i16x8
-    store %v_3, %v_13, 16
-    %v_14 = load %v_3, 16: i16x8
-    %v_15 = load %v_1, 16: i32x4
-    %v_16 = imul 4, 2: I32
-    %v_17 = cmp_neq 8, %v_16: I32
-    je %v_17, b_18, b_19
+    %v_1 = vwithlane %v, 5, 0: i32x4
+    %v_2 = cast %v: i16x4
+    %v_3 = cast %v_1: i16x4
+    %v_4 = vshuffle %v_2, %v_3, 0, 1, 2, 3, 4, 5, 6, 7: i16x8
+    %v_5 = vlane %v_4, 0: I32
+    %v_6 = imm 16: I32
+    %v_7 = shl %v_5, %v_6: I32
+    %v_8 = sar %v_7, %v_6: I32
+    %v_9 = cmp_neq %v_8, 2: I32
+    je %v_9, b_10, b_11
   }
 
-  b_19 {
-    jmp b_20
+  b_11 {
+    %v_12 = vlane %v_4, 4: I32
+    %v_13 = imm 16: I32
+    %v_14 = shl %v_12, %v_13: I32
+    %v_15 = sar %v_14, %v_13: I32
+    %v_16 = cmp_neq %v_15, 5: I32
+    je %v_16, b_17, b_18
   }
 
-  b_20 {
-    %v_21 = load %v_3, 16: i16x8
-    %v_22 = imm 0: I32
-    %v_23 = vlane %v_21, 0: I32
-    %v_24 = imm 16: I32
-    %v_25 = shl %v_23, %v_24: I32
-    %v_26 = sar %v_25, %v_24: I32
-    %v_27 = cmp_neq %v_26, 2: I32
-    je %v_27, b_28, b_29
-  }
-
-  b_18 {
-    ret 18446744073709551615
-  }
-
-  b_29 {
-    jmp b_30
-  }
-
-  b_30 {
-    %v_31 = load %v_3, 16: i16x8
-    %v_32 = load %v_1, 16: i32x4
-    %v_33 = imm 4: I32
-    %v_34 = vlane %v_31, 4: I32
-    %v_35 = imm 16: I32
-    %v_36 = shl %v_34, %v_35: I32
-    %v_37 = sar %v_36, %v_35: I32
-    %v_38 = cmp_neq %v_37, 5: I32
-    je %v_38, b_39, b_40
-  }
-
-  b_28 {
+  b_10 {
     ret 18446744073709551614
   }
 
-  b_40 {
-    jmp b_41
+  b_18 {
+    %v_19 = vshuffle %v_4, %v_4, 0, 1, 2, 3: i16x4
+    %v_20 = cast %v_19: i32x4
+    %v_21 = vshuffle %v_4, %v_4, 4, 5, 6, 7: i16x4
+    %v_22 = cast %v_21: i32x4
+    %v_23 = vlane %v_20, 0: I32
+    %v_24 = cmp_neq %v_23, 2: I32
+    je %v_24, b_25, b_26
   }
 
-  b_41 {
-    %v_42 = load %v_3, 16: i16x8
-    %v_43 = vshuffle %v_42, %v_42, 0, 1, 2, 3: i16x4
-    %v_44 = cast %v_43: i32x4
-    store %v_4, %v_44, 16
-    %v_45 = load %v_3, 16: i16x8
-    %v_46 = vshuffle %v_45, %v_45, 4, 5, 6, 7: i16x4
-    %v_47 = cast %v_46: i32x4
-    store %v_5, %v_47, 16
-    %v_48 = load %v_4, 16: i32x4
-    %v_49 = imm 0: I32
-    %v_50 = vlane %v_48, 0: I32
-    %v_51 = cmp_neq %v_50, 2: I32
-    je %v_51, b_52, b_53
-  }
-
-  b_39 {
+  b_17 {
     ret 18446744073709551613
   }
 
-  b_53 {
-    jmp b_54
+  b_26 {
+    %v_27 = vlane %v_22, 0: I32
+    %v_28 = cmp_neq %v_27, 5: I32
+    je %v_28, b_29, b_30
   }
 
-  b_54 {
-    %v_55 = load %v_5, 16: i32x4
-    %v_56 = imm 0: I32
-    %v_57 = vlane %v_55, 0: I32
-    %v_58 = cmp_neq %v_57, 5: I32
-    je %v_58, b_59, b_60
-  }
-
-  b_52 {
+  b_25 {
     ret 18446744073709551612
   }
 
-  b_60 {
-    jmp b_61
-  }
-
-  b_61 {
+  b_30 {
     ret 0
   }
 
-  b_59 {
+  b_29 {
     ret 18446744073709551611
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 16: Ptr
-    %v_2 = loads @seed, 4: I32
-    %v_3 = vsplat %v_2: i32x4
-    store %v_1, %v_3, 16
-    %v_4 = call_complex construction: I32
-    %v_5 = cmp_neq %v_4, 0: I32
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    jmp b_8
-  }
-
-  b_8 {
-    %v_9 = load %v_1, 16: i32x4
-    %v_10 = call_complex arithmetic, %v_9: I32
-    %v_11 = cmp_neq %v_10, 0: I32
-    je %v_11, b_12, b_13
+    %v_1 = loads @seed, 4: I32
+    %v_2 = vsplat %v_1: i32x4
+    %v_3 = call_complex construction: I32
+    %v_4 = cmp_neq %v_3, 0: I32
+    je %v_4, b_5, b_6
   }
 
   b_6 {
-    %v_14 = call_complex construction: I32
-    ret %v_14
+    %v_7 = call_complex arithmetic, %v_2: I32
+    %v_8 = cmp_neq %v_7, 0: I32
+    je %v_8, b_9, b_10
   }
 
-  b_13 {
-    jmp b_15
+  b_5 {
+    %v_11 = call_complex construction: I32
+    ret %v_11
+  }
+
+  b_10 {
+    %v_12 = call_complex floats: I32
+    %v_13 = cmp_neq %v_12, 0: I32
+    je %v_13, b_14, b_15
+  }
+
+  b_9 {
+    %v_16 = call_complex arithmetic, %v_2: I32
+    %v_17 = imul %v_16, 10: I32
+    ret %v_17
   }
 
   b_15 {
-    %v_16 = call_complex floats: I32
-    %v_17 = cmp_neq %v_16, 0: I32
-    je %v_17, b_18, b_19
+    %v_18 = call_complex rearrangement: I32
+    %v_19 = cmp_neq %v_18, 0: I32
+    je %v_19, b_20, b_21
   }
 
-  b_12 {
-    %v_20 = load %v_1, 16: i32x4
-    %v_21 = call_complex arithmetic, %v_20: I32
-    %v_22 = imul %v_21, 10: I32
-    ret %v_22
+  b_14 {
+    %v_22 = call_complex floats: I32
+    %v_23 = imul %v_22, 100: I32
+    ret %v_23
   }
 
-  b_19 {
-    jmp b_23
+  b_21 {
+    %v_24 = loads @seed, 4: I32
+    %v_25 = vsplat %v_24: i32x4
+    %v_26 = call_complex regrouping, %v_25: I32
+    %v_27 = cmp_neq %v_26, 0: I32
+    je %v_27, b_28, b_29
   }
 
-  b_23 {
-    %v_24 = call_complex rearrangement: I32
-    %v_25 = cmp_neq %v_24, 0: I32
-    je %v_25, b_26, b_27
+  b_20 {
+    %v_30 = call_complex rearrangement: I32
+    %v_31 = imul %v_30, 1000: I32
+    ret %v_31
   }
 
-  b_18 {
-    %v_28 = call_complex floats: I32
-    %v_29 = imul %v_28, 100: I32
-    ret %v_29
-  }
-
-  b_27 {
-    jmp b_30
-  }
-
-  b_30 {
-    %v_31 = loads @seed, 4: I32
-    %v_32 = vsplat %v_31: i32x4
-    %v_33 = call_complex regrouping, %v_32: I32
-    %v_34 = cmp_neq %v_33, 0: I32
-    je %v_34, b_35, b_36
-  }
-
-  b_26 {
-    %v_37 = call_complex rearrangement: I32
-    %v_38 = imul %v_37, 1000: I32
-    ret %v_38
-  }
-
-  b_36 {
-    jmp b_39
-  }
-
-  b_39 {
+  b_29 {
     ret 271
   }
 
-  b_35 {
-    %v_40 = loads @seed, 4: I32
-    %v_41 = vsplat %v_40: i32x4
-    %v_42 = call_complex regrouping, %v_41: I32
-    %v_43 = imul %v_42, 10000: I32
-    ret %v_43
+  b_28 {
+    %v_32 = loads @seed, 4: I32
+    %v_33 = vsplat %v_32: i32x4
+    %v_34 = call_complex regrouping, %v_33: I32
+    %v_35 = imul %v_34, 10000: I32
+    ret %v_35
   }
 }
 

@@ -10,50 +10,38 @@
 
 copyable<complex>(%v_0: Ptr, %x: Ptr, %n: I32): I32 {
   b_1 {
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, %n, 4
-    %v_3 = loads %v_2, 4: I32
-    ret %v_3
+    ret %n
   }
 }
 
 movable<complex>(%v_0: Ptr, %x: Ptr, %n: I32): I32 {
   b_1 {
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, %n, 4
-    %v_3 = loads %v_2, 4: I32
-    ret %v_3
+    ret %n
   }
 }
 
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
+    store %v_1, 7, 4
+    %v_2 = call_complex copyable, @environment(copyable(I32)), %v_1, 1: I32
     %v_3 = alloca 4, 4: Ptr
-    store %v_3, 7, 4
-    %v_4 = call_complex copyable, @environment(copyable(I32)), %v_3, 1: I32
-    %v_5 = alloca 4, 4: Ptr
-    store %v_5, 9, 4
-    %v_6 = call_complex movable, @environment(movable(I32)), %v_5, 2: I32
-    %v_7 = add %v_4, %v_6: I32
-    store %v_1, %v_7, 4
-    %v_8 = alloca 8, 4: Ptr
-    store %v_8, 1, 4
-    %v_9 = add %v_8, 4: Ptr
-    store %v_9, 2, 4
-    %v_10 = call_complex copyable, @environment(copyable(Point)), %v_8, 4: I32
-    %v_11 = alloca 8, 4: Ptr
-    store %v_11, 3, 4
-    %v_12 = add %v_11, 4: Ptr
-    store %v_12, 4, 4
-    %v_13 = call_complex movable, @environment(movable(Point)), %v_11, 8: I32
-    %v_14 = add %v_10, %v_13: I32
-    store %v_2, %v_14, 4
-    %v_15 = loads %v_1, 4: I32
-    %v_16 = loads %v_2, 4: I32
-    %v_17 = add %v_15, %v_16: I32
-    ret %v_17
+    store %v_3, 9, 4
+    %v_4 = call_complex movable, @environment(movable(I32)), %v_3, 2: I32
+    %v_5 = add %v_2, %v_4: I32
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 1, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, 2, 4
+    %v_8 = call_complex copyable, @environment(copyable(Point)), %v_6, 4: I32
+    %v_9 = alloca 8, 4: Ptr
+    store %v_9, 3, 4
+    %v_10 = add %v_9, 4: Ptr
+    store %v_10, 4, 4
+    %v_11 = call_complex movable, @environment(movable(Point)), %v_9, 8: I32
+    %v_12 = add %v_8, %v_11: I32
+    %v_13 = add %v_5, %v_12: I32
+    ret %v_13
   }
 }
 

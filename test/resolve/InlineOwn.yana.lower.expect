@@ -1,0 +1,200 @@
+@image$base = []
+mut @live = [0, 0, 0, 0]
+mut @trace = [0, 0, 0, 0]
+mut @seed = [3, 0, 0, 0]
+
+wideChain<complex>(%a: I32, %b: I32): I32 {
+  b_0 {
+    %v_1 = imul %a, 3: I32
+    %v_2 = imul %b, 5: I32
+    %v_3 = add %v_1, %v_2: I32
+    %c1 = sub %v_3, %a: I32
+    %v_4 = shl %c1, 1: I32
+    %v_5 = imul %a, 7: I32
+    %v_6 = add %v_4, %v_5: I32
+    %c2 = sub %v_6, %b: I32
+    %v_7 = shl %c2, 1: I32
+    %v_8 = imul %b, 11: I32
+    %v_9 = add %v_7, %v_8: I32
+    %c3 = sub %v_9, %c1: I32
+    %v_10 = shl %c3, 1: I32
+    %v_11 = imul %c1, 13: I32
+    %v_12 = add %v_10, %v_11: I32
+    %c4 = sub %v_12, %c2: I32
+    %v_13 = shl %c4, 1: I32
+    %v_14 = imul %c2, 3: I32
+    %v_15 = add %v_13, %v_14: I32
+    %c5 = sub %v_15, %c3: I32
+    %v_16 = shl %c5, 1: I32
+    %v_17 = imul %c3, 5: I32
+    %v_18 = add %v_16, %v_17: I32
+    %c6 = sub %v_18, %c4: I32
+    %v_19 = shl %c6, 1: I32
+    %v_20 = imul %c4, 7: I32
+    %v_21 = add %v_19, %v_20: I32
+    %c7 = sub %v_21, %c5: I32
+    %v_22 = shl %c7, 1: I32
+    %v_23 = imul %c5, 11: I32
+    %v_24 = add %v_22, %v_23: I32
+    %c8 = sub %v_24, %c6: I32
+    %v_25 = sub %c8, %c7: I32
+    %v_26 = add %v_25, %c6: I32
+    %v_27 = sub %v_26, %c5: I32
+    %v_28 = add %v_27, %c4: I32
+    %v_29 = sub %v_28, %c3: I32
+    %v_30 = add %v_29, %c2: I32
+    %v_31 = sub %v_30, %c1: I32
+    ret %v_31
+  }
+}
+
+countDown<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = phi [b_2, %n], [b_3, %v_4]: I32
+    %v_5 = phi [b_2, 0], [b_3, %v_6]: I32
+    %v_7 = cmp_ile %v_1, 0: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret %v_5
+  }
+
+  b_9 {
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = sub %v_1, 1: I32
+    %v_6 = add %v_5, %v_1: I32
+    jmp b_0
+  }
+
+  b_2 {
+    jmp b_0
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %n = loads @seed, 4: I32
+    %v_1 = add %n, 1: I32
+    %v_2 = imul %n, %v_1: I32
+    %v_3 = add %v_2, %n: I32
+    %v_4 = imul %v_3, 100: I32
+    %v_5 = add %v_2, %v_1: I32
+    %v_6 = add %v_4, %v_5: I32
+    %v_7 = shl %v_6, 1: I32
+    %v_8 = loads @live, 4: I32
+    %v_9 = add %v_8, 1: I32
+    %v_10 = sub %v_9, 1: I32
+    %v_11 = loads @trace, 4: I32
+    %v_12 = imul %v_11, 10: I32
+    %v_13 = add %v_12, %n: I32
+    %v_14 = imul %n, 6: I32
+    %v_15 = add %v_7, %v_14: I32
+    %v_16 = imul %n, 9: I32
+    %v_17 = imul %n, 3000: I32
+    %v_18 = add %v_17, %v_16: I32
+    %v_19 = imul %v_18, 5: I32
+    %v_20 = add %v_15, %v_19: I32
+    %v_21 = add %v_10, 1: I32
+    %v_22 = sub %v_21, 1: I32
+    %v_23 = imul %v_13, 10: I32
+    %v_24 = add %v_23, %n: I32
+    %v_25 = imul %v_1, 7: I32
+    %v_26 = add %v_20, %v_25: I32
+    %v_27 = add %v_22, 1: I32
+    %v_28 = sub %v_27, 1: I32
+    store @live, %v_28, 4
+    %v_29 = imul %v_24, 10: I32
+    %v_30 = add %v_29, 9: I32
+    store @trace, %v_30, 4
+    %v_31 = add %v_26, 1386: I32
+    %v_32 = imul %n, 50: I32
+    %v_33 = cmp_igt %v_32, 100: I32
+    %v_34 = select %v_33, 100, %v_32: I32
+    %v_35 = imul %v_34, 13: I32
+    %v_36 = add %v_31, %v_35: I32
+    %v_37 = shl %n, 2: I32
+    %v_38 = cmp_igt %v_37, 100: I32
+    %v_39 = select %v_38, 100, %v_37: I32
+    %v_40 = imul %v_39, 17: I32
+    %v_41 = add %v_36, %v_40: I32
+    jmp b_42
+  }
+
+  b_42 {
+    %v_43 = phi [b_0, 0], [b_44, %v_45]: I32
+    %v_46 = phi [b_0, 0], [b_44, %v_47]: I32
+    %v_48 = cmp_ilt %v_46, %n: I32
+    je %v_48, b_44, b_49
+  }
+
+  b_49 {
+    %v_50 = imul %v_43, 19: I32
+    %v_51 = add %v_41, %v_50: I32
+    %v_52 = call_complex wideChain, %n, %v_1: I32
+    %v_53 = imul %v_52, 23: I32
+    %v_54 = add %v_51, %v_53: I32
+    %v_55 = call_complex wideChain, %v_1, %n: I32
+    %v_56 = imul %v_55, 29: I32
+    %v_57 = add %v_54, %v_56: I32
+    %v_58 = imul %n, 5: I32
+    %v_59 = imul %v_1, 3: I32
+    %v_60 = add %v_58, %v_59: I32
+    %d1 = sub %v_60, %v_1: I32
+    %v_61 = shl %d1, 1: I32
+    %v_62 = add %v_61, %v_25: I32
+    %d2 = sub %v_62, %n: I32
+    %v_63 = imul %d2, 3: I32
+    %v_64 = imul %n, 11: I32
+    %v_65 = add %v_63, %v_64: I32
+    %d3 = sub %v_65, %d1: I32
+    %v_66 = shl %d3, 1: I32
+    %v_67 = imul %d1, 13: I32
+    %v_68 = add %v_66, %v_67: I32
+    %d4 = sub %v_68, %d2: I32
+    %v_69 = shl %d4, 1: I32
+    %v_70 = add %v_69, %v_63: I32
+    %d5 = sub %v_70, %d3: I32
+    %v_71 = shl %d5, 1: I32
+    %v_72 = imul %d3, 5: I32
+    %v_73 = add %v_71, %v_72: I32
+    %d6 = sub %v_73, %d4: I32
+    %v_74 = shl %d6, 1: I32
+    %v_75 = imul %d4, 7: I32
+    %v_76 = add %v_74, %v_75: I32
+    %d7 = sub %v_76, %d5: I32
+    %v_77 = shl %d7, 1: I32
+    %v_78 = imul %d5, 11: I32
+    %v_79 = add %v_77, %v_78: I32
+    %d8 = sub %v_79, %d6: I32
+    %v_80 = sub %d8, %d7: I32
+    %v_81 = add %v_80, %d6: I32
+    %v_82 = sub %v_81, %d5: I32
+    %v_83 = add %v_82, %d4: I32
+    %v_84 = sub %v_83, %d3: I32
+    %v_85 = add %v_84, %d2: I32
+    %v_86 = sub %v_85, %d1: I32
+    %v_87 = imul %v_86, 31: I32
+    %v_88 = add %v_57, %v_87: I32
+    %v_89 = call_complex countDown, %n: I32
+    %v_90 = imul %v_89, 37: I32
+    %v_91 = add %v_88, %v_90: I32
+    %v_92 = loads @live, 4: I32
+    %v_93 = imul %v_92, 41: I32
+    %v_94 = add %v_91, %v_93: I32
+    %v_95 = loads @trace, 4: I32
+    %v_96 = add %v_94, %v_95: I32
+    ret %v_96
+  }
+
+  b_44 {
+    %v_97 = shl %v_46, 1: I32
+    %v_45 = add %v_43, %v_97: I32
+    %v_47 = add %v_46, 1: I32
+    jmp b_42
+  }
+}
+

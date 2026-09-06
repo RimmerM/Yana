@@ -243,6 +243,7 @@ set(LOWER_SOURCE_FILES
     lower/lower_resolve.h
     lower/lower_analyze.cpp
     lower/lower_builder.h
+    lower/fold_arith.h
     lower/lower_fold.h
     lower/lower_fold.cpp
     lower/lower_forward.h
@@ -271,6 +272,8 @@ set(LOWER_SOURCE_FILES
     lower/lower_merge.cpp
     lower/lower_thread.h
     lower/lower_thread.cpp
+    lower/lower_pipeline.h
+    lower/lower_pipeline.cpp
 )
 
 # Listed for the same reason resolve/inst.def is, and never compiled on its own: it is #included
@@ -368,12 +371,28 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/build.cpp
     resolve_ssa/convert.h
     resolve_ssa/convert.cpp
+    resolve_ssa/dominance.h
+    resolve_ssa/dominance.cpp
     resolve_ssa/verify.h
     resolve_ssa/verify.cpp
     resolve_ssa/print.h
     resolve_ssa/print.cpp
     resolve_ssa/pipeline.h
     resolve_ssa/pipeline.cpp
+
+    resolve_ssa/opt/opt.h
+    resolve_ssa/opt/opt.cpp
+    resolve_ssa/opt/pass.h
+    resolve_ssa/opt/analysis.h
+    resolve_ssa/opt/analysis.cpp
+    resolve_ssa/opt/simplify.cpp
+    resolve_ssa/opt/fold.cpp
+    resolve_ssa/opt/cfg.cpp
+    resolve_ssa/opt/select.cpp
+    resolve_ssa/opt/memory.cpp
+    resolve_ssa/opt/loop.cpp
+    resolve_ssa/opt/inline.cpp
+    resolve_ssa/opt/reach.cpp
 
     resolve_ssa/lower/repr.h
     resolve_ssa/lower/repr.cpp

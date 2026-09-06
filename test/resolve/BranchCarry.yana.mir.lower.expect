@@ -2,523 +2,76 @@ mut @trace = [0, 0, 0, 0]
 
 Guard.drop<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    copy %v_1, %value, 4
+    %v_1 = load %value, 4: I32
     %v_2 = loads @trace, 4: I32
     %v_3 = imul %v_2, 10: I32
-    %v_4 = loads %v_1, 4: I32
-    %v_5 = add %v_3, %v_4: I32
-    store @trace, %v_5, 4
+    %v_4 = add %v_3, %v_1: I32
+    store @trace, %v_4, 4
     ret 
-  }
-}
-
-guard<complex>(%v_0: Ptr, %id: I32) {
-  b_1 {
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, %id, 4
-    %v_3 = loads %v_2, 4: I32
-    %v_4 = alloca 4, 4: Ptr
-    store %v_4, %v_3, 4
-    copy %v_0, %v_4, 4
-    ret 
-  }
-}
-
-idOf<complex>(%g: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %g, 4: I32
-    ret %v_1
-  }
-}
-
-add3<complex>(%x: I32, %y: I32, %z: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    store %v_1, %x, 4
-    store %v_2, %y, 4
-    store %v_3, %z, 4
-    %v_4 = loads %v_1, 4: I32
-    %v_5 = loads %v_2, 4: I32
-    %v_6 = add %v_4, %v_5: I32
-    %v_7 = loads %v_3, 4: I32
-    %v_8 = add %v_6, %v_7: I32
-    ret %v_8
-  }
-}
-
-withGuard<complex>(%x: Ptr, %y: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %y, 4
-    %v_2 = call_complex idOf, %x: I32
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = add %v_2, %v_3: I32
-    ret %v_4
-  }
-}
-
-operand<complex>(%flag: I32): I32 {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, %flag, 1
-    %v_2 = imm 10: I32
-    %v_3 = load %v_1, 1: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_0, %v_2]: I32
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = phi [b_5, 0], [b_4, 2]: I32
-    %v_9 = phi [b_5, %v_6], [b_4, %v_10]: I32
-    %v_11 = add %v_9, %v_8: I32
-    ret %v_11
-  }
-
-  b_4 {
-    %v_10 = phi [b_0, %v_2]: I32
-    jmp b_7
-  }
-}
-
-chained<complex>(%flag: I32): I32 {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, %flag, 1
-    %v_2 = imm 10: I32
-    %v_3 = load %v_1, 1: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_0, %v_2]: I32
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = phi [b_5, 0], [b_4, 2]: I32
-    %v_9 = phi [b_5, %v_6], [b_4, %v_10]: I32
-    %v_11 = add %v_9, %v_8: I32
-    %v_12 = load %v_1, 1: I32
-    je %v_12, b_13, b_14
-  }
-
-  b_4 {
-    %v_10 = phi [b_0, %v_2]: I32
-    jmp b_7
-  }
-
-  b_14 {
-    %v_15 = phi [b_7, %v_11]: I32
-    jmp b_16
-  }
-
-  b_16 {
-    %v_17 = phi [b_14, 1], [b_13, 3]: I32
-    %v_18 = phi [b_14, %v_15], [b_13, %v_19]: I32
-    %v_20 = add %v_18, %v_17: I32
-    ret %v_20
-  }
-
-  b_13 {
-    %v_19 = phi [b_7, %v_11]: I32
-    jmp b_16
-  }
-}
-
-nested<complex>(%flag: I32): I32 {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, %flag, 1
-    %v_2 = imm 10: I32
-    %v_3 = load %v_1, 1: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_0, %v_2]: I32
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = phi [b_5, 6], [b_9, %v_10]: I32
-    %v_11 = phi [b_5, %v_6], [b_9, %v_12]: I32
-    %v_13 = add %v_11, %v_8: I32
-    ret %v_13
-  }
-
-  b_4 {
-    %v_14 = phi [b_0, %v_2]: I32
-    %v_15 = load %v_1, 1: I32
-    je %v_15, b_16, b_17
-  }
-
-  b_17 {
-    %v_18 = phi [b_4, %v_14]: I32
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_17, 5], [b_16, 4]: I32
-    %v_12 = phi [b_17, %v_18], [b_16, %v_19]: I32
-    jmp b_7
-  }
-
-  b_16 {
-    %v_19 = phi [b_4, %v_14]: I32
-    jmp b_9
-  }
-}
-
-argument<complex>(%flag: I32): I32 {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, %flag, 1
-    %v_2 = imm 10: I32
-    %v_3 = load %v_1, 1: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_0, %v_2]: I32
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = phi [b_5, 8], [b_4, 7]: I32
-    %v_9 = phi [b_5, %v_6], [b_4, %v_10]: I32
-    %v_11 = call_complex add3, %v_9, %v_8, 20: I32
-    ret %v_11
-  }
-
-  b_4 {
-    %v_10 = phi [b_0, %v_2]: I32
-    jmp b_7
-  }
-}
-
-field<complex>(%flag: I32): I32 {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    store %v_1, %flag, 1
-    %v_3 = imm 10: I32
-    %v_4 = load %v_1, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_0, %v_3]: I32
-    jmp b_8
-  }
-
-  b_8 {
-    %v_9 = phi [b_6, 0], [b_5, 9]: I32
-    %v_10 = phi [b_6, %v_7], [b_5, %v_11]: I32
-    %v_12 = alloca 8, 4: Ptr
-    store %v_12, %v_10, 4
-    %v_13 = add %v_12, 4: Ptr
-    store %v_13, %v_9, 4
-    copy %v_2, %v_12, 8
-    %v_14 = loads %v_2, 4: I32
-    %v_15 = add %v_2, 4: Ptr
-    %v_16 = loads %v_15, 4: I32
-    %v_17 = add %v_14, %v_16: I32
-    ret %v_17
-  }
-
-  b_5 {
-    %v_11 = phi [b_0, %v_3]: I32
-    jmp b_8
-  }
-}
-
-short<complex>(%flag: I32, %n: I32): I32 {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_1, %flag, 1
-    store %v_2, %n, 4
-    %v_3 = imm 10: I32
-    %v_4 = load %v_1, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_0, %v_3], [b_5, %v_8]: I32
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_6, 30], [b_11, 20]: I32
-    %v_12 = phi [b_6, %v_7], [b_11, %v_13]: I32
-    %v_14 = add %v_12, %v_10: I32
-    ret %v_14
-  }
-
-  b_5 {
-    %v_8 = phi [b_0, %v_3]: I32
-    %v_15 = loads %v_2, 4: I32
-    %v_16 = cmp_igt %v_15, 3: I32
-    je %v_16, b_11, b_6
-  }
-
-  b_11 {
-    %v_13 = phi [b_5, %v_8]: I32
-    jmp b_9
-  }
-}
-
-owned<complex>(%flag: I32): I32 {
-  b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_1, %flag, 1
-    %v_3 = alloca 4, 4: Ptr
-    call_complex guard, %v_3, 7
-    copy %v_2, %v_3, 4
-    %v_4 = load %v_1, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_0, %v_2]: Ptr
-    jmp b_8
-  }
-
-  b_8 {
-    %v_9 = phi [b_6, 200], [b_5, 100]: I32
-    %v_10 = phi [b_6, %v_7], [b_5, %v_11]: Ptr
-    %v_12 = call_complex withGuard, %v_10, %v_9: I32
-    call_complex Guard.drop, %v_2
-    ret %v_12
-  }
-
-  b_5 {
-    %v_11 = phi [b_0, %v_2]: Ptr
-    jmp b_8
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex operand, 1: I32
-    %v_2 = cmp_neq %v_1, 12: I32
-    je %v_2, b_3, b_4
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 7, 4
+    jmp b_3
   }
 
   b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = call_complex operand, 0: I32
-    %v_7 = cmp_neq %v_6, 10: I32
-    je %v_7, b_8, b_9
-  }
-
-  b_3 {
-    ret 18446744073709551615
+    %v_5 = loads @trace, 4: I32
+    %v_6 = cmp_neq %v_5, 7: I32
+    je %v_6, b_7, b_8
   }
 
   b_9 {
-    jmp b_10
-  }
-
-  b_10 {
-    %v_11 = call_complex chained, 1: I32
-    %v_12 = cmp_neq %v_11, 15: I32
-    je %v_12, b_13, b_14
-  }
-
-  b_8 {
-    ret 18446744073709551614
-  }
-
-  b_14 {
-    jmp b_15
-  }
-
-  b_15 {
-    %v_16 = call_complex chained, 0: I32
-    %v_17 = cmp_neq %v_16, 11: I32
-    je %v_17, b_18, b_19
-  }
-
-  b_13 {
-    ret 18446744073709551613
-  }
-
-  b_19 {
-    jmp b_20
-  }
-
-  b_20 {
-    %v_21 = call_complex nested, 1: I32
-    %v_22 = cmp_neq %v_21, 14: I32
-    je %v_22, b_23, b_24
-  }
-
-  b_18 {
-    ret 18446744073709551612
-  }
-
-  b_24 {
-    jmp b_25
-  }
-
-  b_25 {
-    %v_26 = call_complex nested, 0: I32
-    %v_27 = cmp_neq %v_26, 16: I32
-    je %v_27, b_28, b_29
-  }
-
-  b_23 {
-    ret 18446744073709551611
-  }
-
-  b_29 {
-    jmp b_30
-  }
-
-  b_30 {
-    %v_31 = call_complex argument, 1: I32
-    %v_32 = cmp_neq %v_31, 37: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_28 {
-    ret 18446744073709551610
-  }
-
-  b_34 {
-    jmp b_35
-  }
-
-  b_35 {
-    %v_36 = call_complex argument, 0: I32
-    %v_37 = cmp_neq %v_36, 38: I32
-    je %v_37, b_38, b_39
-  }
-
-  b_33 {
-    ret 18446744073709551609
-  }
-
-  b_39 {
-    jmp b_40
-  }
-
-  b_40 {
-    %v_41 = call_complex field, 1: I32
-    %v_42 = cmp_neq %v_41, 19: I32
-    je %v_42, b_43, b_44
-  }
-
-  b_38 {
-    ret 18446744073709551608
-  }
-
-  b_44 {
-    jmp b_45
-  }
-
-  b_45 {
-    %v_46 = call_complex short, 1, 10: I32
-    %v_47 = cmp_neq %v_46, 30: I32
-    je %v_47, b_48, b_49
-  }
-
-  b_43 {
-    ret 18446744073709551607
-  }
-
-  b_49 {
-    jmp b_50
-  }
-
-  b_50 {
-    %v_51 = call_complex short, 1, 1: I32
-    %v_52 = cmp_neq %v_51, 40: I32
-    je %v_52, b_53, b_54
-  }
-
-  b_48 {
-    ret 18446744073709551606
-  }
-
-  b_54 {
-    jmp b_55
-  }
-
-  b_55 {
-    %v_56 = call_complex owned, 1: I32
-    %v_57 = cmp_neq %v_56, 107: I32
-    je %v_57, b_58, b_59
-  }
-
-  b_53 {
-    ret 18446744073709551605
-  }
-
-  b_59 {
-    jmp b_60
-  }
-
-  b_60 {
-    %v_61 = loads @trace, 4: I32
-    %v_62 = cmp_neq %v_61, 7: I32
-    je %v_62, b_63, b_64
-  }
-
-  b_58 {
     ret 18446744073709551604
   }
 
-  b_64 {
-    jmp b_65
+  b_8 {
+    %v_10 = alloca 4, 4: Ptr
+    store %v_10, 7, 4
+    jmp b_11
   }
 
-  b_65 {
-    %v_66 = call_complex owned, 0: I32
-    %v_67 = cmp_neq %v_66, 207: I32
-    je %v_67, b_68, b_69
-  }
-
-  b_63 {
+  b_7 {
     ret 18446744073709551603
   }
 
-  b_69 {
-    jmp b_70
+  b_12 {
+    %v_13 = loads @trace, 4: I32
+    %v_14 = cmp_neq %v_13, 77: I32
+    je %v_14, b_15, b_16
   }
 
-  b_70 {
-    %v_71 = loads @trace, 4: I32
-    %v_72 = cmp_neq %v_71, 77: I32
-    je %v_72, b_73, b_74
-  }
-
-  b_68 {
+  b_17 {
     ret 18446744073709551602
   }
 
-  b_74 {
-    jmp b_75
-  }
-
-  b_75 {
+  b_16 {
     ret 4242
   }
 
-  b_73 {
+  b_15 {
     ret 18446744073709551601
+  }
+
+  b_3 {
+    %v_18 = loads %v_2, 4: I32
+    call_complex Guard.drop, %v_2
+    %v_19 = cmp_neq %v_18, 7: I32
+    je %v_19, b_9, b_4
+  }
+
+  b_11 {
+    %v_20 = loads %v_10, 4: I32
+    call_complex Guard.drop, %v_10
+    %v_21 = cmp_neq %v_20, 7: I32
+    je %v_21, b_17, b_12
   }
 }
 

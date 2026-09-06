@@ -1,0 +1,177 @@
+{-
+   Inlining over ownership SSA - `compiler/resolve_ssa/opt/inline.cpp`, and the eight shapes a clone
+   has to get right or wrong in a way that shows.
+
+   Every claim here is a **number**, for the reason `DeadLoop.yana` and `DeadStorage.yana` state: an
+   argument substituted into the wrong parameter, a `Drop` copied twice, a loan re-minted onto the
+   wrong storage and a local two iterations disagree about are all invisible in the emitted bytes and
+   all four change what this program answers. `.run.expect` and the optimized/unoptimized comparison
+   the driver runs beside it are what turn each of them into a failure; `.ssa.opt.expect` is what
+   says which calls are actually still there, and `.mir.lower.expect` is what says which *bodies*
+   are - a callee whose one call site was spliced is a function the reachability sweep then takes out
+   of the program entirely.
+
+   `live` and `trace` are the pair every ownership fixture here carries - the balance and the order.
+   A teardown that ran twice takes `live` negative and one that never ran leaves it positive, and
+   neither of those shows up in a digit of `trace`. Both are read in `main` **after** every function
+   that produces one has returned, which is why nothing below leaves an owner alive across the read.
+
+   `seed` is the one thing in this file a constant folder cannot answer. A writable global is a load
+   however the initializer folds, so every call below is a call with arguments nothing knows - which
+   is what keeps the branch in `clamped` and the loop in `loops` from folding away before the shapes
+   they are here for have been built.
+-}
+
+let &live = 0 :: Int
+let &trace = 0 :: Int
+let &seed = 3 :: Int
+
+data Held {id: Int}
+
+instance Drop(Held):
+    fn drop(->self: Held):
+        live = live - 1
+        trace = trace * 10 + self.id
+
+fn held(id: Int) -> Held:
+    live = live + 1
+    return Held {id: id}
+
+-- Small, straight-line and pure: spliced into the caller's own block with no block made and no edge
+-- moved, so `.ssa.opt.expect` holds no call to it anywhere.
+--
+-- `v * by + v` rather than `v * by + 1`, deliberately. A symmetric body answers the same number with
+-- its two arguments exchanged, so a clone that bound parameter one to argument two would pass - and
+-- that is exactly the mistake the entry-block-argument mapping can make.
+fn scaled(v: Int, by: Int) -> Int = v * by + v
+
+fn scales(a: Int, b: Int) -> Int = scaled(a, b) * 100 + scaled(b, a)
+
+-- A callee holding a `Drop` of an owner it built itself. The teardown travels with the body and runs
+-- once per call exactly as the call did, which is `opt_inline.cpp`'s own argument for why the
+-- shipping stage's refusal of ownership instructions does not carry over - and a clone that emitted
+-- the drop twice takes `live` negative.
+fn consumes(id: Int) -> Int:
+    let doomed = held(id)
+    return doomed.id * 2
+
+-- A borrowed `&` parameter, written through. The callee's loan on that parameter is the *caller's* -
+-- an empty storage set, which never ends inside a body - and the clone keeps it that way rather than
+-- rooting it in the argument's own lender. Called twice on one local so that the second call sees
+-- what the first wrote: a borrow re-rooted onto the wrong storage, or an argument read before the
+-- write rather than after it, answers 9027 differently.
+fn bumped(&n: Int):
+    n = n * 3
+
+fn borrows(start: Int) -> Int:
+    let &n = start
+    bumped(n)
+    let first = n
+    bumped(n)
+    return first * 1000 + n
+
+-- A borrowed record parameter read through, which is the loan on *storage* rather than on a scalar
+-- slot: `subject` is the caller's owner and the callee projects a field of it.
+fn idOf(subject: Held) -> Int = subject.id * 7
+
+fn inspected(id: Int) -> Int:
+    let subject = held(id)
+    return idOf(subject) * 2
+
+-- An owner leaving the callee, which the caller then ends the life of. The `return` operand's
+-- occurrence is the signature's and so is the call's result, which is what the handover at the
+-- continuation is held to - `handoverChecks` is where the two are compared before anything is
+-- edited.
+fn produced(id: Int) -> Held:
+    let value = held(id)
+    return value
+
+fn discards(id: Int) -> Int:
+    let taken = produced(id)
+    return taken.id + 1
+
+-- Two `return`s, which is the general splice in its smallest form: the caller's block is cut in two,
+-- the diamond goes in the gap, and both `ret`s become edges into a join carrying the result as its
+-- one block argument. Called twice, on both sides of the bound, so that a join fed the wrong edge's
+-- value is a different answer rather than a different dump.
+fn clamped(v: Int) -> Int:
+    if v > 100:
+        return 100
+    return v
+
+-- A callee with a local of its own, called inside a loop. The clone's `alloc` lands in the loop
+-- body, which is **one frame slot reused per iteration** - a fixed-size allocation is a frame object
+-- wherever it stands, and that is correct here because each iteration writes the slot before it
+-- reads it. An answer that accumulated across iterations would say otherwise.
+fn stepped(i: Int) -> Int:
+    let &acc = 0
+    acc = acc + i
+    acc = acc * 2
+    return acc
+
+fn loops(n: Int) -> Int:
+    let &total = 0
+    let &i = 0
+
+    while i < n:
+        total = total + stepped(i)
+        i = i + 1
+
+    return total
+
+-- Well past the budget and called from two places, so no rule admits it: the call survives in
+-- `.ssa.opt.expect` and the body survives in `.mir.lower.expect`.
+fn wideChain(a: Int, b: Int) -> Int:
+    let c1 = a * 3 + b * 5 - a
+    let c2 = c1 * 2 + a * 7 - b
+    let c3 = c2 * 2 + b * 11 - c1
+    let c4 = c3 * 2 + c1 * 13 - c2
+    let c5 = c4 * 2 + c2 * 3 - c3
+    let c6 = c5 * 2 + c3 * 5 - c4
+    let c7 = c6 * 2 + c4 * 7 - c5
+    let c8 = c7 * 2 + c5 * 11 - c6
+    return c8 - c7 + c6 - c5 + c4 - c3 + c2 - c1
+
+-- The same size and **one** call site in the whole program, which is the one exemption the budget
+-- has: the copy takes a body away rather than making one. What says so is `.mir.lower.expect`, where
+-- there is no `onceOnly` at all - the reachability sweep runs after the round that spliced its only
+-- call and finds nothing naming it.
+fn onceOnly(a: Int, b: Int) -> Int:
+    let d1 = a * 5 + b * 3 - b
+    let d2 = d1 * 2 + b * 7 - a
+    let d3 = d2 * 3 + a * 11 - d1
+    let d4 = d3 * 2 + d1 * 13 - d2
+    let d5 = d4 * 2 + d2 * 3 - d3
+    let d6 = d5 * 2 + d3 * 5 - d4
+    let d7 = d6 * 2 + d4 * 7 - d5
+    let d8 = d7 * 2 + d5 * 11 - d6
+    return d8 - d7 + d6 - d5 + d4 - d3 + d2 - d1
+
+-- Recursive, and refused for it: copying a body that calls itself copies the recursive call with it,
+-- which is unrolling rather than inlining. The call graph's cycles are found once, before the rounds.
+fn countDown(n: Int) -> Int:
+    if n <= 0:
+        return 0
+
+    return n + countDown(n - 1)
+
+fn main() -> Int:
+    let n = seed
+    let &total = 0
+
+    total = total + scales(n, n + 1) * 2
+    total = total + consumes(n) * 3
+    total = total + borrows(n) * 5
+    total = total + discards(n) * 7
+    total = total + inspected(9) * 11
+    total = total + clamped(n * 50) * 13
+    total = total + clamped(n * 4) * 17
+    total = total + loops(n) * 19
+    total = total + wideChain(n, n + 1) * 23
+    total = total + wideChain(n + 1, n) * 29
+    total = total + onceOnly(n, n + 1) * 31
+    total = total + countDown(n) * 37
+
+    -- The balance and the order, read once every owner above has died. `live` is zero exactly when
+    -- every teardown ran once, and `trace` is 339 exactly when the three of them ran in this order.
+    return total + live * 41 + trace

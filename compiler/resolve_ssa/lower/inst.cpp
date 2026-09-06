@@ -982,8 +982,12 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  * flags off, and the difference is what each *means*: a cast crossing between a
                  * float and an integer converts the number, and this reads the bytes again. Both
                  * ends are the same width by construction - no rung relating a pair that is not was
-                 * ever generated, `intrinsic::reinterpretable` - so nothing here truncates and there
-                 * is no extension for a sign to decide.
+                 * ever generated, `intrinsic::reinterpretable` - so there is no truncation in the
+                 * instruction and no conversion for a sign to decide.
+                 *
+                 * What the *register* holds above the value is a different question and is settled
+                 * below - see the note there. `BitcastNarrow.yana` is the fixture, and the shipping
+                 * stage's arm carries the same correction with the wrong answers it produced.
                  */
                 value = block.addInst(lower, new (to.arena) LowerInstUnary(
                     LowerInst::Bitcast, StringId(), manifest.type, operand - lower));
@@ -1067,7 +1071,28 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto width = narrowWidthOf(result->type());
             auto produced = ((LowerInstSingle*)value)->created().ptr - lower;
 
-            if(width && wrapsAtDeclaredWidth(mir::unaryWidthEffect(written.op))) {
+            /*
+             * `bitcast` beside the column's answer, and it is the one operation where the two
+             * questions come apart.
+             *
+             * `op.def`'s width column asks whether the arithmetic can leave the type's range, which
+             * is true on every machine and is why it lives one tier up. A bitcast's result is in
+             * range by construction - it is the same bits under a type of the same width - so
+             * `Closed` is the right answer there. What changes is which extension the *register* is
+             * required to carry, and a bitcast between the two readings of one narrow width is
+             * precisely the point where that flips: `bitcast(-49 :: I8) :: U8` arrives
+             * sign-extended and a `U8` is held zero-extended.
+             *
+             * That was silently repaired by a round trip through the local a fixture writes it to -
+             * a store discards the register above the byte - so it stayed invisible until this
+             * stage started promoting those slots away and stating the declared range as a hint.
+             * `narrowWidthOf` answers nothing at the widths that fill their register, so the pairs
+             * that cannot disagree cost nothing.
+             */
+            auto wraps = wrapsAtDeclaredWidth(mir::unaryWidthEffect(written.op)) ||
+                         written.op == mir::UnaryOp::Bitcast;
+
+            if(width && wraps) {
                 produced = putInRange(block, produced, width, StringId());
             }
 

@@ -29,8 +29,9 @@ consumption the value does not owe and reports a leak at every exit it reaches. 
 comparisons where the word "exactly" appears.
 
 That surface is small enough that an optimizer pass can be *required* to preserve it rather than
-asked to, which is the reason for the tier. `verify.cpp` checks it after conversion and is meant to
-run after every ownership-sensitive pass in an assertion build.
+asked to, which is the reason for the tier. `verify.cpp` checks it after conversion, and `opt/`'s
+`runPass` checkpoint runs it again after every pass in an assertion build - so a pass that breaks the
+rule is named where it broke it rather than found later as a double free.
 
 **The linear rule is checked as the CFG dataflow it is, not as a whole-body count.** That is not a
 refinement, it is the difference between a check and a wrong answer: a count is not a weaker form of
@@ -55,6 +56,7 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | Question | Answered in |
 | --- | --- |
 | what a MIR occurrence's convention is | `convert.cpp`, `conventionFor` |
+| how a body is built, and how one is rewritten | `build.cpp`, `Editor` |
 | whether an owned value is linear | `resolve_mir/type.cpp`, `isLinear` |
 | whether a type has anything to run when it dies | `resolve_mir/type.cpp`, `hasTeardown` |
 | what a place's address is | `convert.cpp`, `addressOf` |
@@ -66,6 +68,19 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | what a value looks like on the target | `lower/manifest.cpp` |
 | whether a component has an address at all | `lower/repr.h`, `FieldRepr::isPacked` and `Repr::discriminant` |
 | how a constant becomes bytes | `lower/gen.cpp`, `materialize` |
+| what order a body's blocks are read in | `dominance.cpp`, `reversePostorder` |
+| which passes run over a body, in what order, and how many times | `opt/opt.cpp` |
+| whether an edge may be moved, merged away or threaded | `opt/cfg.cpp` - one region, and never a region's anchor |
+| whether a branch may become a `select`, and what one may carry | `opt/select.cpp`, `speculatable` and `selectableJoin` |
+| whether a loop may be decided false, and what makes it terminate | `opt/loop.cpp`, `removableStep` and `stepsToTheBound` |
+| whether two addresses name the same storage, and whether they may alias | `opt/memory.cpp`, `sameAddress` and `mayAlias` |
+| whether a call is inlined | `opt/inline.cpp` - `clonableDeclaration`/`clonableBody` for what a copy can reproduce, `worthInlining` for what it is worth |
+| which functions the lowering emits | `mir::Function::reachable`, corrected over SSA by `opt/reach.cpp` |
+| whether an instruction may write an allocation's storage | `opt/analysis.cpp`, `mayWriteStorage`, over `Contained` |
+| what width an integer folds at, and which types have one | `opt/fold.cpp`, `foldableInt` |
+| what an operation over constants comes to, and which identities hold | `opt/fold.cpp` |
+| the two's-complement arithmetic itself, at a width | `lower/fold_arith.h`, shared with the lower folder |
+| what the shared lower passes do to a function, and in what order | `lower/lower_pipeline.cpp` |
 | where an object lives | `resolve_mir`'s `Object`, through `storageOf`, carried to `InstAlloc` |
 | what a callee receives an argument as | `resolve_mir/inst.cpp`, `argumentMode` |
 | whether a call may suspend | the callee's `Summary`, through `resolve_mir`'s `maySuspend` |
@@ -182,9 +197,11 @@ What is left below is what a *value* is here, which is not a representation ques
 
 A MIR local becomes one `Alloc` in the entry block and the reads and writes of it become `Load` and
 `Store`. Nothing here tries to hold a scalar in a value instead: the lower IR's own
-`promoteStackSlots` runs over these on the way to machine code, so a local that is never borrowed
-costs nothing in the end, and doing it during conversion would make the SSA dump depend on an
-optimization - which is the one thing a fixture about ownership should not have to read around.
+`promoteStackSlots` runs over these on the way to machine code - `lower/lower_pipeline.h`, which is
+the whole shared run and which this stage called one member of until phase 1 of `opt/README.md` - so
+a local that is never borrowed costs nothing in the end, and doing it during conversion would make
+the SSA dump depend on an optimization, which is the one thing a fixture about ownership should not
+have to read around.
 
 `StorageClass` states three rungs and reaches one. That is Analysis-IR.md §10.4's requirement rather
 than an unfinished switch: the current compiler's equivalent reserves the region enumerator and
@@ -251,6 +268,111 @@ operands rather than restated.
 handover `load` over a borrow of the slot it empties, and sinks a borrow's use past the `store` that
 overwrites it.
 
+**A clone mints new loans**, which is `opt/inline.cpp`'s. A `LoanId` is dense per body, so a callee's
+loan cannot travel; one whose storage set names the callee's own allocations is re-minted naming the
+clones of them, and one whose set is **empty** - the caller's, which is what every borrow the
+conversion did not refine carries - stays empty. It does not become the loan the borrowing argument
+holds, and the note in that file is the argument: the empty loan is "rooted outside" rather than
+"rooted in parameter 2", and the caller's loan is also the one substitution `replaceAllUses` admits
+when a returned borrow answers the call's result.
+
+The optimizer reads the same four events from the other side. `mayWriteStorage` in `opt/analysis.cpp`
+calls the handover `load` and the `store` **writes** of the storage, which is what stops
+`forwardMemory` from carrying a fact across either; and a borrow is what an allocation's containment
+turns on, because there is no `Borrow` instruction here - `&x` handed to a callee is a `load` of the
+slot whose result is `Guaranteed`, so an allocation stays contained only while such a result does not
+escape either.
+
+## Two addresses, and the two questions every memory rewrite asks about them
+
+An address at this tier is an `Alloc`, a global, or a pointer, plus a chain of `FieldAddress`/
+`ElementAddress` - so both questions are **structural**, which is the whole reason `opt/memory.cpp`
+exists at this tier rather than below the fork. They are two questions and not one, and a rewrite
+that used either for the other's job would be wrong in a different direction each time.
+
+**The same storage** - what a read may be answered with, and which store an overwrite kills. Two
+addresses are the same when they are the same value, or when they are chains on the same base
+agreeing step for step: a `FieldAddress` on the same record, field, interior shape and property, an
+`ElementAddress` on the same container whose indices are one value or two constants that agree.
+`simplify`'s block-local CSE has usually unified the two spellings already, so value identity is the
+common answer and the chain walk is what reaches the pair it could not.
+
+**May alias** - what a write ends. Two addresses may not alias when they are rooted in two different
+`Alloc`s of this body, or in one `Alloc` on paths that separate: a different field of a
+**single-constructor** record, or two constant element indices that differ. Everything else may
+alias. Three refusals are load-bearing. An address with no allocation root of this body's - a global,
+a pointer loaded out of storage, a borrowed parameter - may name anything. A **prefix** is not a
+separation, so a whole-record store kills every field of it. And a **sum**'s fields never separate:
+`resolve_mir` keeps one flat field list with a range per constructor, so two constructors' fields are
+different indices over the same payload storage, and a niche-folded discriminant is a pattern of that
+payload - both of which are `lower/repr.cpp`'s answers, a target's, and `optimizeProgram` runs once
+per program.
+
+## The editor is the only thing that writes, and its destructive half has eight rules
+
+`ssa::Editor` builds a body and rewrites one. Four lists are private with reading accessors and the
+editor is their only friend - `Block::instructions`, `Block::incoming`, `Block::arguments` and
+`Value::uses` - because each of them is half of a statement the IR makes twice, and a pass that could
+push into one directly is a pass that could state half of it. The old stage's experience is
+unambiguous about which half of that pays: the passes quietly maintaining half a structure were not
+found by review, they were the compile errors left after the members went private.
+
+The rules the destructive half keeps, each stated once beside the operation in `build.h`:
+
+- **An erase is an unlink, never a compaction.** `Body::insts`, `Body::values` and `Body::blocks` are
+  indexed by their ids and so is every side table over them, so `eraseInst` leaves the table entry
+  standing and `deleteBlock` sets `Block::deleted` rather than removing anything. The verifier and
+  the lowering skip a deleted block; the verifier skips a value that is defined nowhere and read
+  nowhere, which is what an erased instruction's results become.
+- **Nothing live is erased.** `eraseInst` refuses an instruction whose results still have readers,
+  which is the assertion every caller that removes a live value has already satisfied by pointing its
+  readers somewhere with `replaceAllUses`.
+- **A substitution preserves the use kind, and two conventions.** A consuming use of the old value is
+  a consuming use of the new one; `isTracked` must agree, and a borrow may only be replaced by a
+  borrow **on the same loan or on the caller's** - the loan is what the extent rule is measured
+  against, and the caller's is the one substitution that cannot move an endpoint past a use.
+- **A loan is repaired with the value it names.** `Loan::storage` names values, so `eraseInst` drops
+  an entry naming a result it removed and `replaceAllUses` repoints one. A loan still naming a value
+  nothing defines is a loan whose endpoints are never found, and the endpoint rule then passes on IR
+  that reads storage it handed back.
+- **A move is an unlink and a relink.** Never a remove followed by an add: the operands already name
+  the instruction, and re-adding registers every use a second time. The symptom is quiet, because an
+  inflated use count reads as "more than one reader" and every single-reader rewrite then declines.
+- **`Block::incoming` holds one entry per edge, not per block.** `branch %c, X, X` is legal, so `X`
+  names its predecessor twice and every edit moves exactly one entry. That is why `redirectEdge`
+  takes an **ordinal** rather than a target, and why `removeBlockArgument` drops one operand per edge
+  rather than one per predecessor.
+- **A terminator replacement compares the two successor lists as multisets.** An edge present in both
+  is left exactly as it was, its arguments included: folding `branch %c, then, else` into
+  `jump then` is a fold whose site has no idea what `then` was being handed, and removing and
+  re-adding the edge would take those arguments and put none back.
+- **A pass places an instruction in front of another, never at the end of a block.** `setBlock` is
+  the building form and appends; every block a *pass* sees already has a terminator, so `append`
+  would refuse all of them. `setInsertBefore` is the cursor, and what it is for is the fold: a
+  constant made for an instruction has to stand above the instruction that reads it, since a value
+  defined below its use is the first thing `checkUse` reports. The cursor advances behind each
+  instruction placed through it, so two added in a row arrive in the order they were written.
+
+`addJump` and `addBranch` create an edge and record **no** predecessor entry - a conversion emits
+every block before it seals any of them, and `Editor::seal` fills the lists from the edges once. A
+pass has no such point, so a pass gives a block its terminator through `replaceTerminator`.
+`verifyBody` counts the two records of every edge against each other, which is what makes that a
+reported mistake rather than a carried one.
+
+`Body::version` is two counters, `values` and `blocks`, bumped by every operation that writes. It is
+on the body rather than handed to the editor because there is one body per function and the editor is
+constructed per rewrite: a counter the constructor took would be one a caller could leave out, and an
+analysis stamped against a counter the editor was never given is a cache that never goes stale.
+`bool* changed` is a constructor argument for the opposite reason - whether a pass changed anything
+is the pass's question, and nothing about the body answers it.
+
+`OssaTester.cpp` builds each of those rules a case: the duplicate-arm redirect in both directions,
+the fold that keeps the surviving edge's arguments, a move that must not inflate a use count, an
+erase whose result a loan named, a block argument removed from every edge that fed it, a consuming
+use preserved across a substitution, a split whose halves are in one region, and a block deleted
+without its table entry moving. Every one of them was confirmed to fail against a deliberately
+half-updated version of the operation it is about.
+
 ## Blocks say which continuation region owns them
 
 `ssa::Continuation` is a region of blocks with a nesting rule, and every block names one. That is a
@@ -273,6 +395,21 @@ accepts an edge into any block of the region, which is the reroute a pass makes 
 branch past the flag test a cleanup arm begins with. `Editor::enterRegion`/`leaveRegion` is the API
 that opens one - a span of blocks, not one block, which is why it is a pair and not an argument to
 `addBlock`.
+
+**What `opt/` may do to one.** Two files touch regions and they touch them in opposite directions.
+`opt/inline.cpp` **makes** them: a clone re-creates each of the callee's regions under the region the
+call site's block is in, keeping its kind and multiplicity, so a cleanup arm inside a callee becomes
+a cleanup arm nested wherever the call was - and the callee's own root maps to the call site's
+region rather than to a new one, since the copied body is not a continuation of anything.
+`opt/cfg.cpp` is the only thing that rewrites edges, and it reads the rule as one sentence: a rewrite
+that moves or removes an edge is confined to one region. A merge
+folds a block into a predecessor in the same region, a splice redirects a predecessor to a target in
+the same region, a thread sends a predecessor to an arm in the same region; anything crossing a
+boundary is declined rather than reasoned about. `entry` and `destination` are **read-only** there -
+no block either field names is ever merged or spliced away - so a region can never come to name a
+block that is not one. The one thing that does delete such a block is the unreachable sweep, and it
+cannot produce that state: a region is entered at its `entry` and nowhere else, so a region whose
+entry is unreachable is unreachable entirely.
 
 **What a continuation still is not.** The result contract and the yield/resume relation both live one
 tier up, on `mir::Continuation`, where a lens call is still a region: what a continuation receives is
@@ -344,7 +481,10 @@ that was rebuilding an answer it already had:
 - **Dominance is two comparisons.** `Dominators` stamps every block with the interval its subtree of
   the dominator tree spans, so `a dominates b` is `enter[a] <= enter[b] && leave[b] <= leave[a]`
   rather than a climb up `b`'s idom chain - which was asked once per operand of the body and once
-  per pair the linear rule compares.
+  per pair the linear rule compares. It lives in `dominance.h`/`.cpp` rather than in this file,
+  because the lowering wants the reverse postorder underneath it and `opt/` caches the tree; the
+  verifier still builds its own, uncached, since a cache shared between a check and the thing it
+  checks is not a check.
 - **The use lists are checked against a CSR, not by rescanning.** `operandUses` already counts, per
   value, how many operand slots name it, so the forward relation is a prefix sum away; each value
   then stamps its own users and every entry in its use list is one lookup. The walk this replaces
@@ -356,6 +496,12 @@ that was rebuilding an answer it already had:
 - **`Loan::storage` is indexed the other way.** `endLoansOn` fires at every consuming use and every
   drop; it used to scan every loan's storage list for the value, which is the loan count multiplied
   into the operand count for an answer that is the same at every point in the body.
+
+- **The two records of an edge are compared by count.** An edge is written down in the predecessor's
+  terminator and in the successor's `incoming`, and `checkPredecessors` compares the multiplicity of
+  each pair rather than asking whether the block appears at all - which is the same argument the
+  def-use check makes, and the same shape of bug: a fold of one arm of `branch %c, X, X` owes exactly
+  one removal, and a membership test passes on removing both and on removing neither.
 
 The linear rule's own dataflow is a worklist over reverse postorder with the loan half as a bit
 table, on the same terms as the MIR analyses - [their README](../resolve_mir/README.md#what-the-analysis-costs)

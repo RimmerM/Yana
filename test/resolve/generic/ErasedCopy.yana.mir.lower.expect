@@ -8,12 +8,10 @@ mut @trace = [0, 0, 0, 0]
 
 Tally.drop<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    copy %v_1, %value, 4
+    %v_1 = load %value, 4: I32
     %v_2 = loads @trace, 4: I32
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = add %v_2, %v_3: I32
-    store @trace, %v_4, 4
+    %v_3 = add %v_2, %v_1: I32
+    store @trace, %v_3, 4
     ret 
   }
 }
@@ -22,9 +20,7 @@ Tally.copy<complex>(%v_0: Ptr, %from: Ptr) {
   b_1 {
     %v_2 = loads %from, 4: I32
     %v_3 = add %v_2, 100: I32
-    %v_4 = alloca 4, 4: Ptr
-    store %v_4, %v_3, 4
-    copy %v_0, %v_4, 4
+    store %v_0, %v_3, 4
     ret 
   }
 }
@@ -96,12 +92,8 @@ doubled<complex>(%v_0: Ptr, %x: Ptr): I32 {
     %v_3 = load %v_2, 4: I64
     %v_4 = add %x, %v_3: Ptr
     %v_5 = loads %v_4, 4: I32
-    %v_6 = add %v_0, 4: Ptr
-    %v_7 = load %v_6, 4: I64
-    %v_8 = add %x, %v_7: Ptr
-    %v_9 = loads %v_8, 4: I32
-    %v_10 = add %v_5, %v_9: I32
-    ret %v_10
+    %v_6 = add %v_5, %v_5: I32
+    ret %v_6
   }
 }
 
@@ -109,26 +101,16 @@ main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    %v_5 = alloca 4, 4: Ptr
-    store %v_5, 1, 4
-    copy %v_1, %v_5, 4
-    %v_6 = call_complex twiceSunk, @environment(twiceSunk(Tally)), %v_1: I32
+    store %v_1, 1, 4
+    %v_3 = call_complex twiceSunk, @environment(twiceSunk(Tally)), %v_1: I32
     call_complex Tally.drop, %v_1
-    store %v_2, %v_6, 4
-    %v_7 = alloca 4, 4: Ptr
-    store %v_7, 7, 4
-    copy %v_3, %v_7, 4
-    %v_8 = call_complex doubled, @environment(doubled(Tally)), %v_3: I32
-    call_complex Tally.drop, %v_3
-    store %v_4, %v_8, 4
-    %v_9 = loads %v_2, 4: I32
-    %v_10 = loads %v_4, 4: I32
-    %v_11 = add %v_9, %v_10: I32
-    %v_12 = loads @trace, 4: I32
-    %v_13 = add %v_11, %v_12: I32
-    ret %v_13
+    store %v_2, 7, 4
+    %v_4 = call_complex doubled, @environment(doubled(Tally)), %v_2: I32
+    call_complex Tally.drop, %v_2
+    %v_5 = add %v_3, %v_4: I32
+    %v_6 = loads @trace, 4: I32
+    %v_7 = add %v_5, %v_6: I32
+    ret %v_7
   }
 }
 

@@ -1,0 +1,149 @@
+{-
+   The CFG cleanup, and the three shapes it has to be right about - `compiler/resolve_ssa/opt/cfg.cpp`.
+
+   Every claim here is a **number**, deliberately. A branch folded to the wrong arm, an edge threaded
+   to the destination the other constant would have selected and a `Drop` deleted out of a block that
+   is still reachable are all invisible in the emitted bytes, and all three change what this program
+   answers. The optimized/unoptimized run comparison is what turns each of them into a failure;
+   `.ssa.opt.expect` beside this is what says which shape the pass actually left behind.
+
+   `live` is the balance and `trace` is the order, which is the pair every ownership fixture here
+   uses: a teardown that ran twice takes the first negative and one that never ran leaves it
+   positive, and neither of those shows up in a digit of the second.
+-}
+
+let &live = 0 :: Int
+let &trace = 0 :: Int
+
+data Held {id: Int}
+
+instance Drop(Held):
+    fn drop(->self: Held):
+        live = live - 1
+        trace = trace * 10 + self.id
+
+fn held(id: Int) -> Held:
+    live = live + 1
+    return Held {id: id}
+
+fn take(->h: Held) -> Int = h.id
+
+-- A branch on a condition the source wrote, with an owned value made and released inside the arm
+-- that goes away. What the fold has to be right about is not the number this answers but the
+-- teardown it deletes with the block: a `Drop` in a block nothing reaches runs never, so `live` and
+-- `trace` are what say the arm was stranded rather than executed.
+fn written(n: Int) -> Int:
+    if False:
+        let h = held(9)
+        return h.id + n
+
+    return n + 1
+
+-- The same fold on a condition nothing wrote. `simplify` answers the arithmetic and the comparison,
+-- and `cleanCfg` is what the constant then reaches - which is the order the driver runs the two in
+-- and the reason most constant conditions are made rather than written.
+fn made(n: Int) -> Int:
+    if 3 - 3 > 0:
+        let h = held(8)
+        return h.id + n
+
+    return n + 2
+
+{-
+   An owned local in an `iter fn` with a `break` out of its loop, handed over on one path out and
+   not on the other.
+
+   That is the recipe for the only continuation region this tier has. The hand-over is conditional,
+   so the frame carries a flag and the teardown is a `Cleanup` region behind a test of it, and the
+   rule that region states - an edge may enter it at its `entry` and nowhere else - is what a
+   reroute around the flag test would break. `Continuation::multiplicity` is the other half: a
+   cleanup arm runs at most once per entry, so an edge from inside it back to its first block is a
+   teardown running as many times as the loop does.
+
+   [[yana-resolve-cfg-invariants]] is why the `break` is here rather than a plain fall-out. The
+   block a `break` leaves through holds a jump and nothing else, so splicing it points its
+   predecessor straight at the loop's exit - which *moves* an edge, and moving one is what put the
+   shipping stage's block list out of reverse postorder and produced a wrong number with no
+   diagnostic. Nothing here owes that debt, because the lowering takes the shared reverse postorder
+   rather than the table order, and this is the fixture that says so.
+-}
+iter fn steps(n: Int) -> Int:
+    let &h = held(n)
+    let &i = 0 :: Int
+
+    while i < n:
+        if i > 2:
+            yield take(h)
+            break
+
+        yield i
+        i = i + 1
+
+-- The consumer, whose own `break` is a second one: the `for` body is a continuation region at the
+-- MIR tier and an outlined function at this one, so what a pass sees here is one loop driving
+-- another through a call it cannot see into.
+fn nested(n: Int) -> Int:
+    let &sum = 0 :: Int
+
+    for x in steps(n):
+        if x > 4:
+            break
+
+        sum = sum * 10 + x
+
+    return sum
+
+-- A boolean computed, joined, and then branched on, which is the shape `threadBranches` is written
+-- for: the arm that handed the join a constant is pointed straight at the destination that constant
+-- selects. Every combination is exercised below, and the three answers are distinct, so an edge
+-- threaded to the wrong arm is a different total rather than a different dump.
+fn joined(a: Bool, b: Bool, c: Bool) -> Int:
+    let ok = (a && b) || c
+    if ok then return 1
+    return 2
+
+{-
+   A join every predecessor decides the same way, which is the thread this pass has to **refuse**.
+
+   Both sides of the inner `if` hand the join `True`, so every edge into it goes round and the join
+   goes with them - and the `else` of the outer `if` is then a block no edge names. An unreachable
+   block is still checked structurally and nothing dominates one, so every operand it reads is
+   reported at `threadBranches`'s own checkpoint; what would have to go with the arm is everything
+   only that arm reached, which is `cleanCfg`'s sweep and not something a thread may perform on its
+   way past. So the whole thread is declined and the diamond is left standing.
+
+   The number is what says the refusal did not also lose the answer, which is the failure the other
+   direction would have: `always` is `n + 1` on every path a program can take, and the arm this
+   leaves in place is the one nothing reaches.
+-}
+fn always(c: Bool, n: Int) -> Int:
+    let ok = if c then True else True
+
+    if ok:
+        return n + 1
+
+    return n + 2
+
+fn main() -> Int:
+    let &total = 0
+
+    total = total + written(10) * 1
+    total = total + made(10) * 2
+
+    total = total + nested(0) * 3
+    total = total + nested(3) * 5
+    total = total + nested(6) * 7
+
+    total = total + joined(True, True, True) * 11
+    total = total + joined(True, True, False) * 13
+    total = total + joined(True, False, True) * 17
+    total = total + joined(True, False, False) * 19
+    total = total + joined(False, True, True) * 23
+    total = total + joined(False, True, False) * 29
+    total = total + joined(False, False, True) * 31
+    total = total + joined(False, False, False) * 37
+
+    total = total + always(True, 5) * 41
+    total = total + always(False, 5) * 43
+
+    return total * 1000 + trace * 10 + live

@@ -38,14 +38,20 @@ implemented, in the header comments of `ResolveTester.cpp`, and the library corp
 against them; read `git status test/` afterwards, because churn in a fixture you did not touch is a
 behaviour change and not noise.
 
-Three of those modes belong to the **second resolve stage** rather than to the first — see the
+Four of those modes belong to the **second resolve stage** rather than to the first — see the
 "There are two resolve stages" section of `AGENTS.md`, and doc/inflight/Analysis-IR.md part 11.3.
 `.mir.expect` opts a fixture into `compiler/resolve_mir`/`compiler/resolve_ssa` and is what adopts
 the corpus one fixture at a time; `.ssa.expect` and `.mir.lower.expect` are separately optional
-beside it.
+beside it. `.ssa.opt.expect` is the SSA after `compiler/resolve_ssa/opt` has run, and it is opt-in on
+the stricter terms `.mir.repr.expect` has — `generate` regenerates one that exists and never creates
+one — because a fixture that is not about the optimizer would otherwise carry a second copy of its IR
+that moves whenever a pass changes. `.ssa.expect` stays the *conversion's* output, so the pair is the
+before and after of the whole stage.
 There is deliberately **no second run expectation**: `.run.expect` is what both stages are checked
 against, because two implementations of one language answering differently is exactly what this is
-here to catch.
+here to catch. What a `.run.expect` does buy the second stage is a second *run*: the fixture is
+compiled again with `-no-ir-opt` and the two answers compared, which is the same equivalence check
+the first stage has and is the guard an optimizer golden cannot be.
 
 ## `resolve/` and `lib/`
 

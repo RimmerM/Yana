@@ -43,7 +43,9 @@ enum class CompileMode {
 
     /// The two dumps of the rewritten stage - doc/inflight/Analysis-IR.md part 11. `mir` is the
     /// checked ownership MIR - the document calls it OMIR - and `ssa` the converted ownership SSA,
-    /// its OSSA. Both imply `-resolver ownership`, since nothing else produces either.
+    /// its OSSA, after `resolve_ssa/opt` has run over it. Optimized for the reason `-mode ir` is:
+    /// that is the program the backend is given, and `-no-ir-opt` is how the form before it is asked
+    /// for. Both imply `-resolver ownership`, since nothing else produces either.
     Mir,
     Ssa,
 };
@@ -388,10 +390,13 @@ struct CompileSettings {
     /// is the switch that means something on both, and is `-no-ir-opt` for exactly that reason.
     U32 optimization = 2;
 
-    /// Whether the IR optimizer (compiler/opt) runs at all - `-no-ir-opt`.
+    /// Whether the IR optimizer runs at all - `-no-ir-opt`. Read by all three of them: `compiler/opt`
+    /// over the resolve IR, `compiler/resolve_ssa/opt` over ownership SSA, and the shared sequence
+    /// over the lower IR that both stages end with (`lower/lower_pipeline.h`), so the flag means one
+    /// thing whichever stage compiled the program.
     ///
     /// Distinct from `optimization`, which is a level handed to LLVM: this one is a switch on our
-    /// own passes over the resolve IR, and it is off only to answer the question "did the optimizer
+    /// own passes over our own IR, and it is off only to answer the question "did the optimizer
     /// change what this program does". The flag was `-no-opt`, one letter from `-opt 0` and a
     /// different optimizer - the two are now named after the thing each switches. The fixture runner compiles every runnable fixture both ways
     /// and compares the results on both targets, which is the same equivalence check

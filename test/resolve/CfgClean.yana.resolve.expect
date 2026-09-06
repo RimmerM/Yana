@@ -1,0 +1,406 @@
+let image$base: () = <none>
+
+let &live: I32 = 0
+
+let &trace: I32 = 0
+
+table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
+  .0 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn held(%id: I32) -> Held {
+  b0:
+    %v1 = load live : I32
+    %v4 = add %v1, 1 : I32
+    assign live, %v4
+    %v6 = alloc : Held
+    aggregate %local0@Held.id = %id
+    ret %v6
+}
+
+fn take(%h: Held) -> I32 {
+  b0:
+    %v1 = load %h@Held.id : I32
+    drop %h via Drop(Held).drop
+    ret %v1
+}
+
+fn written(%n: I32) -> I32 {
+  b0:
+    je False, b1, b2
+
+  b1:
+    %h = call held, 9 : Held
+    %v5 = load %local0@Held.id : I32
+    drop %local0 via Drop(Held).drop
+    %v6 = add %v5, %n : I32
+    ret %v6
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = add %n, 1 : I32
+    ret %v11
+}
+
+fn made(%n: I32) -> I32 {
+  b0:
+    %v5 = sub 3, 3 : I32
+    %v8 = cmp_gt %v5, 0 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %h = call held, 8 : Held
+    %v12 = load %local0@Held.id : I32
+    drop %local0 via Drop(Held).drop
+    %v13 = add %v12, %n : I32
+    ret %v13
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = add %n, 2 : I32
+    ret %v18
+}
+
+fn steps(%n: I32, %body: (value$: I32) -> Outcome((), $r)) -> Outcome((), $r) {
+  schema {
+    #0 type $r
+    #1 type Outcome((), $r)
+  }
+
+  b0:
+    %v2 = call held, %n : Held
+    %h = alloc : Held
+    init %h, %v2
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : I32
+    %v10 = cmp_lt %v9, %n : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v41 = alloc : Outcome((), $r)
+    init %local6.discriminant, 0
+    ret %v41
+
+  b3:
+    %v12 = load %i : I32
+    %v15 = cmp_gt %v12, 2 : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v17 = load %h : Held
+    %v18 = move %h : Held
+    %v19 = call take, %v18 : I32
+    %v20 = calldyn %body, %v19 : Outcome((), $r)
+    %v21 = load %local4.discriminant : I32
+    %v23 = cmp_eq %v21, 1 : Bool
+    je %v23, b6, b7
+
+  b5:
+    jmp b8
+
+  b6:
+    ret %v20
+
+  b7:
+    jmp b2
+
+  b8:
+    %v28 = load %i : I32
+    %v29 = calldyn %body, %v28 : Outcome((), $r)
+    %v30 = load %local5.discriminant : I32
+    %v32 = cmp_eq %v30, 1 : Bool
+    je %v32, b9, b10
+
+  b9:
+    ret %v29
+
+  b10:
+    %v35 = load %i : I32
+    %v38 = add %v35, 1 : I32
+    assign %i, %v38
+    jmp b1
+}
+
+fn nested(%n: I32) -> I32 {
+  b0:
+    %sum = alloc : I32
+    init %sum, 0
+    %v4 = alloc : {sum: &I32}
+    %v5 = borrow_mut %sum : &I32
+    init %local1.sum, %v5
+    %v7 = addressof %local1 : %()
+    %v8 = alloc : (value$: I32) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$22 : %()
+    init %local2.code, %v9
+    init %local2.env, %v7
+    %v12 = call steps(()), %n, %v8 : Outcome((), ())
+    %v13 = load %sum : I32
+    ret %v13
+}
+
+fn joined(%a: Bool, %b: Bool, %c: Bool) -> I32 {
+  b0:
+    je %a, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v7 = phi [b1, %b], [b2, False] : Bool
+    je %v7, b5, b4
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %ok = phi [b4, %c], [b5, True] : Bool
+    je %ok, b7, b8
+
+  b7:
+    ret 1
+
+  b8:
+    jmp b9
+
+  b9:
+    ret 2
+}
+
+fn always(%c: Bool, %n: I32) -> I32 {
+  b0:
+    je %c, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %ok = phi [b1, True], [b2, True] : Bool
+    je %ok, b4, b5
+
+  b4:
+    %v11 = add %n, 1 : I32
+    ret %v11
+
+  b5:
+    jmp b6
+
+  b6:
+    %v16 = add %n, 2 : I32
+    ret %v16
+}
+
+fn main() -> I32 {
+  b0:
+    %total = alloc : I32
+    init %total, 0
+    %v4 = load %total : I32
+    %v6 = call written, 10 : I32
+    %v9 = mul %v6, 1 : I32
+    %v10 = add %v4, %v9 : I32
+    assign %total, %v10
+    %v12 = load %total : I32
+    %v14 = call made, 10 : I32
+    %v17 = mul %v14, 2 : I32
+    %v18 = add %v12, %v17 : I32
+    assign %total, %v18
+    %v20 = load %total : I32
+    %v22 = call nested, 0 : I32
+    %v25 = mul %v22, 3 : I32
+    %v26 = add %v20, %v25 : I32
+    assign %total, %v26
+    %v28 = load %total : I32
+    %v30 = call nested, 3 : I32
+    %v33 = mul %v30, 5 : I32
+    %v34 = add %v28, %v33 : I32
+    assign %total, %v34
+    %v36 = load %total : I32
+    %v38 = call nested, 6 : I32
+    %v41 = mul %v38, 7 : I32
+    %v42 = add %v36, %v41 : I32
+    assign %total, %v42
+    %v44 = load %total : I32
+    %v48 = call joined, True, True, True : I32
+    %v51 = mul %v48, 11 : I32
+    %v52 = add %v44, %v51 : I32
+    assign %total, %v52
+    %v54 = load %total : I32
+    %v58 = call joined, True, True, False : I32
+    %v61 = mul %v58, 13 : I32
+    %v62 = add %v54, %v61 : I32
+    assign %total, %v62
+    %v64 = load %total : I32
+    %v68 = call joined, True, False, True : I32
+    %v71 = mul %v68, 17 : I32
+    %v72 = add %v64, %v71 : I32
+    assign %total, %v72
+    %v74 = load %total : I32
+    %v78 = call joined, True, False, False : I32
+    %v81 = mul %v78, 19 : I32
+    %v82 = add %v74, %v81 : I32
+    assign %total, %v82
+    %v84 = load %total : I32
+    %v88 = call joined, False, True, True : I32
+    %v91 = mul %v88, 23 : I32
+    %v92 = add %v84, %v91 : I32
+    assign %total, %v92
+    %v94 = load %total : I32
+    %v98 = call joined, False, True, False : I32
+    %v101 = mul %v98, 29 : I32
+    %v102 = add %v94, %v101 : I32
+    assign %total, %v102
+    %v104 = load %total : I32
+    %v108 = call joined, False, False, True : I32
+    %v111 = mul %v108, 31 : I32
+    %v112 = add %v104, %v111 : I32
+    assign %total, %v112
+    %v114 = load %total : I32
+    %v118 = call joined, False, False, False : I32
+    %v121 = mul %v118, 37 : I32
+    %v122 = add %v114, %v121 : I32
+    assign %total, %v122
+    %v124 = load %total : I32
+    %v127 = call always, True, 5 : I32
+    %v130 = mul %v127, 41 : I32
+    %v131 = add %v124, %v130 : I32
+    assign %total, %v131
+    %v133 = load %total : I32
+    %v136 = call always, False, 5 : I32
+    %v139 = mul %v136, 43 : I32
+    %v140 = add %v133, %v139 : I32
+    assign %total, %v140
+    %v142 = load %total : I32
+    %v145 = mul %v142, 1000 : I32
+    %v146 = load trace : I32
+    %v149 = mul %v146, 10 : I32
+    %v150 = add %v145, %v149 : I32
+    %v151 = load live : I32
+    %v152 = add %v150, %v151 : I32
+    ret %v152
+}
+
+fn Drop(Held).drop(%self: Held) -> () {
+  b0:
+    %v1 = load live : I32
+    %v4 = sub %v1, 1 : I32
+    assign live, %v4
+    %v6 = load trace : I32
+    %v9 = mul %v6, 10 : I32
+    %v10 = load %self@Held.id : I32
+    %v11 = add %v9, %v10 : I32
+    assign trace, %v11
+    ret
+}
+
+fn ResolveTest.continuation$22(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
+  b0:
+    %v4 = cmp_gt %value$, 4 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v19 = alloc : Outcome((), ())
+    init %local1.discriminant, 1
+    ret %v19
+
+  b2:
+    jmp b3
+
+  b3:
+    %v7 = load [%env].sum : &I32
+    %v8 = load [%env].sum : &I32
+    %v9 = load [%v8] : I32
+    %v12 = mul %v9, 10 : I32
+    %v13 = add %v12, %value$ : I32
+    assign [%v7], %v13
+    %v15 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v15
+}
+
+fn steps(())(%n: I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %v2 = call held, %n : Held
+    %h = alloc : Held
+    init %h, %v2
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : I32
+    %v10 = cmp_lt %v9, %n : Bool
+    je %v10, b3, b11
+
+  b2:
+    %v12 = alloc : Outcome((), ())
+    init %local6.discriminant, 0
+    ret %v12
+
+  b3:
+    %v16 = load %i : I32
+    %v18 = cmp_gt %v16, 2 : Bool
+    je %v18, b4, b5
+
+  b4:
+    %v20 = load %h : Held
+    %v21 = move %h : Held
+    %v22 = call take, %v21 : I32
+    %v23 = calldyn %body, %v22 : Outcome((), ())
+    %v24 = load %local4.discriminant : I32
+    %v26 = cmp_eq %v24, 1 : Bool
+    je %v26, b6, b7
+
+  b5:
+    jmp b8
+
+  b6:
+    ret %v23
+
+  b7:
+    jmp b2
+
+  b8:
+    %v31 = load %i : I32
+    %v32 = calldyn %body, %v31 : Outcome((), ())
+    %v33 = load %local5.discriminant : I32
+    %v35 = cmp_eq %v33, 1 : Bool
+    je %v35, b12, b10
+
+  b9:
+    ret %v32
+
+  b10:
+    %v38 = load %i : I32
+    %v40 = add %v38, 1 : I32
+    assign %i, %v40
+    jmp b1
+
+  b11:
+    drop %h via Drop(Held).drop
+    jmp b2
+
+  b12:
+    drop %h via Drop(Held).drop
+    jmp b9
+}

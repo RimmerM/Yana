@@ -650,7 +650,7 @@ void Lowering::spendPlace(LowerBlock& block, Value& result, const VirtualPlace& 
  */
 bool Lowering::checkAddressable(Value& result, DeclPtr<mir::Type> record, U16 field,
                                 LocationId source) {
-    for(auto used: result.uses.contents(ssa)) {
+    for(auto used: result.uses(ssa)) {
         switch(ssa[used]->kind) {
             case Inst::Load:
             case Inst::Store:

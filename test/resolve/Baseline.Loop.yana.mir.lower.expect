@@ -1,105 +1,74 @@
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 1, 1: Ptr
-    store %v_1, 20, 4
-    store %v_2, 0, 4
-    store %v_3, 0, 4
-    store %v_4, 0, 1
-    jmp b_5
+    jmp b_1
   }
 
-  b_5 {
-    %v_6 = loads %v_2, 4: I32
-    %v_7 = loads %v_1, 4: I32
-    %v_8 = cmp_ilt %v_6, %v_7: I32
-    je %v_8, b_9, b_10
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I32
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: I32
+    %v_7 = phi [b_0, 0], [b_3, %v_8]: I32
+    %v_9 = cmp_ilt %v_2, 20: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    je %v_7, b_12, b_13
   }
 
   b_10 {
-    %v_11 = load %v_4, 1: I32
-    je %v_11, b_12, b_13
+    je %v_7, b_11, b_14
   }
 
-  b_9 {
-    %v_14 = load %v_4, 1: I32
-    %v_15 = xor %v_14, 1: I32
-    je %v_15, b_16, b_10
+  b_14 {
+    %v_15 = imulhi %v_2, 1431655766: I32
+    %v_16 = shr %v_15, 31: I32
+    %v_17 = add %v_15, %v_16: I32
+    %v_18 = imul %v_17, 3: I32
+    %v_19 = sub %v_2, %v_18: I32
+    %v_20 = cmp_eq %v_19, 0: I32
+    je %v_20, b_21, b_22
   }
 
-  b_16 {
-    %v_17 = loads %v_2, 4: I32
-    %v_18 = irem %v_17, 3: I32
-    %v_19 = cmp_eq %v_18, 0: I32
-    je %v_19, b_20, b_21
+  b_22 {
+    %v_23 = imulhi %v_2, 1717986919: I32
+    %v_24 = sar %v_23, 1: I32
+    %v_25 = shr %v_24, 31: I32
+    %v_26 = add %v_24, %v_25: I32
+    %v_27 = imul %v_26, 5: I32
+    %v_28 = sub %v_2, %v_27: I32
+    %v_29 = cmp_eq %v_28, 0: I32
+    je %v_29, b_21, b_30
+  }
+
+  b_30 {
+    %v_6 = phi [b_22, %v_5], [b_21, %v_31]: I32
+    %v_32 = cmp_igt %v_6, 60: I32
+    je %v_32, b_33, b_3
   }
 
   b_21 {
-    %v_22 = loads %v_2, 4: I32
-    %v_23 = irem %v_22, 5: I32
-    %v_24 = cmp_eq %v_23, 0: I32
-    jmp b_25
+    %v_31 = add %v_5, %v_2: I32
+    jmp b_30
   }
 
-  b_25 {
-    %v_26 = phi [b_21, %v_24], [b_20, 1]: I32
-    je %v_26, b_27, b_28
-  }
-
-  b_20 {
-    jmp b_25
-  }
-
-  b_28 {
-    jmp b_29
-  }
-
-  b_29 {
-    %v_30 = loads %v_3, 4: I32
-    %v_31 = cmp_igt %v_30, 60: I32
-    je %v_31, b_32, b_33
-  }
-
-  b_27 {
-    %v_34 = loads %v_3, 4: I32
-    %v_35 = loads %v_2, 4: I32
-    %v_36 = add %v_34, %v_35: I32
-    store %v_3, %v_36, 4
-    jmp b_29
+  b_3 {
+    %v_8 = phi [b_30, %v_7], [b_33, 1]: I32
+    %v_4 = add %v_2, 1: I32
+    jmp b_1
   }
 
   b_33 {
-    jmp b_37
-  }
-
-  b_37 {
-    %v_38 = loads %v_2, 4: I32
-    %v_39 = add %v_38, 1: I32
-    store %v_2, %v_39, 4
-    jmp b_5
-  }
-
-  b_32 {
-    store %v_4, 1, 1
-    jmp b_37
+    jmp b_3
   }
 
   b_13 {
-    jmp b_40
-  }
-
-  b_40 {
-    %v_41 = loads %v_3, 4: I32
-    %v_42 = add %v_41, 1000: I32
-    ret %v_42
+    %v_34 = add %v_5, 1000: I32
+    ret %v_34
   }
 
   b_12 {
-    %v_43 = loads %v_3, 4: I32
-    ret %v_43
+    ret %v_5
   }
 }
 
