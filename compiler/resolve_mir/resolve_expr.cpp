@@ -15,20 +15,6 @@ bool isNegation(Context& context, ast::ParseBase parse, ast::Expr& expr) {
 }
 
 /*
- * A value of a type with a teardown, given storage of its own - see the declaration.
- *
- * An unnamed local, so that a dump shows the storage without claiming the author wrote a binding.
- * The write is an `Init`, which is what establishes the place: the initialization dataflow starts
- * every local uninitialized, so a temporary that skipped it would be an owner nothing could drop.
- *
- * The value's **whole occurrence**, and not an owned one of its type. A call that answers a loan
- * hands back somebody else's storage, and a temporary that claimed to own it would be consuming the
- * loan to fill itself and releasing the lender's object at the end of the statement. What makes the
- * temporary writable is then the loan's own capability: an exclusive loan may be written through
- * wherever it is held, and an owned temporary is a value no other name can see - there is nothing
- * for a write to it to mean, which is what `false` said before loans existed and still says.
- */
-/*
  * An owner handed to a parameter that only borrows, given storage of its own.
  *
  * The callee does not take the value, so this frame still owes its teardown - and a value that is
@@ -42,9 +28,8 @@ bool isNegation(Context& context, ast::ParseBase parse, ast::Expr& expr) {
  * never released. Nothing said so under specialization at a trivial type, which is every fixture
  * that had one; at a type with a teardown the SSA verifier reports an owner reaching `return`
  * unconsumed, which is where this was found.
- */
-/*
- * See the declaration. `isTracked` and not `hasTeardown`, which is what this used to ask.
+ *
+ * **`isTracked` and not `hasTeardown`**, which is what the test used to be.
  *
  * The two agree on every type with something to run and disagree on the one that is followed without
  * having any: a **function value** owes no teardown and may not be duplicated, because a closure can
@@ -67,6 +52,20 @@ Node* Resolver::holdBorrowed(Builder& builder, Node& value, Request wanted, Decl
     return readPlace(builder, source, *place, wanted);
 }
 
+/*
+ * A value of a type with a teardown, given storage of its own - see the declaration.
+ *
+ * An unnamed local, so that a dump shows the storage without claiming the author wrote a binding.
+ * The write is an `Init`, which is what establishes the place: the initialization dataflow starts
+ * every local uninitialized, so a temporary that skipped it would be an owner nothing could drop.
+ *
+ * The value's **whole occurrence**, and not an owned one of its type. A call that answers a loan
+ * hands back somebody else's storage, and a temporary that claimed to own it would be consuming the
+ * loan to fill itself and releasing the lender's object at the end of the statement. What makes the
+ * temporary writable is then the loan's own capability: an exclusive loan may be written through
+ * wherever it is held, and an owned temporary is a value no other name can see - there is nothing
+ * for a write to it to mean, which is what `false` said before loans existed and still says.
+ */
 Place* Resolver::hold(Builder& builder, Node& value, LocationId source) {
     auto& occurrence = valueOccurrence(value);
     auto writable = occurrence.contract.access() == Access::Unique;
@@ -653,13 +652,25 @@ Node* Resolver::resolveSubwindow(Builder& builder, ast::Expr& expr, Request want
                      operands, 3, expr.source);
 }
 
+// See the declaration - one sentence, and the role name comes off the table rather than out of the
+// caller's spelling of it.
+void Resolver::reportMissingRole(intrinsic::Known role, StringView needs, LocationId source) {
+    context.diagnostics.error(
+        "the standard library does not declare anything with the role %@, which %@ needs"_v,
+        source, intrinsic::knownDef(role).role, needs);
+}
+
+void Resolver::reportMissingRole(intrinsic::Op op, StringView needs, LocationId source) {
+    context.diagnostics.error(
+        "the standard library does not declare anything with the role %@, which %@ needs"_v,
+        source, intrinsic::opDef(op).role, needs);
+}
+
 Node* Resolver::callKnown(Builder& builder, intrinsic::Known role, Node* const* operands,
                           Size count, LocationId source, DeclPtr<Type> hint) {
     auto declared = program.roles.function(role);
     if(!declared) {
-        context.diagnostics.error(
-            "the standard library does not declare anything with the role %@, which this needs"_v,
-            source, intrinsic::knownDef(role).role);
+        reportMissingRole(role, "this"_v, source);
         return nullptr;
     }
 
@@ -1332,7 +1343,21 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             auto type = resolveAscribedType(ascription.type, ascription.target);
             if(!type) return nullptr;
 
-            auto value = resolveValue(builder, ascription.target, type, wanted);
+            /*
+             * The request travels down as the surrounding position's, with one thing taken off it:
+             * an ascription names a **type**, and a type is not a window.
+             *
+             * `total([1, 2, 3] :: [Int])` is the case. The parameter holds a window, so the literal
+             * written bare builds a `[I32 *3]` and the parameter describes it; written with the
+             * ascription it is a statement that this expression is an `Array(Int)`, and what the
+             * call does with the array afterwards is the ordinary adaptation every owned container
+             * reaching a window position goes through. Passing the form down would make `::` build
+             * something that is not the type it names.
+             */
+            auto asked = wanted;
+            asked.form = AccessForm::WholeValue;
+
+            auto value = resolveValue(builder, ascription.target, type, asked);
             if(!value) return nullptr;
 
             return convertValue(builder, *value, type, expr.source, false, "an ascribed value"_v);
@@ -1353,7 +1378,7 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 
         // `[1, 2, 3]` - see `resolveArrayLiteral`, which is where the whole of it is.
         case ast::Expr::Array:
-            return resolveArrayLiteral(builder, expr, hint);
+            return resolveArrayLiteral(builder, expr, hint, wanted);
 
         case ast::Expr::Infix:
             return resolveInfix(builder, expr, hint, wanted);
@@ -1647,23 +1672,232 @@ Node* Resolver::adaptToView(Builder& builder, Node& value, const Occurrence& pos
 }
 
 /*
- * `[1, 2, 3]` - `doc/spec/expressions.md`'s array construction.
+ * What an array literal builds at a fixed-array hint - the element type, the length, and whether
+ * the one element written fills the whole thing.
  *
- * **It takes its type from context and never from itself**, which is what the spec means by "there
- * is no fixed-array literal - `[0, 1, 2]` is coerced to `[Int *3]` by context". Two elements say
- * nothing about whether they are two `I32`s or two `I64`s, and nothing about whether what is being
- * built is a fixed array or a growable one, so a literal with no hint is reported as the missing
- * ascription rather than guessed at.
+ * Shared by the two readings of `[1, 2, 3]`, because the rules are the *language's* and not either
+ * reading's: the count has to match or be one, a length that is a const parameter cannot be stated
+ * by a literal, and a fill has to be duplicable. The value path builds an aggregate node out of the
+ * answer and the constant path an aggregate constant, and a rule stated in each of them is a rule
+ * the two can come to disagree about - which for the fill would be `n` owners of one object on one
+ * path and a diagnostic on the other.
  *
- * Only a fixed array is built here. A growable one needs an allocator, which this stage has not got
- * - `resolveOccurrence` refuses an owned `[T]` for the same reason and names the same thing.
+ * The hint is required to be a fixed array **before** this is called, and that is the one question
+ * left to the callers: a value has nowhere else to go and reports the missing ascription, and a
+ * constant is simply not this form and lets the position say what it says about any other.
+ */
+Maybe<ArrayLiteralShape> Resolver::arrayLiteralShape(ast::Expr& expr, DeclPtr<Type> hint,
+                                                     Size written) {
+    auto& array = *(ArrayType*)decl()[hint];
+
+    if(!array.hasFixedLength()) {
+        // A quantified count with a written literal opposite it. The number is what a specialization
+        // supplies, and a literal is written before there is one - so this is a program that cannot
+        // state its own length rather than one this stage has not caught up with.
+        context.diagnostics.error(
+            "this array's length is a const parameter, so a literal here cannot state it"_v,
+            expr.source);
+        return Nothing();
+    }
+
+    auto length = array.length;
+    auto fill = written == 1 && length != 1;
+
+    if(!fill && written != length) {
+        context.diagnostics.error(
+            "this literal has %@ elements and %@ holds %@ - one element fills the whole array, and "
+            "any other count has to be written out"_v,
+            expr.source, U64(written), typeText(context, decl(), hint), length);
+        return Nothing();
+    }
+
+    /*
+     * The fill case, and the one rule that makes it legal.
+     *
+     * `[0] :: [Int *8]` is eight zeroes, and what makes that sound is that an `Int` may be
+     * duplicated: `doc/spec/ownership.md`'s `TrivialCopy`. An element that owns something would be
+     * `n` owners of one object - which is precisely what `newArray` takes a function for - so it is
+     * refused here, naming the type rather than the literal.
+     */
+    if(fill && !isTriviallyCopyable(decl(), array.element)) {
+        context.diagnostics.error(
+            "one element fills the whole array, and %@ cannot be duplicated - write every element, "
+            "or give each its own value"_v,
+            expr.source, typeText(context, decl(), array.element));
+        return Nothing();
+    }
+
+    return Just(ArrayLiteralShape { array.element, length, fill });
+}
+
+/*
+ * `[1, 2, 3]` at a position that owns a **growable** array - `doc/spec/collections.md`'s `[a]`.
+ *
+ * The compiler builds no container here. Two library bodies do - `known.def`'s `arrayLiteral`, which
+ * answers an array of `count` live slots, and `elementBase`, which says where those slots start -
+ * and what is left is the part a literal actually is: `count` values, written into slot `i` in the
+ * order they were written down. Nothing in this function reads a field of `Array` or of its view,
+ * which is the difference from the shipping stage, where the run, the capacity and the placement tag
+ * are spelled out at every literal and a library that laid a run out differently would miscompile
+ * rather than fail to build.
+ *
+ * **The elements are resolved before the array is made**, which is the same ordering the map literal
+ * has and is here for both of its reasons. The written expressions run left to right exactly once,
+ * before anything of the container's own runs; and the first of them is what says what the array
+ * holds when the position did not. The values stay live across the allocation and are handed over
+ * one at a time below, which is what the temporaries are for.
+ *
+ * The writes are through a **raw pointer**, exactly as the library's own `push` writes through one.
+ * That is what makes the hand-over a hand-over: a store through `%a` is outside the borrow model by
+ * construction, so the frame that owned element `i` stops owing it a teardown on the path that
+ * stored it, and the array's own `Reclaim` walk over `length` elements is what runs them afterwards.
+ * The window in which the length promises values that are not there yet contains no program of the
+ * author's - see `literalArray`, where the library states the same thing from its side.
+ */
+Node* Resolver::resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+    auto written = expr.arr.contents(parse);
+    auto element = elementTypeOf(decl(), program, hint);
+
+    SmallArray<Node*, 8> components;
+    HeldList<SmallArray<Node*, 8>> held(*this, components);
+
+    for(Size i = 0; i < written.size(); i++) {
+        auto& item = *written.pointerAt(i);
+
+        // Owned, which is what an element position is: an array's elements are its storage, so a
+        // component fills one the way a field of a record does.
+        auto value = resolveValue(builder, item, element, requestOf(ownedContract()));
+        if(!value) return nullptr;
+
+        /*
+         * The first element decides where the position did not, and every one after it is coerced
+         * to what it decided - `doc/spec/expressions.md`'s `[2, 3, 5, 7]` being `[Int]`.
+         *
+         * `coerce` and not a comparison, because that is what makes a mixed-width literal say what
+         * is wrong with it: `[1, 2 :: I64]` is a widening the language performs everywhere else, and
+         * `[1, "two"]` is the ordinary mismatch naming both types.
+         */
+        if(!element) {
+            element = valueType(*value);
+        } else {
+            value = coerce(builder, *value, element, item.source, "an element"_v);
+            if(!value) return nullptr;
+        }
+
+        components.push(value);
+    }
+
+    if(!element) {
+        context.diagnostics.error(
+            "cannot tell what this empty array holds - give it a type, as `[] :: [Int]`"_v,
+            expr.source);
+        return nullptr;
+    }
+
+    auto declared = program.roles.record(intrinsic::Known::array);
+    if(!declared) {
+        reportMissingRole(intrinsic::Known::array, "a growable array literal"_v, expr.source);
+        return nullptr;
+    }
+
+    // The array's own type, built here rather than taken from the hint: a literal with no hint has
+    // none to take, and one with a hint has already agreed with it - `element` came out of it.
+    auto arrayType = instantiateRecord(context, program, declared, &element, 1, expr.source);
+    if(!arrayType) return nullptr;
+
+    /*
+     * The array, and then the address of its slots.
+     *
+     * `arrayLiteral` names its element nowhere in its arguments, so what decides it is the result
+     * position - which is the same rule `Nothing :: Maybe(I32)` is selected by, and is why the type
+     * is built above rather than read back off the call.
+     */
+    auto count = builder.addConst(expr.source, intConstant(program.types.words[1],
+                                                           U64(written.size())));
+    if(!count) return nullptr;
+
+    Node* made[1] = { count };
+    auto array = callKnown(builder, intrinsic::Known::arrayLiteral, made, 1, expr.source, arrayType);
+    if(!array) return nullptr;
+
+    /*
+     * Held in a local before the base is taken, because the base is a *borrow* of it: an owned value
+     * still in a node has no place for a loan to name, and the array has to outlive every write that
+     * goes through the pointer taken from it.
+     *
+     * Writable, which `hold` cannot give it: that function reads the permission off the value's own
+     * contract, and an owned array's says nothing about whether the storage holding it may be
+     * written. Here it may - the local is a temporary of this frame that the literal is still
+     * building, and handing its window out for writing is the whole reason it exists.
+     */
+    auto& occurrence = valueOccurrence(*array);
+    auto local = builder.addLocal(StringId(), occurrence, expr.source, true);
+    auto place = builder.localPlace(*local);
+    builder.addWrite(expr.source, *place, *array, Destination::Init);
+
+    auto based = program.roles.function(intrinsic::Known::elementBase);
+    if(!based) {
+        reportMissingRole(intrinsic::Known::elementBase, "a growable array literal"_v, expr.source);
+        return nullptr;
+    }
+
+    auto& baseOf = *decl()[based];
+    auto window = readPlace(builder, expr.source, *place,
+                            requestOf(decl()[baseOf.args.get(decl(), 0)]->occurrence));
+    if(!window) return nullptr;
+
+    Node* of[1] = { window };
+    auto base = callFunction(builder, baseOf, of, 1, expr.source);
+    if(!base) return nullptr;
+
+    /*
+     * Element `i` at index `i` of the run the pointer names - the same `Place::Index` a fixed
+     * array's element is, over an `Address` root instead of a local one.
+     *
+     * The place is a `[a *n]` of exactly the written length, which is what the storage *is*: `n`
+     * elements at a stride, starting here. That is not the array's type and must not be - an
+     * `Array(a)` is a record of two fields and these bytes are neither - and stating the run rather
+     * than the container is what lets `elementPlace` project an element with nothing added.
+     *
+     * `Init` rather than `Assign`, and the difference is a teardown: the slots hold whatever the
+     * allocator handed back, so an assignment would drop a value that was never there. It is also
+     * what keeps the write out of the loan check - initializing fresh storage is not writing through
+     * the borrow the address came from - and `Builder::addWrite` is where the raw-address root is
+     * admitted for exactly this.
+     */
+    auto run = program.types.arrayType(decl(), element, U64(components.size()));
+    auto slots = builder.addressPlace(*base, Occurrence { run, ownedContract(), nullptr }, true);
+
+    for(Size i = 0; i < components.size(); i++) {
+        auto index = builder.addConst(expr.source, intConstant(program.types.words[1], U64(i)));
+        if(!index) return nullptr;
+
+        auto slot = builder.elementPlace(*slots, *index);
+        builder.addWrite(expr.source, *slot, *components[i], Destination::Init);
+    }
+
+    // The array itself, moved out of the local it was held in. A read at an owning request, which is
+    // what makes it the temporary the surrounding position receives rather than a borrow of a local
+    // that is about to end.
+    return readPlace(builder, expr.source, *place, requestOf(ownedContract()));
+}
+
+/*
+ * `[1, 2, 3]` - `doc/spec/expressions.md`'s array construction, and which of the two containers it
+ * is.
+ *
+ * **A literal takes its type from context and never from itself**, which is what the spec means by
+ * "there is no fixed-array literal - `[0, 1, 2]` is coerced to `[Int *3]` by context". Two elements
+ * say nothing about whether they are two `I32`s or two `I64`s, and nothing about whether what is
+ * being built is a fixed array or a growable one. What decides is the position, in the two readings
+ * below; what a literal with no position at all builds is the spec's own answer, a growable array.
  *
  * `[x] :: [T *n]` **fills the whole array**, which is the spec's "a literal of one element at a
- * longer type fills the whole array". The element is resolved once and its value used `n` times, and
- * that is only sound where a value may be duplicated - so a non-trivial element is refused here
- * rather than silently copied, which would be `n` owners of one object.
+ * longer type fills the whole array" - `arrayLiteralShape`, where that rule and the count rule are
+ * stated once for this and for the constant path both.
  */
-Node* Resolver::resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+Node* Resolver::resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
+                                    Request wanted) {
     auto written = expr.arr.contents(parse);
 
     /*
@@ -1675,68 +1909,48 @@ Node* Resolver::resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<T
      * `total([5, 5])` and `total([5, 5] :: [I32 *2])` are one program, which is what a caller
      * writing a small array argument expects.
      *
-     * A hint of `Array(T)` can only be a window position: an *owning* one is refused where it is
-     * declared, so there is no reading of this that would build a growable array by accident.
+     * A position that **holds** the sequence is the other reading of the same hint and is the
+     * growable array - the elements are the container's own storage rather than a description of
+     * somebody else's, so there is nothing to describe and the literal has to build one.
+     *
+     * `Request::form` is what tells the two apart, and it is the only thing that can: the expected
+     * type of a window and of an owner is the same type, so the difference is in the contract the
+     * position was read from and not in `Array(T)`. The access is deliberately *not* asked - `let
+     * &xs = [1, 2, 3] :: [Int]` is a unique binding of a value the literal produces, which is
+     * `resolveDeclaration`'s own rule that a produced value arrives owned whatever the sigil said.
      */
-    if(hint && isSequenceType(decl(), program, hint)) {
+    if(hint && isSequenceType(decl(), program, hint) && wanted.form == AccessForm::View) {
         if(auto element = elementTypeOf(decl(), program, hint)) {
             hint = program.types.arrayType(decl(), element, U64(written.size()));
         }
     }
 
-    if(!hint || decl()[hint]->kind != Type::Array) {
-        // Two different mistakes and one message would suit neither: a literal with no hint at all,
-        // and one at a hint that is not an array. What both need is the ascription, so what the
-        // message names is the ascription.
-        auto text = hint ? Tritium::format("an array literal builds a fixed array, and this position "
-                                           "is %@ - write `:: [T *n]`",
-                                           typeText(context, decl(), hint))
-                         : String("an array literal takes its length and its element type from the "
-                                  "position it is in, and this one has neither - write `:: [T *n]`");
-
-        context.diagnostics.error("%@"_v, expr.source, stringView(text));
-        return nullptr;
-    }
-
-    auto& array = *(ArrayType*)decl()[hint];
-    auto element = array.element;
-
-    if(!array.hasFixedLength()) {
-        // A quantified count with a written literal opposite it. The number is what a specialization
-        // supplies, and a literal is written before there is one - so this is a program that cannot
-        // state its own length rather than one this stage has not caught up with.
-        context.diagnostics.error(
-            "this array's length is a const parameter, so a literal here cannot state it"_v,
-            expr.source);
-        return nullptr;
-    }
-
-    auto length = array.length;
-    auto fill = written.size() == 1 && length != 1;
-
-    if(!fill && written.size() != length) {
-        context.diagnostics.error(
-            "this literal has %@ elements and %@ holds %@ - one element fills the whole array, and "
-            "any other count has to be written out"_v,
-            expr.source, U64(written.size()), typeText(context, decl(), hint), length);
-        return nullptr;
-    }
-
     /*
-     * The fill case, and the one rule that makes it legal.
+     * The growable array - `[2, 3, 5, 7]`, whose type `doc/spec/expressions.md` writes as `[Int]`.
      *
-     * `[0] :: [Int *8]` is eight zeroes, and what makes that sound is that an `Int` may be
-     * duplicated: `doc/spec/ownership.md`'s `TrivialCopy`. An element that owns something would be
-     * `n` owners of one object - which is precisely what `newArray` takes a function for - so it is
-     * refused here, naming the type rather than the literal.
+     * Two positions reach it and they are the two halves of "decided by the expected type and by
+     * nothing else": a hint that *is* a growable array at a position that owns one, and **no hint
+     * at all**, which is a literal standing on its own and is a growable array because that is what
+     * the spec says an unascribed one is. A fixed array is never the answer where nothing asked for
+     * one - its count is part of its type, and a literal has no type to put a count in.
      */
-    if(fill && !isTriviallyCopyable(decl(), element)) {
+    if(!hint || isSequenceType(decl(), program, hint)) {
+        return resolveGrowableLiteral(builder, expr, hint);
+    }
+
+    if(decl()[hint]->kind != Type::Array) {
         context.diagnostics.error(
-            "one element fills the whole array, and %@ cannot be duplicated - write every element, "
-            "or give each its own value"_v,
-            expr.source, typeText(context, decl(), element));
+            "an array literal builds a fixed array or a growable one, and %@ is neither - write "
+            "`:: [T *n]` for a fixed array, or `:: [T]` for a growable one"_v,
+            expr.source, typeText(context, decl(), hint));
         return nullptr;
     }
+
+    auto shaped = arrayLiteralShape(expr, hint, written.size());
+    if(!shaped) return nullptr;
+
+    auto element = shaped.unwrap().element;
+    auto length = shaped.unwrap().length;
 
     SmallArray<Node*, 8> components;
     for(Size i = 0; i < written.size(); i++) {
@@ -1917,6 +2131,27 @@ Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
         auto wanted = elementTypeOf(decl(), program, declared);
         auto donor = wanted ? donorElementOf(decl(), program, held) : nullptr;
         if(donor) typeArguments.bind(wanted, donor);
+    }
+
+    /*
+     * What a **functional dependency** already decides about this position - asked *before* the
+     * argument offers its own answer, which is the whole of the ordering.
+     *
+     * `xs[i]` is `Index.get(self: c, index: k)`, and `k` is not something the index decides: `class
+     * Index(c -> k, v)` promises that one container has one key type, so what the container bound
+     * one position ago is the answer and an index written as an `Int` is a value to be converted to
+     * it. Binding first would do what binding always does - see `k` open, offer `I32` - and the
+     * requirement recorded would be `Index(Array(I32), I32, I32)`, an instance nobody wrote,
+     * reported as missing where a widening was all that was wanted.
+     *
+     * Only where the position is still open, which is what keeps this from being a second answer to
+     * anything: the fixpoint fills empty slots and never overwrites one, so asking here and asking
+     * at the end of the walk give the same answer, and asking here is what puts it in reach of the
+     * coercion below. The declared defaults are deliberately not run with it -
+     * see `fillFromRequirements`.
+     */
+    if(mentionsContext(decl(), typeArguments.expected(declared), typeArguments.owner)) {
+        typeArguments.fillFromRequirements(source);
     }
 
     typeArguments.bind(declared, held);
@@ -2453,6 +2688,11 @@ static bool fillFromProperty(Resolver& resolver, GenProperty property, DeclPtr<G
 }
 
 void TypeArguments::fillDetermined(LocationId source) {
+    fillFromRequirements(source);
+    fillDeclaredDefaults();
+}
+
+void TypeArguments::fillFromRequirements(LocationId source) {
     if(!any() || !undecided()) return;
 
     auto base = resolver.decl();
@@ -2483,8 +2723,6 @@ void TypeArguments::fillDetermined(LocationId source) {
 
         if(!moved || !undecided()) break;
     }
-
-    fillDeclaredDefaults();
 }
 
 /*
@@ -3219,7 +3457,7 @@ void Resolver::reportMissingOperator(StringId name, U32 arity, LocationId source
  * two arguments or that nothing declared a fixity for it, and both are "this is not an operator I
  * can resolve". Each is reported once, naming what is missing.
  */
-Maybe<Operator> Resolver::findOperator(StringId name, LocationId source) {
+Maybe<Operator> Resolver::findOperator(StringId name, LocationId source, bool report) {
     /*
      * R1's whole set, not one declaration - `doc/spec/overloading.md`, and the reason it is the set
      * is `lib/Native`'s `+`: a pointer's offset and `Num`'s addition are one name at two operands,
@@ -3234,7 +3472,7 @@ Maybe<Operator> Resolver::findOperator(StringId name, LocationId source) {
     findOverloads(context, program, here(), name, 2, source, set);
 
     if(set.isEmpty()) {
-        reportMissingOperator(name, 2, source);
+        if(report) reportMissingOperator(name, 2, source);
         return Nothing();
     }
 
@@ -3244,7 +3482,8 @@ Maybe<Operator> Resolver::findOperator(StringId name, LocationId source) {
     // a lens named as an operator is reported at the operator rather than as a continuation type
     // nothing decided. A set with something to choose between is asked the same question of its
     // winner, in `chooseCandidate`.
-    if(callee && !checkCallable(*decl()[callee], source)) return Nothing();
+    if(callee && !report && decl()[callee]->lens) return Nothing();
+    if(callee && report && !checkCallable(*decl()[callee], source)) return Nothing();
 
     /*
      * A fixity is a declaration and there is no fallback for it - see the note above.
@@ -3255,9 +3494,12 @@ Maybe<Operator> Resolver::findOperator(StringId name, LocationId source) {
      */
     auto declared = mir::findFixity(context, program, here(), name);
     if(!declared) {
-        context.diagnostics.error(
-            "no module in scope declares how `%@` groups, so this expression cannot be read - the library states that with `infixl`"_v,
-            source, context.findName(name));
+        if(report) {
+            context.diagnostics.error(
+                "no module in scope declares how `%@` groups, so this expression cannot be read - the library states that with `infixl`"_v,
+                source, context.findName(name));
+        }
+
         return Nothing();
     }
 
@@ -3294,17 +3536,21 @@ Maybe<Operator> Resolver::findOperator(StringId name, LocationId source) {
  * climbs any of it - a conjunction is split into tests rather than folded into a value - and both
  * walks have to get the same answer about where the operators are.
  */
-bool Resolver::flattenChain(ast::Expr& expr, Chain& chain) {
+bool Resolver::flattenChain(ast::Expr& expr, Chain& chain, bool report) {
     auto node = parse[expr.infix];
 
     while(true) {
         if(node->op.kind != ast::Expr::Var) {
-            context.diagnostics.error("an infix operator must be a named operator"_v, node->op.source);
+            if(report) {
+                context.diagnostics.error("an infix operator must be a named operator"_v,
+                                          node->op.source);
+            }
+
             return false;
         }
 
         // Reports for itself - the two ways it can fail are two sentences.
-        auto found = findOperator(node->op.var, node->op.source);
+        auto found = findOperator(node->op.var, node->op.source, report);
         if(!found) return false;
 
         chain.operands.push(&node->lhs);

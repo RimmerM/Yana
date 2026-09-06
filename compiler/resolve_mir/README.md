@@ -623,6 +623,16 @@ declaration that moved it says nothing about the call sites that counted. Everyt
 the ordinary projection - the same single-constructor rule, the same visibility check, the same
 `fieldPlace` - because a position is a way of *naming* a field and not a way of reaching one.
 
+**A constructor's name has nothing to do with its type's**, however many there are.
+`doc/spec/declarations.md` states it as `data Direction = North` declaring a nullary constructor
+`North` and "never a type named `North`", and the two tables here say it from the other side:
+`recordsByName` and `constructorsByName` answer different questions, so `data RandomError =
+NoEntropySource` files one name in each and neither spelling reaches the other. The braced form is
+where the two coincide, and it coincides because the parser synthesizes a constructor named after
+the type - nothing below requires it to. A **nullary** constructor is the other half of the same
+sentence: `NoEntropySource` is a value of `RandomError`, zero bytes wide, and a thing a program
+passes, matches and names in a signature.
+
 A declaration with **several constructors** is the same record with the same field list, plus a
 `RecordCon` per arm naming a *range* of it. That is the one decision sum types are built on: a field
 index identifies its own constructor, so the ownership fold, the schema fold, the layout walk and
@@ -999,6 +1009,12 @@ range pattern with `Ord`'s four, so a literal against a `Money` pivot runs the p
 equality; and a **counted `for`** tests its bound with `Ord` and steps with `Num`, so
 `for m in (2 :: Money) .. 5` counts over anything with both instances - `applyBinary` is the map
 from the node an emitter would build to the member it is.
+
+An **operator pattern** is the one that is none of those. `| >0` names an operator the *program*
+wrote, so it is an overload set and a selection like any other call of that name rather than a
+member the compiler picked - `sectionPattern`, which reads the pivot at the request
+`operatorRequests` says the left operand is in and puts the answer through `truthValue`, so a
+pattern and an `if` agree about what a condition is.
 
 **A literal is a call to `FromInt`** - `doc/spec/core.md`'s rule, in three cases that are one path.
 At a width the instance is the compiler's and its `fromInt` of a constant *folds*, so `1 :: I32` is
@@ -1477,6 +1493,21 @@ into the global's own storage, and `placeConstant` puts one reached inside a bod
 and hands back its address. A constant that would be cheaper as a pair of immediates is a refinement
 of that one function rather than a different representation.
 
+**An array literal is a constant too**, and it is the one that made the difference to the library:
+`lib/Core/Float/Ryu.native.yana` writes two 684-entry `[I64 *n]` tables at module level. A fixed
+array's elements are the value's own storage, so there is no run to allocate and nothing to point
+at - which is exactly why a *growable* `[T]` has no constant form, and why the recognition below
+turns on the position's hint being a fixed array. `arrayLiteralShape` states the literal's rules -
+the count matches or is one, a fill has to be duplicable - and both readings of `[1, 2, 3]` ask it,
+because a rule written twice is a rule the value path and the constant path can come to disagree
+about.
+
+**A literal at a `@bits(n)` refinement is a constant**, which is `canonicalInt`'s rule and not an
+exception: `0 :: HeapFlag` dispatches as the `U32` it refines, so the instance is the compiler's own
+and the value is that fold put into the refinement's normal form. Asking the family about the
+refinement itself answered "no such instance", which is true and is not the question - what it
+produced was a global with a startup initializer calling something nobody declared.
+
 The **recognition** is where the split still is, and it is a gap rather than a design.
 `resolveAggregateConstant` is asked where a constant is what the position is for - a global's
 initializer, a field default, a parameter default - and a value position asks only for the enum form.
@@ -1487,6 +1518,80 @@ refused rather than widened - and the operand nodes the construction has already
 left dead, which is a `Const` nothing names in a stage that runs no pass to remove one. Both are the
 same missing piece from two sides: the two positions have to reduce by one rule, and that rule has to
 run where the value is made.
+
+### Arithmetic is a constant, and what decides is which instance serves the operator
+
+`4 * 1024 * 1024` folds in a global's initializer, a parameter or field default, and a fixed array's
+length. What makes it foldable is **not** that the operands are numbers: an operator is a call, so
+`resolveInfixConstant` decides the same thing a call decides - which declaration the name reaches,
+and whether the instance serving it *at these operands* is one `provided.def` generated. A program's
+own `instance Num(Money)` is a body, and a declaration pass has no body to run; the compiler's
+`Num(I32)` is one node, and `fold.h`'s `providedOperation` is the table that says which. That table
+is `expandProvided`'s too, so a member that builds an `Add` in a body cannot fold as something else
+here.
+
+The arithmetic itself is `lower/fold_arith.h`, which is now shared by three folders rather than two -
+this tier, ownership SSA and the lower IR. What is *not* shared is which types may be folded at all,
+and that is `fold.h`'s one rule: a **target-answered width folds only where the answer cannot depend
+on the target**. `Size` is 32 bits on one machine and 64 on another, so `1 shl 40 :: Size` is two
+numbers and neither is this stage's to pick; `wordBits - 1` is one number on every machine, because
+its operands and its result fit the width the language guarantees. `IntType::minBits` is that width
+and `holdsAtWidth` is the test. A `@bits(n)` refinement is refused outright, which is
+`doc/spec/repr.md`'s rule rather than a limit here - a load widens and a store narrows, so the
+addition is the `U32` one and folding at four bits would be the one answer the machine does not give.
+
+Two things travel with it. A **global whose initializer is a constant** is readable in a constant
+position, which stage A calls "purely syntactic, no analysis" - and both adjectives in "an immutable
+global declared earlier" are load-bearing: a `let &` is storage a startup statement may have assigned
+to since, and a later `let` has no constant yet because initializers resolve in source order. And a
+**supplied global** holds the target's answer from the moment its own declaration settles rather than
+after every initializer has run - `bindSuppliedGlobal`, moved out of `checkRoles` for exactly that -
+so `let pageMask = pageBytes - 1` is 4095 and not -1.
+
+**Field defaults moved with it.** They used to be drained beside the record fields, two passes before
+any class or instance existed, so a field default could not fold anything at all while a parameter
+default - resolved inside `declare` - could. They are drained after `declare` now and before
+`checkTextDefaults`, which is what a string default of a field is queued for. What a field default
+still cannot read is a module-level `let`: a global's initializer may omit a defaulted field and a
+field default may name a global, so one of the two has to be second, and the constants are.
+
+What is **not** foldable is a `TypeTraits` field - `sizeOf`, `alignOf`, the stride. That is the
+MIR/manifestation split rather than a gap: `metric.def` says none of its rows folds here, because a
+body compiled once for every `a` has no layout to fold against and this directory may not ask what a
+value looks like in a register. A constant `sizeOf(T)` would need the layout to be answerable above
+`resolve_ssa`, which is an Analysis-IR decision and not a table entry.
+
+### A string is a constant, and the library is what says what one is
+
+`Constant::Text` says what a string literal *is* - the interned text - and leaves how it is built to
+the library: `stringLiteral` takes the address of bytes the compiler places and a count, and
+describes a run that owns nothing. In a value position `textValue` calls it. In a **global's
+initializer** there is no call to make: the value is bytes written before anything runs, and a
+library module has no program point at which a declaration's own code would run at all. So
+`lib/Core/Show.yana`'s digit table used to be a diagnostic.
+
+The answer is to **run the library's function**, which is `evaluate.cpp`: a body of one block ending
+in a `return`, over constants, with reads of places, conversions, aggregates and nested calls. The
+MIR tier rather than the written form, because name resolution, overload selection, substitution and
+`expandIntrinsic` have already happened - `truncate(length) :: Count` is a `convert` by then - so
+there is nothing here to re-decide. What it will not run is refused whole rather than interpreted
+along one path; the moment a branch is followed this is a machine with a program counter, and what
+it would need next is loop bounds and a termination argument.
+
+The alternative was to spell the fields of `String` here, which is what `resolve/const.cpp` does in
+the shipping stage and is why that file has a "this target's string layout is not the one this
+compiler writes" diagnostic to report. Running the library's own function is the same answer with no
+second description of a type the library owns.
+
+Two things make it fit. **`Constant::Address`** is the address of a global, which is the one leaf
+whose value is unknown until the image is placed - `materialize` writes zero and records a
+`LowerDataRelocation`, and `lowerGlobal` is split into a declare pass and a fill pass so that an
+initializer can name a global declared after it (the bytes of a literal are minted while the
+initializer that points at them is being resolved, so they always are). And **the evaluation is
+deferred**: `PendingTextGlobal` is drained after every body, because that is the first point at
+which the library's builder has one. The global is a constant either way, which is the part the
+passes in between rely on - its type is settled where the initializer is read, it is not `dynamic`,
+and nothing puts it in the entry sequence.
 
 **What an unadorned `1` or `1.5` is comes from `FromInt` and `FromDecimal`'s head defaults**, and
 what a literal at a type *is* is that class's instance - see "Operators are calls" above.
@@ -1502,6 +1607,128 @@ the order the walk reaches the modules. `Resolver::PendingDefault` records the p
 file, record, field, expression - and `resolveFieldDefaults` drains it once every record in the
 program has its constructors. The hole it closes was there before and unreachable: nothing a default
 could name was a declaration until one of them was.
+
+### A growable array literal is two library calls and a run of stores
+
+`[1, 2, 3]` builds a `[T *3]` at a window position and an **`Array(T)`** everywhere else, and
+`doc/spec/expressions.md` is explicit that which one is "decided by the expected type and by nothing
+else". The expected *type* of a window and of an owner is the same type, so the thing that actually
+decides is `Request::form` - the `AccessForm` of the contract the position was read from, carried
+down beside the access it asks for. A literal with no position at all is the growable one, because
+that is what the spec says an unascribed `[2, 3, 5, 7]` is, and because a fixed array's count is part
+of a type a literal standing on its own has not got.
+
+`::` takes the form **off** the request on the way down. An ascription names a type and a type is not
+a window, so `total([1, 2, 3] :: [Int])` builds the array the ascription names and the call adapts it
+the way it adapts any owned container reaching a window position - where passing the form down would
+make `::` build something that is not the type it wrote.
+
+**The compiler builds no container.** Two library bodies do, and `known.def` names them:
+`arrayLiteral(count)` answers an array of `count` live slots, and `elementBase(&self: '[a])` says
+where those slots start. What is left here is the part a literal actually is - `count` values, each
+written into slot `i` in the order they were written down - and none of it reads a field of `Array`
+or of its view. That is the difference from the shipping stage, where the run, the capacity and the
+placement tag are spelled out at every literal and `buildRunInto` has to be kept in step with three
+library records by hand.
+
+The elements are resolved **before** the array is made, which is the map literal's ordering and is
+here for both of its reasons: the written expressions run left to right exactly once before anything
+of the container's own runs, and the first of them says what the array holds when the position did
+not. The writes go into `Place::Index` over a `Place::Address` root at `Destination::Init` - fresh
+storage, so an `Assign` would drop a value that was never there - and `Builder::addWrite` admits a
+raw-address root for exactly this, on the terms `analyze_path` already answers for one: storage
+reached through a pointer is never this frame's to release, so no move path is opened and no drop is
+placed.
+
+Two roles rather than one, and they are two because the pair cannot be a function: something
+answering both an owner and a pointer into it would be publishing a loan of a value it is handing
+over in the same breath, and the language has no way to say that. Both are `Presence::Optional` - a
+library that declares neither is one whose arrays do not grow, which is a smaller library rather
+than a broken one.
+
+**`elementBase` takes a unique window**, and that is not a detail: `%source'a` says which storage it
+points into and nothing about what may be done there, so what decides whether a store through it is
+legal is the loan the window was read under. A shared one is what every element accessor takes; the
+literal fills through the other, and `prelude/Core/Array.yana` declares both over one field read.
+
+### A determined position is decided before the argument offers an answer
+
+`xs[i]` is `Index.get(self: c, index: k)`, and `class Index(c -> k, v)` promises that one container
+has one key type. So `k` is not something the index decides: what the container bound one position
+ago is the answer, and an index written as an `Int` is a value to be **converted** to it.
+
+`prepareArgument` therefore asks `TypeArguments::fillFromRequirements` the moment the position it is
+about to coerce into is still open, *before* binding the argument's own type into it. Binding first
+did what binding always does - saw `k` open, offered `I32` - and the requirement recorded was
+`Index(Array(I32), I32, I32)`, an instance nobody wrote, reported as missing where a widening was all
+that was wanted.
+
+Only the requirement fixpoint runs there. The declared defaults do not: a default is what a position
+means when *nothing* says, and the result hint has not been read at that point - so
+`fillDetermined` stays the pair and `fillFromRequirements` is the half that may run early.
+
+The same rule reaches a **field** requirement, and that changed a diagnostic:
+`fn (a.mark: b) twiceDecided(x: a, other: b)` given a `Marked` and an `I64` now reports the ordinary
+argument mismatch against the `I64` the author wrote, where it used to report that `Marked`'s field
+was the wrong type - a complaint about the subject, for a mistake in the operand beside it.
+
+### `@noinline`, and the one direction a declaration can insist on
+
+`@inline` is a hint this stage records nothing for, `@inline(always)` is a promise the *resolver*
+keeps by grafting the body at the call, and `@noinline` is the promise in the other direction - the
+one of the three that can never be refused, because declining to expand a body is always possible.
+`readInlineAttribute` reads both attributes in one walk, since the contradiction between them is only
+visible to something that has read both; a declaration saying two opposite things has stated no
+intent, so neither answer is taken and the pair is reported.
+
+`resolve_ssa/opt/inline.cpp` is the one reader, and it asks before the numbers rather than after:
+this is a directive and not a weight. Nineteen fixtures in the corpus depend on the boundary
+surviving - a measurement that would otherwise fold into its caller, `ArrayFill`'s opaque index, the
+inliner's own subject - and every one of them was quietly being inlined here.
+
+### What containers still cannot do, measured
+
+Four defects were found by pointing the corpus at the container path once the literal existed. None
+is about the literal. One is fixed - see the section below - and the other three are recorded rather
+than worked around:
+
+  - **A shared `String` element of a container is the owner's address.** `Index(Array(a), Size, a)`
+    hands back `source'a`, and at `a = String` a shared occurrence *is* the view - two words in
+    `StringView`'s layout - while the body produces a borrow of the owner's bytes. The generic body
+    cannot adapt (`a` is open where it is resolved) and the specialization has no body of its own to
+    adapt in, so `xs[0] == "xy"` on a `[String]` compares a view against an owner. It is the erased
+    view ABI rather than a container question: `substitutedContract` turns a *parameter* into the
+    view because the caller adapts, and a **result** at the same rule needs a callee that can produce
+    one. `resolve/SinkCallResult.yana` is the fixture waiting on it.
+  - **A class member reached through a constraint miscompiles a published borrow of a scalar.**
+    `fn (Index(c, k, v), Num(v)) at2(xs: c, a: k) -> v = xs[a] + xs[a]` at `Array(I32)` answers
+    `2 * (8 + 4 * a)` rather than `2 * xs[a]`, specialized or not - a published shared loan of a
+    trivially copyable scalar read as though it were the address it manifests as.
+    `resolve/Bounds.yana` waits on it.
+  - **`lib` declares two plain `capacity`s at arity one** - `Run(a)`'s and `Array(a)`'s -
+    and `doc/spec/overloading.md` R1 lets an overload set hold one. This stage reports the
+    ambiguity, so `prelude/Core/Array.yana` deliberately declares neither and reads the field.
+    `resolve/TypedArray.yana` waits on the library sorting the name out.
+
+### A hand-over is a parameter, and a lending one needs the same temporary
+
+`iter fn lent(n) -> Held: yield make()` left the temporary owned, borrowed by the consumer, and
+released by nobody - reported one tier down as an owner reaching `return` unconsumed, which is where
+it was found.
+
+`yield e` is a call of `$body` and the hand-over is that call's one parameter, so a lending
+convention leaves the *iterator's* frame owing the value's teardown. A value that is only a node
+result has no place for a teardown to name, which is exactly what `holdBorrowed` exists for and what
+every written argument already goes through; `resolveYield` did the two steps before it -
+`adaptToView` and `coerce` - and stopped one short. It calls the same function now, so what a
+borrowing position does to an owner is one answer and not two.
+
+The other three conventions pass through untouched, and by `holdBorrowed`'s own first lines rather
+than by a test here: `-> ->T` hands the value over, so the consumer owns what it received and this
+frame stops owing anything; a hand-over of a type with nothing to run needs no place; a `{}` needs
+neither.
+
+`resolve/IterHandover.yana` is adopted, and answers 23 on both stages.
 
 ### The `Drop`, `Reclaim` and `Copy` classes
 
@@ -2227,6 +2454,29 @@ and `resolveAlternative` see a list and never ask where it came from.
 hand-over, an exclusive one, an owned reason both bound and discarded. Not implemented: `<- R`, the
 resume channel, which needs the wrapper turned round; and a failure type the signature is generic in,
 since `declareOutcome` builds a concrete record.
+
+### What the continuation's parameter is rooted in
+
+A lens call's edge supplies no argument - what arrives at the region's entry is produced *inside* the
+call - so the origin walk's edge rule finds nothing to union into the entry's parameter, and the
+parameter came back rooted in nothing. That is fine for a hand-over the callee built, and wrong for
+every one that is a **window into an argument**.
+
+`for x in items(xs)` is the shape. The traversal borrows `xs`, hands a window into its storage to the
+body, and nothing related the two: `xs`'s last use was the call, so `placeDrops` put its teardown at
+the top of the loop body and released the run the window points into before the first element was
+read. The elements then read whatever the allocator's free list had written over them, which is two
+words of zeroes at the front of the block and everything after it intact - a wrong answer rather than
+a crash.
+
+So `analyze_loan.cpp` maps a `LensCall`'s arguments onto the entry parameter exactly as it maps a
+call's onto its result, with one difference: the slot is read off `Continuation::handover` and not off
+`callee.result`, because an `iter fn`'s declared result is the continuation's *answer* and what is
+handed over is the continuation parameter's type.
+
+The other half is the library's. `class Chunked(c -> a)` has to write `iter fn chunks(self: source'c)
+-> source'[a]`, because a published origin is what there is to map: `lib/Core/Container.yana` writes
+neither tick, and the relation the compiler needs is exactly the one the signature was not stating.
 
 ### `break` and `continue`, in the two places they mean different things
 

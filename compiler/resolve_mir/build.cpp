@@ -1196,10 +1196,18 @@ Node* Builder::addWrite(LocationId source, Place& place, Node& value, Destinatio
          * pre-drop and nothing to release. That the slot is not this frame's changes none of it -
          * `analyze_path` already answers "not this function's to release" for a global root, so the
          * write establishes storage the program owns and no move path is opened for it.
+         *
+         * A **raw address** is the third, and it is the one root for which the claim is a promise
+         * rather than a fact: `Place::Address` is where the checked model stops, so what says the
+         * slot held nothing is whoever produced the pointer. One thing does - a growable array
+         * literal, filling the slots the library just told it are live - and it is the same shape
+         * `analyze_path` already answers for, opening no move path and placing no drop, because
+         * storage reached through a pointer is never this frame's to release.
          */
         auto root = &place;
         while(root->parent) root = base()[root->parent];
-        assertTrue(root->kind == Place::Local || root->kind == Place::Global);
+        assertTrue(root->kind == Place::Local || root->kind == Place::Global ||
+                   root->kind == Place::Address);
     } else {
         assertTrue(place.occurrence.contract.access() != Access::Shared);
     }

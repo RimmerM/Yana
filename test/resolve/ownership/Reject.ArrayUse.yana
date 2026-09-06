@@ -23,9 +23,9 @@ instance Drop(Guard):
 fn total(xs: [I32]) -> I32 = 0
 fn pair(p: [I32 *2]) -> I32 = 0
 fn literals() -> I32:
-    -- A literal takes its length and its element type from the position it is in, and this has
-    -- neither.
-    let none = [1, 2, 3]
+    -- A literal with no position to read a type off is a *growable* array now - `doc/spec/
+    -- expressions.md`'s `[2, 3, 5, 7]` is `[Int]` - so the refusal that used to be here is gone.
+    -- `ownership/Containers.yana` is where the accepted spellings are.
 
     -- The right shape, the wrong length. One element fills the whole array, and any other count has
     -- to be written out - so three at a four-element type is a miscount rather than a fill.

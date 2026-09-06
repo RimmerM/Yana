@@ -30,6 +30,11 @@ U64 constantBits(DeclBase decl, const mir::Constant& constant) {
             // only way one could arrive here is a constant this compiler never built.
             assertTrue(false);
             return 0;
+        case mir::Constant::Address:
+            // Never reached: an address has no bits until the image is placed, so `materialize`
+            // writes a relocation for one and this - which answers a *number* - is not asked.
+            assertTrue(false);
+            return 0;
         case mir::Constant::Float: {
             // The constant holds the `double` pattern whatever the declared width, because the width
             // is the target's answer and this is the first place that has it.
@@ -60,9 +65,34 @@ U64 constantBits(DeclBase decl, const mir::Constant& constant) {
  * The destination arrives **zeroed**, so padding and the payload an arm does not use stay zero
  * without this having to say anything about either.
  */
-void materialize(Layout layout, DeclBase decl, const mir::Occurrence& occurrence,
-                 const mir::Constant& constant, Byte* into) {
+void Lowering::materialize(const mir::Occurrence& occurrence, const mir::Constant& constant,
+                           LowerGlobal* owner, Byte* into) {
     auto manifest = manifestNative(layout, occurrence);
+
+    /*
+     * The address of another global - zero bytes now, and a relocation saying who fills them.
+     *
+     * `anchorRelative` clear, because this is the *program's* own pointer type rather than a slot
+     * in a compiler-built table: it is the target's full width and absolute, and stays unknown
+     * until the image is mapped. `LowerDataRelocation` is where the pair is argued.
+     *
+     * A null owner is the scratch buffer a co-packed field is built in, and an address cannot be
+     * there: a relocation names a byte offset inside a global's contents, and a pointer that shares
+     * a word with its neighbours has no such offset to name. Nothing produces one - a `@bits(n)`
+     * refinement is an integer - so this is an internal invariant rather than a diagnostic.
+     */
+    if(constant.kind == mir::Constant::Address) {
+        assertTrue(owner != nullptr);
+
+        auto found = globals.getValue(constant.asGlobal().offset);
+        assertTrue(found.isJust());
+
+        owner->relocations.push(to.arena, LowerDataRelocation {
+            U32(into - owner->initialContents.ptr), false, nullptr, found.unwrap()
+        });
+
+        return;
+    }
 
     if(constant.kind != mir::Constant::Aggregate) {
         auto bits = constantBits(decl, constant);
@@ -78,7 +108,7 @@ void materialize(Layout layout, DeclBase decl, const mir::Occurrence& occurrence
         auto stride = strideOf(manifestNative(layout, element));
 
         for(U32 i = 0; i < parts.values.size(); i++) {
-            materialize(layout, decl, element, parts.values.get(decl, i), into + i * stride);
+            materialize(element, parts.values.get(decl, i), owner, into + i * stride);
         }
 
         return;
@@ -150,7 +180,7 @@ void materialize(Layout layout, DeclBase decl, const mir::Occurrence& occurrence
          */
         if(held.isPacked()) {
             Byte bits[8] = {};
-            materialize(layout, decl, field.occurrence, value, bits);
+            materialize(field.occurrence, value, nullptr, bits);
 
             U64 held64 = 0;
             for(U32 b = 0; b < 8; b++) held64 |= U64(U8(bits[b])) << (b * 8);
@@ -159,7 +189,7 @@ void materialize(Layout layout, DeclBase decl, const mir::Occurrence& occurrence
             continue;
         }
 
-        materialize(layout, decl, field.occurrence, value, into + held.offset);
+        materialize(field.occurrence, value, owner, into + held.offset);
     }
 }
 
@@ -185,14 +215,14 @@ LowerPtr<LowerGlobal> Lowering::placeConstant(const mir::Constant& constant,
     auto name = erasedName(Tritium::format("constant$%@", U64(placedConstantCount++)));
 
     auto global = addTable(name, manifest.size);
-    materialize(layout, decl, occurrence, constant, global->initialContents.ptr);
+    materialize(occurrence, constant, global, global->initialContents.ptr);
 
     auto handle = global - lower;
     placedConstants.add(key, handle);
     return handle;
 }
 
-void Lowering::lowerGlobal(DeclPtr<mir::Global> pointer) {
+void Lowering::declareGlobal(DeclPtr<mir::Global> pointer) {
     auto source = decl[pointer];
     auto target = new (to.arena) LowerGlobal(source->name);
 
@@ -206,15 +236,18 @@ void Lowering::lowerGlobal(DeclPtr<mir::Global> pointer) {
     target->initialContents = ByteBuffer((Byte*)to.arena.alloc(manifest.size), manifest.size);
     set(target->initialContents.ptr, manifest.size, 0);
 
-    if(source->initial.isSet()) {
-        materialize(layout, decl, source->occurrence, source->initial,
-                    target->initialContents.ptr);
-    }
-
     auto handle = target - lower;
     globals.add(pointer.offset, handle);
     to.globals.add(source->name, handle);
     to.globalOrder.push(handle);
+}
+
+void Lowering::fillGlobal(DeclPtr<mir::Global> pointer) {
+    auto source = decl[pointer];
+    if(!source->initial.isSet()) return;
+
+    auto target = lower[globals.getValue(pointer.offset).unwrap()];
+    materialize(source->occurrence, source->initial, target, target->initialContents.ptr);
 }
 
 LowerValue* Lowering::mapped(SsaPtr<Value> value) {
@@ -512,12 +545,26 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
 }
 
 void Lowering::run() {
-    // Globals first: a function's first instruction may take the address of one, and the module
-    // resolves that by name.
+    /*
+     * Globals first: a function's first instruction may take the address of one, and the module
+     * resolves that by name.
+     *
+     * **Declared before any is filled**, which is what lets an initializer name another global: the
+     * bytes of a string literal are a global of their own, minted while the initializer that points
+     * at them was being resolved, so it comes *after* its referrer in declaration order. One pass
+     * would have had to materialize a relocation naming a global that did not exist yet.
+     */
     for(auto modulePointer: program.modules) {
         auto module = decl[modulePointer];
         for(auto globalPointer: module->globals.contents(decl)) {
-            if(decl[globalPointer]->reachable) lowerGlobal(globalPointer);
+            if(decl[globalPointer]->reachable) declareGlobal(globalPointer);
+        }
+    }
+
+    for(auto modulePointer: program.modules) {
+        auto module = decl[modulePointer];
+        for(auto globalPointer: module->globals.contents(decl)) {
+            if(decl[globalPointer]->reachable) fillGlobal(globalPointer);
         }
     }
 

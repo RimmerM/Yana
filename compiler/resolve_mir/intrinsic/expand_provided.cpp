@@ -1,4 +1,5 @@
 #include "expand_internal.h"
+#include "../fold.h"
 
 namespace mir {
 
@@ -120,6 +121,22 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
         return builder.addUnary(source, op, *arguments[0]);
     };
 
+    /*
+     * The rows that are one operation, out of the table `fold.h` holds - `providedOperation`.
+     *
+     * A table rather than five switches here, because the *constant* folder asks the same question:
+     * a member that built an `Add` in a body and folded as something else in a constant position
+     * would be two answers to "what does `Num.+` compute", and that is exactly the disagreement one
+     * table prevents. What stays below is every row that is not one operation.
+     */
+    BinaryOp binaryOp;
+    UnaryOp unaryOp;
+    bool isBinary;
+
+    if(providedOperation(role, member, binaryOp, unaryOp, isBinary)) {
+        return isBinary ? binary(binaryOp) : unary(unaryOp);
+    }
+
     switch(role) {
         /*
          * `fromInt` and `fromDecimal` - a constant argument folds to a constant of the instance's
@@ -166,48 +183,6 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
             return builder.addConvert(source, argument, type);
         }
 
-        case Provided::eq:
-            return binary(member == 0 ? BinaryOp::Eq : BinaryOp::Ne);
-
-        case Provided::ord:
-            switch(member) {
-                case 0: return binary(BinaryOp::Lt);
-                case 1: return binary(BinaryOp::Le);
-                case 2: return binary(BinaryOp::Gt);
-                case 3: return binary(BinaryOp::Ge);
-            }
-            break;
-
-        case Provided::num:
-            switch(member) {
-                case 0: return binary(BinaryOp::Add);
-                case 1: return binary(BinaryOp::Sub);
-                case 2: return binary(BinaryOp::Mul);
-                case 3: return binary(BinaryOp::Div);
-                case 4: return unary(UnaryOp::Neg);
-            }
-            break;
-
-        case Provided::bitwise:
-            switch(member) {
-                case 0: return binary(BinaryOp::And);
-                case 1: return binary(BinaryOp::Or);
-                case 2: return binary(BinaryOp::Xor);
-                case 3: return unary(UnaryOp::Not);
-            }
-            break;
-
-        case Provided::integral:
-            switch(member) {
-                case 0: return binary(BinaryOp::Rem);
-                case 1: return binary(BinaryOp::Shl);
-                case 2: return binary(BinaryOp::Shr);
-                case 3: return binary(BinaryOp::Sar);
-                case 4: return binary(BinaryOp::Rol);
-                case 5: return binary(BinaryOp::Ror);
-            }
-            break;
-
         /*
          * `Bits` - three counts, `bzhi`, and the one member that is not an instruction.
          *
@@ -229,11 +204,6 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
          */
         case Provided::bits:
             switch(member) {
-                case 0: return unary(UnaryOp::CountBits);
-                case 1: return unary(UnaryOp::LeadingZeros);
-                case 2: return unary(UnaryOp::TrailingZeros);
-                case 3: return binary(BinaryOp::BitsUpTo);
-
                 case 4: {
                     assertTrue(count == 1);
                     auto& integer = *(IntType*)builder.declBase()[type];
@@ -342,6 +312,16 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
             }
             break;
 
+        /*
+         * The rows `providedOperation` above answered whole - listed rather than defaulted, because
+         * `-Wswitch` naming every row is what makes this table's completeness checkable, and a
+         * `default` here would silently swallow the next row somebody adds.
+         */
+        case Provided::eq:
+        case Provided::ord:
+        case Provided::num:
+        case Provided::bitwise:
+        case Provided::integral:
         case Provided::Count:
             break;
     }

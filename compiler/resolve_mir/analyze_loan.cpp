@@ -810,6 +810,67 @@ void Analysis::computeOrigins() {
                     break;
                 }
 
+                /*
+                 * A lens call, whose result arrives at the **continuation's parameter** rather than
+                 * at this node.
+                 *
+                 * The same mapping the ordinary call above makes, and it has to be here rather than
+                 * with the edges below: what travels this edge is produced inside the callee, so the
+                 * terminator supplies no argument for the entry's parameter to be rooted in and the
+                 * edge walk finds nothing to union. `Builder::addLensCall` says as much where it
+                 * fills the edge by hand.
+                 *
+                 * The slot is read off `Continuation::handover` and not off `callee.result`, which
+                 * is the one difference from a call: an `iter fn`'s declared result is the
+                 * continuation's answer - `$r` - and what is handed over is the continuation
+                 * *parameter's* type, which is what the region records.
+                 *
+                 * Without it a container is dead the moment the traversal starts. `for x in
+                 * items(xs)` borrows `xs`, hands a window into its storage to the body, and nothing
+                 * relates the two - so the container's last use is the call, and `placeDrops` puts
+                 * its teardown at the top of the loop body, releasing the run the window points
+                 * into before the first element is read.
+                 */
+                case Node::LensCall:
+                case Node::LensTry: {
+                    auto& call = (NodeLensCall&)node;
+                    if(!call.to.target) break;
+
+                    auto entry = base[call.to.target];
+                    auto region = body.region(base, call.region);
+                    if(!region || !entry->arguments.size()) break;
+
+                    // The handover is argument zero of the entry, which is where `handoverCall`
+                    // declares it - before any carried value, since the block is made for it.
+                    auto parameter = base[entry->arguments.get(base, 0)];
+                    auto positions = valuePositions(parameter->id);
+                    if(!positions) break;
+
+                    auto& callee = *decl[call.callee];
+                    auto arguments = call.arguments.contents(base);
+                    auto changed = false;
+
+                    for(U32 p = 0; p < positions; p++) {
+                        auto slot = originSlotAt(decl, region->handover, p);
+                        if(slot == kNoOriginSlot) continue;
+
+                        auto into = originsOfValue(parameter->id, p);
+
+                        for(U32 i = 0; i < arguments.size(); i++) {
+                            auto& declared = *decl[callee.args.get(decl, i)];
+
+                            forEachOperandOrigin(cursor, *arguments.pointerAt(i),
+                                                 [&](U32 at, const U64* row) {
+                                if(originSlotAt(decl, declared.occurrence, at) != slot) return;
+                                changed = BitMatrix::unionInto(into, row, loanWords) || changed;
+                            });
+                        }
+                    }
+
+                    if(changed) wake(entry->index.index);
+                    break;
+                }
+
                 default:
                     break;
             }

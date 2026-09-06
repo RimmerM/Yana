@@ -369,8 +369,8 @@ bb0:
   %38: I32 trivial = const 0
   jump -> bb1(inspect %23, inspect %24)
 
-bb1(%311: I32 trivial, %312: I32 trivial):
-  %28: Bool trivial = lt inspect %312 inspect %25
+bb1(%309: I32 trivial, %310: I32 trivial):
+  %28: Bool trivial = lt inspect %310 inspect %25
   branch inspect %28 -> bb4 -> bb3
 
 bb3:
@@ -381,15 +381,16 @@ bb3:
   branch inspect %35 -> bb7 -> bb5
 
 bb4:
-  %40: I32 trivial = call grown borrow %38
-  %41: I32 trivial = add inspect %311 inspect %40
-  %30: I32 trivial = add inspect %312 inspect %26
+  %39: I32 trivial = call opaque borrow %38
+  %40: I32 trivial = call grown borrow %39
+  %41: I32 trivial = add inspect %309 inspect %40
+  %30: I32 trivial = add inspect %310 inspect %26
   jump -> bb1(inspect %41, inspect %30)
 
 bb5:
   %44: I32 trivial = const 10
   %45: I32 trivial = mul inspect %20 inspect %44
-  %46: Bool trivial = ne inspect %311 inspect %45
+  %46: Bool trivial = ne inspect %309 inspect %45
   branch inspect %46 -> bb10 -> bb8
 
 bb7:
@@ -622,39 +623,39 @@ bb25:
   return consume %272
 
 bb26:
-  %279: %String address = alloc frame String
-  %280: %[CodeUnit *4] address = global.addr string'5
-  %281: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %280
-  %282: %[CodeUnit *4] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %281
-  %283: %CodeUnit trivial = bitcast inspect %282
-  %284: Size trivial = const 4
-  %285: U32 trivial = convert inspect %284
-  %286: @bits(30) U32 trivial = convert inspect %285
-  %287: %U32 address = global.addr runBorrowed
-  %288: U32 trivial = load inspect %287
-  %289: @bits(2) U32 trivial = convert inspect %288
-  %290: Run(CodeUnit) owned = aggregate.Run consume %283 consume %286 consume %289
-  %291: U32 trivial = convert inspect %284
-  %292: @bits(30) U32 trivial = convert inspect %291
-  %293: Array(CodeUnit) owned = aggregate.Array consume %290 consume %292
-  %294: String owned = aggregate.String consume %293
-  store inspect %279 consume %294
-  %295: String [shared slot 0] guaranteed from{%279} = load inspect %279
-  %296: %Array(CodeUnit) address = field.addr .units inspect %295
-  %297: %Run(CodeUnit) address = field.addr .run inspect %296
-  %298: %%CodeUnit address = field.addr .items inspect %297
-  %299: %CodeUnit trivial = load inspect %298
-  %300: %@bits(30) U32 address = field.addr .length inspect %296
-  %301: @bits(30) U32 trivial = load inspect %300
-  %302: U32 trivial = convert inspect %301
-  %303: Size trivial = convert inspect %302
-  %304: StringView trivial = aggregate.StringView consume %299 consume %303
-  %305: String [shared slot 0 view] guaranteed = represent inspect %304
-  %306: %Size address = field.addr .length inspect %305
-  %307: Size trivial = load inspect %306
-  drop String inspect %279
-  %308: I32 trivial = convert inspect %307
-  %275: I32 trivial = add inspect %20 inspect %308
+  %277: %String address = alloc frame String
+  %278: %[CodeUnit *4] address = global.addr string'5
+  %279: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %278
+  %280: %[CodeUnit *4] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %279
+  %281: %CodeUnit trivial = bitcast inspect %280
+  %282: Size trivial = const 4
+  %283: U32 trivial = convert inspect %282
+  %284: @bits(30) U32 trivial = convert inspect %283
+  %285: %U32 address = global.addr runBorrowed
+  %286: U32 trivial = load inspect %285
+  %287: @bits(2) U32 trivial = convert inspect %286
+  %288: Run(CodeUnit) owned = aggregate.Run consume %281 consume %284 consume %287
+  %289: U32 trivial = convert inspect %282
+  %290: @bits(30) U32 trivial = convert inspect %289
+  %291: Array(CodeUnit) owned = aggregate.Array consume %288 consume %290
+  %292: String owned = aggregate.String consume %291
+  store inspect %277 consume %292
+  %293: String [shared slot 0] guaranteed from{%277} = load inspect %277
+  %294: %Array(CodeUnit) address = field.addr .units inspect %293
+  %295: %Run(CodeUnit) address = field.addr .run inspect %294
+  %296: %%CodeUnit address = field.addr .items inspect %295
+  %297: %CodeUnit trivial = load inspect %296
+  %298: %@bits(30) U32 address = field.addr .length inspect %294
+  %299: @bits(30) U32 trivial = load inspect %298
+  %300: U32 trivial = convert inspect %299
+  %301: Size trivial = convert inspect %300
+  %302: StringView trivial = aggregate.StringView consume %297 consume %301
+  %303: String [shared slot 0 view] guaranteed = represent inspect %302
+  %304: %Size address = field.addr .length inspect %303
+  %305: Size trivial = load inspect %304
+  drop String inspect %277
+  %306: I32 trivial = convert inspect %305
+  %275: I32 trivial = add inspect %20 inspect %306
   return consume %275
 
 bb28:

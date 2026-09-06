@@ -1,7 +1,52 @@
 
+opaqueFloat<complex>(%x: F32): F32 {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueInt<complex>(%x: I32): I32 {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueDouble<complex>(%x: F64): F64 {
+  b_0 {
+    ret %x
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
-    ret 4095
+    %v_1 = call_complex opaqueFloat, 1: F32
+    %v_2 = bitcast %v_1: I32
+    %v_3 = cmp_eq %v_2, 1065353216: I32
+    %v_4 = select %v_3, 127, 63: I32
+    %v_5 = call_complex opaqueInt, 1065353216: I32
+    %v_6 = bitcast %v_5: F32
+    %v_7 = cmp_eq %v_6, 1: I32
+    %v_8 = add %v_4, 128: I32
+    %v_9 = select %v_7, %v_8, %v_4: I32
+    %v_10 = call_complex opaqueFloat, -2.5: F32
+    %v_11 = cmp_eq %v_10, -2.5: I32
+    %v_12 = add %v_9, 256: I32
+    %v_13 = select %v_11, %v_12, %v_9: I32
+    %v_14 = call_complex opaqueInt, 18446744073709551615: I32
+    %v_15 = call_complex opaqueInt, 2147483647: I32
+    %v_16 = cmp_gt %v_14, %v_15: I32
+    %v_17 = add %v_13, 512: I32
+    %v_18 = select %v_16, %v_17, %v_13: I32
+    %v_19 = call_complex opaqueInt, 1: I32
+    %v_20 = cmp_eq %v_19, 1: I32
+    %v_21 = add %v_18, 1024: I32
+    %v_22 = select %v_20, %v_21, %v_18: I32
+    %v_23 = call_complex opaqueDouble, 1: F64
+    %v_24 = bitcast %v_23: I64
+    %v_25 = cmp_eq %v_24, 4607182418800017408: I32
+    %v_26 = add %v_22, 2048: I32
+    %v_27 = select %v_25, %v_26, %v_22: I32
+    ret %v_27
   }
 }
 

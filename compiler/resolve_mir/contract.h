@@ -209,6 +209,24 @@ struct Request {
     U16 origin = kNoOriginSlot;
 
     /*
+     * Whether the position holds the value itself or a **window** into somebody else's - the
+     * `AccessForm` of the contract this was read from.
+     *
+     * Beside `published` rather than folded into it, because the two answer different questions and
+     * one of them is not about ownership at all. `published` decides whether a trivial copy
+     * satisfies the position, and a view is one of three things that make it false; this decides
+     * what a *construction* filling the position builds, and only the view answers it.
+     *
+     * One thing asks, and it is the one construction with two forms: `[1, 2, 3]` at `xs: [T]` is a
+     * description of storage the caller keeps, so it builds a `[T *3]` and hands back a window of
+     * it, and the same literal at a position that holds the container builds a growable array. The
+     * spec calls that "decided by the expected type and by nothing else", and the expected type of
+     * a window and of an owner is the same type - `Array(T)` - so the form is where the difference
+     * actually is.
+     */
+    AccessForm form = AccessForm::WholeValue;
+
+    /*
      * What the position says about the value's **interior** - `Maybe('v)`'s payload.
      *
      * The three fields above describe the root and this describes what is inside it, which is the
@@ -246,7 +264,7 @@ inline Request requestOf(Contract contract) {
                      (contract.access() == Access::Unique && contract.origin() != Origin::Here) ||
                      contract.form() == AccessForm::View;
 
-    return Request { contract.access(), published, contract.originSlot() };
+    return Request { contract.access(), published, contract.originSlot(), contract.form() };
 }
 
 /*

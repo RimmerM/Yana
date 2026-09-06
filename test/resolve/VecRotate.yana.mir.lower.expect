@@ -1,5 +1,24 @@
 mut @counter = [0, 0, 0, 0]
 
+opaque<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = loads @counter, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @counter, %v_2, 4
+    %v_3 = loads @counter, 4: I32
+    %v_4 = cmp_igt %v_3, 1000: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    ret %n
+  }
+
+  b_5 {
+    ret 1
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 18446744071821328129: i32x4
@@ -55,27 +74,22 @@ main<complex>(): I32 {
     %v_51 = vlane %v_50, 0: I32
     %v_52 = cmp_eq %v_51, 18446744071821328129: I32
     %v_53 = add %v_47, %v_52: I32
-    %v_54 = loads @counter, 4: I32
-    %v_55 = add %v_54, 1: I32
-    store @counter, %v_55, 4
-    %v_56 = loads @counter, 4: I32
-    %v_57 = cmp_igt %v_56, 1000: I32
-    %v_58 = select %v_57, 1, 2: I32
-    %v_59 = vsplat %v_58: i32x4
-    %v_60 = rol %v_3, %v_59: i32x4
-    %v_61 = vlane %v_60, 0: I32
-    %v_62 = cmp_eq %v_61, 1221679584: I32
-    %v_63 = add %v_53, %v_62: I32
-    %v_64 = imm 24: I32
-    %v_65 = shl %v_58, %v_64: I32
-    %v_66 = sar %v_65, %v_64: I32
-    %v_67 = vsplat %v_66: i8x16
-    %v_68 = rol %v_2, %v_67: i8x16
-    %v_69 = bitcast %v_68: i32x4
-    %v_70 = vlane %v_69, 0: I32
-    %v_71 = cmp_eq %v_70, 1053687556: I32
-    %v_72 = add %v_63, %v_71: I32
-    ret %v_72
+    %v_54 = call_complex opaque, 2: I32
+    %v_55 = vsplat %v_54: i32x4
+    %v_56 = rol %v_3, %v_55: i32x4
+    %v_57 = vlane %v_56, 0: I32
+    %v_58 = cmp_eq %v_57, 1221679584: I32
+    %v_59 = add %v_53, %v_58: I32
+    %v_60 = imm 24: I32
+    %v_61 = shl %v_54, %v_60: I32
+    %v_62 = sar %v_61, %v_60: I32
+    %v_63 = vsplat %v_62: i8x16
+    %v_64 = rol %v_2, %v_63: i8x16
+    %v_65 = bitcast %v_64: i32x4
+    %v_66 = vlane %v_65, 0: I32
+    %v_67 = cmp_eq %v_66, 1053687556: I32
+    %v_68 = add %v_59, %v_67: I32
+    ret %v_68
   }
 }
 

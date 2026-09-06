@@ -6,7 +6,7 @@ let & counter: I32 = 0
 
 let origin: Point = Point {x: 1, y: 2}
 
-let greeting: String
+let greeting: String = String {units: Array {run: Run {items: &string, capacity: 2, ownsHeap: 0}, length: 2}}
 
 let string: [CodeUnit *2] = [97, 98]
 
@@ -160,44 +160,14 @@ bb0:
   %0: I32 trivial = call seven
   %1: %I32 address = global.addr dynamic
   store inspect %1 consume %0
-  %2: %[CodeUnit *2] address = global.addr string
-  %3: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %2
-  %4: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %3
-  %5: %CodeUnit trivial = bitcast inspect %4
-  %6: Size trivial = const 2
-  jump -> bb1
-
-bb1:
-  %8: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %9: %Size address = alloc frame Size [shared call]
-  store inspect %8 borrow %5
-  store inspect %9 borrow %6
-  %10: %CodeUnit trivial = load inspect %8
-  %11: Size trivial = load inspect %9
-  %12: U32 trivial = convert inspect %11
-  %13: @bits(30) U32 trivial = convert inspect %12
-  %14: %U32 address = global.addr runBorrowed
-  %15: U32 trivial = load inspect %14
-  %16: @bits(2) U32 trivial = convert inspect %15
-  %17: Run(CodeUnit) owned = aggregate.Run consume %10 consume %13 consume %16
-  %18: Size trivial = load inspect %9
-  %19: U32 trivial = convert inspect %18
-  %20: @bits(30) U32 trivial = convert inspect %19
-  %21: Array(CodeUnit) owned = aggregate.Array consume %17 consume %20
-  %22: String owned = aggregate.String consume %21
-  jump -> bb2(consume %22)
-
-bb2(%7: String owned):
-  %23: %String address = global.addr greeting
-  store inspect %23 consume %7
-  %24: %I32 address = global.addr counter
-  %25: I32 trivial = load inspect %24
-  %26: I32 trivial = const 20
-  %27: I32 trivial = add inspect %25 inspect %26
-  %28: %I32 address = global.addr counter
-  store inspect %28 consume %27
-  %29: I32 trivial = call main
-  return consume %29
+  %2: %I32 address = global.addr counter
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 20
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr counter
+  store inspect %6 consume %5
+  %7: I32 trivial = call main
+  return consume %7
 }
 
 entry main$

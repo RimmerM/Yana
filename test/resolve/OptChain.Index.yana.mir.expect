@@ -1,0 +1,182 @@
+module ResolveTest
+
+fn maybeArr(n: I32 [shared call]) -> Maybe(Array(I32)) {
+  local & local1: Array(I32)
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %27: Maybe(Array(I32)) = aggregate.Nothing
+  return take %27
+
+bb3:
+  %4: I32 = read copy.trivial (n)
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = const 2
+  %7: I32 = mul inspect %5 inspect %6
+  %8: I32 = read copy.trivial (n)
+  %9: I32 = const 3
+  %10: I32 = mul inspect %8 inspect %9
+  %11: Size = const 3
+  %12: Array(I32) = call literalArray(I32) borrow.shared %11
+  write.init borrow.unique (local1) take %12
+  %14: Array(I32) [unique slot 0] = read borrow.unique (local1) loan0
+  %15: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %14 roots{0}
+  %16: %I32 [owned here shape1 .*=shared slot 0] = call valuesMut(I32) borrow.unique %15 roots.0{0}
+  %17: Size = const 0
+  write.init borrow.unique ([%%16][0]) take %4
+  %19: Size = const 1
+  write.init borrow.unique ([%%16][1]) take %7
+  %21: Size = const 2
+  write.init borrow.unique ([%%16][2]) take %10
+  %23: Array(I32) = read take (local1)
+  %24: Maybe(Array(I32)) = aggregate.Just take %23
+  return take %24
+}
+
+fn indexed(n: I32 [shared call]) -> Maybe(I32) {
+  local local1: Outcome(Array(I32), {}) object1
+  local local2: Array(I32) object1
+  local local3: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Maybe(Array(I32)) = call maybeArr borrow.shared %0
+  %2: Outcome(Array(I32), {}) = call toOutcome(Maybe(Array(I32)), Array(I32), {}) take %1
+  write.init borrow.unique (local1) take %2
+  %4: U8 = read copy.trivial (local1.#)
+  %5: U8 = const 1
+  %6: Bool = eq inspect %4 inspect %5
+  %7: Bool = not inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb1(%20: Maybe(I32)):
+  return take %20
+
+bb2:
+  drop (local1)
+  %18: {} = const {}
+  %19: Maybe(I32) = call fromExit(Maybe(I32), I32, {}) take {}
+  jump -> bb1(take %19)
+
+bb3:
+  %9: Array(I32) = read take (local1.Proceed)
+  write.init borrow.unique (local2) take %9
+  %11: Size = const 1
+  %12: Array(I32) [shared call] = read borrow.shared (local2) loan0
+  %13: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %12 roots{0}
+  %14: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %13 borrow.shared %11 roots{0}
+  write.init borrow.unique (local3) borrow.shared %14
+  %16: I32 = read copy.trivial (local3)
+  drop (local2)
+  %17: Maybe(I32) = call rewrap(Maybe(Array(I32)), I32, Maybe(I32)) take %16
+  jump -> bb1(take %17)
+}
+
+fn sum(n: I32 [shared call]) -> Maybe(I32) {
+  local local1: Outcome(Array(I32), {}) object1
+  local local2: Array(I32) object1
+  local local3: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Maybe(Array(I32)) = call maybeArr borrow.shared %0
+  %2: Outcome(Array(I32), {}) = call toOutcome(Maybe(Array(I32)), Array(I32), {}) take %1
+  write.init borrow.unique (local1) take %2
+  %4: U8 = read copy.trivial (local1.#)
+  %5: U8 = const 1
+  %6: Bool = eq inspect %4 inspect %5
+  %7: Bool = not inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb1(%20: Maybe(I32)):
+  return take %20
+
+bb2:
+  drop (local1)
+  %18: {} = const {}
+  %19: Maybe(I32) = call fromExit(Maybe(I32), I32, {}) take {}
+  jump -> bb1(take %19)
+
+bb3:
+  %9: Array(I32) = read take (local1.Proceed)
+  write.init borrow.unique (local2) take %9
+  %11: Size = const 0
+  %12: Array(I32) [shared call] = read borrow.shared (local2) loan0
+  %13: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %12 roots{0}
+  %14: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %13 borrow.shared %11 roots{0}
+  write.init borrow.unique (local3) borrow.shared %14
+  %16: I32 = read copy.trivial (local3)
+  drop (local2)
+  %17: Maybe(I32) = call rewrap(Maybe(Array(I32)), I32, Maybe(I32)) take %16
+  jump -> bb1(take %17)
+}
+
+fn unwrapOr(m: Maybe(I32) [shared call], fallback: I32 [shared call]) -> I32 {
+  local v: I32
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (fallback)
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %4: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %4
+  %6: I32 = read copy.trivial (v)
+  jump -> bb2(take %6)
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+  local d: I32
+
+bb0:
+  %0: I32 = const 4
+  %1: Maybe(I32) = call indexed borrow.shared %0
+  %2: I32 = const 0
+  %3: I32 = call unwrapOr borrow.shared %1 borrow.shared %2
+  write.init borrow.unique (a) take %3
+  %5: I32 = const -1
+  %6: Maybe(I32) = call indexed borrow.shared %5
+  %7: I32 = const 0
+  %8: I32 = call unwrapOr borrow.shared %6 borrow.shared %7
+  write.init borrow.unique (b) take %8
+  %10: I32 = const 5
+  %11: Maybe(I32) = call sum borrow.shared %10
+  %12: I32 = const 0
+  %13: I32 = call unwrapOr borrow.shared %11 borrow.shared %12
+  write.init borrow.unique (c) take %13
+  %15: I32 = const -1
+  %16: Maybe(I32) = call sum borrow.shared %15
+  %17: I32 = const 0
+  %18: I32 = call unwrapOr borrow.shared %16 borrow.shared %17
+  write.init borrow.unique (d) take %18
+  %20: I32 = read copy.trivial (a)
+  %21: I32 = read copy.trivial (b)
+  %22: I32 = add inspect %20 inspect %21
+  %23: I32 = read copy.trivial (c)
+  %24: I32 = add inspect %22 inspect %23
+  %25: I32 = read copy.trivial (d)
+  %26: I32 = add inspect %24 inspect %25
+  return take %26
+}
+
+entry main

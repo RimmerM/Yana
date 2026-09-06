@@ -107,10 +107,8 @@ bb0:
 
 fn saturatedAtRuntime() -> I32 {
 bb0:
-  %11: F64 trivial = const 0
-  %12: F64 trivial = const 0
-  %13: F64 trivial = div inspect %11 inspect %12
-  %2: I32 trivial = convert inspect %13
+  %1: F64 trivial = call notANumber
+  %2: I32 trivial = convert inspect %1
   %3: I32 trivial = const 0
   %4: Bool trivial = eq inspect %2 inspect %3
   branch inspect %4 -> bb3 -> bb1
@@ -123,10 +121,8 @@ bb2(%0: I32 trivial):
   return consume %0
 
 bb3:
-  %14: F64 trivial = const 1
-  %15: F64 trivial = const 0
-  %16: F64 trivial = div inspect %14 inspect %15
-  %7: I32 trivial = convert inspect %16
+  %6: F64 trivial = call infinite
+  %7: I32 trivial = convert inspect %6
   %8: I32 trivial = const 2147483647
   %9: Bool trivial = eq inspect %7 inspect %8
   branch inspect %9 -> bb4 -> bb1
@@ -151,7 +147,7 @@ bb0:
 
 fn main() -> I32 {
 bb0:
-  %77: I32 trivial = const 60
+  %73: I32 trivial = const 60
   %34: F64 trivial = const 1E30
   %35: I32 trivial = convert inspect %34
   %36: I32 trivial = const 2147483647
@@ -174,43 +170,39 @@ bb6:
   jump -> bb7(consume %43)
 
 bb7(%33: I32 trivial):
-  %19: I32 trivial = add inspect %77 inspect %33
-  %46: F64 trivial = const 0
-  %47: F64 trivial = const 0
-  %48: F64 trivial = div inspect %46 inspect %47
-  %49: I32 trivial = convert inspect %48
-  %50: I32 trivial = const 0
-  %51: Bool trivial = eq inspect %49 inspect %50
-  branch inspect %51 -> bb11 -> bb12
+  %19: I32 trivial = add inspect %73 inspect %33
+  %46: F64 trivial = call notANumber
+  %47: I32 trivial = convert inspect %46
+  %48: I32 trivial = const 0
+  %49: Bool trivial = eq inspect %47 inspect %48
+  branch inspect %49 -> bb11 -> bb12
 
 bb11:
-  %52: F64 trivial = const 1
-  %53: F64 trivial = const 0
-  %54: F64 trivial = div inspect %52 inspect %53
-  %55: I32 trivial = convert inspect %54
-  %56: I32 trivial = const 2147483647
-  %57: Bool trivial = eq inspect %55 inspect %56
-  branch inspect %57 -> bb13 -> bb12
+  %50: F64 trivial = call infinite
+  %51: I32 trivial = convert inspect %50
+  %52: I32 trivial = const 2147483647
+  %53: Bool trivial = eq inspect %51 inspect %52
+  branch inspect %53 -> bb13 -> bb12
 
 bb12:
-  %58: I32 trivial = const 0
-  jump -> bb14(consume %58)
+  %54: I32 trivial = const 0
+  jump -> bb14(consume %54)
 
 bb13:
-  %59: I32 trivial = const 50
-  jump -> bb14(consume %59)
+  %55: I32 trivial = const 50
+  jump -> bb14(consume %55)
 
 bb14(%45: I32 trivial):
   %21: I32 trivial = add inspect %19 inspect %45
-  %60: F64 trivial = const 1
-  %61: F64 trivial = const 0
-  %62: F64 trivial = div inspect %60 inspect %61
-  %63: F64 trivial = const 1000000
-  %64: Bool trivial = gt inspect %62 inspect %63
-  %65: I32 trivial = const 20
-  %66: I32 trivial = const 0
-  %67: I32 trivial = select inspect %64 inspect %65 inspect %66
-  %23: I32 trivial = add inspect %21 inspect %67
+  %56: F64 trivial = const 1
+  %57: F64 trivial = const 0
+  %58: F64 trivial = div inspect %56 inspect %57
+  %59: F64 trivial = const 1000000
+  %60: Bool trivial = gt inspect %58 inspect %59
+  %61: I32 trivial = const 20
+  %62: I32 trivial = const 0
+  %63: I32 trivial = select inspect %60 inspect %61 inspect %62
+  %23: I32 trivial = add inspect %21 inspect %63
   return consume %23
 }
 

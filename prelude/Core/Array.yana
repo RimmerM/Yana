@@ -71,6 +71,18 @@ instance (n: Int) Length([a *n]):
 @inline(always)
 pub fn values(self: source'[a]) -> %source'a = self.items
 
+{-
+   The same address for a caller that may **write** through it - `values`' unique half.
+
+   Two functions rather than one, because the capability is on the *window* and not on the pointer:
+   `%source'a` says which storage it points into and nothing about what may be done there, so what
+   decides whether a store through it is legal is the loan the window was read under. A shared one
+   is what every element accessor takes; this is what a literal fills its slots through, and what
+   `known.def`'s `elementBase` role names.
+-}
+@builtin(elementBase) @inline(always)
+pub fn valuesMut(&self: source'[a]) -> %source'a = self.items
+
 instance Index(Array(a), Size, a):
     @inline(always) fn get(self: source'[a], index: Size) -> source'a:
         if (bitcast(index) :: USize) >= (bitcast(self.length) :: USize) then checkFailed()
@@ -122,6 +134,28 @@ pub fn sliceMut(&self: source'[a], from: Size, to: Size) -> &source'[a]:
    pointer, and its count is the type's - `n :: Size` is the constant `length` on a fixed array
    answers, with no window built at all.
 -}
+{-
+   The runs, which for a contiguous container is one run - `lib/Core/Container.yana`'s two
+   `Chunked` instances, verbatim.
+
+   One `yield` of the whole window, so `for x in items(xs)` over an array is the chunk loop with a
+   single iteration and the element loop inside it, and every pass between here and the backend sees
+   the shape it would have seen if the loop had been written by hand.
+
+   The array's yields `self` where `lib/Core/Container.yana` yields `elements(self)`, and that is
+   this stage's model showing rather than a shortcut: `self: [a]` **is** the window here - `Array(a)`
+   under a view contract - so there is nothing left to derive, and calling the owner's `elements` on
+   one would hand a view to a position that holds the container. A fixed array is the case that does
+   have something to derive, and it calls the derivation.
+-}
+instance Chunked(Array(a), a):
+    iter fn chunks(self: source'[a]) -> source'[a]:
+        yield self
+
+instance (n: Int) Chunked([a *n], a):
+    iter fn chunks(self: source'[a *n]) -> source'[a]:
+        yield elements(self)
+
 instance Contiguous(Array(a), a):
     @inline(always) fn elements(self: source'Array(a)) -> source'[a] =
         ArrayView {items: self.run.items, length: truncate(self.length) :: Size}
@@ -151,6 +185,17 @@ pub fn emptyArray() -> Array(a) = Array {run: emptyRun(), length: 0}
 
 pub fn ofCapacity(capacity: Size) -> Array(a) = Array {run: newRun(capacity), length: 0}
 
+{-
+   **`capacity(self: Array(a))` is deliberately not here**, and `lib/Core/Array.native.yana` has one.
+
+   `doc/spec/overloading.md` R1 keys an overload set by `(name, arity)` and lets it hold at most one
+   plain function, and `Native.capacity` is already a one-argument `capacity`. Declaring the array's
+   beside it makes the name ambiguous in every module that imports both - which is what the real
+   library does today and what the shipping stage does not report. Recorded rather than worked
+   around: the name is the library's to sort out, and `self.run.capacity` is what this file reads in
+   the meantime.
+-}
+
 pub fn reserve(&self: Array(a), wanted: Size):
     if wanted <= capacity(self.run) then return
     let room = capacity(self.run)
@@ -159,11 +204,67 @@ pub fn reserve(&self: Array(a), wanted: Size):
     if wide < 4 then wide = 4
     if !resize(self.run, wide) then checkFailed()
 
+{-
+   The array a literal is built into - `[1, 2, 3]`, and the second half of what `values` above is the
+   first half of.
+
+   `count` slots, already **live**: the length says they hold values before any of them does, which
+   is the one thing a caller may not do and the one thing the compiler must. It writes every slot
+   immediately, in index order, with nothing of the program's own running in between - so the only
+   window in which the length is a lie is one no code is in.
+
+   That is why this is here rather than expressed as `ofCapacity` and a run of `push`es. Those two
+   are the same three field writes done `count` times over, each re-reading a length the caller
+   already knows; and the elements would be handed over one at a time to a function, where what a
+   literal has is `count` values in hand and one place to put them.
+
+   A refusal is `checkFailed` and not a shorter array. `ofCapacity` answers the empty run when the
+   allocator says no - the caller that needed the room tests for it, which is what `push` does - and
+   a literal has no such caller: the slots are about to be written whatever this said, so the length
+   and the capacity have to agree here or not at all.
+-}
+@builtin(arrayLiteral)
+pub fn literalArray(count: Size) -> Array(a):
+    let run = newRun(count) :: Run(a)
+    if capacity(run) < count then checkFailed()
+    return Array {run: run, length: truncate(count) :: Count}
+
 pub fn push(&self: Array(a), ->item: a):
     let count = truncate(self.length) :: Size
     reserve(self, count + 1)
     store(advance(self.run.items, count), item)
     self.length = truncate(count + 1) :: Count
+
+{-
+   Taking one element out and closing the gap - `lib/Core/Array.native.yana`'s `remove`.
+
+   The element comes back rather than being dropped, which is what makes this usable for a type that
+   owns something: the caller decides what happens to it, and `Nothing` is the answer for an index
+   that names no element. One unsigned comparison does both bounds, which is the same trick every
+   subscript here uses - a negative index reinterpreted unsigned is above every length there is.
+
+   **The tail is shifted element by element** where `lib` calls `moveMemory`. That function is a
+   vector ladder and is not in this library, and what the loop says instead is exactly what the block
+   move would have done: element `i + 1` is taken out and put at `i`, from the hole upwards, so every
+   slot holds a live value before and after except the one the caller now owns.
+
+   The moves are through the run's own pointer, which is unchecked by construction and correct for
+   the reason the bounds test establishes: every index below `length` names a live element.
+-}
+pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
+    let count = truncate(self.length) :: Size
+    let at = index :: Size
+    if (bitcast(at) :: USize) >= (bitcast(count) :: USize) then return Nothing
+
+    let ->doomed = *advance(self.run.items, at)
+
+    let &i = at
+    while i + 1 < count:
+        store(advance(self.run.items, i), *advance(self.run.items, i + 1))
+        i = i + 1
+
+    self.length = truncate(count - 1) :: Count
+    return Just(doomed)
 
 {-
    The teardown - one traversal over the live elements, and the release of the run. Which halves of

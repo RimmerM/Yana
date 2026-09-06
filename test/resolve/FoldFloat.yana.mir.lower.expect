@@ -1,4 +1,18 @@
 
+notANumber<complex>(): F64 {
+  b_0 {
+    %v_1 = div 0, 0: F64
+    ret %v_1
+  }
+}
+
+infinite<complex>(): F64 {
+  b_0 {
+    %v_1 = div 1, 0: F64
+    ret %v_1
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = ftoi 1E30: I32
@@ -23,14 +37,14 @@ main<complex>(): I32 {
   b_8 {
     %v_9 = phi [b_4, 0], [b_7, 40]: I32
     %v_10 = add 60, %v_9: I32
-    %v_11 = div 0, 0: F64
+    %v_11 = call_complex notANumber: F64
     %v_12 = ftoi %v_11: I32
     %v_13 = cmp_eq %v_12, 0: I32
     je %v_13, b_14, b_15
   }
 
   b_14 {
-    %v_16 = div 1, 0: F64
+    %v_16 = call_complex infinite: F64
     %v_17 = ftoi %v_16: I32
     %v_18 = cmp_eq %v_17, 2147483647: I32
     je %v_18, b_19, b_15

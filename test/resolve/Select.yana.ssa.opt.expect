@@ -149,8 +149,18 @@ bb0(%0: F32 [shared call] guaranteed):
 
 fn positive() -> I32 {
 bb0:
+  %1: F32 trivial = call lowered
+  %9: F32 trivial = const 0
+  %10: Bool trivial = gt inspect %1 inspect %9
+  %11: F32 trivial = const 0
+  %12: F32 trivial = sub inspect %11 inspect %1
+  %13: F32 trivial = select inspect %10 inspect %1 inspect %12
+  %3: F32 trivial = const 2.5
+  %4: Bool trivial = gt inspect %13 inspect %3
   %6: I32 trivial = const 5
-  return consume %6
+  %5: I32 trivial = const 0
+  %14: I32 trivial = select inspect %4 inspect %6 inspect %5
+  return consume %14
 }
 
 fn smallest(limit: I32 [shared call]) -> I32 {
@@ -229,16 +239,24 @@ bb0(%0: I32 [shared call] guaranteed):
   %3: I32 trivial = load inspect %2
   %4: I32 trivial = const 0
   %5: Bool trivial = gt inspect %3 inspect %4
-  %11: I32 trivial = const 2
-  %12: I32 trivial = mul inspect %3 inspect %11
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
   %6: I32 trivial = const 0
-  %13: I32 trivial = select inspect %5 inspect %12 inspect %6
-  return consume %13
+  jump -> bb2(consume %6)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %7: I32 trivial = load inspect %2
+  %8: I32 trivial = call doubled borrow %7
+  jump -> bb2(consume %8)
 }
 
 fn main() -> I32 {
 bb0:
-  %255: I32 trivial = const 30
+  %259: I32 trivial = const 30
   %139: I32 trivial = const 0
   %140: %I32 address = global.addr calls
   store inspect %140 consume %139
@@ -256,40 +274,73 @@ bb0:
   %151: I32 trivial = add inspect %146 inspect %150
   %31: I32 trivial = const 64
   %32: I32 trivial = mul inspect %151 inspect %31
-  %33: I32 trivial = add inspect %255 inspect %32
-  %235: I32 trivial = const 896
-  %38: I32 trivial = add inspect %33 inspect %235
-  %236: I32 trivial = const 1280
-  %42: I32 trivial = add inspect %38 inspect %236
+  %33: I32 trivial = add inspect %259 inspect %32
+  %246: I32 trivial = const 896
+  %38: I32 trivial = add inspect %33 inspect %246
+  %155: F32 trivial = call lowered
+  %156: F32 trivial = const 0
+  %157: Bool trivial = gt inspect %155 inspect %156
+  %158: F32 trivial = const 0
+  %159: F32 trivial = sub inspect %158 inspect %155
+  %160: F32 trivial = select inspect %157 inspect %155 inspect %159
+  %161: F32 trivial = const 2.5
+  %162: Bool trivial = gt inspect %160 inspect %161
+  %163: I32 trivial = const 5
+  %164: I32 trivial = const 0
+  %165: I32 trivial = select inspect %162 inspect %163 inspect %164
+  %40: I32 trivial = const 256
+  %41: I32 trivial = mul inspect %165 inspect %40
+  %42: I32 trivial = add inspect %38 inspect %41
   %43: I32 trivial = const 5
-  %160: I32 trivial = const 100
-  %161: I32 trivial = const 0
-  %163: I32 trivial = const 40
-  %164: I32 trivial = const 3
-  %165: I32 trivial = const 1
-  jump -> bb22(inspect %160, inspect %161)
+  %170: I32 trivial = const 100
+  %171: I32 trivial = const 0
+  %173: I32 trivial = const 40
+  %174: I32 trivial = const 3
+  %175: I32 trivial = const 1
+  jump -> bb22(inspect %170, inspect %171)
 
-bb22(%157: I32 trivial, %158: I32 trivial):
-  %166: Bool trivial = lt inspect %158 inspect %43
-  branch inspect %166 -> bb24 -> bb23
+bb22(%167: I32 trivial, %168: I32 trivial):
+  %176: Bool trivial = lt inspect %168 inspect %43
+  branch inspect %176 -> bb24 -> bb23
 
 bb23:
   %45: I32 trivial = const 512
-  %46: I32 trivial = mul inspect %157 inspect %45
+  %46: I32 trivial = mul inspect %167 inspect %45
   %47: I32 trivial = add inspect %42 inspect %46
-  %257: I32 trivial = const 10240
-  %59: I32 trivial = add inspect %47 inspect %257
-  %243: I32 trivial = const 24576
-  %64: I32 trivial = add inspect %59 inspect %243
-  return consume %64
+  %48: I32 trivial = const 10
+  %49: I32 trivial = call zero
+  %187: I32 trivial = const 0
+  %188: Bool trivial = ne inspect %49 inspect %187
+  branch inspect %188 -> bb29 -> bb28
 
 bb24:
-  %167: I32 trivial = mul inspect %158 inspect %164
-  %168: I32 trivial = sub inspect %163 inspect %167
-  %169: Bool trivial = lt inspect %168 inspect %157
-  %170: I32 trivial = select inspect %169 inspect %168 inspect %157
-  %171: I32 trivial = add inspect %158 inspect %165
-  jump -> bb22(inspect %170, inspect %171)
+  %177: I32 trivial = mul inspect %168 inspect %174
+  %178: I32 trivial = sub inspect %173 inspect %177
+  %179: Bool trivial = lt inspect %178 inspect %167
+  %180: I32 trivial = select inspect %179 inspect %178 inspect %167
+  %181: I32 trivial = add inspect %168 inspect %175
+  jump -> bb22(inspect %180, inspect %181)
+
+bb28:
+  %189: I32 trivial = const 0
+  jump -> bb30(consume %189)
+
+bb29:
+  %192: I32 trivial = div inspect %48 inspect %49
+  jump -> bb30(consume %192)
+
+bb30(%183: I32 trivial):
+  %51: I32 trivial = const 1024
+  %52: I32 trivial = mul inspect %183 inspect %51
+  %53: I32 trivial = add inspect %47 inspect %52
+  %260: I32 trivial = const 10240
+  %59: I32 trivial = add inspect %53 inspect %260
+  %60: I32 trivial = const 3
+  %212: I32 trivial = call doubled borrow %60
+  %62: I32 trivial = const 4096
+  %63: I32 trivial = mul inspect %212 inspect %62
+  %64: I32 trivial = add inspect %59 inspect %63
+  return consume %64
 }
 
 entry main

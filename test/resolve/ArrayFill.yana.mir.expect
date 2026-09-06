@@ -1,8 +1,8 @@
 module ResolveTest
 
-let table: [U8 *8]
+let table: [U8 *8] = [3, 1, 4, 1, 5, 9, 2, 6]
 
-let zeroBlock: [U8 *64]
+let zeroBlock: [U8 *64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 fn at(i: Size [shared call]) -> Size {
 bb0:
@@ -209,23 +209,4 @@ bb0:
   return take %14
 }
 
-fn main$() -> I32 {
-bb0:
-  %0: U8 = const 3
-  %1: U8 = const 1
-  %2: U8 = const 4
-  %3: U8 = const 1
-  %4: U8 = const 5
-  %5: U8 = const 9
-  %6: U8 = const 2
-  %7: U8 = const 6
-  %8: [U8 *8] = aggregate.0 take %0 take %1 take %2 take %3 take %4 take %5 take %6 take %7
-  write.init borrow.unique (global table) take %8
-  %10: U8 = const 0
-  %11: [U8 *64] = aggregate.0 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10
-  write.init borrow.unique (global zeroBlock) take %11
-  %13: I32 = call main
-  return take %13
-}
-
-entry main$
+entry main

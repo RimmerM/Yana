@@ -1,0 +1,40 @@
+{-
+   A constructor's name has nothing to do with its type's - `doc/spec/declarations.md`, which states
+   it as `data Direction = North` declaring a nullary constructor `North` and "never a type named
+   `North`".
+
+   Two tables and two questions: a type name is looked up where a type is written and a constructor
+   name where a value is built or matched, so a declaration files one name in each and neither
+   spelling is a way to reach the other. The braced form is where the two coincide, and it coincides
+   because the parser synthesizes a constructor named after the type - not because anything below
+   requires it to.
+
+   A **nullary** constructor is the other half of the same sentence: `NoEntropySource` is a value of
+   `RandomError`, zero bytes wide with nothing to tell it from itself, and it is a thing a program
+   passes, matches and names in a signature.
+-}
+
+-- One constructor, named something else. `Renamed` is the type and `Other` is the only way to build
+-- one, so `Renamed {value: 1}` would name something no declaration made.
+data Renamed = Other {value: Int}
+
+-- One constructor carrying nothing at all, which is the shape a library's error type is.
+data RandomError = NoEntropySource
+
+-- And a sum whose constructor names are unrelated to it, matched by those names.
+data Reading = Exact(Int) | Approximate(Int) | Unavailable
+
+fn valueOf(r: Renamed) -> Int = match r:
+    Other {value: v} -> v
+
+fn code(e: RandomError) -> Int = match e:
+    NoEntropySource -> 7
+
+fn reading(r: Reading) -> Int = match r:
+    Exact(n) -> n
+    Approximate(n) -> n * 2
+    Unavailable -> -1
+
+fn main() -> Int =
+    valueOf(Other {value: 3}) + code(NoEntropySource) +
+    reading(Exact(10)) + reading(Approximate(100)) + reading(Unavailable)

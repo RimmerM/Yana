@@ -1,0 +1,131 @@
+{-
+   `[1, 2, 3]` where the position holds the container - `doc/spec/expressions.md`'s "whether a
+   literal builds a growable `[T]` or a fixed-size `[T *n]` is decided by the expected type and by
+   nothing else".
+
+   `ArrayFill.yana` next door is the fixed half and says why the two spellings both exist. This is
+   the other one, and what it is for is that the *same syntax* means two things: the expected type of
+   a window and of an owner is one type - `Array(T)` - so the difference is in the contract the
+   position was read from, and every function below is a position that reads it differently.
+
+   The values are chosen so that a literal built at the wrong count, at the wrong element type or
+   into the wrong container answers a different number rather than the same one by luck: `main`
+   weighs each function by a distinct prime, so no two of them can trade contributions and no one of
+   them can be wrong without moving the total.
+-}
+
+import Native
+
+-- No position at all, which the spec makes the growable one: a fixed array's count is part of a type
+-- a bare literal has not got.
+fn unascribed() -> Int:
+    let &xs = [10, 20, 30]
+    return xs[0] + xs[2] + (truncate(length(elements(xs))) :: Int)
+
+-- The same literal with the type written, which names the owner and not a window.
+fn ascribed() -> Int:
+    let &xs = [4, 5] :: [Int]
+    return xs[0] * xs[1]
+
+-- The empty one, which has nothing to infer an element type from and takes it from the ascription.
+-- Its run holds nothing at all, so the first `push` is where the storage arrives.
+fn empty() -> Int:
+    let &xs = [] :: [Int]
+    push(xs, 6)
+    push(xs, 7)
+    return xs[0] + xs[1]
+
+{-
+   A **window** parameter, which is the other reading of the same hint.
+
+   `total([4, 5, 6])` builds a `[I32 *3]` and describes it, because what the position holds is a
+   description of storage the caller keeps - so nothing is allocated. `total([1, 2] :: [Int])` is the
+   ascription saying otherwise: `::` names a type and a type is not a window, so the array is built
+   and the call adapts it the way it adapts any owned container reaching a window position.
+-}
+fn total(xs: [Int]) -> Int:
+    let &sum = 0
+    let &i = 0 :: Size
+    while i < length(xs):
+        sum = sum + xs[i]
+        i = i + 1
+
+    return sum
+
+fn windows() -> Int = total([4, 5, 6]) + total([1, 2] :: [Int])
+
+-- An owned parameter, which holds the container and takes it.
+fn consume(->xs: [Int]) -> Int = xs[0] + xs[1]
+
+fn handedOver() -> Int = consume([8, 9])
+
+-- Nested, where the element is itself a growable array and the outer literal's elements own storage.
+fn nested() -> Int:
+    let &rows = [[1, 2], [3, 4, 5]]
+    return rows[0][1] + rows[1][2] + (truncate(length(elements(rows[1]))) :: Int)
+
+{-
+   `remove`, which is the operation a growable array has and a fixed one cannot: the element comes
+   back rather than being dropped, and the tail closes the gap behind it.
+
+   An index that names no element answers `Nothing` rather than trapping - one unsigned comparison
+   covers a negative index and one past the end alike.
+-}
+fn removed() -> Int:
+    let &xs = [1, 2, 3, 4]
+
+    let taken = match remove(xs, 1):
+        Just(v) -> v
+        Nothing -> 0
+
+    let absent = match remove(xs, 9):
+        Just(v) -> v
+        Nothing -> 7
+
+    return taken * 100 + absent * 10 + xs[1]
+
+{-
+   `for x in items(xs)`, which is the traversal `doc/spec/collections.md` names and the one place a
+   container is borrowed *across* a call that runs the caller's own block.
+
+   A chunk is a window into the container's storage, so the container has to outlive it: `Chunked`
+   publishes the origin on both ends of `chunks` and the lens call carries it to the continuation's
+   parameter. Without either the container's last use is the call that started the traversal, and its
+   teardown lands at the top of the loop body - which releases the run the window points into before
+   the first element is read, and answers a number made of whatever the allocator wrote there.
+
+   The read *before* the loop is what makes that visible rather than lucky: it is the shape where the
+   container is plainly still live afterwards.
+-}
+fn traversed() -> Int:
+    let &xs = [1, 2, 3, 4]
+    let first = xs[0]
+
+    let &sum = 0
+    for v in items(xs):
+        sum = sum + v
+
+    return sum + first
+
+-- The same traversal over a fixed array, whose chunk is derived rather than being the value itself.
+fn traversedFixed() -> Int:
+    let &xs = [2, 3, 4] :: [Int *3]
+
+    let &sum = 0
+    for v in items(xs):
+        sum = sum + v
+
+    return sum
+
+fn main() -> Int:
+    let a = unascribed()     -- 10 + 30 + 3 = 43
+    let b = ascribed()       -- 4 * 5 = 20
+    let c = empty()          -- 6 + 7 = 13
+    let d = windows()        -- 15 + 3 = 18
+    let e = handedOver()     -- 8 + 9 = 17
+    let f = nested()         -- 2 + 5 + 3 = 10
+    let g = removed()        -- 2 * 100 + 7 * 10 + 3 = 273
+    let h = traversed()      -- 10 + 1 = 11
+    let i = traversedFixed() -- 9
+
+    return a + b * 7 + c * 13 + d * 17 + e * 23 + f * 29 + g * 31 + h * 37 + i * 41

@@ -8,7 +8,7 @@ let & counter: I32 = 0
 
 let origin: Point = Point {x: 1, y: 2}
 
-let greeting: String
+let greeting: String = String {units: Array {run: Run {items: &string, capacity: 2, ownsHeap: 0}, length: 2}}
 
 let string: [CodeUnit *2] = [97, 98]
 
@@ -131,18 +131,12 @@ fn main$() -> I32 {
 bb0:
   %0: I32 = call seven
   write.init borrow.unique (global dynamic) take %0
-  %2: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string) loan0
-  %3: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] = address inspect %2 roots.0{0}
-  %4: %CodeUnit = bitcast inspect %3
-  %5: Size = const 2
-  %6: String = call stringLiteral borrow.shared %4 borrow.shared %5
-  write.init borrow.unique (global greeting) take %6
-  %8: I32 = read copy.trivial (global counter)
-  %9: I32 = const 20
-  %10: I32 = add inspect %8 inspect %9
-  write.assign borrow.unique (global counter) take %10
-  %12: I32 = call main
-  return take %12
+  %2: I32 = read copy.trivial (global counter)
+  %3: I32 = const 20
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (global counter) take %4
+  %6: I32 = call main
+  return take %6
 }
 
 entry main$

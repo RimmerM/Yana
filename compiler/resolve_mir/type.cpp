@@ -1210,16 +1210,28 @@ const ViewRow* viewRowOfRecord(DeclBase base, Program& program, DeclPtr<Type> re
 
 String bindingText(Context& context, Program& program, const Occurrence& occurrence) {
     auto base = *program.decl;
+    auto written = typeText(context, base, occurrence.type);
 
     if(occurrence.contract.form() == AccessForm::View) {
         auto row = viewRowOf(base, program, occurrence.type);
         if(row && row->spelled) {
             auto element = elementTypeOf(base, program, occurrence.type);
-            return Tritium::format("[%@]", typeText(context, base, element));
+            written = Tritium::format("[%@]", typeText(context, base, element));
         }
     }
 
-    return typeText(context, base, occurrence.type);
+    /*
+     * The tick, where the position publishes an origin - `doc/spec/ownership.md`'s `x: 'T`.
+     *
+     * Part of the *binding* and not of the type, which is this function's whole subject: a class
+     * member declaring `self: source'c` and one declaring `self: c` are two different signatures,
+     * and a message that rendered both as `self: c` told an author to write what they had already
+     * written. The anonymous spelling rather than the slot's name, because what a name is is the
+     * declaration's own and what the check compares is the slot.
+     */
+    if(occurrence.contract.origin() == Origin::Slot) return String("'") + written;
+
+    return written;
 }
 
 bool hasViewFor(DeclBase base, Program& program, DeclPtr<Type> type, Access access) {

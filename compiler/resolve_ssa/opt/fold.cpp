@@ -1,5 +1,6 @@
 #include "pass.h"
 #include "../../lower/fold_arith.h"
+#include "../../resolve_mir/fold.h"
 
 /*
  * The arithmetic: what an instruction over constants comes to, and the identities that need no
@@ -144,39 +145,6 @@ bool sameOperand(Use a, Use b) {
     return a.isSet() && a.value() == b.value();
 }
 
-/*
- * The lower IR's row for one of this tier's operations at one signedness - `fold_arith.h`.
- *
- * The whole of what the two rosters disagree about, written once. `mir::BinaryOp` has one row for a
- * division and the operand type says which machine instruction it is; the lower IR has two, because
- * down there a lane carries no sign. Three operations are affected and the rest are the same row
- * whichever way the operands are read.
- *
- * The comparisons are absent deliberately: their *result* is a `Bool` while everything they decide
- * is a question about the operand type, so they are folded below at the operands' own signedness and
- * never go through the evaluator.
- */
-bool arithKind(BinaryOp op, bool isSigned, LowerInst::Kind& kind) {
-    switch(op) {
-        case BinaryOp::Add: kind = LowerInst::Add; return true;
-        case BinaryOp::Sub: kind = LowerInst::Sub; return true;
-        case BinaryOp::Mul: kind = isSigned ? LowerInst::IMul : LowerInst::Mul; return true;
-        case BinaryOp::Div: kind = isSigned ? LowerInst::IDiv : LowerInst::Div; return true;
-        case BinaryOp::Rem: kind = isSigned ? LowerInst::IRem : LowerInst::Rem; return true;
-        case BinaryOp::MulHi: kind = isSigned ? LowerInst::IMulHi : LowerInst::MulHi; return true;
-        case BinaryOp::And: kind = LowerInst::And; return true;
-        case BinaryOp::Or:  kind = LowerInst::Or; return true;
-        case BinaryOp::Xor: kind = LowerInst::Xor; return true;
-        case BinaryOp::Shl: kind = LowerInst::Shl; return true;
-        case BinaryOp::Shr: kind = LowerInst::Shr; return true;
-        case BinaryOp::Sar: kind = LowerInst::Sar; return true;
-        case BinaryOp::Rol: kind = LowerInst::Rol; return true;
-        case BinaryOp::Ror: kind = LowerInst::Ror; return true;
-        case BinaryOp::BitsUpTo: kind = LowerInst::BitsUpTo; return true;
-        default: return false;
-    }
-}
-
 struct Folder {
     OptContext& opt;
     Inst& inst;
@@ -191,50 +159,21 @@ struct Folder {
     DeclPtr<mir::Type> typeOf(Use used) { return operand(used)->type(); }
 
     /*
-     * The six orderings over two patterns, at the operands' own signedness.
+     * The six orderings, over patterns and over doubles - `mir::compareIntegers` and
+     * `mir::compareFloats`, which the constant tier folds a written comparison with.
      *
-     * The operand type rather than the result type, which is `Bool` and says nothing about how the
-     * two sides are ordered. A signed narrow value arrives here sign-extended to 64 bits by
-     * `narrowToWidth`, so comparing as `I64` is comparing at the type's own width.
+     * The operand type decides the integer one rather than the result type, which is `Bool` and says
+     * nothing about how the two sides are ordered. A signed narrow value arrives here sign-extended
+     * to 64 bits by `narrowToWidth`, so comparing as `I64` is comparing at the type's own width.
+     * IEEE 754 specifies the float six exactly, so there is nothing about width or sign in that one
+     * and nothing about NaN either, because a constant that is one is declined before it arrives.
      */
     static bool compare(BinaryOp op, U64 lhs, U64 rhs, bool isSigned) {
-        if(isSigned) {
-            auto a = I64(lhs), b = I64(rhs);
-            switch(op) {
-                case BinaryOp::Eq: return a == b;
-                case BinaryOp::Ne: return a != b;
-                case BinaryOp::Lt: return a < b;
-                case BinaryOp::Le: return a <= b;
-                case BinaryOp::Gt: return a > b;
-                case BinaryOp::Ge: return a >= b;
-                default: return false;
-            }
-        }
-
-        switch(op) {
-            case BinaryOp::Eq: return lhs == rhs;
-            case BinaryOp::Ne: return lhs != rhs;
-            case BinaryOp::Lt: return lhs < rhs;
-            case BinaryOp::Le: return lhs <= rhs;
-            case BinaryOp::Gt: return lhs > rhs;
-            case BinaryOp::Ge: return lhs >= rhs;
-            default: return false;
-        }
+        return mir::compareIntegers(op, lhs, rhs, isSigned);
     }
 
-    // The same six over doubles. IEEE 754 specifies each of them exactly, so unlike the integer case
-    // there is nothing here about width or sign - and nothing about NaN either, because a constant
-    // that is one is declined before it arrives.
     static bool compareFloat(BinaryOp op, F64 lhs, F64 rhs) {
-        switch(op) {
-            case BinaryOp::Eq: return lhs == rhs;
-            case BinaryOp::Ne: return lhs != rhs;
-            case BinaryOp::Lt: return lhs < rhs;
-            case BinaryOp::Le: return lhs <= rhs;
-            case BinaryOp::Gt: return lhs > rhs;
-            case BinaryOp::Ge: return lhs >= rhs;
-            default: return false;
-        }
+        return mir::compareFloats(op, lhs, rhs);
     }
 
     // Which way one of the six answers about a value and itself.

@@ -41,6 +41,15 @@ a leak on the other path and counts one, so a count accepts it. There is therefo
 count that could have served as an interim check until the first `Owned` value arrived, which is why
 the dataflow - reverse postorder, dominance-scoped, over a three-state lattice - is here now.
 
+**A terminator's edges are alternatives, not a sequence.** The rule is about paths and a branch runs
+exactly one of its edges, so a value carried on both of them is consumed once on every path and not
+twice on any - `"a" ++ (if c then "b" else "")`, where the left operand travels to the join over
+whichever arm ran. Read as a run of uses those are two consumptions of one value and the check fired.
+Each edge is therefore compared against the state as it stood before the first of them, and what an
+earlier edge marked is rolled back for the next; what comes out is unchanged, because the block's out
+state is one state for every successor and the meet in the join is where a disagreement between two
+paths is actually decided.
+
 **A `Guaranteed` value does not carry a loan identity, and that is a decision rather than a gap.**
 It used to hold a `LoanId`, on the argument that "may not outlive the loan it depends on" is a rule
 with no term to check against - which is true, and is the shape lenses, yielded borrows, values live
@@ -68,6 +77,8 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | what a value looks like on the target | `lower/manifest.cpp` |
 | whether a component has an address at all | `lower/repr.h`, `FieldRepr::isPacked` and `Repr::discriminant` |
 | how a constant becomes bytes | `lower/gen.cpp`, `materialize` |
+| how a constant names another global | `lower/gen.cpp`, `materialize`'s `Constant::Address` arm - a `LowerDataRelocation`, which is why `lowerGlobal` is a declare pass and a fill pass |
+| whether a fixed array's components are one block fill | `lower/inst.cpp`, `uniformFill` - a `setpattern` where every component is one constant whose bytes are all equal |
 | what order a body's blocks are read in | `dominance.cpp`, `reversePostorder` |
 | which passes run over a body, in what order, and how many times | `opt/opt.cpp` |
 | whether a local becomes a value | `opt/promote.cpp`, `eligible` - and where its block arguments go |

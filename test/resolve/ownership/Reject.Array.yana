@@ -8,8 +8,10 @@
    this file could not show. `Reject.ArrayUse.yana` next door is that half.
 -}
 
--- A count is a literal or a const parameter and nothing else: `[a *(n+1)]` and `[a *(1+n)]` would
--- intern as two types until there is a normal form for a const expression.
+-- A count is a **constant** or a const parameter and nothing else. `[I32 *(4 * 1024)]` is a count,
+-- because it reduces to a number where it is written; arithmetic *on the parameter* is not, since
+-- `[a *(n+1)]` and `[a *(1+n)]` would intern as two types until there is a normal form for a const
+-- expression.
 fn (n: Int) computed(xs: [I32 *n + 1]) -> I32 = 0
 
 -- A **type** parameter where a count is. It stands for a type, and what would have multiplied by it

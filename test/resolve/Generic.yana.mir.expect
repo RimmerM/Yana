@@ -1,0 +1,214 @@
+module ResolveTest
+
+data Boxed(a) = Box {Box: a} drop derived reclaim derived
+
+data Labelled(a) {label: I32, contents: Maybe(a)} drop derived reclaim derived
+
+data Boxed(I32) = Box {Box: I32} of Boxed
+
+data Labelled(I32) {label: I32, contents: Maybe(I32)} of Labelled
+
+fn justInt() -> Maybe(I32) {
+bb0:
+  %0: I32 = const 3
+  %1: Maybe(I32) = aggregate.Just take %0
+  return take %1
+}
+
+fn nothingInt() -> Maybe(I32) {
+bb0:
+  %0: Maybe(I32) = aggregate.Nothing
+  return take %0
+}
+
+fn unwrap(value: Maybe(I32) [shared call], fallback: I32 [shared call]) -> I32 {
+  local inner: I32
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (fallback)
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %4: I32 = read copy.trivial (value.Just)
+  write.init borrow.unique (inner) take %4
+  %6: I32 = read copy.trivial (inner)
+  jump -> bb2(take %6)
+}
+
+fn unwrapBool(value: Maybe(Bool) [shared call]) -> I32 {
+  local inner: Bool
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %13: I32 = const 2
+  jump -> bb2(take %13)
+
+bb2(%14: I32):
+  return take %14
+
+bb3:
+  %4: Bool = read copy.trivial (value.Just)
+  write.init borrow.unique (inner) take %4
+  %6: Bool = read copy.trivial (inner)
+  branch inspect %6 -> bb6 -> bb4
+
+bb4:
+  %9: I32 = const 0
+  jump -> bb5(take %9)
+
+bb5(%10: I32):
+  jump -> bb2(take %10)
+
+bb6:
+  %8: I32 = const 1
+  jump -> bb5(take %8)
+}
+
+fn okResult() -> Result(I32, I32) {
+bb0:
+  %0: I32 = const 11
+  %1: Result(I32, I32) = aggregate.Ok take %0
+  return take %1
+}
+
+fn errResult() -> Result(I32, I32) {
+bb0:
+  %0: I32 = const 4
+  %1: Result(I32, I32) = aggregate.Err take %0
+  return take %1
+}
+
+fn resultValue(value: Result(I32, I32) [shared call]) -> I32 {
+  local inner: I32
+  local code: I32
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (value.Err)
+  write.init borrow.unique (code) take %7
+  %9: I32 = const 0
+  %10: I32 = read copy.trivial (code)
+  %11: I32 = sub inspect %9 inspect %10
+  jump -> bb2(take %11)
+
+bb2(%12: I32):
+  return take %12
+
+bb3:
+  %4: I32 = read copy.trivial (value.Ok)
+  write.init borrow.unique (inner) take %4
+  %6: I32 = read copy.trivial (inner)
+  jump -> bb2(take %6)
+}
+
+fn unbox(value: Boxed(I32) [shared call]) -> I32 {
+  local inner: I32
+
+bb0:
+  %0: I32 = read copy.trivial (value.Box)
+  write.init borrow.unique (inner) take %0
+  %2: I32 = read copy.trivial (inner)
+  jump -> bb1(take %2)
+
+bb1(%3: I32):
+  return take %3
+}
+
+fn labelled() -> Labelled(I32) {
+bb0:
+  %0: I32 = const 2
+  %1: I32 = const 40
+  %2: Maybe(I32) = aggregate.Just take %1
+  %3: Labelled(I32) = aggregate.Labelled take %0 take %2
+  return take %3
+}
+
+fn labelSum(value: Labelled(I32) [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.label)
+  %1: Maybe(I32) = read copy.trivial (value.contents)
+  %2: I32 = const 0
+  %3: I32 = call unwrap borrow.shared %1 borrow.shared %2
+  %4: I32 = add inspect %0 inspect %3
+  return take %4
+}
+
+fn ascribedNothing() -> I32 {
+  local n: Maybe(Bool)
+
+bb0:
+  %0: Maybe(Bool) = aggregate.Nothing
+  write.init borrow.unique (n) take %0
+  %2: Maybe(Bool) = read copy.trivial (n)
+  %3: I32 = call unwrapBool borrow.shared %2
+  return take %3
+}
+
+fn ascribedJust() -> I32 {
+  local j: Maybe(Bool)
+
+bb0:
+  %0: Bool = const True
+  %1: Maybe(Bool) = aggregate.Just take %0
+  write.init borrow.unique (j) take %1
+  %3: Maybe(Bool) = read copy.trivial (j)
+  %4: I32 = call unwrapBool borrow.shared %3
+  return take %4
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call ascribedNothing
+  %1: I32 = call ascribedJust
+  %2: I32 = add inspect %0 inspect %1
+  %3: Maybe(I32) = call justInt
+  %4: I32 = const 100
+  %5: I32 = call unwrap borrow.shared %3 borrow.shared %4
+  %6: I32 = add inspect %2 inspect %5
+  %7: Maybe(I32) = call nothingInt
+  %8: I32 = const 5
+  %9: I32 = call unwrap borrow.shared %7 borrow.shared %8
+  %10: I32 = add inspect %6 inspect %9
+  %11: Bool = const True
+  %12: Maybe(Bool) = aggregate.Just take %11
+  %13: I32 = call unwrapBool borrow.shared %12
+  %14: I32 = add inspect %10 inspect %13
+  %15: Maybe(Bool) = aggregate.Nothing
+  %16: I32 = call unwrapBool borrow.shared %15
+  %17: I32 = add inspect %14 inspect %16
+  %18: Result(I32, I32) = call okResult
+  %19: I32 = call resultValue borrow.shared %18
+  %20: I32 = add inspect %17 inspect %19
+  %21: Result(I32, I32) = call errResult
+  %22: I32 = call resultValue borrow.shared %21
+  %23: I32 = add inspect %20 inspect %22
+  %24: I32 = const 6
+  %25: Boxed(I32) = aggregate.Box take %24
+  %26: I32 = call unbox borrow.shared %25
+  %27: I32 = add inspect %23 inspect %26
+  %28: Labelled(I32) = call labelled
+  %29: I32 = call labelSum borrow.shared %28
+  %30: I32 = add inspect %27 inspect %29
+  return take %30
+}
+
+entry main

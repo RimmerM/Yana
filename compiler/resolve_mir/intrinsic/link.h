@@ -35,12 +35,26 @@ Maybe<intrinsic::RoleRef> bindRole(Context& context, Program& program, ast::Pars
 bool checkDeclaredRoles(Context& context, Program& program);
 
 /*
- * Every check that needs the finished signatures and initializers - an intrinsic's shape
- * (`shape.h`) and a supplied global's storage, type and value.
+ * One supplied global, checked and **filled** - `supplied.def`'s `BuiltinKind::Supplied`.
  *
- * Run once, after the declaration passes and after initializers - a supplied global's check reads
- * the constant its initializer settled on. Answers false where it reported, which is what stops a
- * body being resolved against a library the compiler cannot use.
+ * Called the moment that global's own initializer is settled rather than in a pass of its own, and
+ * the ordering is the whole reason it is a function: `pageBytes` is a constant a *later* constant
+ * may read - `let mask = pageBytes - 1` - and a supply step that ran after every initializer would
+ * hand that reader the zero the declaration is required to write. So the value is the target's from
+ * the moment the declaration exists, which is what "an ordinary immutable global with a constant
+ * initializer" has to mean if anything is to be allowed to depend on it.
+ *
+ * Answers false where it reported. `checkRoles` carries that answer forward, so a library whose
+ * supplied global is the wrong shape still stops the compilation at the same point it used to.
+ */
+bool bindSuppliedGlobal(Context& context, Program& program, DeclPtr<Global> global);
+
+/*
+ * Every check that needs the finished signatures - an intrinsic's shape (`shape.h`).
+ *
+ * Run once, after the declaration passes and after initializers. Answers false where it reported,
+ * which is what stops a body being resolved against a library the compiler cannot use - including
+ * for a supplied global `bindSuppliedGlobal` above already refused.
  */
 bool checkRoles(Context& context, Program& program);
 

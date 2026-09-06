@@ -183,6 +183,51 @@ struct Interprocedural {
     static U64 edgeOf(U32 caller, U32 callee) { return (U64(caller) << 32) | callee; }
 
     /*
+     * The globals a reachable global's *initializer* names - `Constant::Address`.
+     *
+     * The walk above finds a global through a **place** in a body, which is every way a program can
+     * reach one. This is the one way a global reaches another with no body between them: the bytes
+     * of a string literal are a global of their own and the string's own constant points at them,
+     * so a reader that stopped at the string would leave the bytes unemitted and the relocation
+     * naming nothing.
+     *
+     * A worklist rather than one sweep, because an address is a leaf of an arbitrary tree and the
+     * global it names may have an initializer of its own. Nothing builds a cycle - a constant is
+     * finished before the global that names it exists - and the `reachable` flag is what bounds the
+     * walk in any case.
+     */
+    void reachGlobalAddresses() {
+        Array<DeclPtr<Global>> pending;
+
+        auto reach = [&](const Constant& constant, auto&& again) -> void {
+            if(constant.kind == Constant::Address) {
+                auto named = constant.asGlobal();
+                if(decl[named]->reachable) return;
+
+                decl[named]->reachable = true;
+                pending.push(named);
+                return;
+            }
+
+            if(constant.kind != Constant::Aggregate) return;
+
+            for(auto value: decl[constant.aggregate()]->values.contents(decl)) again(value, again);
+        };
+
+        for(auto modulePointer: program.modules) {
+            for(auto pointer: decl[modulePointer]->globals.contents(decl)) {
+                if(decl[pointer]->reachable) reach(decl[pointer]->initial, reach);
+            }
+        }
+
+        while(pending.size()) {
+            auto pointer = pending[pending.size() - 1];
+            pending.pop();
+            reach(decl[pointer]->initial, reach);
+        }
+    }
+
+    /*
      * What the program can reach, from its roots.
      *
      * The roots are the entry where the program has one, and **the root module's** declarations
@@ -458,6 +503,7 @@ struct Interprocedural {
         }
 
         program.discoveringFrom = nullptr;
+        reachGlobalAddresses();
 
         /*
          * The edges that needed the whole walk - see `edges`. Everything they name was rooted as it

@@ -1,8 +1,8 @@
 module ResolveTest
 
-let table: [U8 *8]
+let table: [U8 *8] = [3, 1, 4, 1, 5, 9, 2, 6]
 
-let zeroBlock: [U8 *64]
+let zeroBlock: [U8 *64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 fn at(i: Size [shared call]) -> Size {
 bb0(%0: Size [shared call] guaranteed):
@@ -262,25 +262,4 @@ bb0:
   return consume %14
 }
 
-fn main$() -> I32 {
-bb0:
-  %0: U8 trivial = const 3
-  %1: U8 trivial = const 1
-  %2: U8 trivial = const 4
-  %3: U8 trivial = const 1
-  %4: U8 trivial = const 5
-  %5: U8 trivial = const 9
-  %6: U8 trivial = const 2
-  %7: U8 trivial = const 6
-  %8: [U8 *8] trivial = aggregate.0 consume %0 consume %1 consume %2 consume %3 consume %4 consume %5 consume %6 consume %7
-  %9: %[U8 *8] address = global.addr table
-  store inspect %9 consume %8
-  %10: U8 trivial = const 0
-  %11: [U8 *64] trivial = aggregate.0 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10
-  %12: %[U8 *64] address = global.addr zeroBlock
-  store inspect %12 consume %11
-  %13: I32 trivial = call main
-  return consume %13
-}
-
-entry main$
+entry main

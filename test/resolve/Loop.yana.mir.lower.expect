@@ -1,4 +1,13 @@
 
+madePoint<complex>(%v_0: Ptr) {
+  b_1 {
+    store %v_0, 3, 4
+    %v_2 = add %v_0, 4: Ptr
+    store %v_2, 4, 4
+    ret 
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     jmp b_1
@@ -112,61 +121,67 @@ main<complex>(): I32 {
 
   b_52 {
     %v_53 = add %v_44, %v_54: I32
-    jmp b_55
+    %v_55 = alloca 8, 4: Ptr
+    call_complex madePoint, %v_55
+    %v_56 = loads %v_55, 4: I32
+    %v_57 = add %v_55, 4: Ptr
+    %v_58 = loads %v_57, 4: I32
+    %v_59 = imul %v_56, %v_58: I32
+    jmp b_60
   }
 
   b_46 {
-    %v_56 = phi [b_49, %v_51], [b_43, 0]: I32
-    %v_57 = phi [b_49, %v_54], [b_43, 0]: I32
-    %v_58 = add %v_57, 1: I32
-    %v_54 = add %v_58, 12: I32
-    %v_51 = add %v_56, 1: I32
+    %v_61 = phi [b_49, %v_51], [b_43, 0]: I32
+    %v_62 = phi [b_49, %v_54], [b_43, 0]: I32
+    %v_63 = add %v_62, 1: I32
+    %v_54 = add %v_63, 12: I32
+    %v_51 = add %v_61, 1: I32
     jmp b_49
   }
 
-  b_59 {
-    %v_60 = cmp_ilt %v_61, 2: I32
-    je %v_60, b_55, b_62
+  b_64 {
+    %v_65 = cmp_ilt %v_66, 2: I32
+    je %v_65, b_60, b_67
   }
 
-  b_62 {
-    %v_63 = add %v_53, %v_64: I32
-    jmp b_65
+  b_67 {
+    %v_68 = add %v_53, %v_69: I32
+    jmp b_70
   }
 
-  b_55 {
-    %v_66 = phi [b_59, %v_61], [b_52, 0]: I32
-    %v_67 = phi [b_59, %v_64], [b_52, 0]: I32
-    %v_68 = add %v_67, 1: I32
-    %v_64 = add %v_68, 12: I32
-    %v_61 = add %v_66, 1: I32
-    jmp b_59
+  b_60 {
+    %v_71 = phi [b_64, %v_66], [b_52, 0]: I32
+    %v_72 = phi [b_64, %v_69], [b_52, 0]: I32
+    %v_73 = add %v_72, 1: I32
+    %v_69 = add %v_73, %v_59: I32
+    %v_66 = add %v_71, 1: I32
+    jmp b_64
   }
 
-  b_69 {
-    %v_70 = cmp_ilt %v_71, 2: I32
-    je %v_70, b_65, b_72
+  b_74 {
+    %v_75 = cmp_ilt %v_76, 2: I32
+    je %v_75, b_70, b_77
   }
 
-  b_72 {
-    %v_73 = add %v_63, %v_74: I32
-    jmp b_75
+  b_77 {
+    %v_78 = add %v_68, %v_79: I32
+    jmp b_80
   }
 
-  b_65 {
-    %v_76 = phi [b_69, %v_71], [b_62, 0]: I32
-    %v_77 = phi [b_69, %v_74], [b_62, 0]: I32
-    %v_78 = phi [b_69, %v_79], [b_62, 3]: I32
-    %v_79 = add %v_78, 1: I32
-    %v_80 = shl %v_79, 2: I32
-    %v_74 = add %v_77, %v_80: I32
-    %v_71 = add %v_76, 1: I32
-    jmp b_69
+  b_70 {
+    %v_81 = phi [b_74, %v_76], [b_67, 0]: I32
+    %v_82 = phi [b_74, %v_79], [b_67, 0]: I32
+    %v_83 = phi [b_74, %v_84], [b_67, 3]: I32
+    %v_84 = add %v_83, 1: I32
+    %v_85 = shl %v_84, 2: I32
+    %v_79 = add %v_82, %v_85: I32
+    %v_76 = add %v_81, 1: I32
+    jmp b_74
   }
 
-  b_75 {
-    %v_81 = add %v_73, 7: I32
-    ret %v_81
+  b_80 {
+    %v_86 = add %v_78, 7: I32
+    ret %v_86
   }
 }
 

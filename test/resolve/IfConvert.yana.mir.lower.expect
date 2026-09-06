@@ -36,6 +36,19 @@ truth<complex>(%a: I32, %b: I32): I32 {
   }
 }
 
+doubled<complex>(%value: I32): I32 {
+  b_0 {
+    %v_1 = shl %value, 1: I32
+    ret %v_1
+  }
+}
+
+zero<complex>(): I32 {
+  b_0 {
+    ret 0
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = call_complex truth, 1, 1: I32
@@ -50,46 +63,69 @@ main<complex>(): I32 {
     %v_10 = call_complex truth, 0, 0: I32
     %v_11 = imul %v_10, 37: I32
     %v_12 = add %v_9, %v_11: I32
-    %v_13 = add %v_12, 492: I32
-    %v_14 = loads @calls, 4: I32
-    %v_15 = add %v_14, 1: I32
-    store @calls, %v_15, 4
-    %v_16 = add %v_13, 53: I32
-    %v_17 = add %v_16, 610: I32
-    %v_18 = loads @live, 4: I32
-    %v_19 = add %v_18, 1: I32
-    store @live, %v_19, 4
-    %v_20 = alloca 4, 4: Ptr
-    store %v_20, 3, 4
-    call_complex Held.drop, %v_20
-    %v_21 = add %v_17, 201: I32
-    %v_22 = loads @live, 4: I32
-    %v_23 = add %v_22, 1: I32
-    store @live, %v_23, 4
-    %v_24 = alloca 4, 4: Ptr
-    store %v_24, 4, 4
-    call_complex Held.drop, %v_24
-    %v_25 = add %v_21, 284: I32
-    %v_26 = loads @live, 4: I32
-    %v_27 = add %v_26, 1: I32
-    store @live, %v_27, 4
-    %v_28 = alloca 4, 4: Ptr
-    store %v_28, 7, 4
-    call_complex Held.drop, %v_28
-    %v_29 = add %v_25, 584: I32
-    %v_30 = loads @live, 4: I32
-    %v_31 = add %v_30, 1: I32
-    store @live, %v_31, 4
-    %v_32 = alloca 4, 4: Ptr
-    store %v_32, 7, 4
-    call_complex Held.drop, %v_32
-    %v_33 = imul %v_29, 1000: I32
-    %v_34 = loads @calls, 4: I32
-    %v_35 = imul %v_34, 10: I32
-    %v_36 = add %v_33, %v_35: I32
-    %v_37 = loads @live, 4: I32
-    %v_38 = add %v_36, %v_37: I32
-    ret %v_38
+    %v_13 = call_complex doubled, 6: I32
+    %v_14 = imul %v_13, 41: I32
+    %v_15 = add %v_12, %v_14: I32
+    %v_16 = loads @calls, 4: I32
+    %v_17 = add %v_16, 1: I32
+    store @calls, %v_17, 4
+    %v_18 = add %v_15, 53: I32
+    %v_19 = call_complex zero: I32
+    %v_20 = cmp_neq %v_19, 0: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    jmp b_23
+  }
+
+  b_21 {
+    %v_24 = cmp_eq %v_19, 4294967295: I32
+    %v_25 = select %v_24, 1, %v_19: I32
+    %v_26 = idiv 30, %v_25: I32
+    %v_27 = select %v_24, 4294967266, %v_26: I32
+    jmp b_23
+  }
+
+  b_23 {
+    %v_28 = phi [b_22, 0], [b_21, %v_27]: I32
+    %v_29 = imul %v_28, 59: I32
+    %v_30 = add %v_18, %v_29: I32
+    %v_31 = add %v_30, 610: I32
+    %v_32 = loads @live, 4: I32
+    %v_33 = add %v_32, 1: I32
+    store @live, %v_33, 4
+    %v_34 = alloca 4, 4: Ptr
+    store %v_34, 3, 4
+    call_complex Held.drop, %v_34
+    %v_35 = add %v_31, 201: I32
+    %v_36 = loads @live, 4: I32
+    %v_37 = add %v_36, 1: I32
+    store @live, %v_37, 4
+    %v_38 = alloca 4, 4: Ptr
+    store %v_38, 4, 4
+    call_complex Held.drop, %v_38
+    %v_39 = add %v_35, 284: I32
+    %v_40 = loads @live, 4: I32
+    %v_41 = add %v_40, 1: I32
+    store @live, %v_41, 4
+    %v_42 = alloca 4, 4: Ptr
+    store %v_42, 7, 4
+    call_complex Held.drop, %v_42
+    %v_43 = add %v_39, 584: I32
+    %v_44 = loads @live, 4: I32
+    %v_45 = add %v_44, 1: I32
+    store @live, %v_45, 4
+    %v_46 = alloca 4, 4: Ptr
+    store %v_46, 7, 4
+    call_complex Held.drop, %v_46
+    %v_47 = imul %v_43, 1000: I32
+    %v_48 = loads @calls, 4: I32
+    %v_49 = imul %v_48, 10: I32
+    %v_50 = add %v_47, %v_49: I32
+    %v_51 = loads @live, 4: I32
+    %v_52 = add %v_50, %v_51: I32
+    ret %v_52
   }
 }
 

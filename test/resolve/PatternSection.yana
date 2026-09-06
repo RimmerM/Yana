@@ -1,0 +1,47 @@
+{-
+   `>0` - an operator section as a pattern, `doc/spec/patterns.md`'s operator patterns.
+
+   The one refutable pattern whose test is a name the *program* wrote. A literal compares with the
+   pivot's own `Eq` and a range with `Ord`'s four, and in both the compiler names the member; a
+   section names an operator, which makes it an overload set and a selection like any other call of
+   that name. `~=` below is what proves that: it is nobody's class member, it is not a comparison
+   the compiler knows about, and it is chosen and called by the same rules `a ~= b` is.
+
+   What the operator answers goes through `Truth`, the same question `if` asks of a condition, so
+   there is one answer to "what is a condition" rather than one for expressions and one for
+   patterns.
+-}
+
+infixl 4 ~=
+
+-- Within one of each other, which is a test and not an ordering - so nothing in `Ord` spells it and
+-- the pattern below has to reach a plain function to get it.
+fn ~=(lhs: Int, rhs: Int) -> Bool = (lhs - rhs) * (lhs - rhs) <= 1
+
+-- The arm form, where the sections are the whole of the dispatch. The last alternative is `_`,
+-- because a section proves nothing about coverage: an operator's answer is not a set of values, so
+-- the match is completed by a wildcard rather than by the sections before it.
+fn sign(value: Int) -> Int
+  | >0 -> 1
+  | <0 -> -1
+  | _  -> 0
+
+-- The same thing written as a `match`, with a plain function's operator beside a comparison.
+fn near(value: Int) -> Int = match value:
+    ~=10 -> 1
+    >=100 -> 2
+    _ -> 0
+
+-- Nested under a constructor, where the test only runs on the path the tag already proved: the
+-- payload is projected inside the block the discriminant's branch reached, and the section is one
+-- more test in it rather than a condition joined to the first.
+fn positivePayload(m: Maybe(Int)) -> Int = match m:
+    Just(>0) -> 1
+    Just(_) -> 2
+    Nothing -> 3
+
+fn main() -> Int =
+    sign(-5) * 100 + sign(0) * 10 + sign(7) +
+    near(11) + near(300) + near(50) +
+    positivePayload(Just(4)) + positivePayload(Just(-4)) * 10 +
+    positivePayload(Nothing) * 100

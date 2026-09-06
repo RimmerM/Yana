@@ -436,6 +436,11 @@ struct Inliner {
         if(!limits.ceiling) return false;
 
         auto callee = decl()[pointer];
+
+        // `@noinline`, which is a directive rather than a weight: declining to inline is always
+        // possible, so this is the one thing a declaration says here that is never traded against a
+        // size. Asked before the numbers for that reason, and not after them.
+        if(callee->noInline) return false;
         auto size = sizeOf(*callee);
         if(size > limits.ceiling) return false;
 

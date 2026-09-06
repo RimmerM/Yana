@@ -831,20 +831,25 @@ struct Verifier {
             }
 
             /*
-             * An `Init` establishes a slot, and the two kinds of slot that have a first write are a
-             * local of this frame and a **global**.
+             * An `Init` establishes a slot, and three kinds of slot have a first write: a local of
+             * this frame, a **global**, and a **raw address**.
              *
-             * A projection of a parameter is filled by somebody else, and so is a loan or a raw
-             * address; a global is filled by the root module's top level and by nothing else
-             * (Analysis-Initialization.md stage B), which is a first write with no earlier value to
-             * release - see `Builder::addWrite`, where the same pair is stated from the other side.
+             * A projection of a parameter is filled by somebody else, and so is a loan; a global is
+             * filled by the root module's top level and by nothing else (Analysis-Initialization.md
+             * stage B), which is a first write with no earlier value to release. A raw address is
+             * the case the checked model cannot decide either way - `Place::Address` is where it
+             * stops - and what says the slot held nothing is whoever produced the pointer. See
+             * `Builder::addWrite`, where the same three are stated from the other side and the one
+             * thing that produces the third is named.
              */
             if(written.mode == Destination::Init) {
                 auto root = place;
                 while(root->parent) root = base[root->parent];
 
-                if(root->kind != Place::Local && root->kind != Place::Global) {
-                    report(node.source, "internal: write.init establishes %@, which is not a local"_v,
+                if(root->kind != Place::Local && root->kind != Place::Global &&
+                   root->kind != Place::Address) {
+                    report(node.source,
+                           "internal: write.init establishes %@, which is not a local, a global or an address"_v,
                            placeKindName(root->kind));
                 }
             }

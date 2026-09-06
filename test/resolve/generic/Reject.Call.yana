@@ -41,12 +41,19 @@ fn same(->x: a, ->y: a) -> a = x
 fn mismatched() -> I32 = same(1, True)
 
 {-
-   A field requirement's result decided twice, differently.
+   A field requirement's result, and an argument that disagrees with it.
 
-   `a.mark: b` decides `b` from the subject, which is what makes a generic field usable at all - but
-   a call that also *supplies* `b` from an argument has two answers to a question the dependency
-   promised has one. Reported against the field rather than against the inference step, because what
-   the author has to fix is one of the two types they wrote.
+   `a.mark: b` decides `b` from the subject, which is what makes a generic field usable at all - and
+   a dependency that decides a position is what that position *is*, so the second argument is a value
+   to be converted to it rather than a second answer about what it means. So this is the ordinary
+   argument mismatch, named on both sides and pointing at the type the author wrote - exactly as
+   `same(1, True)` above is, and for the same reason.
+
+   The dependency is asked before the argument binds, which is what makes that true:
+   `prepareArgument` fills what the requirements decide the moment the position it is about to coerce
+   into is still open. Without it `b` would be `I64` because an argument said so, and what would be
+   reported is a `Marked` whose field is the wrong type - a complaint about the subject, for a
+   mistake in the operand beside it.
 -}
 data Marked {mark: I32}
 

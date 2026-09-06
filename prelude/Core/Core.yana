@@ -397,8 +397,28 @@ pub class Append(a):
 pub class Length(c):
   fn length(self: c) -> Size
 
+{-
+   Reading a container's elements in runs - `lib/Core/Container.yana`'s `Chunked`, and the weaker of
+   the pair.
+
+   It promises the elements can be *produced*, not that they live in one buffer, which is what makes
+   it the class a function that only reads should ask for. `Contiguous` promises the buffer and has
+   this as its superclass, so a container that has an address has runs by having one run.
+
+   The dependency `c -> a` is what makes either usable at all: nothing at a call site binds the
+   element type, so without it no instance could be selected.
+
+   **`source'` on both ends**, which `lib/Core/Container.yana` does not write and which is not
+   optional here: a chunk is a window into the container's own storage, so the container has to
+   outlive it. Without the published origin nothing relates the two, the container's last use is the
+   call that started the traversal, and its teardown is placed at the top of the loop body - which
+   releases the run the chunk points into before the first element is read.
+-}
+pub class Chunked(c -> a):
+  iter fn chunks(self: source'c) -> source'[a]
+
 @builtin(contiguous)
-pub class Contiguous(c -> a):
+pub class (Chunked(c, a)) Contiguous(c -> a):
   fn elements(self: source'c) -> source'[a]
 
 @builtin(writable)
@@ -421,6 +441,25 @@ pub class Index(c -> k, v):
 @builtin(viewed)
 pub class Viewed(a):
   fn view(self: source'a) -> source'a
+
+{-
+   The element-shaped traversal every `for` wants - `lib/Core/Container.yana`'s `items`, verbatim.
+
+   `chunks` yields runs, which is what makes a reduction fast and what makes writing one by hand two
+   nested loops; this is the pair of loops written once, over the weaker class, so that every
+   container has an element iterator by having a chunk one.
+
+   It hands over a **shared borrow**, which is the default result convention: a container of an
+   owning element type is walked without copying anything, and a body that wants a value of its own
+   asks `copy`. `doc/spec/collections.md` is where that is stated, and the call is written -
+   `for x in xs` is a diagnostic, because a `for` names an `iter fn` and does not find one from the
+   type of what it is given.
+-}
+pub iter fn (Chunked(c, a), Index(Array(a), Size, a)) items(self: source'c) -> source'a:
+    for chunk in chunks(self):
+        let n = length(chunk)
+        for i in 0 .. n:
+            yield chunk[i]
 
 {-
    The two operations that take a value out of a place without leaving a hole - `doc/spec/core.md`'s

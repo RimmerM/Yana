@@ -6,6 +6,8 @@
 #include "analyze.h"
 #include "own.h"
 #include "../intrinsic/primitive.h"
+#include "fold.h"
+#include "select.h"
 
 namespace mir {
 
@@ -459,32 +461,55 @@ bool Resolver::resolveArrayCount(ast::Expr& written, DeclPtr<Type>& count, U64& 
         return true;
     }
 
+    /*
+     * A **const parameter** of the enclosing declaration, which is the one count that is not a
+     * number: what `[T *n]` inside `fn (n: Int) f()` says is decided per specialization, so the type
+     * names the parameter and the substitution supplies the number.
+     *
+     * Asked before the constant below, and that is the shadowing rule rather than an optimization: a
+     * name a declaration binds means what the declaration says whatever a module-level `let` of the
+     * same name holds.
+     */
     if(written.kind == ast::Expr::Var) {
-        if(!roomForVariable(genContext, written.var, written.source)) return false;
-        auto variable = genVariable(program, genContext, written.var, written.source);
+        if(auto variable = genVariable(program, genContext, written.var, written.source)) {
+            if(!roomForVariable(genContext, written.var, written.source)) return false;
 
-        if(!variable) {
-            context.diagnostics.error("%@ is not a count this declaration binds"_v, written.source,
-                                      context.findName(written.var));
-            return false;
+            // A *const* parameter, which is the whole of what `n: I32` on a head declares. A type
+            // parameter written here would be a count that is a type, and the position that would
+            // have had to multiply by it is a long way from the one that could say so.
+            if(!((VariableType*)decl()[variable])->isConst()) {
+                context.diagnostics.error(
+                    "%@ is a type parameter, and a count is a number - declare it `%@: Int`"_v,
+                    written.source, context.findName(written.var), context.findName(written.var));
+                return false;
+            }
+
+            count = variable;
+            return true;
         }
+    }
 
-        // A *const* parameter, which is the whole of what `n: I32` on a head declares. A type
-        // parameter written here would be a count that is a type, and the position that would have
-        // had to multiply by it is a long way from the one that could say so.
-        if(!((VariableType*)decl()[variable])->isConst()) {
-            context.diagnostics.error(
-                "%@ is a type parameter, and a count is a number - declare it `%@: Int`"_v,
-                written.source, context.findName(written.var), context.findName(written.var));
-            return false;
-        }
+    /*
+     * Anything else is a **constant expression** - `[U8 *(4 * 1024)]`, `[Byte *pageBytes]`.
+     *
+     * This position takes an expression from the parser already, which is what makes the widening
+     * free: the count and a global's initializer reduce by one rule, so a number a program can
+     * write as a constant is a number it can write as a length. Silent, because what it cannot
+     * reduce is reported below in the words this position wants.
+     */
+    auto notConstant = true;
+    auto constant = resolveConstant(written, nullptr, &notConstant);
 
-        count = variable;
+    if(constant.kind == Constant::Int) {
+        auto value = I64(constant.asInt());
+        if(!checkFixedArrayLength(value, written.source)) return false;
+
+        length = U64(value);
         return true;
     }
 
     context.diagnostics.error(
-        "a fixed array's count is a literal or a const parameter, and this is neither"_v,
+        "a fixed array's count is a constant or a const parameter, and this is neither"_v,
         written.source);
     return false;
 }
@@ -708,6 +733,87 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint, bool* no
         }
         case ast::Expr::Nested:
             return resolveConstant(*parse[expr.nested], hint, notConstant);
+
+        /*
+         * `4 * 1024 * 1024`, `wordBits - 1` - arithmetic, where the instance serving the operator is
+         * the compiler's own. See `resolveInfixConstant`, and `foldConstantOperator` beside it for
+         * why a program's own `instance Num(Money)` is not this form.
+         */
+        case ast::Expr::Infix: {
+            auto folded = resolveInfixConstant(expr, hint);
+            return folded.isSet() ? folded : notOne();
+        }
+
+        // The same rule through the written call form - `not(mask)`, and `doc/spec/overloading.md`'s
+        // "an operator is a call" from the other side.
+        case ast::Expr::App: {
+            auto folded = resolveCallConstant(expr, hint);
+            return folded.isSet() ? folded : notOne();
+        }
+
+        /*
+         * A name, which in a constant position is a global whose own initializer is a constant.
+         *
+         * `Analysis-Initialization.md`'s stage A calls this "a reference to an **immutable** global
+         * declared earlier, purely syntactic, no analysis", and both of its adjectives are
+         * load-bearing. A `let &` is *storage*: its constant is what the global starts as and a
+         * statement of the startup sequence may have assigned to it since, so folding a read of one
+         * answers what it held before the program ran. A global declared later has no constant yet -
+         * initializers are resolved in source order - so a forward reference comes back as not this
+         * form and is left to the entry sequence, which is where the use-before-init rule is.
+         *
+         * What it is for is the compiler's own supplied constants - `wordBits`, `pageBytes`,
+         * `vectorBytes`, `Target.byteOrder` - which are exactly immutable globals with constant
+         * initializers, and are useless in the positions a program wants them in without this.
+         */
+        case ast::Expr::Var: {
+            auto global = findGlobal(context, program, here(), expr.var, expr.source);
+            if(!global || decl()[global]->writable) return notOne();
+            if(!decl()[global]->initial.isSet()) return notOne();
+
+            return decl()[global]->initial;
+        }
+
+        // A field of one - `origin.x`, and every step of a record a constant holds.
+        case ast::Expr::Field: {
+            auto& field = *parse[expr.field];
+            if(field.field.kind != ast::Expr::Var) return notOne();
+
+            auto notThis = true;
+            auto subject = resolveConstant(field.target, nullptr, &notThis);
+            if(subject.kind != Constant::Aggregate) return notOne();
+            if(decl()[subject.type]->kind != Type::Record) return notOne();
+
+            auto& record = *(RecordType*)decl()[subject.type];
+            auto& parts = *decl()[subject.aggregate()];
+            if(parts.constructor >= record.cons.size()) return notOne();
+
+            auto arm = record.cons.get(decl(), parts.constructor);
+            for(U16 i = 0; i < arm.count && i < parts.values.size(); i++) {
+                if(record.field(decl(), U16(arm.first + i)).name != field.field.var) continue;
+                return parts.values.get(decl(), i);
+            }
+
+            return notOne();
+        }
+
+        /*
+         * `[3, 1, 4] :: [U8 *3]` - a fixed array whose elements are all constants.
+         *
+         * A fixed array's elements *are* the value's storage, which is the whole reason this is a
+         * constant form at all: there is no run to allocate and nothing to point at, so the bytes
+         * are the elements' bytes laid end to end and `materialize` writes them the way it writes
+         * any other aggregate. A growable `[T]` is an allocation and has no constant form, and the
+         * hint test below is what says so - `resolveArrayLiteral` refuses an owned `[T]` where it
+         * is declared, so a position that reaches here with one is not one this can reduce.
+         */
+        case ast::Expr::Array: {
+            auto array = resolveArrayConstant(expr, hint, notConstant);
+            if(!array) return notOne();
+
+            return array.unwrap();
+        }
+
         case ast::Expr::Con: {
             // A constructor whose value is a tag, which fits the eight bytes a `Constant` holds;
             // and then one whose value is its fields. Two forms rather than one because a value
@@ -844,6 +950,238 @@ Maybe<Constant> Resolver::resolveConstructorConstant(ast::Expr& expr, DeclPtr<Ty
     }
 
     return Just(enumConstant(type, found.index));
+}
+
+/*
+ * The operation a written operator or a class-member call is, where the instance serving it **at
+ * these operands** is the compiler's own.
+ *
+ * Selection first and the fold second, which is the order that keeps this from being a second
+ * reading of what `*` means: a candidate is a class member, the instance is looked up the way every
+ * call looks one up, and only a *generated* instance has an operation at all. A program's own
+ * `instance Num(Money)` therefore does not fold here - it is a body, and a body is what
+ * `evaluate.cpp` runs once one exists.
+ *
+ * Over the whole set rather than over `sole()`, because `+` is genuinely overloaded in this library:
+ * `Num.+` and `lib/Native`'s pointer offset share the name, and which one this is is decided by
+ * which class has an instance at the operand's type.
+ */
+bool Resolver::constantOperation(const OverloadSet& set, DeclPtr<Type> operand, LocationId source,
+                                 BinaryOp& binary, UnaryOp& unary, bool& isBinary) {
+    for(Size i = 0; i < set.size(); i++) {
+        auto& candidate = *decl()[set.at(i)];
+        if(!candidate.klass) continue;
+
+        InstanceMatch found;
+        if(!selectInstance(context, program, candidate.klass, &operand, 1, source, false, found)) {
+            continue;
+        }
+
+        auto& instance = *decl()[found.instance];
+        if(candidate.classMember >= instance.members.size()) continue;
+
+        auto member = instance.members.get(decl(), candidate.classMember);
+        if(!member) continue;
+
+        auto& provided = *decl()[member];
+        if(provided.provided == intrinsic::Provided::Count) continue;
+
+        if(providedOperation(provided.provided, provided.providedMember, binary, unary, isBinary)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*
+ * One application of such an operator over constants - the answer, or nothing.
+ *
+ * A **refinement is refused** rather than folded, and that is `doc/spec/repr.md`'s rule rather than
+ * a limit here: a load widens and a store narrows, so arithmetic never operates on a narrowed value
+ * at all - `addSmall(12)` on a `@bits(4) U32` is 24 because the addition is the `U32` one. Folding
+ * at the refinement's width would be the one answer this tier could give that the machine does not.
+ */
+Constant Resolver::foldConstantOperator(const OverloadSet& set, const Constant* args, Size count,
+                                        LocationId source) {
+    if(!count || count > 2) return Constant();
+    if(!args[0].isSet() || !args[0].type) return Constant();
+    if(isRefinedInt(decl(), args[0].type)) return Constant();
+
+    BinaryOp binary;
+    UnaryOp unary;
+    bool isBinary;
+
+    if(!constantOperation(set, args[0].type, source, binary, unary, isBinary)) return Constant();
+    if(isBinary != (count == 2)) return Constant();
+
+    if(!isBinary) return foldConstantUnary(program, unary, args[0], args[0].type);
+
+    // A comparison answers `Bool` and everything else answers the operands' own type, which is what
+    // `provided.def`'s heads say and is the one thing the folder cannot read off its inputs.
+    auto category = binaryCategory(binary);
+    auto result = category == OpCategory::Equality || category == OpCategory::Order
+                      ? booleanType(program) : args[0].type;
+
+    return foldConstantBinary(program, binary, args[0], args[1], result);
+}
+
+/*
+ * `a + b` in a constant position - the chain flattened and climbed exactly as a value would be.
+ *
+ * Precedence climbing rather than the written tree, for `climb`'s reason: the parser nests to the
+ * right whatever the fixity, so `1 + 2 * 3` arrives as `1 + (2 * 3)` only by accident of these
+ * particular operators. Sharing `flattenChain` is what keeps the grouping one answer.
+ *
+ * The **hint travels down only where it is a number**. A comparison's position asks for `Bool` and
+ * its operands are not booleans, so handing that hint to them would decide the wrong type; a numeric
+ * position is the case where the hint is what settles `4 * 1024`'s width. The right operand then
+ * takes the left's type, which is `climb`'s rule with the parameter type replaced by the value it
+ * would have been.
+ */
+Constant Resolver::resolveInfixConstant(ast::Expr& expr, DeclPtr<Type> hint) {
+    Chain chain;
+    if(!flattenChain(expr, chain, false)) return Constant();
+
+    Size operandIndex = 0;
+    Size operatorIndex = 0;
+
+    auto numeric = hint && (decl()[hint]->kind == Type::Int || decl()[hint]->kind == Type::Float);
+    return climbConstant(chain, operandIndex, operatorIndex, 0, numeric ? hint : nullptr);
+}
+
+Constant Resolver::climbConstant(Chain& chain, Size& operandIndex, Size& operatorIndex,
+                                 U8 minimumPrecedence, DeclPtr<Type> hint) {
+    auto notConstant = true;
+    auto lhs = resolveConstant(*chain.operands[operandIndex++], hint, &notConstant);
+    if(!lhs.isSet()) return Constant();
+
+    while(operatorIndex < chain.operators.size() &&
+          chain.operators[operatorIndex].precedence >= minimumPrecedence) {
+        auto op = chain.operators[operatorIndex];
+        auto source = chain.sources[operatorIndex];
+        operatorIndex++;
+
+        // `&&` and `||` are control flow rather than operations - `op.def`'s `Flow` roles - so there
+        // is nothing here to fold them into and they are simply not this form.
+        if(op.form != OperatorForm::Call) return Constant();
+
+        auto next = U8(op.assoc == Assoc::Right ? op.precedence : op.precedence + 1);
+        auto rhs = climbConstant(chain, operandIndex, operatorIndex, next, lhs.type);
+        if(!rhs.isSet()) return Constant();
+
+        Constant operands[2] = { lhs, rhs };
+        lhs = foldConstantOperator(op.set, operands, 2, source);
+        if(!lhs.isSet()) return Constant();
+    }
+
+    return lhs;
+}
+
+/*
+ * `not(mask)`, `min(a, b)` - a call in a constant position, folded where its callee is one of the
+ * compiler's own instance members.
+ *
+ * The same rule as the operator above, reached through the written call form: `doc/spec/overloading.md`
+ * is explicit that an operator *is* a call, so a position that folded one and not the other would be
+ * making the spelling matter.
+ */
+Constant Resolver::resolveCallConstant(ast::Expr& expr, DeclPtr<Type> hint) {
+    auto& written = *parse[expr.app];
+    if(written.callee.kind != ast::Expr::Var) return Constant();
+    if(written.args.size() < 1 || written.args.size() > 2) return Constant();
+
+    OverloadSet set;
+    findOverloads(context, program, here(), written.callee.var, written.args.size(),
+                  expr.source, set);
+
+    if(set.isEmpty()) return Constant();
+
+    SmallArray<Constant, 2> values;
+    auto numeric = hint && (decl()[hint]->kind == Type::Int || decl()[hint]->kind == Type::Float);
+
+    for(auto argument: written.args.contents(parse)) {
+        // A named argument decides which position it fills, which is a mapping this path has no
+        // reason to repeat: a constant call of two arguments is spelled positionally or it is not
+        // this form.
+        if(argument.name != StringId()) return Constant();
+
+        auto notConstant = true;
+        auto value = resolveConstant(argument.value, values.size() ? values[0].type
+                                                                  : (numeric ? hint : nullptr),
+                                     &notConstant);
+        if(!value.isSet()) return Constant();
+
+        values.push(value);
+    }
+
+    return foldConstantOperator(set, values.pointer(), values.size(), expr.source);
+}
+
+/*
+ * `[1, 2, 3]` in a constant position - the aggregate the elements are, or "not this form".
+ *
+ * `resolveAggregateConstant`'s shape one type down, and the same three answers for the same
+ * reasons: `Nothing` is not this form and reports nothing, `Just` of an unset constant is this form
+ * gone wrong and has reported, and `Just` of a value is the constant. A hint that is not a fixed
+ * array is the first of those rather than a message, so `[1, 2, 3]` with no ascription is reported
+ * once - by the value path, which names the ascription that would fix it.
+ *
+ * The literal's own rules are `arrayLiteralShape`'s and are not restated here. What is left is the
+ * walk, and it is the field walk's: an element that is not a constant makes the whole literal not
+ * this form, so a root module's `let xs = [n, 2, 3] :: [Int *3]` is still the runtime array it has
+ * to be, and an element that *is* a constant of the wrong type reports at the element.
+ */
+Maybe<Constant> Resolver::resolveArrayConstant(ast::Expr& expr, DeclPtr<Type> hint,
+                                               bool* notConstant) {
+    if(!hint || decl()[hint]->kind != Type::Array) return Nothing();
+
+    auto written = expr.arr.contents(parse);
+    auto shaped = arrayLiteralShape(expr, hint, written.size());
+    if(!shaped) return Just(Constant());
+
+    auto element = shaped.unwrap().element;
+
+    SmallArray<Constant, 8> values;
+    auto ok = true;
+    auto reduced = true;
+
+    for(Size i = 0; i < written.size(); i++) {
+        auto& item = *written.pointerAt(i);
+
+        auto dynamic = false;
+        auto value = resolveConstant(item, element, &dynamic);
+
+        if(dynamic) { reduced = false; continue; }
+        if(!value.isSet()) { ok = false; continue; }
+
+        if(!sameType(value.type, element)) {
+            context.diagnostics.error("this element is %@ and %@ holds %@"_v, item.source,
+                                      typeText(context, decl(), value.type),
+                                      typeText(context, decl(), hint),
+                                      typeText(context, decl(), element));
+            ok = false;
+            continue;
+        }
+
+        values.push(value);
+    }
+
+    // "Not this form" before "this form is wrong", which is `resolveAggregateConstant`'s order and
+    // is what keeps a literal one of whose elements is a runtime value compiling: the value path
+    // builds it, and a report made here would be a report that path never needed.
+    if(!reduced) {
+        if(notConstant) *notConstant = true;
+        return Nothing();
+    }
+
+    if(!ok) return Just(Constant());
+
+    // The fill, spread here rather than by the constant: what an `AggregateConstant` holds is one
+    // value per element, for `addAggregate`'s reason one tier up.
+    while(values.size() < shaped.unwrap().length) values.push(values[0]);
+
+    return Just(program.aggregateConstant(hint, 0, values.pointer(), values.size()));
 }
 
 /*
@@ -1216,7 +1554,15 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
         return intConstant(type, 0);
     }
 
-    if(!providedFor(program, providerOf(written.role), type)) {
+    /*
+     * Asked of the **canonical** integer, which is `canonicalInt`'s rule and not an exception here:
+     * `@bits(2) U32` is a type of its own because its storage differs, and what it dispatches,
+     * computes and converts as is the `U32` it refines. So `0 :: HeapFlag` is the compiler's own
+     * `FromInt(U32)` folded into the refinement's normal form - `foldWritten` reads the width off
+     * the refinement, so the number that comes out is the narrow one - rather than a call nobody
+     * declared, which is what asking the family about the refinement itself reported.
+     */
+    if(!providedFor(program, providerOf(written.role), canonicalInt(decl(), type))) {
         context.diagnostics.error(
             "a literal of %@ is a call of its %@ instance rather than a constant, and this position needs a constant"_v,
             expr.source, typeText(context, decl(), type),
@@ -1237,9 +1583,7 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
 DeclPtr<Type> Resolver::textType(LocationId source) {
     auto declared = program.roles.function(intrinsic::Known::stringLiteral);
     if(!declared) {
-        context.diagnostics.error(
-            "the standard library does not declare anything with the role stringLiteral, which a string literal needs"_v,
-            source);
+        reportMissingRole(intrinsic::Known::stringLiteral, "a string literal"_v, source);
         return nullptr;
     }
 
@@ -1247,26 +1591,18 @@ DeclPtr<Type> Resolver::textType(LocationId source) {
 }
 
 /*
- * `"abc"` - a string, from bytes the compiler places.
+ * The **bytes** of a string literal, as a constant global of `[CodeUnit *n]`.
  *
- * Two things and only two are the compiler's here. The **bytes** are a constant global of
- * `[CodeUnit *n]`, laid out by the array's own manifestation and reached the way any global is - a
- * borrow, whose address `addressOf` publishes as rooted in a global, which outlives the program. The
- * **value** is whatever the library builds out of that address and a count: `stringLiteral`, the
- * function `known.def` names, whose body is where a run that owns nothing is described and whose
- * result is the `String` the role names. Nothing here spells a field of it.
+ * One of the two things about a literal that are the compiler's, and the one that is the same
+ * whatever is done with the value: the bytes are laid out by the array's own manifestation and the
+ * global outlives the program, so an address of it is a pointer nothing has to keep alive.
  *
- * A global per literal rather than a constant of the string type, because a `String` holds an
- * address and a constant holds bytes - `materialize` writes no relocations - and because what the
- * library builds is the library's to change. The call is `@inline(always)` in the prelude, so what
- * a use of a literal costs is the stores the body writes and no call.
- *
- * **The one place a text becomes a value**, which is what `Constant::Text` is for: a literal
- * written in a body and a literal written as a default reach the same expansion here, and the day
- * the answer becomes the target's - a run in static storage on one, the host's own string on
- * another - this is the function that changes rather than each site that spells a literal.
+ * A global per literal rather than one interned by content - the name would then have to be derived
+ * from bytes that may hold a quote or a newline, which is a decision worth making once and later
+ * rather than as a side effect of emitting the first one. `resolve/const.cpp`'s
+ * `stringLiteralBytes` is the shipping stage's, and it records the same choice.
  */
-Node* Resolver::textValue(Builder& builder, StringId written, LocationId source) {
+DeclPtr<Global> Resolver::stringBytesGlobal(StringId written, LocationId source) {
     auto text = context.findName(written);
     auto count = U64(text.size());
 
@@ -1284,12 +1620,37 @@ Node* Resolver::textValue(Builder& builder, StringId written, LocationId source)
 
     auto pointer = global - *program.decl;
     decl()[here()]->globals.push(program.decl, pointer);
+    return pointer;
+}
+
+/*
+ * `"abc"` - a string, from bytes the compiler places.
+ *
+ * Two things and only two are the compiler's here. The bytes are `stringBytesGlobal`'s, reached the
+ * way any global is - a borrow, whose address `addressOf` publishes as rooted in a global. The
+ * **value** is whatever the library builds out of that address and a count: `stringLiteral`, the
+ * function `known.def` names, whose body is where a run that owns nothing is described and whose
+ * result is the `String` the role names. Nothing here spells a field of it.
+ *
+ * The call is `@inline(always)` in the prelude, so what a use of a literal costs is the stores the
+ * body writes and no call.
+ *
+ * **The one place a text becomes a value**, which is what `Constant::Text` is for: a literal
+ * written in a body and a literal written as a default reach the same expansion here, and the day
+ * the answer becomes the target's - a run in static storage on one, the host's own string on
+ * another - this is the function that changes rather than each site that spells a literal.
+ *
+ * `textConstantValue` beside it is the same two halves in a position that has no builder: it runs
+ * the same library function rather than describing what it would have built.
+ */
+Node* Resolver::textValue(Builder& builder, StringId written, LocationId source) {
+    auto count = U64(context.findName(written).size());
+    auto unit = program.types.codeUnit;
+    auto pointer = stringBytesGlobal(written, source);
 
     auto addressOf = program.roles.operation(intrinsic::Op::addressOf);
     if(!addressOf) {
-        context.diagnostics.error(
-            "the standard library does not declare anything with the role addressOf, which a string literal needs"_v,
-            source);
+        reportMissingRole(intrinsic::Op::addressOf, "a string literal"_v, source);
         return nullptr;
     }
 
@@ -1530,10 +1891,6 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      */
     completeInstantiations(context, *program);
 
-    // The field defaults the walk above queued, now that every constructor in the program exists -
-    // `Resolver::PendingDefault`, where the ordering this closes is argued.
-    resolver.resolveFieldDefaults();
-
     /*
      * Every alias's target, after the fields and before anything else reads one.
      *
@@ -1566,6 +1923,22 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     resolver.provideInstances();
 
     resolver.eachFile([&](ast::Module& file) { resolver.declare(file); });
+
+    /*
+     * The field defaults the record walk queued - `Resolver::PendingDefault`, where the ordering
+     * this closes is argued.
+     *
+     * Here rather than beside the fields for **two** reasons now. Every constructor in the program
+     * exists, which is the original one: `{f: Flag = Off}` above `Flag` names a constructor table
+     * still being built. And every *instance* does, including the ones the compiler generates - a
+     * default is a constant expression, and `4 * 1024` is a constant only where the `Num(I32)`
+     * serving the `*` can be looked up and found to be the compiler's own. A parameter default is
+     * resolved inside `declare` and had both already; a field default was two passes early and
+     * silently had neither.
+     *
+     * Before `checkTextDefaults` below, which is what a *string* default of a field is queued for.
+     */
+    resolver.resolveFieldDefaults();
 
     // The string defaults every pass above queued, now that `stringLiteral`'s own declaration is
     // certainly in - `Resolver::PendingTextDefault`, where the ordering this closes is argued.
@@ -1649,6 +2022,11 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     resolver.resolveProgramEntry();
 
     resolver.eachFile([&](ast::Module& file) { resolver.resolveBodies(file); });
+
+    // The string globals, which are the one constant whose value is a *body's* answer - see
+    // `PendingTextGlobal`. Here because this is the first point at which the library's own string
+    // builder has one, and before anything reads what a global holds.
+    resolver.resolveTextGlobals();
 
     // The one question a class declaration cannot be asked before its defaults have bodies - see
     // `checkClassDefaults`. Here rather than inside the walk above, because a default may call a

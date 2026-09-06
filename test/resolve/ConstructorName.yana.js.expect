@@ -1,0 +1,19 @@
+"use strict";
+// ResolveTest
+function reading(r) {
+  var v18;
+  var v1 = r.$tag;
+  if (v1 === 0) {
+    v18 = r.$p;
+  } else {
+    var v8 = v1 === 1 ? 1 : 0;
+    var v13 = Math.imul(r.$p, 2);
+    v18 = v8 ? v13 : -1;
+  }
+  return v18;
+}
+
+function main() {
+  return ((reading({ $tag: 0, $p: 10 }) + 10 | 0) + reading({ $tag: 1, $p: 100 }) | 0) + reading({ $tag: 2, $p: 0 }) | 0;
+}
+main();

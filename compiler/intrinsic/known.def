@@ -240,6 +240,37 @@ YANA_KNOWN_ROLE( slice,         Entity::Function, 3,   0,      0,      false,   
 YANA_KNOWN_ROLE( sliceMut,      Entity::Function, 3,   0,      0,      false,   Presence::Required )
 
 /*
+ * The two a **growable** array literal is made of - `[1, 2, 3]`, which is a container the compiler
+ * builds and does not know the shape of.
+ *
+ * `arrayLiteral(count: Size) -> Array(a)` answers an array of `count` **live** slots holding
+ * whatever the allocator handed back, and `elementBase(&self: '[a]) -> %a` says where those slots
+ * start - a **unique** window, because writing through the address is what the caller is about to do
+ * and the capability is on the window rather than on the pointer. Between them the compiler writes
+ * element `i` at index `i` and has read no field of either record - which is the whole point, and
+ * is why this is two library bodies rather than the run, capacity and placement tag the shipping
+ * stage spells out at every literal.
+ *
+ * **Two roles because they are two operations**, and both are ones a library already writes: the
+ * first is `ofCapacity` with the length moved up, and the second is the address every element
+ * accessor already takes. What could not be one is the pair - a function returning both an owner
+ * and a pointer into it would be publishing a loan of a value it is handing over in the same
+ * breath, and the language has no way to say that.
+ *
+ * A literal writing into slots the library says are live is the one place the compiler owes an
+ * ordering rather than a type: every one of them is filled before anything may read the array, so
+ * the `Reclaim` walk over `length` elements finds values and not garbage. Nothing between the two
+ * calls runs - the elements were resolved first, which is `resolveGrowableLiteral`'s own note.
+ *
+ * `Optional` on the allocator rows' terms. A library that declares neither is one whose arrays do
+ * not grow, which is a smaller library rather than a broken one; what it costs is that a literal
+ * with no fixed type reports the missing role by name, and a program that writes none compiles.
+ */
+//              role          entity            arity members payload teardown presence
+YANA_KNOWN_ROLE( arrayLiteral, Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( elementBase,  Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+
+/*
  * Where a check that did not hold stops the program - `prelude/Core/Array.yana`'s `checkFailed`.
  *
  * The one role here the compiler never *calls*. The shipping stage emits `checkCondition(index >=

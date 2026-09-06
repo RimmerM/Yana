@@ -74,15 +74,6 @@ enum class BoxRelease: U8 {
 U64 constantBits(DeclBase decl, const mir::Constant& constant);
 
 /*
- * One constant's bytes, written where the manifestation says they go - see the definition.
- *
- * Declared here rather than kept to `gen.cpp` because both placements need it: a global's initial
- * contents, and the read-only data an aggregate constant inside a *body* is placed in.
- */
-void materialize(Layout layout, DeclBase decl, const mir::Occurrence& occurrence,
-                 const mir::Constant& constant, Byte* into);
-
-/*
  * A declared width that does not fill the register holding it - `width.cpp`, which is the only
  * file that builds one and where the whole of the rule is written.
  *
@@ -200,7 +191,24 @@ struct Lowering {
      * gen.cpp.
      */
 
-    void lowerGlobal(DeclPtr<mir::Global> pointer);
+    /*
+     * One constant's bytes, written where the manifestation says they go - see the definition.
+     *
+     * A member rather than a free function because a leaf of a constant may be the **address of a
+     * global**, which is a relocation on the global being filled and a lookup of the one being
+     * named - two things only the lowering has. `owner` is that global and `into` a byte inside its
+     * contents; `owner` is null for the scratch buffer a co-packed field is built in, where an
+     * address cannot appear at all.
+     *
+     * Both placements need it: a global's initial contents, and the read-only data an aggregate
+     * constant inside a *body* is placed in.
+     */
+    void materialize(const mir::Occurrence& occurrence, const mir::Constant& constant,
+                     LowerGlobal* owner, Byte* into);
+
+    // Declaring every global before any of them is filled - see `run`, where the order is argued.
+    void declareGlobal(DeclPtr<mir::Global> pointer);
+    void fillGlobal(DeclPtr<mir::Global> pointer);
     void lowerBody(mir::Function& source, LowerFunction& target);
     void hintDeclaredRanges(Body& body);
     void supplyEdge(LowerBlock& from, Edge& edge);
@@ -286,6 +294,12 @@ struct Lowering {
     // it lives in memory. One function, because "install this here" is one operation and the
     // manifestation is what decides its machine form.
     void install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value);
+
+    // A fixed array's components as one `setpattern`, where every one of them is the same byte -
+    // the block fill, and false where they are not. See the definition for the four things that
+    // have to hold.
+    bool uniformFill(LowerBlock& block, LowerPtr<LowerValue> storage, InstAggregate& written,
+                     U32 stride);
 
     /*
      * box.cpp - `@box`, and the allocation an indirect field is.

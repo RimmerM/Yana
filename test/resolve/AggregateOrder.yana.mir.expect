@@ -1,0 +1,169 @@
+module ResolveTest
+
+data Pair {a: I32, b: I32}
+
+let & log: I32 = 0
+
+fn note(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (global log)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (n)
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (global log) take %4
+  %6: I32 = read copy.trivial (global log)
+  %7: I32 = const 1000000000
+  %8: Bool = gt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %14: I32 = read copy.trivial (n)
+  return take %14
+
+bb3:
+  %10: I32 = const 0
+  %11: I32 = call note borrow.shared %10
+  return take %11
+}
+
+fn crossesEffect() -> I32 {
+  local & p: Pair
+  local first: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 9
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = const 1
+  %5: I32 = call note borrow.shared %4
+  write.init borrow.unique (first) take %5
+  %7: I32 = const 2
+  %8: I32 = call note borrow.shared %7
+  write.assign borrow.unique (p.a) take %8
+  %10: I32 = read copy.trivial (p.a)
+  %11: I32 = const 10
+  %12: I32 = mul inspect %10 inspect %11
+  %13: I32 = read copy.trivial (p.b)
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = read copy.trivial (first)
+  %16: I32 = add inspect %14 inspect %15
+  return take %16
+}
+
+fn crossesBinding() -> I32 {
+  local & p: Pair
+  local x: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 8
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = const 3
+  %5: I32 = call note borrow.shared %4
+  write.init borrow.unique (x) take %5
+  %7: I32 = read copy.trivial (x)
+  %8: I32 = const 1
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (p.a) take %9
+  %11: I32 = read copy.trivial (p.a)
+  %12: I32 = const 10
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = read copy.trivial (p.b)
+  %15: I32 = add inspect %13 inspect %14
+  return take %15
+}
+
+fn elementCrossesEffect() -> I32 {
+  local & local0: Array(I32) object0
+  local & xs: Array(I32) object0
+  local first: I32
+  local & local3: I32 [unique slot 0]
+  local local4: I32 [shared slot 0]
+  local local5: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 7
+  %2: Size = const 2
+  %3: Array(I32) = call literalArray(I32) borrow.shared %2
+  write.init borrow.unique (local0) take %3
+  %5: Array(I32) [unique slot 0] = read borrow.unique (local0) loan0
+  %6: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %5 roots{0}
+  %7: %I32 [owned here shape1 .*=shared slot 0] = call valuesMut(I32) borrow.unique %6 roots.0{0}
+  %8: Size = const 0
+  write.init borrow.unique ([%%7][0]) take %0
+  %10: Size = const 1
+  write.init borrow.unique ([%%7][1]) take %1
+  %12: Array(I32) = read take (local0)
+  write.init borrow.unique (xs) take %12
+  %14: I32 = const 4
+  %15: I32 = call note borrow.shared %14
+  write.init borrow.unique (first) take %15
+  %17: Size = const 0
+  %18: I32 = const 5
+  %19: I32 = call note borrow.shared %18
+  %20: Array(I32) [unique call] = read borrow.unique (xs) loan1
+  %21: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %20 roots{1}
+  %22: I32 [unique slot 0] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %21 borrow.shared %17 roots{1}
+  write.init borrow.unique (local3) borrow.unique %22
+  write.assign borrow.unique (local3) take %19
+  %25: Size = const 0
+  %26: Array(I32) [shared call] = read borrow.shared (xs) loan2
+  %27: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %26 roots{2}
+  %28: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %27 borrow.shared %25 roots{2}
+  write.init borrow.unique (local4) borrow.shared %28
+  %30: I32 = read copy.trivial (local4)
+  %31: I32 = const 10
+  %32: I32 = mul inspect %30 inspect %31
+  %33: Size = const 1
+  %34: Array(I32) [shared call] = read borrow.shared (xs) loan3
+  %35: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %34 roots{3}
+  %36: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %35 borrow.shared %33 roots{3}
+  write.init borrow.unique (local5) borrow.shared %36
+  %38: I32 = read copy.trivial (local5)
+  drop (xs)
+  %39: I32 = add inspect %32 inspect %38
+  %40: I32 = read copy.trivial (first)
+  %41: I32 = add inspect %39 inspect %40
+  return take %41
+}
+
+fn folds() -> I32 {
+  local & p: Pair
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 6
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = const 5
+  write.assign borrow.unique (p.a) take %4
+  %6: I32 = read copy.trivial (p.a)
+  %7: I32 = const 10
+  %8: I32 = mul inspect %6 inspect %7
+  %9: I32 = read copy.trivial (p.b)
+  %10: I32 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call crossesEffect
+  %1: I32 = call crossesBinding
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call elementCrossesEffect
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call folds
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = read copy.trivial (global log)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+entry main

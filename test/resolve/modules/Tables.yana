@@ -1,0 +1,21 @@
+{-
+   A library module whose top level holds a string and a fixed array - the shape
+   `lib/Core/Show.yana`'s digit table and `lib/Core/Float/Ryu.native.yana`'s power tables are
+   written in.
+
+   Neither is code. A library module has no program point at which a declaration's own initializer
+   would run, so both of these have to be **constants**: bytes written before the program starts.
+   The array is one because its elements are the value's own storage; the string is one because its
+   value is what `stringLiteral` builds out of the address of bytes the compiler places, which is a
+   pointer and therefore a relocation rather than a number.
+-}
+
+pub let decimalPairs = "00010203040506070809"
+
+-- `*_` because the count is the literal's, which is the spelling a table like this wants: the
+-- number is written once, in the values.
+pub let powers = [1, 10, 100, 1000, 10000] :: [I64 *_]
+
+pub fn power(index: Size) -> I64 = powers[index]
+
+pub fn pairCount() -> Size = length(decimalPairs) / 2

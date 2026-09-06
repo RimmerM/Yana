@@ -1,7 +1,38 @@
 
+seed<complex>(): I32 {
+  b_0 {
+    ret 5
+  }
+}
+
+next<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = add %n, 1: I32
+    ret %v_1
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
-    ret 612506607
+    %v_1 = call_complex seed: I32
+    %v_2 = call_complex next, %v_1: I32
+    %v_3 = call_complex next, %v_2: I32
+    %v_4 = imul %v_2, 100: I32
+    %v_5 = add %v_4, %v_3: I32
+    %v_6 = call_complex seed: I32
+    %v_7 = call_complex next, %v_6: I32
+    %v_8 = imul %v_6, 100: I32
+    %v_9 = add %v_8, %v_7: I32
+    %v_10 = imul %v_9, 1000: I32
+    %v_11 = add %v_5, %v_10: I32
+    %v_12 = call_complex seed: I32
+    %v_13 = call_complex next, %v_12: I32
+    %v_14 = imul %v_13, 100: I32
+    %v_15 = add %v_14, %v_13: I32
+    %v_16 = add %v_15, %v_13: I32
+    %v_17 = imul %v_16, 1000000: I32
+    %v_18 = add %v_11, %v_17: I32
+    ret %v_18
   }
 }
 

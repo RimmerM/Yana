@@ -711,17 +711,27 @@ bool checkRoles(Context& context, Program& program) {
         if(!checkOpShape(context, program, Op(i), *base[function], claim.source)) ok = false;
     }
 
+    // The supplied globals were checked and filled as each one's initializer settled - see
+    // `bindSuppliedGlobal`, where the ordering is argued. What is carried here is their verdict.
+    return ok && !program.suppliedRoleFailed;
+}
+
+bool bindSuppliedGlobal(Context& context, Program& program, DeclPtr<Global> global) {
+    auto base = *program.decl;
+
     for(Size i = 0; i < kBuiltinCount; i++) {
         auto& claim = program.roles.supplied[i];
-        if(!claim.filled()) continue;
+        if(!claim.filled() || claim.declaration != global.offset) continue;
 
-        auto global = DeclPtr<Global>(claim.declaration);
-        if(!checkSuppliedGlobal(context, program, Builtin(i), *base[global], claim.source)) {
-            ok = false;
+        if(checkSuppliedGlobal(context, program, Builtin(i), *base[global], claim.source)) {
+            return true;
         }
+
+        program.suppliedRoleFailed = true;
+        return false;
     }
 
-    return ok;
+    return true;
 }
 
 } // namespace mir

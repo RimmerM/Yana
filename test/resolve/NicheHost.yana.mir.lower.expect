@@ -26,6 +26,15 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
+opaqueText<complex>(%v_0: Ptr, %s: Ptr) {
+  b_1 {
+    %v_2 = alloca 16, 8: Ptr
+    copy %v_2, %s, 16
+    copy %v_0, %v_2, 16
+    ret 
+  }
+}
+
 codeOf<complex>(%s: Ptr): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -95,33 +104,34 @@ ownedText<complex>(%v_0: Ptr, %n: I32) {
   b_4 {
     %v_5 = load @runBorrowed, 4: I32
     %v_6 = and %v_5, 3: I32
-    %v_7 = alloca 4, 8: Ptr
-    %v_8 = load %v_7, 4: I64
-    %v_9 = cast %v_6: I64
-    %v_10 = shl %v_9, 30: I64
-    %v_11 = or 1, %v_10: I64
-    store %v_7, %v_11, 4
-    %v_12 = load @runBorrowed, 4: I32
-    %v_13 = and %v_12, 3: I32
+    %v_7 = alloca 16, 8: Ptr
+    store %v_7, @string'3, 8
+    %v_8 = add %v_7, 8: Ptr
+    %v_9 = load %v_8, 4: I64
+    %v_10 = cast %v_6: I64
+    %v_11 = shl %v_10, 30: I64
+    %v_12 = or 1, %v_11: I64
+    store %v_8, %v_12, 4
+    %v_13 = add %v_7, 12: Ptr
+    store %v_13, 1, 4
     %v_14 = alloca 16, 8: Ptr
-    store %v_14, @string'4, 8
-    %v_15 = add %v_14, 8: Ptr
-    %v_16 = load %v_15, 4: I64
-    %v_17 = cast %v_13: I64
-    %v_18 = shl %v_17, 30: I64
-    %v_19 = or 1, %v_18: I64
-    store %v_15, %v_19, 4
-    %v_20 = add %v_14, 12: Ptr
-    store %v_20, 1, 4
-    %v_21 = alloca 16, 8: Ptr
-    store %v_21, @string'3, 8
-    %v_22 = add %v_21, 8: Ptr
-    %v_23 = load %v_7, 4: I64
-    store %v_22, %v_23, 4
-    %v_24 = add %v_21, 12: Ptr
-    store %v_24, 1, 4
-    %v_25 = load %v_14, 8: Ptr
-    %v_26 = load %v_20, 4: I32
+    call_complex opaqueText, %v_14, %v_7
+    %v_15 = load @runBorrowed, 4: I32
+    %v_16 = and %v_15, 3: I32
+    %v_17 = alloca 16, 8: Ptr
+    store %v_17, @string'4, 8
+    %v_18 = add %v_17, 8: Ptr
+    %v_19 = load %v_18, 4: I64
+    %v_20 = cast %v_16: I64
+    %v_21 = shl %v_20, 30: I64
+    %v_22 = or 1, %v_21: I64
+    store %v_18, %v_22, 4
+    %v_23 = add %v_17, 12: Ptr
+    store %v_23, 1, 4
+    %v_24 = alloca 16, 8: Ptr
+    copy %v_24, %v_14, 16
+    %v_25 = load %v_17, 8: Ptr
+    %v_26 = load %v_23, 4: I32
     %v_27 = cast %v_26: I64
     jmp b_28
   }
@@ -139,20 +149,20 @@ ownedText<complex>(%v_0: Ptr, %n: I32) {
   }
 
   b_34 {
-    call_complex String.reclaim, %v_14
-    copy %v_0, %v_21, 16
+    call_complex String.reclaim, %v_17
+    copy %v_0, %v_24, 16
     ret 
   }
 
   b_31 {
     %v_35 = add %v_25, %v_30: Ptr
     %v_36 = load %v_35, 1: I32
-    %v_37 = add %v_21, 12: Ptr
+    %v_37 = add %v_24, 12: Ptr
     %v_38 = load %v_37, 4: I32
     %v_39 = cast %v_38: I64
     %v_40 = add %v_39, 1: I64
-    call_complex reserve(CodeUnit), %v_21, %v_40
-    %v_41 = load %v_21, 8: Ptr
+    call_complex reserve(CodeUnit), %v_24, %v_40
+    %v_41 = load %v_24, 8: Ptr
     %v_42 = add %v_41, %v_39: Ptr
     store %v_42, %v_36, 1
     %v_43 = cast %v_40: I32
@@ -245,119 +255,121 @@ textFold<complex>(): I32 {
     call_complex teardown(Maybe(String)), %v_2
     %v_48 = load @runBorrowed, 4: I32
     %v_49 = and %v_48, 3: I32
-    %v_50 = alloca 4, 8: Ptr
-    %v_51 = load %v_50, 4: I64
-    %v_52 = cast %v_49: I64
-    %v_53 = shl %v_52, 30: I64
-    store %v_50, %v_53, 4
-    store %v_3, @string'7, 8
-    %v_54 = add %v_3, 8: Ptr
-    %v_55 = load %v_50, 4: I64
-    store %v_54, %v_55, 4
-    %v_56 = add %v_3, 12: Ptr
-    store %v_56, 0, 4
-    %v_57 = load %v_56, 4: I64
-    %v_58 = cmp_le %v_57, 1073741823: I32
-    je %v_58, b_59, b_60
-  }
-
-  b_59 {
-    %v_61 = load %v_3, 8: Ptr
-    %v_62 = load %v_56, 4: I32
-    %v_63 = cast %v_62: I64
-    %v_64 = alloca 16, 8: Ptr
-    store %v_64, %v_61, 8
-    %v_65 = add %v_64, 8: Ptr
-    store %v_65, %v_63, 8
-    %v_66 = call_complex codeOf, %v_64: I32
-    jmp b_67
+    %v_50 = alloca 16, 8: Ptr
+    store %v_50, @string'7, 8
+    %v_51 = add %v_50, 8: Ptr
+    %v_52 = load %v_51, 4: I64
+    %v_53 = cast %v_49: I64
+    %v_54 = shl %v_53, 30: I64
+    store %v_51, %v_54, 4
+    %v_55 = add %v_50, 12: Ptr
+    store %v_55, 0, 4
+    %v_56 = alloca 16, 8: Ptr
+    call_complex opaqueText, %v_56, %v_50
+    copy %v_3, %v_56, 16
+    %v_57 = add %v_3, 12: Ptr
+    %v_58 = load %v_57, 4: I64
+    %v_59 = cmp_le %v_58, 1073741823: I32
+    je %v_59, b_60, b_61
   }
 
   b_60 {
-    jmp b_67
+    %v_62 = load %v_3, 8: Ptr
+    %v_63 = load %v_57, 4: I32
+    %v_64 = cast %v_63: I64
+    %v_65 = alloca 16, 8: Ptr
+    store %v_65, %v_62, 8
+    %v_66 = add %v_65, 8: Ptr
+    store %v_66, %v_64, 8
+    %v_67 = call_complex codeOf, %v_65: I32
+    jmp b_68
   }
 
-  b_67 {
-    %v_68 = phi [b_59, %v_66], [b_60, 9]: I32
+  b_61 {
+    jmp b_68
+  }
+
+  b_68 {
+    %v_69 = phi [b_60, %v_67], [b_61, 9]: I32
     call_complex teardown(Maybe(String)), %v_3
-    %v_69 = add %v_4, 12: Ptr
-    store %v_69, 1073741824, 4
-    jmp b_70
-  }
-
-  b_70 {
+    %v_70 = add %v_4, 12: Ptr
+    store %v_70, 1073741824, 4
     jmp b_71
   }
 
   b_71 {
-    call_complex teardown(Maybe(String)), %v_4
-    %v_72 = alloca 16, 8: Ptr
-    call_complex ownedText, %v_72, 1
-    copy %v_5, %v_72, 16
-    %v_73 = add %v_5, 12: Ptr
-    %v_74 = load %v_73, 4: I64
-    %v_75 = cmp_le %v_74, 1073741823: I32
-    je %v_75, b_76, b_77
+    jmp b_72
   }
 
-  b_76 {
-    %v_78 = load %v_5, 8: Ptr
-    %v_79 = load %v_73, 4: I32
-    %v_80 = cast %v_79: I64
-    %v_81 = alloca 16, 8: Ptr
-    store %v_81, %v_78, 8
-    %v_82 = add %v_81, 8: Ptr
-    store %v_82, %v_80, 8
-    %v_83 = call_complex codeOf, %v_81: I32
-    jmp b_84
+  b_72 {
+    call_complex teardown(Maybe(String)), %v_4
+    %v_73 = alloca 16, 8: Ptr
+    call_complex ownedText, %v_73, 1
+    copy %v_5, %v_73, 16
+    %v_74 = add %v_5, 12: Ptr
+    %v_75 = load %v_74, 4: I64
+    %v_76 = cmp_le %v_75, 1073741823: I32
+    je %v_76, b_77, b_78
   }
 
   b_77 {
-    jmp b_84
+    %v_79 = load %v_5, 8: Ptr
+    %v_80 = load %v_74, 4: I32
+    %v_81 = cast %v_80: I64
+    %v_82 = alloca 16, 8: Ptr
+    store %v_82, %v_79, 8
+    %v_83 = add %v_82, 8: Ptr
+    store %v_83, %v_81, 8
+    %v_84 = call_complex codeOf, %v_82: I32
+    jmp b_85
   }
 
-  b_84 {
-    %v_85 = phi [b_76, %v_83], [b_77, 9]: I32
+  b_78 {
+    jmp b_85
+  }
+
+  b_85 {
+    %v_86 = phi [b_77, %v_84], [b_78, 9]: I32
     call_complex teardown(Maybe(String)), %v_5
-    %v_86 = alloca 16, 8: Ptr
-    call_complex ownedText, %v_86, 0
-    copy %v_6, %v_86, 16
-    %v_87 = add %v_6, 12: Ptr
-    %v_88 = load %v_87, 4: I64
-    %v_89 = cmp_le %v_88, 1073741823: I32
-    je %v_89, b_90, b_91
-  }
-
-  b_90 {
-    %v_92 = load %v_6, 8: Ptr
-    %v_93 = load %v_87, 4: I32
-    %v_94 = cast %v_93: I64
-    %v_95 = alloca 16, 8: Ptr
-    store %v_95, %v_92, 8
-    %v_96 = add %v_95, 8: Ptr
-    store %v_96, %v_94, 8
-    %v_97 = call_complex codeOf, %v_95: I32
-    jmp b_98
+    %v_87 = alloca 16, 8: Ptr
+    call_complex ownedText, %v_87, 0
+    copy %v_6, %v_87, 16
+    %v_88 = add %v_6, 12: Ptr
+    %v_89 = load %v_88, 4: I64
+    %v_90 = cmp_le %v_89, 1073741823: I32
+    je %v_90, b_91, b_92
   }
 
   b_91 {
-    jmp b_98
+    %v_93 = load %v_6, 8: Ptr
+    %v_94 = load %v_88, 4: I32
+    %v_95 = cast %v_94: I64
+    %v_96 = alloca 16, 8: Ptr
+    store %v_96, %v_93, 8
+    %v_97 = add %v_96, 8: Ptr
+    store %v_97, %v_95, 8
+    %v_98 = call_complex codeOf, %v_96: I32
+    jmp b_99
   }
 
-  b_98 {
-    %v_99 = phi [b_90, %v_97], [b_91, 9]: I32
+  b_92 {
+    jmp b_99
+  }
+
+  b_99 {
+    %v_100 = phi [b_91, %v_98], [b_92, 9]: I32
     call_complex teardown(Maybe(String)), %v_6
-    %v_100 = imul %v_47, 10: I32
-    %v_101 = add %v_26, %v_100: I32
-    %v_102 = imul %v_68, 100: I32
-    %v_103 = add %v_101, %v_102: I32
-    %v_104 = imul 9, 1000: I32
-    %v_105 = add %v_103, %v_104: I32
-    %v_106 = imul %v_85, 10000: I32
-    %v_107 = add %v_105, %v_106: I32
-    %v_108 = imul %v_99, 100000: I32
-    %v_109 = add %v_107, %v_108: I32
-    ret %v_109
+    %v_101 = imul %v_47, 10: I32
+    %v_102 = add %v_26, %v_101: I32
+    %v_103 = imul %v_69, 100: I32
+    %v_104 = add %v_102, %v_103: I32
+    %v_105 = imul 9, 1000: I32
+    %v_106 = add %v_104, %v_105: I32
+    %v_107 = imul %v_86, 10000: I32
+    %v_108 = add %v_106, %v_107: I32
+    %v_109 = imul %v_100, 100000: I32
+    %v_110 = add %v_108, %v_109: I32
+    ret %v_110
   }
 }
 

@@ -1290,6 +1290,26 @@ struct Verifier {
     void transfer(Block& block, Array<Linear>& state, U64* live, bool reporting) {
         auto values = tracked();
 
+        /*
+         * What the terminator's edges consumed, and what the state was before they did - see the
+         * note at the edge walk. Declared out here rather than per instruction so that one block's
+         * walk allocates once, and only recorded while `alternating` is set, which is the only
+         * point at which two uses stand for two paths rather than for two steps.
+         */
+        struct Alternative { U32 slot; Linear before; };
+        SmallArray<Alternative, 8> alternatives;
+        auto alternating = false;
+
+        // The first edge to consume a slot is the one whose state the others are compared against,
+        // so a slot two edges carry is recorded once.
+        auto remember = [&](U32 slot) {
+            for(auto& alternative: alternatives) {
+                if(alternative.slot == slot) return;
+            }
+
+            alternatives.push(Alternative { slot, state[slot] });
+        };
+
         // A loan starts, or starts over, where the value that depends on it is defined. That is what
         // makes the rule work inside a loop: the allocation is in the entry block and the borrow is
         // in the body, so the back edge carries "ended" into the header and the borrow below it
@@ -1365,6 +1385,8 @@ struct Verifier {
                                instMnemonic(inst->kind), value->id.index);
                     }
 
+                    if(alternating) remember(slot);
+
                     state[slot] = Linear::Consumed;
                 } else if(state[slot] == Linear::Consumed && reporting) {
                     report(inst->source, "internal: %@ uses %@ after it was consumed"_v,
@@ -1373,9 +1395,39 @@ struct Verifier {
             };
 
             forEachUse(base, *inst, visit);
+
+            /*
+             * The edges of one terminator are **alternatives**, not a sequence.
+             *
+             * A branch runs exactly one of its edges, so a value carried on both of them is
+             * consumed once on every path and not twice on any - `"a" ++ (if c then "b" else "")`
+             * is the shape, where the left operand travels to the join over whichever arm ran. Read
+             * as a run of uses they are two consumptions of one value, which is the report this
+             * avoids; read as arms they are one, which is what the program means.
+             *
+             * So each edge is checked against the state as it stood *before* the first of them, and
+             * what an earlier edge changed is put back for the next. What comes out is unchanged -
+             * a value any edge consumed is consumed here - because the block's out state is one
+             * state for every successor and the meet in the join is where a disagreement between two
+             * paths is actually decided.
+             *
+             * `visit` does the recording rather than a second walk of the edge's arguments beside
+             * it: which uses are consumptions and which values are tracked is decided there, and
+             * deciding it twice is how the two answers come apart.
+             */
+            alternatives.clear();
+            alternating = true;
+
             forEachEdge(*inst, [&](Edge& edge) {
+                for(auto& alternative: alternatives) state[alternative.slot] = alternative.before;
                 for(auto used: edge.arguments.contents(base)) visit(used);
             });
+
+            alternating = false;
+
+            // And the union the note above describes: every slot an edge consumed is consumed on
+            // leaving this block, whichever edge it was.
+            for(auto& alternative: alternatives) state[alternative.slot] = Linear::Consumed;
 
             /*
              * Where a loan ends: the storage it was taken from is released, emptied, or overwritten.

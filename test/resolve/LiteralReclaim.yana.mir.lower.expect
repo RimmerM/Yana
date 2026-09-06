@@ -215,6 +215,12 @@ grown<complex>(%n: I32): I32 {
   }
 }
 
+opaque<complex>(%n: I32): I32 {
+  b_0 {
+    ret %n
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -242,220 +248,221 @@ main<complex>(): I32 {
   b_9 {
     %v_18 = phi [b_10, %v_19], [b_0, 0]: I32
     %v_20 = phi [b_10, %v_12], [b_0, 0]: I32
-    %v_21 = call_complex grown, 0: I32
-    %v_19 = add %v_18, %v_21: I32
+    %v_21 = call_complex opaque, 0: I32
+    %v_22 = call_complex grown, %v_21: I32
+    %v_19 = add %v_18, %v_22: I32
     %v_12 = add %v_20, 1: I32
     jmp b_10
   }
 
   b_16 {
-    %v_22 = imul %v_7, 10: I32
-    %v_23 = cmp_neq %v_19, %v_22: I32
-    je %v_23, b_24, b_25
+    %v_23 = imul %v_7, 10: I32
+    %v_24 = cmp_neq %v_19, %v_23: I32
+    je %v_24, b_25, b_26
   }
 
   b_17 {
     ret 18446744073709551615
   }
 
-  b_25 {
-    %v_26 = load @runBorrowed, 4: I32
-    %v_27 = and %v_26, 3: I32
-    %v_28 = alloca 4, 8: Ptr
-    %v_29 = load %v_28, 4: I64
-    %v_30 = cast %v_27: I64
-    %v_31 = shl %v_30, 30: I64
-    %v_32 = or 5, %v_31: I64
-    store %v_28, %v_32, 4
+  b_26 {
+    %v_27 = load @runBorrowed, 4: I32
+    %v_28 = and %v_27, 3: I32
+    %v_29 = alloca 4, 8: Ptr
+    %v_30 = load %v_29, 4: I64
+    %v_31 = cast %v_28: I64
+    %v_32 = shl %v_31, 30: I64
+    %v_33 = or 5, %v_32: I64
+    store %v_29, %v_33, 4
     store %v_1, @string'8, 8
-    %v_33 = add %v_1, 8: Ptr
-    %v_34 = load %v_28, 4: I64
-    store %v_33, %v_34, 4
-    %v_35 = add %v_1, 12: Ptr
-    store %v_35, 5, 4
-    %v_36 = load %v_1, 8: Ptr
-    %v_37 = alloca 16, 8: Ptr
-    store %v_37, %v_36, 8
-    %v_38 = add %v_37, 8: Ptr
-    store %v_38, 5, 8
-    %v_39 = call_complex matches, %v_37: I32
+    %v_34 = add %v_1, 8: Ptr
+    %v_35 = load %v_29, 4: I64
+    store %v_34, %v_35, 4
+    %v_36 = add %v_1, 12: Ptr
+    store %v_36, 5, 4
+    %v_37 = load %v_1, 8: Ptr
+    %v_38 = alloca 16, 8: Ptr
+    store %v_38, %v_37, 8
+    %v_39 = add %v_38, 8: Ptr
+    store %v_39, 5, 8
+    %v_40 = call_complex matches, %v_38: I32
     call_complex String.reclaim, %v_1
-    je %v_39, b_40, b_41
+    je %v_40, b_41, b_42
   }
 
-  b_24 {
+  b_25 {
     ret 18446744073709551614
   }
 
-  b_40 {
-    %v_42 = load @runBorrowed, 4: I32
-    %v_43 = and %v_42, 3: I32
-    %v_44 = alloca 4, 8: Ptr
-    %v_45 = load %v_44, 4: I64
-    %v_46 = cast %v_43: I64
-    %v_47 = shl %v_46, 30: I64
-    %v_48 = or 3, %v_47: I64
-    store %v_44, %v_48, 4
+  b_41 {
+    %v_43 = load @runBorrowed, 4: I32
+    %v_44 = and %v_43, 3: I32
+    %v_45 = alloca 4, 8: Ptr
+    %v_46 = load %v_45, 4: I64
+    %v_47 = cast %v_44: I64
+    %v_48 = shl %v_47, 30: I64
+    %v_49 = or 3, %v_48: I64
+    store %v_45, %v_49, 4
     store %v_2, @string'9, 8
-    %v_49 = add %v_2, 8: Ptr
-    %v_50 = load %v_44, 4: I64
-    store %v_49, %v_50, 4
-    %v_51 = add %v_2, 12: Ptr
-    store %v_51, 3, 4
-    %v_52 = load %v_2, 8: Ptr
-    %v_53 = alloca 16, 8: Ptr
-    store %v_53, %v_52, 8
-    %v_54 = add %v_53, 8: Ptr
-    store %v_54, 3, 8
-    %v_55 = call_complex matches, %v_53: I32
+    %v_50 = add %v_2, 8: Ptr
+    %v_51 = load %v_45, 4: I64
+    store %v_50, %v_51, 4
+    %v_52 = add %v_2, 12: Ptr
+    store %v_52, 3, 4
+    %v_53 = load %v_2, 8: Ptr
+    %v_54 = alloca 16, 8: Ptr
+    store %v_54, %v_53, 8
+    %v_55 = add %v_54, 8: Ptr
+    store %v_55, 3, 8
+    %v_56 = call_complex matches, %v_54: I32
     call_complex String.reclaim, %v_2
-    je %v_55, b_56, b_57
+    je %v_56, b_57, b_58
   }
 
-  b_41 {
+  b_42 {
     ret 18446744073709551613
   }
 
-  b_57 {
-    %v_58 = load @runBorrowed, 4: I32
-    %v_59 = and %v_58, 3: I32
-    %v_60 = alloca 4, 8: Ptr
-    %v_61 = load %v_60, 4: I64
-    %v_62 = cast %v_59: I64
-    %v_63 = shl %v_62, 30: I64
-    %v_64 = or 3, %v_63: I64
-    store %v_60, %v_64, 4
+  b_58 {
+    %v_59 = load @runBorrowed, 4: I32
+    %v_60 = and %v_59, 3: I32
+    %v_61 = alloca 4, 8: Ptr
+    %v_62 = load %v_61, 4: I64
+    %v_63 = cast %v_60: I64
+    %v_64 = shl %v_63, 30: I64
+    %v_65 = or 3, %v_64: I64
+    store %v_61, %v_65, 4
     store %v_3, @string'10, 8
-    %v_65 = add %v_3, 8: Ptr
-    %v_66 = load %v_60, 4: I64
-    store %v_65, %v_66, 4
-    %v_67 = add %v_3, 12: Ptr
-    store %v_67, 3, 4
-    %v_68 = load %v_3, 8: Ptr
-    %v_69 = alloca 16, 8: Ptr
-    store %v_69, %v_68, 8
-    %v_70 = add %v_69, 8: Ptr
-    store %v_70, 3, 8
-    %v_71 = call_complex classify, %v_69: I32
+    %v_66 = add %v_3, 8: Ptr
+    %v_67 = load %v_61, 4: I64
+    store %v_66, %v_67, 4
+    %v_68 = add %v_3, 12: Ptr
+    store %v_68, 3, 4
+    %v_69 = load %v_3, 8: Ptr
+    %v_70 = alloca 16, 8: Ptr
+    store %v_70, %v_69, 8
+    %v_71 = add %v_70, 8: Ptr
+    store %v_71, 3, 8
+    %v_72 = call_complex classify, %v_70: I32
     call_complex String.reclaim, %v_3
-    %v_72 = cmp_neq %v_71, 1: I32
-    je %v_72, b_73, b_74
+    %v_73 = cmp_neq %v_72, 1: I32
+    je %v_73, b_74, b_75
   }
 
-  b_56 {
+  b_57 {
     ret 18446744073709551612
   }
 
-  b_74 {
-    %v_75 = load @runBorrowed, 4: I32
-    %v_76 = and %v_75, 3: I32
-    %v_77 = alloca 4, 8: Ptr
-    %v_78 = load %v_77, 4: I64
-    %v_79 = cast %v_76: I64
-    %v_80 = shl %v_79, 30: I64
-    %v_81 = or 5, %v_80: I64
-    store %v_77, %v_81, 4
+  b_75 {
+    %v_76 = load @runBorrowed, 4: I32
+    %v_77 = and %v_76, 3: I32
+    %v_78 = alloca 4, 8: Ptr
+    %v_79 = load %v_78, 4: I64
+    %v_80 = cast %v_77: I64
+    %v_81 = shl %v_80, 30: I64
+    %v_82 = or 5, %v_81: I64
+    store %v_78, %v_82, 4
     store %v_4, @string'11, 8
-    %v_82 = add %v_4, 8: Ptr
-    %v_83 = load %v_77, 4: I64
-    store %v_82, %v_83, 4
-    %v_84 = add %v_4, 12: Ptr
-    store %v_84, 5, 4
-    %v_85 = load %v_4, 8: Ptr
-    %v_86 = alloca 16, 8: Ptr
-    store %v_86, %v_85, 8
-    %v_87 = add %v_86, 8: Ptr
-    store %v_87, 5, 8
-    %v_88 = call_complex classify, %v_86: I32
+    %v_83 = add %v_4, 8: Ptr
+    %v_84 = load %v_78, 4: I64
+    store %v_83, %v_84, 4
+    %v_85 = add %v_4, 12: Ptr
+    store %v_85, 5, 4
+    %v_86 = load %v_4, 8: Ptr
+    %v_87 = alloca 16, 8: Ptr
+    store %v_87, %v_86, 8
+    %v_88 = add %v_87, 8: Ptr
+    store %v_88, 5, 8
+    %v_89 = call_complex classify, %v_87: I32
     call_complex String.reclaim, %v_4
-    %v_89 = cmp_neq %v_88, 2: I32
-    je %v_89, b_90, b_91
+    %v_90 = cmp_neq %v_89, 2: I32
+    je %v_90, b_91, b_92
   }
 
-  b_73 {
+  b_74 {
     ret 18446744073709551611
   }
 
-  b_91 {
-    %v_92 = load @runBorrowed, 4: I32
-    %v_93 = and %v_92, 3: I32
-    %v_94 = alloca 4, 8: Ptr
-    %v_95 = load %v_94, 4: I64
-    %v_96 = cast %v_93: I64
-    %v_97 = shl %v_96, 30: I64
-    %v_98 = or 4, %v_97: I64
-    store %v_94, %v_98, 4
+  b_92 {
+    %v_93 = load @runBorrowed, 4: I32
+    %v_94 = and %v_93, 3: I32
+    %v_95 = alloca 4, 8: Ptr
+    %v_96 = load %v_95, 4: I64
+    %v_97 = cast %v_94: I64
+    %v_98 = shl %v_97, 30: I64
+    %v_99 = or 4, %v_98: I64
+    store %v_95, %v_99, 4
     store %v_5, @string'12, 8
-    %v_99 = add %v_5, 8: Ptr
-    %v_100 = load %v_94, 4: I64
-    store %v_99, %v_100, 4
-    %v_101 = add %v_5, 12: Ptr
-    store %v_101, 4, 4
-    %v_102 = load %v_5, 8: Ptr
-    %v_103 = alloca 16, 8: Ptr
-    store %v_103, %v_102, 8
-    %v_104 = add %v_103, 8: Ptr
-    store %v_104, 4, 8
-    %v_105 = call_complex classify, %v_103: I32
+    %v_100 = add %v_5, 8: Ptr
+    %v_101 = load %v_95, 4: I64
+    store %v_100, %v_101, 4
+    %v_102 = add %v_5, 12: Ptr
+    store %v_102, 4, 4
+    %v_103 = load %v_5, 8: Ptr
+    %v_104 = alloca 16, 8: Ptr
+    store %v_104, %v_103, 8
+    %v_105 = add %v_104, 8: Ptr
+    store %v_105, 4, 8
+    %v_106 = call_complex classify, %v_104: I32
     call_complex String.reclaim, %v_5
-    %v_106 = cmp_neq %v_105, 3: I32
-    je %v_106, b_107, b_108
+    %v_107 = cmp_neq %v_106, 3: I32
+    je %v_107, b_108, b_109
   }
 
-  b_90 {
+  b_91 {
     ret 18446744073709551610
   }
 
-  b_108 {
-    %v_109 = load @runBorrowed, 4: I32
-    %v_110 = and %v_109, 3: I32
-    %v_111 = alloca 4, 8: Ptr
-    %v_112 = load %v_111, 4: I64
-    %v_113 = cast %v_110: I64
-    %v_114 = shl %v_113, 30: I64
-    %v_115 = or 5, %v_114: I64
-    store %v_111, %v_115, 4
+  b_109 {
+    %v_110 = load @runBorrowed, 4: I32
+    %v_111 = and %v_110, 3: I32
+    %v_112 = alloca 4, 8: Ptr
+    %v_113 = load %v_112, 4: I64
+    %v_114 = cast %v_111: I64
+    %v_115 = shl %v_114, 30: I64
+    %v_116 = or 5, %v_115: I64
+    store %v_112, %v_116, 4
     store %v_6, @string'13, 8
-    %v_116 = add %v_6, 8: Ptr
-    %v_117 = load %v_111, 4: I64
-    store %v_116, %v_117, 4
-    %v_118 = add %v_6, 12: Ptr
-    store %v_118, 5, 4
-    %v_119 = load %v_6, 8: Ptr
-    %v_120 = alloca 16, 8: Ptr
-    store %v_120, %v_119, 8
-    %v_121 = add %v_120, 8: Ptr
-    store %v_121, 5, 8
-    %v_122 = call_complex classify, %v_120: I32
+    %v_117 = add %v_6, 8: Ptr
+    %v_118 = load %v_112, 4: I64
+    store %v_117, %v_118, 4
+    %v_119 = add %v_6, 12: Ptr
+    store %v_119, 5, 4
+    %v_120 = load %v_6, 8: Ptr
+    %v_121 = alloca 16, 8: Ptr
+    store %v_121, %v_120, 8
+    %v_122 = add %v_121, 8: Ptr
+    store %v_122, 5, 8
+    %v_123 = call_complex classify, %v_121: I32
     call_complex String.reclaim, %v_6
-    %v_123 = cmp_neq %v_122, 0: I32
-    je %v_123, b_124, b_125
+    %v_124 = cmp_neq %v_123, 0: I32
+    je %v_124, b_125, b_126
   }
 
-  b_107 {
+  b_108 {
     ret 18446744073709551609
   }
 
-  b_125 {
-    %v_126 = alloca 16, 8: Ptr
-    %v_127 = load @runBorrowed, 4: I32
-    %v_128 = and %v_127, 3: I32
-    store %v_126, @string'5, 8
-    %v_129 = add %v_126, 8: Ptr
-    %v_130 = load %v_129, 4: I64
-    %v_131 = cast %v_128: I64
-    %v_132 = shl %v_131, 30: I64
-    %v_133 = or 4, %v_132: I64
-    store %v_129, %v_133, 4
-    %v_134 = add %v_126, 12: Ptr
-    store %v_134, 4, 4
-    %v_135 = load %v_126, 8: Ptr
-    call_complex String.reclaim, %v_126
-    %v_136 = add %v_7, 4: I32
-    ret %v_136
+  b_126 {
+    %v_127 = alloca 16, 8: Ptr
+    %v_128 = load @runBorrowed, 4: I32
+    %v_129 = and %v_128, 3: I32
+    store %v_127, @string'5, 8
+    %v_130 = add %v_127, 8: Ptr
+    %v_131 = load %v_130, 4: I64
+    %v_132 = cast %v_129: I64
+    %v_133 = shl %v_132, 30: I64
+    %v_134 = or 4, %v_133: I64
+    store %v_130, %v_134, 4
+    %v_135 = add %v_127, 12: Ptr
+    store %v_135, 4, 4
+    %v_136 = load %v_127, 8: Ptr
+    call_complex String.reclaim, %v_127
+    %v_137 = add %v_7, 4: I32
+    ret %v_137
   }
 
-  b_124 {
+  b_125 {
     ret 18446744073709551608
   }
 }

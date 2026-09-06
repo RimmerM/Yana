@@ -2,6 +2,7 @@
 #include "resolve_internal.h"
 #include "name.h"
 #include "own.h"
+#include "intrinsic/link.h"
 
 namespace mir {
 
@@ -1067,6 +1068,24 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
                                   typeText(context, decl(), handover.type));
         return;
     }
+
+    /*
+     * The temporary a **lending** hand-over needs - the same one a borrowing argument gets, and the
+     * last step of `prepareArgument` reached from the one position that is a parameter without
+     * having been written as an argument.
+     *
+     * `yield e` is a call of `$body`, and the hand-over is that call's one parameter: a convention
+     * that lends leaves this frame owing the value's teardown, and a value that is only a node
+     * result has no place for one to name. `iter fn lent(n) -> Held: yield make()` is the shape -
+     * the temporary was owned, borrowed by the consumer, and released by nobody, which the SSA
+     * verifier reports as an owner reaching `return` unconsumed.
+     *
+     * A hand-over convention that *takes* - `-> ->T` - is `holdBorrowed`'s first line and passes
+     * through untouched: the consumer owns what it received, and this frame stops owing anything the
+     * moment the argument is a move.
+     */
+    value = holdBorrowed(builder, *value, wanted, handover.type, expr.source);
+    if(!value) return;
 
     /*
      * The continuation, read out of the parameter it is.
@@ -2423,17 +2442,28 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
         auto constant = resolveConstant(*parse[binding.content], nullptr, &notConstant);
 
         /*
-         * A **string** is a constant everywhere a default is and is not one here, and the difference
-         * is what a global's initializer has to be: bytes, written before anything runs.
+         * A **string**, whose value is the one thing here that cannot be settled yet.
          *
-         * `Constant::Text` says what the value is and leaves how it is built to `textValue`, which
-         * builds it - a run in static storage, and whatever the library makes of its address. That
-         * is a value and not a byte pattern, so `materialize` has nothing to write for one. In the
-         * root module the initializer therefore runs at startup like any other non-constant, which
-         * is the same answer this gives `let m = Map()`; elsewhere there is no point at which it
-         * would run, and the message below is the one that says so.
+         * `Constant::Text` says what the value *is* and leaves how it is built to the library:
+         * `stringLiteral` describes a run over bytes the compiler places, and what a constant needs
+         * is that function's answer rather than a description of it written here. So the answer is
+         * produced by *running* it - `textConstantValue` - and that can only happen once the
+         * library's bodies exist, which is after every one of them is resolved.
+         *
+         * The global is a constant either way, which is the part that matters at this point: its
+         * type is settled here, it is not `dynamic`, and nothing puts it in the entry sequence. A
+         * library module therefore has a string global for the same reason it has a numeric one -
+         * there is nothing to run - which is what `Core/Show.yana`'s digit table needs.
          */
-        if(constant.kind == Constant::Text) notConstant = true;
+        if(constant.kind == Constant::Text) {
+            global->occurrence = owned(constant.type);
+            pendingTextGlobals.push(PendingTextGlobal {
+                pointer, here(), constant.asText(), current->activeFile,
+                parse[binding.content]->source
+            });
+
+            continue;
+        }
 
         /*
          * And an aggregate holding a **box**, for the same sentence with a different missing half:
@@ -2465,7 +2495,43 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
 
         global->initial = constant;
         global->occurrence = owned(constant.type);
+
+        /*
+         * And, where this global is one the compiler supplies, the target's answer written over
+         * what the declaration said - `bindSuppliedGlobal`, immediately rather than in a later
+         * pass, so that the next constant may read it. `let mask = pageBytes - 1` is the shape that
+         * makes the ordering matter: a supply step that ran after every initializer would have
+         * handed that reader the zero `pageBytes` is required to be written as.
+         */
+        bindSuppliedGlobal(context, program, pointer);
     }
+}
+
+/*
+ * The strings, once every body is in - `PendingTextGlobal`, where the ordering is argued.
+ *
+ * The module scope is restored per entry because the evaluation places a global: the bytes of the
+ * literal belong to the module that wrote it, and a drain that ran them all in whatever scope was
+ * last open would file them under the wrong one and name them after it.
+ */
+void Resolver::resolveTextGlobals() {
+    for(auto& pending: pendingTextGlobals) {
+        ModuleScope scope(*this, pending.module, pending.file);
+
+        auto value = textConstantValue(pending.text, pending.source);
+        if(!value.isSet()) continue;
+
+        auto global = decl()[pending.global];
+        global->initial = value;
+
+        // The type the *evaluation* produced, which is the one the bytes are laid out with. It is
+        // the role's result type and therefore the one already on the global; asserting rather than
+        // assigning is how a library whose builder answers something else is caught here instead of
+        // as a wrong-sized global.
+        assertTrue(sameType(value.type, global->occurrence.type));
+    }
+
+    pendingTextGlobals.clear();
 }
 
 bool Resolver::runsAtStartup() {

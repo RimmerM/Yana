@@ -1,0 +1,84 @@
+{-
+   Arithmetic in a constant position - `Analysis-Initialization.md`'s stage A, whose one remaining
+   bullet this is.
+
+   # resolver: ownership
+
+   The **rewritten stage only**, and the two halves of that are different. A global's initializer
+   compiles in both - the shipping stage makes an unfoldable one a startup initializer - but a
+   *default* does not: `fn f(size: Int = 16 * 64)` is "a default argument must be a literal" there,
+   which is the bullet this file says has been built.
+
+   What makes it foldable is not that the operands are numbers: an operator is a *call*, so what
+   decides is which declaration it names and whether the instance serving that declaration **at
+   these operands** is one the compiler generated. `4 * 1024` folds because `Num(I32)` is the
+   compiler's; a program's own `instance Num(Money)` is a body, and a body is not a thing a
+   declaration pass can run.
+
+   The positions are the three a constant lives in - a global's initializer, a parameter or field
+   default, and a fixed array's length - and they fold by one rule because they resolve through one
+   function.
+-}
+
+import Native
+
+-- A global's initializer. `4 * 1024 * 1024` is what `lib/Native` used to write as 4194304, with the
+-- arithmetic in a comment beside it.
+let blockBytes = 4 * 1024 * 1024
+let blockMask = blockBytes - 1
+
+-- Bitwise and shifts, which are `Bitwise` and `Integral` rather than `Num` - three classes, one
+-- table, and no arm here that knows which is which.
+let readable = 1 `shl` 0
+let writable = 1 `shl` 1
+let both = readable `or` writable
+let inverted = 0 - both
+
+{-
+   A **supplied** constant, read by a later one.
+
+   `pageBytes` is `@builtin(pageBytes)`: the declaration writes `0` and the target writes the
+   number. That it is readable here at all is an ordering statement - the value is written over the
+   declaration's the moment that declaration's own initializer settles, rather than in a pass after
+   every initializer - and without it this would silently be `-1`.
+-}
+let pageMask = pageBytes - 1
+
+-- A parameter default and a field default, which are the same evaluator at two positions.
+fn withDefault(size: Int = 16 * 64) -> Int = size
+
+data Flags {bits: Int = (1 `shl` 4) `or` 3}
+
+-- A fixed array's length, which takes an expression from the parser already - so widening the
+-- evaluator widened this with it. A const *parameter* is still the other kind of count, and
+-- arithmetic on one is still refused: see `resolve/ownership/Reject.Array.yana`.
+fn sized() -> Int:
+    let &xs = [0] :: [I32 *(2 * 4)]
+    xs[7] = 6
+    return xs[7]
+
+-- A comparison, whose answer is a `Bool` constant rather than a number - the one row where the
+-- result type is not the operands'.
+let wide = blockBytes > 1000
+
+{-
+   The **normal form** at a narrow width, folded rather than executed.
+
+   `(200 :: U8) + 100 == 44` is the shortest statement of what the width seam buys, and it has to be
+   the same number whether the addition runs or is folded here - which is why the arithmetic is
+   `lower/fold_arith.h`'s rather than written again. A signed narrow type is the other end of it:
+   `-128 - 1` at `I8` wraps to 127.
+-}
+let wrapped = (200 :: U8) + (100 :: U8)
+let wrappedSigned = (-128 :: I8) - (1 :: I8)
+
+-- Division by zero, which the *language* rules on rather than the machine - `doc/spec/types.md`
+-- says the answer is 0, and a fold that raised instead would be a compiler that cannot compile a
+-- program the language defines.
+let noDivisor = (7 :: Int) / (0 :: Int)
+
+fn main() -> Int =
+    blockBytes / 1048576 + blockMask / 1048576 * 10 + both * 100 + inverted +
+    withDefault() / 1024 + Flags {}.bits + sized() +
+    (if wide then 1000 else 0) + (if pageMask == 4095 then 2000 else 0) +
+    (wrapped :: Int) + (wrappedSigned :: Int) + noDivisor

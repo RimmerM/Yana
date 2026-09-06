@@ -17,6 +17,22 @@ fn double(it: Id) -> Id = it + it
 -- eleven unreachable patterns, so handing one to a `U64` parameter is free.
 fn asPlain(it: U64) -> U64 = it
 
+{-
+   A literal at a refinement in a **constant** position - `lib/Native/Run.yana` writes
+   `0 :: HeapFlag` and this is the same sentence.
+
+   Which instance a literal is a call of is asked of the *canonical* type, which is the rule
+   everywhere else a refinement is dispatched, computed or converted: the value is `U64`'s
+   `FromInt` folded into the refinement's own normal form, and the global holds it before anything
+   runs. Asking the family about `@bits(53) U64` itself said there was no such instance, which is
+   true and is not the question - what it produced was a global with a startup initializer calling
+   something nobody declared.
+-}
+let tagged = 3 :: Id
+
+-- The same thing where the position is a field's default rather than a global.
+data Marked {tag: @bits(4) U32 = 5}
+
 fn main() -> Int:
     let small = 21 :: Id
     let doubled = double(small)
@@ -25,4 +41,7 @@ fn main() -> Int:
     let record = Packed { version: 3, length: 4000 }
     let fields = (record.version :: Int) * 10000 + (record.length :: Int)
 
-    return (truncate(widened) :: Int) + fields
+    let marked = Marked {}
+
+    return (truncate(widened) :: Int) + fields +
+        (truncate(tagged) :: Int) * 1000000 + (marked.tag :: Int) * 100000

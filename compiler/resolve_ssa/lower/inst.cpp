@@ -138,6 +138,84 @@ LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurr
     return storage;
 }
 
+/*
+ * A run whose every element is the same byte, as one `setpattern` - the block fill.
+ *
+ * `[0] :: [U8 *64]` is a fill written as one element, and `resolveArrayLiteral` spreads it into the
+ * same sixty-four-component aggregate a hand-written literal produces, precisely so that nothing
+ * between there and here needs a second shape to reason about. This is where it collapses again -
+ * and it collapses a *hand-written* run of zeroes on the same terms, which is why the recognition is
+ * over the components rather than over the syntax that built them.
+ *
+ * Four things have to hold, and each is read off the values in hand rather than claimed by whoever
+ * built them:
+ *
+ *  - **A constant number.** `setpattern` names a byte, and a value known only at run time cannot be
+ *    shown to have a uniform one however wide it is. `constantBits` is what a number is here, which
+ *    is the same function the `Const` arm lowers one with - so an enum-layout element answers its
+ *    stored value and not its constructor index, in one place rather than two.
+ *  - **The same constant in every element**, compared by *value*: the fill pushes one component
+ *    `count` times and a written-out run of zeroes resolves each separately, and two constants of
+ *    one type holding one number are one byte pattern whichever way they arrived.
+ *  - **A register value filling the whole slot.** An element that lives in memory is installed by a
+ *    block copy rather than a store, and one whose manifestation is narrower than the stride leaves
+ *    padding this would write and the stores do not.
+ *  - **Every byte of the element equal.** `0` and `-1` qualify at every width and any `U8` does;
+ *    `7 :: U32` does not, because `07 07 07 07` is not seven. Read off the number rather than off
+ *    the target's byte order, which does not enter: a value whose bytes are all equal reads the same
+ *    either way, and one whose bytes are not is refused here.
+ *
+ * **How many bytes is not one of them.** That is the same answer `install` gives one line up - a
+ * whole-value copy becomes a `LowerInstCopy` at every size - and `expandBlockOperations` walks both
+ * kinds against one policy, so a fill below the ceiling is unrolled to the widest transfer the
+ * machine has and one above it keeps the string instruction. A second threshold here would be this
+ * file holding an opinion about a machine it cannot see.
+ *
+ * A run of one is still refused, and that is not a size rule: one element is already one store, so
+ * there is no run to collapse and the expansion would produce the very same instruction.
+ */
+bool Lowering::uniformFill(LowerBlock& block, LowerPtr<LowerValue> storage, InstAggregate& written,
+                           U32 stride) {
+    auto components = written.components.contents(ssa);
+    if(components.size() < 2 || !stride) return false;
+
+    const mir::Constant* pattern = nullptr;
+    U32 width = 0;
+
+    for(auto used: components) {
+        auto& value = *ssa[used.value()];
+
+        auto definer = value.definer;
+        if(!definer || ssa[definer]->kind != Inst::Const) return false;
+
+        auto& constant = ((InstConst*)ssa[definer])->constant;
+        if(constant.kind != mir::Constant::Int && constant.kind != mir::Constant::Enum) return false;
+
+        // The type as well as the number: the byte count comes from the first element's
+        // manifestation, and a component of a different width would be filled at the wrong stride.
+        if(pattern && !(constant == *pattern)) return false;
+
+        auto manifest = manifestOf(value);
+        if(manifest.dynamic || manifest.inMemory || manifest.size != stride) return false;
+
+        pattern = &constant;
+        width = manifest.size;
+    }
+
+    auto bits = constantBits(decl, *pattern);
+    auto byte = bits & 0xff;
+
+    for(U32 i = 1; i < width; i++) {
+        if(((bits >> (i * 8)) & 0xff) != byte) return false;
+    }
+
+    block.addInst(lower, new (to.arena) LowerInstSetPattern(
+        storage, immediate(block, LowerType::Int64, U64(stride) * components.size()),
+        immediate(block, LowerType::Int32, byte)));
+
+    return true;
+}
+
 LowerPtr<LowerValue> Lowering::offsetAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                              U32 offset) {
     if(!offset) return address;
@@ -1263,6 +1341,11 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              */
             if(decl[record]->kind == mir::Type::Array) {
                 auto stride = elementStrideNative(layout, ((mir::ArrayType*)decl[record])->element);
+
+                if(uniformFill(block, storage, written, stride)) {
+                    values.add(result->id.index, storage);
+                    break;
+                }
 
                 U32 offset = 0;
                 for(auto used: written.components.contents(ssa)) {

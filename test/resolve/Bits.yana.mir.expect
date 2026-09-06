@@ -2,6 +2,10 @@ module ResolveTest
 
 data Packed {version: @bits(4) U32, length: @bits(13) U32}
 
+data Marked {tag: @bits(4) U32 = 5}
+
+let tagged: @bits(53) U64 = 3
+
 fn double(it: @bits(53) U64 [shared call]) -> @bits(53) U64 {
 bb0:
   %0: @bits(53) U64 = read copy.trivial (it)
@@ -25,6 +29,7 @@ fn main() -> I32 {
   local widened: U64
   local record: Packed
   local fields: I32
+  local marked: Marked
 
 bb0:
   %0: @bits(53) U64 = const 21
@@ -48,11 +53,25 @@ bb0:
   %18: I32 = convert inspect %17
   %19: I32 = add inspect %16 inspect %18
   write.init borrow.unique (fields) take %19
-  %21: U64 = read copy.trivial (widened)
-  %22: I32 = convert inspect %21
-  %23: I32 = read copy.trivial (fields)
-  %24: I32 = add inspect %22 inspect %23
-  return take %24
+  %21: @bits(4) U32 = const 5
+  %22: Marked = aggregate.Marked take %21
+  write.init borrow.unique (marked) take %22
+  %24: U64 = read copy.trivial (widened)
+  %25: I32 = convert inspect %24
+  %26: I32 = read copy.trivial (fields)
+  %27: I32 = add inspect %25 inspect %26
+  %28: @bits(53) U64 = read copy.trivial (global tagged)
+  %29: U64 = convert inspect %28
+  %30: I32 = convert inspect %29
+  %31: I32 = const 1000000
+  %32: I32 = mul inspect %30 inspect %31
+  %33: I32 = add inspect %27 inspect %32
+  %34: @bits(4) U32 = read copy.trivial (marked.tag)
+  %35: I32 = convert inspect %34
+  %36: I32 = const 100000
+  %37: I32 = mul inspect %35 inspect %36
+  %38: I32 = add inspect %33 inspect %37
+  return take %38
 }
 
 entry main

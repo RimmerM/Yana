@@ -4,7 +4,7 @@ data Buf {bytes: [I32 *4], used: I32}
 
 data Wrap {inner: Buf, tag: I32}
 
-let zeros: [I32 *4]
+let zeros: [I32 *4] = [0, 0, 0, 0]
 
 fn seed() -> I32 {
 bb0:
@@ -534,13 +534,4 @@ bb66:
   return take %258
 }
 
-fn main$() -> I32 {
-bb0:
-  %0: I32 = const 0
-  %1: [I32 *4] = aggregate.0 take %0 take %0 take %0 take %0
-  write.init borrow.unique (global zeros) take %1
-  %3: I32 = call main
-  return take %3
-}
-
-entry main$
+entry main

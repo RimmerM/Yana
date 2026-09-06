@@ -13,6 +13,10 @@ namespace mir {
 // Defined below `Constant`, because its parts are constants - see `Constant::Aggregate`.
 struct AggregateConstant;
 
+// Named by `Constant::Address` and by nothing else here - a constant may *point at* a global and
+// never asks it anything, which is `contract.h`'s own argument for the forward declaration above.
+struct Global;
+
 /*
  * A compile-time value: a logical type and up to eight bytes.
  *
@@ -96,6 +100,24 @@ struct Constant {
          * default - where the value path used to be the only way to spell one.
          */
         Text,
+
+        /*
+         * The **address of a global** - `bits` is the global's declaration-region offset, and the
+         * type is the pointer type the position holds it at.
+         *
+         * The one leaf of a constant whose value is not known until the image is placed, which is
+         * what makes it a kind rather than an `Int`: `materialize` writes zero where it goes and
+         * records a `LowerDataRelocation` beside it, and the loader fills it in.
+         *
+         * It exists so that a **string** can be a constant. `stringLiteral` builds a run out of the
+         * address of the bytes and a length, so the value the library describes has a pointer in
+         * it - and a tier that could not spell one had to make every string global a startup
+         * initializer, which a library module has no point at which to run.
+         *
+         * Nothing in the source spells one. It is minted by `Resolver::stringBytesGlobal`, and the
+         * day `&someGlobal` becomes a constant expression this is the kind it produces.
+         */
+        Address,
     };
 
     DeclPtr<Type> type = nullptr;
@@ -107,6 +129,7 @@ struct Constant {
     U16 asConstructor() const { return U16(bits); }
     U64 asInt() const { return bits; }
     StringId asText() const { return StringId(U32(bits)); }
+    DeclPtr<Global> asGlobal() const { return DeclPtr<Global>(U32(bits)); }
     DeclPtr<AggregateConstant> aggregate() const { return DeclPtr<AggregateConstant>(U32(bits)); }
 
     double asFloat() const {
@@ -154,6 +177,10 @@ inline Constant intConstant(DeclPtr<Type> type, U64 value) {
 
 inline Constant textConstant(DeclPtr<Type> type, StringId text) {
     return Constant { type, Constant::Text, U64(text.value) };
+}
+
+inline Constant addressConstant(DeclPtr<Type> type, DeclPtr<Global> global) {
+    return Constant { type, Constant::Address, U64(global.offset) };
 }
 
 inline Constant floatConstant(DeclPtr<Type> type, double value) {

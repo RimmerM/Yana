@@ -859,6 +859,70 @@ bool Resolver::comparePattern(Builder& builder, BinaryOp op, Place& pivot, ast::
 }
 
 /*
+ * `>0` - an operator section, the one pattern whose test is a name the program wrote.
+ *
+ * Everything else refutable here compares with a member the *compiler* names - `Eq.==` for a
+ * literal, `Ord`'s four for a range - so `applyBinary` is the whole of the call. A section names an
+ * operator instead, which makes it an overload set and a selection like any other call of that
+ * name: `>` over a program's own `Ord` and `>` over something else in scope are chosen between by
+ * `resolve_overload.cpp`'s five rules, and not by a second reading of them written here.
+ *
+ * The pivot is the operator's **left** operand, so `>0` reads as the comparison it is, and it is
+ * read at the request the set agrees that position is in - the same question `climb` asks before it
+ * resolves `x > 0`, so the pattern and the expression borrow the pivot alike.
+ *
+ * What the operator answers goes through `truthValue` rather than being required to be `Bool`,
+ * which is what makes this one decision rather than two: `if x > 0` asks the value's `Truth`
+ * instance and a pattern that asked something stricter would be a second answer to "what is a
+ * condition". The comparison is emitted whether or not there is a failure edge, exactly as
+ * `comparePattern` emits one - a caller that proved the match has nothing to branch on and the
+ * arm's own alternative is the only path left.
+ */
+bool Resolver::sectionPattern(Builder& builder, ast::Pat& pat, Place& pivot, Block* onFail,
+                              Carry& carry) {
+    auto& bound = *parse[pat.section.bound];
+
+    // `>_` - a section with nothing on its right. The bound is what the operator is applied to, so
+    // there is no reading under which this says anything; `_` alone is the pattern that matches
+    // everything.
+    if(bound.kind == ast::Pat::Any) {
+        context.diagnostics.error(
+            "an operator pattern needs a value on its right - `>0` compares the matched value with something, and `_` is not something"_v,
+            pat.source);
+        return false;
+    }
+
+    OverloadSet set;
+    findOverloads(context, program, here(), pat.section.op, 2, pat.source, set);
+
+    if(set.isEmpty()) {
+        reportMissingOperator(pat.section.op, 2, pat.source);
+        return false;
+    }
+
+    Request requests[2];
+    if(!operatorRequests(set, pat.section.op, 2, pat.source, requests)) return false;
+
+    auto read = readPlace(builder, pat.source, pivot, requests[0]);
+    if(!read) return false;
+
+    // At the pivot's type, for `patternBound`'s reason: what `0` *is* is a question about the type
+    // it is being compared with, and the selection below is then made over two settled operands.
+    auto value = patternBound(builder, bound, pivot.occurrence.type);
+    if(!value) return false;
+
+    Node* values[2] = { read, value };
+    auto answer = selectOperatorCall(builder, set, pat.section.op, pat.source, values, 2, nullptr);
+    if(!answer) return false;
+
+    auto condition = truthValue(builder, *answer, pat.source);
+    if(!condition) return false;
+
+    if(onFail) failIfNot(builder, *condition, *onFail, carry, pat.source);
+    return true;
+}
+
+/*
  * One pattern against one place, emitting the tests it needs and recording the names it introduces.
  *
  * `onFail` null says the caller has proved this pattern matches - the alternative exhaustiveness
@@ -975,6 +1039,11 @@ bool Resolver::resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
             return lower && upper;
         }
 
+        // `>0`, `<=x` - the operator is the program's own, so this is a selection rather than a
+        // member the compiler names. See `sectionPattern`.
+        case ast::Pat::Section:
+            return sectionPattern(builder, pat, pivot, onFail, carry);
+
         default:
             break;
     }
@@ -983,10 +1052,9 @@ bool Resolver::resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
         return comparePattern(builder, BinaryOp::Eq, pivot, pat, onFail, carry, pat.source);
     }
 
-    unsupported(pat.source, pat.kind == ast::Pat::Section ? "an operator pattern"_v
-                          : pat.kind == ast::Pat::Arr ||
-                            pat.kind == ast::Pat::Rest    ? "an array pattern"_v
-                                                          : "this pattern"_v);
+    unsupported(pat.source, pat.kind == ast::Pat::Arr || pat.kind == ast::Pat::Rest
+                                ? "an array pattern"_v
+                                : "this pattern"_v);
     return false;
 }
 

@@ -1721,7 +1721,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     function->lens = lens;
     function->iterator = iterator;
     function->form = readGenForm(declaration);
-    function->alwaysInline = readInlineAttribute(declaration);
+    readInlineAttribute(declaration, function->alwaysInline, function->noInline);
 
     // `pub`. Here rather than at each caller because both of them - a plain `fn` and a class member -
     // register the name, and `Program::addFunctionName` reads this to decide which declaration a

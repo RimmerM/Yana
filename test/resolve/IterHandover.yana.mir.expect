@@ -1,0 +1,329 @@
+module ResolveTest
+
+data Held {value: Array(U8)} reclaim derived
+
+fn make() -> Held {
+  local & local0: Array(U8)
+
+bb0:
+  %0: U8 = const 1
+  %1: U8 = const 2
+  %2: U8 = const 3
+  %3: U8 = const 4
+  %4: Size = const 4
+  %5: Array(U8) = call literalArray(U8) borrow.shared %4
+  write.init borrow.unique (local0) take %5
+  %7: Array(U8) [unique slot 0] = read borrow.unique (local0) loan0
+  %8: Array(U8) [unique slot 0 view] = call.derivation elementsMut(Array(U8), U8) borrow.unique %7 roots{0}
+  %9: %U8 [owned here shape1 .*=shared slot 0] = call valuesMut(U8) borrow.unique %8 roots.0{0}
+  %10: Size = const 0
+  write.init borrow.unique ([%%9][0]) take %0
+  %12: Size = const 1
+  write.init borrow.unique ([%%9][1]) take %1
+  %14: Size = const 2
+  write.init borrow.unique ([%%9][2]) take %2
+  %16: Size = const 3
+  write.init borrow.unique ([%%9][3]) take %3
+  %18: Array(U8) = read take (local0)
+  %19: Held = aggregate.Held take %18
+  return take %19
+}
+
+fn consume(h: Held) -> Size {
+bb0:
+  %0: Array(U8) [shared call] = read borrow.shared (h.value) loan0
+  %1: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %0 roots{0}
+  %2: Size = call length(Array(U8)) borrow.shared %1
+  drop (h)
+  return take %2
+}
+
+lens fn lent(times: I64 [shared call], $body: (Held) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & left: I64
+  local local4: Held
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I64 = read copy.trivial (times)
+  write.init borrow.unique (left) take %2
+  jump -> bb1
+
+bb1:
+  %5: I64 = read copy.trivial (left)
+  %6: I64 = const 0
+  %7: Bool = gt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %24: I32 = read copy.trivial ($yielded)
+  return take %24
+
+bb3:
+  %9: Held = call make
+  write.init borrow.unique (local4) take %9
+  %11: Held [shared call] = read borrow.shared (local4) loan0
+  %12: (Held) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %13: I32 = call inspect %12 borrow.shared %11
+  drop (local4)
+  %14: I32 = const 0
+  %15: Bool = eq inspect %13 inspect %14
+  write.assign borrow.unique ($yielded) take %13
+  branch inspect %15 -> bb4 -> bb5
+
+bb4:
+  %19: I64 = read copy.trivial (left)
+  %20: I64 = const 1
+  %21: I64 = sub inspect %19 inspect %20
+  write.assign borrow.unique (left) take %21
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+lens fn handed(times: I64 [shared call], $body: (->Held) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & left: I64
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I64 = read copy.trivial (times)
+  write.init borrow.unique (left) take %2
+  jump -> bb1
+
+bb1:
+  %5: I64 = read copy.trivial (left)
+  %6: I64 = const 0
+  %7: Bool = gt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %22: I32 = read copy.trivial ($yielded)
+  return take %22
+
+bb3:
+  %9: Held = call make
+  %10: (->Held) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %11: I32 = call inspect %10 take %9
+  %12: I32 = const 0
+  %13: Bool = eq inspect %11 inspect %12
+  write.assign borrow.unique ($yielded) take %11
+  branch inspect %13 -> bb4 -> bb5
+
+bb4:
+  %17: I64 = read copy.trivial (left)
+  %18: I64 = const 1
+  %19: I64 = sub inspect %17 inspect %18
+  write.assign borrow.unique (left) take %19
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+lens fn results(times: I64 [shared call], $body: (->Result(I64, Held)) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & left: I64
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I64 = read copy.trivial (times)
+  write.init borrow.unique (left) take %2
+  jump -> bb1
+
+bb1:
+  %5: I64 = read copy.trivial (left)
+  %6: I64 = const 0
+  %7: Bool = gt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %28: I32 = read copy.trivial ($yielded)
+  %29: I32 = const 0
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb8 -> bb9
+
+bb3:
+  %9: I32 = read copy.trivial ($yielded)
+  %10: I32 = const 0
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb4 -> bb5
+
+bb4:
+  %13: Held = call make
+  %14: Result(I64, Held) = aggregate.Ok take %13
+  %15: (->Result(I64, Held)) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %16: I32 = call inspect %15 take %14
+  %17: I32 = const 0
+  %18: Bool = eq inspect %16 inspect %17
+  write.assign borrow.unique ($yielded) take %16
+  branch inspect %18 -> bb6 -> bb7
+
+bb5:
+  jump -> bb7
+
+bb6:
+  %23: I64 = read copy.trivial (left)
+  %24: I64 = const 1
+  %25: I64 = sub inspect %23 inspect %24
+  write.assign borrow.unique (left) take %25
+  jump -> bb1
+
+bb7:
+  jump -> bb2
+
+bb8:
+  %32: I64 = const 7
+  %33: Result(I64, Held) = aggregate.Err take %32
+  %34: (->Result(I64, Held)) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %35: I32 = call inspect %34 take %33
+  write.assign borrow.unique ($yielded) take %35
+  jump -> bb10
+
+bb9:
+  jump -> bb10
+
+bb10:
+  %39: I32 = read copy.trivial ($yielded)
+  return take %39
+}
+
+fn borrows(times: I64 [shared call]) -> Size {
+  local & total: Size
+  local h: Held [shared call]
+
+bb0:
+  %0: Size = const 0
+  write.init borrow.unique (total) take %0
+  %2: I64 = read copy.trivial (times)
+  lens.call lent borrow.shared %2 -> bb2
+
+bb1:
+  %13: Size = read copy.trivial (total)
+  return take %13
+
+bb2(%3: Held [shared call]) handover(Held [shared call]) many -> bb1:
+  write.init borrow.unique (h) borrow.shared %3
+  %6: Size = read copy.trivial (total)
+  %7: Array(U8) [shared call] = read borrow.shared (h.value) loan0
+  %8: Array(U8) [shared slot 0 view] = call.derivation elements(Array(U8), U8) borrow.shared %7 roots{0}
+  %9: Size = call length(Array(U8)) borrow.shared %8
+  %10: Size = add inspect %6 inspect %9
+  write.assign borrow.unique (total) take %10
+  jump -> bb1
+}
+
+fn owns(times: I64 [shared call]) -> Size {
+  local & total: Size
+  local h: Held
+
+bb0:
+  %0: Size = const 0
+  write.init borrow.unique (total) take %0
+  %2: I64 = read copy.trivial (times)
+  lens.call handed borrow.shared %2 -> bb2
+
+bb1:
+  %12: Size = read copy.trivial (total)
+  return take %12
+
+bb2(%3: Held) handover(Held) many -> bb1:
+  write.init borrow.unique (h) take %3
+  %6: Size = read copy.trivial (total)
+  %7: Held = read take (h)
+  %8: Size = call consume take %7
+  %9: Size = add inspect %6 inspect %8
+  write.assign borrow.unique (total) take %9
+  jump -> bb1
+}
+
+fn viaTry(times: I64 [shared call]) -> Result(I64, Size) {
+  local & total: Size
+  local entry: Result(I64, Held)
+  local local3: Outcome(Held, I64) object3
+  local & opened: Held object3
+
+bb0:
+  %0: Size = const 0
+  write.init borrow.unique (total) take %0
+  %2: I64 = read copy.trivial (times)
+  lens.call results borrow.shared %2 -> bb2
+
+bb1:
+  %26: Size = read copy.trivial (total)
+  %27: Result(I64, Size) = aggregate.Ok take %26
+  return take %27
+
+bb2(%3: Result(I64, Held)) handover(Result(I64, Held)) many -> bb1:
+  write.init borrow.unique (entry) take %3
+  %6: Result(I64, Held) = read take (entry)
+  %7: Outcome(Held, I64) = call toOutcome(Result(I64, Held), Held, I64) take %6
+  write.init borrow.unique (local3) take %7
+  %9: U8 = read copy.trivial (local3.#)
+  %10: U8 = const 1
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb5 -> bb3
+
+bb3 handover(Result(I64, Held)) many:
+  %16: Held = read take (local3.Proceed)
+  jump -> bb4(take %16)
+
+bb4(%17: Held) handover(Result(I64, Held)) many:
+  write.init borrow.unique (opened) take %17
+  %20: Size = read copy.trivial (total)
+  %21: Held = read take (opened)
+  %22: Size = call consume take %21
+  %23: Size = add inspect %20 inspect %22
+  write.assign borrow.unique (total) take %23
+  jump -> bb1
+
+bb5 handover(Result(I64, Held)) many:
+  %13: I64 = read copy.trivial (local3.Exit)
+  drop (local3)
+  %14: Result(I64, Size) = call fromExit(Result(I64, Size), Size, I64) take %13
+  return take %14
+}
+
+fn ignores(times: I64 [shared call]) -> Size {
+  local & count: Size
+  local entry: Result(I64, Held)
+
+bb0:
+  %0: Size = const 0
+  write.init borrow.unique (count) take %0
+  %2: I64 = read copy.trivial (times)
+  lens.call results borrow.shared %2 -> bb2
+
+bb1:
+  %11: Size = read copy.trivial (count)
+  return take %11
+
+bb2(%3: Result(I64, Held)) handover(Result(I64, Held)) many -> bb1:
+  write.init borrow.unique (entry) take %3
+  drop (entry)
+  %6: Size = read copy.trivial (count)
+  %7: Size = const 1
+  %8: Size = add inspect %6 inspect %7
+  write.assign borrow.unique (count) take %8
+  jump -> bb1
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I64 = const 2
+  %1: Size = call borrows borrow.shared %0
+  %2: I64 = const 3
+  %3: Size = call owns borrow.shared %2
+  %4: Size = add inspect %1 inspect %3
+  %5: I64 = const 2
+  %6: Size = call ignores borrow.shared %5
+  %7: Size = add inspect %4 inspect %6
+  %8: I32 = convert inspect %7
+  return take %8
+}
+
+entry main

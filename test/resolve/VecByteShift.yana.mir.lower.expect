@@ -1,5 +1,27 @@
 mut @counter = [0, 0, 0, 0]
 
+opaque<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = loads @counter, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @counter, %v_2, 4
+    %v_3 = loads @counter, 4: I32
+    %v_4 = cmp_igt %v_3, 1000: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = imm 24: I32
+    %v_8 = shl %n, %v_7: I32
+    %v_9 = sar %v_8, %v_7: I32
+    ret %v_9
+  }
+
+  b_5 {
+    ret 1
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 18446744071821328129: i32x4
@@ -32,29 +54,24 @@ main<complex>(): I32 {
     %v_28 = vlane %v_27, 0: I32
     %v_29 = cmp_eq %v_28, 18446744073692839680: I32
     %v_30 = add %v_24, %v_29: I32
-    %v_31 = loads @counter, 4: I32
-    %v_32 = add %v_31, 1: I32
-    store @counter, %v_32, 4
-    %v_33 = loads @counter, 4: I32
-    %v_34 = cmp_igt %v_33, 1000: I32
-    %v_35 = select %v_34, 1, 2: I32
-    %v_36 = vsplat %v_35: i8x16
-    %v_37 = shl %v_2, %v_36: i8x16
-    %v_38 = bitcast %v_37: i32x4
-    %v_39 = vlane %v_38, 0: I32
-    %v_40 = cmp_eq %v_39, 1020066820: I32
-    %v_41 = add %v_30, %v_40: I32
-    %v_42 = shr %v_2, %v_36: i8x16
-    %v_43 = bitcast %v_42: i32x4
-    %v_44 = vlane %v_43, 0: I32
-    %v_45 = cmp_eq %v_44, 589053696: I32
-    %v_46 = add %v_41, %v_45: I32
-    %v_47 = sar %v_2, %v_36: i8x16
-    %v_48 = bitcast %v_47: i32x4
-    %v_49 = vlane %v_48, 0: I32
-    %v_50 = cmp_eq %v_49, 18446744073224912640: I32
-    %v_51 = add %v_46, %v_50: I32
-    ret %v_51
+    %v_31 = call_complex opaque, 2: I32
+    %v_32 = vsplat %v_31: i8x16
+    %v_33 = shl %v_2, %v_32: i8x16
+    %v_34 = bitcast %v_33: i32x4
+    %v_35 = vlane %v_34, 0: I32
+    %v_36 = cmp_eq %v_35, 1020066820: I32
+    %v_37 = add %v_30, %v_36: I32
+    %v_38 = shr %v_2, %v_32: i8x16
+    %v_39 = bitcast %v_38: i32x4
+    %v_40 = vlane %v_39, 0: I32
+    %v_41 = cmp_eq %v_40, 589053696: I32
+    %v_42 = add %v_37, %v_41: I32
+    %v_43 = sar %v_2, %v_32: i8x16
+    %v_44 = bitcast %v_43: i32x4
+    %v_45 = vlane %v_44, 0: I32
+    %v_46 = cmp_eq %v_45, 18446744073224912640: I32
+    %v_47 = add %v_42, %v_46: I32
+    ret %v_47
   }
 }
 

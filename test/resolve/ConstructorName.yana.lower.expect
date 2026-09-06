@@ -1,0 +1,53 @@
+@image$base = []
+
+reading<complex>(%r: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %r, 4: I32
+    %v_2 = cmp_eq %v_1, 0: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = cmp_eq %v_1, 1: I32
+    %v_6 = add %r, 4: Ptr
+    %n = loads %v_6, 4: I32
+    %v_7 = shl %n, 1: I32
+    %v_8 = select %v_5, %v_7, 18446744073709551615: I32
+    jmp b_9
+  }
+
+  b_3 {
+    %v_10 = add %r, 4: Ptr
+    %n = loads %v_10, 4: I32
+    jmp b_9
+  }
+
+  b_9 {
+    %v_11 = phi [b_3, %n], [b_4, %v_8]: I32
+    ret %v_11
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 0, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 10, 4
+    %v_4 = call_complex reading, %v_2: I32
+    %v_5 = add %v_4, 10: I32
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 1, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, 100, 4
+    %v_8 = call_complex reading, %v_6: I32
+    %v_9 = add %v_5, %v_8: I32
+    %v_10 = alloca 8, 4: Ptr
+    store %v_10, 2, 4
+    %v_11 = call_complex reading, %v_10: I32
+    %v_12 = add %v_9, %v_11: I32
+    ret %v_12
+  }
+}
+

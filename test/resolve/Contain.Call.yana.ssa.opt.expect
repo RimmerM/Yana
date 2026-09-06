@@ -18,30 +18,22 @@ bb0:
   %9: Flags trivial = aggregate.Flags consume %7 consume %8
   store inspect %2 consume %9
   %10: Flags trivial = copy inspect %2
-  %29: %Bool address = field.addr .read inspect %10
-  %30: Bool trivial = load inspect %29
-  %31: I32 trivial = const 10
-  %32: I32 trivial = const 20
-  %33: I32 trivial = select inspect %30 inspect %31 inspect %32
+  %11: I32 trivial = call score borrow %10
   %12: %Bool address = field.addr .read inspect %2
   %13: Bool trivial = load inspect %12
   %19: I32 trivial = const 1
   %14: I32 trivial = const 2
-  %39: I32 trivial = select inspect %13 inspect %19 inspect %14
+  %29: I32 trivial = select inspect %13 inspect %19 inspect %14
   %15: Flags trivial = copy inspect %2
-  %34: %Bool address = field.addr .read inspect %15
-  %35: Bool trivial = load inspect %34
-  %36: I32 trivial = const 10
-  %37: I32 trivial = const 20
-  %38: I32 trivial = select inspect %35 inspect %36 inspect %37
+  %16: I32 trivial = call score borrow %15
   %17: %Bool address = field.addr .write inspect %2
   %18: Bool trivial = load inspect %17
   %28: I32 trivial = const 4
   %20: I32 trivial = const 8
-  %40: I32 trivial = select inspect %18 inspect %28 inspect %20
-  %23: I32 trivial = add inspect %33 inspect %39
-  %25: I32 trivial = add inspect %23 inspect %38
-  %27: I32 trivial = add inspect %25 inspect %40
+  %30: I32 trivial = select inspect %18 inspect %28 inspect %20
+  %23: I32 trivial = add inspect %11 inspect %29
+  %25: I32 trivial = add inspect %23 inspect %16
+  %27: I32 trivial = add inspect %25 inspect %30
   return consume %27
 }
 
@@ -53,21 +45,17 @@ bb0:
   %4: Flags trivial = aggregate.Flags consume %2 consume %3
   store inspect %0 consume %4
   %5: Flags trivial = copy inspect %0
-  %13: %Bool address = field.addr .read inspect %5
-  %14: Bool trivial = load inspect %13
-  %15: I32 trivial = const 10
-  %16: I32 trivial = const 20
-  %17: I32 trivial = select inspect %14 inspect %15 inspect %16
+  %6: I32 trivial = call score borrow %5
   %7: %Bool address = field.addr .write inspect %0
   %8: Bool trivial = load inspect %7
   branch inspect %8 -> bb3 -> bb1
 
 bb1:
-  return consume %17
+  return consume %6
 
 bb3:
   %11: I32 trivial = const 100
-  %12: I32 trivial = add inspect %17 inspect %11
+  %12: I32 trivial = add inspect %6 inspect %11
   return consume %12
 }
 
@@ -88,15 +76,14 @@ bb0:
   %5: Flags trivial = aggregate.Flags consume %3 consume %4
   store inspect %1 consume %5
   %6: Flags [unique call] guaranteed from{%1} = load inspect %1
-  %14: Bool trivial = const True
-  %15: %Bool address = field.addr .read inspect %6
-  store inspect %15 consume %14
+  %7: I32 trivial = call mutate borrow %6
   %8: %Bool address = field.addr .read inspect %1
   %9: Bool trivial = load inspect %8
   %13: I32 trivial = const 1000
   %10: I32 trivial = const 2000
-  %17: I32 trivial = select inspect %9 inspect %13 inspect %10
-  return consume %17
+  %14: I32 trivial = select inspect %9 inspect %13 inspect %10
+  %12: I32 trivial = add inspect %14 inspect %7
+  return consume %12
 }
 
 fn main() -> I32 {
@@ -107,62 +94,49 @@ bb0:
   %8: Flags trivial = aggregate.Flags consume %6 consume %7
   store inspect %5 consume %8
   %9: Flags trivial = copy inspect %5
-  %10: %Bool address = field.addr .read inspect %9
-  %11: Bool trivial = load inspect %10
-  %12: I32 trivial = const 10
-  %13: I32 trivial = const 20
-  %14: I32 trivial = select inspect %11 inspect %12 inspect %13
-  %15: %Bool address = field.addr .read inspect %5
-  %16: Bool trivial = load inspect %15
-  %17: I32 trivial = const 1
-  %18: I32 trivial = const 2
-  %19: I32 trivial = select inspect %16 inspect %17 inspect %18
-  %20: Flags trivial = copy inspect %5
-  %21: %Bool address = field.addr .read inspect %20
-  %22: Bool trivial = load inspect %21
-  %23: I32 trivial = const 10
-  %24: I32 trivial = const 20
-  %25: I32 trivial = select inspect %22 inspect %23 inspect %24
-  %26: %Bool address = field.addr .write inspect %5
-  %27: Bool trivial = load inspect %26
-  %28: I32 trivial = const 4
-  %29: I32 trivial = const 8
-  %30: I32 trivial = select inspect %27 inspect %28 inspect %29
-  %31: I32 trivial = add inspect %14 inspect %19
-  %32: I32 trivial = add inspect %31 inspect %25
-  %33: I32 trivial = add inspect %32 inspect %30
-  %35: %Flags address = alloc frame Flags
-  %36: Bool trivial = const False
-  %37: Bool trivial = const True
-  %38: Flags trivial = aggregate.Flags consume %36 consume %37
-  store inspect %35 consume %38
-  %39: Flags trivial = copy inspect %35
-  %40: %Bool address = field.addr .read inspect %39
-  %41: Bool trivial = load inspect %40
-  %42: I32 trivial = const 10
-  %43: I32 trivial = const 20
-  %44: I32 trivial = select inspect %41 inspect %42 inspect %43
-  %45: %Bool address = field.addr .write inspect %35
-  %46: Bool trivial = load inspect %45
-  %47: I32 trivial = const 100
-  %48: I32 trivial = add inspect %44 inspect %47
-  %61: I32 trivial = select inspect %46 inspect %48 inspect %44
-  %2: I32 trivial = add inspect %33 inspect %61
-  %49: %Flags address = alloc frame Flags
-  %50: Bool trivial = const False
-  %51: Bool trivial = const False
-  %52: Flags trivial = aggregate.Flags consume %50 consume %51
-  store inspect %49 consume %52
-  %53: Flags [unique call] guaranteed from{%49} = load inspect %49
-  %54: Bool trivial = const True
-  %55: %Bool address = field.addr .read inspect %53
-  store inspect %55 consume %54
-  %56: %Bool address = field.addr .read inspect %49
-  %57: Bool trivial = load inspect %56
-  %58: I32 trivial = const 1000
-  %59: I32 trivial = const 2000
-  %60: I32 trivial = select inspect %57 inspect %58 inspect %59
-  %4: I32 trivial = add inspect %2 inspect %60
+  %10: I32 trivial = call score borrow %9
+  %11: %Bool address = field.addr .read inspect %5
+  %12: Bool trivial = load inspect %11
+  %13: I32 trivial = const 1
+  %14: I32 trivial = const 2
+  %15: I32 trivial = select inspect %12 inspect %13 inspect %14
+  %16: Flags trivial = copy inspect %5
+  %17: I32 trivial = call score borrow %16
+  %18: %Bool address = field.addr .write inspect %5
+  %19: Bool trivial = load inspect %18
+  %20: I32 trivial = const 4
+  %21: I32 trivial = const 8
+  %22: I32 trivial = select inspect %19 inspect %20 inspect %21
+  %23: I32 trivial = add inspect %10 inspect %15
+  %24: I32 trivial = add inspect %23 inspect %17
+  %25: I32 trivial = add inspect %24 inspect %22
+  %27: %Flags address = alloc frame Flags
+  %28: Bool trivial = const False
+  %29: Bool trivial = const True
+  %30: Flags trivial = aggregate.Flags consume %28 consume %29
+  store inspect %27 consume %30
+  %31: Flags trivial = copy inspect %27
+  %32: I32 trivial = call score borrow %31
+  %33: %Bool address = field.addr .write inspect %27
+  %34: Bool trivial = load inspect %33
+  %35: I32 trivial = const 100
+  %36: I32 trivial = add inspect %32 inspect %35
+  %49: I32 trivial = select inspect %34 inspect %36 inspect %32
+  %2: I32 trivial = add inspect %25 inspect %49
+  %37: %Flags address = alloc frame Flags
+  %38: Bool trivial = const False
+  %39: Bool trivial = const False
+  %40: Flags trivial = aggregate.Flags consume %38 consume %39
+  store inspect %37 consume %40
+  %41: Flags [unique call] guaranteed from{%37} = load inspect %37
+  %42: I32 trivial = call mutate borrow %41
+  %43: %Bool address = field.addr .read inspect %37
+  %44: Bool trivial = load inspect %43
+  %45: I32 trivial = const 1000
+  %46: I32 trivial = const 2000
+  %47: I32 trivial = select inspect %44 inspect %45 inspect %46
+  %48: I32 trivial = add inspect %47 inspect %42
+  %4: I32 trivial = add inspect %2 inspect %48
   return consume %4
 }
 

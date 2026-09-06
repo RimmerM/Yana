@@ -1,0 +1,211 @@
+module ResolveTest
+
+fn opaque(x: Size [shared call]) -> Size {
+bb0:
+  %0: Size = read copy.trivial (x)
+  return take %0
+}
+
+fn indexed(xs: Array(I32) [shared call view], i: I32 [shared call]) -> I32 {
+  local local2: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = read copy.trivial (i)
+  %1: Array(I32) [shared call view] = read borrow.shared (xs) loan0
+  %2: Size = convert inspect %0
+  %3: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %1 borrow.shared %2 roots{0}
+  write.init borrow.unique (local2) borrow.shared %3
+  %5: I32 = read copy.trivial (local2)
+  return take %5
+}
+
+fn asLong(n: Size [shared call]) -> I64 {
+bb0:
+  %0: Size = read copy.trivial (n)
+  %1: I64 = convert inspect %0
+  return take %1
+}
+
+fn asWord(n: I32 [shared call]) -> Size {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Size = convert inspect %0
+  return take %1
+}
+
+fn unsignedAbove(a: Size [shared call], b: Size [shared call]) -> Bool {
+bb0:
+  %0: Size = read copy.trivial (a)
+  %1: USize = bitcast inspect %0
+  %2: Size = read copy.trivial (b)
+  %3: USize = bitcast inspect %2
+  %4: Bool = gt inspect %1 inspect %3
+  return take %4
+}
+
+fn unitValue(u: CodeUnit [shared call]) -> I32 {
+bb0:
+  %0: CodeUnit = read copy.trivial (u)
+  %1: I32 = convert inspect %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local & score: I32
+  local & local1: Array(I32) object1
+  local xs: Array(I32) object1
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: I32 = const 10
+  %3: I32 = const 20
+  %4: I32 = const 30
+  %5: Size = const 3
+  %6: Array(I32) = call literalArray(I32) borrow.shared %5
+  write.init borrow.unique (local1) take %6
+  %8: Array(I32) [unique slot 0] = read borrow.unique (local1) loan0
+  %9: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %8 roots{0}
+  %10: %I32 [owned here shape1 .*=shared slot 0] = call valuesMut(I32) borrow.unique %9 roots.0{0}
+  %11: Size = const 0
+  write.init borrow.unique ([%%10][0]) take %2
+  %13: Size = const 1
+  write.init borrow.unique ([%%10][1]) take %3
+  %15: Size = const 2
+  write.init borrow.unique ([%%10][2]) take %4
+  %17: Array(I32) = read take (local1)
+  write.init borrow.unique (xs) take %17
+  %19: Array(I32) [shared call] = read borrow.shared (xs) loan1
+  %20: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %19 roots{1}
+  %21: I32 = const 2
+  %22: I32 = call indexed borrow.shared %20 borrow.shared %21
+  drop (xs)
+  %23: I32 = const 30
+  %24: Bool = eq inspect %22 inspect %23
+  branch inspect %24 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %32: Size = const 7
+  %33: Size = call opaque borrow.shared %32
+  %34: I64 = call asLong borrow.shared %33
+  %35: I64 = const 7
+  %36: Bool = eq inspect %34 inspect %35
+  branch inspect %36 -> bb6 -> bb4
+
+bb3:
+  %26: I32 = read copy.trivial (score)
+  %27: I32 = const 1
+  %28: I32 = add inspect %26 inspect %27
+  write.assign borrow.unique (score) take %28
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %44: I32 = const 7
+  %45: Size = call asWord borrow.shared %44
+  %46: Size = const 7
+  %47: Bool = eq inspect %45 inspect %46
+  branch inspect %47 -> bb9 -> bb7
+
+bb6:
+  %38: I32 = read copy.trivial (score)
+  %39: I32 = const 2
+  %40: I32 = add inspect %38 inspect %39
+  write.assign borrow.unique (score) take %40
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %55: Size = const 0
+  %56: Size = const 1
+  %57: Size = sub inspect %55 inspect %56
+  %58: Size = call opaque borrow.shared %57
+  %59: Size = const 1000000
+  %60: Size = call opaque borrow.shared %59
+  %61: Bool = call unsignedAbove borrow.shared %58 borrow.shared %60
+  branch inspect %61 -> bb12 -> bb10
+
+bb9:
+  %49: I32 = read copy.trivial (score)
+  %50: I32 = const 4
+  %51: I32 = add inspect %49 inspect %50
+  write.assign borrow.unique (score) take %51
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %69: Size = const 1
+  %70: Size = call opaque borrow.shared %69
+  %71: Size = const 2
+  %72: Size = call opaque borrow.shared %71
+  %73: Bool = call unsignedAbove borrow.shared %70 borrow.shared %72
+  %74: Bool = not inspect %73
+  branch inspect %74 -> bb15 -> bb13
+
+bb12:
+  %63: I32 = read copy.trivial (score)
+  %64: I32 = const 8
+  %65: I32 = add inspect %63 inspect %64
+  write.assign borrow.unique (score) take %65
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %82: Size = const 300
+  %83: Size = call opaque borrow.shared %82
+  %84: I32 = convert inspect %83
+  %85: I32 = const 300
+  %86: Bool = eq inspect %84 inspect %85
+  branch inspect %86 -> bb18 -> bb16
+
+bb15:
+  %76: I32 = read copy.trivial (score)
+  %77: I32 = const 16
+  %78: I32 = add inspect %76 inspect %77
+  write.assign borrow.unique (score) take %78
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %94: CodeUnit = const 65
+  %95: I32 = call unitValue borrow.shared %94
+  %96: I32 = const 65
+  %97: Bool = eq inspect %95 inspect %96
+  branch inspect %97 -> bb21 -> bb19
+
+bb18:
+  %88: I32 = read copy.trivial (score)
+  %89: I32 = const 32
+  %90: I32 = add inspect %88 inspect %89
+  write.assign borrow.unique (score) take %90
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %105: I32 = read copy.trivial (score)
+  return take %105
+
+bb21:
+  %99: I32 = read copy.trivial (score)
+  %100: I32 = const 64
+  %101: I32 = add inspect %99 inspect %100
+  write.assign borrow.unique (score) take %101
+  jump -> bb20
+}
+
+entry main

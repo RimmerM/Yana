@@ -161,9 +161,10 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             case DeclAttribute::ExplicitDrop: target = explicitDrop; break;
             case DeclAttribute::Local:        target = local; break;
 
-            // `@inline` belongs to a function and `readInlineAttribute` reads it there; here it
-            // falls to the placement message, as `@value` on a `data` head does.
-            case DeclAttribute::Inline:       break;
+            // `@inline` and `@noinline` belong to a function and `readInlineAttribute` reads them
+            // there; here they fall to the placement message, as `@value` on a `data` head does.
+            case DeclAttribute::Inline:
+            case DeclAttribute::NoInline:     break;
 
             // The two form attributes have no destination here and never will: what they choose is
             // three-valued and belongs to a signature, so `readGenForm` reads them and this walk
@@ -299,23 +300,43 @@ Maybe<I64> Resolver::readValueAttribute(ast::Con& constructor) {
 }
 
 /*
- * `@inline(always)` on a function - `Function::alwaysInline`.
+ * What a function says about being expanded at its call sites - `Function::alwaysInline` and
+ * `Function::noInline`.
  *
- * Two spellings and one answer. A bare `@inline` is a hint to the optimizer and this stage records
- * nothing for it - what the optimizer does with a hint is its own business and not a promise the
- * declaration makes. `@inline(always)` is the promise, and the one argument it takes is that word:
- * a number or a second word is reported here, because an attribute that is silently misread is a
- * declaration whose author believes something the compiler does not.
+ * Three spellings and two answers. A bare `@inline` is a hint to the optimizer and this stage
+ * records nothing for it - what the optimizer does with a hint is its own business and not a
+ * promise the declaration makes. `@inline(always)` is a promise the *resolver* keeps, by grafting
+ * the body where it is called. `@noinline` is the promise in the other direction, and is the one
+ * of the three that can never be refused: declining to expand a body is always possible.
+ *
+ * One reader for both attributes rather than one each, because what they say is one thing and the
+ * contradiction is only visible to something that has read both. `@inline(always) @noinline` is
+ * that contradiction, and it is reported here with neither answer taken - a declaration that says
+ * two opposite things has stated no intent for the compiler to follow, and picking the one written
+ * first would make the answer depend on the order.
+ *
+ * The one argument `@inline` takes is the word `always`; a number or a second word is reported,
+ * because an attribute that is silently misread is a declaration whose author believes something
+ * the compiler does not. `@noinline` takes none at all.
  */
-bool Resolver::readInlineAttribute(ast::Decl& declaration) {
-    auto always = false;
+void Resolver::readInlineAttribute(ast::Decl& declaration, bool& always, bool& never) {
+    always = false;
+    never = false;
 
     for(auto attribute: declaration.attributes.contents(parse)) {
-        if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Inline) {
+        auto which = findAttribute(stringView(context.findName(attribute.name)));
+
+        if(which == DeclAttribute::NoInline) {
+            if(!attribute.args.isEmpty()) {
+                context.diagnostics.error("`@noinline` takes no arguments"_v, attribute.source);
+                continue;
+            }
+
+            never = true;
             continue;
         }
 
-        if(attribute.args.isEmpty()) continue;
+        if(which != DeclAttribute::Inline || attribute.args.isEmpty()) continue;
 
         auto argument = attribute.args.get(parse, 0).value;
         if(attribute.args.size() != 1 || argument.kind != ast::Expr::Var ||
@@ -328,7 +349,14 @@ bool Resolver::readInlineAttribute(ast::Decl& declaration) {
         always = true;
     }
 
-    return always;
+    if(always && never) {
+        context.diagnostics.error(
+            "`@inline(always)` and `@noinline` say opposite things about the same function"_v,
+            declaration.source);
+
+        always = false;
+        never = false;
+    }
 }
 
 /*
@@ -534,18 +562,16 @@ void Resolver::declareTypes(ast::Module& file) {
          * The constructors - one for `data Pair {x: I32}`, several for
          * `data Outcome(a, e) = Proceed(a) | Exit(e)`.
          *
-         * A **single** constructor still has to be the type's own name, because there is nothing to
-         * tell it from: `data Pair = Other {x: I32}` would give one type two spellings, one of which
-         * names something that is not a type. Several constructors are each a name of their own and
-         * that restriction lifts, which is what makes them constructors rather than a second syntax
-         * for the same declaration.
+         * **A constructor's name has nothing to do with its type's**, however many there are.
+         * `doc/spec/declarations.md` states it as the rule that `data Direction = North` declares a
+         * nullary constructor `North` and "never a type named `North`", and the two tables here say
+         * the same thing from the other side: `Program::recordsByName` and
+         * `Program::constructorsByName` answer different questions, so `data RandomError =
+         * NoEntropySource` files one name in each and neither is a second spelling of the other.
+         * The braced form is the case where the two names coincide, and the parser is what makes
+         * them coincide - it synthesizes a constructor called after the type. Nothing here has to
+         * know that happened.
          */
-        if(written.cons.size() == 1 && written.cons.get(parse, 0).name != written.type.name) {
-            unsupported(written.cons.get(parse, 0).source,
-                        "a constructor whose name differs from its type"_v);
-            push(nullptr);
-            continue;
-        }
 
         auto shaped = true;
         for(auto constructor: written.cons.contents(parse)) {
@@ -1037,8 +1063,6 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
     // The head's parameters are what the field types are written in terms of.
     GenScope generics(*this, record->gen);
 
-    auto anyWritten = false;
-
     // The number the next unpinned constructor takes. Declaration order is what this counts when
     // nothing pins anything, which is what makes a declaration that writes no attribute the
     // declaration order it always had - `doc/spec/declarations.md`, and C's rule.
@@ -1072,8 +1096,6 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
 
         auto field = [&](StringId name, ast::Type& type, ast::Expr* def, LocationId source,
                          bool anonymous = false) {
-            anyWritten = true;
-
             /*
              * The one position `@box` is legal in - `Resolver::readingFieldType`, which
              * `resolveType` clears as soon as it has read the attribute off this type.
@@ -1229,21 +1251,19 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
     record->originSlots = slots.count();
 
     /*
-     * A record with no fields *and* nothing to tell its values apart has no layout question and no
-     * ownership question, and every value of it is the same value - which is `{}`, spelled by a
-     * declaration. Refused rather than admitted as a second unit type.
+     * There is no refusal here any more, and what used to be one is worth keeping written down.
      *
-     * `data Colour = Red | Green | Blue` has no fields either and is not that: its values differ,
-     * which is exactly what the discriminant is. So the test is the layout rather than the field
-     * count, which is the one place the three shapes are told apart.
+     * A single-constructor record with no fields was reported as "a record with no fields", on the
+     * argument that every value of it is the same value and `{}` already spells that. The shape it
+     * actually caught was `data Marker = Marker` - a **nullary constructor**, which
+     * `doc/spec/declarations.md` declares legal in as many words, and which is what
+     * `data RandomError = NoEntropySource` is once a constructor's name is free of its type's.
+     * `data Unit {}` was never it: the braced form of an empty content parses as `{}` the *type*,
+     * so that declaration has one field carrying a unit and is a different shape entirely.
      *
-     * Only where the *declaration* wrote none. A record every one of whose fields was rejected has
-     * none either, and saying so would be reporting the consequence of a mistake beside the mistake
-     * - which is what turns one bad field type into two messages.
+     * The type is zero bytes with one value, which is a thing a program passes, matches and names
+     * in a signature - `Result(RandomError, {})` is the library's own use of it.
      */
-    if(record->fields.size() || record->layout != RecordLayout::Single || anyWritten) return;
-
-    unsupported(record->source, "a record with no fields"_v);
 }
 
 void Resolver::declareGlobals(ast::Decl& declaration) {

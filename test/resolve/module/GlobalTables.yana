@@ -1,0 +1,21 @@
+{-
+   A string and a fixed array declared at a **library** module's top level - `resolve/modules/Tables.yana`,
+   where the reason they have to be constants is written.
+
+   Here rather than beside the module because that is what the corpus can assert: the tables are read
+   from a program that imported them, so what the fixture pins is that the values arrived - the
+   string's bytes through a relocation, the array's through its own storage - rather than that the
+   declaration compiled.
+-}
+
+import Tables
+
+fn main() -> Int:
+    let &score = 0
+
+    if pairCount() == 10 then score = score + 1
+    if power(0) == 1 then score = score + 2
+    if power(4) == 10000 then score = score + 4
+    if decimalPairs == "00010203040506070809" then score = score + 8
+
+    return score

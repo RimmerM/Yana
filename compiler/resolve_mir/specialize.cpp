@@ -207,6 +207,7 @@ DeclPtr<Function> specializeFunction(Context& context, Program& program, DeclPtr
     // two to agreeing.
     function->lens = written.lens;
     function->alwaysInline = written.alwaysInline;
+    function->noInline = written.noInline;
     function->teardown = written.teardown;
     function->originSlots = written.originSlots;
     function->summary.bodyKnown = written.summary.bodyKnown;

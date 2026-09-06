@@ -261,6 +261,12 @@ void printConstant(Net::Writer& writer, Context& context, DeclBase base,
             writer.writeString(stringView(context.findName(value.asText())));
             writer.writeString("\""_v);
             break;
+        case Constant::Address:
+            // The global's own name, which is what the relocation will name. `&` because that is
+            // what the value is - the address of that storage and not what is in it.
+            writer.writeString("&"_v);
+            writer.writeString(stringView(context.findName(base[value.asGlobal()]->name)));
+            break;
         case Constant::Aggregate: {
             // A fixed array, as the literal it reduced from - the bytes of a string literal are one.
             if(base[value.type]->kind == Type::Array) {
@@ -1127,8 +1133,16 @@ struct Printer {
          * which is what the declaration means rather than what it was typed as: a one-payload
          * constructor's field carries the constructor's own name, and a dump that hid that would hide
          * which field index a projection is about.
+         *
+         * The braced form is the case where the sole constructor is *called* after the type, and
+         * only then may the name be left out: `data Pair = Other {x: I32}` declares one constructor
+         * whose name is the only way to build the type, so a dump printing it as `data Pair {x: I32}`
+         * would be naming something no program may write.
          */
-        if(value.layout == RecordLayout::Single) {
+        auto sole = value.layout == RecordLayout::Single && value.cons.size() == 1
+                        ? Just(value.cons.get(decl, 0)) : Nothing();
+
+        if(value.layout == RecordLayout::Single && (!sole || sole.unwrap().name == value.name)) {
             fieldRange(0, U16(value.fields.size()));
         } else {
             writer.writeString(" ="_v);

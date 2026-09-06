@@ -1,5 +1,7 @@
 module ResolveTest
 
+let tagged: @bits(53) U64 = 3
+
 fn double(it: @bits(53) U64 [shared call]) -> @bits(53) U64 {
 bb0(%0: @bits(53) U64 [shared call] guaranteed):
   %1: %@bits(53) U64 address = alloc frame @bits(53) U64 [shared call]
@@ -28,34 +30,51 @@ bb0:
   %2: %U64 address = alloc frame U64
   %3: %Packed address = alloc frame Packed
   %4: %I32 address = alloc frame I32
-  %5: @bits(53) U64 trivial = const 21
-  store inspect %0 consume %5
-  %6: @bits(53) U64 trivial = load inspect %0
-  %7: @bits(53) U64 trivial = call double borrow %6
-  store inspect %1 consume %7
-  %8: @bits(53) U64 trivial = load inspect %1
-  %9: U64 trivial = convert inspect %8
-  %10: U64 trivial = call asPlain borrow %9
-  store inspect %2 consume %10
-  %11: @bits(4) U32 trivial = const 3
-  %12: @bits(13) U32 trivial = const 4000
-  %13: Packed trivial = aggregate.Packed consume %11 consume %12
-  store inspect %3 consume %13
-  %14: %@bits(4) U32 address = field.addr .version inspect %3
-  %15: @bits(4) U32 trivial = load inspect %14
-  %16: I32 trivial = convert inspect %15
-  %17: I32 trivial = const 10000
-  %18: I32 trivial = mul inspect %16 inspect %17
-  %19: %@bits(13) U32 address = field.addr .length inspect %3
-  %20: @bits(13) U32 trivial = load inspect %19
-  %21: I32 trivial = convert inspect %20
-  %22: I32 trivial = add inspect %18 inspect %21
-  store inspect %4 consume %22
-  %23: U64 trivial = load inspect %2
-  %24: I32 trivial = convert inspect %23
-  %25: I32 trivial = load inspect %4
-  %26: I32 trivial = add inspect %24 inspect %25
-  return consume %26
+  %5: %Marked address = alloc frame Marked
+  %6: @bits(53) U64 trivial = const 21
+  store inspect %0 consume %6
+  %7: @bits(53) U64 trivial = load inspect %0
+  %8: @bits(53) U64 trivial = call double borrow %7
+  store inspect %1 consume %8
+  %9: @bits(53) U64 trivial = load inspect %1
+  %10: U64 trivial = convert inspect %9
+  %11: U64 trivial = call asPlain borrow %10
+  store inspect %2 consume %11
+  %12: @bits(4) U32 trivial = const 3
+  %13: @bits(13) U32 trivial = const 4000
+  %14: Packed trivial = aggregate.Packed consume %12 consume %13
+  store inspect %3 consume %14
+  %15: %@bits(4) U32 address = field.addr .version inspect %3
+  %16: @bits(4) U32 trivial = load inspect %15
+  %17: I32 trivial = convert inspect %16
+  %18: I32 trivial = const 10000
+  %19: I32 trivial = mul inspect %17 inspect %18
+  %20: %@bits(13) U32 address = field.addr .length inspect %3
+  %21: @bits(13) U32 trivial = load inspect %20
+  %22: I32 trivial = convert inspect %21
+  %23: I32 trivial = add inspect %19 inspect %22
+  store inspect %4 consume %23
+  %24: @bits(4) U32 trivial = const 5
+  %25: Marked trivial = aggregate.Marked consume %24
+  store inspect %5 consume %25
+  %26: U64 trivial = load inspect %2
+  %27: I32 trivial = convert inspect %26
+  %28: I32 trivial = load inspect %4
+  %29: I32 trivial = add inspect %27 inspect %28
+  %30: %@bits(53) U64 address = global.addr tagged
+  %31: @bits(53) U64 trivial = load inspect %30
+  %32: U64 trivial = convert inspect %31
+  %33: I32 trivial = convert inspect %32
+  %34: I32 trivial = const 1000000
+  %35: I32 trivial = mul inspect %33 inspect %34
+  %36: I32 trivial = add inspect %29 inspect %35
+  %37: %@bits(4) U32 address = field.addr .tag inspect %5
+  %38: @bits(4) U32 trivial = load inspect %37
+  %39: I32 trivial = convert inspect %38
+  %40: I32 trivial = const 100000
+  %41: I32 trivial = mul inspect %39 inspect %40
+  %42: I32 trivial = add inspect %36 inspect %41
+  return consume %42
 }
 
 entry main

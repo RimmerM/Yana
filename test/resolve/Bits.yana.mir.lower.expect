@@ -1,7 +1,13 @@
+@tagged = [3, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    ret 34042
+    %v_1 = load @tagged, 8: I64
+    %v_2 = cast %v_1: I32
+    %v_3 = imul %v_2, 1000000: I32
+    %v_4 = add 34042, %v_3: I32
+    %v_5 = add %v_4, 500000: I32
+    ret %v_5
   }
 }
 

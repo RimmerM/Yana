@@ -499,10 +499,16 @@ enum class DeclAttribute: U8 {
     ExplicitDrop,
     Local,
 
-    // `@inline` and `@inline(always)` on a function - `Function::alwaysInline`. A row here for the
-    // spelling; `readInlineAttribute` is its reader, because it is the one attribute whose argument
-    // is a word rather than a number.
+    /*
+     * `@inline`, `@inline(always)` and `@noinline` on a function - `Function::alwaysInline` and
+     * `Function::noInline`.
+     *
+     * Two rows because they are two spellings, and one reader because they are one question: what a
+     * declaration says about being expanded at its call sites. `readInlineAttribute` is that reader,
+     * and it is the one attribute walk whose argument is a word rather than a number.
+     */
     Inline,
+    NoInline,
 
     // `@specialize` and `@generic` - which form a generic body is compiled in. Rows here rather than
     // a reader of their own so that the spelling is written once, and so that writing one on a
@@ -1228,6 +1234,22 @@ struct Function {
     bool alwaysInline = false;
 
     /*
+     * `@noinline` - a body the optimizer may not expand into its callers.
+     *
+     * A **directive** in the other direction, and the one of the pair the compiler can always carry
+     * out: declining to inline is always possible, where inlining is not. So this is recorded where
+     * the bare `@inline` hint is not - what an optimizer does with a hint is its own business, and a
+     * promise the declaration makes has to be kept by something.
+     *
+     * What depends on it is a call boundary a program *needs*: a measurement that would otherwise
+     * fold into its caller, a wrapper whose whole content is the call, and every fixture whose
+     * subject is what a body compiles to rather than what a program answers.
+     * `resolve_ssa/opt/inline.cpp` is the one reader, and the conflict with `@inline(always)` is
+     * refused where both are read.
+     */
+    bool noInline = false;
+
+    /*
      * `lens fn` in the `yield` form - Analysis-Lens.md §5.2.
      *
      * A declaration fact, and after milestone 7 an ordinary function with one extra parameter:
@@ -1639,6 +1661,17 @@ struct Program {
      * answer.
      */
     bool usesBoxes = false;
+
+    /*
+     * Whether a supplied global was refused - `bindSuppliedGlobal`, which runs as each initializer
+     * settles rather than in a pass of its own.
+     *
+     * A flag rather than a report `checkRoles` makes for itself, because the verdict is reached
+     * earlier than the pass that acts on it: what "the compiler and this library disagree" means is
+     * that no body should be resolved at all, and that decision is `checkRoles`' to make wherever
+     * the fact was found.
+     */
+    bool suppliedRoleFailed = false;
 
     // Where the program starts. `main` where a module declares one; a synthesized entry once
     // top-level statements are implemented, since a program with initialization that started at

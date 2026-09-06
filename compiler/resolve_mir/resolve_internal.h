@@ -139,6 +139,19 @@ struct WrittenLiteral {
  * a module-level property it cannot know. So the chain is flattened whole and re-associated by
  * `climb`, which is the same two steps the current resolver takes for the same reason.
  */
+/*
+ * What `[1, 2, 3]` builds at a fixed-array position - see `Resolver::arrayLiteralShape`, which is
+ * the one place the literal's rules are stated and both readings of one ask.
+ */
+struct ArrayLiteralShape {
+    DeclPtr<Type> element;
+    U64 length = 0;
+
+    // Whether the one element written fills the whole array - `[0] :: [Int *8]`. The callers spread
+    // it themselves, because what each is filling differs: one has nodes and the other constants.
+    bool fill = false;
+};
+
 struct Chain {
     SmallArray<ast::Expr*, 8> operands;
     SmallArray<Operator, 8> operators;
@@ -1051,6 +1064,28 @@ struct Resolver {
 
     // The other constant form a construction has - a record built out of constants. Asked where a
     // constant is what the position is for, and not from a value position; see the definition.
+    Maybe<Constant> resolveArrayConstant(ast::Expr& expr, DeclPtr<Type> hint, bool* notConstant);
+
+    /*
+     * Arithmetic in a constant position - `4 * 1024 * 1024`, `wordBits - 1`, `not(mask)`.
+     *
+     * An operator is a call, so what these decide is the same thing a call decides: which
+     * declaration, and then whether the instance serving it *at these operands* is the compiler's.
+     * Only then is there an operation to fold, and `fold.h`'s table is what says which one - the
+     * same table `expandProvided` builds the node from, so a body and a constant compute the same
+     * thing by construction.
+     *
+     * Every one of these is **silent**. An expression they cannot reduce is not a mistake: in a
+     * value position it is ordinary code, and in a constant one the position says what it needs.
+     */
+    Constant resolveInfixConstant(ast::Expr& expr, DeclPtr<Type> hint);
+    Constant resolveCallConstant(ast::Expr& expr, DeclPtr<Type> hint);
+    Constant climbConstant(Chain& chain, Size& operandIndex, Size& operatorIndex,
+                           U8 minimumPrecedence, DeclPtr<Type> hint);
+    Constant foldConstantOperator(const OverloadSet& set, const Constant* args, Size count,
+                                  LocationId source);
+    bool constantOperation(const OverloadSet& set, DeclPtr<Type> operand, LocationId source,
+                           BinaryOp& binary, UnaryOp& unary, bool& isBinary);
     Maybe<Constant> resolveAggregateConstant(ast::Expr& expr, DeclPtr<Type> hint);
 
     // What an unadorned literal is, from the library declaration that says so - see the definition.
@@ -1156,6 +1191,32 @@ struct Resolver {
     };
 
     Array<PendingTextDefault> pendingTextDefaults;
+
+    /*
+     * A **string global**, and the text it holds - `let decimalPairs = "0001..."`.
+     *
+     * A second deferral for a second ordering, and this one is about *bodies* rather than about
+     * declarations. What a string constant is is what `stringLiteral` builds, and building it means
+     * running that function - so the answer exists only once the library's bodies are resolved,
+     * which is long after a global's initializer is read. `resolveTextGlobals` is the drain.
+     *
+     * Deferring the value rather than the decision is what keeps everything in between honest: the
+     * global's *type* is settled where the initializer is read, so it is not `dynamic`, nothing
+     * puts it in the entry sequence, and a body above it reads a global whose type is known.
+     */
+    struct PendingTextGlobal {
+        DeclPtr<Global> global;
+        DeclPtr<Module> module;
+        StringId text {};
+        U16 file = 0;
+        LocationId source = kNullLocation;
+    };
+
+    Array<PendingTextGlobal> pendingTextGlobals;
+
+    // The drain - see `PendingTextGlobal`. After every body, which is the earliest the library's own
+    // string builder can be run.
+    void resolveTextGlobals();
 
     // The drain - see `PendingTextDefault`. Reports a position whose type is not what a string
     // literal is, which is the check `declareDefault` makes for every other kind of constant.
@@ -1287,7 +1348,7 @@ struct Resolver {
     TypeLayout readLayoutAttribute(ast::Decl& declaration);
 
     // `@inline(always)`, or false for a bare `@inline` or none - resolve_decl.cpp.
-    bool readInlineAttribute(ast::Decl& declaration);
+    void readInlineAttribute(ast::Decl& declaration, bool& always, bool& never);
 
     // Whether a body may be grafted where it is called - resolve_stmt.cpp, beside `resolveBody`.
     void checkAlwaysInline(Function& function, LocationId source);
@@ -1670,7 +1731,12 @@ struct Resolver {
     // argued.
     Place* positionalField(Builder& builder, Place& target, ast::Expr& written);
 
-    Node* resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+    Maybe<ArrayLiteralShape> arrayLiteralShape(ast::Expr& expr, DeclPtr<Type> hint, Size written);
+    Node* resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted);
+
+    // The half of it that builds a growable `[a]` - see the definition, where the two library roles
+    // it is made of are argued.
+    Node* resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
 
     // `{4, 5}` - the anonymous record, whose type is what its elements turned out to be. See the
     // definition, where the hint's part in that is argued.
@@ -1704,6 +1770,18 @@ struct Resolver {
                                 Subscript& into);
     Place* elementAccess(Builder& builder, const Subscript& subscript, Access access,
                          LocationId source);
+
+    /*
+     * "The library declares nothing with this role", from the side of a compiler that wanted one.
+     *
+     * Every `Presence::Optional` row in `known.def` can be absent, and what a compiler holding one
+     * of them does about that is the same sentence every time - the role it looked for, and the
+     * thing it was in the middle of building. Written once so that the two halves stay a role name
+     * the table supplies and a phrase the caller supplies, rather than a sentence each site spells
+     * out and one of them spells differently.
+     */
+    void reportMissingRole(intrinsic::Known role, StringView needs, LocationId source);
+    void reportMissingRole(intrinsic::Op op, StringView needs, LocationId source);
 
     // A call to a function the compiler inserts - `stringLiteral`, `slice` - through its role, with
     // the arguments prepared exactly as a written call's are.
@@ -1783,6 +1861,14 @@ struct Resolver {
 
     // `"abc"` - the bytes as a global and the value the library builds from them; resolve.cpp, where
     // the reason this is one function rather than an expansion at each literal is written out.
+    /*
+     * evaluate.cpp - a function run at compile time over constant arguments, and the one caller
+     * that needs one so far. Unset is "not a constant", which the caller reports for itself.
+     */
+    Constant evaluateCall(Function& callee, const Constant* arguments, Size count);
+    Constant textConstantValue(StringId written, LocationId source);
+
+    DeclPtr<Global> stringBytesGlobal(StringId written, LocationId source);
     Node* textValue(Builder& builder, StringId written, LocationId source);
 
     // The type such a value has, which is `stringLiteral`'s result and not a row of this stage.
@@ -2023,6 +2109,10 @@ struct Resolver {
     Node* patternBound(Builder& builder, ast::Pat& pat, DeclPtr<Type> type);
     bool comparePattern(Builder& builder, BinaryOp op, Place& pivot, ast::Pat& bound, Block* onFail,
                         Carry& carry, LocationId source);
+
+    // `>0` - an operator section, which is the one pattern whose test is a written name rather than
+    // a member the compiler picked. See resolve_match.cpp, where the two are told apart.
+    bool sectionPattern(Builder& builder, ast::Pat& pat, Place& pivot, Block* onFail, Carry& carry);
     void failIfNot(Builder& builder, Node& condition, Block& onFail, Carry& carry,
                    LocationId source);
     // `from` is how much of the list is already in scope, which a conjunction needs: it binds
@@ -2099,7 +2189,10 @@ struct Resolver {
 
     // What an operator does and how it groups, put together - see `Operator`. Nothing having
     // reported, and the two ways it can fail are two sentences.
-    Maybe<Operator> findOperator(StringId name, LocationId source);
+    // `report` false is the *constant* path asking whether rather than which: a chain it cannot fold
+    // falls back to the value path, which reports for itself, and two messages about one operator is
+    // what a second report here would be.
+    Maybe<Operator> findOperator(StringId name, LocationId source, bool report = true);
     void reportMissingOperator(StringId name, U32 arity, LocationId source);
 
     /*
@@ -2109,7 +2202,7 @@ struct Resolver {
      * and the condition walk, because a conjunction has to be *split* before it is climbed and both
      * need the same fixity answer to do it.
      */
-    bool flattenChain(ast::Expr& expr, Chain& chain);
+    bool flattenChain(ast::Expr& expr, Chain& chain, bool report = true);
 
     // Whether a flattened chain is a conjunction at its top level - the question `resolveCondition`
     // splits on. See resolve_expr.cpp.
@@ -2751,6 +2844,22 @@ struct TypeArguments {
      * deciding `e` resolve in one call rather than in the order the constraints happen to be written.
      */
     void fillDetermined(LocationId source);
+
+    /*
+     * The fixpoint alone, without the declared defaults behind it.
+     *
+     * Its own entry point because one caller needs it *during* the argument walk and must not have
+     * the defaults with it. `xs[i]` names `Index.get(self: c, index: k)`, whose `k` no argument may
+     * decide - the dependency `Index(c -> k, v)` is what says which key the container takes, and an
+     * index the author wrote as an `Int` is a value to be converted to that key rather than an
+     * answer about what it is. So `prepareArgument` asks this the moment a position it is about to
+     * coerce into is still open, and the argument then meets the type the container named.
+     *
+     * A default may not run there. `fillDeclaredDefaults` is what a position means when *nothing*
+     * says, and the result hint has not been read yet at that point - see its own note, where the
+     * ordering is the rule rather than an implementation detail.
+     */
+    void fillFromRequirements(LocationId source);
 
     // And what the declaration says where nothing at the call did - see the definition, where the
     // reason this runs last is the rule rather than an ordering.

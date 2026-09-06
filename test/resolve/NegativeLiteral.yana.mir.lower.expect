@@ -1,19 +1,32 @@
 
+takesI8<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = imm 24: I32
+    %v_2 = shl %x, %v_1: I32
+    %v_3 = sar %v_2, %v_1: I32
+    ret %v_3
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
-    %v_2 = div 1, -0: F64
-    %v_3 = cmp_lt %v_2, 0: I32
-    %v_4 = select %v_3, 255, 127: I32
+    %v_2 = call_complex takesI8, 18446744073709551488: I32
+    %v_3 = cmp_eq %v_2, 18446744073709551488: I32
+    %v_4 = select %v_3, 127, 63: I32
+    %v_5 = div 1, -0: F64
+    %v_6 = cmp_lt %v_5, 0: I32
+    %v_7 = add %v_4, 128: I32
+    %v_8 = select %v_6, %v_7, %v_4: I32
     store %v_1, 18446744073709551615, 4
-    %v_5 = add %v_1, 4: Ptr
-    store %v_5, 18446744073709551614, 4
-    %v_6 = loads %v_1, 4: I32
-    %v_7 = cmp_eq %v_6, 4294967295: I32
-    %v_8 = add %v_4, 256: I32
-    %v_9 = select %v_7, %v_8, %v_4: I32
-    %v_10 = add %v_9, 512: I32
-    ret %v_10
+    %v_9 = add %v_1, 4: Ptr
+    store %v_9, 18446744073709551614, 4
+    %v_10 = loads %v_1, 4: I32
+    %v_11 = cmp_eq %v_10, 4294967295: I32
+    %v_12 = add %v_8, 256: I32
+    %v_13 = select %v_11, %v_12, %v_8: I32
+    %v_14 = add %v_13, 512: I32
+    ret %v_14
   }
 }
 
