@@ -37,410 +37,220 @@ main<complex>(): I32 {
     %v_30 = select %v_21, %v_20, %v_29: i32x4
     %v_31 = vlane %v_30, 0: I32
     %v_32 = cmp_eq %v_31, 14: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_34 {
-    jmp b_35
-  }
-
-  b_35 {
-    %v_36 = phi [b_34, 0], [b_33, 1]: I32
-    %v_37 = cmp_eq %v_8, %v_20: m32x4
-    %v_38 = irem %v_1, %v_26: i32x4
-    %v_39 = select %v_37, %v_1, %v_38: i32x4
-    %v_40 = vlane %v_39, 1: I32
-    %v_41 = cmp_eq %v_40, 2: I32
-    je %v_41, b_42, b_43
-  }
-
-  b_33 {
-    jmp b_35
-  }
-
-  b_43 {
-    jmp b_44
-  }
-
-  b_44 {
-    %v_45 = phi [b_43, 0], [b_42, 1]: I32
-    %v_46 = add %v_36, %v_45: I32
-    %v_47 = cmp_eq %v_8, %v_20: m32x4
-    %v_48 = cmp_eq %v_8, %v_22: m32x4
-    %v_49 = idiv %v_2, %v_26: i32x4
-    %v_50 = neg %v_2: i32x4
-    %v_51 = select %v_48, %v_50, %v_49: i32x4
-    %v_52 = select %v_47, %v_20, %v_51: i32x4
-    %v_53 = vlane %v_52, 2: I32
-    %v_54 = cmp_eq %v_53, 18446744073709551602: I32
-    je %v_54, b_55, b_56
-  }
-
-  b_42 {
-    jmp b_44
-  }
-
-  b_56 {
-    jmp b_57
-  }
-
-  b_57 {
-    %v_58 = phi [b_56, 0], [b_55, 1]: I32
-    %v_59 = add %v_46, %v_58: I32
-    %v_60 = cmp_eq %v_8, %v_20: m32x4
-    %v_61 = irem %v_2, %v_26: i32x4
-    %v_62 = select %v_60, %v_2, %v_61: i32x4
-    %v_63 = vlane %v_62, 3: I32
-    %v_64 = cmp_eq %v_63, 18446744073709551614: I32
-    je %v_64, b_65, b_66
-  }
-
-  b_55 {
-    jmp b_57
-  }
-
-  b_66 {
-    jmp b_67
-  }
-
-  b_67 {
-    %v_68 = phi [b_66, 0], [b_65, 1]: I32
-    %v_69 = add %v_59, %v_68: I32
-    %v_70 = cmp_eq %v_13, %v_20: m32x4
-    %v_71 = cmp_eq %v_13, %v_22: m32x4
-    %v_72 = or %v_70, %v_71: m32x4
-    %v_73 = select %v_72, %v_25, %v_13: i32x4
-    %v_74 = idiv %v_1, %v_73: i32x4
-    %v_75 = select %v_71, %v_28, %v_74: i32x4
-    %v_76 = select %v_70, %v_20, %v_75: i32x4
-    %v_77 = vlane %v_76, 0: I32
-    %v_78 = cmp_eq %v_77, 0: I32
-    je %v_78, b_79, b_80
-  }
-
-  b_65 {
-    jmp b_67
-  }
-
-  b_80 {
-    jmp b_81
-  }
-
-  b_81 {
-    %v_82 = phi [b_80, 0], [b_79, 1]: I32
-    %v_83 = add %v_69, %v_82: I32
-    %v_84 = cmp_eq %v_13, %v_20: m32x4
-    %v_85 = irem %v_1, %v_73: i32x4
-    %v_86 = select %v_84, %v_1, %v_85: i32x4
-    %v_87 = vlane %v_86, 0: I32
-    %v_88 = cmp_eq %v_87, 100: I32
-    je %v_88, b_89, b_90
-  }
-
-  b_79 {
-    jmp b_81
-  }
-
-  b_90 {
-    jmp b_91
-  }
-
-  b_91 {
-    %v_92 = phi [b_90, 0], [b_89, 1]: I32
-    %v_93 = add %v_83, %v_92: I32
-    %v_94 = loads @counter, 4: I32
-    %v_95 = add %v_94, 1: I32
-    store @counter, %v_95, 4
-    %v_96 = loads @counter, 4: I32
-    %v_97 = cmp_igt %v_96, 1000: I32
-    %v_98 = select %v_97, 1, 18446744071562067968: I32
-    %v_99 = vsplat %v_98: i32x4
-    %v_100 = cmp_eq %v_19, %v_20: m32x4
-    %v_101 = cmp_eq %v_19, %v_22: m32x4
-    %v_102 = or %v_100, %v_101: m32x4
-    %v_103 = select %v_102, %v_25, %v_19: i32x4
-    %v_104 = idiv %v_99, %v_103: i32x4
-    %v_105 = neg %v_99: i32x4
-    %v_106 = select %v_101, %v_105, %v_104: i32x4
-    %v_107 = select %v_100, %v_20, %v_106: i32x4
-    %v_108 = vlane %v_107, 0: I32
-    %v_109 = cmp_eq %v_108, 18446744071562067968: I32
-    je %v_109, b_110, b_111
-  }
-
-  b_89 {
-    jmp b_91
-  }
-
-  b_111 {
-    jmp b_112
-  }
-
-  b_112 {
-    %v_113 = phi [b_111, 0], [b_110, 1]: I32
-    %v_114 = add %v_93, %v_113: I32
-    %v_115 = cmp_eq %v_19, %v_20: m32x4
-    %v_116 = irem %v_99, %v_103: i32x4
-    %v_117 = select %v_115, %v_99, %v_116: i32x4
-    %v_118 = vlane %v_117, 0: I32
-    %v_119 = cmp_eq %v_118, 0: I32
-    je %v_119, b_120, b_121
-  }
-
-  b_110 {
-    jmp b_112
-  }
-
-  b_121 {
-    jmp b_122
-  }
-
-  b_122 {
-    %v_123 = phi [b_121, 0], [b_120, 1]: I32
-    %v_124 = add %v_114, %v_123: I32
-    %v_125 = loads @counter, 4: I32
-    %v_126 = add %v_125, 1: I32
-    store @counter, %v_126, 4
-    %v_127 = loads @counter, 4: I32
-    %v_128 = cmp_igt %v_127, 1000: I32
-    %v_129 = select %v_128, 1, 18446744073709551615: I32
-    %v_130 = vsplat %v_129: i32x4
-    %v_131 = loads @counter, 4: I32
-    %v_132 = add %v_131, 1: I32
-    store @counter, %v_132, 4
-    %v_133 = loads @counter, 4: I32
-    %v_134 = cmp_igt %v_133, 1000: I32
-    %v_135 = select %v_134, 1, 3: I32
-    %v_136 = vsplat %v_135: i32x4
-    %v_137 = cmp_eq %v_136, %v_20: m32x4
-    %v_138 = select %v_137, %v_25, %v_136: i32x4
-    %v_139 = div %v_130, %v_138: i32x4
-    %v_140 = select %v_137, %v_20, %v_139: i32x4
-    %v_141 = vlane %v_140, 0: I32
-    %v_142 = cmp_eq %v_141, 1431655765: I32
-    je %v_142, b_143, b_144
-  }
-
-  b_120 {
-    jmp b_122
-  }
-
-  b_144 {
-    jmp b_145
-  }
-
-  b_145 {
-    %v_146 = phi [b_144, 0], [b_143, 1]: I32
-    %v_147 = add %v_124, %v_146: I32
+    %v_33 = irem %v_1, %v_26: i32x4
+    %v_34 = select %v_21, %v_1, %v_33: i32x4
+    %v_35 = vlane %v_34, 1: I32
+    %v_36 = cmp_eq %v_35, 2: I32
+    %v_37 = add %v_32, %v_36: I32
+    %v_38 = idiv %v_2, %v_26: i32x4
+    %v_39 = neg %v_2: i32x4
+    %v_40 = select %v_23, %v_39, %v_38: i32x4
+    %v_41 = select %v_21, %v_20, %v_40: i32x4
+    %v_42 = vlane %v_41, 2: I32
+    %v_43 = cmp_eq %v_42, 18446744073709551602: I32
+    %v_44 = add %v_37, %v_43: I32
+    %v_45 = irem %v_2, %v_26: i32x4
+    %v_46 = select %v_21, %v_2, %v_45: i32x4
+    %v_47 = vlane %v_46, 3: I32
+    %v_48 = cmp_eq %v_47, 18446744073709551614: I32
+    %v_49 = add %v_44, %v_48: I32
+    %v_50 = cmp_eq %v_13, %v_20: m32x4
+    %v_51 = cmp_eq %v_13, %v_22: m32x4
+    %v_52 = or %v_50, %v_51: m32x4
+    %v_53 = select %v_52, %v_25, %v_13: i32x4
+    %v_54 = idiv %v_1, %v_53: i32x4
+    %v_55 = select %v_51, %v_28, %v_54: i32x4
+    %v_56 = select %v_50, %v_20, %v_55: i32x4
+    %v_57 = vlane %v_56, 0: I32
+    %v_58 = cmp_eq %v_57, 0: I32
+    %v_59 = add %v_49, %v_58: I32
+    %v_60 = irem %v_1, %v_53: i32x4
+    %v_61 = select %v_50, %v_1, %v_60: i32x4
+    %v_62 = vlane %v_61, 0: I32
+    %v_63 = cmp_eq %v_62, 100: I32
+    %v_64 = add %v_59, %v_63: I32
+    %v_65 = loads @counter, 4: I32
+    %v_66 = add %v_65, 1: I32
+    store @counter, %v_66, 4
+    %v_67 = loads @counter, 4: I32
+    %v_68 = cmp_igt %v_67, 1000: I32
+    %v_69 = select %v_68, 1, 18446744071562067968: I32
+    %v_70 = vsplat %v_69: i32x4
+    %v_71 = cmp_eq %v_19, %v_20: m32x4
+    %v_72 = cmp_eq %v_19, %v_22: m32x4
+    %v_73 = or %v_71, %v_72: m32x4
+    %v_74 = select %v_73, %v_25, %v_19: i32x4
+    %v_75 = idiv %v_70, %v_74: i32x4
+    %v_76 = neg %v_70: i32x4
+    %v_77 = select %v_72, %v_76, %v_75: i32x4
+    %v_78 = select %v_71, %v_20, %v_77: i32x4
+    %v_79 = vlane %v_78, 0: I32
+    %v_80 = cmp_eq %v_79, 18446744071562067968: I32
+    %v_81 = add %v_64, %v_80: I32
+    %v_82 = irem %v_70, %v_74: i32x4
+    %v_83 = select %v_71, %v_70, %v_82: i32x4
+    %v_84 = vlane %v_83, 0: I32
+    %v_85 = cmp_eq %v_84, 0: I32
+    %v_86 = add %v_81, %v_85: I32
+    %v_87 = loads @counter, 4: I32
+    %v_88 = add %v_87, 1: I32
+    store @counter, %v_88, 4
+    %v_89 = loads @counter, 4: I32
+    %v_90 = cmp_igt %v_89, 1000: I32
+    %v_91 = select %v_90, 1, 18446744073709551615: I32
+    %v_92 = vsplat %v_91: i32x4
+    %v_93 = loads @counter, 4: I32
+    %v_94 = add %v_93, 1: I32
+    store @counter, %v_94, 4
+    %v_95 = loads @counter, 4: I32
+    %v_96 = cmp_igt %v_95, 1000: I32
+    %v_97 = select %v_96, 1, 3: I32
+    %v_98 = vsplat %v_97: i32x4
+    %v_99 = cmp_eq %v_98, %v_20: m32x4
+    %v_100 = select %v_99, %v_25, %v_98: i32x4
+    %v_101 = div %v_92, %v_100: i32x4
+    %v_102 = select %v_99, %v_20, %v_101: i32x4
+    %v_103 = vlane %v_102, 0: I32
+    %v_104 = cmp_eq %v_103, 1431655765: I32
+    %v_105 = add %v_86, %v_104: I32
+    %v_106 = loads @counter, 4: I32
+    %v_107 = add %v_106, 1: I32
+    store @counter, %v_107, 4
+    %v_108 = loads @counter, 4: I32
+    %v_109 = cmp_igt %v_108, 1000: I32
+    %v_110 = vsplat %v_109: i32x4
+    %v_111 = cmp_eq %v_110, %v_20: m32x4
+    %v_112 = select %v_111, %v_25, %v_110: i32x4
+    %v_113 = rem %v_92, %v_112: i32x4
+    %v_114 = select %v_111, %v_92, %v_113: i32x4
+    %v_115 = vlane %v_114, 0: I32
+    %v_116 = cmp_eq %v_115, 4294967295: I32
+    %v_117 = add %v_105, %v_116: I32
+    %v_118 = vsplat 1000000000000: i64x2
+    %v_119 = loads @counter, 4: I32
+    %v_120 = add %v_119, 1: I32
+    store @counter, %v_120, 4
+    %v_121 = loads @counter, 4: I32
+    %v_122 = cmp_igt %v_121, 1000: I32
+    %v_123 = select %v_122, 1, 7: I32
+    %v_124 = sext %v_123: I64
+    %v_125 = sub 0, %v_124: I64
+    %v_126 = vsplat %v_125: i64x2
+    %v_127 = vsplat 0: i64x2
+    %v_128 = cmp_eq %v_126, %v_127: m64x2
+    %v_129 = vsplat 18446744073709551615: i64x2
+    %v_130 = cmp_eq %v_126, %v_129: m64x2
+    %v_131 = or %v_128, %v_130: m64x2
+    %v_132 = vsplat 1: i64x2
+    %v_133 = select %v_131, %v_132, %v_126: i64x2
+    %v_134 = idiv %v_118, %v_133: i64x2
+    %v_135 = neg %v_118: i64x2
+    %v_136 = select %v_130, %v_135, %v_134: i64x2
+    %v_137 = select %v_128, %v_127, %v_136: i64x2
+    %v_138 = vlane %v_137, 0: I64
+    %v_139 = cmp_eq %v_138, 18446743930852408759: I32
+    %v_140 = add %v_117, %v_139: I32
+    %v_141 = irem %v_118, %v_133: i64x2
+    %v_142 = select %v_128, %v_118, %v_141: i64x2
+    %v_143 = vlane %v_142, 1: I64
+    %v_144 = cmp_eq %v_143, 1: I32
+    %v_145 = add %v_140, %v_144: I32
+    %v_146 = loads @counter, 4: I32
+    %v_147 = add %v_146, 1: I32
+    store @counter, %v_147, 4
     %v_148 = loads @counter, 4: I32
-    %v_149 = add %v_148, 1: I32
-    store @counter, %v_149, 4
-    %v_150 = loads @counter, 4: I32
-    %v_151 = cmp_igt %v_150, 1000: I32
-    %v_152 = vsplat %v_151: i32x4
-    %v_153 = cmp_eq %v_152, %v_20: m32x4
-    %v_154 = select %v_153, %v_25, %v_152: i32x4
-    %v_155 = rem %v_130, %v_154: i32x4
-    %v_156 = select %v_153, %v_130, %v_155: i32x4
-    %v_157 = vlane %v_156, 0: I32
-    %v_158 = cmp_eq %v_157, 4294967295: I32
-    je %v_158, b_159, b_160
-  }
-
-  b_143 {
-    jmp b_145
-  }
-
-  b_160 {
-    jmp b_161
-  }
-
-  b_161 {
-    %v_162 = phi [b_160, 0], [b_159, 1]: I32
-    %v_163 = add %v_147, %v_162: I32
-    %v_164 = vsplat 1000000000000: i64x2
-    %v_165 = loads @counter, 4: I32
-    %v_166 = add %v_165, 1: I32
-    store @counter, %v_166, 4
-    %v_167 = loads @counter, 4: I32
-    %v_168 = cmp_igt %v_167, 1000: I32
-    %v_169 = select %v_168, 1, 7: I32
-    %v_170 = sext %v_169: I64
-    %v_171 = sub 0, %v_170: I64
-    %v_172 = vsplat %v_171: i64x2
-    %v_173 = vsplat 0: i64x2
-    %v_174 = cmp_eq %v_172, %v_173: m64x2
-    %v_175 = vsplat 18446744073709551615: i64x2
-    %v_176 = cmp_eq %v_172, %v_175: m64x2
-    %v_177 = or %v_174, %v_176: m64x2
-    %v_178 = vsplat 1: i64x2
-    %v_179 = select %v_177, %v_178, %v_172: i64x2
-    %v_180 = idiv %v_164, %v_179: i64x2
-    %v_181 = neg %v_164: i64x2
-    %v_182 = select %v_176, %v_181, %v_180: i64x2
-    %v_183 = select %v_174, %v_173, %v_182: i64x2
-    %v_184 = vlane %v_183, 0: I64
-    %v_185 = cmp_eq %v_184, 18446743930852408759: I32
-    je %v_185, b_186, b_187
-  }
-
-  b_159 {
-    jmp b_161
-  }
-
-  b_187 {
-    jmp b_188
-  }
-
-  b_188 {
-    %v_189 = phi [b_187, 0], [b_186, 1]: I32
-    %v_190 = add %v_163, %v_189: I32
-    %v_191 = cmp_eq %v_172, %v_173: m64x2
-    %v_192 = irem %v_164, %v_179: i64x2
-    %v_193 = select %v_191, %v_164, %v_192: i64x2
-    %v_194 = vlane %v_193, 1: I64
-    %v_195 = cmp_eq %v_194, 1: I32
-    je %v_195, b_196, b_197
-  }
-
-  b_186 {
-    jmp b_188
-  }
-
-  b_197 {
-    jmp b_198
-  }
-
-  b_198 {
-    %v_199 = phi [b_197, 0], [b_196, 1]: I32
-    %v_200 = add %v_190, %v_199: I32
-    %v_201 = loads @counter, 4: I32
-    %v_202 = add %v_201, 1: I32
-    store @counter, %v_202, 4
-    %v_203 = loads @counter, 4: I32
-    %v_204 = cmp_igt %v_203, 1000: I32
-    %v_205 = select %v_204, 1, 18446744071821328129: I32
-    %v_206 = vsplat %v_205: i32x4
-    %v_207 = bitcast %v_206: i8x16
-    %v_208 = loads @counter, 4: I32
-    %v_209 = add %v_208, 1: I32
-    store @counter, %v_209, 4
-    %v_210 = loads @counter, 4: I32
-    %v_211 = cmp_igt %v_210, 1000: I32
-    %v_212 = select %v_211, 1, 100532231: I32
-    %v_213 = vsplat %v_212: i32x4
-    %v_214 = bitcast %v_213: i8x16
-    %v_215 = vsplat 0: i8x16
-    %v_216 = cmp_eq %v_214, %v_215: m8x16
-    %v_217 = vsplat 255: i8x16
-    %v_218 = cmp_eq %v_214, %v_217: m8x16
-    %v_219 = or %v_216, %v_218: m8x16
-    %v_220 = vsplat 1: i8x16
-    %v_221 = select %v_219, %v_220, %v_214: i8x16
-    %v_222 = idiv %v_207, %v_221: i8x16
-    %v_223 = neg %v_207: i8x16
-    %v_224 = select %v_218, %v_223, %v_222: i8x16
-    %v_225 = select %v_216, %v_215, %v_224: i8x16
-    %v_226 = bitcast %v_225: i32x4
-    %v_227 = vlane %v_226, 0: I32
-    %v_228 = cmp_eq %v_227, 18446744073353494528: I32
-    %v_229 = add %v_200, %v_228: I32
-    %v_230 = irem %v_207, %v_221: i8x16
-    %v_231 = select %v_216, %v_207, %v_230: i8x16
-    %v_232 = bitcast %v_231: i32x4
-    %v_233 = vlane %v_232, 0: I32
-    %v_234 = cmp_eq %v_233, 18446744073659350785: I32
-    %v_235 = add %v_229, %v_234: I32
-    %v_236 = loads @counter, 4: I32
-    %v_237 = add %v_236, 1: I32
-    store @counter, %v_237, 4
-    %v_238 = loads @counter, 4: I32
-    %v_239 = cmp_igt %v_238, 1000: I32
-    %v_240 = select %v_239, 1, 18446744071821328129: I32
-    %v_241 = vsplat %v_240: i32x4
-    %v_242 = bitcast %v_241: i8x16
-    %v_243 = loads @counter, 4: I32
-    %v_244 = add %v_243, 1: I32
-    store @counter, %v_244, 4
-    %v_245 = loads @counter, 4: I32
-    %v_246 = cmp_igt %v_245, 1000: I32
-    %v_247 = select %v_246, 1, 100532231: I32
-    %v_248 = vsplat %v_247: i32x4
-    %v_249 = bitcast %v_248: i8x16
-    %v_250 = cmp_eq %v_249, %v_215: m8x16
-    %v_251 = select %v_250, %v_220, %v_249: i8x16
-    %v_252 = div %v_242, %v_251: i8x16
-    %v_253 = select %v_250, %v_215, %v_252: i8x16
-    %v_254 = bitcast %v_253: i32x4
-    %v_255 = vlane %v_254, 0: I32
-    %v_256 = cmp_eq %v_255, 469762048: I32
-    je %v_256, b_257, b_258
-  }
-
-  b_196 {
-    jmp b_198
-  }
-
-  b_258 {
-    jmp b_259
-  }
-
-  b_259 {
-    %v_260 = phi [b_258, 0], [b_257, 1]: I32
-    %v_261 = add %v_235, %v_260: I32
-    %v_262 = cmp_eq %v_249, %v_215: m8x16
-    %v_263 = rem %v_242, %v_251: i8x16
-    %v_264 = select %v_262, %v_242, %v_263: i8x16
-    %v_265 = bitcast %v_264: i32x4
-    %v_266 = vlane %v_265, 0: I32
-    %v_267 = cmp_eq %v_266, 57933569: I32
-    je %v_267, b_268, b_269
-  }
-
-  b_257 {
-    jmp b_259
-  }
-
-  b_269 {
-    jmp b_270
-  }
-
-  b_270 {
-    %v_271 = phi [b_269, 0], [b_268, 1]: I32
-    %v_272 = add %v_261, %v_271: I32
-    %v_273 = loads @counter, 4: I32
-    %v_274 = add %v_273, 1: I32
-    store @counter, %v_274, 4
-    %v_275 = loads @counter, 4: I32
-    %v_276 = cmp_igt %v_275, 1000: I32
-    %v_277 = select %v_276, 1, 18446744071570489472: I32
-    %v_278 = vsplat %v_277: i32x4
-    %v_279 = bitcast %v_278: i8x16
-    %v_280 = loads @counter, 4: I32
-    %v_281 = add %v_280, 1: I32
-    store @counter, %v_281, 4
-    %v_282 = loads @counter, 4: I32
-    %v_283 = cmp_igt %v_282, 1000: I32
-    %v_284 = select %v_283, 1, 18446744073709551615: I32
-    %v_285 = vsplat %v_284: i32x4
-    %v_286 = bitcast %v_285: i8x16
-    %v_287 = cmp_eq %v_286, %v_215: m8x16
-    %v_288 = cmp_eq %v_286, %v_217: m8x16
-    %v_289 = or %v_287, %v_288: m8x16
-    %v_290 = select %v_289, %v_220, %v_286: i8x16
-    %v_291 = idiv %v_279, %v_290: i8x16
-    %v_292 = neg %v_279: i8x16
-    %v_293 = select %v_288, %v_292, %v_291: i8x16
-    %v_294 = select %v_287, %v_215, %v_293: i8x16
-    %v_295 = bitcast %v_294: i32x4
-    %v_296 = vlane %v_295, 0: I32
-    %v_297 = cmp_eq %v_296, 18446744071570489472: I32
-    %v_298 = add %v_272, %v_297: I32
-    ret %v_298
-  }
-
-  b_268 {
-    jmp b_270
+    %v_149 = cmp_igt %v_148, 1000: I32
+    %v_150 = select %v_149, 1, 18446744071821328129: I32
+    %v_151 = vsplat %v_150: i32x4
+    %v_152 = bitcast %v_151: i8x16
+    %v_153 = loads @counter, 4: I32
+    %v_154 = add %v_153, 1: I32
+    store @counter, %v_154, 4
+    %v_155 = loads @counter, 4: I32
+    %v_156 = cmp_igt %v_155, 1000: I32
+    %v_157 = select %v_156, 1, 100532231: I32
+    %v_158 = vsplat %v_157: i32x4
+    %v_159 = bitcast %v_158: i8x16
+    %v_160 = vsplat 0: i8x16
+    %v_161 = cmp_eq %v_159, %v_160: m8x16
+    %v_162 = vsplat 255: i8x16
+    %v_163 = cmp_eq %v_159, %v_162: m8x16
+    %v_164 = or %v_161, %v_163: m8x16
+    %v_165 = vsplat 1: i8x16
+    %v_166 = select %v_164, %v_165, %v_159: i8x16
+    %v_167 = idiv %v_152, %v_166: i8x16
+    %v_168 = neg %v_152: i8x16
+    %v_169 = select %v_163, %v_168, %v_167: i8x16
+    %v_170 = select %v_161, %v_160, %v_169: i8x16
+    %v_171 = bitcast %v_170: i32x4
+    %v_172 = vlane %v_171, 0: I32
+    %v_173 = cmp_eq %v_172, 18446744073353494528: I32
+    %v_174 = add %v_145, %v_173: I32
+    %v_175 = irem %v_152, %v_166: i8x16
+    %v_176 = select %v_161, %v_152, %v_175: i8x16
+    %v_177 = bitcast %v_176: i32x4
+    %v_178 = vlane %v_177, 0: I32
+    %v_179 = cmp_eq %v_178, 18446744073659350785: I32
+    %v_180 = add %v_174, %v_179: I32
+    %v_181 = loads @counter, 4: I32
+    %v_182 = add %v_181, 1: I32
+    store @counter, %v_182, 4
+    %v_183 = loads @counter, 4: I32
+    %v_184 = cmp_igt %v_183, 1000: I32
+    %v_185 = select %v_184, 1, 18446744071821328129: I32
+    %v_186 = vsplat %v_185: i32x4
+    %v_187 = bitcast %v_186: i8x16
+    %v_188 = loads @counter, 4: I32
+    %v_189 = add %v_188, 1: I32
+    store @counter, %v_189, 4
+    %v_190 = loads @counter, 4: I32
+    %v_191 = cmp_igt %v_190, 1000: I32
+    %v_192 = select %v_191, 1, 100532231: I32
+    %v_193 = vsplat %v_192: i32x4
+    %v_194 = bitcast %v_193: i8x16
+    %v_195 = cmp_eq %v_194, %v_160: m8x16
+    %v_196 = select %v_195, %v_165, %v_194: i8x16
+    %v_197 = div %v_187, %v_196: i8x16
+    %v_198 = select %v_195, %v_160, %v_197: i8x16
+    %v_199 = bitcast %v_198: i32x4
+    %v_200 = vlane %v_199, 0: I32
+    %v_201 = cmp_eq %v_200, 469762048: I32
+    %v_202 = add %v_180, %v_201: I32
+    %v_203 = rem %v_187, %v_196: i8x16
+    %v_204 = select %v_195, %v_187, %v_203: i8x16
+    %v_205 = bitcast %v_204: i32x4
+    %v_206 = vlane %v_205, 0: I32
+    %v_207 = cmp_eq %v_206, 57933569: I32
+    %v_208 = add %v_202, %v_207: I32
+    %v_209 = loads @counter, 4: I32
+    %v_210 = add %v_209, 1: I32
+    store @counter, %v_210, 4
+    %v_211 = loads @counter, 4: I32
+    %v_212 = cmp_igt %v_211, 1000: I32
+    %v_213 = select %v_212, 1, 18446744071570489472: I32
+    %v_214 = vsplat %v_213: i32x4
+    %v_215 = bitcast %v_214: i8x16
+    %v_216 = loads @counter, 4: I32
+    %v_217 = add %v_216, 1: I32
+    store @counter, %v_217, 4
+    %v_218 = loads @counter, 4: I32
+    %v_219 = cmp_igt %v_218, 1000: I32
+    %v_220 = select %v_219, 1, 18446744073709551615: I32
+    %v_221 = vsplat %v_220: i32x4
+    %v_222 = bitcast %v_221: i8x16
+    %v_223 = cmp_eq %v_222, %v_160: m8x16
+    %v_224 = cmp_eq %v_222, %v_162: m8x16
+    %v_225 = or %v_223, %v_224: m8x16
+    %v_226 = select %v_225, %v_165, %v_222: i8x16
+    %v_227 = idiv %v_215, %v_226: i8x16
+    %v_228 = neg %v_215: i8x16
+    %v_229 = select %v_224, %v_228, %v_227: i8x16
+    %v_230 = select %v_223, %v_160, %v_229: i8x16
+    %v_231 = bitcast %v_230: i32x4
+    %v_232 = vlane %v_231, 0: I32
+    %v_233 = cmp_eq %v_232, 18446744071570489472: I32
+    %v_234 = add %v_208, %v_233: I32
+    ret %v_234
   }
 }
 

@@ -8,227 +8,214 @@ main<complex>(): I32 {
   }
 
   b_6 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = phi [b_6, 0], [b_9, 1]: I32
-    %v_10 = alloca 1, 1: Ptr
-    %v_11 = alloca 2, 2: Ptr
-    %v_12 = alloca 4, 4: Ptr
-    %v_13 = alloca 8, 8: Ptr
-    %v_14 = alloca 1, 1: Ptr
-    store %v_10, 1, 1
-    store %v_11, 2, 2
-    store %v_12, 3, 4
-    store %v_13, 4, 8
-    store %v_14, 1, 1
-    atomic_store %v_10, 9, 1, release
-    atomic_store %v_11, 9, 2, release
-    atomic_store %v_12, 9, 4, release
-    atomic_store %v_14, 0, 1, release
-    %v_15 = atomic_add %v_13, 1, 8, relaxed: I64
-    %v_16 = cmp_igt %v_15, 0: I32
-    %v_17 = alloca 1, 1: Ptr
-    %v_18 = alloca 2, 2: Ptr
-    store %v_17, 250, 1
-    store %v_18, 1000, 2
-    %v_19 = atomic_sub %v_17, 10, 1, relaxed: I32
-    %v_20 = atomic_xor %v_18, 61680, 2, acquire: I32
-    %v_21 = cast %v_19: I64
-    %v_22 = cast %v_20: I64
-    %v_23 = add %v_21, %v_22: I64
-    %v_24 = cmp_igt %v_23, 0: I32
-    %v_25 = alloca 4, 4: Ptr
-    store %v_25, 0, 4
-    atomic_store %v_25, 7, 4, release
-    %v_26 = atomic_loads %v_25, 4, acquire: I32
-    %v_27 = atomic_xchg %v_25, 9, 4, acq_rel: I32
-    %v_28 = add %v_26, %v_27: I32
-    %v_29 = loads %v_25, 4: I32
+    %v_7 = phi [b_8, %v_9], [b_10, 1]: I32
+    %v_11 = cmp_eq %v_7, 1: I32
+    %v_12 = alloca 1, 1: Ptr
+    %v_13 = alloca 2, 2: Ptr
+    %v_14 = alloca 4, 4: Ptr
+    %v_15 = alloca 8, 8: Ptr
+    %v_16 = alloca 1, 1: Ptr
+    store %v_12, 1, 1
+    store %v_13, 2, 2
+    store %v_14, 3, 4
+    store %v_15, 4, 8
+    store %v_16, 1, 1
+    atomic_store %v_12, 9, 1, release
+    atomic_store %v_13, 9, 2, release
+    atomic_store %v_14, 9, 4, release
+    atomic_store %v_16, 0, 1, release
+    %v_17 = atomic_add %v_15, 1, 8, relaxed: I64
+    %v_18 = cmp_igt %v_17, 0: I32
+    %v_19 = alloca 1, 1: Ptr
+    %v_20 = alloca 2, 2: Ptr
+    store %v_19, 250, 1
+    store %v_20, 1000, 2
+    %v_21 = atomic_sub %v_19, 10, 1, relaxed: I32
+    %v_22 = atomic_xor %v_20, 61680, 2, acquire: I32
+    %v_23 = cast %v_21: I64
+    %v_24 = cast %v_22: I64
+    %v_25 = add %v_23, %v_24: I64
+    %v_26 = cmp_igt %v_25, 0: I32
+    %v_27 = alloca 4, 4: Ptr
+    store %v_27, 0, 4
+    atomic_store %v_27, 7, 4, release
+    %v_28 = atomic_loads %v_27, 4, acquire: I32
+    %v_29 = atomic_xchg %v_27, 9, 4, acq_rel: I32
     %v_30 = add %v_28, %v_29: I32
-    %v_31 = alloca 4, 4: Ptr
-    store %v_31, 1, 4
-    %v_32 = atomic_add %v_31, 4, 4, relaxed: I32
-    %v_33 = atomic_sub %v_31, 2, 4, acquire: I32
-    %v_34 = atomic_and %v_31, 255, 4, release: I32
-    %v_35 = atomic_or %v_31, 16, 4, acq_rel: I32
-    %v_36 = atomic_xor %v_31, 1, 4, seq_cst: I32
-    %v_37 = add %v_32, %v_33: I32
-    %v_38 = add %v_37, %v_34: I32
-    %v_39 = add %v_38, %v_35: I32
+    %v_31 = loads %v_27, 4: I32
+    %v_32 = add %v_30, %v_31: I32
+    %v_33 = alloca 4, 4: Ptr
+    store %v_33, 1, 4
+    %v_34 = atomic_add %v_33, 4, 4, relaxed: I32
+    %v_35 = atomic_sub %v_33, 2, 4, acquire: I32
+    %v_36 = atomic_and %v_33, 255, 4, release: I32
+    %v_37 = atomic_or %v_33, 16, 4, acq_rel: I32
+    %v_38 = atomic_xor %v_33, 1, 4, seq_cst: I32
+    %v_39 = add %v_34, %v_35: I32
     %v_40 = add %v_39, %v_36: I32
-    %v_41 = add %v_30, %v_40: I32
-    %v_42 = alloca 4, 4: Ptr
-    %v_43 = alloca 3, 4: Ptr
-    store %v_42, 5, 4
-    %v_44, %v_45 = atomic_cas %v_42, 5, 6, 4, acq_rel, acquire: I32, I32
-    je %v_45, b_46, b_47
-  }
-
-  b_9 {
-    jmp b_7
-  }
-
-  b_48 {
-    %v_49 = phi [b_50, %v_51], [b_52, 1]: I32
-    %v_53 = cmp_eq %v_49, 1: I32
-    je %v_53, b_9, b_6
+    %v_41 = add %v_40, %v_37: I32
+    %v_42 = add %v_41, %v_38: I32
+    %v_43 = add %v_32, %v_42: I32
+    %v_44 = alloca 4, 4: Ptr
+    %v_45 = alloca 3, 4: Ptr
+    store %v_44, 5, 4
+    %v_46, %v_47 = atomic_cas %v_44, 5, 6, 4, acq_rel, acquire: I32, I32
+    je %v_47, b_48, b_49
   }
 
   b_5 {
-    %v_54 = alloca 1, 1: Ptr
-    store %v_54, %v_2, 1
-    jmp b_55
+    %v_50 = alloca 1, 1: Ptr
+    store %v_50, %v_2, 1
+    jmp b_51
   }
 
   b_4 {
-    %v_56 = alloca 1, 1: Ptr
-    store %v_56, 3, 1
-    jmp b_55
+    %v_52 = alloca 1, 1: Ptr
+    store %v_52, 3, 1
+    jmp b_51
   }
 
-  b_55 {
-    %v_57 = phi [b_5, %v_54], [b_4, %v_56]: Ptr
-    %v_58 = load %v_57, 1: I64
-    %v_59 = cmp_le %v_58, 2: I32
-    je %v_59, b_50, b_52
+  b_51 {
+    %v_53 = phi [b_5, %v_50], [b_4, %v_52]: Ptr
+    %v_54 = load %v_53, 1: I64
+    %v_55 = cmp_le %v_54, 2: I32
+    je %v_55, b_8, b_10
   }
 
-  b_50 {
-    %v_51 = cast %v_58: I32
-    jmp b_48
+  b_8 {
+    %v_9 = cast %v_54: I32
+    jmp b_6
   }
 
-  b_52 {
-    jmp b_48
+  b_10 {
+    jmp b_6
   }
 
-  b_60 {
-    %v_61 = phi [b_62, %v_63], [b_64, 1]: I32
-    %v_65 = add %v_41, %v_61: I32
-    %v_66 = alloca 4, 4: Ptr
-    %v_67 = alloca 3, 4: Ptr
-    %v_68 = alloca 3, 4: Ptr
-    store %v_66, 0, 4
-    %v_69, %v_70 = atomic_cas_weak %v_66, 0, 1, 4, release, relaxed: I32, I32
-    je %v_70, b_71, b_72
+  b_56 {
+    %v_57 = phi [b_58, %v_59], [b_60, 1]: I32
+    %v_61 = add %v_43, %v_57: I32
+    %v_62 = alloca 4, 4: Ptr
+    %v_63 = alloca 3, 4: Ptr
+    %v_64 = alloca 3, 4: Ptr
+    store %v_62, 0, 4
+    %v_65, %v_66 = atomic_cas_weak %v_62, 0, 1, 4, release, relaxed: I32, I32
+    je %v_66, b_67, b_68
   }
 
-  b_47 {
-    %v_73 = alloca 8, 4: Ptr
-    store %v_73, 1, 1
-    %v_74 = add %v_73, 4: Ptr
-    store %v_74, %v_44, 4
-    jmp b_75
+  b_49 {
+    %v_69 = alloca 8, 4: Ptr
+    store %v_69, 1, 1
+    %v_70 = add %v_69, 4: Ptr
+    store %v_70, %v_46, 4
+    jmp b_71
   }
 
-  b_46 {
-    %v_76 = alloca 8, 4: Ptr
-    store %v_76, 0, 1
-    jmp b_75
-  }
-
-  b_75 {
-    %v_77 = phi [b_47, %v_73], [b_46, %v_76]: Ptr
-    %v_78 = load %v_77, 1: I32
-    %v_79 = add %v_77, 1: Ptr
-    copy %v_43, %v_79, 3
-    %v_80 = add %v_77, 4: Ptr
-    %v_63 = load %v_80, 4: I32
-    %v_81 = cmp_eq %v_78, 0: I32
-    je %v_81, b_64, b_62
-  }
-
-  b_62 {
-    jmp b_60
-  }
-
-  b_64 {
-    jmp b_60
-  }
-
-  b_82 {
-    %v_83 = phi [b_84, %v_85], [b_86, 2]: I32
-    %v_87 = add %v_65, %v_83: I32
-    %v_88 = alloca 4, 4: Ptr
-    store %v_88, 0, 4
-    atomic_store %v_88, 1, 4, relaxed
-    fence release
-    spinhint 
-    %v_89 = atomic_loads %v_88, 4, relaxed: I32
-    %v_90 = add %v_87, %v_89: I32
-    %v_91 = add %v_90, %v_8: I32
-    %v_92 = add %v_91, %v_16: I32
-    %v_93 = add %v_92, %v_24: I32
-    ret %v_93
-  }
-
-  b_72 {
-    %v_94 = alloca 8, 4: Ptr
-    store %v_94, 1, 1
-    %v_95 = add %v_94, 4: Ptr
-    store %v_95, %v_69, 4
-    jmp b_96
+  b_48 {
+    %v_72 = alloca 8, 4: Ptr
+    store %v_72, 0, 1
+    jmp b_71
   }
 
   b_71 {
-    %v_97 = alloca 8, 4: Ptr
-    store %v_97, 0, 1
-    jmp b_96
+    %v_73 = phi [b_49, %v_69], [b_48, %v_72]: Ptr
+    %v_74 = load %v_73, 1: I32
+    %v_75 = add %v_73, 1: Ptr
+    copy %v_45, %v_75, 3
+    %v_76 = add %v_73, 4: Ptr
+    %v_59 = load %v_76, 4: I32
+    %v_77 = cmp_eq %v_74, 0: I32
+    je %v_77, b_60, b_58
   }
 
-  b_96 {
-    %v_98 = phi [b_72, %v_94], [b_71, %v_97]: Ptr
-    %v_99 = load %v_98, 1: I32
-    %v_100 = add %v_98, 1: Ptr
-    copy %v_67, %v_100, 3
-    %v_101 = add %v_98, 4: Ptr
-    %v_102 = load %v_101, 4: I32
-    %v_103 = cmp_eq %v_99, 0: I32
+  b_58 {
+    jmp b_56
+  }
+
+  b_60 {
+    jmp b_56
+  }
+
+  b_78 {
+    %v_79 = phi [b_80, %v_81], [b_82, 2]: I32
+    %v_83 = add %v_61, %v_79: I32
+    %v_84 = alloca 4, 4: Ptr
+    store %v_84, 0, 4
+    atomic_store %v_84, 1, 4, relaxed
+    fence release
+    spinhint 
+    %v_85 = atomic_loads %v_84, 4, relaxed: I32
+    %v_86 = add %v_83, %v_85: I32
+    %v_87 = add %v_86, %v_11: I32
+    %v_88 = add %v_87, %v_18: I32
+    %v_89 = add %v_88, %v_26: I32
+    ret %v_89
+  }
+
+  b_68 {
+    %v_90 = alloca 8, 4: Ptr
+    store %v_90, 1, 1
+    %v_91 = add %v_90, 4: Ptr
+    store %v_91, %v_65, 4
+    jmp b_92
+  }
+
+  b_67 {
+    %v_93 = alloca 8, 4: Ptr
+    store %v_93, 0, 1
+    jmp b_92
+  }
+
+  b_92 {
+    %v_94 = phi [b_68, %v_90], [b_67, %v_93]: Ptr
+    %v_95 = load %v_94, 1: I32
+    %v_96 = add %v_94, 1: Ptr
+    copy %v_63, %v_96, 3
+    %v_97 = add %v_94, 4: Ptr
+    %v_98 = load %v_97, 4: I32
+    %v_99 = cmp_eq %v_95, 0: I32
+    je %v_99, b_100, b_101
+  }
+
+  b_101 {
+    jmp b_100
+  }
+
+  b_100 {
+    %v_102, %v_103 = atomic_cas %v_62, 1, 2, 4, seq_cst, acquire: I32, I32
     je %v_103, b_104, b_105
   }
 
   b_105 {
-    jmp b_104
+    %v_106 = alloca 8, 4: Ptr
+    store %v_106, 1, 1
+    %v_107 = add %v_106, 4: Ptr
+    store %v_107, %v_102, 4
+    jmp b_108
   }
 
   b_104 {
-    %v_106, %v_107 = atomic_cas %v_66, 1, 2, 4, seq_cst, acquire: I32, I32
-    je %v_107, b_108, b_109
-  }
-
-  b_109 {
-    %v_110 = alloca 8, 4: Ptr
-    store %v_110, 1, 1
-    %v_111 = add %v_110, 4: Ptr
-    store %v_111, %v_106, 4
-    jmp b_112
+    %v_109 = alloca 8, 4: Ptr
+    store %v_109, 0, 1
+    jmp b_108
   }
 
   b_108 {
-    %v_113 = alloca 8, 4: Ptr
-    store %v_113, 0, 1
-    jmp b_112
+    %v_110 = phi [b_105, %v_106], [b_104, %v_109]: Ptr
+    %v_111 = load %v_110, 1: I32
+    %v_112 = add %v_110, 1: Ptr
+    copy %v_64, %v_112, 3
+    %v_113 = add %v_110, 4: Ptr
+    %v_81 = load %v_113, 4: I32
+    %v_114 = cmp_eq %v_111, 0: I32
+    je %v_114, b_82, b_80
   }
 
-  b_112 {
-    %v_114 = phi [b_109, %v_110], [b_108, %v_113]: Ptr
-    %v_115 = load %v_114, 1: I32
-    %v_116 = add %v_114, 1: Ptr
-    copy %v_68, %v_116, 3
-    %v_117 = add %v_114, 4: Ptr
-    %v_85 = load %v_117, 4: I32
-    %v_118 = cmp_eq %v_115, 0: I32
-    je %v_118, b_86, b_84
+  b_80 {
+    jmp b_78
   }
 
-  b_84 {
-    jmp b_82
-  }
-
-  b_86 {
-    jmp b_82
+  b_82 {
+    jmp b_78
   }
 }
 

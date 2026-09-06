@@ -48,7 +48,6 @@ bb0:
 fn branching() -> I32 {
 bb0:
   %0: %Flags address = alloc frame Flags
-  %1: %I32 address = alloc frame I32
   %2: Bool trivial = const False
   %3: Bool trivial = const True
   %4: Flags trivial = aggregate.Flags consume %2 consume %3
@@ -59,19 +58,16 @@ bb0:
   %15: I32 trivial = const 10
   %16: I32 trivial = const 20
   %17: I32 trivial = select inspect %14 inspect %15 inspect %16
-  store inspect %1 consume %17
   %7: %Bool address = field.addr .write inspect %0
   %8: Bool trivial = load inspect %7
   branch inspect %8 -> bb3 -> bb1
 
 bb1:
-  %9: I32 trivial = load inspect %1
-  return consume %9
+  return consume %17
 
 bb3:
-  %10: I32 trivial = load inspect %1
   %11: I32 trivial = const 100
-  %12: I32 trivial = add inspect %10 inspect %11
+  %12: I32 trivial = add inspect %17 inspect %11
   return consume %12
 }
 
@@ -136,37 +132,37 @@ bb0:
   %32: I32 trivial = add inspect %31 inspect %25
   %33: I32 trivial = add inspect %32 inspect %30
   %35: %Flags address = alloc frame Flags
-  %37: Bool trivial = const False
-  %38: Bool trivial = const True
-  %39: Flags trivial = aggregate.Flags consume %37 consume %38
-  store inspect %35 consume %39
-  %40: Flags trivial = copy inspect %35
-  %41: %Bool address = field.addr .read inspect %40
-  %42: Bool trivial = load inspect %41
-  %43: I32 trivial = const 10
-  %44: I32 trivial = const 20
-  %45: I32 trivial = select inspect %42 inspect %43 inspect %44
-  %46: %Bool address = field.addr .write inspect %35
-  %47: Bool trivial = load inspect %46
-  %50: I32 trivial = const 100
-  %51: I32 trivial = add inspect %45 inspect %50
-  %64: I32 trivial = select inspect %47 inspect %51 inspect %45
-  %2: I32 trivial = add inspect %33 inspect %64
-  %52: %Flags address = alloc frame Flags
-  %53: Bool trivial = const False
-  %54: Bool trivial = const False
-  %55: Flags trivial = aggregate.Flags consume %53 consume %54
-  store inspect %52 consume %55
-  %56: Flags [unique call] guaranteed from{%52} = load inspect %52
-  %57: Bool trivial = const True
-  %58: %Bool address = field.addr .read inspect %56
-  store inspect %58 consume %57
-  %59: %Bool address = field.addr .read inspect %52
-  %60: Bool trivial = load inspect %59
-  %61: I32 trivial = const 1000
-  %62: I32 trivial = const 2000
-  %63: I32 trivial = select inspect %60 inspect %61 inspect %62
-  %4: I32 trivial = add inspect %2 inspect %63
+  %36: Bool trivial = const False
+  %37: Bool trivial = const True
+  %38: Flags trivial = aggregate.Flags consume %36 consume %37
+  store inspect %35 consume %38
+  %39: Flags trivial = copy inspect %35
+  %40: %Bool address = field.addr .read inspect %39
+  %41: Bool trivial = load inspect %40
+  %42: I32 trivial = const 10
+  %43: I32 trivial = const 20
+  %44: I32 trivial = select inspect %41 inspect %42 inspect %43
+  %45: %Bool address = field.addr .write inspect %35
+  %46: Bool trivial = load inspect %45
+  %47: I32 trivial = const 100
+  %48: I32 trivial = add inspect %44 inspect %47
+  %61: I32 trivial = select inspect %46 inspect %48 inspect %44
+  %2: I32 trivial = add inspect %33 inspect %61
+  %49: %Flags address = alloc frame Flags
+  %50: Bool trivial = const False
+  %51: Bool trivial = const False
+  %52: Flags trivial = aggregate.Flags consume %50 consume %51
+  store inspect %49 consume %52
+  %53: Flags [unique call] guaranteed from{%49} = load inspect %49
+  %54: Bool trivial = const True
+  %55: %Bool address = field.addr .read inspect %53
+  store inspect %55 consume %54
+  %56: %Bool address = field.addr .read inspect %49
+  %57: Bool trivial = load inspect %56
+  %58: I32 trivial = const 1000
+  %59: I32 trivial = const 2000
+  %60: I32 trivial = select inspect %57 inspect %58 inspect %59
+  %4: I32 trivial = add inspect %2 inspect %60
   return consume %4
 }
 

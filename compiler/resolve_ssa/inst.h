@@ -388,10 +388,11 @@ using mir::StorageClass;
  * whose contents were moved out is the same slot, and a representation where the address itself
  * looked owned would have to drop it.
  *
- * Promotion out of memory is deliberately not attempted here. The lower IR's own promotion pass runs
- * over these on the way to machine code, so a scalar local that is never borrowed costs nothing in
- * the end; doing it during conversion would make the SSA dump depend on an optimization, which is
- * the one thing a fixture about ownership should not have to read around.
+ * Promotion out of memory is deliberately not attempted **during conversion**, and that half is
+ * unchanged: it would make the SSA dump depend on an optimization, which is the one thing a fixture
+ * about ownership should not have to read around. What does take one is `opt/promote.cpp`, the first
+ * pass of the optimizer, which is where a local becomes a value and its writes become block
+ * arguments; `promoteStackSlots` at the lower tier is still below that for the slots it declines.
  */
 struct InstAlloc: Inst {
     InstAlloc(LocationId source, const Occurrence& held, StorageClass storage):

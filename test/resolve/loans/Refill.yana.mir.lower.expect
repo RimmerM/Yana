@@ -165,32 +165,32 @@ main<complex>(): I32 {
     ret 18446744073709551607
   }
 
-  b_43 {
-    %v_50 = phi [b_40, 0], [b_51, %v_52]: I32
-    %v_53 = phi [b_40, 0], [b_51, %v_54]: I32
-    %v_55 = cmp_ilt %v_50, 3: I32
-    je %v_55, b_51, b_56
+  b_50 {
+    %v_51 = cmp_ilt %v_52, 3: I32
+    je %v_51, b_43, b_53
   }
 
-  b_56 {
+  b_53 {
     call_complex Guard.drop, %v_42
-    %v_57 = imul %v_53, 10: I32
-    %v_58 = loads %v_41, 4: I32
+    %v_54 = imul %v_55, 10: I32
+    %v_56 = loads %v_41, 4: I32
     call_complex Guard.drop, %v_41
-    %v_59 = add %v_57, %v_58: I32
-    %v_60 = cmp_neq %v_59, 94: I32
-    je %v_60, b_49, b_44
+    %v_57 = add %v_54, %v_56: I32
+    %v_58 = cmp_neq %v_57, 94: I32
+    je %v_58, b_49, b_44
   }
 
-  b_51 {
+  b_43 {
+    %v_59 = phi [b_50, %v_52], [b_40, 0]: I32
+    %v_60 = phi [b_50, %v_55], [b_40, 0]: I32
     %v_61 = loads %v_41, 4: I32
     %v_62 = add %v_61, 1: I32
     store %v_41, %v_62, 4
     %v_63 = loads %v_42, 4: I32
-    %v_64 = add %v_53, %v_63: I32
-    %v_54 = add %v_64, %v_50: I32
-    %v_52 = add %v_50, 1: I32
-    jmp b_43
+    %v_64 = add %v_60, %v_63: I32
+    %v_55 = add %v_64, %v_59: I32
+    %v_52 = add %v_59, 1: I32
+    jmp b_50
   }
 }
 

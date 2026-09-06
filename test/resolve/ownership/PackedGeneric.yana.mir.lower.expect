@@ -29,21 +29,9 @@ main<complex>(): I32 {
     %v_23 = shr %v_20, 1: I64
     %v_24 = and %v_23, 1: I64
     %v_25 = cast %v_24: I32
-    je %v_25, b_26, b_27
-  }
-
-  b_27 {
-    jmp b_28
-  }
-
-  b_28 {
-    %v_29 = phi [b_27, 0], [b_26, 2]: I32
-    %v_30 = add %v_22, %v_29: I32
-    ret %v_30
-  }
-
-  b_26 {
-    jmp b_28
+    %v_26 = select %v_25, 2, 0: I32
+    %v_27 = add %v_22, %v_26: I32
+    ret %v_27
   }
 }
 

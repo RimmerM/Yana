@@ -67,16 +67,236 @@
  * postorder, which phase 1 changed it to for exactly this reason, so moving an edge owes nothing.
  * That is what makes the splice below affordable at all.
  *
- * **`collapseSinglePhis` has no counterpart either**, and its absence is the block-argument
- * representation rather than a decision: a join left with one predecessor still declares its
- * arguments, and what answers them is the merge below, which replaces each argument by the operand
- * the surviving edge hands it. The shipping stage needs a separate pass because a phi is a value in
- * the block and can be collapsed without merging anything; here the two are the same rewrite.
+ * **`collapseSinglePhis` has a counterpart, and it is `removeTrivialArguments` at the top of this
+ * file.** The merge below answers a block argument by the operand its *one* surviving edge hands it,
+ * which is the single-predecessor case and nothing more; a join or a loop header whose several edges
+ * all hand over one value is the shape phase 14 found nothing removed, and that is the rewrite the
+ * sweep starts with now.
  */
 
 namespace ssa {
 
 namespace {
+
+/*
+ * A block argument that says nothing, taken back out: one every incoming edge answers with the same
+ * value - or with the argument itself - is that value, and one nothing reads is nothing.
+ *
+ * ## Why it is one function, and why it is here
+ *
+ * `promote` carried its own copy, over the arguments *it* had placed, and phase 13's review is what
+ * turned that scope into a gap. The `for` desugaring hands the header its bound and its step as
+ * block arguments of their own - `bb1(%bound, %step, %counter)`, with a latch that answers each of
+ * them with exactly what the header gave it - and nothing at this tier removed one. `mergeInto`
+ * answers an argument only where the block has a single predecessor, which a loop header never has;
+ * `removeTrivial` declined it because the conversion rather than the promotion had placed it. So
+ * `deadLoops` read a bound leaving the loop over the exit edge and a step that was not a `Const`,
+ * and kept a loop the shipping stage removes outright. The lower tier's own phi cleanup takes them,
+ * which is why nothing was emitted for them natively - but every pass that reads OSSA sees them, and
+ * so does the JavaScript backend, which never lowers.
+ *
+ * One implementation, called from the two places the shape arises: `promote`, at the end of its own
+ * run, where the arguments it has just placed are the bulk of what is trivial; and `cleanCfg`, at
+ * the top of each sweep, where a header that has just lost its back edge is answered without waiting
+ * for a merge a two-predecessor block will never be offered. It lives in this file rather than in
+ * one of its own because this is where a block argument is already answered by an operand - the
+ * merge below - and the two are the same question asked of one edge and of all of them.
+ *
+ * ## The rules, and each of them is a refusal
+ *
+ * **The entry block is never touched.** Its arguments are the function's parameters, the signature
+ * declares them, and there is no incoming edge to read an answer off. `promote`'s copy had no such
+ * guard and did not need one, since it only ever looked at what it had itself placed; this one walks
+ * every block and therefore states it.
+ *
+ * **`Trivial` and `Address` only.** A tracked argument is a handover point *per edge* - the owner is
+ * consumed on each incoming edge and the block owes it onward - so answering it with one of those
+ * owners either drops a consumption or duplicates one, and which of the two is a question about the
+ * paths through the block rather than about the argument. A `Guaranteed` one is declined for
+ * `Editor::replaceAllUses`' loan rule read in the direction that fails: `makeBlockArgument` puts
+ * every borrowed block argument on the **caller's** loan, and what replaces it is an ordinary borrow
+ * on a body-local one - a substitution that moves a use onto a loan whose endpoints are somewhere
+ * else, which is what that assertion refuses. `mergeInto`'s `canSubstitute` admits the same pair the
+ * other way round, where the *operand* is the caller's-loan value; nothing here knows which way
+ * round it has, so it declines the convention rather than the direction.
+ *
+ * **A region's `entry` is not excepted**, which is the one place in this file where an anchor is
+ * ordinary. The region rule is about edges and this moves none: every edge into the block stays
+ * exactly where it is and carries one operand fewer. An argument that one entering edge supplies is
+ * redundant on the same terms as any other, and answering it enters the region nowhere new.
+ *
+ * A worklist rather than a sweep to a fixed point, on `removeTrivialPhis`' measurement. Removing an
+ * argument can make two other things trivial and nothing else: one of its own **readers**, which is
+ * another block argument an edge was handing it to, and - once its operands stop being read on the
+ * edges - one of the values that **fed** it, which may now have no readers at all. Both go back on
+ * the list, and the sweep that rescanned every survivor per removal does not have to.
+ */
+struct ArgumentCleaner {
+    OptContext& opt;
+
+    // The queue over values, and the bit that keeps one from being on it twice - `CfgCleaner`'s
+    // shape one level down, over `ValueId`. Nothing but a removal puts anything back on it, and
+    // there are as many removals as the body has arguments, so it empties.
+    Array<U32> queue;
+    Size head = 0;
+
+    void push(IndexSet& queued, Value& value) {
+        auto index = Size(value.id.index);
+        if(index >= queued.size() || queued[index]) return;
+
+        queued.set(index, true);
+        queue.push(U32(index));
+    }
+
+    // Where a value stands in its block's argument list, and `~Size(0)` for one that has already
+    // been taken out - which is how an entry left on the queue by an earlier removal is skipped.
+    Size indexOf(Block& block, Value& argument) {
+        for(Size i = 0; i < block.argumentCount(); i++) {
+            if(opt.base[block.argumentAt(opt.base, i)] == &argument) return i;
+        }
+
+        return ~Size(0);
+    }
+
+    bool discardableConvention(Convention convention) {
+        return convention == Convention::Trivial || convention == Convention::Address;
+    }
+
+    /*
+     * The one value every incoming edge hands this argument, or null.
+     *
+     * The argument's own value is not an answer: a loop-carried argument whose latch hands it back
+     * unchanged is answered by whatever the *other* edges supply, which is what makes a `for`'s
+     * bound and step collapse to what the preheader computed. An edge that supplies nothing, or two
+     * that disagree, decline - and the walk is over `incoming` entries rather than predecessors
+     * because a predecessor whose two arms both land here owes two answers.
+     */
+    Value* onlyAnswer(Block& block, Size position, Value& argument) {
+        Value* only = nullptr;
+        auto agreed = true;
+
+        for(auto pointer: block.incoming(opt.base)) {
+            auto end = opt.base[pointer]->terminator(opt.base);
+            if(!end) return nullptr;
+
+            forEachEdge(*end, [&](Edge& edge) {
+                if(!edge.target || opt.base[edge.target] != &block) return;
+
+                auto used = edge.arguments.get(opt.base, position);
+                if(!used.isSet()) { agreed = false; return; }
+
+                auto value = opt.base[used.value()];
+                if(value == &argument) return;
+
+                if(!only) only = value;
+                else if(only != value) agreed = false;
+            });
+
+            if(!agreed) return nullptr;
+        }
+
+        return only;
+    }
+
+    // The block arguments an edge was handing this value to - the readers a substitution can make
+    // trivial. Taken before `replaceAllUses` moves them off this value's use list.
+    void seedReaders(IndexSet& queued, Value& argument) {
+        for(auto pointer: argument.uses(opt.base)) {
+            auto& user = *opt.base[pointer];
+            if(!isTerminator(user.kind)) continue;
+
+            forEachEdge(user, [&](Edge& edge) {
+                if(!edge.target) return;
+
+                auto target = opt.base[edge.target];
+                for(Size i = 0; i < edge.arguments.size() && i < target->argumentCount(); i++) {
+                    auto used = edge.arguments.get(opt.base, i);
+                    if(!used.isSet() || opt.base[used.value()] != &argument) continue;
+
+                    push(queued, *opt.base[target->argumentAt(opt.base, i)]);
+                }
+            });
+        }
+    }
+
+    // The block arguments feeding this position - the values a removal can leave unread. A block
+    // argument is the value with a block and no definer, which is the one question `Value` answers
+    // without a table.
+    void seedOperands(IndexSet& queued, Block& block, Size position) {
+        for(auto pointer: block.incoming(opt.base)) {
+            auto end = opt.base[pointer]->terminator(opt.base);
+            if(!end) continue;
+
+            forEachEdge(*end, [&](Edge& edge) {
+                if(!edge.target || opt.base[edge.target] != &block) return;
+
+                auto used = edge.arguments.get(opt.base, position);
+                if(!used.isSet()) return;
+
+                auto value = opt.base[used.value()];
+                if(!value->definer && value->block) push(queued, *value);
+            });
+        }
+    }
+
+    bool step(Editor& editor, IndexSet& queued, Value& argument) {
+        if(!argument.block) return false;
+
+        auto block = opt.base[argument.block];
+        if(block->deleted || block == opt.base[opt.body->entry]) return false;
+        if(!discardableConvention(argument.convention)) return false;
+
+        auto position = indexOf(*block, argument);
+        if(position == ~Size(0)) return false;
+
+        Value* only = nullptr;
+
+        if(argument.useCount()) {
+            only = onlyAnswer(*block, position, argument);
+            if(!only) return false;
+
+            // The conventions agree by construction - `checkEdge` compares an edge's operand
+            // against the argument it fills - and this is that read back, the way `canSubstitute`
+            // reads it back at the merge: an assertion in `replaceAllUses` holds in a checked build
+            // and this holds in every one.
+            if(only->convention != argument.convention) return false;
+
+            seedReaders(queued, argument);
+        }
+
+        seedOperands(queued, *block, position);
+
+        if(only) editor.replaceAllUses(argument, *only);
+        editor.removeBlockArgument(*block, position);
+        return true;
+    }
+
+    void run() {
+        queue.clear();
+        head = 0;
+
+        ScratchSet queued(opt.sets, opt.body->values.size());
+        auto entry = opt.base[opt.body->entry];
+
+        for(auto pointer: opt.body->blocks.contents(opt.base)) {
+            auto block = opt.base[pointer];
+            if(block->deleted || block == entry) continue;
+
+            for(auto argumentPointer: block->arguments(opt.base)) {
+                push(*queued, *opt.base[argumentPointer]);
+            }
+        }
+
+        auto editor = opt.ir();
+
+        while(head < queue.size()) {
+            auto index = queue[head++];
+            queued->set(index, false);
+
+            step(editor, *queued, *opt.body->value(opt.base, ValueId(index)));
+        }
+    }
+};
 
 struct CfgCleaner {
     OptContext& opt;
@@ -176,10 +396,12 @@ struct CfgCleaner {
      * in the predecessor, and erases the original - which leaves both recorded at their shared
      * successors for the length of one call and neither afterwards.
      *
-     * The branch case reads **one** argument list because that is the only shape there is:
-     * `Editor::makeBranch` builds one list and pushes it onto both edges, so a branch whose two
-     * edges disagree is IR nothing in this stage produces. `mergeInto` checks it anyway before it
-     * starts editing, since the alternative is discovering it half way through.
+     * The branch case reads **each edge's own** argument list, which is what `makeBranchEdges` is
+     * for. Until `promote` existed there was only one shape - the builder pushes one list onto both
+     * edges, which is this tier's rule that a value live before a branch is live on both sides of it
+     * - and a merge could therefore copy one list and check the two agreed. Promotion places a block
+     * argument where one slot's writes meet, and the two arms of a branch meet different sets of
+     * them, so the two edges routinely differ and copying them apart is the only correct thing.
      */
     Inst* cloneTerminator(Editor& editor, Inst& from) {
         switch(from.kind) {
@@ -202,13 +424,16 @@ struct CfgCleaner {
 
             case Inst::Branch: {
                 auto& written = (InstBranch&)from;
-                SmallArray<Use, 4> arguments;
-                for(auto used: written.whenTrue.arguments.contents(opt.base)) arguments.push(used);
+                SmallArray<Use, 4> whenTrue;
+                SmallArray<Use, 4> whenFalse;
+                for(auto used: written.whenTrue.arguments.contents(opt.base)) whenTrue.push(used);
+                for(auto used: written.whenFalse.arguments.contents(opt.base)) whenFalse.push(used);
 
-                return editor.makeBranch(from.source, written.condition,
-                                         *opt.base[written.whenTrue.target],
-                                         *opt.base[written.whenFalse.target],
-                                         arguments.pointer(), arguments.size());
+                return editor.makeBranchEdges(from.source, written.condition,
+                                              *opt.base[written.whenTrue.target],
+                                              whenTrue.pointer(), whenTrue.size(),
+                                              *opt.base[written.whenFalse.target],
+                                              whenFalse.pointer(), whenFalse.size());
             }
 
             default:
@@ -340,12 +565,6 @@ struct CfgCleaner {
 
         auto end = block->terminator(opt.base);
         if(!end) return false;
-
-        // The one thing `cloneTerminator` cannot copy - see the note there.
-        if(end->kind == Inst::Branch) {
-            auto& branch = (InstBranch&)*end;
-            if(!edgesAgree(branch.whenTrue, branch.whenFalse)) return false;
-        }
 
         // The operands read out before anything moves: `removeBlockArgument` takes each of them off
         // this jump as it goes, so the list this walks is the one it is emptying.
@@ -576,9 +795,16 @@ struct CfgCleaner {
      * fed with one predecessor, which is a merge the queue had already declined. Each round of the
      * outer loop deletes at least one block, so it is bounded by the block count and in practice
      * runs twice.
+     *
+     * The trivial arguments go first in each round, and that position is the whole of what phase 14
+     * added here. A header whose back edge the sweep has just removed still declares the arguments
+     * that edge answered, and it keeps two predecessors until the merge - so waiting for `mergeInto`
+     * is waiting for a shape it never reaches. Running it once in front of the whole loop would
+     * answer the arguments the round *arrived* with and none of the ones it makes.
      */
     void run() {
         for(;;) {
+            removeTrivialArguments(opt);
             runQueue();
             if(!removeUnreachable()) break;
         }
@@ -593,14 +819,22 @@ struct CfgCleaner {
  * arm that wrote `False` the answer is known where the edge leaves, so that predecessor can be
  * pointed at the branch's false arm and never reach the join at all.
  *
- * **A constant on the edge, and nothing else.** The shipping stage's `threadBooleanBranches` also
- * rewrites a predecessor that supplies a *computed* boolean - the jump becomes a copy of the join's
- * branch - and has a second shape for a predecessor whose own branch already proved the value. Both
- * are declined here and the reason is the same one: `Editor::makeBranch` builds **one** argument
- * list and pushes it onto both edges, which is this tier's rule that a value live before a branch is
- * live on both sides of it, so a branch cannot be given two arms of different shapes and a
- * predecessor ending in one cannot have a single arm redirected to a block declaring different
- * arguments. What is left is the constant case, which needs no branch at the predecessor at all.
+ * **A constant on the edge, and nothing else - and that is now a measurement rather than a
+ * mechanism.** The shipping stage's `threadBooleanBranches` has two shapes beside this one: a
+ * predecessor that ends in a `branch` and hands the join a constant on one of its edges, and one
+ * whose own branch condition *is* what it hands over. Both were declined here in phase 5 because
+ * `Editor::makeBranch` built one argument list and pushed it onto both edges, so a single arm could
+ * not be redirected to a block of another shape. `makeBranchEdges` removed that reason in phase 10,
+ * and phase 11 built both shapes on top of it and measured them: **zero firings** over the corpus,
+ * and the counter that says why is that of the twelve joins reaching the shape test, **not one** has
+ * a predecessor ending in a `branch` at all - forty with if-conversion switched off, and still none.
+ *
+ * The reason is structural and is one block up. A branch arm never goes straight into a join that
+ * declares arguments: the conversion gives every arm a block of its own, and the pass that would
+ * remove an empty one is `spliceEmpty` below, which declines a target that declares arguments -
+ * §44 of `test/bench/findings.md` measured the general form and it *costs*, because an empty block
+ * in front of a join is where a set of edge copies is shared. So the predecessor of a threadable
+ * join is always a `jump`, and the constant case is not a subset of the three - it is all of them.
  *
  * ## The three things that make a redirect legal, and they are the three rules of this tier
  *
@@ -824,6 +1058,11 @@ struct BranchThreader {
 
 } // namespace
 
+void removeTrivialArguments(OptContext& opt) {
+    ArgumentCleaner cleaner { opt };
+    cleaner.run();
+}
+
 void cleanCfg(OptContext& opt) {
     CfgCleaner cleaner { opt };
     cleaner.run();
@@ -832,6 +1071,19 @@ void cleanCfg(OptContext& opt) {
 void threadBranches(OptContext& opt) {
     BranchThreader threader { opt };
     threader.run();
+}
+
+/*
+ * The sweep alone, for the one caller that needs it without the queue - `opt/check.cpp`.
+ *
+ * `dischargeChecks` runs above the `optimizeIr` gate, so in a `-no-checks -no-ir-opt` build nothing
+ * else in this directory runs at all and the arm it stranded would stay in the body holding a call.
+ * A second reachability walk written there is a second answer to agree with, so what is exported is
+ * this one - the cleaner's own sweep, on a cleaner whose queue is never started.
+ */
+void removeUnreachableBlocks(OptContext& opt) {
+    CfgCleaner cleaner { opt };
+    cleaner.removeUnreachable();
 }
 
 } // namespace ssa

@@ -7,128 +7,79 @@ main<complex>(): I32 {
     jmp b_2
   }
 
-  b_3 {
-    %v_4 = phi [b_5, 0], [b_6, 1]: I32
-    %v_7 = alloca 4, 4: Ptr
-    store %v_7, 2, 4
+  b_2 {
+    %v_3 = call_complex taken.thunk, %v_1: I32
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = cmp_eq %v_3, 1: I32
+    %v_6 = alloca 4, 4: Ptr
+    store %v_6, 2, 4
     %skipped.thunk = fun skipped.thunk: Ptr
+    jmp b_7
+  }
+
+  b_7 {
     jmp b_8
   }
 
-  b_6 {
-    jmp b_3
-  }
-
-  b_9 {
+  b_8 {
+    %v_9 = add %v_5, 2: I32
     %v_10 = alloca 4, 4: Ptr
     store %v_10, 4, 4
     %shut.thunk = fun shut.thunk: Ptr
-    %v_11 = add %v_12, 4: I32
-    %v_13 = alloca 4, 4: Ptr
-    store %v_13, 8, 4
-    jmp b_14
+    %v_11 = add %v_9, 4: I32
+    %v_12 = alloca 4, 4: Ptr
+    store %v_12, 8, 4
+    jmp b_13
   }
 
-  b_15 {
-    %v_12 = add %v_4, 2: I32
-    jmp b_9
-  }
-
-  b_16 {
-    %v_17 = phi [b_18, %v_11], [b_19, %v_20]: I32
-    %v_21 = alloca 4, 4: Ptr
-    store %v_21, 16, 4
-    %inherited.thunk = fun inherited.thunk: Ptr
-    jmp b_22
-  }
-
-  b_19 {
-    %v_20 = add %v_11, 8: I32
-    jmp b_16
-  }
-
-  b_23 {
-    %v_24 = bitcast 0: Ptr
-    jmp b_25
-  }
-
-  b_26 {
-    %v_27 = add %v_17, 16: I32
-    jmp b_23
-  }
-
-  b_28 {
-    %v_29 = phi [b_30, %v_27], [b_31, %v_32]: I32
-    %main.thunk'2 = fun main.thunk'2: Ptr
-    %v_33 = add %v_29, 64: I32
-    %v_34 = alloca 4, 4: Ptr
-    store %v_34, 128, 4
-    %replaced.thunk = fun replaced.thunk: Ptr
-    %v_35 = add %v_33, 128: I32
-    %v_36 = loads @effects, 4: I32
-    %v_37 = cmp_eq %v_36, 41: I32
-    je %v_37, b_38, b_39
-  }
-
-  b_31 {
-    %v_32 = add %v_27, 32: I32
-    jmp b_28
-  }
-
-  b_39 {
-    %v_40 = phi [b_28, %v_35], [b_38, %v_41]: I32
-    ret %v_40
-  }
-
-  b_38 {
-    %v_41 = add %v_35, 256: I32
-    jmp b_39
-  }
-
-  b_2 {
-    %v_42 = call_complex taken.thunk, %v_1: I32
-    jmp b_5
-  }
-
-  b_5 {
-    %v_43 = cmp_eq %v_42, 1: I32
-    je %v_43, b_6, b_3
-  }
-
-  b_8 {
-    jmp b_44
-  }
-
-  b_44 {
+  b_13 {
+    %v_14 = call_complex inherited.thunk, %v_12: I32
     jmp b_15
   }
 
-  b_14 {
-    %v_45 = call_complex inherited.thunk, %v_13: I32
-    jmp b_18
+  b_15 {
+    %v_16 = cmp_eq %v_14, 8: I32
+    %v_17 = add %v_11, 8: I32
+    %v_18 = select %v_16, %v_17, %v_11: I32
+    %v_19 = alloca 4, 4: Ptr
+    store %v_19, 16, 4
+    %inherited.thunk = fun inherited.thunk: Ptr
+    jmp b_20
   }
 
-  b_18 {
-    %v_46 = cmp_eq %v_45, 8: I32
-    je %v_46, b_19, b_16
+  b_20 {
+    jmp b_21
   }
 
-  b_22 {
-    jmp b_47
-  }
-
-  b_47 {
-    jmp b_26
-  }
-
-  b_30 {
-    %v_48 = cmp_eq %v_49, 32: I32
-    je %v_48, b_31, b_28
+  b_21 {
+    %v_22 = add %v_18, 16: I32
+    %v_23 = bitcast 0: Ptr
+    jmp b_24
   }
 
   b_25 {
-    %v_49 = call_complex main.thunk, %v_24: I32
-    jmp b_30
+    %v_26 = cmp_eq %v_27, 32: I32
+    %v_28 = add %v_22, 32: I32
+    %v_29 = select %v_26, %v_28, %v_22: I32
+    %main.thunk'2 = fun main.thunk'2: Ptr
+    %v_30 = add %v_29, 64: I32
+    %v_31 = alloca 4, 4: Ptr
+    store %v_31, 128, 4
+    %replaced.thunk = fun replaced.thunk: Ptr
+    %v_32 = add %v_30, 128: I32
+    %v_33 = loads @effects, 4: I32
+    %v_34 = cmp_eq %v_33, 41: I32
+    %v_35 = add %v_32, 256: I32
+    %v_36 = select %v_34, %v_35, %v_32: I32
+    ret %v_36
+  }
+
+  b_24 {
+    %v_27 = call_complex main.thunk, %v_23: I32
+    jmp b_25
   }
 }
 

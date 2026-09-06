@@ -184,25 +184,25 @@ main<complex>(): I32 {
     je %v_75, b_48, b_44
   }
 
-  b_47 {
-    %v_76 = phi [b_44, 0], [b_77, %v_78]: I32
-    %v_79 = phi [b_44, 0], [b_77, %v_80]: I32
-    %v_81 = cmp_ilt %v_76, 3: I32
-    je %v_81, b_77, b_82
+  b_76 {
+    %v_77 = cmp_ilt %v_78, 3: I32
+    je %v_77, b_47, b_79
   }
 
-  b_82 {
+  b_79 {
     call_complex Guard.drop, %v_45
-    %v_59 = add %v_73, %v_79: I32
-    %v_83 = loads @trace, 4: I32
-    %v_84 = cmp_neq %v_83, 6: I32
-    je %v_84, b_64, b_49
+    %v_59 = add %v_73, %v_80: I32
+    %v_81 = loads @trace, 4: I32
+    %v_82 = cmp_neq %v_81, 6: I32
+    je %v_82, b_64, b_49
   }
 
-  b_77 {
-    %v_80 = add %v_79, %v_46: I32
-    %v_78 = add %v_76, 1: I32
-    jmp b_47
+  b_47 {
+    %v_83 = phi [b_76, %v_78], [b_44, 0]: I32
+    %v_84 = phi [b_76, %v_80], [b_44, 0]: I32
+    %v_80 = add %v_84, %v_46: I32
+    %v_78 = add %v_83, 1: I32
+    jmp b_76
   }
 }
 

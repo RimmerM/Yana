@@ -5,18 +5,14 @@ let & seed: I32 = 3
 fn endless(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
-  %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
   %3: I32 trivial = load inspect %1
-  store inspect %2 consume %3
-  jump -> bb1
-
-bb1:
-  %8: I32 trivial = load inspect %2
   %9: I32 trivial = const 1
-  %10: I32 trivial = add inspect %8 inspect %9
-  store inspect %2 consume %10
-  jump -> bb1
+  jump -> bb1(inspect %3)
+
+bb1(%11: I32 trivial):
+  %10: I32 trivial = add inspect %11 inspect %9
+  jump -> bb1(inspect %10)
 }
 
 fn guarded(n: I32 [shared call]) -> I32 {
@@ -56,8 +52,6 @@ fn main() -> I32 {
 bb0:
   %0: %I32 address = global.addr seed
   %1: I32 trivial = load inspect %0
-  %10: %I32 address = alloc frame I32 [shared call]
-  store inspect %10 borrow %1
   %12: I32 trivial = const 1000000
   %13: Bool trivial = gt inspect %1 inspect %12
   branch inspect %13 -> bb5 -> bb4
@@ -75,14 +69,12 @@ bb2(%9: I32 trivial):
   return consume %8
 
 bb4:
-  %14: I32 trivial = load inspect %10
   %15: I32 trivial = const 2
-  %16: I32 trivial = mul inspect %14 inspect %15
+  %16: I32 trivial = mul inspect %1 inspect %15
   jump -> bb2(consume %16)
 
 bb5:
-  %17: I32 trivial = load inspect %10
-  %18: I32 trivial = call endless borrow %17
+  %18: I32 trivial = call endless borrow %1
   jump -> bb2(consume %18)
 }
 

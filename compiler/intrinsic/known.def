@@ -240,6 +240,30 @@ YANA_KNOWN_ROLE( slice,         Entity::Function, 3,   0,      0,      false,   
 YANA_KNOWN_ROLE( sliceMut,      Entity::Function, 3,   0,      0,      false,   Presence::Required )
 
 /*
+ * Where a check that did not hold stops the program - `prelude/Core/Array.yana`'s `checkFailed`.
+ *
+ * The one role here the compiler never *calls*. The shipping stage emits `checkCondition(index >=
+ * length)` at every subscript and holds a pointer to that function so it can find its own calls
+ * again; the ownership stage inserts nothing at all, because `Index.get` writes the test itself and
+ * `@inline(always)` grafts it into the caller. What arrives is an ordinary comparison, an ordinary
+ * branch, and an arm that calls this - so what the role is for is *recognition* rather than
+ * emission: `-no-checks` has to be able to say which branch is a check, and comparing a callee
+ * against a declaration is the only statement of that which a rename cannot silently unfill.
+ * `resolve_ssa/opt/check.cpp` is the one reader, and its file comment is the structural rule.
+ *
+ * `arity` zero because the declaration takes nothing: a check that fails says its exit status and
+ * no more, which is `lib/Core/Check.yana`'s argument - formatting a message would put the format
+ * machinery in the binary of a program that never prints, and would recurse through the bounds
+ * check inside the formatter.
+ *
+ * `Optional`, on the allocator rows' terms and for a stronger reason than theirs: a library that
+ * declares no `checkFailed` is a library whose containers do not stop the program, which is a
+ * smaller library rather than a broken one. What an unfilled row costs is that `-no-checks` finds
+ * nothing to discharge, which is exactly what it should find.
+ */
+YANA_KNOWN_ROLE( checkFailed,   Entity::Function, 0,   0,      0,      false,   Presence::Optional )
+
+/*
  * The heap, as three functions - Design-Allocator.md §18.5's binding, and the roles that replace
  * `findNative("allocateHeap", 12)`.
  *
@@ -485,8 +509,16 @@ YANA_KNOWN_ROLE( bits,          Entity::Class, 1,    5,      0,      false,   Pr
  *
  * The classes the language's syntax is written in terms of that are not yet here (`Enum`,
  * `IndexInsert`, `Show`, `Chunked`, and `ByteSwap`, `BitPermute`, `Length` beside them), and the
- * functions it inserts calls to (`checkCondition`, `checkFailed`, the three a format expression is
- * built out of).
+ * functions it inserts calls to (`checkCondition`, and the three a format expression is built out
+ * of).
+ *
+ * `checkFailed` was on that list and is a row now - see above - and **`checkCondition` stays,
+ * because the two are not a pair here.** The shipping stage's check is a *call* to a function whose
+ * body holds the branch, for a reason that has nothing to do with checking: a branch emitted inside
+ * an expression splits a block a lifted `iter fn` had already recorded. The ownership stage's check
+ * is the branch itself, written in `Index.get` and grafted by `@inline(always)`, so there is no
+ * condition function for a role to name - and a row for one would be a `Presence` describing a
+ * declaration this stage will never reach for.
  *
  * `TrivialCopy`, `TrivialSink` and `Bits` were on that list and are rows now. What moved the first
  * two is that they are `Ownership`'s own classification and `structuralAnswer` could answer them

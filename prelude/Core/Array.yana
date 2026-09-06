@@ -27,7 +27,13 @@ data ArrayView(a) {items: %a, length: Size}
    What stops the program when a subscript is out of range - `lib/Core/Check.yana`'s `checkFailed`,
    cut down to the one thing it does natively: exit with the status an abort answers with. The
    subscript is `Index`'s member below, so the check is the library's and the compiler inserts none.
+
+   `@builtin(checkFailed)` is not the compiler asking to call this: it never does. It is what lets
+   `-no-checks` recognize one of these branches as a check, which is a question about a *callee* and
+   is answered against this declaration rather than against the word "checkFailed" - see
+   `compiler/resolve_ssa/opt/check.cpp`.
 -}
+@builtin(checkFailed)
 pub fn checkFailed():
     syscall1(231 :: USize, 134 :: USize)
     return

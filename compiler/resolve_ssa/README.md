@@ -70,12 +70,18 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | how a constant becomes bytes | `lower/gen.cpp`, `materialize` |
 | what order a body's blocks are read in | `dominance.cpp`, `reversePostorder` |
 | which passes run over a body, in what order, and how many times | `opt/opt.cpp` |
+| whether a local becomes a value | `opt/promote.cpp`, `eligible` - and where its block arguments go |
 | whether an edge may be moved, merged away or threaded | `opt/cfg.cpp` - one region, and never a region's anchor |
+| whether a block argument says anything, and which conventions may be answered at all | `opt/cfg.cpp`, `removeTrivialArguments` - the one implementation `promote` and `cleanCfg` both call |
 | whether a branch may become a `select`, and what one may carry | `opt/select.cpp`, `speculatable` and `selectableJoin` |
 | whether a loop may be decided false, and what makes it terminate | `opt/loop.cpp`, `removableStep` and `stepsToTheBound` |
+| whether a computation may leave a loop, and what may be speculated into a preheader | `opt/loop.cpp`, `hoist` - `movable` and `invariantRead` |
+| whether two instructions compute the same thing, and whether either may be taken out | `opt/cse.cpp`, `sameComputation`/`sameOperand` and `isRemovable` - read by `simplify` too |
+| which redundant computation is worth removing and which is worth keeping | `opt/cse.cpp`, `materializedAtUse` and `answerableAcrossBlocks` |
 | whether two addresses name the same storage, and whether they may alias | `opt/memory.cpp`, `sameAddress` and `mayAlias` |
 | whether a call is inlined | `opt/inline.cpp` - `clonableDeclaration`/`clonableBody` for what a copy can reproduce, `worthInlining` for what it is worth |
 | which functions the lowering emits | `mir::Function::reachable`, corrected over SSA by `opt/reach.cpp` |
+| whether a check is removed | `opt/check.cpp` - `-no-checks`, and the structural rule that says which branch is a check |
 | whether an instruction may write an allocation's storage | `opt/analysis.cpp`, `mayWriteStorage`, over `Contained` |
 | what width an integer folds at, and which types have one | `opt/fold.cpp`, `foldableInt` |
 | what an operation over constants comes to, and which identities hold | `opt/fold.cpp` |
@@ -121,8 +127,12 @@ site read to build its operand. An owned parameter installs an owner and a borro
 loan, and asking the shared function rather than switching here is what stops the two ends of one
 handover from coming to disagree about which it was.
 
-The load-and-store traffic that leaves behind for a scalar nothing borrows is `promoteStackSlots`'s
-to remove, on exactly the terms every other local gets - see below.
+The load-and-store traffic that leaves behind is `opt/promote.cpp`'s to remove, on exactly the terms
+every other local gets - see below. A **borrowed** parameter's slot is the one it declines, and the
+reason is the store above: what it installs is a `Guaranteed` value of a borrowed occurrence, where
+the loads read back a `Trivial` one of the owned occurrence, and a substitution across either of those
+is not a substitution. A `->` parameter of a trivially copyable type is an owned occurrence at both
+ends and promotes with every other local, and so does every parameter slot of an inlined body.
 
 ## A `{}` is materialized, never transferred
 
@@ -193,15 +203,28 @@ a second target's lowering arrives as a sibling of that directory rather than as
 
 What is left below is what a *value* is here, which is not a representation question.
 
-## Locals are storage, and promotion is somebody else's job
+## Locals are storage, and the *conversion* leaves them that way
 
 A MIR local becomes one `Alloc` in the entry block and the reads and writes of it become `Load` and
-`Store`. Nothing here tries to hold a scalar in a value instead: the lower IR's own
-`promoteStackSlots` runs over these on the way to machine code - `lower/lower_pipeline.h`, which is
-the whole shared run and which this stage called one member of until phase 1 of `opt/README.md` - so
-a local that is never borrowed costs nothing in the end, and doing it during conversion would make
-the SSA dump depend on an optimization, which is the one thing a fixture about ownership should not
-have to read around.
+`Store`. Nothing in `convert.cpp` tries to hold a scalar in a value instead, and that half is
+unchanged: doing it during conversion would make the SSA dump depend on an optimization, which is the
+one thing a fixture about ownership should not have to read around, and `.ssa.expect` is that dump.
+
+**Where it stops being storage is `opt/promote.cpp`, at this tier**, and that reversed the original
+reading. The lower IR's own `promoteStackSlots` does run over these on the way to machine code -
+`lower/lower_pipeline.h`, the whole shared run - so a local that is never borrowed did cost nothing in
+the emitted bytes; what it cost was everything above them. Phase 10 of `opt/README.md` has the
+numbers: `range` could never fire because no named value at this tier was read in two blocks,
+`convertSelects` needed an exception for the `load` of a parameter slot, `threadBranches` could not
+see through a `let`, and the inliner counted a store and a load per parameter towards a budget of
+twenty. It is also what `Analysis-IR-JS.md` Part 6.1 requires, since JSIR consumes this IR and never
+sees the lower one.
+
+What promotion takes is an allocation in `StorageClass::Frame` whose held occurrence owes nothing,
+all of whose uses are whole-allocation loads and stores agreeing on one `Trivial` occurrence, plus
+drops that lower to nothing. What it leaves is everything else - a borrowed slot, a record reached
+through a `field.addr`, a slot a call was handed the address of - and `promoteStackSlots` is still
+below it for the half that only matters to the machine.
 
 `StorageClass` states three rungs and reaches one. That is Analysis-IR.md §10.4's requirement rather
 than an unfinished switch: the current compiler's equivalent reserves the region enumerator and
@@ -308,7 +331,7 @@ different indices over the same payload storage, and a niche-folded discriminant
 payload - both of which are `lower/repr.cpp`'s answers, a target's, and `optimizeProgram` runs once
 per program.
 
-## The editor is the only thing that writes, and its destructive half has eight rules
+## The editor is the only thing that writes, and its destructive half has ten rules
 
 `ssa::Editor` builds a body and rewrites one. Four lists are private with reading accessors and the
 editor is their only friend - `Block::instructions`, `Block::incoming`, `Block::arguments` and
@@ -346,6 +369,17 @@ The rules the destructive half keeps, each stated once beside the operation in `
   is left exactly as it was, its arguments included: folding `branch %c, then, else` into
   `jump then` is a fold whose site has no idea what `then` was being handed, and removing and
   re-adding the edge would take those arguments and put none back.
+- **A block argument added to a finished body is two operations, and the pair has a window.**
+  `addBlockArgument` is the builder's and refuses a block that already holds instructions;
+  `declareBlockArgument` and `addEdgeArgument` are what a *pass* uses, and between them the body is in
+  a state `verifyBody` rejects - an edge supplying fewer operands than its target declares. They
+  cannot be one call, because a loop header's incoming value is a value the header itself defines.
+  `opt/promote.cpp` is the only caller and should stay so.
+- **A branch's two edges may carry different operands, and only the builder ever assumed otherwise.**
+  `makeBranch` pushes one list onto both, which is what a conversion emits - a value live before a
+  branch is live on both sides of it. `makeBranchEdges` states each edge's own, and is what a pass
+  rebuilding a branch that already exists takes: since promotion places a block argument where one
+  slot's writes meet, the two arms of a branch routinely declare different ones.
 - **A pass places an instruction in front of another, never at the end of a block.** `setBlock` is
   the building form and appends; every block a *pass* sees already has a terminator, so `append`
   would refuse all of them. `setInsertBefore` is the cursor, and what it is for is the fold: a

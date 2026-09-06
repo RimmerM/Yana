@@ -52,37 +52,37 @@ main<complex>(): I32 {
     ret 18446744073709551612
   }
 
+  b_25 {
+    %v_26 = cmp_ilt %v_27, 4: I32
+    je %v_26, b_24, b_28
+  }
+
+  b_28 {
+    %v_29 = vlane %v_30, 0: I32
+    %v_31 = cmp_neq %v_29, 15: I32
+    je %v_31, b_32, b_33
+  }
+
   b_24 {
-    %v_25 = phi [b_23, %v_2], [b_26, %v_27]: i32x8
-    %v_28 = phi [b_23, 0], [b_26, %v_29]: I32
-    %v_30 = cmp_ilt %v_28, 4: I32
-    je %v_30, b_26, b_31
+    %v_34 = phi [b_25, %v_30], [b_23, %v_2]: i32x8
+    %v_35 = phi [b_25, %v_27], [b_23, 0]: I32
+    %v_30 = add %v_34, %v_2: i32x8
+    %v_27 = add %v_35, 1: I32
+    jmp b_25
   }
 
-  b_31 {
-    %v_32 = vlane %v_25, 0: I32
-    %v_33 = cmp_neq %v_32, 15: I32
-    je %v_33, b_34, b_35
-  }
-
-  b_26 {
-    %v_27 = add %v_25, %v_2: i32x8
-    %v_29 = add %v_28, 1: I32
-    jmp b_24
-  }
-
-  b_35 {
-    %v_36 = vlane %v_25, 1: I32
+  b_33 {
+    %v_36 = vlane %v_30, 1: I32
     %v_37 = cmp_neq %v_36, 15: I32
     je %v_37, b_38, b_39
   }
 
-  b_34 {
+  b_32 {
     ret 18446744073709551611
   }
 
   b_39 {
-    %v_40 = vreduce_add %v_25: I32
+    %v_40 = vreduce_add %v_30: I32
     %v_41 = imul %v_14, 15: I32
     %v_42 = cmp_neq %v_40, %v_41: I32
     je %v_42, b_43, b_44
@@ -95,7 +95,7 @@ main<complex>(): I32 {
   b_44 {
     %v_45 = add %v_2, %v_3: i32x8
     %v_46 = vlane %v_45, 0: I32
-    %v_47 = add %v_5, %v_25: i32x8
+    %v_47 = add %v_5, %v_30: i32x8
     %v_48 = vlane %v_47, 0: I32
     %v_49 = add %v_46, %v_48: I32
     %v_50 = cmp_neq %v_49, 30: I32

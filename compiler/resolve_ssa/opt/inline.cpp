@@ -780,15 +780,21 @@ struct Inliner {
             }
 
             case Inst::Branch: {
+                // Each edge's own operands, which is `makeBranchEdges`' reason to exist: `promote`
+                // places a block argument where one slot's writes meet, so the two arms of a branch
+                // in a settled callee routinely declare different ones.
                 auto& written = (InstBranch&)from;
-                SmallArray<Use, 8> arguments;
-                mapUses(clone, written.whenTrue.arguments, arguments);
+                SmallArray<Use, 8> whenTrue;
+                SmallArray<Use, 8> whenFalse;
+                mapUses(clone, written.whenTrue.arguments, whenTrue);
+                mapUses(clone, written.whenFalse.arguments, whenFalse);
 
                 editor.replaceTerminator(into,
-                    editor.makeBranch(at, mapUse(clone, written.condition),
-                                      *mapBlock(clone, written.whenTrue.target),
-                                      *mapBlock(clone, written.whenFalse.target),
-                                      arguments.pointer(), arguments.size()));
+                    editor.makeBranchEdges(at, mapUse(clone, written.condition),
+                                           *mapBlock(clone, written.whenTrue.target),
+                                           whenTrue.pointer(), whenTrue.size(),
+                                           *mapBlock(clone, written.whenFalse.target),
+                                           whenFalse.pointer(), whenFalse.size()));
                 return;
             }
 

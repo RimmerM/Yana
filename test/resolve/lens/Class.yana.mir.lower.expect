@@ -405,22 +405,26 @@ steps(Gate)<complex>(%self: Ptr, %$body: Ptr): I32 {
   }
 
   b_10 {
-    %v_11 = phi [b_1, %v_2], [b_9, %v_4]: I32
+    %v_11 = phi [b_1, %v_2], [b_12, %v_4]: I32
     ret %v_11
   }
 
   b_9 {
-    %v_12 = load %$body, 8: Ptr
-    %v_13 = add %$body, 8: Ptr
-    %v_14 = load %v_13, 8: Ptr
-    %v_4 = call_complex %v_12, %v_14, %v_5: I32
-    %v_15 = cmp_eq %v_4, 0: I32
-    je %v_15, b_3, b_10
+    %v_13 = load %$body, 8: Ptr
+    %v_14 = add %$body, 8: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    %v_4 = call_complex %v_13, %v_15, %v_5: I32
+    %v_16 = cmp_eq %v_4, 0: I32
+    je %v_16, b_3, b_12
   }
 
   b_3 {
     %v_6 = add %v_5, 1: I32
     jmp b_1
+  }
+
+  b_12 {
+    jmp b_10
   }
 }
 

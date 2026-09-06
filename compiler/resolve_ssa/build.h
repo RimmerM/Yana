@@ -240,6 +240,23 @@ struct Editor {
     Inst* makeJump(LocationId source, Block& target, const Use* arguments, Size count);
     Inst* makeBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse,
                      const Use* arguments, Size count);
+
+    /*
+     * The same, with **each edge's** operands stated separately.
+     *
+     * The one-list form above is the *builder's*: a conversion emits a branch whose two arms receive
+     * the same values, which is `mir::Builder::addBranch`'s rule that a value live before a branch is
+     * live on both sides of it. What it cannot express is a branch whose two targets declare
+     * different arguments, and `opt/promote.cpp` makes those - a block argument is placed where one
+     * slot's writes meet, and the two arms of a branch meet different sets of them.
+     *
+     * So a *pass* reproducing a branch that already exists takes this form and hands each edge back
+     * what it was carrying. The one-list form is this one called with the same list twice, so there
+     * is one place that builds a branch and the difference between the two is a parameter.
+     */
+    Inst* makeBranchEdges(LocationId source, Use condition,
+                          Block& whenTrue, const Use* trueArguments, Size trueCount,
+                          Block& whenFalse, const Use* falseArguments, Size falseCount);
     Inst* makeUnreachable(LocationId source);
 
     Value* resultOf(Inst& inst, Size index = 0);
@@ -392,6 +409,27 @@ struct Editor {
     void redirectEdge(Inst& terminator, Size arm, Block& to);
 
     /*
+     * A block argument declared on a block that is **already built**, and one operand appended to
+     * one edge - the two halves of adding an argument to a body somebody else wrote.
+     *
+     * Two operations rather than one, and that is not a convenience: the construction that needs
+     * them cannot supply the operands when it declares the argument, because a loop header's
+     * incoming value is a value the header itself defines. So between the declaration and the last
+     * fill the body is in a state `verifyBody` rejects - an edge supplying fewer operands than its
+     * target declares - and closing that window is the caller's obligation rather than an assertion
+     * this can make. `opt/promote.cpp` is the one caller and the only one that should be.
+     *
+     * The building form above stays as it was and keeps refusing a filled block. What it refuses is
+     * a *builder* naming a block it has already emitted into, which is a mistake with no legitimate
+     * shape; a pass rewriting a finished body is the legitimate shape, and it says so by name.
+     *
+     * `addEdgeArgument` takes the arm by **ordinal**, for `redirectEdge`'s reason: `branch %c, X, X`
+     * is two edges into one block and each owes its own operand.
+     */
+    Value* declareBlockArgument(Block& block, const Occurrence& occurrence, Convention convention);
+    void addEdgeArgument(Inst& terminator, Size arm, Use value);
+
+    /*
      * One block argument removed, with the operand it was fed by dropped from every incoming edge.
      *
      * Every edge, not every predecessor: a predecessor whose two arms both land here supplies the
@@ -435,6 +473,10 @@ private:
 
     Inst* append(Inst* inst);
     Value* addResult(Inst& inst, const Occurrence& occurrence, Convention convention);
+
+    // The value and the entry in `Block::arguments`, without the question of whether this block may
+    // still be given one - which is what the two public forms above differ on and nothing else.
+    Value* makeBlockArgument(Block& block, const Occurrence& occurrence, Convention convention);
     void recordUse(Inst& inst, Use used);
 
     // The half-update primitives, private for the reason the old stage's are: with them in reach,

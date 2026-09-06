@@ -34,55 +34,65 @@ steps<complex>(%n: I32, %$body: Ptr): I32 {
   }
 
   b_13 {
-    %v_14 = phi [b_5, %v_6], [b_15, %v_16], [b_17, %v_6], [b_18, %v_19]: I32
-    %v_20 = phi [b_5, %v_4], [b_15, 0], [b_17, 0], [b_18, 0]: I32
-    je %v_20, b_21, b_22
+    %v_14 = phi [b_5, %v_6], [b_15, %v_16], [b_17, %v_18], [b_19, %v_20]: I32
+    %v_21 = phi [b_5, %v_4], [b_15, 0], [b_17, 0], [b_19, 0]: I32
+    je %v_21, b_22, b_23
   }
 
   b_12 {
-    %v_23 = cmp_igt %v_9, 2: I32
-    je %v_23, b_24, b_25
+    %v_24 = cmp_igt %v_9, 2: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_26 {
+    %v_27 = cmp_eq %v_6, 0: I32
+    je %v_27, b_28, b_29
   }
 
   b_25 {
-    %v_26 = cmp_eq %v_6, 0: I32
-    je %v_26, b_27, b_28
+    %v_30 = cmp_eq %v_6, 0: I32
+    je %v_30, b_31, b_32
   }
 
-  b_24 {
-    %v_29 = cmp_eq %v_6, 0: I32
-    je %v_29, b_18, b_17
+  b_31 {
+    %v_33 = alloca 4, 4: Ptr
+    copy %v_33, %v_1, 4
+    %v_34 = loads %v_33, 4: I32
+    call_complex Held.drop, %v_33
+    %v_35 = load %$body, 8: Ptr
+    %v_36 = add %$body, 8: Ptr
+    %v_37 = load %v_36, 8: Ptr
+    %v_20 = call_complex %v_35, %v_37, %v_34: I32
+    %v_38 = cmp_eq %v_20, 0: I32
+    je %v_38, b_19, b_17
   }
 
-  b_18 {
-    %v_30 = alloca 4, 4: Ptr
-    copy %v_30, %v_1, 4
-    %v_31 = loads %v_30, 4: I32
-    call_complex Held.drop, %v_30
-    %v_32 = load %$body, 8: Ptr
-    %v_33 = add %$body, 8: Ptr
-    %v_34 = load %v_33, 8: Ptr
-    %v_19 = call_complex %v_32, %v_34, %v_31: I32
+  b_32 {
+    call_complex Held.drop, %v_1
+    jmp b_17
+  }
+
+  b_19 {
     jmp b_13
   }
 
   b_17 {
-    call_complex Held.drop, %v_1
+    %v_18 = phi [b_32, %v_6], [b_31, %v_20]: I32
     jmp b_13
   }
 
-  b_27 {
-    %v_35 = load %$body, 8: Ptr
-    %v_36 = add %$body, 8: Ptr
-    %v_37 = load %v_36, 8: Ptr
-    %v_8 = call_complex %v_35, %v_37, %v_9: I32
-    %v_38 = cmp_eq %v_8, 0: I32
-    je %v_38, b_7, b_39
+  b_28 {
+    %v_39 = load %$body, 8: Ptr
+    %v_40 = add %$body, 8: Ptr
+    %v_41 = load %v_40, 8: Ptr
+    %v_8 = call_complex %v_39, %v_41, %v_9: I32
+    %v_42 = cmp_eq %v_8, 0: I32
+    je %v_42, b_7, b_43
   }
 
-  b_28 {
+  b_29 {
     call_complex Held.drop, %v_1
-    jmp b_39
+    jmp b_43
   }
 
   b_7 {
@@ -90,22 +100,22 @@ steps<complex>(%n: I32, %$body: Ptr): I32 {
     jmp b_5
   }
 
-  b_39 {
-    %v_16 = phi [b_28, %v_6], [b_27, %v_8]: I32
-    %v_40 = phi [b_28, 0], [b_27, %v_4]: I32
-    je %v_40, b_41, b_15
-  }
-
-  b_21 {
-    call_complex Held.drop, %v_1
-    jmp b_22
+  b_43 {
+    %v_16 = phi [b_29, %v_6], [b_28, %v_8]: I32
+    %v_44 = phi [b_29, 0], [b_28, %v_4]: I32
+    je %v_44, b_45, b_15
   }
 
   b_22 {
+    call_complex Held.drop, %v_1
+    jmp b_23
+  }
+
+  b_23 {
     ret %v_14
   }
 
-  b_41 {
+  b_45 {
     call_complex Held.drop, %v_1
     jmp b_15
   }

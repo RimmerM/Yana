@@ -13,6 +13,33 @@ function escapes(n, stop) {
   return i;
 }
 
+function forAccumulates(n) {
+  var total = 0;
+  var v8 = 0;
+  while (v8 < n) {
+    var i = v8;
+    total = total + i | 0;
+    v8 = v8 + 1 | 0;
+  }
+  return total;
+}
+
+function forBreaks(n, stop) {
+  var at = 0;
+  var v9 = 0;
+  while (v9 < n) {
+    var i = v9;
+    if (i === stop) {
+      at = i;
+    } else {
+      v9 = v9 + 1 | 0;
+      continue;
+    }
+    break;
+  }
+  return at;
+}
+
 function main() {
   var total = 0;
   var i = 0;
@@ -38,6 +65,6 @@ function main() {
     total$1 = total$1 + row | 0;
     row = row + 1 | 0;
   }
-  return ((v30 + Math.imul(total$1, 13) | 0) + 585 | 0) + Math.imul(live, 23) | 0;
+  return (((((v30 + Math.imul(total$1, 13) | 0) + 585 | 0) + Math.imul(live, 23) | 0) + 87 | 0) + Math.imul(forAccumulates(5), 31) | 0) + Math.imul(forBreaks(9, 4), 37) | 0;
 }
 main();

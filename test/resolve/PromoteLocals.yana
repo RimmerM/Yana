@@ -1,0 +1,186 @@
+{-
+   Which locals stop being storage, and which ones may not - `compiler/resolve_ssa/opt/promote.cpp`.
+
+   Every function here is a **number** rather than a shape, for the reason `DeadStorage.yana` and
+   `CfgClean.yana` both state: a load answered by the wrong definition, a block argument fed from the
+   wrong predecessor, and an allocation removed that something still reaches are each invisible in
+   the emitted bytes and each change what this program answers. The optimized/unoptimized run
+   comparison is what turns every one of them into a failure; `.ssa.opt.expect` beside this is what
+   says which allocations the pass actually took and where it put the arguments.
+
+   The four **refusals** are the half a passing number would not notice on its own, so each of them
+   is asserted in that golden rather than left to the count: the borrowed local, the local of a type
+   with a teardown, the record reached through a field address, and the borrowed parameter's own
+   slot. `live` and `trace` are the pair every ownership fixture here carries - a teardown that ran
+   twice takes `live` negative and one that never ran leaves it positive, and neither shows up in a
+   digit of `trace`.
+-}
+
+let &live = 0 :: Int
+let &trace = 0 :: Int
+
+fn check(ok: Bool, weight: Int) -> Int = if ok then weight else 0
+
+{-
+   The shape the whole pass is for: one local written in both arms of an `if` and read below the
+   join, which is where a block argument has to be placed and where the value each predecessor
+   leaves has to be the one that edge hands over.
+
+   The two arms compute different things from the same `n`, so an argument fed the wrong way round
+   answers `n * 3` where the program answers `n * 2`.
+-}
+fn branched(n: Int) -> Int:
+    let &v = 0 :: Int
+
+    if n > 2:
+        v = n * 2
+    else:
+        v = n * 3
+
+    return v
+
+{-
+   A loop counter, which is the argument at a **header** rather than at a join.
+
+   The header's second predecessor is the latch, which the reverse-postorder walk has not been to
+   when it arrives - so both locals get an argument there whether or not the walk could have agreed,
+   and the back edge is filled once the body has said what it leaves. `total` accumulates in base ten
+   so that an iteration run twice, skipped, or carried with a stale counter is a different number
+   rather than a different digit count.
+-}
+fn counted(n: Int) -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < n:
+        total = total * 10 + i
+        i = i + 1
+
+    return total
+
+{-
+   The first refusal: a local whose address a callee is handed.
+
+   `&x` is not an instruction at this tier - it is a `load` of the slot whose result is `Guaranteed`
+   and whose loan names the allocation - so what declines this is the rule that every load's result
+   must be `Trivial`. Promoting it would remove the storage the loan is rooted in, which is a loan
+   whose endpoints are never found again. The allocation, both stores and the borrow are all in
+   `.ssa.opt.expect`, and the number is `n + 100` rather than `n` if the read below were answered
+   from the write above the call.
+
+   `@noinline` for `Contain.Call.yana`'s reason: a callee that was inlined was never handed anything.
+-}
+@noinline
+fn bump(&v: Int):
+    v = v + 100
+
+fn borrowed(n: Int) -> Int:
+    let &v = n
+    bump(v)
+    return v
+
+{-
+   The second refusal: a local of a type that owes a teardown.
+
+   The slot holds an `Owned` occurrence, so the store's value is not `Trivial` and the `Drop` the
+   elaboration placed does not lower to nothing - either one alone declines it. `trace` is what says
+   the teardown ran exactly once, which is the failure this refusal exists to prevent: an allocation
+   promoted out from under a drop is a teardown that never runs.
+-}
+data Held {id: Int}
+
+instance Drop(Held):
+    fn drop(->self: Held):
+        live = live - 1
+        trace = trace * 10 + self.id
+
+fn held(id: Int) -> Held:
+    live = live + 1
+    return Held {id: id}
+
+fn owning(n: Int) -> Int:
+    let kept = held(n)
+    return n * 2
+
+{-
+   The third refusal: a record reached both whole and by field.
+
+   The whole-record store is an ordinary write of the allocation and would promote on its own; the
+   `field.addr` on the next line is a use of the address that is not a load or a store of the whole
+   of it, and that declines the allocation. Splitting a record into one value per field is the
+   *scalarizing* half of the shipping stage's `scalarizeLocals`, which section A of the optimizer's
+   README assigns to `splitAggregateSlots` one tier down and which runs over this stage's output - so
+   what this asserts is the record surviving here, not that it survives to the machine.
+-}
+data Pair {a: Int, b: Int}
+
+fn record(n: Int) -> Int:
+    let &p = Pair {a: n, b: n + 1}
+    p.a = p.a * 2
+
+    return p.a + p.b
+
+{-
+   A `Bool` local, which needs no case of its own and is here to say so.
+
+   A `Bool` is a declared enum in this stage and its values are held in the same normal form a store
+   and a load agree on, so promoting one is a renaming - the occurrence rule is what states that
+   without asking a width. The two calls disagree, so an argument that carried the wrong arm's answer
+   is one weight lost and not both.
+-}
+fn boolean(a: Bool, b: Bool) -> Int:
+    let &ok = a
+
+    if b:
+        ok = !a
+
+    return if ok then 1 else 0
+
+{-
+   And a `@bits(n)` local, for the same claim at a refinement.
+
+   `resolve_ssa/lower/width.cpp` holds a narrow value in its declared width's normal form, so the
+   value the store writes and the value the load reads back are the same bits and the block argument
+   below the `if` carries them unchanged. Reached through a field, which is how `doc/spec/repr.md`
+   says a refinement is written.
+-}
+alias Small = @bits(4) U32
+
+data Packed {small: Small}
+
+fn packed(value: U32) -> Packed = Packed {small: value}
+
+fn narrow(n: Int) -> Int:
+    let &small = packed(3).small
+
+    if n > 2:
+        small = packed(10).small
+
+    return if small == 10 then 1 else 0
+
+{-
+   A **consuming** trivial parameter, read twice.
+
+   Its slot is an ordinary local: what the entry hands over is an owned occurrence of a trivially
+   copyable type, so `conventionFor` answers `Trivial` and the store and both loads agree. A plain
+   `n: Int` parameter is the case that does *not* promote - a borrowed occurrence arrives
+   `Guaranteed` and its loads read back a plain `I32`, which is a convention change and an occurrence
+   change at once - and `borrowed` above is where that slot is visible in the golden.
+-}
+fn twice(->x: Int) -> Int = x * 10 + x
+
+fn main() -> Int:
+    let a = check(branched(5) == 10, 1)
+    let b = check(branched(1) == 3, 2)
+    let c = check(counted(3) == 12, 4)
+    let d = check(borrowed(7) == 107, 8)
+    let e = check(owning(4) == 8, 16)
+    let f = check(record(2) == 7, 32)
+    let g = check(boolean(True, False) == 1, 64)
+    let h = check(boolean(True, True) == 0, 128)
+    let j = check(narrow(5) == 1, 256)
+    let k = check(twice(6) == 66, 512)
+
+    -- `live` weighted so that a teardown run twice or not at all is a different number rather than a
+    -- different digit, and `trace` last because it is the order rather than the count.
+    return a + b + c + d + e + f + g + h + j + k + live * 10000 + trace

@@ -86,8 +86,49 @@ void Editor::leaveRegion() {
 }
 
 Value* Editor::addBlockArgument(Block& block, const Occurrence& occurrence, Convention convention) {
+    // The building form, and the refusal is about the caller rather than about the IR: an argument
+    // holds on entry rather than occupying a position among the instructions, so a *builder* naming
+    // a block it has already emitted into has named the wrong block. A pass adding one to a
+    // finished body is a legitimate shape and says so by name - see `declareBlockArgument`.
     assertTrue(block.instructionList.size() == 0);
+    return makeBlockArgument(block, occurrence, convention);
+}
 
+Value* Editor::declareBlockArgument(Block& block, const Occurrence& occurrence,
+                                    Convention convention) {
+    assertTrue(!block.deleted);
+
+    // The edges are left short until the caller fills them - see the note in build.h, which is
+    // where the window and whose obligation it is are written down.
+    auto value = makeBlockArgument(block, occurrence, convention);
+    markChanged();
+    return value;
+}
+
+void Editor::addEdgeArgument(Inst& terminator, Size arm, Use value) {
+    assertTrue(isTerminator(terminator.kind));
+    assertTrue(value.isSet());
+
+    Edge* found = nullptr;
+    Size at = 0;
+    forEachEdge(terminator, [&](Edge& edge) { if(at++ == arm) found = &edge; });
+
+    assertTrue(found != nullptr && found->target != nullptr);
+
+    found->arguments.push(arena, value);
+    recordUse(terminator, value);
+
+    // The edge may be short of what its target declares - that is the window this operation exists
+    // inside - but it may never run past it: an operand more than the target has arguments is a
+    // caller filling the same edge twice, which no later fill can take back.
+    assertTrue(found->arguments.size() <= base()[found->target]->argumentList.size());
+
+    markValues();
+    markChanged();
+}
+
+Value* Editor::makeBlockArgument(Block& block, const Occurrence& occurrence,
+                                 Convention convention) {
     auto value = new (arena) Value(occurrence, convention);
     value->id = ValueId(body.values.push(arena, value - base()));
     value->block = &block - base();
@@ -571,16 +612,22 @@ Inst* Editor::makeJump(LocationId source, Block& target, const Use* arguments, S
 
 Inst* Editor::makeBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse,
                          const Use* arguments, Size count) {
-    assertTrue(count == whenTrue.argumentList.size() && count == whenFalse.argumentList.size());
+    return makeBranchEdges(source, condition, whenTrue, arguments, count, whenFalse, arguments,
+                           count);
+}
+
+Inst* Editor::makeBranchEdges(LocationId source, Use condition,
+                              Block& whenTrue, const Use* trueArguments, Size trueCount,
+                              Block& whenFalse, const Use* falseArguments, Size falseCount) {
+    assertTrue(trueCount == whenTrue.argumentList.size());
+    assertTrue(falseCount == whenFalse.argumentList.size());
 
     auto inst = new (arena) InstBranch(source, condition);
     inst->whenTrue.target = &whenTrue - base();
     inst->whenFalse.target = &whenFalse - base();
 
-    for(Size i = 0; i < count; i++) {
-        inst->whenTrue.arguments.push(arena, arguments[i]);
-        inst->whenFalse.arguments.push(arena, arguments[i]);
-    }
+    for(Size i = 0; i < trueCount; i++) inst->whenTrue.arguments.push(arena, trueArguments[i]);
+    for(Size i = 0; i < falseCount; i++) inst->whenFalse.arguments.push(arena, falseArguments[i]);
 
     return inst;
 }

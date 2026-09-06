@@ -4,12 +4,12 @@ main<complex>(): I32 {
     jmp b_1
   }
 
-  b_1 {
-    jmp b_2
-  }
-
   b_2 {
     jmp b_3
+  }
+
+  b_3 {
+    jmp b_4
   }
 
   b_4 {
@@ -20,12 +20,17 @@ main<complex>(): I32 {
     jmp b_6
   }
 
-  b_7 {
-    jmp b_8
+  b_6 {
+    jmp b_7
   }
 
-  b_8 {
+  b_7 {
+    %v_8 = select 1, 256, 0: I32
     jmp b_9
+  }
+
+  b_9 {
+    jmp b_10
   }
 
   b_10 {
@@ -36,15 +41,17 @@ main<complex>(): I32 {
     jmp b_12
   }
 
+  b_12 {
+    jmp b_13
+  }
+
   b_13 {
     jmp b_14
   }
 
   b_14 {
-    jmp b_15
-  }
-
-  b_16 {
+    %v_15 = add %v_8, 512: I32
+    %v_16 = select 1, %v_15, %v_8: I32
     jmp b_17
   }
 
@@ -53,22 +60,14 @@ main<complex>(): I32 {
   }
 
   b_18 {
-    jmp b_19
+    %v_19 = add %v_16, 1024: I32
+    %v_20 = add 255, %v_19: I32
+    %v_21 = add %v_20, 2048: I32
+    %v_22 = add %v_21, 4096: I32
+    ret %v_22
   }
 
-  b_19 {
-    jmp b_20
-  }
-
-  b_20 {
-    jmp b_21
-  }
-
-  b_21 {
-    jmp b_22
-  }
-
-  b_22 {
+  b_1 {
     jmp b_23
   }
 
@@ -101,68 +100,11 @@ main<complex>(): I32 {
   }
 
   b_30 {
-    %v_31 = add 256, 512: I32
-    jmp b_32
+    jmp b_31
   }
 
-  b_32 {
-    jmp b_33
-  }
-
-  b_33 {
-    jmp b_34
-  }
-
-  b_34 {
-    %v_35 = add %v_31, 1024: I32
-    jmp b_36
-  }
-
-  b_36 {
-    %v_37 = add 255, %v_35: I32
-    %v_38 = add %v_37, 2048: I32
-    %v_39 = add %v_38, 4096: I32
-    ret %v_39
-  }
-
-  b_3 {
-    jmp b_40
-  }
-
-  b_40 {
-    jmp b_4
-  }
-
-  b_6 {
-    jmp b_41
-  }
-
-  b_41 {
-    jmp b_7
-  }
-
-  b_9 {
-    jmp b_42
-  }
-
-  b_42 {
-    jmp b_10
-  }
-
-  b_12 {
-    jmp b_43
-  }
-
-  b_43 {
-    jmp b_13
-  }
-
-  b_15 {
-    jmp b_44
-  }
-
-  b_44 {
-    jmp b_16
+  b_31 {
+    jmp b_2
   }
 }
 

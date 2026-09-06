@@ -37,84 +37,67 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   store inspect %2 borrow %0
   store inspect %3 borrow %1
   %8: I32 trivial = load inspect %2
-  %10: I32 trivial = load inspect %3
-  return consume %10
+  %11: I32 trivial = load inspect %3
+  return consume %11
 }
 
 fn accumulates(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
-  %2: %I32 address = alloc frame I32
-  %3: %I32 address = alloc frame I32
   store inspect %1 borrow %0
   %4: I32 trivial = const 0
-  store inspect %2 consume %4
   %5: I32 trivial = const 0
-  store inspect %3 consume %5
-  jump -> bb1
-
-bb1:
-  %6: I32 trivial = load inspect %3
   %7: I32 trivial = load inspect %1
-  %8: Bool trivial = lt inspect %6 inspect %7
+  %14: I32 trivial = const 1
+  jump -> bb1(inspect %4, inspect %5)
+
+bb1(%16: I32 trivial, %17: I32 trivial):
+  %8: Bool trivial = lt inspect %17 inspect %7
   branch inspect %8 -> bb3 -> bb2
 
 bb2:
-  %9: I32 trivial = load inspect %2
-  return consume %9
+  return consume %16
 
 bb3:
-  %10: I32 trivial = load inspect %2
-  %11: I32 trivial = load inspect %3
-  %12: I32 trivial = add inspect %10 inspect %11
-  store inspect %2 consume %12
-  %14: I32 trivial = const 1
-  %15: I32 trivial = add inspect %11 inspect %14
-  store inspect %3 consume %15
-  jump -> bb1
+  %12: I32 trivial = add inspect %16 inspect %17
+  %15: I32 trivial = add inspect %17 inspect %14
+  jump -> bb1(inspect %12, inspect %15)
 }
 
 fn survives(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
-  %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
   %3: I32 trivial = const 0
-  store inspect %2 consume %3
-  jump -> bb1
-
-bb1:
-  %4: I32 trivial = load inspect %2
   %5: I32 trivial = load inspect %1
-  %6: Bool trivial = lt inspect %4 inspect %5
+  %9: I32 trivial = const 1
+  jump -> bb1(inspect %3)
+
+bb1(%11: I32 trivial):
+  %6: Bool trivial = lt inspect %11 inspect %5
   branch inspect %6 -> bb3 -> bb2
 
 bb2:
-  %7: I32 trivial = load inspect %2
-  return consume %7
+  return consume %11
 
 bb3:
-  %8: I32 trivial = load inspect %2
-  %9: I32 trivial = const 1
-  %10: I32 trivial = add inspect %8 inspect %9
-  store inspect %2 consume %10
-  jump -> bb1
+  %10: I32 trivial = add inspect %11 inspect %9
+  jump -> bb1(inspect %10)
 }
 
 fn owning(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
-  %2: %I32 address = alloc frame I32
   %3: %Held address = alloc frame Held
   store inspect %1 borrow %0
   %4: I32 trivial = const 0
-  store inspect %2 consume %4
-  jump -> bb1
+  %17: I32 trivial = const 1
+  %12: I32 trivial = const 1
+  jump -> bb1(inspect %4)
 
-bb1:
-  %5: I32 trivial = load inspect %2
+bb1(%22: I32 trivial):
   %6: I32 trivial = load inspect %1
-  %7: Bool trivial = lt inspect %5 inspect %6
+  %7: Bool trivial = lt inspect %22 inspect %6
   branch inspect %7 -> bb3 -> bb2
 
 bb2:
@@ -122,102 +105,142 @@ bb2:
   return consume %8
 
 bb3:
-  %9: I32 trivial = load inspect %2
-  %14: %I32 address = alloc frame I32 [shared call]
-  store inspect %14 borrow %9
   %15: %I32 address = global.addr live
   %16: I32 trivial = load inspect %15
-  %17: I32 trivial = const 1
   %18: I32 trivial = add inspect %16 inspect %17
   %19: %I32 address = global.addr live
   store inspect %19 consume %18
-  %20: I32 trivial = load inspect %14
-  %21: Held owned = aggregate.Held consume %20
+  %21: Held owned = aggregate.Held consume %22
   store inspect %3 consume %21
   drop Held inspect %3
-  %11: I32 trivial = load inspect %2
-  %12: I32 trivial = const 1
-  %13: I32 trivial = add inspect %11 inspect %12
-  store inspect %2 consume %13
-  jump -> bb1
+  %13: I32 trivial = add inspect %22 inspect %12
+  jump -> bb1(inspect %13)
 }
 
 fn escapes(n: I32 [shared call], stop: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
-  %4: %I32 address = alloc frame I32
   store inspect %2 borrow %0
   store inspect %3 borrow %1
   %5: I32 trivial = const 0
-  store inspect %4 consume %5
-  jump -> bb1
-
-bb1:
-  %6: I32 trivial = load inspect %4
   %7: I32 trivial = load inspect %2
-  %8: Bool trivial = lt inspect %6 inspect %7
+  %11: I32 trivial = load inspect %3
+  %14: I32 trivial = const 1
+  jump -> bb1(inspect %5)
+
+bb1(%16: I32 trivial):
+  %8: Bool trivial = lt inspect %16 inspect %7
   branch inspect %8 -> bb3 -> bb2
 
 bb2:
-  %9: I32 trivial = load inspect %4
-  return consume %9
+  return consume %16
 
 bb3:
-  %10: I32 trivial = load inspect %4
-  %11: I32 trivial = load inspect %3
-  %12: Bool trivial = eq inspect %10 inspect %11
+  %12: Bool trivial = eq inspect %16 inspect %11
   branch inspect %12 -> bb2 -> bb4
 
 bb4:
-  %13: I32 trivial = load inspect %4
-  %14: I32 trivial = const 1
-  %15: I32 trivial = add inspect %13 inspect %14
-  store inspect %4 consume %15
-  jump -> bb1
+  %15: I32 trivial = add inspect %16 inspect %14
+  jump -> bb1(inspect %15)
+}
+
+fn deadFor(n: I32 [shared call], k: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %10: %I32 address = alloc frame I32 [shared call]
+  %11: %I32 address = alloc frame I32 [shared call]
+  store inspect %10 borrow %0
+  store inspect %11 borrow %1
+  %15: I32 trivial = load inspect %10
+  %24: I32 trivial = load inspect %11
+  return consume %24
+}
+
+fn forAccumulates(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %9: %I32 address = alloc frame I32 [shared call]
+  store inspect %9 borrow %0
+  %13: I32 trivial = const 0
+  %14: I32 trivial = load inspect %9
+  %15: I32 trivial = const 0
+  %16: I32 trivial = const 1
+  jump -> bb1(inspect %13, inspect %15)
+
+bb1(%26: I32 trivial, %27: I32 trivial):
+  %18: Bool trivial = lt inspect %27 inspect %14
+  branch inspect %18 -> bb4 -> bb3
+
+bb3:
+  return consume %26
+
+bb4:
+  %25: I32 trivial = add inspect %26 inspect %27
+  %20: I32 trivial = add inspect %27 inspect %16
+  jump -> bb1(inspect %25, inspect %20)
+}
+
+fn forBreaks(n: I32 [shared call], stop: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %16: %I32 address = alloc frame I32 [shared call]
+  %17: %I32 address = alloc frame I32 [shared call]
+  store inspect %16 borrow %0
+  store inspect %17 borrow %1
+  %21: I32 trivial = const 0
+  %22: I32 trivial = load inspect %16
+  %23: I32 trivial = const 0
+  %24: I32 trivial = const 1
+  %32: I32 trivial = load inspect %17
+  jump -> bb1(inspect %23)
+
+bb1(%36: I32 trivial):
+  %26: Bool trivial = lt inspect %36 inspect %22
+  branch inspect %26 -> bb4 -> bb3(inspect %21)
+
+bb3(%37: I32 trivial):
+  return consume %37
+
+bb4:
+  %33: Bool trivial = eq inspect %36 inspect %32
+  branch inspect %33 -> bb7 -> bb5
+
+bb5:
+  %28: I32 trivial = add inspect %36 inspect %24
+  jump -> bb1(inspect %28)
+
+bb7:
+  jump -> bb3(inspect %36)
 }
 
 fn nested(rows: I32 [shared call], columns: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
-  %4: %I32 address = alloc frame I32
-  %5: %I32 address = alloc frame I32
   store inspect %2 borrow %0
   store inspect %3 borrow %1
   %8: I32 trivial = const 0
-  store inspect %4 consume %8
   %9: I32 trivial = const 0
-  store inspect %5 consume %9
-  jump -> bb1
-
-bb1:
-  %10: I32 trivial = load inspect %5
   %11: I32 trivial = load inspect %2
-  %12: Bool trivial = lt inspect %10 inspect %11
+  %16: I32 trivial = load inspect %3
+  %22: I32 trivial = const 1
+  jump -> bb1(inspect %8, inspect %9)
+
+bb1(%30: I32 trivial, %31: I32 trivial):
+  %12: Bool trivial = lt inspect %31 inspect %11
   branch inspect %12 -> bb3 -> bb2
 
 bb2:
-  %13: I32 trivial = load inspect %4
-  return consume %13
+  return consume %30
 
 bb3:
-  %16: I32 trivial = load inspect %3
-  %18: I32 trivial = load inspect %4
-  %19: I32 trivial = load inspect %5
-  %20: I32 trivial = add inspect %18 inspect %19
-  store inspect %4 consume %20
-  %22: I32 trivial = const 1
-  %23: I32 trivial = add inspect %19 inspect %22
-  store inspect %5 consume %23
-  jump -> bb1
+  %20: I32 trivial = add inspect %30 inspect %31
+  %23: I32 trivial = add inspect %31 inspect %22
+  jump -> bb1(inspect %20, inspect %23)
 }
 
 fn guarded(x: I32 [shared call], d: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
-  %4: %I32 address = alloc frame I32
   store inspect %2 borrow %0
   store inspect %3 borrow %1
   %5: I32 trivial = load inspect %3
@@ -233,14 +256,12 @@ bb3:
   %9: I32 trivial = load inspect %2
   %10: I32 trivial = load inspect %3
   %11: I32 trivial = div inspect %9 inspect %10
-  store inspect %4 consume %11
   %13: I32 trivial = const 0
   %14: Bool trivial = eq inspect %10 inspect %13
   branch inspect %14 -> bb6 -> bb4
 
 bb4:
-  %15: I32 trivial = load inspect %4
-  return consume %15
+  return consume %11
 
 bb6:
   %16: I32 trivial = const -1
@@ -275,182 +296,165 @@ bb3:
 
 fn main() -> I32 {
 bb0:
-  %163: I32 trivial = const 6
+  %247: I32 trivial = const 6
   %5: I32 trivial = const 5
-  %55: %I32 address = alloc frame I32 [shared call]
-  %56: %I32 address = alloc frame I32
-  %57: %I32 address = alloc frame I32
-  store inspect %55 borrow %5
-  %58: I32 trivial = const 0
-  store inspect %56 consume %58
-  %59: I32 trivial = const 0
-  store inspect %57 consume %59
-  jump -> bb4
+  %75: I32 trivial = const 0
+  %76: I32 trivial = const 0
+  %78: I32 trivial = const 1
+  jump -> bb4(inspect %75, inspect %76)
 
-bb4:
-  %60: I32 trivial = load inspect %57
-  %61: I32 trivial = load inspect %55
-  %62: Bool trivial = lt inspect %60 inspect %61
-  branch inspect %62 -> bb6 -> bb5
+bb4(%72: I32 trivial, %73: I32 trivial):
+  %79: Bool trivial = lt inspect %73 inspect %5
+  branch inspect %79 -> bb6 -> bb5
 
 bb5:
-  %63: I32 trivial = load inspect %56
   %7: I32 trivial = const 3
-  %8: I32 trivial = mul inspect %63 inspect %7
-  %9: I32 trivial = add inspect %163 inspect %8
+  %8: I32 trivial = mul inspect %72 inspect %7
+  %9: I32 trivial = add inspect %247 inspect %8
   %10: I32 trivial = const 6
-  %70: %I32 address = alloc frame I32 [shared call]
-  %71: %I32 address = alloc frame I32
-  store inspect %70 borrow %10
-  %72: I32 trivial = const 0
-  store inspect %71 consume %72
-  jump -> bb10
+  %85: I32 trivial = const 0
+  %87: I32 trivial = const 1
+  jump -> bb10(inspect %85)
 
 bb6:
-  %64: I32 trivial = load inspect %56
-  %65: I32 trivial = load inspect %57
-  %66: I32 trivial = add inspect %64 inspect %65
-  store inspect %56 consume %66
-  %67: I32 trivial = const 1
-  %68: I32 trivial = add inspect %65 inspect %67
-  store inspect %57 consume %68
-  jump -> bb4
+  %80: I32 trivial = add inspect %72 inspect %73
+  %81: I32 trivial = add inspect %73 inspect %78
+  jump -> bb4(inspect %80, inspect %81)
 
-bb10:
-  %73: I32 trivial = load inspect %71
-  %74: I32 trivial = load inspect %70
-  %75: Bool trivial = lt inspect %73 inspect %74
-  branch inspect %75 -> bb12 -> bb11
+bb10(%83: I32 trivial):
+  %88: Bool trivial = lt inspect %83 inspect %10
+  branch inspect %88 -> bb12 -> bb11
 
 bb11:
-  %76: I32 trivial = load inspect %71
   %12: I32 trivial = const 5
-  %13: I32 trivial = mul inspect %76 inspect %12
+  %13: I32 trivial = mul inspect %83 inspect %12
   %14: I32 trivial = add inspect %9 inspect %13
   %15: I32 trivial = const 4
-  %81: %I32 address = alloc frame I32 [shared call]
-  %82: %I32 address = alloc frame I32
-  %83: %Held address = alloc frame Held
-  store inspect %81 borrow %15
-  %84: I32 trivial = const 0
-  store inspect %82 consume %84
-  jump -> bb16
+  %93: %Held address = alloc frame Held
+  %94: I32 trivial = const 0
+  %95: I32 trivial = const 1
+  %96: I32 trivial = const 1
+  jump -> bb16(inspect %94)
 
 bb12:
-  %77: I32 trivial = load inspect %71
-  %78: I32 trivial = const 1
-  %79: I32 trivial = add inspect %77 inspect %78
-  store inspect %71 consume %79
-  jump -> bb10
+  %89: I32 trivial = add inspect %83 inspect %87
+  jump -> bb10(inspect %89)
 
-bb16:
-  %85: I32 trivial = load inspect %82
-  %86: I32 trivial = load inspect %81
-  %87: Bool trivial = lt inspect %85 inspect %86
-  branch inspect %87 -> bb18 -> bb17
+bb16(%91: I32 trivial):
+  %98: Bool trivial = lt inspect %91 inspect %15
+  branch inspect %98 -> bb18 -> bb17
 
 bb17:
   %20: I32 trivial = const 9
   %21: I32 trivial = const 4
-  %102: %I32 address = alloc frame I32 [shared call]
-  %103: %I32 address = alloc frame I32 [shared call]
-  %104: %I32 address = alloc frame I32
-  store inspect %102 borrow %20
-  store inspect %103 borrow %21
-  %105: I32 trivial = const 0
-  store inspect %104 consume %105
-  jump -> bb22
+  %110: I32 trivial = const 0
+  %113: I32 trivial = const 1
+  jump -> bb22(inspect %110)
 
 bb18:
-  %89: I32 trivial = load inspect %82
-  %90: %I32 address = alloc frame I32 [shared call]
-  store inspect %90 borrow %89
-  %91: %I32 address = global.addr live
-  %92: I32 trivial = load inspect %91
-  %93: I32 trivial = const 1
-  %94: I32 trivial = add inspect %92 inspect %93
-  %95: %I32 address = global.addr live
-  store inspect %95 consume %94
-  %96: I32 trivial = load inspect %90
-  %97: Held owned = aggregate.Held consume %96
-  store inspect %83 consume %97
-  drop Held inspect %83
-  %98: I32 trivial = load inspect %82
-  %99: I32 trivial = const 1
-  %100: I32 trivial = add inspect %98 inspect %99
-  store inspect %82 consume %100
-  jump -> bb16
+  %100: %I32 address = global.addr live
+  %101: I32 trivial = load inspect %100
+  %102: I32 trivial = add inspect %101 inspect %95
+  %103: %I32 address = global.addr live
+  store inspect %103 consume %102
+  %104: Held owned = aggregate.Held consume %91
+  store inspect %93 consume %104
+  drop Held inspect %93
+  %105: I32 trivial = add inspect %91 inspect %96
+  jump -> bb16(inspect %105)
 
-bb22:
-  %106: I32 trivial = load inspect %104
-  %107: I32 trivial = load inspect %102
-  %108: Bool trivial = lt inspect %106 inspect %107
-  branch inspect %108 -> bb23 -> bb25
+bb22(%107: I32 trivial):
+  %114: Bool trivial = lt inspect %107 inspect %20
+  branch inspect %114 -> bb23 -> bb25
 
 bb23:
-  %109: I32 trivial = load inspect %104
-  %110: I32 trivial = load inspect %103
-  %111: Bool trivial = eq inspect %109 inspect %110
-  branch inspect %111 -> bb25 -> bb24
+  %115: Bool trivial = eq inspect %107 inspect %21
+  branch inspect %115 -> bb25 -> bb24
 
 bb24:
-  %112: I32 trivial = load inspect %104
-  %113: I32 trivial = const 1
-  %114: I32 trivial = add inspect %112 inspect %113
-  store inspect %104 consume %114
-  jump -> bb22
+  %116: I32 trivial = add inspect %107 inspect %113
+  jump -> bb22(inspect %116)
 
 bb25:
-  %115: I32 trivial = load inspect %104
   %23: I32 trivial = const 11
-  %24: I32 trivial = mul inspect %115 inspect %23
+  %24: I32 trivial = mul inspect %107 inspect %23
   %25: I32 trivial = add inspect %14 inspect %24
   %26: I32 trivial = const 3
-  %27: I32 trivial = const 4
-  %117: %I32 address = alloc frame I32 [shared call]
-  %118: %I32 address = alloc frame I32 [shared call]
-  %119: %I32 address = alloc frame I32
-  %120: %I32 address = alloc frame I32
-  store inspect %117 borrow %26
-  store inspect %118 borrow %27
-  %121: I32 trivial = const 0
-  store inspect %119 consume %121
   %122: I32 trivial = const 0
-  store inspect %120 consume %122
-  jump -> bb29
+  %123: I32 trivial = const 0
+  %126: I32 trivial = const 1
+  jump -> bb29(inspect %122, inspect %123)
 
-bb29:
-  %123: I32 trivial = load inspect %120
-  %124: I32 trivial = load inspect %117
-  %125: Bool trivial = lt inspect %123 inspect %124
-  branch inspect %125 -> bb31 -> bb30
+bb29(%118: I32 trivial, %119: I32 trivial):
+  %127: Bool trivial = lt inspect %119 inspect %26
+  branch inspect %127 -> bb31 -> bb30
 
 bb30:
-  %126: I32 trivial = load inspect %119
   %29: I32 trivial = const 13
-  %30: I32 trivial = mul inspect %126 inspect %29
+  %30: I32 trivial = mul inspect %118 inspect %29
   %31: I32 trivial = add inspect %25 inspect %30
-  %170: I32 trivial = const 357
-  %37: I32 trivial = add inspect %31 inspect %170
-  %177: I32 trivial = const 228
-  %44: I32 trivial = add inspect %37 inspect %177
+  %260: I32 trivial = const 357
+  %37: I32 trivial = add inspect %31 inspect %260
+  %262: I32 trivial = const 228
+  %44: I32 trivial = add inspect %37 inspect %262
   %45: %I32 address = global.addr live
   %46: I32 trivial = load inspect %45
   %47: I32 trivial = const 23
   %48: I32 trivial = mul inspect %46 inspect %47
   %49: I32 trivial = add inspect %44 inspect %48
-  return consume %49
+  %252: I32 trivial = const 87
+  %55: I32 trivial = add inspect %49 inspect %252
+  %56: I32 trivial = const 5
+  %165: I32 trivial = const 0
+  %167: I32 trivial = const 0
+  %168: I32 trivial = const 1
+  jump -> bb47(inspect %165, inspect %167)
 
 bb31:
-  %127: I32 trivial = load inspect %118
-  %128: I32 trivial = load inspect %119
-  %129: I32 trivial = load inspect %120
-  %130: I32 trivial = add inspect %128 inspect %129
-  store inspect %119 consume %130
-  %131: I32 trivial = const 1
-  %132: I32 trivial = add inspect %129 inspect %131
-  store inspect %120 consume %132
-  jump -> bb29
+  %128: I32 trivial = add inspect %118 inspect %119
+  %129: I32 trivial = add inspect %119 inspect %126
+  jump -> bb29(inspect %128, inspect %129)
+
+bb47(%162: I32 trivial, %163: I32 trivial):
+  %169: Bool trivial = lt inspect %163 inspect %56
+  branch inspect %169 -> bb49 -> bb48
+
+bb48:
+  %58: I32 trivial = const 31
+  %59: I32 trivial = mul inspect %162 inspect %58
+  %60: I32 trivial = add inspect %55 inspect %59
+  %61: I32 trivial = const 9
+  %62: I32 trivial = const 4
+  %177: I32 trivial = const 0
+  %179: I32 trivial = const 0
+  %180: I32 trivial = const 1
+  jump -> bb53(inspect %179)
+
+bb49:
+  %170: I32 trivial = add inspect %162 inspect %163
+  %171: I32 trivial = add inspect %163 inspect %168
+  jump -> bb47(inspect %170, inspect %171)
+
+bb53(%173: I32 trivial):
+  %182: Bool trivial = lt inspect %173 inspect %61
+  branch inspect %182 -> bb54 -> bb57(inspect %177)
+
+bb54:
+  %183: Bool trivial = eq inspect %173 inspect %62
+  branch inspect %183 -> bb56 -> bb55
+
+bb55:
+  %184: I32 trivial = add inspect %173 inspect %180
+  jump -> bb53(inspect %184)
+
+bb56:
+  jump -> bb57(inspect %173)
+
+bb57(%174: I32 trivial):
+  %64: I32 trivial = const 37
+  %65: I32 trivial = mul inspect %174 inspect %64
+  %66: I32 trivial = add inspect %60 inspect %65
+  return consume %66
 }
 
 entry main

@@ -17,7 +17,9 @@
  * ## The ownership rule, which is what makes this the safe tier to do any of it in
  *
  * Every rewrite here either **erases** an instruction or **unifies** two values, and the linear rule
- * is what decides which instructions may be either. `isRemovable` is the whole of it:
+ * is what decides which instructions may be either. `isRemovable` is the whole of it - defined in
+ * `opt/cse.cpp`, because the walk of the dominator tree there asks the same question and two
+ * spellings of it is one of them learning about a new convention and the other not:
  *
  *  - only a **`kSsaPure`** kind, which is the column that says an instruction may be recomputed or
  *    not computed at all;
@@ -101,39 +103,17 @@ struct Simplifier {
     }
 
     /*
-     * Whether this instruction may be taken out or stood in for - the ownership rule, see the file
-     * comment, which is where each of the three clauses is argued.
+     * The three questions all five rewrites ask - `opt/cse.cpp`, where each is defined and where the
+     * walk of the dominator tree asks the same three.
+     *
+     * Wrappers rather than calls at every site, because the context is the only argument they add
+     * and this file asks them a dozen times. `isRemovable` is the ownership rule and the file
+     * comment above is where its three clauses are argued; `isUnifiable` is whether one value may
+     * stand for another; `soleResult` is the one result a substitution needs.
      */
-    bool isRemovable(Inst& inst) {
-        if(!isPure(inst.kind)) return false;
-
-        auto ok = true;
-        forEachUse(opt.base, inst, [&](Use used) {
-            if(!used.isSet()) { ok = false; return; }
-            if(used.kind() == UseKind::Consume) ok = false;
-            if(isTracked(opt.base[used.value()]->convention)) ok = false;
-        });
-
-        for(auto resultPointer: inst.results.contents(opt.base)) {
-            auto convention = opt.base[resultPointer]->convention;
-            if(convention != Convention::Trivial && convention != Convention::Address) ok = false;
-        }
-
-        return ok;
-    }
-
-    // Whether one value may stand for another. The conventions have to *agree* rather than merely
-    // both be untracked: replacing an address by a scalar is not a substitution however the linear
-    // rule reads it, and `Guaranteed` is declined above before this is asked.
-    bool isUnifiable(Value& from, Value& to) {
-        return from.convention == to.convention &&
-               (from.convention == Convention::Trivial || from.convention == Convention::Address);
-    }
-
-    Value* soleResult(Inst& inst) {
-        if(inst.results.size() != 1) return nullptr;
-        return opt.base[inst.results.get(opt.base, 0)];
-    }
+    bool isRemovable(Inst& inst) { return ssa::isRemovable(opt, inst); }
+    bool isUnifiable(Value& from, Value& to) { return ssa::isUnifiable(from, to); }
+    Value* soleResult(Inst& inst) { return ssa::soleResult(opt, inst); }
 
     // The readers of one value pointed at another and the instruction taken out, in that order -
     // `eraseInst` asserts that nothing reads what it removes.
@@ -254,126 +234,23 @@ struct Simplifier {
         return true;
     }
 
-    /*
-     * Whether two instructions carry the same thing beside their operands - the shipping stage's
-     * `sameExtra`, as one switch.
-     *
-     * **The default declines**, and that is the whole design of it: a kind this has never been
-     * looked at for is one whose immediates might be anything, so it is left alone rather than
-     * unified on its operands alone. What that costs is a removal; what the other default would cost
-     * is two `field.addr`s at different fields becoming one.
-     */
-    bool sameImmediates(Inst& a, Inst& b) {
-        switch(a.kind) {
-            case Inst::Const:
-                return ((InstConst&)a).constant == ((InstConst&)b).constant;
-            case Inst::Binary:
-                return ((InstBinary&)a).op == ((InstBinary&)b).op;
-            case Inst::Unary:
-                return ((InstUnary&)a).op == ((InstUnary&)b).op;
-            case Inst::Select:
-                return true;
-            case Inst::Fma:
-                return true;
-            case Inst::GlobalAddress:
-                return ((InstGlobalAddress&)a).global == ((InstGlobalAddress&)b).global;
-            case Inst::FieldAddress: {
-                auto& left = (InstFieldAddress&)a;
-                auto& right = (InstFieldAddress&)b;
-                return left.record == right.record && left.field == right.field &&
-                       left.shape == right.shape && left.property == right.property;
-            }
-            case Inst::ElementAddress:
-                return ((InstElementAddress&)a).container == ((InstElementAddress&)b).container;
-            case Inst::Metric: {
-                auto& left = (InstMetric&)a;
-                auto& right = (InstMetric&)b;
-                return left.metric == right.metric && left.of == right.of;
-            }
-            default:
-                return false;
-        }
-    }
-
-    /*
-     * Whether two pure instructions compute the same thing.
-     *
-     * Operands are compared as SSA values, which makes this an equality rather than a congruence:
-     * two instructions with equal-but-distinct operands are left alone, and the queue catches them
-     * once the operands themselves have been unified. The **use kind** is compared with the value,
-     * because a borrow and an inspection of one value are two different statements about it.
-     *
-     * The results have to agree on their whole occurrence and on their convention, not only on the
-     * logical type: an owned `String` and a shared window into one are the same type and different
-     * representations, and `Value::occurrence` is the field that says so.
-     */
-    bool sameComputation(Inst& a, Inst& b) {
-        if(a.kind != b.kind || !sameImmediates(a, b)) return false;
-        if(a.results.size() != b.results.size()) return false;
-
-        for(Size i = 0; i < a.results.size(); i++) {
-            auto left = opt.base[a.results.get(opt.base, i)];
-            auto right = opt.base[b.results.get(opt.base, i)];
-
-            if(left->occurrence != right->occurrence) return false;
-            if(left->convention != right->convention) return false;
-        }
-
-        SmallArray<Use, 4> left, right;
-        forEachUse(opt.base, a, [&](Use used) { left.push(used); });
-        forEachUse(opt.base, b, [&](Use used) { right.push(used); });
-
-        if(left.size() != right.size()) return false;
-
-        for(Size i = 0; i < left.size(); i++) {
-            if(left[i].packed != right[i].packed) return false;
-        }
-
-        return true;
-    }
-
-    /*
-     * A computation over nothing but constants, which is worth *more* than removing it would save.
-     *
-     * The target spells one of these where it is used rather than computing it - an immediate operand
-     * - so giving it a second reader is what stops that: the value then has to exist somewhere both
-     * readers can see, which is a register. Unifying two of them turns two free things into one that
-     * costs. The shipping stage found this with `null`, where unifying two pointer zeroes took a
-     * record literal apart into a literal and two assignments to it.
-     *
-     * An instruction with **no operands at all** is the same rule stated at the leaf, and this stage
-     * reads it the other way round from the shipping stage's. That one keeps `sizeof` and a symbol's
-     * address out of the exemption - "constants the target supplies rather than ones written here" -
-     * and here the corpus says otherwise: `global.addr` is such an instruction, `lower/inst.cpp`
-     * folds a **single-reader** one straight into the access it addresses, and unifying the two in
-     * `log = log + 1` gave it two readers and took the address out into a value of its own. Fourteen
-     * lines across `lens/Iterator.yana` alone, for one instruction removed. So the exemption is
-     * "materialized where it is used", which covers `const`, `global.addr`, `metric`, `gen.value` and
-     * `fun.value` in one clause rather than by a list of kinds.
-     */
-    bool materializedAtUse(Inst& inst) {
-        Size operands = 0;
-        Size constants = 0;
-
-        forEachUse(opt.base, inst, [&](Use used) {
-            operands++;
-
-            auto definer = used.isSet() ? opt.base[used.value()]->definer : nullptr;
-            if(definer && opt.base[definer]->kind == Inst::Const) constants++;
-        });
-
-        return operands == constants;
-    }
+    // Whether two pure instructions compute the same thing, and whether one is spelled at its use
+    // rather than computed - `opt/cse.cpp`, which is where both are defined and argued. The
+    // block-local CSE below and the walk of the dominator tree there are one rewrite at two scopes,
+    // so they are one statement of what "the same" means.
+    bool sameComputation(Inst& a, Inst& b) { return ssa::sameComputation(opt, a, b); }
+    bool materializedAtUse(Inst& inst) { return ssa::materializedAtUse(opt, inst); }
 
     /*
      * Block-local pure CSE: the second of two identical computations answered by the first.
      *
-     * **Block-local, deliberately.** `eliminateCommonValues` in `lower/lower_cse.cpp` is the one that
-     * walks the dominator tree, it runs over this stage's output through `optimizeLowerFunction`, and
-     * a second dominator-tree CSE here would be the same answer computed twice - README.md's section
-     * A rules on it. What is left for this tier is the case that walk cannot reach *cheaply enough to
-     * be worth a second analysis*: two spellings of one expression side by side, which is what the
-     * folds above and the inliner below produce.
+     * **Block-local, deliberately.** `cse` in `opt/cse.cpp` is the one that walks the dominator tree,
+     * and this is not that pass with a smaller scope: it is the case a worklist over uses reaches for
+     * free, because within one block "the first one dominates the second" is the instruction order.
+     * What the folds above and the inliner below produce is two spellings of one expression standing
+     * side by side, and a queue that is already running answers those without a tree or a scope
+     * stack. The two share one statement of what "the same computation" is - `sameComputation`,
+     * `isRemovable`, `isUnifiable` and `materializedAtUse`, declared in `pass.h`.
      *
      * Within one block, "the first one dominates the second" is the instruction order and needs no
      * tree at all - which is the whole reason this fits inside a worklist pass.

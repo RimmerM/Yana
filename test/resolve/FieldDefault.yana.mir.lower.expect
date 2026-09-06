@@ -12,59 +12,54 @@ main<complex>(): I32 {
   }
 
   b_5 {
-    %v_6 = phi [b_7, %v_8], [b_9, 18446744073709551607], [b_10, 18446744073709551610], [b_11, 18446744073709551613]: I32
-    jmp b_12
+    %v_6 = phi [b_7, %v_8], [b_9, 18446744073709551610], [b_10, 18446744073709551613]: I32
+    jmp b_11
   }
 
   b_4 {
-    jmp b_13
+    jmp b_12
   }
 
-  b_13 {
-    %v_14 = loads %v_1, 4: I32
-    %v_15 = cmp_neq %v_14, 7: I32
-    je %v_15, b_11, b_16
+  b_12 {
+    %v_13 = loads %v_1, 4: I32
+    %v_14 = cmp_neq %v_13, 7: I32
+    je %v_14, b_10, b_15
   }
 
-  b_16 {
-    %v_17 = alloca 4, 4: Ptr
-    store %v_17, 3, 4
-    copy %v_2, %v_17, 4
+  b_15 {
+    %v_16 = alloca 4, 4: Ptr
+    store %v_16, 3, 4
+    copy %v_2, %v_16, 4
+    jmp b_17
+  }
+
+  b_17 {
     jmp b_18
   }
 
   b_18 {
-    jmp b_19
+    %v_19 = loads %v_2, 4: I32
+    %v_20 = cmp_neq %v_19, 3: I32
+    je %v_20, b_9, b_21
   }
 
-  b_19 {
-    %v_20 = loads %v_2, 4: I32
-    %v_21 = cmp_neq %v_20, 3: I32
-    je %v_21, b_10, b_22
+  b_21 {
+    %v_22 = alloca 4, 4: Ptr
+    store %v_22, 9, 4
+    copy %v_3, %v_22, 4
+    jmp b_23
   }
 
-  b_22 {
-    %v_23 = alloca 4, 4: Ptr
-    store %v_23, 9, 4
-    copy %v_3, %v_23, 4
-    jmp b_24
-  }
-
-  b_24 {
-    jmp b_25
-  }
-
-  b_25 {
-    %v_26 = loads %v_3, 4: I32
-    %v_27 = cmp_neq %v_26, 9: I32
-    je %v_27, b_9, b_7
+  b_23 {
+    jmp b_7
   }
 
   b_7 {
-    %v_28 = loads %v_2, 4: I32
-    %v_29 = imul %v_28, 10: I32
-    %v_30 = loads %v_1, 4: I32
-    %v_8 = add %v_29, %v_30: I32
+    %v_24 = loads %v_3, 4: I32
+    %v_25 = cmp_neq %v_24, 9: I32
+    %v_26 = imul %v_19, 10: I32
+    %v_27 = add %v_26, %v_13: I32
+    %v_8 = select %v_25, 18446744073709551607, %v_27: I32
     jmp b_5
   }
 
@@ -76,16 +71,28 @@ main<complex>(): I32 {
     jmp b_5
   }
 
+  b_28 {
+    %v_29 = add %v_6, 150: I32
+    jmp b_30
+  }
+
   b_11 {
-    jmp b_5
+    jmp b_31
   }
 
   b_31 {
-    %v_32 = add %v_6, 150: I32
+    jmp b_32
+  }
+
+  b_32 {
     jmp b_33
   }
 
-  b_12 {
+  b_33 {
+    jmp b_28
+  }
+
+  b_30 {
     jmp b_34
   }
 
@@ -98,10 +105,6 @@ main<complex>(): I32 {
   }
 
   b_36 {
-    jmp b_31
-  }
-
-  b_33 {
     jmp b_37
   }
 
@@ -110,20 +113,8 @@ main<complex>(): I32 {
   }
 
   b_38 {
-    jmp b_39
-  }
-
-  b_39 {
-    jmp b_40
-  }
-
-  b_40 {
-    jmp b_41
-  }
-
-  b_41 {
-    %v_42 = add %v_32, 91: I32
-    ret %v_42
+    %v_39 = add %v_29, 91: I32
+    ret %v_39
   }
 }
 

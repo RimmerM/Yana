@@ -1,0 +1,160 @@
+{-
+   What promotion unlocked: a computation done twice answered once, and a computation done every
+   iteration done once - `compiler/resolve_ssa/opt/cse.cpp` and `hoist` in
+   `compiler/resolve_ssa/opt/loop.cpp`.
+
+   Both passes only reach anything because a local is a *value* here. Before phase 10 every named
+   value round-tripped through a slot, so "the same computation twice" was two computations over two
+   loads and "invariant" was a load of storage the pass had no reason to believe was unchanged. The
+   two rewrites are therefore stated as numbers rather than as shapes, on this file's standing terms:
+   a value unified with the wrong one and a read hoisted past a write that changes it are each
+   invisible in the emitted bytes and each change what this program answers, and the
+   optimized/unoptimized run comparison the driver makes is what turns either into a failure.
+
+   `.ssa.opt.expect` beside this is what says which of them actually fired, and the two **refusals**
+   are the half a passing number would not notice: the computation in sibling arms that is left
+   alone, and the read the loop's own write keeps where it is.
+
+   What is *not* here is the third thing phase 11 built. `range` - a zero test a dominating arm has
+   already decided, and the two widenings of one index unified under an unsigned bound - was rebuilt
+   on promoted IR, measured over the corpus and not kept; `DeadLoop.yana`'s `guarded` and `widened`
+   still carry those two shapes and the note in `opt/README.md` has the counts. So does
+   `threadBranches`, whose two remaining shapes need a branch arm going straight into a join that
+   declares arguments, which nothing in this stage produces.
+-}
+
+data Cell {value: Int, other: Int}
+
+fn check(ok: Bool, weight: Int) -> Int = if ok then weight else 0
+
+{-
+   One computation in a block that dominates another, answered once.
+
+   `a * b + 3` is written twice and the second is inside an arm the first is above, so the first
+   dominates the second and the walk of the dominator tree unifies them. `simplify`'s block-local CSE
+   cannot: the two are in different blocks, which is the whole reason `cse` is a pass and not a
+   clause.
+
+   The arm **returns**, and that is what keeps the shape readable in the golden rather than a
+   decoration: an arm that fell through to a join is a diamond producing a value, and
+   `convertSelects` would collapse it into one block two passes later - after `cse` had already done
+   the work, so the claim would hold and nothing in the golden would say which pass made it hold.
+
+   Both parameters are **consuming** and that is not decoration either: a plain `a: Int` arrives
+   borrowed into a slot whose loads read back a plain `I32`, which `promote` refuses, and the two
+   spellings of `a * b` would then be two multiplications of two different loads.
+   `PromoteLocals.yana`'s `twice` and `borrowed` are the pair that records that refusal.
+
+   The whole of `a * b + 3` is unified and not only the multiplication, and that is `sameOperand`:
+   the two `const 3`s are two instructions - `materializedAtUse` never gives one a second reader,
+   because a constant is spelled where it is read rather than computed - and comparing them by the
+   number they hold at the type they hold it at is what makes the two `add`s one computation. The
+   arm's constant is then unread and `simplify` takes it, so the golden has `add %9 %9` and one
+   `const 3` in the block above.
+-}
+@noinline
+fn dominating(->a: Int, ->b: Int) -> Int:
+    let first = a * b + 3
+
+    if first > 20 then return first + (a * b + 3)
+
+    return first
+
+{-
+   The refusal: the same computation in two arms neither of which dominates the other.
+
+   Unifying these would need the value in a block above both, which is a *hoist* into the head of a
+   diamond and is a different decision with a different cost - the arm that is not taken then pays
+   for the arm that is. Nothing here does that, and the golden is where both multiplications are
+   still visible.
+-}
+@noinline
+fn siblings(->a: Int, ->b: Int, pick: Bool) -> Int:
+    if pick then return a * b + 5
+
+    return (a * b + 5) * 2
+
+{-
+   A loop-invariant multiply, and the invariant read under it.
+
+   `factor` is a borrowed parameter, so its slot stays storage - and the read of it inside the loop
+   is a whole load of a **contained** frame allocation, which is what makes the read one no path can
+   fault on. Nothing in the loop writes that slot, so the load leaves; and once it has, `factor * 7`
+   has both operands outside and leaves with it. Two hoists out of one loop in one walk, which is
+   what the dominator preorder buys.
+-}
+@noinline
+fn scaled(n: Int, factor: Int) -> Int:
+    let &total = 0
+    let &i = 0
+
+    while i < n:
+        total = total + factor * 7
+        i = i + 1
+
+    return total
+
+{-
+   The same read through a field, which `cse` takes rather than `hoist`.
+
+   `cell` is reached by `field.addr`, so `promote` leaves it in storage - `PromoteLocals.yana`'s
+   third refusal. The address of `cell.other` is therefore computed inside the loop as well as above
+   it, and `hoist` declines both: an `Address` result does not move, on `lower_licm.cpp`'s measured
+   authority, and the read's own address is then a value defined inside the loop. What answers the
+   read instead is `cse`, one pass earlier: it unifies the two `field.addr`s and then the two loads
+   through them, because the block above the loop dominates the body and nothing in the loop writes
+   the record. §58.4 of `test/bench/findings.md` is the same shape one tier down, where the lower
+   LICM had to grow a rule for the address rather than for the load.
+-}
+@noinline
+fn invariantField(n: Int, seed: Int) -> Int:
+    let &cell = Cell {value: seed, other: 7}
+    let &total = cell.other
+    let &i = 0
+
+    while i < n:
+        total = total + cell.other
+        i = i + 1
+
+    return total
+
+{-
+   And the read that may not be answered from above, because the loop writes the storage it comes
+   from.
+
+   `cell.value` and `cell.other` are two fields of one record, so `mayWriteStorage` compares the
+   allocation they are rooted in and answers that the store may reach the read. That is the
+   conservative direction and it is the only sound one here: telling two fields apart is a question
+   about the projection chain, and what this pass has is a root. The read stays in the loop, which is
+   what the golden asserts - and the number is what says it still answers `7` every time rather than
+   the value the loop is busy changing.
+
+   `hoist` owes the identical refusal and asks the identical predicate, and it has **no shape** in
+   this stage - which is worth writing down rather than leaving to be re-derived. A read it could
+   move is a whole load of a contained allocation, and an allocation that is whole-loaded,
+   whole-stored and trivial is exactly the one `promote` takes: by the time the loops run there is no
+   slot left to write. So the rule is stated where both passes read it and fires here.
+-}
+@noinline
+fn writtenField(n: Int, seed: Int) -> Int:
+    let &cell = Cell {value: seed, other: 7}
+    let &total = cell.other
+    let &i = 0
+
+    while i < n:
+        cell.value = cell.value + 1
+        total = total + cell.other
+        i = i + 1
+
+    return total + cell.value
+
+fn main() -> Int:
+    let a = check(dominating(4, 6) == 54, 1)
+    let b = check(dominating(1, 2) == 5, 2)
+    let c = check(siblings(3, 4, True) == 17, 4)
+    let d = check(siblings(3, 4, False) == 34, 8)
+    let e = check(scaled(3, 5) == 105, 16)
+    let f = check(invariantField(4, 2) == 35, 32)
+    let g = check(writtenField(3, 10) == 41, 64)
+
+    return a + b + c + d + e + f + g

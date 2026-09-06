@@ -1,65 +1,5 @@
 mut @seed = [2, 0, 0, 0]
 
-construction<complex>(): I32 {
-  b_0 {
-    %v_1 = vsplat 0: i32x4
-    %v_2 = vwithlane %v_1, 1, 1: i32x4
-    %v_3 = vwithlane %v_2, 2, 2: i32x4
-    %v_4 = vwithlane %v_3, 3, 3: i32x4
-    %v_5 = vlane %v_1, 0: I32
-    %v_6 = cmp_neq %v_5, 0: I32
-    je %v_6, b_7, b_8
-  }
-
-  b_8 {
-    %v_9 = vlane %v_1, 1: I32
-    %v_10 = cmp_neq %v_9, 0: I32
-    je %v_10, b_11, b_12
-  }
-
-  b_7 {
-    ret 18446744073709551615
-  }
-
-  b_12 {
-    %v_13 = vlane %v_4, 0: I32
-    %v_14 = cmp_neq %v_13, 0: I32
-    je %v_14, b_15, b_16
-  }
-
-  b_11 {
-    ret 18446744073709551614
-  }
-
-  b_16 {
-    %v_17 = vlane %v_4, 1: I32
-    %v_18 = cmp_neq %v_17, 1: I32
-    je %v_18, b_19, b_20
-  }
-
-  b_15 {
-    ret 18446744073709551613
-  }
-
-  b_20 {
-    %v_21 = vreduce_add %v_4: I32
-    %v_22 = cmp_neq %v_21, 6: I32
-    je %v_22, b_23, b_24
-  }
-
-  b_19 {
-    ret 18446744073709551612
-  }
-
-  b_24 {
-    ret 0
-  }
-
-  b_23 {
-    ret 18446744073709551610
-  }
-}
-
 arithmetic<complex>(%v: i32x4): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
@@ -134,61 +74,6 @@ arithmetic<complex>(%v: i32x4): I32 {
 
   b_34 {
     ret 18446744073709551610
-  }
-}
-
-floats<complex>(): I32 {
-  b_0 {
-    %v_1 = vsplat -1.5: f32x4
-    %v_2 = vsplat 0: f32x4
-    %v_3 = abs %v_1: f32x4
-    %v_4 = vlane %v_3, 0: F32
-    %v_5 = cmp_neq %v_4, 1.5: I32
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = cmp_lt %v_1, %v_2: m32x4
-    %v_9 = select %v_8, %v_1, %v_2: f32x4
-    %v_10 = vlane %v_9, 0: F32
-    %v_11 = cmp_neq %v_10, -1.5: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_6 {
-    ret 18446744073709551615
-  }
-
-  b_13 {
-    %v_14 = cmp_gt %v_1, %v_2: m32x4
-    %v_15 = select %v_14, %v_1, %v_2: f32x4
-    %v_16 = vlane %v_15, 1: F32
-    %v_17 = cmp_neq %v_16, 0: I32
-    je %v_17, b_18, b_19
-  }
-
-  b_12 {
-    ret 18446744073709551614
-  }
-
-  b_19 {
-    %v_20 = abs %v_2: f32x4
-    %v_21 = vlane %v_20, 0: F32
-    %v_22 = div 1, %v_21: F32
-    %v_23 = cmp_lt %v_22, 0: I32
-    je %v_23, b_24, b_25
-  }
-
-  b_18 {
-    ret 18446744073709551613
-  }
-
-  b_25 {
-    ret 0
-  }
-
-  b_24 {
-    ret 18446744073709551612
   }
 }
 
@@ -288,134 +173,361 @@ rearrangement<complex>(): I32 {
   }
 }
 
-regrouping<complex>(%v: i32x4): I32 {
-  b_0 {
-    %v_1 = vwithlane %v, 5, 0: i32x4
-    %v_2 = cast %v: i16x4
-    %v_3 = cast %v_1: i16x4
-    %v_4 = vshuffle %v_2, %v_3, 0, 1, 2, 3, 4, 5, 6, 7: i16x8
-    %v_5 = vlane %v_4, 0: I32
-    %v_6 = imm 16: I32
-    %v_7 = shl %v_5, %v_6: I32
-    %v_8 = sar %v_7, %v_6: I32
-    %v_9 = cmp_neq %v_8, 2: I32
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    %v_12 = vlane %v_4, 4: I32
-    %v_13 = imm 16: I32
-    %v_14 = shl %v_12, %v_13: I32
-    %v_15 = sar %v_14, %v_13: I32
-    %v_16 = cmp_neq %v_15, 5: I32
-    je %v_16, b_17, b_18
-  }
-
-  b_10 {
-    ret 18446744073709551614
-  }
-
-  b_18 {
-    %v_19 = vshuffle %v_4, %v_4, 0, 1, 2, 3: i16x4
-    %v_20 = cast %v_19: i32x4
-    %v_21 = vshuffle %v_4, %v_4, 4, 5, 6, 7: i16x4
-    %v_22 = cast %v_21: i32x4
-    %v_23 = vlane %v_20, 0: I32
-    %v_24 = cmp_neq %v_23, 2: I32
-    je %v_24, b_25, b_26
-  }
-
-  b_17 {
-    ret 18446744073709551613
-  }
-
-  b_26 {
-    %v_27 = vlane %v_22, 0: I32
-    %v_28 = cmp_neq %v_27, 5: I32
-    je %v_28, b_29, b_30
-  }
-
-  b_25 {
-    ret 18446744073709551612
-  }
-
-  b_30 {
-    ret 0
-  }
-
-  b_29 {
-    ret 18446744073709551611
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     %v_1 = loads @seed, 4: I32
     %v_2 = vsplat %v_1: i32x4
-    %v_3 = call_complex construction: I32
-    %v_4 = cmp_neq %v_3, 0: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = call_complex arithmetic, %v_2: I32
+    %v_3 = vsplat 0: i32x4
+    %v_4 = vwithlane %v_3, 1, 1: i32x4
+    %v_5 = vwithlane %v_4, 2, 2: i32x4
+    %v_6 = vwithlane %v_5, 3, 3: i32x4
+    %v_7 = vlane %v_3, 0: I32
     %v_8 = cmp_neq %v_7, 0: I32
     je %v_8, b_9, b_10
   }
 
-  b_5 {
-    %v_11 = call_complex construction: I32
-    ret %v_11
-  }
-
-  b_10 {
-    %v_12 = call_complex floats: I32
+  b_11 {
+    %v_12 = call_complex arithmetic, %v_2: I32
     %v_13 = cmp_neq %v_12, 0: I32
     je %v_13, b_14, b_15
   }
 
-  b_9 {
-    %v_16 = call_complex arithmetic, %v_2: I32
-    %v_17 = imul %v_16, 10: I32
-    ret %v_17
+  b_16 {
+    %v_17 = cmp_neq %v_7, 0: I32
+    je %v_17, b_18, b_19
   }
 
   b_15 {
-    %v_18 = call_complex rearrangement: I32
-    %v_19 = cmp_neq %v_18, 0: I32
-    je %v_19, b_20, b_21
+    %v_20 = vsplat -1.5: f32x4
+    %v_21 = vsplat 0: f32x4
+    %v_22 = abs %v_20: f32x4
+    %v_23 = vlane %v_22, 0: F32
+    %v_24 = cmp_neq %v_23, 1.5: I32
+    je %v_24, b_25, b_26
   }
 
   b_14 {
-    %v_22 = call_complex floats: I32
-    %v_23 = imul %v_22, 100: I32
-    ret %v_23
-  }
-
-  b_21 {
-    %v_24 = loads @seed, 4: I32
-    %v_25 = vsplat %v_24: i32x4
-    %v_26 = call_complex regrouping, %v_25: I32
-    %v_27 = cmp_neq %v_26, 0: I32
-    je %v_27, b_28, b_29
-  }
-
-  b_20 {
-    %v_30 = call_complex rearrangement: I32
-    %v_31 = imul %v_30, 1000: I32
-    ret %v_31
+    %v_27 = call_complex arithmetic, %v_2: I32
+    %v_28 = imul %v_27, 10: I32
+    ret %v_28
   }
 
   b_29 {
+    %v_30 = call_complex rearrangement: I32
+    %v_31 = cmp_neq %v_30, 0: I32
+    je %v_31, b_32, b_33
+  }
+
+  b_34 {
+    %v_35 = cmp_neq %v_23, 1.5: I32
+    je %v_35, b_36, b_37
+  }
+
+  b_33 {
+    %v_38 = loads @seed, 4: I32
+    %v_39 = vsplat %v_38: i32x4
+    %v_40 = vwithlane %v_39, 5, 0: i32x4
+    %v_41 = cast %v_39: i16x4
+    %v_42 = cast %v_40: i16x4
+    %v_43 = vshuffle %v_41, %v_42, 0, 1, 2, 3, 4, 5, 6, 7: i16x8
+    %v_44 = vlane %v_43, 0: I32
+    %v_45 = imm 16: I32
+    %v_46 = shl %v_44, %v_45: I32
+    %v_47 = sar %v_46, %v_45: I32
+    %v_48 = cmp_neq %v_47, 2: I32
+    je %v_48, b_49, b_50
+  }
+
+  b_32 {
+    %v_51 = call_complex rearrangement: I32
+    %v_52 = imul %v_51, 1000: I32
+    ret %v_52
+  }
+
+  b_53 {
     ret 271
   }
 
-  b_28 {
-    %v_32 = loads @seed, 4: I32
-    %v_33 = vsplat %v_32: i32x4
-    %v_34 = call_complex regrouping, %v_33: I32
-    %v_35 = imul %v_34, 10000: I32
-    ret %v_35
+  b_54 {
+    %v_55 = loads @seed, 4: I32
+    %v_56 = vsplat %v_55: i32x4
+    %v_57 = vwithlane %v_56, 5, 0: i32x4
+    %v_58 = cast %v_56: i16x4
+    %v_59 = cast %v_57: i16x4
+    %v_60 = vshuffle %v_58, %v_59, 0, 1, 2, 3, 4, 5, 6, 7: i16x8
+    %v_61 = vlane %v_60, 0: I32
+    %v_62 = imm 16: I32
+    %v_63 = shl %v_61, %v_62: I32
+    %v_64 = sar %v_63, %v_62: I32
+    %v_65 = cmp_neq %v_64, 2: I32
+    je %v_65, b_66, b_67
+  }
+
+  b_68 {
+    %v_69 = phi [b_70, %v_71], [b_72, 18446744073709551612], [b_73, 18446744073709551613], [b_74, 18446744073709551614], [b_9, 18446744073709551615]: I32
+    %v_75 = cmp_neq %v_69, 0: I32
+    je %v_75, b_16, b_11
+  }
+
+  b_10 {
+    %v_76 = vlane %v_3, 1: I32
+    %v_77 = cmp_neq %v_76, 0: I32
+    je %v_77, b_74, b_78
+  }
+
+  b_78 {
+    %v_79 = vlane %v_6, 0: I32
+    %v_80 = cmp_neq %v_79, 0: I32
+    je %v_80, b_73, b_81
+  }
+
+  b_81 {
+    %v_82 = vlane %v_6, 1: I32
+    %v_83 = cmp_neq %v_82, 1: I32
+    je %v_83, b_72, b_70
+  }
+
+  b_70 {
+    %v_84 = vreduce_add %v_6: I32
+    %v_85 = cmp_neq %v_84, 6: I32
+    %v_71 = select %v_85, 18446744073709551610, 0: I32
+    jmp b_68
+  }
+
+  b_72 {
+    jmp b_68
+  }
+
+  b_73 {
+    jmp b_68
+  }
+
+  b_74 {
+    jmp b_68
+  }
+
+  b_9 {
+    jmp b_68
+  }
+
+  b_86 {
+    %v_87 = phi [b_88, %v_89], [b_90, 18446744073709551612], [b_91, 18446744073709551613], [b_92, 18446744073709551614], [b_18, 18446744073709551615]: I32
+    ret %v_87
+  }
+
+  b_19 {
+    %v_93 = vlane %v_3, 1: I32
+    %v_94 = cmp_neq %v_93, 0: I32
+    je %v_94, b_92, b_95
+  }
+
+  b_95 {
+    %v_96 = vlane %v_6, 0: I32
+    %v_97 = cmp_neq %v_96, 0: I32
+    je %v_97, b_91, b_98
+  }
+
+  b_98 {
+    %v_99 = vlane %v_6, 1: I32
+    %v_100 = cmp_neq %v_99, 1: I32
+    je %v_100, b_90, b_88
+  }
+
+  b_88 {
+    %v_101 = vreduce_add %v_6: I32
+    %v_102 = cmp_neq %v_101, 6: I32
+    %v_89 = select %v_102, 18446744073709551610, 0: I32
+    jmp b_86
+  }
+
+  b_90 {
+    jmp b_86
+  }
+
+  b_91 {
+    jmp b_86
+  }
+
+  b_92 {
+    jmp b_86
+  }
+
+  b_18 {
+    jmp b_86
+  }
+
+  b_103 {
+    %v_104 = phi [b_105, %v_106], [b_107, 18446744073709551613], [b_108, 18446744073709551614], [b_25, 18446744073709551615]: I32
+    %v_109 = cmp_neq %v_104, 0: I32
+    je %v_109, b_34, b_29
+  }
+
+  b_26 {
+    %v_110 = cmp_lt %v_20, %v_21: m32x4
+    %v_111 = select %v_110, %v_20, %v_21: f32x4
+    %v_112 = vlane %v_111, 0: F32
+    %v_113 = cmp_neq %v_112, -1.5: I32
+    je %v_113, b_108, b_114
+  }
+
+  b_114 {
+    %v_115 = cmp_gt %v_20, %v_21: m32x4
+    %v_116 = select %v_115, %v_20, %v_21: f32x4
+    %v_117 = vlane %v_116, 1: F32
+    %v_118 = cmp_neq %v_117, 0: I32
+    je %v_118, b_107, b_105
+  }
+
+  b_105 {
+    %v_119 = abs %v_21: f32x4
+    %v_120 = vlane %v_119, 0: F32
+    %v_121 = div 1, %v_120: F32
+    %v_122 = cmp_lt %v_121, 0: I32
+    %v_106 = select %v_122, 18446744073709551612, 0: I32
+    jmp b_103
+  }
+
+  b_107 {
+    jmp b_103
+  }
+
+  b_108 {
+    jmp b_103
+  }
+
+  b_25 {
+    jmp b_103
+  }
+
+  b_123 {
+    %v_124 = phi [b_125, %v_126], [b_127, 18446744073709551613], [b_128, 18446744073709551614], [b_36, 18446744073709551615]: I32
+    %v_129 = imul %v_124, 100: I32
+    ret %v_129
+  }
+
+  b_37 {
+    %v_130 = cmp_lt %v_20, %v_21: m32x4
+    %v_131 = select %v_130, %v_20, %v_21: f32x4
+    %v_132 = vlane %v_131, 0: F32
+    %v_133 = cmp_neq %v_132, -1.5: I32
+    je %v_133, b_128, b_134
+  }
+
+  b_134 {
+    %v_135 = cmp_gt %v_20, %v_21: m32x4
+    %v_136 = select %v_135, %v_20, %v_21: f32x4
+    %v_137 = vlane %v_136, 1: F32
+    %v_138 = cmp_neq %v_137, 0: I32
+    je %v_138, b_127, b_125
+  }
+
+  b_125 {
+    %v_139 = abs %v_21: f32x4
+    %v_140 = vlane %v_139, 0: F32
+    %v_141 = div 1, %v_140: F32
+    %v_142 = cmp_lt %v_141, 0: I32
+    %v_126 = select %v_142, 18446744073709551612, 0: I32
+    jmp b_123
+  }
+
+  b_127 {
+    jmp b_123
+  }
+
+  b_128 {
+    jmp b_123
+  }
+
+  b_36 {
+    jmp b_123
+  }
+
+  b_143 {
+    %v_144 = phi [b_145, %v_146], [b_147, 18446744073709551612], [b_148, 18446744073709551613], [b_49, 18446744073709551614]: I32
+    %v_149 = cmp_neq %v_144, 0: I32
+    je %v_149, b_54, b_53
+  }
+
+  b_50 {
+    %v_150 = vlane %v_43, 4: I32
+    %v_151 = imm 16: I32
+    %v_152 = shl %v_150, %v_151: I32
+    %v_153 = sar %v_152, %v_151: I32
+    %v_154 = cmp_neq %v_153, 5: I32
+    je %v_154, b_148, b_155
+  }
+
+  b_155 {
+    %v_156 = vshuffle %v_43, %v_43, 0, 1, 2, 3: i16x4
+    %v_157 = cast %v_156: i32x4
+    %v_158 = vshuffle %v_43, %v_43, 4, 5, 6, 7: i16x4
+    %v_159 = cast %v_158: i32x4
+    %v_160 = vlane %v_157, 0: I32
+    %v_161 = cmp_neq %v_160, 2: I32
+    je %v_161, b_147, b_145
+  }
+
+  b_145 {
+    %v_162 = vlane %v_159, 0: I32
+    %v_163 = cmp_neq %v_162, 5: I32
+    %v_146 = select %v_163, 18446744073709551611, 0: I32
+    jmp b_143
+  }
+
+  b_147 {
+    jmp b_143
+  }
+
+  b_148 {
+    jmp b_143
+  }
+
+  b_49 {
+    jmp b_143
+  }
+
+  b_164 {
+    %v_165 = phi [b_166, %v_167], [b_168, 18446744073709551612], [b_169, 18446744073709551613], [b_66, 18446744073709551614]: I32
+    %v_170 = imul %v_165, 10000: I32
+    ret %v_170
+  }
+
+  b_67 {
+    %v_171 = vlane %v_60, 4: I32
+    %v_172 = imm 16: I32
+    %v_173 = shl %v_171, %v_172: I32
+    %v_174 = sar %v_173, %v_172: I32
+    %v_175 = cmp_neq %v_174, 5: I32
+    je %v_175, b_169, b_176
+  }
+
+  b_176 {
+    %v_177 = vshuffle %v_60, %v_60, 0, 1, 2, 3: i16x4
+    %v_178 = cast %v_177: i32x4
+    %v_179 = vshuffle %v_60, %v_60, 4, 5, 6, 7: i16x4
+    %v_180 = cast %v_179: i32x4
+    %v_181 = vlane %v_178, 0: I32
+    %v_182 = cmp_neq %v_181, 2: I32
+    je %v_182, b_168, b_166
+  }
+
+  b_166 {
+    %v_183 = vlane %v_180, 0: I32
+    %v_184 = cmp_neq %v_183, 5: I32
+    %v_167 = select %v_184, 18446744073709551611, 0: I32
+    jmp b_164
+  }
+
+  b_168 {
+    jmp b_164
+  }
+
+  b_169 {
+    jmp b_164
+  }
+
+  b_66 {
+    jmp b_164
   }
 }
 

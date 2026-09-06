@@ -77,14 +77,41 @@ void optimizeBody(OptContext& opt) {
         opt.changed = false;
 
         /*
-         * First, and README.md's section B is why: everything below wants folded operands, and this
-         * is the one pass that inserts no instruction into a list it is walking - its queue is over
-         * instructions rather than positions, so a constant made in front of the instruction being
-         * folded is not a cursor the walk has to repair.
+         * First, and phase 10's note is the whole argument: the store-and-load traffic around every
+         * local is what the seven passes below cannot see through, and four of them measured their
+         * own answers away against it before this existed. `range` fired zero times, `convertSelects`
+         * needed a `load` exception, `threadBranches` missed `let ok = ...` in front of `if ok`, and
+         * the inliner counted a store and a load per parameter towards a budget of twenty.
          *
-         * Phases 5 to 9 fill in the rest of the list, in that section's order.
+         * In front of `simplify` rather than behind it, because what this produces is operands:
+         * a constant written into a local and read back below a join arrives at the folder as one
+         * value only once this has run.
+         */
+        runPass(promote);
+
+        /*
+         * Then the folds, and README.md's section B is why: everything below wants folded operands,
+         * and this is the one pass that inserts no instruction into a list it is walking - its queue
+         * is over instructions rather than positions, so a constant made in front of the instruction
+         * being folded is not a cursor the walk has to repair.
          */
         runPass(simplify);
+
+        /*
+         * Then the two the folds have just made answerable, in that order.
+         *
+         * `cse` is behind `simplify` because it compares operands as SSA values: two spellings of
+         * one expression are one computation only once their operands have been unified, and the
+         * folder is what unifies them. `hoist` is behind `cse` for the same reason one step out - a
+         * value the loop body spelled twice leaves the loop once rather than not at all.
+         *
+         * Both are in front of the storage passes and that is the one ordering worth arguing.
+         * `forwardMemory` carries a fact across the instructions of one block, so a read this has
+         * hoisted into a preheader is one it answers there; running it first would leave the same
+         * read in the loop with a block-local fact attached to it and nothing to move.
+         */
+        runPass(cse);
+        runPass(hoist);
 
         /*
          * Then storage, and README.md's section B is the order: the store/load traffic the
@@ -118,9 +145,9 @@ void optimizeBody(OptContext& opt) {
         runPass(threadBranches);
 
         // And that is the whole list. What is *not* here is `range`: phase 8 built the branch-implied
-        // facts, measured them over the corpus and did not keep them - README.md's note says what the
-        // numbers were and why they are structural. `inlineCalls` and `markProgramReachable` are not
-        // here either, and that is the other half of the arrangement: they are program-wide and run
+        // facts, measured them over the corpus and did not keep them, and phase 11 rebuilt them on
+        // promoted IR and got the same answer - README.md's two notes say what the numbers were and
+        // why they are structural. `inlineCalls` and `markProgramReachable` are not here either, and that is the other half of the arrangement: they are program-wide and run
         // once, in front of this loop - see `optimizeProgram`.
 
         if(!opt.changed) break;
@@ -128,21 +155,30 @@ void optimizeBody(OptContext& opt) {
 }
 
 bool optimizeProgram(Context& context, mir::Program& program, Converted& converted) {
-    /*
-     * The `-no-ir-opt` gate, as one early return with nothing above it.
-     *
-     * The shipping stage has `dischargeChecks` above its own gate, because `-no-checks` has to stay
-     * free rather than cheap and the two settings are independent. Nothing here answers to that:
-     * this stage inserts no check - `prelude/Core/Array.yana`'s `Index` instance writes its own and
-     * says so - so there is nothing this side of the return.
-     *
-     * Nothing is verified on the way out of this branch either, and that is not an omission:
-     * `Pipeline::convert` ends with an unconditional `verifyProgram`, in every build, and a program
-     * no pass has run over is that same program.
-     */
-    if(!context.settings.optimizeIr) return true;
-
     OptContext opt { context, program, converted, *program.decl, *converted.arena };
+
+    /*
+     * The one pass above the `-no-ir-opt` gate, and the shipping stage's reason for putting it there
+     * is the whole of why it is here too: `-no-checks` has to stay **free** rather than cheap, and
+     * the two settings are independent. An ordinary pass would leave a build with the optimizer off
+     * computing a length, a comparison and a branch at every subscript and then keeping all three.
+     *
+     * What it removes is not a check this stage inserted - it inserts none - but the library's own,
+     * which `prelude/Core/Array.yana`'s `Index` instance writes and `@inline(always)` grafts into
+     * every caller. `opt/check.cpp` is where that shift in the switch's meaning is argued.
+     */
+    auto discharged = dischargeChecks(opt);
+
+    /*
+     * And the gate itself, as one early return with nothing else above it.
+     *
+     * `Pipeline::convert` ends with an unconditional `verifyProgram`, in every build, so a program
+     * no pass has run over is that same program and owes nothing here. One that the discharge did
+     * rewrite is not, which is what the answer above is for.
+     */
+    if(!context.settings.optimizeIr) {
+        return discharged ? verifyProgram(context, program, converted) : true;
+    }
 
     /*
      * The program-wide passes first, in README.md's section B order.

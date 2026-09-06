@@ -19,12 +19,16 @@ addresses<complex>(%from: I32, %$body: Ptr): I32 {
     %v_11 = add %$body, 8: Ptr
     %v_12 = load %v_11, 8: Ptr
     %v_13 = call_complex %v_10, %v_12, %v_1: I32
-    jmp b_9
+    jmp b_14
   }
 
   b_9 {
-    %v_14 = phi [b_0, %v_5], [b_8, %v_13]: I32
-    ret %v_14
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_9, %v_5], [b_8, %v_13]: I32
+    ret %v_15
   }
 }
 

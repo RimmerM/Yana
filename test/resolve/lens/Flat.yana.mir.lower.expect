@@ -104,13 +104,55 @@ main<complex>(): I32 {
   b_56 {
     %v_57 = phi [b_53, %v_58], [b_52, %v_59]: I32
     store @log, 0, 4
-    jmp b_60
+    %v_60 = alloca 1, 1: Ptr
+    %v_61 = alloca 16, 8: Ptr
+    store %v_61, insideArm.cont, 8
+    %v_62 = add %v_61, 8: Ptr
+    store %v_62, %v_60, 8
+    %v_63 = call_complex logged(I32), %v_61: I32
+    %v_64 = loads @log, 4: I32
+    store @log, 0, 4
+    %v_65 = loads @log, 4: I32
+    store @log, 0, 4
+    %v_66 = alloca 4, 4: Ptr
+    store @log, 0, 4
+    store %v_66, 0, 4
+    %v_67 = alloca 8, 8: Ptr
+    store %v_67, %v_66, 8
+    %v_68 = alloca 16, 8: Ptr
+    store %v_68, insideScoped.cont'2, 8
+    %v_69 = add %v_68, 8: Ptr
+    store %v_69, %v_67, 8
+    %v_70 = call_complex logged(I32), %v_68: I32
+    %v_71 = loads %v_66, 4: I32
+    %v_72 = loads @log, 4: I32
+    %v_73 = add %v_71, %v_72: I32
+    %v_74 = alloca 4, 4: Ptr
+    %v_75 = alloca 4, 4: Ptr
+    store %v_74, 5, 4
+    store %v_75, 0, 4
+    %v_76 = alloca 8, 8: Ptr
+    store %v_76, %v_75, 8
+    %v_77 = alloca 16, 8: Ptr
+    store %v_77, borrowed.cont, 8
+    %v_78 = add %v_77, 8: Ptr
+    store %v_78, %v_76, 8
+    %v_79 = call_complex bumped(I32), %v_74, %v_77: I32
+    %v_80 = loads %v_74, 4: I32
+    %v_81 = add %v_80, 100: I32
+    store %v_74, %v_81, 4
+    %v_82 = loads %v_75, 4: I32
+    %v_83 = add %v_82, %v_81: I32
+    store @log, 0, 4
+    %v_84 = alloca 4, 4: Ptr
+    store %v_84, 0, 4
+    jmp b_85
   }
 
   b_53 {
-    %v_61 = loads %v_43, 4: I32
-    %v_62 = loads @log, 4: I32
-    %v_58 = add %v_61, %v_62: I32
+    %v_86 = loads %v_43, 4: I32
+    %v_87 = loads @log, 4: I32
+    %v_58 = add %v_86, %v_87: I32
     jmp b_56
   }
 
@@ -119,105 +161,51 @@ main<complex>(): I32 {
     jmp b_56
   }
 
-  b_60 {
-    %v_63 = alloca 1, 1: Ptr
-    %v_64 = alloca 16, 8: Ptr
-    store %v_64, insideArm.cont, 8
-    %v_65 = add %v_64, 8: Ptr
-    store %v_65, %v_63, 8
-    %v_66 = call_complex logged(I32), %v_64: I32
-    jmp b_67
-  }
-
-  b_67 {
-    %v_68 = loads @log, 4: I32
-    store @log, 0, 4
-    jmp b_69
-  }
-
-  b_69 {
-    %v_70 = loads @log, 4: I32
-    store @log, 0, 4
-    %v_71 = alloca 4, 4: Ptr
-    store @log, 0, 4
-    store %v_71, 0, 4
-    %v_72 = alloca 8, 8: Ptr
-    store %v_72, %v_71, 8
-    %v_73 = alloca 16, 8: Ptr
-    store %v_73, insideScoped.cont'2, 8
-    %v_74 = add %v_73, 8: Ptr
-    store %v_74, %v_72, 8
-    %v_75 = call_complex logged(I32), %v_73: I32
-    %v_76 = loads %v_71, 4: I32
-    %v_77 = loads @log, 4: I32
-    %v_78 = add %v_76, %v_77: I32
-    %v_79 = alloca 4, 4: Ptr
-    %v_80 = alloca 4, 4: Ptr
-    store %v_79, 5, 4
-    store %v_80, 0, 4
-    %v_81 = alloca 8, 8: Ptr
-    store %v_81, %v_80, 8
-    %v_82 = alloca 16, 8: Ptr
-    store %v_82, borrowed.cont, 8
-    %v_83 = add %v_82, 8: Ptr
-    store %v_83, %v_81, 8
-    %v_84 = call_complex bumped(I32), %v_79, %v_82: I32
-    %v_85 = loads %v_79, 4: I32
-    %v_86 = add %v_85, 100: I32
-    store %v_79, %v_86, 4
-    %v_87 = loads %v_80, 4: I32
-    %v_88 = add %v_87, %v_86: I32
-    store @log, 0, 4
-    %v_89 = alloca 4, 4: Ptr
-    store %v_89, 0, 4
-    jmp b_90
+  b_88 {
+    %v_89 = cmp_ilt %v_90, 3: I32
+    je %v_89, b_85, b_91
   }
 
   b_91 {
-    %v_92 = cmp_ilt %v_93, 3: I32
-    je %v_92, b_90, b_94
-  }
-
-  b_94 {
-    %v_95 = loads %v_89, 4: I32
-    %v_96 = alloca 4, 4: Ptr
+    %v_92 = loads %v_84, 4: I32
+    %v_93 = alloca 4, 4: Ptr
     store @log, 0, 4
-    store %v_96, 0, 4
-    %v_97 = alloca 8, 8: Ptr
-    store %v_97, %v_96, 8
-    %v_98 = alloca 16, 8: Ptr
-    store %v_98, scopedInside.cont'2, 8
-    %v_99 = add %v_98, 8: Ptr
-    store %v_99, %v_97, 8
-    %v_100 = call_complex logged(I32), %v_98: I32
-    %v_101 = loads %v_96, 4: I32
-    %v_102 = loads @log, 4: I32
-    %v_103 = add %v_101, %v_102: I32
-    %v_104 = add %v_8, %v_16: I32
-    %v_105 = add %v_104, %v_24: I32
-    %v_106 = add %v_105, %v_38: I32
-    %v_107 = add %v_106, %v_41: I32
-    %v_108 = add %v_107, %v_57: I32
-    %v_109 = add %v_108, %v_68: I32
-    %v_110 = add %v_109, %v_70: I32
-    %v_111 = add %v_110, %v_78: I32
-    %v_112 = add %v_111, %v_88: I32
-    %v_113 = add %v_112, %v_95: I32
-    %v_114 = add %v_113, %v_103: I32
-    ret %v_114
+    store %v_93, 0, 4
+    %v_94 = alloca 8, 8: Ptr
+    store %v_94, %v_93, 8
+    %v_95 = alloca 16, 8: Ptr
+    store %v_95, scopedInside.cont'2, 8
+    %v_96 = add %v_95, 8: Ptr
+    store %v_96, %v_94, 8
+    %v_97 = call_complex logged(I32), %v_95: I32
+    %v_98 = loads %v_93, 4: I32
+    %v_99 = loads @log, 4: I32
+    %v_100 = add %v_98, %v_99: I32
+    %v_101 = add %v_8, %v_16: I32
+    %v_102 = add %v_101, %v_24: I32
+    %v_103 = add %v_102, %v_38: I32
+    %v_104 = add %v_103, %v_41: I32
+    %v_105 = add %v_104, %v_57: I32
+    %v_106 = add %v_105, %v_64: I32
+    %v_107 = add %v_106, %v_65: I32
+    %v_108 = add %v_107, %v_73: I32
+    %v_109 = add %v_108, %v_83: I32
+    %v_110 = add %v_109, %v_92: I32
+    %v_111 = add %v_110, %v_100: I32
+    ret %v_111
   }
 
-  b_90 {
-    %v_115 = phi [b_91, %v_93], [b_69, 0]: I32
-    %v_93 = add %v_115, 1: I32
-    %v_116 = alloca 8, 8: Ptr
-    store %v_116, %v_89, 8
-    %v_117 = alloca 16, 8: Ptr
-    store %v_117, inLoop.cont, 8
-    %v_118 = add %v_117, 8: Ptr
-    store %v_118, %v_116, 8
-    %v_119 = call_complex logged(I32), %v_117: I32
-    jmp b_91
+  b_85 {
+    %v_112 = phi [b_88, %v_90], [b_56, 0]: I32
+    %v_90 = add %v_112, 1: I32
+    %v_113 = alloca 8, 8: Ptr
+    store %v_113, %v_84, 8
+    %v_114 = alloca 16, 8: Ptr
+    store %v_114, inLoop.cont, 8
+    %v_115 = add %v_114, 8: Ptr
+    store %v_115, %v_113, 8
+    %v_116 = call_complex logged(I32), %v_114: I32
+    jmp b_88
   }
 }
 

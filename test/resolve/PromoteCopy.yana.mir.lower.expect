@@ -1,198 +1,4 @@
 
-ranked<complex>(%n: I32): I32 {
-  b_0 {
-    %v_1 = cmp_igt %n, 10: I32
-    je %v_1, b_2, b_3
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_4, 1], [b_7, 0]: I32
-    ret %v_6
-  }
-
-  b_7 {
-    jmp b_5
-  }
-
-  b_8 {
-    %v_9 = phi [b_10, %v_11], [b_12, %v_13], [b_2, %v_14]: Ptr
-    %v_15 = load %v_9, 1: I64
-    %v_16 = cmp_le %v_15, 3: I32
-    %v_17 = select %v_16, 0, 1: I32
-    je %v_17, b_7, b_4
-  }
-
-  b_3 {
-    %v_18 = cmp_igt %n, 0: I32
-    je %v_18, b_19, b_20
-  }
-
-  b_20 {
-    %v_21 = sub 0, %n: I32
-    %v_22 = cmp_eq %v_21, 1: I32
-    je %v_22, b_23, b_24
-  }
-
-  b_24 {
-    %v_25 = cmp_eq %v_21, 2: I32
-    je %v_25, b_26, b_27
-  }
-
-  b_27 {
-    %v_28 = cmp_eq %v_21, 3: I32
-    %v_29 = select %v_28, 2, 3: I32
-    jmp b_10
-  }
-
-  b_26 {
-    jmp b_10
-  }
-
-  b_23 {
-    jmp b_10
-  }
-
-  b_10 {
-    %v_30 = phi [b_27, %v_29], [b_26, 1], [b_23, 0]: I32
-    %v_11 = alloca 1, 1: Ptr
-    store %v_11, %v_30, 1
-    jmp b_8
-  }
-
-  b_19 {
-    %v_31 = cmp_eq %n, 1: I32
-    je %v_31, b_32, b_33
-  }
-
-  b_33 {
-    %v_34 = cmp_eq %n, 2: I32
-    je %v_34, b_35, b_36
-  }
-
-  b_36 {
-    %v_37 = cmp_eq %n, 3: I32
-    %v_38 = select %v_37, 2, 3: I32
-    jmp b_12
-  }
-
-  b_35 {
-    jmp b_12
-  }
-
-  b_32 {
-    jmp b_12
-  }
-
-  b_12 {
-    %v_39 = phi [b_36, %v_38], [b_35, 1], [b_32, 0]: I32
-    %v_13 = alloca 1, 1: Ptr
-    store %v_13, %v_39, 1
-    jmp b_8
-  }
-
-  b_2 {
-    %v_14 = alloca 1, 1: Ptr
-    store %v_14, 4, 1
-    jmp b_8
-  }
-}
-
-scored<complex>(%n: I32): I32 {
-  b_0 {
-    %v_1 = cmp_ilt %n, 0: I32
-    je %v_1, b_2, b_3
-  }
-
-  b_4 {
-    %v_5 = cast %v_6: I32
-    %v_7 = cmp_eq %v_5, 0: I32
-    je %v_7, b_8, b_9
-  }
-
-  b_10 {
-    %v_11 = phi [b_12, %v_13], [b_14, 0]: I32
-    ret %v_11
-  }
-
-  b_14 {
-    jmp b_10
-  }
-
-  b_15 {
-    %v_16 = phi [b_3, %v_17], [b_18, %v_19]: Ptr
-    %v_6 = load %v_16, 1: I64
-    %v_20 = cmp_le %v_6, 3: I32
-    %v_21 = select %v_20, 0, 1: I32
-    je %v_21, b_14, b_4
-  }
-
-  b_3 {
-    %v_17 = alloca 1, 1: Ptr
-    store %v_17, 4, 1
-    jmp b_15
-  }
-
-  b_2 {
-    %v_22 = sub 0, %n: I32
-    %v_23 = cmp_eq %v_22, 1: I32
-    je %v_23, b_24, b_25
-  }
-
-  b_25 {
-    %v_26 = cmp_eq %v_22, 2: I32
-    je %v_26, b_27, b_28
-  }
-
-  b_28 {
-    %v_29 = cmp_eq %v_22, 3: I32
-    %v_30 = select %v_29, 2, 3: I32
-    jmp b_18
-  }
-
-  b_27 {
-    jmp b_18
-  }
-
-  b_24 {
-    jmp b_18
-  }
-
-  b_18 {
-    %v_31 = phi [b_28, %v_30], [b_27, 1], [b_24, 0]: I32
-    %v_19 = alloca 1, 1: Ptr
-    store %v_19, %v_31, 1
-    jmp b_15
-  }
-
-  b_9 {
-    %v_32 = cmp_eq %v_5, 1: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_34 {
-    %v_35 = cmp_eq %v_5, 2: I32
-    %v_36 = select %v_35, 3, 4: I32
-    jmp b_12
-  }
-
-  b_33 {
-    jmp b_12
-  }
-
-  b_8 {
-    jmp b_12
-  }
-
-  b_12 {
-    %v_13 = phi [b_34, %v_36], [b_33, 2], [b_8, 1]: I32
-    jmp b_10
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     jmp b_1
@@ -235,12 +41,30 @@ main<complex>(): I32 {
   }
 
   b_10 {
-    %v_11 = call_complex ranked, 50: I32
-    %v_12 = add 4, %v_11: I32
-    %v_13 = call_complex ranked, 2: I32
-    %v_14 = add %v_12, %v_13: I32
-    %v_15 = call_complex ranked, 18446744073709551613: I32
-    %v_16 = add %v_14, %v_15: I32
+    jmp b_11
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_12 {
+    jmp b_13
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_15 {
+    jmp b_16
+  }
+
+  b_16 {
     jmp b_17
   }
 
@@ -257,14 +81,35 @@ main<complex>(): I32 {
   }
 
   b_20 {
-    %v_21 = add %v_16, 1: I32
-    %v_22 = call_complex scored, 18446744073709551613: I32
-    %v_23 = imul %v_22, 10: I32
-    %v_24 = add %v_21, %v_23: I32
-    %v_25 = call_complex scored, 9: I32
-    %v_26 = imul %v_25, 100: I32
-    %v_27 = add %v_24, %v_26: I32
-    ret %v_27
+    jmp b_21
+  }
+
+  b_21 {
+    jmp b_22
+  }
+
+  b_22 {
+    jmp b_23
+  }
+
+  b_23 {
+    jmp b_24
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_25 {
+    jmp b_26
+  }
+
+  b_26 {
+    jmp b_27
+  }
+
+  b_27 {
+    ret 37
   }
 }
 

@@ -1,6 +1,8 @@
 {-
    A loop that counts and does nothing else, decided false at its header -
-   `compiler/resolve_ssa/opt/loop.cpp`, and the five shapes that must keep theirs.
+   `compiler/resolve_ssa/opt/loop.cpp`, and the seven shapes that must keep theirs. Both loop
+   spellings are here: a `while` over storage the promotion turns into a counter, and a counted
+   `for`, whose header the desugaring also hands its bound and its step - see phase 14.
 
    Every claim here is a **number**. A loop removed that should have run answers with the value its
    accumulator started at, and a loop kept that should have gone is invisible in an answer - so each
@@ -45,8 +47,8 @@ fn counted(n: Int, k: Int) -> Int:
 
     return k
 
--- The body writes. `total` is a second store in the loop and the pass takes exactly one, which is
--- the counter's step - so this loop stays and its answer is the sum.
+-- The body accumulates. `total` is a second value the loop carries round and the block after it
+-- reads, which condition 3 refuses - so this loop stays and its answer is the sum.
 fn accumulates(n: Int) -> Int:
     let &total = 0
     let &i = 0
@@ -57,9 +59,9 @@ fn accumulates(n: Int) -> Int:
 
     return total
 
--- The counter is read afterwards. Removing the loop would leave `i` holding what it started at
--- rather than the bound, which is why the pass asks about the *allocation*'s use list and not only
--- about the values the loop defines.
+-- The counter is read afterwards. Removing the loop answers the header's argument from the entry
+-- edge, leaving `i` at what it started at rather than at the bound, which is why the pass asks about
+-- the *block arguments* and not only about the values the loop's instructions define.
 fn survives(n: Int) -> Int:
     let &i = 0
 
@@ -97,6 +99,51 @@ fn escapes(n: Int, stop: Int) -> Int:
         i = i + 1
 
     return i
+
+{-
+   The same three shapes written as a counted `for`, which is phase 14.
+
+   Phase 13's review found every loop this pass fires on was a `while`, and the `for` form not
+   reachable at all: the desugaring hands the header its bound and its step as block arguments of
+   their own, `bb1(%bound, %step, %counter)`, and the latch answers each of them with what the header
+   gave it. So `usedOutside` declined on the *bound* leaving over the exit edge before the counter
+   was looked at, and `stepsByOne` saw the step as a block argument rather than as a `Const`.
+   `removeTrivialArguments` is what removes both, and these three are what says so: `deadFor` loses
+   its loop, and the two below keep theirs for the two reasons a `while` keeps one.
+-}
+fn deadFor(n: Int, k: Int) -> Int:
+    for i in 0..n:
+        let unused = k * i + 7
+
+    return k
+
+-- The `for` body accumulates, which is `accumulates` one shape up: `total` is carried round the
+-- header and read by the block after it, so condition 3 refuses the loop.
+fn forAccumulates(n: Int) -> Int:
+    let &total = 0
+
+    for i in 0..n:
+        total = total + i
+
+    return total
+
+{-
+   A `for` the counter escapes from - `escapes` written the other way.
+
+   A `for`'s own `i` is not in scope below the loop, so what carries the count out is a binding the
+   body writes; the `break` is what makes it worth carrying, and it is also the second exit edge that
+   ends the pass's "the header's test is false" description of not running the loop. Both halves have
+   to hold for this to be a fixture rather than a duplicate of the one above.
+-}
+fn forBreaks(n: Int, stop: Int) -> Int:
+    let &at = 0
+
+    for i in 0..n:
+        if i == stop:
+            at = i
+            break
+
+    return at
 
 -- Nested, with the inner one dead and the outer one not. The inner goes on the first round and the
 -- outer keeps its own step, which is what the innermost-first order buys.
@@ -159,4 +206,5 @@ fn widened(i: Int, n: UInt) -> Long:
 fn main() -> Int =
     counted(4, 3) * 2 + accumulates(5) * 3 + survives(6) * 5 + owning(4) * 7 +
     escapes(9, 4) * 11 + nested(3, 4) * 13 + guarded(84, 4) * 17 +
-    (truncate(widened(6, 9)) :: Int) * 19 + live * 23
+    (truncate(widened(6, 9)) :: Int) * 19 + live * 23 +
+    deadFor(4, 3) * 29 + forAccumulates(5) * 31 + forBreaks(9, 4) * 37

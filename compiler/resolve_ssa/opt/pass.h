@@ -197,6 +197,51 @@ Value* makeFloatConstant(OptContext& opt, Inst& at, DeclPtr<mir::Type> type, F64
 Value* foldInst(OptContext& opt, Inst& inst);
 
 /*
+ * When two instructions are the same, and when one of them may be taken out - `opt/cse.cpp`, which
+ * is the one statement of both.
+ *
+ * Here rather than inside a pass because three of them ask: `simplify`'s block-local CSE, `cse`'s
+ * walk of the dominator tree, and `range`, which folds a comparison and has the same ownership
+ * question to answer first. Two spellings of "these two instructions are the same" is one of them
+ * learning about a new kind and the other not, which is the failure `sameExtra` was written to stop
+ * one tier down.
+ *
+ *  - `isRemovable` is the ownership rule: a `kSsaPure` kind, no tracked operand and no consuming
+ *    use, and results that are `Trivial` or `Address`. `simplify.cpp`'s file comment is where each
+ *    of the three clauses is argued.
+ *  - `isUnifiable` is whether one value may stand for another - the conventions *agree* rather than
+ *    merely both being untracked, because replacing an address by a scalar is not a substitution
+ *    however the linear rule reads it.
+ *  - `sameComputation` compares operands as SSA values with their use kinds, and the results on
+ *    their whole occurrence and convention - an equality rather than a congruence, so two
+ *    instructions with equal-but-distinct operands are left for the round after the operands are
+ *    unified.
+ *  - `materializedAtUse` is the exemption: a computation over nothing but constants, and an
+ *    instruction with no operands at all, are spelled where they are read rather than computed, so
+ *    a second reader is what stops that.
+ */
+bool isRemovable(OptContext& opt, Inst& inst);
+
+/*
+ * The same rule for an instruction **nothing reads**, which admits a `Load` as well - `opt/cse.cpp`,
+ * where the ownership half is shared with `isRemovable` rather than restated.
+ *
+ * One caller, `dischargeChecks`, and it is the one that runs where `forwardMemory` and
+ * `removeDeadStorage` do not: the `self.length` read a discharged bounds test leaves standing is a
+ * memory access whose value nothing wants, and the purity column declines it for a question - may a
+ * pass recompute this, or move it past a store - that deleting an unread read does not ask.
+ */
+bool isRemovableIfUnread(OptContext& opt, Inst& inst);
+
+bool isUnifiable(Value& from, Value& to);
+bool sameComputation(OptContext& opt, Inst& a, Inst& b);
+bool materializedAtUse(OptContext& opt, Inst& inst);
+
+// The one result an instruction has, or null where it has none or several. Shared for the same
+// reason as the four above: every rewrite that stands one value in for another opens with it.
+Value* soleResult(OptContext& opt, Inst& inst);
+
+/*
  * The passes.
  *
  * Each takes the context and nothing else, sets `opt.changed` through the editor when it rewrites,
@@ -204,14 +249,26 @@ Value* foldInst(OptContext& opt, Inst& inst);
  * declared here **when it is built**, so that this header never carries a name for code that does
  * not exist: phase 4 adds `simplify`, phase 5 `cleanCfg` and `threadBranches`, phase 6
  * `forwardMemory` and `removeDeadStorage`, phase 7 `convertSelects`, phase 8 `deadLoops` - and not
- * `range`, which phase 8 measured and did not keep, see README.md's note - and phase 9 `inline` and
- * `reach`. README.md's section B is the list and the order.
+ * `range`, which phase 8 measured and did not keep and phase 11 measured again on promoted IR and
+ * did not keep either, see README.md's two notes - phase 9 `inline` and `reach`, phase 10 `promote`,
+ * and phase 11 `cse` and `hoist`. README.md's section B is the list and the order.
  *
  * Phase 9 added the last two, `inlineCalls` and `markProgramReachable`, and they are the two that
  * are **program-wide**: they run once, in front of the per-function loop, because what one leaves
  * behind is work for the seven below it and what the other answers is a question about the program
  * rather than about a body.
  */
+
+/*
+ * A local held in values rather than in storage, with block arguments where the writes meet -
+ * `opt/promote.cpp`.
+ *
+ * First in the list, because everything below it is written against values and this is what turns a
+ * local into one. Phase 10 is why it is at this tier at all rather than left to
+ * `promoteStackSlots`: four of the passes below measured their own answers away against storage the
+ * lower tier removes too late for any of them to see it.
+ */
+void promote(OptContext& opt);
 
 // Constants, algebraic identities, the `Bool` bitwise rewrite, block-local pure CSE and dead-value
 // removal, as one worklist over uses - `opt/simplify.cpp`, and README.md's section B for why the
@@ -223,10 +280,28 @@ void simplify(OptContext& opt);
 // each of them produces the shape the other two consume.
 void cleanCfg(OptContext& opt);
 
+/*
+ * A block argument every incoming edge answers with the same value - or with the argument itself -
+ * replaced by that value and taken out, and one nothing reads taken out outright. `opt/cfg.cpp`.
+ *
+ * Not a pass in `optimizeBody`'s list: it is called by the two rewrites that make the shape, from
+ * inside their own runs. `promote` at the end of its construction, over the arguments it placed
+ * where a slot's writes met; `cleanCfg` at the top of each of its sweeps, over a header whose back
+ * edge has just gone. Everything the *conversion* placed - a `for`'s bound and step carried round
+ * the header - is what neither of them used to reach, which is phase 14 and the note in `cfg.cpp`.
+ */
+void removeTrivialArguments(OptContext& opt);
+
 // A join whose branch an incoming edge has already decided, sent straight past it - `opt/cfg.cpp`,
 // beside `cleanCfg` and not inside it: this one *creates* edges, so it cannot run in a walk that is
 // holding a block cursor.
 void threadBranches(OptContext& opt);
+
+// The third of `cleanCfg`'s three rewrites on its own - the blocks nothing reaches, and the edges
+// and values they owned. Exported for `dischargeChecks`, which runs where `cleanCfg` does not and
+// strands a block that holds a call; one implementation reached two ways, rather than a second
+// reachability walk to keep in agreement with this one.
+void removeUnreachableBlocks(OptContext& opt);
 
 // A read answered by a write above it, a second read answered by the first, and a write nothing
 // reads - one forward scan per block, carrying a table from address to contents. `opt/memory.cpp`,
@@ -248,6 +323,27 @@ void convertSelects(OptContext& opt);
 void deadLoops(OptContext& opt);
 
 /*
+ * The second of two identical computations answered by the first, over the whole dominator tree -
+ * `opt/cse.cpp`, and the loads with it.
+ *
+ * A pass of its own rather than a wider `simplify`: what a worklist over uses reaches for free is
+ * the pair standing side by side in one block, and reaching the pair the *program* was written with
+ * costs a dominator tree and a scope stack. The two share one statement of "these two instructions
+ * are the same" - the predicates above.
+ */
+void cse(OptContext& opt);
+
+/*
+ * A computation whose answer cannot change between iterations, moved to the block in front of the
+ * loop - `opt/loop.cpp`, beside `deadLoops` because both are questions about `Loops`.
+ *
+ * After `cse`, which is the ordering that matters: a value the two arms of a loop body spelled twice
+ * is one value before this asks whether it is invariant, so it leaves the loop once instead of not
+ * at all.
+ */
+void hoist(OptContext& opt);
+
+/*
  * A call to a small callee replaced by a copy of its body - `opt/inline.cpp`.
  *
  * Program-wide and run once, before the per-function loop, for the reason README.md's section B
@@ -265,6 +361,17 @@ void inlineCalls(OptContext& opt);
  * one round further down.
  */
 void markProgramReachable(OptContext& opt);
+
+/*
+ * The library's `checkFailed` branches removed, for `-no-checks` - `opt/check.cpp`.
+ *
+ * Program-wide like the two above, and the one pass that runs **above** the `optimizeIr` gate: what
+ * the switch buys has to be free rather than cheap, and an ordinary pass would leave an unoptimized
+ * build computing every bounds test and then keeping it. It answers whether anything went, because
+ * on that path the driver runs nothing else and owes a `verifyProgram` only if this rewrote
+ * something.
+ */
+bool dischargeChecks(OptContext& opt);
 
 /*
  * The verifier checkpoint the driver puts behind every pass, named - `opt.cpp`.

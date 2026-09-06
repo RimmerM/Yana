@@ -64,28 +64,22 @@ main<complex>(): I32 {
 
   b_30 {
     %v_31 = alloca 4, 4: Ptr
-    %v_32 = loads @live, 4: I32
-    %v_33 = add %v_32, 1: I32
-    store @live, %v_33, 4
-    store %v_31, 4, 4
-    jmp b_34
+    %v_32 = imm 4: I32
+    %v_33 = loads @live, 4: I32
+    %v_34 = add %v_33, 1: I32
+    store @live, %v_34, 4
+    store %v_31, %v_32, 4
+    %v_35 = loads @live, 4: I32
+    call_complex Guard.drop, %v_31
+    %v_36 = add %v_35, %v_32: I32
+    %v_37 = add %v_26, %v_36: I32
+    %v_38 = loads @live, 4: I32
+    %v_39 = cmp_neq %v_38, 0: I32
+    je %v_39, b_40, b_41
   }
 
   b_29 {
     ret 18446744073709551614
-  }
-
-  b_35 {
-    %v_36 = alloca 4, 4: Ptr
-    %v_37 = loads @live, 4: I32
-    %v_38 = add %v_37, 1: I32
-    store @live, %v_38, 4
-    store %v_36, 4, 4
-    jmp b_39
-  }
-
-  b_40 {
-    ret 18446744073709551613
   }
 
   b_41 {
@@ -93,161 +87,151 @@ main<complex>(): I32 {
     %v_43 = loads @live, 4: I32
     %v_44 = add %v_43, 1: I32
     store @live, %v_44, 4
-    store %v_42, 1, 4
-    %v_45 = loads %v_42, 4: I32
-    jmp b_46
+    store %v_42, 4, 4
+    call_complex Guard.drop, %v_42
+    %v_45 = loads @live, 4: I32
+    %v_46 = add %v_37, %v_45: I32
+    %v_47 = loads @live, 4: I32
+    %v_48 = cmp_neq %v_47, 0: I32
+    je %v_48, b_49, b_50
   }
 
-  b_47 {
+  b_40 {
+    ret 18446744073709551613
+  }
+
+  b_50 {
+    %v_51 = alloca 4, 4: Ptr
+    %v_52 = loads @live, 4: I32
+    %v_53 = add %v_52, 1: I32
+    store @live, %v_53, 4
+    store %v_51, 1, 4
+    %v_54 = loads %v_51, 4: I32
+    jmp b_55
+  }
+
+  b_49 {
     ret 18446744073709551612
   }
 
-  b_48 {
-    %v_49 = alloca 4, 4: Ptr
-    %v_50 = imm 7: I32
-    %v_51 = loads @live, 4: I32
-    %v_52 = add %v_51, 1: I32
-    store @live, %v_52, 4
-    store %v_49, %v_50, 4
-    %v_53 = loads @live, 4: I32
-    call_complex Guard.drop, %v_49
-    %v_54 = add %v_53, %v_50: I32
-    %v_55 = add %v_56, %v_54: I32
-    %v_57 = loads @live, 4: I32
-    %v_58 = cmp_neq %v_57, 0: I32
-    je %v_58, b_59, b_60
+  b_56 {
+    %v_57 = alloca 4, 4: Ptr
+    %v_58 = imm 7: I32
+    %v_59 = loads @live, 4: I32
+    %v_60 = add %v_59, 1: I32
+    store @live, %v_60, 4
+    store %v_57, %v_58, 4
+    %v_61 = loads @live, 4: I32
+    call_complex Guard.drop, %v_57
+    %v_62 = add %v_61, %v_58: I32
+    %v_63 = add %v_64, %v_62: I32
+    %v_65 = loads @live, 4: I32
+    %v_66 = cmp_neq %v_65, 0: I32
+    je %v_66, b_67, b_68
   }
 
-  b_61 {
+  b_69 {
     ret 18446744073709551611
   }
 
-  b_60 {
-    %v_62 = imm 3: I32
-    %v_63 = loads @live, 4: I32
-    %v_64 = add %v_63, 1: I32
-    store @live, %v_64, 4
-    %v_65 = alloca 4, 4: Ptr
-    store %v_65, %v_62, 4
-    %v_66 = loads @live, 4: I32
-    call_complex Guard.drop, %v_65
-    %v_67 = add %v_66, %v_62: I32
-    %v_68 = add %v_55, %v_67: I32
-    %v_69 = loads @live, 4: I32
-    %v_70 = cmp_neq %v_69, 0: I32
-    je %v_70, b_71, b_72
+  b_68 {
+    %v_70 = imm 3: I32
+    %v_71 = loads @live, 4: I32
+    %v_72 = add %v_71, 1: I32
+    store @live, %v_72, 4
+    %v_73 = alloca 4, 4: Ptr
+    store %v_73, %v_70, 4
+    %v_74 = loads @live, 4: I32
+    call_complex Guard.drop, %v_73
+    %v_75 = add %v_74, %v_70: I32
+    %v_76 = add %v_63, %v_75: I32
+    %v_77 = loads @live, 4: I32
+    %v_78 = cmp_neq %v_77, 0: I32
+    je %v_78, b_79, b_80
   }
 
-  b_59 {
+  b_67 {
     ret 18446744073709551610
   }
 
-  b_72 {
-    %v_73 = alloca 4, 4: Ptr
-    %v_74 = loads @live, 4: I32
-    %v_75 = add %v_74, 1: I32
-    store @live, %v_75, 4
-    store %v_73, 1, 4
-    %v_76 = alloca 4, 4: Ptr
-    copy %v_76, %v_73, 4
-    %v_77 = loads @live, 4: I32
-    %v_78 = loads %v_76, 4: I32
-    call_complex Guard.drop, %v_76
-    %v_79 = add %v_77, %v_78: I32
-    %v_80 = imm 2: I32
-    %v_81 = loads @live, 4: I32
-    %v_82 = add %v_81, 1: I32
-    store @live, %v_82, 4
-    store %v_73, %v_80, 4
-    %v_83 = loads @live, 4: I32
-    %v_84 = add %v_79, %v_83: I32
-    call_complex Guard.drop, %v_73
-    %v_85 = add %v_84, %v_80: I32
-    %v_86 = add %v_68, %v_85: I32
-    %v_87 = loads @live, 4: I32
-    %v_88 = cmp_neq %v_87, 0: I32
-    je %v_88, b_89, b_90
+  b_80 {
+    %v_81 = alloca 4, 4: Ptr
+    %v_82 = loads @live, 4: I32
+    %v_83 = add %v_82, 1: I32
+    store @live, %v_83, 4
+    store %v_81, 1, 4
+    %v_84 = alloca 4, 4: Ptr
+    copy %v_84, %v_81, 4
+    %v_85 = loads @live, 4: I32
+    %v_86 = loads %v_84, 4: I32
+    call_complex Guard.drop, %v_84
+    %v_87 = add %v_85, %v_86: I32
+    %v_88 = imm 2: I32
+    %v_89 = loads @live, 4: I32
+    %v_90 = add %v_89, 1: I32
+    store @live, %v_90, 4
+    store %v_81, %v_88, 4
+    %v_91 = loads @live, 4: I32
+    %v_92 = add %v_87, %v_91: I32
+    call_complex Guard.drop, %v_81
+    %v_93 = add %v_92, %v_88: I32
+    %v_94 = add %v_76, %v_93: I32
+    %v_95 = loads @live, 4: I32
+    %v_96 = cmp_neq %v_95, 0: I32
+    je %v_96, b_97, b_98
   }
 
-  b_71 {
+  b_79 {
     ret 18446744073709551609
   }
 
-  b_90 {
-    %v_91 = alloca 4, 4: Ptr
-    %v_92 = loads @live, 4: I32
-    %v_93 = add %v_92, 1: I32
-    store @live, %v_93, 4
-    store %v_91, 9, 4
-    call_complex Guard.drop, %v_91
-    %v_94 = loads @live, 4: I32
-    %v_95 = add %v_86, %v_94: I32
-    %v_96 = loads @live, 4: I32
-    %v_97 = cmp_neq %v_96, 0: I32
-    je %v_97, b_98, b_99
+  b_98 {
+    %v_99 = alloca 4, 4: Ptr
+    %v_100 = loads @live, 4: I32
+    %v_101 = add %v_100, 1: I32
+    store @live, %v_101, 4
+    store %v_99, 9, 4
+    call_complex Guard.drop, %v_99
+    %v_102 = loads @live, 4: I32
+    %v_103 = add %v_94, %v_102: I32
+    %v_104 = loads @live, 4: I32
+    %v_105 = cmp_neq %v_104, 0: I32
+    je %v_105, b_106, b_107
   }
 
-  b_89 {
+  b_97 {
     ret 18446744073709551608
   }
 
-  b_99 {
-    ret %v_95
+  b_107 {
+    ret %v_103
   }
 
-  b_98 {
+  b_106 {
     ret 18446744073709551607
   }
 
-  b_100 {
-    %v_101 = add %v_26, %v_102: I32
-    %v_103 = loads @live, 4: I32
-    %v_104 = cmp_neq %v_103, 0: I32
-    je %v_104, b_40, b_35
+  b_108 {
+    %v_109 = cmp_ilt %v_110, 3: I32
+    je %v_109, b_55, b_111
   }
 
-  b_34 {
-    %v_105 = loads @live, 4: I32
-    %v_106 = loads %v_31, 4: I32
-    call_complex Guard.drop, %v_31
-    %v_102 = add %v_105, %v_106: I32
-    jmp b_100
+  b_111 {
+    call_complex Guard.drop, %v_51
+    %v_64 = add %v_46, %v_112: I32
+    %v_113 = loads @live, 4: I32
+    %v_114 = cmp_neq %v_113, 0: I32
+    je %v_114, b_69, b_56
   }
 
-  b_107 {
-    %v_108 = add %v_101, %v_109: I32
-    %v_110 = loads @live, 4: I32
-    %v_111 = cmp_neq %v_110, 0: I32
-    je %v_111, b_47, b_41
-  }
-
-  b_39 {
-    call_complex Guard.drop, %v_36
-    %v_109 = loads @live, 4: I32
-    jmp b_107
-  }
-
-  b_46 {
-    %v_112 = phi [b_41, 0], [b_113, %v_114]: I32
-    %v_115 = phi [b_41, 0], [b_113, %v_116]: I32
-    %v_117 = cmp_ilt %v_115, 3: I32
-    je %v_117, b_113, b_118
-  }
-
-  b_118 {
-    call_complex Guard.drop, %v_42
-    %v_56 = add %v_108, %v_112: I32
-    %v_119 = loads @live, 4: I32
-    %v_120 = cmp_neq %v_119, 0: I32
-    je %v_120, b_61, b_48
-  }
-
-  b_113 {
-    %v_121 = add %v_112, %v_45: I32
-    %v_122 = loads @live, 4: I32
-    %v_114 = add %v_121, %v_122: I32
-    %v_116 = add %v_115, 1: I32
-    jmp b_46
+  b_55 {
+    %v_115 = phi [b_108, %v_112], [b_50, 0]: I32
+    %v_116 = phi [b_108, %v_110], [b_50, 0]: I32
+    %v_117 = add %v_115, %v_54: I32
+    %v_118 = loads @live, 4: I32
+    %v_112 = add %v_117, %v_118: I32
+    %v_110 = add %v_116, 1: I32
+    jmp b_108
   }
 }
 

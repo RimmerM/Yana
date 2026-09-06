@@ -409,8 +409,8 @@ struct CompileSettings {
     InlineLevel inlining = InlineLevel::Balanced;
 
     /*
-     * The checks the compiler inserts into the program - a subscript's bounds test, and the range
-     * test on a store through a `@bits` refinement.
+     * The checks a program stops on - a subscript's bounds test, and the range test on a store
+     * through a `@bits` refinement.
      *
      * On by default, which is the decision rather than the switch: an index nothing checked reads
      * memory that belongs to something else, and a `@bits(13)` field holding a twenty-bit value
@@ -421,6 +421,26 @@ struct CompileSettings {
      * `-no-checks` turns them off wholesale, for the build that has measured what they cost and
      * decided. There is deliberately no per-check switch: what a reader needs to know about a binary
      * is whether it is the checked one.
+     *
+     * **What a check *is* differs between the two resolve stages, and the switch means the same
+     * thing either way.** `compiler/resolve` emits `checkCondition(index >= length)` at the
+     * subscript and `opt/opt_check.cpp` removes the calls it emitted. The ownership stage emits
+     * nothing at all: `prelude/Core/Array.yana`'s `Index.get` writes the test as a library `if` and
+     * `@inline(always)` grafts it into the caller, so what `resolve_ssa/opt/check.cpp` removes is a
+     * branch whose whole taken arm calls the `checkFailed` role. Both are read in the optimizer and
+     * above its own gate, so a resolved program is the same either way - a library built checked
+     * links into an unchecked one - and `-no-checks` is free rather than cheap in both.
+     *
+     * **Under the ownership stage it takes the library's other stops with it**, and that is the one
+     * place the two switches do not remove the same set. What is recognized there is the role and
+     * not the site, so every `checkFailed` the library reached for goes:
+     * `prelude/Core/Array.yana`'s `reserve` writes `if !resize(self.run, wide) then checkFailed()`,
+     * so an unchecked build has no allocation-failure stop and a `push` that could not get the room
+     * carries on into storage it does not have. That is the honest consequence of a library whose
+     * checks are library code rather than a hole in the rule - recognizing the *condition* instead
+     * would miss the test the day the library spells it differently - and it is stated here rather
+     * than only in `resolve_ssa/opt/check.cpp`, because it is a fact about the binary and not about
+     * the pass. A program that relies on that stop is one that keeps the checks on.
      */
     bool checks = true;
 
