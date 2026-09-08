@@ -630,27 +630,18 @@ U32 laneBytes(DeclBase base, IntWidths widths, DeclPtr<Type> type) {
     return storage == 1 || storage == 2 || storage == 4 || storage == 8 ? storage : 0;
 }
 
-bool hasNaturalVector(Context& context, DeclBase base, DeclPtr<Type> type) {
+bool hasNaturalVector(Context& context, Program& program, DeclPtr<Type> type) {
+    auto base = *program.decl;
     if(!type || !isConcreteType(base, type)) return false;
 
-    auto stride = laneBytes(base, targetIntWidths(context.settings), type);
-    if(!stride) return false;
-
-    // The band a target has no arithmetic for, which on JavaScript is `WideInt`'s - `makeVectorType`
-    // states it, and this is the same test read as a refusal rather than reported as one.
-    if(isJsMode(context.settings) && base[type]->kind == Type::Int && stride == 8) {
-        if(((IntType*)base[canonicalInt(base, type)])->bits <= 53) return false;
-    }
-
-    // A single-lane vector is a scalar with extra steps, and a lane wider than the register is not a
-    // vector at all - the second is what `makeVectorType` reports and the first is what its
-    // power-of-two range refuses.
-    return targetVectorBytes(context.settings) / stride >= 2;
+    // The natural form, asked for with reporting off: `makeVectorType` already states every refusal
+    // a lane can meet, and asking it silently is what keeps this one rule instead of two.
+    return makeVectorType(context, program, type, U64(0), false, kNullLocation, false) != nullptr;
 }
 
 DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane, U64 lanes,
-                             bool isMask, LocationId source) {
-    return makeVectorType(context, program, lane, nullptr, lanes, isMask, source);
+                             bool isMask, LocationId source, bool report) {
+    return makeVectorType(context, program, lane, nullptr, lanes, isMask, source, report);
 }
 
 /*
@@ -661,7 +652,8 @@ DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> l
  * so no pass below this stage reasons about a count's absence.
  */
 DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane,
-                             DeclPtr<Type> count, U64 lanes, bool isMask, LocationId source) {
+                             DeclPtr<Type> count, U64 lanes, bool isMask, LocationId source,
+                             bool report) {
     auto base = *program.decl;
     if(!lane) return nullptr;
 
@@ -704,8 +696,8 @@ DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> l
 
     auto stride = laneBytes(base, targetIntWidths(context.settings), lane);
     if(!stride) {
-        context.diagnostics.error("%@ is not a lane type - a vector holds machine lanes, which are the integer types of 8, 16, 32 and 64 bits and the two floats"_v,
-                                  source, typeText(context, base, lane));
+        if(report) context.diagnostics.error("%@ is not a lane type - a vector holds machine lanes, which are the integer types of 8, 16, 32 and 64 bits and the two floats"_v,
+                                             source, typeText(context, base, lane));
         return nullptr;
     }
 
@@ -720,8 +712,8 @@ DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> l
         auto& canonical = *(IntType*)base[canonicalInt(base, lane)];
 
         if(canonical.bits <= 53) {
-            context.diagnostics.error("a vector of %@ has no JavaScript form - 33 to 53 bits is a host number there, and this target's vector emitters have no arithmetic for one"_v,
-                                      source, typeText(context, base, lane));
+            if(report) context.diagnostics.error("a vector of %@ has no JavaScript form - 33 to 53 bits is a host number there, and this target's vector emitters have no arithmetic for one"_v,
+                                                 source, typeText(context, base, lane));
             return nullptr;
         }
     }
@@ -732,24 +724,24 @@ DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> l
         // A lane wider than the register is not a vector of one lane, it is a scalar - reachable
         // only from a target whose vector width somebody set below a lane's.
         if(!lanes) {
-            context.diagnostics.error("%@ is wider than this target's vector, so there is no natural vector of it"_v,
-                                      source, typeText(context, base, lane));
+            if(report) context.diagnostics.error("%@ is wider than this target's vector, so there is no natural vector of it"_v,
+                                                 source, typeText(context, base, lane));
             return nullptr;
         }
     }
 
     if(lanes < 2 || lanes > kMaxVectorLanes || (lanes & (lanes - 1)) != 0) {
-        context.diagnostics.error("a vector has a power-of-two lane count between 2 and %@, and this one asks for %@ - one lane is a scalar and is spelled as one"_v,
-                                  source, U32(kMaxVectorLanes), U32(lanes));
+        if(report) context.diagnostics.error("a vector has a power-of-two lane count between 2 and %@, and this one asks for %@ - one lane is a scalar and is spelled as one"_v,
+                                             source, U32(kMaxVectorLanes), U32(lanes));
         return nullptr;
     }
 
     // The byte width, which the count alone does not bound: `Vec(I64, 64)` is 64 lanes and half a
     // kilobyte. The language's ceiling and not the running target's - `kMaxVectorBytes` says why.
     if(lanes * stride > kMaxVectorBytes) {
-        context.diagnostics.error("a vector may be at most %@ bytes wide, and %@ lanes of %@ is %@"_v,
-                                  source, U32(kMaxVectorBytes), U32(lanes),
-                                  typeText(context, base, lane), U32(lanes * stride));
+        if(report) context.diagnostics.error("a vector may be at most %@ bytes wide, and %@ lanes of %@ is %@"_v,
+                                             source, U32(kMaxVectorBytes), U32(lanes),
+                                             typeText(context, base, lane), U32(lanes * stride));
         return nullptr;
     }
 

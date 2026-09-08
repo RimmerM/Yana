@@ -76,6 +76,57 @@
 
 namespace ssa {
 
+/*
+ * What `branch (eq/ne %v, K)` proves about its own condition - which value is compared, against
+ * what constant, and whether the operator is `==` or `!=`. Shared by `BranchThreader::readTest` and
+ * `ConditionDecider::provedBy` below, which both used to walk this same `Inst::Binary` shape on
+ * their own before this was one function.
+ *
+ * Each caller keeps its own extra constraint at its own site rather than the two being merged into
+ * one set of rules neither actually wants: `readTest` additionally requires the comparison be
+ * defined inside the join block it is testing, because it is answering "does this join's own test
+ * name this argument" and a compare from anywhere else is not that join's test even if the shapes
+ * match; `provedBy` is walking outward from a branch's condition value with no such requirement, and
+ * separately tells a condition that is not a comparison at all (`NotComparison`, where the branch's
+ * own `Bool` is what got proved) from one that is a comparison against something that never reduces
+ * to a constant (`NoConstantSide`, where nothing is proved) - a distinction `readTest` has no use
+ * for, since either failure is the same "not this join's test" to it.
+ */
+enum class EqualityShape { NotComparison, NoConstantSide, Recognized };
+
+struct EqualityTest {
+    EqualityShape shape = EqualityShape::NotComparison;
+    Inst* compare = nullptr;
+    Value* subject = nullptr;
+    U64 constant = 0;
+    bool equal = true;
+};
+
+EqualityTest recognizeEqualityTest(OptContext& opt, Value& condition) {
+    if(!condition.definer) return {};
+
+    auto definer = opt.base[condition.definer];
+    if(definer->kind != Inst::Binary) return {};
+
+    auto& compare = (InstBinary&)*definer;
+    if(compare.op != BinaryOp::Eq && compare.op != BinaryOp::Ne) return {};
+
+    auto operand = [&](Use used) { return used.isSet() ? opt.base[used.value()] : nullptr; };
+    auto lhs = operand(compare.lhs);
+    auto rhs = operand(compare.rhs);
+
+    Value* subject = nullptr;
+    Maybe<U64> number = Nothing();
+
+    if((number = constantValueOf(opt, rhs))) subject = lhs;
+    else if((number = constantValueOf(opt, lhs))) subject = rhs;
+
+    if(!subject || !number) return { EqualityShape::NoConstantSide };
+
+    return { EqualityShape::Recognized, definer, subject, number.unwrap(),
+             compare.op == BinaryOp::Eq };
+}
+
 namespace {
 
 /*
@@ -1163,22 +1214,12 @@ struct BranchThreader {
         if(!condition->definer) return Nothing();
 
         auto definer = opt.base[condition->definer];
-        if(definer->kind != Inst::Binary) return Nothing();
         if(!definer->block || opt.base[definer->block] != &join) return Nothing();
 
-        auto& compare = (InstBinary&)*definer;
-        if(compare.op != BinaryOp::Eq && compare.op != BinaryOp::Ne) return Nothing();
-        if(!compare.lhs.isSet() || !compare.rhs.isSet()) return Nothing();
+        auto test = recognizeEqualityTest(opt, *condition);
+        if(test.shape != EqualityShape::Recognized || test.subject != &argument) return Nothing();
 
-        auto lhs = opt.base[compare.lhs.value()];
-        auto rhs = opt.base[compare.rhs.value()];
-
-        Maybe<U64> number = Nothing();
-        if(lhs == &argument) number = constantValueOf(opt, rhs);
-        else if(rhs == &argument) number = constantValueOf(opt, lhs);
-        if(!number) return Nothing();
-
-        return Just(JoinTest { definer, number.unwrap(), compare.op == BinaryOp::Eq });
+        return Just(JoinTest { test.compare, test.constant, test.equal });
     }
 
     // Which arm the value a predecessor hands over selects.
@@ -1529,28 +1570,15 @@ struct ConditionDecider {
         // The condition itself, where a branch is written on a `Bool` the body computed.
         Decided direct { &condition, whenTrue ? U64(1) : U64(0) };
 
-        if(!condition.definer) return direct;
+        auto test = recognizeEqualityTest(opt, condition);
+        if(test.shape == EqualityShape::NotComparison) return direct;
+        if(test.shape == EqualityShape::NoConstantSide) return Decided {};
 
-        auto definer = opt.base[condition.definer];
-        if(definer->kind != Inst::Binary) return direct;
-
-        auto& compare = (InstBinary&)*definer;
-        if(compare.op != BinaryOp::Eq && compare.op != BinaryOp::Ne) return direct;
-
-        auto lhs = valueOf(compare.lhs);
-        auto rhs = valueOf(compare.rhs);
-
-        Value* subject = nullptr;
-        Maybe<U64> number = Nothing();
-
-        if((number = constantValueOf(opt, rhs))) subject = lhs;
-        else if((number = constantValueOf(opt, lhs))) subject = rhs;
-
-        if(!subject || !number) return Decided {};
+        auto subject = test.subject;
 
         // The arm the comparison decided outright.
-        if(whenTrue == (compare.op == BinaryOp::Eq)) {
-            return Decided { subject, number.unwrap() };
+        if(whenTrue == test.equal) {
+            return Decided { subject, test.constant };
         }
 
         /*
@@ -1566,10 +1594,10 @@ struct ConditionDecider {
          * constructor index and `makeConstant` builds one back from the same number.
          */
         if(isTwoValued(subject->occurrence.type)) {
-            return Decided { subject, number.unwrap() ? U64(0) : U64(1) };
+            return Decided { subject, test.constant ? U64(0) : U64(1) };
         }
 
-        if(auto other = soleOtherAnswer(*subject, number.unwrap())) {
+        if(auto other = soleOtherAnswer(*subject, test.constant)) {
             return Decided { subject, other.unwrap() };
         }
 

@@ -1,0 +1,66 @@
+module ResolveTest
+
+fn narrowFirst() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I64 address = alloc frame I64
+  %2: %I64 address = alloc frame I64
+  %3: I32 trivial = const 1
+  store inspect %0 consume %3
+  %4: I64 trivial = const 2
+  store inspect %1 consume %4
+  %5: I32 trivial = const 1
+  %6: I64 trivial = const 2
+  %7: I64 trivial = convert inspect %5
+  %8: I64 trivial = add inspect %7 inspect %6
+  store inspect %2 consume %8
+  %9: I64 trivial = load inspect %2
+  %10: I32 trivial = convert inspect %9
+  return consume %10
+}
+
+fn wideFirst() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I64 address = alloc frame I64
+  %2: %I64 address = alloc frame I64
+  %3: I32 trivial = const 1
+  store inspect %0 consume %3
+  %4: I64 trivial = const 2
+  store inspect %1 consume %4
+  %5: I64 trivial = const 2
+  %6: I32 trivial = const 1
+  %7: I64 trivial = convert inspect %6
+  %8: I64 trivial = add inspect %5 inspect %7
+  store inspect %2 consume %8
+  %9: I64 trivial = load inspect %2
+  %10: I32 trivial = convert inspect %9
+  return consume %10
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: I32 trivial = call narrowFirst
+  store inspect %0 consume %2
+  %3: I32 trivial = call wideFirst
+  store inspect %1 consume %3
+  %4: I32 trivial = load inspect %0
+  %5: I32 trivial = load inspect %1
+  %6: Bool trivial = ne inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 trivial = load inspect %0
+  return consume %7
+
+bb3:
+  %8: I32 trivial = const -1
+  return consume %8
+}
+
+entry main

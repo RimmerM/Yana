@@ -1,0 +1,54 @@
+{-
+   A lens call nested inside *another* lens call's own argument - `hoistableLensCall`'s self-match
+   raced against its own recursion.
+
+   # resolver: ownership
+
+   `g(h())` where both `g` and `h` are `lens fn` puts `h()` in a position that runs before `g` is
+   called, exactly as any other call's argument does. `hoistableLensCall` used to ask whether `expr`
+   itself was a lens call before it asked the same question of `expr`'s own callee and arguments, so
+   `g(h())` matched *itself* the moment it was reached - even though the whole point of walking in
+   evaluation order is that `h()` runs first and should be offered the hoist first. The self-match
+   left `h()` behind as a plain argument of the call that replaced `g(h())`, and a raw lens call in
+   an argument position is exactly what `checkCallable` refuses.
+
+   This belongs here rather than beside `LensHoist.yana`: the shipping stage cannot compile a lens
+   call that is itself the argument of another lens call at all (there a lens call must be a
+   statement or the whole right-hand side of a `let`), so there is no shared answer for it to agree
+   with the rewrite about.
+
+   `log` is what both lenses write into, on `LensHoist.yana`'s terms - running it is the only way to
+   tell which of them ran, and in what order, from the value the function returns.
+-}
+
+let &log = 0 :: Int
+
+lens fn logged(step: Int) -> Int:
+    log = log + step
+    yield log
+    log = log + 100
+
+lens fn outer(step: Int) -> Int:
+    log = log + step
+    yield log
+    log = log + 1000
+
+fn twice(x: Int) -> Int = x + x
+
+-- `outer(logged(1))` is `twice`'s argument, a non-root position, so `hoistableLensCall` has to look
+-- inside it rather than matching it whole. `logged(1)` is what evaluates first - an argument runs
+-- before the call it is passed to - so it is the one offered the hoist first, on the first turn
+-- through the block loop; `outer`'s own call is what is left around it, and is hoisted in turn on
+-- the second turn, exactly as `LensHoist.yana`'s `twoInOne` lifts two calls out of one statement.
+fn nestedInArgument() -> Int:
+    log = 0
+    return twice(outer(logged(1)))
+
+-- `log` outside the block both lenses split, so both cleanups are observed: `logged`'s adds 100 and
+-- `outer`'s adds 1000, in whichever order the two hoists unwind, and the sum does not depend on it.
+fn afterNested() -> Int:
+    let seen = nestedInArgument()
+    return seen + log
+
+fn main() -> Int:
+    return afterNested()

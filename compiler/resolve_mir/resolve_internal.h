@@ -12,6 +12,7 @@ namespace mir {
 
 struct Resolver;
 struct TypeArguments;
+struct OverloadChoice;
 
 /*
  * The resolver, across the six files it is written in.
@@ -222,6 +223,18 @@ struct PatternBinding {
     // through. `writable` without `take` is `&` alone, which `resolvePattern` refuses.
     bool take = false;
     bool writable = false;
+
+    // True when `place` is a record field whose own declaration owns the value there, as opposed to
+    // reaching it through one of the record's origin slots - `RecordField::occurrence`'s comment.
+    // Set by `resolveConstructorPattern` and `resolveTuplePattern`, the two places a field's
+    // declaration is in hand, and false everywhere a `PatternBinding` names a pivot outright rather
+    // than a projection of one. What it guards: `Builder::fieldPlace` folds the parent's contract
+    // into an owned field's, so an owned field reached through an exclusively-borrowed pivot carries
+    // `Access::Unique` the same as a genuine `&'v` payload does. Without this bit `bindPattern` could
+    // not tell the two apart from the contract alone, and read the inherited one as "this binding is
+    // a reference" - `Point{x, y}` over `&self: Point` made `x` writable with no `&` anywhere in the
+    // pattern.
+    bool ownedField = false;
 };
 
 /*
@@ -410,7 +423,7 @@ struct ArgMap {
      * position, `kNullLocation` for one nothing reached.
      *
      * Here rather than derived on demand because this is the one object that knows both halves: the
-     * walk below has the source list in hand and the reader - `Resolver::callerConstant`, filling a
+     * walk below has the source list in hand and the reader - `Resolver::callerFillValue`, filling a
      * `@caller(source: p)` position - has only the parameter index. Empty for `positionalMap`,
      * whose callers are operators and the calls the compiler makes itself, neither of which has a
      * written argument list to point at; `writtenAt` answers null there rather than reading past the
@@ -440,27 +453,6 @@ struct ArgMap {
 enum class CandidateKind: U8 {
     Any,
     Iterator,
-};
-
-/*
- * What a selection decided, and the arguments it resolved to decide it.
- *
- * Split out of `resolveOverloadedCall` because the *first* half of R5 serves something that is not a
- * call: a `for` loop's traversal is selected exactly as a call is and then opens a continuation
- * region rather than being emitted. Holding the resolved values here is what lets the winner's
- * positions be prepared afterwards without the arguments being walked a second time - which would
- * evaluate them twice.
- */
-struct OverloadChoice {
-    DeclPtr<Function> function = nullptr;
-    ArgMap map;
-
-    // In **written** order, one slot per argument the call writes, with the receiver first where
-    // there is one. A null entry is a position the winner still decides - a `@lazy` thunk, or an
-    // undecided literal - exactly as `prepareResolvedArguments` reads it.
-    SmallArray<Node*, 8> values;
-
-    explicit operator bool() const { return function != nullptr; }
 };
 
 /*
@@ -892,6 +884,18 @@ struct Resolver {
      * `resolveGlobals`, the two places where a test file's `let` differs from a library module's.
      */
     bool activeTestFile = false;
+
+    /*
+     * Whether `here()`'s top level is a **program point** - somewhere a statement runs rather than
+     * only a declaration existing - which is `declareGlobals` and `resolveGlobals`'s shared question
+     * and used to be each one's own answer.
+     *
+     * The root module's is, because the synthesized entry is its top level. Under `-test`, a test
+     * file's is too: `resolveTestEntry` runs it ahead of the cases exactly as the ordinary entry
+     * runs the root ahead of `main`, and a build without `-test` has no such file at all, so nothing
+     * here widens into library semantics the rest of the time.
+     */
+    bool atProgramPoint() { return here() == program.root() || (context.settings.test && activeTestFile); }
 
     /*
      * Runs `pass` over every file of every module, with the position set to each in turn.
@@ -2257,10 +2261,17 @@ struct Resolver {
      * `pending` is one entry per operand, non-null where the operand is a written literal this call
      * has yet to build - see `undecidedLiteral`. Null altogether at every caller but the overloaded
      * operator's, which is the only one that leaves an argument for the callee to type.
+     *
+     * `carried` is that same caller's own trial - `chooseCandidate`'s, kept rather than solved again
+     * - non-null only there and for the same reason `finishOverloadedCall` takes one: selection
+     * already bound and widened this signature to choose the candidate, and a fresh `TypeArguments`
+     * here would ask the same questions again and could answer them differently. Every other caller
+     * leaves it null and gets exactly what it always did - its own fresh, un-unified solve - because
+     * there is no earlier trial there for a second one to disagree with.
      */
     Node* callFunction(Builder& builder, Function& callee, Node* const* operands, Size count,
                        LocationId source, DeclPtr<Type> hint = nullptr,
-                       ast::Expr* const* pending = nullptr);
+                       ast::Expr* const* pending = nullptr, TypeArguments* carried = nullptr);
 
     // What the resolved arguments bind, taken before any position is prepared - see the definition,
     // where the one case that needs it is argued.
@@ -2517,6 +2528,12 @@ struct Resolver {
                           SmallArray<Node*, 8>& into, TypeArguments& typeArguments,
                           DeclPtr<Type> hint = nullptr, Receiver receiver = Receiver());
 
+    // Whether a dot-call's receiver may fill a `@lazy` first parameter - it may not, since deciding
+    // that `x.f(y)` is a call at all needs the receiver's type, which needs it evaluated. Shared by
+    // the single-callee path (`resolveArguments`) and the overloaded one (`selectOverload`), which
+    // ask the same question of the position each has already settled is the receiver's.
+    bool checkDotReceiverNotLazy(LocationId source, StringId name, bool lazy);
+
     // The positions a call left out, each built from the parameter's own constant - see the
     // definition. Both call paths end in it, which is why it is not inside either.
     bool fillDefaultArguments(Builder& builder, Function& callee, const ArgMap& map,
@@ -2557,9 +2574,12 @@ struct Resolver {
                         StringId name, LocationId nameSource, LocationId source, Receiver receiver,
                         CandidateKind kind, OverloadChoice& into);
 
+    // `typeArguments` is the winner's own trial from `OverloadChoice::args` - see the definition,
+    // where carrying it rather than solving again is the whole of the point.
     Node* finishOverloadedCall(Builder& builder, ast::AppExpr& written, Function& callee,
-                               const ArgMap& map, SmallArray<Node*, 8>& values, DeclPtr<Type> hint,
-                               LocationId source, Receiver receiver = Receiver());
+                               const ArgMap& map, SmallArray<Node*, 8>& values,
+                               TypeArguments& typeArguments, DeclPtr<Type> hint, LocationId source,
+                               Receiver receiver = Receiver());
 
     // What a call has to prove about the types it chose - see the definition, which is where the
     // two answers and the deliberately absent third are argued.
@@ -2658,8 +2678,12 @@ struct Resolver {
     /*
      * Patterns, `is` and `match` - `resolve_match.cpp`, where every one of these is argued.
      */
+    // `ownedField` is `pivot`'s own answer to `PatternBinding::ownedField` - true where the caller
+    // just projected an owned record field and false everywhere else, including the outermost call
+    // for each pattern, where `pivot` is not a projection at all.
     bool resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
-                        SmallArray<PatternBinding, 4>& into, Block* onFail, Carry& carry);
+                        SmallArray<PatternBinding, 4>& into, Block* onFail, Carry& carry,
+                        bool ownedField = false);
     bool resolveConstructorPattern(Builder& builder, ast::Pat& pat, Place& pivot,
                                    SmallArray<PatternBinding, 4>& into, Block* onFail,
                                    Carry& carry);
@@ -2703,6 +2727,14 @@ struct Resolver {
      */
     bool resolveBinding(Builder& builder, const ast::VarDecl& binding, Place& pivot,
                         SmallArray<PatternBinding, 4>& made);
+
+    // The tail `bindIrrefutable` and `resolveBinding`'s own zero-alternatives branch share - see the
+    // definition. `diagnose` is called with no arguments where `covers` is false; each caller's own
+    // wording is what it closes over.
+    template<class Diagnose>
+    bool resolveWithNoAlternative(Builder& builder, ast::Pat& pat, Place& pivot, bool covers,
+                                  Carry& carry, SmallArray<PatternBinding, 4>& made,
+                                  Diagnose&& diagnose);
 
     /*
      * The same pattern in a position that has **no alternative** - a `for` binding.
@@ -2780,6 +2812,10 @@ struct Resolver {
      */
     Node* matchAsMap(Builder& builder, ast::Expr& expr, Place& pivot, Buffer<ast::Pat> patterns,
                      DeclPtr<Type> hint, Request wanted);
+
+    // A plain `Con` pattern naming one constructor of `record`, before `mapConstructor` and
+    // `matchCases` diverge on what it may do beyond that - see the definition.
+    bool constructorPattern(ast::Pat& pattern, DeclPtr<RecordType> record, U32& index);
 
     // One pattern of a mapping, and which constructor it names - see the definition, where the list
     // of things a pattern may not do is the eligibility rule read from the other side.
@@ -3322,6 +3358,16 @@ struct Resolver {
      * describing a local that does not exist.
      */
     void readBindingAttributes(const ast::VarDecl& binding, Local* local, bool placed);
+
+    /*
+     * The local a plain binding's resolved value becomes - `resolveDeclaration`'s flat form and
+     * `resolveScoped`'s share this exactly, `readBindingAttributes` included, so `@heap` (or
+     * anything added beside it) is answered once for every shape a one-name binding can take
+     * rather than once per copy of the sequence.
+     */
+    Local* bindPlainLocal(Builder& builder, const ast::VarDecl& binding, StringId name,
+                          Node& value, bool writable);
+
     void resolveAssign(Builder& builder, ast::Expr& expr);
     void resolveWhile(Builder& builder, ast::Expr& expr);
     void resolveReturn(Builder& builder, ast::Expr& expr);
@@ -3717,6 +3763,43 @@ struct TypeArguments {
      * bound simply keep the hint's answer, which is what they did before the rule existed.
      */
     U64 fromResult = 0;
+};
+
+/*
+ * What a selection decided, and the arguments it resolved to decide it.
+ *
+ * Split out of `resolveOverloadedCall` because the *first* half of R5 serves something that is not a
+ * call: a `for` loop's traversal is selected exactly as a call is and then opens a continuation
+ * region rather than being emitted. Holding the resolved values here is what lets the winner's
+ * positions be prepared afterwards without the arguments being walked a second time - which would
+ * evaluate them twice.
+ *
+ * Defined here rather than beside `CandidateKind`, where it used to stand, because `args` needs
+ * `TypeArguments` complete: it is the winning candidate's own trial, carried out of
+ * `chooseCandidate`'s per-candidate array instead of being rebuilt - see the note there. Without
+ * this, `finishOverloadedCall` built a fresh `TypeArguments` and solved the winner's signature a
+ * second time against the same arguments, which is exactly the two-solves bug this struct's own
+ * comment used to claim could not happen: `x + y` at `(I32, I64)` through an overloaded `+` had
+ * selection widen the shared class variable to `I64` and completion, solving again with nothing
+ * carried over, refuse the `I32` operand before its own widening had run - and the order the
+ * operands were written decided which of the two positions hit that.
+ *
+ * A `Maybe` because `TypeArguments` holds a `Resolver&` and a `SmallArray`, so it is neither
+ * default-constructible nor assignable - `Maybe::replace` placement-constructs it directly in this
+ * struct's own storage, once the winner is known, and every position from there on is prepared
+ * against the one object `unwrap()` returns.
+ */
+struct OverloadChoice {
+    DeclPtr<Function> function = nullptr;
+    ArgMap map;
+    Maybe<TypeArguments> args;
+
+    // In **written** order, one slot per argument the call writes, with the receiver first where
+    // there is one. A null entry is a position the winner still decides - a `@lazy` thunk, or an
+    // undecided literal - exactly as `prepareResolvedArguments` reads it.
+    SmallArray<Node*, 8> values;
+
+    explicit operator bool() const { return function != nullptr; }
 };
 
 /*

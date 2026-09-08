@@ -534,16 +534,32 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
      * A **function value**, whose release is a call to the one function that tests the tag - D17,
      * and `fun.cpp` is where the representation is written down.
      *
-     * Emitted once when *either* half is asked, rather than under one of them. A `Fun` has no
-     * storage of its own for the two halves to be separated over - the captures' effects and the
-     * block's release happen at the same point - so a record with an authored instance of either
-     * half still owes the function value it holds, and running it twice is the thing to avoid.
+     * Emitted once when *either* half is asked, rather than under one of them - which is sound only
+     * because `funTeardown` always runs both: the captures' full `Drop`-and-`Reclaim` walk and an
+     * unconditional `freeHeap`, with no `childReclaim ? boxes : BoxRelease::Foreign` downgrade of
+     * the kind the ordinary field walk below applies to a boxed field. A record with an authored
+     * instance of either half still owes the function value it holds, and running the shared
+     * teardown twice is the thing this avoids - but `assertTrue` below is what actually keeps it
+     * sound, not an argument that the two halves cannot come apart for a `Fun`.
+     *
+     * They can: a plain `Fun` field reaches this with the *enclosing* record's own `childDrop` and
+     * `childReclaim`, unequal exactly when the record's does, and a `@box (T -> U)` field reaches it
+     * the same way through `emitBoxTeardown`'s `target` recursion. A drop-only request should run
+     * the captures' effects and skip `freeHeap`; a reclaim-only request should free without running
+     * them - which is two more cached bodies (`closureBlockTeardown` keyed on the half pair as well
+     * as the environment, and `funTeardown` built once per pair rather than once) for a caller that
+     * does not exist today: nothing in `lib/` or `test/` builds a record whose derived `Drop` and
+     * `Reclaim` disagree over a `Fun`-typed field, checked by instrumenting this branch and running
+     * the whole suite and `test/base` without it ever firing unequal. So this stays the one shared
+     * function and the assertion is the fence around the assumption, not a proof of it.
      *
      * A site that can see which lambda this is does not reach here at all: `ownershipOfOccurrence`
      * answers "nothing to release" for a value carrying `Shapes::closure`, so a frame-placed
      * closure's drop is never emitted rather than emitted and folded.
      */
     if(decl[type]->kind == mir::Type::Fun) {
+        assertTrue(childDrop == childReclaim);
+
         auto callee = funTeardown(source);
         auto name = block.addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
 

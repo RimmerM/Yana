@@ -1,0 +1,41 @@
+{-
+   A reference payload, **written** through - the half of `bindPattern`'s rule that had no fixture.
+
+   # resolver: ownership
+
+   `Reject.InheritedAccess.yana` beside this is the case that must be refused: an owned field
+   inheriting `Access::Unique` from an exclusively-borrowed pivot is not a reference, and a pattern
+   that binds it establishes no exclusive access to say otherwise. This is the case that must **not**
+   be, and the two are one bit apart - `PatternBinding::ownedField`.
+
+   `takeMut` answers `Maybe(&m'Guard)`. What `Just(held)` binds is not a copy of a guard and not a
+   read-only view of one: the position it binds is `&m'Guard`, so `held` is a `&` local and an
+   assignment through it reaches the storage `g` names. `loans/Argument.yana`'s `exclusive` already
+   *reads* `held.id`, which a shared binding would also have allowed and so proved nothing about the
+   capability; the write below is what a shared binding would refuse.
+
+   Fixing the inherited-access hole is what made this worth pinning. The narrow fix - "an owned field
+   is never a reference" - and the wrong wide fix - "a payload is never a reference" - are
+   indistinguishable on a fixture that only reads.
+-}
+
+data Guard {id: I32}
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn takeMut(g: &m'Guard) -> Maybe(&m'Guard) = Just(g)
+
+fn bumped() -> I32:
+    let &g = guard(5)
+
+    let read = match takeMut(g):
+        Just(held):
+            held.id = held.id + 37
+            held.id
+        Nothing: 0
+
+    -- Read back through `g` and not through the payload, which is what says the write reached the
+    -- storage rather than a copy the match made.
+    return read + g.id
+
+fn main() -> I32 = bumped()

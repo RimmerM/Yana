@@ -273,7 +273,7 @@ set spans every test file, so a read of a global whose file has not run yet is t
 already was inside one top level. A bare **statement** stays refused there: a test file gets
 initializers, not a second program start.
 
-`test/lib/TestFileGlobals.yana` runs under both stages, and `lib/modules/GlobalInit.test.yana` beside
+`test/lib/TestFileGlobals.yana` runs under both stages, and `test/lib/modules/GlobalInit.test.yana` beside
 it is the case that says the initializer was resolved in *its* module.
 
 ## Milestone

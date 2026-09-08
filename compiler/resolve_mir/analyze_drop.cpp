@@ -890,12 +890,11 @@ bool analyzeBody(Context& context, Program& program, Function& function) {
 
 // The argument is in place.h, beside the declaration.
 bool boxesVisibleAt(MirBase base, Place& place) {
-    auto root = &place;
-    while(root->parent) root = base[root->parent];
+    auto& root = rootPlace(base, place);
 
-    switch(root->kind) {
+    switch(root.kind) {
         case Place::Local:
-            return root->occurrence.contract.isOwned();
+            return root.occurrence.contract.isOwned();
 
         // A global outlives every frame and nothing here placed it; a loan and a raw address name
         // storage whose owner is somewhere else by construction.
@@ -905,7 +904,7 @@ bool boxesVisibleAt(MirBase base, Place& place) {
             return false;
 
         /*
-         * Not a root. Every projection has a parent, so the walk above stops at one of the four
+         * Not a root. Every projection has a parent, so `rootPlace`'s walk stops at one of the four
          * above and this arm is unreachable - written out rather than defaulted so that a new root
          * kind is a compiler error here instead of a silent `true`, which is the answer that frees
          * somebody else's memory.

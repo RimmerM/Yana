@@ -1,0 +1,8 @@
+-- A type with a namespaced function of its own, and a second module beside it - `WidgetExtra.yana`
+-- - declaring another of the same name. Two modules offering the same `Widget.describe` is what
+-- `Reject.DotAmbiguous.yana` needs: a dot-call's namespaced half has its own ambiguity to report,
+-- exactly as a plain name's does.
+
+pub data Widget {size: Int}
+
+pub fn Widget.describe(self: Widget) -> Int = 1

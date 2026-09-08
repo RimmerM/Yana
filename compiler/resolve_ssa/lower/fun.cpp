@@ -255,22 +255,17 @@ LowerPtr<LowerValue> Lowering::emitClosureBlock(LowerBlock& block, DeclPtr<mir::
     block.addInst(lower, new (to.arena) LowerInstStore(
         address, ((LowerInstSingle*)pointer)->created().ptr - lower, layout.target.pointerSize));
 
-    // And the captures, moved in. `allocateHeap` hands back whatever was in the block, so a record
-    // with a word nothing writes in full is zeroed first - `createBox`'s rule, at its fourth site.
+    /*
+     * And the captures, moved in - **not** zeroed first, which is why this is not a fourth statement
+     * of `createBox`'s rule (`inst.cpp`'s note, and the README's "all three allocation sites").
+     *
+     * The rule is for a block whose fields are written one at a time, where whatever `allocateHeap`
+     * handed back is still readable between them. What happens here is a single whole-range copy of
+     * `manifest.size` bytes, padding included: every byte of the environment comes from `from`, so a
+     * zero-fill ahead of it would write bytes the copy immediately overwrites. It did, and the
+     * `hasPaddedWord` guard in front of it made that look deliberate.
+     */
     auto record = offsetAddress(block, address, header);
-
-    if(hasPaddedWord(layout, environment)) {
-        U32 at = 0;
-        while(at < manifest.size) {
-            auto width = manifest.size - at >= 8 ? 8u : manifest.size - at >= 4 ? 4u
-                       : manifest.size - at >= 2 ? 2u : 1u;
-
-            block.addInst(lower, new (to.arena) LowerInstStore(
-                offsetAddress(block, record, at), immediate(block, LowerType::Int64, 0), width));
-
-            at += width;
-        }
-    }
 
     block.addInst(lower, new (to.arena) LowerInstCopy(
         record, from, immediate(block, LowerType::Int64, U64(manifest.size))));

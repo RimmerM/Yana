@@ -60,7 +60,7 @@ bool constantNeedsAllocation(DeclBase base, const Constant& constant);
  * A type **variable** answers true: what a generic body drops is whatever the caller supplied, and
  * the placement question is asked of a specialization that this walk cannot see from here.
  */
-bool reachesBox(DeclBase base, DeclPtr<Type> type, U32 depth = 0);
+bool reachesBox(DeclBase base, DeclPtr<Type> type);
 
 /*
  * Whether any release site in the program cannot see where the value's interior boxes were placed -

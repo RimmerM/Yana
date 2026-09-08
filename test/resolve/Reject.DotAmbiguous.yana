@@ -1,0 +1,20 @@
+{-
+   A dot-call's namespaced half, ambiguous - `findDotOverloads`.
+
+   # resolver: ownership
+
+   `x.f(y)` asks two questions of one name: the receiver's own namespace first (`Widget.describe`
+   here), then the bare name. The namespaced half used to look with reporting off unconditionally,
+   on the theory that it might fail and fall through to the bare half - but where it *is* found,
+   ambiguous or not, it is what the call compiles to, and an ambiguity there is a real mistake and
+   not a candidate about to be discarded. Two modules answering `Widget.describe` used to compile
+   silently into whichever one the import order happened to visit first; `Widget.yana` and
+   `WidgetExtra.yana` are that pair.
+-}
+
+import Widget
+import WidgetExtra
+
+fn main() -> Int:
+    let w = Widget {size: 4}
+    return w.describe()

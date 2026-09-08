@@ -75,11 +75,17 @@ DeclPtr<mir::Function> Lowering::locatedCheck(DeclPtr<mir::Function> callee) {
  * check site would be the same bytes once per subscript. Not a `String` and not `stringLiteral`:
  * what the located declaration takes is the pointer and the count separately, which is the whole of
  * the measurement `known.def`'s row records.
+ *
+ * The count comes back through `count` rather than being looked up again at the call: it is the same
+ * name resolved for the same reason, and the global's own size does not answer it - an empty name
+ * still gets a byte, since a table of no bytes is not a table.
  */
-LowerPtr<LowerGlobal> Lowering::moduleNameBytes(StringId name) {
+LowerPtr<LowerGlobal> Lowering::moduleNameBytes(StringId name, U32& count) {
+    auto text = context.findName(name);
+    count = U32(text.size());
+
     if(auto found = checkModuleNames.getValue(name)) return found.unwrap();
 
-    auto text = context.findName(name);
     auto global = addTable(erasedName(String("checkLocation(") + String(text.text(), text.size()) +
                                       String(")")),
                            U32(text.size() ? text.size() : 1));
@@ -112,12 +118,14 @@ bool Lowering::checkLocationArguments(LowerBlock& block, mir::Function& located,
 
     auto node = context.diagnostics.sourceNode(source);
 
-    auto bytes = moduleNameBytes(node ? node->sourceModule : StringId());
+    // The count comes back beside the global rather than from a second lookup: the two are one
+    // question, and the global's own size is not the answer - an empty name still gets one byte.
+    U32 count = 0;
+    auto bytes = moduleNameBytes(node ? node->sourceModule : StringId(), count);
     passed.push(((LowerInstSingle*)block.addInst(lower, new (to.arena) LowerInstGlobal(
         lower[bytes]->name, bytes)))->created().ptr - lower);
 
-    auto count = node ? U64(context.findName(node->sourceModule).size()) : 0;
-    U64 written[3] = { count, node ? U64(node->sourceStart.line) + 1 : 0,
+    U64 written[3] = { U64(count), node ? U64(node->sourceStart.line) + 1 : 0,
                        node ? U64(node->sourceStart.column) : 0 };
 
     for(U32 i = 0; i < 3; i++) {

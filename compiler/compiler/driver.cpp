@@ -334,7 +334,7 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
     }
 
     if(settings.mode != CompileMode::Executable) {
-        context.diagnostics.error("-resolver ownership implements -mode om, os, lower and exe so far"_v,
+        context.diagnostics.error("-resolver ownership implements -mode mir, ssa, lower and exe so far"_v,
                                   nullptr);
         return false;
     }
@@ -596,6 +596,22 @@ int main(int argc, const char** argv) {
      * thing they have in common is the `LowerModule` each hands to the same backends.
      */
     if(context.settings.resolver == ResolverStage::Ownership) {
+        /*
+         * The query, refused rather than answered - and refused *here*, above the output directory.
+         *
+         * `explainFunction` reads the shipping stage's `Program`, and there is no shared object for
+         * the two stages to produce, so this is not a call that could be made to work by pointing it
+         * somewhere else. What made it worth a check of its own rather than falling into the mode
+         * refusal below is that a query has no mode: `explain` leaves `-mode exe` in place, so this
+         * branch built an executable and answered nothing at all - which for a query that is
+         * documented as producing no output is the one wrong answer available.
+         */
+        if(context.settings.explaining()) {
+            context.diagnostics.error("`explain` reads the shipping stage's program - it has no answer under `-resolver ownership`"_v,
+                                      nullptr);
+            return 1;
+        }
+
         if(!ensureOutputDirectory(context.settings.outputDir)) return 1;
 
         auto& given = context.settings.outputName;

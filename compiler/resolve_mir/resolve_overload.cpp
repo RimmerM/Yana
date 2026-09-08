@@ -444,22 +444,43 @@ static bool agreedShape(Resolver& resolver, const Candidate* candidates, Size co
  * that.
  *
  * Answers the winner, or null having reported. `candidates` is written through - `bound`, `usable`
- * and `required` are filled here - so the caller's list is what the answer points into.
+ * and `required` are filled here - so the caller's list is what the answer points into. `winner` is
+ * left holding the chosen candidate's own trial - see `OverloadChoice::args` - so completion prepares
+ * every position against the same bindings selection used to pick it, rather than solving the
+ * signature a second time.
  */
 static const Candidate* chooseCandidate(Resolver& resolver, SmallArray<Candidate, 4>& candidates,
                                         const OverloadSet& set, Node* const* values, Size arguments,
                                         StringId name, LocationId nameSource, LocationId source,
+                                        Maybe<TypeArguments>& winner,
                                         const intrinsic::Known* literals = nullptr,
                                         CandidateKind kind = CandidateKind::Any) {
     auto& context = resolver.context;
     auto base = resolver.decl();
 
-    // The winner, once there is one: whether a call may reach the declaration at all is asked here
-    // rather than at each caller, because this is where a set settles on one - `checkCallable`, the
-    // same question `resolveCall` and `findOperator` ask of a name that reached a single one.
+    // One trial per candidate, held until a winner is known rather than discarded after each -
+    // `chooseCandidate` does not decide which candidate wins until every one of them has been
+    // tried, so all of them stay alive until then. `trials[i]` is `candidates[i]`'s own.
+    SmallArray<TypeArguments, 4> trials;
+
+    /*
+     * The winner, once there is one: whether a call may reach the declaration at all is asked here
+     * rather than at each caller, because this is where a set settles on one - `checkCallable`, the
+     * same question `resolveCall` and `findOperator` ask of a name that reached a single one.
+     *
+     * And the moment the trial that bound this candidate is moved into `winner` rather than left to
+     * be discarded with the rest of `trials` - the one point every return path below funnels
+     * through, so there is exactly one place that decides which trial survives.
+     */
     auto chosen = [&](const Candidate* candidate) -> const Candidate* {
-        return resolver.checkCallable(*base[candidate->function], nameSource,
-                                      kind == CandidateKind::Iterator) ? candidate : nullptr;
+        if(!resolver.checkCallable(*base[candidate->function], nameSource,
+                                   kind == CandidateKind::Iterator)) {
+            return nullptr;
+        }
+
+        auto index = Size(candidate - candidates.pointer());
+        winner.replace(static_cast<TypeArguments&&>(trials[index]));
+        return candidate;
     };
 
     /*
@@ -476,7 +497,20 @@ static const Candidate* chooseCandidate(Resolver& resolver, SmallArray<Candidate
 
     for(Size i = 0; i < candidates.size(); i++) {
         auto& candidate = *base[candidates[i].function];
-        TypeArguments bound(resolver, candidate.gen);
+        trials.push(resolver, candidate.gen);
+        auto& bound = trials[i];
+
+        /*
+         * Unified, like every real solve in this stage does - `TypeArguments::unifies`. Left off
+         * here until now: this trial bound the shared class variable of `Num.+(lhs: a, rhs: a)` to
+         * whichever operand happened to be checked first and refused the other unless it was already
+         * at least as wide - so `x + y` at `(I32, I64)` selected and `y + x` at the same two types
+         * did not, once the name reached more than one candidate. Meeting the two at their `Widen`
+         * upper bound instead, exactly as `finishOverloadedCall` and the operator chain's sole-callee
+         * path already do, makes selection agree with what completion accepts regardless of which
+         * operand came first.
+         */
+        bound.unifies = true;
 
         if(!resolver.candidateAccepts(candidate, candidates[i].map, argumentTypes.pointer(),
                                       arguments, source, bound, literals)) {
@@ -649,14 +683,21 @@ bool Resolver::prepareResolvedArguments(Builder& builder, ast::AppExpr& written,
     return fillDefaultArguments(builder, callee, map, source, arguments);
 }
 
-// See the declaration. The winner's positions, then the call - the second half of R5, split from the
-// first so that a `for` loop's traversal can reach the same preparation without also being a call.
+/*
+ * See the declaration. The winner's positions, then the call - the second half of R5, split from the
+ * first so that a `for` loop's traversal can reach the same preparation without also being a call.
+ *
+ * `typeArguments` is `chosen`'s own trial from `chooseCandidate` - `OverloadChoice::args` - and not a
+ * fresh one built here. It arrives already `unifies`, already holding whatever selection bound to
+ * pick this candidate, and `prepareResolvedArguments` keeps refining the same object rather than
+ * starting over: two `TypeArguments` solving one signature against one argument list could disagree,
+ * and completion refusing what selection had just accepted - `x + y` at `(I32, I64)` through an
+ * overloaded `+`, once selection itself was fixed to widen - was exactly that disagreement.
+ */
 Node* Resolver::finishOverloadedCall(Builder& builder, ast::AppExpr& written, Function& callee,
                                      const ArgMap& map, SmallArray<Node*, 8>& values,
-                                     DeclPtr<Type> hint, LocationId source, Receiver receiver) {
-    TypeArguments typeArguments(*this, callee.gen);
-    typeArguments.unifies = true;
-
+                                     TypeArguments& typeArguments, DeclPtr<Type> hint,
+                                     LocationId source, Receiver receiver) {
     SmallArray<Node*, 8> arguments;
     for(U32 i = 0; i < map.count(); i++) arguments.push(nullptr);
 
@@ -743,15 +784,9 @@ bool Resolver::selectOverload(Builder& builder, ast::AppExpr& written, const Ove
         return false;
     }
 
-    // The receiver's own position, refused for the reason `resolveArguments` gives: deciding that
-    // this was a call at all needed the receiver evaluated, and a deferred position is the one that
-    // must not be.
-    if(leading && deferred[0]) {
-        context.diagnostics.error(
-            "%@ defers its first argument, so it cannot be called with a dot - the receiver has to be evaluated to decide the form, and a `@lazy` position may not be. Write it as %@(...)"_v,
-            receiver.source, context.findName(name), context.findName(name));
-        return false;
-    }
+    // The receiver's own position, refused on `checkDotReceiverNotLazy`'s terms - shared with
+    // `resolveArguments`, which is the same question asked of the single-callee path.
+    if(leading && !checkDotReceiverNotLazy(receiver.source, name, deferred[0])) return false;
 
     /*
      * The arguments, resolved once and in written order, with **no expected type** - R5's last
@@ -799,7 +834,7 @@ bool Resolver::selectOverload(Builder& builder, ast::AppExpr& written, const Ove
     }
 
     auto chosen = chooseCandidate(*this, candidates, set, values.pointer(), arguments, name,
-                                  nameSource, source, literals.pointer(), kind);
+                                  nameSource, source, into.args, literals.pointer(), kind);
     if(!chosen) return false;
 
     into.function = chosen->function;
@@ -834,7 +869,7 @@ Node* Resolver::resolveOverloadedCall(Builder& builder, ast::AppExpr& written,
     }
 
     return finishOverloadedCall(builder, written, *decl()[chosen.function], chosen.map,
-                                chosen.values, hint, source, receiver);
+                                chosen.values, chosen.args.unwrap(), hint, source, receiver);
 }
 
 /*
@@ -913,6 +948,12 @@ bool Resolver::operatorRequests(const OverloadSet& set, StringId name, Size oper
  * in a different order, so a set that selected one way at `advance(p, n)` and another at `p + n`
  * would be two answers to one question, and a winner whose positions were filled by a walk of this
  * function's own would be two answers to the next one.
+ *
+ * `winner` is `chosen`'s own trial, handed to `callFunction` rather than let it solve the signature
+ * again - the same reason `finishOverloadedCall` takes one. `x + y` at `(I32, I64)` through an
+ * overloaded `+` is exactly this call: `chooseCandidate` widens the shared operand type to decide
+ * `+` accepts both operands, and `callFunction` has to keep believing it, not check the narrower one
+ * against the type as it stood before that widening ran.
  */
 Node* Resolver::selectOperatorCall(Builder& builder, const OverloadSet& set, StringId name,
                                    LocationId source, Node* const* values, Size operands,
@@ -921,11 +962,13 @@ Node* Resolver::selectOperatorCall(Builder& builder, const OverloadSet& set, Str
     SmallArray<Candidate, 4> candidates;
     operatorCandidates(*this, set, operands, candidates);
 
+    Maybe<TypeArguments> winner;
     auto chosen = chooseCandidate(*this, candidates, set, values, operands, name, source, source,
-                                  literals);
+                                  winner, literals);
     if(!chosen) return nullptr;
 
-    return callFunction(builder, *decl()[chosen->function], values, operands, source, hint, pending);
+    return callFunction(builder, *decl()[chosen->function], values, operands, source, hint, pending,
+                        &winner.unwrap());
 }
 
 } // namespace mir

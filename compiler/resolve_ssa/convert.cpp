@@ -2099,11 +2099,7 @@ struct Conversion {
                 auto relocates = mode == mir::UseMode::Take || mode == mir::UseMode::Forward;
 
                 auto outside = [&] {
-                    for(auto p = place; p; p = p->parent ? mir[p->parent] : nullptr) {
-                        if(!p->parent) return p->kind == mir::Place::Address;
-                    }
-
-                    return false;
+                    return mir::rootPlace(mir, *place).kind == mir::Place::Address;
                 };
 
                 auto copies = isAddressOnly(layout(), result) &&
@@ -3085,7 +3081,12 @@ struct Conversion {
 
             // The other end of it, remembered here because this is the only point at which the
             // allocation and its placement are both in hand - see `heapSlots`.
-            if(placed != mir::StorageClass::Frame) heapSlots.push(slots[slots.size() - 1]);
+            // `Heap` and not "anything but the frame": `Region` is the third rung, and what hands a
+            // region-placed object back is the region's own bulk discharge rather than a `free` per
+            // object - so one pushed here would be released twice. Nothing selects that rung yet
+            // (`resolve_mir/verify.cpp` refuses it for want of a witness), which is exactly why the
+            // test has to say which rung it means rather than which one it is not.
+            if(placed == mir::StorageClass::Heap) heapSlots.push(slots[slots.size() - 1]);
         }
 
         /*

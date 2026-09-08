@@ -1024,13 +1024,26 @@ void Resolver::bindResolvedArguments(Function& callee, const ArgMap& map, Node* 
 }
 
 Node* Resolver::callFunction(Builder& builder, Function& callee, Node* const* operands, Size count,
-                             LocationId source, DeclPtr<Type> hint, ast::Expr* const* pending) {
+                             LocationId source, DeclPtr<Type> hint, ast::Expr* const* pending,
+                             TypeArguments* carried) {
     assertTrue(callee.acceptsArity(decl(), U32(count)));
 
     ArgMap map;
     positionalMap(callee, count, map);
 
-    TypeArguments typeArguments(*this, callee.gen);
+    /*
+     * `carried` is `chooseCandidate`'s own trial - `selectOperatorCall`'s, the only caller that has
+     * one - kept rather than rebuilt here: selection already bound and widened this signature to
+     * decide the candidate fit, and a fresh `TypeArguments` would ask the same questions again and
+     * could answer at least one of them differently, which is what let `x + y` at `(I32, I64)`
+     * select through an overloaded `+` and then have `callFunction` refuse the very operand
+     * selection had just widened for. Every other caller passes none and gets what it always did -
+     * its own fresh solve, with nothing carried in because there was no earlier trial to disagree
+     * with.
+     */
+    Maybe<TypeArguments> fresh;
+    if(!carried) fresh.replace(*this, callee.gen);
+    auto& typeArguments = carried ? *carried : fresh.unwrap();
 
     // What the resolved operands decide, before any of them is prepared - so that an operand left
     // for this call to type reads what the *others* bound rather than what the positions ahead of it
@@ -1063,6 +1076,13 @@ Node* Resolver::callFunction(Builder& builder, Function& callee, Node* const* op
         if(!prepared) return nullptr;
 
         arguments[position] = prepared;
+    }
+
+    // The widening a later position decided, applied to the ones already prepared - see
+    // `widenPreparedArguments`. Harmless where `typeArguments` never unified anything, which is
+    // every caller but `selectOperatorCall`'s: `widened` stays false and this returns at once.
+    if(!widenPreparedArguments(builder, callee, map, source, arguments, typeArguments)) {
+        return nullptr;
     }
 
     if(!fillDefaultArguments(builder, callee, map, source, arguments)) return nullptr;
@@ -2841,18 +2861,18 @@ Node* Resolver::resolveMapLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Typ
             if(!written) return nullptr;
         }
 
-        auto held_ = resolveValue(builder, entry.value, value, requestOf(ownedContract()));
-        if(!held_) return nullptr;
+        auto made = resolveValue(builder, entry.value, value, requestOf(ownedContract()));
+        if(!made) return nullptr;
 
-        if(!value) value = valueType(*held_);
+        if(!value) value = valueType(*made);
         else {
-            held_ = coerce(builder, *held_, value, entry.value.source, "a value"_v);
-            if(!held_) return nullptr;
+            made = coerce(builder, *made, value, entry.value.source, "a value"_v);
+            if(!made) return nullptr;
         }
 
         live.push(written);
-        live.push(held_);
-        pairs.push(Pair { written, held_ });
+        live.push(made);
+        pairs.push(Pair { written, made });
     }
 
     if(!key || !value) {
@@ -3319,19 +3339,29 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
  * **The namespaced reading is asked first**, and that ordering is load-bearing rather than tidy:
  * `search` reports an ambiguity as it looks, so a bare lookup performed first would already have
  * said "visible through more than one import" by the time the type's own function could have
- * replaced its answer. `store` on an `Atomic` beside `Native`'s is exactly that shape. Where the
- * namespace answered, the bare lookup runs with reporting off for the same reason.
+ * replaced its answer. `store` on an `Atomic` beside `Native`'s is exactly that shape.
+ *
+ * Reported normally rather than probed: this is the call that gets compiled if the namespaced form
+ * is found at all, ambiguous or not, so an ambiguity here is a real mistake and not a candidate
+ * about to be discarded in favour of the bare reading - `report` exists for the other kind of
+ * lookup, the one only asking whether a name exists. `ErrorMark` is what keeps the bare half from
+ * adding a second diagnostic about the same call, the same shape `projectionTarget` and
+ * `resolveUpdate` use to try one form and fall back to a second without both reporting: the bare
+ * lookup reports only where the namespaced one neither found a candidate nor already said something
+ * about this name.
  */
 void Resolver::findDotOverloads(DeclPtr<Type> receiver, StringId name, U32 arity, LocationId source,
                                 OverloadSet& into) {
     OverloadSet namespaced;
+    ErrorMark mark(context);
 
     if(auto qualified = namespacedName(context, program, receiver, name)) {
-        findOverloads(context, program, here(), qualified, arity, source, namespaced, false);
+        findOverloads(context, program, here(), qualified, arity, source, namespaced);
     }
 
     OverloadSet bare;
-    findOverloads(context, program, here(), name, arity, source, bare, !namespaced.plain);
+    findOverloads(context, program, here(), name, arity, source, bare,
+                  !namespaced.plain && !mark.reported());
 
     into.plain = namespaced.plain ? namespaced.plain : bare.plain;
     into.members.clear();
@@ -3745,7 +3775,7 @@ Node* Resolver::selectBulkBody(Builder& builder, Function& callee, SmallArray<No
     auto vectorized = false;
 
     for(Size i = 0; i < with.count; i++) {
-        vectorized = vectorized || hasNaturalVector(context, decl(), with.arguments[i]);
+        vectorized = vectorized || hasNaturalVector(context, program, with.arguments[i]);
     }
 
     if(!vectorized) return nullptr;
@@ -4812,6 +4842,19 @@ Node* Resolver::resolveDeferred(Builder& builder, ast::Expr& written, DeclPtr<Ty
     return resolveThunk(builder, written, expected, written.source);
 }
 
+// See the declaration. One diagnostic for both call paths, in the single string this used to be
+// copied into: the single-callee path knows the parameter it is filling and the overloaded path
+// knows only whether `agreedShape` found every candidate agreeing it is deferred, so `lazy` is
+// asked for rather than a `Arg` handed in.
+bool Resolver::checkDotReceiverNotLazy(LocationId source, StringId name, bool lazy) {
+    if(!lazy) return true;
+
+    context.diagnostics.error(
+        "%@ defers its first argument, so it cannot be called with a dot - the receiver has to be evaluated to decide the form, and a `@lazy` position may not be. Write it as %@(...)"_v,
+        source, context.findName(name), context.findName(name));
+    return false;
+}
+
 bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
                                 const ArgMap& map, LocationId source, SmallArray<Node*, 8>& into,
                                 TypeArguments& typeArguments, DeclPtr<Type> hint,
@@ -4855,16 +4898,7 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
         auto position = map.position(at++);
         auto& parameter = *decl()[callee.args.get(decl(), position)];
 
-        // A `@lazy` first parameter cannot be reached this way, and the reason is the form's own:
-        // deciding that `x.f(y)` is a call at all needs the receiver's type, which needs it
-        // evaluated - and a deferred position is the one that must not be. The written spelling
-        // still reaches it.
-        if(parameter.lazy) {
-            context.diagnostics.error(
-                "%@ defers its first argument, so it cannot be called with a dot - the receiver has to be evaluated to decide the form, and a `@lazy` position may not be. Write it as %@(...)"_v,
-                receiver.source, context.findName(callee.name), context.findName(callee.name));
-            return false;
-        }
+        if(!checkDotReceiverNotLazy(receiver.source, callee.name, parameter.lazy)) return false;
 
         auto value = readPlace(builder, receiver.source, *receiver.place,
                                requestOf(parameter.occurrence));
@@ -5042,9 +5076,12 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
  * from a container, a borrow of the declared type - was settled by `prepareArgument` and must not be
  * reconsidered here. A `@lazy` position holds a thunk and is left alone for the same reason.
  *
- * Called from the three walks that prepare a call's positions - the written one above, the
- * overloaded one in `resolve_overload.cpp` and the operator chain - each immediately before
+ * Called from every walk that prepares a call's positions - the written one above, the overloaded
+ * one in `resolve_overload.cpp`, the operator chain, and `callFunction` - each immediately before
  * `fillDefaultArguments`, which is the point at which every written position is in hand.
+ * `callFunction`'s own `typeArguments` is `unifies` only where a caller handed it one already solved
+ * - `selectOperatorCall`'s - so calling this unconditionally there costs nothing at every other call:
+ * `widened` never went true and the early return above is the whole of what runs.
  */
 bool Resolver::widenPreparedArguments(Builder& builder, Function& callee, const ArgMap& map,
                                       LocationId source, SmallArray<Node*, 8>& into,

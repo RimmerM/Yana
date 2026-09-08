@@ -1309,11 +1309,10 @@ U32 laneBytes(DeclBase base, IntWidths widths, DeclPtr<Type> type);
  * is right where a program wrote `Vec(String)` and wrong where the compiler is deciding which of two
  * library bodies to call.
  *
- * The rules are that function's, in the same order, and the two must not drift: a type this answers
- * true for is one `Vec(a)` is then built of, so an answer it got wrong is a diagnostic at a call the
- * author did not write.
+ * Answered by calling `makeVectorType` itself, with reporting off, and reading whether the result is
+ * null - so the two cannot drift, because there is only the one rule.
  */
-bool hasNaturalVector(Context& context, DeclBase base, DeclPtr<Type> type);
+bool hasNaturalVector(Context& context, Program& program, DeclPtr<Type> type);
 
 /*
  * `Vec(a, n)` and `Mask(a, n)` - the one place the rules about them are applied.
@@ -1328,16 +1327,20 @@ bool hasNaturalVector(Context& context, DeclBase base, DeclPtr<Type> type);
  * a width past the widest register any target has, and the lane widths a target has no arithmetic
  * for. `source` is what all four are reported at.
  *
- * Null on refusal, which every caller propagates - there is no error type in this stage.
+ * Null on refusal, which every caller propagates - there is no error type in this stage. `report`
+ * is false only for `hasNaturalVector`, which wants the same refusals asked as a question rather
+ * than raised as an error - a program never wrote the type being asked about, so there is nothing to
+ * name a diagnostic against.
  */
 DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane, U64 lanes,
-                             bool isMask, LocationId source);
+                             bool isMask, LocationId source, bool report = true);
 
 // The same, for a caller holding a count that may be a const variable - which is every path that
 // substitutes an existing type rather than reading a written one. A null count is the natural form,
 // exactly as a zero is above.
 DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane,
-                             DeclPtr<Type> count, U64 lanes, bool isMask, LocationId source);
+                             DeclPtr<Type> count, U64 lanes, bool isMask, LocationId source,
+                             bool report = true);
 
 /*
  * `Atomic(a)` - Analysis-Atomics.md §3.1, and the one place the admitted family is enforced.

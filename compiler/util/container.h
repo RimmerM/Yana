@@ -103,6 +103,21 @@ struct SmallArray: ArrayT<T, SmallArrayAllocator<T, N>> {
 };
 
 /*
+ * Pops the entry a walk pushed, however the walk leaves.
+ *
+ * A recursive walk that guards against revisiting a node keeps a stack of what it is inside, and
+ * every `return` in it has to unwind that stack - which is one line at each and one chance per line
+ * to forget. Both walks that want this ask the same question about the same structure: `reachTeardown`
+ * in `resolve_mir/summary.cpp` and `reachesBox` in `resolve_mir/own.cpp`, each descending a record's
+ * torn-down fields, where a boxed edge can lead back to the record itself.
+ */
+template<class T, U32 N = 16>
+struct PopOnExit {
+    SmallArray<T, N>& stack;
+    ~PopOnExit() { stack.pop(); }
+};
+
+/*
  * Gives one list another's contents. What `into = from` would be if assigning a SmallArray did what
  * it looks like; see the note above. It also keeps whatever storage `into` had, which is what the
  * pooled lists want anyway.

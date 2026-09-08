@@ -932,7 +932,8 @@ bool Resolver::sectionPattern(Builder& builder, ast::Pat& pat, Place& pivot, Blo
  * is what `PatternSpace` is for: the proof is over whole values rather than over head constructors.
  */
 bool Resolver::resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
-                              SmallArray<PatternBinding, 4>& into, Block* onFail, Carry& carry) {
+                              SmallArray<PatternBinding, 4>& into, Block* onFail, Carry& carry,
+                              bool ownedField) {
     /*
      * `&` alone, and why `&->` is not the same refusal - Analysis-Language.md §2.
      *
@@ -978,7 +979,7 @@ bool Resolver::resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
             return;
         }
 
-        into.push(PatternBinding { name, &place, pat.source, take, pat.sink });
+        into.push(PatternBinding { name, &place, pat.source, take, pat.sink, ownedField });
     };
 
     /*
@@ -1006,7 +1007,8 @@ bool Resolver::resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
 
         // Irrefutable: no test, and the name is for the whole value.
         case ast::Pat::Any:
-            if(take) into.push(PatternBinding { StringId(), &pivot, pat.source, true, pat.sink });
+            if(take) into.push(
+                PatternBinding { StringId(), &pivot, pat.source, true, pat.sink, ownedField });
             return true;
         case ast::Pat::Var:
             bind(pat.var, pivot);
@@ -1100,7 +1102,14 @@ bool Resolver::resolveTuplePattern(Builder& builder, ast::Pat& pat, Place& pivot
         auto place = builder.fieldPlace(pivot, U16(arm.first + i));
         if(!place) { ok = false; continue; }
 
-        if(!resolvePattern(builder, *supplied[i], *place, into, onFail, carry)) ok = false;
+        // The declaration's own answer, not `place`'s - `fieldPlace` has already folded the
+        // pivot's contract into an owned field's, which is exactly the narrowing
+        // `PatternBinding::ownedField` exists to see past.
+        auto declared = record.field(decl(), U16(arm.first + i));
+        auto ownedField = fieldContract(decl(), pivot.occurrence.shape, declared).isOwned();
+
+        if(!resolvePattern(builder, *supplied[i], *place, into, onFail, carry, ownedField))
+            ok = false;
     }
 
     return ok;
@@ -1171,7 +1180,14 @@ bool Resolver::resolveConstructorPattern(Builder& builder, ast::Pat& pat, Place&
         auto place = builder.fieldPlace(pivot, U16(arm.first + i));
         if(!place) { ok = false; continue; }
 
-        if(!resolvePattern(builder, *supplied[i], *place, into, onFail, carry)) ok = false;
+        // The declaration's own answer, not `place`'s - `fieldPlace` has already folded the
+        // pivot's contract into an owned field's, which is exactly the narrowing
+        // `PatternBinding::ownedField` exists to see past.
+        auto declared = record.field(decl(), U16(arm.first + i));
+        auto ownedField = fieldContract(decl(), pivot.occurrence.shape, declared).isOwned();
+
+        if(!resolvePattern(builder, *supplied[i], *place, into, onFail, carry, ownedField))
+            ok = false;
     }
 
     return ok;
@@ -1203,9 +1219,16 @@ void Resolver::bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>
          * declared - the capability is on the *value*, exactly as `hold` reads it off one, and `&v`
          * in a pattern is the other question (`doc/spec/ownership.md`'s two axes: `take` moves the
          * payload out, `writable` says the storage it landed in may be written).
+         *
+         * `Access::Unique` alone is not enough to tell: an ordinary owned field reached through an
+         * exclusively-borrowed pivot carries it too, folded in by `fieldPlace` from the pivot's own
+         * contract rather than declared on the field. `binding.ownedField` is what tells the two
+         * apart - it is the one bit `resolveConstructorPattern` and `resolveTuplePattern` compute
+         * from the declaration itself, before that folding happens.
          */
         auto carried = binding.place->occurrence.contract;
-        auto reference = !binding.take && carried.access() == Access::Unique;
+        auto reference =
+            !binding.take && !binding.ownedField && carried.access() == Access::Unique;
 
         auto value = binding.take
             ? readPlace(builder, binding.source, *binding.place, bindingRequest(Access::Owned))
@@ -1235,6 +1258,30 @@ void Resolver::bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>
  * quietly given the pattern's meaning.
  */
 /*
+ * A pattern with nowhere left to fail to - `bindIrrefutable`'s whole question, and `resolveBinding`'s
+ * zero-alternatives branch beside it: both build a `PatternSpace` and a `Carry` over one pattern,
+ * resolve it with no failure block (`onFail = nullptr`), and diagnose the gap if it is not covered.
+ *
+ * The emission comes first and the coverage report second, since there are two ways to fail here
+ * rather than one. A pattern the *type* has no reading for at all is not a pattern that can fail:
+ * `{a, b}` over an `I32` leaves a gap only because it matches nothing at all, so reporting the gap
+ * first would say "this can fail" about a shape that is simply wrong. `resolvePattern` names the
+ * type, and what is left to report once it has is a pattern that fits and is not exhaustive -
+ * `diagnose` is the two callers' own wording for that, since `bindIrrefutable`'s "%@ has no
+ * alternative" and `resolveBinding`'s "the declaration needs alternatives" are not one format
+ * string apart.
+ */
+template<class Diagnose>
+bool Resolver::resolveWithNoAlternative(Builder& builder, ast::Pat& pat, Place& pivot, bool covers,
+                                        Carry& carry, SmallArray<PatternBinding, 4>& made,
+                                        Diagnose&& diagnose) {
+    if(!resolvePattern(builder, pat, pivot, made, nullptr, carry)) return false;
+    if(!covers) diagnose();
+
+    return true;
+}
+
+/*
  * A pattern where nothing can be written after `|` - see the declaration.
  *
  * A refutable one is reported and then bound **anyway**, which is `resolveBinding`'s rule and is
@@ -1246,21 +1293,13 @@ bool Resolver::bindIrrefutable(Builder& builder, ast::Pat& pat, Place& pivot, St
     Carry carry(*this, pat.source);
     auto covers = space.add(pat);
 
-    /*
-     * The emission first and the coverage report second, which is the one place this differs from
-     * `resolveBinding`'s order - and the reason is that there are two ways to fail here rather than
-     * one. A pattern the *type* has no reading for is not a pattern that can fail: `{a, b}` over an
-     * `I32` leaves a gap only because it matches nothing at all, so reporting the gap first says
-     * "this can fail" about a shape that is simply wrong. `resolvePattern` names the type, and what
-     * is left to report is a pattern that fits and is not exhaustive.
-     */
     SmallArray<PatternBinding, 4> made;
-    if(!resolvePattern(builder, pat, pivot, made, nullptr, carry)) return false;
-
-    if(!covers) {
+    if(!resolveWithNoAlternative(builder, pat, pivot, covers, carry, made, [&] {
         context.diagnostics.error(
             "this pattern can fail - it does not match %@ - and %@ has no alternative for a value it does not match"_v,
             pat.source, space.gap(), what);
+    })) {
+        return false;
     }
 
     // Bound **anyway**, which is `resolveBinding`'s rule and is what keeps one mistake to one
@@ -1322,7 +1361,9 @@ bool Resolver::resolveBinding(Builder& builder, const ast::VarDecl& binding, Pla
      * the author meant, the other half is wrong, which is what makes this an error rather than the
      * warning about dead code it looks like.
      */
-    if(space.add(declared)) {
+    auto covers = space.add(declared);
+
+    if(covers) {
         // Reported and then bound anyway, which is what keeps one mistake to one message: the names
         // are what the rest of the block was written against, and a second report about every read
         // of one would be about this failure rather than about them.
@@ -1336,13 +1377,16 @@ bool Resolver::resolveBinding(Builder& builder, const ast::VarDecl& binding, Pla
     }
 
     if(!alternatives.size()) {
-        context.diagnostics.error(
-            "this pattern can fail - it does not match %@ - so the declaration needs alternatives, written `| return ...` or one arm per case"_v,
-            declared.source, space.gap());
+        // Bound anyway and without its tests, on `resolveWithNoAlternative`'s terms - see the
+        // declaration, which is `bindIrrefutable`'s own shape with this branch's wording: one
+        // report about the declaration is enough for it, and the names are what the rest of the
+        // block was written against.
+        resolveWithNoAlternative(builder, declared, pivot, covers, carry, made, [&] {
+            context.diagnostics.error(
+                "this pattern can fail - it does not match %@ - so the declaration needs alternatives, written `| return ...` or one arm per case"_v,
+                declared.source, space.gap());
+        });
 
-        // Bound anyway and without its tests: the names are what the rest of the block was written
-        // against, and one report about the declaration is enough for it.
-        resolvePattern(builder, declared, pivot, made, nullptr, carry);
         return true;
     }
 
@@ -1777,6 +1821,26 @@ static bool mapWildcard(const ast::Pat& pattern) {
 }
 
 /*
+ * The pattern is a plain `Con` pattern naming one constructor of `record`, and nothing else about
+ * it has been decided yet - not whether it takes a payload apart, not whether an `as` binding names
+ * the whole of it. `mapConstructor` and `matchCases` both start here before diverging on the
+ * payload: a map table and a switch dispatch are two different optimizations built over the same
+ * "this arm tests one whole constructor" question, and each still has its own rule for what a
+ * pattern may do beyond that.
+ */
+bool Resolver::constructorPattern(ast::Pat& pattern, DeclPtr<RecordType> record, U32& index) {
+    if(pattern.kind != ast::Pat::Con || pattern.bind != ast::BindType::Borrow || pattern.sink) {
+        return false;
+    }
+
+    auto found = mir::findConstructor(context, program, here(), pattern.con.name, pattern.source);
+    if(!found || found.record != record) return false;
+
+    index = found.index;
+    return true;
+}
+
+/*
  * The pattern is one constructor of `record`, tests nothing else, and binds nothing.
  *
  * Everything a pattern can do beyond naming a constructor is a reason to decline, and the list is
@@ -1785,11 +1849,8 @@ static bool mapWildcard(const ast::Pat& pattern) {
  * is work a table lookup performs, so a match containing one is not this shape however its arms read.
  */
 bool Resolver::mapConstructor(ast::Pat& pattern, DeclPtr<RecordType> record, U32& index) {
-    if(pattern.kind != ast::Pat::Con || pattern.asVar != StringId()) return false;
-    if(pattern.bind != ast::BindType::Borrow || pattern.sink) return false;
-
-    auto found = mir::findConstructor(context, program, here(), pattern.con.name, pattern.source);
-    if(!found || found.record != record) return false;
+    if(pattern.asVar != StringId()) return false;
+    if(!constructorPattern(pattern, record, index)) return false;
 
     // A payload pattern is admitted only where it is `_`: irrefutable, binding nothing, moving
     // nothing. `Just(v)` and `Just(->v)` both name the payload and are declined.
@@ -1798,7 +1859,6 @@ bool Resolver::mapConstructor(ast::Pat& pattern, DeclPtr<RecordType> record, U32
         if(payload.kind != ast::Pat::Any || payload.asVar != StringId() || payload.sink) return false;
     }
 
-    index = found.index;
     return true;
 }
 
@@ -2238,15 +2298,7 @@ bool Resolver::matchCases(Place& pivot, Buffer<ast::Pat> patterns, const bool* t
         auto& pattern = patterns[i];
         U32 index = 0;
 
-        if(pattern.kind != ast::Pat::Con || pattern.bind != ast::BindType::Borrow || pattern.sink) {
-            return false;
-        }
-
-        auto found = mir::findConstructor(context, program, here(), pattern.con.name,
-                                          pattern.source);
-        if(!found || found.record != declaration) return false;
-
-        index = found.index;
+        if(!constructorPattern(pattern, declaration, index)) return false;
 
         // The tag and nothing under it - see `irrefutablePattern`.
         if(pattern.con.pats && !irrefutablePattern(parse, *parse[pattern.con.pats])) return false;

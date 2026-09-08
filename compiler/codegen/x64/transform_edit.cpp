@@ -46,12 +46,6 @@ static void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size
             else je->otherwise = split - base;
             break;
         }
-        case LowerInst::Switch: {
-            auto sw = (LowerInstSwitch*)terminator;
-            if(edge < sw->caseCount) sw->cases()[edge].target = split - base;
-            else sw->fallback = split - base;
-            break;
-        }
 
         /*
          * And the table's own cells, which are the third place this edge is written down.
@@ -75,7 +69,11 @@ static void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size
             break;
         }
         default:
-            assertTrue(false); // a block with several successors ends in one of the two above
+            // A block with several successors ends in one of the two above. `LowerInst::Switch` is
+            // not among them and is not missing: `expandSwitches` is the first pass in
+            // `kTransformPipeline` and `normalizePhiEdges` is far below it, so no terminator
+            // reaching here still carries a case list.
+            assertTrue(false);
             break;
     }
 

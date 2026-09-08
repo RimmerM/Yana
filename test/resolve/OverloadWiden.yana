@@ -1,0 +1,47 @@
+{-
+   Selection and completion agreeing about a *widening* argument at an overloaded name -
+   `resolve_overload.cpp`'s `chooseCandidate`, and `finishOverloadedCall`/`callFunction` afterwards.
+
+   `import Native` puts a pointer `+(p: %a, n: Size)` beside `Num.+(lhs: a, rhs: a)` in the set `+`
+   reaches, so `x + y` between an `I32` and an `I64` is an *overloaded* call and not the ordinary
+   single-candidate one that `climb`'s sole-callee path already widens correctly. `Num.+`'s two
+   positions share one class variable, and only widening the narrower operand to the wider one's
+   type lets a candidate accept both - `doc/spec/overloading.md`'s "positions bound to the same
+   class variable are unified to their unique `Widen` upper bound".
+
+   Before selection and completion were made to share one solve, this compiled in exactly one of the
+   two operand orders: `chooseCandidate`'s trial bound whichever operand it checked first and
+   refused the other unless it was already at least as wide, so `wideFirst` (the `I64` operand
+   checked first) selected and `narrowFirst` (the `I32` operand checked first) did not, once `+`
+   reached more than one candidate. Fixing the trial to widen made both orders *select*, and was not
+   enough on its own - completion built a second `TypeArguments` from scratch and solved the winning
+   signature again, so `narrowFirst` then failed at `finishOverloadedCall`/`callFunction` instead of
+   at `chooseCandidate`. `OverloadChoice::args` is what carries the one trial through both steps.
+
+   `main` asserts the two orders agree rather than only that they compile, because a selection and a
+   completion that disagree about the width can each emit well-formed IR that computes a different
+   number.
+-}
+
+import Native
+
+fn narrowFirst() -> Int:
+    let x = 1 :: I32
+    let y = 2 :: I64
+    let z = x + y
+    return truncate(z) :: Int
+
+fn wideFirst() -> Int:
+    let x = 1 :: I32
+    let y = 2 :: I64
+    let z = y + x
+    return truncate(z) :: Int
+
+fn main() -> Int:
+    let a = narrowFirst()
+    let b = wideFirst()
+
+    if a != b:
+        return -1
+
+    return a

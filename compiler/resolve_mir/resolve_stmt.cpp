@@ -215,6 +215,46 @@ void Resolver::readBindingAttributes(const ast::VarDecl& binding, Local* local, 
     }
 }
 
+/*
+ * A local for a plain binding's resolved value - the flat form's `let x = e` and the scoped form's
+ * `let x = e in ...` build exactly this, and used to build it twice: `@heap` was read after the
+ * write in one copy and not the other, so the same attribute got a different answer depending on
+ * which statement shape asked. One helper called from both is what keeps that from happening again -
+ * whatever this sequence does next, both forms do it identically.
+ *
+ * `name` is `StringId()` for `_`, which is `addLocal`'s own spelling for a local with no name: the
+ * storage a discarded value's teardown is owed still needs a place, and it is only the *name* that a
+ * caller may have left out.
+ */
+Local* Resolver::bindPlainLocal(Builder& builder, const ast::VarDecl& binding, StringId name,
+                                Node& value, bool writable) {
+    /*
+     * The binding's occurrence is the initializer's, whole.
+     *
+     * Not `owned(type)`: a loan bound to a name is a loan, and a local that recorded the type
+     * and dropped the contract would be storage the ownership analysis believes this frame owns
+     * - which is a teardown of the lender's value at the end of this one.
+     */
+    auto local = builder.addLocal(name, valueOccurrence(value), binding.pat.source, writable);
+
+    /*
+     * And the constant it was established with, where it was one - see `Local::initial`. Only
+     * for a binding nothing may assign to, which is what makes the value it holds permanent.
+     */
+    if(!writable && value.kind == Node::Const) {
+        local->initial = builder.body.constant(builder.base(), ((NodeConst&)value).constant);
+    }
+
+    auto place = builder.localPlace(*local);
+    builder.addWrite(binding.pat.source, *place, value, Destination::Init);
+
+    // After the write, because that is what unites the initializer's lineage into this local -
+    // and the attribute is about the object rather than about the name.
+    readBindingAttributes(binding, local, true);
+
+    return local;
+}
+
 void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
     for(auto binding: expr.decl.contents(parse)) {
         /*
@@ -232,8 +272,10 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
             continue;
         }
 
+        // `resolveScoped` reads the binding's own attributes - it is also reached directly from a
+        // value position (`resolve_expr.cpp`'s `Decl` case), which this statement form is not the
+        // only door to, so the read has to live where both doors lead rather than behind one of them.
         if(binding.in) {
-            readBindingAttributes(binding, nullptr, false);
             resolveScoped(builder, binding, nullptr, false, inspectRequest());
             continue;
         }
@@ -313,30 +355,7 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
             continue;
         }
 
-        /*
-         * The binding's occurrence is the initializer's, whole.
-         *
-         * Not `owned(type)`: a loan bound to a name is a loan, and a local that recorded the type
-         * and dropped the contract would be storage the ownership analysis believes this frame owns
-         * - which is a teardown of the lender's value at the end of this one.
-         */
-        auto local = builder.addLocal(binding.pat.var, valueOccurrence(*value),
-                                      binding.pat.source, writable);
-
-        /*
-         * And the constant it was established with, where it was one - see `Local::initial`. Only
-         * for a binding nothing may assign to, which is what makes the value it holds permanent.
-         */
-        if(!writable && value->kind == Node::Const) {
-            local->initial = builder.body.constant(builder.base(), ((NodeConst*)value)->constant);
-        }
-
-        auto place = builder.localPlace(*local);
-        builder.addWrite(binding.pat.source, *place, *value, Destination::Init);
-
-        // After the write, because that is what unites the initializer's lineage into this local -
-        // and the attribute is about the object rather than about the name.
-        readBindingAttributes(binding, local, true);
+        auto local = bindPlainLocal(builder, binding, binding.pat.var, *value, writable);
 
         // In scope from *after* its own initializer, which is what makes `let x = x` read the outer
         // `x` rather than itself.
@@ -696,8 +715,6 @@ bool Resolver::defersArguments(ast::Expr& callee, U32 arity) {
 
 // See the declaration. Evaluation order, stopping at the first call a hoist would move.
 ast::Expr* Resolver::hoistableLensCall(ast::Expr& expr, bool root) {
-    if(!root && lensCallee(expr)) return &expr;
-
     auto through = [&](ast::ParsePtr<ast::Expr> held) -> ast::Expr* {
         return held ? hoistableLensCall(*parse[held], false) : nullptr;
     };
@@ -719,13 +736,24 @@ ast::Expr* Resolver::hoistableLensCall(ast::Expr& expr, bool root) {
             return through(expr.ret);
         case ast::Expr::Yield:
             return through(expr.yield);
+        /*
+         * `g(h())`: a call is itself a candidate (`lensCallee` below), but it is also a position
+         * whose callee and arguments run before it does, and either may hold a lens call of its
+         * own - `h()` here. Those are asked first and win when found, since they evaluate earlier
+         * than the call they are nested in; only once neither turns up anything does `expr` get to
+         * match itself. Checking self first, as this used to, would hoist `g(h())` whole and leave
+         * `h()` behind as a plain argument for `checkCallable` to refuse.
+         */
         case ast::Expr::App:
         case ast::Expr::Sub: {
             auto application = parse[expr.app];
             if(auto found = hoistableLensCall(application->callee, false)) return found;
-            if(defersArguments(application->callee, U32(application->args.size()))) return nullptr;
 
-            return arguments(application->args);
+            if(!defersArguments(application->callee, U32(application->args.size()))) {
+                if(auto found = arguments(application->args)) return found;
+            }
+
+            return !root && lensCallee(expr) ? &expr : nullptr;
         }
         /*
          * `a + b` and `-x`, whose operands are ordinary positions - and the one thing that keeps
@@ -1022,6 +1050,10 @@ Node* Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding, Dec
     auto scope = bindings.size();
 
     if(destructures(binding)) {
+        // Not one object, so `@heap` would be describing the wrong thing - the same refusal the
+        // flat form's own destructuring branch gives.
+        readBindingAttributes(binding, nullptr, false);
+
         /*
          * A pattern, which is the guard form with a scope written on it - `resolveBinding`.
          *
@@ -1051,19 +1083,8 @@ Node* Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding, Dec
         // teardown is owed, and a local is what gives the drop something to name. What `_` skips is
         // the *name*, which is the whole of what it says.
         auto named = binding.pat.kind == ast::Pat::Var;
-        auto local = builder.addLocal(named ? binding.pat.var : StringId(), valueOccurrence(*value),
-                                      binding.pat.source, writable);
-
-        /*
-         * And the constant it was established with, where it was one - see `Local::initial`. Only
-         * for a binding nothing may assign to, which is what makes the value it holds permanent.
-         */
-        if(!writable && value->kind == Node::Const) {
-            local->initial = builder.body.constant(builder.base(), ((NodeConst*)value)->constant);
-        }
-
-        auto place = builder.localPlace(*local);
-        builder.addWrite(binding.pat.source, *place, *value, Destination::Init);
+        auto local = bindPlainLocal(builder, binding, named ? binding.pat.var : StringId(),
+                                    *value, writable);
 
         if(named) bindings.push(Binding { binding.pat.var, local });
     }
@@ -2697,7 +2718,12 @@ void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr
     // nearly always a mistake at an integer, and what says so is the pattern's own space rather than
     // a rule about counted loops.
     if(!named && loop.pat.kind != ast::Pat::Any) {
-        bindIrrefutable(builder, loop.pat, *builder.localPlace(*bound), "a `for` binding"_v);
+        // A pattern that fails to bind leaves the names it would have bound out of scope, so
+        // resolving the body against them would report one "unknown name" per read rather than the
+        // one pattern diagnostic - the same reason `resolveIteratorFor` checks this result above.
+        if(!bindIrrefutable(builder, loop.pat, *builder.localPlace(*bound), "a `for` binding"_v)) {
+            return;
+        }
     }
 
     {
@@ -3043,8 +3069,9 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
     // The root module's top level is a program point, so an initializer that is not a constant there
     // is a **dynamic** global rather than a mistake - Analysis-Initialization.md stage B, and
     // `resolveConstant`'s `notConstant` is how the two are told apart. A `.test.yana` file's module
-    // level is a program point too, under `-test` - see `declareGlobals`, where that is argued.
-    auto startup = here() == program.root() || (context.settings.test && activeTestFile);
+    // level is a program point too, under `-test` - `atProgramPoint`, and `declareGlobals`, where
+    // that is argued.
+    auto startup = atProgramPoint();
 
     for(auto binding: declaration.stmt.decl.contents(parse)) {
         if(next >= writtenGlobals.size()) return;

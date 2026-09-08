@@ -598,9 +598,12 @@ struct Analysis {
     /*
      * analyze_escape.cpp - §10.4's placement, per object, before anything reads one.
      *
-     * First, and that is a dependency rather than a preference: a heap-placed object is released by
-     * the frame that allocated it whether or not its *type* owes anything, so `buildPaths` has to
-     * know the answer before it decides which locals are tracked at all.
+     * First, and it is a preference rather than a dependency: nothing after this reads
+     * `Object::storage` at all - a placement is a fact about *storage* and the analyses below it are
+     * about *values*, so the move paths, the initialization lattice and the drop steps are identical
+     * at either rung. The order is so that a reader looking for where placement is decided finds it
+     * before anything that could be mistaken for deciding it. The argument is written out at the top
+     * of `analyze_escape.cpp`, which is where the allocation and its release are placed as well.
      */
     void selectPlacements();
 

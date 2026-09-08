@@ -1,0 +1,69 @@
+module ResolveTest
+
+fn narrowFirst() -> I32 {
+  local x: I32
+  local y: I64
+  local z: I64
+
+bb0:
+  %0: I32 = const 1
+  write.init borrow.unique (x) take %0
+  %2: I64 = const 2
+  write.init borrow.unique (y) take %2
+  %4: I32 = const 1
+  %5: I64 = const 2
+  %6: I64 = convert inspect %4
+  %7: I64 = add inspect %6 inspect %5
+  write.init borrow.unique (z) take %7
+  %9: I64 = read copy.trivial (z)
+  %10: I32 = convert inspect %9
+  return take %10
+}
+
+fn wideFirst() -> I32 {
+  local x: I32
+  local y: I64
+  local z: I64
+
+bb0:
+  %0: I32 = const 1
+  write.init borrow.unique (x) take %0
+  %2: I64 = const 2
+  write.init borrow.unique (y) take %2
+  %4: I64 = const 2
+  %5: I32 = const 1
+  %6: I64 = convert inspect %5
+  %7: I64 = add inspect %4 inspect %6
+  write.init borrow.unique (z) take %7
+  %9: I64 = read copy.trivial (z)
+  %10: I32 = convert inspect %9
+  return take %10
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+
+bb0:
+  %0: I32 = call narrowFirst
+  write.init borrow.unique (a) take %0
+  %2: I32 = call wideFirst
+  write.init borrow.unique (b) take %2
+  %4: I32 = read copy.trivial (a)
+  %5: I32 = read copy.trivial (b)
+  %6: Bool = ne inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: I32 = read copy.trivial (a)
+  return take %11
+
+bb3:
+  %8: I32 = const -1
+  return take %8
+}
+
+entry main

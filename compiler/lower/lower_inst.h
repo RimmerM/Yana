@@ -2083,6 +2083,19 @@ struct LowerInstSwitch: LowerInst {
     I64 lowestCase() { return cases()[0].value(); }
     I64 highestCase() { return cases()[caseCount - 1].value(); }
 
+    // The count of I64 values from `low` to `high` inclusive - Nothing when that count does not fit
+    // a U64, which happens for exactly one range: `low == INT64_MIN, high == INT64_MAX`, whose true
+    // span is 2^64. `U64(high) - U64(low) + 1` was written at both of this compiler's callers (the
+    // x64 backend's table-form threshold and its cell count) and both read the wrapped zero for that
+    // range instead of "wider than any table" - `U64(high) - U64(low)` alone cannot overflow, since
+    // it names a distance inside one 64-bit domain, so testing it against the one value it cannot
+    // take before adding 1 is exact rather than a range check on the inputs.
+    static Maybe<U64> caseSpan(I64 low, I64 high) {
+        auto distance = U64(high) - U64(low);
+        if(distance == U64(-1)) return Nothing();
+        return Just(distance + 1);
+    }
+
     // Used values must be first after embedded values - `LowerInst::used` reads the word straight
     // after the header, so a field in front of this one would *be* the operand list.
     LowerPtr<LowerValue> selector;

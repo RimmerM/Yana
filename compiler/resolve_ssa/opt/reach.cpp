@@ -355,9 +355,16 @@ struct GlobalReachability {
 
             for(auto pointer: module->globals.contents(opt.decl)) {
                 auto global = opt.decl[pointer];
-                if(!global->reachable) continue;
 
-                if(!seen.getValue(pointer.offset)) global->reachable = false;
+                if(seen.getValue(pointer.offset)) {
+                    // Clear, never set - the same rule the function walk above checks, and the same
+                    // way: a global this pass reached that the stage before it had already dropped
+                    // is a reference minted here, which nothing may do.
+                    assertTrue(global->reachable);
+                    continue;
+                }
+
+                global->reachable = false;
             }
         }
     }

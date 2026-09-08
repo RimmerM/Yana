@@ -187,6 +187,18 @@ struct Place {
 StringView placeKindName(Place::Kind kind);
 
 /*
+ * The root a place projects from - the walk `boxesVisibleAt` below and `ssa::convert.cpp`'s
+ * address-relocation test both do, one instruction at a time up the `parent` chain, to ask two
+ * different questions about the same fact. Every projection has a `parent` and every root does not,
+ * so the loop ends exactly where `isRoot()` above would say yes.
+ */
+inline Place& rootPlace(MirBase base, Place& place) {
+    auto root = &place;
+    while(root->parent) root = base[root->parent];
+    return *root;
+}
+
+/*
  * Whether a teardown at this place can see where the value's interior boxes came from -
  * `ssa::InstDrop::boxesVisible`, and `ssa::BoxRelease` for what it decides.
  *

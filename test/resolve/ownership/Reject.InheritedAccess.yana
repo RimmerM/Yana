@@ -1,0 +1,30 @@
+{-
+   An owned field's exclusive access is inherited, not declared.
+
+   # resolver: ownership
+
+   `Builder::fieldPlace` folds the pivot's own contract into an owned field's - "the record owns
+   what is at this field" is the declaration's answer, and how exclusively it may be read is the
+   caller's. A field reached through an exclusively-borrowed pivot therefore carries `Access::Unique`
+   the same way a genuine `&'v` payload does, and `bindPattern` used to read that inherited bit as
+   "this binding is a reference": `Point{x, y}` over `&self: Point` made `x` writable with no `&`
+   anywhere in the pattern, and a write through it reached `self`'s storage with nothing in the
+   source saying so.
+
+   `BindAxes.yana` states the general rule this is a special case of: matching establishes no
+   exclusive access to the *pivot*, `&` alone in a pattern is refused for exactly that reason, and an
+   ordinary name binds at the shared access every other payload takes. A field whose own declaration
+   is a member - not a reference - is not exempt from that rule just because the pivot it was
+   projected from happens to be exclusive.
+-}
+
+data Point {x: Int, y: Int}
+
+fn bump(&self: Point):
+    match self:
+        Point{x, y}: x = x + 1
+
+fn main() -> Int:
+    let &p = Point {x: 1, y: 2}
+    bump(p)
+    return p.x

@@ -496,6 +496,24 @@ void Lowering::lowerMap(LowerBlock& block, InstMap& written) {
          * at sixty-four bits otherwise: this runs before nothing, and a widening round trip nothing
          * needs is two real instructions in the emitted program.
          */
+        /*
+         * Neither arm below calls `putInRange`/`narrowWidthOf` the way every narrow producer in
+         * `inst.cpp` does after computing a result that might have overflowed the declared width -
+         * `castTo` here is a plain width change, not a re-normalization. Safe for two separate
+         * reasons, one per arm, neither obvious from reading this file alone.
+         *
+         * `selector * stride + bias` does not compute an arbitrary sum: `buildPlan` above verified
+         * the formula reproduces every entry's own constant exactly (`total == numbers[i]`), so what
+         * reaches `castTo` at runtime is always one of those already-valid arm values, computed at
+         * `Int32` or `Int64` - never a value the formula's arithmetic pushed outside the declared
+         * range, which is the only shape `putInRange` exists to correct. And a value already in
+         * range needs no re-extension to reach **normal form**: ordinary two's complement arithmetic
+         * at a type's own width already agrees, bit for bit, with "the logical value sign-extended
+         * to that width," because there is no gap between the two to disagree in - a `@bits(n)`
+         * refinement narrows which values are legal, not how a legal one is stored. Confirmed by
+         * hand: a `match` over a closed six-way enum returning `@bits(5) I32` arms `-8..-3` lowers
+         * `arm(k)` to exactly `add %k, -8`, and running it at the arm for `-7` answers `-7`.
+         */
         case MapForm::Affine: {
             if(plan.stride == 1 && !plan.bias) {
                 values.add(result->id.index,
@@ -539,6 +557,25 @@ void Lowering::lowerMap(LowerBlock& block, InstMap& written) {
             return;
         }
 
+        /*
+         * The second reason, and it is `buildPlan`'s rather than this arm's: `Packed` never reaches
+         * here holding a negative to begin with, so `castTo` below is only ever widening a stored
+         * *unsigned* field, which needs no sign-extending re-wrap of its own.
+         *
+         * `constantBits` (`gen.cpp`) answers a negative `Int` constant's **stored** pattern - the
+         * full two's-complement bits reinterpreted as `U64`, not the magnitude - so one negative arm
+         * alone makes `widest` a number near 2^32 or 2^64. `buildPlan`'s width loop is capped at 32
+         * (`while(width < 32 && (widest >> width)) width *= 2`), so a negative arm always drives
+         * `width` to that cap, and `span * width` - at least `1 * 32` - then always exceeds
+         * `kMapImmediateBits` (31), which is `buildPlan`'s own admission test for this form just
+         * above. So `packable` is never actually enough by itself; every negative arm fails the size
+         * test that follows it, and `Packed` is never chosen. Confirmed by hand: six arms
+         * `-8, 2, 7, 1, -1, 5` - `Packed`-shaped otherwise (six three-bit magnitudes) - compiled to
+         * the general per-selector table instead, whose full-width load needs no mask or re-wrap to
+         * answer `-8` and `-1` correctly. The day `constantBits` is widened to answer a value's
+         * declared bit count instead of its full stored pattern, this reasoning breaks silently and
+         * `Packed` would need the same `castTo`-is-a-re-wrap treatment `Affine` never needed.
+         */
         case MapForm::Packed: {
             auto index = relative(word);
 

@@ -4,7 +4,7 @@ namespace mir {
 
 /*
  * `@caller` - Design-Test.md §11.1's F2, and the whole of it: what a declaration may ask for
- * (`declareCallerFill`) and what a call that left the position out passes (`callerConstant`).
+ * (`declareCallerFill`) and what a call that left the position out passes (`callerFillValue`).
  *
  * **The fill happens where the position was omitted**, and everything else follows from that. A
  * helper that passes its own `at:` on explicitly is never filled here, so it reports the line that
@@ -43,6 +43,30 @@ static CallerField callerFieldOf(const String& name) {
     if(name == "column"_v) return CallerField::Column;
     if(name == "function"_v) return CallerField::Function;
     return CallerField::None;
+}
+
+/*
+ * Whether a field already matched to a vocabulary slot by `callerFieldOf` is declared the type
+ * that slot needs - `Int` for `line`/`column`, and whatever a string literal answers for
+ * `file`/`function`. The one rule both readers of the vocabulary check: `declareCallerFill` cannot
+ * call this for its own `file`/`function` fields, because `text` is not certainly resolved at
+ * declaration time and has to be deferred through `PendingCallerText` instead (see
+ * `checkCallerTexts`), but its `line`/`column` check and every field `isCallerSiteRecord` asks about
+ * - which runs once every declaration exists, so `text` is simply looked up - are the same question
+ * asked the same way. `text` is null where the caller has none to offer, which only ever matches a
+ * `None` field or fails a `File`/`Function` one, both already refused before it would be read.
+ */
+static bool callerFieldMatches(CallerField which, DeclPtr<Type> fieldType, DeclBase decl,
+                               DeclPtr<Type> text) {
+    switch(which) {
+        case CallerField::File:
+        case CallerField::Function: return text && sameType(fieldType, text);
+        case CallerField::Line:
+        case CallerField::Column: return decl[fieldType]->kind == Type::Int;
+        case CallerField::None: return false;
+    }
+
+    return false;
 }
 
 /*
@@ -187,7 +211,7 @@ bool Resolver::declareCallerFill(Function& function, Arg& declared, const ast::A
             continue;
         }
 
-        if(decl()[field.occurrence.type]->kind != Type::Int) {
+        if(!callerFieldMatches(which, field.occurrence.type, decl(), nullptr)) {
             context.diagnostics.error(
                 "field %@ of a `@caller` location is declared %@ - `line` and `column` are integers"_v,
                 argument.source, name, typeText(context, decl(), field.occurrence.type));
@@ -309,7 +333,7 @@ Node* Resolver::siteValue(Builder& builder, DeclPtr<Type> type, LocationId at, S
                 break;
             case CallerField::None:
                 // Not reachable from a `@caller` fill: `declareCallerFill` declined the marker for a
-                // record with a field outside the vocabulary. `readTestCaseShape` is what says the
+                // record with a field outside the vocabulary. `isCallerSiteRecord` is what says the
                 // same thing about the library's `Site`.
                 return nullptr;
         }
@@ -322,12 +346,17 @@ Node* Resolver::siteValue(Builder& builder, DeclPtr<Type> type, LocationId at, S
 }
 
 /*
- * Whether every field of this record is one the vocabulary names - the question `declareCallerFill`
- * asks of a written `@caller` position, asked of a type the *library* declared.
+ * Whether every field of this record is one the vocabulary names, of a type `siteValue` can
+ * actually build a fill from - the same question `declareCallerFill` asks of a written `@caller`
+ * position, asked of a type the *library* declared.
  *
  * Its own entry point because the test entry has no declaration to report against: what it holds is
  * `Test.Case`'s `site` field, and a `Site` the compiler cannot fill is a diagnostic about the
- * library rather than about a parameter somebody wrote.
+ * library rather than about a parameter somebody wrote. It used to check the name alone and leave
+ * the type to `siteValue`, which has no diagnostic to give - a `Site {line: String}` reached it and
+ * built an `Int`-tagged constant carrying a `String` type. `callerFieldMatches` is `declareCallerFill`'s
+ * own check; unlike it, this runs once every declaration in the program exists (`resolveTestEntry` is
+ * well after `checkCallerTexts`), so `text` is looked up directly instead of being deferred.
  */
 bool Resolver::isCallerSiteRecord(DeclPtr<Type> type) {
     if(!type || decl()[type]->kind != Type::Record) return false;
@@ -335,8 +364,20 @@ bool Resolver::isCallerSiteRecord(DeclPtr<Type> type) {
     auto& record = *(RecordType*)decl()[type];
     if(record.cons.size() != 1) return false;
 
+    DeclPtr<Type> text = nullptr;
+
     for(auto field: record.fields.contents(decl())) {
-        if(callerFieldOf(context.findName(field.name)) == CallerField::None) return false;
+        auto which = callerFieldOf(context.findName(field.name));
+        if(which == CallerField::None) return false;
+
+        // Looked up on first need rather than unconditionally, so a `Site` with no `file`/
+        // `function` field never asks a library that may not have declared `stringLiteral` at all.
+        if((which == CallerField::File || which == CallerField::Function) && !text) {
+            text = textType(kNullLocation);
+            if(!text) return false;
+        }
+
+        if(!callerFieldMatches(which, field.occurrence.type, decl(), text)) return false;
     }
 
     return true;

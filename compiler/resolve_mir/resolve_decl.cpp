@@ -1457,7 +1457,7 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
      * never a bare statement: the program's start stays one file's statements in written order.
      */
     auto testFile = context.settings.test && activeTestFile;
-    auto startup = root || testFile;
+    auto startup = atProgramPoint();
 
     /*
      * A statement rather than a declaration - Analysis-Initialization.md stage B.

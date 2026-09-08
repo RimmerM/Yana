@@ -779,11 +779,24 @@ bool constantNeedsAllocation(DeclBase base, const Constant& constant) {
     return false;
 }
 
-// The argument is in own.h, beside the declaration. `depth` bounds nothing a correct program can
-// reach - every containment cycle has a boxed edge, and this stops at the first one - and is here so
-// that a cut that did not happen is a conservative answer rather than a recursion with no bottom.
-bool reachesBox(DeclBase base, DeclPtr<Type> type, U32 depth) {
-    if(!type || depth > 16) return true;
+/*
+ * The argument is in own.h, beside the declaration; `reaching` is the whole of what is written here.
+ *
+ * A record can contain itself through a box - `breakLayoutCycles` is what gives
+ * `data List = Nil | Cons {tail: List}` a layout - so the walk needs somewhere to notice it has been
+ * at a type before. What the guard keeps is that a type already on the stack is *already being
+ * asked*: it reached here through a field of itself, and every box under it is a box the frame below
+ * this one will find.
+ *
+ * This used to be a depth cut at sixteen answering `true` past it. That terminated, because a
+ * containment cycle has a boxed edge and `indirectField` stops at the first one long before the
+ * bound - but it also answered `true` for a legitimately deep, acyclic, box-free chain of records,
+ * which turns `Program::asksBoxProvenance` on program-wide for a program with no box in it.
+ * `summary.cpp`'s `reachTeardown` walks the same `tearsDownField` structure with the same stack, so
+ * a reader meeting one of them now finds the other written the same way.
+ */
+static bool reachesBoxUnder(DeclBase base, DeclPtr<Type> type, SmallArray<DeclPtr<Type>, 16>& reaching) {
+    if(!type) return true;
 
     switch(base[type]->kind) {
         case Type::Variable:
@@ -791,11 +804,18 @@ bool reachesBox(DeclBase base, DeclPtr<Type> type, U32 depth) {
 
         // An array's slots are its element repeated, so a box in one is a box in the array.
         case Type::Array:
-            return reachesBox(base, ((ArrayType*)base[type])->element, depth + 1);
+            return reachesBoxUnder(base, ((ArrayType*)base[type])->element, reaching);
 
         case Type::Record: break;
         default: return false;
     }
+
+    for(auto entry: reaching) {
+        if(entry == type) return false;
+    }
+
+    reaching.push(type);
+    PopOnExit<DeclPtr<Type>> leaving { reaching };
 
     auto& record = *(RecordType*)base[type];
 
@@ -805,10 +825,15 @@ bool reachesBox(DeclBase base, DeclPtr<Type> type, U32 depth) {
     for(auto field: record.fields.contents(base)) {
         if(!tearsDownField(base, field)) continue;
         if(indirectField(base, field)) return true;
-        if(reachesBox(base, field.occurrence.type, depth + 1)) return true;
+        if(reachesBoxUnder(base, field.occurrence.type, reaching)) return true;
     }
 
     return false;
+}
+
+bool reachesBox(DeclBase base, DeclPtr<Type> type) {
+    SmallArray<DeclPtr<Type>, 16> reaching;
+    return reachesBoxUnder(base, type, reaching);
 }
 
 bool breakLayoutCycles(Context& context, Program& program) {

@@ -85,21 +85,32 @@ static constexpr U32 kJumpTableCellBytes = 4;
 /*
  * Which of the three a particular switch gets. One function, and every threshold above it.
  *
- * The span is computed in U64 over the *signed* case values, which is what makes a case set
- * straddling zero measure its real width rather than wrapping: the list is ascending, so the
- * difference of its two ends is the span whatever the signs are.
+ * The span comes from `LowerInstSwitch::caseSpan`, over the *signed* case values, which is what
+ * makes a case set straddling zero measure its real width rather than wrapping: the list is
+ * ascending, so the difference of its two ends is the span whatever the signs are - except for the
+ * one range a U64 cannot hold, which `caseSpan` reports as Nothing rather than as the wrapped zero
+ * that both this function and `emitJumpTable` used to compute independently, and wrongly.
  */
 static SwitchForm chooseSwitchForm(const CompileSettings& settings, LowerInstSwitch* sw) {
+    auto span = LowerInstSwitch::caseSpan(sw->lowestCase(), sw->highestCase());
+
     // `-switch-form chain|search|table` is what a measurement compiles the same program three ways
-    // with - see SwitchForm, and §77 of test/bench/findings.md for what it produced.
-    if(settings.switchForm != SwitchForm::Auto) return settings.switchForm;
+    // with - see SwitchForm, and §77 of test/bench/findings.md for what it produced. It skips the
+    // count/spread/max-span thresholds below on purpose, since that is the point of forcing a form -
+    // but a table cannot answer for a span wider than a U64 at any threshold, so a forced table falls
+    // back to the chain for that one case rather than reaching `emitJumpTable` with a span it cannot
+    // build.
+    if(settings.switchForm != SwitchForm::Auto) {
+        if(settings.switchForm == SwitchForm::JumpTable && span.isNothing()) return SwitchForm::Chain;
+        return settings.switchForm;
+    }
 
     auto count = Size(sw->caseCount);
-    auto span = U64(sw->highestCase()) - U64(sw->lowestCase()) + 1;
 
-    if(count >= kJumpTableMin &&
-       span * kJumpTableSpreadDenominator <= U64(count) * kJumpTableSpreadNumerator &&
-       span <= kJumpTableMaxSpan)
+    if(span.isJust() &&
+       count >= kJumpTableMin &&
+       span.unwrap() * kJumpTableSpreadDenominator <= U64(count) * kJumpTableSpreadNumerator &&
+       span.unwrap() <= kJumpTableMaxSpan)
     {
         return SwitchForm::JumpTable;
     }
@@ -271,7 +282,17 @@ static LowerGlobal* buildJumpTable(Context& ctx, LowerModule& module, Size cells
     auto length = sizeof(text) - 1;
     StringId name {};
 
-    for(U32 n = 0; ; n++) {
+    /*
+     * Four digits is ten thousand tables in one module, and the loop stops at the last of them
+     * rather than past it.
+     *
+     * `n` past 9999 formats the same four digits as `n - 10000` does, so an unbounded counter that
+     * ran out of names would retry a colliding one forever - a hang with no diagnostic, where every
+     * other limit in this file is checked. The bound is asserted instead: a module with ten thousand
+     * jump tables in it is not a program this has met, and if one arrives the assert names the
+     * reason rather than the loop swallowing it.
+     */
+    for(U32 n = 0; n < 10000; n++) {
         text[4] = digits[(n / 1000) % 10];
         text[5] = digits[(n / 100) % 10];
         text[6] = digits[(n / 10) % 10];
@@ -279,6 +300,8 @@ static LowerGlobal* buildJumpTable(Context& ctx, LowerModule& module, Size cells
 
         name = Context::nameHash(text, length);
         if(!module.globals.getValue(name)) break;
+
+        assertTrue(n + 1 < 10000);
     }
 
     // Copied into the arena because `addUnqualifiedName` keeps the pointer it is handed and this one
@@ -320,7 +343,11 @@ static void emitJumpTable(Context& ctx, LowerBase base, LowerFunction& fun, Lowe
     auto& arena = fun.arena;
 
     auto low = cases[0].value();
-    auto span = Size(U64(cases[cases.length - 1].value()) - U64(low) + 1);
+
+    // `chooseSwitchForm` never sends this form a switch whose span doesn't fit a U64 - forced or
+    // not, it falls back to the chain for that one range - so the Nothing case is a contract
+    // violation here rather than something this function has an answer for.
+    auto span = Size(LowerInstSwitch::caseSpan(low, cases[cases.length - 1].value()).unwrap());
 
     // The block every gap cell and the overflow cell name. It holds one jump, and `emitsNothing` in
     // gen.cpp declines to skip it for exactly that reason: a cell is a byte offset written after the
@@ -422,7 +449,10 @@ static void emitJumpTable(Context& ctx, LowerBase base, LowerFunction& fun, Lowe
 
     gap->addInst(base, new (arena) LowerInstJmp(fallback - base));
 
-    for(auto& item: cases) handOverEdge(base, base[item.target], origin, origin);
+    // Every case target keeps `origin` as its phi source, because the branch that reaches it is the
+    // `x86_jmptable` this function put in `origin` - so there is nothing to hand over for one, and
+    // the loop that said so was `handOverEdge(.., origin, origin)`, which returns at its first line.
+    // The **fallback** is the one that moved: its edge now leaves the gap block.
     handOverEdge(base, fallback, origin, gap);
 }
 

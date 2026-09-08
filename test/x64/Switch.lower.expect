@@ -444,6 +444,84 @@ tablePhi<complex>(%v: I32, %w: I32): I32 {
   }
 }
 
+fullRange<complex>(%v: I64): I32 {
+  start {
+    switch %v, other, [a0, -9223372036854775808], [a1, -9223372036854775807], [a2, -9223372036854775806], [a3, -9223372036854775805], [a4, -9223372036854775804], [a5, -9223372036854775803], [a6, -9223372036854775802], [a7, -9223372036854775801], [a8, -9223372036854775800], [a9, -9223372036854775799], [a10, -9223372036854775798], [a11, -9223372036854775797], [a12, -9223372036854775796], [a13, -9223372036854775795], [a14, -9223372036854775794], [a15, -9223372036854775793], [a16, 9223372036854775807]
+  }
+
+  a0 {
+    ret 10
+  }
+
+  a1 {
+    ret 20
+  }
+
+  a2 {
+    ret 30
+  }
+
+  a3 {
+    ret 40
+  }
+
+  a4 {
+    ret 50
+  }
+
+  a5 {
+    ret 60
+  }
+
+  a6 {
+    ret 70
+  }
+
+  a7 {
+    ret 80
+  }
+
+  a8 {
+    ret 90
+  }
+
+  a9 {
+    ret 100
+  }
+
+  a10 {
+    ret 110
+  }
+
+  a11 {
+    ret 120
+  }
+
+  a12 {
+    ret 130
+  }
+
+  a13 {
+    ret 140
+  }
+
+  a14 {
+    ret 150
+  }
+
+  a15 {
+    ret 160
+  }
+
+  a16 {
+    ret 170
+  }
+
+  other {
+    ret 0
+  }
+}
+
 
 --- codegen: chain ---
 block #0:
@@ -601,7 +679,7 @@ block start:
   select uses=[rax, rdi, -] creates=[rax]  => 0f42c7
   cast uses=[rax] creates=[rax]  => 
   imm uses=[] creates=[-]  => 
-  global uses=[] creates=[rcx]  => 488d0dff010000
+  global uses=[] creates=[rcx]  => 488d0d9f030000
   x86_addr scale=4 disp=0 uses=[rcx, rax] creates=[-]  => 
   loads uses=[-] creates=[rax]  => 48630481
   x86_lea scale=1 disp=0 uses=[rcx, rax] creates=[rcx]  => 488d0c01
@@ -671,7 +749,7 @@ block start:
   select uses=[rax, rdi, -] creates=[rax]  => 0f42c7
   cast uses=[rax] creates=[rax]  => 
   imm uses=[] creates=[-]  => 
-  global uses=[] creates=[rcx]  => 488d0dbc010000
+  global uses=[] creates=[rcx]  => 488d0d5c030000
   x86_addr scale=4 disp=0 uses=[rcx, rax] creates=[-]  => 
   loads uses=[-] creates=[rax]  => 48630481
   x86_lea scale=1 disp=0 uses=[rcx, rax] creates=[rcx]  => 488d0c01
@@ -739,7 +817,7 @@ block start:
   select uses=[rax, rdi, -] creates=[rax]  => 0f42c7
   cast uses=[rax] creates=[rax]  => 
   imm uses=[] creates=[-]  => 
-  global uses=[] creates=[rcx]  => 488d0d7f010000
+  global uses=[] creates=[rcx]  => 488d0d1f030000
   x86_addr scale=4 disp=0 uses=[rcx, rax] creates=[-]  => 
   loads uses=[-] creates=[rax]  => 48630481
   x86_lea scale=1 disp=0 uses=[rcx, rax] creates=[rcx]  => 488d0c01
@@ -828,7 +906,7 @@ block dispatch:
   select uses=[rcx, rax, -] creates=[rcx]  => 0f42c8
   cast uses=[rcx] creates=[rcx]  => 
   imm uses=[] creates=[-]  => 
-  global uses=[] creates=[rdx]  => 488d1559010000
+  global uses=[] creates=[rdx]  => 488d15f9020000
   x86_addr scale=4 disp=0 uses=[rdx, rcx] creates=[-]  => 
   loads uses=[-] creates=[rcx]  => 48630c8a
   x86_lea scale=1 disp=0 uses=[rdx, rcx] creates=[rdx]  => 488d140a
@@ -907,3 +985,129 @@ block pre:
   jmp uses=[] creates=[]  => 
 block end:
   ret uses=[rax] creates=[]  => c3
+
+--- codegen: fullRange ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+block start:
+  imm uses=[] creates=[remat:0]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:0->rdi]  => 48bf00000000000000804839f8
+  je uses=[-] creates=[]  => 0f847e010000
+block #2:
+  imm uses=[] creates=[remat:1]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:1->rdi]  => 48bf01000000000000804839f8
+  je uses=[-] creates=[]  => 0f8465010000
+block #3:
+  imm uses=[] creates=[remat:2]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:2->rdi]  => 48bf02000000000000804839f8
+  je uses=[-] creates=[]  => 0f844c010000
+block #4:
+  imm uses=[] creates=[remat:3]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:3->rdi]  => 48bf03000000000000804839f8
+  je uses=[-] creates=[]  => 0f8433010000
+block #5:
+  imm uses=[] creates=[remat:4]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:4->rdi]  => 48bf04000000000000804839f8
+  je uses=[-] creates=[]  => 0f841a010000
+block #6:
+  imm uses=[] creates=[remat:5]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:5->rdi]  => 48bf05000000000000804839f8
+  je uses=[-] creates=[]  => 0f8401010000
+block #7:
+  imm uses=[] creates=[remat:6]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:6->rdi]  => 48bf06000000000000804839f8
+  je uses=[-] creates=[]  => 0f84e8000000
+block #8:
+  imm uses=[] creates=[remat:7]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:7->rdi]  => 48bf07000000000000804839f8
+  je uses=[-] creates=[]  => 0f84cf000000
+block #9:
+  imm uses=[] creates=[remat:8]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:8->rdi]  => 48bf08000000000000804839f8
+  je uses=[-] creates=[]  => 0f84b6000000
+block #10:
+  imm uses=[] creates=[remat:9]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:9->rdi]  => 48bf09000000000000804839f8
+  je uses=[-] creates=[]  => 0f849d000000
+block #11:
+  imm uses=[] creates=[remat:10]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:10->rdi]  => 48bf0a000000000000804839f8
+  je uses=[-] creates=[]  => 0f8484000000
+block #12:
+  imm uses=[] creates=[remat:11]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:11->rdi]  => 48bf0b000000000000804839f8
+  je uses=[-] creates=[]  => 746f
+block #13:
+  imm uses=[] creates=[remat:12]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:12->rdi]  => 48bf0c000000000000804839f8
+  je uses=[-] creates=[]  => 745a
+block #14:
+  imm uses=[] creates=[remat:13]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:13->rdi]  => 48bf0d000000000000804839f8
+  je uses=[-] creates=[]  => 7445
+block #15:
+  imm uses=[] creates=[remat:14]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:14->rdi]  => 48bf0e000000000000804839f8
+  je uses=[-] creates=[]  => 7430
+block #16:
+  imm uses=[] creates=[remat:15]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:15->rdi]  => 48bf0f000000000000804839f8
+  je uses=[-] creates=[]  => 741b
+block #17:
+  imm uses=[] creates=[remat:16]  => 
+  cmp_eq uses=[rax, rdi] creates=[-] pre=[remat:16->rdi]  => 48bfffffffffffffff7f4839f8
+  je uses=[-] creates=[]  => 7406
+block other:
+  imm uses=[] creates=[remat:17]  => 
+  ret uses=[rax] creates=[] pre=[remat:17->rax]  => b800000000c3
+block a16:
+  imm uses=[] creates=[remat:18]  => 
+  ret uses=[rax] creates=[] pre=[remat:18->rax]  => b8aa000000c3
+block a15:
+  imm uses=[] creates=[remat:19]  => 
+  ret uses=[rax] creates=[] pre=[remat:19->rax]  => b8a0000000c3
+block a14:
+  imm uses=[] creates=[remat:20]  => 
+  ret uses=[rax] creates=[] pre=[remat:20->rax]  => b896000000c3
+block a13:
+  imm uses=[] creates=[remat:21]  => 
+  ret uses=[rax] creates=[] pre=[remat:21->rax]  => b88c000000c3
+block a12:
+  imm uses=[] creates=[remat:22]  => 
+  ret uses=[rax] creates=[] pre=[remat:22->rax]  => b882000000c3
+block a11:
+  imm uses=[] creates=[remat:23]  => 
+  ret uses=[rax] creates=[] pre=[remat:23->rax]  => b878000000c3
+block a10:
+  imm uses=[] creates=[remat:24]  => 
+  ret uses=[rax] creates=[] pre=[remat:24->rax]  => b86e000000c3
+block a9:
+  imm uses=[] creates=[remat:25]  => 
+  ret uses=[rax] creates=[] pre=[remat:25->rax]  => b864000000c3
+block a8:
+  imm uses=[] creates=[remat:26]  => 
+  ret uses=[rax] creates=[] pre=[remat:26->rax]  => b85a000000c3
+block a7:
+  imm uses=[] creates=[remat:27]  => 
+  ret uses=[rax] creates=[] pre=[remat:27->rax]  => b850000000c3
+block a6:
+  imm uses=[] creates=[remat:28]  => 
+  ret uses=[rax] creates=[] pre=[remat:28->rax]  => b846000000c3
+block a5:
+  imm uses=[] creates=[remat:29]  => 
+  ret uses=[rax] creates=[] pre=[remat:29->rax]  => b83c000000c3
+block a4:
+  imm uses=[] creates=[remat:30]  => 
+  ret uses=[rax] creates=[] pre=[remat:30->rax]  => b832000000c3
+block a3:
+  imm uses=[] creates=[remat:31]  => 
+  ret uses=[rax] creates=[] pre=[remat:31->rax]  => b828000000c3
+block a2:
+  imm uses=[] creates=[remat:32]  => 
+  ret uses=[rax] creates=[] pre=[remat:32->rax]  => b81e000000c3
+block a1:
+  imm uses=[] creates=[remat:33]  => 
+  ret uses=[rax] creates=[] pre=[remat:33->rax]  => b814000000c3
+block a0:
+  imm uses=[] creates=[remat:34]  => 
+  ret uses=[rax] creates=[] pre=[remat:34->rax]  => b80a000000c3

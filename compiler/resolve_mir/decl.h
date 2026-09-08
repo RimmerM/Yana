@@ -621,8 +621,8 @@ enum class DeclAttribute: U8 {
     Local,
 
     /*
-     * `@inline`, `@inline(always)` and `@noinline` on a function - `Function::alwaysInline` and
-     * `Function::noInline`.
+     * `@inline`, `@inline(always)` and `@noinline` on a function - `Function::inlineHint`,
+     * `Function::alwaysInline` and `Function::noInline`.
      *
      * Two rows because they are two spellings, and one reader because they are one question: what a
      * declaration says about being expanded at its call sites. `readInlineAttribute` is that reader,

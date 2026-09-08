@@ -405,7 +405,7 @@ struct Lowering {
 
     // The bytes of one module's name, as a constant global - one per module, since every check in a
     // file names the same file.
-    LowerPtr<LowerGlobal> moduleNameBytes(StringId name);
+    LowerPtr<LowerGlobal> moduleNameBytes(StringId name, U32& count);
 
     /*
      * A boxed field's storage, made - `allocateHeap` at the target's size, the pointer stored into

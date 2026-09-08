@@ -1,0 +1,32 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_1, 5, 4
+    store %v_2, %v_1, 8
+    %v_3 = load %v_2, 8: I64
+    %v_4 = cmp_neq %v_3, 0: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    jmp b_7
+  }
+
+  b_5 {
+    %v_8 = bitcast %v_3: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = add %v_9, 37: I32
+    store %v_8, %v_10, 4
+    jmp b_7
+  }
+
+  b_7 {
+    %v_11 = phi [b_6, 0], [b_5, %v_10]: I32
+    %v_12 = loads %v_1, 4: I32
+    %v_13 = add %v_11, %v_12: I32
+    ret %v_13
+  }
+}
+

@@ -344,13 +344,42 @@ Node* expandTypeTraits(Builder& builder, Function& callee, Node* const*, const S
  * is what makes `*p` at an owning type unsafe rather than ill-formed - it takes the value and leaves
  * bytes behind that nothing tracks - and it is Native's to be unsafe, not this function's to refuse.
  */
+/*
+ * The place-level middle of every address `Read` - `expandPointerLoad`, `expandVectorAt` and
+ * `expandVectorPast` share exactly this and nothing else: a place at `address`, the same
+ * copy-or-move choice `readMode` makes for every other read, and an owned request. `overread` is a
+ * parameter rather than always `false` here because it is `NodeRead`'s own bit and not a second
+ * decision this function makes - `expandPointerLoad` supplies `false` for the same reason
+ * `expandVectorAt` does, a plain `*p` never claiming the tail-read guarantee, and `expandVectorPast`
+ * supplies `true`. Keeping it out would not remove a decision, only push the same call to `addRead`
+ * back into three places.
+ *
+ * What stays with the callers is `asVectorAddress`'s bitcast: it is the one step that is not this
+ * operation at every type, only at a vector one, so folding it in here would make the pointer path
+ * carry a vector concern it does not have.
+ */
+static Node* readThroughAddress(Builder& builder, Node& address, const Occurrence& result,
+                                LocationId source, bool overread) {
+    auto place = builder.addressPlace(address, result, false);
+
+    auto wanted = bindingRequest(Access::Owned);
+    return builder.addRead(source, *place, readMode(*builder.program.decl, builder.base(), builder.body, *place, wanted), wanted,
+                           overread);
+}
+
+// The place-level middle of every address `Write` - `expandPointerStore`'s comment on
+// `Destination::Assign` is what this still does not do (release, track) and why: an address root
+// has no move path, so neither call above nor below this point may claim one.
+static void writeThroughAddress(Builder& builder, Node& address, const Occurrence& held, Node& value,
+                                LocationId source) {
+    auto place = builder.addressPlace(address, requalified(held, ownedContract()), true);
+    builder.addWrite(source, *place, value, Destination::Assign);
+}
+
 Node* expandPointerLoad(Builder& builder, Function& callee, Node* const* arguments,
                         const Substitution& with, LocationId source) {
     auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
-    auto place = builder.addressPlace(*arguments[0], result, false);
-
-    auto wanted = bindingRequest(Access::Owned);
-    return builder.addRead(source, *place, readMode(*builder.program.decl, builder.base(), builder.body, *place, wanted), wanted);
+    return readThroughAddress(builder, *arguments[0], result, source, false);
 }
 
 /*
@@ -377,9 +406,7 @@ Node* expandPointerLoad(Builder& builder, Function& callee, Node* const* argumen
 Node* expandPointerStore(Builder& builder, Function& callee, Node* const* arguments,
                          const Substitution& with, LocationId source) {
     auto pointee = valueOccurrence(*arguments[1]);
-    auto place = builder.addressPlace(*arguments[0], requalified(pointee, ownedContract()), true);
-
-    builder.addWrite(source, *place, *arguments[1], Destination::Assign);
+    writeThroughAddress(builder, *arguments[0], pointee, *arguments[1], source);
 
     auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
     return builder.addConst(source, unitConstant(result.type));
@@ -417,7 +444,8 @@ static Node* asVectorAddress(Builder& builder, Node& pointer, DeclPtr<Type> vect
 }
 
 // One emitter for the load and the overreading load, because the flag is the whole difference and a
-// second copy of these four lines is what would let the two drift apart.
+// second copy of these four lines is what would let the two drift apart. Past the bitcast, this is
+// `expandPointerLoad`'s own read - `readThroughAddress` is where the two meet.
 static Node* loadVector(Builder& builder, Function& callee, Node* const* arguments,
                         const Substitution& with, LocationId source, bool overread) {
     auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
@@ -425,11 +453,7 @@ static Node* loadVector(Builder& builder, Function& callee, Node* const* argumen
     auto address = asVectorAddress(builder, *arguments[0], result.type, source);
     if(!address) return nullptr;
 
-    auto place = builder.addressPlace(*address, result, false);
-
-    auto wanted = bindingRequest(Access::Owned);
-    return builder.addRead(source, *place, readMode(*builder.program.decl, builder.base(), builder.body, *place, wanted), wanted,
-                           overread);
+    return readThroughAddress(builder, *address, result, source, overread);
 }
 
 Node* expandVectorAt(Builder& builder, Function& callee, Node* const* arguments,
@@ -458,8 +482,7 @@ Node* expandSetVectorAt(Builder& builder, Function& callee, Node* const* argumen
     auto address = asVectorAddress(builder, *arguments[0], held.type, source);
     if(!address) return nullptr;
 
-    auto place = builder.addressPlace(*address, requalified(held, ownedContract()), true);
-    builder.addWrite(source, *place, *arguments[1], Destination::Assign);
+    writeThroughAddress(builder, *address, held, *arguments[1], source);
 
     auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
     return builder.addConst(source, unitConstant(result.type));

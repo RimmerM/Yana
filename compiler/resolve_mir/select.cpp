@@ -567,11 +567,9 @@ struct Selector {
             return false;
         }
 
-        // The match again, since the walk above overwrote it.
-        if(!match(*base[chosen], args, count, into)) {
-            into.instance = nullptr;
-            return false;
-        }
+        // `into` still holds `chosen`'s match: the loop above breaks on the first success and the
+        // disagreement walk matches every other head into a local. `match` clears and rewrites all
+        // three fields on the way through, so a candidate that failed before `chosen` left nothing.
 
         // The head's own context, on `selectHere`'s terms - the match decided which instance
         // applies, so a context that does not hold is a mistake reported against it rather than a

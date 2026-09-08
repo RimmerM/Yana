@@ -1133,6 +1133,26 @@ struct Verifier {
                     }
 
                     /*
+                     * The five float unaries - `UnaryCategory::Float` in `op.def` - restate the one
+                     * rule `Builder::addUnary` checks when the node is built: the element is a
+                     * `Float`. That check runs once, in MIR; this is the same rule read back after
+                     * whatever pass just ran, because a fold or a clone can move a value between
+                     * sites without moving its type along with it.
+                     */
+                    case mir::UnaryOp::Sqrt:
+                    case mir::UnaryOp::Trunc:
+                    case mir::UnaryOp::Floor:
+                    case mir::UnaryOp::Ceil:
+                    case mir::UnaryOp::Round: {
+                        if(scalar && scalar->kind == mir::Type::Float) break;
+
+                        report(inst.source,
+                               "internal: %%@ is a floating-point operation over a type that is not one"_v,
+                               named);
+                        break;
+                    }
+
+                    /*
                      * A conversion between two vectors keeps the lane count -
                      * Implementation-Vector.md §3.2's first consequence, and the one rule at this
                      * tier that is easy to get wrong silently: `f32x8` to `f64x8` is a widening of
@@ -1214,6 +1234,33 @@ struct Verifier {
                 report(inst.source,
                        "internal: %%@ selects bits of a %@-bit integer, which is not a width this operation has"_v,
                        named, U32(bits));
+                break;
+            }
+
+            /*
+             * `a * b + c` at one type - `Builder::addFma` asserts an element that is a `Float` and
+             * all three operands agreeing with the result's type, both once, when the node is
+             * built. Restated here for the same reason as the float unaries above.
+             */
+            case Inst::Fma: {
+                auto& fma = (InstFma&)inst;
+                auto lane = mir::laneTypeOf(decl, type);
+                auto scalar = lane ? decl[lane] : (type ? decl[type] : nullptr);
+
+                if(!scalar || scalar->kind != mir::Type::Float) {
+                    report(inst.source,
+                           "internal: %%@ is a floating-point operation over a type that is not one"_v,
+                           named);
+                    break;
+                }
+
+                if(!mir::sameType(typeOf(fma.lhs), type) || !mir::sameType(typeOf(fma.rhs), type) ||
+                   !mir::sameType(typeOf(fma.addend), type)) {
+                    report(inst.source,
+                           "internal: %%@ multiplies and adds values that do not share one type"_v,
+                           named);
+                }
+
                 break;
             }
 

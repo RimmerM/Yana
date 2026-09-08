@@ -471,3 +471,87 @@ tablePhi(%v: I32, %w: I32): I32 {
         ret (phi [a0, %x0], [a1, %x1], [a2, %x2], [a3, %x3], [a4, %x4], [a5, %x5], [a6, %x6], [a7, %x7], [a8, %x8], [a9, %x9], [a10, %x10], [a11, %x11], [a12, %x12], [a13, %x13], [a14, %x14], [a15, %x15], [other, %xo]: I32)
     }
 }
+
+# Seventeen cases, sixteen of them run from `INT64_MIN` and the last one `INT64_MAX`: past
+# `kJumpTableMin` on count, the way `table` above is, but a true span of 2^64 - one more than a U64
+# holds. `U64(high) - U64(low) + 1` computed that as a wrapped zero, which cleared every threshold
+# below it (`0 <= anything`) and chose a table that `emitJumpTable` then built with one cell, so
+# every case but the last folded into it. `LowerInstSwitch::caseSpan` answers Nothing for this range
+# instead, which this pins to the chain it should have stayed.
+fullRange(%v: I64): I32 {
+    start {
+        switch %v, other, [a0, -9223372036854775808], [a1, -9223372036854775807], [a2, -9223372036854775806], [a3, -9223372036854775805], [a4, -9223372036854775804], [a5, -9223372036854775803], [a6, -9223372036854775802], [a7, -9223372036854775801], [a8, -9223372036854775800], [a9, -9223372036854775799], [a10, -9223372036854775798], [a11, -9223372036854775797], [a12, -9223372036854775796], [a13, -9223372036854775795], [a14, -9223372036854775794], [a15, -9223372036854775793], [a16, 9223372036854775807]
+    }
+
+    a0 {
+        ret 10
+    }
+
+    a1 {
+        ret 20
+    }
+
+    a2 {
+        ret 30
+    }
+
+    a3 {
+        ret 40
+    }
+
+    a4 {
+        ret 50
+    }
+
+    a5 {
+        ret 60
+    }
+
+    a6 {
+        ret 70
+    }
+
+    a7 {
+        ret 80
+    }
+
+    a8 {
+        ret 90
+    }
+
+    a9 {
+        ret 100
+    }
+
+    a10 {
+        ret 110
+    }
+
+    a11 {
+        ret 120
+    }
+
+    a12 {
+        ret 130
+    }
+
+    a13 {
+        ret 140
+    }
+
+    a14 {
+        ret 150
+    }
+
+    a15 {
+        ret 160
+    }
+
+    a16 {
+        ret 170
+    }
+
+    other {
+        ret 0
+    }
+}

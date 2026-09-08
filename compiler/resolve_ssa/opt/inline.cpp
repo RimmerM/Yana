@@ -1763,6 +1763,13 @@ struct Inliner {
      * [[yana-escape-before-inlining]] item 5 is a call site in a function nothing could run being
      * counted, which turned a callee's one site into two and refused it. `reach` runs immediately in
      * front of this for exactly that reason.
+     *
+     * The same rule applies one level down, at a block rather than a whole function - and here the
+     * walk has to say so itself, because `deleted` alone does not: `endNonReturningBlocks` runs
+     * standalone in front of the inliner, cutting the return edge out of a diverging call's block
+     * without a `cleanCfg` behind it to sweep the block that edge stranded. `reversePostorder` is
+     * `sizeOf`'s answer to the identical question below - one walk of what a body can still run,
+     * shared rather than restated with a weaker test.
      */
     void countReferences() {
         references.clear();
@@ -1776,6 +1783,8 @@ struct Inliner {
             if(isCall) entry.value->calls++; else entry.value->other++;
         };
 
+        Array<U32> order;
+
         for(auto modulePointer: opt.program.modules) {
             auto module = decl()[modulePointer];
 
@@ -1784,10 +1793,10 @@ struct Inliner {
                 if(!function->reachable || !function->ssa) continue;
 
                 auto body = base()[function->ssa];
+                reversePostorder(base(), *body, order);
 
-                for(U32 i = 0; i < body->blocks.size(); i++) {
-                    auto block = body->block(base(), BlockId(i));
-                    if(block->deleted) continue;
+                for(auto index: order) {
+                    auto block = body->block(base(), BlockId(index));
 
                     for(auto instPointer: block->instructions(base())) {
                         auto inst = base()[instPointer];

@@ -301,12 +301,12 @@ struct Promoter {
      * drops of the whole of it - the eligibility rule, recursing into every second name it finds.
      * The file comment is the argument for each clause.
      */
-    bool scan(Survey& survey, Value& name, U32 depth) {
+    bool scan(Survey& survey, Value& named, U32 depth) {
         if(depth > kAliasDepth) return false;
 
-        for(auto userPointer: name.uses(opt.base)) {
+        for(auto userPointer: named.uses(opt.base)) {
             auto& user = *opt.base[userPointer];
-            auto names = [&](Use used) { return addressOf(used) == &name; };
+            auto names = [&](Use used) { return addressOf(used) == &named; };
 
             switch(user.kind) {
                 case Inst::Load: {
@@ -316,7 +316,7 @@ struct Promoter {
                     auto result = opt.base[user.results.get(opt.base, 0)];
 
                     /*
-                     * A `Guaranteed` result is a **borrow**: a second name for this storage rather
+                     * A `Guaranteed` result is a **borrow**: a second named for this storage rather
                      * than a read of what is in it, which is how `&x` is spelled at this tier. It is
                      * followed rather than declined, and what follows it is the same question.
                      */
@@ -346,7 +346,7 @@ struct Promoter {
                 /*
                  * `represent` - the same storage restated at another occurrence, which moves no byte
                  * and is what the inliner leaves where a continuation's handover crossed a
-                 * signature. A second name exactly as the borrow above is.
+                 * signature. A second named exactly as the borrow above is.
                  */
                 case Inst::Unary: {
                     auto& unary = (InstUnary&)user;

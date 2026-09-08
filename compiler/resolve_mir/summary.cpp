@@ -6,19 +6,6 @@ namespace mir {
 namespace {
 
 /*
- * Pops the entry a walk pushed, however the walk leaves.
- *
- * `reachTeardown` returns from six places and every one of them has to unwind the stack it walks on,
- * which is one line at each and five chances to forget. A three-line type is what that trade is
- * worth here; nothing else in this file needs one.
- */
-template<class T>
-struct PopOnExit {
-    SmallArray<T, 16>& stack;
-    ~PopOnExit() { stack.pop(); }
-};
-
-/*
  * Whether one node is a suspension point in its own right.
  *
  * An exhaustive switch and not a `return false`, for the reason `hasTeardown` is written the same
