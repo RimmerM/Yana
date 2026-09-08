@@ -391,14 +391,13 @@ static void collectEdgeTransitions(LowerBase base, LowerFunction& fun, Liveness&
         auto fromSet = live.getBlock(from);
         auto exitPoint = afterInst(fromSet->lastIndex);
 
-        // Both arms reaching one block is a single successor for this purpose: whichever way the
-        // branch goes, control arrives there.
-        auto singleSuccessor = !from->outgoing[0] || !from->outgoing[1]
-            || from->outgoing[0] == from->outgoing[1];
+        // Where control has exactly one place to go, the copy may sit at the end of this block.
+        // The clause that also allowed both arms of a `je` to name one block is gone with the
+        // two-slot `outgoing`: a terminator's targets are pairwise distinct now (LowerBlock::
+        // outgoing), so a branch with one target is a branch that does not exist.
+        auto singleSuccessor = !from->isConditional();
 
-        for(auto successorOffset: from->outgoing) {
-            if(!successorOffset) continue;
-
+        for(auto successorOffset: from->successors(base)) {
             auto to = base[successorOffset];
             auto toSet = live.getBlock(to);
             auto entryPoint = beforeInst(toSet->firstIndex);
@@ -1236,10 +1235,13 @@ static void hoistCommonEntryMoves(Legalizer& l, LowerBase base, LowerFunction& f
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
-        if(!block->outgoing[0] || !block->outgoing[1]) continue;
 
-        auto left = base[block->outgoing[0]];
-        auto right = base[block->outgoing[1]];
+        // The two arms of a branch, and nothing else - a multi-way branch has as many prefixes as it
+        // has cases and hoisting what all of them share is a different pass with a different price.
+        if(block->successorCount() != 2) continue;
+
+        auto left = block->successor(base, 0);
+        auto right = block->successor(base, 1);
         if(left == right) continue;
         if(left->incoming.size() != 1 || right->incoming.size() != 1) continue;
 
@@ -1340,10 +1342,8 @@ static void runLegalizer(Legalizer& l, LowerBase base, LowerFunction& fun, Legal
         auto& pending = l.scratch.phiMoves;
         pending.clear();
 
-        for(auto successor: block->outgoing) {
-            if(!successor) continue;
-
-            assertTrue(base[successor]->phis.isEmpty() || !(block->outgoing[0] && block->outgoing[1]));
+        for(auto successor: block->successors(base)) {
+            assertTrue(base[successor]->phis.isEmpty() || !block->isConditional());
             l.resolvePhis(block, base[successor], index, pending);
         }
 

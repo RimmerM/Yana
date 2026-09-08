@@ -398,7 +398,7 @@ static void buildRotationRegions(LowerBase base, LowerFunction& fun, const LoopI
 }
 
 static bool terminalExit(LowerBase base, const LoopInfo& loops, U32 headerIndex, LowerBlock* block) {
-    if(block->outgoing[0] || block->outgoing[1]) return false;
+    if(block->hasSuccessors()) return false;
 
     auto entered = true;
     for(auto p: block->incoming.contents(base)) {
@@ -425,8 +425,8 @@ static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, co
     if(base[header->terminator]->kind != LowerInst::Je) return Nothing();
 
     auto index = header->index;
-    auto first = base[header->outgoing[0]];
-    auto second = base[header->outgoing[1]];
+    auto first = header->successor(base, 0);
+    auto second = header->successor(base, 1);
 
     // Exactly one arm may leave. A header that branches within the loop is not the block the loop is
     // left from, and one whose arms both leave is not a loop this pass can read.
@@ -606,8 +606,7 @@ static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops
     // The preheader stops entering the loop and starts deciding. Unwired by hand because addInst
     // records an edge rather than replacing one, and refuses a successor that already names it.
     pre->terminator = nullptr;
-    pre->outgoing[0] = nullptr;
-    pre->outgoing[1] = nullptr;
+    pre->clearSuccessors();
 
     for(Size i = 0; i < header->incoming.size(); i++) {
         if(base[header->incoming.get(base, i)] == pre) { header->incoming.remove(base, i); break; }
@@ -758,7 +757,7 @@ static void rotateLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops
  */
 static LowerBlock* insertJumpPreheader(LowerBase base, LowerFunction& fun, LowerBlock* pred) {
     auto& arena = fun.arena;
-    auto succ = base[pred->outgoing[0]];
+    auto succ = pred->successor(base, 0);
     auto predOffset = pred - base;
 
     auto split = new (arena) LowerBlock(pred->fun, StringId(), BlockIndex(fun.blocks.size()));
@@ -769,13 +768,13 @@ static LowerBlock* insertJumpPreheader(LowerBase base, LowerFunction& fun, Lower
     auto jmp = (LowerInst*)new (arena) LowerInstJmp(succ - base);
     jmp->block = split - base;
     split->terminator = jmp - base;
-    split->outgoing[0] = succ - base;
+    split->setSuccessors(base, succ - base);
     split->incoming.push(arena, predOffset);
 
     auto old = (LowerInstJmp*)base[pred->terminator];
     assertTrue(old->kind == LowerInst::Jmp);
     old->then = split - base;
-    pred->outgoing[0] = split - base;
+    pred->setSuccessors(base, split - base);
 
     for(Size i = 0; i < succ->incoming.size(); i++) {
         if(succ->incoming.get(base, i) == predOffset) {
@@ -799,7 +798,7 @@ static LowerBlock* insertJumpPreheader(LowerBase base, LowerFunction& fun, Lower
 static void insertEntryPreheader(LowerBase base, LowerFunction& fun) {
     auto entry = base[fun.blocks.get(base, 0)];
     if(!entry->terminator || base[entry->terminator]->kind != LowerInst::Jmp) return;
-    if(base[entry->outgoing[0]]->incoming.size() < 2) return;
+    if(entry->successor(base, 0)->incoming.size() < 2) return;
 
     insertJumpPreheader(base, fun, entry);
 }
@@ -852,8 +851,7 @@ static bool foldIntoPredecessor(LowerBase base, LowerFunction& fun, LowerBlock* 
     // The jump is dropped rather than detached: a `Jmp` reads no value, so no use list mentions it,
     // and the edge it recorded is what the instructions below take over.
     pred->terminator = nullptr;
-    pred->outgoing[0] = nullptr;
-    pred->outgoing[1] = nullptr;
+    pred->clearSuccessors();
 
     // Moved rather than re-added: `addInst` would register every operand a second time, and these
     // instructions are already recorded as readers of what they read. Only the block changes.
@@ -864,15 +862,15 @@ static bool foldIntoPredecessor(LowerBase base, LowerFunction& fun, LowerBlock* 
 
     pred->terminator = block->terminator;
     base[block->terminator]->block = pred - base;
-    pred->outgoing[0] = block->outgoing[0];
-    pred->outgoing[1] = block->outgoing[1];
+
+    SmallArray<LowerPtr<LowerBlock>, 8> moved;
+    for(auto successor: block->successors(base)) moved.push(successor);
+    pred->setSuccessors(base, moved.pointer(), moved.size());
 
     // Every successor now arrives from the predecessor, including the predecessor itself where the
     // loop was one block: a self-edge here is a phi alternative that names its own block, which is
     // what a merged latch and header is.
-    for(auto successor: pred->outgoing) {
-        if(!successor) continue;
-
+    for(auto successor: moved) {
         auto to = base[successor];
         for(Size i = 0; i < to->incoming.size(); i++) {
             if(to->incoming.get(base, i) == block - base) to->incoming.set(base, i, pred - base);
@@ -889,8 +887,7 @@ static bool foldIntoPredecessor(LowerBase base, LowerFunction& fun, LowerBlock* 
     while(block->instructions.size()) block->instructions.remove(base, block->instructions.size() - 1);
     while(block->incoming.size()) block->incoming.remove(base, block->incoming.size() - 1);
     block->terminator = nullptr;
-    block->outgoing[0] = nullptr;
-    block->outgoing[1] = nullptr;
+    block->clearSuccessors();
 
     for(Size i = 0; i < fun.blocks.size(); i++) {
         if(fun.blocks.get(base, i) != block - base) continue;
@@ -970,8 +967,25 @@ void rotateFunctionLoops(LowerBase base, LowerFunction& fun) {
 static void traverseOrdered(LowerBase base, const LoopInfo& loops, LowerBlock* b, BlockList& out) {
     b->marker = 1;
 
-    auto first = b->outgoing[0] ? base[b->outgoing[0]] : nullptr;
-    auto second = b->outgoing[1] ? base[b->outgoing[1]] : nullptr;
+    /*
+     * A multi-way branch has no likely arm to put last: `edgeWeightsOf` answers neutrally about one,
+     * and which case a `match` usually takes is exactly what a compiler with no profile does not
+     * know. Its successors are visited in the order the terminator states them - cases ascending,
+     * then the fallback - which is also the order the chain, the binary search and the jump table
+     * read them in, so the layout follows the dispatch rather than crossing it.
+     */
+    if(b->successorCount() > 2) {
+        for(auto successor: b->successors(base)) {
+            auto next = base[successor];
+            if(!next->marker) traverseOrdered(base, loops, next, out);
+        }
+
+        out.push(b->index);
+        return;
+    }
+
+    auto first = b->successorCount() > 0 ? b->successor(base, 0) : nullptr;
+    auto second = b->successorCount() > 1 ? b->successor(base, 1) : nullptr;
 
     if(first && second) {
         auto weights = edgeWeightsOf(base, loops, b);

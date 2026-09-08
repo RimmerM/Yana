@@ -37,6 +37,42 @@ zeroArm(%p: Ptr, %t: I64): I64 {
     }
 }
 
+# The same lift, over a comparison that reads its own operand out of memory.
+#
+# `%addr` becomes an `x86_addr` folded into the comparison, and an `x86_addr` emits nothing: it is
+# resolved one instruction in front of the access, so the registers it names are live across exactly
+# that gap. Landing the lifted `add` in the gap - which is what "directly above the comparison" used
+# to mean - puts a *definition* there, and since nothing reads the address value between the two, the
+# allocator sees the base as dead at the `x86_addr` and is free to hand the add's result the very
+# register it was computed into. The comparison then reads through whatever the add produced.
+# `flagsHoistTarget` is what puts the lift above the address instead; `checkFoldedAddress` in
+# verify.cpp is what caught it, and without the fix this function trips that assertion rather than
+# printing a different golden.
+#
+# The base arrives from a **call** rather than as an argument, and that is what makes the collision
+# happen rather than merely be possible: a call result is in rax, `%n` is tied to `%r` which is
+# returned in rax, and everything else is pushed into callee-saved registers by the call. An argument
+# would have coalesced into its own incoming register and the two would never have met.
+#
+# `groupSize` in the library's `Agree` suite is where this arrived from - a counted loop over a
+# bounds-checked subscript, whose `size + 1` is the instruction that gets lifted.
+provider<complex>(%p: Ptr): Ptr {
+    { ret %p }
+}
+
+hoistedOverAddress(%pp: Ptr, %i: I64, %of: I64, %acc: I64): I64 {
+    {
+        %base = call_complex provider, %pp: Ptr
+        %sh = shl %i, 3: I64
+        %addr = add %base, %sh: Ptr
+        %v = load %addr, 8: I64
+        %c = cmp_eq %v, %of
+        %n = add %acc, 1L: I64
+        %r = select %c, %n, %acc: I64
+        ret %r
+    }
+}
+
 # And where the clobber genuinely cannot move, the comparison still goes to a register: the add
 # reads a load, and a load's position is not free to change.
 materialized(%v: I32, %p: Ptr, %b: I32): I32 {

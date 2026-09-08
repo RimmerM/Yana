@@ -2019,6 +2019,115 @@ struct LowerInstRet: LowerInst {
 };
 
 /*
+ * One case of a `switch`: the value the selector is compared against, and where control goes when
+ * they are equal.
+ *
+ * The value is a 64-bit quantity held as two halves rather than as an `I64`, and that is the whole
+ * of what is odd here. A case value has to be 64 bits wide because `@value(n)` may pin a
+ * constructor outside 32 bits; the arena below this IR is a bump allocator with no alignment of its
+ * own, so an eight-byte member in a trailing array would be the first structure here that depended
+ * on where an allocation happened to land. Two words and an accessor pair costs three lines and
+ * removes the question.
+ */
+struct LowerSwitchCase {
+    U32 valueLow;
+    U32 valueHigh;
+    LowerPtr<LowerBlock> target;
+
+    I64 value() const { return I64(U64(valueLow) | (U64(valueHigh) << 32)); }
+
+    void setValue(I64 value) {
+        valueLow = U32(U64(value));
+        valueHigh = U32(U64(value) >> 32);
+    }
+};
+
+/*
+ * A multi-way branch on an integer selector.
+ * Can only exist in the terminator field of a block.
+ *
+ * **The fallback is mandatory and there is no exhaustiveness claim.** Proving that the listed values
+ * cover the selector's domain is a front-end fact; an IR that restated it would oblige every pass
+ * that drops a case - because its target became unreachable - to re-prove that the rest still cover
+ * it. Where the source was exhaustive the fallback is simply the arm that needed no test.
+ *
+ * Cases are ascending by value and pairwise distinct, and the case targets and the fallback are
+ * pairwise distinct *blocks*: that second rule is `LowerBlock::outgoing`'s rather than this
+ * instruction's, and `validateLowerModule` states both. A producer with two case values leading to
+ * one arm inserts a block holding a jump, which is what the SSA lowering does.
+ *
+ * The case list is allocated with the instruction, as a phi's alternatives are, so there is no room
+ * to add a case and no way to take one out - a pass that changes the edge set builds a replacement.
+ */
+struct LowerInstSwitch: LowerInst {
+    LowerInstSwitch(LowerPtr<LowerValue> selector, LowerPtr<LowerBlock> fallback, U32 caseCount):
+        LowerInst(Switch), selector(selector), fallback(fallback), caseCount(caseCount)
+    {
+        usedCount = 1;
+    }
+
+    // How many bytes an instruction with this many cases occupies, which is what the `size` column
+    // of inst.def cannot answer for a variadic row.
+    static Size sizeFor(Size caseCount) {
+        return sizeof(LowerInstSwitch) + sizeof(LowerSwitchCase) * caseCount;
+    }
+
+    // The cases, immediately past the struct - so the fields below have to be exactly the operand
+    // list and the payload, with nothing after them.
+    Buffer<LowerSwitchCase> cases() {
+        return { (LowerSwitchCase*)(this + 1), caseCount };
+    }
+
+    // The lowest and highest case value. The list is ascending, so this is its two ends; both
+    // callers - the x64 form choice and the validator - want them together.
+    I64 lowestCase() { return cases()[0].value(); }
+    I64 highestCase() { return cases()[caseCount - 1].value(); }
+
+    // Used values must be first after embedded values - `LowerInst::used` reads the word straight
+    // after the header, so a field in front of this one would *be* the operand list.
+    LowerPtr<LowerValue> selector;
+
+    LowerPtr<LowerBlock> fallback;
+    U32 caseCount;
+};
+
+/*
+ * The indirect branch at the bottom of a jump-table dispatch - see inst.def for why this row lives
+ * in the terminator family rather than with the other X86 ones.
+ *
+ * The successors are the distinct blocks the table's cells name, in the order the expansion listed
+ * them, and they are pairwise distinct like every other terminator's - so a cell list with repeats
+ * is several cells naming one successor.
+ *
+ * `table` is the global those cells live in, and it is here because an edge that *moves* has to move
+ * in the cells too: splitting a critical edge retargets one successor, and a cell still naming the
+ * old block would jump around the copies the split block was created to hold. It is the one thing a
+ * jump table needs that no other terminator does.
+ */
+struct LowerInstX86JumpTable: LowerInst {
+    LowerInstX86JumpTable(LowerPtr<LowerValue> target, LowerPtr<LowerGlobal> table, U32 targetCount):
+        LowerInst(X86JumpTable), target(target), table(table), targetCount(targetCount)
+    {
+        usedCount = 1;
+    }
+
+    static Size sizeFor(Size targetCount) {
+        return sizeof(LowerInstX86JumpTable) + sizeof(LowerPtr<LowerBlock>) * targetCount;
+    }
+
+    // The successors, immediately past the struct - see LowerInstSwitch::cases.
+    Buffer<LowerPtr<LowerBlock>> targets() {
+        return { (LowerPtr<LowerBlock>*)(this + 1), targetCount };
+    }
+
+    // Used values must be first after embedded values - see LowerInstSwitch::selector.
+    LowerPtr<LowerValue> target;
+
+    LowerPtr<LowerGlobal> table;
+    U32 targetCount;
+};
+
+/*
  * The end of a block nothing arrives at the end of.
  *
  * No operands and no successors, which is what makes every walk in the backend already correct about
@@ -2043,6 +2152,42 @@ struct LowerInstPhi: LowerInstSingle {
     // LowerInst::used contains the values to pick from.
     // The list of corresponding blocks is located past the used values list.
 };
+
+/*
+ * Every block a terminator can transfer control to, in the order it states them.
+ *
+ * The single statement of what a terminator's edges are: `LowerBlock::addInst` builds `outgoing`
+ * out of this and `validateLowerModule` compares the two against each other, so the block's list and
+ * the instruction's own fields cannot drift apart. A terminator with no edges - a `ret`, an
+ * `unreachable` - calls `f` not at all, which is the answer rather than an omission.
+ *
+ * `f` takes a `LowerPtr<LowerBlock>` and must not change the terminator while it runs.
+ */
+template<class F>
+inline void terminatorEdges(LowerInst* inst, F&& f) {
+    switch(inst->kind) {
+        case LowerInst::Je: {
+            auto& je = (LowerInstJe&)*inst;
+            f(je.then);
+            f(je.otherwise);
+            break;
+        }
+        case LowerInst::Jmp:
+            f(((LowerInstJmp*)inst)->then);
+            break;
+        case LowerInst::Switch: {
+            auto& sw = (LowerInstSwitch&)*inst;
+            for(auto& item: sw.cases()) f(item.target);
+            f(sw.fallback);
+            break;
+        }
+        case LowerInst::X86JumpTable:
+            for(auto target: ((LowerInstX86JumpTable*)inst)->targets()) f(target);
+            break;
+        default:
+            break;
+    }
+}
 
 /*
  * One kind turned into its concrete type, and the only place in the lower IR that does it.

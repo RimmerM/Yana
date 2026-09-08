@@ -228,7 +228,11 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
         auto function = base[functionPointer];
 
         machine.reset();
-        transformFunction(context, base, *function, machine);
+
+        // Refused, and already reported - see `transformFunction`. The loop carries on so that a
+        // second function's gap is named in the same run rather than on the next one; the error
+        // count below is what stops a file being written.
+        if(!transformFunction(context, base, *function, machine)) continue;
 
         scratch.resetRecords();
         allocateRegisters(context, base, *function, machine, scratch, registers);

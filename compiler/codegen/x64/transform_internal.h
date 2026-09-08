@@ -28,6 +28,9 @@
  *                            mode, an `lea`, a memory-source operand, or an in-place update.
  *   transform_loop.cpp       loop rotation, the preheaders it needs, and the block order that
  *                            spends it.
+ *   transform_switch.cpp     the multi-way branch, spent: a comparison chain, a binary search over
+ *                            the sorted case values, or a jump table - decided in one place, and
+ *                            written out as ordinary IR above the whole selection pipeline.
  *   transform_expand.cpp     operations the machine has no instruction for, written out as IR: the
  *                            unsigned bank conversions, the packed shifts and multiplies it lacks
  *                            at some lane width, the scalarized lanes, `round` and `abs`.
@@ -302,6 +305,12 @@ void expandBitScans(Context&, LowerBase base, LowerFunction& fun);
 // The atomics whose x86 instruction is not the one the IR names - see the definition, where the
 // sequential store's rewrite into an exchange is argued.
 void expandAtomics(Context&, LowerBase base, LowerFunction& fun);
+
+/*
+ * transform_switch.cpp - the multi-way branch.
+ */
+
+void expandSwitches(Context& ctx, LowerBase base, LowerFunction& fun);
 
 // The three operations BMI2 has an instruction for and the floor does not - `bitsUpTo` and the two
 // directions of a bit permutation. See the header above the pass.

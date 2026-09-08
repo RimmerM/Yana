@@ -1,0 +1,473 @@
+# The multi-way branch, and the shapes the backend spends one in - D3 slice 3,
+# `compiler/codegen/x64/transform_switch.cpp`. Written here rather than only in `test/resolve`
+# because which form a `switch` gets is decided by its *case list* alone, and a `.lower` fixture is
+# where a case list can be stated exactly: a Yana source that produced sixteen cases over a span of
+# sixty-one would have had to be an enumeration with sixteen pinned constructors first.
+#
+# The thresholds are `kJumpTableMin = 16` and a span of at most 7/4 of the case count, measured in
+# §77 of test/bench/findings.md. Each function below sits on one side of one of them. The binary
+# search is not here because the thresholds never choose it: `Switch.Search.lower` beside this file
+# is the same case lists with the driver directive that forces it, which is what keeps that form's
+# output held to a golden. (Naming the directive here would set it - `applyDirectives` scans the
+# whole file - which is how this comment came to be worded around it.)
+
+# Three cases, below the table's threshold: a `cmp`/`je` per case in case order, with the last test
+# falling straight into the fallback. Two instructions per arm and no memory at all.
+chain(%v: I32): I32 {
+    start {
+        switch %v, other, [a0, 0], [a1, 1], [a2, 2]
+    }
+
+    a0 {
+        ret 10
+    }
+
+    a1 {
+        ret 20
+    }
+
+    a2 {
+        ret 30
+    }
+
+    other {
+        ret 0
+    }
+}
+
+# Sixteen cases over a span of sixty-one: past `kJumpTableMin` and far past the spread, so a table
+# would be three quarters cells naming the gap block and this stays a chain.
+sparse(%v: I32): I32 {
+    start {
+        switch %v, other, [a0, 0], [a1, 4], [a2, 8], [a3, 12], [a4, 16], [a5, 20], [a6, 24], [a7, 28], [a8, 32], [a9, 36], [a10, 40], [a11, 44], [a12, 48], [a13, 52], [a14, 56], [a15, 60]
+    }
+
+    a0 {
+        ret 10
+    }
+
+    a1 {
+        ret 20
+    }
+
+    a2 {
+        ret 30
+    }
+
+    a3 {
+        ret 40
+    }
+
+    a4 {
+        ret 50
+    }
+
+    a5 {
+        ret 60
+    }
+
+    a6 {
+        ret 70
+    }
+
+    a7 {
+        ret 80
+    }
+
+    a8 {
+        ret 90
+    }
+
+    a9 {
+        ret 100
+    }
+
+    a10 {
+        ret 110
+    }
+
+    a11 {
+        ret 120
+    }
+
+    a12 {
+        ret 130
+    }
+
+    a13 {
+        ret 140
+    }
+
+    a14 {
+        ret 150
+    }
+
+    a15 {
+        ret 160
+    }
+
+    other {
+        ret 0
+    }
+}
+
+# Sixteen cases over a span of sixteen: the table. Seventeen four-byte cells - one per value plus the
+# one the clamp sends everything outside the span to - read through `lea`/`movsxd`/`lea`/`jmp r`,
+# with no bounds *branch* in front of it.
+table(%v: I32): I32 {
+    start {
+        switch %v, other, [a0, 0], [a1, 1], [a2, 2], [a3, 3], [a4, 4], [a5, 5], [a6, 6], [a7, 7], [a8, 8], [a9, 9], [a10, 10], [a11, 11], [a12, 12], [a13, 13], [a14, 14], [a15, 15]
+    }
+
+    a0 {
+        ret 10
+    }
+
+    a1 {
+        ret 20
+    }
+
+    a2 {
+        ret 30
+    }
+
+    a3 {
+        ret 40
+    }
+
+    a4 {
+        ret 50
+    }
+
+    a5 {
+        ret 60
+    }
+
+    a6 {
+        ret 70
+    }
+
+    a7 {
+        ret 80
+    }
+
+    a8 {
+        ret 90
+    }
+
+    a9 {
+        ret 100
+    }
+
+    a10 {
+        ret 110
+    }
+
+    a11 {
+        ret 120
+    }
+
+    a12 {
+        ret 130
+    }
+
+    a13 {
+        ret 140
+    }
+
+    a14 {
+        ret 150
+    }
+
+    a15 {
+        ret 160
+    }
+
+    other {
+        ret 0
+    }
+}
+
+# A pinned enumeration's shape, and the two things about it a table has to get right: the lowest case
+# is not zero, so the index is the selector *less* that value; and the span crosses zero rather than
+# wrapping around it.
+negative(%v: I32): I32 {
+    start {
+        switch %v, other, [a0, -8], [a1, -7], [a2, -6], [a3, -5], [a4, -4], [a5, -3], [a6, -2], [a7, -1], [a8, 0], [a9, 1], [a10, 2], [a11, 3], [a12, 4], [a13, 5], [a14, 6], [a15, 7]
+    }
+
+    a0 {
+        ret 10
+    }
+
+    a1 {
+        ret 20
+    }
+
+    a2 {
+        ret 30
+    }
+
+    a3 {
+        ret 40
+    }
+
+    a4 {
+        ret 50
+    }
+
+    a5 {
+        ret 60
+    }
+
+    a6 {
+        ret 70
+    }
+
+    a7 {
+        ret 80
+    }
+
+    a8 {
+        ret 90
+    }
+
+    a9 {
+        ret 100
+    }
+
+    a10 {
+        ret 110
+    }
+
+    a11 {
+        ret 120
+    }
+
+    a12 {
+        ret 130
+    }
+
+    a13 {
+        ret 140
+    }
+
+    a14 {
+        ret 150
+    }
+
+    a15 {
+        ret 160
+    }
+
+    other {
+        ret 0
+    }
+}
+
+# A case list whose arms join, which is what makes the edges of a multi-way branch carry values: the
+# phi in `end` has one alternative per case block, and the table reaches it from sixteen different
+# blocks with nothing to distinguish them but where control came from.
+joined(%v: I32): I32 {
+    start {
+        switch %v, other, [a0, 0], [a1, 1], [a2, 2], [a3, 3], [a4, 4], [a5, 5], [a6, 6], [a7, 7], [a8, 8], [a9, 9], [a10, 10], [a11, 11], [a12, 12], [a13, 13], [a14, 14], [a15, 15]
+    }
+
+    a0 {
+        %x0 = add %v, 1: I32
+        jmp end
+    }
+
+    a1 {
+        %x1 = add %v, 2: I32
+        jmp end
+    }
+
+    a2 {
+        %x2 = add %v, 3: I32
+        jmp end
+    }
+
+    a3 {
+        %x3 = add %v, 4: I32
+        jmp end
+    }
+
+    a4 {
+        %x4 = add %v, 5: I32
+        jmp end
+    }
+
+    a5 {
+        %x5 = add %v, 6: I32
+        jmp end
+    }
+
+    a6 {
+        %x6 = add %v, 7: I32
+        jmp end
+    }
+
+    a7 {
+        %x7 = add %v, 8: I32
+        jmp end
+    }
+
+    a8 {
+        %x8 = add %v, 9: I32
+        jmp end
+    }
+
+    a9 {
+        %x9 = add %v, 10: I32
+        jmp end
+    }
+
+    a10 {
+        %x10 = add %v, 11: I32
+        jmp end
+    }
+
+    a11 {
+        %x11 = add %v, 12: I32
+        jmp end
+    }
+
+    a12 {
+        %x12 = add %v, 13: I32
+        jmp end
+    }
+
+    a13 {
+        %x13 = add %v, 14: I32
+        jmp end
+    }
+
+    a14 {
+        %x14 = add %v, 15: I32
+        jmp end
+    }
+
+    a15 {
+        %x15 = add %v, 16: I32
+        jmp end
+    }
+
+    other {
+        %xo = add %v, 100: I32
+        jmp end
+    }
+
+    end {
+        ret (phi [a0, %x0], [a1, %x1], [a2, %x2], [a3, %x3], [a4, %x4], [a5, %x5], [a6, %x6], [a7, %x7], [a8, %x8], [a9, %x9], [a10, %x10], [a11, %x11], [a12, %x12], [a13, %x13], [a14, %x14], [a15, %x15], [other, %xo]: I32)
+    }
+}
+
+# A case target that is *also* reached from somewhere else, which is the one shape that makes a jump
+# table's edges move after the table is built: `a0` has two predecessors and a phi, so
+# `splitPhiEdges` puts a block on the edge out of the dispatch to hold the phi copy - and the cell
+# that named `a0` has to name the split block instead, or the copy is jumped straight past. See
+# `splitEdge` in transform_edit.cpp, where the table's own relocations are retargeted with the edge.
+tablePhi(%v: I32, %w: I32): I32 {
+    start {
+        je %w, pre, dispatch
+    }
+
+    pre {
+        %p = add %v, 100: I32
+        jmp a0
+    }
+
+    dispatch {
+        switch %v, other, [a0, 0], [a1, 1], [a2, 2], [a3, 3], [a4, 4], [a5, 5], [a6, 6], [a7, 7], [a8, 8], [a9, 9], [a10, 10], [a11, 11], [a12, 12], [a13, 13], [a14, 14], [a15, 15]
+    }
+
+    a0 {
+        %x0 = phi [pre, %p], [dispatch, %v]: I32
+        jmp end
+    }
+
+    a1 {
+        %x1 = add %v, 2: I32
+        jmp end
+    }
+
+    a2 {
+        %x2 = add %v, 3: I32
+        jmp end
+    }
+
+    a3 {
+        %x3 = add %v, 4: I32
+        jmp end
+    }
+
+    a4 {
+        %x4 = add %v, 5: I32
+        jmp end
+    }
+
+    a5 {
+        %x5 = add %v, 6: I32
+        jmp end
+    }
+
+    a6 {
+        %x6 = add %v, 7: I32
+        jmp end
+    }
+
+    a7 {
+        %x7 = add %v, 8: I32
+        jmp end
+    }
+
+    a8 {
+        %x8 = add %v, 9: I32
+        jmp end
+    }
+
+    a9 {
+        %x9 = add %v, 10: I32
+        jmp end
+    }
+
+    a10 {
+        %x10 = add %v, 11: I32
+        jmp end
+    }
+
+    a11 {
+        %x11 = add %v, 12: I32
+        jmp end
+    }
+
+    a12 {
+        %x12 = add %v, 13: I32
+        jmp end
+    }
+
+    a13 {
+        %x13 = add %v, 14: I32
+        jmp end
+    }
+
+    a14 {
+        %x14 = add %v, 15: I32
+        jmp end
+    }
+
+    a15 {
+        %x15 = add %v, 16: I32
+        jmp end
+    }
+
+    other {
+        %xo = add %v, 100: I32
+        jmp end
+    }
+
+    end {
+        ret (phi [a0, %x0], [a1, %x1], [a2, %x2], [a3, %x3], [a4, %x4], [a5, %x5], [a6, %x6], [a7, %x7], [a8, %x8], [a9, %x9], [a10, %x10], [a11, %x11], [a12, %x12], [a13, %x13], [a14, %x14], [a15, %x15], [other, %xo]: I32)
+    }
+}

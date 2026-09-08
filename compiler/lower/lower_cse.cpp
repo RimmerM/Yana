@@ -665,7 +665,7 @@ bool takeDecidedArm(LowerBase base, Region<LowerRegion>& arena, LowerFunction& f
     auto dropped = takesThen ? je->otherwise : je->then;
 
     auto droppedBlock = base[dropped];
-    if(droppedBlock->outgoing[0] || droppedBlock->outgoing[1]) return false;
+    if(droppedBlock->hasSuccessors()) return false;
 
     // Unwired by hand rather than through `addInst`, which records an edge instead of replacing one
     // and refuses a successor that already names this block - and the taken one does, since it is
@@ -673,8 +673,7 @@ bool takeDecidedArm(LowerBase base, Region<LowerRegion>& arena, LowerFunction& f
     // phis reading the alternative they were built with.
     detach(base, je);
     block->terminator = nullptr;
-    block->outgoing[0] = nullptr;
-    block->outgoing[1] = nullptr;
+    block->clearSuccessors();
 
     for(Size i = 0; i < droppedBlock->incoming.size(); i++) {
         if(droppedBlock->incoming.get(base, i) != block - base) continue;
@@ -686,7 +685,7 @@ bool takeDecidedArm(LowerBase base, Region<LowerRegion>& arena, LowerFunction& f
     auto jmp = new (arena) LowerInstJmp(taken);
     jmp->block = block - base;
     block->terminator = (LowerInst*)jmp - base;
-    block->outgoing[0] = taken;
+    block->setSuccessors(base, taken);
 
     // And the arm itself, once nothing reaches it. Its instructions stop counting as readers of what
     // they read, so the sweep behind this pass can collect whatever they were the last use of.

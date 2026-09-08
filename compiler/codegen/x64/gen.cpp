@@ -2936,6 +2936,17 @@ struct Emitter {
                 emitJump(branchTarget(((LowerInstJmp*)inst)->then));
                 break;
 
+            case PseudoKind::JumpIndirect: {
+                // JMP r/m64 (0xff /4). Always 64-bit in long mode, so REX only extends the number.
+                // No relaxation and no `AsmBranch`: where it goes is a register, and the offsets the
+                // table's cells hold are settled by resolveRelocations after the layout is final.
+                auto r = reg(regs.uses[0]);
+                if(needsRex(r)) to.buffer.writeByte(makeRex(false, r, 0, 0));
+                to.buffer.writeByte(0xff);
+                to.buffer.writeByte(makeMod(3, r, 4));
+                break;
+            }
+
             case PseudoKind::Branch:
                 emitBranch(inst, selected, regs);
                 break;
@@ -3389,6 +3400,14 @@ static bool emitsNothing(LowerBase base, FunctionRegs& regs, LowerBlock* block, 
     auto kind = base[block->terminator]->kind;
     if(kind != LowerInst::Jmp && !(sharedEpilogue && kind == LowerInst::Ret)) return false;
 
+    // A block a jump table can land on is emitted even when it holds only a jump. Every other way
+    // into a block is a *branch*, which is retargeted at the end of the skipped chain; a table cell
+    // is a byte offset written after the layout is settled, and there is nothing on the way in to
+    // retarget. Asked of the predecessors because that is where the terminator naming it lives.
+    for(auto in: block->incoming.contents(base)) {
+        if(base[base[in]->terminator]->kind == LowerInst::X86JumpTable) return false;
+    }
+
     auto found = regs.legalized.blocks.get(block);
     assertTrue(found.isJust());
     auto& blockRegs = found.unwrap();
@@ -3409,7 +3428,7 @@ static bool emitsNothing(LowerBase base, FunctionRegs& regs, LowerBlock* block, 
 static LowerBlock* endOfChain(LowerBase base, SmallArray<bool, 64>& skipped, LowerBlock* block) {
     while(block && skipped[block->index]) {
         if(base[block->terminator]->kind == LowerInst::Ret) return nullptr;
-        block = base[block->outgoing[0]];
+        block = block->successor(base, 0);
     }
 
     return block;
@@ -3430,10 +3449,9 @@ static bool fallenInto(LowerBase base, Blocks blocks, SmallArray<bool, 64>& skip
     while(j > 0 && skipped[--j]) {}
     if(skipped[j]) return false;
 
-    // Both slots, since a block with one successor leaves the second null rather than absent.
     auto target = base[blocks[i]];
-    for(auto successor: base[blocks[j]]->outgoing) {
-        if(successor && endOfChain(base, skipped, base[successor]) == target) return true;
+    for(auto successor: base[blocks[j]]->successors(base)) {
+        if(endOfChain(base, skipped, base[successor]) == target) return true;
     }
 
     return false;
@@ -3513,7 +3531,7 @@ static void computeBypass(LowerBase base, FunctionRegs& regs, Blocks blocks, boo
         Size steps = 0;
 
         while(skipped[block->index] && steps <= blocks.size()) {
-            block = base[block->outgoing[0]];
+            block = block->successor(base, 0);
             steps++;
         }
 
@@ -4349,6 +4367,13 @@ void AsmModule::resolveRelocations(LowerGlobal* anchor) {
             auto o = functionOffsets.getValue(r.function);
             assertTrue(o.isJust());
             target = o.unwrap();
+        } else if(r.block) {
+            // A jump table's cell. `blocks` is final here: relaxation rewrote the offset of every
+            // block it moved, and a return tail that §7.2.1 merged away points at the copy that
+            // survived - so a cell naming either lands on the bytes that ran.
+            auto at = blockOffsets.getValue(r.block);
+            assertTrue(at.isJust()); // a block a table names was never emitted - see emitsNothing
+            target = blocks[at.unwrap()].startOffset;
         } else {
             auto o = globalOffsets.getValue(r.global);
             assertTrue(o.isJust());
@@ -4365,12 +4390,23 @@ void AsmModule::resolveRelocations(LowerGlobal* anchor) {
          */
         if(r.anchorRelative) {
             // A slot without an anchor to measure from would be written as an offset from zero,
-            // which is a wrong address rather than a missing one - so say so instead.
-            assertTrue(anchor != nullptr);
+            // which is a wrong address rather than a missing one - so say so instead. A site naming
+            // its own anchor - a jump table's cell, measured from its table - does not need the
+            // module's.
+            auto from = anchorOffset;
+
+            if(r.anchor) {
+                auto o = globalOffsets.getValue(r.anchor);
+                assertTrue(o.isJust());
+                from = o.unwrap();
+            } else {
+                assertTrue(anchor != nullptr);
+            }
+
             auto savedOffset = buffer.offset();
 
             buffer.offset(r.siteOffset);
-            buffer.writeInt<LittleEndian>(U32(I32(target) - I32(anchorOffset)));
+            buffer.writeInt<LittleEndian>(U32(I32(target) - I32(from)));
             buffer.offset(savedOffset);
             continue;
         }

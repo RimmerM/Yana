@@ -1372,6 +1372,21 @@ struct AsmRelocation {
     // known the moment the function is finished, and relaxBranches resolves it there.
     LowerFunction* function = nullptr;
     LowerGlobal* global = nullptr;
+
+    /*
+     * The third target, and the one that is not a symbol: a **block**, for a jump table's cell.
+     *
+     * A branch to a block is still not one of these - see above. What is different about a table
+     * cell is that it is *data*, so it is written by resolveRelocations rather than by
+     * relaxBranches, and by then `AsmModule::blocks` holds the final offset of every block in the
+     * module: relaxation rewrote the entries it moved, and a return tail merged away points at the
+     * copy that survived. Data only, and anchor-relative only.
+     */
+    LowerBlock* block = nullptr;
+
+    // What an anchor-relative site is measured from, or null for the module's image anchor. See
+    // LowerDataRelocation::anchor, which is where the choice is made.
+    LowerGlobal* anchor = nullptr;
 };
 
 /*
@@ -1594,6 +1609,8 @@ struct AsmModule {
                 .anchorRelative = relocation.anchorRelative,
                 .function = relocation.function ? base[relocation.function] : nullptr,
                 .global = relocation.global ? base[relocation.global] : nullptr,
+                .block = relocation.block ? base[relocation.block] : nullptr,
+                .anchor = relocation.anchor ? base[relocation.anchor] : nullptr,
             });
         }
     }
@@ -1654,10 +1671,17 @@ struct AsmModule {
 // has to be able to see it.
 
 
-// Runs the target transform pipeline over `fun` in place - see the pipeline table at the bottom of
-// transform.cpp for the passes and the order. `ctx` is only used to name the function in the
-// between-pass invariant checks, which run in debug builds.
-void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, MachineFunction& machine);
+/*
+ * Runs the target transform pipeline over `fun` in place - see the pipeline table at the bottom of
+ * transform.cpp for the passes and the order. `ctx` is only used to name the function in the
+ * between-pass invariant checks, which run in debug builds.
+ *
+ * False where this backend refused the function and said so - a vector operation it has no
+ * instruction for. Nothing after it may run: the passes below the refusal would select a form for
+ * the instruction that was refused, which is an assertion after a diagnostic. The caller skips the
+ * function and the module's own error count is what stops the build.
+ */
+bool transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, MachineFunction& machine);
 
 /*
  * The allocation pipeline.

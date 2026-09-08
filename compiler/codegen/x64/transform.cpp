@@ -454,6 +454,13 @@ struct TransformPass {
 };
 
 static const TransformPass kTransformPipeline[] = {
+    /*
+     * First, and above everything including the loop rotation: what it leaves is branches and jumps,
+     * which is what every pass below this table is written against. A `switch` reaching any of them
+     * would be a terminator they read as having no successors they know the shape of.
+     */
+    { "expandSwitches"_v,              expandSwitches,              0 },
+
     { "rotateLoops"_v,                 rotateLoops,                 0 },
 
     /*
@@ -750,9 +757,7 @@ static bool verifyTransformInvariants(Context& ctx, LowerBase base, LowerFunctio
 
         // Successor and predecessor lists are two records of one edge, and a pass that updates only
         // one of them produces a CFG the liveness and the layout disagree about.
-        for(auto o: block->outgoing) {
-            if(!o) continue;
-
+        for(auto o: block->successors(base)) {
             bool found = false;
             for(auto p: base[o]->incoming.contents(base)) {
                 if(base[p] == block) { found = true; break; }
@@ -764,9 +769,9 @@ static bool verifyTransformInvariants(Context& ctx, LowerBase base, LowerFunctio
             }
 
             if((established & InvariantPhiEdgesNormalized) &&
-               block->outgoing[0] && block->outgoing[1] && base[o]->phis.isNotEmpty())
+               block->isConditional() && base[o]->phis.isNotEmpty())
             {
-                fail("%@: block %@ has two successors and block %@ has phis",
+                fail("%@: block %@ has several successors and block %@ has phis",
                     funName, U32(block->index), U32(base[o]->index));
             }
         }
@@ -844,7 +849,7 @@ static bool verifyTransformInvariants(Context& ctx, LowerBase base, LowerFunctio
     return ok;
 }
 
-void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, MachineFunction& machine) {
+bool transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, MachineFunction& machine) {
     // The narrowest point every path through this backend passes, which is why the target's feature
     // set is established here: form selection is asked about a form from a dozen places that have an
     // instruction and no settings, so the answer is process-wide rather than carried. See
@@ -876,10 +881,17 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
     // below, at the same point and for the same reason.
     checkLegacyVectorEncoding(ctx, base, fun);
 
-    // And the same question about the vector operations, at the same point and for the same reason -
-    // see checkVectorSupported. It has to stand after setTargetFeatures, since which forms exist is
-    // a function of the feature set this build claims.
-    checkVectorSupported(ctx, base, fun);
+    /*
+     * And the same question about the vector operations, at the same point and for the same reason -
+     * see checkVectorSupported. It has to stand after setTargetFeatures, since which forms exist is
+     * a function of the feature set this build claims.
+     *
+     * **Its answer stops this function**, which is the rule this directory's README states - "a gap
+     * in this backend is a diagnostic, not an assertion". Ignored, the refusal was reported and then
+     * the pipeline carried on to select a form for the very instruction it had just refused, and
+     * `machine_select.cpp` asserted: a message followed by a crash, which is worse than either.
+     */
+    if(!checkVectorSupported(ctx, base, fun)) return false;
 
     U32 established = 0;
 
@@ -929,4 +941,5 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
     // the selection rather than the instructions, so a form that does not match the instruction it
     // was chosen for is a wrong answer nothing downstream can notice.
     assertTrue(verifySelection(ctx, base, fun, machine));
+    return true;
 }

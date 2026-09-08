@@ -334,15 +334,84 @@ static bool validateRet(Diagnostics* diagnostics, LowerBase base, LowerInstRet* 
     return true;
 }
 
-static bool validateJmp(Diagnostics* diagnostics, LowerBase base, LowerInstJmp* inst) {
+/*
+ * The block's edge list against the terminator's own fields, and each target's `incoming` against
+ * both.
+ *
+ * One check for every terminator rather than an arm each, because `outgoing` restates what the
+ * terminator says (see LowerBlock::outgoing) and `terminatorEdges` is the one place that says it.
+ * The two drifting apart is what a pass that retargets a terminator and forgets the block produces,
+ * and it used to be checked separately for `je` and for `jmp` and would have needed a third copy
+ * with a loop in it for `switch`.
+ */
+static bool validateEdges(Diagnostics* diagnostics, LowerBase base, LowerInst* inst) {
     auto b = base[inst->block];
-    if(b->outgoing[1] != nullptr || b->outgoing[0] != inst->then) {
+
+    SmallArray<LowerPtr<LowerBlock>, 8> stated;
+    terminatorEdges(inst, [&](LowerPtr<LowerBlock> target) { stated.push(target); });
+
+    if(stated.size() != b->successorCount()) {
         diagnostics->error("incorrect block references from jump"_v, inst->source);
         return false;
     }
 
-    if(!base[inst->then]->incoming.contents(base).containsValue(b - base)) {
-        diagnostics->error("inconsistent references between blocks"_v, inst->source);
+    for(Size i = 0; i < stated.size(); i++) {
+        if(b->successorAt(base, i) != stated[i]) {
+            diagnostics->error("incorrect block references from jump"_v, inst->source);
+            return false;
+        }
+
+        if(!base[stated[i]]->incoming.contents(base).containsValue(b - base)) {
+            diagnostics->error("inconsistent references between blocks"_v, inst->source);
+            return false;
+        }
+
+        // Pairwise distinct - LowerBlock::outgoing's rule, which is about the whole edge list of any
+        // terminator rather than about a `je`'s two arms. Quadratic over a list whose length is the
+        // arm count of one `match`.
+        for(Size j = 0; j < i; j++) {
+            if(stated[i] == stated[j]) {
+                diagnostics->error("same target block for all branches"_v, inst->source);
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+static bool validateJmp(Diagnostics* diagnostics, LowerBase base, LowerInstJmp* inst) {
+    return validateEdges(diagnostics, base, inst);
+}
+
+/*
+ * A multi-way branch: its edges, and what the case list itself has to be.
+ *
+ * Ascending and distinct is a canonical form rather than a convenience - the x64 form choice reads
+ * the two ends of the list to measure the span, and a binary search over it is a search over
+ * something sorted. At least two cases, because one is a `branch` and two spellings of one shape is
+ * what the roster refuses everywhere else; the SSA tier's own verifier asks for three, and the extra
+ * room here is what lets a fold delete a case without having to delete the instruction in the same
+ * step.
+ */
+static bool validateSwitch(Diagnostics* diagnostics, LowerBase base, LowerInstSwitch* inst) {
+    if(!validateEdges(diagnostics, base, inst)) return false;
+
+    if(inst->caseCount < 2) {
+        diagnostics->error("a switch states at least two cases"_v, inst->source);
+        return false;
+    }
+
+    auto cases = inst->cases();
+    for(Size i = 1; i < cases.length; i++) {
+        if(cases[i].value() <= cases[i - 1].value()) {
+            diagnostics->error("switch cases are ascending and distinct"_v, inst->source);
+            return false;
+        }
+    }
+
+    if(!isInt(base[inst->selector]->type)) {
+        diagnostics->error("a switch selects on an integer"_v, inst->source);
         return false;
     }
 
@@ -350,21 +419,7 @@ static bool validateJmp(Diagnostics* diagnostics, LowerBase base, LowerInstJmp* 
 }
 
 static bool validateJe(Diagnostics* diagnostics, LowerBase base, LowerInstJe* inst) {
-    auto b = base[inst->block];
-    if(inst->then == inst->otherwise) {
-        diagnostics->error("same target block for all branches"_v, inst->source);
-        return false;
-    }
-
-    if(b->outgoing[0] != inst->then || b->outgoing[1] != inst->otherwise) {
-        diagnostics->error("incorrect block references from jump"_v, inst->source);
-        return false;
-    }
-
-    if(!base[inst->then]->incoming.contents(base).containsValue(b - base) || !base[inst->otherwise]->incoming.contents(base).containsValue(b - base)) {
-        diagnostics->error("inconsistent references between blocks"_v, inst->source);
-        return false;
-    }
+    if(!validateEdges(diagnostics, base, inst)) return false;
 
     // A weight is a ratio against the sibling edge, so both edges state one or neither does - an
     // edge weighted alone would be a ratio with nothing to compare against. The frequency analysis
@@ -1342,6 +1397,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateJe(diagnostics, base, (LowerInstJe*)inst);
         case LowerInst::Jmp:
             return validateJmp(diagnostics, base, (LowerInstJmp*)inst);
+        case LowerInst::Switch:
+            return validateSwitch(diagnostics, base, (LowerInstSwitch*)inst);
         case LowerInst::Ret:
             return validateRet(diagnostics, base, (LowerInstRet*)inst);
 
@@ -1353,6 +1410,7 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validatePhi(diagnostics, base, (LowerInstPhi*)inst, dominators);
         case LowerInst::Intrinsic:
             return validateIntrinsic(diagnostics, base, (LowerInstIntrinsic*)inst);
+        case LowerInst::X86JumpTable:
         case LowerInst::X86Address:
         case LowerInst::X86Lea:
         case LowerInst::X86PushArg:
@@ -1421,7 +1479,7 @@ static bool validateLowerEntryBlock(Diagnostics* diagnostics, LowerBlock* block)
         return false;
     }
 
-    if(block->outgoing[0] == nullptr || block->outgoing[1] != nullptr) {
+    if(block->successorCount() != 1) {
         diagnostics->error("entry block must end with unconditional jump"_v, block->source);
         return false;
     }

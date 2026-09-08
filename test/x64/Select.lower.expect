@@ -25,6 +25,25 @@ zeroArm<complex>(%p: Ptr, %t: I64): I64 {
   }
 }
 
+provider<complex>(%p: Ptr): Ptr {
+  b_0 {
+    ret %p
+  }
+}
+
+hoistedOverAddress<complex>(%pp: Ptr, %i: I64, %of: I64, %acc: I64): I64 {
+  b_0 {
+    %base = call_complex provider, %pp: Ptr
+    %sh = shl %i, 3: I64
+    %addr = add %base, %sh: Ptr
+    %v = load %addr, 8: I64
+    %c = cmp_eq %v, %of: I32
+    %n = add %acc, 1: I64
+    %r = select %c, %n, %acc: I64
+    ret %r
+  }
+}
+
 materialized<complex>(%v: I32, %p: Ptr, %b: I32): I32 {
   b_0 {
     %cmp = cmp_ilt %v, 0: I32
@@ -86,6 +105,27 @@ block #1:
   cmp_igt uses=[rax, rsi] creates=[-]  => 4839f0
   select uses=[rax, rdi, -] creates=[rax] pre=[remat:0->rdi]  => bf00000000480f4ec7
   ret uses=[rax] creates=[]  => c3
+
+--- codegen: provider ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+block #1:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: hoistedOverAddress ---
+  prologue  => 5341544155
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbx, rdx->r12, rcx->r13]  => 488bde4c8be24c8be9
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e8ddffffff
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[r13->rcx]  => 498d4d01
+  x86_addr scale=8 disp=0 uses=[rax, rbx] creates=[-]  => 
+  cmp_eq uses=[r12, -] creates=[-]  => 4c3b24d8
+  select uses=[rax, r13, -] creates=[rax] pre=[rcx->rax]  => 488bc1490f45c5
+  ret uses=[rax] creates=[]  => 415d415c5bc3
 
 --- codegen: materialized ---
 block #0:

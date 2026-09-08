@@ -154,21 +154,23 @@ bool readCondition(LowerBase base, LowerBlock* block, Condition& into) {
  *  - **A predecessor that is also the successor.** A block whose loop back edge enters the join and
  *    whose arm re-enters it is the shape; threading it points the block at itself, which is a loop
  *    with no way out rather than a shorter path to one.
- *  - **A predecessor whose other arm already leads there.** `je %c, join, X` threaded onto `X` is
+ *  - **A predecessor whose other edge already leads there.** `je %c, join, X` threaded onto `X` is
  *    `je %c, X, X`, which is not a branch and which `LowerBlock::addInst` asserts against. Turning
  *    it into a `jmp` would be right and is a second rewrite; declining leaves it to the round that
  *    folds the condition instead.
+ *
+ * The second one is asked of the successor list rather than of a `je`'s two arms, which is what
+ * makes it right for a `switch` too: naming one block twice is what `LowerBlock::outgoing` refuses
+ * for every terminator, not a rule about branches.
  */
 bool canRedirect(LowerBase base, LowerBlock* from, LowerBlock* block, LowerBlock* to) {
     if(from == to) return false;
 
-    auto terminator = base[from->terminator];
-    if(!terminator || terminator->kind != LowerInst::Je) return true;
+    for(auto successor: from->successors(base)) {
+        if(base[successor] != block && base[successor] == to) return false;
+    }
 
-    auto je = (LowerInstJe*)terminator;
-    auto other = je->then == block - base ? je->otherwise : je->then;
-
-    return base[other] != to;
+    return true;
 }
 
 // Which arm the branch takes when the condition phi arrives holding this value, or nothing where the
@@ -223,8 +225,8 @@ void eachReadingBlock(LowerBase base, LowerValue* value, LowerInst* user, F&& f)
 bool readsAreRepairable(LowerBase base, LowerBlock* block, const Condition& condition,
                         const DominatorTree& dominators) {
     auto terminator = base[block->terminator];
-    auto then = base[block->outgoing[0]];
-    auto otherwise = base[block->outgoing[1]];
+    auto then = block->successor(base, 0);
+    auto otherwise = block->successor(base, 1);
 
     for(auto phiPtr: block->phis.contents(base)) {
         auto phi = base[phiPtr];
@@ -270,20 +272,7 @@ LowerPtr<LowerValue> incomingFrom(LowerBase base, LowerInstPhi* phi, LowerBlock*
 // is the three places an edge lives.
 void redirectEdge(LowerBase base, Region<LowerRegion>& arena, LowerBlock* from, LowerBlock* block,
                   LowerBlock* to) {
-    auto terminator = base[from->terminator];
-
-    if(terminator->kind == LowerInst::Je) {
-        auto je = (LowerInstJe*)terminator;
-        if(je->then == block - base) je->then = to - base;
-        if(je->otherwise == block - base) je->otherwise = to - base;
-    } else if(terminator->kind == LowerInst::Jmp) {
-        auto jmp = (LowerInstJmp*)terminator;
-        if(jmp->then == block - base) jmp->then = to - base;
-    }
-
-    for(auto& successor: from->outgoing) {
-        if(successor == block - base) successor = to - base;
-    }
+    retargetEdges(base, from, block - base, to - base);
 
     for(Size i = 0; i < block->incoming.size(); i++) {
         if(base[block->incoming.get(base, i)] != from) continue;
@@ -298,9 +287,7 @@ void redirectEdge(LowerBase base, Region<LowerRegion>& arena, LowerBlock* from, 
 // Taking the threaded block out of the function once nothing reaches it. Renumbering is not
 // optional: `index` is a position in this list and half the analyses index arrays by it.
 void dropBlock(LowerBase base, LowerFunction& fun, LowerBlock* block) {
-    for(auto successorPtr: block->outgoing) {
-        if(!successorPtr) continue;
-
+    for(auto successorPtr: block->successors(base)) {
         auto successor = base[successorPtr];
         for(Size i = 0; i < successor->incoming.size(); i++) {
             if(base[successor->incoming.get(base, i)] != block) continue;
@@ -485,8 +472,7 @@ bool foldConstantBranches(LowerBase base, LowerModule& module, LowerFunction& fu
 
         detach(base, terminator);
         block->terminator = nullptr;
-        block->outgoing[0] = nullptr;
-        block->outgoing[1] = nullptr;
+        block->clearSuccessors();
 
         block->addInst(base, new (module.arena) LowerInstJmp(taken));
 
@@ -542,9 +528,7 @@ void removeUnreachableBlocks(LowerBase base, Region<LowerRegion>& arena, LowerFu
     while(pending.size()) {
         auto block = pending.pop().unwrap();
 
-        for(auto successorPtr: block->outgoing) {
-            if(!successorPtr) continue;
-
+        for(auto successorPtr: block->successors(base)) {
             auto successor = base[successorPtr];
             if(known(successor)) continue;
 
@@ -723,8 +707,8 @@ bool threadBlock(LowerBase base, LowerModule& module, LowerFunction& fun, LowerB
     Condition condition;
     if(!readCondition(base, block, condition)) return false;
 
-    auto then = base[block->outgoing[0]];
-    auto otherwise = base[block->outgoing[1]];
+    auto then = block->successor(base, 0);
+    auto otherwise = block->successor(base, 1);
 
     // Both arms have to be reached only from here, which is what makes this block dominate them and
     // so makes "the reads to repair" exactly "the reads the arm dominates"; and neither may carry a

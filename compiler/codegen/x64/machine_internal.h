@@ -601,6 +601,7 @@ enum: MachineFormId {
     FormLea,
 
     FormJmp,
+    FormJmpIndirect,
     FormJccFlags,
     FormJccLive,
     FormJccReg,

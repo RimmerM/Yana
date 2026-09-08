@@ -1,6 +1,7 @@
 #include "lower_resolve.h"
 #include "lower_validate.h"
 #include "lower_inst.h"
+#include "lower_builder.h"
 #include "lower_parser.h"
 
 #define assertResultCount(results, count) \
@@ -16,7 +17,7 @@
     }
 
 #define assertOnlyTerminator() \
-    if(block.outgoing[0] || block.outgoing[1]) { \
+    if(block.terminator) { \
         resolve.diag.error("duplicate terminating instruction in block"_v, ast.source); \
         return Nothing(); \
     }
@@ -943,6 +944,47 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
 
         auto lhs = tryMaybe(findBlock(resolve, base, block, ast.args[0], ast.source), return Nothing());
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstJmp(lhs - base)));
+    });
+
+    /*
+     * `switch <selector>, <fallback>, [block, value], ...` - the printer's form, read back.
+     *
+     * The case list is not sorted here and the validator refuses one that is not ascending, which is
+     * deliberate: a `.lower` fixture states the instruction it means, and quietly reordering one
+     * would make the file and the IR two different programs. The bracket pair is the phi's, so a
+     * case is written block-first exactly as a phi alternative and a weighted `je` edge are.
+     */
+    addKind<LowerInst::Switch>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 0);
+        assertOnlyTerminator();
+
+        if(ast.args.size() < 2) {
+            resolve.diag.error("a switch names a selector and a fallback block"_v, ast.source);
+            return Nothing();
+        }
+
+        auto selector = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto fallback = tryMaybe(findBlock(resolve, base, block, ast.args[1], ast.source), return Nothing());
+
+        auto count = U32(ast.args.size() - 2);
+        auto inst = makeSwitch(resolve.moduleArena, selector - base, fallback - base, count);
+        auto cases = inst->cases();
+
+        for(U32 i = 0; i < count; i++) {
+            auto arg = ast.args[i + 2];
+
+            if(!arg.source || !arg.isInt()) {
+                resolve.diag.error("a switch case is written [block, value]"_v, ast.source);
+                return Nothing();
+            }
+
+            auto target = tryMaybe(findBlock(resolve, base, block, arg.source, ast.source), return Nothing());
+
+            cases[i].setValue(I64(arg.i));
+            cases[i].target = target - base;
+        }
+
+        return Just(block.addInst(base, (LowerInst*)inst));
     });
 
     addKind<LowerInst::Ret>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {

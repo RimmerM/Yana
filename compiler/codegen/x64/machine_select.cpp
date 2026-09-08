@@ -218,6 +218,7 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Call:       return OpCall;
         case LowerInst::Je:         return OpJcc;
         case LowerInst::Jmp:        return OpJmp;
+        case LowerInst::X86JumpTable: return OpJmpIndirect;
         case LowerInst::Ret:        return OpRet;
         case LowerInst::Unreachable: return OpNoReturn;
         case LowerInst::Phi:        return OpPhi;
@@ -1059,6 +1060,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             return isImplicit(base[je->cond]) ? FormJccFlags : FormJccLive;
         }
         case LowerInst::Jmp: return FormJmp;
+        case LowerInst::X86JumpTable: return FormJmpIndirect;
         case LowerInst::Ret: return FormRet;
         case LowerInst::Unreachable: return FormNoReturn;
 

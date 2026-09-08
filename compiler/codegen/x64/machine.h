@@ -477,6 +477,13 @@ enum : MachineOpcodeId {
     OpAddress,          // an addressing mode, folded into the access that reads it
     OpLea,
     OpJmp,
+
+    // `jmp r64` - the indirect branch a jump table dispatches through. A separate opcode from OpJmp
+    // rather than a second form of it, because the two do not agree about operands: a direct jump
+    // reads nothing and names a block, and this reads a register and names every block the table
+    // can reach.
+    OpJmpIndirect,
+
     OpJcc,
     OpRet,
 
@@ -820,6 +827,12 @@ enum class PseudoKind: U8 {
     VZeroUpper,
 
     Jump,
+
+    // `jmp r64` (0xff /4), the indirect half of the pair. A pseudo rather than an opcode row for the
+    // reason `CallIndirect` beside it is: the successors are the block list on the instruction and
+    // nothing in the form table describes them.
+    JumpIndirect,
+
     Branch,
     AllocaFixed,
     AllocaDynamic,

@@ -97,6 +97,81 @@ inline LowerInstPhi* makePhi(Region<LowerRegion>& arena, LowerType type, U32 alt
 }
 
 /*
+ * Every edge of a block's terminator that names `from`, pointed at `to` instead - in both of the
+ * places an edge is stated here, the terminator's own target field and the block's successor list.
+ * Answers how many moved, which is what the caller owes `to`'s `incoming` list.
+ *
+ * Shared because three passes were about to have a copy of it and the third one would have been the
+ * `switch` arm each of them was missing (lower_merge.cpp, lower_thread.cpp, and the x64 backend's
+ * edge splitter). The predecessor's `incoming` bookkeeping stays at the call site: what should
+ * happen to it depends on whether the block being redirected away from is going away.
+ */
+inline U32 retargetEdges(LowerBase base, LowerBlock* block, LowerPtr<LowerBlock> from,
+                         LowerPtr<LowerBlock> to)
+{
+    auto terminator = base[block->terminator];
+    U32 moved = 0;
+
+    switch(terminator->kind) {
+        case LowerInst::Je: {
+            auto je = (LowerInstJe*)terminator;
+            if(je->then == from) { je->then = to; moved++; }
+            if(je->otherwise == from) { je->otherwise = to; moved++; }
+            break;
+        }
+        case LowerInst::Jmp: {
+            auto jmp = (LowerInstJmp*)terminator;
+            if(jmp->then == from) { jmp->then = to; moved++; }
+            break;
+        }
+        case LowerInst::Switch: {
+            auto sw = (LowerInstSwitch*)terminator;
+            for(auto& item: sw->cases()) {
+                if(item.target == from) { item.target = to; moved++; }
+            }
+
+            if(sw->fallback == from) { sw->fallback = to; moved++; }
+            break;
+        }
+        case LowerInst::X86JumpTable: {
+            auto table = (LowerInstX86JumpTable*)terminator;
+            for(auto& target: table->targets()) {
+                if(target == from) { target = to; moved++; }
+            }
+
+            break;
+        }
+        default:
+            break;
+    }
+
+    for(Size i = 0; i < block->successorCount(); i++) {
+        if(block->successorAt(base, i) == from) block->setSuccessor(base, i, to);
+    }
+
+    return moved;
+}
+
+// An unattached indirect branch with room for a stated number of successors, filled in and added to
+// a block by the caller for the reason `makeSwitch` below is.
+inline LowerInstX86JumpTable* makeJumpTable(Region<LowerRegion>& arena, LowerPtr<LowerValue> target,
+                                            LowerPtr<LowerGlobal> table, U32 targetCount)
+{
+    auto storage = arena.alloc(LowerInstX86JumpTable::sizeFor(targetCount));
+    return new (storage) LowerInstX86JumpTable(target, table, targetCount);
+}
+
+// An unattached multi-way branch with room for a stated number of cases. The caller fills the cases
+// before adding it to a block, for the reason a phi is filled first: adding it is what registers its
+// edges, and an edge into a block that is not there yet is not an edge.
+inline LowerInstSwitch* makeSwitch(Region<LowerRegion>& arena, LowerPtr<LowerValue> selector,
+                                   LowerPtr<LowerBlock> fallback, U32 caseCount)
+{
+    auto storage = arena.alloc(LowerInstSwitch::sizeFor(caseCount));
+    return new (storage) LowerInstSwitch(selector, fallback, caseCount);
+}
+
+/*
  * One phi rebuilt without the alternatives whose edges have gone, in place of the one it replaces.
  *
  * The replacement takes the old one's result name, its source location and its readers, so nothing

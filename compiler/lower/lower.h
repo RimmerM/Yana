@@ -24,8 +24,8 @@ using LowerBase = RegionBase<LowerRegion>;
 template<class T>
 using LowerPtr = RegionPtr<LowerRegion, T>;
 
-template<class T, bool allowEmbed = true>
-using LowerList = SmallList<LowerRegion, T, allowEmbed>;
+template<class T, bool allowEmbed = true, class Count = U16>
+using LowerList = SmallList<LowerRegion, T, allowEmbed, Count>;
 
 /*
  * The type of one lane.
@@ -409,9 +409,10 @@ struct LoopAnalysis {
     DominatorTree dominators;
 };
 
-// The relative weights of a block's two outgoing edges, as edgeWeightsOf answers them. Index 0 is
-// the block's `outgoing[0]`, index 1 its `outgoing[1]`; a block with fewer than two successors has
-// nothing to weigh and answers with the neutral pair.
+// The relative weights of a block's first two outgoing edges, as edgeWeightsOf answers them. Index
+// 0 is the block's successor 0, index 1 its successor 1; a block with fewer than two successors has
+// nothing to weigh and answers with the neutral pair. A `switch` answers with it too - its arms are
+// weighed by the case count rather than pairwise, and nothing asks this about one.
 struct EdgeWeights {
     U32 weight[2] = { 1, 1 };
     LikelihoodSource source = LikelihoodSource::Unknown;
@@ -460,7 +461,7 @@ static constexpr U64 kLoopTripCount = 8;
 // the function's entry is already as hot as any consumer can express.
 static constexpr U64 kMaxFrequency = U64(1) << 40;
 
-// How `block`'s two outgoing edges compare, from whichever of the four sources knows most about
+// How `block`'s first two outgoing edges compare, from whichever of the four sources knows most about
 // them. This is the single statement of what a branch's probabilities are: block layout, the
 // frequency computation and anything later that weighs one edge against another all ask it, so no
 // two of them can disagree about which arm of a branch is the likely one.
@@ -691,18 +692,77 @@ struct LowerBlock {
     // transientIndex must be set correctly in each block.
     bool dominates(LowerBlock* block, const DominatorTree& dominators);
 
+    // How many blocks control can leave this one for.
+    Size successorCount() { return outgoing.size(); }
+
+    // Whether control leaves this block for more than one place - the question the two-slot
+    // `outgoing` was asked as `outgoing[1] != nullptr`, and the one most of its readers meant.
+    bool isConditional() { return outgoing.size() > 1; }
+
+    // Whether control leaves this block at all. False for a `ret` and for an `unreachable`.
+    bool hasSuccessors() { return outgoing.isNotEmpty(); }
+
+    // Every successor, in the terminator's own edge order.
+    auto successors(LowerBase base) { return outgoing.contents(base); }
+
+    LowerPtr<LowerBlock> successorAt(LowerBase base, Size index) { return outgoing.get(base, index); }
+    LowerBlock* successor(LowerBase base, Size index) { return base[outgoing.get(base, index)]; }
+
+    // Retargets one edge in place, which is what an edge split and a threaded branch do. The
+    // terminator's own field has to be retargeted with it - `outgoing` restates what the terminator
+    // says and `validateLowerModule` compares the two.
+    void setSuccessor(LowerBase base, Size index, LowerPtr<LowerBlock> block) {
+        outgoing.set(base, index, block);
+    }
+
+    // Replaces the whole edge list, for a pass that replaced the terminator.
+    void setSuccessors(LowerBase base, const LowerPtr<LowerBlock>* blocks, Size count);
+
+    void setSuccessors(LowerBase base, LowerPtr<LowerBlock> only) {
+        setSuccessors(base, &only, 1);
+    }
+
+    void setSuccessors(LowerBase base, LowerPtr<LowerBlock> first, LowerPtr<LowerBlock> second) {
+        LowerPtr<LowerBlock> both[] = { first, second };
+        setSuccessors(base, both, 2);
+    }
+
+    // Drops every outgoing edge. The successors' `incoming` lists are the caller's business, since
+    // what they should say depends on whether this block is going away or getting a new terminator.
+    void clearSuccessors() { outgoing = {}; }
+
     LowerPtr<LowerFunction> fun;
 
     LowerPtr<LowerInst> terminator = nullptr;
     LowerList<LowerPtr<LowerInstPhi>> phis;
-    LowerList<LowerPtr<LowerInst>, false> instructions;
+    // A `U32` count, and the only list in the compiler that asks for one - see `SmallList`, where the
+    // block that overflowed a `U16` is named. A block is not a thing there are millions of.
+    LowerList<LowerPtr<LowerInst>, false, U32> instructions;
 
     // All blocks that can branch to this one.
     LowerList<LowerPtr<LowerBlock>> incoming;
 
-    // All blocks this one can possibly branch to.
-    // Contains at most 2 blocks, as there is only one conditional branch instruction.
-    LowerPtr<LowerBlock> outgoing[2] = { nullptr, nullptr };
+    /*
+     * All blocks this one can possibly branch to, in the order its terminator states its edges:
+     * `Jmp` names one, `Je` names `then` then `otherwise`, and `Switch` names one per case in case
+     * order followed by its fallback. A terminator with no edges leaves it empty.
+     *
+     * **A list, and it used to be two null-terminated slots.** Widening it is D3 slice 3's first
+     * piece of work and had to be its own change: about forty sites asked "does this block have two
+     * successors?" by testing `outgoing[1]` against null, and a three-successor block reads as
+     * one-or-two at every one of them without saying anything. Deleting the array form makes each of
+     * them a compile error instead, which is why there is no `operator []` here - the questions are
+     * `successorCount`, `isConditional` and `successors` below, and each site now answers the one it
+     * meant.
+     *
+     * **Duplicate-free**, which is a rule about the whole list rather than about one terminator: an
+     * edge is identified by the pair of blocks it joins in `incoming`, in a phi's source list and in
+     * the x64 backend's edge transitions, so a block named twice would be one edge carrying two sets
+     * of phi arguments. `Je` asserts its two arms differ; `validateLowerModule` says the same of a
+     * `Switch`'s cases and fallback together, and the SSA lowering inserts a jump block rather than
+     * repeating a target.
+     */
+    LowerList<LowerPtr<LowerBlock>> outgoing;
 
     // Name of the block, if any.
     StringId name {};
@@ -883,6 +943,29 @@ struct LowerDataRelocation {
     // Exactly one of these is set.
     LowerPtr<LowerFunction> function = nullptr;
     LowerPtr<LowerGlobal> global = nullptr;
+
+    /*
+     * A **block**, which is the third target kind and the only one that is not a symbol.
+     *
+     * A jump table's cell holds the address of a point *inside* a function, and where that point
+     * lands is not known until branch relaxation has settled the function's layout - which is later
+     * than either of the two above and is why this could not be spelled as one of them. Only
+     * meaningful with `anchorRelative`, because an address in the middle of a function is a thing no
+     * loader is going to be told about: a jump table cell is a difference between two offsets in
+     * this image and is finished when the image is assembled.
+     */
+    LowerPtr<LowerBlock> block = nullptr;
+
+    /*
+     * What `anchorRelative` measures from, or null for the module's image anchor.
+     *
+     * Every table `repr/table.h` describes uses the one module-wide label, because a slot may be
+     * read out of a table built on a frame and the reader has to hold one address to add back. A
+     * jump table is the case where that is a cost rather than a property: the code reading a cell
+     * has the table's own address in a register already - it just indexed with it - so measuring the
+     * cell from the table saves materializing a second label on every dispatch.
+     */
+    LowerPtr<LowerGlobal> anchor = nullptr;
 };
 
 struct LowerGlobal {

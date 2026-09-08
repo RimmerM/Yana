@@ -401,12 +401,9 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
         auto from = base[offset];
         auto exitPoint = afterInst(live.getBlock(from)->lastIndex);
 
-        auto singleSuccessor = !from->outgoing[0] || !from->outgoing[1]
-            || from->outgoing[0] == from->outgoing[1];
+        auto singleSuccessor = !from->isConditional();
 
-        for(auto successorOffset: from->outgoing) {
-            if(!successorOffset) continue;
-
+        for(auto successorOffset: from->successors(base)) {
             auto to = base[successorOffset];
             if(singleSuccessor || to->incoming.size() == 1) continue;
 
@@ -1369,9 +1366,7 @@ bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness
          * applied where their effect is read: at the entry to the block they were taken out of, which
          * this walk reaches with one predecessor and no other way in.
          */
-        for(auto successor: block->outgoing) {
-            if(!successor) continue;
-
+        for(auto successor: block->successors(base)) {
             // The successor's entry copies are part of this edge and run after it, so they run here:
             // over a copy of the exit state, since the other arm of a branch gets the same one and
             // must not see them. Where there are none - which is nearly always - this is the state

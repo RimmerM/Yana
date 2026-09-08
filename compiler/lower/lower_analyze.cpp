@@ -7,8 +7,8 @@
 static void traversePostorder(LowerBase base, LowerBlock* b, BlockList& target) {
     b->marker = 1;
 
-    for(auto o: b->outgoing) {
-        if(o && !base[o]->marker) traversePostorder(base, base[o], target);
+    for(auto o: b->successors(base)) {
+        if(!base[o]->marker) traversePostorder(base, base[o], target);
     }
 
     b->postIndex = BlockIndex(target.size());
@@ -136,8 +136,7 @@ static constexpr U32 kFinished = 2;
 static void findBackEdges(LowerBase base, LowerBlock* b, SmallArray<BackEdge, 8>& out) {
     b->marker = kOnStack;
 
-    for(auto s: b->outgoing) {
-        if(!s) continue;
+    for(auto s: b->successors(base)) {
         auto succ = base[s];
 
         if(succ->marker == kOnStack) out.push(BackEdge { b, succ });
@@ -328,11 +327,14 @@ static U32 clampWeight(U32 weight) {
 }
 
 EdgeWeights edgeWeightsOf(LowerBase base, const LoopInfo& loops, LowerBlock* block) {
-    // A block with one successor has nothing to weigh: everything reaching it continues there.
-    if(!block->outgoing[0] || !block->outgoing[1]) return EdgeWeights {};
+    // A block with one successor has nothing to weigh: everything reaching it continues there. A
+    // `switch` has more than a pair and answers neutrally too - what its arms are worth against each
+    // other is the case count rather than a ratio between two edges, and `edgeFrequency` below is
+    // where that is said.
+    if(block->successorCount() != 2) return EdgeWeights {};
 
     auto term = base[block->terminator];
-    assertTrue(term->kind == LowerInst::Je); // the only terminator with two successors
+    assertTrue(term->kind == LowerInst::Je); // the only terminator with exactly two successors
 
     auto je = (LowerInstJe*)term;
 
@@ -351,8 +353,8 @@ EdgeWeights edgeWeightsOf(LowerBase base, const LoopInfo& loops, LowerBlock* blo
     auto loop = loops.header[block->index];
 
     if(loop != kNullBlock) {
-        auto stays0 = loops.contains(loop, base[block->outgoing[0]]->index);
-        auto stays1 = loops.contains(loop, base[block->outgoing[1]]->index);
+        auto stays0 = loops.contains(loop, block->successor(base, 0)->index);
+        auto stays1 = loops.contains(loop, block->successor(base, 1)->index);
 
         // Only when exactly one of them leaves. A branch whose arms both stay in the loop says
         // nothing about how long the loop runs, and neither does one whose arms both leave it.
@@ -398,10 +400,15 @@ static U64 edgeFrequency(LowerBase base, const LoopInfo& loops, const FunctionFr
     LowerBlock* from, LowerBlock* to)
 {
     auto source = freq.relativeBlockFrequency[from->index];
-    if(!from->outgoing[1]) return source;
+    if(!from->isConditional()) return source;
+
+    // A multi-way branch splits evenly. Nothing here knows which arm of a `match` is taken and a
+    // profile is what would; an even split is at least the one assumption under which no arm is
+    // laid out as if it were the cold one.
+    if(from->successorCount() > 2) return source / from->successorCount();
 
     auto weights = edgeWeightsOf(base, loops, from);
-    auto edge = base[from->outgoing[0]] == to ? 0 : 1;
+    auto edge = from->successor(base, 0) == to ? 0 : 1;
 
     return source * weights.weight[edge] / weights.total();
 }
@@ -519,9 +526,7 @@ static void processBlocks(LowerBase base, Liveness& live, Container blockList) {
         auto set = live.getBlock(b);
 
         // Mark uses by phis in outgoing blocks.
-        for(auto s: b->outgoing) {
-            if(!s) continue;
-
+        for(auto s: b->successors(base)) {
             for(auto offset: base[s]->phis.contents(base)) {
                 auto phi = base[offset];
                 auto values = phi->used();
@@ -727,9 +732,7 @@ static void buildRanges(LowerBase base, LowerFunction& fun, Liveness& live) {
         // makes the copy vanish. A value genuinely live in a successor runs one point further, to
         // where the next block in the numbering begins, so the two ranges join into one.
         auto liveOutEnd = [&](LiveId id) {
-            for(auto s: b->outgoing) {
-                if(!s) continue;
-
+            for(auto s: b->successors(base)) {
                 auto succ = live.getBlock(base[s]);
                 if(succ->liveIn.get(succ->valueCount, id)) return afterInst(set->lastIndex) + 1;
             }

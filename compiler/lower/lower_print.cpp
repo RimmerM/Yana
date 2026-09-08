@@ -28,6 +28,14 @@ static void printInt(Net::Writer& writer, U64 i) {
     });
 }
 
+// A `switch` case value, which unlike every other number printed here can be negative: `@value(-1)`
+// pins a constructor there.
+static void printSigned(Net::Writer& writer, I64 i) {
+    writer.writeBytes(64, [&](Byte* c) {
+        return show(i, (char*)c, 64);
+    });
+}
+
 static void printInlineInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst& inst) {
     if(inst.kind == LowerInst::Global) {
         writer.writeByte('@');
@@ -571,6 +579,41 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
             auto folded = (base[je.cond]->flags & LowerValue::Implicit) != 0;
             writer.writeString(folded ? "    # implicit "_v : "    # flags "_v);
             writer.writeString(nameForCmp(cmp.unwrap()));
+        }
+    } else if(inst.kind == LowerInst::Switch) {
+        /*
+         * `switch <selector>, <fallback>, [block, value], ...`
+         *
+         * The fallback goes directly after the selector rather than at the end, where the edge list
+         * puts it: a case list is as long as a `match` has arms, and a reader looking for what
+         * happens when nothing matches should not have to find the end of it. The cases themselves
+         * are the `[block, number]` bracket pair a phi and a weighted `je` edge already use, which
+         * is why this needs no syntax of its own.
+         */
+        auto& sw = (LowerInstSwitch&)inst;
+
+        printValueRef(writer, context, base, *base[sw.selector], print);
+        writer.writeString(", "_v);
+        printBlockRef(writer, context, *base[sw.fallback], print);
+
+        for(auto& item: sw.cases()) {
+            writer.writeString(", ["_v);
+            printBlockRef(writer, context, *base[item.target], print);
+            writer.writeString(", "_v);
+            printSigned(writer, item.value());
+            writer.writeByte(']');
+        }
+    } else if(inst.kind == LowerInst::X86JumpTable) {
+        // `x86_jmptable <target>, block, ...`. The blocks are printed because they are the edges the
+        // layout and the liveness see; nothing reads them back, since the x64 backend is the only
+        // thing that writes one and it writes it after the text form is gone.
+        auto& table = (LowerInstX86JumpTable&)inst;
+
+        printValueRef(writer, context, base, *base[table.target], print);
+
+        for(auto target: table.targets()) {
+            writer.writeString(", "_v);
+            printBlockRef(writer, context, *base[target], print);
         }
     } else if(inst.kind == LowerInst::Select) {
         /*

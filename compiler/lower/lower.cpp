@@ -149,32 +149,57 @@ LowerInst* LowerBlock::addInst(LowerBase base, LowerInst* inst) {
         base[use]->uses.push(arena, inst - base);
     }
 
-    if(inst->kind == LowerInst::Je) {
-        assertTrue(outgoing[0] == nullptr && outgoing[1] == nullptr);
-        auto je = (LowerInstJe*)inst;
+    /*
+     * The edges the terminator names, restated on the block and registered with the targets.
+     *
+     * One walk over `terminatorEdges` rather than an arm per kind: a terminator's successors are
+     * already stated in one place (lower_inst.h), and having the two agree by construction is what
+     * kept `Switch` from being a third copy of this with a list in it.
+     */
+    if(isTerminator(inst)) {
+        assertTrue(outgoing.isEmpty());
 
-        assertTrue(je->then != je->otherwise);
-        outgoing[0] = je->then;
-        outgoing[1] = je->otherwise;
+        terminatorEdges(inst, [&](LowerPtr<LowerBlock> target) {
+            // Duplicate-free, per LowerBlock::outgoing: an edge is the pair of blocks it joins
+            // everywhere below here, so a target named twice is one edge with two sets of phi
+            // arguments. A `Je` with equal arms and a `Switch` with a repeated case are both this.
+            assertTrue(!base[target]->incoming.contents(base).containsValue(this - base));
 
-        assertTrue(!base[je->then]->incoming.contents(base).containsValue(this - base));
-        assertTrue(!base[je->otherwise]->incoming.contents(base).containsValue(this - base));
-        base[je->then]->incoming.push(arena, this - base);
-        base[je->otherwise]->incoming.push(arena, this - base);
-    } else if(inst->kind == LowerInst::Jmp) {
-        assertTrue(outgoing[0] == nullptr && outgoing[1] == nullptr);
-        auto jmp = (LowerInstJmp*)inst;
-        outgoing[0] = jmp->then;
-
-        assertTrue(!base[jmp->then]->incoming.contents(base).containsValue(this - base));
-        base[jmp->then]->incoming.push(arena, this - base);
+            outgoing.push(arena, target);
+            base[target]->incoming.push(arena, this - base);
+        });
     }
 
     return inst;
 }
 
+void LowerBlock::setSuccessors(LowerBase base, const LowerPtr<LowerBlock>* blocks, Size count) {
+    auto& arena = base[fun]->arena;
+
+    outgoing = {};
+    for(Size i = 0; i < count; i++) outgoing.push(arena, blocks[i]);
+}
+
 bool LowerBlock::dominates(LowerBlock* block, const DominatorTree& dominators) {
     if(block == this) return true;
+
+    /*
+     * A block the postorder walk never reached - `buildPostorder` leaves `kNullBlock` on one, and
+     * only a pass that deletes unreachable code takes it away. Under `-no-ir-opt` nothing does, so
+     * the validator asks this question about blocks that are still there and cannot run.
+     *
+     * Two answers and they are not the same one. An unreachable **use** is dominated vacuously -
+     * there is no path to it for a definition to be missing on - and answering otherwise reports a
+     * function that is correct. An unreachable **definition** dominates nothing that can run.
+     *
+     * Checked here rather than at each caller, which is where it had been: `lower_thread.cpp`
+     * guards the same field twice and this walk did not, so `dominators.tree[kNullBlock]` was a
+     * read past the end of the tree - Tritium's `Array.h:276` assertion, on every unoptimized
+     * build of a program with a dead block in it.
+     */
+    if(block->postIndex == kNullBlock) return true;
+    if(postIndex == kNullBlock) return false;
+
     if(postIndex == dominators.startIndex) return true;
 
     auto i = block->postIndex;

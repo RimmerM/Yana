@@ -213,12 +213,9 @@ void cutTerminator(LowerBase base, LowerBlock* block) {
     auto terminator = base[block->terminator];
     detach(base, terminator);
 
-    for(auto& out: block->outgoing) {
-        if(!out) continue;
-        removeIncomingEdge(base, base[out], block);
-        out = nullptr;
-    }
+    for(auto out: block->successors(base)) removeIncomingEdge(base, base[out], block);
 
+    block->clearSuccessors();
     block->terminator = nullptr;
 }
 
@@ -275,7 +272,7 @@ LowerBlock* insertPreheader(LowerBase base, LowerModule& module, LowerFunction& 
 
     detach(base, base[entry->terminator]);
     entry->terminator = nullptr;
-    entry->outgoing[0] = nullptr;
+    entry->clearSuccessors();
 
     // The header's only predecessor was the entry, and it has no phis for the edge to have been
     // named in - both of which `findHeader` established.

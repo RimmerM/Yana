@@ -806,6 +806,16 @@ void MachineFormBuilder::registerMemoryAndControlForms() {
     };
 
     {
+        // The address is an ordinary register operand, which is what keeps the table read in front
+        // of it under the allocator's control - see LowerInstX86JumpTable.
+        auto& form = add(FormJmpIndirect, OpJmpIndirect, "jmp r"_v);
+        form.uses.push(anyReg());
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::JumpIndirect,
+        };
+    }
+
+    {
         auto& form = add(FormJccFlags, OpJcc, "jcc rel32"_v);
         form.uses.push(folded()); // the condition was consumed by the comparison that set the flags
         form.flagsEffect = FlagsEffect::Use;

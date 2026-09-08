@@ -296,23 +296,7 @@ static void redirectEdges(LowerBase base, Region<LowerRegion>& arena, LowerBlock
     }
 
     for(auto source: sources) {
-        auto block = base[source];
-        auto terminator = base[block->terminator];
-        U32 edges = 0;
-
-        if(terminator->kind == LowerInst::Je) {
-            auto je = (LowerInstJe*)terminator;
-            if(je->then == from - base) { je->then = to - base; edges++; }
-            if(je->otherwise == from - base) { je->otherwise = to - base; edges++; }
-        } else if(terminator->kind == LowerInst::Jmp) {
-            auto jmp = (LowerInstJmp*)terminator;
-            if(jmp->then == from - base) { jmp->then = to - base; edges++; }
-        }
-
-        for(auto& successor: block->outgoing) {
-            if(successor == from - base) successor = to - base;
-        }
-
+        auto edges = retargetEdges(base, base[source], from - base, to - base);
         for(U32 i = 0; i < edges; i++) to->incoming.push(arena, source);
     }
 

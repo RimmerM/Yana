@@ -1318,6 +1318,30 @@ static void genJe(FunGen& f, LowerInstJe& inst) {
     }
 }
 
+/*
+ * The multi-way branch, handed to LLVM as one.
+ *
+ * `CreateSwitch` and an `addCase` per case, with the fallback as the default - which is where this
+ * backend stops: LLVM's own lowering then picks a jump table, a bit test, a binary search or a chain
+ * per target and per profile, and does more with the choice than this compiler is going to. The
+ * edges carry their arguments the way every other edge here does, as phi alternatives filled in once
+ * every block exists.
+ *
+ * A case value is stated as signed, which is how the IR sorts them - see LowerInstSwitch. LLVM
+ * compares the bits, so the signedness only decides how a constant wider than the selector would be
+ * truncated, and the producer has already refused one that does not fit.
+ */
+static void genSwitch(FunGen& f, LowerInstSwitch& inst) {
+    auto selector = use(f, inst, inst.selector);
+    auto branch = f.builder.CreateSwitch(selector, f.block(inst.fallback), inst.caseCount);
+
+    for(auto& item: inst.cases()) {
+        branch->addCase(
+            llvm::ConstantInt::get((llvm::IntegerType*)selector->getType(), U64(item.value()), true),
+            f.block(item.target));
+    }
+}
+
 static void genRet(FunGen& f, LowerInstRet& inst) {
     auto used = inst.used();
 
@@ -1486,6 +1510,9 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::Jmp:
             f.builder.CreateBr(f.block(((LowerInstJmp&)inst).then));
             break;
+        case LowerInst::Switch:
+            genSwitch(f, (LowerInstSwitch&)inst);
+            break;
         case LowerInst::Ret:
             genRet(f, (LowerInstRet&)inst);
             break;
@@ -1495,6 +1522,7 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::Phi:
             // Created empty before any block was built, and filled once every block exists.
             break;
+        case LowerInst::X86JumpTable:
         case LowerInst::X86Address:
         case LowerInst::X86Lea:
         case LowerInst::X86PushArg:

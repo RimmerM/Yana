@@ -2718,8 +2718,7 @@ static void promoteIntoRegions(Placer& a, const Array<LiveId>& candidates, const
                     auto pred = a.base[predOffset];
                     if(inRegion(pred) || !liveOnEdge(pred, inside)) continue;
 
-                    auto single = !pred->outgoing[0] || !pred->outgoing[1]
-                        || pred->outgoing[0] == pred->outgoing[1];
+                    auto single = !pred->isConditional();
 
                     if(!single && inside->incoming.size() != 1) { reachable = false; break; }
 
@@ -2730,14 +2729,11 @@ static void promoteIntoRegions(Placer& a, const Array<LiveId>& candidates, const
 
                 if(!moved) continue;
 
-                for(auto successor: inside->outgoing) {
-                    if(!successor) continue;
-
+                for(auto successor: inside->successors(a.base)) {
                     auto outside = a.base[successor];
                     if(inRegion(outside) || !liveOnEdge(inside, outside)) continue;
 
-                    auto single = !inside->outgoing[0] || !inside->outgoing[1]
-                        || inside->outgoing[0] == inside->outgoing[1];
+                    auto single = !inside->isConditional();
 
                     if(!single && outside->incoming.size() != 1) { reachable = false; break; }
 
@@ -3136,10 +3132,8 @@ void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const 
 
         // After the terminator's own results, which is the order legalization reads them in: a phi
         // transfer is emitted after whatever the terminator itself needs.
-        for(auto successor: block->outgoing) {
-            if(!successor) continue;
-
-            assertTrue(base[successor]->phis.isEmpty() || !(block->outgoing[0] && block->outgoing[1]));
+        for(auto successor: block->successors(base)) {
+            assertTrue(base[successor]->phis.isEmpty() || !block->isConditional());
             placePhis(a, block, base[successor]);
         }
 

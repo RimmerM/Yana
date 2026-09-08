@@ -361,6 +361,38 @@ YANA_LOWER_INST(Jmp,           LowerInstJmp,            "jmp"_v,             0, 
 YANA_LOWER_INST(Ret,           LowerInstRet,            "ret"_v,             kAnyArity, 0,        kLowerPlain | kLowerVariadic)
 
 /*
+ * A multi-way branch: one edge per case value, and a fallback for every selector matching none.
+ *
+ * `kLowerVariadic` because the case list is allocated with the instruction rather than beside it -
+ * so the `size` column is 0 and a pass that copies one has to ask `LowerInstSwitch` how big it is,
+ * which is the same statement a `Ret` and a `Phi` make. The operand count is a real 1 and not
+ * `kAnyArity`: what varies is the number of *edges*, and an edge is not an operand here any more
+ * than a `Jmp`'s target is.
+ *
+ * Not `kLowerPlain`: like `Je`, where it goes is a field rather than an operand, so two of them are
+ * the same instruction only when their whole case list agrees - and nothing compares two.
+ */
+YANA_LOWER_INST(Switch,        LowerInstSwitch,         "switch"_v,          1,         0,        kLowerVariadic)
+
+/*
+ * `jmp r64` - the indirect branch a jump table dispatches through, and the one target-specific row
+ * that is not down with the others.
+ *
+ * It has to be here. `isTerminator` is a pair of comparisons against the family's two ends, so a
+ * terminator that sat with the X86 rows below `Phi` would not be one; the family is what decides
+ * where a row goes, and being backend-private is a fact about who writes it rather than about its
+ * shape. `validateLowerInst` refuses it in the same breath as every other X86 row, since the
+ * validator runs above the backend and nothing at that tier may have written one.
+ *
+ * Operand: the address to jump to, already computed - the table read and the addition back onto the
+ * anchor are ordinary IR in front of this, which is what keeps the register allocator, the address
+ * folder and the rematerializer in charge of them. The successor list is what the table can name,
+ * and it exists so that the block order, liveness and edge resolution see the edges: what a cell
+ * holds is a byte offset resolved after layout, and nothing below reads it.
+ */
+YANA_LOWER_INST(X86JumpTable,  LowerInstX86JumpTable,   "x86_jmptable"_v,    1,         0,        kLowerVariadic)
+
+/*
  * A block control never leaves the end of - the abort arm of a check, and nothing else
  * today. See InstUnreachable in resolve/inst.h, which is where the fact is established.
  *

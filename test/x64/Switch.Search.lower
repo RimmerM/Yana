@@ -1,0 +1,110 @@
+# The binary search, which the thresholds never choose - see `chooseSwitchForm` in
+# `compiler/codegen/x64/transform_switch.cpp`, where §77's numbers say why: it lost to the chain on
+# both time and bytes at every size measured, because a comparison that splits the remaining cases in
+# half is a branch the predictor cannot be right about.
+#
+# It is kept because that is a fact about *this* microarchitecture. `-switch-form search` is what
+# took the measurement and what would re-take it on a machine whose predictor is weaker, and this
+# fixture is what keeps the form compiled and its output held to a golden in the meantime.
+#
+# switch-form: search
+
+# A signed comparison against the middle case value per level, and a chain of at most
+# `kSwitchLeafCases` equality tests at each leaf.
+search(%v: I32): I32 {
+    start {
+        switch %v, other, [a0, 0], [a1, 4], [a2, 8], [a3, 12], [a4, 16], [a5, 20], [a6, 24], [a7, 28], [a8, 32], [a9, 36], [a10, 40], [a11, 44], [a12, 48], [a13, 52], [a14, 56], [a15, 60]
+    }
+
+    a0 {
+        ret 10
+    }
+
+    a1 {
+        ret 20
+    }
+
+    a2 {
+        ret 30
+    }
+
+    a3 {
+        ret 40
+    }
+
+    a4 {
+        ret 50
+    }
+
+    a5 {
+        ret 60
+    }
+
+    a6 {
+        ret 70
+    }
+
+    a7 {
+        ret 80
+    }
+
+    a8 {
+        ret 90
+    }
+
+    a9 {
+        ret 100
+    }
+
+    a10 {
+        ret 110
+    }
+
+    a11 {
+        ret 120
+    }
+
+    a12 {
+        ret 130
+    }
+
+    a13 {
+        ret 140
+    }
+
+    a14 {
+        ret 150
+    }
+
+    a15 {
+        ret 160
+    }
+
+    other {
+        ret 0
+    }
+}
+
+# Three cases, where the search is one comparison and then a leaf: below `kSwitchLeafCases` the tree
+# has no interior node at all and what comes out is the chain.
+small(%v: I32): I32 {
+    start {
+        switch %v, other, [a0, 0], [a1, 1], [a2, 2]
+    }
+
+    a0 {
+        ret 10
+    }
+
+    a1 {
+        ret 20
+    }
+
+    a2 {
+        ret 30
+    }
+
+    other {
+        ret 0
+    }
+}

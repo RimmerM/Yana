@@ -11,7 +11,7 @@
  * map of the files that call them.
  */
 
-// Inserts an empty block on the edge from `pred` (its `outgoing[edge]`) to `succ`, so that the
+// Inserts an empty block on the edge from `pred` (its successor number `edge`) to `succ`, so that the
 // moves that feed `succ`'s phis have a block of their own to live in.
 //
 // Phi moves are emitted at the end of the predecessor, which is only sound if control reaching that
@@ -21,7 +21,7 @@
 // `succ`, which restores that guarantee.
 static void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size edge) {
     auto& arena = fun.arena;
-    auto succ = base[pred->outgoing[edge]];
+    auto succ = pred->successor(base, edge);
     auto predOffset = pred - base;
 
     auto split = new (arena) LowerBlock(pred->fun, StringId(), BlockIndex(fun.blocks.size()));
@@ -32,14 +32,54 @@ static void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size
     auto jmp = (LowerInst*)new (arena) LowerInstJmp(succ - base);
     jmp->block = split - base;
     split->terminator = jmp - base;
-    split->outgoing[0] = succ - base;
+    split->setSuccessors(base, succ - base);
     split->incoming.push(arena, predOffset);
 
-    auto je = (LowerInstJe*)base[pred->terminator];
-    assertTrue(je->kind == LowerInst::Je);
-    if(edge == 0) je->then = split - base;
-    else je->otherwise = split - base;
-    pred->outgoing[edge] = split - base;
+    // The terminator's own field for this edge, in the one place that knows which field an edge
+    // number is - `retargetEdges` cannot serve here, since it moves *every* edge naming the target
+    // and what is being split is one of them.
+    auto terminator = base[pred->terminator];
+    switch(terminator->kind) {
+        case LowerInst::Je: {
+            auto je = (LowerInstJe*)terminator;
+            if(edge == 0) je->then = split - base;
+            else je->otherwise = split - base;
+            break;
+        }
+        case LowerInst::Switch: {
+            auto sw = (LowerInstSwitch*)terminator;
+            if(edge < sw->caseCount) sw->cases()[edge].target = split - base;
+            else sw->fallback = split - base;
+            break;
+        }
+
+        /*
+         * And the table's own cells, which are the third place this edge is written down.
+         *
+         * A jump table's successor list is the distinct blocks its cells name, so retargeting one
+         * successor means retargeting every cell that named it - and a cell still holding the old
+         * block would jump straight past the copies this split block exists to hold.
+         */
+        case LowerInst::X86JumpTable: {
+            auto table = (LowerInstX86JumpTable*)terminator;
+            auto previous = table->targets()[edge];
+            table->targets()[edge] = split - base;
+
+            auto& cells = base[table->table]->relocations;
+            auto entries = cells.pointer(base);
+
+            for(Size i = 0; i < cells.size(); i++) {
+                if(entries[i].block == previous) entries[i].block = split - base;
+            }
+
+            break;
+        }
+        default:
+            assertTrue(false); // a block with several successors ends in one of the two above
+            break;
+    }
+
+    pred->setSuccessor(base, edge, split - base);
 
     for(Size i = 0; i < succ->incoming.size(); i++) {
         if(succ->incoming.get(base, i) == predOffset) {
@@ -87,11 +127,11 @@ void splitPhiEdges(LowerBase base, LowerFunction& fun) {
     for(auto offset: original) {
         auto pred = base[offset];
 
-        // Only a block with two successors can reach a successor on a path it might not take.
-        if(!pred->outgoing[0] || !pred->outgoing[1]) continue;
+        // Only a block with several successors can reach a successor on a path it might not take.
+        if(!pred->isConditional()) continue;
 
-        for(Size edge = 0; edge < 2; edge++) {
-            auto succ = base[pred->outgoing[edge]];
+        for(Size edge = 0; edge < pred->successorCount(); edge++) {
+            auto succ = pred->successor(base, edge);
 
             // A successor with one predecessor already has an insertion point of its own: the head of
             // the block, which only this edge reaches. Splitting there would add a jump for nothing.
@@ -279,15 +319,15 @@ LowerBlock* splitBlockAfter(LowerBase base, LowerFunction& fun, LowerBlock* bloc
     tail->terminator = block->terminator;
     block->terminator = nullptr;
 
-    tail->outgoing[0] = block->outgoing[0];
-    tail->outgoing[1] = block->outgoing[1];
-    block->outgoing[0] = nullptr;
-    block->outgoing[1] = nullptr;
+    SmallArray<LowerPtr<LowerBlock>, 8> moved;
+    for(auto successor: block->successors(base)) moved.push(successor);
+
+    tail->setSuccessors(base, moved.pointer(), moved.size());
+    block->clearSuccessors();
 
     auto blockOffset = block - base;
 
-    for(auto successor: tail->outgoing) {
-        if(!successor) continue;
+    for(auto successor: moved) {
         auto to = base[successor];
 
         for(Size i = 0; i < to->incoming.size(); i++) {

@@ -1377,8 +1377,7 @@ void removeCheckedBounds(LowerBase base, LowerModule& module, LowerFunction& fun
             auto jmp = (LowerInst*)new (module.arena) LowerInstJmp(keptArm - base);
             jmp->block = block - base;
             block->terminator = jmp - base;
-            block->outgoing[0] = keptArm - base;
-            block->outgoing[1] = nullptr;
+            block->setSuccessors(base, keptArm - base);
 
             for(Size i = 0; i < abortArm->incoming.size(); i++) {
                 if(abortArm->incoming.get(base, i) != block - base) continue;

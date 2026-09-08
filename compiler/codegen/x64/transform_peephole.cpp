@@ -812,6 +812,40 @@ static void moveInstTo(LowerBase base, LowerBlock* block, Size from, Size to) {
     block->instructions.set(base, to, inst);
 }
 
+/*
+ * Where an instruction lifted out of a flags window may land.
+ *
+ * Not always the slot directly above the comparison, and that is the whole of what this answers. An
+ * `X86Address` emits no code and is resolved one instruction in front of the access that folds it
+ * (§3.1), so the registers it names are live across exactly that gap - and a comparison that reads
+ * one of its operands out of memory already owns the slot above itself. Landing a hoist there puts a
+ * *definition* in the gap, and since nothing reads the address value until the comparison, the
+ * allocator is free to give the hoisted result the very register the base was computed into. The
+ * symptom is a comparison against whatever the lifted instruction produced; `checkFoldedAddress` in
+ * verify.cpp is what says so.
+ *
+ * The alternative was to refuse the merge where the comparison folds an address, which costs the
+ * six-instruction materialization on every bounds-checked subscript in a counting loop - the shape
+ * that made this visible. Landing above the address instead costs nothing: what is lifted is pure,
+ * reads no memory and cannot read the address value, since an address has exactly one reader.
+ */
+static Size flagsHoistTarget(LowerBase base, LowerBlock* block, Size index) {
+    while(index > 0) {
+        auto above = base[block->instructions.get(base, index - 1)];
+        if(above->kind != LowerInst::X86Address) break;
+
+        auto folded = above->created().ptr - base;
+        auto user = base[block->instructions.get(base, index)];
+        bool reads = false;
+        for(auto use: user->used()) if(use == folded) { reads = true; break; }
+
+        if(!reads) break;
+        index--;
+    }
+
+    return index;
+}
+
 // How far a comparison's flags have to survive, as an index one past the last instruction that could
 // clobber them - so the terminator, which is not in the list, is the list's own size.
 //
@@ -914,7 +948,12 @@ static bool clearFlagsWindow(LowerBase base, LowerInstCmp* cmp, Size index, Size
     // Lifted in ascending order, so that they arrive above the comparison in the order they had.
     // Each move shifts only what lies between the comparison and the instruction being lifted, so
     // the positions collected above stay correct for the ones still to come.
-    for(Size i = 0; i < lift.size(); i++) moveInstTo(base, block, lift[lift.size() - i - 1], index + i);
+    //
+    // Above the comparison's own folded address rather than between it and the comparison - see
+    // flagsHoistTarget. The comparison still moves down by exactly one place per lift whichever slot
+    // they land in, which is what `hoisted` reports.
+    auto target = flagsHoistTarget(base, block, index);
+    for(Size i = 0; i < lift.size(); i++) moveInstTo(base, block, lift[lift.size() - i - 1], target + i);
 
     hoisted = lift.size();
     return true;

@@ -1458,7 +1458,7 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
                 setOperand(base, module.arena, je, je->cond, condition);
                 ::swap(je->then, je->otherwise);
                 ::swap(je->likelihood[0], je->likelihood[1]);
-                ::swap(block->outgoing[0], block->outgoing[1]);
+                block->setSuccessors(base, je->then, je->otherwise);
                 changed = true;
             }
 

@@ -1,0 +1,272 @@
+
+search<complex>(%v: I32): I32 {
+  start {
+    switch %v, other, [a0, 0], [a1, 4], [a2, 8], [a3, 12], [a4, 16], [a5, 20], [a6, 24], [a7, 28], [a8, 32], [a9, 36], [a10, 40], [a11, 44], [a12, 48], [a13, 52], [a14, 56], [a15, 60]
+  }
+
+  a0 {
+    ret 10
+  }
+
+  a1 {
+    ret 20
+  }
+
+  a2 {
+    ret 30
+  }
+
+  a3 {
+    ret 40
+  }
+
+  a4 {
+    ret 50
+  }
+
+  a5 {
+    ret 60
+  }
+
+  a6 {
+    ret 70
+  }
+
+  a7 {
+    ret 80
+  }
+
+  a8 {
+    ret 90
+  }
+
+  a9 {
+    ret 100
+  }
+
+  a10 {
+    ret 110
+  }
+
+  a11 {
+    ret 120
+  }
+
+  a12 {
+    ret 130
+  }
+
+  a13 {
+    ret 140
+  }
+
+  a14 {
+    ret 150
+  }
+
+  a15 {
+    ret 160
+  }
+
+  other {
+    ret 0
+  }
+}
+
+small<complex>(%v: I32): I32 {
+  start {
+    switch %v, other, [a0, 0], [a1, 1], [a2, 2]
+  }
+
+  a0 {
+    ret 10
+  }
+
+  a1 {
+    ret 20
+  }
+
+  a2 {
+    ret 30
+  }
+
+  other {
+    ret 0
+  }
+}
+
+
+--- codegen: search ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rdi, -] creates=[-]  => 83ff20
+  je uses=[-] creates=[]  => 7c6f
+block #2:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rdi, -] creates=[-]  => 83ff30
+  je uses=[-] creates=[]  => 7c39
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rdi, -] creates=[-]  => 83ff38
+  je uses=[-] creates=[]  => 7c1a
+block #4:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff38
+  je uses=[-] creates=[]  => 740f
+block #5:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff3c
+  je uses=[-] creates=[]  => 0f85b1000000
+block a15:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b8a0000000c3
+block a14:
+  imm uses=[] creates=[remat:1]  => 
+  ret uses=[rax] creates=[] pre=[remat:1->rax]  => b896000000c3
+block #9:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff30
+  je uses=[-] creates=[]  => 740f
+block #10:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff34
+  je uses=[-] creates=[]  => 0f8597000000
+block a13:
+  imm uses=[] creates=[remat:2]  => 
+  ret uses=[rax] creates=[] pre=[remat:2->rax]  => b88c000000c3
+block a12:
+  imm uses=[] creates=[remat:3]  => 
+  ret uses=[rax] creates=[] pre=[remat:3->rax]  => b882000000c3
+block #14:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rdi, -] creates=[-]  => 83ff28
+  je uses=[-] creates=[]  => 7c16
+block #15:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff28
+  je uses=[-] creates=[]  => 740b
+block #16:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff2c
+  je uses=[-] creates=[]  => 757c
+block a11:
+  imm uses=[] creates=[remat:4]  => 
+  ret uses=[rax] creates=[] pre=[remat:4->rax]  => b878000000c3
+block a10:
+  imm uses=[] creates=[remat:5]  => 
+  ret uses=[rax] creates=[] pre=[remat:5->rax]  => b86e000000c3
+block #20:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff20
+  je uses=[-] creates=[]  => 740b
+block #21:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff24
+  je uses=[-] creates=[]  => 7566
+block a9:
+  imm uses=[] creates=[remat:6]  => 
+  ret uses=[rax] creates=[] pre=[remat:6->rax]  => b864000000c3
+block a8:
+  imm uses=[] creates=[remat:7]  => 
+  ret uses=[rax] creates=[] pre=[remat:7->rax]  => b85a000000c3
+block #25:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rdi, -] creates=[-]  => 83ff10
+  je uses=[-] creates=[]  => 7c31
+block #26:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rdi, -] creates=[-]  => 83ff18
+  je uses=[-] creates=[]  => 7c16
+block #27:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff18
+  je uses=[-] creates=[]  => 740b
+block #28:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff1c
+  je uses=[-] creates=[]  => 7546
+block a7:
+  imm uses=[] creates=[remat:8]  => 
+  ret uses=[rax] creates=[] pre=[remat:8->rax]  => b850000000c3
+block a6:
+  imm uses=[] creates=[remat:9]  => 
+  ret uses=[rax] creates=[] pre=[remat:9->rax]  => b846000000c3
+block #32:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff10
+  je uses=[-] creates=[]  => 740b
+block #33:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff14
+  je uses=[-] creates=[]  => 7530
+block a5:
+  imm uses=[] creates=[remat:10]  => 
+  ret uses=[rax] creates=[] pre=[remat:10->rax]  => b83c000000c3
+block a4:
+  imm uses=[] creates=[remat:11]  => 
+  ret uses=[rax] creates=[] pre=[remat:11->rax]  => b832000000c3
+block #37:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rdi, -] creates=[-]  => 83ff08
+  je uses=[-] creates=[]  => 7c16
+block #38:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff08
+  je uses=[-] creates=[]  => 740b
+block #39:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff0c
+  je uses=[-] creates=[]  => 7515
+block a3:
+  imm uses=[] creates=[remat:12]  => 
+  ret uses=[rax] creates=[] pre=[remat:12->rax]  => b828000000c3
+block a2:
+  imm uses=[] creates=[remat:13]  => 
+  ret uses=[rax] creates=[] pre=[remat:13->rax]  => b81e000000c3
+block #43:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
+  je uses=[-] creates=[]  => 7411
+block #44:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff04
+  je uses=[-] creates=[]  => 7406
+block other:
+  imm uses=[] creates=[remat:14]  => 
+  ret uses=[rax] creates=[] pre=[remat:14->rax]  => b800000000c3
+block a1:
+  imm uses=[] creates=[remat:15]  => 
+  ret uses=[rax] creates=[] pre=[remat:15->rax]  => b814000000c3
+block a0:
+  imm uses=[] creates=[remat:16]  => 
+  ret uses=[rax] creates=[] pre=[remat:16->rax]  => b80a000000c3
+
+--- codegen: small ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 85ff
+  je uses=[-] creates=[]  => 741c
+block #2:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff01
+  je uses=[-] creates=[]  => 7411
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdi, -] creates=[-]  => 83ff02
+  je uses=[-] creates=[]  => 7406
+block other:
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
+block a2:
+  imm uses=[] creates=[remat:1]  => 
+  ret uses=[rax] creates=[] pre=[remat:1->rax]  => b81e000000c3
+block a1:
+  imm uses=[] creates=[remat:2]  => 
+  ret uses=[rax] creates=[] pre=[remat:2->rax]  => b814000000c3
+block a0:
+  imm uses=[] creates=[remat:3]  => 
+  ret uses=[rax] creates=[] pre=[remat:3->rax]  => b80a000000c3
