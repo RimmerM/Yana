@@ -5,8 +5,8 @@ fn spanned() -> I32 {
   local & xs: Array(I32) object0
   local & local2: Array(I32) object3
   local & ys: Array(I32) object3
-  local & local4: I32 [unique slot 0]
-  local & local5: I32 [unique slot 0]
+  local & local4: I32 [unique slot 0 owner]
+  local & local5: I32 [unique slot 0 owner]
   local local6: I32 [shared slot 0]
   local local7: I32 [shared slot 0]
   local local8: I32 [shared slot 0]
@@ -21,7 +21,7 @@ bb0:
   write.init borrow.unique (local0) take %5
   %7: Array(I32) [unique slot 0] = read borrow.unique (local0) loan0
   %8: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %7 roots{0}
-  %9: %I32 [owned here shape1 .*=shared slot 0] = call valuesMut(I32) borrow.unique %8 roots.0{0}
+  %9: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %8 roots.0{0}
   %10: Size = const 0
   write.init borrow.unique ([%%9][0]) take %0
   %12: Size = const 1
@@ -39,7 +39,7 @@ bb0:
   write.init borrow.unique (local2) take %23
   %25: Array(I32) [unique slot 0] = read borrow.unique (local2) loan1
   %26: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %25 roots{1}
-  %27: %I32 [owned here shape1 .*=shared slot 0] = call valuesMut(I32) borrow.unique %26 roots.0{1}
+  %27: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %26 roots.0{1}
   %28: Size = const 0
   write.init borrow.unique ([%%27][0]) take %20
   %30: Size = const 1
@@ -50,14 +50,14 @@ bb0:
   %35: I32 = const 20
   %36: Array(I32) [unique call] = read borrow.unique (xs) loan2
   %37: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %36 roots{2}
-  %38: I32 [unique slot 0] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %37 borrow.shared %34 roots{2}
+  %38: I32 [unique slot 0 owner] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %37 borrow.shared %34 roots{2}
   write.init borrow.unique (local4) borrow.unique %38
   write.assign borrow.unique (local4) take %35
   %41: Size = const 0
   %42: I32 = const 5
   %43: Array(I32) [unique call] = read borrow.unique (ys) loan3
   %44: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %43 roots{3}
-  %45: I32 [unique slot 0] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %44 borrow.shared %41 roots{3}
+  %45: I32 [unique slot 0 owner] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %44 borrow.shared %41 roots{3}
   write.init borrow.unique (local5) borrow.unique %45
   write.assign borrow.unique (local5) take %42
   %48: Size = const 1
@@ -88,8 +88,8 @@ bb0:
 fn overwritten() -> I32 {
   local & local0: Array(I32) object0
   local & xs: Array(I32) object0
-  local & local2: I32 [unique slot 0]
-  local & local3: I32 [unique slot 0]
+  local & local2: I32 [unique slot 0 owner]
+  local & local3: I32 [unique slot 0 owner]
   local local4: I32 [shared slot 0]
 
 bb0:
@@ -101,7 +101,7 @@ bb0:
   write.init borrow.unique (local0) take %4
   %6: Array(I32) [unique slot 0] = read borrow.unique (local0) loan0
   %7: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %6 roots{0}
-  %8: %I32 [owned here shape1 .*=shared slot 0] = call valuesMut(I32) borrow.unique %7 roots.0{0}
+  %8: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %7 roots.0{0}
   %9: Size = const 0
   write.init borrow.unique ([%%8][0]) take %0
   %11: Size = const 1
@@ -114,14 +114,14 @@ bb0:
   %18: I32 = const 7
   %19: Array(I32) [unique call] = read borrow.unique (xs) loan1
   %20: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %19 roots{1}
-  %21: I32 [unique slot 0] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %20 borrow.shared %17 roots{1}
+  %21: I32 [unique slot 0 owner] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %20 borrow.shared %17 roots{1}
   write.init borrow.unique (local2) borrow.unique %21
   write.assign borrow.unique (local2) take %18
   %24: Size = const 2
   %25: I32 = const 30
   %26: Array(I32) [unique call] = read borrow.unique (xs) loan2
   %27: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %26 roots{2}
-  %28: I32 [unique slot 0] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %27 borrow.shared %24 roots{2}
+  %28: I32 [unique slot 0 owner] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %27 borrow.shared %24 roots{2}
   write.init borrow.unique (local3) borrow.unique %28
   write.assign borrow.unique (local3) take %25
   %31: Size = const 2
@@ -138,7 +138,7 @@ fn computed() -> I32 {
   local & local0: Array(I32) object0
   local & xs: Array(I32) object0
   local i: I32
-  local & local3: I32 [unique slot 0]
+  local & local3: I32 [unique slot 0 owner]
   local local4: I32 [shared slot 0]
   local local5: I32 [shared slot 0]
 
@@ -151,7 +151,7 @@ bb0:
   write.init borrow.unique (local0) take %4
   %6: Array(I32) [unique slot 0] = read borrow.unique (local0) loan0
   %7: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %6 roots{0}
-  %8: %I32 [owned here shape1 .*=shared slot 0] = call valuesMut(I32) borrow.unique %7 roots.0{0}
+  %8: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %7 roots.0{0}
   %9: Size = const 0
   write.init borrow.unique ([%%8][0]) take %0
   %11: Size = const 1
@@ -162,17 +162,17 @@ bb0:
   write.init borrow.unique (xs) take %15
   %17: I32 = const 1
   write.init borrow.unique (i) take %17
-  %19: I32 = read copy.trivial (i)
+  %19: I32 = const 1
   %20: I32 = const 1
   %21: I32 = add inspect %19 inspect %20
   %22: I32 = const 60
   %23: Array(I32) [unique call] = read borrow.unique (xs) loan1
   %24: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %23 roots{1}
   %25: Size = convert inspect %21
-  %26: I32 [unique slot 0] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %24 borrow.shared %25 roots{1}
+  %26: I32 [unique slot 0 owner] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %24 borrow.shared %25 roots{1}
   write.init borrow.unique (local3) borrow.unique %26
   write.assign borrow.unique (local3) take %22
-  %29: I32 = read copy.trivial (i)
+  %29: I32 = const 1
   %30: I32 = const 1
   %31: I32 = add inspect %29 inspect %30
   %32: Array(I32) [shared call] = read borrow.shared (xs) loan2
@@ -181,7 +181,7 @@ bb0:
   %35: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %33 borrow.shared %34 roots{2}
   write.init borrow.unique (local4) borrow.shared %35
   %37: I32 = read copy.trivial (local4)
-  %38: I32 = read copy.trivial (i)
+  %38: I32 = const 1
   %39: Array(I32) [shared call] = read borrow.shared (xs) loan3
   %40: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %39 roots{3}
   %41: Size = convert inspect %38
@@ -196,7 +196,7 @@ bb0:
 fn aliased(n: I32 [shared call]) -> I32 {
   local & local1: Array(I32) object0
   local & xs: Array(I32) object0
-  local & local3: I32 [unique slot 0]
+  local & local3: I32 [unique slot 0 owner]
   local local4: I32 [shared slot 0]
   local local5: I32 [shared slot 0]
 
@@ -209,7 +209,7 @@ bb0:
   write.init borrow.unique (local1) take %4
   %6: Array(I32) [unique slot 0] = read borrow.unique (local1) loan0
   %7: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %6 roots{0}
-  %8: %I32 [owned here shape1 .*=shared slot 0] = call valuesMut(I32) borrow.unique %7 roots.0{0}
+  %8: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %7 roots.0{0}
   %9: Size = const 0
   write.init borrow.unique ([%%8][0]) take %0
   %11: Size = const 1
@@ -222,7 +222,7 @@ bb0:
   %18: I32 = const 100
   %19: Array(I32) [unique call] = read borrow.unique (xs) loan1
   %20: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %19 roots{1}
-  %21: I32 [unique slot 0] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %20 borrow.shared %17 roots{1}
+  %21: I32 [unique slot 0 owner] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %20 borrow.shared %17 roots{1}
   write.init borrow.unique (local3) borrow.unique %21
   write.assign borrow.unique (local3) take %18
   %24: Size = const 0

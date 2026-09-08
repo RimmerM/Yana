@@ -96,7 +96,7 @@ bb0:
   return consume %10
 }
 
-fn joined(flag: Bool [shared call]) -> I32 {
+fn joined'2(flag: Bool [shared call]) -> I32 {
 bb0(%0: Bool [shared call] guaranteed):
   %2: %Bool address = alloc frame Bool [shared call]
   %3: %Guard address = alloc frame Guard
@@ -428,10 +428,10 @@ bb8:
   store inspect %30 consume %29
   %31: I32 trivial = load inspect %0
   %32: Bool trivial = const True
-  %33: I32 trivial = call joined borrow %32
+  %33: I32 trivial = call joined'2 borrow %32
   %34: I32 trivial = add inspect %31 inspect %33
   %35: Bool trivial = const False
-  %36: I32 trivial = call joined borrow %35
+  %36: I32 trivial = call joined'2 borrow %35
   %37: I32 trivial = add inspect %34 inspect %36
   store inspect %0 consume %37
   %38: %I32 address = global.addr trace

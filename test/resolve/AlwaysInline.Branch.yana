@@ -1,0 +1,51 @@
+-- `@inline(always)` on a body the resolver's one-expression graft cannot take - inventory D12.
+--
+-- Each of these was a hard error until 2026-09-06: a branch, a call, several `return`s, a generic
+-- body that is all three. The attribute now means one thing in both resolve stages, which is what
+-- lets `lib/` write a container's `get` as a body rather than leaving it to a generator.
+--
+-- What the fixture asserts is the *pair* of goldens. `.resolve.expect` is what the resolver
+-- produced, and every call below is still in `main` there, because the graft declined all four.
+-- `.opt.expect` is the same program after compiler/opt, and none of them is: the inliner admits an
+-- `@inline(always)` callee against its ceiling alone, weighing nothing else in its table. See
+-- resolve/inline.h, which argues which pass carries out which half.
+--
+-- The one shape that is still refused is a body that calls itself - Reject.Inline.yana.
+
+-- A branch. The plain form of what the attribute could not carry before.
+@inline(always)
+fn absolute(x: Int) -> Int = if x < 0 then 0 - x else x
+
+-- A call to something else, which is the clause that said what the old restriction was *for*: an
+-- expansion is a run of computation and a call brings a frame with it. The inliner has a frame.
+fn decrement(x: Int) -> Int = x - 1
+
+@inline(always)
+fn stepped(x: Int) -> Int = decrement(x) + 1
+
+-- Several `return`s, so the graft would have had a join to build rather than a value to hand back.
+@inline(always)
+fn clamped(x: Int, limit: Int) -> Int:
+    if x > limit: return limit
+    if x < 0 - limit: return 0 - limit
+    return x
+
+-- The generic form, which is the case D10 is about. A generic `@inline(always)` callee is
+-- specialized rather than erased - a body spent at every site has no code of its own to share - so
+-- what the site declines to graft is the *specialization* below the generic one, and that is what
+-- the inliner takes. Both are printed because this is the root module, whose functions are printed
+-- whether or not anything still calls them.
+@inline(always)
+fn (Ord(a)) below(x: a, y: a) -> Bool = if x < y then True else False
+
+-- Where the numbers come from, and it is `@noinline` on purpose: `main` over four literals folds to
+-- one `ret` and asserts nothing about which pass removed which call. With one value the optimizer
+-- cannot see, what stands in `main` is the four bodies themselves.
+@noinline
+fn source() -> Int = 0 - 4
+
+fn main() -> Int:
+    let a = absolute(source())
+    let b = stepped(3)
+    let c = clamped(99, 5)
+    return if below(a, c) then a + b + c else 0

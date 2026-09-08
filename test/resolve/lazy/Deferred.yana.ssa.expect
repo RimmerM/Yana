@@ -204,17 +204,17 @@ fn capturing() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %capturing.thunk.env address = alloc frame capturing.thunk.env
-  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape2 .0=shared call]
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
   %3: I32 trivial = const 5
   store inspect %0 consume %3
   %4: Bool trivial = const True
-  %5: I32 trivial = load inspect %0
+  %5: I32 trivial = const 5
   %6: capturing.thunk.env trivial = aggregate.capturing.thunk.env consume %5
   store inspect %1 consume %6
   %7: capturing.thunk.env [shared call] guaranteed from{%1} = load inspect %1
-  %8: () -> I32 [owned here shape2 .0=shared call] affine = fun.value capturing.thunk inspect %7
+  %8: () -> I32 [owned here shape8 .0=shared call] affine = fun.value capturing.thunk inspect %7
   store inspect %2 consume %8
-  %9: () -> I32 [shared call shape2 .0=shared call] guaranteed from{%2, %1} = load inspect %2
+  %9: () -> I32 [shared call shape8 .0=shared call] guaranteed from{%1, %2} = load inspect %2
   %10: I32 trivial = call inner borrow %4 borrow %9
   return consume %10
 }
@@ -223,7 +223,7 @@ fn mutableCapture() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %mutableCapture.thunk.env address = alloc frame mutableCapture.thunk.env
-  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape2 .0=shared call]
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
   %3: I32 trivial = const 1
   store inspect %0 consume %3
   %4: I32 trivial = load inspect %0
@@ -234,10 +234,10 @@ bb0:
   %8: I32 [unique slot 0] guaranteed from{%0} = load inspect %0
   %9: mutableCapture.thunk.env affine = aggregate.mutableCapture.thunk.env borrow %8
   store inspect %1 consume %9
-  %10: mutableCapture.thunk.env [shared call] guaranteed from{%1, %0} = load inspect %1
-  %11: () -> I32 [owned here shape2 .0=shared call] affine = fun.value mutableCapture.thunk inspect %10
+  %10: mutableCapture.thunk.env [shared call] guaranteed from{%0, %1} = load inspect %1
+  %11: () -> I32 [owned here shape8 .0=shared call] affine = fun.value mutableCapture.thunk inspect %10
   store inspect %2 consume %11
-  %12: () -> I32 [shared call shape2 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
+  %12: () -> I32 [shared call shape8 .0=shared call] guaranteed from{%0, %1, %2} = load inspect %2
   %13: I32 trivial = call inner borrow %7 borrow %12
   return consume %13
 }
@@ -245,27 +245,27 @@ bb0:
 fn main() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
-  %1: %() -> I32 address = alloc frame () -> I32
-  %2: %() -> I32 address = alloc frame () -> I32
-  %3: %() -> I32 address = alloc frame () -> I32
-  %4: %() -> I32 address = alloc frame () -> I32
-  %5: %() -> Point address = alloc frame () -> Point
-  %6: %() -> Point address = alloc frame () -> Point
-  %7: %() -> I32 address = alloc frame () -> I32
-  %8: %() -> Bool address = alloc frame () -> Bool
-  %9: %() -> I32 address = alloc frame () -> I32
-  %10: %() -> I32 address = alloc frame () -> I32
-  %11: %() -> I32 address = alloc frame () -> I32
-  %12: %() -> Bool address = alloc frame () -> Bool
-  %13: %() -> Bool address = alloc frame () -> Bool
-  %14: %() -> Bool address = alloc frame () -> Bool
-  %15: %() -> Bool address = alloc frame () -> Bool
+  %1: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %3: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %4: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %5: %() -> Point address = alloc frame () -> Point [owned here shape9 .0=unique call]
+  %6: %() -> Point address = alloc frame () -> Point [owned here shape9 .0=unique call]
+  %7: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %8: %() -> Bool address = alloc frame () -> Bool [owned here shape9 .0=unique call]
+  %9: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %10: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %11: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %12: %() -> Bool address = alloc frame () -> Bool [owned here shape9 .0=unique call]
+  %13: %() -> Bool address = alloc frame () -> Bool [owned here shape9 .0=unique call]
+  %14: %() -> Bool address = alloc frame () -> Bool [owned here shape9 .0=unique call]
+  %15: %() -> Bool address = alloc frame () -> Bool [owned here shape9 .0=unique call]
   %16: I32 trivial = const 0
   store inspect %0 consume %16
   %17: Bool trivial = const False
-  %18: () -> I32 affine = fun.value main.thunk
+  %18: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk
   store inspect %1 consume %18
-  %19: () -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %19: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%1} = load inspect %1
   %20: I32 trivial = call outer borrow %17 borrow %19
   %21: I32 trivial = const 0
   %22: Bool trivial = eq inspect %20 inspect %21
@@ -276,9 +276,9 @@ bb1:
 
 bb2:
   %23: Bool trivial = const True
-  %24: () -> I32 affine = fun.value main.thunk'2
+  %24: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk'2
   store inspect %2 consume %24
-  %25: () -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %25: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%2} = load inspect %2
   %26: I32 trivial = call outer borrow %23 borrow %25
   %27: I32 trivial = const 2
   %28: Bool trivial = eq inspect %26 inspect %27
@@ -296,12 +296,12 @@ bb4:
 
 bb5:
   %32: I32 trivial = const 0
-  %33: () -> I32 affine = fun.value main.thunk'3
+  %33: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk'3
   store inspect %3 consume %33
-  %34: () -> I32 [shared call] guaranteed from{%3} = load inspect %3
-  %35: () -> I32 affine = fun.value main.thunk'4
+  %34: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%3} = load inspect %3
+  %35: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk'4
   store inspect %4 consume %35
-  %36: () -> I32 [shared call] guaranteed from{%4} = load inspect %4
+  %36: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%4} = load inspect %4
   %37: I32 trivial = call pick borrow %32 borrow %34 borrow %36
   %38: I32 trivial = const 4
   %39: Bool trivial = eq inspect %37 inspect %38
@@ -351,9 +351,9 @@ bb13:
 
 bb14:
   %55: Bool trivial = const False
-  %56: () -> Point affine = fun.value main.thunk'5
+  %56: () -> Point [owned here shape9 .0=unique call] affine = fun.value main.thunk'5
   store inspect %5 consume %56
-  %57: () -> Point [shared call] guaranteed from{%5} = load inspect %5
+  %57: () -> Point [shared call shape9 .0=unique call] guaranteed from{%5} = load inspect %5
   %58: I32 trivial = call pointOr borrow %55 borrow %57
   %59: I32 trivial = const 0
   %60: Bool trivial = eq inspect %58 inspect %59
@@ -371,9 +371,9 @@ bb16:
 
 bb17:
   %64: Bool trivial = const True
-  %65: () -> Point affine = fun.value main.thunk'6
+  %65: () -> Point [owned here shape9 .0=unique call] affine = fun.value main.thunk'6
   store inspect %6 consume %65
-  %66: () -> Point [shared call] guaranteed from{%6} = load inspect %6
+  %66: () -> Point [shared call shape9 .0=unique call] guaranteed from{%6} = load inspect %6
   %67: I32 trivial = call pointOr borrow %64 borrow %66
   %68: I32 trivial = const 2
   %69: Bool trivial = eq inspect %67 inspect %68
@@ -391,9 +391,9 @@ bb19:
 
 bb20:
   %73: Bool trivial = const True
-  %74: () -> I32 affine = fun.value main.thunk'7
+  %74: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk'7
   store inspect %7 consume %74
-  %75: () -> I32 [shared call] guaranteed from{%7} = load inspect %7
+  %75: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%7} = load inspect %7
   %76: I32 trivial = call orRun(I32) borrow %73 borrow %75
   %77: I32 trivial = const 128
   %78: Bool trivial = eq inspect %76 inspect %77
@@ -411,9 +411,9 @@ bb22:
 
 bb23:
   %82: Bool trivial = const True
-  %83: () -> Bool affine = fun.value main.thunk'8
+  %83: () -> Bool [owned here shape9 .0=unique call] affine = fun.value main.thunk'8
   store inspect %8 consume %83
-  %84: () -> Bool [shared call] guaranteed from{%8} = load inspect %8
+  %84: () -> Bool [shared call shape9 .0=unique call] guaranteed from{%8} = load inspect %8
   %85: Bool trivial = call orRun(Bool) borrow %82 borrow %84
   branch inspect %85 -> bb27 -> bb25
 
@@ -429,9 +429,9 @@ bb25:
 
 bb26:
   %89: Bool trivial = const False
-  %90: () -> I32 affine = fun.value main.thunk'9
+  %90: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk'9
   store inspect %9 consume %90
-  %91: () -> I32 [shared call] guaranteed from{%9} = load inspect %9
+  %91: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%9} = load inspect %9
   %92: I32 trivial = call inner borrow %89 borrow %91
   %93: I32 trivial = const 0
   %94: Bool trivial = eq inspect %92 inspect %93
@@ -449,9 +449,9 @@ bb28:
 
 bb29:
   %98: Bool trivial = const True
-  %99: () -> I32 affine = fun.value main.thunk'10
+  %99: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk'10
   store inspect %10 consume %99
-  %100: () -> I32 [shared call] guaranteed from{%10} = load inspect %10
+  %100: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%10} = load inspect %10
   %101: I32 trivial = call inner borrow %98 borrow %100
   %102: I32 trivial = const 1025
   %103: Bool trivial = eq inspect %101 inspect %102
@@ -469,9 +469,9 @@ bb31:
 
 bb32:
   %107: I32 trivial = const 3
-  %108: () -> I32 affine = fun.value main.thunk'11
+  %108: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk'11
   store inspect %11 consume %108
-  %109: () -> I32 [shared call] guaranteed from{%11} = load inspect %11
+  %109: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%11} = load inspect %11
   %110: I32 trivial = call beforeLoop borrow %107 borrow %109
   %111: I32 trivial = const 2051
   %112: Bool trivial = eq inspect %110 inspect %111
@@ -489,9 +489,9 @@ bb34:
 
 bb35:
   %116: Bool trivial = const False
-  %117: () -> Bool affine = fun.value main.thunk'12
+  %117: () -> Bool [owned here shape9 .0=unique call] affine = fun.value main.thunk'12
   store inspect %12 consume %117
-  %118: () -> Bool [shared call] guaranteed from{%12} = load inspect %12
+  %118: () -> Bool [shared call shape9 .0=unique call] guaranteed from{%12} = load inspect %12
   %119: Bool trivial = call shortAnd borrow %116 borrow %118
   %120: Bool trivial = not inspect %119
   branch inspect %120 -> bb39 -> bb37
@@ -508,9 +508,9 @@ bb37:
 
 bb38:
   %124: Bool trivial = const True
-  %125: () -> Bool affine = fun.value main.thunk'13
+  %125: () -> Bool [owned here shape9 .0=unique call] affine = fun.value main.thunk'13
   store inspect %13 consume %125
-  %126: () -> Bool [shared call] guaranteed from{%13} = load inspect %13
+  %126: () -> Bool [shared call shape9 .0=unique call] guaranteed from{%13} = load inspect %13
   %127: Bool trivial = call shortAnd borrow %124 borrow %126
   branch inspect %127 -> bb42 -> bb40
 
@@ -526,9 +526,9 @@ bb40:
 
 bb41:
   %131: Bool trivial = const True
-  %132: () -> Bool affine = fun.value main.thunk'14
+  %132: () -> Bool [owned here shape9 .0=unique call] affine = fun.value main.thunk'14
   store inspect %14 consume %132
-  %133: () -> Bool [shared call] guaranteed from{%14} = load inspect %14
+  %133: () -> Bool [shared call shape9 .0=unique call] guaranteed from{%14} = load inspect %14
   %134: Bool trivial = call shortOr borrow %131 borrow %133
   branch inspect %134 -> bb45 -> bb43
 
@@ -544,9 +544,9 @@ bb43:
 
 bb44:
   %138: Bool trivial = const False
-  %139: () -> Bool affine = fun.value main.thunk'15
+  %139: () -> Bool [owned here shape9 .0=unique call] affine = fun.value main.thunk'15
   store inspect %15 consume %139
-  %140: () -> Bool [shared call] guaranteed from{%15} = load inspect %15
+  %140: () -> Bool [shared call shape9 .0=unique call] guaranteed from{%15} = load inspect %15
   %141: Bool trivial = call shortOr borrow %138 borrow %140
   branch inspect %141 -> bb48 -> bb46
 

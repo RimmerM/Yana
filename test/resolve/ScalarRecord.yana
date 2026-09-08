@@ -136,7 +136,7 @@ fn extracted() -> Int:
 
 -- A borrow of a field of a record reached through a reference to that record - a reborrow, where the
 -- shift is the caller's and the field's offset is this body's, and the two have to be added.
-fn secondOf(return &f: Flags) -> &Bool = f.b
+fn secondOf(&f: 'Flags) -> &'Bool = f.b
 
 fn reborrowed() -> Int:
     let &t = Two {f: Flags {a: False, b: False}, g: Flags {a: False, b: False}}

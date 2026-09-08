@@ -2,66 +2,43 @@ module ResolveTest
 
 fn pickValue(p: Pick [shared call]) -> I32 {
 bb0(%0: Pick [shared call] guaranteed):
-  %4: %Bool address = alloc frame Bool
-  %5: %Rank address = alloc frame Rank
-  %6: %U8 address = field.addr .# inspect %0
-  %7: U8 trivial = load inspect %6
-  %8: U8 trivial = const 0
-  %9: Bool trivial = eq inspect %7 inspect %8
-  branch inspect %9 -> bb3 -> bb1
+  %3: %Bool address = alloc frame Bool
+  %4: %Rank address = alloc frame Rank
+  %5: %U8 address = field.addr .# inspect %0
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 0
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
 
 bb1:
-  %10: %Rank address = field.addr .Right inspect %0
-  %11: Rank trivial = load inspect %10
-  store inspect %5 consume %11
-  %12: %U8 address = field.addr .# inspect %5
-  %13: U8 trivial = load inspect %12
-  %14: U8 trivial = const 0
-  %15: Bool trivial = eq inspect %13 inspect %14
-  branch inspect %15 -> bb10 -> bb7
+  %9: %Rank address = field.addr .Right inspect %0
+  %10: Rank trivial = load inspect %9
+  store inspect %4 consume %10
+  %11: %U8 address = field.addr .# inspect %4
+  %12: U8 trivial = load inspect %11
+  %13: I32 trivial = map [0 -> 3, 1 -> 4, 2 -> 5] inspect %12
+  jump -> bb2(consume %13)
 
 bb2(%1: I32 trivial):
   return consume %1
 
 bb3:
-  %16: %Bool address = field.addr .Left inspect %0
-  %17: Bool trivial = load inspect %16
-  store inspect %4 consume %17
-  %18: Bool trivial = load inspect %4
-  branch inspect %18 -> bb6 -> bb4
+  %14: %Bool address = field.addr .Left inspect %0
+  %15: Bool trivial = load inspect %14
+  store inspect %3 consume %15
+  %16: Bool trivial = load inspect %3
+  branch inspect %16 -> bb6 -> bb4
 
 bb4:
-  %19: I32 trivial = const 2
-  jump -> bb5(consume %19)
+  %17: I32 trivial = const 2
+  jump -> bb5(consume %17)
 
 bb5(%2: I32 trivial):
   jump -> bb2(consume %2)
 
 bb6:
-  %20: I32 trivial = const 1
-  jump -> bb5(consume %20)
-
-bb7:
-  %21: %U8 address = field.addr .# inspect %5
-  %22: U8 trivial = load inspect %21
-  %23: U8 trivial = const 1
-  %24: Bool trivial = eq inspect %22 inspect %23
-  branch inspect %24 -> bb11 -> bb8
-
-bb8:
-  %25: I32 trivial = const 5
-  jump -> bb9(consume %25)
-
-bb9(%3: I32 trivial):
-  jump -> bb2(consume %3)
-
-bb10:
-  %26: I32 trivial = const 3
-  jump -> bb9(consume %26)
-
-bb11:
-  %27: I32 trivial = const 4
-  jump -> bb9(consume %27)
+  %18: I32 trivial = const 1
+  jump -> bb5(consume %18)
 }
 
 fn levelValue(l: Level [shared call]) -> I32 {
@@ -157,23 +134,11 @@ bb0(%0: Board [shared call] guaranteed):
 
 fn rightIs(b: Board [shared call]) -> I32 {
 bb0(%0: Board [shared call] guaranteed):
-  %2: %Pick address = field.addr .right inspect %0
-  %3: %U8 address = field.addr .# inspect %2
-  %4: U8 trivial = load inspect %3
-  %5: U8 trivial = const 0
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb3 -> bb1
-
-bb1:
-  %7: I32 trivial = const 2
-  jump -> bb2(consume %7)
-
-bb2(%1: I32 trivial):
-  return consume %1
-
-bb3:
-  %8: I32 trivial = const 1
-  jump -> bb2(consume %8)
+  %1: %Pick address = field.addr .right inspect %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 1, 1 -> 2] inspect %3
+  return consume %4
 }
 
 fn maybeValue(m: Maybe(Level) [shared call]) -> I32 {

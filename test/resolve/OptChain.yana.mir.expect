@@ -413,7 +413,7 @@ bb2:
   return take %8
 
 bb3:
-  %4: (I32) -> I32 = fun.value twice
+  %4: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value twice
   %5: Maybe((I32) -> I32) = aggregate.Just take %4
   return take %5
 }
@@ -437,6 +437,7 @@ bb1(%17: Maybe(I32)):
   return take %17
 
 bb2:
+  drop (local1)
   %15: {} = const {}
   %16: Maybe(I32) = call fromExit(Maybe(I32), I32, {}) take {}
   jump -> bb1(take %16)
@@ -447,6 +448,7 @@ bb3:
   %11: (I32) -> I32 [shared call] = read borrow.shared (local2) loan0
   %12: I32 = const 21
   %13: I32 = call inspect %11 borrow.shared %12
+  drop (local2)
   %14: Maybe(I32) = call rewrap(Maybe((I32) -> I32), I32, Maybe(I32)) take %13
   jump -> bb1(take %14)
 }

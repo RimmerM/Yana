@@ -1,8 +1,8 @@
 module ResolveTest
 
-let string: [CodeUnit *2] = [97, 98]
+let string'142: [CodeUnit *2] = [97, 98]
 
-let string'2: [CodeUnit *4] = [97, 98, 99, 100]
+let string'143: [CodeUnit *4] = [97, 98, 99, 100]
 
 fn explain(it: a [shared call], why: () -> I32 [shared call]) -> I32 = <no body>
 
@@ -136,17 +136,17 @@ fn lazyNamed() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %lazyNamed.thunk.env address = alloc frame lazyNamed.thunk.env
-  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape3 .0=shared call]
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
   %3: %I32 address = alloc frame I32
   %4: I32 trivial = const 0
   store inspect %0 consume %4
   %5: I32 [unique slot 0] guaranteed from{%0} = load inspect %0
   %6: lazyNamed.thunk.env affine = aggregate.lazyNamed.thunk.env borrow %5
   store inspect %1 consume %6
-  %7: lazyNamed.thunk.env [shared call] guaranteed from{%1, %0} = load inspect %1
-  %8: () -> I32 [owned here shape3 .0=shared call] affine = fun.value lazyNamed.thunk inspect %7
+  %7: lazyNamed.thunk.env [shared call] guaranteed from{%0, %1} = load inspect %1
+  %8: () -> I32 [owned here shape8 .0=shared call] affine = fun.value lazyNamed.thunk inspect %7
   store inspect %2 consume %8
-  %9: () -> I32 [shared call shape3 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
+  %9: () -> I32 [shared call shape8 .0=shared call] guaranteed from{%0, %1, %2} = load inspect %2
   %10: Bool trivial = const True
   %11: I32 trivial = call choose borrow %10 borrow %9
   store inspect %3 consume %11
@@ -180,35 +180,35 @@ bb3:
 
 fn lazyDefault() -> I32 {
 bb0:
-  %0: %() -> I32 address = alloc frame () -> I32
+  %0: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
   %1: %I32 address = alloc frame I32
-  %2: %() -> I32 address = alloc frame () -> I32
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
   %3: %I32 address = alloc frame I32
-  %4: %() -> I32 address = alloc frame () -> I32
+  %4: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
   %5: %I32 address = alloc frame I32
-  %6: %() -> I32 address = alloc frame () -> I32
+  %6: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
   %7: %I32 address = alloc frame I32
   %8: Bool trivial = const False
-  %9: () -> I32 affine = fun.value note.why.default
+  %9: () -> I32 [owned here shape9 .0=unique call] affine = fun.value note.why.default
   store inspect %0 consume %9
-  %10: () -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %10: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%0} = load inspect %0
   %11: I32 trivial = call note borrow %8 borrow %10
   store inspect %1 consume %11
   %12: Bool trivial = const True
-  %13: () -> I32 affine = fun.value note.why.default
+  %13: () -> I32 [owned here shape9 .0=unique call] affine = fun.value note.why.default
   store inspect %2 consume %13
-  %14: () -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %14: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%2} = load inspect %2
   %15: I32 trivial = call note borrow %12 borrow %14
   store inspect %3 consume %15
   %16: Bool trivial = const False
-  %17: () -> I32 affine = fun.value lazyDefault.thunk
+  %17: () -> I32 [owned here shape9 .0=unique call] affine = fun.value lazyDefault.thunk
   store inspect %4 consume %17
-  %18: () -> I32 [shared call] guaranteed from{%4} = load inspect %4
+  %18: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%4} = load inspect %4
   %19: I32 trivial = call note borrow %16 borrow %18
   store inspect %5 consume %19
-  %20: () -> I32 affine = fun.value lazyDefault.thunk'2
+  %20: () -> I32 [owned here shape9 .0=unique call] affine = fun.value lazyDefault.thunk'2
   store inspect %6 consume %20
-  %21: () -> I32 [shared call] guaranteed from{%6} = load inspect %6
+  %21: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%6} = load inspect %6
   %22: Bool trivial = const False
   %23: I32 trivial = call note borrow %22 borrow %21
   store inspect %7 consume %23
@@ -281,7 +281,7 @@ bb0:
   %2: I32 trivial = const 3
   %3: I32 [unique slot 0] guaranteed = load inspect %0
   %4: lensed.cont.env affine = aggregate.lensed.cont.env borrow %3
-  %5: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value lensed.cont borrow %4
+  %5: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value lensed.cont borrow %4
   %6: I32 trivial = call withOffset(I32) borrow %1 borrow %2 borrow %5
   %7: I32 trivial = load inspect %0
   return consume %7
@@ -294,7 +294,7 @@ bb0:
   %2: I32 trivial = const 200
   %3: I32 [unique slot 0] guaranteed = load inspect %0
   %4: lensNamed.cont.env affine = aggregate.lensNamed.cont.env borrow %3
-  %5: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value lensNamed.cont borrow %4
+  %5: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value lensNamed.cont borrow %4
   %6: I32 trivial = call withOffset(I32) borrow %2 borrow %1 borrow %5
   %7: I32 trivial = load inspect %0
   return consume %7
@@ -353,7 +353,7 @@ bb0:
   %3: I32 trivial = const 0
   %4: I32 [unique slot 0] guaranteed = load inspect %0
   %5: loops.cont'2.env affine = aggregate.loops.cont'2.env borrow %4
-  %6: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value loops.cont'2 borrow %5
+  %6: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value loops.cont'2 borrow %5
   %7: I32 trivial = call upTo borrow %2 borrow %3 borrow %6
   jump -> bb1
 
@@ -362,7 +362,7 @@ bb1:
   %9: I32 trivial = const 13
   %10: I32 [unique slot 0] guaranteed = load inspect %0
   %11: loops.cont.env affine = aggregate.loops.cont.env borrow %10
-  %12: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value loops.cont borrow %11
+  %12: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value loops.cont borrow %11
   %13: I32 trivial = call upTo borrow %9 borrow %8 borrow %12
   jump -> bb2
 
@@ -377,17 +377,10 @@ bb0(%0: I32 [shared call] guaranteed, %1: String [shared call view] guaranteed):
   store inspect %2 borrow %0
   %3: I32 trivial = load inspect %2
   %4: String [shared call view] guaranteed from{%1} = load inspect %1
-  jump -> bb1
-
-bb1:
-  %6: %Size address = field.addr .length inspect %4
-  %7: Size trivial = load inspect %6
-  jump -> bb2(consume %7)
-
-bb2(%5: Size trivial):
-  %8: I32 trivial = convert inspect %5
-  %9: I32 trivial = add inspect %3 inspect %8
-  return consume %9
+  %5: Size trivial = call String.length borrow %4
+  %6: I32 trivial = convert inspect %5
+  %7: I32 trivial = add inspect %3 inspect %6
+  return consume %7
 }
 
 fn <+>(lhs: I32 [shared call], rhs: I32 [shared call], scale: I32 [shared call]) -> I32 {
@@ -434,10 +427,10 @@ bb0:
   %11: %I32 address = alloc frame I32
   %12: %I32 address = alloc frame I32
   %13: %I32 address = alloc frame I32
-  %14: %() -> I32 address = alloc frame () -> I32
-  %15: %() -> I32 address = alloc frame () -> I32
-  %16: %() -> I32 address = alloc frame () -> I32
-  %17: %() -> I32 address = alloc frame () -> I32
+  %14: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %15: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %16: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %17: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
   %18: %String address = alloc frame String
   %19: %String address = alloc frame String
   %20: I32 trivial = const 9
@@ -543,135 +536,76 @@ bb0:
   %106: I32 trivial = add inspect %104 inspect %105
   %107: I32 trivial = call lazyDefault
   %108: I32 trivial = add inspect %106 inspect %107
-  %109: I32 trivial = const 2
-  %110: Bool trivial = const False
-  %111: I32 trivial = call reported(I32) borrow %109 borrow %110
+  %109: Bool trivial = const False
+  %110: I32 trivial = const 2
+  %111: I32 trivial = call reported(I32) borrow %110 borrow %109
   %112: I32 trivial = add inspect %108 inspect %111
   %113: Bool trivial = const True
   %114: Bool trivial = const True
   %115: I32 trivial = call reported(Bool) borrow %113 borrow %114
   %116: I32 trivial = add inspect %112 inspect %115
-  %117: I32 trivial = const 4
-  %118: Bool trivial = const True
-  %119: () -> I32 affine = fun.value audited.fallback.default
+  %117: Bool trivial = const True
+  %118: I32 trivial = const 4
+  %119: () -> I32 [owned here shape9 .0=unique call] affine = fun.value audited.fallback.default
   store inspect %14 consume %119
-  %120: () -> I32 [shared call] guaranteed from{%14} = load inspect %14
-  %121: I32 trivial = call audited(I32) borrow %117 borrow %118 borrow %120
+  %120: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%14} = load inspect %14
+  %121: I32 trivial = call audited(I32) borrow %118 borrow %117 borrow %120
   %122: I32 trivial = add inspect %116 inspect %121
-  %123: I32 trivial = const 4
-  %124: Bool trivial = const False
-  %125: () -> I32 affine = fun.value audited.fallback.default
+  %123: Bool trivial = const False
+  %124: I32 trivial = const 4
+  %125: () -> I32 [owned here shape9 .0=unique call] affine = fun.value audited.fallback.default
   store inspect %15 consume %125
-  %126: () -> I32 [shared call] guaranteed from{%15} = load inspect %15
-  %127: I32 trivial = call audited(I32) borrow %123 borrow %124 borrow %126
+  %126: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%15} = load inspect %15
+  %127: I32 trivial = call audited(I32) borrow %124 borrow %123 borrow %126
   %128: I32 trivial = add inspect %122 inspect %127
   %129: I32 trivial = const 3
-  %130: () -> I32 affine = fun.value explain.why.default
+  %130: () -> I32 [owned here shape9 .0=unique call] affine = fun.value explain.why.default
   store inspect %16 consume %130
-  %131: () -> I32 [shared call] guaranteed from{%16} = load inspect %16
+  %131: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%16} = load inspect %16
   %132: I32 trivial = call I32.explain borrow %129 borrow %131
   %133: I32 trivial = add inspect %128 inspect %132
-  %134: I32 trivial = const 3
-  %135: () -> I32 affine = fun.value main.thunk
-  store inspect %17 consume %135
-  %136: () -> I32 [shared call] guaranteed from{%17} = load inspect %17
-  %137: I32 trivial = call I32.explain borrow %134 borrow %136
+  %134: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk
+  store inspect %17 consume %134
+  %135: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%17} = load inspect %17
+  %136: I32 trivial = const 3
+  %137: I32 trivial = call I32.explain borrow %136 borrow %135
   %138: I32 trivial = add inspect %133 inspect %137
   %139: I32 trivial = const 1
-  %140: %[CodeUnit *2] address = global.addr string
+  %140: %[CodeUnit *2] address = global.addr string'142
   %141: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %140
-  %142: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %141
-  %143: %CodeUnit trivial = bitcast inspect %142
-  %144: Size trivial = const 2
-  jump -> bb1
-
-bb1:
-  %146: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %147: %Size address = alloc frame Size [shared call]
-  store inspect %146 borrow %143
-  store inspect %147 borrow %144
-  %148: %CodeUnit trivial = load inspect %146
-  %149: Size trivial = load inspect %147
-  %150: U32 trivial = convert inspect %149
-  %151: @bits(30) U32 trivial = convert inspect %150
-  %152: %U32 address = global.addr runBorrowed
-  %153: U32 trivial = load inspect %152
-  %154: @bits(2) U32 trivial = convert inspect %153
-  %155: Run(CodeUnit) owned = aggregate.Run consume %148 consume %151 consume %154
-  %156: Size trivial = load inspect %147
-  %157: U32 trivial = convert inspect %156
-  %158: @bits(30) U32 trivial = convert inspect %157
-  %159: Array(CodeUnit) owned = aggregate.Array consume %155 consume %158
-  %160: String owned = aggregate.String consume %159
-  jump -> bb2(consume %160)
-
-bb2(%145: String owned):
+  %142: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %141
+  %143: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %142
+  %144: I32 trivial = const 2
+  %145: String owned = call stringLiteral borrow %143 borrow %144
   store inspect %18 consume %145
-  %161: String [shared call] guaranteed from{%18} = load inspect %18
-  %162: I32 trivial = call labelled borrow %139 borrow %161
+  %146: String [shared call] guaranteed from{%18} = load inspect %18
+  %147: String [shared call view] guaranteed = call String.view borrow %146
+  %148: I32 trivial = call labelled borrow %139 borrow %147
   drop String inspect %18
-  %163: I32 trivial = add inspect %138 inspect %162
-  %164: I32 trivial = const 1
-  %165: %[CodeUnit *4] address = global.addr string'2
-  %166: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %165
-  %167: %[CodeUnit *4] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %166
-  %168: %CodeUnit trivial = bitcast inspect %167
-  %169: Size trivial = const 4
-  jump -> bb3
-
-bb3:
-  %171: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %172: %Size address = alloc frame Size [shared call]
-  store inspect %171 borrow %168
-  store inspect %172 borrow %169
-  %173: %CodeUnit trivial = load inspect %171
-  %174: Size trivial = load inspect %172
-  %175: U32 trivial = convert inspect %174
-  %176: @bits(30) U32 trivial = convert inspect %175
-  %177: %U32 address = global.addr runBorrowed
-  %178: U32 trivial = load inspect %177
-  %179: @bits(2) U32 trivial = convert inspect %178
-  %180: Run(CodeUnit) owned = aggregate.Run consume %173 consume %176 consume %179
-  %181: Size trivial = load inspect %172
-  %182: U32 trivial = convert inspect %181
-  %183: @bits(30) U32 trivial = convert inspect %182
-  %184: Array(CodeUnit) owned = aggregate.Array consume %180 consume %183
-  %185: String owned = aggregate.String consume %184
-  jump -> bb4(consume %185)
-
-bb4(%170: String owned):
-  store inspect %19 consume %170
-  %186: String [shared slot 0] guaranteed from{%19} = load inspect %19
-  jump -> bb5
-
-bb5:
-  %188: %Array(CodeUnit) address = field.addr .units inspect %186
-  %189: %Run(CodeUnit) address = field.addr .run inspect %188
-  %190: %%CodeUnit address = field.addr .items inspect %189
-  %191: %CodeUnit trivial = load inspect %190
-  %192: %Array(CodeUnit) address = field.addr .units inspect %186
-  %193: %@bits(30) U32 address = field.addr .length inspect %192
-  %194: @bits(30) U32 trivial = load inspect %193
-  %195: U32 trivial = convert inspect %194
-  %196: Size trivial = convert inspect %195
-  %197: StringView trivial = aggregate.StringView consume %191 consume %196
-  %198: String [shared slot 0 view] guaranteed = represent inspect %197
-  jump -> bb6(borrow %198)
-
-bb6(%187: String [shared slot 0 view] guaranteed from{%19}):
-  %199: I32 trivial = call labelled borrow %164 borrow %187
+  %149: I32 trivial = add inspect %138 inspect %148
+  %150: I32 trivial = const 1
+  %151: %[CodeUnit *4] address = global.addr string'143
+  %152: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %151
+  %153: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %152
+  %154: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %153
+  %155: I32 trivial = const 4
+  %156: String owned = call stringLiteral borrow %154 borrow %155
+  store inspect %19 consume %156
+  %157: String [shared slot 0] guaranteed from{%19} = load inspect %19
+  %158: String [shared slot 0 view] guaranteed from{%19} = call String.view borrow %157
+  %159: I32 trivial = call labelled borrow %150 borrow %158
   drop String inspect %19
-  %200: I32 trivial = add inspect %163 inspect %199
-  %201: I32 trivial = const 1
-  %202: I32 trivial = const 2
-  %203: I32 trivial = const 3
-  %204: I32 trivial = call <+> borrow %201 borrow %202 borrow %203
-  %205: I32 trivial = add inspect %200 inspect %204
-  %206: I32 trivial = const 5
-  %207: I32 trivial = const 2
-  %208: I32 trivial = call <-> borrow %206 borrow %207
-  %209: I32 trivial = add inspect %205 inspect %208
-  return consume %209
+  %160: I32 trivial = add inspect %149 inspect %159
+  %161: I32 trivial = const 1
+  %162: I32 trivial = const 2
+  %163: I32 trivial = const 3
+  %164: I32 trivial = call <+> borrow %161 borrow %162 borrow %163
+  %165: I32 trivial = add inspect %160 inspect %164
+  %166: I32 trivial = const 5
+  %167: I32 trivial = const 2
+  %168: I32 trivial = call <-> borrow %166 borrow %167
+  %169: I32 trivial = add inspect %165 inspect %168
+  return consume %169
 }
 
 fn lazyNamed.thunk(lazyNamed.thunk.env: lazyNamed.thunk.env [unique call]) -> I32 {
@@ -735,13 +669,13 @@ fn reported(I32)(it: I32 [shared call], held: Bool [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed, %1: Bool [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %Bool address = alloc frame Bool [shared call]
-  %4: %() -> I32 address = alloc frame () -> I32
+  %4: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
   store inspect %2 borrow %0
   store inspect %3 borrow %1
   %5: Bool trivial = load inspect %3
-  %6: () -> I32 affine = fun.value note.why.default
+  %6: () -> I32 [owned here shape9 .0=unique call] affine = fun.value note.why.default
   store inspect %4 consume %6
-  %7: () -> I32 [shared call] guaranteed from{%4} = load inspect %4
+  %7: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%4} = load inspect %4
   %8: I32 trivial = call note borrow %5 borrow %7
   %9: I32 [shared call] guaranteed from{%2} = load inspect %2
   %10: I32 trivial = const 1
@@ -754,13 +688,13 @@ fn reported(Bool)(it: Bool [shared call], held: Bool [shared call]) -> I32 {
 bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
   %2: %Bool address = alloc frame Bool [shared call]
   %3: %Bool address = alloc frame Bool [shared call]
-  %4: %() -> I32 address = alloc frame () -> I32
+  %4: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
   store inspect %2 borrow %0
   store inspect %3 borrow %1
   %5: Bool trivial = load inspect %3
-  %6: () -> I32 affine = fun.value note.why.default
+  %6: () -> I32 [owned here shape9 .0=unique call] affine = fun.value note.why.default
   store inspect %4 consume %6
-  %7: () -> I32 [shared call] guaranteed from{%4} = load inspect %4
+  %7: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%4} = load inspect %4
   %8: I32 trivial = call note borrow %5 borrow %7
   %9: Bool [shared call] guaranteed from{%2} = load inspect %2
   %10: I32 trivial = const 1

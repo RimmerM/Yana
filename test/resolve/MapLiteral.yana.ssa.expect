@@ -1,0 +1,970 @@
+module ResolveTest
+
+let & shared: Map(I32, I32)
+
+let string'142: [CodeUnit *1] = [120]
+
+let string'143: [CodeUnit *1] = [121]
+
+let string'144: [CodeUnit *1] = [120]
+
+let string'145: [CodeUnit *1] = [121]
+
+fn total(m: Map(I32, I32) [shared call]) -> I32 {
+bb0(%0: Map(I32, I32) [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: I32 trivial = const 0
+  store inspect %1 consume %2
+  %3: Map(I32, I32) [shared slot 0] guaranteed from{%0} = load inspect %0
+  %4: I32 [unique slot 0] guaranteed = load inspect %1
+  %5: total.cont.env affine = aggregate.total.cont.env borrow %4
+  %6: (Entry(I32, I32)) -> I32 [owned here shape9 .0=shared call] affine = fun.value total.cont borrow %5
+  %7: I32 trivial = call pairs(I32, I32) borrow %3 borrow %6
+  jump -> bb1
+
+bb1:
+  %8: I32 trivial = load inspect %1
+  return consume %8
+}
+
+fn single(key: k, value: v) -> Map(k, v) = <no body>
+
+fn pair(k1: k, v1: v, k2: k, v2: v) -> Map(k, v) = <no body>
+
+fn emptyOf() -> Map(k, v) = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %1: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %2: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %3: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %4: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %5: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %6: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %7: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %8: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %9: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %10: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %11: %Table address = alloc frame Table
+  %12: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %13: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %14: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %15: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %16: %I32 address = alloc frame I32
+  %17: %I32 address = alloc frame I32
+  %18: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %19: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %20: %I32 address = alloc frame I32
+  %21: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %22: %Map(String, I32) address = alloc frame Map(String, I32)
+  %23: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %24: %String address = alloc frame String
+  %25: %String address = alloc frame String
+  %26: %Array(I32) address = alloc frame Array(I32)
+  %27: %Array(I32) address = alloc frame Array(I32)
+  %28: %Map(I32, Array(I32)) address = alloc frame Map(I32, Array(I32))
+  %29: %Map(I32, Array(I32)) address = alloc frame Map(I32, Array(I32))
+  %30: %I32 address = alloc frame I32
+  %31: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %32: %Map(I32, Map(I32, I32)) address = alloc frame Map(I32, Map(I32, I32))
+  %33: %Map(I32, Map(I32, I32)) address = alloc frame Map(I32, Map(I32, I32))
+  %34: I32 trivial = const 1
+  %35: I32 trivial = const 10
+  %36: I32 trivial = const 2
+  %37: I32 trivial = const 20
+  %38: I32 trivial = const 3
+  %39: I32 trivial = const 30
+  %40: Size trivial = const 3
+  %41: Map(I32, I32) owned = call newMap(I32, I32) borrow %40
+  store inspect %0 consume %41
+  %42: Map(I32, I32) [unique call] guaranteed from{%0} = load inspect %0
+  call Map(k, v).insertAt(I32, I32) borrow %42 consume %34 consume %35
+  %43: Map(I32, I32) [unique call] guaranteed from{%0} = load inspect %0
+  call Map(k, v).insertAt(I32, I32) borrow %43 consume %36 consume %37
+  %44: Map(I32, I32) [unique call] guaranteed from{%0} = load inspect %0
+  call Map(k, v).insertAt(I32, I32) borrow %44 consume %38 consume %39
+  %45: Map(I32, I32) owned = load inspect %0
+  store inspect %1 consume %45
+  %46: Map(I32, I32) [shared call] guaranteed from{%1} = load inspect %1
+  %47: Size trivial = call Map(k, v).length(I32, I32) borrow %46
+  %48: I32 trivial = convert inspect %47
+  %49: I32 trivial = const 3
+  %50: Bool trivial = ne inspect %48 inspect %49
+  branch inspect %50 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %51: I32 trivial = const 1
+  %52: Map(I32, I32) [shared call] guaranteed from{%1} = load inspect %1
+  %53: I32 [shared slot 0] guaranteed from{%1} = call Map(k, v).get(I32, I32) borrow %52 borrow %51
+  %54: I32 trivial = load inspect %53
+  %55: I32 trivial = const 2
+  %56: Map(I32, I32) [shared call] guaranteed from{%1} = load inspect %1
+  %57: I32 [shared slot 0] guaranteed from{%1} = call Map(k, v).get(I32, I32) borrow %56 borrow %55
+  %58: I32 trivial = load inspect %57
+  %59: I32 trivial = add inspect %54 inspect %58
+  %60: I32 trivial = const 3
+  %61: Map(I32, I32) [shared call] guaranteed from{%1} = load inspect %1
+  %62: I32 [shared slot 0] guaranteed from{%1} = call Map(k, v).get(I32, I32) borrow %61 borrow %60
+  %63: I32 trivial = load inspect %62
+  %64: I32 trivial = add inspect %59 inspect %63
+  %65: I32 trivial = const 60
+  %66: Bool trivial = ne inspect %64 inspect %65
+  branch inspect %66 -> bb6 -> bb4
+
+bb3:
+  drop Map(I32, I32) inspect %1
+  %67: I32 trivial = const 0
+  %68: I32 trivial = const 1
+  %69: I32 trivial = sub inspect %67 inspect %68
+  return consume %69
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %70: I32 trivial = const 4
+  %71: I32 trivial = const 40
+  %72: Map(I32, I32) [unique call] guaranteed from{%1} = load inspect %1
+  call Map(k, v).insertAt(I32, I32) borrow %72 consume %70 consume %71
+  %73: I32 trivial = const 1
+  %74: I32 trivial = const 100
+  %75: Map(I32, I32) [unique call] guaranteed from{%1} = load inspect %1
+  call Map(k, v).insertAt(I32, I32) borrow %75 consume %73 consume %74
+  %76: Map(I32, I32) [shared call] guaranteed from{%1} = load inspect %1
+  %77: Size trivial = call Map(k, v).length(I32, I32) borrow %76
+  %78: I32 trivial = convert inspect %77
+  %79: I32 trivial = const 4
+  %80: Bool trivial = ne inspect %78 inspect %79
+  branch inspect %80 -> bb9 -> bb7
+
+bb6:
+  drop Map(I32, I32) inspect %1
+  %81: I32 trivial = const 0
+  %82: I32 trivial = const 2
+  %83: I32 trivial = sub inspect %81 inspect %82
+  return consume %83
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %84: I32 trivial = const 1
+  %85: Map(I32, I32) [shared call] guaranteed from{%1} = load inspect %1
+  %86: I32 [shared slot 0] guaranteed from{%1} = call Map(k, v).get(I32, I32) borrow %85 borrow %84
+  %87: I32 trivial = load inspect %86
+  %88: I32 trivial = const 100
+  %89: Bool trivial = ne inspect %87 inspect %88
+  branch inspect %89 -> bb12 -> bb10
+
+bb9:
+  drop Map(I32, I32) inspect %1
+  %90: I32 trivial = const 0
+  %91: I32 trivial = const 3
+  %92: I32 trivial = sub inspect %90 inspect %91
+  return consume %92
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %93: I32 trivial = const 4
+  %94: Map(I32, I32) [shared call] guaranteed from{%1} = load inspect %1
+  %95: I32 [shared slot 0] guaranteed from{%1} = call Map(k, v).get(I32, I32) borrow %94 borrow %93
+  %96: I32 trivial = load inspect %95
+  drop Map(I32, I32) inspect %1
+  %97: I32 trivial = const 40
+  %98: Bool trivial = ne inspect %96 inspect %97
+  branch inspect %98 -> bb15 -> bb13
+
+bb12:
+  drop Map(I32, I32) inspect %1
+  %99: I32 trivial = const 0
+  %100: I32 trivial = const 4
+  %101: I32 trivial = sub inspect %99 inspect %100
+  return consume %101
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %102: I32 trivial = const 7
+  %103: I32 trivial = const 70
+  %104: Size trivial = const 1
+  %105: Map(I32, I32) owned = call newMap(I32, I32) borrow %104
+  store inspect %2 consume %105
+  %106: Map(I32, I32) [unique call] guaranteed from{%2} = load inspect %2
+  call Map(k, v).insertAt(I32, I32) borrow %106 consume %102 consume %103
+  %107: Map(I32, I32) owned = load inspect %2
+  store inspect %3 consume %107
+  %108: Map(I32, I32) [shared call] guaranteed from{%3} = load inspect %3
+  %109: I32 trivial = call total borrow %108
+  drop Map(I32, I32) inspect %3
+  %110: I32 trivial = const 70
+  %111: Bool trivial = ne inspect %109 inspect %110
+  branch inspect %111 -> bb18 -> bb16
+
+bb15:
+  %112: I32 trivial = const 0
+  %113: I32 trivial = const 5
+  %114: I32 trivial = sub inspect %112 inspect %113
+  return consume %114
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %115: Size trivial = const 0
+  %116: Map(I32, I32) owned = call newMap(I32, I32) borrow %115
+  store inspect %4 consume %116
+  %117: Map(I32, I32) owned = load inspect %4
+  store inspect %5 consume %117
+  %118: Map(I32, I32) [shared call] guaranteed from{%5} = load inspect %5
+  %119: Size trivial = call Map(k, v).length(I32, I32) borrow %118
+  %120: I32 trivial = convert inspect %119
+  %121: I32 trivial = const 0
+  %122: Bool trivial = ne inspect %120 inspect %121
+  branch inspect %122 -> bb21 -> bb19
+
+bb18:
+  %123: I32 trivial = const 0
+  %124: I32 trivial = const 6
+  %125: I32 trivial = sub inspect %123 inspect %124
+  return consume %125
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %126: I32 trivial = const 1
+  %127: I32 trivial = const 5
+  %128: Map(I32, I32) [unique call] guaranteed from{%5} = load inspect %5
+  call Map(k, v).insertAt(I32, I32) borrow %128 consume %126 consume %127
+  %129: I32 trivial = const 1
+  %130: Map(I32, I32) [shared call] guaranteed from{%5} = load inspect %5
+  %131: I32 [shared slot 0] guaranteed from{%5} = call Map(k, v).get(I32, I32) borrow %130 borrow %129
+  %132: I32 trivial = load inspect %131
+  %133: I32 trivial = const 5
+  %134: Bool trivial = ne inspect %132 inspect %133
+  branch inspect %134 -> bb24 -> bb22
+
+bb21:
+  drop Map(I32, I32) inspect %5
+  %135: I32 trivial = const 0
+  %136: I32 trivial = const 7
+  %137: I32 trivial = sub inspect %135 inspect %136
+  return consume %137
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %138: Map(I32, I32) [shared call] guaranteed from{%5} = load inspect %5
+  %139: Size trivial = call Map(k, v).length(I32, I32) borrow %138
+  drop Map(I32, I32) inspect %5
+  %140: I32 trivial = convert inspect %139
+  %141: I32 trivial = const 1
+  %142: Bool trivial = ne inspect %140 inspect %141
+  branch inspect %142 -> bb27 -> bb25
+
+bb24:
+  drop Map(I32, I32) inspect %5
+  %143: I32 trivial = const 0
+  %144: I32 trivial = const 8
+  %145: I32 trivial = sub inspect %143 inspect %144
+  return consume %145
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %146: I32 trivial = const 8
+  %147: I32 trivial = const 80
+  %148: Size trivial = const 1
+  %149: Map(I32, I32) owned = call newMap(I32, I32) borrow %148
+  store inspect %6 consume %149
+  %150: Map(I32, I32) [unique call] guaranteed from{%6} = load inspect %6
+  call Map(k, v).insertAt(I32, I32) borrow %150 consume %146 consume %147
+  %151: Map(I32, I32) owned = load inspect %6
+  store inspect %7 consume %151
+  %152: Map(I32, I32) [shared call] guaranteed from{%7} = load inspect %7
+  %153: I32 trivial = call total borrow %152
+  drop Map(I32, I32) inspect %7
+  %154: I32 trivial = const 80
+  %155: Bool trivial = ne inspect %153 inspect %154
+  branch inspect %155 -> bb30 -> bb28
+
+bb27:
+  %156: I32 trivial = const 0
+  %157: I32 trivial = const 9
+  %158: I32 trivial = sub inspect %156 inspect %157
+  return consume %158
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %159: I32 trivial = const 1
+  %160: I32 trivial = const 1
+  %161: I32 trivial = const 2
+  %162: I32 trivial = const 2
+  %163: Size trivial = const 2
+  %164: Map(I32, I32) owned = call newMap(I32, I32) borrow %163
+  store inspect %8 consume %164
+  %165: Map(I32, I32) [unique call] guaranteed from{%8} = load inspect %8
+  call Map(k, v).insertAt(I32, I32) borrow %165 consume %159 consume %160
+  %166: Map(I32, I32) [unique call] guaranteed from{%8} = load inspect %8
+  call Map(k, v).insertAt(I32, I32) borrow %166 consume %161 consume %162
+  %167: Map(I32, I32) owned = load inspect %8
+  store inspect %9 consume %167
+  %168: Map(I32, I32) [shared call] guaranteed from{%9} = load inspect %9
+  %169: I32 trivial = call total borrow %168
+  drop Map(I32, I32) inspect %9
+  %170: I32 trivial = const 3
+  %171: Bool trivial = ne inspect %169 inspect %170
+  branch inspect %171 -> bb33 -> bb31
+
+bb30:
+  %172: I32 trivial = const 0
+  %173: I32 trivial = const 10
+  %174: I32 trivial = sub inspect %172 inspect %173
+  return consume %174
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %175: I32 trivial = const 9
+  %176: I32 trivial = const 90
+  %177: Size trivial = const 1
+  %178: Map(I32, I32) owned = call newMap(I32, I32) borrow %177
+  store inspect %10 consume %178
+  %179: Map(I32, I32) [unique call] guaranteed from{%10} = load inspect %10
+  call Map(k, v).insertAt(I32, I32) borrow %179 consume %175 consume %176
+  %180: Map(I32, I32) owned = load inspect %10
+  %181: Table owned = aggregate.Table consume %180
+  store inspect %11 consume %181
+  %182: I32 trivial = const 8
+  %183: I32 trivial = const 80
+  %184: %Map(I32, I32) address = field.addr .rows inspect %11
+  %185: Map(I32, I32) [unique call] guaranteed from{%11} = load inspect %184
+  call Map(k, v).insertAt(I32, I32) borrow %185 consume %182 consume %183
+  %186: I32 trivial = const 9
+  %187: %Map(I32, I32) address = field.addr .rows inspect %11
+  %188: Map(I32, I32) [shared call] guaranteed from{%11} = load inspect %187
+  %189: I32 [shared slot 0] guaranteed from{%11} = call Map(k, v).get(I32, I32) borrow %188 borrow %186
+  %190: I32 trivial = load inspect %189
+  %191: I32 trivial = const 8
+  %192: %Map(I32, I32) address = field.addr .rows inspect %11
+  %193: Map(I32, I32) [shared call] guaranteed from{%11} = load inspect %192
+  %194: I32 [shared slot 0] guaranteed from{%11} = call Map(k, v).get(I32, I32) borrow %193 borrow %191
+  %195: I32 trivial = load inspect %194
+  drop Table inspect %11
+  %196: I32 trivial = add inspect %190 inspect %195
+  %197: I32 trivial = const 170
+  %198: Bool trivial = ne inspect %196 inspect %197
+  branch inspect %198 -> bb36 -> bb34
+
+bb33:
+  %199: I32 trivial = const 0
+  %200: I32 trivial = const 11
+  %201: I32 trivial = sub inspect %199 inspect %200
+  return consume %201
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %202: I32 trivial = const 1
+  %203: I32 trivial = const 10
+  %204: I32 trivial = const 2
+  %205: I32 trivial = const 20
+  %206: I32 trivial = const 1
+  %207: I32 trivial = const 30
+  %208: Size trivial = const 3
+  %209: Map(I32, I32) owned = call newMap(I32, I32) borrow %208
+  store inspect %12 consume %209
+  %210: Map(I32, I32) [unique call] guaranteed from{%12} = load inspect %12
+  call Map(k, v).insertAt(I32, I32) borrow %210 consume %202 consume %203
+  %211: Map(I32, I32) [unique call] guaranteed from{%12} = load inspect %12
+  call Map(k, v).insertAt(I32, I32) borrow %211 consume %204 consume %205
+  %212: Map(I32, I32) [unique call] guaranteed from{%12} = load inspect %12
+  call Map(k, v).insertAt(I32, I32) borrow %212 consume %206 consume %207
+  %213: Map(I32, I32) owned = load inspect %12
+  store inspect %13 consume %213
+  %214: Map(I32, I32) [shared call] guaranteed from{%13} = load inspect %13
+  %215: Size trivial = call Map(k, v).length(I32, I32) borrow %214
+  %216: I32 trivial = convert inspect %215
+  %217: I32 trivial = const 2
+  %218: Bool trivial = ne inspect %216 inspect %217
+  branch inspect %218 -> bb39 -> bb37
+
+bb36:
+  %219: I32 trivial = const 0
+  %220: I32 trivial = const 12
+  %221: I32 trivial = sub inspect %219 inspect %220
+  return consume %221
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %222: I32 trivial = const 1
+  %223: Map(I32, I32) [shared call] guaranteed from{%13} = load inspect %13
+  %224: I32 [shared slot 0] guaranteed from{%13} = call Map(k, v).get(I32, I32) borrow %223 borrow %222
+  %225: I32 trivial = load inspect %224
+  %226: I32 trivial = const 30
+  %227: Bool trivial = ne inspect %225 inspect %226
+  branch inspect %227 -> bb42 -> bb40
+
+bb39:
+  drop Map(I32, I32) inspect %13
+  %228: I32 trivial = const 0
+  %229: I32 trivial = const 13
+  %230: I32 trivial = sub inspect %228 inspect %229
+  return consume %230
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %231: I32 trivial = const 2
+  %232: Map(I32, I32) [shared call] guaranteed from{%13} = load inspect %13
+  %233: I32 [shared slot 0] guaranteed from{%13} = call Map(k, v).get(I32, I32) borrow %232 borrow %231
+  %234: I32 trivial = load inspect %233
+  drop Map(I32, I32) inspect %13
+  %235: I32 trivial = const 20
+  %236: Bool trivial = ne inspect %234 inspect %235
+  branch inspect %236 -> bb45 -> bb43
+
+bb42:
+  drop Map(I32, I32) inspect %13
+  %237: I32 trivial = const 0
+  %238: I32 trivial = const 14
+  %239: I32 trivial = sub inspect %237 inspect %238
+  return consume %239
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %240: I32 trivial = const 0
+  %241: I32 trivial = const 0
+  %242: I32 trivial = const 1
+  %243: I32 trivial = const 10
+  %244: I32 trivial = const 2
+  %245: I32 trivial = const 20
+  %246: I32 trivial = const 3
+  %247: I32 trivial = const 30
+  %248: I32 trivial = const 4
+  %249: I32 trivial = const 40
+  %250: I32 trivial = const 5
+  %251: I32 trivial = const 50
+  %252: I32 trivial = const 6
+  %253: I32 trivial = const 60
+  %254: I32 trivial = const 7
+  %255: I32 trivial = const 70
+  %256: I32 trivial = const 8
+  %257: I32 trivial = const 80
+  %258: I32 trivial = const 9
+  %259: I32 trivial = const 90
+  %260: I32 trivial = const 10
+  %261: I32 trivial = const 100
+  %262: I32 trivial = const 11
+  %263: I32 trivial = const 110
+  %264: Size trivial = const 12
+  %265: Map(I32, I32) owned = call newMap(I32, I32) borrow %264
+  store inspect %14 consume %265
+  %266: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %266 consume %240 consume %241
+  %267: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %267 consume %242 consume %243
+  %268: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %268 consume %244 consume %245
+  %269: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %269 consume %246 consume %247
+  %270: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %270 consume %248 consume %249
+  %271: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %271 consume %250 consume %251
+  %272: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %272 consume %252 consume %253
+  %273: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %273 consume %254 consume %255
+  %274: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %274 consume %256 consume %257
+  %275: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %275 consume %258 consume %259
+  %276: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %276 consume %260 consume %261
+  %277: Map(I32, I32) [unique call] guaranteed from{%14} = load inspect %14
+  call Map(k, v).insertAt(I32, I32) borrow %277 consume %262 consume %263
+  %278: Map(I32, I32) owned = load inspect %14
+  store inspect %15 consume %278
+  %279: Map(I32, I32) [shared call] guaranteed from{%15} = load inspect %15
+  %280: Size trivial = call Map(k, v).length(I32, I32) borrow %279
+  %281: I32 trivial = convert inspect %280
+  %282: I32 trivial = const 12
+  %283: Bool trivial = ne inspect %281 inspect %282
+  branch inspect %283 -> bb48 -> bb46
+
+bb45:
+  %284: I32 trivial = const 0
+  %285: I32 trivial = const 15
+  %286: I32 trivial = sub inspect %284 inspect %285
+  return consume %286
+
+bb46:
+  jump -> bb47
+
+bb47:
+  %287: I32 trivial = const 0
+  store inspect %16 consume %287
+  %288: I32 trivial = const 0
+  store inspect %17 consume %288
+  jump -> bb49
+
+bb48:
+  drop Map(I32, I32) inspect %15
+  %289: I32 trivial = const 0
+  %290: I32 trivial = const 16
+  %291: I32 trivial = sub inspect %289 inspect %290
+  return consume %291
+
+bb49:
+  %292: I32 trivial = load inspect %16
+  %293: I32 trivial = const 12
+  %294: Bool trivial = lt inspect %292 inspect %293
+  branch inspect %294 -> bb51 -> bb50
+
+bb50:
+  drop Map(I32, I32) inspect %15
+  %295: I32 trivial = load inspect %17
+  %296: I32 trivial = const 12
+  %297: Bool trivial = ne inspect %295 inspect %296
+  branch inspect %297 -> bb57 -> bb55
+
+bb51:
+  %298: I32 trivial = load inspect %16
+  %299: Map(I32, I32) [shared call] guaranteed from{%15} = load inspect %15
+  %300: I32 [shared slot 0] guaranteed from{%15} = call Map(k, v).get(I32, I32) borrow %299 borrow %298
+  %301: I32 trivial = load inspect %300
+  %302: I32 trivial = load inspect %16
+  %303: I32 trivial = const 10
+  %304: I32 trivial = mul inspect %302 inspect %303
+  %305: Bool trivial = eq inspect %301 inspect %304
+  branch inspect %305 -> bb54 -> bb52
+
+bb52:
+  jump -> bb53
+
+bb53:
+  %306: I32 trivial = load inspect %16
+  %307: I32 trivial = const 1
+  %308: I32 trivial = add inspect %306 inspect %307
+  store inspect %16 consume %308
+  jump -> bb49
+
+bb54:
+  %309: I32 trivial = load inspect %17
+  %310: I32 trivial = const 1
+  %311: I32 trivial = add inspect %309 inspect %310
+  store inspect %17 consume %311
+  jump -> bb53
+
+bb55:
+  jump -> bb56
+
+bb56:
+  %312: I32 trivial = const 3
+  %313: I32 trivial = const 1
+  %314: I32 trivial = const 1
+  %315: I32 trivial = const 2
+  %316: I32 trivial = const 2
+  %317: I32 trivial = const 3
+  %318: Size trivial = const 3
+  %319: Map(I32, I32) owned = call newMap(I32, I32) borrow %318
+  store inspect %18 consume %319
+  %320: Map(I32, I32) [unique call] guaranteed from{%18} = load inspect %18
+  call Map(k, v).insertAt(I32, I32) borrow %320 consume %312 consume %313
+  %321: Map(I32, I32) [unique call] guaranteed from{%18} = load inspect %18
+  call Map(k, v).insertAt(I32, I32) borrow %321 consume %314 consume %315
+  %322: Map(I32, I32) [unique call] guaranteed from{%18} = load inspect %18
+  call Map(k, v).insertAt(I32, I32) borrow %322 consume %316 consume %317
+  %323: Map(I32, I32) owned = load inspect %18
+  store inspect %19 consume %323
+  %324: I32 trivial = const 0
+  store inspect %20 consume %324
+  %325: Map(I32, I32) [shared slot 0] guaranteed from{%19} = load inspect %19
+  %326: I32 [unique slot 0] guaranteed = load inspect %20
+  %327: main.cont'2.env affine = aggregate.main.cont'2.env borrow %326
+  %328: (Entry(I32, I32)) -> I32 [owned here shape9 .0=shared call] affine = fun.value main.cont'2 borrow %327
+  %329: I32 trivial = call pairs(I32, I32) borrow %325 borrow %328
+  jump -> bb58
+
+bb57:
+  %330: I32 trivial = const 0
+  %331: I32 trivial = const 17
+  %332: I32 trivial = sub inspect %330 inspect %331
+  return consume %332
+
+bb58:
+  drop Map(I32, I32) inspect %19
+  %333: I32 trivial = load inspect %20
+  %334: I32 trivial = const 312
+  %335: Bool trivial = ne inspect %333 inspect %334
+  branch inspect %335 -> bb61 -> bb59
+
+bb59:
+  jump -> bb60
+
+bb60:
+  %336: I32 trivial = const 6
+  %337: I32 trivial = const 60
+  %338: %Map(I32, I32) address = global.addr shared
+  %339: Map(I32, I32) [unique call] guaranteed = load inspect %338
+  call Map(k, v).insertAt(I32, I32) borrow %339 consume %336 consume %337
+  %340: I32 trivial = const 5
+  %341: %Map(I32, I32) address = global.addr shared
+  %342: Map(I32, I32) [shared call] guaranteed = load inspect %341
+  %343: I32 [shared slot 0] guaranteed = call Map(k, v).get(I32, I32) borrow %342 borrow %340
+  %344: I32 trivial = load inspect %343
+  %345: I32 trivial = const 6
+  %346: %Map(I32, I32) address = global.addr shared
+  %347: Map(I32, I32) [shared call] guaranteed = load inspect %346
+  %348: I32 [shared slot 0] guaranteed = call Map(k, v).get(I32, I32) borrow %347 borrow %345
+  %349: I32 trivial = load inspect %348
+  %350: I32 trivial = add inspect %344 inspect %349
+  %351: I32 trivial = const 110
+  %352: Bool trivial = ne inspect %350 inspect %351
+  branch inspect %352 -> bb64 -> bb62
+
+bb61:
+  %353: I32 trivial = const 0
+  %354: I32 trivial = const 18
+  %355: I32 trivial = sub inspect %353 inspect %354
+  return consume %355
+
+bb62:
+  jump -> bb63
+
+bb63:
+  %356: I32 trivial = const 1
+  %357: I32 trivial = const 10
+  %358: Map(I32, I32) owned = call single(I32, I32) consume %356 consume %357
+  store inspect %21 consume %358
+  %359: %[CodeUnit *1] address = global.addr string'142
+  %360: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %359
+  %361: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %360
+  %362: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %361
+  %363: I32 trivial = const 1
+  %364: String owned = call stringLiteral borrow %362 borrow %363
+  %365: %[CodeUnit *1] address = global.addr string'143
+  %366: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %365
+  %367: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %366
+  %368: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %367
+  %369: I32 trivial = const 1
+  %370: String owned = call stringLiteral borrow %368 borrow %369
+  %371: I32 trivial = const 1
+  %372: I32 trivial = const 2
+  %373: Map(String, I32) owned = call pair(String, I32) consume %364 consume %371 consume %370 consume %372
+  store inspect %22 consume %373
+  %374: Map(I32, I32) owned = call emptyOf(I32, I32)
+  store inspect %23 consume %374
+  %375: I32 trivial = const 1
+  %376: Map(I32, I32) [shared call] guaranteed from{%21} = load inspect %21
+  %377: I32 [shared slot 0] guaranteed from{%21} = call Map(k, v).get(I32, I32) borrow %376 borrow %375
+  %378: I32 trivial = load inspect %377
+  drop Map(I32, I32) inspect %21
+  %379: %[CodeUnit *1] address = global.addr string'144
+  %380: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %379
+  %381: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %380
+  %382: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %381
+  %383: I32 trivial = const 1
+  %384: String owned = call stringLiteral borrow %382 borrow %383
+  %385: Map(String, I32) [shared call] guaranteed from{%22} = load inspect %22
+  store inspect %24 consume %384
+  %386: String [shared slot 0] guaranteed from{%24} = load inspect %24
+  %387: String [shared slot 0 view] guaranteed from{%24} = call String.view borrow %386
+  %388: I32 [shared slot 0] guaranteed from{%22} = call Map(k, v).get(String, I32) borrow %385 borrow %387
+  drop String inspect %24
+  %389: I32 trivial = load inspect %388
+  %390: I32 trivial = add inspect %378 inspect %389
+  %391: %[CodeUnit *1] address = global.addr string'145
+  %392: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %391
+  %393: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %392
+  %394: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %393
+  %395: I32 trivial = const 1
+  %396: String owned = call stringLiteral borrow %394 borrow %395
+  %397: Map(String, I32) [shared call] guaranteed from{%22} = load inspect %22
+  store inspect %25 consume %396
+  %398: String [shared slot 0] guaranteed from{%25} = load inspect %25
+  %399: String [shared slot 0 view] guaranteed from{%25} = call String.view borrow %398
+  %400: I32 [shared slot 0] guaranteed from{%22} = call Map(k, v).get(String, I32) borrow %397 borrow %399
+  drop String inspect %25
+  %401: I32 trivial = load inspect %400
+  drop Map(String, I32) inspect %22
+  %402: I32 trivial = add inspect %390 inspect %401
+  %403: Map(I32, I32) [shared call] guaranteed from{%23} = load inspect %23
+  %404: Size trivial = call Map(k, v).length(I32, I32) borrow %403
+  drop Map(I32, I32) inspect %23
+  %405: I32 trivial = convert inspect %404
+  %406: I32 trivial = add inspect %402 inspect %405
+  %407: I32 trivial = const 13
+  %408: Bool trivial = ne inspect %406 inspect %407
+  branch inspect %408 -> bb67 -> bb65
+
+bb64:
+  %409: I32 trivial = const 0
+  %410: I32 trivial = const 19
+  %411: I32 trivial = sub inspect %409 inspect %410
+  return consume %411
+
+bb65:
+  jump -> bb66
+
+bb66:
+  %412: I32 trivial = const 1
+  %413: I32 trivial = const 10
+  %414: I32 trivial = const 11
+  %415: Size trivial = const 2
+  %416: Array(I32) owned = call literalArray(I32) borrow %415
+  store inspect %26 consume %416
+  %417: Array(I32) [unique slot 0] guaranteed from{%26} = load inspect %26
+  %418: Array(I32) [unique slot 0 view] guaranteed from{%26} = call Array(a).elementsMut(I32) borrow %417
+  %419: %I32 [owned here shape6 .*=shared slot 0] trivial = call valuesMut(I32) borrow %418
+  %420: Size trivial = const 0
+  %421: %I32 address = element.addr inspect %419 inspect %420
+  store inspect %421 consume %413
+  %422: Size trivial = const 1
+  %423: %I32 address = element.addr inspect %419 inspect %422
+  store inspect %423 consume %414
+  %424: Array(I32) owned = load inspect %26
+  %425: I32 trivial = const 2
+  %426: I32 trivial = const 20
+  %427: Size trivial = const 1
+  %428: Array(I32) owned = call literalArray(I32) borrow %427
+  store inspect %27 consume %428
+  %429: Array(I32) [unique slot 0] guaranteed from{%27} = load inspect %27
+  %430: Array(I32) [unique slot 0 view] guaranteed from{%27} = call Array(a).elementsMut(I32) borrow %429
+  %431: %I32 [owned here shape6 .*=shared slot 0] trivial = call valuesMut(I32) borrow %430
+  %432: Size trivial = const 0
+  %433: %I32 address = element.addr inspect %431 inspect %432
+  store inspect %433 consume %426
+  %434: Array(I32) owned = load inspect %27
+  %435: Size trivial = const 2
+  %436: Map(I32, Array(I32)) owned = call newMap(I32, Array(I32)) borrow %435
+  store inspect %28 consume %436
+  %437: Map(I32, Array(I32)) [unique call] guaranteed from{%28} = load inspect %28
+  call Map(k, v).insertAt(I32, Array(I32)) borrow %437 consume %412 consume %424
+  %438: Map(I32, Array(I32)) [unique call] guaranteed from{%28} = load inspect %28
+  call Map(k, v).insertAt(I32, Array(I32)) borrow %438 consume %425 consume %434
+  %439: Map(I32, Array(I32)) owned = load inspect %28
+  store inspect %29 consume %439
+  %440: I32 trivial = const 0
+  store inspect %30 consume %440
+  %441: Map(I32, Array(I32)) [shared slot 0] guaranteed from{%29} = load inspect %29
+  %442: I32 [unique slot 0] guaranteed = load inspect %30
+  %443: Map(I32, Array(I32)) [unique slot 1] guaranteed = load inspect %29
+  %444: main.cont.env affine = aggregate.main.cont.env borrow %442 borrow %443
+  %445: (Entry(I32, Array(I32))) -> I32 [owned here shape9 .0=shared call] affine = fun.value main.cont borrow %444
+  %446: I32 trivial = call pairs(I32, Array(I32)) borrow %441 borrow %445
+  jump -> bb68
+
+bb67:
+  %447: I32 trivial = const 0
+  %448: I32 trivial = const 20
+  %449: I32 trivial = sub inspect %447 inspect %448
+  return consume %449
+
+bb68:
+  drop Map(I32, Array(I32)) inspect %29
+  %450: I32 trivial = load inspect %30
+  %451: I32 trivial = const 3
+  %452: Bool trivial = ne inspect %450 inspect %451
+  branch inspect %452 -> bb71 -> bb69
+
+bb69:
+  jump -> bb70
+
+bb70:
+  %453: I32 trivial = const 1
+  %454: I32 trivial = const 2
+  %455: I32 trivial = const 3
+  %456: Size trivial = const 1
+  %457: Map(I32, I32) owned = call newMap(I32, I32) borrow %456
+  store inspect %31 consume %457
+  %458: Map(I32, I32) [unique call] guaranteed from{%31} = load inspect %31
+  call Map(k, v).insertAt(I32, I32) borrow %458 consume %454 consume %455
+  %459: Map(I32, I32) owned = load inspect %31
+  %460: Size trivial = const 1
+  %461: Map(I32, Map(I32, I32)) owned = call newMap(I32, Map(I32, I32)) borrow %460
+  store inspect %32 consume %461
+  %462: Map(I32, Map(I32, I32)) [unique call] guaranteed from{%32} = load inspect %32
+  call Map(k, v).insertAt(I32, Map(I32, I32)) borrow %462 consume %453 consume %459
+  %463: Map(I32, Map(I32, I32)) owned = load inspect %32
+  store inspect %33 consume %463
+  %464: I32 trivial = const 1
+  %465: Map(I32, Map(I32, I32)) [shared call] guaranteed from{%33} = load inspect %33
+  %466: Map(I32, I32) [shared slot 0] guaranteed from{%33} = call Map(k, v).get(I32, Map(I32, I32)) borrow %465 borrow %464
+  %467: I32 trivial = const 2
+  %468: Map(I32, I32) [shared slot 0] guaranteed from{%33, %466} = load inspect %466
+  %469: I32 [shared slot 0] guaranteed from{%33, %466} = call Map(k, v).get(I32, I32) borrow %468 borrow %467
+  %470: I32 trivial = load inspect %469
+  drop Map(I32, Map(I32, I32)) inspect %33
+  %471: I32 trivial = const 3
+  %472: Bool trivial = ne inspect %470 inspect %471
+  branch inspect %472 -> bb74 -> bb72
+
+bb71:
+  %473: I32 trivial = const 0
+  %474: I32 trivial = const 21
+  %475: I32 trivial = sub inspect %473 inspect %474
+  return consume %475
+
+bb72:
+  jump -> bb73
+
+bb73:
+  %476: I32 trivial = const 1
+  return consume %476
+
+bb74:
+  %477: I32 trivial = const 0
+  %478: I32 trivial = const 22
+  %479: I32 trivial = sub inspect %477 inspect %478
+  return consume %479
+}
+
+fn main$() -> I32 {
+bb0:
+  %0: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %1: I32 trivial = const 5
+  %2: I32 trivial = const 50
+  %3: Size trivial = const 1
+  %4: Map(I32, I32) owned = call newMap(I32, I32) borrow %3
+  store inspect %0 consume %4
+  %5: Map(I32, I32) [unique call] guaranteed from{%0} = load inspect %0
+  call Map(k, v).insertAt(I32, I32) borrow %5 consume %1 consume %2
+  %6: Map(I32, I32) owned = load inspect %0
+  %7: %Map(I32, I32) address = global.addr shared
+  store inspect %7 consume %6
+  %8: I32 trivial = call main
+  return consume %8
+}
+
+fn single(I32, I32)(key: I32, value: I32) -> Map(I32, I32) {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  store inspect %2 consume %0
+  store inspect %3 consume %1
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = load inspect %3
+  %7: Size trivial = const 1
+  %8: Map(I32, I32) owned = call newMap(I32, I32) borrow %7
+  store inspect %4 consume %8
+  %9: Map(I32, I32) [unique call] guaranteed from{%4} = load inspect %4
+  call Map(k, v).insertAt(I32, I32) borrow %9 consume %5 consume %6
+  %10: Map(I32, I32) owned = load inspect %4
+  return consume %10
+}
+
+fn pair(String, I32)(k1: String, v1: I32, k2: String, v2: I32) -> Map(String, I32) {
+bb0(%0: String owned, %1: I32 trivial, %2: String owned, %3: I32 trivial):
+  %4: %String address = alloc frame String
+  %5: %I32 address = alloc frame I32
+  %6: %String address = alloc frame String
+  %7: %I32 address = alloc frame I32
+  %8: %Map(String, I32) address = alloc frame Map(String, I32)
+  %9: %Map(String, I32) address = alloc frame Map(String, I32)
+  store inspect %4 consume %0
+  store inspect %5 consume %1
+  store inspect %6 consume %2
+  store inspect %7 consume %3
+  %10: String owned = load inspect %4
+  %11: I32 trivial = load inspect %5
+  %12: Size trivial = const 1
+  %13: Map(String, I32) owned = call newMap(String, I32) borrow %12
+  store inspect %8 consume %13
+  %14: Map(String, I32) [unique call] guaranteed from{%8} = load inspect %8
+  call Map(k, v).insertAt(String, I32) borrow %14 consume %10 consume %11
+  %15: Map(String, I32) owned = load inspect %8
+  store inspect %9 consume %15
+  %16: Map(String, I32) [unique call] guaranteed from{%9} = load inspect %9
+  %17: String owned = load inspect %6
+  %18: I32 trivial = load inspect %7
+  call Map(k, v).insertAt(String, I32) borrow %16 consume %17 consume %18
+  %19: Map(String, I32) owned = load inspect %9
+  return consume %19
+}
+
+fn emptyOf(I32, I32)() -> Map(I32, I32) {
+bb0:
+  %0: %Map(I32, I32) address = alloc frame Map(I32, I32)
+  %1: Size trivial = const 0
+  %2: Map(I32, I32) owned = call newMap(I32, I32) borrow %1
+  store inspect %0 consume %2
+  %3: Map(I32, I32) owned = load inspect %0
+  return consume %3
+}
+
+fn total.cont(total.cont.env: total.cont.env [unique call], $handed: Entry(I32, I32) [shared call shape5 .0=shared slot 0 .1=shared slot 0]) -> I32 {
+bb0(%0: total.cont.env [unique call] guaranteed, %1: Entry(I32, I32) [shared call shape5 .0=shared slot 0 .1=shared slot 0] guaranteed):
+  %2: %I32 address = field.addr .sum inspect %0
+  %3: %I32 address = load inspect %2
+  %4: I32 trivial = load inspect %3
+  %5: %I32 address = field.addr .value inspect %1
+  %6: %I32 address = load inspect %5
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = add inspect %4 inspect %7
+  store inspect %3 consume %8
+  %9: I32 trivial = const 0
+  return consume %9
+}
+
+fn main.cont(main.cont.env: main.cont.env [unique call], $handed: Entry(I32, Array(I32)) [shared call shape8 .0=shared slot 0 .1=shared slot 0 view]) -> I32 {
+bb0(%0: main.cont.env [unique call] guaranteed, %1: Entry(I32, Array(I32)) [shared call shape8 .0=shared slot 0 .1=shared slot 0 view] guaranteed):
+  %2: %I32 address = field.addr .elements inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %Map(I32, Array(I32)) address = field.addr .lists inspect %0
+  %5: %Map(I32, Array(I32)) address = load inspect %4
+  %6: I32 trivial = load inspect %3
+  %7: %Array(I32) address = field.addr .value inspect %1
+  %8: Array(I32) [shared slot 0 view] guaranteed from{%1, %5} = load inspect %7
+  jump -> bb1
+
+bb1:
+  %10: %Size address = field.addr .length inspect %8
+  %11: Size trivial = load inspect %10
+  jump -> bb2(consume %11)
+
+bb2(%9: Size trivial):
+  %12: I32 trivial = convert inspect %9
+  %13: I32 trivial = add inspect %6 inspect %12
+  store inspect %3 consume %13
+  %14: I32 trivial = const 0
+  return consume %14
+}
+
+fn main.cont'2(main.cont'2.env: main.cont'2.env [unique call], $handed: Entry(I32, I32) [shared call shape5 .0=shared slot 0 .1=shared slot 0]) -> I32 {
+bb0(%0: main.cont'2.env [unique call] guaranteed, %1: Entry(I32, I32) [shared call shape5 .0=shared slot 0 .1=shared slot 0] guaranteed):
+  %2: %I32 address = field.addr .seen inspect %0
+  %3: %I32 address = load inspect %2
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = const 10
+  %6: I32 trivial = mul inspect %4 inspect %5
+  %7: %I32 address = field.addr .key inspect %1
+  %8: %I32 address = load inspect %7
+  %9: I32 trivial = load inspect %8
+  %10: I32 trivial = add inspect %6 inspect %9
+  store inspect %3 consume %10
+  %11: I32 trivial = const 0
+  return consume %11
+}
+
+entry main$

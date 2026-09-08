@@ -1,7 +1,7 @@
 add_executable(YanaResolveTest ResolveTester.cpp)
 target_link_libraries(YanaResolveTest YanaParse YanaResolve YanaResolveSsa YanaLower YanaX64 YanaJS YanaLLVM)
 add_executable(YanaLibTest LibTester.cpp)
-target_link_libraries(YanaLibTest YanaParse YanaResolve YanaLower YanaX64 YanaJS)
+target_link_libraries(YanaLibTest YanaParse YanaResolve YanaResolveSsa YanaLower YanaX64 YanaJS)
 
 # The compiler's own speed over the same fixture corpus, for the container work that no golden file
 # can see - see the header comment in BenchTester.cpp. Not a test: it asserts nothing and is not run

@@ -37,6 +37,15 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
+fn units(%self: 1'String) -> %CodeUnit {
+  b0:
+    %v1 = load [%self] : String
+    %v2 = borrow [%self] : 'String
+    %v3 = call Viewed(String).view, %v2 : StringView
+    %v4 = load %local0@StringView.units : %CodeUnit
+    ret %v4
+}
+
 fn String.unit(%self: String, %index: Size) -> I32 {
   b0:
     %v2 = borrow %self : 1'String
@@ -543,15 +552,6 @@ fn freeHeap(%allocation: %U8) -> () {
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
     ret
-}
-
-fn units(%self: 1'String) -> %CodeUnit {
-  b0:
-    %v1 = load [%self] : String
-    %v2 = borrow [%self] : 'String
-    %v3 = call Viewed(String).view, %v2 : StringView
-    %v4 = load %local0@StringView.units : %CodeUnit
-    ret %v4
 }
 
 fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {

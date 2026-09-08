@@ -4,7 +4,7 @@ data Point {x: I32, y: I32}
 
 data capturing.thunk.env {n: I32}
 
-data mutableCapture.thunk.env {n: &0'I32} shape3
+data mutableCapture.thunk.env {n: &0'I32} shape4
 
 data main.thunk.env {}
 
@@ -221,19 +221,19 @@ bb3:
 fn capturing() -> I32 {
   local n: I32
   local capturing.thunk.env: capturing.thunk.env
-  local local2: () -> I32 [owned here shape2 .0=shared call]
+  local local2: () -> I32 [owned here shape8 .0=shared call]
 
 bb0:
   %0: I32 = const 5
   write.init borrow.unique (n) take %0
   %2: Bool = const True
-  %3: I32 = read copy.trivial (n)
+  %3: I32 = const 5
   %4: capturing.thunk.env = aggregate.capturing.thunk.env take %3
   write.init borrow.unique (capturing.thunk.env) take %4
   %6: capturing.thunk.env [shared call] = read borrow.shared (capturing.thunk.env) loan0
-  %7: () -> I32 [owned here shape2 .0=shared call] = fun.value capturing.thunk inspect %6 roots.0{0}
+  %7: () -> I32 [owned here shape8 .0=shared call] = fun.value capturing.thunk inspect %6 roots.0{0}
   write.init borrow.unique (local2) take %7
-  %9: () -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
+  %9: () -> I32 [shared call shape8 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
   %10: I32 = call inner borrow.shared %2 borrow.shared %9
   return take %10
 }
@@ -241,7 +241,7 @@ bb0:
 fn mutableCapture() -> I32 {
   local & n: I32
   local mutableCapture.thunk.env: mutableCapture.thunk.env
-  local local2: () -> I32 [owned here shape2 .0=shared call]
+  local local2: () -> I32 [owned here shape8 .0=shared call]
 
 bb0:
   %0: I32 = const 1
@@ -255,38 +255,38 @@ bb0:
   %8: mutableCapture.thunk.env = aggregate.mutableCapture.thunk.env borrow.unique %7 roots.0{0}
   write.init borrow.unique (mutableCapture.thunk.env) take %8
   %10: mutableCapture.thunk.env [shared call] = read borrow.shared (mutableCapture.thunk.env) loan1 roots.0{0}
-  %11: () -> I32 [owned here shape2 .0=shared call] = fun.value mutableCapture.thunk inspect %10 roots.0{0, 1}
+  %11: () -> I32 [owned here shape8 .0=shared call] = fun.value mutableCapture.thunk inspect %10 roots.0{0, 1}
   write.init borrow.unique (local2) take %11
-  %13: () -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
+  %13: () -> I32 [shared call shape8 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
   %14: I32 = call inner borrow.shared %6 borrow.shared %13
   return take %14
 }
 
 fn main() -> I32 {
   local & score: I32
-  local local1: () -> I32
-  local local2: () -> I32
-  local local3: () -> I32
-  local local4: () -> I32
-  local local5: () -> Point
-  local local6: () -> Point
-  local local7: () -> I32
-  local local8: () -> Bool
-  local local9: () -> I32
-  local local10: () -> I32
-  local local11: () -> I32
-  local local12: () -> Bool
-  local local13: () -> Bool
-  local local14: () -> Bool
-  local local15: () -> Bool
+  local local1: () -> I32 [owned here shape9 .0=unique call]
+  local local2: () -> I32 [owned here shape9 .0=unique call]
+  local local3: () -> I32 [owned here shape9 .0=unique call]
+  local local4: () -> I32 [owned here shape9 .0=unique call]
+  local local5: () -> Point [owned here shape9 .0=unique call]
+  local local6: () -> Point [owned here shape9 .0=unique call]
+  local local7: () -> I32 [owned here shape9 .0=unique call]
+  local local8: () -> Bool [owned here shape9 .0=unique call]
+  local local9: () -> I32 [owned here shape9 .0=unique call]
+  local local10: () -> I32 [owned here shape9 .0=unique call]
+  local local11: () -> I32 [owned here shape9 .0=unique call]
+  local local12: () -> Bool [owned here shape9 .0=unique call]
+  local local13: () -> Bool [owned here shape9 .0=unique call]
+  local local14: () -> Bool [owned here shape9 .0=unique call]
+  local local15: () -> Bool [owned here shape9 .0=unique call]
 
 bb0:
   %0: I32 = const 0
   write.init borrow.unique (score) take %0
   %2: Bool = const False
-  %3: () -> I32 = fun.value main.thunk
+  %3: () -> I32 [owned here shape9 .0=unique call] = fun.value main.thunk
   write.init borrow.unique (local1) take %3
-  %5: () -> I32 [shared call] = read borrow.shared (local1) loan0
+  %5: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local1) loan0
   %6: I32 = call outer borrow.shared %2 borrow.shared %5
   %7: I32 = const 0
   %8: Bool = eq inspect %6 inspect %7
@@ -297,9 +297,9 @@ bb1:
 
 bb2:
   %16: Bool = const True
-  %17: () -> I32 = fun.value main.thunk'2
+  %17: () -> I32 [owned here shape9 .0=unique call] = fun.value main.thunk'2
   write.init borrow.unique (local2) take %17
-  %19: () -> I32 [shared call] = read borrow.shared (local2) loan1
+  %19: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local2) loan1
   %20: I32 = call outer borrow.shared %16 borrow.shared %19
   %21: I32 = const 2
   %22: Bool = eq inspect %20 inspect %21
@@ -317,12 +317,12 @@ bb4:
 
 bb5:
   %30: I32 = const 0
-  %31: () -> I32 = fun.value main.thunk'3
+  %31: () -> I32 [owned here shape9 .0=unique call] = fun.value main.thunk'3
   write.init borrow.unique (local3) take %31
-  %33: () -> I32 [shared call] = read borrow.shared (local3) loan2
-  %34: () -> I32 = fun.value main.thunk'4
+  %33: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local3) loan2
+  %34: () -> I32 [owned here shape9 .0=unique call] = fun.value main.thunk'4
   write.init borrow.unique (local4) take %34
-  %36: () -> I32 [shared call] = read borrow.shared (local4) loan3
+  %36: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local4) loan3
   %37: I32 = call pick borrow.shared %30 borrow.shared %33 borrow.shared %36
   %38: I32 = const 4
   %39: Bool = eq inspect %37 inspect %38
@@ -372,9 +372,9 @@ bb13:
 
 bb14:
   %67: Bool = const False
-  %68: () -> Point = fun.value main.thunk'5
+  %68: () -> Point [owned here shape9 .0=unique call] = fun.value main.thunk'5
   write.init borrow.unique (local5) take %68
-  %70: () -> Point [shared call] = read borrow.shared (local5) loan4
+  %70: () -> Point [shared call shape9 .0=unique call] = read borrow.shared (local5) loan4
   %71: I32 = call pointOr borrow.shared %67 borrow.shared %70
   %72: I32 = const 0
   %73: Bool = eq inspect %71 inspect %72
@@ -392,9 +392,9 @@ bb16:
 
 bb17:
   %81: Bool = const True
-  %82: () -> Point = fun.value main.thunk'6
+  %82: () -> Point [owned here shape9 .0=unique call] = fun.value main.thunk'6
   write.init borrow.unique (local6) take %82
-  %84: () -> Point [shared call] = read borrow.shared (local6) loan5
+  %84: () -> Point [shared call shape9 .0=unique call] = read borrow.shared (local6) loan5
   %85: I32 = call pointOr borrow.shared %81 borrow.shared %84
   %86: I32 = const 2
   %87: Bool = eq inspect %85 inspect %86
@@ -412,9 +412,9 @@ bb19:
 
 bb20:
   %95: Bool = const True
-  %96: () -> I32 = fun.value main.thunk'7
+  %96: () -> I32 [owned here shape9 .0=unique call] = fun.value main.thunk'7
   write.init borrow.unique (local7) take %96
-  %98: () -> I32 [shared call] = read borrow.shared (local7) loan6
+  %98: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local7) loan6
   %99: I32 = call orRun(I32) borrow.shared %95 borrow.shared %98
   %100: I32 = const 128
   %101: Bool = eq inspect %99 inspect %100
@@ -432,9 +432,9 @@ bb22:
 
 bb23:
   %109: Bool = const True
-  %110: () -> Bool = fun.value main.thunk'8
+  %110: () -> Bool [owned here shape9 .0=unique call] = fun.value main.thunk'8
   write.init borrow.unique (local8) take %110
-  %112: () -> Bool [shared call] = read borrow.shared (local8) loan7
+  %112: () -> Bool [shared call shape9 .0=unique call] = read borrow.shared (local8) loan7
   %113: Bool = call orRun(Bool) borrow.shared %109 borrow.shared %112
   branch inspect %113 -> bb27 -> bb25
 
@@ -450,9 +450,9 @@ bb25:
 
 bb26:
   %121: Bool = const False
-  %122: () -> I32 = fun.value main.thunk'9
+  %122: () -> I32 [owned here shape9 .0=unique call] = fun.value main.thunk'9
   write.init borrow.unique (local9) take %122
-  %124: () -> I32 [shared call] = read borrow.shared (local9) loan8
+  %124: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local9) loan8
   %125: I32 = call inner borrow.shared %121 borrow.shared %124
   %126: I32 = const 0
   %127: Bool = eq inspect %125 inspect %126
@@ -470,9 +470,9 @@ bb28:
 
 bb29:
   %135: Bool = const True
-  %136: () -> I32 = fun.value main.thunk'10
+  %136: () -> I32 [owned here shape9 .0=unique call] = fun.value main.thunk'10
   write.init borrow.unique (local10) take %136
-  %138: () -> I32 [shared call] = read borrow.shared (local10) loan9
+  %138: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local10) loan9
   %139: I32 = call inner borrow.shared %135 borrow.shared %138
   %140: I32 = const 1025
   %141: Bool = eq inspect %139 inspect %140
@@ -490,9 +490,9 @@ bb31:
 
 bb32:
   %149: I32 = const 3
-  %150: () -> I32 = fun.value main.thunk'11
+  %150: () -> I32 [owned here shape9 .0=unique call] = fun.value main.thunk'11
   write.init borrow.unique (local11) take %150
-  %152: () -> I32 [shared call] = read borrow.shared (local11) loan10
+  %152: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local11) loan10
   %153: I32 = call beforeLoop borrow.shared %149 borrow.shared %152
   %154: I32 = const 2051
   %155: Bool = eq inspect %153 inspect %154
@@ -510,9 +510,9 @@ bb34:
 
 bb35:
   %163: Bool = const False
-  %164: () -> Bool = fun.value main.thunk'12
+  %164: () -> Bool [owned here shape9 .0=unique call] = fun.value main.thunk'12
   write.init borrow.unique (local12) take %164
-  %166: () -> Bool [shared call] = read borrow.shared (local12) loan11
+  %166: () -> Bool [shared call shape9 .0=unique call] = read borrow.shared (local12) loan11
   %167: Bool = call shortAnd borrow.shared %163 borrow.shared %166
   %168: Bool = not inspect %167
   branch inspect %168 -> bb39 -> bb37
@@ -529,9 +529,9 @@ bb37:
 
 bb38:
   %176: Bool = const True
-  %177: () -> Bool = fun.value main.thunk'13
+  %177: () -> Bool [owned here shape9 .0=unique call] = fun.value main.thunk'13
   write.init borrow.unique (local13) take %177
-  %179: () -> Bool [shared call] = read borrow.shared (local13) loan12
+  %179: () -> Bool [shared call shape9 .0=unique call] = read borrow.shared (local13) loan12
   %180: Bool = call shortAnd borrow.shared %176 borrow.shared %179
   branch inspect %180 -> bb42 -> bb40
 
@@ -547,9 +547,9 @@ bb40:
 
 bb41:
   %188: Bool = const True
-  %189: () -> Bool = fun.value main.thunk'14
+  %189: () -> Bool [owned here shape9 .0=unique call] = fun.value main.thunk'14
   write.init borrow.unique (local14) take %189
-  %191: () -> Bool [shared call] = read borrow.shared (local14) loan13
+  %191: () -> Bool [shared call shape9 .0=unique call] = read borrow.shared (local14) loan13
   %192: Bool = call shortOr borrow.shared %188 borrow.shared %191
   branch inspect %192 -> bb45 -> bb43
 
@@ -565,9 +565,9 @@ bb43:
 
 bb44:
   %200: Bool = const False
-  %201: () -> Bool = fun.value main.thunk'15
+  %201: () -> Bool [owned here shape9 .0=unique call] = fun.value main.thunk'15
   write.init borrow.unique (local15) take %201
-  %203: () -> Bool [shared call] = read borrow.shared (local15) loan14
+  %203: () -> Bool [shared call shape9 .0=unique call] = read borrow.shared (local15) loan14
   %204: Bool = call shortOr borrow.shared %200 borrow.shared %203
   branch inspect %204 -> bb48 -> bb46
 

@@ -45,8 +45,8 @@ struct TypeArguments;
  * because the call is concrete, and what it computes at a `Money` is whatever `instance Num(Money)`
  * wrote.
  *
- * **How an operator groups is a declaration** - `infixl 7 +` in `prelude/Core/Core.yana` beside the
- * real Core's own, looked up through the imports like any other name, with no fallback.
+ * **How an operator groups is a declaration** - `infixl 7 +` in `lib/Core/Core.yana`, looked up
+ * through the imports like any other name, with no fallback.
  *
  * The one thing left for the resolver to know about an operator is which three are *control flow*:
  * `&&` and `||` resolve their right operand under a branch rather than as a value, and `!` is the
@@ -150,6 +150,11 @@ struct ArrayLiteralShape {
     // Whether the one element written fills the whole array - `[0] :: [Int *8]`. The callers spread
     // it themselves, because what each is filling differs: one has nodes and the other constants.
     bool fill = false;
+
+    // Set where the length is a **const parameter** - `[0] :: [U8 *n]`, which only a fill can be and
+    // which only a specialization can count. `length` means nothing then, and what the value path
+    // builds is one component and `NodeAggregate::fill`.
+    bool quantified = false;
 };
 
 struct Chain {
@@ -170,6 +175,10 @@ struct Chain {
  *
  * Taken at the point the walk begins, so what it measures is that walk.
  */
+// The `Test` module's shape, as `resolveTestEntry` reads it - defined in resolve_test.cpp, where the
+// five fields of `Test.Case` are named once and nowhere else.
+struct TestLibrary;
+
 struct ErrorMark {
     explicit ErrorMark(Context& context): context(context), before(context.diagnostics.errorCount()) {}
 
@@ -255,14 +264,16 @@ struct Condition {
 /*
  * How one captured binding travels into a lambda's environment - `resolve_lambda.cpp`.
  *
- * The three the spec names, and the one it leaves out is the one this stage refuses: a **consumed**
- * capture makes the environment own something, and an environment that owns something has to
- * outlive the frame that built it, which is the heap placement nothing here selects.
+ * All four the spec names. `Owned` is the **consumed** capture, and which of the four a binding
+ * takes is decided by the *position the lambda fills* rather than by the body: an environment that
+ * owns something is one that may outlive the frame that built it, which is exactly the heap-placed
+ * environment an owning position asks for and a borrowing one does not.
  */
 enum class CaptureKind: U8 {
     Copy,
     Shared,
     Unique,
+    Owned,
 };
 
 // One binding a lambda's body named that its enclosing function bound. `field` is where it sits in
@@ -301,6 +312,18 @@ struct LambdaFrame {
     // *outside* rather than what is being built. A thunk is a lifted body like a lambda, and an
     // author who wrote neither of the words "lambda" would not recognize the message otherwise.
     bool thunk = false;
+
+    /*
+     * Whether this lambda's environment is **heap-placed** - D17, and the one bit every decision
+     * below hangs off.
+     *
+     * Decided from the position the lambda fills, before the body walk, because `captureKindOf`
+     * needs it at the moment a field is appended: an owning position takes a consumed capture and a
+     * borrowing one takes a loan, and the two are different fields of a different record. It is
+     * `selectStorage`'s answer rather than a bool of this file's own, so that the ranking of where
+     * an object goes stays in one place - see `analyze_escape.cpp`.
+     */
+    bool heap = false;
 };
 
 
@@ -382,9 +405,62 @@ struct ArgMap {
     SmallArray<U32, 8> sources;
     SmallArray<U32, 8> positions;
 
+    /*
+     * Where the expression that filled each position was **written** - one slot per declared
+     * position, `kNullLocation` for one nothing reached.
+     *
+     * Here rather than derived on demand because this is the one object that knows both halves: the
+     * walk below has the source list in hand and the reader - `Resolver::callerConstant`, filling a
+     * `@caller(source: p)` position - has only the parameter index. Empty for `positionalMap`,
+     * whose callers are operators and the calls the compiler makes itself, neither of which has a
+     * written argument list to point at; `writtenAt` answers null there rather than reading past the
+     * end, which is the same "nothing reached it" a `@caller` fill already has to handle.
+     */
+    SmallArray<LocationId, 8> written;
+
     U32 count() const { return U32(sources.size()); }
     bool omitted(U32 position) const { return sources[position] == kOmitted; }
     U32 position(U32 argument) const { return positions[argument]; }
+
+    LocationId writtenAt(U32 position) const {
+        return position < written.size() ? written[position] : kNullLocation;
+    }
+};
+
+/*
+ * Which candidates of an overload set a position may mean at all - `Resolver::selectOverload`'s
+ * filter.
+ *
+ * One row rather than a predicate, because there is exactly one position in the language that reads
+ * a set narrower than the whole of it: a `for` runs an iterator, so a plain function of the name is
+ * not a candidate of that loop and must not take part in what the set agrees about. Filtering by the
+ * *kind* is deliberately not enough to choose - `Iter.Overload.yana` has two iterators of one name -
+ * which is why this narrows the set and R2-R5 still decide it.
+ */
+enum class CandidateKind: U8 {
+    Any,
+    Iterator,
+};
+
+/*
+ * What a selection decided, and the arguments it resolved to decide it.
+ *
+ * Split out of `resolveOverloadedCall` because the *first* half of R5 serves something that is not a
+ * call: a `for` loop's traversal is selected exactly as a call is and then opens a continuation
+ * region rather than being emitted. Holding the resolved values here is what lets the winner's
+ * positions be prepared afterwards without the arguments being walked a second time - which would
+ * evaluate them twice.
+ */
+struct OverloadChoice {
+    DeclPtr<Function> function = nullptr;
+    ArgMap map;
+
+    // In **written** order, one slot per argument the call writes, with the receiver first where
+    // there is one. A null entry is a position the winner still decides - a `@lazy` thunk, or an
+    // undecided literal - exactly as `prepareResolvedArguments` reads it.
+    SmallArray<Node*, 8> values;
+
+    explicit operator bool() const { return function != nullptr; }
 };
 
 /*
@@ -438,6 +514,85 @@ struct ArgSite {
      * and the mistake is only that *nothing* took them, which is a message about the set.
      */
     bool report = true;
+
+    /*
+     * Positions filled by arguments written to the **left** of the name - a dot-call's receiver,
+     * and nothing else today.
+     *
+     * `x.f(y)` is `f(x, y)`, so the receiver occupies position 0 of the mapping, of the count and of
+     * the ordering rule: it is positional by construction, since there is nowhere to write a name
+     * for it, and everything written in the parentheses starts one position later. Carrying it as a
+     * count rather than as a synthetic entry in the written list is what keeps the walk below over
+     * the source exactly as the author wrote it - `x.f(self: y)` is then the ordinary "given twice",
+     * reported by the same line that reports it for `f(y, self: y)`.
+     */
+    U32 leading = 0;
+
+    // Where those leading arguments were written - the receiver's own expression, for the same
+    // reason `ArgMap::written` records the rest: a `@caller(source: p)` naming a dot-call's receiver
+    // is the text of what was written before the dot.
+    LocationId leadingSource = kNullLocation;
+};
+
+/*
+ * The value written to the left of a dot-call's name, resolved once and handed to the call.
+ *
+ * A **place** rather than a value, which is the whole of why the form needs no second call path:
+ * what a receiver is read as - a copy, a move, a shared loan, an exclusive one - is `readMode`'s
+ * answer at the position it fills, and the position is not known until the callee is. `x.f(y)` and
+ * `f(x, y)` therefore go through one `argumentMode`, and a receiver that is not storage is a
+ * temporary of the frame exactly as `f().x`'s target is - `projectionTarget` makes both.
+ *
+ * Empty for every ordinary call, which is what the default argument on `resolveArguments` says.
+ */
+struct Receiver {
+    Place* place = nullptr;
+    LocationId source = kNullLocation;
+
+    explicit operator bool() const { return place != nullptr; }
+    U32 leading() const { return place ? 1 : 0; }
+};
+
+/*
+ * A call the `for` and lens forms reached **by name** - the declaration, and the receiver where the
+ * name was written with a dot.
+ *
+ * Those two forms decide what kind of construct they are before resolving anything, which is why
+ * they look the name up themselves rather than going through `resolveCall`. A dot form is the same
+ * question one step out: `for x in xs.items()` names `items` and passes `xs` as its first argument,
+ * so what the probe has to carry back is which expression the receiver was - `handoverCall` resolves
+ * it, in the caller's block and before the arguments, exactly where a written first argument would
+ * have been resolved.
+ *
+ * The probe asks the **bare** name, and that is a limitation the two forms share with the shipping
+ * stage: the receiver's own namespace (`fn String.chars`) cannot be searched before the receiver has
+ * a type, and giving it one is emission. The ordering is the other way round for a reason - see
+ * `namedCallee`, where `upTo(n).twice()` is the case that decides it.
+ */
+struct NamedCall {
+    Function* function = nullptr;
+    ast::FieldExpr* dotted = nullptr;
+
+    explicit operator bool() const { return function != nullptr; }
+    Function* operator -> () const { return function; }
+    U32 leading() const { return dotted ? 1 : 0; }
+};
+
+/*
+ * The *name* a traversal call writes, before anything has decided which declaration it reaches.
+ *
+ * `namedCallee` answers a declaration and answers none where the set has several, which is R1's
+ * "and also null where it has several" - and a `for` loop needs the question one step earlier than
+ * that, because a set of several iterators is exactly the case R5 decides. So the two halves are
+ * split: this is what the call site *says*, and the declaration is what a lookup or a selection then
+ * makes of it.
+ */
+struct NamedCallSite {
+    StringId name;
+    U32 arity = 0;
+    ast::FieldExpr* dotted = nullptr;
+
+    explicit operator bool() const { return name != StringId(); }
 };
 
 /*
@@ -646,7 +801,8 @@ enum class Position: U8 {
  * edges. Two passes because a cycle has to have one meaning whichever module was compiled first.
  */
 void discoverModules(Context& context, Program& program, ast::ModuleGroup& root,
-                     ast::ModuleProvider* provider, Array<ast::ModuleGroup*>& groups);
+                     ast::ModuleProvider* provider, Array<ast::ModuleGroup*>& groups,
+                     Buffer<ast::ModuleGroup*> testRoots = {});
 void linkImports(Context& context, Program& program, Buffer<ast::ModuleGroup*> groups);
 
 /*
@@ -663,6 +819,32 @@ void checkExports(Context& context, Program& program, Buffer<ast::ModuleGroup*> 
 void checkExportedGlobals(Context& context, Program& program);
 
 struct Resolver;
+
+// `"abc"` - the kind test, said once because three readers of a literal ask it. See the definition.
+bool isStringLiteral(ast::Expr& expr);
+
+/*
+ * Whether a mapping's selectors are close enough together to be *placed* - the one bound recognition
+ * puts on a `map`.
+ *
+ * A **representability** rule and not a size rule, which is the distinction D3 turns on. The
+ * lowering picks between six shapes and five of them read no memory, but the sixth - a run of slots
+ * indexed by the selector - has to exist for every mapping the node admits, because there is no
+ * comparison chain left below there to fall back to. So a domain too sparse to place is refused
+ * while the chain is still standing, and the numbers are the ones that keep the widest thing a
+ * library writes - a pinned `errno` list, nineteen constructors over about a hundred and twenty -
+ * well inside them.
+ *
+ * What this excludes that an arithmetic form would have served is a handful of constructors pinned
+ * to numbers very far apart whose results happen to fit a line. That is a real gap and it is
+ * deliberate: closing it means asking `chooseMapForm` here, which is the second answer to the one
+ * question carrying the mapping down as a node exists to avoid.
+ */
+bool mapSpanAdmits(I64 lowest, I64 highest, Size count);
+
+// A mapping's entries ascending by selector, in place - the order `NodeMap` declares. `@value(n)` is
+// what makes it necessary: a declaration may pin its constructors to numbers in any order at all.
+void sortMapEntries(MapEntry* entries, Size count);
 
 /*
  * Which module the resolver is reading, for the length of a scope.
@@ -702,6 +884,16 @@ struct Resolver {
     Buffer<ast::ModuleGroup*> groups;
 
     /*
+     * Whether the file the declaration walk is reading carried the `test` selector -
+     * `ast::Module::test`, which cannot be re-derived from the module name.
+     *
+     * Set by `eachFile` beside `activeFile`, for the same reason: which file a pass is reading is
+     * the walk's fact and not something each pass has to rediscover. Read by `declareGlobals` and
+     * `resolveGlobals`, the two places where a test file's `let` differs from a library module's.
+     */
+    bool activeTestFile = false;
+
+    /*
      * Runs `pass` over every file of every module, with the position set to each in turn.
      *
      * The one walk the declaration phases are written against, so that "in what order does a pass
@@ -712,7 +904,7 @@ struct Resolver {
      * **The library's modules first, then the program's**, and the order is a rule rather than the
      * discovery order it happens not to be. A `@builtin` claim is first come, first served
      * (`bindRole`), so a program that claims a role the library fills has to be the *second* claim,
-     * with the refusal on the program's declaration; read root-first, the prelude's own `pageBytes`
+     * with the refusal on the program's declaration; read root-first, the *library's* own `pageBytes`
      * was the claim refused, and the line the diagnostic pointed at was in a file the author had
      * never opened. The library is also what the program is built on, so its diagnostics - where it
      * has any - come before the ones that may be consequences of them.
@@ -731,6 +923,7 @@ struct Resolver {
 
                 for(U16 file = 0; file < U16(groups[index]->files.size()); file++) {
                     current->activeFile = file;
+                    activeTestFile = groups[index]->files[file]->test;
                     pass(*groups[index]->files[file]);
                 }
             }
@@ -747,6 +940,17 @@ struct Resolver {
      * function nobody wrote.
      */
     Array<DeclPtr<Function>> writtenFunctions;
+
+    /*
+     * The declarations of the functions whose result their own body decides - `Function::inferResult`,
+     * indexed by `Function::written`.
+     *
+     * A list of its own rather than an entry per written function, because a caller demanding a
+     * result asks by function and not by position: the walk that pairs bodies with signatures has
+     * `writtenFunctions` for that, and this one exists only so that `requireResult` can find the
+     * body it has to build now. Almost every declaration in a program contributes nothing to it.
+     */
+    Array<ast::Decl*> inferringDecls;
 
     /*
      * How far each consuming walk has read, **across files**.
@@ -802,12 +1006,28 @@ struct Resolver {
     struct TopLevelStmt {
         ast::Expr stmt;
         LocationId source = kNullLocation;
+
+        // The module the statement was written in. Always the root for `topLevel`, and any module
+        // with a test file for `testTopLevel` - which is the one thing the second list needs that
+        // the first does not, since a test file's initializers are resolved in their own module.
+        DeclPtr<Module> module = nullptr;
         U16 file = 0;
         U32 first = 0;
         U16 count = 0;
     };
 
     Array<TopLevelStmt> topLevel;
+
+    /*
+     * The `let`s a `.test.yana` file declares at module level - Design-Test.md §11.2's F5.
+     *
+     * A second list rather than entries in the one above, because the two are different things that
+     * share a shape. `topLevel` is *the program's start*: one file's, arbitrary statements, in
+     * written order. This is a set of initializers, one group per test file, run by the synthesized
+     * test entry before any case and existing only in a build where that entry exists at all - which
+     * is what keeps it out of library semantics, since a test file is selected in and out as a unit.
+     */
+    Array<TopLevelStmt> testTopLevel;
 
     /*
      * The dynamic globals whose declaring statement has not run yet - stage B's item 2.
@@ -908,6 +1128,25 @@ struct Resolver {
     Held* held = nullptr;
 
     /*
+     * Where the `Held` chain stops - the floor a **continuation region** puts under it.
+     *
+     * A `Carry` threads the values the expression walk is holding through the blocks a construct
+     * makes, which is right inside one function and wrong across two: every `Handover` region is
+     * outlined into a function of its own, so a block argument carrying the enclosing walk's value
+     * into one names a value that function never produced. `for round in 0..n: for e in items(xs):`
+     * was exactly that - the counted loop's bound and stride threaded into the iterator's blocks
+     * and back out, and the SSA conversion reported an operand naming a node with no value at both
+     * ends of the boundary.
+     *
+     * So the frames standing at a region's entry do not cross it. Their handles are untouched while
+     * the region is built - nothing inside may name them - and the block after the call is
+     * dominated by the block before it, so what they name is still in scope when the walk comes
+     * back out. A value a program genuinely needed inside a continuation would need storage rather
+     * than an edge, which is what `bindingFloor` says about a lambda one tier over.
+     */
+    Held* heldFloor = nullptr;
+
+    /*
      * The loops open at this point in the walk, innermost first - `Loop`, and null outside one.
      */
     Loop* loops = nullptr;
@@ -934,7 +1173,20 @@ struct Resolver {
      */
     U32 bindingFloor = 0;
 
+    /*
+     * The lowest lambda frame a capture may be found through - the frames of an enclosing *body*
+     * while another body is being resolved inside it.
+     *
+     * Zero everywhere but a demanded body. `requireResult` builds a callee's body in the middle of
+     * the caller's walk, and a lambda open in the caller is a frame `findCapture` would otherwise
+     * still see: a name the callee failed to bind would become a capture of a closure written in a
+     * different function. The floor is the same statement `bindingFloor` makes about names, made
+     * about environments.
+     */
+    U32 lambdaFloor = 0;
+
     DeclBase decl() { return *program.decl; }
+    MirBase mir() { return *program.mir; }
     DeclPtr<Module> here() { return current - *program.decl; }
 
     // The position a declaration was written at - its module, and the file of that module its source
@@ -972,10 +1224,19 @@ struct Resolver {
     // functions because the reader has no type in hand and the refiner has no attribute: see
     // `resolveBitsType`, where the range is checked against what is being refined.
     Maybe<U64> readBitsAttribute(ast::Type& type);
+    bool readContainerRefinement(ast::Type& type, U64& into);
 
     // `@box` on a field's type - `RecordField::boxed`. Called only where a field is declared, and
     // `readingFieldType` below is how everywhere else comes to refuse it.
     bool readBoxAttribute(ast::Type& type);
+
+    // `@host` on a field's type - `RecordField::host`, and resolve.cpp for what this stage does with
+    // the answer, which is record it.
+    bool readHostAttribute(ast::Type& type);
+
+    // Where a record's `@host` fields may sit, which is after the one field that stores the value -
+    // see the definition in resolve_decl.cpp.
+    void checkHostFields(RecordType& record, U16 first, LocationId source);
 
     /*
      * Whether the type being resolved is a **field's**, which is the only position `@box` means
@@ -1060,6 +1321,10 @@ struct Resolver {
     Constant declareDefault(ast::Expr& expr, DeclPtr<Type> type, StringId name, StringView what,
                             StringView decides);
     // The argument is in resolve.cpp, beside the definition.
+    // The head a constructor in a constant position builds - see the definition, where what binds a
+    // generic one is argued.
+    Maybe<DeclPtr<Type>> constantHeadFor(DeclPtr<RecordType> declaration, DeclPtr<Type> hint);
+
     Maybe<Constant> resolveConstructorConstant(ast::Expr& expr, DeclPtr<Type> hint);
 
     // The other constant form a construction has - a record built out of constants. Asked where a
@@ -1193,6 +1458,31 @@ struct Resolver {
     Array<PendingTextDefault> pendingTextDefaults;
 
     /*
+     * A `@caller` position whose type has to be the one a string literal has, and where it was
+     * written - the `@caller(source: p)` parameter itself, or the `file`/`function` field of a
+     * location record.
+     *
+     * `PendingTextDefault`'s ordering exactly: what `String` *is* is whatever the library's
+     * `stringLiteral` answers, and that role is bound while the declaration carrying it is read -
+     * which is inside the same pass that reads these. Asking there would answer "no such role" for
+     * every program whose `Native` module happens to be declared later, which is what it did.
+     *
+     * Kept apart from the defaults' list rather than merged into it because the two report
+     * different mistakes: a default of the wrong type is a constant the author wrote, and this is a
+     * *position* the compiler was asked to fill. `checkCallerTexts` is the drain.
+     */
+    struct PendingCallerText {
+        DeclPtr<Type> type;
+        LocationId source = kNullLocation;
+
+        // The location field this is, and null where it is the `@caller(source: ...)` parameter
+        // itself - which is the whole of what the two messages differ in.
+        StringId field {};
+    };
+
+    Array<PendingCallerText> pendingCallerTexts;
+
+    /*
      * A **string global**, and the text it holds - `let decimalPairs = "0001..."`.
      *
      * A second deferral for a second ordering, and this one is about *bodies* rather than about
@@ -1207,7 +1497,12 @@ struct Resolver {
     struct PendingTextGlobal {
         DeclPtr<Global> global;
         DeclPtr<Module> module;
-        StringId text {};
+
+        // The whole initializer and not the text, because a literal may be a *leaf* of it - an
+        // array of strings is one global whose elements are three of them, and deferring the value
+        // rather than the string is what makes the two cases one drain.
+        Constant value;
+
         U16 file = 0;
         LocationId source = kNullLocation;
     };
@@ -1217,6 +1512,33 @@ struct Resolver {
     // The drain - see `PendingTextGlobal`. After every body, which is the earliest the library's own
     // string builder can be run.
     void resolveTextGlobals();
+
+    /*
+     * A **`map` whose arms are string literals**, and where it stands - `PendingTextGlobal`'s
+     * ordering, one tier down.
+     *
+     * What a string constant *is* is what `stringLiteral` builds, and building it means running that
+     * function - so a mapping recognized inside `lib/Test/Harness.yana` could not have its table
+     * built while `lib/Native/Text.native.yana`'s bodies were still ahead of it in the walk. Which
+     * of the two files comes first is not something a recognition rule may depend on, and the
+     * failure was silent in the worst way: the recognizer reported the library rather than declining.
+     *
+     * So the entries carry `Constant::Text` until every body is in, and this is the drain. Deferring
+     * the *value* rather than the decision is what keeps everything in between honest, exactly as it
+     * is for a global: the node's result type is settled where the mapping was recognized, so the
+     * verifier, the conversion and the lowering see one shape.
+     */
+    struct PendingTextMap {
+        MirPtr<NodeMap> node;
+        DeclPtr<Module> module;
+        U16 file = 0;
+        LocationId source = kNullLocation;
+    };
+
+    Array<PendingTextMap> pendingTextMaps;
+
+    // The drain - see `PendingTextMap`.
+    void resolveTextMaps();
 
     // The drain - see `PendingTextDefault`. Reports a position whose type is not what a string
     // literal is, which is the check `declareDefault` makes for every other kind of constant.
@@ -1348,7 +1670,12 @@ struct Resolver {
     TypeLayout readLayoutAttribute(ast::Decl& declaration);
 
     // `@inline(always)`, or false for a bare `@inline` or none - resolve_decl.cpp.
-    void readInlineAttribute(ast::Decl& declaration, bool& always, bool& never);
+    void readInlineAttribute(ast::Decl& declaration, bool& always, bool& hint, bool& never,
+                             bool& legacySse);
+
+    // `@convention(clobber)` on a signature - `Function::convention`, and resolve_decl.cpp for which
+    // of the six names a program may write and why the other three are refused.
+    void readConventionAttribute(ast::Decl& declaration, Function& function);
 
     // Whether a body may be grafted where it is called - resolve_stmt.cpp, beside `resolveBody`.
     void checkAlwaysInline(Function& function, LocationId source);
@@ -1382,6 +1709,64 @@ struct Resolver {
      */
     bool resolveOccurrence(ast::Type& written, ast::BindType bind, Position position,
                            SlotScope& slots, Occurrence& into, bool ownerSubject = false);
+
+    /*
+     * Elision rule 1 at a result - Analysis-Borrows.md §4.8, and the `lib/` count behind it.
+     *
+     * A result whose *type* carries an interior position nobody labelled takes the signature's one
+     * anonymous group, exactly as an unlabelled `'` at the root does. `-> Aligned(a)` over
+     * `data Aligned(a) {value: 'a, ...}` is the shape every named formatter in `lib/Core/Format`
+     * hands back, and what it means is the only thing it could mean: the record refers to the one
+     * thing this signature borrowed. Writing it out would be `-> Aligned(v')` at forty sites, which
+     * is the annotation burden §4.8 measured the library to show it does not have.
+     *
+     * Where the scope does not already have the group, `promoteLoanCandidates` decides whether one
+     * of this signature's parameters publishes it - which is rules 5 and 6, and is what a result
+     * over a borrowing record in a signature that wrote no tick anywhere needs.
+     */
+    bool elideResultOrigins(Occurrence& outgoing, SlotScope& slots);
+
+    /*
+     * Elision rules 5 and 6 - Analysis-Borrows.md §4.8, in the form that section's own supersession
+     * block settled on, and the same rule the shipping stage's `settleLoanCandidates` applies.
+     *
+     * A result that carries a loan and names no published origin is not the instruction to go and
+     * *pick* a parameter: rule 5's input was a count, and a count changes when something unrelated
+     * is added to the signature - even with no edit at all, if a parameter's type is an alias that
+     * gains a tick. A rule that picks turns that into silence, where the signature keeps compiling,
+     * means something different, and every caller is re-checked against a contract nobody wrote.
+     *
+     * So **every** candidate joins the one anonymous group instead, which is rule 1 and is what a
+     * conservative group has always been: the coarse answer is never wrong about whose storage the
+     * result refers to, and a label is what splits it where the coarseness rejects a program worth
+     * accepting. Rule 6 needs no clause of its own under that - `self` is a candidate like any
+     * other, and stating the `self` convention is still the spelling to prefer, because it is the
+     * one a reader can see.
+     *
+     * A **candidate** is an unlabelled parameter that refers to the caller's storage rather than
+     * borrowing a value it could equally have been handed a copy of: a unique (`&`) borrow, or a
+     * shared borrow whose form is a *view* - `xs: [T]`, `s: String`. A plain `p: Pair` is not one,
+     * which is what keeps `loans/Reject.Signature.yana`'s refusals refusals; an `Array(a)` owner
+     * receiver and a raw pointer are not either, and §4.8 says why each is a type that cannot yet
+     * carry a group rather than an argument for guessing.
+     *
+     * Answers the slot, or `SlotScope::kNone` where the signature has no candidate at all - which
+     * leaves the caller's "no parameter publishes an origin for this to be in".
+     */
+    U16 promoteLoanCandidates(SlotScope& slots);
+
+    /*
+     * The signature whose parameters an elided result group may promote - `promoteLoanCandidates`.
+     *
+     * Set around the *result* of a signature and null everywhere else, because that is exactly the
+     * position the rule is about: a parameter and a field publish a slot by writing one, and only a
+     * result can name a group that nothing published yet. A field on the resolver rather than a
+     * parameter threaded through `resolveOccurrence`, `resolveQualified` and `resolvePointee`,
+     * since a pointee's tick asks the same question one constructor down and the thread would have
+     * to reach every one of them. Saved and restored, because resolving a result type may declare
+     * another signature and that one's result may not promote this one's parameters.
+     */
+    Function* elisionSubject = nullptr;
 
     /*
      * Whether the next signature declared is the derivation of a view - member zero of the class
@@ -1542,6 +1927,26 @@ struct Resolver {
     // three shapes the marker cannot describe. See resolve_sig.cpp.
     bool declareDeferred(Function& function, const ast::Arg& argument, Occurrence& occurrence);
 
+    /*
+     * `@caller` at the declaration, and the constant a call that left the position out passes -
+     * Design-Test.md §11.1's F2, both in resolve_caller.cpp.
+     *
+     * The pair is one feature and is kept in one file for that reason: what a marker may say and
+     * what the compiler is able to put there are the same question asked at the two ends, and the
+     * vocabulary of location fields is a table neither end may hold on its own.
+     */
+    bool declareCallerFill(Function& function, Arg& declared, const ast::Arg& argument);
+    Node* callerFillValue(Builder& builder, const Arg& parameter, const ArgMap& map,
+                          LocationId source);
+
+    // The location record itself, and whether a type is one this compiler can fill - both read by
+    // the synthesized test entry, whose `Site` is the library's `Test.Site`. See resolve_caller.cpp.
+    Node* siteValue(Builder& builder, DeclPtr<Type> type, LocationId at, StringId containing);
+    bool isCallerSiteRecord(DeclPtr<Type> type);
+
+    // The drain - see `PendingCallerText`. Beside `checkTextDefaults`, which waits on the same role.
+    void checkCallerTexts();
+
     // The `yield` form's continuation parameter and its free result variable - see the comment in
     // resolve_sig.cpp, which is the whole of what makes a lens an ordinary function. `inherited` is
     // the class's declaration of an instance member, whose protocol is taken rather than rebuilt.
@@ -1700,6 +2105,25 @@ struct Resolver {
     // `@local data` - whether this module may reach inside the record. See resolve_expr.cpp.
     bool reachesInside(RecordType& record, LocationId source, StringView what);
 
+    /*
+     * The one walk over a record's fields, and the two questions asked of it - see the definitions.
+     *
+     * `fieldNamed` reports nothing and answers `kNoField`; `fieldOf` is the projection, which turns
+     * a no into a message; `hasMemberNamed` is `resolveDotCall`'s choice between the two forms.
+     * Keeping them one walk is what stops a field appearing to a projection and not to the dot-call
+     * that has to choose against it.
+     */
+    static constexpr U16 kNoField = ~U16(0);
+    U16 fieldNamed(const Occurrence& occurrence, StringId name, DeclPtr<Type>& record);
+    bool hasMemberNamed(const Occurrence& occurrence, StringId name);
+    Place* fieldOf(Builder& builder, Place& target, ast::Expr& selector, LocationId targetSource);
+
+    // The same projection reached by a **name** rather than by a selector expression - a record
+    // update's path, whose segments the parser records as names. The expression form is a wrapper
+    // that reads the name out of it, so there is one walk and one set of messages.
+    Place* fieldNamedOf(Builder& builder, Place& target, StringId name, LocationId nameSource,
+                        LocationId targetSource);
+
     Node* resolveField(Builder& builder, ast::Expr& expr, Request wanted);
     /*
      * A record or constructor literal - and the one expression that *fills* interior positions, so
@@ -1725,6 +2149,11 @@ struct Resolver {
      */
     Place* projectionTarget(Builder& builder, ast::Expr& target, Access access = Access::Shared);
 
+    // The pointee of a raw address, as a place, from the address value and from a place holding one
+    // - see the definitions, where the writability rule is argued.
+    Place* pointeeAt(Builder& builder, Node& address, LocationId source, bool complain);
+    Place* pointeeThrough(Builder& builder, Place& target, LocationId source);
+
     // `[1, 2, 3]` - a fixed array, whose length and element come from the position. See the
     // definition, which is where the argument for taking neither from the literal is.
     // `t.0` - a field named by where it is. See the definition, where "anonymous fields only" is
@@ -1732,15 +2161,47 @@ struct Resolver {
     Place* positionalField(Builder& builder, Place& target, ast::Expr& written);
 
     Maybe<ArrayLiteralShape> arrayLiteralShape(ast::Expr& expr, DeclPtr<Type> hint, Size written);
-    Node* resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted);
+    Node* resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted,
+                              U64 capacity = 0);
+
+    // The container half of a growable literal, over values already in hand - see the definition.
+    // Its second caller is the synthesized test entry, which has cases and no expression.
+    Node* resolveMapLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+    bool reserveCapacity(Builder& builder, Place& place, U64 capacity, LocationId source);
+    Node* buildGrowableArray(Builder& builder, DeclPtr<Type> element,
+                             SmallArray<Node*, 8>& components, LocationId source,
+                             U64 capacity = 0);
 
     // The half of it that builds a growable `[a]` - see the definition, where the two library roles
     // it is made of are argued.
-    Node* resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+    Node* resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, U64 capacity);
 
     // `{4, 5}` - the anonymous record, whose type is what its elements turned out to be. See the
     // definition, where the hint's part in that is argued.
     Node* resolveTupleLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+
+    /*
+     * `{p | y: 3}` and `{->p | y: 3}` - the record update, which is storage and a run of writes.
+     *
+     * Not a construction: what it builds it builds from a value rather than from a field list, so
+     * there is no aggregate to hand a component per field. See the definition, where the one copy
+     * every path writes into is argued.
+     */
+    Node* resolveUpdate(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+
+    // The source of one, into the copy's storage - see the definition, where the copy and the
+    // relocation are argued as one question.
+    bool initializeUpdate(Builder& builder, Place& root, Place* from, Node* produced, bool sink,
+                          LocationId source);
+
+    /*
+     * `"a{x}b"` - the string interpolation, which is one allocation and a run of appends.
+     *
+     * The whole desugaring is in one function and produces ordinary calls: `Show`'s two members and
+     * the three functions `known.def` names, all reached through their roles. See the definition,
+     * where the evaluation order and what a library without a formatter is told are argued.
+     */
+    Node* resolveFormat(Builder& builder, ast::Expr& expr);
 
     // A container reaching a `[T]` position - the one implicit adaptation. See the definition.
     Node* adaptToView(Builder& builder, Node& value, const Occurrence& position, LocationId at);
@@ -1768,6 +2229,11 @@ struct Resolver {
 
     bool resolveSubscriptTarget(Builder& builder, ast::Expr& expr, bool complain, Access access,
                                 Subscript& into);
+    Place* fieldStep(Builder& builder, Place& target, ast::Expr& expr);
+    DeclPtr<Type> fieldPathType(DeclPtr<Type> from, ast::Expr* const* steps, Size count);
+    bool resolveIndexInsert(Builder& builder, const Subscript& subscript, Node& value,
+                            LocationId source);
+    void checkFixedBound(Builder& builder, const Subscript& subscript, LocationId source);
     Place* elementAccess(Builder& builder, const Subscript& subscript, Access access,
                          LocationId source);
 
@@ -1787,8 +2253,19 @@ struct Resolver {
     // the arguments prepared exactly as a written call's are.
     Node* callKnown(Builder& builder, intrinsic::Known role, Node* const* operands, Size count,
                     LocationId source, DeclPtr<Type> hint = nullptr);
+    /*
+     * `pending` is one entry per operand, non-null where the operand is a written literal this call
+     * has yet to build - see `undecidedLiteral`. Null altogether at every caller but the overloaded
+     * operator's, which is the only one that leaves an argument for the callee to type.
+     */
     Node* callFunction(Builder& builder, Function& callee, Node* const* operands, Size count,
-                       LocationId source, DeclPtr<Type> hint = nullptr);
+                       LocationId source, DeclPtr<Type> hint = nullptr,
+                       ast::Expr* const* pending = nullptr);
+
+    // What the resolved arguments bind, taken before any position is prepared - see the definition,
+    // where the one case that needs it is argued.
+    void bindResolvedArguments(Function& callee, const ArgMap& map, Node* const* values, Size count,
+                               TypeArguments& into);
 
     /*
      * `hint` is what the position this call sits in expects, and it is what decides a type argument
@@ -1831,6 +2308,13 @@ struct Resolver {
     Node* expandProvidedCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
                              TypeArguments& typeArguments, LocationId source);
 
+    // The bulk-operation half of `finishCall`: the call of `lib/Core/Reduce.yana`'s *vector* body
+    // where this element has a vector on this target, null where it does not - and then the
+    // declaration's own body, which is the element walk, is what the call reaches. See the
+    // definition, where the choice and where the element comes from are argued.
+    Node* selectBulkBody(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                         TypeArguments& typeArguments, LocationId source);
+
     /*
      * A call of one class member the compiler reaches without a name - `Truth.truthy` for a
      * condition, `Eq.==` for a literal pattern, `Ord`'s four and `Num`'s two for a counted `for`,
@@ -1868,6 +2352,16 @@ struct Resolver {
     Constant evaluateCall(Function& callee, const Constant* arguments, Size count);
     Constant textConstantValue(StringId written, LocationId source);
 
+    /*
+     * The same, applied to every `Constant::Text` **inside** a value - `["a", "b"] :: [String *2]`.
+     *
+     * A text leaf is deferred for the reason a whole one is, and an aggregate holding one is the
+     * same statement about a value with the leaf further in: `let names = ["a", "b", "c"]` is three
+     * byte globals and three relocations, exactly as three separate `let`s would be. Unset where a
+     * leaf could not be built, which is `textConstantValue`'s own diagnostic already reported.
+     */
+    Constant textsResolved(const Constant& constant, LocationId source);
+
     DeclPtr<Global> stringBytesGlobal(StringId written, LocationId source);
     Node* textValue(Builder& builder, StringId written, LocationId source);
 
@@ -1901,9 +2395,24 @@ struct Resolver {
     // The instances whose head is a vector - `provide.cpp`, where the argument for their not being
     // rows of `provided.def` is the same one the pointer instances make.
     void provideVectorInstances();
+
+    // One `Enum`, `Eq` and `Ord` per payload-free sum - see the definition. Its own pass because it
+    // runs *after* the written instances rather than before them, which is what makes a declared one
+    // win by being found rather than by colliding.
+    void provideEnumInstances();
     void provideBodies();
     void provideBody(Function& function, const DeclPtr<Type>* head, Size heads);
     void compareBody(Builder& builder, Function& function, Local& lhs, Local& rhs);
+    void enumFromValueBody(Builder& builder, Function& function, Local& number, DeclPtr<Type> head);
+    void enumNameOfBody(Builder& builder, Function& function, Local& item, DeclPtr<Type> head);
+    void enumFromNameBody(Builder& builder, Function& function, Local& name, DeclPtr<Type> head);
+    void enumShowBody(Builder& builder, Function& function, Local& item, Local& sink);
+    void enumShowBoundBody(Builder& builder, Function& function, DeclPtr<Type> head);
+
+    // The `Just` and `Nothing` of whatever the class said a partial member answers - see the
+    // definition, where reading them by name rather than by handle is argued.
+    bool maybeConstructors(DeclPtr<Type> answer, LocationId source, StringView member, U16& just,
+                           U16& nothing);
 
     // A named function in a value position - G7. The hint is what picks the arity, which is why it
     // is required rather than advisory here; see the note at the implementation.
@@ -1917,7 +2426,8 @@ struct Resolver {
     // the one place call-by-name is distinguished from call-by-need. See resolve_stmt.cpp.
     void checkForced(Builder& builder, Function& function);
 
-    Node* resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+    Node* resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
+                        const Request& wanted);
 
     // The expression written at a `@lazy` position: a thunk, or the thunk this body was already
     // handed. See resolve_expr.cpp.
@@ -1936,7 +2446,12 @@ struct Resolver {
     enum class LiftKind: U8 { Lambda, Thunk };
 
     Node* liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* args, ast::Expr& body,
-                       bool implicitReturn, DeclPtr<Type> hint, LocationId source, LiftKind kind);
+                       bool implicitReturn, DeclPtr<Type> hint, LocationId source, LiftKind kind,
+                       bool owningPosition);
+
+    // The position a lambda that typed its own parameters stands at - see the definition, where the
+    // one rule this stage has for a lambda at a position that states nothing is argued.
+    DeclPtr<Type> writtenLambdaPosition(ast::FunExpr& written, LocationId source);
 
     void resolveLiftedBody(Function& lifted, ast::Expr& body, bool implicitReturn, bool thunk,
                            LocationId source);
@@ -1954,8 +2469,11 @@ struct Resolver {
     // A call whose callee is a value rather than a name - G7. The value is already resolved, because
     // the order it is read in is part of what the call means; see the note at `resolveCall`.
     Node* resolveValueCall(Builder& builder, ast::AppExpr& written, Node& target, LocationId source);
+    // `leading` is a dot-call's receiver taking position 0 - `ArgSite::leading`, where the reason it
+    // is a count rather than a written argument is.
     bool checkCallShape(ast::AppExpr& written, Function& callee, LocationId source, ArgMap& into,
-                        bool report = true);
+                        bool report = true, U32 leading = 0,
+                        LocationId leadingSource = kNullLocation);
 
     /*
      * Whether this declaration is one a call may reach at all - asked of the callee wherever a call
@@ -1967,7 +2485,7 @@ struct Resolver {
      * lens reached by a call that gives it no continuation used to be found much later - as a
      * continuation type nothing decided, or as an argument count the builder asserted on.
      */
-    bool checkCallable(Function& callee, LocationId source);
+    bool checkCallable(Function& callee, LocationId source, bool traversal = false);
 
     /*
      * Which declared position each written argument fills - `doc/spec/expressions.md`'s Calls, and
@@ -1997,7 +2515,7 @@ struct Resolver {
     bool resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
                           const ArgMap& map, LocationId source,
                           SmallArray<Node*, 8>& into, TypeArguments& typeArguments,
-                          DeclPtr<Type> hint = nullptr);
+                          DeclPtr<Type> hint = nullptr, Receiver receiver = Receiver());
 
     // The positions a call left out, each built from the parameter's own constant - see the
     // definition. Both call paths end in it, which is why it is not inside either.
@@ -2013,13 +2531,45 @@ struct Resolver {
      * in the callee's, which is the order they are handed over in. That the two differ is what a
      * named argument is.
      */
+    /*
+     * The winner's positions, from arguments a selection already resolved - the loop
+     * `finishOverloadedCall` and a selected `for` loop's traversal share.
+     *
+     * `values` is in **written** order, which is the order they were evaluated in; `arguments` is in
+     * the callee's, which is the order they are handed over in. That the two differ is what a named
+     * argument is. The caller owns the `HeldList` over `arguments`, because what it does with them
+     * afterwards is its own.
+     */
+    bool prepareResolvedArguments(Builder& builder, ast::AppExpr& written, Function& callee,
+                                  const ArgMap& map, LocationId source,
+                                  SmallArray<Node*, 8>& values, SmallArray<Node*, 8>& arguments,
+                                  TypeArguments& typeArguments, Receiver receiver = Receiver());
+
+    /*
+     * R2 through R5 over a set the caller has narrowed - the first half of `resolveOverloadedCall`,
+     * and the whole of what a `for` loop's traversal shares with a call.
+     *
+     * The arguments are resolved **into `into`**, once and in the caller's block, and the caller
+     * owns the `HeldList` over them for the reason it owns one at all: what uses the values is what
+     * comes after this, and a branch built there has to thread them.
+     */
+    bool selectOverload(Builder& builder, ast::AppExpr& written, const OverloadSet& set,
+                        StringId name, LocationId nameSource, LocationId source, Receiver receiver,
+                        CandidateKind kind, OverloadChoice& into);
+
     Node* finishOverloadedCall(Builder& builder, ast::AppExpr& written, Function& callee,
                                const ArgMap& map, SmallArray<Node*, 8>& values, DeclPtr<Type> hint,
-                               LocationId source);
+                               LocationId source, Receiver receiver = Receiver());
 
     // What a call has to prove about the types it chose - see the definition, which is where the
     // two answers and the deliberately absent third are argued.
     bool dischargeRequirements(Function& callee, TypeArguments& typeArguments, LocationId source);
+
+    // The widening a later argument decided, applied to the positions already prepared - see the
+    // definition, and `TypeArguments::bind`, where the unification it settles is argued.
+    bool widenPreparedArguments(Builder& builder, Function& callee, const ArgMap& map,
+                                LocationId source, SmallArray<Node*, 8>& into,
+                                TypeArguments& typeArguments);
     // `a.field: b` proved for one argument list - the property half, and the same two answers in the
     // same order as the class half beside it.
     bool dischargeProperty(GenProperty property, const Substitution& with, LocationId source);
@@ -2046,7 +2596,19 @@ struct Resolver {
      */
     Node* resolveOverloadedCall(Builder& builder, ast::AppExpr& written, const OverloadSet& set,
                                 StringId name, LocationId nameSource, DeclPtr<Type> hint,
-                                LocationId source);
+                                LocationId source, Receiver receiver = Receiver());
+
+    /*
+     * `x.f(y)` - the dot call, and the one place a field projection and a call of that name are
+     * chosen between. See the definition, where the choice and what the receiver costs are argued.
+     */
+    Node* resolveDotCall(Builder& builder, ast::AppExpr& written, ast::FieldExpr& field,
+                         DeclPtr<Type> hint, LocationId source);
+
+    // R1's set for a dot-call - the receiver's own namespace decides the plain half. See the
+    // definition, where the ordering of the two lookups is argued.
+    void findDotOverloads(DeclPtr<Type> receiver, StringId name, U32 arity, LocationId source,
+                          OverloadSet& into);
 
     /*
      * The same five rules at an **infix operator**, in the two halves precedence climbing needs.
@@ -2063,7 +2625,8 @@ struct Resolver {
                           Request* into);
     Node* selectOperatorCall(Builder& builder, const OverloadSet& set, StringId name,
                              LocationId source, Node* const* values, Size operands,
-                             DeclPtr<Type> hint);
+                             DeclPtr<Type> hint, ast::Expr* const* pending = nullptr,
+                             const intrinsic::Known* literals = nullptr);
 
     /*
      * Whether a candidate's declared positions accept these argument types - R2's "every argument
@@ -2073,7 +2636,12 @@ struct Resolver {
      * signature a second time.
      */
     bool candidateAccepts(Function& callee, const ArgMap& map, const DeclPtr<Type>* argumentTypes,
-                          Size count, LocationId source, TypeArguments& into);
+                          Size count, LocationId source, TypeArguments& into,
+                          const intrinsic::Known* literals = nullptr);
+
+    // Whether this operand is a written number with no type of its own, and which conversion class
+    // would build it - see the definition, where the rule for a literal in a multi-candidate set is.
+    bool undecidedLiteral(ast::Expr& expr, intrinsic::Known& role);
 
     // Whether a value of one type fills a position of another - the accepting half of
     // `convertValue`, asked without reporting. See the definition.
@@ -2136,8 +2704,19 @@ struct Resolver {
     bool resolveBinding(Builder& builder, const ast::VarDecl& binding, Place& pivot,
                         SmallArray<PatternBinding, 4>& made);
 
+    /*
+     * The same pattern in a position that has **no alternative** - a `for` binding.
+     *
+     * `resolveBinding` above is the refutable driver: it builds the failure block the arms after `|`
+     * are emitted in. A `for`'s `|` is the *iterator's* failure channel and not the pattern's, so
+     * there are no arms here for a failing pattern to reach and the language's answer is that the
+     * pattern may not fail. What is left is the irrefutable half of the one path - the space says
+     * whether it can, and `resolvePattern` and `bindPattern` are the two calls a `let` makes.
+     */
+    bool bindIrrefutable(Builder& builder, ast::Pat& pat, Place& pivot, StringView what);
+
     // What a destructuring declaration matches against - the initializer as a place. Beside
-    // `matchPivot` rather than inside it, because what it adds is the declaration's own conventions,
+    // `evaluatedPlace` rather than inside it, because what it adds is the declaration's own conventions,
     // which a `match` has not got.
     Place* destructuringPivot(Builder& builder, const ast::VarDecl& binding);
 
@@ -2180,10 +2759,41 @@ struct Resolver {
     // One condition's own test, with no conjunction after it.
     bool emitTest(Builder& builder, const Condition& condition, Block* onFail, Carry& carry,
                   SmallArray<PatternBinding, 4>& into);
-    Place* matchPivot(Builder& builder, ast::Expr& expr);
+    Place* evaluatedPlace(Builder& builder, ast::Expr& expr);
     Node* resolveIs(Builder& builder, ast::Expr& expr);
     Node* resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                        Request wanted);
+
+    /*
+     * Whether this `match` states a *mapping* rather than a decision - inventory D3, and
+     * `resolve/map.h` for the reasoning this stage inherits.
+     *
+     * Answers the node, or null meaning "the ordinary path handles this". **It reports nothing about
+     * the match**, ever: every refusal is a fall-through to `armsValue`, which resolves the same
+     * alternatives and says whatever there is to say about them. A second opinion about a bad match
+     * would be a worse message about the same line, which is `recognizeConstructorMap`'s rule
+     * inherited literally - and is why this runs after `PatternSpace` has issued its warnings.
+     *
+     * What it does **not** decide is which shape the mapping becomes. That is the target's question
+     * and it is answered once, at lowering (`resolve_ssa/lower/map.cpp`). The shipping stage has to
+     * ask it twice because its recognizer owes its caller an emission; here the node always exists.
+     */
+    Node* matchAsMap(Builder& builder, ast::Expr& expr, Place& pivot, Buffer<ast::Pat> patterns,
+                     DeclPtr<Type> hint, Request wanted);
+
+    // One pattern of a mapping, and which constructor it names - see the definition, where the list
+    // of things a pattern may not do is the eligibility rule read from the other side.
+    bool mapConstructor(ast::Pat& pattern, DeclPtr<RecordType> record, U32& index);
+
+    /*
+     * The case values a `match` dispatches on, and the alternative each belongs to - the `switch`
+     * half of D3. Both come back ascending by value, which is what `Builder::addSwitch` declares.
+     *
+     * Answers false meaning "the ordinary chain handles this", and reports nothing, for
+     * `matchAsMap`'s reason. See the definition, where the shape it admits is argued.
+     */
+    bool matchCases(Place& pivot, Buffer<ast::Pat> patterns, const bool* tested,
+                    SmallArray<I64, 16>& values, SmallArray<U32, 16>& arms);
     Node* resolveBlock(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                        Request wanted);
 
@@ -2222,8 +2832,11 @@ struct Resolver {
      * *this* alternative produced one: a value form whose alternative answered nothing reaches a
      * merge it has nothing to supply and is `unreachable`, and a statement form's join takes no
      * parameter and every alternative jumps into it with the carry alone.
+     *
+     * Answers whether the jump was built, which is how `armsValue` knows whether anything reaches
+     * the merge at all - see the note there.
      */
-    void closeArm(Builder& builder, Block& end, Block& join, Node* value, bool merged,
+    bool closeArm(Builder& builder, Block& end, Block& join, Node* value, bool merged,
                   LocationId source, Carry& carry, const Node* const* carried);
 
     /*
@@ -2269,6 +2882,24 @@ struct Resolver {
     template<class F>
     Node* armsValue(Builder& builder, LocationId source, U32 count, DeclPtr<Type> hint,
                     bool wantValue, F&& emit) {
+        return armsValue(builder, source, count, hint, wantValue, emit, false,
+                         [](Carry&, SmallArray<Block*, 8>&) { return true; });
+    }
+
+    /*
+     * The same, entered by a **multi-way branch** instead of by falling through - inventory D3.
+     *
+     * `multiway` says the alternatives are reached by one terminator rather than by a chain of
+     * tests, and `dispatch` is what emits it: it is handed the carry and the entry blocks, and every
+     * alternative is then emitted with **no failure edge**, because the terminator has already
+     * proved which one it is. Everything below that - the merge, the arms' types, the carry, the
+     * exits - is the chain form's and is untouched, which is the whole reason this is a parameter
+     * rather than a second construct: what a `switch` changes is how the alternatives are *entered*
+     * and nothing about what they answer.
+     */
+    template<class F, class D>
+    Node* armsValue(Builder& builder, LocationId source, U32 count, DeclPtr<Type> hint,
+                    bool wantValue, F&& emit, bool multiway, D&& dispatch) {
         // What the walk is holding across this construct - `Carry`, and the reason `Held` exists.
         // Taken before any block is made, because it is the state at the branch that crosses it.
         Carry carry(*this, source);
@@ -2278,16 +2909,21 @@ struct Resolver {
          *
          * The first alternative's tests belong where the construct was written - there is nothing
          * between the pivot and them - so giving it an entry of its own would be a jump to a block
-         * with one predecessor and one purpose.
+         * with one predecessor and one purpose. A **dispatched** construct is the exception and
+         * needs one for every alternative, since none of them is fallen into.
          */
         SmallArray<Block*, 8> entries;
-        entries.push(nullptr);
+        if(!multiway) entries.push(nullptr);
 
-        for(U32 i = 1; i < count; i++) {
+        for(U32 i = multiway ? 0 : 1; i < count; i++) {
             auto block = builder.addBlock(StringId());
             carry.declare(builder, *block);
             entries.push(block);
         }
+
+        // The terminator, in the block the construct was written in - so everything the dispatcher
+        // reads is read once, before any alternative.
+        if(multiway && !dispatch(carry, entries)) return nullptr;
 
         auto join = builder.addBlock(StringId());
 
@@ -2311,7 +2947,8 @@ struct Resolver {
                 carry.arrive(builder, *entries[i], 0);
             }
 
-            auto value = emit(i, i + 1 < count ? entries[i + 1] : nullptr, armHint, carry);
+            auto value = emit(i, !multiway && i + 1 < count ? entries[i + 1] : nullptr, armHint,
+                              carry);
 
             ends.push(builder.currentBlock());
             values.push(value && !builder.isTerminated() ? value : nullptr);
@@ -2327,18 +2964,30 @@ struct Resolver {
 
         carry.declare(builder, *join);
 
+        auto entered = false;
+
         for(U32 i = 0; i < count; i++) {
-            closeArm(builder, *ends[i], *join, argument ? values[i] : nullptr, argument != nullptr,
-                     source, carry, carried.pointer() + i * carry.count());
+            entered = closeArm(builder, *ends[i], *join, argument ? values[i] : nullptr,
+                               argument != nullptr, source,
+                               carry, carried.pointer() + i * carry.count()) || entered;
         }
 
         builder.setBlock(*join);
         carry.arrive(builder, *join, argument ? 1 : 0);
 
-        // A merge every alternative left is unreachable and still needs a terminator, which is what
-        // `finish` gives it - but only where nothing follows it. A statement form is followed by the
-        // rest of its block.
-        if(wantValue && !argument) builder.addUnreachable(source);
+        /*
+         * A merge no alternative reaches is unreachable, and it is terminated **here** rather than
+         * left to `finish`.
+         *
+         * `finish` closes an unentered block, so a construct written at the top of a body was
+         * answered there - but only because nothing followed it. A statement form is followed by the
+         * rest of its block, and what the walk does next is emitted into this merge: an enclosing
+         * `if` arm then jumps out of it into its own join, which gives that join a predecessor and
+         * turns `match w: <every arm returns>` inside an arm into "a path reaches the end without
+         * returning". So a `match` whose alternatives all leave has to say so where it is built,
+         * which is the same statement `return` makes and is what `Builder::isTerminated` reads.
+         */
+        if(!entered) builder.addUnreachable(source);
 
         return argument;
     }
@@ -2360,6 +3009,18 @@ struct Resolver {
      */
     Node* mergeArms(Builder& builder, Block& join, SmallArray<Block*, 8>& ends,
                     SmallArray<Node*, 8>& values, LocationId source);
+
+    /*
+     * Analysis-Borrows.md §2.5's join, over the alternatives `mergeArms` has folded a type out of.
+     *
+     * An alternative that **produced** storage beside one that **names** somebody else's is the pair
+     * a `let` over a `match` arrives at, and the join is the weaker of the two: the produced value
+     * gets a frame slot and its edge supplies a borrow of it, so the merge is a loan over the union
+     * of the alternatives' origins. Nothing is copied - see the definition, where the alternative is
+     * argued and where the two disagreements that are still refused are named.
+     */
+    void joinArmLoans(Builder& builder, SmallArray<Block*, 8>& ends, SmallArray<Node*, 8>& values,
+                      DeclPtr<Type> merged, LocationId source);
 
     /*
      * One alternative's body, for the three constructs that have arms written in the source - see
@@ -2492,8 +3153,20 @@ struct Resolver {
      * name that turns out not to be a lens falls through to the ordinary statement it is in exactly
      * one way.
      */
-    Function* namedCallee(ast::Expr& expression);
-    Function* lensCallee(ast::Expr& expression);
+    NamedCall namedCallee(ast::Expr& expression, NamedCallSite* site = nullptr);
+    NamedCall lensCallee(ast::Expr& expression);
+
+    /*
+     * Which `iter fn` a `for` loop runs, where the name reaches more than one - R5 for a traversal.
+     *
+     * The set is narrowed to the iterators (`CandidateKind::Iterator`) and then decided by the same
+     * R2-R5 an ordinary call is decided by, which is what makes a plain `iter fn` a *member* of the
+     * set rather than a shadow over it. Answers null where nothing is left to select from, so the
+     * caller reports in its own words; `into` is filled where the answer needed the arguments, and
+     * `resolveIteratorFor` then hands them to `handoverCall` instead of walking them again.
+     */
+    NamedCall iteratorCallee(Builder& builder, ast::Expr& expression, const NamedCallSite& site,
+                             OverloadChoice& into);
 
     /*
      * Where the flat form's continuation stops - Analysis-Lens.md §11.2 and §11.4.
@@ -2502,24 +3175,81 @@ struct Resolver {
      * extent is empty and the call is therefore §11.3's diagnostic.
      */
     U32 flatExtent(ast::ParseList<ast::Expr> statements, U32 count, U32 at, StringId handed);
+
+    /*
+     * A lens call written *inside* a statement, lifted out in front of it - Analysis-Lens.md §11.2's
+     * extent rule reaching an expression position.
+     *
+     * The rule is one sentence: a lens's continuation is a run of *statements*, and an argument
+     * position is not one - so the call moves to a `let $lensN = ...` inserted before the statement
+     * and the position it was written in is left naming that binding. What comes out is a program
+     * the flat form already compiles, which is why this is a rewrite of the parse tree and not a
+     * second lowering: `let seen = twice(logged(1))` and `let $lens0 = logged(1)` followed by
+     * `let seen = twice($lens0)` are the same program, and only one of them has to be resolved.
+     *
+     * `hoistBlockLenses` runs once over a block before any statement of it is walked, so everything
+     * downstream - the extent scan included - sees the final list. Its loop re-reads the size, which
+     * is what lifts the *second* call in one statement: the statement it inserted is examined in
+     * turn, and the call still inside the original is lifted on the next pass, inside the first
+     * one's continuation.
+     */
+    void hoistBlockLenses(ast::Expr& block);
+    bool hoistLensCall(ast::Expr& block, Size index);
+
+    /*
+     * The first lens call in evaluation order that `hoistLensCall` would move, or null.
+     *
+     * `root` says the expression *is* the statement (or a `let`'s whole initializer), which is the
+     * one exclusion that makes this terminate: those two are the forms `resolveStatements` already
+     * gives a continuation to, so hoisting one would rewrite it into a `let` holding the same call
+     * forever.
+     *
+     * The arms of an `if`, a `match` and a lambda body are excluded by having no case here: what
+     * runs there is conditional, and a lens hoisted out of one would run where the program does not.
+     * `&&` is the same exclusion asked of a name rather than of a syntax - see `defersArguments`.
+     */
+    ast::Expr* hoistableLensCall(ast::Expr& expr, bool root);
+    bool defersArguments(ast::Expr& callee, U32 arity);
+
+    // `$lens0`, `$lens1`, ... - counted per hoist and not per block, so two calls lifted out of one
+    // statement cannot shadow each other while the inner one is still being resolved.
+    U32 hoistedLenses = 0;
     void reportEmptyExtent(LocationId source, Function& callee);
 
+    /*
+     * A bare `f(...)` statement whose callee is a lens - the third call form, beside `f(...):` and
+     * `let x = f(...)`.
+     *
+     * `cell.withLock()` is what it is for and is how every lock in `lib/` is taken: the lens hands
+     * over nothing, so there is no binding whose last use could bound the extent, and what the
+     * statement means is "the rest of this block is inside". Answers the last statement it consumed,
+     * as the flat form does.
+     */
+    U32 resolveBareLensCall(Builder& builder, ast::ParseList<ast::Expr> statements, U32 to, U32 at,
+                            ast::Expr& call, const NamedCall& callee, bool wantValue);
+
     U32 resolveFlatLensCall(Builder& builder, ast::ParseList<ast::Expr> statements, U32 to, U32 at,
-                            const ast::VarDecl& binding, ast::Expr& call, Function& callee,
+                            const ast::VarDecl& binding, ast::Expr& call, const NamedCall& callee,
                             bool wantValue);
     /*
      * The whole of a call that opens a continuation region, less what runs inside it.
      *
-     * `inside(region, join)` is called with the entry current and the hand-over bound, and is the
-     * one thing a lens call and a `for` over an iterator disagree about: a written or derived
+     * `inside(region, join, bound)` is called with the entry current and the hand-over bound, and is
+     * the one thing a lens call and a `for` over an iterator disagree about: a written or derived
      * extent against a loop body. Everything else - the arguments, the type arguments, the region,
      * what arrives, the binding's storage, how the caller rejoins - is one construct, so it is
      * written once.
+     *
+     * `bound` is the storage the hand-over landed in, handed out rather than only named, because a
+     * `for` may take it apart: a pattern binds *parts* of what arrived, and the parts are
+     * projections of that one local. A caller binding a plain name has already been given it under
+     * `name` and ignores this.
      */
     template<class F>
-    bool handoverCall(Builder& builder, ast::Expr& call, Function& callee,
+    bool handoverCall(Builder& builder, ast::Expr& call, const NamedCall& called,
                       Continuation::Multiplicity multiplicity, StringId name,
-                      LocationId nameSource, ast::ParseList<ast::Alt> alternatives, F&& inside);
+                      LocationId nameSource, ast::ParseList<ast::Alt> alternatives, F&& inside,
+                      OverloadChoice* chosen = nullptr);
 
     /*
      * `| e -> ...` beside a call of a traversal that declared `| E` - the skip path's own code.
@@ -2534,7 +3264,7 @@ struct Resolver {
     void resolveAlternative(Builder& builder, ast::Alt& alternative, Node& reason);
 
     bool resolveLensCall(Builder& builder, const ast::VarDecl& binding, ast::Expr& call,
-                         Function& callee, const Extent& extent);
+                         const NamedCall& callee, const Extent& extent);
     void resolveExtent(Builder& builder, const Extent& extent);
 
     /*
@@ -2581,6 +3311,17 @@ struct Resolver {
     void nameLinearMembers(Builder& builder, Place& place);
     bool resolveDispose(Builder& builder, ast::Expr& expr);
     void resolveDeclaration(Builder& builder, ast::Expr& expr);
+
+    /*
+     * `@heap let big = ...` - the attributes written in front of one binding, applied to the local it
+     * made. Reports anything else, which is what the walk over a declaration's attributes does and
+     * what this position did not do at all before.
+     *
+     * `placed` is whether this binding is one name for one object; a pattern and an extent's binding
+     * are not, and get a refusal rather than the "nothing to place" message, which would be
+     * describing a local that does not exist.
+     */
+    void readBindingAttributes(const ast::VarDecl& binding, Local* local, bool placed);
     void resolveAssign(Builder& builder, ast::Expr& expr);
     void resolveWhile(Builder& builder, ast::Expr& expr);
     void resolveReturn(Builder& builder, ast::Expr& expr);
@@ -2610,6 +3351,26 @@ struct Resolver {
     // The root module's top level as one body - see `resolveProgramEntry`, which is its only caller.
     void resolveEntryBody(Function& function, DeclPtr<Function> main);
 
+    // The two halves both synthesized entries share - see resolve_stmt.cpp. `resolveTestEntry` is
+    // the second caller of each.
+    void beginEntry(Function& function);
+    void resolveRootTopLevel(Builder& builder);
+    void resolveTestFileInitializers(Builder& entry);
+
+    /*
+     * `@test` and the entry a test build runs - Design-Test.md §11.2's F1, all in resolve_test.cpp.
+     *
+     * `readTestAttribute` is called where a plain `fn` is declared and fills `Program::tests`;
+     * `resolveTestEntry` replaces `resolveProgramEntry` under `-test`, because a test build runs
+     * tests rather than `main`. `TestLibrary` is the library shape both of the middle two read.
+     */
+    void readTestAttribute(ast::Decl& declaration, Function& function);
+    bool findTestLibrary(TestLibrary& into);
+    DeclPtr<Function> wrapUnitTest(DeclPtr<Function> test, DeclPtr<Type> resultType,
+                                   LocationId source);
+    Node* buildTestCase(Builder& builder, const TestLibrary& library, const TestDeclaration& test);
+    void resolveTestEntry();
+
     // One `let` of it, filling the storage its own declaration made - see the definition.
     void resolveTopLevelBinding(Builder& builder, const TopLevelStmt& statement);
 
@@ -2618,6 +3379,11 @@ struct Resolver {
     bool runsAtStartup();
     void resolveBodies(ast::Module& file);
     void resolveBody(Function& function, ast::Decl& declaration);
+
+    // `fn f(x) = expr` with no `-> T` - the body's answer, and the two halves of settling it. See
+    // `Function::inferResult`.
+    bool inferResultType(Function& function, Node* value, LocationId source);
+    bool requireResult(Function& callee, LocationId source);
     void resolveInstanceBody(Instance& instance, ast::Decl& declaration);
 
     /*
@@ -2664,8 +3430,11 @@ struct Resolver {
      * The storage a name in this body names, or null.
      *
      * `bound` says which kind of null it is: false is a name nothing in the body declared, and true
-     * is one declared by a binding whose initializer failed. The pair matters at exactly one place -
-     * the "unknown name" report - and everywhere else a null is a null.
+     * is one declared by a binding whose initializer failed. A bound null **stops the walk**: the
+     * name is this body's, so a capture, a global or a function of the same spelling is not what it
+     * means, and letting the lookup carry on found `lib/Core`'s test-suite global `live` where
+     * `lib/Core/Container.yana` had written `let live = maskUpTo(...)` - a diagnostic about a class
+     * nobody had named, two files away from the statement that actually failed.
      */
     Local* findLocal(StringId name, bool* bound = nullptr);
 
@@ -2779,6 +3548,11 @@ struct TypeArguments {
      */
     DeclPtr<Type> hint(DeclPtr<Type> declared);
 
+    // Whether this position still mentions the callee's own variables - "the call has not decided
+    // what goes here yet". What `resolveArguments` reads to hold an argument that takes its type
+    // *from* the position back until the arguments that decide it have run.
+    bool undecided(DeclPtr<Type> declared);
+
     /*
      * The hint a position takes from what the call's **result** is being asked for, where the
      * arguments have not decided it - `fn maxValue() -> U64 = not(0)`.
@@ -2819,6 +3593,16 @@ struct TypeArguments {
      */
     void bind(DeclPtr<Type> declared, DeclPtr<Type> supplied);
 
+    /*
+     * The same binding from the call's **result** position, which records what it decided.
+     *
+     * A result hint is a wish about one call where a functional dependency is a promise about the
+     * instances, so `fillDetermined` has to be able to tell a position the hint filled from one an
+     * argument filled and reopen the first. `bind` alone cannot say which it was - it writes into
+     * empty slots and reports nothing - so the two callers are two entry points rather than a flag.
+     */
+    void bindResult(DeclPtr<Type> declared, DeclPtr<Type> supplied);
+
     // The arguments an expected instantiation already settles, before a single value is read - what
     // makes `let b: Boxed(I32) = Boxed {value: 0}` build an `I32` box where the literal alone would
     // have defaulted it.
@@ -2833,12 +3617,14 @@ struct TypeArguments {
      * promise `class Contiguous(c -> a)` makes - one `c` has one `a` - so the deciding positions are
      * looked up and the determined ones are read back off whatever answered.
      *
-     * Two things can answer, in this order, and they are the same two `dischargeRequirement` splits
-     * on. A **concrete** deciding prefix selects an instance and reads the rest off its head. A
-     * prefix that is one of the *enclosing* declaration's variables has no instance to read anything
-     * off - `c` inside a body generic in `c` is not a type - and what answers instead is the
-     * requirement that enclosing signature declared, which promised the same thing about the same
-     * variables.
+     * Three things can answer, in this order. The **enclosing signature's own requirement** first,
+     * because it is the answer that does not depend on which instances happen to be declared. Then a
+     * **concrete** deciding prefix, which selects an instance and reads the rest off its head. Then
+     * a prefix that is not concrete but whose outermost constructor is - `Index(Array(a), ?, ?)`
+     * inside a body generic in `a` - which `selectOpenInstance` answers on the terms
+     * `doc/progress/2026-09-06-inventory.md` D13 sets. A prefix that is a **bare variable** is none
+     * of the three: `c` inside a body generic in `c` is not a type, so if the enclosing signature
+     * did not promise the relation there is nothing here that could.
      *
      * Repeated until nothing moves, so `Contiguous(c, a)` deciding `a` and `Elem(a, e)` then
      * deciding `e` resolve in one call rather than in the order the constraints happen to be written.
@@ -2884,12 +3670,53 @@ struct TypeArguments {
 
     Resolver& resolver;
     DeclPtr<GenContext> owner = nullptr;
+
+    /*
+     * Whether this walk may **meet** two bindings of one variable rather than refusing the second -
+     * `TypeArguments::bind`, where the unification is argued.
+     *
+     * Opt-in, and the reason is what has to happen afterwards: the meet moves a binding an earlier
+     * argument was already coerced against, so only a walk that ends in `widenPreparedArguments` can
+     * perform it. The three that do are the written call, the overloaded call and the operator
+     * chain. Everywhere else a `TypeArguments` is filled from values the compiler itself built -
+     * `callFunction`, `applyMember`, a construction - and a binding that moved there would leave
+     * them at the width they were built at, with nothing to bring them up.
+     */
+    bool unifies = false;
+
+    // Whether one actually moved, so the pass afterwards costs nothing at the calls that did not.
+    bool widened = false;
+
+    // A bitmask over `arguments`: the positions an *argument* of this call decided, which are the
+    // only ones the meet above may move. See `bind`.
+    U64 fromArgument = 0;
+
     SmallArray<DeclPtr<Type>, 4> arguments;
 
     // The requirement that could not answer - see `reportUndecided`. Recorded by `fillDetermined`
     // where a concrete deciding prefix matched no instance, with that prefix.
     DeclPtr<Class> missingClass = nullptr;
     SmallArray<DeclPtr<Type>, 4> missingDeciding;
+
+    /*
+     * Whether an *open* deciding prefix has already reported here - D13's ambiguity.
+     *
+     * The fixpoint asks each requirement once per round and a round runs again whenever any other
+     * requirement moved, so a requirement that reports rather than answers would report once per
+     * round. One message, on `missingClass`'s reading: the first is the reason and the rest are the
+     * same reason said again - which is also why `reportUndecided` says nothing more once this is
+     * set, since the position being open is what the message already explained.
+     */
+    bool reportedOpen = false;
+
+    /*
+     * Which positions the **result hint** decided - see `bindResult` and `fillDetermined`.
+     *
+     * A bitmask over the context's own parameters, which bounds it at 64: a declaration with more
+     * type parameters than that has no fundep this rule could be about, and the positions past the
+     * bound simply keep the hint's answer, which is what they did before the rule existed.
+     */
+    U64 fromResult = 0;
 };
 
 /*

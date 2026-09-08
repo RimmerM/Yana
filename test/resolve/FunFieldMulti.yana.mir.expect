@@ -1,6 +1,6 @@
 module ResolveTest
 
-data Handlers {first: (I32) -> I32, second: (I32) -> I32}
+data Handlers {first: (I32) -> I32, second: (I32) -> I32} drop derived reclaim derived
 
 fn double(x: I32 [shared call]) -> I32 {
 bb0:
@@ -36,16 +36,19 @@ bb0:
 
 fn retarget(slot: (I32) -> I32 [unique call]) -> {} {
 bb0:
-  %0: (I32) -> I32 = fun.value triple
+  %0: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value triple
+  drop (slot)
   write.assign borrow.unique (slot) take %0
   return
 }
 
 fn retargetBoth(a: (I32) -> I32 [unique call], b: (I32) -> I32 [unique call]) -> {} {
 bb0:
-  %0: (I32) -> I32 = fun.value negate
+  %0: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value negate
+  drop (a)
   write.assign borrow.unique (a) take %0
-  %2: (I32) -> I32 = fun.value square
+  %2: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value square
+  drop (b)
   write.assign borrow.unique (b) take %2
   return
 }
@@ -57,8 +60,8 @@ fn main() -> I32 {
   local both: I32
 
 bb0:
-  %0: (I32) -> I32 = fun.value double
-  %1: (I32) -> I32 = fun.value triple
+  %0: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value double
+  %1: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value triple
   %2: Handlers = aggregate.Handlers take %0 take %1
   write.init borrow.unique (h) take %2
   %4: (I32) -> I32 [shared call] = read borrow.shared (h.first) loan0
@@ -88,6 +91,7 @@ bb0:
   %28: (I32) -> I32 [shared call] = read borrow.shared (h.second) loan8
   %29: I32 = const 10
   %30: I32 = call inspect %28 borrow.shared %29
+  drop (h)
   %31: I32 = add inspect %27 inspect %30
   write.init borrow.unique (both) take %31
   %33: I32 = read copy.trivial (before)

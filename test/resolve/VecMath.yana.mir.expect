@@ -56,12 +56,12 @@ bb10:
   jump -> bb11
 
 bb11:
-  %34: F32 = const 1
+  %34: F32 = const 0
   %35: F32 = const 0
-  %36: F32 = const 0
-  %37: F32 = sub inspect %35 inspect %36
-  %38: F32 = sqrt inspect %37
-  %39: F32 = div inspect %34 inspect %38
+  %36: F32 = sub inspect %34 inspect %35
+  %37: F32 = sqrt inspect %36
+  %38: F32 = const 1
+  %39: F32 = div inspect %38 inspect %37
   %40: F32 = const 1
   %41: F32 = const 0
   %42: F32 = const 0
@@ -86,7 +86,7 @@ bb15:
   return take %47
 }
 
-fn lanes() -> I32 {
+fn lanes'2() -> I32 {
   local squares: Vec(F32)
   local roots: Vec(F32)
   local counted: Vec(F32)
@@ -218,7 +218,7 @@ bb1:
   jump -> bb2
 
 bb2:
-  %7: I32 = call lanes
+  %7: I32 = call lanes'2
   %8: I32 = const 0
   %9: Bool = ne inspect %7 inspect %8
   branch inspect %9 -> bb6 -> bb4
@@ -235,7 +235,7 @@ bb5:
   return take %16
 
 bb6:
-  %11: I32 = call lanes
+  %11: I32 = call lanes'2
   %12: I32 = const 10
   %13: I32 = mul inspect %11 inspect %12
   return take %13

@@ -1,0 +1,124 @@
+module ResolveTest
+
+let names: [String *3] = [String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}, String {units: Array {run: Run {items: &string'144, capacity: 3, ownsHeap: 0}, length: 3}}, String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}]
+
+let rows: [Row *2] = [Row {name: String {units: Array {run: Run {items: &string'146, capacity: 2, ownsHeap: 0}, length: 2}}, rank: 2}, Row {name: String {units: Array {run: Run {items: &string'147, capacity: 3, ownsHeap: 0}, length: 3}}, rank: 5}]
+
+let string'143: [CodeUnit *2] = [97, 98]
+
+let string'144: [CodeUnit *3] = [99, 100, 101]
+
+let string'145: [CodeUnit *1] = [102]
+
+let string'146: [CodeUnit *2] = [103, 104]
+
+let string'147: [CodeUnit *3] = [105, 106, 107]
+
+fn total() -> I32 {
+bb0:
+  %16: %I32 address = alloc frame I32
+  %17: %I32 address = alloc frame I32
+  %18: %I32 address = alloc frame I32
+  %19: %I32 address = alloc frame I32
+  %20: %I32 address = alloc frame I32
+  %21: I32 trivial = const 0
+  store inspect %16 consume %21
+  %22: I32 trivial = const 0
+  %23: I32 trivial = const 3
+  %24: I32 trivial = const 1
+  store inspect %17 consume %22
+  jump -> bb1(consume %23, consume %24)
+
+bb1(%0: I32 trivial, %1: I32 trivial):
+  %25: I32 trivial = load inspect %17
+  %26: Bool trivial = lt inspect %25 inspect %0
+  branch inspect %26 -> bb4(consume %0, consume %1) -> bb3(consume %0, consume %1)
+
+bb2(%2: I32 trivial, %3: I32 trivial):
+  %27: I32 trivial = load inspect %17
+  %28: I32 trivial = add inspect %27 inspect %3
+  store inspect %17 consume %28
+  jump -> bb1(consume %2, consume %3)
+
+bb3(%4: I32 trivial, %5: I32 trivial):
+  %29: I32 trivial = const 0
+  %30: I32 trivial = const 2
+  %31: I32 trivial = const 1
+  store inspect %19 consume %29
+  jump -> bb5(consume %30, consume %31)
+
+bb4(%6: I32 trivial, %7: I32 trivial):
+  %32: I32 trivial = load inspect %17
+  store inspect %18 consume %32
+  %33: I32 trivial = load inspect %16
+  %34: I32 trivial = load inspect %18
+  %35: Size trivial = convert inspect %34
+  %36: USize trivial = const 3
+  %37: USize trivial = bitcast inspect %35
+  %38: Bool trivial = ge inspect %37 inspect %36
+  call checkCondition borrow %38
+  %39: %[String *3] address = global.addr names
+  %40: %String address = element.addr inspect %39 inspect %35
+  %41: String [shared call] guaranteed = load inspect %40
+  %42: String [shared slot 0 view] guaranteed = call String.view borrow %41
+  %43: Size trivial = call String.length borrow %42
+  %44: I32 trivial = convert inspect %43
+  %45: I32 trivial = add inspect %33 inspect %44
+  store inspect %16 consume %45
+  jump -> bb2(consume %6, consume %7)
+
+bb5(%8: I32 trivial, %9: I32 trivial):
+  %46: I32 trivial = load inspect %19
+  %47: Bool trivial = lt inspect %46 inspect %8
+  branch inspect %47 -> bb8(consume %8, consume %9) -> bb7(consume %8, consume %9)
+
+bb6(%10: I32 trivial, %11: I32 trivial):
+  %48: I32 trivial = load inspect %19
+  %49: I32 trivial = add inspect %48 inspect %11
+  store inspect %19 consume %49
+  jump -> bb5(consume %10, consume %11)
+
+bb7(%12: I32 trivial, %13: I32 trivial):
+  %50: I32 trivial = load inspect %16
+  return consume %50
+
+bb8(%14: I32 trivial, %15: I32 trivial):
+  %51: I32 trivial = load inspect %19
+  store inspect %20 consume %51
+  %52: I32 trivial = load inspect %16
+  %53: I32 trivial = load inspect %20
+  %54: Size trivial = convert inspect %53
+  %55: USize trivial = const 2
+  %56: USize trivial = bitcast inspect %54
+  %57: Bool trivial = ge inspect %56 inspect %55
+  call checkCondition borrow %57
+  %58: %[Row *2] address = global.addr rows
+  %59: %Row address = element.addr inspect %58 inspect %54
+  %60: %String address = field.addr .name inspect %59
+  %61: String [shared call] guaranteed = load inspect %60
+  %62: String [shared slot 0 view] guaranteed = call String.view borrow %61
+  %63: Size trivial = call String.length borrow %62
+  %64: I32 trivial = convert inspect %63
+  %65: I32 trivial = load inspect %20
+  %66: Size trivial = convert inspect %65
+  %67: USize trivial = const 2
+  %68: USize trivial = bitcast inspect %66
+  %69: Bool trivial = ge inspect %68 inspect %67
+  call checkCondition borrow %69
+  %70: %[Row *2] address = global.addr rows
+  %71: %Row address = element.addr inspect %70 inspect %66
+  %72: %I32 address = field.addr .rank inspect %71
+  %73: I32 trivial = load inspect %72
+  %74: I32 trivial = mul inspect %64 inspect %73
+  %75: I32 trivial = add inspect %52 inspect %74
+  store inspect %16 consume %75
+  jump -> bb6(consume %14, consume %15)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call total
+  return consume %0
+}
+
+entry main

@@ -146,19 +146,21 @@ Reachable reachableOf(OptContext& opt);
  * the allocation - a second name for the storage, admitted only while it does not escape either. The
  * other three conventions are contents rather than a way back: `Trivial` is the value, `Owned` is the
  * value taken out, and `Address` is a pointer that was *in* the slot. Everything else declines:
- * a `Call` argument, an `Aggregate` component, a `Store` of the address *as a value*, a `Native`
- * operand, a `Return`, an edge operand, a `FunValue` environment. There is no default that admits an
- * unrecognized kind, because forgetting too much costs an optimization and forgetting too little is
- * a miscompile.
+ * an `Aggregate` component, a `Store` of the address *as a value*, a `Native` operand, a `Return`,
+ * an edge operand, a `FunValue` environment. There is no default that admits an unrecognized kind,
+ * because forgetting too much costs an optimization and forgetting too little is a miscompile.
  *
- * **A call argument is an outright escape here, where the shipping stage admits one.** Over there
- * `callKeepsStorage` reads the callee's `retained` summary and the *call* forgets what it may have
- * written instead - exposure with an end to it. `mir::Summary::retains` and `mutates` are declared
- * and nothing fills them (`grep setRetains` is empty), so every such read is `Unknown` and every
- * fallback is `ArgumentSet::all()`; admitting the argument on that answer would be admitting it on
- * no answer at all. The refinement is one predicate away and it is `mayWriteStorage`'s to make - see
- * README.md's section D - so the fact is read through the `Fact` API there rather than assumed
- * absent, and filling the summaries changes nothing in this file.
+ * **A call argument is admitted at a position the callee does not retain**, which is the shipping
+ * stage's `callKeepsStorage` over an inferred fact instead of a declared one, and what
+ * `mir::Summary::retains` was declared for. It was an outright escape until J25 filled the row, for
+ * the honest reason that `Unknown` reads back as `ArgumentSet::all()` and admitting an argument on
+ * that answer is admitting it on no answer at all; that is still what an unfilled row does.
+ *
+ * What the admission leaves behind is the other half - what the callee wrote through the address
+ * while it had it - and that is deliberately **not** here. `mayWriteStorage` asks it, of the call
+ * itself, through the callee's `mutates` row. Two rows read in two places on purpose: retention is
+ * about the *address* and mutation is about the *storage*, and one predicate answering both would be
+ * a containment that quietly means "and never written", which is not what any reader asks it.
  *
  * It is the one analysis here that is a statement about **values** rather than about blocks, so it
  * is the one whose stamp passes `overValues`: folding an operand or erasing an instruction can move
@@ -190,6 +192,27 @@ Contained& containedOf(OptContext& opt);
 Value* allocationRoot(OptContext& opt, Value* address);
 
 /*
+ * One step up an address chain, or null where the chain ends.
+ *
+ * The three ways an address names storage another value already names - a field or element
+ * projection, a `Guaranteed` load (which at this tier is how a borrow is spelled and is no
+ * instruction in the lowering), and `represent`. Exported because `cse` compares two chains rather
+ * than only walking one, and a second copy of the list would be a second answer to keep in step.
+ */
+Value* addressStep(OptContext& opt, Value* address);
+
+/*
+ * Whether an address was read out of storage - the other half of `allocationRoot`'s null.
+ *
+ * A projection chain that ends at a `Load` is a pointer that was sitting in memory; one ending at a
+ * global's address, at a block argument or at an unsafe cast is not. Only the first says anything,
+ * and what it says is in `mayWriteStorage`: an allocation nothing wrote the address of cannot be
+ * named by a pointer something read. A `Guaranteed` load result is excluded, because at this tier
+ * that is how a borrow of the slot is spelled and it names the slot rather than its contents.
+ */
+bool addressIsLoaded(OptContext& opt, Value* address);
+
+/*
  * Whether one instruction may write an allocation's storage, or storage reachable from it.
  *
  * The question `forwardMemory` asks of everything between a write and a read, and the one place the
@@ -201,9 +224,11 @@ Value* allocationRoot(OptContext& opt, Value* address);
  *    slot empty, which is a write however it is spelled;
  *  - an **opaque** one, where the instruction is a `Call`, a `Native` or any kind this does not
  *    recognize. `Contained` is what proves such an instruction disjoint from this allocation: a
- *    callee cannot write storage whose address it was never given. Where the allocation escapes,
- *    the callee's `mutates` summary is what would answer instead, and it reads `Unknown` today - so
- *    the fallback is `ArgumentSet::all()` and the call is a barrier;
+ *    callee cannot write storage whose address it was never given. A call is now the case that
+ *    needs both facts - containment admits an argument the callee does not retain, so "contained"
+ *    means "no call kept it" rather than "no call saw it", and the positions *this* call was handed
+ *    it at are asked against the callee's `mutates` row. An unfilled row is `ArgumentSet::all()`,
+ *    which is the barrier this was before either fact existed;
  *  - and **no**, for everything pure, for an `Alloc` (storage that has just come into existence) and
  *    for a `Copy`, which reads its address and writes storage of its own that nothing else names.
  *

@@ -1,0 +1,213 @@
+module ResolveTest
+
+data Pair(a, b) {first: a, second: b} drop derived reclaim derived
+
+data Labelled {tag: I32, weight: I32}
+
+data Pair(I32, Bool) {first: I32, second: Bool} of Pair
+
+fn identity(value: a) -> a {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: a = read take (value)
+  return take %0
+}
+
+fn scale(x: a [shared call], y: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+  local local2: a
+
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: a [shared call] = read borrow.shared (y) loan1
+  %2: a = call *(a) borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (local2) take %2
+  %4: a [shared call] = read borrow.shared (local2) loan2
+  %5: a [shared call] = read borrow.shared (x) loan3
+  %6: a = call +(a) borrow.shared %4 borrow.shared %5
+  drop (local2)
+  return take %6
+}
+
+fn smallest(x: a, y: a, z: a) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Ord(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: a [shared call] = read borrow.shared (y) loan1
+  %2: Bool = call <(a) borrow.shared %0 borrow.shared %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  drop (x)
+  %13: a [shared call] = read borrow.shared (y) loan4
+  %14: a [shared call] = read borrow.shared (z) loan5
+  %15: Bool = call <(a) borrow.shared %13 borrow.shared %14
+  branch inspect %15 -> bb9 -> bb7
+
+bb2(%22: a):
+  return take %22
+
+bb3:
+  drop (y)
+  %4: a [shared call] = read borrow.shared (x) loan2
+  %5: a [shared call] = read borrow.shared (z) loan3
+  %6: Bool = call <(a) borrow.shared %4 borrow.shared %5
+  branch inspect %6 -> bb6 -> bb4
+
+bb4:
+  drop (x)
+  %9: a = read take (z)
+  jump -> bb5(take %9)
+
+bb5(%10: a):
+  jump -> bb2(take %10)
+
+bb6:
+  drop (z)
+  %8: a = read take (x)
+  jump -> bb5(take %8)
+
+bb7:
+  drop (y)
+  %18: a = read take (z)
+  jump -> bb8(take %18)
+
+bb8(%19: a):
+  jump -> bb2(take %19)
+
+bb9:
+  drop (z)
+  %17: a = read take (y)
+  jump -> bb8(take %17)
+}
+
+fn bothEqual(p: a [shared call], q: a [shared call], r: b [shared call], s: b [shared call]) -> Bool {
+  form specialized
+  slot #0 type a
+  slot #1 type b
+  slot #2 class Eq(a)
+  slot #3 class Eq(b)
+bb0:
+  %0: a [shared call] = read borrow.shared (p) loan0
+  %1: a [shared call] = read borrow.shared (q) loan1
+  %2: Bool = call ==(a) borrow.shared %0 borrow.shared %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: Bool = const False
+  jump -> bb2(take %7)
+
+bb2(%8: Bool):
+  return take %8
+
+bb3:
+  %4: b [shared call] = read borrow.shared (r) loan2
+  %5: b [shared call] = read borrow.shared (s) loan3
+  %6: Bool = call ==(b) borrow.shared %4 borrow.shared %5
+  jump -> bb2(take %6)
+}
+
+fn pairUp(x: a, y: b) -> Pair(a, b) {
+  form specialized
+  slot #0 type a
+  slot #1 type b
+bb0:
+  %0: a = read take (x)
+  %1: b = read take (y)
+  %2: Pair(a, b) = aggregate.Pair take %0 take %1
+  return take %2
+}
+
+fn tagOf'2(value: a [shared call]) -> I32 {
+  form erased
+  slot #0 type a
+  slot #1 property a.tag
+bb0:
+  %0: I32 = const 7
+  return take %0
+}
+
+fn double(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn doubled(value: a [shared call]) -> I32 {
+  form erased
+  slot #0 type a
+  slot #1 function double: (I32) -> I32
+bb0:
+  %0: I32 = const 8
+  return take %0
+}
+
+fn main() -> I32 {
+  local local0: Pair(I32, Bool)
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = call identity(I32) take %0
+  %2: I32 = const 2
+  %3: I32 = const 3
+  %4: I32 = call scale(I32) borrow.shared %2 borrow.shared %3
+  %5: I32 = add inspect %1 inspect %4
+  %6: I32 = const 9
+  %7: I32 = const 4
+  %8: I32 = const 7
+  %9: I32 = call smallest(I32) take %6 take %7 take %8
+  %10: I32 = add inspect %5 inspect %9
+  %11: Bool = const True
+  %12: Bool = const True
+  %13: I32 = const 1
+  %14: I32 = const 1
+  %15: Bool = call bothEqual(I32, Bool) borrow.shared %13 borrow.shared %14 borrow.shared %11 borrow.shared %12
+  branch inspect %15 -> bb3(take %10) -> bb1(take %10)
+
+bb1(%16: I32):
+  %20: I32 = const 0
+  jump -> bb2(take %20, take %16)
+
+bb2(%21: I32, %22: I32):
+  %25: I32 = add inspect %22 inspect %21
+  %26: Bool = const False
+  %27: I32 = const 20
+  %28: Pair(I32, Bool) = call pairUp(I32, Bool) take %27 take %26
+  write.init borrow.unique (local0) take %28
+  %30: I32 = read copy.trivial (local0.first)
+  %31: I32 = add inspect %25 inspect %30
+  %32: I32 = const 1
+  %33: I32 = const 2
+  %34: Labelled = aggregate.Labelled take %32 take %33
+  %35: I32 = call tagOf'2(Labelled) borrow.shared %34
+  %36: I32 = add inspect %31 inspect %35
+  %37: I32 = const 1
+  %38: I32 = const 2
+  %39: Labelled = aggregate.Labelled take %37 take %38
+  %40: I32 = call doubled(Labelled) borrow.shared %39
+  %41: I32 = add inspect %36 inspect %40
+  return take %41
+
+bb3(%17: I32):
+  %19: I32 = const 5
+  jump -> bb2(take %19, take %17)
+}
+
+fn identity(I32)(value: I32) -> I32 = <identity at I32>
+
+fn scale(I32)(x: I32 [shared call], y: I32 [shared call]) -> I32 = <scale at I32>
+
+fn smallest(I32)(x: I32, y: I32, z: I32) -> I32 = <smallest at I32>
+
+fn bothEqual(I32, Bool)(p: I32 [shared call], q: I32 [shared call], r: Bool [shared call], s: Bool [shared call]) -> Bool = <bothEqual at I32, Bool>
+
+fn pairUp(I32, Bool)(x: I32, y: Bool) -> Pair(I32, Bool) = <pairUp at I32, Bool>
+
+entry main

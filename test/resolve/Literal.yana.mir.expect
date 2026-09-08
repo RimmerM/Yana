@@ -40,7 +40,7 @@ bb0:
   return take %1
 }
 
-fn maxValue() -> U64 {
+fn maxValue'2() -> U64 {
 bb0:
   %0: U64 = const 0
   %1: U64 = not inspect %0
@@ -56,8 +56,8 @@ bb0:
   write.init borrow.unique (i) take %0
   %2: F32 = const 2.5
   write.init borrow.unique (f) take %2
-  %4: I32 = read copy.trivial (i)
-  %5: F32 = read copy.trivial (f)
+  %4: I32 = const 7
+  %5: F32 = const 2.5
   %6: I32 = convert inspect %5
   %7: I32 = add inspect %4 inspect %6
   return take %7
@@ -153,7 +153,7 @@ bb2(%28: I32, %29: I32):
   %33: I64 = call incLong
   %34: I32 = convert inspect %33
   %35: I32 = add inspect %32 inspect %34
-  %36: U64 = call maxValue
+  %36: U64 = call maxValue'2
   %37: U64 = const 18446744073709551615
   %38: Bool = eq inspect %36 inspect %37
   branch inspect %38 -> bb6(take %35) -> bb4(take %35)

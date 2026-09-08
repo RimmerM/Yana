@@ -46,6 +46,23 @@ class Describe(a):
 instance Describe(Point):
     fn describe(v: Point) -> Int = v.x * 10 + v.y
 
+-- A function written in the type's **own namespace**, which R1 makes *the* plain function of the
+-- set a dot on a value of that type selects from. It is the plain half rather than a candidate
+-- joining it, which is what keeps "at most one plain function" true where two of them could
+-- otherwise reach one call: `p.size()` is `Point.size` and `n.size()` is the bare one, from one
+-- body. The namespaced reading is looked up first for a reason of its own - see findDotOverloads.
+fn Point.size(p: Point) -> Int = p.x + p.y
+
+fn size(v: Int) -> Int = 2
+
+-- A receiver that is not storage. The value the call produced gets a frame slot and the dot-call
+-- reads it from there, which is the same temporary `f().x` projects out of.
+fn make(n: Int) -> Point = Point {x: n, y: n}
+
+-- A receiver the callee **consumes**. `->p` is the ordinary convention at position 0, so the value
+-- is moved out of the receiver's place exactly as a written `swallow(p)` moves it.
+fn swallow(->p: Point) -> Int = p.x + p.y
+
 -- An `iter fn` named through the dot form is a named iterator like any other, which is what a `for`
 -- loop needs. A single stage, not a chain: `xs.filter(p).map(f)` still needs the erased callback
 -- ABI, because its outer receiver is an iterator travelling as a value.
@@ -87,10 +104,20 @@ fn main() -> Int:
     -- 3 * 10 + 4 = 34
     let f = p.describe()
 
+    -- The type's own namespace wins for a `Point` receiver and leaves the bare `size` to every
+    -- other type: 3 + 4 = 7, and 2.
+    let g = p.size() + (9 :: Int).size()
+
+    -- A temporary receiver - 2 * 3 + 2 = 8.
+    let h = make(2).scaled(3)
+
+    -- And one the callee moves out of - 5 + 5 = 10.
+    let i = make(5).swallow()
+
     let &sum = 0 :: Int
     for x in 10.evens():
         sum = sum + x
 
-    -- 10 + 18 + 15 + 12 + 6 + 10 + 34 + 20 = 125. Under 256 deliberately: `main`'s result is an
-    -- exit code, so a fixture that runs has to fit in eight bits to be compared at all.
-    return a + b + c + d + q.x + e + f + sum
+    -- 10 + 18 + 15 + 12 + 6 + 10 + 34 + 9 + 8 + 10 + 20 = 152. Under 256 deliberately: `main`'s
+    -- result is an exit code, so a fixture that runs has to fit in eight bits to be compared at all.
+    return a + b + c + d + q.x + e + f + g + h + i + sum

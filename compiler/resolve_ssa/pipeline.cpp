@@ -6,8 +6,9 @@
 
 namespace ssa {
 
-bool Pipeline::resolve(ast::ModuleGroup& root, ast::ModuleProvider* provider) {
-    program = mir::resolveProgram(context, root, provider);
+bool Pipeline::resolve(ast::ModuleGroup& root, ast::ModuleProvider* provider,
+                       Buffer<ast::ModuleGroup*> testRoots) {
+    program = mir::resolveProgram(context, root, provider, testRoots);
     return program && context.diagnostics.errorCount() == 0;
 }
 

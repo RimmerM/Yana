@@ -43,7 +43,7 @@ static Place* exchangedPlace(Builder& builder, Node& address, const Occurrence& 
 // makes it a relocation rather than a hole; see `analyze_live.cpp`'s raw-pointer arm.
 static Node* relocate(Builder& builder, Place& place, LocationId source) {
     auto wanted = bindingRequest(Access::Owned);
-    return builder.addRead(source, place, readMode(*builder.program.decl, place, wanted), wanted);
+    return builder.addRead(source, place, readMode(*builder.program.decl, builder.base(), builder.body, place, wanted), wanted);
 }
 
 /*

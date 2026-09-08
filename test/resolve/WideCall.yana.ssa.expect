@@ -102,7 +102,7 @@ bb3:
 
 fn call() -> I32 {
 bb0:
-  %0: %() -> I32 address = alloc frame () -> I32
+  %0: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=unique call]
   %1: Bool trivial = const True
   %2: I32 trivial = const 7
   %3: I32 trivial = const 2
@@ -135,9 +135,9 @@ bb0:
   %30: I32 trivial = const 29
   %31: I32 trivial = const 30
   %32: I32 trivial = const 31
-  %33: () -> I32 affine = fun.value call.thunk
+  %33: () -> I32 [owned here shape8 .0=unique call] affine = fun.value call.thunk
   store inspect %0 consume %33
-  %34: () -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %34: () -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
   %35: {} trivial = const {}
   %36: I32 trivial = call wide [Bool, {}] borrow %1 borrow %2 borrow %3 borrow %4 borrow %5 borrow %6 borrow %7 borrow %8 borrow %9 borrow %10 borrow %11 borrow %12 borrow %13 borrow %14 borrow %15 borrow %16 borrow %17 borrow %18 borrow %19 borrow %20 borrow %21 borrow %22 borrow %23 borrow %24 borrow %25 borrow %26 borrow %27 borrow %28 borrow %29 borrow %30 borrow %31 borrow %32 borrow %35 borrow %34
   return consume %36
@@ -145,7 +145,7 @@ bb0:
 
 fn callForcing() -> I32 {
 bb0:
-  %0: %() -> I32 address = alloc frame () -> I32
+  %0: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=unique call]
   %1: Bool trivial = const True
   %2: I32 trivial = const 0
   %3: I32 trivial = const 2
@@ -178,9 +178,9 @@ bb0:
   %30: I32 trivial = const 29
   %31: I32 trivial = const 30
   %32: I32 trivial = const 31
-  %33: () -> I32 affine = fun.value callForcing.thunk
+  %33: () -> I32 [owned here shape8 .0=unique call] affine = fun.value callForcing.thunk
   store inspect %0 consume %33
-  %34: () -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %34: () -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
   %35: {} trivial = const {}
   %36: I32 trivial = call wide [Bool, {}] borrow %1 borrow %2 borrow %3 borrow %4 borrow %5 borrow %6 borrow %7 borrow %8 borrow %9 borrow %10 borrow %11 borrow %12 borrow %13 borrow %14 borrow %15 borrow %16 borrow %17 borrow %18 borrow %19 borrow %20 borrow %21 borrow %22 borrow %23 borrow %24 borrow %25 borrow %26 borrow %27 borrow %28 borrow %29 borrow %30 borrow %31 borrow %32 borrow %35 borrow %34
   return consume %36

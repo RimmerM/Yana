@@ -21,7 +21,7 @@ bb0:
   %5: I32 trivial = call Box.weigh borrow %4
   store inspect %0 consume %5
   %6: I32 trivial = const 6
-  %7: I32 trivial = call weigh'2 borrow %6
+  %7: I32 trivial = call weigh'3 borrow %6
   store inspect %1 consume %7
   %8: I32 trivial = const 2
   %9: Tag trivial = aggregate.Tag consume %8
@@ -36,7 +36,7 @@ bb0:
 }
 module Weights
 
-fn weigh(value: a [shared call]) -> I32 = <no body>
+fn weigh'2(value: a [shared call]) -> I32 = <no body>
 
 fn Box.weigh(value: Box [shared call]) -> I32 {
 bb0(%0: Box [shared call] guaranteed):
@@ -47,7 +47,7 @@ bb0(%0: Box [shared call] guaranteed):
   return consume %4
 }
 
-fn weigh'2(value: I32 [shared call]) -> I32 {
+fn weigh'3(value: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
@@ -58,6 +58,6 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 module Scales
 
-fn weigh(value: Bool [shared call]) -> I32 = <no body>
+fn weigh'4(value: Bool [shared call]) -> I32 = <no body>
 
 entry main

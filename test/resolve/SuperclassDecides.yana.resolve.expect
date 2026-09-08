@@ -1,0 +1,126 @@
+let image$base: () = <none>
+
+(Rated(a, m)) fn smaller(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+    #1 type m
+    #2 class Rated(a, m)
+  }
+
+  b0:
+    %v2 = gencall Lane(a, m).cmp, %x, %y : m
+    %v3 = gencall Lane(a, m).pick, %v2, %x, %y : a
+    ret %v3
+}
+
+(Rated(a, m)) fn larger(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+    #1 type m
+    #2 class Rated(a, m)
+  }
+
+  b0:
+    %v2 = gencall Lane(a, m).cmp, %x, %y : m
+    %v3 = gencall Lane(a, m).pick, %v2, %y, %x : a
+    ret %v3
+}
+
+(Rated(a, m)) fn ratedSmaller(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+    #1 type m
+    #2 class Rated(a, m)
+  }
+
+  b0:
+    %v2 = gencall smaller(a, m), %x, %y : a
+    %v3 = gencall Rated(a, m).rating, %v2 : a
+    ret %v3
+}
+
+fn main() -> I32 {
+  b0:
+    %v3 = call smaller(I32, Bool), 9, 4 : I32
+    %v6 = cmp_ne %v3, 4 : Bool
+    je %v6, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v14 = call larger(I32, Bool), 9, 4 : I32
+    %v17 = cmp_ne %v14, 9 : Bool
+    je %v17, b4, b5
+
+  b4:
+    ret 2
+
+  b5:
+    jmp b6
+
+  b6:
+    %v25 = call ratedSmaller(I32, Bool), 9, 4 : I32
+    %v28 = cmp_ne %v25, 8 : Bool
+    je %v28, b7, b8
+
+  b7:
+    ret 3
+
+  b8:
+    jmp b9
+
+  b9:
+    ret 88
+}
+
+fn Lane(I32, Bool).cmp(%lhs: I32, %rhs: I32) -> Bool {
+  b0:
+    %v2 = cmp_lt %lhs, %rhs : Bool
+    ret %v2
+}
+
+fn Lane(I32, Bool).pick(%mask: Bool, %ifTrue: I32, %ifFalse: I32) -> I32 {
+  b0:
+    je %mask, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %ifTrue], [b2, %ifFalse] : I32
+    ret %v6
+}
+
+fn Rated(I32, Bool).rating(%x: I32) -> I32 {
+  b0:
+    %v3 = mul %x, 2 : I32
+    ret %v3
+}
+
+fn smaller(I32, Bool)(%x: I32, %y: I32) -> I32 {
+  b0:
+    %v2 = call Lane(I32, Bool).cmp, %x, %y : Bool
+    %v3 = call Lane(I32, Bool).pick, %v2, %x, %y : I32
+    ret %v3
+}
+
+fn larger(I32, Bool)(%x: I32, %y: I32) -> I32 {
+  b0:
+    %v2 = call Lane(I32, Bool).cmp, %x, %y : Bool
+    %v3 = call Lane(I32, Bool).pick, %v2, %y, %x : I32
+    ret %v3
+}
+
+fn ratedSmaller(I32, Bool)(%x: I32, %y: I32) -> I32 {
+  b0:
+    %v2 = call smaller(I32, Bool), %x, %y : I32
+    %v3 = call Rated(I32, Bool).rating, %v2 : I32
+    ret %v3
+}

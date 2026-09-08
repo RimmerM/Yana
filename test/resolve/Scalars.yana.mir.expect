@@ -1,0 +1,500 @@
+module ResolveTest
+
+fn scalarOrder() -> I32 {
+  local low: I32
+  local high: I32
+  local bounded: I32
+  local tie: I32
+
+bb0:
+  %0: I32 = const 7
+  %1: I32 = const 3
+  %2: I32 = call min(I32) take %0 take %1
+  write.init borrow.unique (low) take %2
+  %4: I32 = const 7
+  %5: I32 = const 3
+  %6: I32 = call max(I32) take %4 take %5
+  write.init borrow.unique (high) take %6
+  %8: I32 = const 99
+  %9: I32 = const 0
+  %10: I32 = const 10
+  %11: I32 = call clamp(I32) take %8 take %9 take %10
+  write.init borrow.unique (bounded) take %11
+  %13: I32 = const 4
+  %14: I32 = const 4
+  %15: I32 = call min(I32) take %13 take %14
+  %16: I32 = const 4
+  %17: I32 = const 4
+  %18: I32 = call max(I32) take %16 take %17
+  %19: I32 = add inspect %15 inspect %18
+  write.init borrow.unique (tie) take %19
+  %21: I32 = read copy.trivial (low)
+  %22: I32 = read copy.trivial (high)
+  %23: I32 = const 10
+  %24: I32 = mul inspect %22 inspect %23
+  %25: I32 = add inspect %21 inspect %24
+  %26: I32 = read copy.trivial (bounded)
+  %27: I32 = const 100
+  %28: I32 = mul inspect %26 inspect %27
+  %29: I32 = add inspect %25 inspect %28
+  %30: I32 = read copy.trivial (tie)
+  %31: I32 = const 1000
+  %32: I32 = mul inspect %30 inspect %31
+  %33: I32 = add inspect %29 inspect %32
+  return take %33
+}
+
+fn vectorOrder() -> I32 {
+  local left: Vec(I32)
+  local right: Vec(I32)
+  local low: I32
+  local high: I32
+  local size: I32
+
+bb0:
+  %0: I32 = const 3
+  %1: Vec(I32) = vec.splat inspect %0
+  write.init borrow.unique (left) take %1
+  %3: I32 = const 5
+  %4: Vec(I32) = vec.splat inspect %3
+  write.init borrow.unique (right) take %4
+  %6: Vec(I32) = read copy.trivial (left)
+  %7: Vec(I32) = read copy.trivial (right)
+  %8: Mask(I32) = lt inspect %6 inspect %7
+  %9: Vec(I32) = select inspect %8 inspect %6 inspect %7
+  %10: I32 = vec.reduce add inspect %9
+  %11: Vec(I32) = read copy.trivial (left)
+  %12: I32 = const 4
+  %13: I32 = div inspect %10 inspect %12
+  write.init borrow.unique (low) take %13
+  %15: Vec(I32) = read copy.trivial (left)
+  %16: Vec(I32) = read copy.trivial (right)
+  %17: Mask(I32) = gt inspect %15 inspect %16
+  %18: Vec(I32) = select inspect %17 inspect %15 inspect %16
+  %19: I32 = vec.reduce add inspect %18
+  %20: Vec(I32) = read copy.trivial (left)
+  %21: I32 = const 4
+  %22: I32 = div inspect %19 inspect %21
+  write.init borrow.unique (high) take %22
+  %24: I32 = const 0
+  %25: I32 = const 2
+  %26: I32 = sub inspect %24 inspect %25
+  %27: Vec(I32) = vec.splat inspect %26
+  %28: Vec(I32) = abs inspect %27
+  %29: I32 = vec.reduce add inspect %28
+  %30: Vec(I32) = read copy.trivial (left)
+  %31: I32 = const 4
+  %32: I32 = div inspect %29 inspect %31
+  write.init borrow.unique (size) take %32
+  %34: I32 = read copy.trivial (low)
+  %35: I32 = read copy.trivial (high)
+  %36: I32 = const 10
+  %37: I32 = mul inspect %35 inspect %36
+  %38: I32 = add inspect %34 inspect %37
+  %39: I32 = read copy.trivial (size)
+  %40: I32 = const 100
+  %41: I32 = mul inspect %39 inspect %40
+  %42: I32 = add inspect %38 inspect %41
+  return take %42
+}
+
+fn signs() -> I32 {
+  local magnitude: I32
+  local direction: I32
+  local positiveZero: I32
+  local negativeZero: I32
+
+bb0:
+  %0: I32 = const 5
+  %1: I32 = const 0
+  %2: I32 = sub inspect %1 inspect %0
+  %3: I32 = call abs(I32) borrow.shared %2
+  %4: I32 = const 5
+  %5: I32 = call abs(I32) borrow.shared %4
+  %6: I32 = add inspect %3 inspect %5
+  write.init borrow.unique (magnitude) take %6
+  %8: I32 = const 7
+  %9: I32 = const 0
+  %10: I32 = sub inspect %9 inspect %8
+  %11: I32 = call signum(I32) borrow.shared %10
+  %12: I32 = const 0
+  %13: I32 = call signum(I32) borrow.shared %12
+  %14: I32 = const 10
+  %15: I32 = mul inspect %13 inspect %14
+  %16: I32 = add inspect %11 inspect %15
+  %17: I32 = const 7
+  %18: I32 = call signum(I32) borrow.shared %17
+  %19: I32 = const 100
+  %20: I32 = mul inspect %18 inspect %19
+  %21: I32 = add inspect %16 inspect %20
+  write.init borrow.unique (direction) take %21
+  %23: F32 = const 0
+  %24: F32 = call abs(F32) borrow.shared %23
+  %25: F32 = const 1
+  %26: F32 = div inspect %25 inspect %24
+  %27: F32 = const 0
+  %28: Bool = gt inspect %26 inspect %27
+  branch inspect %28 -> bb3 -> bb1
+
+bb1:
+  %31: I32 = const 0
+  jump -> bb2(take %31)
+
+bb2(%32: I32):
+  write.init borrow.unique (positiveZero) take %32
+  %36: F32 = const 1
+  %37: F32 = const 0
+  %38: F32 = sub inspect %37 inspect %36
+  %39: F32 = const 0
+  %40: F32 = mul inspect %38 inspect %39
+  %41: F32 = call abs(F32) borrow.shared %40
+  %42: F32 = const 1
+  %43: F32 = div inspect %42 inspect %41
+  %44: F32 = const 0
+  %45: Bool = gt inspect %43 inspect %44
+  branch inspect %45 -> bb6 -> bb4
+
+bb3:
+  %30: I32 = const 1
+  jump -> bb2(take %30)
+
+bb4:
+  %48: I32 = const 0
+  jump -> bb5(take %48)
+
+bb5(%49: I32):
+  write.init borrow.unique (negativeZero) take %49
+  %53: I32 = read copy.trivial (magnitude)
+  %54: I32 = read copy.trivial (direction)
+  %55: I32 = const 10
+  %56: I32 = mul inspect %54 inspect %55
+  %57: I32 = add inspect %53 inspect %56
+  %58: I32 = read copy.trivial (positiveZero)
+  %59: I32 = const 10000
+  %60: I32 = mul inspect %58 inspect %59
+  %61: I32 = add inspect %57 inspect %60
+  %62: I32 = read copy.trivial (negativeZero)
+  %63: I32 = const 100000
+  %64: I32 = mul inspect %62 inspect %63
+  %65: I32 = add inspect %61 inspect %64
+  return take %65
+
+bb6:
+  %47: I32 = const 1
+  jump -> bb5(take %47)
+}
+
+fn limits() -> I32 {
+  local smallest: I8
+  local largest: I8
+  local unsigned: U8
+  local wide: I32
+  local finite: I32
+
+bb0:
+  %0: I8 = call minValue(I8)
+  write.init borrow.unique (smallest) take %0
+  %2: I8 = call maxValue(I8)
+  write.init borrow.unique (largest) take %2
+  %4: U8 = call maxValue(U8)
+  write.init borrow.unique (unsigned) take %4
+  %6: U64 = call maxValue(U64)
+  %7: U64 = const 0
+  %8: U64 = not inspect %7
+  %9: Bool = eq inspect %6 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %12: I32 = const 0
+  jump -> bb2(take %12)
+
+bb2(%13: I32):
+  write.init borrow.unique (wide) take %13
+  %17: F64 = call maxValue(F64)
+  %18: F64 = const 0.5
+  %19: F64 = mul inspect %17 inspect %18
+  %20: F64 = const 1E307
+  %21: Bool = gt inspect %19 inspect %20
+  branch inspect %21 -> bb6 -> bb4
+
+bb3:
+  %11: I32 = const 1
+  jump -> bb2(take %11)
+
+bb4:
+  %24: I32 = const 0
+  jump -> bb5(take %24)
+
+bb5(%25: I32):
+  write.init borrow.unique (finite) take %25
+  %29: I8 = read copy.trivial (smallest)
+  %30: I32 = convert inspect %29
+  %31: I8 = read copy.trivial (largest)
+  %32: I32 = convert inspect %31
+  %33: I32 = const 10
+  %34: I32 = mul inspect %32 inspect %33
+  %35: I32 = add inspect %30 inspect %34
+  %36: U8 = read copy.trivial (unsigned)
+  %37: I32 = convert inspect %36
+  %38: I32 = const 100
+  %39: I32 = mul inspect %37 inspect %38
+  %40: I32 = add inspect %35 inspect %39
+  %41: I32 = read copy.trivial (wide)
+  %42: I32 = const 100000
+  %43: I32 = mul inspect %41 inspect %42
+  %44: I32 = add inspect %40 inspect %43
+  %45: I32 = read copy.trivial (finite)
+  %46: I32 = const 1000000
+  %47: I32 = mul inspect %45 inspect %46
+  %48: I32 = add inspect %44 inspect %47
+  return take %48
+
+bb6:
+  %23: I32 = const 1
+  jump -> bb5(take %23)
+}
+
+fn bytes'2() -> I32 {
+  local word: U32
+  local short: U16
+  local signedWord: I32
+  local plain: I32
+  local original: U32
+  local roundTrip: I32
+
+bb0:
+  %0: I32 = const 305419896
+  %1: U32 = convert inspect %0
+  %2: U32 = byteswap inspect %1
+  write.init borrow.unique (word) take %2
+  %4: I32 = const 258
+  %5: U16 = convert inspect %4
+  %6: U16 = byteswap inspect %5
+  write.init borrow.unique (short) take %6
+  %8: I32 = const 1
+  %9: I32 = byteswap inspect %8
+  write.init borrow.unique (signedWord) take %9
+  %11: I32 = const 1
+  %12: I32 = byteswap inspect %11
+  write.init borrow.unique (plain) take %12
+  %14: I32 = const 123456789
+  %15: U32 = convert inspect %14
+  write.init borrow.unique (original) take %15
+  %17: U32 = read copy.trivial (original)
+  %18: U32 = byteswap inspect %17
+  %19: U32 = byteswap inspect %18
+  %20: U32 = read copy.trivial (original)
+  %21: Bool = eq inspect %19 inspect %20
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  %24: I32 = const 0
+  jump -> bb2(take %24)
+
+bb2(%25: I32):
+  write.init borrow.unique (roundTrip) take %25
+  %29: U32 = read copy.trivial (word)
+  %30: U32 = const 2018915346
+  %31: Bool = eq inspect %29 inspect %30
+  branch inspect %31 -> bb6 -> bb4
+
+bb3:
+  %23: I32 = const 1
+  jump -> bb2(take %23)
+
+bb4:
+  %34: I32 = const 0
+  jump -> bb5(take %34)
+
+bb5(%35: I32):
+  %38: U16 = read copy.trivial (short)
+  %39: I32 = convert inspect %38
+  %40: I32 = const 513
+  %41: Bool = eq inspect %39 inspect %40
+  branch inspect %41 -> bb9(take %35) -> bb7(take %35)
+
+bb6:
+  %33: I32 = const 1
+  jump -> bb5(take %33)
+
+bb7(%42: I32):
+  %46: I32 = const 0
+  jump -> bb8(take %46, take %42)
+
+bb8(%47: I32, %48: I32):
+  %51: I32 = const 10
+  %52: I32 = mul inspect %47 inspect %51
+  %53: I32 = add inspect %48 inspect %52
+  %54: I32 = read copy.trivial (signedWord)
+  %55: I32 = const 16777216
+  %56: Bool = eq inspect %54 inspect %55
+  branch inspect %56 -> bb12(take %53) -> bb10(take %53)
+
+bb9(%43: I32):
+  %45: I32 = const 1
+  jump -> bb8(take %45, take %43)
+
+bb10(%57: I32):
+  %61: I32 = const 0
+  jump -> bb11(take %61, take %57)
+
+bb11(%62: I32, %63: I32):
+  %66: I32 = const 100
+  %67: I32 = mul inspect %62 inspect %66
+  %68: I32 = add inspect %63 inspect %67
+  %69: I32 = read copy.trivial (plain)
+  %70: I32 = const 16777216
+  %71: Bool = eq inspect %69 inspect %70
+  branch inspect %71 -> bb15(take %68) -> bb13(take %68)
+
+bb12(%58: I32):
+  %60: I32 = const 1
+  jump -> bb11(take %60, take %58)
+
+bb13(%72: I32):
+  %76: I32 = const 0
+  jump -> bb14(take %76, take %72)
+
+bb14(%77: I32, %78: I32):
+  %81: I32 = const 1000
+  %82: I32 = mul inspect %77 inspect %81
+  %83: I32 = add inspect %78 inspect %82
+  %84: I32 = read copy.trivial (roundTrip)
+  %85: I32 = const 10000
+  %86: I32 = mul inspect %84 inspect %85
+  %87: I32 = add inspect %83 inspect %86
+  return take %87
+
+bb15(%73: I32):
+  %75: I32 = const 1
+  jump -> bb14(take %75, take %73)
+}
+
+fn rounding() -> I32 {
+  local aligned: I32
+  local multiple: I32
+
+bb0:
+  %0: I32 = const 13
+  %1: I32 = const 8
+  %2: I32 = call alignUp(I32) borrow.shared %0 borrow.shared %1
+  %3: I32 = const 16
+  %4: I32 = const 8
+  %5: I32 = call alignUp(I32) borrow.shared %3 borrow.shared %4
+  %6: I32 = const 100
+  %7: I32 = mul inspect %5 inspect %6
+  %8: I32 = add inspect %2 inspect %7
+  write.init borrow.unique (aligned) take %8
+  %10: I32 = const 13
+  %11: I32 = const 5
+  %12: I32 = call roundUpTo(I32) borrow.shared %10 borrow.shared %11
+  %13: I32 = const 15
+  %14: I32 = const 5
+  %15: I32 = call roundUpTo(I32) borrow.shared %13 borrow.shared %14
+  %16: I32 = const 100
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = add inspect %12 inspect %17
+  write.init borrow.unique (multiple) take %18
+  %20: I32 = read copy.trivial (aligned)
+  %21: I32 = read copy.trivial (multiple)
+  %22: I32 = const 10000
+  %23: I32 = mul inspect %21 inspect %22
+  %24: I32 = add inspect %20 inspect %23
+  return take %24
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call scalarOrder
+  %1: I32 = const 9073
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  %9: I32 = call vectorOrder
+  %10: I32 = const 253
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb6(take %6) -> bb4(take %6)
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+
+bb4(%12: I32):
+  %16: I32 = const 0
+  jump -> bb5(take %16, take %12)
+
+bb5(%17: I32, %18: I32):
+  %21: I32 = add inspect %18 inspect %17
+  %22: I32 = call signs
+  %23: I32 = const 111000
+  %24: Bool = eq inspect %22 inspect %23
+  branch inspect %24 -> bb9(take %21) -> bb7(take %21)
+
+bb6(%13: I32):
+  %15: I32 = const 2
+  jump -> bb5(take %15, take %13)
+
+bb7(%25: I32):
+  %29: I32 = const 0
+  jump -> bb8(take %29, take %25)
+
+bb8(%30: I32, %31: I32):
+  %34: I32 = add inspect %31 inspect %30
+  %35: I32 = call limits
+  %36: I32 = const 1126642
+  %37: Bool = eq inspect %35 inspect %36
+  branch inspect %37 -> bb12(take %34) -> bb10(take %34)
+
+bb9(%26: I32):
+  %28: I32 = const 4
+  jump -> bb8(take %28, take %26)
+
+bb10(%38: I32):
+  %42: I32 = const 0
+  jump -> bb11(take %42, take %38)
+
+bb11(%43: I32, %44: I32):
+  %47: I32 = add inspect %44 inspect %43
+  %48: I32 = call bytes'2
+  %49: I32 = const 11111
+  %50: Bool = eq inspect %48 inspect %49
+  branch inspect %50 -> bb15(take %47) -> bb13(take %47)
+
+bb12(%39: I32):
+  %41: I32 = const 8
+  jump -> bb11(take %41, take %39)
+
+bb13(%51: I32):
+  %55: I32 = const 0
+  jump -> bb14(take %55, take %51)
+
+bb14(%56: I32, %57: I32):
+  %60: I32 = add inspect %57 inspect %56
+  %61: I32 = call rounding
+  %62: I32 = const 15151616
+  %63: Bool = eq inspect %61 inspect %62
+  branch inspect %63 -> bb18(take %60) -> bb16(take %60)
+
+bb15(%52: I32):
+  %54: I32 = const 16
+  jump -> bb14(take %54, take %52)
+
+bb16(%64: I32):
+  %68: I32 = const 0
+  jump -> bb17(take %68, take %64)
+
+bb17(%69: I32, %70: I32):
+  %73: I32 = add inspect %70 inspect %69
+  return take %73
+
+bb18(%65: I32):
+  %67: I32 = const 32
+  jump -> bb17(take %67, take %65)
+}
+
+entry main

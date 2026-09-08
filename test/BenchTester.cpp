@@ -432,7 +432,8 @@ static void benchNative(const Fixture& fixture) {
         for(auto functionPointer: lowered->functionOrder) {
             auto function = base[functionPointer];
             machine.reset();
-            transformFunction(context, base, *function, machine);
+            // Refused by the backend and already reported - see `transformFunction`.
+            if(!transformFunction(context, base, *function, machine)) continue;
 
             scratch.resetRecords();
             allocateRegisters(context, base, *function, machine, scratch, registers);

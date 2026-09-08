@@ -1,0 +1,82 @@
+
+sums<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = add %x, 7: I32
+    ret %v_1
+  }
+}
+
+leftSums<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = add %x, 7: I32
+    ret %v_1
+  }
+}
+
+masks<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = and %x, 48: I32
+    ret %v_1
+  }
+}
+
+shifted<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = shl %x, 5: I32
+    ret %v_1
+  }
+}
+
+wide<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = shl %x, 20: I32
+    %v_2 = shl %v_1, 20: I32
+    ret %v_2
+  }
+}
+
+widened<complex>(%c: I32): I32 {
+  b_0 {
+    %v_1 = select %c, 5, 6: I32
+    ret %v_1
+  }
+}
+
+decided<complex>(%c: I32): I32 {
+  b_0 {
+    ret 7
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex sums, 10: I32
+    %v_2 = shl %v_1, 1: I32
+    %v_3 = call_complex leftSums, 10: I32
+    %v_4 = imul %v_3, 3: I32
+    %v_5 = add %v_2, %v_4: I32
+    %v_6 = call_complex masks, 255: I32
+    %v_7 = imul %v_6, 5: I32
+    %v_8 = add %v_5, %v_7: I32
+    %v_9 = call_complex shifted, 1: I32
+    %v_10 = imul %v_9, 7: I32
+    %v_11 = add %v_8, %v_10: I32
+    %v_12 = call_complex wide, 1: I32
+    %v_13 = imul %v_12, 11: I32
+    %v_14 = add %v_11, %v_13: I32
+    %v_15 = call_complex widened, 1: I32
+    %v_16 = imul %v_15, 13: I32
+    %v_17 = add %v_14, %v_16: I32
+    %v_18 = call_complex widened, 0: I32
+    %v_19 = imul %v_18, 17: I32
+    %v_20 = add %v_17, %v_19: I32
+    %v_21 = call_complex decided, 1: I32
+    %v_22 = imul %v_21, 19: I32
+    %v_23 = add %v_20, %v_22: I32
+    %v_24 = call_complex decided, 0: I32
+    %v_25 = imul %v_24, 23: I32
+    %v_26 = add %v_23, %v_25: I32
+    ret %v_26
+  }
+}
+

@@ -595,6 +595,36 @@ LowerPtr<LowerValue> Lowering::reinterpret(LowerBlock& block, LowerPtr<LowerValu
 }
 
 /*
+ * What a narrow reference operand's pointee is, looked **through the `bitcast` that restates one as
+ * a raw pointer** - `addressOf` of a `&` argument, which is what `swap` and `exchange` expand to.
+ *
+ * The bitcast is value-preserving at this tier: a reference and a `%T` are both `LowerType::Pointer`
+ * and the instruction copies the bits, shift and all. What it does change is the *occurrence*, and
+ * `isNarrowReference` is a question about an occurrence - so the raw pointer answered no and the
+ * load and the store below it dereferenced a tagged address. That is a segfault rather than a wrong
+ * answer, and it was `ScalarRecord.yana`'s.
+ *
+ * One step and not a walk. `expandExchange` and `expandPointerLoad` each emit exactly one, and a
+ * chain of bitcasts between two pointer types is not a shape any expansion builds; a loop here would
+ * be a guess about a producer that does not exist.
+ */
+DeclPtr<mir::Type> Lowering::narrowPointee(Value& value) {
+    if(isNarrowReference(layout, value.occurrence)) return value.occurrence.type;
+    if(!value.definer) return nullptr;
+
+    auto& definer = *ssa[value.definer];
+    if(definer.kind != Inst::Unary) return nullptr;
+
+    auto& written = (InstUnary&)definer;
+    if(written.op != mir::UnaryOp::Bitcast) return nullptr;
+
+    auto& operand = *ssa[written.value.value()];
+    if(!isNarrowReference(layout, operand.occurrence)) return nullptr;
+
+    return operand.occurrence.type;
+}
+
+/*
  * The component an address operand names, wherever the operand does not name storage.
  *
  * Two sources and one answer, which is the point: a projection this body made against a record it
@@ -605,9 +635,11 @@ LowerPtr<LowerValue> Lowering::reinterpret(LowerBlock& block, LowerPtr<LowerValu
 Maybe<Lowering::VirtualPlace> Lowering::narrowPlace(LowerBlock& block, Value& value,
                                                     LowerPtr<LowerValue> address) {
     if(auto found = virtualPlaces.getValue(value.id.index)) return found;
-    if(!isNarrowReference(layout, value.occurrence)) return Maybe<VirtualPlace>();
 
-    return Maybe<VirtualPlace>(unpackNarrowRef(block, address, value.occurrence.type));
+    auto pointee = narrowPointee(value);
+    if(!pointee) return Maybe<VirtualPlace>();
+
+    return Maybe<VirtualPlace>(unpackNarrowRef(block, address, pointee));
 }
 
 /*

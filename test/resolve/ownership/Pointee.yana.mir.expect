@@ -2,7 +2,7 @@ module ResolveTest
 
 data Box {v: I32}
 
-data Cursor {at: %U8, len: I32} shape2
+data Cursor {at: %U8, len: I32} shape4
 
 data Plain {at: %U8, len: I32}
 
@@ -18,7 +18,7 @@ bb0:
   return take %0
 }
 
-fn pick(p: %I32 [shared call shape1 .*=shared slot 0], q: %I32 [shared call shape3 .*=shared slot 1], first: Bool [shared call]) -> %I32 [owned here shape1 .*=shared slot 0] {
+fn pick(p: %I32 [shared call shape1 .*=shared slot 0], q: %I32 [shared call shape9 .*=shared slot 1], first: Bool [shared call]) -> %I32 [owned here shape1 .*=shared slot 0] {
 bb0:
   %0: %I32 [owned here shape1 .*=shared slot 0] = read copy.trivial (p)
   return take %0

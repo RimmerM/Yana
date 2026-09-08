@@ -10,9 +10,10 @@
    fixture written against one stage would have asserted whichever it was built against.
 
    Everything is written with `traits()` and the `sizeOf`/`alignOf`/`strideOf` conveniences over it,
-   and nothing here uses pointer arithmetic: the two stages spell that differently (`+` in `lib/`,
-   `advance` in `prelude/`), and `intrinsic/Pointer.yana` is where the new stage's spelling is
-   exercised.
+   and nothing here uses pointer arithmetic; `intrinsic/Pointer.yana` is where that is exercised.
+   `import Native` still brings the pointer `+` into the same overload set as `Num`'s, which is why
+   every `truncate` below is ascribed: with two candidates for the operator, the position does not
+   decide the conversion's result type on its own.
 -}
 
 import Native
@@ -34,7 +35,8 @@ fn measured() -> Int:
     let p = traits() :: TypeTraits(Pad)
     let n = traits() :: TypeTraits(Nest)
 
-    return truncate(p.size * 1000 + p.align * 100 + p.stride) + truncate(n.size + n.stride)
+    return (truncate(p.size * 1000 + p.align * 100 + p.stride) :: Int) +
+           (truncate(n.size + n.stride) :: Int)
 
 {-
    The same question asked about a value in hand, which is source rather than a second intrinsic:

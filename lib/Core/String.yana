@@ -87,6 +87,23 @@ data StringView {units: %CodeUnit, length: Size}
         StringView {units: self.units.run.items, length: (self.units.length :: Int) :: Size}
 
 {-
+   The code unit address a string is defined by - `Array.native.yana`'s `values` for a string, and
+   for the same reason: the result is rooted in the string by `source'`, so a read through it is a
+   read of the string and the string's own loan covers it.
+
+   `self.units` here is the *view's* field, since `self` is a shared string: two words, of which this
+   is the first.
+
+   **Here rather than in `Native/Text.native.yana`**, which is where it was. `StringView` above is
+   `@local`, so its fields may be named in this module and nowhere else; handing out a raw pointer
+   is `Native`'s business and reading another module's private representation is not the same act.
+   `stringBytes` in `CString.native.yana` is this address as bytes and is still behind that import,
+   which is the half the argument was really about.
+-}
+@platform(native) @inline
+pub fn units(self: source'String) -> %source'CodeUnit = self.units
+
+{-
    How many native units the string holds - part 3's `.length`, O(1) on both targets.
 
    **This is not a portable number, on purpose.** It is UTF-8 bytes natively and UTF-16 code units on
@@ -391,10 +408,10 @@ instance Hash(String):
 
 -- A string with room for `capacity` units and nothing in it yet. The run is the allocation; the
 -- length is zero until something appends.
-@platform(native) pub fn String.ofCapacity(capacity: Size) -> String =
+@platform(native) @builtin(stringOfCapacity) pub fn String.ofCapacity(capacity: Size) -> String =
     String {units: Array {run: newRun(capacity), length: (0 :: Count)}}
 
-@platform(js) pub fn String.ofCapacity(capacity: Size) -> String = ""
+@platform(js) @builtin(stringOfCapacity) pub fn String.ofCapacity(capacity: Size) -> String = ""
 
 {-
    Room for `wanted` more units, growing if there is not - the check-and-grow that
@@ -431,10 +448,10 @@ instance Hash(String):
     self = hostConcat(self, hostFromCharCode(unit))
 
 -- A whole string appended, which is the common case and is a block copy rather than a loop.
-@platform(native) pub fn String.push(&self: String, other: String):
+@platform(native) @builtin(stringPush) pub fn String.push(&self: String, other: String):
     String.appendUnits(self, units(other), length(other))
 
-@platform(js) pub fn String.push(&self: String, other: String):
+@platform(js) @builtin(stringPush) pub fn String.push(&self: String, other: String):
     self = hostConcat(self, other)
 
 {-

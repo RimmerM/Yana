@@ -78,7 +78,28 @@ bool Resolver::carrierShape(DeclPtr<Type> carrier, LocationId source, TryShape& 
             return true;
         }
 
-        return false;
+        /*
+         * And the **open head** - inventory D13, which is the case a promise cannot cover.
+         *
+         * `Result(ReadError, a)` inside `fn (ReadWith(s, a)) readAll(...) -> Result(ReadError, a)`
+         * names `Result`, so the instance that serves it is decided for every `a` a specialization
+         * binds; a requirement that stated it would have to be written on every signature that
+         * returns a result, which is what the carrier class exists to not need. A *bare* variable
+         * still falls through to the refusal above, because there is nothing there to decide a head
+         * by - `openHeadAnswerable` is where the line is.
+         */
+        InstanceMatch open;
+        DeclPtr<Type> asking[3] = { carrier, nullptr, nullptr };
+
+        if(!selectOpenInstance(context, program, klass, asking, 3, gen, source, false, open)) {
+            return false;
+        }
+
+        if(open.arguments.size() != 3) return false;
+
+        out.proceeds = open.arguments[1];
+        out.reason = open.arguments[2];
+        return true;
     }
 
     InstanceMatch found;
@@ -560,7 +581,7 @@ Node* Resolver::resolveOptionalChain(Builder& builder, ast::Expr& expr, DeclPtr<
     carry.declare(builder, *join);
 
     for(Size i = 0; i < ends.size(); i++) {
-        closeArm(builder, *ends[i], *join, argument ? values[i] : nullptr, argument != nullptr,
+        (void)closeArm(builder, *ends[i], *join, argument ? values[i] : nullptr, argument != nullptr,
                  source, carry, saved.pointer() + i * carry.count());
     }
 

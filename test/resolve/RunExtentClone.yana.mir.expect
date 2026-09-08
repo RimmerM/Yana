@@ -1,0 +1,131 @@
+module ResolveTest
+
+lens fn buffers(count: Size [shared call], unit: Size [shared call], $body: (->Size) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & i: Size
+  local run: Run(U8)
+  local base: %U8 [owned here shape6 .*=shared slot 0]
+  local last: Size
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Size = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: Size = read copy.trivial (i)
+  %6: Size = read copy.trivial (count)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %48: I32 = read copy.trivial ($yielded)
+  return take %48
+
+bb3:
+  %9: Size = read copy.trivial (unit)
+  %10: Size = read copy.trivial (i)
+  %11: Size = const 1
+  %12: Size = add inspect %10 inspect %11
+  %13: Size = mul inspect %9 inspect %12
+  %14: Run(U8) = call newRun(U8) borrow.shared %13
+  write.init borrow.unique (run) take %14
+  %16: Run(U8) [shared slot 0] = read borrow.shared (run) loan0
+  %17: %U8 [owned here shape6 .*=shared slot 0] = call slots(U8) borrow.shared %16 roots.0{0}
+  write.init borrow.unique (base) take %17
+  %19: @bits(30) U32 = read copy.trivial (run.capacity)
+  %20: Size = convert inspect %19
+  %21: Size = const 1
+  %22: Size = sub inspect %20 inspect %21
+  write.init borrow.unique (last) take %22
+  %24: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %25: Size = read copy.trivial (last)
+  %26: U8 = const 42
+  %27: {} = call writeByte borrow.shared %24 borrow.shared %25 borrow.shared %26
+  %28: @bits(30) U32 = read copy.trivial (run.capacity)
+  %29: Size = convert inspect %28
+  %30: Size = const 1000
+  %31: Size = mul inspect %29 inspect %30
+  %32: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %33: Size = read copy.trivial (last)
+  %34: Size = call readByte borrow.shared %32 borrow.shared %33
+  drop (run)
+  %35: Size = add inspect %31 inspect %34
+  %36: (->Size) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %37: I32 = call inspect %36 take %35
+  %38: I32 = const 0
+  %39: Bool = eq inspect %37 inspect %38
+  write.assign borrow.unique ($yielded) take %37
+  branch inspect %39 -> bb4 -> bb5
+
+bb4:
+  %43: Size = read copy.trivial (i)
+  %44: Size = const 1
+  %45: Size = add inspect %43 inspect %44
+  write.assign borrow.unique (i) take %45
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+fn writeByte(base: %U8 [shared call], at: Size [shared call], value: U8 [shared call]) -> {} {
+  local target: %U8 [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: %U8 = read copy.trivial (base)
+  %1: Size = read copy.trivial (at)
+  %2: Size = metric stride U8
+  %3: Size = mul inspect %1 inspect %2
+  %4: %U8 [owned here shape6 .*=shared slot 0] = add inspect %0 inspect %3
+  write.init borrow.unique (target) take %4
+  %6: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (target)
+  %7: U8 = read copy.trivial (value)
+  write.assign borrow.unique ([%%6]) take %7
+  return
+}
+
+fn readByte(base: %U8 [shared call], at: Size [shared call]) -> Size {
+  local target: %U8 [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: %U8 = read copy.trivial (base)
+  %1: Size = read copy.trivial (at)
+  %2: Size = metric stride U8
+  %3: Size = mul inspect %1 inspect %2
+  %4: %U8 [owned here shape6 .*=shared slot 0] = add inspect %0 inspect %3
+  write.init borrow.unique (target) take %4
+  %6: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (target)
+  %7: U8 = read copy.trivial ([%%6])
+  %8: Size = convert inspect %7
+  return take %8
+}
+
+fn main() -> I32 {
+  local & total: Size
+  local got: Size
+
+bb0:
+  %0: Size = const 0
+  write.init borrow.unique (total) take %0
+  %2: Size = const 3
+  %3: Size = const 4
+  lens.call buffers borrow.shared %2 borrow.shared %3 -> bb2
+
+bb1:
+  %12: Size = read copy.trivial (total)
+  %13: I32 = convert inspect %12
+  return take %13
+
+bb2(%4: Size) handover(Size) many -> bb1:
+  write.init borrow.unique (got) take %4
+  %7: Size = read copy.trivial (total)
+  %8: Size = read copy.trivial (got)
+  %9: Size = add inspect %7 inspect %8
+  write.assign borrow.unique (total) take %9
+  jump -> bb1
+}
+
+entry main

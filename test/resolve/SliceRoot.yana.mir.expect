@@ -1,0 +1,172 @@
+module ResolveTest
+
+data viaTwoCalls.lambda.env {}
+
+data viaLocal.lambda.env {}
+
+data partial.lambda.env {}
+
+data viaReturn.lambda.env {}
+
+fn viaTwoCalls() -> I32 {
+  local local0: (Size) -> I32 [owned here shape8 .0=unique call]
+  local local1: Array(I32)
+
+bb0:
+  %0: Size = const 8
+  %1: (Size) -> I32 [owned here shape8 .0=unique call] = fun.value viaTwoCalls.lambda
+  write.init borrow.unique (local0) take %1
+  %3: (Size) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local0) loan0
+  %4: Array(I32) = call newArray(I32) borrow.shared %0 borrow.shared %3
+  write.init borrow.unique (local1) take %4
+  %6: Array(I32) [shared slot 0] = read borrow.shared (local1) loan1
+  %7: Array(I32) [shared slot 0 view] = call elements(Array(I32), I32) borrow.shared %6 roots{1}
+  %8: Size = const 0
+  %9: Size = const 8
+  %10: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %7 borrow.shared %8 borrow.shared %9 roots{1}
+  %11: I32 = call sumVectors(Array(I32), I32) borrow.shared %10
+  drop (local1)
+  return take %11
+}
+
+fn viaLocal() -> I32 {
+  local local0: (Size) -> I32 [owned here shape8 .0=unique call]
+  local xs: Array(I32)
+  local window: Array(I32) [shared slot 0 view]
+
+bb0:
+  %0: Size = const 8
+  %1: (Size) -> I32 [owned here shape8 .0=unique call] = fun.value viaLocal.lambda
+  write.init borrow.unique (local0) take %1
+  %3: (Size) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local0) loan0
+  %4: Array(I32) = call newArray(I32) borrow.shared %0 borrow.shared %3
+  write.init borrow.unique (xs) take %4
+  %6: Array(I32) [shared slot 0] = read borrow.shared (xs) loan1
+  %7: Array(I32) [shared slot 0 view] = call elements(Array(I32), I32) borrow.shared %6 roots{1}
+  %8: Size = const 0
+  %9: Size = const 8
+  %10: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %7 borrow.shared %8 borrow.shared %9 roots{1}
+  write.init borrow.unique (window) borrow.shared %10
+  %12: Array(I32) [shared slot 0 view] = read borrow.shared (window) loan2 roots{1}
+  %13: I32 = call sumVectors(Array(I32), I32) borrow.shared %12
+  drop (xs)
+  return take %13
+}
+
+fn partial() -> I32 {
+  local local0: (Size) -> I32 [owned here shape8 .0=unique call]
+  local local1: Array(I32)
+
+bb0:
+  %0: Size = const 8
+  %1: (Size) -> I32 [owned here shape8 .0=unique call] = fun.value partial.lambda
+  write.init borrow.unique (local0) take %1
+  %3: (Size) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local0) loan0
+  %4: Array(I32) = call newArray(I32) borrow.shared %0 borrow.shared %3
+  write.init borrow.unique (local1) take %4
+  %6: Array(I32) [shared slot 0] = read borrow.shared (local1) loan1
+  %7: Array(I32) [shared slot 0 view] = call elements(Array(I32), I32) borrow.shared %6 roots{1}
+  %8: Size = const 2
+  %9: Size = const 5
+  %10: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %7 borrow.shared %8 borrow.shared %9 roots{1}
+  %11: I32 = const 0
+  %12: I32 = call maximumVectors(Array(I32), I32) borrow.shared %10 borrow.shared %11
+  drop (local1)
+  return take %12
+}
+
+fn window(xs: Array(I32) [shared slot 0 owner], from: Size [shared call], to: Size [shared call]) -> Array(I32) [shared slot 0 view] {
+bb0:
+  %0: Array(I32) [shared slot 0 owner] = read borrow.shared (xs) loan0
+  %1: Array(I32) [shared slot 0 view] = call elements(Array(I32), I32) borrow.shared %0 roots{0}
+  %2: Size = read copy.trivial (from)
+  %3: Size = read copy.trivial (to)
+  %4: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %1 borrow.shared %2 borrow.shared %3 roots{0}
+  return borrow.shared %4
+}
+
+fn deeper(xs: Array(I32) [shared slot 0 owner]) -> Array(I32) [shared slot 0 view] {
+bb0:
+  %0: Array(I32) [shared slot 0 owner] = read borrow.shared (xs) loan0
+  %1: Size = const 1
+  %2: Size = const 7
+  %3: Array(I32) [shared slot 0 view] = call window borrow.shared %0 borrow.shared %1 borrow.shared %2 roots{0}
+  %4: Size = const 1
+  %5: Size = const 5
+  %6: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %3 borrow.shared %4 borrow.shared %5 roots{0}
+  return borrow.shared %6
+}
+
+fn viaReturn() -> I32 {
+  local local0: (Size) -> I32 [owned here shape8 .0=unique call]
+  local xs: Array(I32)
+
+bb0:
+  %0: Size = const 8
+  %1: (Size) -> I32 [owned here shape8 .0=unique call] = fun.value viaReturn.lambda
+  write.init borrow.unique (local0) take %1
+  %3: (Size) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local0) loan0
+  %4: Array(I32) = call newArray(I32) borrow.shared %0 borrow.shared %3
+  write.init borrow.unique (xs) take %4
+  %6: Array(I32) [shared slot 0] = read borrow.shared (xs) loan1
+  %7: Size = const 0
+  %8: Size = const 4
+  %9: Array(I32) [shared slot 0 view] = call window borrow.shared %6 borrow.shared %7 borrow.shared %8 roots{1}
+  %10: I32 = call sumVectors(Array(I32), I32) borrow.shared %9
+  %11: Array(I32) [shared slot 0] = read borrow.shared (xs) loan2
+  %12: Array(I32) [shared slot 0 view] = call deeper borrow.shared %11 roots{2}
+  %13: I32 = call sumVectors(Array(I32), I32) borrow.shared %12
+  drop (xs)
+  %14: I32 = add inspect %10 inspect %13
+  return take %14
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call viaTwoCalls
+  %1: I32 = call viaLocal
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call partial
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call viaReturn
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+fn viaTwoCalls.lambda(viaTwoCalls.lambda.env: viaTwoCalls.lambda.env [unique call], i: Size [shared call]) -> I32 {
+bb0:
+  %0: Size = read copy.trivial (i)
+  %1: Size = const 1
+  %2: Size = add inspect %0 inspect %1
+  %3: I32 = convert inspect %2
+  return take %3
+}
+
+fn viaLocal.lambda(viaLocal.lambda.env: viaLocal.lambda.env [unique call], i: Size [shared call]) -> I32 {
+bb0:
+  %0: Size = read copy.trivial (i)
+  %1: Size = const 1
+  %2: Size = add inspect %0 inspect %1
+  %3: I32 = convert inspect %2
+  return take %3
+}
+
+fn partial.lambda(partial.lambda.env: partial.lambda.env [unique call], i: Size [shared call]) -> I32 {
+bb0:
+  %0: Size = read copy.trivial (i)
+  %1: Size = const 1
+  %2: Size = add inspect %0 inspect %1
+  %3: I32 = convert inspect %2
+  return take %3
+}
+
+fn viaReturn.lambda(viaReturn.lambda.env: viaReturn.lambda.env [unique call], i: Size [shared call]) -> I32 {
+bb0:
+  %0: Size = read copy.trivial (i)
+  %1: Size = const 1
+  %2: Size = add inspect %0 inspect %1
+  %3: I32 = convert inspect %2
+  return take %3
+}
+
+entry main

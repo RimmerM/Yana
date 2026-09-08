@@ -87,6 +87,17 @@ YANA_INTRINSIC_OP( truthOr,  OpForm::Flow, boolAt(), valueAt(), deferredAt() )
  * to whatever position zero was - and taking it is what forces storage to exist for something that
  * would otherwise have had none.
  *
+ * Its operand is `anyAt()` and stays there, which is a decision two spellings of the declaration
+ * forced. `lib/Native/Pointer.yana` writes `it: source'a` since D15 - the argument is storage the
+ * caller already has and the result names its origin - and the shipping stage reads that signature
+ * at its plain positions, because it supplies the definition (`takeRolePositionsPlain` in
+ * `resolve/module_decl.cpp`): a trivially copyable argument is copied into the call there and the
+ * address is the copy's, which is what `test/resolve/Global.yana` documents as the meaning of
+ * `addressOf` of a constant. Both are the language, and the emitter is what makes them both work -
+ * `expandAddressOf` gives an operand that arrived owned a frame slot, exactly as the shipping
+ * stage's `materialize` does. A shape that demanded the published spelling would have said nothing
+ * either stage does not already say.
+ *
  * `borrow` and `borrowMut` are the one place the checked world is re-entered from the unchecked
  * one, and they are why `ShapeAccess` and `ShapeOrigin` are two fields. Both hand back a view of
  * the memory the pointer names, so both results are rooted in an origin the signature published -
@@ -113,10 +124,10 @@ YANA_INTRINSIC_OP( truthOr,  OpForm::Flow, boolAt(), valueAt(), deferredAt() )
  */
 //                 role               form          result         parameters
 YANA_INTRINSIC_OP( addressOf,         OpForm::Node, pointerTo(0),  anyAt()                      )
-YANA_INTRINSIC_OP( pointerBorrow,     OpForm::Node, borrowOf(0),   pointerAt()                  )
-YANA_INTRINSIC_OP( pointerBorrowMut,  OpForm::Node, borrowMutOf(0), pointerAt()                 )
-YANA_INTRINSIC_OP( pointerAdd,        OpForm::Node, sameAs(0),     pointerAt(), integerAt()     )
-YANA_INTRINSIC_OP( pointerSub,        OpForm::Node, sameAs(0),     pointerAt(), integerAt()     )
+YANA_INTRINSIC_OP( pointerBorrow,     OpForm::Node, borrowOf(0),   rootedPointerAt()            )
+YANA_INTRINSIC_OP( pointerBorrowMut,  OpForm::Node, borrowMutOf(0), rootedPointerAt()           )
+YANA_INTRINSIC_OP( pointerAdd,        OpForm::Node, rootedSameAs(0), rootedPointerAt(), integerAt() )
+YANA_INTRINSIC_OP( pointerSub,        OpForm::Node, rootedSameAs(0), rootedPointerAt(), integerAt() )
 YANA_INTRINSIC_OP( pointerDifference, OpForm::Node, integerAt(),   pointerAt(), sameAs(0)       )
 
 /*
@@ -150,9 +161,9 @@ YANA_INTRINSIC_OP( typeTraits, OpForm::Node, anyAt()                            
  * not a read of unspecified bytes but the destruction of whatever follows.
  *
  * The vector positions are `anyAt()` rather than a term of their own. A `ShapeTerm::Vector` is what
- * they want and it is not writable yet - the ownership stage has no vector types at all, so the
- * term would be one no reader there could answer - and `pointerAsVector` reports a non-vector at
- * the call meanwhile. The day that stage grows them, this is the row that says so.
+ * they want; both stages could answer one now - the ownership stage grew vector types in milestone
+ * 8 - and until the term is written each emitter reports a non-vector at the call, which is
+ * `pointerAsVector` in the shipping stage and `asVectorAddress` in the other.
  */
 //                 role         form          result       parameters
 YANA_INTRINSIC_OP( vectorAt,    OpForm::Node, anyAt(),     pointerAt()              )
@@ -232,6 +243,13 @@ YANA_INTRINSIC_OP( cloneThread, OpForm::Node, integerAt(), integerAt(), pointerA
  * The result type is what says which element it is a run of, and nothing in the argument list does:
  * `newRun()` at a `Run(Buffer)` is the same call at a `Run(U8)` with a different stride, which is
  * the shape a generic intrinsic has.
+ *
+ * **Two declarations claim it and the native one carries a body** - `roleMayWriteBody`, and
+ * `blockCopy` below for the platform split. What the expansion decides that the language cannot is
+ * the *placement*; a stage with no escape analysis would put every run on the heap whatever it
+ * expanded to, and a heap run is something `lib/Native/Run.native.yana` can simply write, with the
+ * allocator's refusal handled. So the body is the fallback rather than a second implementation, and
+ * it is dead in any stage that expands.
  */
 //                 role    form          result   parameters
 YANA_INTRINSIC_OP( newRun, OpForm::Node, anyAt(), integerAt() )
@@ -547,6 +565,11 @@ YANA_INTRINSIC_OP( maskUpTo,     OpForm::Node, anyAt(),     integerAt() )
  * The shape therefore says almost nothing, and correctly: what the emitter depends on is the two
  * bodies existing, which is a fact about `Reduce.yana` and not about a position. The container is a
  * `Chunked(c, a)` and what that admits is the constraint's business.
+ *
+ * **Each declaration carries the element half as a body** - `roleMayWriteBody`, `newRun` above for
+ * the same relationship. A choice is what the expansion is, so a stage that does not make one still
+ * has an answer, and it is the answer this call would have got on a target with no vector for the
+ * element. Dead in any stage that expands.
  */
 YANA_INTRINSIC_OP( bulkSum,         OpForm::Node, anyAt(),     valueAt()            )
 YANA_INTRINSIC_OP( bulkProduct,     OpForm::Node, anyAt(),     valueAt()            )

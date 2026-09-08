@@ -1,0 +1,131 @@
+module ResolveTest
+
+data Style {scale: I32}
+
+data Twice {scale: I32}
+
+class Widthy(a -> w): widthValue
+
+class Scaled(s, a): scaled
+
+instance Widthy(I32, U32): I32.widthValue
+
+instance Widthy(I64, U64): I64.widthValue
+
+instance (Widthy(a, w), TrivialCopy(w), Narrow(w, I32)) Scaled(Style, a): Style.scaled
+
+instance (TrivialCopy(w), Widthy(a, w), Narrow(w, I32)) Scaled(Twice, a): Twice.scaled
+
+fn widthValue(x: a [shared call]) -> w = <no body>
+
+fn scaled(style: s [shared call], x: a [shared call]) -> I32 = <no body>
+
+fn I32.widthValue(x: I32 [shared call]) -> U32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: U32 = bitcast inspect %0
+  return take %1
+}
+
+fn I64.widthValue(x: I64 [shared call]) -> U64 {
+bb0:
+  %0: I64 = read copy.trivial (x)
+  %1: U64 = bitcast inspect %0
+  return take %1
+}
+
+fn Style.scaled(style: Style [shared call], x: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 type w
+  slot #2 class Widthy(a, w)
+  slot #3 class TrivialCopy(w)
+  slot #4 class Narrow(w, I32)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: w = call widthValue(a, w) borrow.shared %0
+  %2: I32 = call truncate(w, I32) borrow.shared %1
+  %3: I32 = read copy.trivial (style.scale)
+  %4: I32 = mul inspect %2 inspect %3
+  return take %4
+}
+
+fn Twice.scaled(style: Twice [shared call], x: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 type w
+  slot #2 class TrivialCopy(w)
+  slot #3 class Widthy(a, w)
+  slot #4 class Narrow(w, I32)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: w = call widthValue(a, w) borrow.shared %0
+  %2: I32 = call truncate(w, I32) borrow.shared %1
+  %3: I32 = read copy.trivial (style.scale)
+  %4: I32 = mul inspect %2 inspect %3
+  %5: I32 = const 2
+  %6: I32 = mul inspect %4 inspect %5
+  return take %6
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 3
+  %1: Style = aggregate.Style take %0
+  %2: I32 = const 5
+  %3: I32 = call scaled(Style, I32) borrow.shared %1 borrow.shared %2
+  %4: I32 = const 15
+  %5: Bool = ne inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I32 = const 3
+  %11: Twice = aggregate.Twice take %10
+  %12: I32 = const 5
+  %13: I32 = call scaled(Twice, I32) borrow.shared %11 borrow.shared %12
+  %14: I32 = const 30
+  %15: Bool = ne inspect %13 inspect %14
+  branch inspect %15 -> bb6 -> bb4
+
+bb3:
+  %7: I32 = const 1
+  return take %7
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %20: I32 = const 2
+  %21: Style = aggregate.Style take %20
+  %22: I64 = const 7
+  %23: I32 = call scaled(Style, I64) borrow.shared %21 borrow.shared %22
+  %24: I32 = const 14
+  %25: Bool = ne inspect %23 inspect %24
+  branch inspect %25 -> bb9 -> bb7
+
+bb6:
+  %17: I32 = const 2
+  return take %17
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %30: I32 = const 55
+  return take %30
+
+bb9:
+  %27: I32 = const 3
+  return take %27
+}
+
+fn Style.scaled(I32, U32)(style: Style [shared call], x: I32 [shared call]) -> I32 = <Style.scaled at I32, U32>
+
+fn Twice.scaled(I32, U32)(style: Twice [shared call], x: I32 [shared call]) -> I32 = <Twice.scaled at I32, U32>
+
+fn Style.scaled(I64, U64)(style: Style [shared call], x: I64 [shared call]) -> I32 = <Style.scaled at I64, U64>
+
+entry main

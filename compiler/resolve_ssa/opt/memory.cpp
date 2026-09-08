@@ -632,11 +632,27 @@ struct StorageRemover {
      * narrower question: a `Load`, a `Copy` or an `Atomic` is a *read* and declines, and a `Store`
      * of a tracked value declines because erasing it would leave the value unconsumed.
      */
-    bool writesOnly(Value& address) {
+    bool writesOnly(Value& address, bool isRoot) {
         for(auto userPointer: address.uses(opt.base)) {
             auto& user = *opt.base[userPointer];
 
             switch(user.kind) {
+                /*
+                 * The release of a heap or region placement, admitted **only at the allocation
+                 * itself** - `free` names what the allocator handed out, so a `free` reached through
+                 * a projection would be a release of an interior address and is a defect rather than
+                 * a case this may erase.
+                 *
+                 * It is a write in the sense this list means: it reads nothing the program wants and
+                 * it ends the storage's life. Erasing it with the allocation is the pair - one
+                 * without the other is either a leak or a release of storage nothing asked for.
+                 */
+                case Inst::Free:
+                    if(!isRoot) return false;
+
+                    writes.push(&user);
+                    break;
+
                 case Inst::Store: {
                     auto value = opt.base[((InstStore&)user).value.value()];
                     if(isTracked(value->convention)) return false;
@@ -655,7 +671,7 @@ struct StorageRemover {
                 case Inst::FieldAddress:
                 case Inst::ElementAddress: {
                     if(!user.results.size()) return false;
-                    if(!writesOnly(*opt.base[user.results.get(opt.base, 0)])) return false;
+                    if(!writesOnly(*opt.base[user.results.get(opt.base, 0)], false)) return false;
 
                     chains.push(&user);
                     break;
@@ -678,17 +694,23 @@ struct StorageRemover {
         if(!contained[allocation]) return false;
 
         /*
-         * Frame storage only, which is `StorageClass`'s one reachable rung today and the rule
-         * anyway. Deleting an allocation is deleting the request for it, and that is a complete
-         * answer exactly where the frame is what supplied it; a region or a heap placement is storage
-         * something *handed out*, and handing it back is `Reclaim`'s job rather than a deletion's -
-         * `lower/erase.cpp` is where the two halves are decided and it reads this same field.
+         * A heap placement is removed with the `Free` that hands it back, which is the correction
+         * this rule used to be: "frame storage only, because the release is a second instruction
+         * this deletion would have to find". Finding it is the use list, which is the same list
+         * `writesOnly` is already walking - `Contained` admits a `free` at the allocation since the
+         * closure work, so an allocation that reaches here with one in its uses is one nothing
+         * outside this body can name, and the allocator call and its matching release go together.
+         *
+         * A **region** placement is still declined. What a region hands back is not the object's own
+         * bytes and the release is not per object, so removing one allocation out of a region is a
+         * question about the region rather than about this slot, and there is no producer of one to
+         * measure the answer against.
          */
-        if(alloc.storage != mir::StorageClass::Frame) return false;
+        if(alloc.storage == mir::StorageClass::Region) return false;
 
         writes.clear();
         chains.clear();
-        if(!writesOnly(allocation)) return false;
+        if(!writesOnly(allocation, true)) return false;
 
         // An allocation with no users at all is one `simplify` would take if `Alloc` were pure, and
         // it is not - storage coming into existence is not a computation. So it is removed here, and

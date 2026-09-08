@@ -1,6 +1,7 @@
 #include "intern.h"
 #include "resolve_internal.h"
 #include "name.h"
+#include "own.h"
 
 namespace mir {
 
@@ -1190,12 +1191,32 @@ bool Resolver::resolveConstructorPattern(Builder& builder, ast::Pat& pat, Place&
 void Resolver::bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>& made, U32 from) {
     for(Size i = from; i < made.size(); i++) {
         auto binding = made[i];
-        auto access = binding.take ? Access::Owned : Access::Shared;
-        auto value = readPlace(builder, binding.source, *binding.place, bindingRequest(access));
+
+        /*
+         * A payload that is itself a **reference** binds at the capability it carries, and `&` on
+         * the pattern is not what says so.
+         *
+         * `findMut` answers `Maybe(&'v)`: what `Just(v)` binds is the map's own storage reached
+         * through a mutable loan, and `v = v + 1` writes through it. Read at the shared access every
+         * other payload takes, the binding was a read-only view of a writable thing and the
+         * assignment reported "this is not declared `&`" about a name the author could not have
+         * declared - the capability is on the *value*, exactly as `hold` reads it off one, and `&v`
+         * in a pattern is the other question (`doc/spec/ownership.md`'s two axes: `take` moves the
+         * payload out, `writable` says the storage it landed in may be written).
+         */
+        auto carried = binding.place->occurrence.contract;
+        auto reference = !binding.take && carried.access() == Access::Unique;
+
+        auto value = binding.take
+            ? readPlace(builder, binding.source, *binding.place, bindingRequest(Access::Owned))
+            : reference
+                ? readPlace(builder, binding.source, *binding.place, requestOf(carried))
+                : readPlace(builder, binding.source, *binding.place,
+                            bindingRequest(Access::Shared));
         if(!value) continue;
 
         auto local = builder.addLocal(binding.name, valueOccurrence(*value), binding.source,
-                                      binding.writable);
+                                      binding.writable || reference);
         auto place = builder.localPlace(*local);
         builder.addWrite(binding.source, *place, *value, Destination::Init);
 
@@ -1206,20 +1227,56 @@ void Resolver::bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>
 /*
  * What a destructuring declaration matches against.
  *
- * `matchPivot` with the declaration's own conventions read first, which is the one thing a `match`
+ * `evaluatedPlace` with the declaration's own conventions read first, which is the one thing a `match`
  * has not got. `->` and `&` on a `let` say how the *initializer* is taken; a pattern takes the value
  * apart by reading through it, and what each name it binds takes is written on the name -
  * `Just(->v)` - which is where a pattern's convention is written everywhere else. Two spellings of
  * one question would be two answers to it, so the declaration's is refused here rather than being
  * quietly given the pattern's meaning.
  */
+/*
+ * A pattern where nothing can be written after `|` - see the declaration.
+ *
+ * A refutable one is reported and then bound **anyway**, which is `resolveBinding`'s rule and is
+ * what keeps one mistake to one message: the names are what the loop body was written against, and
+ * a second report about every read of one would be about this failure rather than about them.
+ */
+bool Resolver::bindIrrefutable(Builder& builder, ast::Pat& pat, Place& pivot, StringView what) {
+    PatternSpace space(*this, pivot.occurrence.type);
+    Carry carry(*this, pat.source);
+    auto covers = space.add(pat);
+
+    /*
+     * The emission first and the coverage report second, which is the one place this differs from
+     * `resolveBinding`'s order - and the reason is that there are two ways to fail here rather than
+     * one. A pattern the *type* has no reading for is not a pattern that can fail: `{a, b}` over an
+     * `I32` leaves a gap only because it matches nothing at all, so reporting the gap first says
+     * "this can fail" about a shape that is simply wrong. `resolvePattern` names the type, and what
+     * is left to report is a pattern that fits and is not exhaustive.
+     */
+    SmallArray<PatternBinding, 4> made;
+    if(!resolvePattern(builder, pat, pivot, made, nullptr, carry)) return false;
+
+    if(!covers) {
+        context.diagnostics.error(
+            "this pattern can fail - it does not match %@ - and %@ has no alternative for a value it does not match"_v,
+            pat.source, space.gap(), what);
+    }
+
+    // Bound **anyway**, which is `resolveBinding`'s rule and is what keeps one mistake to one
+    // message: the names are what the body was written against, and a second report about every
+    // read of one would be about this failure rather than about them.
+    bindPattern(builder, made);
+    return true;
+}
+
 Place* Resolver::destructuringPivot(Builder& builder, const ast::VarDecl& binding) {
     if(binding.bind != ast::BindType::Borrow) {
         unsupported(binding.pat.source, "`->` or `&` on a declaration that destructures"_v);
         return nullptr;
     }
 
-    return matchPivot(builder, *parse[binding.content]);
+    return evaluatedPlace(builder, *parse[binding.content]);
 }
 
 /*
@@ -1373,13 +1430,16 @@ bool Resolver::resolveBinding(Builder& builder, const ast::VarDecl& binding, Pla
 }
 
 /*
- * What a pattern is matched *against* - a place, made if the source did not name one.
+ * An expression **evaluated once**, reachable as a place - made if the source did not name one.
  *
- * A pattern projects, so it needs storage: `match f(): ...` matches a value nobody has a place for,
- * and `hold` is the same temporary `f().x` already makes. That the two go the same way is the point
- * - a pattern over a call result and a pattern over a local are one thing.
+ * Two constructs need exactly this and it is the same need read two ways. A pattern *projects*, so
+ * it needs storage: `match f(): ...` matches a value nobody has a place for, and `hold` is the same
+ * temporary `f().x` already makes - a pattern over a call result and a pattern over a local are one
+ * thing. A format hole is *read twice* - once for its bound and once for its text - and a value
+ * resolved twice would run its expression twice, while one node used twice would be an owner handed
+ * to two positions.
  */
-Place* Resolver::matchPivot(Builder& builder, ast::Expr& expr) {
+Place* Resolver::evaluatedPlace(Builder& builder, ast::Expr& expr) {
     ErrorMark mark(context);
     auto place = resolvePlace(builder, expr, false);
     if(place) return place;
@@ -1476,7 +1536,7 @@ Condition Resolver::resolveTest(Builder& builder, ast::Expr& expr) {
 
     auto& written = *parse[expr.is];
 
-    condition.pivot = matchPivot(builder, written.value);
+    condition.pivot = evaluatedPlace(builder, written.value);
     condition.pat = &written.pat;
     return condition;
 }
@@ -1510,7 +1570,7 @@ Condition Resolver::resolveSpan(Builder& builder, Chain& chain, Size& operandInd
     /*
      * One rung above the conjunction's own precedence, read off **this chain**.
      *
-     * `&&`'s grouping is a declaration - `prelude/Core/Core.yana`'s `infixl 2 &&` - so the number is
+     * `&&`'s grouping is a declaration - `lib/Core/Core.yana`'s `infixl 2 &&` - so the number is
      * not one this file may hold. It does not have to look it up either: `splitsAtConjunction` has
      * already established that every loosest operator here is a `ShortAnd`, so the first one of them
      * is carrying the precedence the declaration gave it, and stopping one above that is exactly
@@ -1683,6 +1743,546 @@ bool Resolver::resolveDecomposed(Builder& builder, ast::Pat& pat, SmallArray<Pla
     return ok;
 }
 
+
+/*
+ * ## `match` over constants, recognized - inventory D3
+ *
+ * The rules below are `resolve/map.h`'s, restated for this stage. What changed is where the size
+ * question lives: there is none here beyond `kMapSpanLimit`, which is about what a placed table may
+ * *be* rather than about whether one is worth having.
+ */
+
+// The bound - see the declaration, where it is argued.
+bool mapSpanAdmits(I64 lowest, I64 highest, Size count) {
+    constexpr I64 kMapSpanLimit = 1024;
+    constexpr I64 kMapSpanSpread = 32;
+
+    I64 span = 0;
+    if(__builtin_sub_overflow(highest, lowest, &span)) return false;
+    if(__builtin_add_overflow(span, I64(1), &span)) return false;
+
+    return span <= kMapSpanLimit && span <= I64(count) * kMapSpanSpread;
+}
+
+/*
+ * `_`, binding nothing and taking nothing - the only pattern that may fill in the selectors the
+ * alternatives did not name.
+ *
+ * A `Pat::Var` binds the pivot under a name the arm may read, which is a different pattern with the
+ * same shape, and `->` on a `_` takes the value out. Neither is work a table lookup performs.
+ */
+static bool mapWildcard(const ast::Pat& pattern) {
+    return pattern.kind == ast::Pat::Any && pattern.asVar == StringId() && !pattern.sink &&
+           pattern.bind != ast::BindType::Sink;
+}
+
+/*
+ * The pattern is one constructor of `record`, tests nothing else, and binds nothing.
+ *
+ * Everything a pattern can do beyond naming a constructor is a reason to decline, and the list is
+ * the eligibility rule read from the other side: an `as` binding names the pivot, a payload pattern
+ * other than `_` tests or moves something, and a `&->` binding takes the payload out. None of those
+ * is work a table lookup performs, so a match containing one is not this shape however its arms read.
+ */
+bool Resolver::mapConstructor(ast::Pat& pattern, DeclPtr<RecordType> record, U32& index) {
+    if(pattern.kind != ast::Pat::Con || pattern.asVar != StringId()) return false;
+    if(pattern.bind != ast::BindType::Borrow || pattern.sink) return false;
+
+    auto found = mir::findConstructor(context, program, here(), pattern.con.name, pattern.source);
+    if(!found || found.record != record) return false;
+
+    // A payload pattern is admitted only where it is `_`: irrefutable, binding nothing, moving
+    // nothing. `Just(v)` and `Just(->v)` both name the payload and are declined.
+    if(pattern.con.pats) {
+        auto& payload = *parse[pattern.con.pats];
+        if(payload.kind != ast::Pat::Any || payload.asVar != StringId() || payload.sink) return false;
+    }
+
+    index = found.index;
+    return true;
+}
+
+/*
+ * A form the arm's body may be evaluated as a constant in without a diagnostic being produced for a
+ * program the ordinary path would have accepted - `expr_map.cpp`'s `constantForm`, unchanged.
+ *
+ * `resolveConstant`'s `notConstant` flag turns "this is not a constant *form*" into an answer, and
+ * that covers almost everything. What it deliberately does not cover is the right form with the
+ * wrong contents, and two of those would fire on programs that resolve perfectly well as
+ * expressions: an ascription in a position whose type is something else, and a constructor of a
+ * *generic* record with nothing to infer its arguments from. Both are refused here rather than
+ * reported there, so that the recognizer is silent by construction.
+ */
+static bool mapConstantForm(const ast::Expr& body, bool typed) {
+    if(body.kind == ast::Expr::Coerce) return false;
+    if(typed) return true;
+
+    return body.kind != ast::Expr::Con && body.kind != ast::Expr::Tup &&
+           body.kind != ast::Expr::Array;
+}
+
+// An insertion sort because the list is bounded by `mapSpanAdmits` and is almost always already
+// ordered: a declaration that pins nothing numbers its constructors from zero. See the declaration.
+void sortMapEntries(MapEntry* entries, Size count) {
+    for(Size i = 1; i < count; i++) {
+        for(Size j = i; j && entries[j].selector < entries[j - 1].selector; j--) {
+            auto held = entries[j];
+            entries[j] = entries[j - 1];
+            entries[j - 1] = held;
+        }
+    }
+}
+
+Node* Resolver::matchAsMap(Builder& builder, ast::Expr& expr, Place& pivot,
+                           Buffer<ast::Pat> patterns, DeclPtr<Type> hint, Request wanted) {
+    /*
+     * A position a value produced *here* satisfies.
+     *
+     * Every arm of a mapping is a constant, and a constant is an owned occurrence minted where it is
+     * named - so a position that asked for a window into somebody else's storage, or published an
+     * origin, or said something about the value's interior, is asking for something a table cannot
+     * answer. Those go to `armsValue`, where the arm is resolved at the request the caller wrote.
+     */
+    if(wanted.published || wanted.form != AccessForm::WholeValue || wanted.shape) return nullptr;
+
+    auto pivotType = pivot.occurrence.type;
+    if(!pivotType) return nullptr;
+
+    auto kind = decl()[pivotType]->kind;
+    auto declaration = recordDeclarationOf(decl(), pivotType);
+
+    /*
+     * The two domains, and what "closed" means in each.
+     *
+     * A **record**'s own constructors are the whole domain: a well-typed value holds one of them and
+     * nothing else, so there is no out-of-range case to guard and no fallback. An **integer** pivot
+     * is open, so it needs a wildcard arm and the mapping carries what that arm answers.
+     *
+     * The integer domain is new - `recognizeConstructorMap` requires a record - and `monthName` in
+     * `lib/Date/Format.yana` is what it is for. It is restricted to `Type::Int` because a machine
+     * integer's equality is the compiler's own operation: over a type with an authored `Eq`, the
+     * chain runs a body the program wrote and arithmetic here would be a different program.
+     */
+    RecordType* record = nullptr;
+
+    if(kind == Type::Record) {
+        record = (RecordType*)decl()[pivotType];
+
+        // One constructor is no selector at all, and the pattern that names it is irrefutable - so
+        // `armsValue` already emits the arm with no test and there is nothing here to improve on.
+        if(record->cons.size() < 2) return nullptr;
+        if(!tagTypeOf(decl(), program.types, pivotType)) return nullptr;
+    } else if(kind != Type::Int) {
+        return nullptr;
+    }
+
+    auto closed = record != nullptr;
+
+    SmallArray<MapEntry, 16> entries;
+    SmallArray<bool, 16> answered;
+
+    if(record) {
+        for(auto arm: record->cons.contents(decl())) {
+            MapEntry entry;
+            entry.selector = arm.value;
+            entries.push(entry);
+            answered.push(false);
+        }
+
+        // Two constructors pinned to one number is a declaration this cannot map: the selector no
+        // longer says which arm the value is. Whether it is a program worth reporting is the
+        // declaration checker's question and not this one's.
+        for(Size i = 0; i < entries.size(); i++) {
+            for(Size j = i + 1; j < entries.size(); j++) {
+                if(entries[i].selector == entries[j].selector) return nullptr;
+            }
+        }
+    }
+
+    /*
+     * ## Pass one: the patterns alone
+     *
+     * Every pattern is read before any arm is evaluated, and that ordering is what keeps the
+     * recognizer silent. Evaluating as it walked meant `match findAscii(...): Nothing -> "" |
+     * Just(space) -> ...` built the first arm's literal and *then* found the binding in the second -
+     * so a match that was never a mapping had already placed a global and, where the library's own
+     * string builder was not yet resolvable, reported about it.
+     */
+    struct Arm {
+        U32 alternative = 0;
+        bool wildcard = false;
+        U32 index = 0;
+        I64 selector = 0;
+    };
+
+    SmallArray<Arm, 16> arms;
+    auto covered = false;
+    auto named = Size(0);
+
+    for(Size i = 0; i < patterns.size() && !covered; i++) {
+        auto& pattern = patterns[i];
+
+        Arm arm;
+        arm.alternative = U32(i);
+        arm.wildcard = mapWildcard(pattern);
+
+        if(!arm.wildcard && record) {
+            if(!mapConstructor(pattern, declaration, arm.index)) return nullptr;
+        } else if(!arm.wildcard) {
+            /*
+             * An integer literal, read at the pivot's type - `patternBound`'s rule, as a constant
+             * rather than as a node: what a written number *is* is a question about the type it is
+             * being compared with, and the sign is a separate token in front of it.
+             */
+            if(pattern.kind < ast::Pat::Lit) return nullptr;
+            if(pattern.asVar != StringId() || pattern.sink) return nullptr;
+
+            ast::Expr literal {};
+            literal.lit = pattern.lit;
+            literal.source = pattern.source;
+            literal.kind = ast::Expr::Kind(ast::Expr::Lit + (pattern.kind - ast::Pat::Lit));
+
+            auto number = resolveLiteral(literal, pivotType, pattern.negative);
+            if(number.kind != Constant::Int) return nullptr;
+
+            arm.selector = I64(reducedToWidth(*(IntType*)decl()[pivotType], number.asInt()));
+        }
+
+        // A repeated selector's second arm is unreachable, and so is a wildcard with nothing left to
+        // fill. Both are warned about by `PatternSpace`, and neither contributes a result.
+        auto duplicate = false;
+        if(!arm.wildcard && record) {
+            duplicate = answered[arm.index];
+        } else if(!arm.wildcard) {
+            for(auto& previous: arms) {
+                duplicate = duplicate || (!previous.wildcard && previous.selector == arm.selector);
+            }
+        }
+
+        if(duplicate) continue;
+
+        if(arm.wildcard) {
+            named = record ? entries.size() : named;
+            covered = true;
+        } else if(record) {
+            answered[arm.index] = true;
+            covered = ++named == entries.size();
+        }
+
+        arms.push(arm);
+    }
+
+    /*
+     * Not every selector answered, which is a match the ordinary path either completes with a
+     * pattern this does not read or reports as inexhaustive. Either way it is that path's to finish.
+     */
+    if(!covered) return nullptr;
+
+    /*
+     * ## Pass two: the arms
+     *
+     * A **string** arm is evaluated with no hint at all, and that is not an optimization: a hinted
+     * string constant queues a `PendingTextDefault` against that type, which is a report about a
+     * position rather than an answer - and a recognizer that declined afterwards would have left one
+     * behind. The role answers the type instead, which is the same answer the hinted path reaches.
+     */
+    Constant fallback;
+    auto resultType = hint;
+    auto alternatives = parse[expr.match]->alts;
+    auto holdsAnyText = false;
+
+    if(record) for(auto& flag: answered) flag = false;
+    entries.clear();
+
+    if(record) {
+        for(auto arm: record->cons.contents(decl())) {
+            MapEntry entry;
+            entry.selector = arm.value;
+            entries.push(entry);
+        }
+    }
+
+    for(auto& arm: arms) {
+        auto alternative = alternatives.get(parse, arm.alternative);
+
+        if(!mapConstantForm(alternative.expr, resultType != nullptr)) return nullptr;
+
+        auto notConstant = false;
+        auto hinted = isStringLiteral(alternative.expr) ? nullptr : resultType;
+        auto value = resolveConstant(alternative.expr, hinted, &notConstant);
+        if(!value.isSet()) return nullptr;
+
+        // The first arm decides the type where the position did not. Every later one is evaluated
+        // against it, so this can only differ for the first - and it is checked for all of them,
+        // since an arm may come out at another type without an ascription saying so.
+        if(!resultType) resultType = value.type;
+        if(!sameType(value.type, resultType)) return nullptr;
+
+        holdsAnyText = holdsAnyText || holdsText(decl(), value);
+
+        if(arm.wildcard) {
+            if(!record) { fallback = value; continue; }
+
+            for(Size c = 0; c < entries.size(); c++) {
+                if(answered[c]) continue;
+
+                entries[c].value = value;
+                answered[c] = true;
+            }
+
+            continue;
+        }
+
+        if(record) {
+            entries[arm.index].value = value;
+            answered[arm.index] = true;
+            continue;
+        }
+
+        MapEntry entry;
+        entry.selector = arm.selector;
+        entry.value = value;
+        entries.push(entry);
+    }
+
+    if(!entries.size()) return nullptr;
+
+    /*
+     * What a table slot may hold - `map.h`'s `tableElement`, restated over a type.
+     *
+     * A value with a teardown produced out of static bytes would be a second owner of something the
+     * table still holds, so the ordinary rule is that the result duplicates freely and owes nothing.
+     * A **string** is the one exemption and it is the same one the shipping stage makes: a literal's
+     * run is borrowed, so what a slot holds is two words describing bytes nobody owns and its
+     * teardown is the nothing a written literal's is. `stringLiteral` is where that is argued, and
+     * the constant in the slot is what that function *returns* - built by running it, not by
+     * spelling its fields here.
+     */
+    auto ownership = ownershipOf(decl(), resultType);
+    auto text = program.roles.record(intrinsic::Known::string);
+
+    if(!(ownership.trivialCopy && ownership.relocatable && !ownership.needsTeardown()) &&
+       !(text && recordDeclarationOf(decl(), resultType) == text)) {
+        return nullptr;
+    }
+
+    // A value with an indirection in it has nothing to point at in static storage - the bytes that
+    // belong there are the result of a call to the allocator. Asked here so that a boxed result
+    // declines to the ordinary path rather than failing to emit.
+    for(auto& entry: entries) {
+        if(constantNeedsAllocation(decl(), entry.value)) return nullptr;
+    }
+
+    if(fallback.isSet() && constantNeedsAllocation(decl(), fallback)) return nullptr;
+
+    // Ascending by selector, which is what the node declares and what every shape the lowering
+    // derives walks the list once assuming. `@value(n)` is what makes the sort necessary: a
+    // declaration may pin its constructors to numbers in any order at all.
+    sortMapEntries(entries.pointer(), entries.size());
+
+    // The bound on what a placed table may be - see `mapSpanAdmits`.
+    if(!mapSpanAdmits(entries[0].selector, entries[entries.size() - 1].selector, entries.size())) {
+        return nullptr;
+    }
+
+    /*
+     * The selector, read once.
+     *
+     * A record's is its discriminant - the same place `resolveConstructorPattern` compares, so an
+     * enumeration's number and a sum's tag are one reading rather than two - and an integer pivot's
+     * is the value itself.
+     */
+    auto place = record ? builder.discriminantPlace(pivot) : &pivot;
+    if(!place) return nullptr;
+
+    auto selector = readPlace(builder, expr.source, *place, inspectRequest());
+    if(!selector) return nullptr;
+
+    auto node = builder.addMap(expr.source, *selector, entries.pointer(), entries.size(), fallback,
+                               closed, owned(resultType));
+    if(!node) return nullptr;
+
+    // A literal in a slot is built by *running* `stringLiteral`, and which bodies are resolved by
+    // now depends on the order the files were walked in. So the deferral - see `PendingTextMap`.
+    if(holdsAnyText) {
+        pendingTextMaps.push(PendingTextMap {
+            (NodeMap*)node - mir(), here(), current->activeFile, expr.source
+        });
+    }
+
+    return node;
+}
+
+
+/*
+ * The string tables, once every body is in - `PendingTextMap`, where the ordering is argued.
+ *
+ * The module scope is restored per entry for `resolveTextGlobals`' reason: the evaluation places the
+ * bytes of each literal, and they belong to the module that wrote the mapping.
+ *
+ * One blob per distinct **text** within one mapping, which is not what a written literal gets and is
+ * deliberate: constant equality is what decides the uniform form, so two arms answering `"colour"`
+ * have to be the same constant or a mapping with one answer becomes a table with five.
+ */
+void Resolver::resolveTextMaps() {
+    for(auto& pending: pendingTextMaps) {
+        ModuleScope scope(*this, pending.module, pending.file);
+
+        auto& node = *mir()[pending.node];
+        auto entries = node.entries.contents(mir());
+
+        SmallArray<StringId, 8> texts;
+        SmallArray<Constant, 8> built;
+
+        auto resolved = [&](const Constant& value) {
+            if(value.kind != Constant::Text) {
+                return holdsText(decl(), value) ? textsResolved(value, pending.source) : value;
+            }
+
+            auto written = value.asText();
+            for(Size i = 0; i < texts.size(); i++) {
+                if(texts[i] == written) return built[i];
+            }
+
+            auto made = textConstantValue(written, pending.source);
+            if(!made.isSet()) return made;
+
+            texts.push(written);
+            built.push(made);
+            return made;
+        };
+
+        for(Size i = 0; i < entries.size(); i++) {
+            auto entry = entries[i];
+            entry.value = resolved(entry.value);
+            if(!entry.value.isSet()) break;
+
+            node.entries.set(mir(), i, entry);
+        }
+
+        if(node.fallback.isSet()) node.fallback = resolved(node.fallback);
+    }
+
+    pendingTextMaps.clear();
+}
+
+
+/*
+ * Whether this sub-pattern can fail - the question a multi-way branch has to answer `no` to.
+ *
+ * A `switch` proves the *tag* and nothing else, so an alternative reached through one is emitted
+ * with **no failure edge at all**. That is sound exactly where the pattern under the constructor
+ * tests nothing: a name and `_` bind, a braced list of them takes the value apart, and everything
+ * else - a nested constructor, a literal, a range, an operator section - is a test that would have
+ * had nowhere to fail to.
+ *
+ * The conservative direction is the safe one here in a way it usually is not: answering `false` for
+ * a pattern that is in fact irrefutable costs a `switch` that was not built, and answering `true`
+ * for one that is not costs a test that was silently dropped.
+ */
+static bool irrefutablePattern(ast::ParseBase parse, ast::Pat& pat) {
+    switch(pat.kind) {
+        case ast::Pat::Any:
+        case ast::Pat::Var:
+            return true;
+
+        case ast::Pat::Tup: {
+            for(auto field: pat.tup.contents(parse)) {
+                if(!irrefutablePattern(parse, *parse[field.pat])) return false;
+            }
+
+            return true;
+        }
+
+        default:
+            return false;
+    }
+}
+
+/*
+ * The case values a `match` dispatches on, or nothing - inventory D3's `switch` half.
+ *
+ * The shape admitted is narrow and deliberately so: every alternative but the last names a distinct
+ * constructor of the pivot's record and tests nothing below the tag, and the last one is the
+ * alternative exhaustiveness proved - which is what `armsValue` already emits with no failure edge,
+ * and is therefore the fallback the node needs. `tested` is that proof, computed by `resolveMatch`
+ * from `PatternSpace` and handed here rather than re-derived.
+ *
+ * Below three cases it declines, because that is a chain of two comparisons and the node's own rule.
+ * It reports nothing, for `matchAsMap`'s reason: the ordinary path resolves the same alternatives.
+ */
+bool Resolver::matchCases(Place& pivot, Buffer<ast::Pat> patterns, const bool* tested,
+                          SmallArray<I64, 16>& values, SmallArray<U32, 16>& arms) {
+    auto pivotType = pivot.occurrence.type;
+    if(!pivotType || decl()[pivotType]->kind != Type::Record) return false;
+
+    auto& record = *(RecordType*)decl()[pivotType];
+    auto declaration = recordDeclarationOf(decl(), pivotType);
+    if(record.cons.size() < 2) return false;
+    if(!tagTypeOf(decl(), program.types, pivotType)) return false;
+
+    auto count = patterns.size();
+    if(count < 4) return false;
+
+    // The last alternative is the fallback, so it is the one that must carry no test - and every
+    // one before it must, since an alternative that completed the match early leaves the ones after
+    // it unreachable and a case for each of them.
+    if(tested[count - 1]) return false;
+    for(Size i = 0; i + 1 < count; i++) {
+        if(!tested[i]) return false;
+    }
+
+    SmallArray<U32, 16> seen;
+
+    for(Size i = 0; i + 1 < count; i++) {
+        auto& pattern = patterns[i];
+        U32 index = 0;
+
+        if(pattern.kind != ast::Pat::Con || pattern.bind != ast::BindType::Borrow || pattern.sink) {
+            return false;
+        }
+
+        auto found = mir::findConstructor(context, program, here(), pattern.con.name,
+                                          pattern.source);
+        if(!found || found.record != declaration) return false;
+
+        index = found.index;
+
+        // The tag and nothing under it - see `irrefutablePattern`.
+        if(pattern.con.pats && !irrefutablePattern(parse, *parse[pattern.con.pats])) return false;
+
+        for(auto previous: seen) {
+            if(previous == index) return false;
+        }
+
+        seen.push(index);
+        values.push(record.cons.get(decl(), index).value);
+        arms.push(U32(i));
+    }
+
+    // Ascending and distinct, which is what the node declares - the alternative each case belongs to
+    // moving with it. `@value(n)` is what makes both the sort and the duplicate check necessary: a
+    // declaration is free to pin its constructors to numbers in any order, and two pinned to one
+    // number is a declaration a selector cannot tell apart.
+    for(Size i = 1; i < values.size(); i++) {
+        for(Size j = i; j && values[j] < values[j - 1]; j--) {
+            auto held = values[j];
+            values[j] = values[j - 1];
+            values[j - 1] = held;
+
+            auto arm = arms[j];
+            arms[j] = arms[j - 1];
+            arms[j - 1] = arm;
+        }
+    }
+
+    for(Size i = 1; i < values.size(); i++) {
+        if(values[i] == values[i - 1]) return false;
+    }
+
+    return true;
+}
+
 /*
  * `match x: p -> e ...` - Analysis-IR.md's G7d.
  *
@@ -1723,7 +2323,7 @@ Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         SmallArray<RecordField, 4> fields;
 
         for(auto argument: written.pivot.tup.contents(parse)) {
-            auto place = matchPivot(builder, argument.value);
+            auto place = evaluatedPlace(builder, argument.value);
             if(!place) return nullptr;
 
             elements.push(place);
@@ -1738,7 +2338,7 @@ Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
                               written.pivot.source);
         if(!pivotType) return nullptr;
     } else {
-        pivot = matchPivot(builder, written.pivot);
+        pivot = evaluatedPlace(builder, written.pivot);
         if(!pivot) return nullptr;
 
         pivotType = pivot->occurrence.type;
@@ -1791,6 +2391,34 @@ Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         return nullptr;
     }
 
+    /*
+     * The mapping, where the alternatives state one - inventory D3.
+     *
+     * **After** the warnings above and the exhaustiveness check, which is what keeps this silent:
+     * every message a bad match has coming has already been given, so a refusal here is a
+     * fall-through to `armsValue` and never a second opinion. A decomposed pivot is excluded because
+     * a mapping selects on one value and a tuple pattern selects on several.
+     */
+    if(wantValue && pivot) {
+        Buffer<ast::Pat> written(patterns.pointer(), patterns.size());
+        if(auto map = matchAsMap(builder, expr, *pivot, written, hint, wanted)) return map;
+    }
+
+    /*
+     * A multi-way branch, where the alternatives dispatch on one discriminant - D3's `switch` half.
+     *
+     * The cases are decided before anything is emitted (`matchCases`), and the dispatcher below is
+     * what turns them into the terminator: it reads the pivot's discriminant once, in the block the
+     * `match` was written in, and every entry block is a case target. `armsValue`'s own alternatives
+     * are then emitted with no failure edge, which is exactly what an alternative whose tag has been
+     * proved needs and is the shape it already gives the completing one.
+     */
+    SmallArray<I64, 16> cases;
+    SmallArray<U32, 16> caseArms;
+    auto multiway = !decomposed && pivot &&
+                    matchCases(*pivot, Buffer<ast::Pat>(patterns.pointer(), patterns.size()),
+                               tested.pointer(), cases, caseArms);
+
     return armsValue(builder, expr.source, U32(patterns.size()), hint, wantValue,
         [&](U32 index, Block* onFail, DeclPtr<Type> armHint, Carry& carry) -> Node* {
             auto alternative = written.alts.get(parse, index);
@@ -1812,6 +2440,28 @@ Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 
             bindings.resize(scope);
             return value;
+        },
+        multiway,
+        [&](Carry& carry, SmallArray<Block*, 8>& entries) {
+            auto place = builder.discriminantPlace(*pivot);
+            if(!place) return false;
+
+            auto selector = readPlace(builder, expr.source, *place, inspectRequest());
+            if(!selector) return false;
+
+            SmallArray<Block*, 16> targets;
+            for(auto arm: caseArms) targets.push(entries[arm]);
+
+            // The carry, on every edge - `addBranch`'s rule said of more than two of them: a value
+            // live before a multi-way branch is live on every arm of it.
+            SmallArray<Operand, 8> carried;
+            carry.edge(builder, carried);
+
+            return builder.addSwitch(expr.source,
+                                     builder.resultOf(*selector, UseMode::Inspect), cases.pointer(),
+                                     targets.pointer(), cases.size(),
+                                     *entries[U32(patterns.size() - 1)], carried.pointer(),
+                                     carried.size()) != nullptr;
         });
 }
 

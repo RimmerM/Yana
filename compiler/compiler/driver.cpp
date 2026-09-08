@@ -271,9 +271,9 @@ static bool ensureOutputDirectory(const String& outputDir) {
  */
 static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
                                   ast::ModuleProvider& provider, const String& outputDir,
-                                  StringView name) {
+                                  StringView name, Buffer<ast::ModuleGroup*> testRoots) {
     ssa::Pipeline pipeline(context);
-    if(!pipeline.resolve(root, &provider)) return false;
+    if(!pipeline.resolve(root, &provider, testRoots)) return false;
 
     auto& settings = context.settings;
 
@@ -603,7 +603,8 @@ int main(int argc, const char** argv) {
                                     : StringView { root->text.text(), root->text.size() };
 
         auto built = compileOwnershipStage(context, root->parsed, provider,
-                                           context.settings.outputDir, artifact);
+                                           context.settings.outputDir, artifact,
+                                           toBuffer(testRoots));
         return built && diagnostics.errorCount() == 0 ? 0 : 1;
     }
 

@@ -45,10 +45,10 @@ natural lane count is the register's width divided by the lane's and an atomic i
 while everything it holds is - and neither is in the role namespace, for the reason above.
 
 `Bool` used to be a row there, and its two constructors a companion table beside it, on the argument
-that a comparison has to answer something before there is a library to answer with. `prelude/`
-removed the argument: `Bool` is `known.def`'s `boolean` role now - an ordinary two-constructor enum
-the library declares - and the compiler holds an index into its constructor list rather than either
-spelling. The test for belonging in `primitive.def` is that a `data` head *could not* have stated it,
+that a comparison has to answer something before there is a library to answer with. Giving the
+ownership stage a library removed the argument: `Bool` is `known.def`'s `boolean` role now - an
+ordinary two-constructor enum `lib/Core` declares - and the compiler holds an index into its
+constructor list rather than either spelling. The test for belonging in `primitive.def` is that a `data` head *could not* have stated it,
 and `I32`'s width and `Size`'s openness are the only things left that pass it.
 
 The attribute's own spelling is `kBuiltinAttribute` in [`role.h`](role.h), for the same reason a
@@ -111,6 +111,15 @@ reads it and every call is checked against it - restating it here would be the d
 the cure. [`shape.h`](shape.h) makes that argument in full, and names the bug the check exists to
 prevent.
 
+A shape says three things about a position's root - the type, how it is passed, where its storage
+comes from - and, since 2026-09-06, one about a **pointer's pointee**: `rootedPointerAt` and
+`rootedSameAs` are what `pointerAdd`, `pointerSub` and the two `pointerBorrow` rows now write.
+That fourth axis exists because two libraries drifted in silence: while the ownership stage had a
+standard library of its own it wrote `advance(it: %source'a, count: Size) -> %source'a` where
+`lib/Native/Pointer.yana` wrote a plain `%a` at both ends, so an element of a window was a borrow
+rooted in nothing and every signature that handed one back was refused three files away from the
+mistake. There is one library now; the row is what keeps the declaration honest anyway.
+
 ## No operation is matched by name
 
 `op.def` is the roster of operations the compiler implements, and it is now the whole roster. There
@@ -144,11 +153,11 @@ the twenty-six have a row and are read out of `Program::knownClasses` now, fille
 **Nine are still found by their spelling, and it is the table that is missing rather than the
 binding.** `Enum`, `Index`, `Show`, `TrivialCopy`, `TrivialSink`, `Contiguous`, `Chunked`,
 `Writable`, `IndexInsert` - each is as much a class the compiler dispatches through as the sixteen,
-and what none of them has is a row, because `prelude/` declares none of them and a row no library in
-the tree can claim would be a `Presence` that lies. `ByteSwap`, `Bits`, `BitPermute` and `Length` are
-four more of the same, looked up in the instance generators rather than held in a field. They join as
-the prelude grows to reach them; `known.def`'s tail is the list. `Lanewise` was one of them and is a
-row now - `prelude/Core/Vector.yana` declares it, and the ownership stage reads the role where the
+and what none of them has is a row, because a row is written the day something in the compiler has to
+name the class and a spelling is the smaller statement until then. `ByteSwap`, `Bits`, `BitPermute`
+and `Length` are four more of the same, looked up in the instance generators rather than held in a
+field. They join one at a time; `known.def`'s tail is the list. `Lanewise` was one of them and is a
+row now - `lib/Core/Vector.yana` declares it, and the ownership stage reads the role where the
 shipping stage still reads the name.
 
 **The host is the one group whose roles are not one per operation**, and the reason is worth reading

@@ -1207,21 +1207,34 @@ struct EmbedList<T, false> {
     }
 };
 
-template<class Region, class T, bool allowEmbed = true>
+/*
+ * `Count` is the width of the length and the reserve, and it is a parameter for one list in this
+ * compiler rather than for taste.
+ *
+ * `U16` is the answer everywhere: a list that is a field of something there is one of per
+ * declaration, per instruction or per value pays two bytes for its length, and 65535 entries is far
+ * past what any of them holds. The exception is a **basic block's instruction list**: a synthesized
+ * entry is one straight-line block, and the library's own `@test` suite builds 233 cases in it -
+ * about seventy thousand lower instructions, which overflowed the count and stopped the compile
+ * with `Arena list exhausted`. There are orders of magnitude fewer blocks than instructions, so the
+ * four extra bytes are paid where they cannot matter and nowhere else.
+ */
+template<class Region, class T, bool allowEmbed = true, class Count = U16>
 struct SmallList;
 
+template<class Count>
 inline void checkArenaListCount(Size count) {
-    if(count > maxLimit<U16>) [[unlikely]] {
-        fatalError("Arena list exhausted: %@ entries requested, but its U16 count holds at most %@.", count, Size(maxLimit<U16>));
+    if(count > maxLimit<Count>) [[unlikely]] {
+        fatalError("Arena list exhausted: %@ entries requested, but its count holds at most %@.", count, Size(maxLimit<Count>));
     }
 }
 
-template<class Region, class T>
-struct SmallList<Region, T, true> {
+template<class Region, class T, class Count>
+struct SmallList<Region, T, true, Count> {
     struct List {
         RegionPtr<Region, T> p;
-        U16 count;
-        U16 reserved;
+        Count count;
+        Count reserved;
     };
 
     static_assert(sizeof(T) <= sizeof(U32));
@@ -1310,14 +1323,14 @@ struct SmallList<Region, T, true> {
 
     template<class Arena>
     void reserve(Arena& arena, Size count) {
-        checkArenaListCount(count);
+        checkArenaListCount<Count>(count);
 
         auto embedded = isEmbedded();
         auto reserved = embedded ? embeddedCount : list.reserved;
 
         if(count > reserved) {
             auto currentCount = size();
-            auto nextCount = min(Size(maxLimit<U16>), max(currentCount * 2, max(embeddedCount * 4, count)));
+            auto nextCount = min(Size(maxLimit<Count>), max(currentCount * 2, max(embeddedCount * 4, count)));
             allocate(arena, currentCount, nextCount);
         }
     }
@@ -1418,12 +1431,12 @@ struct SmallList<Region, T, true> {
     }
 };
 
-template<class Region, class T>
-struct SmallList<Region, T, false> {
+template<class Region, class T, class Count>
+struct SmallList<Region, T, false, Count> {
     struct List {
         RegionPtr<Region, T> p { nullptr };
-        U16 count = 0;
-        U16 reserved = 0;
+        Count count = 0;
+        Count reserved = 0;
     };
 
     List list;
@@ -1454,11 +1467,11 @@ struct SmallList<Region, T, false> {
 
     template<class Arena>
     void reserve(Arena& arena, Size count) {
-        checkArenaListCount(count);
+        checkArenaListCount<Count>(count);
 
         if(count > list.reserved) {
             auto currentCount = size();
-            auto nextCount = min(Size(maxLimit<U16>), max(currentCount * 2, max(Size(8), count)));
+            auto nextCount = min(Size(maxLimit<Count>), max(currentCount * 2, max(Size(8), count)));
             allocate(arena, currentCount, nextCount);
         }
     }

@@ -112,7 +112,7 @@ bb0(%0: Pair [shared slot 0] guaranteed):
   return borrow %2
 }
 
-fn writeThrough(c: Cell [unique slot 0]) -> Cell [unique slot 0] {
+fn writeThrough(c: Cell [unique slot 0]) -> Cell [unique slot 0 owner] {
 bb0(%0: Cell [unique slot 0] guaranteed):
   %1: %I32 address = field.addr .v inspect %0
   %2: I32 trivial = load inspect %1
@@ -124,7 +124,7 @@ bb0(%0: Cell [unique slot 0] guaranteed):
   return borrow %6
 }
 
-fn writeThroughToo(c: Cell [unique slot 0]) -> Cell [unique slot 0] {
+fn writeThroughToo(c: Cell [unique slot 0]) -> Cell [unique slot 0 owner] {
 bb0(%0: Cell [unique slot 0] guaranteed):
   %1: %I32 address = field.addr .v inspect %0
   %2: I32 trivial = load inspect %1
@@ -153,7 +153,7 @@ bb0:
   store inspect %0 consume %5
   %6: Pair [shared slot 0] guaranteed from{%0} = load inspect %0
   %7: Guard [shared slot 0] guaranteed from{%0} = call leftOf borrow %6
-  %8: Guard [shared slot 0] guaranteed from{%7, %0} = load inspect %7
+  %8: Guard [shared slot 0] guaranteed from{%0, %7} = load inspect %7
   %9: I32 trivial = call idOf borrow %8
   drop Pair inspect %0
   return consume %9
@@ -268,7 +268,7 @@ bb0:
   %2: Cell trivial = aggregate.Cell consume %1
   store inspect %0 consume %2
   %3: Cell [unique slot 0] guaranteed from{%0} = load inspect %0
-  %4: Cell [unique slot 0] guaranteed from{%0} = call writeThrough borrow %3
+  %4: Cell [unique slot 0 owner] guaranteed from{%0} = call writeThrough borrow %3
   %5: %I32 address = field.addr .v inspect %4
   %6: I32 trivial = load inspect %5
   %7: I32 trivial = const 100
@@ -287,7 +287,7 @@ bb0:
   %2: Cell trivial = aggregate.Cell consume %1
   store inspect %0 consume %2
   %3: Cell [unique slot 0] guaranteed from{%0} = load inspect %0
-  %4: Cell [unique slot 0] guaranteed from{%0} = call writeThroughToo borrow %3
+  %4: Cell [unique slot 0 owner] guaranteed from{%0} = call writeThroughToo borrow %3
   %5: Cell [unique slot 0] guaranteed from{%0} = load inspect %0
   %6: Cell [shared slot 0] guaranteed from{%0} = call readOnlyView borrow %5
   %7: %I32 address = field.addr .v inspect %6
@@ -306,8 +306,8 @@ bb0:
   store inspect %0 consume %5
   %6: Pair [shared slot 0] guaranteed from{%0} = load inspect %0
   %7: Guard [shared slot 0] guaranteed from{%0} = call leftOf borrow %6
-  %8: Guard [shared slot 0] guaranteed from{%7, %0} = load inspect %7
-  %9: Guard [shared slot 0] guaranteed from{%8, %0, %7} = load inspect %8
+  %8: Guard [shared slot 0] guaranteed from{%0, %7} = load inspect %7
+  %9: Guard [shared slot 0] guaranteed from{%0, %7, %8} = load inspect %8
   %10: I32 trivial = call idOf borrow %9
   drop Pair inspect %0
   return consume %10

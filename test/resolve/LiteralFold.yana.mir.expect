@@ -1,15 +1,15 @@
 module ResolveTest
 
-let string: [CodeUnit *5] = [104, 101, 108, 108, 111]
+let string'142: [CodeUnit *5] = [104, 101, 108, 108, 111]
 
 fn litLen(n: Size [shared call]) -> Size {
   local s: String
 
 bb0:
-  %0: [CodeUnit *5] [shared slot 0] = read borrow.shared (global string) loan0
-  %1: %[CodeUnit *5] [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
-  %2: %CodeUnit = bitcast inspect %1
-  %3: Size = const 5
+  %0: [CodeUnit *5] [shared slot 0] = read borrow.shared (global string'142) loan0
+  %1: %[CodeUnit *5] [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %1 roots.0{0}
+  %3: I32 = const 5
   %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
   write.init borrow.unique (s) take %4
   %6: String [shared call] = read borrow.shared (s) loan1

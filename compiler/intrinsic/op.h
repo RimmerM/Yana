@@ -45,9 +45,9 @@ enum class OpForm: U8 {
     Branch,
 };
 
-// Whether a declaration claiming this role writes a body. Only a `Flow` role does - the compiler is
-// the whole definition of the other two - and it is one predicate so that the two resolve stages
-// cannot come to different answers about the same row.
+// Whether a declaration claiming this role **must** write a body. Only a `Flow` role does - the
+// compiler is the whole definition of the other two - and it is one predicate so that the two
+// resolve stages cannot come to different answers about the same row.
 inline bool roleWritesBody(OpForm form) { return form == OpForm::Flow; }
 
 struct OpDef {
@@ -80,5 +80,51 @@ constexpr OpDef makeOp(StringView role, OpForm form, PositionShape result, P... 
 extern const OpDef opTable[Size(Op::Count)];
 
 inline const OpDef& opDef(Op role) { return opTable[Size(role)]; }
+
+/*
+ * Whether a declaration claiming this role **may** write one, which is the weaker question and has
+ * one more answer than `roleWritesBody`.
+ *
+ * A body beside a role is not two implementations of one function. It is what a *stage that does not
+ * expand the role* runs, which is exactly what a `Flow` role's body already is - the resolver lays
+ * that operator out where it is written, and every other reach of the declaration calls the body.
+ *
+ * `newRun` is the same relationship along a different axis. The shipping stage expands it into an
+ * allocation with a count whose **placement** its escape analysis decides; the ownership resolver
+ * has no placement analysis, so every run it built would be a heap run whatever it expanded to - and
+ * a heap run is something the language can say, with the allocator's refusal handled, which is what
+ * `lib/Native/Run.native.yana` writes. The day that stage places allocations the body becomes dead
+ * in both and this answer goes back to the form alone.
+ *
+ * Optional rather than required, because the other declaration claiming the role is
+ * `lib/Native/Run.js.yana`'s, where a run is a descriptor the compiler places and there is no heap
+ * to ask - so the fallback exists on the target that can state it and nowhere else.
+ */
+inline bool roleMayWriteBody(Op role) {
+    switch(role) {
+        case Op::newRun:
+
+        /*
+         * And the seven bulk operations, whose role *is* a choice between two library bodies: the
+         * shipping stage asks whether the element has a vector on this target - a question about a
+         * lane's stride and a register's width, which no constraint can carry, since the vector half
+         * needs a `Num(Vec(a))` the declaration cannot state - and instantiates the one that pays.
+         * The body written on the declaration is the element walk, which is the answer where the
+         * question comes out no, so a stage that does not make the choice runs the correct loop and
+         * loses only the vectorization.
+         */
+        case Op::bulkSum:
+        case Op::bulkProduct:
+        case Op::bulkMaximum:
+        case Op::bulkMinimum:
+        case Op::bulkOccurrences:
+        case Op::bulkIndexOf:
+        case Op::bulkItemsEqual:
+            return true;
+
+        default:
+            return roleWritesBody(opDef(role).form);
+    }
+}
 
 } // namespace intrinsic

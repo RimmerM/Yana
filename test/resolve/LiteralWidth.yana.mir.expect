@@ -203,22 +203,8 @@ bb3:
 fn castMatch(c: Bool [shared call]) -> WideInt {
 bb0:
   %0: U8 = read copy.trivial (c.#)
-  %1: U8 = const 1
-  %2: Bool = eq inspect %0 inspect %1
-  branch inspect %2 -> bb3 -> bb1
-
-bb1:
-  %7: WideInt = const 0
-  jump -> bb2(take %7)
-
-bb2(%8: WideInt):
-  return take %8
-
-bb3:
-  %4: WideInt = const 34359738368
-  %5: WideInt = const 255
-  %6: WideInt = or inspect %4 inspect %5
-  jump -> bb2(take %6)
+  %1: WideInt = map [0 -> 0, 1 -> 34359738623] inspect %0
+  return take %1
 }
 
 fn narrowParen(x: I64 [shared call]) -> I32 {

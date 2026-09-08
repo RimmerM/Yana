@@ -1,0 +1,44 @@
+{-
+   The two things an open head is still refused for - inventory D13, and the other half of
+   `OpenHead.yana`.
+
+   # resolver: ownership
+
+   A head whose outermost constructor is this body's own **variable** names nothing to look up, and
+   answering it from whichever instances happen to be declared is exactly what makes a specialization
+   mean something other than the body it came from. That is the rule `Reject.ClassCall.yana` states
+   for a class *call*, and it is unchanged: what D13 relaxed is a constructor applied to a variable,
+   not the variable.
+
+   And a head that does match, beside a **narrower** one that answers the dependency differently. The
+   narrower head cannot match this query - matching is one-way, so `Pair(I32)` is not something
+   `Pair(a)` binds to - but a specialization at `a := I32` reaches it, because the table orders the
+   narrower head first. So the body's answer and its specialization's would be two different types,
+   and neither of them is more right than the other; `selectOpenInstance` says so naming both heads
+   rather than picking one.
+-}
+
+data Box(a) {value: a}
+data Pair(a) {left: a, right: a}
+
+class Peek(c -> v):
+    fn size(self: c) -> I32
+
+instance Peek(Box(a), a):
+    fn size(self: Box(a)) -> I32 = 1
+
+-- A bare variable head. `Peek(a, ?)` names no constructor at all.
+fn unkeyed(x: a) -> I32 = size(x)
+
+class Sized(c -> e):
+    fn measure(self: c) -> I32
+
+instance Sized(Pair(a), a):
+    fn measure(self: Pair(a)) -> I32 = 1
+
+-- The narrower head, which a specialization at `a := I32` would prefer and which says `e` is `Bool`
+-- where the one above says it is `a`.
+instance Sized(Pair(I32), Bool):
+    fn measure(self: Pair(I32)) -> I32 = 2
+
+fn disagreeing(p: Pair(a)) -> I32 = measure(p)

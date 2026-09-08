@@ -497,13 +497,18 @@ Layout layoutFor(Context& context, mir::Program& program);
  * `known.def`'s `isHeapAddress`, asked as one question.
  *
  * False where the selected allocator answers `isHeapAddress`, because then a release site can ask
- * the address whether the allocation is the program's and nothing has to be written down. True
- * otherwise, and every record with a boxed field grows a word.
+ * the address whether the allocation is the program's and nothing has to be written down. False
+ * again where no reachable release site *asks* - `mir::settleBoxProvenance` and
+ * `Program::asksBoxProvenance` - because the bit is read at exactly one kind of site, a teardown
+ * reached through a borrow, and a program with none of those writes a word nothing looks at while
+ * every record holding a box pays a stride for it. True otherwise, and then every record with a
+ * boxed field grows a word.
  *
  * A property of the **program**, settled long before any layout is computed: which provider a build
- * has is decided by `@allocator` and the file-name axis during declaration reading, so this is a
- * constant by the time a `Repr` is asked for and never something two records could disagree about.
- * That is what makes it safe to memoize a record's layout on the record.
+ * has is decided by `@allocator` and the file-name axis during declaration reading, and the second
+ * half is settled at the end of resolution, before the first `Repr` is asked for. So this is a
+ * constant by the time a record is laid out and never something two records could disagree about,
+ * which is what makes it safe to memoize a record's layout on the record.
  */
 bool storesBoxProvenance(Layout layout);
 

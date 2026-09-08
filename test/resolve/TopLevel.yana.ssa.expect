@@ -55,27 +55,26 @@ bb2:
 
 fn main() -> I32 {
 bb0:
-  %0: %I32 address = global.addr bonus
-  %1: I32 trivial = load inspect %0
-  %2: %I32 address = global.addr counter
-  %3: I32 trivial = load inspect %2
-  %4: I32 trivial = add inspect %1 inspect %3
-  %5: %I32 address = global.addr recorded
-  %6: I32 trivial = load inspect %5
-  %7: I32 trivial = const 100
-  %8: I32 trivial = mul inspect %6 inspect %7
-  %9: I32 trivial = add inspect %4 inspect %8
-  %10: %I32 address = global.addr first
-  %11: I32 trivial = load inspect %10
-  %12: I32 trivial = const 10000
-  %13: I32 trivial = mul inspect %11 inspect %12
-  %14: I32 trivial = add inspect %9 inspect %13
-  %15: %I32 address = global.addr second
-  %16: I32 trivial = load inspect %15
-  %17: I32 trivial = const 1000000
-  %18: I32 trivial = mul inspect %16 inspect %17
-  %19: I32 trivial = add inspect %14 inspect %18
-  return consume %19
+  %0: I32 trivial = const 3
+  %1: %I32 address = global.addr counter
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = add inspect %0 inspect %2
+  %4: %I32 address = global.addr recorded
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = const 100
+  %7: I32 trivial = mul inspect %5 inspect %6
+  %8: I32 trivial = add inspect %3 inspect %7
+  %9: %I32 address = global.addr first
+  %10: I32 trivial = load inspect %9
+  %11: I32 trivial = const 10000
+  %12: I32 trivial = mul inspect %10 inspect %11
+  %13: I32 trivial = add inspect %8 inspect %12
+  %14: %I32 address = global.addr second
+  %15: I32 trivial = load inspect %14
+  %16: I32 trivial = const 1000000
+  %17: I32 trivial = mul inspect %15 inspect %16
+  %18: I32 trivial = add inspect %13 inspect %17
+  return consume %18
 }
 
 fn main$() -> I32 {

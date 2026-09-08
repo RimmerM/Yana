@@ -35,24 +35,29 @@ import Native
 
    The container instances are the same set `Index` has and are there for the same reason: instance
    selection does not convert, so an `Array(a)` binds `Array(a)` and needs an instance of its own
-   rather than reaching the slice's through the conversion a *call* would have performed.
+   rather than reaching the slice's through the conversion a *call* would have performed. `Index`'s
+   own owner head is still the compiler's, and for a reason that is not `Length`'s - `Array.yana`
+   states it beside the measurement.
 
-   **Generated rather than written, on the same terms `Index`'s are - see the note in `Native`.**
-   Written out they would read:
+   **The owner's is written - `Array.yana`, and carries `@inline(always)` since D12 made that one
+   directive across both stages. The window's is still generated**, and the split is the one thing
+   about these instances that is not a preference. Written out the window's would read:
 
        instance Length('[a]):
            fn length(self: [a]) -> Size = self.length
 
-       @platform(native) instance Length([a]):
-           fn length(self: Array(a)) -> Size = self.length :: Size
+   and that head has no source spelling that both resolve stages accept. `[a]` in a head is the
+   owner, so naming the descriptor takes the capability - and to the ownership stage a window and the
+   container it is over are *one logical type*, so `'[a]` there names the instance the line above it
+   already declared and is refused as such. The shipping stage needs two instances because the window
+   is a sibling record and selection does not convert; the ownership stage needs one and cannot be
+   given two. So the owner's is the library's and the window's stays `defineContainerInstances`',
+   which is the bridge Analysis-IR.md 11.5 removes.
 
-       @platform(js) instance Length([a]):
-           fn length(self: Array(a)) -> Size = hostLength(self.items)
-
-   One field load each. The window's head is the one line here with no source spelling: `[a]` in a
-   head is the owner, so naming the descriptor takes the capability - which is why these are the
-   compiler's and not this file's. The owner's members keep `Array(a)`, because `self: [a]` in a
-   *binding* position is the window and `length` reads a field only the owner has.
+   One field load either way, and the owner's member writes no type on `self` at all - the two stages
+   substitute the class's `self: c` differently and each is asked for the subject it decided on. The
+   note beside the instance is where that is argued. Both targets share the body, the host array's
+   length being a stored field for the same reason the native one is.
 
    `String`'s instances below are ordinary functions and stay in source, because that argument is
    not about them.
@@ -152,21 +157,27 @@ pub class Viewed(a):
    the same change": every container that exists is one of these, so a signature written against
    `Chunked` accepts everything a `[a]` one does.
 
-   `elements` on the owner goes through a *call* rather than building the descriptor by hand, and the
-   reason is ownership rather than brevity: the conversion at that call is what records the result as
-   a view of `self` (Local::viewOf), which is what makes the returned borrow rooted in the argument
-   the signature put in `source`. A hand-built `Flat` would be rooted in nothing and would type-check
-   for the wrong reason.
-
    The subject is the **owner** and not a view of it, which is what makes these two members the one
-   place a shared borrow of a container is not that container's window: `elements` reads `self.run`
-   and `self.length` to build the descriptor it hands back, and a body handed the descriptor would
-   have nothing to build it out of. Analysis-Manifestations.md Part 8, and `ownerSubject` in
+   place a shared borrow of a container is not that container's window: `elements` reads the owner's
+   fields to build the descriptor it hands back, and a body handed the descriptor would have nothing
+   to build it out of. Analysis-Manifestations.md Part 8, and `ownerSubject` in
    `compiler/resolve/module_class.cpp`.
 
-   Which call it is is `unclampedSlice` rather than `slice`, and that is a size decision - see the
-   note there. The two are the same conversion at the same argument position, so the rooting is
-   unchanged; what goes is three clamps that a whole container can never trip.
+   **The descriptor is built here rather than reached through a call**, and that is the one thing
+   about these four bodies that had to be worked out. They used to say `unclampedSlice(self, 0,
+   self.length)`, which reads as the same statement and is not: `unclampedSlice` takes a *window*,
+   so the argument position asks an owner to become one - and the only thing that turns an owner
+   into a window is this member. In the shipping stage the conversion was structural and the
+   recursion never appeared; in the ownership stage the adaptation is the call `known.def` says it
+   is, so `elements` called itself on every path and an array literal read back segfaulted with no
+   diagnostic anywhere. `adaptToView` now refuses a derivation that asks for its own view, and this
+   is the form that answers it. The result is still rooted in `self` - the `source'` on the
+   signature is what says so, at both ends - and it is one aggregate rather than a descriptor built
+   and then re-sliced, which is why the shipping stage's own IR got shorter.
+
+   Four instances rather than two, because the view record is a *representation* and the two targets
+   do not share one: `Array.native.yana` declares `ArrayView(a) {items, length}` over a run, and
+   `Array.js.yana` declares `{items, length, offset}` over the host's array.
 
    **On the window itself these two are not written here at all**, because the identity is not a
    library's to state. `elements` and `elementsMut` on a value that already *is* the descriptor have
@@ -185,17 +196,28 @@ pub class Viewed(a):
    where that is decided, once, from the class's own signatures.
 -}
 instance Chunked([a], a):
+    -- `self` is already the chunk. A class member's subject for a container is the container's
+    -- *window*, so what this hands over is the argument and not a window built out of it: reaching
+    -- for `elements` here asks a window to become one, and the only thing that turns an owner into
+    -- a window is that member - the same recursion `Contiguous([a *n], a)` below spells out.
     iter fn chunks(self: [a]) -> [a]:
-        yield elements(self)
+        yield self
 
 @platform(native) instance Contiguous([a], a):
-    fn elements(self: source'Array(a)) -> source'[a] = unclampedSlice(self, 0, self.length :: Size)
+    fn elements(self: source'Array(a)) -> source'[a] =
+        ArrayView {items: self.run.items, length: self.length :: Size}
 
 @platform(js) instance Contiguous([a], a):
-    fn elements(self: source'Array(a)) -> source'[a] = unclampedSlice(self, 0, self.length :: Size)
+    fn elements(self: source'Array(a)) -> source'[a] =
+        ArrayView {items: self.items, length: self.length :: Size, offset: 0}
 
-instance Writable([a], a):
-    fn elementsMut(&self: source'Array(a)) -> &source'[a] = self
+@platform(native) instance Writable([a], a):
+    fn elementsMut(&self: source'Array(a)) -> &source'[a] =
+        ArrayView {items: self.run.items, length: self.length :: Size}
+
+@platform(js) instance Writable([a], a):
+    fn elementsMut(&self: source'Array(a)) -> &source'[a] =
+        ArrayView {items: self.items, length: self.length :: Size, offset: 0}
 
 {-
    ------------------------------------------------------------------------------------------
@@ -218,6 +240,11 @@ instance Writable([a], a):
    the members take is the window, because they wrote `[a]`. The fixed array keeps its own, because
    its length is the type's rather than a field's.
 
+   So the window head hands `self` to `itemsEqual` **as it is**: `self` is already the window and
+   `elements` is what makes one out of an owner, so writing it here asked a window to become one. The
+   ownership stage says so by name; the shipping stage let the round trip through. The fixed array's
+   head does derive, because there `self` is the storage and not a description of it.
+
    The alternative that is still refused is a `Contiguous(c, a)` blanket instance, which would claim
    `Eq` for every container anyone ever writes.
 
@@ -227,7 +254,7 @@ instance Writable([a], a):
 -}
 instance (Eq(a)) Eq([a]):
     fn ==(self: [a], other: [a]) -> Bool =
-        length(self) == length(other) && itemsEqual(elements(self), elements(other))
+        length(self) == length(other) && itemsEqual(self, other)
 
 instance (n: Int, Eq(a)) Eq([a *n]):
     fn ==(self: [a *n], other: [a *n]) -> Bool = itemsEqual(elements(self), elements(other))
@@ -311,10 +338,36 @@ instance (n: Int) Chunked([a *n], a):
     iter fn chunks(self: [a *n]) -> [a]:
         yield elements(self)
 
-instance (n: Int) Contiguous([a *n], a):
+{-
+   The fixed array's two, and why they are written out natively.
+
+   Both used to be one line each - `unclampedSlice(self, 0, n)` and `self` - and both leaned on the
+   *conversion at a call* to turn `[a *n]` into `[a]`. That is what a caller gets, and it is not what
+   a member of the class that performs the conversion can use: the only thing that turns a fixed
+   array into a window is this member, so `elements` called itself on every path. It is `Array(a)`'s
+   own recursion one type over, and the answer is the same one - the view record built out of the
+   array's own address, which is what `Array.yana`'s own view record writes.
+
+   `addressOf` and a `bitcast` because a fixed array *is* its elements: there is no field to read, so
+   what a window into one needs is where the storage starts, and `n` is the count the instance was
+   selected at. `source'` at both ends roots the result in the same loan the argument was read under.
+
+   JavaScript keeps the two lines, and that is the platform split rather than an omission: a host
+   array has no address to take, and the conversion at a call is the only thing that means anything
+   there. The ownership stage is native-only, so what it needs is the native half.
+-}
+@platform(native) instance (n: Int) Contiguous([a *n], a):
+    fn elements(self: source'[a *n]) -> source'[a] =
+        ArrayView {items: bitcast(addressOf(self)) :: %a, length: n :: Size}
+
+@platform(js) instance (n: Int) Contiguous([a *n], a):
     fn elements(self: source'[a *n]) -> source'[a] = unclampedSlice(self, 0, n :: Size)
 
-instance (n: Int) Writable([a *n], a):
+@platform(native) instance (n: Int) Writable([a *n], a):
+    fn elementsMut(&self: source'[a *n]) -> &source'[a] =
+        ArrayView {items: bitcast(addressOf(self)) :: %a, length: n :: Size}
+
+@platform(js) instance (n: Int) Writable([a *n], a):
     fn elementsMut(&self: source'[a *n]) -> &source'[a] = self
 
 {-

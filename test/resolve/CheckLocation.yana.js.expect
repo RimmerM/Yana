@@ -1,0 +1,34 @@
+"use strict";
+var reporting = 0;
+var start = 0;
+
+// ResolveTest
+function reachable(xs$items, xs$length, xs$offset) {
+  var v1 = start;
+  var v4 = xs$offset + v1 | 0;
+  if (v1 >>> 0 >= xs$length >>> 0) {
+    if (reporting) {
+      throw "yana: a runtime check failed";
+    }
+    reporting = 1;
+    var v38 = "";
+    v38 = v38 + "check failed at ";
+    v38 = v38 + "ResolveTest";
+    v38 = v38 + ":";
+    v38 = v38 + String(21);
+    v38 = v38 + ":";
+    v38 = v38 + String(33);
+    v38 = v38 + "\n";
+    console.log(v38);
+    throw "yana: a runtime check failed";
+  } else {
+    return xs$items[v4];
+  }
+}
+
+function main() {
+  var v4 = new Int32Array([7, 8, 9]);
+  start = 1;
+  return reachable(v4, 3, 0) - 8 | 0;
+}
+main();

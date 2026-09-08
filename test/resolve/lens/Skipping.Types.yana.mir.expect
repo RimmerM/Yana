@@ -374,7 +374,7 @@ bb3(%4: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
 fn borrowed() -> I32 {
   local & c: Counter
   local & seen: I32
-  local & w: Counter [unique call]
+  local & w: Counter [unique call owner]
   local e: I32
 
 bb0:
@@ -398,7 +398,7 @@ bb2(%6: I32):
   write.assign borrow.unique (seen) take %16
   jump -> bb1
 
-bb3(%7: Counter [unique call]) handover(Counter [unique call]) at.most.once -> bb1:
+bb3(%7: Counter [unique call owner]) handover(Counter [unique call owner]) at.most.once -> bb1:
   write.init borrow.unique (w) borrow.unique %7
   %10: I32 = read copy.trivial (w.value)
   %11: I32 = const 100
@@ -410,7 +410,7 @@ bb3(%7: Counter [unique call]) handover(Counter [unique call]) at.most.once -> b
 fn borrowedFailing() -> I32 {
   local & c: Counter
   local & seen: I32
-  local & w: Counter [unique call]
+  local & w: Counter [unique call owner]
   local e: I32
 
 bb0:
@@ -436,7 +436,7 @@ bb2(%8: I32):
   write.assign borrow.unique (seen) take %18
   jump -> bb1
 
-bb3(%9: Counter [unique call]) handover(Counter [unique call]) at.most.once -> bb1:
+bb3(%9: Counter [unique call owner]) handover(Counter [unique call owner]) at.most.once -> bb1:
   write.init borrow.unique (w) borrow.unique %9
   %12: I32 = read copy.trivial (w.value)
   %13: I32 = const 100

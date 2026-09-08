@@ -1,0 +1,260 @@
+module ResolveTest
+
+let & heading: Direction = South
+
+let & ready: Bool = False
+
+let & limit: I64 = 12
+
+let & ratio: F32 = 0.5
+
+let & link: %U8 = 0
+
+let & offset: I64 = -1
+
+let & state: State(I32) = On
+
+let & fell: F32 = -1
+
+let & minimum: I64 = -9223372036854775808
+
+let & mask: U64 = 18446744073709551615
+
+fn directionValue(d: Direction [shared call]) -> I32 {
+bb0(%0: Direction [shared call] guaranteed):
+  %1: %Direction address = alloc frame Direction [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 1, 1 -> 2, 2 -> 4, 3 -> 8] inspect %3
+  return consume %4
+}
+
+fn stateValue(s: State(I32) [shared call]) -> I32 {
+bb0(%0: State(I32) [shared call] guaranteed):
+  %1: %State(I32) address = alloc frame State(I32) [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 0, 1 -> 1] inspect %3
+  return consume %4
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Config address = alloc frame Config
+  %1: %I32 address = alloc frame I32
+  %2: Direction trivial = const East
+  %3: Bool trivial = const True
+  %4: I64 trivial = const 12
+  %5: F32 trivial = const 0.5
+  %6: %U8 trivial = const 0
+  %7: I32 trivial = const -3
+  %8: State(I32) trivial = const On
+  %9: F32 trivial = const -1
+  %10: Config trivial = aggregate.Config consume %2 consume %3 consume %4 consume %5 consume %6 consume %7 consume %8 consume %9
+  store inspect %0 consume %10
+  %11: %Direction address = global.addr heading
+  %12: Direction trivial = load inspect %11
+  %13: I32 trivial = call directionValue borrow %12
+  %14: %Direction address = field.addr .heading inspect %0
+  %15: Direction trivial = load inspect %14
+  %16: I32 trivial = call directionValue borrow %15
+  %17: I32 trivial = const 16
+  %18: I32 trivial = mul inspect %16 inspect %17
+  %19: I32 trivial = add inspect %13 inspect %18
+  store inspect %1 consume %19
+  %20: %Bool address = global.addr ready
+  %21: Bool trivial = load inspect %20
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %22: %Bool address = field.addr .ready inspect %0
+  %23: Bool trivial = load inspect %22
+  branch inspect %23 -> bb6 -> bb4
+
+bb3:
+  %24: I32 trivial = load inspect %1
+  %25: I32 trivial = const 1024
+  %26: I32 trivial = add inspect %24 inspect %25
+  store inspect %1 consume %26
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %27: %I64 address = field.addr .limit inspect %0
+  %28: I64 trivial = load inspect %27
+  %29: %I64 address = global.addr limit
+  %30: I64 trivial = load inspect %29
+  %31: Bool trivial = eq inspect %28 inspect %30
+  branch inspect %31 -> bb9 -> bb7
+
+bb6:
+  %32: I32 trivial = load inspect %1
+  %33: I32 trivial = const 2048
+  %34: I32 trivial = add inspect %32 inspect %33
+  store inspect %1 consume %34
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %35: %F32 address = field.addr .ratio inspect %0
+  %36: F32 trivial = load inspect %35
+  %37: %F32 address = global.addr ratio
+  %38: F32 trivial = load inspect %37
+  %39: Bool trivial = eq inspect %36 inspect %38
+  branch inspect %39 -> bb12 -> bb10
+
+bb9:
+  %40: I32 trivial = load inspect %1
+  %41: I32 trivial = const 4096
+  %42: I32 trivial = add inspect %40 inspect %41
+  store inspect %1 consume %42
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %43: %I32 address = field.addr .offset inspect %0
+  %44: I32 trivial = load inspect %43
+  %45: I32 trivial = const -3
+  %46: Bool trivial = eq inspect %44 inspect %45
+  branch inspect %46 -> bb15 -> bb13
+
+bb12:
+  %47: I32 trivial = load inspect %1
+  %48: I32 trivial = const 8192
+  %49: I32 trivial = add inspect %47 inspect %48
+  store inspect %1 consume %49
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %50: %I64 address = global.addr offset
+  %51: I64 trivial = load inspect %50
+  %52: I64 trivial = const -1
+  %53: Bool trivial = eq inspect %51 inspect %52
+  branch inspect %53 -> bb18 -> bb16
+
+bb15:
+  %54: I32 trivial = load inspect %1
+  %55: I32 trivial = const 16384
+  %56: I32 trivial = add inspect %54 inspect %55
+  store inspect %1 consume %56
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %57: %F32 address = global.addr fell
+  %58: F32 trivial = load inspect %57
+  %59: F32 trivial = const -1
+  %60: Bool trivial = eq inspect %58 inspect %59
+  branch inspect %60 -> bb21 -> bb19
+
+bb18:
+  %61: I32 trivial = load inspect %1
+  %62: I32 trivial = const 32768
+  %63: I32 trivial = add inspect %61 inspect %62
+  store inspect %1 consume %63
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %64: %F32 address = field.addr .fell inspect %0
+  %65: F32 trivial = load inspect %64
+  %66: %F32 address = global.addr fell
+  %67: F32 trivial = load inspect %66
+  %68: Bool trivial = eq inspect %65 inspect %67
+  branch inspect %68 -> bb24 -> bb22
+
+bb21:
+  %69: I32 trivial = load inspect %1
+  %70: I32 trivial = const 65536
+  %71: I32 trivial = add inspect %69 inspect %70
+  store inspect %1 consume %71
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %72: %State(I32) address = global.addr state
+  %73: State(I32) trivial = load inspect %72
+  %74: I32 trivial = call stateValue borrow %73
+  %75: %State(I32) address = field.addr .state inspect %0
+  %76: State(I32) trivial = load inspect %75
+  %77: I32 trivial = call stateValue borrow %76
+  %78: Bool trivial = eq inspect %74 inspect %77
+  branch inspect %78 -> bb27 -> bb25
+
+bb24:
+  %79: I32 trivial = load inspect %1
+  %80: I32 trivial = const 1048576
+  %81: I32 trivial = add inspect %79 inspect %80
+  store inspect %1 consume %81
+  jump -> bb23
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %82: %I64 address = global.addr minimum
+  %83: I64 trivial = load inspect %82
+  %84: I64 trivial = const 0
+  %85: Bool trivial = lt inspect %83 inspect %84
+  branch inspect %85 -> bb30 -> bb28
+
+bb27:
+  %86: I32 trivial = load inspect %1
+  %87: I32 trivial = const 131072
+  %88: I32 trivial = add inspect %86 inspect %87
+  store inspect %1 consume %88
+  jump -> bb26
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %89: %U64 address = global.addr mask
+  %90: U64 trivial = load inspect %89
+  %91: U64 trivial = const 0
+  %92: Bool trivial = ne inspect %90 inspect %91
+  branch inspect %92 -> bb33 -> bb31
+
+bb30:
+  %93: I32 trivial = load inspect %1
+  %94: I32 trivial = const 262144
+  %95: I32 trivial = add inspect %93 inspect %94
+  store inspect %1 consume %95
+  jump -> bb29
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %96: I32 trivial = load inspect %1
+  return consume %96
+
+bb33:
+  %97: I32 trivial = load inspect %1
+  %98: I32 trivial = const 524288
+  %99: I32 trivial = add inspect %97 inspect %98
+  store inspect %1 consume %99
+  jump -> bb32
+}
+
+entry main

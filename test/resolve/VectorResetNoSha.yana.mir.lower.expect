@@ -1,0 +1,21 @@
+
+resetThenAdd<clobber, x86_legacy_sse>(%lhs: i32x4, %rhs: i32x4): I32 {
+  b_0 {
+    vzeroupper 
+    %v_1 = add %lhs, %rhs: i32x4
+    %v_2 = vlane %v_1, 0: I32
+    ret %v_2
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = vsplat 3: i32x4
+    %v_2 = vsplat 4: i32x4
+    %v_3 = call_clobber resetThenAdd, %v_1, %v_2: I32
+    vzeroupper 
+    %v_4 = add %v_3, 1: I32
+    ret %v_4
+  }
+}
+

@@ -1,0 +1,54 @@
+{-
+   `xs[i]` on a `[T *n]` stops the program when `i` is not an element - the one bounds check the
+   *compiler* emits rather than the library.
+
+   Every other container is subscripted through an `Index` body, and the test is written there beside
+   the length it reads. A fixed array has no such body: its element is a projection of the
+   container's own place, so there is nothing for a call to hand back and the compiler owes the
+   bound. `checkFixedBound` in `resolve_mir/resolve_expr.cpp` is where it is emitted, and what it
+   emits is a *call* to `checkCondition` rather than the branch itself - a subscript is resolved
+   inside whatever expression contains it, and this IR hands every value that crosses a block
+   boundary over as a block argument, so a branch here would have to thread the enclosing
+   expression through two new blocks. That is the shipping stage's own reason for the indirection,
+   arrived at from the other end.
+
+   **The index is opaque**, for `ArrayFill.yana`'s reason: read at a constant the compiler skips the
+   test outright, so a golden written at one would say nothing about the decision. `at` is one
+   `@noinline` call that hands back what it was given.
+
+   **Every subscript below is in range**, which is what lets `.run.expect` be shared: the program
+   answers the same number with the checks and without them, and with either stage compiling it. A
+   fixture that went out of range would abort, and `test/resolve` has no `@test(aborts)` form to
+   state that - so what says the test is really there is `.mir.lower.expect`, where the unsigned
+   comparison and the call stand.
+-}
+
+import Native
+
+@noinline fn at(i: Size) -> Size = i
+
+-- A written count, read *and written* through a runtime index. The write is the half the inventory
+-- named as missing: `arr[i] = v` reaches the same place projection a read does, so one emission
+-- covers both and the golden shows the check twice per line rather than once.
+fn writtenCount() -> Int:
+    let &slots = [0] :: [I32 *4]
+    slots[at(1)] = 7
+    slots[at(3)] = 5
+    return slots[at(1)] + slots[at(3)]
+
+-- A quantified count, where the bound is the const parameter's own value rather than a number the
+-- type carries: `Node::GenValue`, converted to the word width the comparison is made at, since a
+-- count is a number of the parameter's own declared type.
+fn (n: Int) sumOf(xs: [Int *n]) -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < n:
+        total = total + xs[i]
+        i = i + 1
+
+    return total
+
+fn main() -> Int:
+    let block = [1, 2, 3, 4] :: [Int *4]
+    return writtenCount() + sumOf(block)

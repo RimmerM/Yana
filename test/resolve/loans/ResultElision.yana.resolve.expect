@@ -1,0 +1,93 @@
+let image$base: () = <none>
+
+let &trace: I32 = 0
+
+fn guard(%id: I32) -> Guard {
+  b0:
+    %v1 = alloc : Guard
+    aggregate %local0@Guard.id = %id
+    ret %v1
+}
+
+fn hold(%value: 'a, %tag: I32) -> Held(a) {
+  schema {
+    #0 type a
+    #1 type Held(a)
+  }
+
+  b0:
+    %v2 = alloc : Held(a)
+    aggregate %local0@Held.value = %value, %local0@Held.tag = %tag
+    ret %v2
+}
+
+fn heldId(%h: Held(Guard)) -> I32 {
+  b0:
+    %v1 = load %h@Held.value : 'Guard
+    %v2 = load [%v1]@Guard.id : I32
+    %v5 = mul %v2, 10 : I32
+    %v6 = load %h@Held.tag : I32
+    %v7 = add %v5, %v6 : I32
+    ret %v7
+}
+
+fn elided() -> I32 {
+  b0:
+    %g = call guard, 1 : Guard
+    %v3 = borrow %local0 : 'Guard
+    %h = call hold(Guard), %v3, 3 : Held(Guard)
+    %v6 = call heldId, %h : I32
+    drop %local0 via Drop(Guard).drop
+    ret %v6
+}
+
+fn bothOf(%left: 'Guard, %right: 'Guard) -> Both {
+  b0:
+    %v2 = alloc : Both
+    aggregate %local0@Both.left = %left, %local0@Both.right = %right
+    ret %v2
+}
+
+fn twoFields() -> I32 {
+  b0:
+    %a = call guard, 2 : Guard
+    %b = call guard, 4 : Guard
+    %v4 = borrow %local0 : 'Guard
+    %v5 = borrow %local1 : 'Guard
+    %v = call bothOf, %v4, %v5 : Both
+    %v7 = load %local2@Both.left : 'Guard
+    %v8 = load [%v7]@Guard.id : I32
+    %v11 = mul %v8, 10 : I32
+    %v12 = load %local2@Both.right : 'Guard
+    %v13 = load [%v12]@Guard.id : I32
+    drop %local0 via Drop(Guard).drop
+    drop %local1 via Drop(Guard).drop
+    %v14 = add %v11, %v13 : I32
+    ret %v14
+}
+
+fn main() -> I32 {
+  b0:
+    %first = call elided : I32
+    %second = call twoFields : I32
+    %v2 = add %first, %second : I32
+    %v3 = load trace : I32
+    %v4 = add %v2, %v3 : I32
+    ret %v4
+}
+
+fn Drop(Guard).drop(%value: Guard) -> () {
+  b0:
+    %v1 = load trace : I32
+    %v2 = load %value@Guard.id : I32
+    %v3 = add %v1, %v2 : I32
+    assign trace, %v3
+    ret
+}
+
+fn hold(Guard)(%value: 'Guard, %tag: I32) -> Held(Guard) {
+  b0:
+    %v2 = alloc : Held(Guard)
+    aggregate %local0@Held.value = %value, %local0@Held.tag = %tag
+    ret %v2
+}

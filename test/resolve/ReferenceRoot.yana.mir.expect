@@ -1,0 +1,98 @@
+module ResolveTest
+
+data Pair(a, b) {first: a, second: b} drop derived reclaim derived
+
+data Pair(I32, I32) {first: I32, second: I32} of Pair
+
+fn pairOf(x: I32 [shared slot 0], y: I32 [shared slot 0]) -> Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (x) loan0
+  %1: I32 [shared slot 0] = read borrow.shared (y) loan1
+  %2: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] = aggregate.Pair borrow.shared %0 borrow.shared %1 roots.0{0} roots.1{1}
+  return take %2
+}
+
+fn firstOf(x: I32 [shared slot 0], y: I32 [shared slot 0]) -> I32 [shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (x) loan0
+  return borrow.shared %0
+}
+
+fn passThrough(p: %U8 [shared call shape6 .*=shared slot 0]) -> %U8 [owned here shape6 .*=shared slot 0] {
+bb0:
+  %0: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (p)
+  return take %0
+}
+
+fn offsetOf(p: %U8 [shared call shape6 .*=shared slot 0]) -> %U8 [owned here shape6 .*=shared slot 0] {
+bb0:
+  %0: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (p)
+  %1: Size = const 1
+  %2: Size = metric stride U8
+  %3: Size = mul inspect %1 inspect %2
+  %4: %U8 [owned here shape6 .*=shared slot 0] = add inspect %0 inspect %3
+  return take %4
+}
+
+fn maybeOf(x: I32 [shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (x) loan0
+  %1: Maybe(I32) [owned here shape2 .0=shared slot 0] = aggregate.Just borrow.shared %0 roots.0{0}
+  return take %1
+}
+
+fn main() -> I32 {
+  local & a: I32
+  local & b: I32
+  local p: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0]
+  local f: I32 [shared slot 0]
+  local m: Maybe(I32) [owned here shape2 .0=shared slot 0]
+  local v: I32
+  local seen: I32
+
+bb0:
+  %0: I32 = const 3
+  write.init borrow.unique (a) take %0
+  %2: I32 = const 4
+  write.init borrow.unique (b) take %2
+  %4: I32 [shared slot 0] = read borrow.shared (a) loan0
+  %5: I32 [shared slot 0] = read borrow.shared (b) loan1
+  %6: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] = call pairOf borrow.shared %4 borrow.shared %5 roots.0{0, 1} roots.1{0, 1}
+  write.init borrow.unique (p) take %6
+  %8: I32 [shared slot 0] = read borrow.shared (a) loan2
+  %9: I32 [shared slot 0] = read borrow.shared (b) loan3
+  %10: I32 [shared slot 0] = call firstOf borrow.shared %8 borrow.shared %9 roots{2, 3}
+  write.init borrow.unique (f) borrow.shared %10
+  %12: I32 [shared slot 0] = read borrow.shared (a) loan4
+  %13: Maybe(I32) [owned here shape2 .0=shared slot 0] = call maybeOf borrow.shared %12 roots.0{4}
+  write.init borrow.unique (m) take %13
+  %15: U8 = read copy.trivial (m.#)
+  %16: U8 = const 1
+  %17: Bool = eq inspect %15 inspect %16
+  branch inspect %17 -> bb3 -> bb1
+
+bb1:
+  %24: I32 = const 0
+  jump -> bb2(take %24)
+
+bb2(%25: I32):
+  write.init borrow.unique (seen) take %25
+  %29: I32 = read copy.trivial (p.first)
+  %30: I32 = read copy.trivial (p.second)
+  %31: I32 = add inspect %29 inspect %30
+  %32: I32 = read copy.trivial (f)
+  %33: I32 = add inspect %31 inspect %32
+  %34: I32 = read copy.trivial (seen)
+  %35: I32 = add inspect %33 inspect %34
+  return take %35
+
+bb3:
+  %19: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %19
+  %21: I32 = read copy.trivial (v)
+  %22: I32 = const 0
+  %23: I32 = add inspect %21 inspect %22
+  jump -> bb2(take %23)
+}
+
+entry main

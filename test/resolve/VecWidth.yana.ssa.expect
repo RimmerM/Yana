@@ -1,0 +1,137 @@
+module ResolveTest
+
+let & sink: Vec(I16, 4) = [0, 0, 0, 0]
+
+fn arithmetic(a: Vec(I16, 4) [shared call]) -> Vec(I16, 4) {
+bb0(%0: Vec(I16, 4) [shared call] guaranteed):
+  %1: %Vec(I16, 4) address = alloc frame Vec(I16, 4) [shared call]
+  %2: %Vec(I16, 4) address = alloc frame Vec(I16, 4)
+  %3: %Vec(I16, 4) address = alloc frame Vec(I16, 4)
+  %4: %Vec(I16, 4) address = alloc frame Vec(I16, 4)
+  %5: %Vec(I16, 4) address = alloc frame Vec(I16, 4)
+  %6: %Vec(I16, 4) address = alloc frame Vec(I16, 4)
+  store inspect %1 borrow %0
+  %7: I64 trivial = const 4
+  %8: I16 trivial = const 4
+  %9: Vec(I16, 4) trivial = vec.splat inspect %8
+  store inspect %2 consume %9
+  %10: Vec(I16, 4) trivial = load inspect %1
+  %11: Vec(I16, 4) trivial = load inspect %2
+  %12: Vec(I16, 4) trivial = add inspect %10 inspect %11
+  store inspect %3 consume %12
+  %13: Vec(I16, 4) trivial = load inspect %1
+  %14: Vec(I16, 4) trivial = load inspect %2
+  %15: Vec(I16, 4) trivial = mul inspect %13 inspect %14
+  store inspect %4 consume %15
+  %16: Vec(I16, 4) trivial = load inspect %3
+  %17: Vec(I16, 4) trivial = load inspect %4
+  %18: Vec(I16, 4) trivial = and inspect %16 inspect %17
+  store inspect %5 consume %18
+  %19: Vec(I16, 4) trivial = load inspect %5
+  %20: Vec(I16, 4) trivial = load inspect %2
+  %21: Vec(I16, 4) trivial = shl inspect %19 inspect %20
+  store inspect %6 consume %21
+  %22: Vec(I16, 4) trivial = load inspect %6
+  %23: Vec(I16, 4) trivial = load inspect %1
+  %24: Vec(I16, 4) trivial = sub inspect %22 inspect %23
+  return consume %24
+}
+
+fn widths(narrow: Vec(U8, 4) [shared call], middle: Vec(U32, 2) [shared call]) -> Vec(U8, 4) {
+bb0(%0: Vec(U8, 4) [shared call] guaranteed, %1: Vec(U32, 2) [shared call] guaranteed):
+  %2: %Vec(U8, 4) address = alloc frame Vec(U8, 4) [shared call]
+  %3: %Vec(U32, 2) address = alloc frame Vec(U32, 2) [shared call]
+  %4: %Vec(U32, 2) address = alloc frame Vec(U32, 2)
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %5: Vec(U32, 2) trivial = load inspect %3
+  %6: Vec(U32, 2) trivial = load inspect %3
+  %7: Vec(U32, 2) trivial = add inspect %5 inspect %6
+  store inspect %4 consume %7
+  %8: Vec(U8, 4) trivial = load inspect %2
+  %9: Vec(U8, 4) trivial = load inspect %2
+  %10: Vec(U8, 4) trivial = load inspect %2
+  %11: Vec(U8, 4) trivial = shl inspect %9 inspect %10
+  %12: Vec(U8, 4) trivial = or inspect %8 inspect %11
+  return consume %12
+}
+
+fn widening(v: Vec(I16, 4) [shared call]) -> Vec(I32) {
+bb0(%0: Vec(I16, 4) [shared call] guaranteed):
+  %1: %Vec(I16, 4) address = alloc frame Vec(I16, 4) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(I16, 4) trivial = load inspect %1
+  %3: Vec(I32) trivial = convert inspect %2
+  return consume %3
+}
+
+fn narrowing(v: Vec(I32) [shared call]) -> Vec(I16, 4) {
+bb0(%0: Vec(I32) [shared call] guaranteed):
+  %1: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(I32) trivial = load inspect %1
+  %3: Vec(I16, 4) trivial = convert inspect %2
+  return consume %3
+}
+
+fn reinterpreting(v: Vec(I32) [shared call]) -> Vec(F32) {
+bb0(%0: Vec(I32) [shared call] guaranteed):
+  %1: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(I32) trivial = load inspect %1
+  %3: Vec(F32) trivial = bitcast inspect %2
+  return consume %3
+}
+
+fn aliases(v: Vec(F32) [shared call]) -> Vec(F32) {
+bb0(%0: Vec(F32) [shared call] guaranteed):
+  %1: %Vec(F32) address = alloc frame Vec(F32) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(F32) trivial = load inspect %1
+  return consume %2
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Vec(I16, 4) address = alloc frame Vec(I16, 4)
+  %1: %Vec(I32) address = alloc frame Vec(I32)
+  %2: %Vec(I16, 4) address = alloc frame Vec(I16, 4)
+  %3: %Vec(F32) address = alloc frame Vec(F32)
+  %4: %Vec(U8, 4) address = alloc frame Vec(U8, 4)
+  %5: %Vec(I16, 4) address = global.addr sink
+  %6: Vec(I16, 4) trivial = load inspect %5
+  %7: Vec(I16, 4) trivial = call arithmetic borrow %6
+  store inspect %0 consume %7
+  %8: Vec(I16, 4) trivial = load inspect %0
+  %9: Vec(I32) trivial = call widening borrow %8
+  store inspect %1 consume %9
+  %10: Vec(I32) trivial = load inspect %1
+  %11: Vec(I16, 4) trivial = call narrowing borrow %10
+  store inspect %2 consume %11
+  %12: Vec(I32) trivial = load inspect %1
+  %13: Vec(F32) trivial = call reinterpreting borrow %12
+  %14: Vec(F32) trivial = call aliases borrow %13
+  store inspect %3 consume %14
+  %15: I64 trivial = const 1
+  %16: U8 trivial = const 1
+  %17: Vec(U8, 4) trivial = vec.splat inspect %16
+  %18: I64 trivial = const 2
+  %19: U32 trivial = const 2
+  %20: Vec(U32, 2) trivial = vec.splat inspect %19
+  %21: Vec(U8, 4) trivial = call widths borrow %17 borrow %20
+  store inspect %4 consume %21
+  %22: Vec(I16, 4) trivial = load inspect %2
+  %23: Vec(F32) trivial = load inspect %3
+  %24: Vec(I32) trivial = bitcast inspect %23
+  %25: Vec(I16, 4) trivial = convert inspect %24
+  %26: Vec(I16, 4) trivial = xor inspect %22 inspect %25
+  %27: Vec(U8, 4) trivial = load inspect %4
+  %28: Vec(I16, 4) trivial = convert inspect %27
+  %29: Vec(I16, 4) trivial = xor inspect %26 inspect %28
+  %30: %Vec(I16, 4) address = global.addr sink
+  store inspect %30 consume %29
+  %31: I32 trivial = const 1
+  return consume %31
+}
+
+entry main

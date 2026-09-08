@@ -24,10 +24,10 @@ fn main() -> I32 {
 bb0:
   %0: I32 = const 5
   %1: Box = aggregate.Box take %0
-  %2: I32 = call weigh(Box) borrow.shared %1
+  %2: I32 = call weigh'2(Box) borrow.shared %1
   write.init borrow.unique (classed) take %2
   %4: I32 = const 6
-  %5: I32 = call weigh'2 borrow.shared %4
+  %5: I32 = call weigh'3 borrow.shared %4
   write.init borrow.unique (plain) take %5
   %7: I32 = const 2
   %8: Tag = aggregate.Tag take %7
@@ -48,7 +48,7 @@ class Weigh(a): weigh
 
 instance Weigh(Box): Box.weigh
 
-fn weigh(value: a [shared call]) -> I32 = <no body>
+fn weigh'2(value: a [shared call]) -> I32 = <no body>
 
 fn Box.weigh(value: Box [shared call]) -> I32 {
 bb0:
@@ -58,7 +58,7 @@ bb0:
   return take %2
 }
 
-fn weigh'2(value: I32 [shared call]) -> I32 {
+fn weigh'3(value: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (value)
   %1: I32 = const 1
@@ -67,7 +67,7 @@ bb0:
 }
 module Scales
 
-fn weigh(value: Bool [shared call]) -> I32 {
+fn weigh'4(value: Bool [shared call]) -> I32 {
 bb0:
   %0: I32 = const 9
   return take %0

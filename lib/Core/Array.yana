@@ -59,6 +59,9 @@ import Native
            fn get(return self: Array(a), index: Size) -> 'a = hostAt(self.items, index)
            fn getMut(return &self: Array(a), index: Size) -> &a = hostAtMut(self.items, index)
 
+   - each with the bound the emitters put in front of it, which the pair actually written below does
+   carry.
+
    The bodies are the slice's, minus the descriptor. `self.run.items` is the base the slice would
    have copied, so this is one address computation rather than two loads and a temporary; the
    conversion was never buying anything at a subscript, and its absence is why the array's lowered
@@ -70,10 +73,97 @@ import Native
    them. That is what makes `xs[i] = v` on JS the same program it is natively rather than a read
    followed by a store somebody had to remember to emit.
 
-   The count is not consulted, which is the same tier the slice's accessor is on and goes the same
-   way when `checkBounds` (Implementation-Containers.md §15) lands - in one place, since by then
-   there is one place.
+   **The count is consulted, and the bound written below is the whole of it.** The generated emitter
+   this stage runs makes the same test - `emitArrayAt` puts `checkCondition(index >= self.length)` in
+   front of the address, against the owner's *live* count rather than the run's capacity - so the
+   written pair had to make it too, or the two stages would disagree about what `xs[9]` on a
+   three-element array *does*, which is the one thing `.run.expect` is shared to catch. It is unsigned against
+   the length, because one unsigned comparison answers a negative index as well.
+
+   Writing it is what needed `self` to carry a type at all. `Length` below deliberately leaves it
+   off, so that each stage substitutes the subject it decided on; this member reads the length
+   *inside* the body, and `length(self)` at an untyped subject has no origin for the result tick to
+   be published from. `source'[a]` is what both stages accept here, and it is free to write because
+   this stage retires the instance before its body means anything - see below.
+
+   **Written below, and *ignored by this stage* - the one instance in the library the compiler
+   overrides rather than stands down at.** `Length` below is written here and used here; this pair is
+   written here and used only by the ownership stage, because two obstacles stood in front of it and
+   only one of them went away:
+
+   - **The cost is gone.** D12 made `@inline(always)` one directive across both stages - the graft
+     declines a body with a branch in it and `compiler/opt`'s inliner then admits it against its
+     ceiling alone - so the written pair costs nothing. Measured with it written, `-mode lower` of
+     `test/resolve/ArrayRemove.yana`, `ContainerTeardown`, `Bounds` and `ArrayReclaim` against the
+     generated instance: 1235 -> 1233, 1367 -> 1367, 725 -> 725, 743 -> 742, identical or *shorter*.
+     `-mode ir` carries one extra instruction per owner subscript, the pair `cast Count -> Size`
+     plus `bitcast Size -> USize` where the emitter cast `Count -> USize` in one, and lowering folds
+     it.
+   - **What blocks it is that `getMut` becomes a call.** The emitter hands back a borrow whose place
+     is `atPointer(items + i)` - an *element* - and a written member hands back one the signature
+     roots in `self`, so the caller takes an exclusive loan of the whole container for as long as
+     the element lives. Three shapes this corpus asserts are then rejected: `xs[k] = xs[k] + 1`
+     (`test/resolve/Contain.Borrow.yana` - the target's loan spans the right-hand side, which is
+     resolved after it), a subscript handed to a `lens fn` taking `&` and the container read inside
+     the extent (`Handover.yana`), and the erased build's return rooting through a written `get`
+     (`Bounds.yana`, `Index.yana`, `Dispatch.Borrow.yana`). `lib/`'s own suite goes with them. The
+     ownership stage compiles all of it, because an element borrow is a place there and the loan is
+     nested; this stage has no such form for a call result.
+
+   So the *body* is written and this stage does not use it - `ClassInstance::Origin::Overriding`,
+   which is the `Length` bridge run backwards: the generator marks its `Index` heads as winning, and
+   a source instance at one of them is retired where the duplicate would have been reported. That is
+   the only direction that works, because the two stages disagree about what the written body means
+   rather than about whether it is correct: here a class call's result is rooted in the whole
+   container, and there an element borrow is a place of its own. Both halves go together when
+   Analysis-IR.md 11.5 deletes the generators; until then this file states the operation once and
+   each stage takes the form it can check.
 -}
+
+instance Index(Array(a), Size, a):
+    @inline(always) fn get(self: source'[a], index: Size) -> source'a:
+        if (bitcast(index) :: USize) >= (bitcast(length(self)) :: USize) then checkFailed()
+        return borrow(values(self) + index)
+
+    @inline(always) fn getMut(&self: source'[a], index: Size) -> &source'a:
+        if (bitcast(index) :: USize) >= (bitcast(length(self)) :: USize) then checkFailed()
+        return borrowMut(valuesMut(self) + index)
+
+{-
+   How many elements the owner holds - `Container.yana`'s `Length`, and the first of the container
+   instances this library writes for itself rather than leaving to the compiler.
+
+   One field load, and it is the same one on both targets: `length` is stored on the host array's
+   descriptor too, since a host array's own length is its *capacity* once a doubling can leave slack
+   behind. So there is nothing here to split by platform.
+
+   **`self` carries no written type, and that is the one thing here that had to be worked out.** The
+   two resolve stages substitute the class's `self: c` differently and each is right about its own
+   model: this one hands the member the owner, whose `length` is a `Count`, and the ownership stage
+   hands it the window `[a]`, whose `length` is already a `Size` - a shared borrow of a container
+   *is* the window there. Writing either type down picks a stage. Leaving it off asks each for the
+   subject it already decided on, and `:: Size` is then a widening on one and nothing on the other,
+   which is what `::` means in both.
+
+   The two written spellings are recorded because they look right and are not. `self: [a]` compiles
+   here too - `Length` only reads, so the window may stand in for the container
+   (`ClassInstance::windowArgs`) - but it makes every caller convert, and a caller holding a
+   `'Array(a)` *value* rather than storage cannot: `length(e.value)` over a map's entries in
+   `test/resolve/MapLiteral.yana` is "cannot convert 'Array(I32) to ArrayView(I32)". `self: Array(a)`
+   is what this stage would write and is what the ownership stage refuses.
+
+   Written rather than generated because the ownership stage generates nothing and reads this
+   (`doc/progress/2026-09-06-inventory.md` D10); `defineContainerInstances` stands down where it
+   finds a declared head, which is the bridge until Analysis-IR.md 11.5 removes it. `@inline(always)`
+   is the same directive on both stages since D12, so it says one thing to both: this is a field load
+   and never a call. This stage's graft still declines it - a
+   field read names a place - and `compiler/opt`'s inliner takes it instead, which is why the number
+   did not move when the attribute went on: the `-mode ir` of `test/resolve/ArrayRemove.yana` and
+   `ContainerTeardown.yana` is instruction-for-instruction what the generated instance produced,
+   with or without it.
+-}
+instance Length(Array(a)):
+    @inline(always) fn length(self) -> Size = self.length :: Size
 
 {-
    The same descriptor, for a window whose bounds are already known good.

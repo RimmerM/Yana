@@ -63,30 +63,8 @@ bb2:
   %6: Color = read copy.trivial (m.Just)
   write.init borrow.unique (c) take %6
   %8: U8 = read copy.trivial (c.#)
-  %9: U8 = const 0
-  %10: Bool = eq inspect %8 inspect %9
-  branch inspect %10 -> bb6 -> bb3
-
-bb3:
-  %13: U8 = read copy.trivial (c.#)
-  %14: U8 = const 1
-  %15: Bool = eq inspect %13 inspect %14
-  branch inspect %15 -> bb7 -> bb4
-
-bb4:
-  %18: I32 = const 3
-  jump -> bb5(take %18)
-
-bb5(%19: I32):
-  return take %19
-
-bb6:
-  %12: I32 = const 1
-  jump -> bb5(take %12)
-
-bb7:
-  %17: I32 = const 2
-  jump -> bb5(take %17)
+  %9: I32 = map [0 -> 1, 1 -> 2, 2 -> 3] inspect %8
+  return take %9
 }
 
 fn onlyRed(m: Maybe(Color) [shared call]) -> I32 {
@@ -219,8 +197,8 @@ bb1:
   branch inspect %1 -> bb3 -> bb2
 
 bb2:
-  %25: I32 = const 50
-  return take %25
+  %26: I32 = const 50
+  return take %26
 
 bb3:
   %3: U8 = read copy.trivial (m.#)
@@ -235,12 +213,12 @@ bb4:
   branch inspect %9 -> bb8 -> bb6
 
 bb5:
-  %19: I32 = read copy.trivial (m.Just)
-  write.init borrow.unique (v) take %19
-  %21: I32 = read copy.trivial (v)
-  %22: I32 = const 1
-  %23: I32 = add inspect %21 inspect %22
-  return take %23
+  %20: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %20
+  %22: I32 = read copy.trivial (v)
+  %23: I32 = const 1
+  %24: I32 = add inspect %22 inspect %23
+  return take %24
 
 bb6:
   %12: U8 = read copy.trivial (c.#)

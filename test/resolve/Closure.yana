@@ -13,6 +13,24 @@ fn makeAdder(amount: Int) -> (Int) -> Int = (x) -> x + amount
 -- Two captures, and one of them captured by a nested lambda through the one in between.
 fn makeScaler(scale: Int, offset: Int) -> (Int) -> Int = (x) -> x * scale + offset
 
+{-
+   A `:` body whose value is its last expression, in the two positions that read it differently.
+
+   `(x): e` and `(x) -> e` are one grammar production apart and mean the same thing for a lambda,
+   which is not true of a `fn`: `doc/spec/functions.md` says a `fn`'s `:` body returns `{}`, and a
+   lambda has no declaration for that rule to be written on. `resolveLiftedBody` states it with
+   `resolveArm`'s rule - the body answers unless its job is to leave - so `applyUnit((): total = ...)`
+   above still takes the statement path and these two do not.
+
+   `named` is the position that *says* what the lambda answers and `inferred` is the one that leaves
+   it open, which is where the answer has to come out of the body itself.
+-}
+fn named(f: (Int) -> Int, x: Int) -> Int = f(x)
+
+fn colonBodies(x: Int) -> Int:
+    let inferred = (n: Int): n * 2
+    return named((n): n + 1, x) + inferred(x)
+
 fn main() -> Int:
     -- A read-only capture of an immutable binding: an independent copy, taken when the closure is
     -- built. Nothing here can tell the difference from a borrow, which is why the copy is allowed.
@@ -31,5 +49,8 @@ fn main() -> Int:
     let scale = makeScaler(3, 4)
     let c = scale(10)
 
-    -- 11 + 7 + 25 + 34 = 77
-    return a + total + b + c
+    -- The `:` lambda bodies, in a named and an inferred position: 7 + 12 = 19.
+    let d = colonBodies(6)
+
+    -- 11 + 7 + 25 + 34 + 19 = 96
+    return a + total + b + c + d

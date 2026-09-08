@@ -1,0 +1,53 @@
+{-
+   What a record update owes the field it replaces - the half `Record.yana` cannot assert.
+
+   Every record there is `TrivialCopy`, so a replaced field is bytes overwritten and nothing runs.
+   Here `Handle` has an authored `Drop`, which makes the same expression two further claims: the
+   replaced field is a live value the update has to release, and a field the update leaves alone is
+   carried across and released exactly once at the end.
+
+   `->` throughout, because a *copy* of a value with a teardown is a second owner of it and needs a
+   `Copy` instance to be one at all - which is what `ownership/Update.Copy.yana` is about and is one
+   of the places the two stages differ.
+
+   The counter is what says so: each drop adds the handle's own id, so the total names which handles
+   died and how many times.
+-}
+
+let &closed = 0
+
+data Handle {id: Int}
+
+instance Drop(Handle):
+    fn drop(->value: Handle):
+        closed = closed + value.id
+
+data Slot {held: Handle, tag: Int}
+data Outer {slot: Slot, name: Int}
+
+-- The replaced `Handle {id: 1}` is released here and `Handle {id: 2}` takes its place, which is why
+-- a replacement is an assignment into the copy rather than an initialization of it.
+fn replaceMoved(->s: Slot) -> Slot = {->s | held: Handle {id: 2}}
+
+-- A path reaches into the one copy the update made, and the field it lands on is replaced under the
+-- same rule one level up.
+fn replaceNested(->o: Outer) -> Outer = {->o | .slot.held: Handle {id: 8}}
+
+-- A field the update leaves alone is carried across untouched, so nothing is released here at all.
+fn retag(->s: Slot) -> Slot = {->s | tag: 5}
+
+fn main() -> Int:
+    let a = replaceMoved(Slot {held: Handle {id: 1}, tag: 0})
+    let c = replaceNested(Outer {slot: Slot {held: Handle {id: 100}, tag: 0}, name: 3})
+    let d = retag(Slot {held: Handle {id: 1000}, tag: 0})
+
+    -- Read while all three are still live, so what it counts is what the *updates* released and
+    -- nothing else: 1 and 100, the two handles a replacement stood on. `retag` replaced no handle
+    -- and released none.
+    let byUpdates = closed
+
+    -- 2, 8 and 1000 are still here, which is the other half of the same claim - a field the update
+    -- carried across is released once, at the end of the value that ended up holding it.
+    let carried = a.held.id + c.slot.held.id + c.name + d.tag
+
+    return carried * 10000 + byUpdates

@@ -24,12 +24,11 @@ bb1:
   %13: Rank = read copy.trivial (p.Right)
   write.init borrow.unique (rank) take %13
   %15: U8 = read copy.trivial (rank.#)
-  %16: U8 = const 0
-  %17: Bool = eq inspect %15 inspect %16
-  branch inspect %17 -> bb10 -> bb7
+  %16: I32 = map [0 -> 3, 1 -> 4, 2 -> 5] inspect %15
+  jump -> bb2(take %16)
 
-bb2(%30: I32):
-  return take %30
+bb2(%17: I32):
+  return take %17
 
 bb3:
   %4: Bool = read copy.trivial (p.Left)
@@ -47,27 +46,6 @@ bb5(%10: I32):
 bb6:
   %8: I32 = const 1
   jump -> bb5(take %8)
-
-bb7:
-  %20: U8 = read copy.trivial (rank.#)
-  %21: U8 = const 1
-  %22: Bool = eq inspect %20 inspect %21
-  branch inspect %22 -> bb11 -> bb8
-
-bb8:
-  %25: I32 = const 5
-  jump -> bb9(take %25)
-
-bb9(%26: I32):
-  jump -> bb2(take %26)
-
-bb10:
-  %19: I32 = const 3
-  jump -> bb9(take %19)
-
-bb11:
-  %24: I32 = const 4
-  jump -> bb9(take %24)
 }
 
 fn levelValue(l: Level [shared call]) -> I32 {
@@ -157,20 +135,8 @@ bb0:
 fn rightIs(b: Board [shared call]) -> I32 {
 bb0:
   %0: U8 = read copy.trivial (b.right.#)
-  %1: U8 = const 0
-  %2: Bool = eq inspect %0 inspect %1
-  branch inspect %2 -> bb3 -> bb1
-
-bb1:
-  %5: I32 = const 2
-  jump -> bb2(take %5)
-
-bb2(%6: I32):
-  return take %6
-
-bb3:
-  %4: I32 = const 1
-  jump -> bb2(take %4)
+  %1: I32 = map [0 -> 1, 1 -> 2] inspect %0
+  return take %1
 }
 
 fn maybeValue(m: Maybe(Level) [shared call]) -> I32 {

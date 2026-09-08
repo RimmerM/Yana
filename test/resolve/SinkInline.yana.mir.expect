@@ -1,0 +1,221 @@
+module ResolveTest
+
+data Token {id: I32} drop authored
+
+data offsetBy.lambda.env {by: I32}
+
+data identify.lambda.env {}
+
+class Functor(m, b -> n, a): map
+
+instance Drop(Token): Token.drop
+
+instance Functor(Maybe(x), b, Maybe(b), x): Maybe(x).map
+
+let & dropped: I32 = 0
+
+fn map(value: m, f: (a) -> b [shared call]) -> n = <no body>
+
+fn Token.drop(value: Token) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global dropped)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global dropped) take %2
+  return
+}
+
+fn Maybe(x).map(value: Maybe(x), f: (x) -> b [shared call]) -> Maybe(b) {
+  form specialized
+  slot #0 type x
+  slot #1 type b
+  local inner: x object0
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  drop (value)
+  %10: Maybe(b) = aggregate.Nothing
+  jump -> bb2(take %10)
+
+bb2(%11: Maybe(b)):
+  return take %11
+
+bb3:
+  %4: x = read take (value.Just)
+  write.init borrow.unique (inner) take %4
+  %6: (x) -> b [shared call] = read borrow.shared (f) loan0
+  %7: x [shared call] = read borrow.shared (inner) loan1
+  %8: b = call inspect %6 borrow.shared %7
+  drop (inner)
+  %9: Maybe(b) = aggregate.Just take %8
+  jump -> bb2(take %9)
+}
+
+fn offsetBy(value: Maybe(I32), by: I32 [shared call]) -> Maybe(I32) {
+  local offsetBy.lambda.env: offsetBy.lambda.env
+  local local3: (I32) -> I32 [owned here shape8 .0=shared call]
+
+bb0:
+  %0: Maybe(I32) = read copy.trivial (value)
+  %1: I32 = read copy.trivial (by)
+  %2: offsetBy.lambda.env = aggregate.offsetBy.lambda.env take %1
+  write.init borrow.unique (offsetBy.lambda.env) take %2
+  %4: offsetBy.lambda.env [shared call] = read borrow.shared (offsetBy.lambda.env) loan0
+  %5: (I32) -> I32 [owned here shape8 .0=shared call] = fun.value offsetBy.lambda inspect %4 roots.0{0}
+  write.init borrow.unique (local3) take %5
+  %7: (I32) -> I32 [shared call shape8 .0=shared call] = read borrow.shared (local3) loan1 roots.0{0}
+  %8: Maybe(I32) = call map(Maybe(I32), I32, Maybe(I32), I32) take %0 borrow.shared %7
+  return take %8
+}
+
+fn identify(value: Maybe(Token)) -> Maybe(I32) {
+  local local1: (Token) -> I32 [owned here shape9 .0=unique call]
+
+bb0:
+  %0: Maybe(Token) = read take (value)
+  %1: (Token) -> I32 [owned here shape9 .0=unique call] = fun.value identify.lambda
+  write.init borrow.unique (local1) take %1
+  %3: (Token) -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local1) loan0
+  %4: Maybe(I32) = call map(Maybe(Token), I32, Maybe(I32), Token) take %0 borrow.shared %3
+  return take %4
+}
+
+fn main() -> I32 {
+  local & total: I32
+  local local1: Maybe(I32)
+  local v: I32
+  local local3: Maybe(I32)
+  local v: I32
+  local local5: Maybe(I32)
+  local v: I32
+  local local7: Maybe(I32)
+  local v: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = read copy.trivial (total)
+  %3: I32 = const 4
+  %4: Maybe(I32) = aggregate.Just take %3
+  %5: I32 = const 10
+  %6: Maybe(I32) = call offsetBy take %4 borrow.shared %5
+  write.init borrow.unique (local1) take %6
+  %9: U8 = read copy.trivial (local1.#)
+  %10: U8 = const 1
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb3(take %2) -> bb1(take %2)
+
+bb1(%8: I32):
+  %17: I32 = const 0
+  jump -> bb2(take %17, take %8)
+
+bb2(%18: I32, %19: I32):
+  %22: I32 = add inspect %19 inspect %18
+  write.assign borrow.unique (total) take %22
+  %24: I32 = read copy.trivial (total)
+  %25: Maybe(I32) = aggregate.Nothing
+  %26: I32 = const 10
+  %27: Maybe(I32) = call offsetBy take %25 borrow.shared %26
+  write.init borrow.unique (local3) take %27
+  %30: U8 = read copy.trivial (local3.#)
+  %31: U8 = const 1
+  %32: Bool = eq inspect %30 inspect %31
+  branch inspect %32 -> bb6(take %24) -> bb4(take %24)
+
+bb3(%12: I32):
+  %14: I32 = read copy.trivial (local1.Just)
+  write.init borrow.unique (v) take %14
+  %16: I32 = read copy.trivial (v)
+  jump -> bb2(take %16, take %12)
+
+bb4(%29: I32):
+  %38: I32 = const 1
+  jump -> bb5(take %38, take %29)
+
+bb5(%39: I32, %40: I32):
+  %43: I32 = add inspect %40 inspect %39
+  write.assign borrow.unique (total) take %43
+  %45: I32 = read copy.trivial (total)
+  %46: I32 = const 7
+  %47: Token = aggregate.Token take %46
+  %48: Maybe(Token) = aggregate.Just take %47
+  %49: Maybe(I32) = call identify take %48
+  write.init borrow.unique (local5) take %49
+  %52: U8 = read copy.trivial (local5.#)
+  %53: U8 = const 1
+  %54: Bool = eq inspect %52 inspect %53
+  branch inspect %54 -> bb9(take %45) -> bb7(take %45)
+
+bb6(%33: I32):
+  %35: I32 = read copy.trivial (local3.Just)
+  write.init borrow.unique (v) take %35
+  %37: I32 = read copy.trivial (v)
+  jump -> bb5(take %37, take %33)
+
+bb7(%51: I32):
+  %60: I32 = const 0
+  jump -> bb8(take %60, take %51)
+
+bb8(%61: I32, %62: I32):
+  %65: I32 = add inspect %62 inspect %61
+  write.assign borrow.unique (total) take %65
+  %67: I32 = read copy.trivial (total)
+  %68: Maybe(Token) = aggregate.Nothing
+  %69: Maybe(I32) = call identify take %68
+  write.init borrow.unique (local7) take %69
+  %72: U8 = read copy.trivial (local7.#)
+  %73: U8 = const 1
+  %74: Bool = eq inspect %72 inspect %73
+  branch inspect %74 -> bb12(take %67) -> bb10(take %67)
+
+bb9(%55: I32):
+  %57: I32 = read copy.trivial (local5.Just)
+  write.init borrow.unique (v) take %57
+  %59: I32 = read copy.trivial (v)
+  jump -> bb8(take %59, take %55)
+
+bb10(%71: I32):
+  %80: I32 = const 100
+  jump -> bb11(take %80, take %71)
+
+bb11(%81: I32, %82: I32):
+  %85: I32 = add inspect %82 inspect %81
+  write.assign borrow.unique (total) take %85
+  %87: I32 = read copy.trivial (total)
+  %88: I32 = const 10
+  %89: I32 = mul inspect %87 inspect %88
+  %90: I32 = read copy.trivial (global dropped)
+  %91: I32 = add inspect %89 inspect %90
+  return take %91
+
+bb12(%75: I32):
+  %77: I32 = read copy.trivial (local7.Just)
+  write.init borrow.unique (v) take %77
+  %79: I32 = read copy.trivial (v)
+  jump -> bb11(take %79, take %75)
+}
+
+fn offsetBy.lambda(offsetBy.lambda.env: offsetBy.lambda.env [unique call], at: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (at)
+  %1: I32 = read copy.trivial (offsetBy.lambda.env.by)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn identify.lambda(identify.lambda.env: identify.lambda.env [unique call], t: Token [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (t.id)
+  return take %0
+}
+
+fn Maybe(x).map(I32, I32)(value: Maybe(I32), f: (I32) -> I32 [shared call]) -> Maybe(I32) = <Maybe(x).map at I32, I32>
+
+fn Maybe(x).map(Token, I32)(value: Maybe(Token), f: (Token) -> I32 [shared call]) -> Maybe(I32) = <Maybe(x).map at Token, I32>
+
+entry main

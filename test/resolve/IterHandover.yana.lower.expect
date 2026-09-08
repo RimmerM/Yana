@@ -41,22 +41,22 @@ consume<complex>(%h: Ptr): I64 {
   b_0 {
     %v_1 = add %h, 12: Ptr
     %v_2 = load %v_1, 4: I32
-    %v_3 = add %h, 8: Ptr
-    %v_4 = load %v_3, 4: I32
-    %v_5 = shr %v_4, 30: I32
-    %v_6 = cmp_eq %v_5, 1: I32
-    je %v_6, b_7, b_8
-  }
-
-  b_7 {
-    %v_9 = load %h, 8: Ptr
-    call_complex freeHeap, %v_9
-    jmp b_8
+    %v_3 = cast %v_2: I64
+    %v_4 = add %h, 8: Ptr
+    %v_5 = load %v_4, 4: I32
+    %v_6 = shr %v_5, 30: I32
+    %v_7 = cmp_eq %v_6, 1: I32
+    je %v_7, b_8, b_9
   }
 
   b_8 {
-    %v_10 = cast %v_2: I64
-    ret %v_10
+    %v_10 = load %h, 8: Ptr
+    call_complex freeHeap, %v_10
+    jmp b_9
+  }
+
+  b_9 {
+    ret %v_3
   }
 }
 

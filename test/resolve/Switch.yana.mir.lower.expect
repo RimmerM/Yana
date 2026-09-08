@@ -1,0 +1,554 @@
+
+weigh<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = cmp_igt %n, 1000: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = imul %n, 7: I32
+    %v_5 = add %v_4, 3: I32
+    ret %v_5
+  }
+
+  b_2 {
+    ret 0
+  }
+}
+
+opaqueFour<complex>(%c: I32): I32 {
+  b_0 {
+    ret %c
+  }
+}
+
+opaqueNine<complex>(%c: I32): I32 {
+  b_0 {
+    ret %c
+  }
+}
+
+opaqueSpread<complex>(%c: I32): I32 {
+  b_0 {
+    ret %c
+  }
+}
+
+opaqueTwenty<complex>(%c: I32): I32 {
+  b_0 {
+    ret %c
+  }
+}
+
+twenty<complex>(%c: I32): I32 {
+  b_0 {
+    switch %c, b_1, [b_2, 0], [b_3, 1], [b_4, 2], [b_5, 3], [b_6, 4], [b_7, 5], [b_8, 6], [b_9, 7], [b_10, 8], [b_11, 9], [b_12, 10], [b_13, 11], [b_14, 12], [b_15, 13], [b_16, 14], [b_17, 15], [b_18, 16], [b_19, 17], [b_20, 18]
+  }
+
+  b_2 {
+    %v_21 = call_complex weigh, 30: I32
+    jmp b_22
+  }
+
+  b_3 {
+    %v_23 = call_complex weigh, 31: I32
+    jmp b_22
+  }
+
+  b_4 {
+    %v_24 = call_complex weigh, 32: I32
+    jmp b_22
+  }
+
+  b_5 {
+    %v_25 = call_complex weigh, 33: I32
+    jmp b_22
+  }
+
+  b_6 {
+    %v_26 = call_complex weigh, 34: I32
+    jmp b_22
+  }
+
+  b_7 {
+    %v_27 = call_complex weigh, 35: I32
+    jmp b_22
+  }
+
+  b_8 {
+    %v_28 = call_complex weigh, 36: I32
+    jmp b_22
+  }
+
+  b_9 {
+    %v_29 = call_complex weigh, 37: I32
+    jmp b_22
+  }
+
+  b_10 {
+    %v_30 = call_complex weigh, 38: I32
+    jmp b_22
+  }
+
+  b_11 {
+    %v_31 = call_complex weigh, 39: I32
+    jmp b_22
+  }
+
+  b_12 {
+    %v_32 = call_complex weigh, 40: I32
+    jmp b_22
+  }
+
+  b_13 {
+    %v_33 = call_complex weigh, 41: I32
+    jmp b_22
+  }
+
+  b_14 {
+    %v_34 = call_complex weigh, 42: I32
+    jmp b_22
+  }
+
+  b_15 {
+    %v_35 = call_complex weigh, 43: I32
+    jmp b_22
+  }
+
+  b_16 {
+    %v_36 = call_complex weigh, 44: I32
+    jmp b_22
+  }
+
+  b_17 {
+    %v_37 = call_complex weigh, 45: I32
+    jmp b_22
+  }
+
+  b_18 {
+    %v_38 = call_complex weigh, 46: I32
+    jmp b_22
+  }
+
+  b_19 {
+    %v_39 = call_complex weigh, 47: I32
+    jmp b_22
+  }
+
+  b_20 {
+    %v_40 = call_complex weigh, 48: I32
+    jmp b_22
+  }
+
+  b_1 {
+    %v_41 = call_complex weigh, 49: I32
+    jmp b_22
+  }
+
+  b_22 {
+    %v_42 = phi [b_1, %v_41], [b_20, %v_40], [b_19, %v_39], [b_18, %v_38], [b_17, %v_37], [b_16, %v_36], [b_15, %v_35], [b_14, %v_34], [b_13, %v_33], [b_12, %v_32], [b_11, %v_31], [b_10, %v_30], [b_9, %v_29], [b_8, %v_28], [b_7, %v_27], [b_6, %v_26], [b_5, %v_25], [b_4, %v_24], [b_3, %v_23], [b_2, %v_21]: I32
+    ret %v_42
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex opaqueFour, 0: I32
+    switch %v_1, b_2, [b_3, 0], [b_4, 1], [b_5, 2]
+  }
+
+  b_2 {
+    %v_6 = call_complex weigh, 3: I32
+    jmp b_7
+  }
+
+  b_5 {
+    %v_8 = call_complex weigh, 2: I32
+    jmp b_7
+  }
+
+  b_4 {
+    %v_9 = call_complex weigh, 1: I32
+    jmp b_7
+  }
+
+  b_3 {
+    %v_10 = call_complex weigh, 0: I32
+    jmp b_7
+  }
+
+  b_7 {
+    %v_11 = phi [b_2, %v_6], [b_5, %v_8], [b_4, %v_9], [b_3, %v_10]: I32
+    %v_12 = cmp_eq %v_11, 3: I32
+    %v_13 = call_complex opaqueFour, 3: I32
+    switch %v_13, b_14, [b_15, 0], [b_16, 1], [b_17, 2]
+  }
+
+  b_14 {
+    %v_18 = call_complex weigh, 3: I32
+    jmp b_19
+  }
+
+  b_17 {
+    %v_20 = call_complex weigh, 2: I32
+    jmp b_19
+  }
+
+  b_16 {
+    %v_21 = call_complex weigh, 1: I32
+    jmp b_19
+  }
+
+  b_15 {
+    %v_22 = call_complex weigh, 0: I32
+    jmp b_19
+  }
+
+  b_19 {
+    %v_23 = phi [b_14, %v_18], [b_17, %v_20], [b_16, %v_21], [b_15, %v_22]: I32
+    %v_24 = cmp_eq %v_23, 24: I32
+    %v_25 = select %v_24, 2, 0: I32
+    %v_26 = add %v_12, %v_25: I32
+    %v_27 = call_complex opaqueNine, 0: I32
+    switch %v_27, b_28, [b_29, 0], [b_30, 1], [b_31, 2], [b_32, 3], [b_33, 4], [b_34, 5], [b_35, 6], [b_36, 7]
+  }
+
+  b_28 {
+    %v_37 = call_complex weigh, 18: I32
+    jmp b_38
+  }
+
+  b_36 {
+    %v_39 = call_complex weigh, 17: I32
+    jmp b_38
+  }
+
+  b_35 {
+    %v_40 = call_complex weigh, 16: I32
+    jmp b_38
+  }
+
+  b_34 {
+    %v_41 = call_complex weigh, 15: I32
+    jmp b_38
+  }
+
+  b_33 {
+    %v_42 = call_complex weigh, 14: I32
+    jmp b_38
+  }
+
+  b_32 {
+    %v_43 = call_complex weigh, 13: I32
+    jmp b_38
+  }
+
+  b_31 {
+    %v_44 = call_complex weigh, 12: I32
+    jmp b_38
+  }
+
+  b_30 {
+    %v_45 = call_complex weigh, 11: I32
+    jmp b_38
+  }
+
+  b_29 {
+    %v_46 = call_complex weigh, 10: I32
+    jmp b_38
+  }
+
+  b_38 {
+    %v_47 = phi [b_28, %v_37], [b_36, %v_39], [b_35, %v_40], [b_34, %v_41], [b_33, %v_42], [b_32, %v_43], [b_31, %v_44], [b_30, %v_45], [b_29, %v_46]: I32
+    %v_48 = cmp_eq %v_47, 73: I32
+    %v_49 = select %v_48, 4, 0: I32
+    %v_50 = add %v_26, %v_49: I32
+    %v_51 = call_complex opaqueNine, 4: I32
+    switch %v_51, b_52, [b_53, 0], [b_54, 1], [b_55, 2], [b_56, 3], [b_57, 4], [b_58, 5], [b_59, 6], [b_60, 7]
+  }
+
+  b_52 {
+    %v_61 = call_complex weigh, 18: I32
+    jmp b_62
+  }
+
+  b_60 {
+    %v_63 = call_complex weigh, 17: I32
+    jmp b_62
+  }
+
+  b_59 {
+    %v_64 = call_complex weigh, 16: I32
+    jmp b_62
+  }
+
+  b_58 {
+    %v_65 = call_complex weigh, 15: I32
+    jmp b_62
+  }
+
+  b_57 {
+    %v_66 = call_complex weigh, 14: I32
+    jmp b_62
+  }
+
+  b_56 {
+    %v_67 = call_complex weigh, 13: I32
+    jmp b_62
+  }
+
+  b_55 {
+    %v_68 = call_complex weigh, 12: I32
+    jmp b_62
+  }
+
+  b_54 {
+    %v_69 = call_complex weigh, 11: I32
+    jmp b_62
+  }
+
+  b_53 {
+    %v_70 = call_complex weigh, 10: I32
+    jmp b_62
+  }
+
+  b_62 {
+    %v_71 = phi [b_52, %v_61], [b_60, %v_63], [b_59, %v_64], [b_58, %v_65], [b_57, %v_66], [b_56, %v_67], [b_55, %v_68], [b_54, %v_69], [b_53, %v_70]: I32
+    %v_72 = cmp_eq %v_71, 101: I32
+    %v_73 = select %v_72, 8, 0: I32
+    %v_74 = add %v_50, %v_73: I32
+    %v_75 = call_complex opaqueNine, 8: I32
+    switch %v_75, b_76, [b_77, 0], [b_78, 1], [b_79, 2], [b_80, 3], [b_81, 4], [b_82, 5], [b_83, 6], [b_84, 7]
+  }
+
+  b_76 {
+    %v_85 = call_complex weigh, 18: I32
+    jmp b_86
+  }
+
+  b_84 {
+    %v_87 = call_complex weigh, 17: I32
+    jmp b_86
+  }
+
+  b_83 {
+    %v_88 = call_complex weigh, 16: I32
+    jmp b_86
+  }
+
+  b_82 {
+    %v_89 = call_complex weigh, 15: I32
+    jmp b_86
+  }
+
+  b_81 {
+    %v_90 = call_complex weigh, 14: I32
+    jmp b_86
+  }
+
+  b_80 {
+    %v_91 = call_complex weigh, 13: I32
+    jmp b_86
+  }
+
+  b_79 {
+    %v_92 = call_complex weigh, 12: I32
+    jmp b_86
+  }
+
+  b_78 {
+    %v_93 = call_complex weigh, 11: I32
+    jmp b_86
+  }
+
+  b_77 {
+    %v_94 = call_complex weigh, 10: I32
+    jmp b_86
+  }
+
+  b_86 {
+    %v_95 = phi [b_76, %v_85], [b_84, %v_87], [b_83, %v_88], [b_82, %v_89], [b_81, %v_90], [b_80, %v_91], [b_79, %v_92], [b_78, %v_93], [b_77, %v_94]: I32
+    %v_96 = cmp_eq %v_95, 129: I32
+    %v_97 = select %v_96, 16, 0: I32
+    %v_98 = add %v_74, %v_97: I32
+    %v_99 = call_complex opaqueSpread, 0: I32
+    switch %v_99, b_100, [b_101, 0], [b_102, 3], [b_103, 7], [b_104, 11], [b_105, 14], [b_106, 18], [b_107, 22], [b_108, 26]
+  }
+
+  b_100 {
+    %v_109 = call_complex weigh, 28: I32
+    jmp b_110
+  }
+
+  b_108 {
+    %v_111 = call_complex weigh, 27: I32
+    jmp b_110
+  }
+
+  b_107 {
+    %v_112 = call_complex weigh, 26: I32
+    jmp b_110
+  }
+
+  b_106 {
+    %v_113 = call_complex weigh, 25: I32
+    jmp b_110
+  }
+
+  b_105 {
+    %v_114 = call_complex weigh, 24: I32
+    jmp b_110
+  }
+
+  b_104 {
+    %v_115 = call_complex weigh, 23: I32
+    jmp b_110
+  }
+
+  b_103 {
+    %v_116 = call_complex weigh, 22: I32
+    jmp b_110
+  }
+
+  b_102 {
+    %v_117 = call_complex weigh, 21: I32
+    jmp b_110
+  }
+
+  b_101 {
+    %v_118 = call_complex weigh, 20: I32
+    jmp b_110
+  }
+
+  b_110 {
+    %v_119 = phi [b_100, %v_109], [b_108, %v_111], [b_107, %v_112], [b_106, %v_113], [b_105, %v_114], [b_104, %v_115], [b_103, %v_116], [b_102, %v_117], [b_101, %v_118]: I32
+    %v_120 = cmp_eq %v_119, 143: I32
+    %v_121 = select %v_120, 32, 0: I32
+    %v_122 = add %v_98, %v_121: I32
+    %v_123 = call_complex opaqueSpread, 18: I32
+    switch %v_123, b_124, [b_125, 0], [b_126, 3], [b_127, 7], [b_128, 11], [b_129, 14], [b_130, 18], [b_131, 22], [b_132, 26]
+  }
+
+  b_124 {
+    %v_133 = call_complex weigh, 28: I32
+    jmp b_134
+  }
+
+  b_132 {
+    %v_135 = call_complex weigh, 27: I32
+    jmp b_134
+  }
+
+  b_131 {
+    %v_136 = call_complex weigh, 26: I32
+    jmp b_134
+  }
+
+  b_130 {
+    %v_137 = call_complex weigh, 25: I32
+    jmp b_134
+  }
+
+  b_129 {
+    %v_138 = call_complex weigh, 24: I32
+    jmp b_134
+  }
+
+  b_128 {
+    %v_139 = call_complex weigh, 23: I32
+    jmp b_134
+  }
+
+  b_127 {
+    %v_140 = call_complex weigh, 22: I32
+    jmp b_134
+  }
+
+  b_126 {
+    %v_141 = call_complex weigh, 21: I32
+    jmp b_134
+  }
+
+  b_125 {
+    %v_142 = call_complex weigh, 20: I32
+    jmp b_134
+  }
+
+  b_134 {
+    %v_143 = phi [b_124, %v_133], [b_132, %v_135], [b_131, %v_136], [b_130, %v_137], [b_129, %v_138], [b_128, %v_139], [b_127, %v_140], [b_126, %v_141], [b_125, %v_142]: I32
+    %v_144 = cmp_eq %v_143, 178: I32
+    %v_145 = select %v_144, 64, 0: I32
+    %v_146 = add %v_122, %v_145: I32
+    %v_147 = call_complex opaqueSpread, 29: I32
+    switch %v_147, b_148, [b_149, 0], [b_150, 3], [b_151, 7], [b_152, 11], [b_153, 14], [b_154, 18], [b_155, 22], [b_156, 26]
+  }
+
+  b_148 {
+    %v_157 = call_complex weigh, 28: I32
+    jmp b_158
+  }
+
+  b_156 {
+    %v_159 = call_complex weigh, 27: I32
+    jmp b_158
+  }
+
+  b_155 {
+    %v_160 = call_complex weigh, 26: I32
+    jmp b_158
+  }
+
+  b_154 {
+    %v_161 = call_complex weigh, 25: I32
+    jmp b_158
+  }
+
+  b_153 {
+    %v_162 = call_complex weigh, 24: I32
+    jmp b_158
+  }
+
+  b_152 {
+    %v_163 = call_complex weigh, 23: I32
+    jmp b_158
+  }
+
+  b_151 {
+    %v_164 = call_complex weigh, 22: I32
+    jmp b_158
+  }
+
+  b_150 {
+    %v_165 = call_complex weigh, 21: I32
+    jmp b_158
+  }
+
+  b_149 {
+    %v_166 = call_complex weigh, 20: I32
+    jmp b_158
+  }
+
+  b_158 {
+    %v_167 = phi [b_148, %v_157], [b_156, %v_159], [b_155, %v_160], [b_154, %v_161], [b_153, %v_162], [b_152, %v_163], [b_151, %v_164], [b_150, %v_165], [b_149, %v_166]: I32
+    %v_168 = cmp_eq %v_167, 199: I32
+    %v_169 = select %v_168, 128, 0: I32
+    %v_170 = add %v_146, %v_169: I32
+    %v_171 = call_complex opaqueTwenty, 0: I32
+    %v_172 = call_complex twenty, %v_171: I32
+    %v_173 = cmp_eq %v_172, 213: I32
+    %v_174 = select %v_173, 256, 0: I32
+    %v_175 = add %v_170, %v_174: I32
+    %v_176 = call_complex opaqueTwenty, 9: I32
+    %v_177 = call_complex twenty, %v_176: I32
+    %v_178 = cmp_eq %v_177, 276: I32
+    %v_179 = select %v_178, 512, 0: I32
+    %v_180 = add %v_175, %v_179: I32
+    %v_181 = call_complex opaqueTwenty, 19: I32
+    %v_182 = call_complex twenty, %v_181: I32
+    %v_183 = cmp_eq %v_182, 346: I32
+    %v_184 = select %v_183, 1024, 0: I32
+    %v_185 = add %v_180, %v_184: I32
+    ret %v_185
+  }
+}
+

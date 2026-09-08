@@ -1,0 +1,477 @@
+module ResolveTest
+
+let & live: I32 = 0
+
+let string'142: [CodeUnit *2] = [107, 45]
+
+fn Held.drop(value: Held) -> {} {
+bb0(%0: Held owned):
+  %1: %Held address = alloc frame Held
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr live
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = sub inspect %3 inspect %4
+  %6: %I32 address = global.addr live
+  store inspect %6 consume %5
+  return
+}
+
+fn hold(n: I32 [shared call]) -> Held {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: %I32 address = global.addr live
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr live
+  store inspect %6 consume %5
+  %7: I32 trivial = load inspect %1
+  %8: Held owned = aggregate.Held consume %7
+  return consume %8
+}
+
+fn key(n: I32 [shared call]) -> String {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %String address = alloc frame String
+  %3: %String address = alloc frame String
+  store inspect %1 borrow %0
+  %4: Size trivial = const 16
+  %5: String owned = call String.ofCapacity borrow %4
+  store inspect %2 consume %5
+  %6: String [unique call] guaranteed from{%2} = load inspect %2
+  %7: %[CodeUnit *2] address = global.addr string'142
+  %8: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %7
+  %9: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %8
+  %10: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %9
+  %11: I32 trivial = const 2
+  %12: String owned = call stringLiteral borrow %10 borrow %11
+  store inspect %3 consume %12
+  %13: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  %14: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %13
+  call String.push borrow %6 borrow %14
+  drop String inspect %3
+  %15: I32 trivial = load inspect %1
+  %16: String [unique call] guaranteed from{%2} = load inspect %2
+  call I32.show borrow %15 borrow %16
+  %17: String owned = load inspect %2
+  return consume %17
+}
+
+fn take(m: Map(String, Held) [shared call]) -> I32 {
+bb0(%0: Map(String, Held) [shared call] guaranteed):
+  %1: I32 trivial = const 0
+  return consume %1
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Map(String, Held) address = alloc frame Map(String, Held)
+  %1: %Map(String, Held) address = alloc frame Map(String, Held)
+  %2: %String address = alloc frame String
+  %3: %Maybe(Held) address = alloc frame Maybe(Held) [owned here shape2 .0=shared slot 0]
+  %4: %String address = alloc frame String
+  %5: %Map(String, Held) address = alloc frame Map(String, Held)
+  %6: %Map(String, Held) address = alloc frame Map(String, Held)
+  %7: %String address = alloc frame String
+  %8: %Map(String, Held) address = alloc frame Map(String, Held)
+  %9: %Map(String, Held) address = alloc frame Map(String, Held)
+  %10: %I32 address = alloc frame I32
+  %11: %I32 address = alloc frame I32
+  %12: I32 trivial = const 1
+  %13: String owned = call key borrow %12
+  %14: I32 trivial = const 1
+  %15: Held owned = call hold borrow %14
+  %16: I32 trivial = const 2
+  %17: String owned = call key borrow %16
+  %18: I32 trivial = const 2
+  %19: Held owned = call hold borrow %18
+  %20: I32 trivial = const 3
+  %21: String owned = call key borrow %20
+  %22: I32 trivial = const 3
+  %23: Held owned = call hold borrow %22
+  %24: Size trivial = const 3
+  %25: Map(String, Held) owned = call newMap(String, Held) borrow %24
+  store inspect %0 consume %25
+  %26: Map(String, Held) [unique call] guaranteed from{%0} = load inspect %0
+  call Map(k, v).insertAt(String, Held) borrow %26 consume %13 consume %15
+  %27: Map(String, Held) [unique call] guaranteed from{%0} = load inspect %0
+  call Map(k, v).insertAt(String, Held) borrow %27 consume %17 consume %19
+  %28: Map(String, Held) [unique call] guaranteed from{%0} = load inspect %0
+  call Map(k, v).insertAt(String, Held) borrow %28 consume %21 consume %23
+  %29: Map(String, Held) owned = load inspect %0
+  store inspect %1 consume %29
+  %30: Map(String, Held) [shared call] guaranteed from{%1} = load inspect %1
+  %31: Size trivial = call Map(k, v).length(String, Held) borrow %30
+  %32: I32 trivial = convert inspect %31
+  %33: I32 trivial = const 3
+  %34: Bool trivial = ne inspect %32 inspect %33
+  branch inspect %34 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %35: %I32 address = global.addr live
+  %36: I32 trivial = load inspect %35
+  %37: I32 trivial = const 3
+  %38: Bool trivial = ne inspect %36 inspect %37
+  branch inspect %38 -> bb6 -> bb4
+
+bb3:
+  drop Map(String, Held) inspect %1
+  %39: I32 trivial = const 0
+  %40: I32 trivial = const 1
+  %41: I32 trivial = sub inspect %39 inspect %40
+  return consume %41
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %42: Map(String, Held) [shared slot 0] guaranteed from{%1} = load inspect %1
+  %43: I32 trivial = const 2
+  %44: String owned = call key borrow %43
+  store inspect %2 consume %44
+  %45: String [shared slot 0] guaranteed from{%2} = load inspect %2
+  %46: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %45
+  %47: Maybe(Held) [owned here shape2 .0=shared slot 0] trivial = call find(String, Held) borrow %42 borrow %46
+  drop String inspect %2
+  store inspect %3 consume %47
+  %48: %U8 address = field.addr .# inspect %3
+  %49: U8 trivial = load inspect %48
+  %50: U8 trivial = const 1
+  %51: Bool trivial = eq inspect %49 inspect %50
+  branch inspect %51 -> bb9 -> bb7
+
+bb6:
+  drop Map(String, Held) inspect %1
+  %52: I32 trivial = const 0
+  %53: I32 trivial = const 2
+  %54: I32 trivial = sub inspect %52 inspect %53
+  return consume %54
+
+bb7:
+  drop Map(String, Held) inspect %1
+  %55: I32 trivial = const 0
+  %56: I32 trivial = const 4
+  %57: I32 trivial = sub inspect %55 inspect %56
+  return consume %57
+
+bb8:
+  %58: I32 trivial = const 4
+  %59: String owned = call key borrow %58
+  %60: I32 trivial = const 4
+  %61: Held owned = call hold borrow %60
+  %62: Map(String, Held) [unique call] guaranteed from{%1} = load inspect %1
+  call Map(k, v).insertAt(String, Held) borrow %62 consume %59 consume %61
+  %63: Map(String, Held) [shared call] guaranteed from{%1} = load inspect %1
+  %64: Size trivial = call Map(k, v).length(String, Held) borrow %63
+  %65: I32 trivial = convert inspect %64
+  %66: I32 trivial = const 4
+  %67: Bool trivial = ne inspect %65 inspect %66
+  branch inspect %67 -> bb15 -> bb13
+
+bb9:
+  %68: %Held address = field.addr .Just inspect %3
+  %69: %Held address = load inspect %68
+  %70: Held [shared slot 0] guaranteed from{%1, %3} = load inspect %69
+  %71: %I32 address = field.addr .n inspect %70
+  %72: I32 trivial = load inspect %71
+  %73: I32 trivial = const 2
+  %74: Bool trivial = ne inspect %72 inspect %73
+  branch inspect %74 -> bb12 -> bb10
+
+bb10:
+  jump -> bb11
+
+bb11:
+  jump -> bb8
+
+bb12:
+  drop Map(String, Held) inspect %1
+  %75: I32 trivial = const 0
+  %76: I32 trivial = const 3
+  %77: I32 trivial = sub inspect %75 inspect %76
+  return consume %77
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %78: %I32 address = global.addr live
+  %79: I32 trivial = load inspect %78
+  %80: I32 trivial = const 4
+  %81: Bool trivial = ne inspect %79 inspect %80
+  branch inspect %81 -> bb18 -> bb16
+
+bb15:
+  drop Map(String, Held) inspect %1
+  %82: I32 trivial = const 0
+  %83: I32 trivial = const 5
+  %84: I32 trivial = sub inspect %82 inspect %83
+  return consume %84
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %85: I32 trivial = const 4
+  %86: String owned = call key borrow %85
+  %87: I32 trivial = const 40
+  %88: Held owned = call hold borrow %87
+  %89: Map(String, Held) [unique call] guaranteed from{%1} = load inspect %1
+  call Map(k, v).insertAt(String, Held) borrow %89 consume %86 consume %88
+  %90: Map(String, Held) [shared call] guaranteed from{%1} = load inspect %1
+  %91: Size trivial = call Map(k, v).length(String, Held) borrow %90
+  %92: I32 trivial = convert inspect %91
+  %93: I32 trivial = const 4
+  %94: Bool trivial = ne inspect %92 inspect %93
+  branch inspect %94 -> bb21 -> bb19
+
+bb18:
+  drop Map(String, Held) inspect %1
+  %95: I32 trivial = const 0
+  %96: I32 trivial = const 6
+  %97: I32 trivial = sub inspect %95 inspect %96
+  return consume %97
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %98: %I32 address = global.addr live
+  %99: I32 trivial = load inspect %98
+  %100: I32 trivial = const 4
+  %101: Bool trivial = ne inspect %99 inspect %100
+  branch inspect %101 -> bb24 -> bb22
+
+bb21:
+  drop Map(String, Held) inspect %1
+  %102: I32 trivial = const 0
+  %103: I32 trivial = const 7
+  %104: I32 trivial = sub inspect %102 inspect %103
+  return consume %104
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %105: I32 trivial = const 4
+  %106: String owned = call key borrow %105
+  %107: Map(String, Held) [shared call] guaranteed from{%1} = load inspect %1
+  store inspect %4 consume %106
+  %108: String [shared slot 0] guaranteed from{%4} = load inspect %4
+  %109: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %108
+  %110: Held [shared slot 0] guaranteed from{%1} = call Map(k, v).get(String, Held) borrow %107 borrow %109
+  drop String inspect %4
+  %111: %I32 address = field.addr .n inspect %110
+  %112: I32 trivial = load inspect %111
+  %113: I32 trivial = const 40
+  %114: Bool trivial = ne inspect %112 inspect %113
+  branch inspect %114 -> bb27 -> bb25
+
+bb24:
+  drop Map(String, Held) inspect %1
+  %115: I32 trivial = const 0
+  %116: I32 trivial = const 8
+  %117: I32 trivial = sub inspect %115 inspect %116
+  return consume %117
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %118: I32 trivial = const 9
+  %119: String owned = call key borrow %118
+  %120: I32 trivial = const 9
+  %121: Held owned = call hold borrow %120
+  %122: I32 trivial = const 8
+  %123: String owned = call key borrow %122
+  %124: I32 trivial = const 8
+  %125: Held owned = call hold borrow %124
+  %126: I32 trivial = const 9
+  %127: String owned = call key borrow %126
+  %128: I32 trivial = const 90
+  %129: Held owned = call hold borrow %128
+  %130: Size trivial = const 3
+  %131: Map(String, Held) owned = call newMap(String, Held) borrow %130
+  store inspect %5 consume %131
+  %132: Map(String, Held) [unique call] guaranteed from{%5} = load inspect %5
+  call Map(k, v).insertAt(String, Held) borrow %132 consume %119 consume %121
+  %133: Map(String, Held) [unique call] guaranteed from{%5} = load inspect %5
+  call Map(k, v).insertAt(String, Held) borrow %133 consume %123 consume %125
+  %134: Map(String, Held) [unique call] guaranteed from{%5} = load inspect %5
+  call Map(k, v).insertAt(String, Held) borrow %134 consume %127 consume %129
+  %135: Map(String, Held) owned = load inspect %5
+  store inspect %6 consume %135
+  %136: Map(String, Held) [shared call] guaranteed from{%6} = load inspect %6
+  %137: Size trivial = call Map(k, v).length(String, Held) borrow %136
+  %138: I32 trivial = convert inspect %137
+  %139: I32 trivial = const 2
+  %140: Bool trivial = ne inspect %138 inspect %139
+  branch inspect %140 -> bb30 -> bb28
+
+bb27:
+  drop Map(String, Held) inspect %1
+  %141: I32 trivial = const 0
+  %142: I32 trivial = const 9
+  %143: I32 trivial = sub inspect %141 inspect %142
+  return consume %143
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %144: %I32 address = global.addr live
+  %145: I32 trivial = load inspect %144
+  %146: I32 trivial = const 6
+  %147: Bool trivial = ne inspect %145 inspect %146
+  branch inspect %147 -> bb33 -> bb31
+
+bb30:
+  drop Map(String, Held) inspect %1
+  drop Map(String, Held) inspect %6
+  %148: I32 trivial = const 0
+  %149: I32 trivial = const 10
+  %150: I32 trivial = sub inspect %148 inspect %149
+  return consume %150
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %151: I32 trivial = const 9
+  %152: String owned = call key borrow %151
+  %153: Map(String, Held) [shared call] guaranteed from{%6} = load inspect %6
+  store inspect %7 consume %152
+  %154: String [shared slot 0] guaranteed from{%7} = load inspect %7
+  %155: String [shared slot 0 view] guaranteed from{%7} = call String.view borrow %154
+  %156: Held [shared slot 0] guaranteed from{%6} = call Map(k, v).get(String, Held) borrow %153 borrow %155
+  drop String inspect %7
+  %157: %I32 address = field.addr .n inspect %156
+  %158: I32 trivial = load inspect %157
+  %159: I32 trivial = const 90
+  %160: Bool trivial = ne inspect %158 inspect %159
+  branch inspect %160 -> bb36 -> bb34
+
+bb33:
+  drop Map(String, Held) inspect %1
+  drop Map(String, Held) inspect %6
+  %161: I32 trivial = const 0
+  %162: I32 trivial = const 11
+  %163: I32 trivial = sub inspect %161 inspect %162
+  return consume %163
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %164: Size trivial = const 0
+  %165: Map(String, Held) owned = call newMap(String, Held) borrow %164
+  store inspect %8 consume %165
+  %166: Map(String, Held) owned = load inspect %8
+  store inspect %9 consume %166
+  %167: Map(String, Held) [shared call] guaranteed from{%9} = load inspect %9
+  %168: Size trivial = call Map(k, v).length(String, Held) borrow %167
+  %169: I32 trivial = convert inspect %168
+  %170: I32 trivial = const 0
+  %171: Bool trivial = ne inspect %169 inspect %170
+  branch inspect %171 -> bb39 -> bb37
+
+bb36:
+  drop Map(String, Held) inspect %1
+  drop Map(String, Held) inspect %6
+  %172: I32 trivial = const 0
+  %173: I32 trivial = const 12
+  %174: I32 trivial = sub inspect %172 inspect %173
+  return consume %174
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %175: %I32 address = global.addr live
+  %176: I32 trivial = load inspect %175
+  %177: I32 trivial = const 6
+  %178: Bool trivial = ne inspect %176 inspect %177
+  branch inspect %178 -> bb42 -> bb40
+
+bb39:
+  drop Map(String, Held) inspect %1
+  drop Map(String, Held) inspect %6
+  drop Map(String, Held) inspect %9
+  %179: I32 trivial = const 0
+  %180: I32 trivial = const 13
+  %181: I32 trivial = sub inspect %179 inspect %180
+  return consume %181
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %182: I32 trivial = const 0
+  %183: String owned = call key borrow %182
+  %184: I32 trivial = const 0
+  %185: Held owned = call hold borrow %184
+  %186: Map(String, Held) [unique call] guaranteed from{%9} = load inspect %9
+  call Map(k, v).insertAt(String, Held) borrow %186 consume %183 consume %185
+  %187: %I32 address = global.addr live
+  %188: I32 trivial = load inspect %187
+  %189: I32 trivial = const 7
+  %190: Bool trivial = ne inspect %188 inspect %189
+  branch inspect %190 -> bb45 -> bb43
+
+bb42:
+  drop Map(String, Held) inspect %1
+  drop Map(String, Held) inspect %6
+  drop Map(String, Held) inspect %9
+  %191: I32 trivial = const 0
+  %192: I32 trivial = const 14
+  %193: I32 trivial = sub inspect %191 inspect %192
+  return consume %193
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %194: %I32 address = global.addr live
+  %195: I32 trivial = load inspect %194
+  store inspect %10 consume %195
+  %196: Map(String, Held) [shared call] guaranteed from{%1} = load inspect %1
+  %197: I32 trivial = call take borrow %196
+  drop Map(String, Held) inspect %1
+  %198: Map(String, Held) [shared call] guaranteed from{%6} = load inspect %6
+  %199: I32 trivial = call take borrow %198
+  drop Map(String, Held) inspect %6
+  %200: I32 trivial = add inspect %197 inspect %199
+  %201: Map(String, Held) [shared call] guaranteed from{%9} = load inspect %9
+  %202: I32 trivial = call take borrow %201
+  drop Map(String, Held) inspect %9
+  %203: I32 trivial = add inspect %200 inspect %202
+  store inspect %11 consume %203
+  %204: I32 trivial = load inspect %10
+  %205: I32 trivial = const 10
+  %206: I32 trivial = mul inspect %204 inspect %205
+  %207: %I32 address = global.addr live
+  %208: I32 trivial = load inspect %207
+  %209: I32 trivial = add inspect %206 inspect %208
+  %210: I32 trivial = load inspect %11
+  %211: I32 trivial = add inspect %209 inspect %210
+  %212: I32 trivial = const 1
+  %213: I32 trivial = add inspect %211 inspect %212
+  return consume %213
+
+bb45:
+  drop Map(String, Held) inspect %1
+  drop Map(String, Held) inspect %6
+  drop Map(String, Held) inspect %9
+  %214: I32 trivial = const 0
+  %215: I32 trivial = const 15
+  %216: I32 trivial = sub inspect %214 inspect %215
+  return consume %216
+}
+
+entry main

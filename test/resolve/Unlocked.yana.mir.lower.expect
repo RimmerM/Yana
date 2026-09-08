@@ -4,16 +4,9 @@ dominating<complex>(%a: I32, %b: I32): I32 {
     %v_1 = imul %a, %b: I32
     %v_2 = add %v_1, 3: I32
     %v_3 = cmp_igt %v_2, 20: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    ret %v_2
-  }
-
-  b_4 {
-    %v_6 = add %v_2, %v_2: I32
-    ret %v_6
+    %v_4 = add %v_2, %v_2: I32
+    %v_5 = select %v_3, %v_4, %v_2: I32
+    ret %v_5
   }
 }
 

@@ -90,6 +90,15 @@ let ResolveTest.string$16: String = "Red"
 
 let ResolveTest.literal$17: String = "Red" {String(Array(Run(&ResolveTest.string$16, 3, 0), 3))}
 
+fn units(%self: 1'String) -> %CodeUnit {
+  b0:
+    %v1 = load [%self] : String
+    %v2 = borrow [%self] : 'String
+    %v3 = call Viewed(String).view, %v2 : StringView
+    %v4 = load %local0@StringView.units : %CodeUnit
+    ret %v4
+}
+
 fn Ord(CodeUnit).compare(%lhs: CodeUnit, %rhs: CodeUnit) -> Ordering {
   b0:
     %v2 = cmp_eq %lhs, %rhs : Bool
@@ -421,15 +430,6 @@ fn freeHeap(%allocation: %U8) -> () {
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
     ret
-}
-
-fn units(%self: 1'String) -> %CodeUnit {
-  b0:
-    %v1 = load [%self] : String
-    %v2 = borrow [%self] : 'String
-    %v3 = call Viewed(String).view, %v2 : StringView
-    %v4 = load %local0@StringView.units : %CodeUnit
-    ret %v4
 }
 
 fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) -> Ordering {

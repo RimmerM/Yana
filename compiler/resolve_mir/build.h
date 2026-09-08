@@ -192,20 +192,26 @@ struct Builder {
      */
     Node* addAggregate(LocationId source, DeclPtr<Type> record, U16 constructor,
                        Node* const* components, Size count,
-                       DeclPtr<OwnershipSchema> shape = nullptr);
+                       DeclPtr<OwnershipSchema> shape = nullptr, bool fill = false);
 
     /*
      * A function value - a named function, or a lambda that has already been lifted.
      *
-     * `environment` is the borrow of the storage the captures live in, and null where there are
-     * none. The two are one node because they are one value: what a call site holds is a pair, and
-     * whether its second word points at anything is not something a caller of one may ask.
+     * `environment` is the storage the captures live in, and null where there are none. The two are
+     * one node because they are one value: what a call site holds is a pair, and whether its second
+     * word points at anything is not something a caller of one may ask.
+     *
+     * `owned` says which of the two things that word is - D17. A **frame** environment is a borrow
+     * of a local of this function, so the value carries `Shapes::closure` at the position that holds
+     * it and every rule about a value referring to somebody's storage applies to it. A **heap** one
+     * is the pair's own: the operand is a relocation, the value carries no origin, and what releases
+     * it is the teardown in front of the block the lowering allocates.
      *
      * The type is passed in rather than derived here, because the resolver has already built it to
      * check the position and deriving it twice is two readings of one signature - see `funTypeOf`.
      */
     Node* addFunValue(LocationId source, DeclPtr<Function> callee, DeclPtr<Type> type,
-                      Node* environment);
+                      Node* environment, bool owned = false);
 
     /*
      * The raw address of the storage `of` names - `addressOf(x)`.
@@ -279,6 +285,20 @@ struct Builder {
     Node* addFma(LocationId source, Node& lhs, Node& rhs, Node& addend);
 
     /*
+     * A `match` over constants, as the mapping it states - see inst.def.
+     *
+     * `entries` arrive ascending by selector and pairwise distinct, which the builder asserts rather
+     * than sorts: the recognizer walks a record's constructors in declaration order, and a caller
+     * that handed them over out of order has read something else.
+     *
+     * The occurrence is stated rather than derived from the entries, because a constant carries a
+     * logical type and not the contract a *position* holds it under - a string literal's table is
+     * the same three words wherever it stands, and what it is to its consumer is the position's.
+     */
+    Node* addMap(LocationId source, Node& selector, const MapEntry* entries, Size count,
+                 Constant fallback, bool closed, Occurrence result);
+
+    /*
      * The four vector operations that are not an operation this IR already had - see inst.def, where
      * the argument for there being four is.
      *
@@ -315,6 +335,10 @@ struct Builder {
     // lane, which `reducesToIndex` is the question about.
     Node* addVecReduce(LocationId source, Node& from, ReduceOp reduce, DeclPtr<Type> result);
 
+    // The lane numbers of a vector whose count only a substitution knows - inst.def's `VecIota`.
+    // Built solely at an unmeasurable count: a concrete one is the constant chain the emitter makes.
+    Node* addVecIota(LocationId source, DeclPtr<Type> vector);
+
     /*
      * A call through a function **value** - `f(x)` where `f` is a local.
      *
@@ -325,10 +349,18 @@ struct Builder {
      */
     Node* addCallValue(LocationId source, Node& target, Node* const* arguments, Size count);
 
-    // Reading a place under a mode. The result's occurrence follows from the mode: `CopyTrivial` and
-    // `Take` produce an owned value, a borrow produces a loan of the place's own origin. One rule in
-    // one place, which is what stops a later pass from having a second opinion.
-    Node* addRead(LocationId source, Place& place, UseMode mode, Request wanted);
+    /*
+     * Reading a place under a mode. The result's occurrence follows from the mode: `CopyTrivial` and
+     * `Take` produce an owned value, a borrow produces a loan of the place's own origin. One rule in
+     * one place, which is what stops a later pass from having a second opinion.
+     *
+     * `overread` is `NodeRead::overread` and defaults off, because one emitter in the whole compiler
+     * turns it on - `expandVectorPast`. A parameter rather than a field a caller assigns afterwards,
+     * so that the flag is stated where the read is made and a reader of this signature is told the
+     * option exists.
+     */
+    Node* addRead(LocationId source, Place& place, UseMode mode, Request wanted,
+                  bool overread = false);
 
     /*
      * A scalar operation. The result type follows from the operation and the operand type through
@@ -443,6 +475,17 @@ struct Builder {
      */
     Node* addBranch(LocationId source, Operand condition, Block& whenTrue, Block& whenFalse,
                     const Operand* arguments, Size count);
+    /*
+     * A multi-way branch on one discriminant - see inst.def.
+     *
+     * `values` and `targets` are parallel and ascending by value, which the builder asserts rather
+     * than sorts: a caller that handed them over out of order has read something else. `arguments`
+     * is supplied to **every** edge, exactly as `addBranch` supplies one list to both of its - a
+     * value live before a multi-way branch is live on every arm of it.
+     */
+    Node* addSwitch(LocationId source, Operand selector, const I64* values, Block* const* targets,
+                    Size count, Block& fallback, const Operand* arguments, Size argumentCount);
+
     Node* addUnreachable(LocationId source);
 
     /*

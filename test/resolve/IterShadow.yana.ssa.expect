@@ -53,7 +53,7 @@ bb0(%0: I32 [shared call] guaranteed):
   %5: I32 [unique slot 0] guaranteed = load inspect %2
   %6: I32 [unique slot 1] guaranteed = load inspect %1
   %7: named.cont.env affine = aggregate.named.cont.env borrow %5 borrow %6
-  %8: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value named.cont borrow %7
+  %8: (I32) -> I32 [owned here shape9 .0=shared call] affine = fun.value named.cont borrow %7
   %9: I32 trivial = call upTo borrow %4 borrow %8
   jump -> bb1
 
@@ -69,12 +69,12 @@ bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 [shared call] guarante
   store inspect %2 borrow %1
   %4: I32 trivial = const 0
   store inspect %3 consume %4
-  %5: Array(I32) [shared slot 0 view] guaranteed from{%0} = load inspect %0
+  %5: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
   %6: I32 [unique slot 0] guaranteed = load inspect %3
   %7: I32 [unique slot 1] guaranteed = load inspect %2
   %8: Array(I32) [unique slot 2] guaranteed = load inspect %0
   %9: classMember.cont.env affine = aggregate.classMember.cont.env borrow %6 borrow %7 borrow %8
-  %10: (Array(I32)) -> I32 [owned here shape3 .0=shared call] affine = fun.value classMember.cont borrow %9
+  %10: (Array(I32)) -> I32 [owned here shape9 .0=shared call] affine = fun.value classMember.cont borrow %9
   %11: I32 trivial = call Array(a).chunks(I32) borrow %5 borrow %10
   jump -> bb1
 
@@ -92,23 +92,11 @@ bb0:
   %4: I32 trivial = const 3
   %5: I32 trivial = const 4
   %6: [I32 *4] trivial = aggregate.0 consume %2 consume %3 consume %4 consume %5
-  jump -> bb1
-
-bb1:
-  %8: [I32 *4] [shared slot 0 owner] guaranteed from{%6} = load inspect %6
-  %9: %[I32 *4] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %8
-  %10: %I32 trivial = call %a.%b.bitcast([I32 *4], I32) borrow %9
-  %11: I32 trivial = const 4
-  %12: Size trivial = convert inspect %11
-  %13: ArrayView(I32) trivial = aggregate.ArrayView consume %10 consume %12
-  %14: Array(I32) [shared slot 0 view] guaranteed = represent inspect %13
-  jump -> bb2(borrow %14)
-
-bb2(%7: Array(I32) [shared slot 0 view] guaranteed):
-  %15: I32 trivial = const 7
-  %16: I32 trivial = call classMember borrow %7 borrow %15
-  %17: I32 trivial = add inspect %1 inspect %16
-  return consume %17
+  %7: Array(I32) [shared slot 0 view] guaranteed = call [a *n].elements(4, I32) borrow %6
+  %8: I32 trivial = const 7
+  %9: I32 trivial = call classMember borrow %7 borrow %8
+  %10: I32 trivial = add inspect %1 inspect %9
+  return consume %10
 }
 
 fn named.cont(named.cont.env: named.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
@@ -129,8 +117,8 @@ bb0(%0: named.cont.env [unique call] guaranteed, %1: I32 [shared call] guarantee
   return consume %12
 }
 
-fn classMember.cont(classMember.cont.env: classMember.cont.env [unique call], $handed: Array(I32) [shared slot 0 view]) -> I32 {
-bb0(%0: classMember.cont.env [unique call] guaranteed, %1: Array(I32) [shared slot 0 view] guaranteed):
+fn classMember.cont(classMember.cont.env: classMember.cont.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
+bb0(%0: classMember.cont.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
   %2: %I32 address = field.addr .total inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = field.addr .value inspect %0
@@ -140,7 +128,7 @@ bb0(%0: classMember.cont.env [unique call] guaranteed, %1: Array(I32) [shared sl
   %8: I32 trivial = load inspect %3
   %9: I32 trivial = load inspect %5
   %10: I32 trivial = add inspect %8 inspect %9
-  %11: Array(I32) [shared slot 0 view] guaranteed from{%1, %7} = load inspect %1
+  %11: Array(I32) [shared call view] guaranteed from{%1, %7} = load inspect %1
   jump -> bb1
 
 bb1:

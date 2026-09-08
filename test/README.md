@@ -138,6 +138,13 @@ The directive is what makes it run that way - see `directives.h` - and the direc
 fixture anywhere carrying that line is compiled only by the rewritten stage; `YanaResolveTest` skips
 the legacy half and its six goldens for it, and `YanaElfTest` and `YanaBench` skip it entirely.
 
+`# test: yes` is `-test`, and it is the one directive that changes what the *entry* is. A fixture
+carrying it has no `main`: it has `@test` declarations, and what runs is the entry the compiler
+synthesizes out of them, over `resolve/modules/Test.yana` - a minimal runner both resolve stages
+compile, so the harness itself is something the shared corpus can assert rather than only the library
+suite. `resolve/TestEntry.yana` is that fixture; its `.run.expect` is a number `runMain` packs out of
+the cases the compiler built, so a case that went missing or a `Site` that was not filled moves it.
+
 **The directive is not how a fixture opts into the new stage.** That is the `.mir.expect` file beside
 the source, and it is how the shared corpus is adopted one fixture at a time: a fixture with the
 golden and no directive is compiled by *both* stages and asserts that they agree on the answer, which

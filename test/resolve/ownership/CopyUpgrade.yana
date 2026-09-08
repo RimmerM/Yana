@@ -1,0 +1,44 @@
+{-
+   `TrivialCopy(a)` is a constraint a body may **spend**, not only one a caller has to prove -
+   Design-Memory §2.1's copy upgrade, and the thing that makes the class worth declaring at all.
+
+   A plain parameter is a shared borrow, so `fn copy(from: a) -> a = from` is a borrowed place
+   filling a position that consumes. Where `a` is unconstrained that is the diagnostic
+   `Reject.CopyUpgrade.yana` pins: the body has one meaning for every substitution and nothing
+   promised that duplicating the bytes is one of them. Where the signature declared `TrivialCopy(a)`
+   something did promise it, so `ownershipOf` answers from the constraint and the read is an ordinary
+   trivial copy - the same answer a specialization at `I32` would have given, decided in the generic
+   body where it has to be.
+
+   The three shapes below are the three `lib/Core` sites that were refused before it: the blanket
+   `instance (TrivialCopy(a)) Copy(a)`, a record literal filling a field from a borrowed style
+   (`Format.yana`'s `with`), and `let &acc = ifEmpty` over a by-value parameter (`Reduce.yana`'s
+   folds), which is the same question asked by an exclusive binding rather than by a sink.
+
+   The assertion is in the goldens: every read of `x`, `from` and `ifEmpty` below is
+   `read copy.trivial` and there is no loan anywhere in the file.
+-}
+
+data Pair(a) {left: a, right: a}
+
+fn (TrivialCopy(a)) dup(from: a) -> a = from
+
+-- A field is a position that consumes, and the same parameter fills two of them.
+fn (TrivialCopy(a)) both(x: a) -> Pair(a) = Pair {left: x, right: x}
+
+-- `let &acc = p` over a by-value parameter: an exclusive binding over storage the frame does not
+-- own is refused, and a copy of a duplicable value is storage the frame *does* own.
+fn (TrivialCopy(a), Ord(a)) largest(xs: [a], ifEmpty: a) -> a:
+    let &best = ifEmpty
+    for i in 0 .. length(xs):
+        if xs[i] > best then best = xs[i]
+
+    return best
+
+fn main() -> Int:
+    let p = both(7)
+    let n = dup(5)
+    let xs = [1, 9, 4] :: Array(Int)
+
+    -- 7 + 7 + 5 + 9
+    return p.left + p.right + n + largest(xs, 0)

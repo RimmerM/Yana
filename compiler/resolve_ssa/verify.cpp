@@ -379,9 +379,24 @@ struct Verifier {
             auto supplied = base[used.value()];
             auto declared = base[target->argumentAt(base, i)];
 
-            // Both halves of the occurrence, not the type alone: a merge that declares an owner and
-            // an arm that hands over a borrow agree on the type and on nothing that matters.
-            if(supplied->occurrence != declared->occurrence) {
+            /*
+             * Both halves of the occurrence, not the type alone: a merge that declares an owner and
+             * an arm that hands over a borrow agree on the type and on nothing that matters.
+             *
+             * The interior **shape** is the one part excused, and only in the direction a promotion
+             * produces: a block argument that declares none accepts an arm carrying one.
+             * `opt/promote.cpp`'s `agree` is where the argument is - two definitions of one slot may
+             * have been rooted differently (`at = at + 1` beside a global's own pointee origin), the
+             * slot then declares the empty shape, which is what "nothing inside is anyone else's"
+             * honestly says, and a shape changes no manifestation at this tier. Declaring a shape and
+             * being handed none is the other direction and stays an error: that is a promise the
+             * argument does not keep.
+             */
+            auto sameShape = supplied->occurrence.shape == declared->occurrence.shape ||
+                             !declared->occurrence.shape;
+
+            if(!sameShape || supplied->occurrence.type != declared->occurrence.type ||
+               supplied->occurrence.contract != declared->occurrence.contract) {
                 report(inst.source,
                        "internal: %@ hands argument %@ to block %@ as an occurrence it does not declare"_v,
                        instMnemonic(inst.kind), i, target->index.index);
@@ -680,6 +695,79 @@ struct Verifier {
         }
     }
 
+    /*
+     * A `match` over constants - the same four statements `mir::verifyBody` makes about the node it
+     * came from, restated because a pass between the two may edit one.
+     *
+     * The selector's type is checked in MIR and not again here: what this tier can change about a
+     * `map` is its operand, and forwarding one value for another of the same type is what every
+     * pass does. What the entries say is what a fold reads, so that is what is re-checked.
+     */
+    void checkMap(Inst& inst) {
+        auto& written = (InstMap&)inst;
+        auto entries = written.entries.contents(base);
+
+        if(!entries.size()) {
+            report(inst.source, "internal: a map has no entries"_v);
+            return;
+        }
+
+        if(written.closed == written.fallback.isSet()) {
+            report(inst.source, written.closed
+                ? "internal: a map over a closed domain carries a fallback"_v
+                : "internal: a map over an open domain has no fallback"_v);
+        }
+
+        for(Size i = 1; i < entries.size(); i++) {
+            if(entries[i].selector > entries[i - 1].selector) continue;
+
+            report(inst.source, "internal: a map's entries are not ascending and distinct"_v);
+            break;
+        }
+
+        if(!inst.results.size()) {
+            report(inst.source, "internal: a map defines no value"_v);
+            return;
+        }
+
+        auto result = base[inst.results.get(base, 0)]->type();
+        for(auto entry: entries) {
+            if(mir::sameType(entry.value.type, result)) continue;
+
+            report(inst.source, "internal: a map answering %@ has an entry of %@"_v,
+                   mir::typeText(context, decl, result),
+                   mir::typeText(context, decl, entry.value.type));
+            break;
+        }
+    }
+
+    /*
+     * A multi-way branch - the same statements `mir::verifyBody` makes about the node it came from.
+     *
+     * The edges are `checkEdge`'s, which is generic and runs over every one of them already; what is
+     * left is the case list and the fallback. No exhaustiveness rule - see the MIR row.
+     */
+    void checkSwitch(Inst& inst) {
+        auto& written = (InstSwitch&)inst;
+        auto cases = written.cases.pointer(base);
+        auto count = written.cases.size();
+
+        if(count < 3) {
+            report(inst.source, "internal: a switch has %@ cases, and below three it is a branch"_v,
+                   U64(count));
+            return;
+        }
+
+        for(Size i = 1; i < count; i++) {
+            if(cases[i].value > cases[i - 1].value) continue;
+
+            report(inst.source, "internal: a switch's cases are not ascending and distinct"_v);
+            break;
+        }
+
+        if(!written.fallback.target) report(inst.source, "internal: a switch has no fallback"_v);
+    }
+
     // A drop of something with nothing to run is a placement decision that should not have been
     // made, not an instruction with no effect - see `Editor::addDrop`, which refuses to build one.
     void checkDrop(Inst& inst) {
@@ -785,7 +873,7 @@ struct Verifier {
         U32 count = 0;
 
         if(auto last = from.terminator(base)) {
-            forEachEdge(*last, [&](Edge& edge) {
+            forEachEdge(base, *last, [&](Edge& edge) {
                 if(edge.target && base[edge.target] == &to) count++;
             });
         }
@@ -855,7 +943,7 @@ struct Verifier {
             auto last = from->terminator(base);
             if(!last) continue;
 
-            forEachEdge(*last, [&](Edge& edge) {
+            forEachEdge(base, *last, [&](Edge& edge) {
                 if(!edge.target) return;
 
                 auto to = base[edge.target];
@@ -876,7 +964,7 @@ struct Verifier {
         auto last = block.terminator(base);
         if(!last) return;
 
-        forEachEdge(*last, [&](Edge& edge) {
+        forEachEdge(base, *last, [&](Edge& edge) {
             if(edge.target) f(*last, *base[edge.target]);
         });
     }
@@ -935,6 +1023,275 @@ struct Verifier {
                instMnemonic(inst.kind), from.region.index, target.region.index);
     }
 
+    /*
+     * The numeric and vector **shapes**, restated here rather than checked once at construction.
+     *
+     * `build.cpp` asserts the `OpCategory` of every operation it makes, which is a statement about
+     * the *operand type* and is made once, when the instruction is built. What that cannot catch is
+     * a later pass corrupting the shape - a fold that unified two values of different lane counts, a
+     * clone that carried a comparison's result type from a scalar site to a vector one - and those
+     * are exactly the rewrites this tier has now. So the rules below are per instruction, cheap
+     * enough to run after every pass, and they restate the shipping stage's `verify.cpp` list at the
+     * one stage where a type is still a language type: what reaches the lower validator is a lane
+     * kind, and an `i32` lane there has forgotten whether it was declared signed.
+     *
+     * A vector with **no fixed lane count** is a `Vec(a, n)` inside a body compiled once, and every
+     * rule below says nothing about one: `vectorLanes` answers zero there, and each comparison is
+     * guarded on the counts being known rather than on either end being a vector.
+     */
+    bool isVectorLike(DeclPtr<mir::Type> type) {
+        return type && decl[type]->kind == mir::Type::Vector;
+    }
+
+    void checkShape(Inst& inst) {
+        auto typeOf = [&](Use used) -> DeclPtr<mir::Type> {
+            return used.isSet() ? base[used.value()]->type() : nullptr;
+        };
+
+        auto result = inst.results.size() ? base[inst.results.get(base, 0)] : nullptr;
+        auto named = result ? result->id.index : 0;
+        auto type = result ? result->type() : nullptr;
+
+        switch(inst.kind) {
+            case Inst::Unary: {
+                auto& unary = (InstUnary&)inst;
+                auto lane = mir::laneTypeOf(decl, type);
+                auto scalar = lane ? decl[lane] : (type ? decl[type] : nullptr);
+
+                switch(unary.op) {
+                    /*
+                     * The magnitude of an unsigned value is itself, and the magnitude of something
+                     * that is neither a number nor a float is nothing.
+                     */
+                    case mir::UnaryOp::Abs: {
+                        if(!scalar || scalar->kind == mir::Type::Float) break;
+
+                        if(scalar->kind != mir::Type::Int) {
+                            report(inst.source,
+                                   "internal: %%@ takes the magnitude of something that is neither a number nor a float"_v,
+                                   named);
+                        } else if(!((mir::IntType*)scalar)->isSigned) {
+                            report(inst.source,
+                                   "internal: %%@ takes the magnitude of an unsigned value, which is itself"_v,
+                                   named);
+                        }
+
+                        break;
+                    }
+
+                    /*
+                     * The byte reversal's two rules are the two things the operation has to be able
+                     * to name: which bytes there are, and that they are the whole of the value. A
+                     * vector is refused because a lane-wise reversal is a shuffle against a pattern
+                     * rather than this instruction widened; a `@bits` refinement is refused because
+                     * its declared width is not a whole number of bytes of anything.
+                     */
+                    case mir::UnaryOp::ByteSwap: {
+                        if(!scalar || scalar->kind != mir::Type::Int || isVectorLike(type)) {
+                            report(inst.source,
+                                   "internal: %%@ reverses the bytes of something that is not a scalar integer"_v,
+                                   named);
+                            break;
+                        }
+
+                        auto& integer = *(mir::IntType*)scalar;
+                        if(!integer.canonical &&
+                           (integer.bits == 16 || integer.bits == 32 || integer.bits == 64)) {
+                            break;
+                        }
+
+                        report(inst.source,
+                               "internal: %%@ reverses the bytes of a %@-bit integer, which is not a whole number of them"_v,
+                               named, U32(integer.bits));
+                        break;
+                    }
+
+                    /*
+                     * The three bit counts, at the width set `op.def` argues: a scalar integer of 32
+                     * or 64 bits. A vector is refused because a per-lane population count is a
+                     * nibble-table shuffle rather than this instruction widened, and a narrower
+                     * width because the lower IR has no scalar below `Int32` to hold one - so the
+                     * answer would be its storage's rather than its own.
+                     */
+                    case mir::UnaryOp::CountBits:
+                    case mir::UnaryOp::LeadingZeros:
+                    case mir::UnaryOp::TrailingZeros: {
+                        if(!scalar || scalar->kind != mir::Type::Int || isVectorLike(type)) {
+                            report(inst.source,
+                                   "internal: %%@ counts the bits of something that is not a scalar integer"_v,
+                                   named);
+                            break;
+                        }
+
+                        auto bits = ((mir::IntType*)scalar)->bits;
+                        if(bits == 32 || bits == 64) break;
+
+                        report(inst.source,
+                               "internal: %%@ counts the bits of a %@-bit integer, which is not a width this operation has"_v,
+                               named, U32(bits));
+                        break;
+                    }
+
+                    /*
+                     * A conversion between two vectors keeps the lane count -
+                     * Implementation-Vector.md §3.2's first consequence, and the one rule at this
+                     * tier that is easy to get wrong silently: `f32x8` to `f64x8` is a widening of
+                     * every lane and `f32x8` to `f64x4` is an unpack, and they differ in the result
+                     * type alone. Only the first is a conversion; the second is a shuffle and a
+                     * conversion. One end a vector and the other a scalar is neither - a lane is
+                     * `vec.lane` and a whole vector out of one value is `vec.splat`.
+                     */
+                    case mir::UnaryOp::Convert:
+                    case mir::UnaryOp::Bitcast: {
+                        auto from = typeOf(unary.value);
+                        auto fromLanes = mir::vectorLanes(decl, from);
+                        auto toLanes = mir::vectorLanes(decl, type);
+
+                        if(unary.op == mir::UnaryOp::Convert && fromLanes && toLanes &&
+                           fromLanes != toLanes) {
+                            report(inst.source,
+                                   "internal: %%@ converts %@ lanes to %@ - a conversion that changes the lane count is a shuffle and a conversion"_v,
+                                   named, fromLanes, toLanes);
+                        }
+
+                        if(from && type && isVectorLike(from) != isVectorLike(type)) {
+                            report(inst.source,
+                                   "internal: %%@ converts between a vector and a scalar - read a lane with `vec.lane` and build one with `vec.splat`"_v,
+                                   named);
+                        }
+
+                        break;
+                    }
+
+                    default:
+                        break;
+                }
+
+                break;
+            }
+
+            /*
+             * A comparison of vectors answers a **mask of the same shape** - Design-Vector §2.4, and
+             * §3.1's "a typing rule rather than a new instruction". A `Bool` here would be an `all`
+             * or an `any` that nobody chose.
+             *
+             * The three bit-field operations share the counts' width rule above and for the same
+             * reasons: none has a lane-wise spelling on any target this compiler has, and below 32
+             * bits "the low `count` bits" would be a question about a value's storage.
+             */
+            case Inst::Binary: {
+                auto& binary = (InstBinary&)inst;
+                auto category = mir::binaryCategory(binary.op);
+
+                if(category == mir::OpCategory::Equality || category == mir::OpCategory::Order) {
+                    auto lanes = mir::vectorLanes(decl, typeOf(binary.lhs));
+                    if(!lanes) break;
+                    if(mir::isMaskType(decl, type) && mir::vectorLanes(decl, type) == lanes) break;
+
+                    report(inst.source,
+                           "internal: %%@ compares %@ lanes and does not answer a mask of that shape"_v,
+                           named, lanes);
+                    break;
+                }
+
+                if(binary.op != mir::BinaryOp::BitsUpTo &&
+                   binary.op != mir::BinaryOp::GatherBits &&
+                   binary.op != mir::BinaryOp::ScatterBits) {
+                    break;
+                }
+
+                auto scalar = type ? decl[type] : nullptr;
+                if(!scalar || scalar->kind != mir::Type::Int || isVectorLike(type)) {
+                    report(inst.source,
+                           "internal: %%@ selects bits of something that is not a scalar integer"_v,
+                           named);
+                    break;
+                }
+
+                auto bits = ((mir::IntType*)scalar)->bits;
+                if(bits == 32 || bits == 64) break;
+
+                report(inst.source,
+                       "internal: %%@ selects bits of a %@-bit integer, which is not a width this operation has"_v,
+                       named, U32(bits));
+                break;
+            }
+
+            case Inst::VecSplat: {
+                if(isVectorLike(type)) break;
+
+                report(inst.source, "internal: %%@ splats into something that is not a vector"_v,
+                       named);
+                break;
+            }
+
+            case Inst::VecLane:
+            case Inst::VecWithLane: {
+                auto& lane = (InstVecLane&)inst;
+
+                // The vector is the operand for a read and the result for a write, so the lane index
+                // is bounded by whichever of the two is the vector.
+                auto vector = lane.writesLane() ? type : typeOf(lane.from);
+
+                if(!isVectorLike(vector)) {
+                    report(inst.source,
+                           "internal: %%@ names a lane of something that is not a vector"_v, named);
+                    break;
+                }
+
+                auto lanes = mir::vectorLanes(decl, vector);
+                if(!lanes || lane.lane < lanes) break;
+
+                report(inst.source, "internal: %%@ names lane %@ of a vector with %@ of them"_v,
+                       named, U32(lane.lane), lanes);
+                break;
+            }
+
+            case Inst::VecShuffle: {
+                auto& shuffle = (InstVecShuffle&)inst;
+
+                if(!isVectorLike(type) || !isVectorLike(typeOf(shuffle.left))) {
+                    report(inst.source, "internal: %%@ shuffles something that is not a vector"_v,
+                           named);
+                    break;
+                }
+
+                auto lanes = mir::vectorLanes(decl, type);
+                auto sources = mir::vectorLanes(decl, typeOf(shuffle.left));
+                if(!lanes || !sources) break;
+
+                // One entry per lane of the *result*, each naming a lane of the two sources
+                // concatenated - `InstVecShuffle`, which is where the numbering is stated.
+                if(shuffle.pattern.size() != lanes) {
+                    report(inst.source, "internal: %%@ shuffles into %@ lanes with a pattern of %@"_v,
+                           named, lanes, U32(shuffle.pattern.size()));
+                    break;
+                }
+
+                for(auto entry: shuffle.pattern.contents(base)) {
+                    if(entry < sources * 2) continue;
+
+                    report(inst.source,
+                           "internal: %%@ shuffles in lane %@, and its two sources have %@ between them"_v,
+                           named, U32(entry), sources * 2);
+                    break;
+                }
+
+                break;
+            }
+
+            case Inst::VecReduce: {
+                if(isVectorLike(typeOf(((InstVecReduce&)inst).from))) break;
+
+                report(inst.source, "internal: %%@ reduces something that is not a vector"_v, named);
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+
     void checkStructure(Block& block) {
         auto count = block.instructionCount();
         if(!count) {
@@ -958,7 +1315,7 @@ struct Verifier {
             forEachUse(base, *inst, [&](Use used) {
                 checkUse(*inst, used, block.index.index, position);
             });
-            forEachEdge(*inst, [&](Edge& edge) {
+            forEachEdge(base, *inst, [&](Edge& edge) {
                 checkEdge(*inst, edge, block.index.index, position);
                 if(edge.target) checkEdgeRegion(*inst, block, *base[edge.target]);
             });
@@ -969,7 +1326,9 @@ struct Verifier {
                 case Inst::FieldAddress: checkFieldAddress(*inst); break;
                 case Inst::ElementAddress: checkElementAddress(*inst); break;
                 case Inst::Drop:         checkDrop(*inst); break;
-                default: break;
+                case Inst::Map:          checkMap(*inst); break;
+                case Inst::Switch:       checkSwitch(*inst); break;
+                default:                 checkShape(*inst); break;
             }
         }
     }
@@ -1034,7 +1393,7 @@ struct Verifier {
                 auto inst = base[instPointer];
 
                 forEachUse(base, *inst, [&](Use used) { record(*inst, used); });
-                forEachEdge(*inst, [&](Edge& edge) {
+                forEachEdge(base, *inst, [&](Edge& edge) {
                     for(auto used: edge.arguments.contents(base)) record(*inst, used);
                 });
             }
@@ -1418,7 +1777,7 @@ struct Verifier {
             alternatives.clear();
             alternating = true;
 
-            forEachEdge(*inst, [&](Edge& edge) {
+            forEachEdge(base, *inst, [&](Edge& edge) {
                 for(auto& alternative: alternatives) state[alternative.slot] = alternative.before;
                 for(auto used: edge.arguments.contents(base)) visit(used);
             });
@@ -1487,11 +1846,22 @@ struct Verifier {
             /*
              * A leak is checked where a path *leaves*, not at the end of the body.
              *
-             * `Return` and `Unreachable` are the two exits. An owned value still unconsumed at one
-             * of them was never handed anywhere and has no drop, which is precisely the case the
-             * whole-body count could not see: the count is satisfied by one arm consuming it.
+             * `Return` is the exit that carries the obligation: an owned value still unconsumed
+             * there was never handed anywhere and has no drop, which is precisely the case the
+             * whole-body count could not see - the count is satisfied by one arm consuming it.
+             *
+             * **`Unreachable` is an exit and is deliberately not checked**, and the difference is
+             * what the terminator *claims*: it says no execution arrives here, so there is no path
+             * for a consumption obligation to be measured along. That is not a weakening of the
+             * rule so much as the rule's own scope - a leak is a value the running program loses.
+             *
+             * `endNonReturningBlocks` is what made the distinction load-bearing: it cuts the edge
+             * after a call that does not come back, and everything owned across that call is then
+             * owned at the new `unreachable` with its drops in the blocks the cut stranded. Reported
+             * there, every bounds check in the program would be an internal error. What still holds
+             * the pass to something is the `Return` half, which no path it touches reaches.
              */
-            if(reporting && (inst->kind == Inst::Return || inst->kind == Inst::Unreachable)) {
+            if(reporting && inst->kind == Inst::Return) {
                 for(U32 v = 0; v < values; v++) {
                     if(state[v] != Linear::Unconsumed) continue;
 
@@ -1504,6 +1874,15 @@ struct Verifier {
                     }
 
                     state[v] = Linear::Consumed;
+                }
+            }
+
+            // And the same state change at an `unreachable`, without the report: a value the walk
+            // still holds open here would otherwise be carried into whatever follows in the block
+            // order, which is a different path and not this one's business.
+            if(inst->kind == Inst::Unreachable) {
+                for(U32 v = 0; v < values; v++) {
+                    if(state[v] == Linear::Unconsumed) state[v] = Linear::Consumed;
                 }
             }
 
@@ -1572,6 +1951,22 @@ struct Verifier {
 
         for(U32 i = 0; i < body.blocks.size(); i++) {
             auto block = body.block(base, BlockId(i));
+
+            /*
+             * The block stored at the index it claims - the shipping stage's `verify.cpp:169`, which
+             * survives the move to `RegionArray` because the claim survives it.
+             *
+             * `Block::index` is a `BlockId` handed out at creation and `Body::blocks` is indexed by
+             * it, so identity is stable and no pass reorders the table - which is what made
+             * `reorderBlocksInRpo` inapplicable. What is *not* free is that every side table in this
+             * directory is indexed by `Block::index` while the walks that fill them run over the
+             * table, so a block whose id and slot disagree is one every analysis silently answers
+             * about the wrong block. One comparison per block, once per verification.
+             */
+            if(block->index.index != i) {
+                report(function.source,
+                       "internal: block %@ is stored at index %@"_v, block->index.index, i);
+            }
 
             /*
              * A deleted block, checked for being *deleted* rather than for being a block.

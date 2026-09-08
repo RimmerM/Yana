@@ -1,73 +1,44 @@
-@string = [97, 98, 99]
-@string'2 = [119, 120, 121, 122]
-@string'3 = [122]
-@string'4 = [113]
-@runBorrowed = [0, 0, 0, 0]
-@runFromHeap = [1, 0, 0, 0]
+@string'142 = [97, 98, 99]
+@string'143 = [119, 120, 121, 122]
+@string'144 = [122]
+@string'145 = [113]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    %v_2 = load @runBorrowed, 4: I32
-    %v_3 = and %v_2, 3: I32
-    %v_4 = alloca 16, 8: Ptr
-    store %v_4, @string'3, 8
-    %v_5 = add %v_4, 8: Ptr
-    %v_6 = load %v_5, 4: I64
-    %v_7 = cast %v_3: I64
-    %v_8 = shl %v_7, 30: I64
-    %v_9 = or 1, %v_8: I64
-    store %v_5, %v_9, 4
-    %v_10 = add %v_4, 12: Ptr
-    store %v_10, 1, 4
-    call_complex String.reclaim, %v_4
-    %v_11 = load @runBorrowed, 4: I32
-    %v_12 = and %v_11, 3: I32
-    store %v_4, @string, 8
-    %v_13 = add %v_4, 8: Ptr
-    %v_14 = load %v_13, 4: I64
-    %v_15 = cast %v_12: I64
-    %v_16 = shl %v_15, 30: I64
-    %v_17 = or 3, %v_16: I64
-    store %v_13, %v_17, 4
-    %v_18 = add %v_4, 12: Ptr
-    store %v_18, 3, 4
-    copy %v_1, %v_4, 16
-    %v_19 = load %v_1, 8: Ptr
-    %v_20 = add %v_1, 12: Ptr
-    %v_21 = load %v_20, 4: I32
-    %v_22 = cast %v_21: I64
+    store %v_1, @string'144, 8
+    %v_2 = add %v_1, 8: Ptr
+    %v_3 = load %v_2, 4: I64
+    store %v_2, 1, 4
+    %v_4 = add %v_1, 12: Ptr
+    store %v_4, 1, 4
     call_complex String.reclaim, %v_1
-    %v_23 = load @runBorrowed, 4: I32
-    %v_24 = and %v_23, 3: I32
-    %v_25 = alloca 16, 8: Ptr
-    store %v_25, @string'4, 8
-    %v_26 = add %v_25, 8: Ptr
-    %v_27 = load %v_26, 4: I64
-    %v_28 = cast %v_24: I64
-    %v_29 = shl %v_28, 30: I64
-    %v_30 = or 1, %v_29: I64
-    store %v_26, %v_30, 4
-    %v_31 = add %v_25, 12: Ptr
-    store %v_31, 1, 4
-    call_complex String.reclaim, %v_25
-    %v_32 = load @runBorrowed, 4: I32
-    %v_33 = and %v_32, 3: I32
-    store %v_25, @string'2, 8
-    %v_34 = add %v_25, 8: Ptr
-    %v_35 = load %v_34, 4: I64
-    %v_36 = cast %v_33: I64
-    %v_37 = shl %v_36, 30: I64
-    %v_38 = or 4, %v_37: I64
-    store %v_34, %v_38, 4
-    %v_39 = add %v_25, 12: Ptr
-    store %v_39, 4, 4
-    %v_40 = load %v_25, 8: Ptr
-    call_complex String.reclaim, %v_25
-    %v_41 = add %v_22, 4: I64
-    %v_42 = sext %v_41: I32
-    ret %v_42
+    store %v_1, @string'142, 8
+    %v_5 = add %v_1, 8: Ptr
+    %v_6 = load %v_5, 4: I64
+    store %v_5, 3, 4
+    %v_7 = add %v_1, 12: Ptr
+    store %v_7, 3, 4
+    %v_8 = load %v_1, 8: Ptr
+    call_complex String.reclaim, %v_1
+    %v_9 = alloca 16, 8: Ptr
+    store %v_9, @string'145, 8
+    %v_10 = add %v_9, 8: Ptr
+    %v_11 = load %v_10, 4: I64
+    store %v_10, 1, 4
+    %v_12 = add %v_9, 12: Ptr
+    store %v_12, 1, 4
+    call_complex String.reclaim, %v_9
+    store %v_9, @string'143, 8
+    %v_13 = add %v_9, 8: Ptr
+    %v_14 = load %v_13, 4: I64
+    store %v_13, 4, 4
+    %v_15 = add %v_9, 12: Ptr
+    store %v_15, 4, 4
+    %v_16 = load %v_9, 8: Ptr
+    call_complex String.reclaim, %v_9
+    ret 7
   }
 }
 
@@ -80,17 +51,16 @@ String.reclaim<complex>(%value: Ptr) {
     %v_5 = load %v_4, 4: I32
     %v_6 = shr %v_3, 30: I64
     %v_7 = cast %v_6: I32
-    %v_8 = load @runFromHeap, 4: I32
-    %v_9 = cmp_eq %v_7, %v_8: I32
-    je %v_9, b_10, b_11
+    %v_8 = cmp_eq %v_7, 1: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    call_complex freeHeap, %v_1
+    jmp b_10
   }
 
   b_10 {
-    call_complex freeHeap, %v_1
-    jmp b_11
-  }
-
-  b_11 {
     ret 
   }
 }
@@ -104,17 +74,16 @@ Array(a).reclaim(CodeUnit)<complex>(%value: Ptr) {
     %v_5 = load %v_4, 4: I32
     %v_6 = shr %v_3, 30: I64
     %v_7 = cast %v_6: I32
-    %v_8 = load @runFromHeap, 4: I32
-    %v_9 = cmp_eq %v_7, %v_8: I32
-    je %v_9, b_10, b_11
+    %v_8 = cmp_eq %v_7, 1: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    call_complex freeHeap, %v_1
+    jmp b_10
   }
 
   b_10 {
-    call_complex freeHeap, %v_1
-    jmp b_11
-  }
-
-  b_11 {
     ret 
   }
 }
@@ -152,17 +121,16 @@ Run(a).reclaim(CodeUnit)<complex>(%value: Ptr) {
     %v_3 = load %v_2, 4: I64
     %v_4 = shr %v_3, 30: I64
     %v_5 = cast %v_4: I32
-    %v_6 = load @runFromHeap, 4: I32
-    %v_7 = cmp_eq %v_5, %v_6: I32
-    je %v_7, b_8, b_9
+    %v_6 = cmp_eq %v_5, 1: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    call_complex freeHeap, %v_1
+    jmp b_8
   }
 
   b_8 {
-    call_complex freeHeap, %v_1
-    jmp b_9
-  }
-
-  b_9 {
     ret 
   }
 }

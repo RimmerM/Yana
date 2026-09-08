@@ -1,0 +1,311 @@
+module ResolveTest
+
+fn opaqueU32(x: U32 [shared call]) -> U32 {
+bb0:
+  %0: U32 = read copy.trivial (x)
+  return take %0
+}
+
+fn opaqueU64(x: U64 [shared call]) -> U64 {
+bb0:
+  %0: U64 = read copy.trivial (x)
+  return take %0
+}
+
+fn opaqueU16(x: U16 [shared call]) -> U16 {
+bb0:
+  %0: U16 = read copy.trivial (x)
+  return take %0
+}
+
+fn opaqueI16(x: I16 [shared call]) -> I16 {
+bb0:
+  %0: I16 = read copy.trivial (x)
+  return take %0
+}
+
+fn opaqueInt(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  return take %0
+}
+
+fn opaqueLong(x: I64 [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (x)
+  return take %0
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (condition)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = read copy.trivial (weight)
+  jump -> bb2(take %2)
+}
+
+fn word() -> I32 {
+bb0:
+  %0: U32 = const 305419896
+  %1: U32 = call opaqueU32 borrow.shared %0
+  %2: U32 = byteswap inspect %1
+  %3: U32 = const 2018915346
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 1
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  return take %6
+}
+
+fn short() -> I32 {
+bb0:
+  %0: I32 = const 258
+  %1: U16 = convert inspect %0
+  %2: U16 = call opaqueU16 borrow.shared %1
+  %3: U16 = byteswap inspect %2
+  %4: I32 = convert inspect %3
+  %5: I32 = const 513
+  %6: Bool = eq inspect %4 inspect %5
+  %7: I32 = const 2
+  %8: I32 = call check borrow.shared %6 borrow.shared %7
+  return take %8
+}
+
+fn signedShort() -> I32 {
+  local value: I16
+
+bb0:
+  %0: I32 = const 65280
+  %1: U16 = convert inspect %0
+  %2: I16 = bitcast inspect %1
+  %3: I16 = call opaqueI16 borrow.shared %2
+  write.init borrow.unique (value) take %3
+  %5: I16 = read copy.trivial (value)
+  %6: I16 = byteswap inspect %5
+  %7: I32 = convert inspect %6
+  %8: I32 = const 255
+  %9: Bool = eq inspect %7 inspect %8
+  %10: I32 = const 4
+  %11: I32 = call check borrow.shared %9 borrow.shared %10
+  return take %11
+}
+
+fn wide() -> I32 {
+bb0:
+  %0: U64 = const 72623859790382856
+  %1: U64 = call opaqueU64 borrow.shared %0
+  %2: U64 = byteswap inspect %1
+  %3: U64 = const 578437695752307201
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 8
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  return take %6
+}
+
+fn canonical() -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: I32 = call opaqueInt borrow.shared %0
+  %2: I32 = byteswap inspect %1
+  %3: I32 = const 16777216
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 16
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  %7: I64 = const 1
+  %8: I64 = call opaqueLong borrow.shared %7
+  %9: I64 = byteswap inspect %8
+  %10: I64 = const 72057594037927936
+  %11: Bool = eq inspect %9 inspect %10
+  %12: I32 = const 32
+  %13: I32 = call check borrow.shared %11 borrow.shared %12
+  %14: I32 = add inspect %6 inspect %13
+  return take %14
+}
+
+fn signedWidths() -> I32 {
+bb0:
+  %0: U32 = const 1
+  %1: U32 = call opaqueU32 borrow.shared %0
+  %2: I32 = bitcast inspect %1
+  %3: I32 = byteswap inspect %2
+  %4: I32 = const 16777216
+  %5: Bool = eq inspect %3 inspect %4
+  %6: I32 = const 64
+  %7: I32 = call check borrow.shared %5 borrow.shared %6
+  %8: U64 = const 1
+  %9: U64 = call opaqueU64 borrow.shared %8
+  %10: I64 = bitcast inspect %9
+  %11: I64 = byteswap inspect %10
+  %12: I64 = const 72057594037927936
+  %13: Bool = eq inspect %11 inspect %12
+  %14: I32 = const 128
+  %15: I32 = call check borrow.shared %13 borrow.shared %14
+  %16: I32 = add inspect %7 inspect %15
+  return take %16
+}
+
+fn roundTrip() -> I32 {
+  local value: U64
+
+bb0:
+  %0: U64 = const 1311768467463790320
+  %1: U64 = call opaqueU64 borrow.shared %0
+  write.init borrow.unique (value) take %1
+  %3: U64 = read copy.trivial (value)
+  %4: U64 = byteswap inspect %3
+  %5: U64 = byteswap inspect %4
+  %6: U64 = read copy.trivial (value)
+  %7: Bool = eq inspect %5 inspect %6
+  %8: I32 = const 256
+  %9: I32 = call check borrow.shared %7 borrow.shared %8
+  return take %9
+}
+
+fn throughMemory() -> I32 {
+  local & local0: Array(U32) object0
+  local & words: Array(U32) object0
+  local & local2: U32 [unique slot 0 owner]
+  local local3: U32 [shared slot 0]
+  local read: I32
+  local & local5: U32 [unique slot 0 owner]
+  local local6: U32 [shared slot 0]
+
+bb0:
+  %0: U32 = const 0
+  %1: U32 = const 0
+  %2: Size = const 2
+  %3: Array(U32) = call literalArray(U32) borrow.shared %2
+  write.init borrow.unique (local0) take %3
+  %5: Array(U32) [unique slot 0] = read borrow.unique (local0) loan0
+  %6: Array(U32) [unique slot 0 view] = call.derivation elementsMut(Array(U32), U32) borrow.unique %5 roots{0}
+  %7: %U32 [owned here shape6 .*=shared slot 0] = call valuesMut(U32) borrow.unique %6 roots.0{0}
+  %8: Size = const 0
+  write.init borrow.unique ([%%7][0]) take %0
+  %10: Size = const 1
+  write.init borrow.unique ([%%7][1]) take %1
+  %12: Array(U32) = read take (local0)
+  write.init borrow.unique (words) take %12
+  %14: Size = const 0
+  %15: U32 = const 305419896
+  %16: U32 = call opaqueU32 borrow.shared %15
+  %17: Array(U32) [unique call] = read borrow.unique (words) loan1
+  %18: Array(U32) [unique slot 0 view] = call.derivation elementsMut(Array(U32), U32) borrow.unique %17 roots{1}
+  %19: U32 [unique slot 0 owner] = call.subscript getMut(Array(U32), Size, U32) borrow.unique %18 borrow.shared %14 roots{1}
+  write.init borrow.unique (local2) borrow.unique %19
+  write.assign borrow.unique (local2) take %16
+  %22: Size = const 0
+  %23: Array(U32) [shared call] = read borrow.shared (words) loan2
+  %24: Array(U32) [shared slot 0 view] = call.derivation elements(Array(U32), U32) borrow.shared %23 roots{2}
+  %25: U32 [shared slot 0] = call.subscript get(Array(U32), Size, U32) borrow.shared %24 borrow.shared %22 roots{2}
+  write.init borrow.unique (local3) borrow.shared %25
+  %27: U32 = read copy.trivial (local3)
+  %28: U32 = byteswap inspect %27
+  %29: U32 = const 2018915346
+  %30: Bool = eq inspect %28 inspect %29
+  %31: I32 = const 512
+  %32: I32 = call check borrow.shared %30 borrow.shared %31
+  write.init borrow.unique (read) take %32
+  %34: Size = const 1
+  %35: U32 = const 305419896
+  %36: U32 = call opaqueU32 borrow.shared %35
+  %37: U32 = byteswap inspect %36
+  %38: Array(U32) [unique call] = read borrow.unique (words) loan3
+  %39: Array(U32) [unique slot 0 view] = call.derivation elementsMut(Array(U32), U32) borrow.unique %38 roots{3}
+  %40: U32 [unique slot 0 owner] = call.subscript getMut(Array(U32), Size, U32) borrow.unique %39 borrow.shared %34 roots{3}
+  write.init borrow.unique (local5) borrow.unique %40
+  write.assign borrow.unique (local5) take %37
+  %43: I32 = read copy.trivial (read)
+  %44: Size = const 1
+  %45: Array(U32) [shared call] = read borrow.shared (words) loan4
+  %46: Array(U32) [shared slot 0 view] = call.derivation elements(Array(U32), U32) borrow.shared %45 roots{4}
+  %47: U32 [shared slot 0] = call.subscript get(Array(U32), Size, U32) borrow.shared %46 borrow.shared %44 roots{4}
+  write.init borrow.unique (local6) borrow.shared %47
+  %49: U32 = read copy.trivial (local6)
+  drop (words)
+  %50: U32 = const 2018915346
+  %51: Bool = eq inspect %49 inspect %50
+  %52: I32 = const 1024
+  %53: I32 = call check borrow.shared %51 borrow.shared %52
+  %54: I32 = add inspect %43 inspect %53
+  return take %54
+}
+
+fn folded() -> I32 {
+bb0:
+  %0: I32 = const 305419896
+  %1: U32 = convert inspect %0
+  %2: U32 = byteswap inspect %1
+  %3: U32 = const 2018915346
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 2048
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  return take %6
+}
+
+fn swapVia(value: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class ByteSwap(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (value) loan0
+  %1: a = call byteSwap(a) borrow.shared %0
+  return take %1
+}
+
+fn generic() -> I32 {
+bb0:
+  %0: U32 = const 305419896
+  %1: U32 = call opaqueU32 borrow.shared %0
+  %2: U32 = call swapVia(U32) borrow.shared %1
+  %3: U32 = const 2018915346
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 4096
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  %7: U64 = const 1
+  %8: U64 = call opaqueU64 borrow.shared %7
+  %9: U64 = call swapVia(U64) borrow.shared %8
+  %10: U64 = const 72057594037927936
+  %11: Bool = eq inspect %9 inspect %10
+  %12: I32 = const 8192
+  %13: I32 = call check borrow.shared %11 borrow.shared %12
+  %14: I32 = add inspect %6 inspect %13
+  return take %14
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call word
+  %1: I32 = call short
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call signedShort
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call wide
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call canonical
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call signedWidths
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = call roundTrip
+  %12: I32 = add inspect %10 inspect %11
+  %13: I32 = call throughMemory
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = call folded
+  %16: I32 = add inspect %14 inspect %15
+  %17: I32 = call generic
+  %18: I32 = add inspect %16 inspect %17
+  return take %18
+}
+
+fn swapVia(U32)(value: U32 [shared call]) -> U32 = <swapVia at U32>
+
+fn swapVia(U64)(value: U64 [shared call]) -> U64 = <swapVia at U64>
+
+entry main

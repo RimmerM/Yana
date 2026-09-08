@@ -60,7 +60,14 @@ void Analysis::buildPaths() {
                  * milestone 5's, and giving it a move path now would make this pass place a drop for
                  * the caller's value.
                  */
-                if(!place->occurrence.contract.isOwned()) break;
+                /*
+                 * Except a `&` parameter, whose contents this frame may take out and put back -
+                 * `lendsItsContents`. It gets a path for the *hole*: nothing here is ever released,
+                 * and what the path buys is that a take is recorded, a refill is seen, and
+                 * `checkRefills` can ask at the return whether the caller's storage holds a value.
+                 */
+                if(!place->occurrence.contract.isOwned() &&
+                   !lendsItsContents(decl, base, body, *place)) break;
                 if(!isTrackedAt(decl, place->occurrence)) break;
 
                 exact[i] = create(*place, MovePathId());

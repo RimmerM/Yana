@@ -1,0 +1,39 @@
+{-
+   `addressOf` over the library's own declaration of it - `lib/Native/Pointer.yana`.
+
+   Written `fn addressOf(it: source'a)` the argument arrives as a loan of the storage it names and
+   there is nothing to decide; `lib/` writes `fn addressOf(it: a)`, so a trivially copyable argument
+   is *copied* into the call and what reaches the emitter is a scalar in a register.
+   `expandAddressOf` is what tells the two apart, and this file was the only place the second
+   spelling was compiled while `test/resolve` still had a library of its own.
+
+   The claim is that a `let &` name keeps its identity: `lib/Process/Process.native.yana` writes
+   `waitProcess(self.id, addressOf(status), 0)` and reads `status` back afterwards, so an address of
+   a *copy* would be a child's exit code written into a temporary nobody looks at. Writing through
+   the pointer and reading the name is that program with the syscall taken out, and it is the same
+   answer the shipping stage gives - `addressof %status` - which is why this runs on both stages.
+
+   A value that is not storage keeps the other meaning, which `test/resolve/Global.yana` records:
+   the address of a temporary holding it, which is the only reading available for something that
+   cannot be assigned to.
+-}
+
+import Native
+import Test
+
+@test fn addressOfWritableName():
+    let &status = 0 :: Int
+    store(addressOf(status), 7)
+
+    checkEqual(status, 7)
+
+@test fn addressOfBorrowedParameter():
+    let &value = 3 :: Int
+    checkEqual(throughPointer(value), 3)
+
+fn throughPointer(&into: Int) -> Int = *addressOf(into)
+
+@test fn addressOfATemporary():
+    -- Not a name, so the storage is a temporary this frame supplies and the pointer names it.
+    let p = addressOf(9 :: Int)
+    checkEqual(*p, 9)

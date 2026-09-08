@@ -1,0 +1,29 @@
+{-
+   `@caller(source: p)` where `p` is a **dot-call's receiver** - the half `CallerFill.yana` could not
+   share.
+
+   # resolver: ownership
+
+   `x.f(y)` is `f(x, y)`, so the receiver is argument 0 of the same mapping every call goes through
+   and the expression written to the left of the dot is an expression like any other. The ownership
+   stage records where it was written (`ArgSite::leadingSource`, carried into `ArgMap::written`), so
+   a source fill naming that position answers the text the author typed.
+
+   The shipping stage answers the empty string here instead: its `ResolvedArg::written` is filled by
+   the written argument walk, which a receiver is not part of. That is a gap in the shipping stage
+   rather than a difference of intent - `check(xs.isEmpty())` reports nothing about `xs` there - and
+   it is why this fixture is ownership-only rather than shared.
+-}
+
+fn widthOfSelf(self: Bool, @caller(source: self) text: String) -> Size = length(text)
+
+fn main() -> Int:
+    let flag = True
+
+    -- The receiver's own text, which is `flag` - four units.
+    if flag.widthOfSelf() != (4 :: Size) then return 1
+
+    -- And the same function called without a dot, where the receiver is an ordinary first argument.
+    if widthOfSelf(flag) != (4 :: Size) then return 2
+
+    return 0

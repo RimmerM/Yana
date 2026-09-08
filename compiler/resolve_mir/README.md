@@ -111,6 +111,8 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `resolve_overload.cpp` | which member of an overload set a call reaches - `doc/spec/overloading.md`'s R2 through R5 |
 | `resolve_stmt.cpp` | the things that do: statements, assignment, loops, `return`, lens calls, bodies |
 | `resolve_lambda.cpp` | a lambda: the function it is lifted into, its captures, and the environment they live in |
+| `resolve_caller.cpp` | `@caller` - what the marker may ask for, and the value a call that omitted the position passes |
+| `resolve_test.cpp` | `@test` - the registry the attribute fills, and the entry a `-test` build runs |
 | `resolve_intrinsic.cpp` | the intrinsics whose expansion *makes blocks* - `OpForm::Branch`, and why those are the resolver's rather than an emitter's |
 | `name.h`/`name.cpp` | the one traversal every module-level lookup goes through, and what `pub` means to it |
 | `import.cpp` | which modules the program is made of, and what each one can see |
@@ -121,8 +123,9 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 `discoverModules`, `linkImports`, `declareFixities`, `declareTypes`, `declareAliases`,
 `declareClasses`, `resolveHeads`, `declareRecordFields`, `resolveAliasTargets`,
 `foldSchemas`, `declareClassMembers`, `declare`, `checkExports`, `classifyTypes`,
-`resolveInitializers`, `checkExportedGlobals`, `checkRoles`, `resolveProgramEntry`, `resolveBodies`,
-`freezeSchemas`, `verifyProgram`, `analyzeProgram`, `computeSummaries`.
+`resolveInitializers`, `checkExportedGlobals`, `checkRoles`, `resolveProgramEntry` (or
+`resolveTestEntry` under `-test`), `resolveBodies`, `freezeSchemas`, `verifyProgram`,
+`analyzeProgram`, `computeSummaries`.
 
 **Every phase runs over the whole program**, not over one module and then the next. That is the same
 statement as "an import does not trigger the resolution of what it names": a pass that finished a
@@ -202,6 +205,77 @@ Root-only is the whole trick. There is exactly one module with executable top-le
 no cross-module order to define, no reference analysis to write and no import side effects to say
 anything about. A statement in any other module is refused where it is written.
 
+### `@caller`, and the entry a `-test` build runs
+
+Design-Test.md §11's F1 and F2, both built here, and they are one story: an assertion has to be able
+to say **where it was written**, and a suite has to exist without anybody writing it down twice.
+
+**`@caller` is a position the resolver fills at the call that left it out** - `resolve_caller.cpp`.
+`declareCallerFill` is the declaration half: `@caller at: Site` asks for the call's location and
+`@caller(source: p) text: String` asks for the source text of whatever reached `p`. The location is
+a record matched **by field name** against a fixed vocabulary - `file` and `function` are the type a
+string literal has, `line` and `column` are integers - because the record lives in a library and this
+compiler holds no handle to it; a framework wanting only the line declares a record with only `line`
+in it and gets one. `callerFillValue` is the call half, reached from `fillDefaultArguments`: the
+position is otherwise an *ordinary parameter*, so named arguments, arity and overload selection are
+unchanged and `Arg::omittable` is the single predicate that learned there are two ways to fill a
+position. A helper passing its own `at:` on explicitly is never filled, which is `#[track_caller]`
+obtained for free.
+
+The fill is **built the way the same expression written by hand would be**: `textValue` for a text,
+`Builder::addAggregate` over four values for a location. A `Constant::Aggregate` was tried first and
+is not available - a location holds a `String`, which is an owner, and a constant of a linear type is
+a thing this IR has no way to say (`Editor::addConst` asserts it). It costs nothing anyway, since a
+string literal owns nothing. Where the call site published nothing - a defaulted position, an
+operator's operand, a call the compiler made - the text is `""`, which the library reads back and
+reports as "check failed" with no expression.
+
+Two things wait for the `stringLiteral` role rather than being asked at the declaration: which type a
+text fill has to be. That role is bound while the declaration carrying it is *read*, so asking during
+`declareArgs` answered "no such role" for every program whose `Native` module happened to come later.
+`PendingCallerText` and `checkCallerTexts` are the deferral, beside `PendingTextDefault`, which is the
+same ordering for a written string default.
+
+**`@test` makes the entry the suite** - `resolve_test.cpp`. `readTestAttribute` runs where a plain
+`fn` is declared and pushes a `TestDeclaration` onto `Program::tests`; `resolveTestEntry` replaces
+`resolveProgramEntry` under `-test` and builds `main$` out of it. The registry has to be the
+compiler's: there is no static initializer, no linker section and no reflection here for a `Test`
+module to register from, and a written registration list means every test is written twice with the
+second half invisible when it is missing.
+
+Nothing in the synthesized body is a new mechanism, deliberately. A case is `addAggregate` over five
+values; its `Site` is `siteValue`, the same one a `@caller` position is filled with; the array is
+`buildGrowableArray`, the same two library roles `[1, 2, 3]` goes through; the runner is reached by
+`callFunction`. What the library contributes is `Test.Case` and `Test.runMain`, found by **name** in
+whichever module of the program is called `Test` - not by a role, because a role is a promise the
+standard library makes to the compiler and a test framework is a library a program chooses. The five
+fields of `Case` are read once, in `findTestLibrary`, which is the one place the contract is stated.
+
+A `@test` answering `{}` is wrapped in a function answering `Test` - one call and one `Ok`, whose
+arity is read off the constructor rather than assumed, since `Result(Failure, {})`'s carries a field
+and a framework's own success constructor need not. Both entries begin with `resolveRootTopLevel`,
+because §3.3's rule is about `main` and not about startup.
+
+**A test file's own `let` is initialized by code** - Design-Test.md §11.2's F5, built 2026-09-07.
+The rule was never about being the root module: it is about whether there is a program point at
+which the initializer runs, and a test build has one. `activeTestFile` is `ast::Module::test` carried
+by `eachFile` beside `activeFile` - it cannot be re-derived, since `mapFile` upper-cases every
+segment of the identifier - and `declareGlobals` routes a test file's `let` into `testTopLevel`
+whether or not the module is the root, exactly as `resolveGlobals` treats it as a program point.
+
+`resolveTestFileInitializers` builds **one anonymous function per test file**, in that file's own
+module and under that file's imports, and the entry emits a direct call. A function rather than
+statements in the entry for two reasons that are the same reason: a test file's globals belong to
+*its* module, and the entry lives in the root, which is usually neither; and a call is what the
+reachability walk already understands. The order is stated rather than invented - modules as
+`Program::modules` holds them, files in path order, statements as written - and one `uninitialized`
+set spans every test file, so a read of a global whose file has not run yet is the use-before-init it
+already was inside one top level. A bare **statement** stays refused there: a test file gets
+initializers, not a second program start.
+
+`test/lib/TestFileGlobals.yana` runs under both stages, and `lib/modules/GlobalInit.test.yana` beside
+it is the case that says the initializer was resolved in *its* module.
+
 ## Milestone
 
 Part 11.4's slices 1 to 6, through waypoint G4 and the parity work above it. A module of `let`
@@ -240,6 +314,18 @@ other: `mir::Constant::Text` holds the text and `Resolver::textValue` is the one
 a text becomes a value, which is what keeps the shape of a `String` the library's. See
 [Which position each argument fills](#which-position-each-argument-fills).
 
+**A record update, a string interpolation and a pattern on a `for` binding** arrived 2026-09-06 and
+are three readings of one idea - a construct whose whole content is storage and a run of writes
+through it, or a place read more than once. `{p | y: 3}` is a copy of its source and one
+`Destination::Assign` per replacement, with `->` relocating instead and `Copy` called where the type
+does not duplicate for free; `"a{x}b"` is `String.ofCapacity` and a run of appends over `Show`'s two
+members, all five declarations named through `known.def` and all five `Presence::Optional` so that a
+library without a formatter reports at the literal; and `for {a, b} in pairs(m)` is the `let`-pattern
+path over the hand-over's own local. See
+[A record update is one copy and a run of writes](#a-record-update-is-one-copy-and-a-run-of-writes),
+[A format is one allocation and a run of appends](#a-format-is-one-allocation-and-a-run-of-appends)
+and [What a `for` binds, and how a pattern reaches it](#what-a-for-binds-and-how-a-pattern-reaches-it).
+
 **Fixed arrays and windows** - `[T *n]` as a logical type, `[T]` in a binding position as an
 ownership contract over `Array(T)`, element places, array literals and `xs[a..b]`. See
 [Containers, and why there is no slice type](#containers-and-why-there-is-no-slice-type).
@@ -252,8 +338,14 @@ blocked on a spelling the library itself is waiting for.
 
 All five requirement forms a signature may write are built: a bare variable, a **class**
 `Show(a)`, a **structural field** `a.field: b`, a **constrained callable** `f: (a) -> b`, and a
-**const parameter** `n: I32`, which is also a `data`, `alias` and `class` head parameter. The last
-three are one sentence made three ways - **a body names a requirement, never a number** - so a
+**const parameter** `n: I32`, which is also a `data`, `alias` and `class` head parameter. A class
+head's counted parameter reaches a *signature* through the constraint that names it:
+`fn (Digest(d, n)) Hmac.of(...) -> [U8 *n]` introduces `n` as a const parameter of this signature,
+because `class Digest(d -> n: Int)` says the position counts and `resolveTypeArgument` reads the
+head's own annotation for a bare name exactly as it already read it for a literal. There is nowhere
+else to say it - the constraint list is read left to right and `fn (n: Int, Digest(d, n))` would
+declare the parameter before the class has said what it is. The last three requirement forms are one
+sentence made three ways - **a body names a requirement, never a number** - so a
 property place names which field requirement, a `gen.value` names which count, and a call names
 which callable, and the answer arrives with the substitution. Under specialization that is the
 conversion; in the erased form it is a slot of the environment, and the numbering is `GenSchema`.
@@ -269,7 +361,19 @@ refused at all: anything that is not a name a declaration answers is a value.
 
 A **lambda** is built, and is the same value: it is **lifted** into an ordinary function of the
 module with one parameter in front of the ones the author wrote, and the expression becomes a
-`fun.value` naming it. Its captures are found by the body walk rather than by a scan, because a
+`fun.value` naming it. Its **body is its value** whichever arrow was written: `(x) -> e` and `(x): e`
+are one grammar production apart and mean different things for a `fn` - `doc/spec/functions.md`'s
+rule that a `:` body returns `{}` - and the same thing here, because that rule is written on a
+declaration and a lambda has none. `resolveLiftedBody` states it with `resolveArm`'s rule (2026-09-07,
+J30): the body answers unless its job is to **leave**, and a `{}` result wants no value at all and
+takes the statement path every `:` lambda written for its effect was already on. What its parameters and its result are is the **position**'s to say, with one
+rule for the position that says nothing (2026-09-07): a lambda that writes a type on *every* one of
+its parameters is a signature with no name, so it stands at its own header and its body decides the
+result - exactly as `fn double(x: Int) = x * 2` does. `writtenLambdaPosition` builds that header and
+leaves the result `Types::undecided`, which is the state G7c's open result already had a walk for. A
+lambda that leaves a parameter open still has nowhere to take it from and is refused; one rule and
+not a list of the syntactic places a lambda may be found in, because a list of those would have to
+agree with itself. Its captures are found by the body walk rather than by a scan, because a
 capture is a *place* projected out of that parameter and a place is interned rather than emitted - so
 the environment record's fields are appended as the walk finds them. The conventions come off the
 *enclosing binding*, which is what `doc/spec/functions.md` says and is the reading that has an answer
@@ -294,12 +398,70 @@ the value instead. It fires at an **owned** position only - a field, a `->` para
 into storage that already exists - because a borrowing position is bounded by its call, which is what
 passing a callback *is*. A `let` is accepted because it mints its storage from the value it binds.
 
-What is refused, each by name: a nested lambda, a lambda in a generic body (argument zero is one
-slot, and an erased body already spends it), a **consumed** capture, a merge of a capturing and a
-non-capturing lambda, and every escape - in terms of the **heap-placed** environment it would need.
-`StorageClass::Heap` is a rung nothing selects and `verifyBody` refuses it outright, the way it
-refuses `Region` and for the same reason: there is no allocator, and a pass that selected it anyway
-would reach a lowering that allocates a frame slot whatever the object says.
+### A closure that leaves its frame - D17, built 2026-09-07
+
+The environment above is one of two, and **which one a lambda gets is decided by the position it is
+written at**. A borrowing position - a callback parameter, a `let` - is bounded by its call, so the
+environment stays a local of the enclosing frame and everything in the paragraphs above applies. An
+*owning* position - a `return`, a field, a `->` parameter, an assignment into storage that already
+exists - is exactly where `checkCarriedOrigins` fires, and there the environment is a **heap-placed
+block the value owns**.
+
+A block is `[teardown][captures]`: one pointer, then the environment record at whatever alignment it
+wants. The teardown releases the captures and hands the block back through the allocator roles;
+`resolve_ssa/lower/fun.cpp` builds all of it, beside the `{code, env}` pair, which is `@box`'s
+arrangement - the ownership is decided here and the allocation lives one tier down. The captures
+themselves become the spec's fourth kind, a **consumed** capture (`CaptureKind::Owned`), so the
+enclosing binding is moved out of and the environment owns what it holds. Deciding this from the
+position rather than from the ownership analysis is forced: the analysis knows more and runs after
+the body is built, and the capture conventions are settled *while* it is built.
+
+**The second word carries a tag bit**: bit zero set means a heap block. That is D17's one open
+question, answered in J26 from the tree rather than from a benchmark - the alternative was
+`known.def`'s `isHeapAddress`, which is `Presence::Optional` and which the *default* provider does
+not fill (`lib/Native/Heap.native.yana` is `@allocator(bootstrap)` and declares `allocateHeap` and
+`freeHeap` only; the one declaration of the third is `lib/Native/HeapWindow.native.yana`, under
+`@allocator(window)`). A closure teardown built on that role would work in an opt-in build and be
+unwritable in the default one - the asymmetry `storesBoxProvenance` absorbs for boxes - and absorbing
+it here would mean two representations of a function value in one language.
+
+**What the tag costs, measured on the emitted code.** The *call* pays nothing at the site: `code` is
+called with `env` exactly as the pair holds it, and a heap-placed lambda's own entry block adds
+`headerBytes - 1` to its environment parameter once (`funEnvironmentBias`), which the backend folds
+into the displacement of the first capture it reads - `ClosureTeardown.yana`'s `escaping.lambda` is
+one `add` and a `loads`. The *drop* is one call to `teardown(fun)`, which is one function for the
+whole program: load the word, `and $1`, branch, and on the taken edge load the header and call it.
+
+**A frame closure's drop is not folded, it is not emitted.** `ownershipOf` answers `Derived` for
+`Fun` as a *type*, because a value of one may own a block; what says otherwise is the **occurrence**,
+and `ownershipOfOccurrence` is the one place it is read. A value carrying `Shapes::closure` holds
+somebody else's environment and owes nothing, which is the same sentence `qualifiesInterior` makes
+about a record whose member a qualified argument replaced. A value carrying `Shapes::noEnvironment`
+has a null word and owes nothing either - that second mark exists because without it `let f = twice`
+would be dropped like a closure, which stops a call through the pair being devirtualized and puts a
+call on every `@lazy` thunk over nothing. The two marks differ at exactly one reader,
+`checkCarriedOrigins`: the first may not leave the frame and the second may go anywhere.
+
+`ClosureTeardown.yana` is the pair as emitted code - `direct` and `either` are frame closures and
+have no teardown anywhere in them, `escaping` allocates and carries the tag - and
+`ownership/ClosureEscape.yana` is the four owning positions run, with the allocator's bump pointer
+read back so that a block that was never handed back fails.
+
+**Corpus cost**, `*.mir.lower.expect` over `test/resolve/`: 84637 -> 85065 instructions and
+16065 -> 16151 blocks, +0.5%, on the fixtures that existed before. It is where a `Fun` is a *field*:
+`Step {run: (Int) -> Int}` now owes a derived teardown, so the record is materialized and the call
+through it stays indirect (`FunFieldBorrow.yana`). Six adopted fixtures add 1274 more.
+
+What is still refused, each by name: a **nested** lambda and a lambda in a **generic** body - neither
+is a placement question, one being a chain of environments and the other argument zero already spent;
+a **consumed** capture asked for at a *borrowing* position, which is a callback being asked to own
+something; a `&` capture at an *owning* one, which is the one refusal D17 added rather than removed -
+the block outlives the frame and a loan into it would dangle, and nothing downstream catches it
+because a value that owns its environment carries no origin; a capture of a binding this function
+only borrows; a merge of a capturing and a non-capturing lambda; and a closure written at a borrowing
+position and *then* sent to an owning one (`let f = ...; return f`), which is the environment placed
+on the frame before anything asked it to leave. `generic/Reject.Closure.yana` and
+`generic/Reject.ClosureEscape.yana` are the two lists, split by which pass answers.
 
 A **`@lazy` parameter** is the same lift with no written parameter list. `doc/spec/functions.md`'s
 sentence - "the argument expression compiles to a nullary thunk over the caller's frame" - is the
@@ -335,30 +497,26 @@ to insert a teardown, `->x` writes a disposal down, and `@local` says who may wr
 `doc/proposal/Design-Linear-Types.md`, whose build order this implements the first four steps of.
 The shipping stage refuses `->x` by name and accepts both attributes without acting on them, so a
 fixture about any of this carries `# resolver: ownership`.
-**There is a standard library, and it is `prelude/`.** Not a mechanism: it is a directory laid out
-exactly like `lib/`, found by the same walk, judged by the same `Core/Core.yana` test and overridden
-by the same `-lib`, and every declaration in it binds to the compiler the way `lib/` will - by
-writing `@builtin(role)` where a role is claimed. `LibrarySource::directory` picks it for this stage
-and `lib/` for the shipping one, which is the whole of the difference and the whole of what has to
-change when this stage compiles the real library.
+**The standard library is `lib/`, and it is the only one.** `LibrarySource::directory` answers the
+same directory for both stages since 2026-09-07 (J21), and `-lib` overrides it for both the same way.
 
-Three files: `Core/Core.yana`, `Core/Bits.yana` and `Core/Convert.yana`, each a *subset* of the
-`lib/Core` file of the same name with the same heads and signatures. A declaration joins one of them
-when this stage can compile it **and** something can reach it - `Maybe` and `Result` are here because
-the corpus is written in them and every construct they need exists, and `Try` and `Rewrap` are not,
-because what reads them is `?` and `?.` and neither operator is built. A class nothing can reach is a
-declaration with no meaning; growing the prelude past what the stage can use would make it a wish
-list rather than a library.
+*There used to be a second one, `prelude/`.* It was a directory laid out exactly like `lib/`, found
+by the same walk, judged by the same `Core/Core.yana` test, holding a *subset* of `lib/Core`'s heads
+and signatures - the smallest Core this stage could compile while it was being built - and every
+declaration in it claimed its role with `@builtin` exactly as `lib/Core`'s does, which is what made
+pointing the stage at the real library a dropped default rather than a refactor. Its whole reason was
+that a declaration nothing could reach is a declaration with no meaning: the stage reached the real
+library one construct at a time and the stand-in was what it compiled in the meantime. It is gone,
+and nothing in the compiler moved when it went.
 
-What that replaced was a set of declarations **synthesized in C++**: `class Drop(a)`, `Reclaim` and
+What *that* replaced was a set of declarations **synthesized in C++**: `class Drop(a)`, `Reclaim` and
 `Copy` were built by `synthesizeCoreClasses` into no module at all, so that they could be found from
 every one, and `Presence::Synthesized`, `KnownDef::standIn`, `KnownDef::member`, `lookupClass`'s
-fallback and `lookupCoreMember` all existed to serve them. Every one of those is gone. A stand-in
-written in Yana is checked by the same front end that checks Core, so a signature that would not
-typecheck is a build failure rather than a mismatch found at milestone 8 - and pointing this stage at
-the real library is dropping a default rather than a refactor.
+fallback and `lookupCoreMember` all existed to serve them. Every one of those is gone. A class
+written in Yana is checked by the same front end that checks every other declaration, so a signature
+that would not typecheck is a build failure rather than a mismatch found at milestone 8.
 
-Anything a source file names that the prelude does not declare is reported by name as not
+Anything a source file names that the library does not declare is reported by name as not
 implemented, because this stage is chosen by a flag over a corpus written for the other one and
 meeting an unimplemented construction is an ordinary event.
 
@@ -472,9 +630,9 @@ the same "does this head reach a local type" walk the capability classes use, so
 the general one cannot disagree about a head.
 
 **Fixity is a declaration, and there is no fallback for it.** `infixl`/`infixr` is read into the
-program by module and looked up through the imports like any other name, and `prelude/Core/Core.yana`
-declares one for every operator this stage computes - copied from `lib/Core/Core.yana` number for
-number. An operator with no fixity in scope is a diagnostic, which is
+program by module and looked up through the imports like any other name, and `lib/Core/Core.yana`
+declares one for every operator this stage computes. An operator with no fixity in scope is a
+diagnostic, which is
 `doc/spec/declarations.md`'s rule verbatim: "there is no default precedence".
 
 `kOperators` carried a precedence column until 2026-09-02 and it *had already diverged from Core*:
@@ -486,13 +644,12 @@ A module's **own** declaration wins over any import's, because `name.h`'s `searc
 before it reads an import - so a file may group `*` however it likes and Core's is what everyone
 else gets. `test/resolve/module/Fixity.yana` asserts both halves.
 
-**`Program::core` is the prelude's Core, and the implicit edge is live.** `discoverModules` seeds it
+**`Program::core` is the library's Core, and the implicit edge is live.** `discoverModules` seeds it
 before it walks a single import, because a program whose source names nothing still needs the three
 ownership classes and `[a]` to mean something - so the edge `linkImports` had written and left
 dormant went live with no change to `linkImports` at all, which is what the dormant version was for.
-The module it seeds comes from `prelude/` rather than `lib/`, chosen by `LibrarySource::directory`
-off `ResolverStage::Ownership`; `import Math` already finds `lib/Math.yana`, parses it, and reports
-honestly what it cannot resolve.
+The module it seeds is `lib/Core`, found by `LibrarySource::directory` - the same answer the
+shipping stage gets, since J21 retired the stand-in library this stage used to read.
 
 ### What a signature is here
 
@@ -512,6 +669,34 @@ this level - `Analysis-Borrows-Revised.md` §2.1's table, read directly:
 signature states an origin relationship on **both** ends: a result naming an origin no parameter
 published is refused there rather than promoting the parameter to satisfy it, which is §2.2's rule
 and what keeps a caller's argument from changing meaning because a result was edited.
+
+**A result the declaration did not write is decided by the body.** `fn double(x: I32) = x * 2` has
+no `-> T`, and what a signature holds until the body says is `{}` - a placeholder, marked by
+`Function::inferResult`, because unit is an answer that type-checks and a body left at it would have
+its value computed and dropped at the `ret`. What makes the answer independent of declaration order
+is that a caller **demands** it: `checkCallable` calls `requireResult`, which resolves the callee's
+body at the call if the walk has not reached it yet - the same shape as `aliasTarget`, and for the
+same reason, since neither is a dependency an order could be given to. `resolveFunValue` and
+`resolveProgramEntry` ask too, being the two positions that read a signature without calling it.
+`resolveBody` is therefore re-entrant: it saves what the walk carries about *which function it is
+in* - the names, the held temporaries, the open loops, the lens pair, the lambda frames - exactly as
+`resolveLiftedBody` does one level down, and `Function::bodyState` is the three-colour record that
+keeps one declaration from being built twice.
+
+**Recursion cannot infer**, and the call that closes the cycle is the one place that can say so:
+the callee's body is on the stack, so the type being asked for is the type it is about to produce.
+It is reported once, there, and the callee stops being callable rather than being recorded as unit -
+`Function::resultUnknown`, which is the poison this stage has instead of an error type. What is
+inferred is an **owned** result and only that: a borrowing one would have to name an origin slot no
+parameter published, and promoting a parameter's group to satisfy a body is exactly what §2.2
+refuses at a written signature. An `=` body that produces nothing warns and points at the `:` form,
+suppressed where `-> {}` was written and where the body already reported. Only a plain free function
+infers - `declareFunction` is the one path such a declaration takes, and a class member's result is
+its class signature's, an instance member's is inherited from it and a lens's is its continuation's.
+`test/resolve/ownership/ImplicitReturn.yana` and its `Reject.` half are the fixtures.
+
+One thing the demand does not reach: `checkExports` runs before any body, so a `pub fn f() = Secret
+{...}` leaks its result type without being told. That is where the shipping stage is too.
 
 A shared parameter of a trivially copyable type is still not a loan - the position copies, per
 `doc/spec/ownership.md`, and a trivial value's loan and its copy are physically the same thing. That
@@ -541,6 +726,12 @@ rather than a saving: positional then named, no position twice, and a position t
 taking its own default are one set of rules over two lists of names. The two callers differ in the
 words their messages use - "parameter" against "field" - and in nothing else, which is what `ArgSite`
 carries.
+
+A dot-call's **receiver is position 0** of the same mapping - `ArgSite::leading`, which is a count
+rather than a synthetic entry in the written list so that the walk stays exactly the source the
+author wrote. `x.f(self: y)` is then the ordinary "given twice", reported by the line that reports it
+for `f(y, self: y)`, and a named argument, a default and a `&` parameter each mean at a dot-call what
+they mean anywhere.
 
 **A default is a `Constant` on the position**, `Arg::def` beside `RecordField::def`, and both go
 through `declareDefault`: `doc/spec/functions.md` points a default argument at the field default's
@@ -579,8 +770,72 @@ the `() -> T` that `declareDeferred` rewrote the occurrence into - which is the 
 position inherited from a class signature makes unavoidable, since it arrives already rewritten and
 has no before to save.
 
+**A construction may write its fields by position**, in declaration order - `Cell(5)`, `Tagged{value}`,
+`Proceed(x)` - which is the same mapping with the names left to the declaration. `Proceed(x)` is not
+a special case of it either: its one field carries the constructor's own name (`declareFields`), so
+filling position zero *is* naming that field. Where a construction parts from a call is that it is
+**all one or all the other**: a call may write its positional arguments and then start naming, and a
+construction's positions are the record's fields, which have names - one that has started using them
+has no reason to stop, and one that never used them is reading the declaration in order. That is the
+rule `doc/spec/types.md` already states of the shape a record is closest to, the tuple.
+
 One gap, stated where it is: a call through a function **value** takes no names, because `FunParam`
 carries none and `doc/spec/expressions.md` makes them part of the type.
+
+### `x.f(y)` is `f(x, y)`, and where the choice between the two forms is made
+
+Built 2026-09-06. There is no `impl` block and no per-type method table: what a body can call, a body
+can call with a dot, this module's private functions included. `resolveDotCall` is the whole of it
+and it is one function because the receiver is resolved **once** - resolving is emission, so a form
+that decided between a field projection and a function by resolving the receiver twice would leave
+the first walk's instructions behind in a stage that runs no pass to remove them.
+
+It is resolved as a **place**, and that is what makes the form no different from a written call
+rather than a second call path. What a receiver is *read* as - a copy, a move, a shared loan, an
+exclusive one - is `readMode`'s answer at the position it fills, and the position is not known until
+the callee is; a place is exactly what can be carried across selection. So `&self` borrows the
+receiver's storage, `->self` moves out of it, and `argumentMode` stays the one rule. A receiver that
+is not storage is the temporary `projectionTarget` already gives `f().x`.
+
+**The field wins**, and the consequence is stated rather than hidden: adding a field to a record
+shadows a dot-call on that type. It is the same shape as a local binding shadowing a declaration and
+is decided the same way, by asking the nearer thing first. `fieldNamed` is the one walk over a
+record's fields and it reports nothing - `fieldOf` turns its no into a message and `resolveDotCall`
+turns the same no into a search for a function - because a second predicate written for the second
+question is the last place two readings of a record may drift, and what it decides is which of the
+two forms this is. On a **generic** receiver the probe is `findProperty`, never the requiring form:
+a declared `a.name: T` selects the field and its absence selects the function, and the requiring form
+would report a missing constraint before the function half had been tried. A binding of the name is
+deliberately not consulted at all - `f` in `x.f(y)` is a member position and not a scope one, so a
+local called `map` does not become every value's `.map`.
+
+**A function written in a type's namespace is R1's one plain function for that type.**
+`namespacedName` composes `String.push` from the receiver's record declaration and looks it up like
+any other name, so `pub`, the import lists and `hiding` decide the dot form exactly as they decide
+the written spelling. It is the plain half rather than a candidate joining the set, which keeps "at
+most one plain function" true where two of them could otherwise reach one call. The namespaced
+reading is asked **first**: `search` reports an ambiguity as it looks, so a bare lookup performed
+first would already have said "visible through more than one import" by the time the type's own
+function could have replaced its answer. Composed rather than registered by a declaration pass - the
+shipping stage keys a hash map on (declaring type, member) to avoid the concatenation, and here that
+would be a second table to keep in step with the declarations for a question `findOverloads` already
+answers.
+
+Class members come along free, R4's `Integral.and` included, because the set is `findOverloads`' and
+the receiver is one more argument to select on. A `lens fn` and an `iter fn` are reached through
+`namedCallee`, which asks the **name before the receiver** and the order is load-bearing:
+`upTo(n).twice()` names nothing, and resolving its receiver to find that out would emit it and then
+report "upTo is an iterator, write it as the source of a `for` loop" - which is what the author did
+write. `handoverCall` resolves the receiver afterwards, in the caller's block and before the
+arguments, which is where a written first argument would have been.
+
+Three things the form does not reach, each grammar rather than rule. A `@lazy` first parameter, since
+deciding the form needs the receiver evaluated and a deferred position is the one that must not be.
+Type pushdown onto the receiver, for the same reason. And a receiver whose own resolution depends on
+the access - `xs[i].bump()` where `bump` takes `&self` - is read shared, because `Index.get` had to
+be emitted before a candidate could say it wanted `getMut`; the shipping stage refuses that program
+with the same reason. `test/resolve/DotCall.yana` asserts every shape by a number and both stages run
+it against one `.run.expect`; `AtomicOwnership.yana` is the class half at `Atomic(a)`.
 
 ### Records, and what a type owes
 
@@ -726,6 +981,36 @@ correctly and then ran the *caller's* `Drop` when it died. `ownsField` and `tear
 `type.h` are the one answer the three now share; `test/resolve/loans/Teardown.yana` is what says they
 still agree.
 
+### A record update is one copy and a run of writes
+
+`{p | y: 3}` is not a construction and `resolveUpdate` is not near `resolveConstruction`. A
+construction is a component per field handed to an aggregate; an update starts from a value that
+already has every field and replaces some of them, so what it needs is **storage** - and once there
+is storage a path is a place projection and nothing else. That is what makes `{v | .a.b: 1, .a.c: 2}`
+set two fields of one `v.a` *by construction* rather than by a rule: both paths are projections of
+the same local, so there is nothing for a second copy to discard, and the source expression is named
+once however many paths there are.
+
+Every replacement is a `Destination::Assign` through the same `Builder::addWrite` a written
+`v.f = x` reaches, which is the one thing this construct owes and the one thing the shipping stage
+leaves undone: the copy put a live value in every field, so a field being replaced has one to
+release. `Update.Owned.yana` counts them.
+
+**What the copy is, is the ownership rules and not this expression's business.** The source is read
+once, at an owned request, and `readMode` answers with the duplication a `TrivialCopy` type gets for
+free. Where the type has no such answer the language's word for a duplicate is `Copy`, so what is
+emitted is the ordinary `copy(v)` class call - the first place in the compiler that *calls* that
+member rather than reading the capability it subtracts. `{->v | ...}` is the same shape with a
+**relocation** instead, which is why a type with no `Copy` can still be updated and is what the
+refusal names. A source that is *produced* - a call result, another update - is in no storage for
+either to act on and is simply the value, so `->` on one is neither an error nor a second path.
+
+The order is written rather than incidental: the replacements are resolved **before** the source
+relocates, so `{->v | x: v.x + 1}` reads `v` while it is still there, and a copy is taken as early as
+it can be because it leaves the source readable. `Record.yana` is the shared fixture,
+`ownership/Update.Copy.yana` the authored-`Copy` half the shipping stage cannot compile, and
+`ownership/Reject.Update.yana` the refusals.
+
 ### Containers, and why there is no slice type
 
 Two spellings, and **one of them is not a type**. `doc/spec/collections.md` and
@@ -741,7 +1026,7 @@ says which one.
 | `xs: Array(T)` | parameter | `Array(T)` | shared, `WholeValue` |
 | `->xs: [T]`, `-> [T]`, a field | owning | `Array(T)` | refused - there is no allocator |
 
-`Array(T)` is a **declaration**, not a kind: `@builtin(array)` claims it, `prelude/Core/Core.yana`
+`Array(T)` is a **declaration**, not a kind: `@builtin(array)` claims it, `lib/Core/Array.native.yana`
 writes it and `lib/Core/Array.native.yana` writes the same attribute on the real one, so `[T]` and
 `Array(T)` intern to one handle exactly as the spec says they are one type. What the compiler decides
 about it is the *window*, whose two words are `manifest.cpp`'s answer and appear in no type.
@@ -887,7 +1172,9 @@ naming, because each is what a solver would otherwise have been:
    were reported as duplicates of the first. See `instanceKey`, where the enumeration is bounded.
  - **The head's own context is a goal, not a filter.** A matched head whose `(Eq(a))` does not hold
    is reported rather than passed over - passing over it turns one missing instance into "no instance
-   of `Eq(Array(Guard))`", which names a type nobody wrote.
+   of `Eq(Array(Guard))`", which names a type nobody wrote. Asked from inside a generic body it has a
+   second source of answers, the enclosing signature's own clauses - see the requirement paragraph
+   below.
 
 **A parametric instance's member is an ordinary generic function over the instance's own context.**
 That is why a head becoming a pattern needed no second mechanism below this line: what runs for
@@ -901,7 +1188,9 @@ and `Reclaim` each *subtract* a capability, and `doc/spec/ownership.md` places a
 that declares what it is removing from. A keyed head does that; an open head is a statement about
 every type there is, including ones already compiled against the derived answer, so it may not be
 what takes `trivialCopy` away from one of them. Selection is therefore the wrong question there and
-"what did somebody declare *about this type*" is the right one.
+"what did somebody declare *about this type*" is the right one - and of what a keyed head declares,
+a `Copy` whose own context asks for `Copy` of the head's variables declares nothing the member fold
+has not: `inheritedCopy`, and the paragraph on the three ownership classes below.
 
 **A class member is a generic function whose context is the class's.** That one decision is what
 makes a class call and a generic call one mechanism rather than two. `size(x)` finds the *class's*
@@ -952,13 +1241,50 @@ two answers below. `test/resolve/SuperclassOrder.yana` is the fixture, and it is
 corpus rather than in `ownership/` because the shipping stage answers this too - a rule two stages
 hold is tested against both.
 
-**A requirement has two answers and deliberately no third** - `dischargeRequirements`. If the type
+**A requirement has three answers and deliberately no fourth** - `dischargeRequirements`. If the type
 the call chose is concrete, the instance has to exist *at the call*. If it is one of the enclosing
 declaration's variables, the enclosing declaration has to require it, and the obligation is passed on
-rather than proved. What is not a third answer is looking in the instance table for a *variable*: a
-body that did would be answering a question about its own type parameter from whichever instances
-happen to be declared, which is exactly what makes a specialization mean something different from the
-body it came from.
+rather than proved. And - inventory D13, 2026-09-06 - if its **outermost constructor is concrete and
+the body's own variables are inside it**, the table answers: `xs[i]` in
+`fn (Ord(a)) firstBelow(xs: [a], i: Size, j: Size) -> Bool` asks `Index(Array(a), ?, ?)`, and a head
+matching `Array(a)` with `a` free matches it at every type a specialization binds, because matching
+is one-way. `selectOpenInstance` is that answer and it is where the three conditions on it are
+argued: a deciding position that is a **bare variable** is still refused, for the reason the rule was
+written - a body answering a question about its own type parameter from whichever instances happen to
+be declared is what makes a specialization mean something other than the body it came from; every
+variable in a deciding position has to be one of the *enclosing declaration's*, since an inference
+variable of a half-resolved call site is not a settled shape; and a **narrower head that answers the
+determined positions differently** is reported naming both, because that is the one way the query's
+answer and a specialization's could come apart. What is recorded is the requirement rather than the
+instance - it travels with the body under the substitution and is discharged again at every
+instantiation, exactly as a written clause is.
+
+The same relaxation is what lets a matched head's own context be discharged from the enclosing
+signature: `instance (Tag(a)) Sized(Pair(a), a)` reached from `fn (Tag(a)) measured(p: Pair(a))`
+needs `Tag` of the body's own variable, which no table holds. `Selector::enclosing` carries it and
+`holdsContext` asks it first, which makes the derivation recursive through the same rule rather than
+only its first step. Fixtures: `generic/OpenHead.yana`, `generic/Reject.OpenHead.yana`.
+
+**A structural class is answered wherever a requirement is discharged**, not only where a caller
+entered. `TrivialCopy` and its three neighbours have no table row and never will, and
+`structuralAnswer` used to be asked at `selectInstance`'s door - so a structural goal standing inside
+*another instance's* context reached the table, found nothing and was reported as a missing instance.
+`instance (Magnitude(a, w), ..., TrivialCopy(w), ...) ReadWith(NumberStyle, a)` at `readHexInt` is
+the shape: `Magnitude(a -> w)` decides `w` to `U32` one requirement earlier and the next one was
+"there is no instance of TrivialCopy(U32)", four times in `lib/Core/Format/Number.yana`. The question
+now sits at the top of `Selector::select`, ahead of the memo and the cycle check because it is a fold
+over the type rather than a search. `StructuralContext.yana`.
+
+**A requirement a signature can *prove* is one it can be asked to *decide* from**, and the two halves
+had to close over superclasses alike. `classProves` already walked them for the proof;
+`fillFromRequirement` searched the enclosing signature's clauses for the class *as written*, so
+`class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m)` - whose `m` no member of
+`Real` mentions - left every `value .<= 0.0` in a body constrained on `Real` reporting "no argument
+decides what m is", 24 times across `lib/Math`. `heldPromises` is the closure: a clause, or a
+superclass of one expressed in that clause's arguments, bounded by a depth for `superclassPath`'s
+reason. `SuperclassDecides.yana`, which asserts the one level `lib/Math` writes - the shipping stage
+looks exactly one superclass deep and refuses a second, which is a difference to settle before it is
+written into a shared golden.
 
 **A default is a generic body, and an instance that leaves the member out gets it specialized.** So
 a default and a hand-written implementation are the same kind of thing by the time anything calls
@@ -1046,8 +1372,69 @@ read of `x` produces the *value* rather than a loan of the place, and `x += 1` t
 temporary and left `x` alone. `SharedStorage.yana`, `Borrow.yana` and `DropFlag.yana` are the three
 corpus fixtures that were held back by it.
 
-Fixtures: `Operators.yana`, compiled by both stages against one run expectation, and
-`ownership/CountedFor.Class.yana` for the loop the shipping stage refuses.
+**Two rows are generated over something other than a family of widths.** `provided.def`'s
+`Family::Shapes` is the marker for a row whose heads come from a *generator*, because the set is not
+enumerable from the target's primitives: `Lanewise(Vec(a, n), Mask(a, n))` is one parametric head,
+and `Enum(a -> w)` is one head per `data` in the program. What such a row is still there for is the
+emitters, which are reached by `(role, member position)`.
+
+`provideEnumInstances` is the second of those, and it is the one pass here that runs **after** the
+written instances rather than before them - `resolve.cpp`'s order, right after `declare`. That
+position is what makes "a declared instance wins" a condition instead of an ordering: the walk skips
+a head the table already holds, where the shipping stage gets the same rule from consulting its
+hooks only on a lookup that found nothing. Each payload-free sum gets three:
+
+- **`Enum`**, which nobody may write - `valueOf` is the tag read at the width `enumValueTypeOf`
+  determined (`Int`, or `I64` where a `@value` needs it), and `fromValue` is a range test where the
+  numbers run consecutively and one comparison per constructor where they do not, then the tag
+  written. `nameOf` and `fromName` are the same pair in the other currency and are generated too:
+  `nameOf` is a comparison chain choosing one string constant, built by `textValue` so that a
+  generated word and a written literal are one placed global, and the last constructor is the
+  fall-through rather than a tested arm because the tag *is* one of them. `fromName` is that chain
+  the other way round over **`Eq`'s own member** at the name's type - what comparing two strings
+  costs is the library's, and the only thing the compiler contributes is the list of words, so the
+  class's "compare lengths first" is `Eq(String)`'s body and not a second string equality living
+  here. Neither is a multi-way form: inventory D3 says a jump-table shape is dedicated IR carried
+  through to the backend, not something the front end reconstructs. `EnumNames.yana`.
+- **`Eq`** and **`Ord`**, which replace the one line every enum used to write -
+  `valueOf(lhs) == valueOf(rhs)`. A generated instance rather than a `structuralAnswer` beside
+  `TrivialCopy`, and the choice is forced: a structural answer names no instance, which is sound only
+  for a class with no members, and an erased witness needs a real function in the slot. `Bool` and
+  `Ordering` are left out, because `provided.def`'s `Comparable` and `Numbers` rows already ruled on
+  both.
+- **`Show`** (2026-09-07), whose whole body is `nameOf` handed to the string sink: a constructor with
+  no payload has exactly one text form, which is its name, and every enum in this tree that wrote a
+  `Show` wrote that. Two calls and no graph of its own, deliberately - repeating `nameOf`'s chain
+  here would be a second place for the two to disagree - and `showBound` answers the longest name as
+  a constant, which is what the class's exactness contract asks for and what lets an interpolation
+  of an enum size its buffer. `Known::show` and `stringPush` are both `Optional` and both asked, so
+  a library that declares none of them generates none of these and a format hole still reports the
+  missing role by name.
+  This one is generated for `Ordering` as well: those two exclusions are `Comparable`'s and
+  `Numbers`' rulings about *order*, and neither says anything about text. `Bool` keeps the `Show`
+  `lib/Core/Show.yana` writes, by the same `unclaimed` rule as anything else. It is 55 of the
+  library suite's 109 diagnostics, over eleven types.
+
+An enum reaches the *comparisons* as its tag - `Eq` compares two of them as they stand, since
+`operandTypeAllowed` admits a record to an equality, and `Ord` bitcasts first, since an ordering is
+arithmetic. `UnaryCategory::Raw` admits an enum for that reason and for the two crossings `Enum`
+itself is made of.
+
+`ByteSwap` is an ordinary row beside `Bits`, over `Family::Swappable` - 16, 32, 64 and the target's
+word, which is `hasByteOrder` and is `hasMachineWidth` plus sixteen: a count reads a value and needs
+a width the machine counts in, a reversal reads its *bytes*. The 16-bit case is the one width the
+lower IR has no scalar for, so `narrowByteSwap` spends it as the shift pair there, beside
+`narrowRotate`.
+
+`BitPermute` joined them 2026-09-07 - `gatherBits` and `scatterBits`, x86's `pext` and `pdep`, over
+`Family::Machine` because a gather reads the *value's* bits at the mask's positions and a narrow
+value would be answering about the register's padding. Two `op.def` rows (`GatherBits`,
+`ScatterBits`, `Closed` because the library is explicit that both are total) crossing to
+`lower/inst.def`'s own pair as themselves. `BitPermute.yana` and `BitPermute.Bmi2.yana`.
+
+Fixtures: `Operators.yana`, compiled by both stages against one run expectation,
+`ownership/CountedFor.Class.yana` for the loop the shipping stage refuses, and `EnumInstances.yana`
+and `ByteSwap.yana`, both shared.
 
 ### Conversions, and where `::` stops
 
@@ -1061,7 +1448,7 @@ call to `convertValue`, which is the same function every implicit position goes 
 **Which class relates a pair is `compiler/intrinsic/convert.h`**, and it is read by *both* resolve
 stages. That is not tidiness: a fixture is compiled by both and the two answers compared, so two
 ladders that disagreed by one rung would be one source that compiles under one stage and not the
-other - the same failure the fixity table had before `prelude/` took it over. `resolve/core.cpp`'s
+other - the same failure the fixity table had before `lib/Core` took it over. `resolve/core.cpp`'s
 `defineRung` and this stage's `eachHead` are two walks over one rule.
 
 The rule, in three parts. `Widen` where every value of the source is a value of the destination -
@@ -1082,6 +1469,14 @@ node it is; at a type a program declared an instance for it is the author's body
 nothing about `widen(x)`'s argument says which rung was meant, so `Widen`'s second parameter is bound
 from the type being converted to.
 
+**A sigil in front of an ascribed type names the type under it and nothing else.**
+`let view = Native.atomicAt(p) :: 'Atomic(U32)` is what writes one, and what the tick says there is
+what the expression already *is* - the call hands back a view of somebody's storage, and the
+ascription is there to say which `a` the view is of. An ascription is a hint and a widening, so it
+names a type and never a contract: nothing here could make an owned value into a loan, and a `let`
+reads its own ownership off the initializer the way it always does. A *label* is refused rather than
+dropped, because it would be naming an origin set and an expression is not a signature.
+
 Two refusals are the file's own. A **narrowing** is reported naming `truncate` rather than as a
 missing instance, in either direction - an implicit position says what type it wanted, an ascription
 says that `::` does not narrow - and `explainAbstractWidth` follows it where one side's width is the
@@ -1097,6 +1492,20 @@ storage, so it is a call to the derivation the view table names - `Contiguous.el
 that have one. A conversion builds a new value; an adapted view is the caller's bytes described by
 a record the library declared. A fixed-array literal at an *owning* `[T]` position is still reported
 by `reportOwnedSequence` rather than as a `Widen` instance nobody would write.
+
+**A derivation may not ask for its own view.** `fn elements(self: source'Array(a)) -> source'[a] =
+unclampedSlice(self, 0, self.length)` reads as the right statement and is not one: `unclampedSlice`
+takes a *window*, so the argument position asks an owner to become one, and the only thing that
+turns an owner into a window is this member. The shipping stage's conversion is structural there and
+the recursion never appears; here the adaptation is the call `known.def` says it is, so `elements`
+called itself on every path and `let xs = [1, 2, 3]; xs[0]` compiled against the real `lib/`
+segfaulted with no diagnostic anywhere. `Function::derivation` records the member and `adaptToView`
+refuses it - same type, same access, which is what makes it the recursion and not a neighbour, since
+a container whose `elements` derives a *different* container's view is an ordinary call and so is
+`elements` reaching the unique derivation. What a derivation has to do instead is *build* the view
+record out of the owner's fields, which is the `addRepresent` case beside it and what
+the stand-in library always did; `lib/Core/Container.yana` now writes the same four bodies,
+platform-split because the view record is a representation and the two targets do not share one.
 
 Fixtures: `Convert.yana`, compiled by both stages against one run expectation, and `Types.yana`,
 `Literal.yana`, `Promote.yana`, `Unsigned.yana` and `BitcastNarrow.yana` among the sixteen the
@@ -1140,6 +1549,86 @@ decides is then emitted **in the block that produced the value**, since an edge 
 the merge's own type and `closeArm` has not built the jump yet. That ordering is why `mergeArms`
 takes the arms' end blocks: `let v = if c then a else b` over an `Int` and a `Double` is one `convert`
 in the `Int` arm, and nowhere else.
+
+### A `match` over constants
+
+A `match` whose every arm is compile-time data states a **mapping**, and a mapping is a value rather
+than a shape of control flow. `matchAsMap` in resolve_match.cpp recognizes one and `mir::NodeMap`
+carries it - inventory D3, and `compiler/resolve/map.h` is the shipping stage's version of the same
+recognition, whose reasoning this inherits.
+
+Two domains reach it. A **record**'s own constructors are a closed domain - a well-typed value holds
+one of them and nothing else - so there is no out-of-range case to guard and the node carries no
+fallback. An **integer** pivot is open, needs a wildcard arm, and what that arm answers is the
+fallback; that half is new, since `recognizeConstructorMap` requires a record, and
+`lib/Date/Format.yana`'s `monthName` is what it is for. The integer domain stops at `Type::Int`
+because a machine integer's equality is the compiler's own operation, where a type with an authored
+`Eq` runs a body the program wrote.
+
+What a pattern may do is the eligibility rule read from the other side: name a constructor, with `_`
+for its payload, or be `_` itself. An `as` binding, a payload pattern that tests anything, and a
+`&->` that takes the payload out are each a reason to decline, because none of them is work a lookup
+performs. Every refusal is a **fall-through to `armsValue`** and reports nothing: `PatternSpace` has
+already said whatever there is to say about a bad match, and a second opinion would be a worse
+message about the same line. That is why recognition runs after the warnings and after the
+exhaustiveness check, and why it reads every pattern before it evaluates any arm - a pass that
+evaluated as it walked built the first arm's string literal and then found the binding in the second.
+
+**Nothing about the target is decided here.** The node always exists, and which of six shapes it
+becomes - the constant, two comparisons, a bit mask, an affine step, a packed immediate, or a run of
+slots in read-only data - is answered once, at lowering, in `resolve_ssa/lower/map.cpp`. The shipping
+stage has to consult its size rule twice, once to promise and once to emit, because its recognizer
+owes its caller an emission; here the promise does not exist. The one thing recognition still bounds
+is `mapSpanAdmits`, and that is a statement about what a table may *be* rather than about whether one
+is worth having: five of the six shapes read no memory, but the sixth has to exist for every mapping
+the node admits, since there is no comparison chain left below to fall back to.
+
+A **string** result is the one exemption to "the result duplicates freely and owes nothing", and it
+is the shipping stage's: a literal's run is borrowed, so a slot holds two words describing bytes
+nobody owns and its teardown is the nothing a written literal's is. What a slot holds is what
+`stringLiteral` *returns*, built by running it - so nothing here spells a field of a `String`. The
+building is deferred to `resolveTextMaps`, beside `resolveTextGlobals` and for its reason: which
+bodies are resolved when a mapping is recognized depends on the order the files were walked in, and
+that is not something a recognition rule may depend on. Within one mapping there is one blob per
+distinct *text*, which a written literal does not get - constant equality is what decides the uniform
+form, so two arms answering `"colour"` have to be one constant or a mapping with one answer becomes
+a table with five.
+
+A generated `Enum.nameOf` is one of these (`intrinsic/provide.cpp`), and so is `Enum.fromValue` where
+the constructors are not one interval. The comparison chain is still written for the declaration a
+table cannot serve - `@value(n)` may pin constructors too far apart to place.
+
+### A `match` that dispatches, and the one node that is a terminator
+
+A `match` whose alternatives each name a distinct constructor and test nothing below the tag is a
+**multi-way branch**, and `mir::NodeSwitch` is that shape said once instead of as a chain of
+comparisons. `matchCases` decides it and `armsValue`'s `multiway` form emits it: the entry blocks are
+the case targets, the discriminant is read once in the block the `match` was written in, and every
+alternative is then resolved with **no failure edge at all** - which is exactly what `armsValue`
+already gives the alternative exhaustiveness proved.
+
+Two nodes and not one, which is the same argument the roster makes everywhere else: a `switch` names
+*blocks* and its arms may do anything, a `map` names *constants* and its arms may do nothing, and one
+node whose arms were either would carry a flag set on half its instances.
+
+The rules are narrow because the failure edge is what is being given up. `irrefutablePattern` is the
+whole of it: a name and `_` bind, a braced list of them takes the value apart, and everything else -
+a nested constructor, a literal, a range, a section - is a test that would have had nowhere to fail
+to. Answering "irrefutable" wrongly is a dropped test, so the conservative direction is the one that
+declines. The **last** alternative is the fallback and has to be the one exhaustiveness proved, since
+that is the arm with no test; and below three cases it declines, because two comparisons is a chain
+and two spellings of one shape is what the roster refuses.
+
+**The fallback is mandatory and there is no exhaustiveness invariant on the node.** An IR that
+restated exhaustiveness would oblige every pass that deletes a case to re-prove that the remainder
+still covers the domain. A fallback costs one edge, and where the source was exhaustive it is an arm
+that already exists.
+
+The shape now reaches the bottom: `resolve_ssa/lower/inst.cpp` hands a `switch` across as
+`LowerInst::Switch`, which is what D3's slice 3 widened `LowerBlock::outgoing` into a list for. What
+it is *for* is the choice below that, taken per backend - `codegen/x64/transform_switch.cpp` spends
+one as a comparison chain or a jump table, and the LLVM backend hands it to `CreateSwitch`. See the
+reports for D3.
 
 ### The guard `let`, and what an alternative has to do
 
@@ -1194,6 +1683,13 @@ constructor pattern does. Four things are the file's own:
   are these" into a lookup rather than an inference problem. A carrier that is the body's *own*
   variable has no instance to read anything off, and what answers instead is the requirement the
   enclosing signature declared: `carrierShape` splits on exactly that.
+
+  A carrier *applied to* one - `Result(ReadError, a)` in `lib/Core/Format.yana`'s `readAll` - is
+  neither, and is inventory D13's open head: `Result` names its own constructor, so the instance that
+  serves it is decided for every `a` a specialization binds. A requirement stating it would have to
+  be written on every signature in the library that returns a result. `selectOpenInstance` is asked
+  after the requirements and before the refusal, and a *bare* variable still falls through to the
+  refusal, which is the line `openHeadAnswerable` draws. `Try.OpenCarrier.yana`.
 - **`?.`'s join is built by hand** where `?`'s is `armsValue`. The alternatives of a chain are not
   written side by side and cannot be - one of them *is* the chain and the others branch out of the
   middle of it - so the layout is spelled out, with every rule about the merge kept: one occurrence,
@@ -1211,7 +1707,7 @@ constructor pattern does. Four things are the file's own:
   `subject` for it - the class's first argument, bound by matching the class's own parameter, so a
   contradiction with what an argument said is still the ordinary mismatch.
 
-`prelude/Core/Core.yana` declares both classes and the three instances each, verbatim from
+`lib/Core/Core.yana` declares both classes and the three instances each, verbatim from
 `lib/Core`; `known.def`'s rows are `carrier` and `rewrap`, and the first is the one row here whose
 spelling is not its class's name - `try` is a C++ keyword, and a spelling column would be the second
 name for one thing that `intrinsic/` exists to not have.
@@ -1232,8 +1728,29 @@ reads. What is *here* is this stage's half of it, and it holds no names:
 | `intrinsic/roles.h` | the claim table `Program` holds - a role to the declaration that filled it |
 | `intrinsic/link.cpp` | the one reader of `@builtin(role)`, and every check made of a claimant |
 | `intrinsic/expand.cpp` | the roster: one arm per `op.def` row |
-| `intrinsic/expand_*.cpp` | the emitters, grouped by family - `expand_provided.cpp` is every member of every instance the compiler generates, `expand_atomic.cpp` and `expand_vector.cpp` the two families of milestone 8 |
+| `intrinsic/expand_*.cpp` | the emitters, grouped by family - `expand_provided.cpp` is every member of every instance the compiler generates, `expand_atomic.cpp` and `expand_vector.cpp` the two families of milestone 8, `expand_container.cpp` the numbers a container asks about its own key type |
 | `intrinsic/provide.cpp` | the instances the compiler generates from `provided.def`: their declarations, and their bodies |
+
+**A role is not a promise that the compiler does the work.** It says the compiler is entitled to,
+and `opExpands` is where this stage declines two of them. `newRun` is placed by an escape analysis
+this stage has not got; the library writes what the answer is when the compiler does not choose
+(`lib/Native/Run.native.yana`'s heap run), the declaration carries it beside the role -
+`roleMayWriteBody` in `compiler/intrinsic/op.h`, which is `Flow`'s existing rule widened - and this
+stage calls it. What is lost is a placement decision rather than an operation.
+
+**The seven bulk operations were on that list and are not any more** (J34). Their expansion is a
+*selection between two library bodies* - `lib/Core/Reduce.yana` writes each of them twice, and which
+one runs is a question about a lane's stride and the target's register width rather than about
+anything a constraint could carry. What kept them on the list was that this stage had no handle on
+the body it would be choosing; it has one now, a `known.def` row per vector half
+(`sumVectors` and its six neighbours), which is the row-per-body answer that note named as a way out.
+`Resolver::selectBulkBody` in `resolve_expr.cpp` is the choice and `bulkVectorRole` in `expand.cpp`
+is the pairing; the declaration's own body is still what a call reaches where the element has no
+vector, so "no vector on this target" and "no compiler that picks" remain the same answer. The
+element is found by asking which of the call's *bound type arguments* has a natural vector - a bulk
+declaration binds a container and an element, and a container is a record - which is what lets the
+rule be stated without the compiler having to name `Chunked`. `VecString` went 9.00x of the shipping
+stage to 1.377x on the clock for it (`test/bench/findings.md` §81).
 
 **An intrinsic call is an ordinary call up to the last step.** Name resolution, arity, inference,
 constraint discharge and *argument preparation* all run exactly as they do for a callee with a body;
@@ -1257,9 +1774,41 @@ says decides more than a convention. `addressOf` is declared `fn addressOf(it: s
 %source'a`: the parameter publishes an origin and the result names it, so the argument is read as a
 *loan of a place* rather than copied, and the pointer is an ordinary member of that origin set. Every
 question about how long the storage lives is then the loan's, and §12.3(c)'s refusal of an
-unqualified frame-rooted `%T` has a relationship to compare against. Written `it: a` - which is what
-`lib/Native/Pointer.yana` still writes and what `doc/spec/native.md` does not - `readMode` answers
-`CopyTrivial` at every scalar and the address is the copy's.
+unqualified frame-rooted `%T` has a relationship to compare against - which since D15 it actually
+makes, `lib/Native/Pointer.yana` having been respelled to this on 2026-09-07. Written `it: a`, which
+is what it said before and what `doc/spec/native.md` never said, `readMode` answers `CopyTrivial` at
+every scalar and what arrives is a value rather than a loan; `fn leaks() -> %I32` over this frame's
+own storage was accepted in silence. The shipping stage reads the published signature at its plain
+positions - it supplies the definition, `takeRolePositionsPlain` in `resolve/module_decl.cpp` - so
+`test/resolve/Global.yana`'s answer there is what it always was.
+
+**Which the emitter has to have an answer for, because `addressOf` is what makes storage exist.**
+`expandAddressOf` asks two questions of an operand that arrived owned, in the order the shipping
+stage's `materialize` asks them.
+
+First, **the storage it was copied out of, where the copy is one this position made**: a `Read` of a
+*writable* place is the case, and the address is that place's - the same `findPlace` step
+`expr_construct.cpp` takes, and the reason both stages say one thing about
+`waitProcess(self.id, addressOf(status), 0)` followed by a read of `status`. Under the unpublished
+spelling the address of a copy would be a child's exit code written into a temporary nobody looks at. A plain
+`let x` is not storage anything may write through and keeps the copy, which is the meaning
+`test/resolve/Global.yana` records for the address of a value that cannot be assigned to.
+
+Otherwise the operand really is only a value: an unnamed local of the frame, written once, and the
+address is that slot's. The read of the slot is the declared position's request with `published`
+forced on **and the access forced to `Unique`**, and the second half is not decoration: a shared,
+call-bounded loan of a trivially copyable scalar *is* the scalar in a register
+(`isReferenceValue`), so under the unpublished spelling `addressOf(9)` read the slot back as a
+number and the SSA conversion reported the address of a value that is not reached through storage.
+An exclusive loan of a slot this function just made is reached through it, and it is the same
+statement the capability makes from the other end - the pointer handed back is a `%a` and a store
+through one reaches this storage. `Builder::addAddressOf` therefore still asserts that what it is
+handed is a borrow - an owned node result is nowhere, and there would be nothing for the address to
+be the address *of* - rather than testing it.
+
+`test/resolve/AddressTemporary.yana` is the fixture, in the shared corpus because both stages
+materialize and both have to answer the same number; the *first* question is reachable only under
+`lib`'s spelling, so `test/lib/PointerAddress.yana` is where it is stated.
 
 Two nodes carry it. `Node::Address` reshapes a borrow the way `window` does - `Inspect`, taking no
 loan of its own - and `Node::Metric` measures a type. The second is a node and not a number because
@@ -1299,11 +1848,82 @@ walk, so what the node holds is a column and a flat operand list, and the backen
 any of them means. The declarations that reach it are `@builtin` in `Native` and their signatures are
 what checked the arguments before the node was built.
 
-Three rows and not the shipping stage's eight. `CloneThread` lowers to a backend intrinsic rather
-than to either of these two shapes, and the host operations belong to a target this stage does not
-compile for; a row with no producer is a description checked against nothing. The seven `syscallN`
-roles are **one** row, because an arity is a declaration's - a call's argument count decides which
-registers the kernel reads - and one row per arity would be six rows that lower identically.
+Sixteen rows and not the shipping stage's whole `NativeOp`. The host operations belong to a target
+this stage does not compile for, and a row with no producer is a description checked against nothing.
+The seven `syscallN` roles are **one** row, because an arity is a declaration's - a call's argument
+count decides which registers the kernel reads - and one row per arity would be six rows that lower
+identically.
+
+Twelve of the sixteen are the **x86 family** - `lib/Native/Intrinsic/X86.yana`'s `crc32`,
+`vzeroupper` and the seven SHA steps. Each is an instruction the lower IR already has
+(`LowerInst::Crc32`, `ShaBinary`, `Sha256Rounds`, `VZeroUpper`), so the lowering arm is a mapping
+with no expansion and no width to mask, and each declaration is `@platform`-gated - a build below the
+level that has one never resolves the name, which is why a family this target-specific is rows here
+rather than a tier of its own. Two shapes are worth stating. `sha1rnds4`'s round group is **four
+rows** rather than a third operand, because it is the instruction's trailing byte and a computed one
+is not an instruction: `LowerSha` already says so with four enumerators, and the resolver holds the
+argument to a literal at the call, which is the only place the argument is. `sha256rnds2`'s third
+operand is `xmm0` on the machine, which is a register-allocation constraint the x64 form carries and
+nothing above the backend has to know, so here it is an ordinary third argument.
+
+`verifyBody`'s `checkNative` is the rule over all of them and it checks the one thing a `Native` node
+has to be checked for: the **arity**. native.def deliberately carries no arity column - a system call
+has seven - so the numbers are stated once in the verifier, and a row whose count is a declaration's
+answers "any". The lowering indexes its operands positionally, so a `sha256rnds2` that reached it
+with two would read past the list rather than report.
+
+`CloneThread` is the fourth, and the one whose operands are not what MIR wrote. It lowers to
+`LowerIntrinsic::CloneThread`, a backend pseudo whose encoder is `clone` plus the child's entry
+sequence, and the child needs both words of the entry - the code to jump to and the environment to
+hand it. The declaration takes an ordinary function of the language, closure included, so what MIR
+carries is the `{code, env}` value the author wrote and **the pair is split at the lowering**:
+`resolve_ssa/lower/inst.cpp` already reads exactly that pair with `wordAt` at `funCodeOffset` and
+`funEnvOffset` for a call through a function value, so the one place that knows a function value is
+two words at two offsets stays one place. The shipping stage splits it in the resolver instead and
+hands the backend six operands; both ends agree on the backend's order,
+`(flags, stackTop, code, argument, threadId, env)`.
+
+**What is *not* here is the whole-vector transfer**, and that is the decision worth recording.
+`vectorAt`, `vectorPast` and `setVectorAt` are `*p` and `store(p, v)` at a vector type: the address
+is the caller's element pointer named at the vector's type, which is a `bitcast` and no arithmetic
+and no alignment claim, so what they expand to is the `Read` and the `Write` through an address root
+that `expandPointerLoad` and `expandPointerStore` already build. A `vector.load` node beside those
+would be a second spelling of one operation, and every pass that reasons about places - the loan
+checker, the drop elaboration, the conversion below - would need an arm for it that said the same
+thing. So `vectorAt(p, i)` reads through a pointer loan exactly as `pointerLoad` does and
+`setVectorAt` writes through a `%` under `pointerStore`'s rule, because they *are* those two.
+
+`vectorPast` is the one bit of difference and it is a bit: `NodeRead::overread`, carried unchanged
+to `InstLoad::overread` and to `LowerInstLoad::isOverread`, where the three passes that must not read
+"deliberately past the end" as a bug read it. `Native.vectorPast` is the only thing in the language
+that sets it, so the reasoning about when the tail-read guarantee may be spent is in one place, and
+no write ever carries it - a store past the end of an object is not a read of unspecified bytes but
+the destruction of whatever follows. The dump prints `read.past` and `load.past`;
+`test/resolve/VectorTransfer.yana` is the fixture, and its `loadx` in both stages' lower dumps is
+what says the bit survived the seam.
+
+The movemask is the fourth of that family and is a **reduction**: `ReduceOp::Bits`, added to
+`op.def`'s roster where its own note used to say a backend writes the kind for itself. That was true
+while nothing above one could reach `Native.bits`; the declaration is `@platform(native)` and sits
+beside the pointer operations precisely because `any`, `all`, `count` and `firstSet` are the portable
+readings and a movemask has no portable answer.
+
+### The float unaries, and where their check moved
+
+`sqrt`, `fma` and the four roundings are `op.def` roles over an **unconstrained** `a` - there is no
+class in this language that says "this is a float", so `expandVecFloatUnary` holds the argument to
+one by looking at the type at the call. In a generic body there is no type to look at, and refusing
+there kept `lib/Math` out of this stage entirely: `modulusOf`, `logOf`, `hypotenuseOf` and the
+trigonometric bodies all round or take a root of their own `Real(a, m)` parameter, twelve sites.
+
+So `operandTypeAllowed(UnaryCategory::Float, ...)` admits a **type variable**, the way it has always
+admitted a *vector* whose lane is one, and the check moves to `resolve_ssa/convert.cpp`, which is the
+point the type is known: a specialization is the generic's body read at concrete types, so the
+substituted occurrence is exactly what the emitter would have seen had the call been concrete, and
+the node's own source is the call the author wrote, so the message lands where it did.
+
+`Arith` and `Bits` stay strict, and the split is the point - `neg` at an open `a` is a body assuming
+something about `a` that `Num` could have promised and did not.
 
 ### The pointer instances, which `provided.def` cannot describe
 
@@ -1356,13 +1976,28 @@ that nothing below this stage reasons about a count's absence. `makeVectorType` 
 of it happens, and the printed form goes back the other way: a count equal to the target's natural
 one is not printed, so a golden that mentions a vector is not a golden per feature level.
 
+**A natural count is also a number a call can hand over**, and that is `ConstType`'s second state -
+`lanesOf`, the one type-level *expression* this stage has. `let acc = zero() :: Vec(a)` handed to
+`fn (n: Int) horizontalSum(v: Vec(a, n))` has to bind `n`, and there is no number until the
+specialization binds `a`; so `matchType` binds `Types::naturalLanesType(a)`, which `substituteType`
+turns into the number by making the vector it is the count of and reading the count back - one
+definition of "the natural count of `a`" rather than two. It is an expression rather than a default
+filled at the substitution because `n` is a *type argument of that call*: it travels in the argument
+list, is numbered by the callee's schema and is substituted at every instantiation, and a default
+would have had to be re-derived by the specializer's const slot, by the conversion's `GenValue` and
+by the erased witness, each having to know that this particular number came from a vector.
+`makeVectorType` collapses `Vec(T, lanes(T))` back to the natural form, so the two spellings are one
+handle and a call needs no conversion. `lanes(v)` in a generic body is then a `GenValue` naming that
+expression rather than a constant - it used to fold to the natural form's zero, silently, which is
+what `lib/Core/Container.yana`'s chunk width was getting. `VecNatural.yana` is the fixture.
+
 **Masks are not normalized.** `Mask(F32)` and `Mask(I32)` are two types related by `Bitcast` at one
 shape. The shipping stage interned them as one and the bill was a non-injective type constructor -
 substituting `a := Int` into `{Vec(a), Mask(a)}` gave `{Vec(Int), Mask(U32)}`, which then failed to
 bind `a` back - in a language where every generic mechanism assumes an application binds its
 arguments.
 
-### What a vector needed of the IR, which is four nodes and a select
+### What a vector needed of the IR, which is five nodes and a select
 
 Most of what a vector does is what this IR already did. An add of two of them is `binary`, a lanewise
 comparison is `binary` whose result type `binaryResult` answers as a mask, a lane-count-preserving
@@ -1370,6 +2005,18 @@ conversion is `convert` or `bitcast`, and every pass that walks one of those wal
 missing is four shapes none of them have - `vec.splat`, the lane pair, `vec.shuffle` and
 `vec.reduce` - and `select`, which is a node because a lanewise choice has an answer *per lane* and
 so has no block structure that expresses it.
+
+`vec.iota` is the fifth, and it is there for the reason `expandVecLanes`' `GenValue` is. At a
+concrete vector `iota` is not a node at all - the emitter writes lane `i` with `i` over a zero splat
+and the folder answers the whole chain - but a body **compiled once** has no lane count to make that
+chain as long as, and the natural form's count is zero. What came out was a splat of zero with no
+diagnostic, so `maskUpTo` answered a mask with no lane set and `lib/Core/Container.yana`'s `vectors`
+dropped its tail chunk: summing `[1..11]` gave 36 rather than 66, at both optimization levels and
+with nothing in the dump to point at. The node carries the question to the SSA conversion, which is
+the first point the count is a number, and the chain built there is the same chain. `maskUpTo` at an
+unmeasurable lane also keeps the lane's **own** type for its indices rather than the float-to-integer
+mapping, because that mapping is a float's and asking it of a variable decides the domain before the
+substitution that settles which one it is.
 
 Six unary rows arrived with them and are not vector-specific: `abs`, `sqrt` and the four roundings
 are one instruction on every target and were the thing a scalar wanted all along. `op.def`'s new
@@ -1402,7 +2049,7 @@ mask, so neither class describes what comparing them is, and generating one woul
 a comparison the lower IR's validator refuses. `Lanewise` is what describes it, and it is the first
 `known.def` class role this stage binds that the shipping stage still finds by name.
 
-Two things `lib/Core/Vector.yana` declares that `prelude/` cannot yet: the free `min` and `max` over
+Two things `lib/Core/Vector.yana` declares that the stand-in library could not: the free `min` and `max` over
 vectors. Design.md's R1 admits one plain function per `(name, arity)` *beside* any number of class
 functions, and this stage files both in one table - so they collide with `Ord`'s members. The
 emitters are written and the roles stay unclaimed until the overload rule is, which is what
@@ -1445,8 +2092,8 @@ does not exist.
 `Native.atomicAt` is **not** implemented, and it is the library's spelling rather than the stage that
 blocks it: the declaration is the one signature in `lib/` still written with the `return` marker, and
 the note above it records that the `'` spelling does not express what it needs. `test/resolve/Atomic.yana`
-stays the shipping stage's alone for that reason and because it reaches the operations with a dot
-call; `AtomicOperations.yana` is the same family in the spelling both stages read.
+stays the shipping stage's alone for that reason alone now - the dot form it reaches the operations
+with arrived 2026-09-06 and `AtomicOwnership.yana` runs here on it.
 
 ### `Bool` is an ordinary enum, and so is what a bare literal settles to
 
@@ -1458,7 +2105,7 @@ and no `BoolType`: a comparison answers whatever record claimed the role, `if` r
 `manifest.cpp` gives a two-constructor enum one byte holding a tag - which is the answer the builtin
 kind gave, reached by the row that was already there for every other enum. The argument for the
 builtin was that a comparison has to answer *something* and this stage might have no declarations to
-answer with; `prelude/` is what removed it.
+answer with; giving this stage a library is what removed it.
 
 The circularity that looks like it should block this does not exist. Matching a constructor emits a
 comparison, and a comparison answers a `Bool` - but nothing then compares *that*, because `branch`
@@ -1561,11 +2208,60 @@ body compiled once for every `a` has no layout to fold against and this director
 value looks like in a register. A constant `sizeOf(T)` would need the layout to be answerable above
 `resolve_ssa`, which is an Analysis-IR decision and not a table entry.
 
+**And a read of an immutable global is that constant, wherever it stands** - `readPlace`'s first
+arm, which is stage A said about a read rather than about a constant position. Nothing may assign to
+such a global, so its value is forever what `resolveGlobals` recorded and loading the bytes would
+load something that never changes. What makes it worth doing here rather than leaving to a later fold
+is that it is the *only* thing that makes the supplied constants usable:
+`lib/Native/Memory.native.yana` writes `let width = vectorBytes` and gates a `Vec(U8, 32)` load on
+`width > 32`, which the x64 backend refuses outright below v3 - behind a load the comparison is
+opaque, the arm survives and the build fails. Folded, the arm is gone before any pass has run, which
+is what that file's own comment already claimed.
+
+**A scalar value only.** An `Aggregate` or a `Text` global has a *placement* - one run of bytes the
+program refers to - and a read of it is a read of that storage rather than a description of what is
+in it; `resolve/NicheOwned.yana` answers a different number when the byte image behind a string
+literal is handed to two readers as two constants. What the supplied globals are is numbers, and a
+number has no placement.
+
+**And the same sentence one scope down, about a `let`** (`Local::initial`, J21). Folding the global
+alone only moved the constant into a frame slot the comparison then loaded it back out of: this stage
+gives every local a slot at the MIR-to-SSA conversion and `opt`'s promotion is what removes it, so at
+`-no-ir-opt` `width > 32` was still opaque and the arm still survived - the x64 backend refused
+nineteen fixtures of the corpus on it the day `lib/` became the library. So a `let` that is **not
+writable** and whose initializer resolved to a scalar constant records it, and `readPlace` answers a
+read of that local with the constant. Nothing may assign to such a binding, which is the whole of
+what makes it sound; the storage still exists and is still written, so `addressOf(x)` and a borrow of
+it name a place as they always did. **Not at a published position** - `'T` and `&T` ask for a loan of
+*this* storage and a constant has none to lend - which is the one way a local differs from a global
+here.
+
+**A constructor's head comes from the position** (2026-09-07). A generic `data Opt(a) = None |
+Some(a)` has no type for `None` until something binds `a`, and what would bind it from the *inside* is
+the inference a construction runs over its field values - a `TypeArguments` walk a constant position
+has no builder to make one with. What binds it from the outside is written down wherever a constant is
+what a position is for: `state: State(Int) = On` and `limit: Maybe(Int) = Just(4) :: Maybe(Int)` are
+the two shapes, and `Types::instantiate` has already substituted that head's fields, so
+`constantHeadFor` hands the instantiation over and the field walk reads them without substituting
+anything itself. A position that says nothing, or one that names another declaration, is still "not
+this form".
+
+**A literal at a vector is the lane repeated** - `let &sink = 0 :: Vec(I32, 4)` is an aggregate
+constant of `lanes` values, which is the same answer `FromInt`'s vector instance computes in a value
+position said as a value rather than as a node. So the bytes a global holds before anything runs are
+the lane's bytes repeated, and the two paths agree by construction. A vector aggregate is written by
+the same three lines a fixed array's is - one type laid end to end at its own stride, with nothing
+over it - which is why `materialize` has one arm for the pair.
+
 ### A string is a constant, and the library is what says what one is
 
 `Constant::Text` says what a string literal *is* - the interned text - and leaves how it is built to
 the library: `stringLiteral` takes the address of bytes the compiler places and a count, and
-describes a run that owns nothing. In a value position `textValue` calls it. In a **global's
+describes a run that owns nothing. In a value position `textValue` calls it, and **the count is built
+at the width the role's own signature declares** - the stand-in library wrote `length: Size` and `lib/` writes
+`length: Int`, and the declaration is the only thing that says which. Building it at the target word
+instead was the single largest diagnostic in the real library (31 in the Core closure alone:
+"an argument must be I32, and this is Size" at every literal). In a **global's
 initializer** there is no call to make: the value is bytes written before anything runs, and a
 library module has no program point at which a declaration's own code would run at all. So
 `lib/Core/Show.yana`'s digit table used to be a diagnostic.
@@ -1593,6 +2289,13 @@ which the library's builder has one. The global is a constant either way, which 
 passes in between rely on - its type is settled where the initializer is read, it is not `dynamic`,
 and nothing puts it in the entry sequence.
 
+What is deferred is the **value** and not the text, because a literal may be a *leaf* of it:
+`let names = ["a", "b", "c"] :: [String *3]` and a fixed array of records with a string field are the
+same three byte globals and the same three relocations that three separate `let`s would be. A
+deferral that tested the root alone left `Constant::Text` inside the aggregate for the byte writer,
+which has no bytes for one and asserted; `holdsText` is the test and `textsResolved` is the walk that
+rebuilds the value with each leaf built. `test/resolve/TextAggregate.yana` is both shapes.
+
 **What an unadorned `1` or `1.5` is comes from `FromInt` and `FromDecimal`'s head defaults**, and
 what a literal at a type *is* is that class's instance - see "Operators are calls" above.
 `class FromDecimal(a = Float)` is the language stating that a bare decimal literal is an `F32`; the
@@ -1607,6 +2310,36 @@ the order the walk reaches the modules. `Resolver::PendingDefault` records the p
 file, record, field, expression - and `resolveFieldDefaults` drains it once every record in the
 program has its constructors. The hole it closes was there before and unreachable: nothing a default
 could name was a declaration until one of them was.
+
+### A format is one allocation and a run of appends
+
+`"a{x}b"` is the same arrangement one type over: `resolveFormat` is one function, it produces
+ordinary calls, and the compiler reads no field of a `String`. Implementation-Storage.md part 8's
+three steps are the whole of it - the literal segments are known now so their total is a constant,
+each hole contributes `formatBound(showBound(v))`, and `String.ofCapacity(sum)` is followed by the
+literals and the holes appended in order. The document's three *strategies* are what the existing
+passes then make of that one shape: a format all of whose bounds are constants folds to a buffer of a
+known size, one whose bounds are values allocates that many units, and one with an unbounded hole is
+seeded with the bounds that are known and grows through the library's own append. Nothing here tells
+them apart, which is the argument the document makes.
+
+Five library declarations and five `known.def` rows: `Show` with `show` at member zero and
+`showBound` at member one, and `formatBound`, `String.ofCapacity` and `String.push` beside it. All
+five are `Presence::Optional`, and that is the decision the rows carry - a library without a
+formatter is a smaller library and not a broken one, so a library without one gets a `"{x}"`
+written against it is told at the literal which role is missing. `String.reserve` is deliberately not
+a row: the shipping stage reads it for the `to ++= "a{x}b"` rewrite, which is an optimization of a
+*written* operator rather than part of what a format is, so this stage builds the temporary and
+appends it.
+
+**Left to right, each hole exactly once.** A hole is resolved into a place before anything is
+measured, because it is read *twice* - once for its bound and once for its text - and resolving it
+twice would run its expression twice while one node used twice would hand one owner to two positions.
+`evaluatedPlace` is that function and is the same one a `match` pivot goes through. The hole is
+appended before the text of its own chunk, which is the parser's record rather than the written
+order: a chunk holds a hole's expression and the text *following* it, so appending the text first
+renders `"n={7}!"` as `n=!7` - a wrong string of the right length, which is why
+`ownership/Format.Roles.yana` reads the units back.
 
 ### A growable array literal is two library calls and a run of stores
 
@@ -1649,7 +2382,32 @@ than a broken one.
 **`elementBase` takes a unique window**, and that is not a detail: `%source'a` says which storage it
 points into and nothing about what may be done there, so what decides whether a store through it is
 legal is the loan the window was read under. A shared one is what every element accessor takes; the
-literal fills through the other, and `prelude/Core/Array.yana` declares both over one field read.
+literal fills through the other, and `lib/Core/Array.yana` declares both over one field read.
+
+### A map literal is one library call and a run of inserts
+
+`["a": 1, "b": 2]` and `[:]`, on the array literal's terms one type over - `resolveMapLiteral`, and
+`known.def`'s `map`, `mapLiteral` and `indexInsert` rows. Not built in place the way an array literal
+is, and the difference is what makes the function short: an array's elements *are* its
+representation, so the literal writes the run itself; a map's are an insertion order, a probe and an
+index, none of which the compiler knows or should. So the literal is `newMap(n)` - the one
+construction site where the entry count is a compile-time constant, which §4.5 measures at 1.8-2.2x
+over a small map's life - and one `IndexInsert.insertAt` per pair, left to right.
+
+`insertAt` and not `insert`: the second hands back the value it replaced, so a literal built out of
+it would drop a `Maybe(v)` at every entry. Two equal keys are therefore the assignment's rule applied
+`n` times and not a rule of its own - the later entry wins.
+
+**`m[k] = v` reaches the same member**, which is what `IndexInsert` exists for: `getMut` has to answer
+a borrow and an absent key has none, so an assignment written through it traps on exactly the key the
+author is inserting. `resolveIndexInsert` prefers it wherever the container *has* an instance and
+falls through to `getMut` where it does not, so `Array`'s assignment is unchanged. `[K: V]` is the
+same declaration written as a type.
+
+`test/lib/MapLiteral.yana` is the fixture and runs under both stages; it was written there because
+`test/resolve` compiled this stage against a library with no `Map` in it, and it stays there because
+that is where a fixture about the real containers belongs. `test/resolve/MapLiteral.yana` beside it
+is the shipping stage's.
 
 ### A determined position is decided before the argument offers an answer
 
@@ -1663,6 +2421,14 @@ did what binding always does - saw `k` open, offered `I32` - and the requirement
 `Index(Array(I32), I32, I32)`, an instance nobody wrote, reported as missing where a widening was all
 that was wanted.
 
+**The written index is resolved at that key type too**, and not at the word width -
+`resolveSubscriptTarget` asks `selectInstance` for the container's `Index` head with `k` and `v` left
+open and reads `k` off the head that matched. A fixed array has no instance and keys at `Size`, where
+the hint is what makes `xs[n]` at an `Int` compile: every `I32` is a `Size` on every target. Anything
+else is asked, because the widening only runs one way - `m[900]` on a `Map(Int, Int)` built the
+literal at `Size` and then had to narrow it into the `k` the instance declares, which is the
+conversion the language refuses outright, and which was sixteen of the library suite's diagnostics.
+
 Only the requirement fixpoint runs there. The declared defaults do not: a default is what a position
 means when *nothing* says, and the result hint has not been read at that point - so
 `fillDetermined` stays the pair and `fillFromRequirements` is the half that may run early.
@@ -1672,43 +2438,199 @@ The same rule reaches a **field** requirement, and that changed a diagnostic:
 argument mismatch against the `I64` the author wrote, where it used to report that `Marked`'s field
 was the wrong type - a complaint about the subject, for a mistake in the operand beside it.
 
+**And the result position is the other half of it: a dependency beats the target.** `class Enum(a ->
+w)` promises that one enum has one width, so in `fn seekBase(w: Whence) -> I64 = valueOf(w)` the
+`I64` is not what `w` *is* - it is what the caller wants the answer converted to. `finishCall` binds
+the hint through `TypeArguments::bindResult`, which records *which* positions it filled;
+`fillDetermined` then reopens the ones a requirement determines, runs the fixpoint, and puts the
+hint's answer back only where nothing answered. Binding it and leaving it wrote `I64` into the
+position the dependency answers, and the lookup asked for `Enum(Whence, I64)` - a missing instance
+reported for what the author wrote as an ordinary widening. A position an **argument** filled is
+never reopened: that one is the type of a value that already exists rather than a wish about this
+call. `EnumValue.yana` is the fixture, and the shipping stage states the same rule in `solve.cpp`.
+
+### An argument that takes its type from the position is resolved last
+
+`resolveArguments` walks the written arguments in three turns, and the order is **how much the
+argument itself knows**. A value with a type of its own goes first and decides what it decides. An
+untyped number goes second: it has a *default*, so it can still decide a position nothing else does,
+but it must not be the thing that decides one somebody else knows - `select(steep, 5.2e-1,
+zeroLike(v))` at `Lanewise(v -> m)`'s `select(mask: m, ifTrue: v, ifFalse: v)` bound `v` to the
+literal's own width and then reported the third argument against a position it had the answer to. A
+**lambda** goes third, because it knows nothing at all: `apply((v) -> v + 1, 3)` at
+`fn (a, b) apply(f: (a) -> b, x: a)` takes `v`'s type from the position, and the position is made of
+the callee's variables until `x` has bound them.
+
+Only where the position is still **undecided** (`TypeArguments::undecided`), so an argument at a
+concrete parameter - and at a variable an earlier argument already bound - is resolved where it was
+written: there is nothing for the turn to buy, and a dump should show the code the author wrote. The
+turn is decided on the first pass and remembered, never asked again, because by the later turns the
+arguments it was held back for are exactly the ones that have changed the answer.
+
+The requirement fixpoint runs once **before the lambda turn**, which is the same question
+`prepareArgument` asks one position at a time: `sortBy(xs, (l: Int, r: Int) -> l < r)` at
+`fn (Writable(c, a)) sortBy(&xs: c, before: (a, a) -> Bool)` has `a` answered by the dependency from
+`c` and by no argument of the call, so without it the lambda's position is still `(a, a) -> Bool`
+when its turn comes. The declared defaults are deliberately not run with it, for the reason above.
+
+Evaluation order is unaffected, which is what makes the reorder legal: what is held back is a
+constant or a lambda, neither of which has anything to observe about when it was built - the same
+reason `fillDefaultArguments` runs after every written argument rather than interleaved with them.
+The overloaded path has made the literal half of this split since J8 (`undecidedLiteral`, where a
+candidate's viability at a literal operand is read off its *other* parameters); this is that rule at
+a call with one callee, which is where the whole of `lib/Math`'s kernels are.
+
+### Two arguments at one variable meet at their `Widen` upper bound
+
+`doc/spec/overloading.md` already says it - "within a single call, the positions bound to the same
+class variable are unified to their unique `Widen` upper bound where one exists" - and until J23 this
+stage applied it to the arms of an `if` and a `match` and not to a call's own type arguments. The
+first argument bound the variable and every later one had to convert *into* it, so
+`checkAtMost(shown(x), bound(x))` at `(Size, Int)` and `valueOf(e) == want` at `(I32, I64)` were
+narrowings and were refused; six sites in `lib/`'s own suite carried an ascription for it.
+
+`TypeArguments::bind` performs the meet through `commonWiden`, which is the same function the arms
+use, so there is one rule. Three things bound it:
+
+- **Only a walk that can fix up afterwards asks for it** - `TypeArguments::unifies`, set by the
+  written call, the overloaded call and the operator chain, and by nothing else. The meet moves a
+  binding an earlier argument was already coerced against, so `widenPreparedArguments` brings those
+  positions up once the walk is over: integers only, and only where the two differ, since every other
+  way a value can differ from its position was settled by `prepareArgument`. A `TypeArguments` filled
+  from values the compiler itself built - `callFunction`, `applyMember`, a construction - has no such
+  pass, and a binding that moved there would leave them at the width they were built at.
+- **Only a position an argument decided** - `fromArgument`. A functional dependency or a field
+  requirement filled through `fillFromRequirements` is a *promise*, and an argument is in no position
+  to widen it: `class Enum(a -> w)` says what width an enum's value has, and `fn (a.mark: b) f(x: a,
+  other: b)` says `b` is the field's.
+- **Never from the result.** `bindResult` runs with the meet off, which is the line the shipping
+  stage draws too: a result that would need converting has not decided the type arguments by itself.
+
 ### `@noinline`, and the one direction a declaration can insist on
 
-`@inline` is a hint this stage records nothing for, `@inline(always)` is a promise the *resolver*
-keeps by grafting the body at the call, and `@noinline` is the promise in the other direction - the
-one of the three that can never be refused, because declining to expand a body is always possible.
-`readInlineAttribute` reads both attributes in one walk, since the contradiction between them is only
+`@inline` is a **hint** - `Function::inlineHint` since 2026-09-07 (J30), where this stage used to
+read the attribute and drop it. The old reasoning was that what an optimizer does with a hint is its
+own business, which is an argument about the *number* and not about the flag: the number is stated
+once, in `resolve_ssa/opt/inline.cpp`'s `Budget`, and what this stage owes it is that the author
+wrote the attribute at all. `@inline(always)` is a promise the *resolver* keeps by grafting the body
+at the call, and `@noinline` is the promise in the other direction - the one of the three that can
+never be refused, because declining to expand a body is always possible.
+`readInlineAttribute` reads all three in one walk, since the contradiction between them is only
 visible to something that has read both; a declaration saying two opposite things has stated no
-intent, so neither answer is taken and the pair is reported.
+intent, so neither answer is taken and the pair is reported. A hint written beside `@noinline` is
+the same contradiction one step weaker and is answered rather than reported - the directive is what
+the compiler can always carry out, so the hint under it would be a term weighed and thrown away.
 
 `resolve_ssa/opt/inline.cpp` is the one reader, and it asks before the numbers rather than after:
 this is a directive and not a weight. Nineteen fixtures in the corpus depend on the boundary
 surviving - a measurement that would otherwise fold into its caller, `ArrayFill`'s opaque index, the
 inliner's own subject - and every one of them was quietly being inlined here.
 
+### `@convention` and `@host` - the two attributes that were parsed and thrown away
+
+Both are read since 2026-09-07 (J26), and neither is a representation this stage implements.
+
+`@convention(clobber)` is the second **backend** fact a resolver carries, beside `@x86_legacy_sse`
+and for its reason: what a program may name is a semantic promise about a call boundary, or one of
+the two foreign ABIs, and a stage that dropped it emitted a body entered under the wrong convention
+with nothing saying so. `readConventionAttribute` is the reader - a word for an argument, so
+`readAttributes` cannot be it - `Function::convention` is a `Maybe` so that "wrote nothing" and
+"wrote the default" stay different statements, and `lower/gen.cpp` carries it to
+`LowerFunction::callType` beside `legacyVectors`. The name table is `lower/convention.h`'s, shared
+with the lower IR's parser and printer, and `conventionWritableInSource` is what refuses `simple`,
+`complex` and `system`. The messages are the shipping stage's word for word. One difference from it
+is deliberate: it reads the attribute on a plain `fn` only, and this stage reads it on every
+signature, because `readInlineAttribute` already reads the encoding marker off every signature and
+one walk for a signature's backend facts is worth more than a placement rule stated twice.
+
+`@host` on a field is the opposite kind of fact - a **JS-visible source fact with no native
+semantics**. `RecordField::host` records it and nothing here reads it: a native record with one lays
+the field out exactly as it would without it, and what elides the slot is the JS pipeline, later.
+What this stage owes is the refusals, and they are the shipping stage's: the attribute follows the
+one field that stores the value and may not be that field, a record with one has exactly one stored
+field, the field has to be named (the name *is* the property), and `@bits`/`@box` cannot combine with
+it - an elided field has no word to narrow and no storage to point at. `checkHostFields` is per
+**constructor** rather than per record, because two arms of a sum are two shapes over one storage.
+
+`test/resolve/ownership/Reject.Convention.yana` is both attributes' refusals through this stage.
+A fixture of its own rather than a directive on `Reject.VectorReset.yana` and `Reject.Host.yana`,
+because a rejection fixture names *one* stage and those two are the shipping stage's.
+
 ### What containers still cannot do, measured
 
 Four defects were found by pointing the corpus at the container path once the literal existed. None
-is about the literal. One is fixed - see the section below - and the other three are recorded rather
-than worked around:
+is about the literal. Three are fixed - see the section below, J15's load, and J18's owner-to-view
+derivation - and the last is recorded rather than worked around.
 
-  - **A shared `String` element of a container is the owner's address.** `Index(Array(a), Size, a)`
-    hands back `source'a`, and at `a = String` a shared occurrence *is* the view - two words in
-    `StringView`'s layout - while the body produces a borrow of the owner's bytes. The generic body
-    cannot adapt (`a` is open where it is resolved) and the specialization has no body of its own to
-    adapt in, so `xs[0] == "xy"` on a `[String]` compares a view against an owner. It is the erased
-    view ABI rather than a container question: `substitutedContract` turns a *parameter* into the
-    view because the caller adapts, and a **result** at the same rule needs a callee that can produce
-    one. `resolve/SinkCallResult.yana` is the fixture waiting on it.
-  - **A class member reached through a constraint miscompiles a published borrow of a scalar.**
-    `fn (Index(c, k, v), Num(v)) at2(xs: c, a: k) -> v = xs[a] + xs[a]` at `Array(I32)` answers
-    `2 * (8 + 4 * a)` rather than `2 * xs[a]`, specialized or not - a published shared loan of a
-    trivially copyable scalar read as though it were the address it manifests as.
-    `resolve/Bounds.yana` waits on it.
+A fifth and a sixth arrived with `lib/` and are **library** statements rather than compiler ones, and
+both are J15's `Array(a)` recursion one type over. `Contiguous([a *n], a).elements` wrote
+`unclampedSlice(self, 0, n)`, whose argument is a *window* - so the only thing that turns a fixed
+array into one is that member, and it called itself on every path. And `Chunked([a], a).chunks` wrote
+`yield elements(self)` where `self` **is** the chunk: a class member's subject for a container is the
+container's window, so reaching for `elements` there asks a window to become one and the callee then
+read the owner's field offsets out of a view. `lib/Core/Container.yana` writes both out now - the
+native fixed-array pair as the view record over `bitcast(addressOf(self))`, which is what
+`lib/Core/Array.yana` writes, and `chunks` as `yield self`. Both stages got shorter
+IR out of it.
+
+
+  - ~~**A shared `String` element of a container is the owner's address.**~~ Fixed 2026-09-07 (J18).
+    The derivation is emitted at the one place the substitution is known - the MIR-to-SSA conversion
+    of a specialized body - and `resolve/SinkCallResult.yana` is adopted. See
+    "An owner reaching a view position under substitution" in `../resolve_ssa/README.md`.
+  - ~~**A class member reached through a constraint miscompiles a published borrow of a scalar.**~~
+    Fixed 2026-09-07 (J15). `fn (Index(c, k, v), Num(v)) at2(xs: c, a: k) -> v = xs[a] + xs[a]`
+    answered `2 * (8 + 4 * a)` because a published shared loan of a trivially copyable scalar
+    manifests as an *address* and the arithmetic read it as the number. The load that was missing is
+    `valueUseOf` in `resolve_ssa/convert.cpp` - see "A loan of a scalar in a value position is a
+    load" below. `resolve/Bounds.yana` is adopted.
   - **`lib` declares two plain `capacity`s at arity one** - `Run(a)`'s and `Array(a)`'s -
     and `doc/spec/overloading.md` R1 lets an overload set hold one. This stage reports the
-    ambiguity, so `prelude/Core/Array.yana` deliberately declares neither and reads the field.
+    ambiguity, so `lib/Core/Array.yana` deliberately declares neither and reads the field.
     `resolve/TypedArray.yana` waits on the library sorting the name out.
+  - ~~**A `[T *n]` element is reached with no bound.**~~ Fixed 2026-09-07 (J20), and it was the last
+    subscript in the language that was not checked. Every other container is subscripted through an
+    `Index` body and the test is written there beside the length it reads; a fixed array has no such
+    body, because its element is a projection of the container's own place and there is nothing for a
+    call to hand back. `checkFixedBound` in `resolve_expr.cpp` emits it at the one place a `[T *n]`
+    element place is projected from a written index, unsigned against the length so that a negative
+    index is the same comparison, and skipped for a constant index that is in range.
+
+    What it emits is a **call** to `known.def`'s new `checkCondition` role rather than the branch,
+    and that is not a preference: a subscript is resolved inside whatever expression contains it, and
+    this IR hands every value that crosses a block boundary over as a block argument, so a branch
+    here would have to thread the enclosing expression through two new blocks under a construct that
+    has already decided which blocks it owns. The shipping stage's indirection has exactly that
+    reason, and `known.def`'s note used to say a condition function was a declaration this stage
+    would never reach for. `-no-checks` discharges it with everything else, one inlining later.
+    `resolve/FixedBound.yana` is the fixture; the written-count and quantified-count bounds are both
+    in its `.mir.lower.expect`.
+
+### `@inline(n) @capacity(n)`, and the half of it this stage has
+
+`readContainerRefinement` reads the pair off a type and checks it exactly as the shipping stage does -
+both written, equal, and not zero, because the rows that spill need a discriminant neither stage
+builds. What it then honours is the **capacity** and not the placement: the literal is built by
+`arrayLiteral` at the number of elements it wrote and then reserved to the bound, through
+`known.def`'s `arrayReserve` (`lib/Core/Array.native.yana`'s own `reserve`). Sizing the run from the
+bound instead would make `length` the bound as well, which is not what the annotation says.
+
+`@inline(n)` asks for those slots in the **frame**, and this stage still does not give them - but the
+reason is not the placement ladder, which J24 built. It is a **layout**: the shipping stage's
+`repr.cpp::computeInlineContainer` replaces the container's `Run(a)` field with `n` slots of the
+element's stride, so there is no run pointer and no capacity word, and the tag the construction
+writes is `runFixed`. Nothing in `resolve_ssa/lower/repr.cpp` has that rung, and `resolveType` refuses
+the refinement anywhere but the two `::` positions - so `data Buffer {items: @inline(4) @capacity(4)
+[Int]}` does not resolve here at all. `newRun` being a library call rather than a placed allocation
+is the second half of the same gap: expanding it would need an allocation with an **extent**, which
+`Inst::Alloc` does not carry. So a refined array costs an allocation and a free the shipping stage
+does not pay and means the same thing; `withPathCString` and every path-taking `File` call run
+correctly and not for free.
+
+The two positions that honour a refinement are the `::` of an array literal in a body and in a
+constant, and both read it off and resolve the type without the attributes the way the `@bits` arm
+does. Anywhere else - a field, a parameter, a result - `resolveType` **reports** it: an ABI
+annotation silently ignored is a representation its author believes in.
 
 ### A hand-over is a parameter, and a lending one needs the same temporary
 
@@ -1737,9 +2659,22 @@ checked against a class by the one rule every instance is checked by, and the ha
 per enumerator that used to do it is gone. A `Known` role survives as a *tag* on the declaration,
 which is what the ownership classifier keys off.
 
-They were *synthesized* in C++ until `prelude/` existed. `prelude/Core/Core.yana` declares all three
-with `@builtin(reclaim)`, `@builtin(drop)` and `@builtin(copy)` on them, exactly as `lib/Core` will,
-so there is no second implementation of a class declaration and no class belonging to no module.
+They were *synthesized* in C++ until this stage had a library at all. `lib/Core/Core.yana` declares
+all three with `@builtin(reclaim)`, `@builtin(drop)` and `@builtin(copy)` on them, so there is no
+second implementation of a class declaration and no class belonging to no module.
+
+**An authored `Copy` subtracts `TrivialCopy` at exactly that head** (`own.cpp`,
+`doc/spec/ownership.md`, inventory D16). A concrete head - `instance Copy(String)` - is the author
+saying the structural answer is wrong for that type, and it subtracts. A **parametric** head whose
+own context asks for the same class - `instance (Copy(a)) Copy(Maybe(a))` - says the carrier copies
+as far as its payload does, which is the structural answer restated: where the payload is trivial the
+`Copy(a)` it requires is the blanket instance, which subtracts from nothing, and where it is not the
+member fold has already said so. So `Maybe(Int)` is `TrivialCopy` and `Maybe(String)` is not,
+`lib/Core/Core.yana`'s own comment beside those three instances is right as written, and the shipping
+stage agrees. `inheritedCopy` is the one predicate, and reading it literally - every declared `Copy`
+subtracting - is what made `let b = x` over a `Maybe(Int)` a double consume and stopped
+`node(n)?.leaf?.value` handing a `Maybe` field out of a record with an authored teardown
+(`test/resolve/OptChain.yana`, which is back to its original form).
 
 They were recognized by *name* until the role tables existed - a declared class's name compared
 against three spellings written beside the enum. That is the coupling `compiler/intrinsic` exists to
@@ -1900,6 +2835,51 @@ What a component of an aggregate contributes is deliberately still open: taking 
 is the same object at a new address, and whether that is a merge or a containment is §10.4's interior
 placement question. `addAggregate` is where it says so, which is where it will be answered.
 
+### Where an object lives, and the one function that says so
+
+`analyze_escape.cpp` is the whole of placement. It is deliberately two things with a seam between
+them - the **findings** (`Placement` in `place.h`) and the **ranking** (`selectStorage`) - and that
+split is decision D6: `@heap`, the escape analysis and a future region witness each establish one
+field, and none of them decides a rung. Implementation-Regions.md §4's ladder is then one line in one
+function rather than a second placement rule somewhere that has to agree with the first.
+
+`Frame` and `Heap` are both produced. `Region` still is not, and `verifyBody` refuses it, because
+what it means is "in the region the ambient witness names" and a `GenContext` has no slot kind for
+one.
+
+**What selects `Heap` today is `@heap` on a binding** - `doc/Design.md`'s per-binding override, read
+by `readBindingAttributes`. It is the only thing in the language that names a rung directly, and it
+is one-directional: it moves an object off the frame and never onto it.
+
+**The escape half is not a dataflow here, and that is a statement about the representation rather
+than a milestone.** In an ownership MIR nothing escapes by being a value: a returned record is copied
+into storage the caller passed in, a `->` argument is moved into the callee's own slot, a write into
+a global fills the global's storage. In each of those the object travels and its storage stays
+behind. What is left is storage reached through a **reference**, and every reference here is a loan -
+so the escape seeds are exactly `analyze_loan.cpp`'s conformance failures, which already compute the
+answer per position.
+
+The one construct in the language that reaches them is a **closure**, and since D17 it is placed
+rather than refused: `resolve_lambda.cpp` sets `Placement::outlivesFrame` from the position the
+lambda fills - which is `checkCarriedOrigins`' own firing condition, an owning position - and asks
+`selectStorage`. That is the second caller of the ranking and the first that is not an attribute.
+What it does *not* go through is `Object::storage`: a closure's environment block is not the frame's
+storage at all, so it is neither allocated by `buildSlots` nor freed by `releaseSlots`. It is
+allocated where the pair is built and released by the pair's own teardown - see
+`resolve_ssa/lower/fun.cpp`, and the closure section above for why the two are different animals.
+
+**The allocation and its release live below the MIR**, which is the arrangement `@box` already has:
+placement changes no move path, no initialization state and no drop step, because what a value owes
+when it dies does not depend on where it was sitting. `Conversion::buildSlots` allocates a heap slot
+where it would have made a frame one and `Conversion::releaseSlots` hands it back at each of the
+scope's exits - one allocation per activation, one release per path out of it. That pairing is why a
+heap-placed value handed over by a `->` argument, which owes no drop at all, still hands its block
+back; `test/resolve/HeapRelease.yana` and `DropFlagHeap.yana` measure both against the allocator's
+own bump pointer.
+
+`Summary::placement` is the published half: the strongest rung any object an activation needs,
+transitive over the call graph, joined by `computePlacement` on the fixpoint suspension already uses.
+
 ### Loans, and the one structure behind them
 
 A `Loan` (`loan.h`) is a place and a capability, minted **only** by `Builder::addRead` and named by
@@ -1917,9 +2897,40 @@ holds what was last written into it. The other four answers are all this table:
   edge, with no rule for either shape.
 - **Overlap** is `placesOverlap` - walk both places to their roots, disjoint if the roots differ or a
   field index does - against the loans live *after* the access, which is what makes a loan not
-  conflict with itself.
+  conflict with itself. A **raw address** overlaps everything, *unless* its type says where it
+  points: `%source'a`'s pointee origin set is exactly the loans the address may reach, so a write
+  through a buffer of this frame's own no longer conflicts with every live borrow in the body. It
+  says which storage and not whether anyone else writes through it, so two pointers into one source
+  still conflict and `doc/spec/native.md`'s "proves no exclusivity" is untouched. An **unqualified**
+  address read out of storage still reaches anywhere, and what it reborrows is what the read went
+  through: `unionPlaceOrigins` walks back from the address to the place it was loaded from, so
+  `n.next.value = ...` over a `data Node {next: %Node}` does not conflict with the `addressOf(first)`
+  that produced `n` - a linked list is unwritable otherwise, and a field's own type has nowhere to
+  name an origin.
 - **A reborrow** is a loan whose origin set contains the one it reborrows, so §2.5 is a `skip`
   argument to the overlap check rather than a rule beside it.
+- **A unique loan taken for an argument is a reservation until something uses it** - two-phase
+  borrowing, `reserved` in `checkLoans`. `doc/spec/expressions.md` evaluates arguments left to right
+  and the callee runs after all of them, so `pushFill(to, value.fill, value.width - (length(to) -
+  start))` reads `to` at a point where nothing can yet have written through the `&to` beside it.
+  Between the read that mints such a loan and the first operand naming that read's result it excludes
+  a write and a move, and it excludes **a loan only where that loan is still live at the activation** -
+  so a nested call taking the same storage exclusively and releasing it before the outer call is
+  admitted (`readColor(options, takeValue(options, ...))`, `lib/Test/Options.yana`, eight times) and
+  `twice(b, b)` is not. The liveness is asked at the *take*, which is what keeps the blame on the
+  argument an author can change; a **shared** take is excused outright and reported at the activation
+  if it survives, since a read cannot be the mistake. The activation is checked as the take would have
+  been, against the loans live *before* that node - `loans/TwoPhase.yana` and `Reject.TwoPhase.yana`
+  are the pair, and `ownership/Reject.Exchange.yana`'s `swap(x, x)` is the whole-place case that is
+  refused where it is written.
+- **A subscript written to takes its accessor after the right-hand side.** `xs[i] = xs[i] + 1` reads
+  through `get` and writes through `getMut`, and the exclusive loan the second takes has to start
+  after the first has ended - so `resolveAssign` resolves the container and the index, then the
+  value, then the accessor. A **path of fields over the subscript** is the same statement one
+  projection out (`xs[i].f = xs[i].f + n`, `lib/Test/Console.yana`'s tally), and it needs the field
+  path's *type* before the place exists: `fieldPathType` answers that for a run of named fields of
+  single-constructor records and nothing else, and where it cannot the target is built first exactly
+  as it was. `fieldStep` is the one walk both this and `resolvePlace` apply.
 - **The one exemption** is `exchangeOnlyLoan`: two exclusive loans of elements of one container may
   be live at once when each is used by nothing but a `swap` or an `exchange` - `doc/spec/core.md`'s
   Exchange, and `swap(xs[i], xs[j])` is what a sort is written with. The walk is structural, from the
@@ -1931,7 +2942,13 @@ holds what was last written into it. The other four answers are all this table:
 - **Conformance** is `checkReturnConformance`: walk each returned loan to its place's root and ask
   whether the signature published it. A global satisfies any slot, a parameter in the declared slot
   is what was promised, and the three ways it can be neither get three different messages, because
-  they have three different fixes.
+  they have three different fixes. A root that is a **local holding a borrow of a published origin**
+  is a reborrow rather than this frame's storage - `xs[i]` is a call whose result is parked in a
+  frame slot so that a projection has a place to name, and what is *in* the slot was named by the
+  producing signature as somebody else's. What it is really rooted in is in the same origin set, so
+  the loop checks that instead. `Origin::Slot` and not merely "borrowed": a hand-over is
+  `Origin::CallBounded` and a binding that holds one is exactly the escape
+  `lens/Reject.Escape.yana` refuses.
 
 `forEachOperandOrigin` is how all four passes ask - the environment, liveness, the extent walk and
 the overlap check - and it answers for a *place* operand as well as a value one. `idOf(d)` names a
@@ -2063,6 +3080,17 @@ destination:
 | shared or published | storage this frame does not own | `BorrowShared` |
 | owned | storage this frame owns | `Forward` |
 
+`Request::establishes` is the one row of that table with an exception, and the exception is a *name*
+rather than storage. "Writable" there is `Place::writable`, which is what the author declared -
+`mutate(h)` for a plain `let h` is refused because a `&` argument must name mutable storage, and
+`let &z = h` is how an author says otherwise. So the initializer of a `let &` is asked the storage
+half and not the name half: over a place rooted in a **local** - a `let`, a pattern binding that took
+a payload out, a parameter - it takes the exclusive loan `doc/spec/ownership.md` describes ("`let &d
+= c` - an exclusive loan: writing through d writes c"). A **global** keeps the whole test, because
+the program declared whether it may be written and no frame owns it, and a shared borrow is refused
+by the row above whatever the binding says. `bindsOwnStorage` is the whole of it, and
+`test/resolve/BindAxes.yana` is the fixture both stages now compile.
+
 That one function is what makes `let x` a shared loan of what it names, `let &x` an exclusive one and
 `let ->x` a handover, without any of the three being a case: the two axes of a binding are a
 `Request`, and what the binding *becomes* is the initializer's answer.
@@ -2081,6 +3109,22 @@ through to the same storage and a constant has none, so it is refused by the ord
 A field declared `'T` or `&name'T` makes the record's interned `OwnershipSchema` non-empty - `own.cpp`
 builds it, and `RecordType::schema` is where it lives. `Builder::fieldPlace` reaches through such a
 field with a `Place::Deref`, and `resolve_ssa` lays it out as a pointer rather than as the object.
+
+**The pointee's writability is the reference's access and not the record's.** Re-pointing the slot
+writes the record, so the field place itself keeps the parent's answer; writing *through* the
+reference touches no part of the record, so an exclusive `&'T` field of a record held in a plain
+`let` still writes the storage it names. `findMut` answering `Maybe(&'v)` is the program - `Just(v)
+-> v = v + 1` writes the map's own entry through a `Maybe` nobody declared `&` - and the narrowing
+`fieldPlace` already applies is what removes the capability where the record was reached through a
+shared borrow. It is the one projection exempt from the verifier's "a projection of a place nothing
+may write is a place nothing may write", for that reason.
+
+**A pattern binds a payload at the capability the payload carries**, and `&` on a pattern is not what
+says so - `bindPattern` reads the position's own contract, exactly as `hold` reads a value's. A
+payload whose position is `&m'Guard` binds as a `&` local and is read at `requestOf` rather than at a
+plain binding request, since an unpublished binding of a `TrivialCopy` scalar is a copy and a copy is
+not what `v = v + 1` was written against. `resolve/loans/Argument.yana` is the golden, and its
+`exclusive()` used to record the gap in its own comment.
 
 A record's slots are numbered within its own field list and a function's within its signature, so
 they are **separate scopes**: the `a` in `data Reader {held: a'Guard, ...}` and the `a` in
@@ -2117,9 +3161,90 @@ describe, and is exactly what `checkReturnConformance` refuses.
 relationship forwarded through a second signature that spells its origin differently, and two slots
 filled crosswise so the mapping is a permutation rather than the identity it is with one.
 
+**A result writes no argument at all, and that is elision rule 1** - Analysis-Borrows.md §4.8,
+`Resolver::elideResultOrigins`. A result whose *type* carries an interior position nobody labelled
+takes the signature's one anonymous group, exactly as `-> 'v` at the root does: `padded(value: 'a,
+width: Size) -> Aligned(a)` over `data Aligned(a) {value: 'a, ...}` is the shape every named
+formatter in `lib/Core/Format` has, eighteen of them, and the argument could only ever name the one
+group §4.8 measured the library to have. The shape is built where the result occurrence is derived -
+the one place, so a written signature and an inherited one are elided by the same line - by
+renumbering the record's own schema into this scope, which is `Reader(a')`'s mapping with the
+argument supplied rather than written. A **pointer** result is the second kind: it has one interior
+position and no field to name it, so what is built there is `%source'a`'s slot exactly.
+
+Only at an **owned** root, which is where the silence is: `originSlotAt`'s third case already
+answers an unbound interior position with the root's slot, so a result that borrows says something
+about everything inside it. `loans/ResultElision.yana` is the fixture, and both stages compile it.
+
+**And where the scope has no group at all, one is promoted onto the signature's candidates** - rules
+5 and 6, `Resolver::promoteLoanCandidates`, in the form §4.8's own supersession block settled on.
+Rule 5 was written as a *count* - "exactly one parameter could root this" - and a count is a property
+of the whole signature that changes when something unrelated is added to it, so a rule that *picks*
+by one turns that into silence: the signature keeps compiling, means something else, and every caller
+is re-checked against a contract nobody wrote. So nothing is picked. **Every** candidate joins the one
+anonymous group, which is rule 1 and is what a conservative group has always been, and a label is
+what splits it where the coarse answer rejects a program worth accepting; rule 6 needs no clause of
+its own, since `self` is a candidate like any other.
+
+A **candidate** is an unlabelled parameter that refers to the caller's *storage* rather than to a
+value it could equally have been handed a copy of: a unique (`&`) borrow, or a shared borrow whose
+form is a view - `xs: [T]`, `s: String`. A plain `p: Pair` is not one, which is what keeps
+`loans/Reject.Signature.yana`'s refusals refusals - it did not move - and an `Array(a)` owner
+receiver and a raw pointer are not either, which §4.8 lists as types that cannot yet carry a group
+rather than as an argument for guessing. Only the **anonymous** group elides: `-> a'Guard` in a
+signature that published no `a` is naming a relationship the author has not written, and promoting a
+parameter into `a` would be inventing their second one. `loans/ResultCandidate.yana` is the fixture,
+and `iter fn each(xs: [String]) -> 'String` in `lib/Core/BorrowUpdate.test.native.yana` is why it
+exists: it is the one library signature that had no spelling both stages accepted, because the
+shipping stage promotes the same candidate (`settleLoanCandidates`) and refuses the explicit
+`source'String`.
+
 Still refused by name: an *owned field* whose type has a schema. `data Outer {inner: Reader(a')}`
 would give `Outer`'s own schema `Reader`'s position at a deeper path, and `foldSchemas` walks the
 records flat rather than on demand, so the fold order is what is missing rather than the spelling.
+
+### A pointee is a place, and both spellings reach it
+
+`*p = v`, `(*p).value = v` and `p.value = v` are one construct: the object a raw address names is a
+place - `Place::Address`, the one root outside the safe model - and everything a place composes with
+composes with it. `resolvePlace` reaches it two ways and they meet at `pointeeAt`: a prefix whose sole
+callee carries the `pointerLoad` **role** (the role and not the spelling, so a program's own unary `*`
+is an ordinary call), and a **projection** through a place that holds a pointer, which is
+`pointeeThrough` and is what makes `p.value` mean `(*p).value`. The step is on the projections rather
+than in `projectionTarget`, which a dot-*call* shares: `p.f(y)` is `f(p, y)` with the pointer itself
+as argument zero, which is how `lib/Native`'s own operators are written.
+
+The place is **always writable**, which is `lib/Native/Pointer.yana`'s own sentence - "the memory a
+pointer names is always mutable, the pointer itself is not" - so `n.value = 5` through a plain
+`let n = addressOf(node)` is a write and `n = m` on the same binding is still refused. A store through
+it releases nothing, for the reason `expandPointerStore` gives at length: an address root has no move
+path, so what the pointee held before is neither dropped nor tracked, and that is Native's to be
+unsafe about.
+
+`addressOf` answers the **storage** rather than a copy of it wherever the place it read has an access
+that is not shared - an owned local, a `&` parameter. Whether the *binding* may be assigned was the
+test until 2026-09-07 and it refused a plain `let node = Node {...}`, so `copyMemory(addressOf(node),
+...)` wrote a temporary; a place this frame only shares has no exclusive loan to give and keeps the
+copy, which is also the only reading available for storage this frame does not own. What
+`test/resolve/Global.yana` records for `addressOf` of a *constant* is untouched and was never the
+writability's answer: an immutable global whose initializer is a scalar constant reads **as** that
+constant, so there is no place there at all.
+
+### A pointer restated as a pointer keeps its pointee
+
+`Builder::addRetype` carries the operand's `Occurrence::shape` across a pointer-to-pointer `bitcast`,
+which is the third of the four `PositionShape` axes read at a *node* rather than at a signature.
+`%source'a` says whose storage the address may be in, and reading the same bytes at another element
+type does not change the answer; dropping it made the result a bare `%U8` - a pointer publishing
+nothing - which `analyze_loan.cpp` reads as naming nobody's storage and its overlap rule then treats
+as everybody's. `Core/Text.native.yana`'s two case conversions write through `bitcast(target + i)`
+and were the last two `lib/Core` diagnostics because of it.
+
+`unionPlaceOrigins` is the other half and had the symmetric hole: a place rooted in an **address**
+reaches what the pointer's type says, and only `reachFrom` knew that. So a write *through* a
+qualified pointer reached the loan it was writing through and reborrowed nothing -
+`store(base + count, 0)` in `withPathCString` conflicting with the `valuesMut(buffer)` loan that
+produced `base`. Both callers ask one function now.
 
 ### A borrow inside a type argument
 
@@ -2301,6 +3426,17 @@ the destination that child declared - is checked in `verify.cpp` and again in `s
 there is one: the region is outlined into a function and the callee is called with it. See that
 directory's README for the exit signal and the environment.
 
+**And the optimizer takes the outlining back apart, which is why one lowering is enough.**
+`flattenContinuations` in `resolve_ssa/opt/inline.cpp` copies the iterator's body into its consumer -
+which brings the call through the pair into the frame that *built* the pair - resolves that call to
+the declaration the pair names, and copies the continuation back in, to a fixed point. A three-stage
+chain is six of those steps and comes out as one loop with the bodies in it. So the *embed* lowering
+`ssa::Continuation`'s note describes is a question about what the conversion emits rather than about
+what the backend receives: an adaptor chain is already flattened by the time anything is lowered, and
+what the outlining costs is paid only where the optimizer declines - a recursive consumer, a budget
+spent, or `-inline none`. `test/resolve/FlattenIter.yana` is the worked example and asserts both
+halves, including the recursive one that must stay a call.
+
 Three things follow from the callee being **opaque**, and each is a rule that was not written:
 
 - **A lens's frame storage is ordinary storage of an ordinary function**, released at the first point
@@ -2347,6 +3483,26 @@ passes it along by an ordinary return, so a `break` through three adaptors stops
 That is also why an `iter fn` has no `return` and no exactly-once rule. Falling off the end is *ran
 out*, which is the fall-out row emitted by `finish`, and an iterator that yields nothing is a filter
 that accepted nothing.
+
+### What a `for` binds, and how a pattern reaches it
+
+The hand-over lands in one local of the continuation whatever the loop wrote, so a pattern on a `for`
+is the same construct a `let` over any other place is: `bindIrrefutable` takes that local apart by
+reading through it, and what each name binds - a shared borrow, or the owned part where the iterator
+declared `-> ->Item` - is the pattern's own rule read at the place, not a second rule written for
+loops. `handoverCall` hands the local out for that reason rather than only naming it; a `for` binding
+a plain name has already been given it by name and ignores the extra.
+
+A **refutable** pattern is refused, and by the language rather than by this stage: a `for`'s `|`
+introduces the *iterator's* failure channel, so there is no position in the grammar for the arms a
+failing pattern would need. The report is the coverage question a `let` with no alternative asks,
+over the same `PatternSpace`, and it names what is left over. It is emitted **after** the pattern is
+built rather than before, which is the one place this differs from `resolveBinding`'s order: a
+pattern the type has no reading for at all - `{a, b}` over an `I32` - leaves a gap because it matches
+nothing, and reporting the gap first would say "this can fail" about a shape that is simply wrong.
+
+The counted `for` goes the same way over its own counter local, so there is one answer and not two.
+`ForPattern.yana` and `ownership/Reject.ForPattern.yana`.
 
 ### Where an iterator goes once its consumer has left
 
@@ -2474,9 +3630,43 @@ call's onto its result, with one difference: the slot is read off `Continuation:
 `callee.result`, because an `iter fn`'s declared result is the continuation's *answer* and what is
 handed over is the continuation parameter's type.
 
-The other half is the library's. `class Chunked(c -> a)` has to write `iter fn chunks(self: source'c)
--> source'[a]`, because a published origin is what there is to map: `lib/Core/Container.yana` writes
-neither tick, and the relation the compiler needs is exactly the one the signature was not stating.
+The slot is what the *published* half is matched on, and an **unqualified** hand-over publishes
+nothing - so the walk keyed on it related nothing at all for `pub iter fn (Chunked(c, a)) items(self:
+c) -> a`, which is the spelling `lib/Core/Container.yana` settled on (a `-> 'a` there needs `self:
+'c`, which the shipping stage then reads as a reference *to* the container). An unqualified hand-over
+therefore takes **every** argument's loans rather than none: `-> a` is a loan bounded by the
+continuation, so what is behind it is anything the call was lent and the callee is still running.
+Conservative in the only direction that is safe - it keeps storage alive rather than releasing it -
+and exact wherever the signature published a slot. `test/resolve/lens/Reject.Escape.yana`'s third case
+is where the over-approximation is visible: the message now names the argument the value could be
+rooted in instead of the binding, and it is still a refusal.
+
+The other half is the library's. `class Chunked(c -> a)` may write `iter fn chunks(self: source'c) ->
+source'[a]` where the relation is worth stating exactly; the compiler no longer depends on it.
+
+### A place the expansion writes through is the owner
+
+`op.def`'s `placeAt()` and `placeSameAs(n)` - `swap`'s two parameters and `exchange`'s first - say the
+position names *storage of exactly this type*, so `declareSignature` gives it `AccessForm::Owner`
+rather than `WholeValue`. The difference is what a substitution does to it: `WholeValue` at a type
+variable becomes the **view** wherever the argument has one, which is right for a position a callee
+reads through and exactly wrong for one the expansion writes. At `a := Array(I32)` the argument was
+adapted by `elementsMut` into a descriptor in a temporary, and `swap` then exchanged two temporaries
+while the caller's containers stood still - seven cases of the library's suite saying "expected 8, got
+3". Read off the shape column rather than named here, so a row added with a place parameter needs no
+second edit, and set at the declaration rather than at the expansion, because by the time `expandSwap`
+has its operands the derivation is already a node in the body.
+
+An **exclusive result** at a bare type variable is the same sentence one level down.
+`Index.getMut(&self: source'c, index: k) -> &source'v` wants opposite answers at its two variable
+positions: the *subject* takes the window, because a caller holds either an owner or a window and the
+window is the form both adapt to (which is what lets `sortRange(&xs: [a])` write `xs[i]`), and the
+*result* is the element's own storage - `xs[i] = ys`, `push(xs[i], 5)` and `swap(xs[0], xs[1])` each
+write the whole value. So `resolveOccurrence` answers `Owner` for every exclusive result, at a
+concrete type as well as at a variable, which is what keeps a class member's `-> &v` and an instance's
+`-> &CodeUnit` one signature. `expandPointerBorrow` carries the declared result's *form* onto the
+place it reads, for the same reason: built at `WholeValue` the loan became a view under substitution
+and `borrowMut(valuesMut(self) + index)` handed back a descriptor.
 
 ### `break` and `continue`, in the two places they mean different things
 
@@ -2513,6 +3703,22 @@ and how it rejoins are the same in both.
 - **Flat** - `let x = f(...)`, with the extent taken from the statements after it in the same block.
   `resolveStatements` is the walk that can do this, which is why a block is not resolved one
   `resolveStatement` at a time: the meaning of a flat call is not local to its own statement.
+- **Bare** - `f(...)` written as a statement, which is the flat form with nothing bound
+  (`resolveBareLensCall`). `flatExtent` bounds a `let` by the last use of what it bound, and a call
+  that binds nothing has no last use - so the extent is *the rest of the block*, which is what the
+  statement means: `cell.withLock()` holds while the code below it runs, and a shorter extent would
+  be a lock released at a line nothing marks. Every lock in `lib/` is written this way.
+
+A lens call written **inside** a statement is lifted in front of it rather than given a fourth form
+- `hoistBlockLenses`, run once over a block before any statement of it is walked. The call moves to
+a `let $lensN = ...` inserted before the statement and the position it stood in is left naming that
+binding, so what is resolved is a program the flat form already compiles; `test/resolve/LensHoist.yana`
+asserts that the lifted form means what the hand-written one does. The walk is in evaluation order
+and stops at the first call it would move, and it declines three things by name: an argument of a
+callee with a `@lazy` position (`defersArguments` - `&&`'s right operand runs under a branch, so a
+lens lifted out of it would run where the program does not), the arms of an `if`, a `match` and a
+lambda body (no case in the walk, for the same reason), and a statement that binds **several** names,
+which is refused below rather than rewritten.
 
 The derived rule is **the last use of the hand-over, and of everything bound while it is live**
 (`flatExtent`), and the second half is not a refinement of the first. A name bound inside the extent
@@ -2547,9 +3753,10 @@ skipping lens called for its alternatives alone is the one legitimate empty exte
 
 Two shapes are refused by name rather than given an answer. A statement that binds **several** names
 - a `where` block, the only production that makes one - has no extent to give one of them, because an
-extent belongs to the statement and there would be two of them. And a block whose **own value** falls
-inside an extent has nowhere to put it: that value is `$r`, which today carries the exit discriminant
-alone, and it arrives with a skipping lens's `Try`.
+extent belongs to the statement and there would be two of them; the hoist declines it for the same
+reason, since lifting a call out of one would give it an extent covering the other binding. And a
+block whose **own value** falls inside an extent has nowhere to put it: that value is `$r`, which
+today carries the exit discriminant alone, and it arrives with a skipping lens's `Try`.
 
 ### What a hand-over may be rooted in, and `yield'`
 
@@ -2577,6 +3784,28 @@ same statement about a `return` is `checkReturnConformance`, which needed nothin
 manufactured from an integer, an allocator or foreign code is rooted in no loan, so a bare `%T` there
 stays what it is - which is what keeps this a rule about values the model can follow rather than a
 migration of every signature that names a pointer.
+
+**Both halves follow the *pointee position* of a value, and a value has one only where its type names
+an origin - which is a hole, found when `prelude/` went (J21).** The stand-in library wrote
+`addressOf(it: source'a) -> %source'a`, so `addressOf(v)` of a local produced a value with a pointee
+position carrying the loan, and the rule fired. `lib/Native/Pointer.yana` writes `addressOf(it: a) ->
+%a`, deliberately (`test/resolve/Global.yana` pins what that means for a constant), so the same call
+produces a `%I32` with **one** position: `expandAddressOf` materializes or borrows and the loan is in
+the body, while the type says nothing, and `fn leaks() -> %I32: let &v = 7; return addressOf(v)` is
+*accepted*. `test/resolve/ownership/Reject.Pointer.yana` is written through
+`values(self: source'[a]) -> %source'a` for exactly that reason and says so.
+
+Closing it means reading the loan off the producing **node** where the type published nothing, rather
+than off the value's positions - which is a second way of asking the same question and wants
+designing before it is written.
+
+**The shipping stage now reads `yield'` as no group** (`compiler/resolve/type_ast.cpp`'s
+`resolveLoanGroup`), which is what a plain `%U8` already meant there - `kNoLoan`, read by every
+consumer as "every group". It used to refuse it, on the argument that a group numbered beside the
+author's own labels would be a lie; the lie that mattered was the other one, because refusing left
+`lib/Native/CString.native.yana`'s `withPathCString` with no spelling both stages accept. D1 says a
+`lib/` change stays accepted by the shipping stage, so the two ends had to agree on one signature and
+this is the end where admitting it costs no check.
 
 ### Leaving a continuation
 
@@ -2639,6 +3868,78 @@ A lens call carries nothing across either, and that is checked rather than hoped
 is a terminator, so a value live across one would be a value named from a block that is not its own,
 which `checkValueScope` reports. It is also what licenses the conversion outlining the region at all.
 
+**The frames themselves stop at a region**, which is `Resolver::heldFloor` and was the half of this
+that had been left to hope. A lens call carrying nothing says what the *call* does; what an enclosing
+construct is holding is a different question, and a counted `for` whose body opens a continuation
+region was threading its bound and its stride into that region's blocks and reading them back out on
+the far side. `for round in 0..n:` around `for e in entries(root):` was exactly that, and what it
+produced passed the MIR verifier and reported at the SSA conversion - an operand naming a node with
+no value, twice, once at each end of the boundary. So the frames standing when a `Handover` region is
+entered do not cross it: their handles are untouched while it is built, and the block after the call
+is dominated by the block before it, so what they name is still in scope when the walk comes back
+out. A value a program genuinely needed inside a continuation would need storage rather than an edge,
+which is what `bindingFloor` says about a lambda one tier over.
+
+### Two ways a borrowed place fills a position that consumes
+
+A plain parameter is a shared borrow, so "hand this over" and "this is somebody else's" meet at every
+`fn f(x: T) = eat(x)`. `readMode` answers `BorrowShared` there and `Resolver::readPlace` reports it,
+and that is the rule. Two things are allowed past it, and they are different mechanisms with
+different obligations - which is why they are two and not one relaxation of the refusal.
+
+**The copy upgrade** is Design-Memory §2.1, and it is a fact about the *type*. A value that
+duplicates by its bytes can fill a sink by duplicating, and the copy is what is handed over; nothing
+is owed afterwards. `readMode`'s first arm has always done this for a concrete type. What was missing
+is the same answer inside a generic body: `ownershipOf` treats a type variable as non-`TrivialCopy`,
+which is Implementation-Generics.md §1's invariant and right - a body has one meaning for every
+substitution - but the invariant says *unconstrained*, and a signature that declared `TrivialCopy(a)`
+has supplied the answer. `promisesTrivialCopy` in `type.cpp` is that reading, and because it is
+answered in `ownershipOf` rather than at the read, every consumer moves with it at once: the mode,
+the verifier's `CopyTrivial` evidence, whether the value gets a move path, whether a teardown is
+placed, and `conventionFor`'s rung one tier down. Answering it at `readPlace` instead would have been
+one site agreeing with the constraint and five sites still reading the type.
+
+It is the **declared** requirements only and not their superclass closure, which is `classProves` and
+substitutes into an argument list this cannot build. The direction that costs is the safe one: a body
+under `(AtomicValue(a))` is refused where it could have copied. Five `lib/Core` sites are this rule -
+`Core.yana`'s blanket `Copy`, `Format.yana`'s `with`, and the three folds and readers that write
+`let &acc = ifEmpty` - and `ownership/CopyUpgrade.yana` and `Reject.CopyUpgrade.yana` are the pair
+that differ only by the constraint.
+
+**Taking the contents out and putting them back** is `doc/spec/ownership.md`'s other sentence, and it
+is a fact about the *place*. `pub fn (Append(a)) ++=(&target: a, ->amount: a): target = target ++
+amount` has no other body: `++` consumes both operands, and `target` is storage the caller owns. The
+storage is emptied, something is written back, and only then does the frame let go of the reference -
+so at every point the caller can observe, the storage holds a value. Two properties of the language
+make the window unobservable and both are properties rather than assumptions: an exclusive loan is
+exclusive while it is live, so no second reader exists to look into the hole, and nothing unwinds, so
+no teardown runs over one on the way out.
+
+`lendsItsContents` is the whole of what is admitted, and it is narrower than "an exclusive loan"
+deliberately: a **`&` parameter** and nothing else. `let &d = c` re-lends storage this frame is also
+tracking under `c`'s own move path, and a take through the alias would empty one place while the
+other still said it held a value - `ownership/Reject.BorrowAlias.yana`. A parameter's lender is the
+caller, whose own analysis holds the argument exclusively for the length of the call, so there is no
+second path here to disagree with.
+
+What carries it is the machinery that already exists rather than a rule beside it. `buildPaths` gives
+such a parameter a move path - for the *hole*, since nothing here is ever released - `readMode`
+answers `Forward` so that liveness decides the take exactly as it does for an owned name, and the
+assignment that follows is normalized to `Reinit` by the same dataflow that normalizes every other
+one, because a place holding nothing releases nothing. Three things then say the value is not this
+frame's: the drop walk skips a lending path before it looks at teardowns, `verifyBody` admits the
+`Take` out of a place the function does not own for these places and no others, and the obligation is
+checked at every `Return` - the point the caller may look into its own storage again. `Maybe` is
+refused there with the same message as `Moved`: a refill on one path and not on another leaves the
+caller holding a value only a run-time bit knows about, and a drop flag is not an answer, because a
+flag says whether to release and what is missing is a value. `ownership/BorrowRefill.yana` and
+`Reject.BorrowRefill.yana`.
+
+What is **not** built is the same statement about a continuation's environment - `acc` inside a `for`
+body is a field of a heap environment reached through a pointer, which is the second tier
+`lib/Core/BorrowUpdate.test.native.yana` asserts in the shipping stage. It needs a lending *path*
+rooted in something other than a local, which is the same shape `Place::Address` is refused as today.
+
 ### What is refused, and why
 
 Three of these were found by `test/resolve/ownership/` and the rest by `test/resolve/loans/`, which
@@ -2648,10 +3949,10 @@ is what those directories are for:
   on the whole value, and after a partial move there is no whole value for it to run on - so the
   authored body is silently *not run*, which is the one outcome a teardown may not have. A *derived*
   teardown is unaffected and must be: releasing the members one at a time is exactly what it does.
-- **Storage this function borrows may not fill a sink.** `readMode` answers `BorrowShared` for a
-  place the frame does not own, whatever the position asked, and that is the right mode; the position
-  is what makes it wrong, so `Resolver::readPlace` is where the pair is judged. Before it existed,
-  `fn f(g: Guard) = eat(g)` compiled and the guard was released twice.
+- **Storage this function borrows may not fill a sink**, with the two exceptions below. `readMode`
+  answers `BorrowShared` for a place the frame does not own, whatever the position asked, and that is
+  the right mode; the position is what makes it wrong, so `Resolver::readPlace` is where the pair is
+  judged. Before it existed, `fn f(g: Guard) = eat(g)` compiled and the guard was released twice.
 - **A diagnostic names the path, not the binding.** `placeText` in `print.cpp` is the one spelling,
   shared by the dump, the resolver and the analysis. A message that called `p.left` "p" could not
   tell "the record is gone" from "one of its fields is", which is the distinction partial ownership
@@ -2659,11 +3960,28 @@ is what those directories are for:
 - **A position asking to write is refused for two different reasons.** The storage is somebody
   else's and shared, or the binding is one the author did not write `&` on. `Resolver::readPlace`
   keeps them apart because telling an author to add `&` where the storage was never theirs is advice
-  that cannot be taken.
-- **Two arms of a value `if` must agree on ownership exactly.** A merge parameter has one occurrence
-  and every edge supplies that one. §2.5's join - a loan weakened to what both sides can promise - is
-  not built, because weakening can change how the value is carried and an arm would then need a
-  reborrow on its edge; refusing is the honest report until there is one.
+  that cannot be taken. The first is a question about the *storage* and not about the binding, so
+  `let &acc = ifEmpty` over a `TrivialCopy`-constrained parameter never reaches it: what fills the
+  binding is a copy, and the copy is storage the frame owns.
+- **Two arms of a value `if` must agree on ownership, and §2.5's join is built for one pair of them.**
+  A merge parameter has one occurrence and every edge supplies that one, so an arm whose contract
+  differs has to be brought to the merge's before the jump. `joinArmLoans` does that for the pair a
+  `let` over a `match` arrives at - an **owned** arm beside a **call-bounded loan**, which is
+  `let directory = match variable("TMPDIR"): Just(->named) -> named; Nothing -> "/tmp"` in
+  `lib/Test/Harness.native.yana`, one alternative naming storage that exists and the other producing
+  some. The join is the *weaker*: the produced value gets a frame slot and its edge supplies a
+  borrow of it (`holdBorrowed`, which is already the rule for a produced value filling a borrowing
+  position one construct down), so the merge is a loan over the union of the alternatives' origins
+  and no arm has claimed anything it did not have. Weakening upward instead - copying the loan so
+  the merge owns one - is the allocation this language makes a program say out loud, and a merge is
+  the one place it would happen silently.
+
+  Two loans that **disagree** are still refused, and by name: a published origin weakened to a
+  call-bounded one, or an exclusive loan weakened to a shared one, changes what the merge is
+  carrying rather than where it came from, and there is no `Read` of a value to re-mint it with. A
+  `TrivialCopy` type reaches neither case - `promisesTrivialCopy` has already made every arm owned,
+  which is what the three `lib/Core` bodies that used to report here (`Bits.yana`'s `readSigned`,
+  `Read.yana`'s `limit`, `Format/Bytes.yana`'s rounding) turned out to be.
 - **`break` and `continue` naming a loop outside the continuation they are written in are refused by
   name.** The loop they leave is the region itself in a `for` over an `iter fn`, and there they are a
   row of the exit signal and an ordinary fall-out; the loop being *further out* needs a fourth row
@@ -2685,6 +4003,14 @@ is what those directories are for:
   what the continuation receives under is the callee's `-> &T` or `-> ->T` - part of its published
   interface, per Analysis-Language.md §3a - and a second spelling at the call site could disagree
   with it.
+- **A closure may not carry a loan out of the frame it was written in**, and that is the whole of
+  what is left of the escape refusals after D17. A lambda written *at* a position that owns it gets a
+  heap-placed environment and may go anywhere; what stays refused is a `&` capture at such a position
+  (a pointer into a frame the value outlives, which nothing downstream catches because a value owning
+  its environment carries no origin), a capture of a binding this function only borrows, and a lambda
+  written at a *borrowing* position that is then sent to an owning one - the environment was placed
+  on the frame before anything asked it to leave, so the message names the position rather than the
+  value. See the closure section above.
 - **A requirement is spent by a specialization or read out of an environment, and which is the
   declaration's `form`.** `selectGenForms` in specialize.cpp decides one per generic: `@specialize`
   and `@generic` write it and everything else measures it. Both halves exist - what a specialization
@@ -2707,7 +4033,7 @@ is what those directories are for:
   descriptor states a size, an alignment and a teardown, which is everything a value of a
   *parameter* needs and not enough for a record with a field at one - `Boxed(a)`'s layout would have
   to arrive as a table of offsets, which is a second layout algorithm beside `fieldOffsetNative`.
-  Every **call** as well, through `erasableCall`: the two shapes an environment cannot make are
+  Every **call** as well, through `erasableCall`: the one shape an environment cannot make is
   refused where the form is chosen and not where the call would be built, so that a body nobody
   wrote an attribute on cannot be measured erased and then told the compiler does not implement it.
   A written `@generic` that cannot be honoured is an error; a measured one falls back to
@@ -2720,13 +4046,26 @@ is what those directories are for:
   is called by the compiler at a fixed signature, and a **lens** has no standalone body. Silently
   because neither attribute has a placement inside a `class` or an `instance`, so no author can have
   asked.
-- **What an erased body still refuses is two shapes the environment cannot express.** A class member
-  reached through a *superclass* of a declared requirement: the promise holds, and the slot carries
-  the subclass's witness with no path from it to the superclass's members - `freezeSchema` says
-  superclasses are not slots of their own, and a witness that carried the ones it implies is what
-  that needs. And a generic called at this body's own type parameters: an environment is a table in
-  the image built by a caller that knows every argument, and forwarding slots out of one environment
-  into another is an environment built on the frame instead. Both are `Reject.Erased.yana`.
+- **A witness table is flattened, which is how a superclass is reached.** A class's own members come
+  first and each superclass's table follows, in declaration order and recursively -
+  `classWitnessCount` states the layout, `classWitnessAt` reads it back and `classWitnessPath` is
+  `classProves` carrying the offset the proof landed at. So a member reached through a *superclass*
+  of a declared requirement is an **offset** into the witness the caller already passed rather than a
+  second load, `freezeSchema`'s "superclasses are not slots of their own" reads as "they are ranges",
+  and a range of a flattened table is itself a valid table - which is what makes handing one on
+  possible at all. The alternative is a pointer per superclass, which is what the shipping stage
+  writes: it buys a shared grandparent being one table and costs a load per level at every dispatch,
+  and a hierarchy here is two or three deep with three or four cells per class.
+  `generic/Erased.Superclass.yana` asserts it three levels deep, by arithmetic, because a wrong
+  offset reaches the wrong member of the right table and returns rather than crashing. Built J27.
+- **What an erased body still refuses is one shape: a generic called at this body's own type
+  parameters.** An environment is a table in the image built by a caller that knows every argument;
+  what this needs is one built on the **frame**, filled by copying the caller's own cells - which is
+  possible now in a way it was not, because a class slot can be forwarded by adding a constant to an
+  anchor-relative cell. What it is waiting for is a decision rather than a mechanism: whether a
+  forwarding that can only *copy* (so a call at a composed argument like `Pair(a)`, whose descriptor
+  the caller does not hold, stays refused) is the feature, or whether the caller should be able to
+  build a descriptor on the frame as well. `Reject.Erased.yana` is the fixture.
 - **A lens and a generic in one call are refused by name, in either direction.** Flattening resolves
   the callee's body inside the caller's walk and `Resolver::genContext` says which declaration a
   written type is read in, so a generic callee would need a second substitution mechanism beside
@@ -2781,22 +4120,99 @@ object dying rather than by a call, so a graph holding only the `Call` nodes say
 releases a suspending guard does not suspend.
 
 Nothing suspends yet - `suspendsAt` is an exhaustive switch over the node kinds answering false, and
-`yield` is milestone 9. The other facts stay `Unknown` until their passes exist, which is what `Fact`
-is for; what this milestone establishes is the pass they join. Their **lattices** are real, though,
-and that is not the same statement: `boundedStack: bool` could not publish the byte count an external
-iterator has to allocate, and `retainsArguments: bool` lost the only thing a caller wanted to know -
-*which* argument - so a caller with one frame-placed argument had to treat all of them as retained.
-A fact nobody can act on is how a consumer ends up recomputing its own. They are `StackBound` and
-`ArgumentSet` now, with `consumes` beside them for linear consumption. The instantiation set is
-deliberately still absent, and `Summary` says what it is waiting for: every fact there is a lattice
-element that fits in a word, and a set of targets needs storage the summary would have to own, keyed
-by an identity milestone 6's substitution decides.
+`yield` is milestone 9. The **lattices** were built ahead of their passes, and that was the point:
+`boundedStack: bool` could not publish the byte count an external iterator has to allocate, and
+`retainsArguments: bool` lost the only thing a caller wanted to know - *which* argument - so a caller
+with one frame-placed argument had to treat all of them as retained. A fact nobody can act on is how
+a consumer ends up recomputing its own. They are `StackBound` and `ArgumentSet`, with `consumes`
+beside them for linear consumption. The instantiation set is deliberately still absent, and `Summary`
+says what it is waiting for: every fact there is a lattice element that fits in a word, and a set of
+targets needs storage the summary would have to own, keyed by an identity milestone 6's substitution
+decides.
 
 Each fact is **read through an accessor and written through a named setter**, and the confidences for
-all six live in one `U16`. `Fact<T>` is still the vocabulary - a fact cannot be read without its
+all nine live in one `U32`. `Fact<T>` is still the vocabulary - a fact cannot be read without its
 confidence, and `get(fallback)` still makes the caller name what it falls back to - but stored as a
-pair it cost seven bytes of padding per fact whose value is a `U64`, and four of the six are: eighty
-bytes carrying thirty-two of payload and six two-bit numbers. Forty now.
+pair it cost seven bytes of padding per fact whose value is a `U64`, and four of them are: eighty
+bytes carrying thirty-two of payload and six two-bit numbers. Forty after that, and fifty-six since
+J37: `escapes` is the ninth fact and the fifth `U64`, so it added the eight bytes a lattice value
+that does not fit in the tail always would, and the ninth confidence took `states` from two bytes to
+four, which pushed the five single-byte values out of the padding they were sharing. A tenth row of
+either cheap shape is free again - the layout note on `Summary` is where that is worked out.
+
+#### The six rows the fixpoint fills beside suspension
+
+**`retains`, `escapes`, `mutates` and `consumes`** are one walk, because they are the same question
+about four verbs. What makes them answerable here rather than by the eight hundred lines the shipping stage
+spends is `analyze_escape.cpp`'s own opening observation: nothing in an ownership MIR reaches a
+caller's storage by *being a value* - a record is copied, an owned argument is moved into the
+callee's slot, a returned value is written into storage the caller passed in. The two ways back are a
+**loan**, which the loan checker has already resolved per value and per interior position
+(`Elaboration::rootedIn`), and a **raw address**, which takes no loan and is followed structurally.
+So a body's own answer is one sweep over four node kinds - a write mutates what its destination
+reaches and retains what it stored where that destination outlives the frame, a return retains what
+it hands back, and an atomic or a native operation reaches storage through an address this tier
+cannot read further into - and the interprocedural half is a join per call site over the callee's
+rows, on the same worklist.
+
+Each call site's arguments are resolved to the caller's parameters **once**, before the fixpoint, so
+a callee whose row grows costs a join per site rather than a re-analysis of every caller. A call this
+pass cannot attribute to a position - an indirect call, a witness slot, a generic with no
+specialization - starts its caller's rows at the top of the lattice, which is the same fallback
+`bodyKnown == false` gets one level out.
+
+`consumes` is the odd row and says so: `checkLinear` refuses a body that does not discharge an owned
+parameter on every path, so the owned positions *are* the answer and the join contributes nothing.
+
+**`escapes` is `retains` asked about the address**, and J37 built it because the difference is what
+`ssa::Contained` needs. `retains` is a reach set over *values*: `growArray(&self, n)` reads a run
+pointer out of `self` and stores it back into `self`, so parameter 0 is in the written value's reach
+and reads as retained - and no address of `self`'s storage went anywhere at all. Containment is
+asking the second question and was being answered the first, which is why no container's frame slot
+was ever contained (`test/bench/findings.md` §83.2 is where that was found and §84 is the number).
+
+The narrower walk follows only chains that never pass through a **load of the caller's bytes**: an
+`addressOf` of the parameter's place or of a projection of it, the incoming pointer of a `%T`
+parameter, one `Deref` of *that* pointer, and a place handed on at another call's argument position.
+A `Deref` whose parent is not the root ends the chain, because what it names is wherever the pointer
+it read pointed. What makes that sound is `Contained`'s own premise rather than an argument of its
+own: an allocation containment admits is one whose address is never stored, so no pointer the callee
+loads out of memory can be it. A `return` is read on the result's contract - an owned result hands
+back a value, so `elementBase(&self) -> %a` returns the run pointer and not the header's address,
+and a borrowed result hands back a place whose address does outlive the call.
+
+**`stack`** publishes `isBounded()` and zero bytes, which is Analysis-External-Iterators §4.5's own
+split rather than a gap - "the resolver can validate that the call graph is bounded, but it cannot
+know the exact bytes", because spill slots and the outgoing argument area are decided after register
+allocation. It is a *peel* and not a join: nothing in a recursive cycle ever becomes unbounded by a
+callee changing its answer, so Kahn's algorithm over the callee graph finalizes exactly the functions
+that reach no cycle and what is left over is the answer.
+
+**`diverges`** is the divergence fact - whether calling this ever comes back - and it is the shipping
+stage's declared `Function::noReturn` inferred instead. The seed is a role and not a walk:
+`lib/Core/Check.yana`'s `checkFailed` is `abortProcess()`, which is `exitProcess(134)`, which is a
+`syscall1` followed by an ordinary `return`, so no CFG in the program says the process stopped.
+Above the seed everything is a CFG answer - a body diverges when its entry cannot reach a `return`
+with the block of every diverging call cut off at that call - and that is why this one row recomputes
+its base case on the worklist rather than joining a lattice. `resolve_ssa/opt`'s
+`endNonReturningBlocks` is the reader.
+
+`while True` **is** caught since 2026-09-07 (J30), and the note here used to say it was not: the
+branch is still a branch at this tier, but nothing said the backward walk had to follow both of its
+edges. `forEachLiveEdge` takes the one edge a **decided** condition names - a `Const` operand at a
+`Bool` or an integer - so a loop the program never leaves stops reaching a `return` through the arm
+it never takes. The constant is *read* rather than folded into MIR, which is the decision: folding it
+is a CFG edit that would move every golden that holds one, for the sake of a fact this walk is the
+only reader of. What is still not caught is a condition that has to be *computed* to be decided -
+`while 1 < 2` is `test/resolve/InlineEndless.yana`'s `endless`, and that comparison is the SSA
+folder's one tier later.
+
+The consumers, so that no row here is a fact nobody acts on: `mutates` is read by
+`ssa::mayWriteStorage`, where a call through a `&` parameter nothing writes stops being a barrier for
+a forwarded load; `escapes` by `ssa::Contained`, which admits a call argument at a position whose
+address the callee does not keep; `retains` by the loan checker and by the inliner's `rootLender`;
+`diverges` by `endNonReturningBlocks`. `stack` is the one row with no consumer
+yet, and it is §4.4's eligibility test waiting for the construct it gates.
 
 Three things it deliberately does not do, and says so rather than guessing:
 
@@ -2906,6 +4322,29 @@ are matched against what came back. Nothing is resolved twice and nothing is rol
 speculative walk that emitted nodes and then discarded them would leave them in the block it was
 building, in a stage that runs no pass to remove a value nothing names.
 
+**What that cost, and how much of it is left.** A set of several is selected from what the
+*arguments* answered, so a position's own expected type reaches no candidate - and a call in an
+argument whose result the candidate would have decided is then undecidable. `import Native` makes `+`
+such a set, because `lib/Native/Pointer.yana` writes a pointer `+` beside `Num`'s;
+`truncate(a) + truncate(b)` at a result of `Int` reported "no argument decides what `b` is in this
+call to `truncate`", and both stages did.
+
+**The result narrows the set** since 2026-09-07, and by *subtraction* rather than by ranking: a
+candidate whose result could not fill the position was never a candidate. `resultCouldFill` asks two
+questions and neither is the other - `matchType`, whether the declared result could *be* the position
+under some binding of the candidate's own variables, which admits `Num.+`'s `a` at an `Int`; and
+`acceptsType`, whether a value of a decided result converts into it, which admits an `I32` answer at
+an `I64` position. `Native`'s `+(p: %a, n: Size) -> %a` answers neither, so one candidate is left and
+`resolveInfix` takes the sole-callee path - where the hint travels down and decides `truncate`'s own
+result. Where the subtraction leaves nothing, or more than one, the set is unchanged.
+
+**One operator, and that is the bound rather than a first step.** The hint is what the *chain's*
+value fills, and only a chain of one has an operator whose result is that value: `p + n * 4` at a
+`%U8` says nothing about what `*` answers, and a heterogeneous operator is precisely the kind this is
+about. `TargetWidth.yana`, `WideInt.yana`, `PackTop.yana` and `ArrayRemove.yana` moved for it -
+`0 - 1` written at a `Size` position is now subtracted at `Size` rather than at `I32` and converted,
+which is the same answer through one fewer node.
+
 Two things the rules do not state and this had to decide.
 
 **The convention is spent before selection runs.** `resolveValue` takes the position's `Request`, and
@@ -2958,6 +4397,53 @@ holds a `@lazy` position: the right operand of an infix operator is a span of th
 precedence climbing discovers, so there is no AST node to build a thunk over, and the message says to
 write it as a call.
 
+**A `for` loop's traversal goes through selection too** (2026-09-07, J26). `namedCallee` answers a
+declaration and answers none where the set has several, which is R1's rule and right for every other
+reader of it - and a `for` is the position where "several" is the question the arguments answer.
+`iteratorCallee` is the second attempt: it narrows the set to the **iterators**
+(`CandidateKind::Iterator`, the filter `selectOverload` takes) and, where more than one is left, puts
+it through the same `chooseCandidate` a written call and an operator go through. So a plain `iter fn`
+declared beside a class member is a *member* of the set rather than a shadow over it, which is what
+`Iter.Overload.yana`, `Iter.Shape.yana` and `Iter.Strictness.yana` are each one half of.
+
+The seam that made it one rule rather than two is a **split**: `selectOverload` is
+`resolveOverloadedCall`'s first four steps and carries the values it resolved out in an
+`OverloadChoice`, and `prepareResolvedArguments` is `finishOverloadedCall`'s preparation loop. A
+`for` runs the first and then hands the winner *and its arguments* to `handoverCall`, which opens a
+continuation region instead of emitting a call. Resolving the arguments a second time there would
+evaluate them twice, which is why the choice carries them rather than only the declaration.
+
+Two things about it are deliberately narrow. `checkCallable` refuses a lens in a value position and
+is asked by `chooseCandidate`, so it takes a `traversal` flag: at a `for`, a lens is exactly what was
+wanted. And the **dot** spelling of a set with several iterators is refused rather than selected - a
+receiver is argument zero of the mapping and is resolved before a candidate is known, so selecting
+one needs the receiver resolved in `iteratorCallee` and `handoverCall` then not resolving it again,
+which is a second seam through the same walk for a spelling no candidate needs today. `xs.chunks()`
+reaches the one-iterator path unchanged.
+
+**A literal operand is not built until a candidate has typed it.** R5 pushes a position's type down
+only where a plain function is the whole set, so an untyped number standing in a set of several has
+nothing to take - and built at its default it fits nothing: `48 + rest` and `values(buffer) + at` in
+`lib/Core` offered `I32` to `Native`'s pointer `+` and to `Num.+` alike and were reported as "no `+`
+accepts these arguments", eight times. A literal *is* a `FromInt` call at a type to be decided, so
+what decides it is the position it fills. `undecidedLiteral` marks such an operand, the walk leaves
+it unresolved exactly as it leaves a `@lazy` one, and `candidateAccepts` asks about it in a second
+pass once every other argument has bound: a candidate is viable when the position is fixed and a
+conversion instance exists there, or when it is fixed at a variable of the *enclosing* signature
+whose context requires the conversion class - `0.5 + r` inside a body constrained on `Real(a)` builds
+the half at `a`. A position nothing at all decided takes the literal's own default, which is what
+`1 - 1023 - 52 - 2` needs. Exactly one viable candidate selects and several is the ambiguity R2
+already reports, so there is no rule of its own here. The winner's position is where the number is
+finally built - through `resolveValue`, since what was left standing is the written expression and a
+negation folds its sign one level down. `OperatorLiteral.yana`.
+
+What this does **not** yet reach is a literal left operand of a *sole* callee whose first parameter
+is open: `0.5 + r` where `+` names only `Num.+` still builds the half at the decimal default, because
+`climb` sends the outer hint to the left operand and resolves it before the right one. Deferring that
+one the same way is sound and closes eight `lib/Math` sites, and it moves the constant after the
+other operand in sixty existing goldens - `doc/progress/2026-09-06-J8-inference.md` has the
+measurement.
+
 A hint stops at an overloaded operator for R5's reason one syntax out, and stops at a **comparison**
 for one of its own: the position's type reaches a chain's leftmost operand only where every operator
 in it answers with its own left operand's declared type. `1 + 2 == 3` in a `Bool` position climbs
@@ -2992,7 +4478,7 @@ steps a written call takes around selection:
   rather than at each caller: `resolveCall` for a name that reached one, `chooseCandidate` for a
   winner, `findOperator` and `resolvePrefix` for an operator's. Three of those four used to reach a
   lens and find out much later - as a continuation type nothing decided, or as an argument count the
-  builder asserted on.
+  builder asserted on. It is also where an **inferred result** is demanded - see below.
 
 ## `@layout(c)`, and where a layout is answered
 
@@ -3060,6 +4546,21 @@ sequence, exactly as `Constant::Text` and `let m = Map()` already are.
 **A `write.init` into a boxed field place is not built.** Every `Destination::Init` this stage emits
 targets a local or a pattern binding, so a construction reaches a box through `Inst::Aggregate` and
 nowhere else. If one ever does, `box.cpp`'s `createBox` is what it wants.
+
+**Where the value inside a box is built is the lowering's, not this stage's.** `Inst::Aggregate` is a
+value-producing instruction here and carries no storage, which is the tier boundary working: a
+component whose producer could write straight into the box is a question about addresses, and
+`resolve_ssa/lower`'s `storageFor` is where it is asked. What this stage owes it is the shape it
+already has - one consumer per value, and the consume written on the operand.
+
+**Whether a boxed field carries a provenance bit is settled here**, at the end of `resolveProgram`.
+`settleBoxProvenance` asks whether any *reachable* body releases a boxed value through a borrow, a
+global or a raw address - the one kind of site that reads the bit - and `Program::asksBoxProvenance`
+carries the answer to `ssa::storesBoxProvenance`. It is here and not in the lowering because a `Repr`
+is memoized on the record it describes, so the answer has to be a constant before the first record is
+laid out; and it is about the reachable bodies rather than the declarations because every library
+holds a function that overwrites through a `&`. `boxesVisibleAt` in `place.h` is the one question,
+asked by this pass over the whole program and by the conversion over one drop.
 
 ### Which types the cut is looked for in
 

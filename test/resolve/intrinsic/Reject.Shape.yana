@@ -18,20 +18,21 @@
    Each declaration below is a plausible edit of a correct one, and each is reported at the
    declaration rather than at some call site that did nothing wrong.
 
-   Two roles the prelude leaves unfilled, because `Core` imports `Native` and a role the prelude
-   fills is one this file cannot claim a second time - `Reject.Roles.yana` beside this is where a
-   second claim is the point.
+   Two **host** roles, because those are the only ones `lib/` leaves unclaimed on a native build: a
+   role the library fills is one this file cannot claim at all, and the report would then be about
+   the duplicate rather than about the shape - `Reject.Roles.yana` beside this is where a second
+   claim is the point.
 -}
 
 -- The contract. `hostWrite` stores its third argument into the host array, so the value has to
 -- arrive owned - the array holds it afterwards, and the frame that owned it stops owing it a
--- teardown. The host family is the one the prelude never fills, which is what makes this row
--- claimable here; `exchange`, which used to stand here, is the prelude's now.
+-- teardown. The host family is the one a native build never fills, which is what makes this row
+-- claimable here; `exchange`, which used to stand here, is the library's now.
 @builtin(hostWrite)
 fn hostWriteShared(to: %a, at: Size, value: a) -> {}
 
 -- The arity the role takes. `hostGrow` for `hostWrite`'s reason one line up: `mulHigh` used to
--- stand here and the prelude declares it now.
+-- stand here and the library declares it now.
 @builtin(hostGrow)
 fn growThrice(items: %a, wide: Size, extra: Size) -> %a
 

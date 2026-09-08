@@ -384,10 +384,10 @@ pub fn (n: Int, w: Int) bigU32Digest(h: [U32 *w]) -> [U8 *n]:
 -}
 @platform(native) pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size,
                                    count: Size):
-    copyMemory(to.items + toAt, from.items + fromAt, count)
+    copyMemory(valuesMut(to) + toAt, values(from) + fromAt, count)
 
 @platform(native) pub fn zeroBytes(&to: [U8], at: Size, count: Size):
-    setMemory(to.items + at, 0, count)
+    setMemory(valuesMut(to) + at, 0, count)
 
 @platform(js) pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size, count: Size):
     for i in 0 .. count:
@@ -456,7 +456,11 @@ pub fn (Digest(d, n)) Hmac.of(->state: d, key: [U8], message: [U8]) -> [U8 *n]:
         update(folding, key)
         copyBytes(pad, 0, finish(folding), 0, width)
 
-    let &inner = state
+    -- `&->`, which is the combination this line means: `state` arrives owned (`->state: d`) and
+    -- `finish(inner)` consumes it, so a plain `let &` - a writable borrow of an existing owning
+    -- value - has nothing to hand over. Writing both sigils is what `doc/Design.md` says the pair is
+    -- for, and it is the spelling both stages take.
+    let &->inner = state
     xorPad(pad, 54)
     update(inner, pad)
     update(inner, message)

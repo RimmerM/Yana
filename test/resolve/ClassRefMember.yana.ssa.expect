@@ -1,0 +1,160 @@
+module ResolveTest
+
+fn peek(self: c [shared slot 0]) -> v [shared slot 0] = <no body>
+
+fn poke(self: c [unique slot 0]) -> v [unique slot 0 owner] = <no body>
+
+fn swap(self: c [unique slot 0], other: v) -> v [unique slot 0 owner] = <no body>
+
+fn Boxed(a).peek(self: Boxed(a) [shared slot 0]) -> a [shared slot 0] = <no body>
+
+fn Boxed(a).poke(self: Boxed(a) [unique slot 0]) -> a [unique slot 0 owner] = <no body>
+
+fn Boxed(a).swap(self: Boxed(a) [unique slot 0], other: a) -> a [unique slot 0 owner] = <no body>
+
+fn readThenWrite(b: Boxed(I32) [unique call]) -> I32 {
+bb0(%0: Boxed(I32) [unique call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: Boxed(I32) [shared slot 0] guaranteed from{%0} = load inspect %0
+  %3: I32 [shared slot 0] guaranteed from{%0} = call Boxed(a).peek(I32) borrow %2
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = const 0
+  %6: I32 trivial = add inspect %4 inspect %5
+  store inspect %1 consume %6
+  %7: Boxed(I32) [unique slot 0] guaranteed from{%0} = load inspect %0
+  %8: I32 [unique slot 0 owner] guaranteed from{%0} = call Boxed(a).poke(I32) borrow %7
+  %9: I32 trivial = load inspect %8
+  %10: I32 trivial = const 1
+  %11: I32 trivial = add inspect %9 inspect %10
+  store inspect %8 consume %11
+  %12: I32 trivial = load inspect %1
+  return consume %12
+}
+
+fn heldAcross(b: Boxed(I32) [unique call]) -> I32 {
+bb0(%0: Boxed(I32) [unique call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: Boxed(I32) [unique call] guaranteed from{%0} = load inspect %0
+  %3: I32 trivial = const 10
+  %4: I32 [unique slot 0 owner] guaranteed from{%0} = call Boxed(a).swap(I32) borrow %2 consume %3
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = const 5
+  %7: I32 trivial = add inspect %5 inspect %6
+  store inspect %4 consume %7
+  %8: I32 trivial = load inspect %4
+  store inspect %1 consume %8
+  %9: Boxed(I32) [unique slot 0] guaranteed from{%0} = load inspect %0
+  %10: I32 [unique slot 0 owner] guaranteed from{%0} = call Boxed(a).poke(I32) borrow %9
+  %11: I32 trivial = load inspect %10
+  %12: I32 trivial = const 1
+  %13: I32 trivial = add inspect %11 inspect %12
+  store inspect %10 consume %13
+  %14: I32 trivial = load inspect %1
+  return consume %14
+}
+
+fn main() -> I64 {
+bb0:
+  %0: %Boxed(I32) address = alloc frame Boxed(I32)
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 3
+  %4: I32 trivial = const 7
+  %5: Boxed(I32) trivial = aggregate.Boxed consume %3 consume %4
+  store inspect %0 consume %5
+  %6: Boxed(I32) [unique call] guaranteed from{%0} = load inspect %0
+  %7: I32 trivial = call readThenWrite borrow %6
+  store inspect %1 consume %7
+  %8: I32 trivial = load inspect %1
+  %9: I32 trivial = const 3
+  %10: Bool trivial = ne inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: %I32 address = field.addr .value inspect %0
+  %12: I32 trivial = load inspect %11
+  %13: I32 trivial = const 4
+  %14: Bool trivial = ne inspect %12 inspect %13
+  branch inspect %14 -> bb6 -> bb4
+
+bb3:
+  %15: I64 trivial = const -1
+  return consume %15
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %16: Boxed(I32) [unique call] guaranteed from{%0} = load inspect %0
+  %17: I32 trivial = call heldAcross borrow %16
+  store inspect %2 consume %17
+  %18: I32 trivial = load inspect %2
+  %19: I32 trivial = const 15
+  %20: Bool trivial = ne inspect %18 inspect %19
+  branch inspect %20 -> bb9 -> bb7
+
+bb6:
+  %21: I64 trivial = const -2
+  return consume %21
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %22: %I32 address = field.addr .value inspect %0
+  %23: I32 trivial = load inspect %22
+  %24: I32 trivial = const 16
+  %25: Bool trivial = ne inspect %23 inspect %24
+  branch inspect %25 -> bb12 -> bb10
+
+bb9:
+  %26: I64 trivial = const -3
+  return consume %26
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %27: %I32 address = field.addr .value inspect %0
+  %28: I32 trivial = load inspect %27
+  %29: %I32 address = field.addr .tag inspect %0
+  %30: I32 trivial = load inspect %29
+  %31: I32 trivial = add inspect %28 inspect %30
+  %32: I64 trivial = convert inspect %31
+  return consume %32
+
+bb12:
+  %33: I64 trivial = const -4
+  return consume %33
+}
+
+fn Boxed(a).peek(I32)(self: Boxed(I32) [shared slot 0]) -> I32 [shared slot 0] {
+bb0(%0: Boxed(I32) [shared slot 0] guaranteed):
+  %1: %I32 address = field.addr .value inspect %0
+  %2: I32 [shared slot 0] guaranteed from{%0} = load inspect %1
+  return borrow %2
+}
+
+fn Boxed(a).poke(I32)(self: Boxed(I32) [unique slot 0]) -> I32 [unique slot 0 owner] {
+bb0(%0: Boxed(I32) [unique slot 0] guaranteed):
+  %1: %I32 address = field.addr .value inspect %0
+  %2: I32 [unique slot 0] guaranteed from{%0} = load inspect %1
+  return borrow %2
+}
+
+fn Boxed(a).swap(I32)(self: Boxed(I32) [unique slot 0], other: I32) -> I32 [unique slot 0 owner] {
+bb0(%0: Boxed(I32) [unique slot 0] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32
+  store inspect %2 consume %1
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .value inspect %0
+  store inspect %4 consume %3
+  %5: %I32 address = field.addr .value inspect %0
+  %6: I32 [unique slot 0] guaranteed from{%0} = load inspect %5
+  return borrow %6
+}
+
+entry main

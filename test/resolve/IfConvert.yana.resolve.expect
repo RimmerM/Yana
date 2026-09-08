@@ -249,6 +249,44 @@ fn plain(%a: I32) -> Bool {
     ret %v9
 }
 
+fn negBoth(%a: Bool, %b: Bool) -> Bool {
+  b0:
+    %v3 = xor %a, True : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v6 = xor %b, True : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v6], [b2, False] : Bool
+    ret %v10
+}
+
+fn truths(%a: Bool, %b: Bool) -> I32 {
+  b0:
+    %n = alloc : I32
+    init %n, 0
+    %v5 = call negBoth, %a, %b : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %n : I32
+    %v10 = add %v7, 1 : I32
+    assign %n, %v10
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v14 = load %n : I32
+    ret %v14
+}
+
 fn truth(%a: I32, %b: I32) -> I32 {
   b0:
     %n = alloc : I32
@@ -335,10 +373,53 @@ fn truth(%a: I32, %b: I32) -> I32 {
     ret %v59
 }
 
+fn either(%a: I32, %b: I32) -> I32 {
+  b0:
+    %v2 = cmp_gt %a, %b : Bool
+    je %v2, b1, b2
+
+  b1:
+    ret %a
+
+  b2:
+    ret %b
+}
+
+fn guard(%n: I32) -> I32 {
+  b0:
+    %v3 = cmp_gt %n, 100 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret 9
+
+  b2:
+    jmp b3
+
+  b3:
+    ret %n
+}
+
 fn doubled(%value: I32) -> I32 {
   b0:
     %v3 = mul %value, 2 : I32
     ret %v3
+}
+
+fn guardArm(%n: I32) -> I32 {
+  b0:
+    %v3 = cmp_gt %n, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = call doubled, %n : I32
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
 }
 
 fn guarded(%value: I32) -> I32 {
@@ -577,33 +658,73 @@ fn main() -> I32 {
     %v161 = add %v154, %v160 : I32
     assign %total, %v161
     %v163 = load %total : I32
-    %v165 = call owners, True : I32
-    %v168 = mul %v165, 67 : I32
-    %v169 = add %v163, %v168 : I32
-    assign %total, %v169
-    %v171 = load %total : I32
-    %v173 = call owners, False : I32
-    %v176 = mul %v173, 71 : I32
-    %v177 = add %v171, %v176 : I32
-    assign %total, %v177
-    %v179 = load %total : I32
-    %v181 = call releases, True : I32
-    %v184 = mul %v181, 73 : I32
-    %v185 = add %v179, %v184 : I32
-    assign %total, %v185
-    %v187 = load %total : I32
-    %v189 = call releases, False : I32
-    %v192 = mul %v189, 79 : I32
-    %v193 = add %v187, %v192 : I32
-    assign %total, %v193
-    %v195 = load %total : I32
-    %v198 = mul %v195, 1000 : I32
-    %v199 = load calls : I32
-    %v202 = mul %v199, 10 : I32
-    %v203 = add %v198, %v202 : I32
-    %v204 = load live : I32
-    %v205 = add %v203, %v204 : I32
-    ret %v205
+    %v166 = call either, 3, 8 : I32
+    %v169 = mul %v166, 83 : I32
+    %v170 = add %v163, %v169 : I32
+    assign %total, %v170
+    %v172 = load %total : I32
+    %v175 = call either, 8, 3 : I32
+    %v178 = mul %v175, 89 : I32
+    %v179 = add %v172, %v178 : I32
+    assign %total, %v179
+    %v181 = load %total : I32
+    %v183 = call guard, 200 : I32
+    %v186 = mul %v183, 97 : I32
+    %v187 = add %v181, %v186 : I32
+    assign %total, %v187
+    %v189 = load %total : I32
+    %v191 = call guard, 5 : I32
+    %v194 = mul %v191, 101 : I32
+    %v195 = add %v189, %v194 : I32
+    assign %total, %v195
+    %v197 = load %total : I32
+    %v199 = call guardArm, 6 : I32
+    %v202 = mul %v199, 103 : I32
+    %v203 = add %v197, %v202 : I32
+    assign %total, %v203
+    %v205 = load %total : I32
+    %v207 = call guardArm, -6 : I32
+    %v210 = mul %v207, 107 : I32
+    %v211 = add %v205, %v210 : I32
+    assign %total, %v211
+    %v213 = load %total : I32
+    %v216 = call truths, False, False : I32
+    %v219 = mul %v216, 109 : I32
+    %v220 = add %v213, %v219 : I32
+    assign %total, %v220
+    %v222 = load %total : I32
+    %v225 = call truths, True, False : I32
+    %v228 = mul %v225, 113 : I32
+    %v229 = add %v222, %v228 : I32
+    assign %total, %v229
+    %v231 = load %total : I32
+    %v233 = call owners, True : I32
+    %v236 = mul %v233, 67 : I32
+    %v237 = add %v231, %v236 : I32
+    assign %total, %v237
+    %v239 = load %total : I32
+    %v241 = call owners, False : I32
+    %v244 = mul %v241, 71 : I32
+    %v245 = add %v239, %v244 : I32
+    assign %total, %v245
+    %v247 = load %total : I32
+    %v249 = call releases, True : I32
+    %v252 = mul %v249, 73 : I32
+    %v253 = add %v247, %v252 : I32
+    assign %total, %v253
+    %v255 = load %total : I32
+    %v257 = call releases, False : I32
+    %v260 = mul %v257, 79 : I32
+    %v261 = add %v255, %v260 : I32
+    assign %total, %v261
+    %v263 = load %total : I32
+    %v266 = mul %v263, 1000 : I32
+    %v267 = load calls : I32
+    %v270 = mul %v267, 10 : I32
+    %v271 = add %v266, %v270 : I32
+    %v272 = load live : I32
+    %v273 = add %v271, %v272 : I32
+    ret %v273
 }
 
 fn Drop(Held).drop(%self: Held) -> () {

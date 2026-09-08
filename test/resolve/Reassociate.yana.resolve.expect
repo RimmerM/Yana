@@ -1,0 +1,141 @@
+let image$base: () = <none>
+
+fn sums(%x: I32) -> I32 {
+  b0:
+    %v3 = add %x, 3 : I32
+    %v6 = add %v3, 4 : I32
+    ret %v6
+}
+
+fn leftSums(%x: I32) -> I32 {
+  b0:
+    %v4 = add 3, %x : I32
+    %v6 = add 4, %v4 : I32
+    ret %v6
+}
+
+fn masks(%x: I32) -> I32 {
+  b0:
+    %v3 = and %x, 240 : I32
+    %v6 = and %v3, 60 : I32
+    ret %v6
+}
+
+fn shifted(%x: I32) -> I32 {
+  b0:
+    %v3 = shl %x, 2 : I32
+    %v6 = shl %v3, 3 : I32
+    ret %v6
+}
+
+fn wide(%x: I32) -> I32 {
+  b0:
+    %v3 = shl %x, 20 : I32
+    %v6 = shl %v3, 20 : I32
+    ret %v6
+}
+
+fn widened(%c: Bool) -> I32 {
+  b0:
+    je %c, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, 1], [b2, 0] : I32
+    %v11 = cmp_eq %v8, 1 : Bool
+    je %v11, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v17 = phi [b4, 5], [b5, 6] : I32
+    ret %v17
+}
+
+fn decided(%c: Bool) -> I32 {
+  b0:
+    je %c, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, 2], [b2, 3] : I32
+    %v11 = cmp_gt %v8, 1 : Bool
+    je %v11, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v17 = phi [b4, 7], [b5, 8] : I32
+    ret %v17
+}
+
+fn main() -> I32 {
+  b0:
+    %total = alloc : I32
+    init %total, 0
+    %v4 = load %total : I32
+    %v6 = call sums, 10 : I32
+    %v9 = mul %v6, 2 : I32
+    %v10 = add %v4, %v9 : I32
+    assign %total, %v10
+    %v12 = load %total : I32
+    %v14 = call leftSums, 10 : I32
+    %v17 = mul %v14, 3 : I32
+    %v18 = add %v12, %v17 : I32
+    assign %total, %v18
+    %v20 = load %total : I32
+    %v22 = call masks, 255 : I32
+    %v25 = mul %v22, 5 : I32
+    %v26 = add %v20, %v25 : I32
+    assign %total, %v26
+    %v28 = load %total : I32
+    %v30 = call shifted, 1 : I32
+    %v33 = mul %v30, 7 : I32
+    %v34 = add %v28, %v33 : I32
+    assign %total, %v34
+    %v36 = load %total : I32
+    %v38 = call wide, 1 : I32
+    %v41 = mul %v38, 11 : I32
+    %v42 = add %v36, %v41 : I32
+    assign %total, %v42
+    %v44 = load %total : I32
+    %v46 = call widened, True : I32
+    %v49 = mul %v46, 13 : I32
+    %v50 = add %v44, %v49 : I32
+    assign %total, %v50
+    %v52 = load %total : I32
+    %v54 = call widened, False : I32
+    %v57 = mul %v54, 17 : I32
+    %v58 = add %v52, %v57 : I32
+    assign %total, %v58
+    %v60 = load %total : I32
+    %v62 = call decided, True : I32
+    %v65 = mul %v62, 19 : I32
+    %v66 = add %v60, %v65 : I32
+    assign %total, %v66
+    %v68 = load %total : I32
+    %v70 = call decided, False : I32
+    %v73 = mul %v70, 23 : I32
+    %v74 = add %v68, %v73 : I32
+    assign %total, %v74
+    %v76 = load %total : I32
+    ret %v76
+}

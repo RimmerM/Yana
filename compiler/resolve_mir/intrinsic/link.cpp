@@ -256,6 +256,28 @@ static bool originMatches(ShapeOrigin wanted, Contract declared) {
 }
 
 /*
+ * And the same question about a **pointer's pointee** - the one interior position a `%T` has.
+ *
+ * Read off the occurrence's shape rather than off its contract, because that is where the position
+ * is: `%source'a` is an owned scalar at the root with one slot at `[*]`, which is exactly what
+ * `resolvePointee` builds. An absent shape is a pointer that said nothing, which is what the row
+ * asking for `Published` exists to catch.
+ */
+static bool pointeeMatches(DeclBase base, ShapeOrigin wanted, const Occurrence& declared) {
+    if(wanted == ShapeOrigin::Any) return true;
+    if(!declared.shape) return false;
+
+    for(auto slotPointer: base[declared.shape]->slots.contents(base)) {
+        auto& slot = *base[slotPointer];
+        if(slot.path.size() != 1 || !PathStep::isPointee(slot.path.get(base, 0))) continue;
+
+        return originMatches(wanted, slot.contract);
+    }
+
+    return false;
+}
+
+/*
  * One intrinsic's declaration against the shape its emitter depends on.
  *
  * Reported at the *declaration*, naming the position and what was wanted there, because that is
@@ -312,6 +334,14 @@ static bool checkOpShape(Context& context, Program& program, Op role, Function& 
             ok = false;
         }
 
+        if(!pointeeMatches(base, wanted.pointee, declared.occurrence)) {
+            context.diagnostics.error("for the role %@, what %@ points at must be %@ - write `%source'a`"_v,
+                                      declared.source, shape.role,
+                                      context.findName(declared.name),
+                                      shapeOriginName(wanted.pointee));
+            ok = false;
+        }
+
         index++;
     }
 
@@ -331,6 +361,12 @@ static bool checkOpShape(Context& context, Program& program, Op role, Function& 
     if(!originMatches(shape.result.origin, function.result.contract)) {
         context.diagnostics.error("for the role %@, the result must be %@"_v, source, shape.role,
                                   shapeOriginName(shape.result.origin));
+        ok = false;
+    }
+
+    if(!pointeeMatches(base, shape.result.pointee, function.result)) {
+        context.diagnostics.error("for the role %@, what the result points at must be %@ - write `%source'a`"_v,
+                                  source, shape.role, shapeOriginName(shape.result.pointee));
         ok = false;
     }
 

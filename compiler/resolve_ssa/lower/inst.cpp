@@ -49,6 +49,12 @@ static LowerInst::Kind binaryKind(DeclBase decl, mir::BinaryOp op, DeclPtr<mir::
         // `hasMachineWidth`'s, so there is no narrow value in a register for signedness to mean
         // anything about.
         case mir::BinaryOp::BitsUpTo: return LowerInst::BitsUpTo;
+
+        // `pext` and `pdep`, which cross this seam as themselves for `bzhi`'s reason: the widths
+        // they are defined at are `hasMachineWidth`'s, so there is no narrow value in a register for
+        // signedness to mean anything about.
+        case mir::BinaryOp::GatherBits:  return LowerInst::GatherBits;
+        case mir::BinaryOp::ScatterBits: return LowerInst::ScatterBits;
         case mir::BinaryOp::And: return LowerInst::And;
         case mir::BinaryOp::Or:  return LowerInst::Or;
         case mir::BinaryOp::Xor: return LowerInst::Xor;
@@ -94,6 +100,64 @@ static LowerCmp lowerCmp(DeclBase decl, mir::BinaryOp op, DeclPtr<mir::Type> ope
 
 } // namespace
 
+/*
+ * One allocation on the heap - `StorageClass::Heap`, at the point the frame slot would have been.
+ *
+ * The **stride** and not the size, for `createBox`'s reason one line over: a record's size stops at
+ * its last field so that a container can land in its trailing padding, and an allocation of its own
+ * has no container to do that. The two heap sites therefore ask the same question and get the same
+ * number, which is what keeps them one rule.
+ *
+ * A size that is not a number is `sizeValue`'s, which is the same computation `dynamicStorage` hands
+ * an `alloca` - so a generic body compiled once places its heap objects exactly as it places its
+ * frame ones, with the descriptor answering the width.
+ */
+LowerPtr<LowerValue> Lowering::heapStorage(LowerBlock& block, const mir::Occurrence& occurrence,
+                                           LocationId source) {
+    auto callee = roleFunction(intrinsic::Known::allocateHeap, source);
+    if(!callee) return nullptr;
+
+    auto manifest = manifestNative(layout, occurrence);
+    auto bytes = manifest.dynamic
+        ? sizeValue(block, occurrence)
+        : immediate(block, LowerType::Int64, U64(strideOf(manifest) ? strideOf(manifest) : 1));
+
+    auto name = block.addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
+
+    auto allocated = call(lower, to, block, 1, 2, lower[callee]->callType,
+                          [&](LowerInstCall* built) {
+        new (built->created().ptr) LowerValue(built, LowerType::Pointer, StringId());
+        built->used()[0] = ((LowerInstSingle*)name)->created().ptr - lower;
+        built->used()[1] = bytes;
+    });
+
+    auto address = allocated->created().ptr - lower;
+
+    /*
+     * Zeroed on the same rule a frame slot and a box are - `hasPaddedWord`.
+     *
+     * `allocateHeap` hands back whatever was in the block, and a record with a co-packed word or a
+     * provenance suffix reads those bits as its own starting state. This is the third allocation
+     * site in the stage and therefore the third statement of the rule; there is no fourth.
+     */
+    if(manifest.dynamic || !manifest.inMemory || !hasPaddedWord(layout, occurrence.type)) {
+        return address;
+    }
+
+    U32 at = 0;
+    while(at < manifest.size) {
+        auto width = manifest.size - at >= 8 ? 8u : manifest.size - at >= 4 ? 4u
+                   : manifest.size - at >= 2 ? 2u : 1u;
+
+        block.addInst(lower, new (to.arena) LowerInstStore(
+            offsetAddress(block, address, at), immediate(block, LowerType::Int64, 0), width));
+
+        at += width;
+    }
+
+    return address;
+}
+
 LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurrence& occurrence) {
     auto manifest = manifestNative(layout, occurrence);
 
@@ -135,6 +199,114 @@ LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurr
         at += width;
     }
 
+    return storage;
+}
+
+/*
+ * The address a memory value's consumer is going to want it at - see `destinationFor` in internal.h,
+ * where the argument is.
+ *
+ * Four conditions, and each of them is what makes the rewrite a placement rather than a guess:
+ *
+ *  - the value **lives in memory** and its size is a number. A register value has no storage to
+ *    place, and a dynamic one is `erase.cpp`'s business.
+ *  - it has **exactly one use**. Two consumers cannot both own the storage, and a value that is also
+ *    read somewhere else is one whose contents outlive the consumer that would take it over.
+ *  - the use is in the **same block** as the definition, which is what makes the destination's
+ *    address available where the producer writes without a dominance question being asked.
+ *  - the type has **no padded word**. `frameStorage` zeroes such a slot before anything writes it,
+ *    because a co-packed word and a box provenance byte are filled by read-modify-writes; placing
+ *    the value in somebody else's storage would inherit whatever that storage held. Declining is one
+ *    test where zeroing the destination would be a second copy of the rule.
+ */
+LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
+    auto manifest = manifestOf(value);
+    if(!manifest.inMemory || manifest.dynamic) return nullptr;
+    if(value.useCount() != 1 || !value.definer) return nullptr;
+    if(hasPaddedWord(layout, value.occurrence.type)) return nullptr;
+
+    auto consumer = ssa[value.useAt(ssa, 0)];
+    if(consumer->block != ssa[value.definer]->block) return nullptr;
+
+    switch(consumer->kind) {
+        /*
+         * The caller's hidden result pointer, which is the destination the whole convention exists
+         * to name. Only where the `return` carries this one value: a result list with more than one
+         * memory value in it would have two claims on one pointer.
+         */
+        case Inst::Return: {
+            auto& written = (InstReturn&)*consumer;
+            if(!currentReturnPlace || written.values.size() != 1) return nullptr;
+            return currentReturnPlace;
+        }
+
+        /*
+         * A field of the record being built - or the box that field is, allocated here rather than
+         * after the producer has filled a temporary. That order is the whole of what a later pass
+         * cannot recover: `allocateHeap` emitted below the writes does not dominate them.
+         */
+        case Inst::Aggregate: {
+            auto& written = (InstAggregate&)*consumer;
+            if(!consumer->results.size()) return nullptr;
+
+            auto result = ssa[consumer->results.get(ssa, 0)];
+            if(!manifestOf(*result).inMemory) return nullptr;
+
+            auto record = result->type();
+            auto self = SsaPtr<Value>(&value - ssa);
+
+            U32 index = 0;
+            for(auto used: written.components.contents(ssa)) {
+                if(used.value() == self) break;
+                index++;
+            }
+
+            if(index >= written.components.size()) return nullptr;
+
+            auto storage = storageFor(block, *result);
+            if(!storage) return nullptr;
+
+            if(decl[record]->kind == mir::Type::Array) {
+                auto stride = elementStrideNative(layout,
+                                                  ((mir::ArrayType*)decl[record])->element);
+                return offsetAddress(block, storage, index * stride);
+            }
+
+            if(decl[record]->kind != mir::Type::Record) return nullptr;
+
+            auto& declared = *(mir::RecordType*)decl[record];
+            auto arm = declared.cons.get(decl, written.constructor);
+            auto field = U16(arm.first + index);
+
+            if(mir::indirectField(decl, declared.field(decl, field))) {
+                return createBox(block, storage, record, field, result->occurrence.shape,
+                                 consumer->source);
+            }
+
+            // A co-packed field has no address of its own, so there is nothing to place into - the
+            // component is a read-modify-write of a word it shares, which `encodePacked` performs.
+            auto held = reprOf(layout, record, result->occurrence.shape).fields.get(decl, field);
+            if(held.isPacked()) return nullptr;
+
+            return offsetAddress(block, storage, held.offset);
+        }
+
+        default:
+            return nullptr;
+    }
+}
+
+// The argument is in internal.h, beside the declaration. Memoized through `values`, which is where
+// every producer's answer already lives - so an aggregate whose storage a component asked for first
+// finds it again when its own instruction is reached.
+LowerPtr<LowerValue> Lowering::storageFor(LowerBlock& block, Value& value) {
+    if(auto found = values.getValue(value.id.index)) return found.unwrap();
+
+    auto destination = destinationFor(block, value);
+    auto storage = destination ? destination : frameStorage(block, value.occurrence);
+
+    if(destination) destinations.add(value.id.index, destination);
+    values.add(value.id.index, storage);
     return storage;
 }
 
@@ -359,6 +531,31 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
     if(!childDrop && !childReclaim) return;
 
     /*
+     * A **function value**, whose release is a call to the one function that tests the tag - D17,
+     * and `fun.cpp` is where the representation is written down.
+     *
+     * Emitted once when *either* half is asked, rather than under one of them. A `Fun` has no
+     * storage of its own for the two halves to be separated over - the captures' effects and the
+     * block's release happen at the same point - so a record with an authored instance of either
+     * half still owes the function value it holds, and running it twice is the thing to avoid.
+     *
+     * A site that can see which lambda this is does not reach here at all: `ownershipOfOccurrence`
+     * answers "nothing to release" for a value carrying `Shapes::closure`, so a frame-placed
+     * closure's drop is never emitted rather than emitted and folded.
+     */
+    if(decl[type]->kind == mir::Type::Fun) {
+        auto callee = funTeardown(source);
+        auto name = block.addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
+
+        call(lower, to, block, 0, 2, lower[callee]->callType, [&](LowerInstCall* built) {
+            built->used()[0] = ((LowerInstSingle*)name)->created().ptr - lower;
+            built->used()[1] = address;
+        });
+
+        return;
+    }
+
+    /*
      * A **fixed array** releases each of its elements, unrolled at the stride.
      *
      * Unrolled rather than looped, and that is a decision the bound on the count is what allows:
@@ -386,13 +583,6 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
         return;
     }
 
-    /*
-     * A **function value** never reaches here, and `ownershipOf` is where the reason is written: an
-     * environment holds copies and borrows, so a closure owes nothing. What a release would have had
-     * to read - a word in front of the lifted function's entry naming its release routine - is a
-     * word nothing writes, and it arrives with the heap placement that makes an environment able to
-     * own something in the first place.
-     */
     if(decl[type]->kind != mir::Type::Record) return;
 
     auto record = (mir::RecordType*)decl[type];
@@ -569,44 +759,80 @@ static LowerAtomicOp atomicRmwOp(mir::AtomicOp op) {
     return LowerAtomicOp::Add;
 }
 
+/*
+ * A constant in a register, or the address of one that has none - the whole of what a `const`
+ * lowers to, extracted so that a `map` answers with it.
+ *
+ * A `map` whose entries all agree reads no selector at all and *is* one of these, and the residual
+ * table's slots are laid out by the same `materialize` this reaches through `placeConstant` - so a
+ * second copy here would be a second answer to "where does a constant of a memory type live".
+ */
+LowerPtr<LowerValue> Lowering::emitConstant(LowerBlock& block, const mir::Constant& constant,
+                                            const mir::Occurrence& occurrence) {
+    auto manifest = manifestNative(layout, occurrence);
+
+    /*
+     * A constant with **no register form** - a record, which is storage.
+     *
+     * What a value of a memory type is is the address of its bytes, so a constant of one has to be
+     * placed somewhere before it can be named; `placeConstant` is where that decision is, and what
+     * comes back here is an address like any other. A `let` of it then copies from that address
+     * exactly as it copies from any other record.
+     */
+    if(manifest.inMemory) {
+        auto placed = placeConstant(constant, occurrence);
+        auto address = block.addInst(lower, new (to.arena) LowerInstGlobal(
+            lower[placed]->name, placed));
+
+        return &((LowerInstSingle*)address)->result - lower;
+    }
+
+    LowerInst* value;
+    if(constant.kind == mir::Constant::Float) {
+        value = block.addInst(lower, new (to.arena) LowerImm(
+            StringId(), manifest.type, constant.asFloat()));
+    } else {
+        /*
+         * An **address** is an integer immediate reinterpreted, because the lower IR has no pointer
+         * immediate - `validateImm` says so, and the reason it says so is that a target's
+         * relocations are what put an address in a register, so a literal one has to arrive as a
+         * number. `let nowhere = 0 :: %U8` is the program (`Global.yana`), and the bitcast costs
+         * nothing.
+         *
+         * `constantBits`, not `bits` - an enum constant names a constructor by index and the number
+         * it stores is the declaration's. See the note on the declaration.
+         */
+        auto address = isPtr(manifest.type);
+        auto width = address ? (layout.target.pointerSize > 4 ? LowerType::Int64
+                                                             : LowerType::Int32)
+                             : manifest.type;
+
+        value = block.addInst(lower, new (to.arena) LowerImm(
+            StringId(), width, constantBits(decl, constant)));
+
+        if(address) {
+            value = block.addInst(lower, new (to.arena) LowerInstUnary(
+                LowerInst::Bitcast, StringId(), manifest.type,
+                ((LowerInstSingle*)value)->created().ptr - lower));
+        }
+    }
+
+    return &((LowerInstSingle*)value)->result - lower;
+}
+
 void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
     switch(inst.kind) {
         case Inst::Const: {
             auto& written = (InstConst&)inst;
             auto result = ssa[inst.results.get(ssa, 0)];
-            auto manifest = manifestOf(*result);
 
-            /*
-             * A constant with **no register form** - a record, which is storage.
-             *
-             * What a value of a memory type is is the address of its bytes, so a constant of one has
-             * to be placed somewhere before it can be named; `placeConstant` is where that decision
-             * is, and what comes back here is an address like any other. A `let` of it then copies
-             * from that address exactly as it copies from any other record.
-             */
-            if(manifest.inMemory) {
-                auto placed = placeConstant(written.constant, result->occurrence);
-                auto address = block.addInst(lower, new (to.arena) LowerInstGlobal(
-                    lower[placed]->name, placed));
-
-                values.add(result->id.index, &((LowerInstSingle*)address)->result - lower);
-                break;
-            }
-
-            LowerInst* value;
-            if(written.constant.kind == mir::Constant::Float) {
-                value = block.addInst(lower, new (to.arena) LowerImm(
-                    StringId(), manifest.type, written.constant.asFloat()));
-            } else {
-                // `constantBits`, not `bits` - an enum constant names a constructor by index and
-                // the number it stores is the declaration's. See the note on the declaration.
-                value = block.addInst(lower, new (to.arena) LowerImm(
-                    StringId(), manifest.type, constantBits(decl, written.constant)));
-            }
-
-            values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+            values.add(result->id.index,
+                       emitConstant(block, written.constant, result->occurrence));
             break;
         }
+        case Inst::Map:
+            lowerMap(block, (InstMap&)inst);
+            break;
         case Inst::GlobalAddress: {
             auto& written = (InstGlobalAddress&)inst;
             auto found = globals.getValue(written.global.offset);
@@ -629,7 +855,33 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             // The manifestation of what the slot *holds*, under the occurrence it holds it as -
             // which is why `InstAlloc::held` is an occurrence and not a type.
             auto result = ssa[inst.results.get(ssa, 0)];
-            values.add(result->id.index, frameStorage(block, written.held));
+
+            /*
+             * The rung, carried down and not decided here - `mir::selectStorage` is the one thing
+             * that decides one. `Region` is unreachable (`mir::verifyBody` refuses it), so the two
+             * arms are the two shapes an allocation has on this target.
+             */
+            auto storage = written.storage == mir::StorageClass::Frame
+                ? frameStorage(block, written.held)
+                : heapStorage(block, written.held, inst.source);
+
+            values.add(result->id.index, storage);
+            break;
+        }
+        /*
+         * And the release, which is one call and no bookkeeping.
+         *
+         * Unconditional: `InstFree`'s address is an `Alloc`'s own result, and this stage only ever
+         * emits one for an allocation it made on the heap. The three-way `BoxRelease` question a
+         * boxed *field* has does not arise here - that one exists because a field's release site may
+         * be reached through a borrow and cannot see where the caller placed the value, and this
+         * site is the frame that allocated.
+         */
+        case Inst::Free: {
+            auto address = mapped(((InstFree&)inst).address.value());
+            if(!address) return;
+
+            emitFreeHeap(block, address - lower, inst.source);
             break;
         }
         /*
@@ -1015,6 +1267,27 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 break;
             }
 
+            /*
+             * A **conversion to the type it already has** is the identity, and no instruction.
+             *
+             * `foldFunctionConstants` removes it and nothing else did, so the shape only survives to
+             * here under `-no-ir-opt` - which is exactly where a rule that costs nothing has to hold:
+             * `x64`'s `selectFormForTarget` asserts `from != to` on a float cast, because there is no
+             * `cvtsd2sd`. What produces one is a `provided.def` instance at its own type -
+             * `F64.fromDecimal(value: F64) -> F64` is `cast value`, and so is `Bitcast(a, a)` - which
+             * is a real declaration rather than a mistake: the ladder has a rung between every pair
+             * and the diagonal is one of the pairs.
+             *
+             * The *logical* types, not the manifestations, which is what keeps a `@bits` refinement
+             * out: `IntType::canonical` makes a refinement a distinct type precisely so that the
+             * narrowing at the store is not mistaken for a no-op, and the two manifest alike.
+             */
+            if((written.op == mir::UnaryOp::Convert || written.op == mir::UnaryOp::Bitcast) &&
+               operandType == result->type()) {
+                values.add(result->id.index, operand - lower);
+                break;
+            }
+
             LowerInst* value;
             if(written.op == mir::UnaryOp::Not && logical.kind == mir::Type::Record) {
                 /*
@@ -1069,6 +1342,29 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  */
                 value = block.addInst(lower, new (to.arena) LowerInstUnary(
                     LowerInst::Bitcast, StringId(), manifest.type, operand - lower));
+            } else if(written.op == mir::UnaryOp::ByteSwap) {
+                /*
+                 * The byte reversal, and the one width that does not survive this seam.
+                 *
+                 * At thirty-two and sixty-four bits it is a unary instruction on both sides, exactly
+                 * as `Abs` is: every backend has the operation and what it does with one is its own
+                 * business. At sixteen it cannot be, because the lower IR has no sixteen-bit scalar
+                 * - so this is where the swap is spent, in the terms `width.cpp` already has for a
+                 * narrow type. `narrowByteSwap` is that expansion, beside `narrowRotate`, which is
+                 * here for the same reason at a different operation.
+                 *
+                 * The `else` chain below wraps the result at the declared width and this arm does
+                 * not need it: `op.def` says the reversal is `Closed`, and the narrow path has
+                 * already been through `putInRange` on its way out.
+                 */
+                if(auto narrow = narrowWidthOf(operandType)) {
+                    values.add(result->id.index,
+                               narrowByteSwap(block, operand - lower, narrow, StringId()));
+                    break;
+                }
+
+                value = block.addInst(lower, new (to.arena) LowerInstUnary(
+                    LowerInst::Bswap, StringId(), manifest.type, operand - lower));
             } else if(written.op == mir::UnaryOp::CountBits ||
                       written.op == mir::UnaryOp::LeadingZeros ||
                       written.op == mir::UnaryOp::TrailingZeros) {
@@ -1212,11 +1508,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * rows would read the word.
              */
             auto& from = *ssa[written.address.value()];
+            auto pointee = narrowPointee(from);
 
-            if(isNarrowReference(layout, from.occurrence) &&
-               !isReferenceValue(layout, result->occurrence)) {
-                spendPlace(block, *result,
-                           unpackNarrowRef(block, address - lower, from.occurrence.type),
+            if(pointee && !isReferenceValue(layout, result->occurrence)) {
+                spendPlace(block, *result, unpackNarrowRef(block, address - lower, pointee),
                            inst.source);
                 break;
             }
@@ -1268,6 +1563,12 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              */
             auto value = block.addInst(lower, new (to.arena) LowerInstLoad(
                 address - lower, StringId(), manifest.type, manifest.size, manifest.isSigned));
+
+            // The tail-read guarantee, spent - `LowerInstLoad::isOverread`, where the three passes
+            // that must not read "past the end" as a bug are named. Set here rather than in the
+            // constructor because it is a property of the one access `vectorPast` makes, not of the
+            // shape of a load.
+            if(written.overread) ((LowerInstLoad*)value)->setOverread();
 
             values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
             break;
@@ -1329,7 +1630,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 break;
             }
 
-            auto storage = frameStorage(block, result->occurrence);
+            auto storage = storageFor(block, *result);
 
             /*
              * A **fixed array** - the same walk at a stride instead of at the field offsets.
@@ -1342,18 +1643,18 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             if(decl[record]->kind == mir::Type::Array) {
                 auto stride = elementStrideNative(layout, ((mir::ArrayType*)decl[record])->element);
 
-                if(uniformFill(block, storage, written, stride)) {
-                    values.add(result->id.index, storage);
-                    break;
-                }
+                if(uniformFill(block, storage, written, stride)) break;
 
                 U32 offset = 0;
                 for(auto used: written.components.contents(ssa)) {
-                    install(block, offsetAddress(block, storage, offset), *ssa[used.value()]);
+                    if(!destinations.getValue(ssa[used.value()]->id.index)) {
+                        install(block, offsetAddress(block, storage, offset),
+                                *ssa[used.value()]);
+                    }
+
                     offset += stride;
                 }
 
-                values.add(result->id.index, storage);
                 break;
             }
 
@@ -1424,6 +1725,11 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  * `@box` in the first place.
                  */
                 if(mir::indirectField(decl, declared.field(decl, field))) {
+                    // Already made, where the component was placed straight into it - `storageFor`,
+                    // which allocated the box before the producer wrote so that there is nothing to
+                    // copy. A second `createBox` here would leak the first.
+                    if(destinations.getValue(ssa[used.value()]->id.index)) continue;
+
                     auto target = createBox(block, storage, record, field,
                                             result->occurrence.shape, inst.source);
                     if(!target) return;
@@ -1447,10 +1753,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     continue;
                 }
 
+                if(destinations.getValue(ssa[used.value()]->id.index)) continue;
                 install(block, offsetAddress(block, storage, held.offset), *ssa[used.value()]);
             }
 
-            values.add(result->id.index, storage);
             break;
         }
         case Inst::Drop: {
@@ -1553,6 +1859,114 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                                    value->created().ptr + i - lower);
                     }
 
+                    break;
+                }
+
+                /*
+                 * Starting a thread - a backend pseudo whose encoder is the `clone` system call plus
+                 * the child's entry sequence, and the one `Native` row whose operands are not the
+                 * ones MIR wrote.
+                 *
+                 * **The entry's pair is split here**, which is why this arm is longer than the three
+                 * above it. The declaration takes an ordinary function of the language - a closure
+                 * included - so what MIR carries is the `{code, env}` value; the child needs the
+                 * code to jump to and the environment to pass as that code's first argument, which
+                 * are two words at two offsets, and this file is where a function value is known to
+                 * be that. `CallThrough::Value` above reads the same pair the same way.
+                 *
+                 * The two loads happen in the **parent**, in front of the intrinsic, and what
+                 * crosses to the child is two words the encoder writes onto its stack. The operand
+                 * order is the backend's - `(flags, stackTop, code, argument, threadId, env)` - and
+                 * is the shipping stage's, so `LowerIntrinsic::CloneThread` has one caller shape.
+                 */
+                case mir::NativeOp::CloneThread: {
+                    auto code = wordAt(block, args[2], layout.target.funCodeOffset(),
+                                       LowerType::Pointer, layout.target.pointerSize);
+                    auto environment = wordAt(block, args[2], layout.target.funEnvOffset(),
+                                              LowerType::Pointer, layout.target.pointerSize);
+
+                    LowerPtr<LowerValue> operands[] = { args[0], args[1], code, args[3], args[4],
+                                                        environment };
+                    auto count = Size(6);
+
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto built = (LowerInstIntrinsic*)to.arena.alloc(
+                        sizeof(LowerInstIntrinsic) + sizeof(LowerValue) +
+                        sizeof(LowerPtr<LowerValue>) * count);
+
+                    new (built) LowerInstIntrinsic(LowerIntrinsic::CloneThread, 1, count);
+                    for(Size i = 0; i < count; i++) built->used().ptr[i] = operands[i];
+                    new (built->created().ptr) LowerValue(built, manifestOf(*result).type,
+                                                          StringId());
+
+                    auto value = block.addInst(lower, (LowerInst*)built);
+                    values.add(result->id.index, ((LowerInstIntrinsic*)value)->created().ptr - lower);
+                    break;
+                }
+
+                /*
+                 * The x86 family - native.def's twelve rows, and a mapping and nothing else.
+                 *
+                 * Each is an instruction the lower IR already has, so there is no expansion here
+                 * and no width to mask: `crc32` is declared at 32 and 64 bits only and the SHA
+                 * steps are named stages of a named algorithm over a four-lane word vector. The
+                 * `sha1rnds4` round group arrives as the *row*, which is what makes this a
+                 * translation between two enums rather than a constant read out of an operand -
+                 * `LowerSha` says the same thing from its side.
+                 */
+                case mir::NativeOp::Crc32: {
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstBinary(
+                        StringId(), manifestOf(*result).type, args[0], args[1], LowerInst::Crc32));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                    break;
+                }
+
+                // No operands and no result: what it changes is processor state nothing in this IR
+                // names, which is why the row answers `{}` and nothing is recorded for it.
+                case mir::NativeOp::VZeroUpper:
+                    block.addInst(lower, new (to.arena) LowerInstVZeroUpper());
+                    break;
+
+                case mir::NativeOp::Sha1Message1:
+                case mir::NativeOp::Sha1Message2:
+                case mir::NativeOp::Sha1NextE:
+                case mir::NativeOp::Sha1Rounds0:
+                case mir::NativeOp::Sha1Rounds1:
+                case mir::NativeOp::Sha1Rounds2:
+                case mir::NativeOp::Sha1Rounds3:
+                case mir::NativeOp::Sha256Message1:
+                case mir::NativeOp::Sha256Message2: {
+                    auto op = LowerSha::Sha1Msg1;
+                    switch(written.op) {
+                        case mir::NativeOp::Sha1Message2:   op = LowerSha::Sha1Msg2; break;
+                        case mir::NativeOp::Sha1NextE:      op = LowerSha::Sha1NextE; break;
+                        case mir::NativeOp::Sha1Rounds0:    op = LowerSha::Sha1Rounds0; break;
+                        case mir::NativeOp::Sha1Rounds1:    op = LowerSha::Sha1Rounds1; break;
+                        case mir::NativeOp::Sha1Rounds2:    op = LowerSha::Sha1Rounds2; break;
+                        case mir::NativeOp::Sha1Rounds3:    op = LowerSha::Sha1Rounds3; break;
+                        case mir::NativeOp::Sha256Message1: op = LowerSha::Sha256Msg1; break;
+                        case mir::NativeOp::Sha256Message2: op = LowerSha::Sha256Msg2; break;
+                        default: break;
+                    }
+
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstShaBinary(
+                        StringId(), manifestOf(*result).type, args[0], args[1], op));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                    break;
+                }
+
+                // The third operand is `xmm0` on the machine, which is the x64 form's constraint
+                // and not this seam's - here it is an ordinary third use.
+                case mir::NativeOp::Sha256Rounds: {
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstSha256Rounds(
+                        StringId(), manifestOf(*result).type, args[0], args[1], args[2]));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
                     break;
                 }
             }
@@ -1722,6 +2136,11 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 // The one row with no signedness to read and no lane type to read it off: what it
                 // answers is an index into the lanes rather than one of them.
                 case mir::ReduceOp::FirstSet: reduce = LowerReduce::FirstSet; break;
+
+                // The movemask, which is the one kind that arrives already named: `Native.bits` is
+                // the only producer and the lower row is the same operation, so there is nothing to
+                // choose here the way `Min` chooses on signedness.
+                case mir::ReduceOp::Bits: reduce = LowerReduce::Bits; break;
                 case mir::ReduceOp::Count: assertTrue(false); break;
             }
 
@@ -1840,7 +2259,13 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
                     // Result zero is `previous` and result one is `exchanged` - the order
                     // `LowerInstAtomicCas` embeds them in, which `AtomicOk` below reads by index.
-                    values.add(previous->id.index, ((LowerInstAtomicCas*)cas)->created().ptr - lower);
+                    auto value = ((LowerInstAtomicCas*)cas)->created().ptr - lower;
+
+                    if(auto width = narrowWidthOf(previous->type())) {
+                        value = putInRange(block, value, width, StringId());
+                    }
+
+                    values.add(previous->id.index, value);
                     break;
                 }
 
@@ -1850,11 +2275,34 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     auto result = ssa[inst.results.get(ssa, 0)];
                     auto manifest = accessOf(*result);
 
-                    auto value = block.addInst(lower, new (to.arena) LowerInstAtomicRmw(
+                    auto rmw = block.addInst(lower, new (to.arena) LowerInstAtomicRmw(
                         args[0], args[1], StringId(), manifest.type, manifest.size,
                         atomicRmwOp(written.op), lowerOrder(written.order)));
 
-                    values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+                    auto value = &((LowerInstSingle*)rmw)->result - lower;
+
+                    /*
+                     * And back into the declared width - the same normalization every other narrow
+                     * producer ends with, and the reason it is here rather than in `width.cpp`'s
+                     * list is that a machine's atomic answers the *register* it was handed.
+                     *
+                     * `lock xadd byte [m], r8` writes the low byte of its operand register and
+                     * leaves that register's own high bits standing; `lock cmpxchg` at a byte leaves
+                     * the expected value's. So a `U8` at 250 less 10 came back as 0xFFFFFF04 with a
+                     * correct byte under three bytes of the operand - `Atomic.wrapping` in
+                     * `lib/Atomic/Atomic.test.native.yana`, which is the case that found it in the
+                     * shipping stage too (`lower_calc.cpp`, where the same four spellings are
+                     * listed).
+                     *
+                     * **The load is not among them**: it states its signedness on the instruction
+                     * and both backends widen as they read, which is one instruction rather than
+                     * two.
+                     */
+                    if(auto width = narrowWidthOf(result->type())) {
+                        value = putInRange(block, value, width, StringId());
+                    }
+
+                    values.add(result->id.index, value);
                     break;
                 }
             }
@@ -1874,6 +2322,16 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto& written = (InstAtomicOk&)inst;
             auto previous = mapped(written.cas.value());
             if(!previous) return;
+
+            /*
+             * Walked back to the instruction, because a narrow compared type puts the mask or the
+             * shift pair in front of it: what the compare's own value maps to is then the
+             * normalization rather than the `cmpxchg`, and the second result lives on the
+             * instruction. Each step reads its predecessor as operand zero, which is the way back.
+             */
+            while(previous->inst()->kind != LowerInst::AtomicCas) {
+                previous = lower[previous->inst()->used()[0]];
+            }
 
             auto result = ssa[inst.results.get(ssa, 0)];
             auto cas = (LowerInstAtomicCas*)previous->inst();
@@ -1904,9 +2362,22 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              */
             LowerPtr<LowerValue> environment = nullptr;
 
+            /*
+             * `-check-locations` - the located check this call becomes, and null everywhere else.
+             *
+             * Read here so that the whole substitution is one binding: the callee below is the
+             * located declaration, the parameter list the argument loop adapts against is the
+             * located one, and the four constants are appended after it. See `locatedCheck`, where
+             * the reason this is the lowering's decision and not the resolver's is written.
+             */
+            auto located = written.through == mir::CallThrough::Declaration
+                ? locatedCheck(written.callee) : DeclPtr<mir::Function>(nullptr);
+
+            auto target = located ? located : written.callee;
+
             switch(written.through) {
                 case mir::CallThrough::Declaration: {
-                    auto found = functions.getValue(written.callee.offset);
+                    auto found = functions.getValue(target.offset);
                     if(!found) {
                         context.diagnostics.error(
                             "internal: a call reached a callee that was not lowered"_v, inst.source);
@@ -1914,7 +2385,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     }
 
                     callee = ((LowerInstSingle*)block.addInst(lower, new (to.arena) LowerInstFun(
-                        decl[written.callee]->name, found.unwrap())))->created().ptr - lower;
+                        decl[target]->name, found.unwrap())))->created().ptr - lower;
 
                     if(written.environment) {
                         auto table = environmentFor(written.environment, inst.source);
@@ -1990,7 +2461,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              */
             auto declared = written.through == mir::CallThrough::Declaration ||
                             written.through == mir::CallThrough::ClassSlot
-                ? decl[written.callee] : nullptr;
+                ? decl[target] : nullptr;
 
             SmallArray<LowerPtr<LowerValue>, 8> passed;
             SmallArray<PackedBorrow, 4> commits;
@@ -2039,6 +2510,13 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 position++;
             }
 
+            // And the location, where this call became the located one. After the loop because the
+            // constants are the *last* arguments of the located declaration, and the written ones
+            // fill the positions in front of them unchanged.
+            if(located && !checkLocationArguments(block, *declared, position, inst.source, passed)) {
+                return;
+            }
+
             /*
              * An address-only result comes back through storage this frame supplies.
              *
@@ -2063,8 +2541,19 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto memoryResult = results && manifest.inMemory;
             LowerPtr<LowerValue> returnPlace = nullptr;
 
+            /*
+             * `storageFor` where the result is this frame's value, so the callee writes into the
+             * field, the box or the caller's own result pointer that the value is going to end up in
+             * - §5.6's destination passing, decided here rather than chased afterwards.
+             *
+             * A plain `frameStorage` where the *callee* returns in memory and this frame wanted a
+             * register: the storage is then a landing pad this walk reads back out of, and it has no
+             * consumer to inherit it from.
+             */
             if(returnsInMemory && results) {
-                returnPlace = frameStorage(block, ssa[inst.results.get(ssa, 0)]->occurrence);
+                returnPlace = memoryResult
+                            ? storageFor(block, *ssa[inst.results.get(ssa, 0)])
+                            : frameStorage(block, ssa[inst.results.get(ssa, 0)]->occurrence);
             }
 
             /*
@@ -2085,7 +2574,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              */
             auto direct = written.through == mir::CallThrough::Declaration;
             auto convention = direct
-                ? lower[functions.getValue(written.callee.offset).unwrap()]->callType
+                ? lower[functions.getValue(target.offset).unwrap()]->callType
                 : kDefaultCallType;
 
             auto leading = 1u + (environment ? 1u : 0u) + (returnPlace ? 1u : 0u);
@@ -2117,10 +2606,8 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  * The storage itself where this frame wanted storage, and a load out of it where it
                  * wanted a register - `thunkFor`'s store, from the other side of the same boundary.
                  */
-                if(memoryResult) {
-                    values.add(ssa[inst.results.get(ssa, 0)]->id.index, returnPlace);
-                    break;
-                }
+                // Already mapped by `storageFor`, which is what chose the storage.
+                if(memoryResult) break;
 
                 auto loaded = block.addInst(lower, new (to.arena) LowerInstLoad(
                     returnPlace, StringId(), manifest.type, manifest.size, manifest.isSigned));
@@ -2150,6 +2637,9 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             for(auto used: written.values.contents(ssa)) {
                 auto value = ssa[used.value()];
                 if(manifestOf(*value).inMemory) {
+                    // Nothing to install where the value was built in the result pointer to begin
+                    // with - `storageFor`, which is what handed it that address.
+                    if(destinations.getValue(value->id.index)) continue;
                     if(currentReturnPlace) install(block, currentReturnPlace, *value);
                     continue;
                 }
@@ -2183,6 +2673,60 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
             block.addInst(lower, new (to.arena) LowerInstJe(
                 condition - lower, whenTrue.unwrap(), whenFalse.unwrap()));
+            break;
+        }
+        /*
+         * A multi-way branch, as the multi-way branch the lower IR now has - D3 slice 3.
+         *
+         * One instruction rather than the `je` chain this used to expand into, because the choice
+         * between a chain, a binary search and a jump table is a question about the *target* and
+         * nothing here knows the answer: `compiler/codegen/x64/transform_switch.cpp` decides it, and
+         * `IRBuilder::CreateSwitch` hands it to LLVM to decide for itself.
+         *
+         * Every edge leaves the block the `match` was written in, so each target's phi takes its
+         * alternative from here - which is what `supplyEdge` records. A target named by two cases
+         * would then be one block with two alternatives from one predecessor, so it gets a block
+         * holding a jump instead; `LowerBlock::outgoing` is where that rule is stated.
+         */
+        case Inst::Switch: {
+            auto& written = (InstSwitch&)inst;
+            auto selector = mapped(written.selector.value());
+            auto fallback = blocks.getValue(ssa[written.fallback.target]->index.index);
+            if(!selector || !fallback || !currentLowerFunction) return;
+
+            auto items = written.cases.pointer(ssa);
+            auto count = written.cases.size();
+
+            auto jump = makeSwitch(to.arena, selector - lower, fallback.unwrap(), U32(count));
+            auto cases = jump->cases();
+
+            for(Size i = 0; i < count; i++) {
+                auto found = blocks.getValue(ssa[items[i].edge.target]->index.index);
+                if(!found) return;
+
+                auto target = found.unwrap();
+                auto from = &block;
+
+                // A target this switch already names, or the fallback: the second edge goes through
+                // a block of its own so that the pair of blocks an edge joins stays its identity.
+                auto repeated = target == fallback.unwrap();
+                for(Size j = 0; j < i && !repeated; j++) repeated = cases[j].target == target;
+
+                if(repeated) {
+                    auto trampoline = currentLowerFunction->addBlock(lower, StringId());
+                    from = lower[trampoline - lower];
+                    target = trampoline - lower;
+                }
+
+                cases[i].setValue(items[i].value);
+                cases[i].target = target;
+
+                supplyEdge(*from, items[i].edge);
+                if(from != &block) from->addInst(lower, new (to.arena) LowerInstJmp(found.unwrap()));
+            }
+
+            supplyEdge(block, written.fallback);
+            block.addInst(lower, (LowerInst*)jump);
             break;
         }
         case Inst::Unreachable:

@@ -1,0 +1,234 @@
+module ResolveTest
+
+data Wide {only: @bits(13) U32}
+
+data Pair {a: @bits(13) U32, b: @bits(3) U32}
+
+fn tag(m: Maybe(Wide) [shared call]) -> I32 {
+  local w: Wide
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = const 0
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %4: Wide = read copy.trivial (m.Just)
+  write.init borrow.unique (w) take %4
+  %6: I32 = const 1
+  jump -> bb2(take %6)
+}
+
+fn setThrough(x: @bits(13) U32 [unique call], v: U32 [shared call]) -> {} {
+bb0:
+  %0: U32 = read copy.trivial (v)
+  %1: @bits(13) U32 = convert inspect %0
+  write.assign borrow.unique (x) take %1
+  return
+}
+
+fn put(slot: a [unique call], from: a [shared call]) -> {} {
+  form specialized
+  slot #0 type a
+  slot #1 class TrivialCopy(a)
+bb0:
+  %0: a = read copy.trivial (from)
+  write.assign borrow.unique (slot) take %0
+  return
+}
+
+fn main() -> I32 {
+  local & n: U32
+  local viaCon: I32
+  local & w: Wide
+  local viaAssign: I32
+  local & c: Wide
+  local viaCompound: I32
+  local & b: Wide
+  local viaBorrow: I32
+  local & p: Pair
+  local neighbour: I32
+  local & dst: Wide
+  local viaErased: I32
+  local & x: Wide
+  local & y: Wide
+  local local14: Wide
+  local viaSwap: I32
+  local & z: Wide
+  local & q: Wide
+  local viaField: I32
+
+bb0:
+  %0: U32 = const 0
+  write.init borrow.unique (n) take %0
+  %2: U32 = const 20000
+  write.assign borrow.unique (n) take %2
+  %4: U32 = read copy.trivial (n)
+  %5: @bits(13) U32 = convert inspect %4
+  %6: Wide = aggregate.Wide take %5
+  %7: Maybe(Wide) = aggregate.Just take %6
+  %8: I32 = call tag borrow.shared %7
+  write.init borrow.unique (viaCon) take %8
+  %10: @bits(13) U32 = const 1
+  %11: Wide = aggregate.Wide take %10
+  write.init borrow.unique (w) take %11
+  %13: U32 = read copy.trivial (n)
+  %14: @bits(13) U32 = convert inspect %13
+  write.assign borrow.unique (w.only) take %14
+  %16: Wide = read copy.trivial (w)
+  %17: Maybe(Wide) = aggregate.Just take %16
+  %18: I32 = call tag borrow.shared %17
+  write.init borrow.unique (viaAssign) take %18
+  %20: @bits(13) U32 = const 8000
+  %21: Wide = aggregate.Wide take %20
+  write.init borrow.unique (c) take %21
+  %23: @bits(13) U32 = read copy.trivial (c.only)
+  %24: U32 = convert inspect %23
+  %25: U32 = read copy.trivial (n)
+  %26: U32 = add inspect %24 inspect %25
+  %27: @bits(13) U32 = convert inspect %26
+  write.assign borrow.unique (c.only) take %27
+  %29: Wide = read copy.trivial (c)
+  %30: Maybe(Wide) = aggregate.Just take %29
+  %31: I32 = call tag borrow.shared %30
+  write.init borrow.unique (viaCompound) take %31
+  %33: @bits(13) U32 = const 1
+  %34: Wide = aggregate.Wide take %33
+  write.init borrow.unique (b) take %34
+  %36: @bits(13) U32 [unique call] = read borrow.unique (b.only) loan0
+  %37: U32 = read copy.trivial (n)
+  %38: {} = call setThrough borrow.unique %36 borrow.shared %37
+  %39: Wide = read copy.trivial (b)
+  %40: Maybe(Wide) = aggregate.Just take %39
+  %41: I32 = call tag borrow.shared %40
+  write.init borrow.unique (viaBorrow) take %41
+  %43: @bits(13) U32 = const 1
+  %44: @bits(3) U32 = const 5
+  %45: Pair = aggregate.Pair take %43 take %44
+  write.init borrow.unique (p) take %45
+  %47: U32 = read copy.trivial (n)
+  %48: @bits(13) U32 = convert inspect %47
+  write.assign borrow.unique (p.a) take %48
+  %50: @bits(3) U32 = read copy.trivial (p.b)
+  %51: U32 = convert inspect %50
+  %52: U32 = const 5
+  %53: Bool = eq inspect %51 inspect %52
+  branch inspect %53 -> bb3 -> bb1
+
+bb1:
+  %56: I32 = const 0
+  jump -> bb2(take %56)
+
+bb2(%57: I32):
+  write.init borrow.unique (neighbour) take %57
+  %61: @bits(13) U32 = const 1
+  %62: Wide = aggregate.Wide take %61
+  write.init borrow.unique (dst) take %62
+  %64: Wide [unique call] = read borrow.unique (dst) loan1
+  %65: U32 = read copy.trivial (n)
+  %66: @bits(13) U32 = convert inspect %65
+  %67: Wide = aggregate.Wide take %66
+  %68: {} = call put(Wide) borrow.unique %64 borrow.shared %67
+  %69: Wide = read copy.trivial (dst)
+  %70: Maybe(Wide) = aggregate.Just take %69
+  %71: I32 = call tag borrow.shared %70
+  write.init borrow.unique (viaErased) take %71
+  %73: U32 = read copy.trivial (n)
+  %74: @bits(13) U32 = convert inspect %73
+  %75: Wide = aggregate.Wide take %74
+  write.init borrow.unique (x) take %75
+  %77: @bits(13) U32 = const 2
+  %78: Wide = aggregate.Wide take %77
+  write.init borrow.unique (y) take %78
+  %80: Wide [unique call] = read borrow.unique (x) loan2
+  %81: Wide [unique call] = read borrow.unique (y) loan3
+  %82: %Wide = address.exchange inspect %80
+  %83: %Wide = address.exchange inspect %81
+  %84: Wide = read copy.trivial ([%%82])
+  write.init borrow.unique (local14) take %84
+  %86: Wide = read copy.trivial (local14)
+  %87: Wide = read copy.trivial ([%%83])
+  write.assign borrow.unique ([%%82]) take %87
+  write.assign borrow.unique ([%%83]) take %86
+  %90: {} = const {}
+  %91: Wide = read copy.trivial (x)
+  %92: Maybe(Wide) = aggregate.Just take %91
+  %93: I32 = call tag borrow.shared %92
+  %94: Wide = read copy.trivial (y)
+  %95: Maybe(Wide) = aggregate.Just take %94
+  %96: I32 = call tag borrow.shared %95
+  %97: I32 = add inspect %93 inspect %96
+  %98: I32 = const 2
+  %99: Bool = eq inspect %97 inspect %98
+  branch inspect %99 -> bb6 -> bb4
+
+bb3:
+  %55: I32 = const 1
+  jump -> bb2(take %55)
+
+bb4:
+  %102: I32 = const 0
+  jump -> bb5(take %102)
+
+bb5(%103: I32):
+  write.init borrow.unique (viaSwap) take %103
+  %107: U32 = read copy.trivial (n)
+  %108: @bits(13) U32 = convert inspect %107
+  %109: Wide = aggregate.Wide take %108
+  write.init borrow.unique (z) take %109
+  %111: @bits(13) U32 = const 0
+  %112: Wide = aggregate.Wide take %111
+  write.init borrow.unique (q) take %112
+  %114: @bits(13) U32 = read copy.trivial (z.only)
+  write.assign borrow.unique (q.only) take %114
+  %116: Wide = read copy.trivial (q)
+  %117: Maybe(Wide) = aggregate.Just take %116
+  %118: I32 = call tag borrow.shared %117
+  write.init borrow.unique (viaField) take %118
+  %120: I32 = read copy.trivial (viaCon)
+  %121: I32 = read copy.trivial (viaAssign)
+  %122: I32 = const 2
+  %123: I32 = mul inspect %121 inspect %122
+  %124: I32 = add inspect %120 inspect %123
+  %125: I32 = read copy.trivial (viaCompound)
+  %126: I32 = const 4
+  %127: I32 = mul inspect %125 inspect %126
+  %128: I32 = add inspect %124 inspect %127
+  %129: I32 = read copy.trivial (viaBorrow)
+  %130: I32 = const 8
+  %131: I32 = mul inspect %129 inspect %130
+  %132: I32 = add inspect %128 inspect %131
+  %133: I32 = read copy.trivial (neighbour)
+  %134: I32 = const 16
+  %135: I32 = mul inspect %133 inspect %134
+  %136: I32 = add inspect %132 inspect %135
+  %137: I32 = read copy.trivial (viaErased)
+  %138: I32 = const 32
+  %139: I32 = mul inspect %137 inspect %138
+  %140: I32 = add inspect %136 inspect %139
+  %141: I32 = read copy.trivial (viaSwap)
+  %142: I32 = const 64
+  %143: I32 = mul inspect %141 inspect %142
+  %144: I32 = add inspect %140 inspect %143
+  %145: I32 = read copy.trivial (viaField)
+  %146: I32 = const 128
+  %147: I32 = mul inspect %145 inspect %146
+  %148: I32 = add inspect %144 inspect %147
+  return take %148
+
+bb6:
+  %101: I32 = const 1
+  jump -> bb5(take %101)
+}
+
+fn put(Wide)(slot: Wide [unique call], from: Wide [shared call]) -> {} = <put at Wide>
+
+entry main

@@ -1,0 +1,353 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+data Step {weight: I32, run: (I32) -> I32} drop derived reclaim derived
+
+data main.lambda.env {}
+
+data main.lambda'2.env {}
+
+class Describe(a): describe
+
+instance Describe(Point): Point.describe
+
+fn describe(v: a [shared call]) -> I32 = <no body>
+
+fn scaled(p: Point [shared call], k: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = read copy.trivial (k)
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (p.y)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn bump(p: Point [unique call], by: I32 [shared call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (p.x) take %2
+  return
+}
+
+fn offset(p: Point [shared call], dx: I32 [shared call] = 1, dy: I32 [shared call] = 10) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = read copy.trivial (dx)
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = read copy.trivial (p.y)
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = read copy.trivial (dy)
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+fn applyTwice(v: a [shared call], f: (a) -> a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: (a) -> a [shared call] = read borrow.shared (f) loan0
+  %1: (a) -> a [shared call] = read borrow.shared (f) loan1
+  %2: a [shared call] = read borrow.shared (v) loan2
+  %3: a = call inspect %1 borrow.shared %2
+  %4: a = call inspect %0 borrow.shared %3
+  return take %4
+}
+
+fn run(s: Step [shared call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 1000
+  return take %0
+}
+
+fn viaField(s: Step [shared call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: (I32) -> I32 [shared call] = read borrow.shared (s.run) loan0
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = call inspect %0 borrow.shared %1
+  %3: I32 = read copy.trivial (s.weight)
+  %4: I32 = mul inspect %2 inspect %3
+  return take %4
+}
+
+fn Point.describe(v: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (v.x)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (v.y)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn Point.size(p: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = read copy.trivial (p.y)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn size(v: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 2
+  return take %0
+}
+
+fn make(n: I32 [shared call]) -> Point {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = read copy.trivial (n)
+  %2: Point = aggregate.Point take %0 take %1
+  return take %2
+}
+
+fn swallow(p: Point) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = read copy.trivial (p.y)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+lens fn upTo(limit: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (limit)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %22: I32 = read copy.trivial ($yielded)
+  return take %22
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %11: I32 = call inspect %10 borrow.shared %9
+  %12: I32 = const 0
+  %13: Bool = eq inspect %11 inspect %12
+  write.assign borrow.unique ($yielded) take %11
+  branch inspect %13 -> bb4 -> bb5
+
+bb4:
+  %17: I32 = read copy.trivial (i)
+  %18: I32 = const 1
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (i) take %19
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+lens fn evens(limit: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (limit)
+  lens.call upTo borrow.shared %2 -> bb2
+
+bb1:
+  %23: I32 = read copy.trivial ($yielded)
+  return take %23
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (x)
+  %7: I32 = const 2
+  %8: I32 = rem inspect %6 inspect %7
+  %9: I32 = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb5 -> bb3
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb4 handover(I32 [shared call]) many:
+  jump -> bb1
+
+bb5 handover(I32 [shared call]) many:
+  %12: I32 = read copy.trivial (x)
+  %13: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %14: I32 = call inspect %13 borrow.shared %12
+  %15: I32 = const 0
+  %16: Bool = eq inspect %14 inspect %15
+  write.assign borrow.unique ($yielded) take %14
+  branch inspect %16 -> bb6 -> bb7
+
+bb6 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb7 handover(I32 [shared call]) many:
+  break -> bb1
+}
+
+fn main() -> I32 {
+  local p: Point
+  local a: I32
+  local b: I32
+  local c: I32
+  local local4: I32
+  local local5: (I32) -> I32 [owned here shape8 .0=unique call]
+  local d: I32
+  local & q: Point
+  local step: Step
+  local e: I32
+  local f: I32
+  local local11: I32
+  local g: I32
+  local local13: Point
+  local h: I32
+  local local15: Point
+  local i: I32
+  local & sum: I32
+  local local18: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 4
+  %2: Point = aggregate.Point take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: Point = read copy.trivial (p)
+  %5: I32 = const 2
+  %6: I32 = call scaled borrow.shared %4 borrow.shared %5
+  write.init borrow.unique (a) take %6
+  %8: Point = read copy.trivial (p)
+  %9: I32 = const 1
+  %10: I32 = const 10
+  %11: I32 = call offset borrow.shared %8 borrow.shared %9 borrow.shared %10
+  write.init borrow.unique (b) take %11
+  %13: Point = read copy.trivial (p)
+  %14: I32 = const 7
+  %15: I32 = const 1
+  %16: I32 = call offset borrow.shared %13 borrow.shared %15 borrow.shared %14
+  write.init borrow.unique (c) take %16
+  %18: Point = read copy.trivial (p)
+  %19: I32 = const 2
+  %20: I32 = call scaled borrow.shared %18 borrow.shared %19
+  write.init borrow.unique (local4) take %20
+  %22: I32 = read copy.trivial (local4)
+  %23: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value main.lambda
+  write.init borrow.unique (local5) take %23
+  %25: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local5) loan0
+  %26: I32 = call applyTwice(I32) borrow.shared %22 borrow.shared %25
+  write.init borrow.unique (d) take %26
+  %28: I32 = const 1
+  %29: I32 = const 1
+  %30: Point = aggregate.Point take %28 take %29
+  write.init borrow.unique (q) take %30
+  %32: Point [unique call] = read borrow.unique (q) loan1
+  %33: I32 = const 5
+  %34: {} = call bump borrow.unique %32 borrow.shared %33
+  %35: I32 = const 2
+  %36: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value main.lambda'2
+  %37: Step = aggregate.Step take %35 take %36
+  write.init borrow.unique (step) take %37
+  %39: (I32) -> I32 [shared call] = read borrow.shared (step.run) loan2
+  %40: I32 = const 6
+  %41: I32 = call inspect %39 borrow.shared %40
+  %42: I32 = read copy.trivial (step.weight)
+  drop (step)
+  %43: I32 = mul inspect %41 inspect %42
+  write.init borrow.unique (e) take %43
+  %45: Point = read copy.trivial (p)
+  %46: I32 = call describe(Point) borrow.shared %45
+  write.init borrow.unique (f) take %46
+  %48: Point = read copy.trivial (p)
+  %49: I32 = call Point.size borrow.shared %48
+  %50: I32 = const 9
+  write.init borrow.unique (local11) take %50
+  %52: I32 = read copy.trivial (local11)
+  %53: I32 = call size borrow.shared %52
+  %54: I32 = add inspect %49 inspect %53
+  write.init borrow.unique (g) take %54
+  %56: I32 = const 2
+  %57: Point = call make borrow.shared %56
+  write.init borrow.unique (local13) take %57
+  %59: Point = read copy.trivial (local13)
+  %60: I32 = const 3
+  %61: I32 = call scaled borrow.shared %59 borrow.shared %60
+  write.init borrow.unique (h) take %61
+  %63: I32 = const 5
+  %64: Point = call make borrow.shared %63
+  write.init borrow.unique (local15) take %64
+  %66: Point = read copy.trivial (local15)
+  %67: I32 = call swallow take %66
+  write.init borrow.unique (i) take %67
+  %69: I32 = const 0
+  write.init borrow.unique (sum) take %69
+  %71: I32 = const 10
+  write.init borrow.unique (local18) take %71
+  %73: I32 = read copy.trivial (local18)
+  lens.call evens borrow.shared %73 -> bb2
+
+bb1:
+  %82: I32 = read copy.trivial (a)
+  %83: I32 = read copy.trivial (b)
+  %84: I32 = add inspect %82 inspect %83
+  %85: I32 = read copy.trivial (c)
+  %86: I32 = add inspect %84 inspect %85
+  %87: I32 = read copy.trivial (d)
+  %88: I32 = add inspect %86 inspect %87
+  %89: I32 = read copy.trivial (q.x)
+  %90: I32 = add inspect %88 inspect %89
+  %91: I32 = read copy.trivial (e)
+  %92: I32 = add inspect %90 inspect %91
+  %93: I32 = read copy.trivial (f)
+  %94: I32 = add inspect %92 inspect %93
+  %95: I32 = read copy.trivial (g)
+  %96: I32 = add inspect %94 inspect %95
+  %97: I32 = read copy.trivial (h)
+  %98: I32 = add inspect %96 inspect %97
+  %99: I32 = read copy.trivial (i)
+  %100: I32 = add inspect %98 inspect %99
+  %101: I32 = read copy.trivial (sum)
+  %102: I32 = add inspect %100 inspect %101
+  return take %102
+
+bb2(%74: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %74
+  %77: I32 = read copy.trivial (sum)
+  %78: I32 = read copy.trivial (x)
+  %79: I32 = add inspect %77 inspect %78
+  write.assign borrow.unique (sum) take %79
+  jump -> bb1
+}
+
+fn main.lambda(main.lambda.env: main.lambda.env [unique call], v: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (v)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [unique call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 1
+  %2: I32 = sub inspect %0 inspect %1
+  return take %2
+}
+
+fn applyTwice(I32)(v: I32 [shared call], f: (I32) -> I32 [shared call]) -> I32 = <applyTwice at I32>
+
+entry main

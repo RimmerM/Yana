@@ -1,0 +1,107 @@
+@environment(sumOf(4)) = [4, 0, 0, 0]
+
+at<complex>(%i: I64): I64 {
+  b_0 {
+    ret %i
+  }
+}
+
+sumOf<complex>(%v_0: Ptr, %xs: Ptr): I32 {
+  b_1 {
+    %v_2 = load %v_0, 4: I32
+    %v_3 = cast %v_2: I64
+    %v_4 = sext %v_2: I64
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_1, 0], [b_7, %v_8]: I32
+    %v_9 = phi [b_1, 0], [b_7, %v_10]: I64
+    %v_11 = cmp_ilt %v_9, %v_4: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    ret %v_6
+  }
+
+  b_12 {
+    %v_14 = cmp_ge %v_9, %v_3: I32
+    je %v_14, b_15, b_7
+  }
+
+  b_7 {
+    %v_16 = shl %v_9, 2: I64
+    %v_17 = add %xs, %v_16: Ptr
+    %v_18 = loads %v_17, 4: I32
+    %v_8 = add %v_6, %v_18: I32
+    %v_10 = add %v_9, 1: I64
+    jmp b_5
+  }
+
+  b_15 {
+    %v_19 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 4: Ptr
+    setpattern %v_1, 16, 0
+    %v_2 = call_complex at, 1: I64
+    %v_3 = cmp_ge %v_2, 4: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = shl %v_2, 2: I64
+    %v_7 = add %v_1, %v_6: Ptr
+    store %v_7, 7, 4
+    %v_8 = call_complex at, 3: I64
+    %v_9 = cmp_ge %v_8, 4: I32
+    je %v_9, b_4, b_10
+  }
+
+  b_10 {
+    %v_11 = shl %v_8, 2: I64
+    %v_12 = add %v_1, %v_11: Ptr
+    store %v_12, 5, 4
+    %v_13 = call_complex at, 1: I64
+    %v_14 = cmp_ge %v_13, 4: I32
+    je %v_14, b_4, b_15
+  }
+
+  b_15 {
+    %v_16 = shl %v_13, 2: I64
+    %v_17 = add %v_1, %v_16: Ptr
+    %v_18 = loads %v_17, 4: I32
+    %v_19 = call_complex at, 3: I64
+    %v_20 = cmp_ge %v_19, 4: I32
+    je %v_20, b_4, b_21
+  }
+
+  b_21 {
+    %v_22 = shl %v_19, 2: I64
+    %v_23 = add %v_1, %v_22: Ptr
+    %v_24 = loads %v_23, 4: I32
+    %v_25 = add %v_18, %v_24: I32
+    %v_26 = alloca 16, 4: Ptr
+    store %v_26, 1, 4
+    %v_27 = add %v_26, 4: Ptr
+    store %v_27, 2, 4
+    %v_28 = add %v_26, 8: Ptr
+    store %v_28, 3, 4
+    %v_29 = add %v_26, 12: Ptr
+    store %v_29, 4, 4
+    %v_30 = call_complex sumOf, @environment(sumOf(4)), %v_26: I32
+    %v_31 = add %v_25, %v_30: I32
+    ret %v_31
+  }
+
+  b_4 {
+    %v_32 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+

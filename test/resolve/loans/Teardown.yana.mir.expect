@@ -2,17 +2,17 @@ module ResolveTest
 
 data Guard {id: I32} drop authored
 
-data Held {borrowed: 0'Guard, owned: Guard} shape1 drop derived
+data Held {borrowed: 0'Guard, owned: Guard} shape2 drop derived
 
-data Two {left: 0'Guard, right: 1'Guard, own: Guard} shape2 drop derived
+data Two {left: 0'Guard, right: 1'Guard, own: Guard} shape3 drop derived
 
 data Pair {a: Guard, b: Guard} drop derived
 
-data Nested {borrowed: 0'Guard, owned: Pair} shape1 drop derived
+data Nested {borrowed: 0'Guard, owned: Pair} shape2 drop derived
 
-data Tracked {watched: 0'Guard, own: Guard} shape1 drop authored
+data Tracked {watched: 0'Guard, own: Guard} shape2 drop authored
 
-data Watching {held: 0'Guard, at: I32} shape1
+data Watching {held: 0'Guard, at: I32} shape2
 
 instance Drop(Guard): Guard.drop
 

@@ -51,6 +51,86 @@ LowerPtr<LowerFunction> Lowering::roleFunction(intrinsic::Known role, LocationId
     return found.unwrap();
 }
 
+// See the declaration, where the reason this is a lowering decision rather than a resolver one is
+// written.
+DeclPtr<mir::Function> Lowering::locatedCheck(DeclPtr<mir::Function> callee) {
+    if(!context.settings.checkLocations || !callee) return nullptr;
+
+    auto substitute = [&](intrinsic::Known plain, intrinsic::Known at) -> DeclPtr<mir::Function> {
+        if(program.roles.function(plain) != callee) return nullptr;
+        return program.roles.function(at);
+    };
+
+    if(auto found = substitute(intrinsic::Known::checkFailed, intrinsic::Known::checkFailedAt)) {
+        return found;
+    }
+
+    return substitute(intrinsic::Known::checkCondition, intrinsic::Known::checkConditionAt);
+}
+
+/*
+ * The bytes of a module's name, as a constant global - one per module.
+ *
+ * Interned on the name because every check written in one file names that file, so a global per
+ * check site would be the same bytes once per subscript. Not a `String` and not `stringLiteral`:
+ * what the located declaration takes is the pointer and the count separately, which is the whole of
+ * the measurement `known.def`'s row records.
+ */
+LowerPtr<LowerGlobal> Lowering::moduleNameBytes(StringId name) {
+    if(auto found = checkModuleNames.getValue(name)) return found.unwrap();
+
+    auto text = context.findName(name);
+    auto global = addTable(erasedName(String("checkLocation(") + String(text.text(), text.size()) +
+                                      String(")")),
+                           U32(text.size() ? text.size() : 1));
+
+    for(Size i = 0; i < text.size(); i++) global->initialContents.ptr[i] = Byte(text.text()[i]);
+
+    auto handle = global - lower;
+    checkModuleNames.add(name, handle);
+    return handle;
+}
+
+/*
+ * The module, the count, the line and the column, each at the width the located declaration wrote.
+ *
+ * The widths are read off the parameters rather than assumed, because `Int` is a target alias and a
+ * library is entitled to declare the count at a different one - and reading them is also what makes
+ * a wrongly shaped declaration a report here instead of a call with the wrong registers in it. The
+ * line is one-based and the column is not, which is what the shipping stage's `emitCheck` does and
+ * what a reader comparing two builds' output would otherwise notice.
+ */
+bool Lowering::checkLocationArguments(LowerBlock& block, mir::Function& located, U32 from,
+                                      LocationId source,
+                                      SmallArray<LowerPtr<LowerValue>, 8>& passed) {
+    if(from + 4 != located.args.size()) {
+        context.diagnostics.error(
+            "a located check takes the module's bytes, their count, the line and the column, and %@ declares a different list"_v,
+            source, context.findName(located.symbol));
+        return false;
+    }
+
+    auto node = context.diagnostics.sourceNode(source);
+
+    auto bytes = moduleNameBytes(node ? node->sourceModule : StringId());
+    passed.push(((LowerInstSingle*)block.addInst(lower, new (to.arena) LowerInstGlobal(
+        lower[bytes]->name, bytes)))->created().ptr - lower);
+
+    auto count = node ? U64(context.findName(node->sourceModule).size()) : 0;
+    U64 written[3] = { count, node ? U64(node->sourceStart.line) + 1 : 0,
+                       node ? U64(node->sourceStart.column) : 0 };
+
+    for(U32 i = 0; i < 3; i++) {
+        auto& parameter = *decl[located.args.get(decl, from + 1 + i)];
+        auto manifest = manifestNative(layout, parameter.occurrence);
+
+        passed.push(((LowerInstSingle*)block.addInst(lower, new (to.arena) LowerImm(
+            StringId(), manifest.type, written[i])))->created().ptr - lower);
+    }
+
+    return true;
+}
+
 void Lowering::emitFreeHeap(LowerBlock& block, LowerPtr<LowerValue> address, LocationId source) {
     auto callee = roleFunction(intrinsic::Known::freeHeap, source);
     if(!callee) return;
@@ -351,7 +431,41 @@ void Lowering::emitBoxTeardown(LowerBlock& block, LowerPtr<LowerValue> owner,
         owns = ((LowerInstSingle*)bit)->created().ptr - lower;
     }
 
-    auto callee = boxTeardownFor(held.occurrence.type, runDrop, runReclaim, release, source);
+    /*
+     * **In place**, where the expansion is finite and the release is unconditional.
+     *
+     * The call this replaces is what made a recursive structure cost two frames per level:
+     * `teardown(Maybe(Tree))` called `box(Tree)`, which called `teardown(Maybe(Tree))` twice, so a
+     * thirteen-deep tree stood twenty-six frames deep where the shipping stage's `reclaim$Tree`
+     * stands thirteen. Expanding here removes the second of each pair - the target's own teardown is
+     * `emitTeardown`, which never branches, and the children it reaches are calls to the per-type
+     * function that is already being built.
+     *
+     * Two conditions, and each is one of the reasons the call existed:
+     *
+     *  - the release is not `Unknown`. That one is a *branch* on the provenance, and `emitTeardown`
+     *    emits into a block its caller is in the middle of; the callee is where there are blocks.
+     *  - the target is not already being expanded - `boxExpansion`. `data Chain {next: @box Chain}`
+     *    reaches its own box edge with no sum in between, and a walk that expanded that would not
+     *    stop. Such a type takes the call and is exactly as it was.
+     */
+    auto target = held.occurrence.type;
+    auto expanding = release != BoxRelease::Unknown;
+
+    for(auto seen: boxExpansion) {
+        if(seen == target) { expanding = false; break; }
+    }
+
+    if(expanding) {
+        boxExpansion.push(target);
+        emitTeardown(block, address, target, runDrop, runReclaim, source, release);
+        boxExpansion.pop();
+
+        if(release == BoxRelease::Owned) emitFreeHeap(block, address, source);
+        return;
+    }
+
+    auto callee = boxTeardownFor(target, runDrop, runReclaim, release, source);
     auto name = block.addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
 
     call(lower, to, block, 0, owns ? 3 : 2, lower[callee]->callType, [&](LowerInstCall* built) {

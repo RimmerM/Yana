@@ -1,0 +1,168 @@
+module ResolveTest
+
+fn copyFour(from: %I32 [shared call], to: %I32 [shared call]) -> {} {
+bb0:
+  %0: %I32 = read copy.trivial (to)
+  %1: %I32 = read copy.trivial (from)
+  %2: %Vec(I32) = bitcast inspect %1
+  %3: Vec(I32) = read copy.trivial ([%%2])
+  %4: %Vec(I32) = bitcast inspect %0
+  write.assign borrow.unique ([%%4]) take %3
+  %6: {} = const {}
+  return
+}
+
+fn roundTrip() -> I32 {
+  local & src: [I32 *4]
+  local & dst: [I32 *4]
+
+bb0:
+  %0: I32 = const 11
+  %1: I32 = const 22
+  %2: I32 = const 33
+  %3: I32 = const 44
+  %4: [I32 *4] = aggregate.0 take %0 take %1 take %2 take %3
+  write.init borrow.unique (src) take %4
+  %6: I32 = const 0
+  %7: I32 = const 0
+  %8: I32 = const 0
+  %9: I32 = const 0
+  %10: [I32 *4] = aggregate.0 take %6 take %7 take %8 take %9
+  write.init borrow.unique (dst) take %10
+  %12: Size = const 0
+  %13: I32 [shared slot 0] = read borrow.shared (src[0]) loan0
+  %14: %I32 [owned here shape6 .*=shared slot 0] = address inspect %13 roots.0{0}
+  %15: Size = const 0
+  %16: I32 [shared slot 0] = read borrow.shared (dst[0]) loan1
+  %17: %I32 [owned here shape6 .*=shared slot 0] = address inspect %16 roots.0{1}
+  %18: {} = call copyFour borrow.shared %14 borrow.shared %17
+  %19: Size = const 0
+  %20: I32 = read copy.trivial (dst[0])
+  %21: Size = const 3
+  %22: I32 = read copy.trivial (dst[3])
+  %23: I32 = add inspect %20 inspect %22
+  %24: I32 = convert inspect %23
+  return take %24
+}
+
+fn sixteenBytes() -> I32 {
+  local & bytes: [U8 *16]
+  local block: Vec(U8)
+
+bb0:
+  %0: U8 = const 1
+  %1: U8 = const 1
+  %2: U8 = const 1
+  %3: U8 = const 1
+  %4: U8 = const 1
+  %5: U8 = const 1
+  %6: U8 = const 1
+  %7: U8 = const 1
+  %8: U8 = const 2
+  %9: U8 = const 2
+  %10: U8 = const 2
+  %11: U8 = const 2
+  %12: U8 = const 2
+  %13: U8 = const 2
+  %14: U8 = const 2
+  %15: U8 = const 2
+  %16: [U8 *16] = aggregate.0 take %0 take %1 take %2 take %3 take %4 take %5 take %6 take %7 take %8 take %9 take %10 take %11 take %12 take %13 take %14 take %15
+  write.init borrow.unique (bytes) take %16
+  %18: Size = const 0
+  %19: U8 [shared slot 0] = read borrow.shared (bytes[0]) loan0
+  %20: %U8 [owned here shape6 .*=shared slot 0] = address inspect %19 roots.0{0}
+  %21: %Vec(U8) [owned here shape6 .*=shared slot 0] = bitcast inspect %20 roots.0{0}
+  %22: Vec(U8) = read copy.trivial ([%%21])
+  write.init borrow.unique (block) take %22
+  %24: Vec(U8) = read copy.trivial (block)
+  %25: I32 = const 0
+  %26: U8 = vec.lane #0 inspect %24
+  %27: I32 = convert inspect %26
+  %28: I32 = const 10
+  %29: I32 = mul inspect %27 inspect %28
+  %30: Vec(U8) = read copy.trivial (block)
+  %31: I32 = const 15
+  %32: U8 = vec.lane #15 inspect %30
+  %33: I32 = convert inspect %32
+  %34: I32 = const 7
+  %35: I32 = mul inspect %33 inspect %34
+  %36: I32 = add inspect %29 inspect %35
+  return take %36
+}
+
+fn tailSum() -> I32 {
+  local & xs: [I32 *4]
+  local raw: Vec(I32)
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: I32 = const 4
+  %4: [I32 *4] = aggregate.0 take %0 take %1 take %2 take %3
+  write.init borrow.unique (xs) take %4
+  %6: Size = const 1
+  %7: I32 [shared slot 0] = read borrow.shared (xs[1]) loan0
+  %8: %I32 [owned here shape6 .*=shared slot 0] = address inspect %7 roots.0{0}
+  %9: %Vec(I32) [owned here shape6 .*=shared slot 0] = bitcast inspect %8 roots.0{0}
+  %10: Vec(I32) = read.past copy.trivial ([%%9])
+  write.init borrow.unique (raw) take %10
+  %12: Vec(I32) = read copy.trivial (raw)
+  %13: I32 = const 0
+  %14: I32 = vec.lane #0 inspect %12
+  %15: Vec(I32) = read copy.trivial (raw)
+  %16: I32 = const 1
+  %17: I32 = vec.lane #1 inspect %15
+  %18: I32 = add inspect %14 inspect %17
+  %19: Vec(I32) = read copy.trivial (raw)
+  %20: I32 = const 2
+  %21: I32 = vec.lane #2 inspect %19
+  %22: I32 = add inspect %18 inspect %21
+  %23: I32 = convert inspect %22
+  return take %23
+}
+
+fn matchingLanes() -> I32 {
+  local & xs: [I32 *4]
+  local block: Vec(I32)
+
+bb0:
+  %0: I32 = const 7
+  %1: I32 = const 9
+  %2: I32 = const 9
+  %3: I32 = const 7
+  %4: [I32 *4] = aggregate.0 take %0 take %1 take %2 take %3
+  write.init borrow.unique (xs) take %4
+  %6: Size = const 0
+  %7: I32 [shared slot 0] = read borrow.shared (xs[0]) loan0
+  %8: %I32 [owned here shape6 .*=shared slot 0] = address inspect %7 roots.0{0}
+  %9: %Vec(I32) [owned here shape6 .*=shared slot 0] = bitcast inspect %8 roots.0{0}
+  %10: Vec(I32) = read copy.trivial ([%%9])
+  write.init borrow.unique (block) take %10
+  %12: Vec(I32) = read copy.trivial (block)
+  %13: I32 = const 9
+  %14: Vec(I32) = vec.splat inspect %13
+  %15: Mask(I32) = eq inspect %12 inspect %14
+  %16: I32 = vec.reduce bits inspect %15
+  return take %16
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call roundTrip
+  %1: I32 = const 1000000
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = call sixteenBytes
+  %4: I32 = const 1000
+  %5: I32 = mul inspect %3 inspect %4
+  %6: I32 = add inspect %2 inspect %5
+  %7: I32 = call tailSum
+  %8: I32 = const 10
+  %9: I32 = mul inspect %7 inspect %8
+  %10: I32 = add inspect %6 inspect %9
+  %11: I32 = call matchingLanes
+  %12: I32 = add inspect %10 inspect %11
+  return take %12
+}
+
+entry main

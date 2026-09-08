@@ -14,7 +14,7 @@ bb0:
   store inspect %0 consume %8
   %9: Size trivial = const 0
   store inspect %1 consume %9
-  %10: Size trivial = load inspect %1
+  %10: Size trivial = const 0
   %11: Size trivial = const 1
   %12: Size trivial = sub inspect %10 inspect %11
   %13: Size trivial = const 0
@@ -27,7 +27,7 @@ bb1:
 bb2:
   %15: USize trivial = const 0
   store inspect %2 consume %15
-  %16: USize trivial = load inspect %2
+  %16: USize trivial = const 0
   %17: USize trivial = const 1
   %18: USize trivial = sub inspect %16 inspect %17
   %19: USize trivial = const 0
@@ -47,7 +47,7 @@ bb4:
 bb5:
   %24: Size trivial = const 2147483647
   store inspect %3 consume %24
-  %25: Size trivial = load inspect %3
+  %25: Size trivial = const 2147483647
   %26: Size trivial = const 0
   %27: Bool trivial = gt inspect %25 inspect %26
   branch inspect %27 -> bb9 -> bb7
@@ -65,13 +65,13 @@ bb7:
 bb8:
   %31: CodeUnit trivial = const 255
   store inspect %4 consume %31
-  %32: CodeUnit trivial = load inspect %4
+  %32: CodeUnit trivial = const 255
   %33: CodeUnit trivial = const 0
   %34: Bool trivial = gt inspect %32 inspect %33
   branch inspect %34 -> bb13 -> bb11
 
 bb9:
-  %35: Size trivial = load inspect %3
+  %35: Size trivial = const 2147483647
   %36: Size trivial = const 2
   %37: Size trivial = div inspect %35 inspect %36
   %38: Size trivial = const 1073741823
@@ -93,7 +93,7 @@ bb12:
   store inspect %5 consume %43
   %44: WideInt trivial = const -4503599627370496
   store inspect %6 consume %44
-  %45: WideInt trivial = load inspect %5
+  %45: WideInt trivial = const 4503599627370495
   %46: WideInt trivial = const 2147483647
   %47: WideInt trivial = div inspect %45 inspect %46
   %48: WideInt trivial = const 2097152
@@ -101,7 +101,7 @@ bb12:
   branch inspect %49 -> bb17 -> bb15
 
 bb13:
-  %50: CodeUnit trivial = load inspect %4
+  %50: CodeUnit trivial = const 255
   %51: CodeUnit trivial = const 5
   %52: CodeUnit trivial = div inspect %50 inspect %51
   %53: CodeUnit trivial = const 51
@@ -134,14 +134,14 @@ bb16:
   branch inspect %68 -> bb22 -> bb20
 
 bb17:
-  %69: WideInt trivial = load inspect %6
+  %69: WideInt trivial = const -4503599627370496
   %70: WideInt trivial = const 0
   %71: Bool trivial = lt inspect %69 inspect %70
   branch inspect %71 -> bb18 -> bb15
 
 bb18:
-  %72: WideInt trivial = load inspect %6
-  %73: WideInt trivial = load inspect %5
+  %72: WideInt trivial = const -4503599627370496
+  %73: WideInt trivial = const 4503599627370495
   %74: WideInt trivial = add inspect %72 inspect %73
   %75: WideInt trivial = const 0
   %76: WideInt trivial = const 1

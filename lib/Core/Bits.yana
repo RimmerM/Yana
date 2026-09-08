@@ -150,6 +150,7 @@ pub class (Num(a), Ord(a)) Signed(a):
 -- The instances for the integer types are generated - one `ByteSwap` instruction each - rather than
 -- eight bodies written out below the numeric instances. See the note there, and `defineByteSwap` in
 -- resolve/intrinsic.cpp.
+@builtin(byteSwap)
 pub class (Integral(a)) ByteSwap(a):
   fn byteSwap(value: a) -> a
 
@@ -338,6 +339,7 @@ pub fn (Bits(a)) bitfield(value: a, start: a, count: a) -> a = bitsUpTo(value `s
    x86 below v3, and is the one operation in this file whose cost differs by more than a constant
    across the feature levels.
 -}
+@builtin(bitPermute)
 pub class (Integral(a)) BitPermute(a):
   fn gatherBits(value: a, mask: a) -> a
   fn scatterBits(value: a, mask: a) -> a

@@ -1,0 +1,33 @@
+{-
+   A written number on the **left** of an operator takes the other operand's type.
+
+   `x + 1` has always worked: the left operand binds the callee's parameter and the literal takes
+   what that bound. `1 + x` is the same sentence read backwards, and until the deferral in `climb`
+   it was not the same answer - the literal was built at its own default before anything had looked
+   at `x`, so `1.0 / value` over a `Double` reported "an argument must be F32, and this is F64" and
+   `4 * m2` over a `U64` reported the `I32` one. Both are `lib/Core` lines; the second is
+   `Float/Ryu.native.yana`'s and the first is `Float/Show.yana`'s negative-zero test, which is where
+   the diagnostic named `Bool` because the `&&` around it had taken the default too.
+
+   The mechanism is the one an overloaded operator already used - the operand is left unbuilt and
+   the position decides it - extended to a **sole callee whose left parameter is open**. There is one
+   signature, so nothing about selection is waiting; what is waiting is the one thing that decides
+   the position, which is the other operand. Sound because a number has no effects, so when it is
+   built is not observable; what it costs is that the constant is emitted *after* the other operand,
+   which is the only thing the goldens here moved.
+
+   A concrete left parameter and a position that supplies a hint are both unchanged, and
+   `scaledDown` is the generic case: `4` is built at `a` through the `FromInt(a)` that `Num` requires.
+-}
+
+fn reciprocalIsNegative(value: F64) -> Bool = 1.0 / value < 0.0
+
+fn (Num(a)) scaledDown(v: a) -> a = 4 * v
+
+fn widened(n: I64) -> Bool = 1 < n
+
+fn main() -> Int:
+    if !reciprocalIsNegative(0.0 - 2.0 :: F64) then return 0 - 1
+    if scaledDown(3 :: I64) != (12 :: I64) then return 0 - 2
+    if !widened(9) then return 0 - 3
+    return 41

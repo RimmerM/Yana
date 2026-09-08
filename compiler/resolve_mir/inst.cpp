@@ -131,6 +131,7 @@ StringView operandRoleName(OperandRole role) {
         case OperandRole::WriteTarget:  return "write destination"_v;
         case OperandRole::Stored:       return "stored value"_v;
         case OperandRole::Condition:    return "condition"_v;
+        case OperandRole::Selector:     return "selector"_v;
         case OperandRole::Returned:     return "returned value"_v;
         case OperandRole::EdgeArgument: return "edge argument"_v;
         case OperandRole::Argument:     return "argument"_v;
@@ -178,7 +179,16 @@ UseMode argumentMode(Contract parameter, SourceKind source) {
     return UseMode::BorrowShared;
 }
 
-UseMode readMode(DeclBase base, const Place& place, Request wanted) {
+bool lendsItsContents(DeclBase base, MirBase mir, Body& body, const Place& place) {
+    if(place.kind != Place::Local) return false;
+    if(place.occurrence.contract.access() != Access::Unique) return false;
+    if(!place.writable) return false;
+    if(!isTrackedAt(base, place.occurrence)) return false;
+
+    return body.local(mir, LocalId(place.payload))->isParameter();
+}
+
+UseMode readMode(DeclBase base, MirBase mir, Body& body, const Place& place, Request wanted) {
     // `isTriviallyCopyable` and nothing else. A second reading of "trivial" is a second answer: this
     // used to test the type kinds by hand, and would have disagreed with the verifier - which asks
     // that function - at the first type with a teardown and no copy. `published` is the other half
@@ -192,7 +202,19 @@ UseMode readMode(DeclBase base, const Place& place, Request wanted) {
     // rather than a different mode - `Resolver::readPlace` is where the pair is judged.
     if(wanted.access == Access::Unique) return UseMode::BorrowUnique;
 
-    if(!place.occurrence.contract.isOwned()) return UseMode::BorrowShared;
+    if(!place.occurrence.contract.isOwned()) {
+        // Storage this frame writes through, at a position that consumes - the one way a borrowed
+        // place hands its contents over. `Forward` and not `Take`, on the same terms as an owned
+        // name: whether the take is legal is whether the place is dead afterwards, which is
+        // liveness's answer and not a forward pass's. What is different is what "afterwards" then
+        // owes, and `checkRefills` is where that is said.
+        if(wanted.access == Access::Owned && lendsItsContents(base, mir, body, place)) {
+            return UseMode::Forward;
+        }
+
+        return UseMode::BorrowShared;
+    }
+
     if(wanted.access != Access::Owned) return UseMode::BorrowShared;
 
     return UseMode::Forward;
@@ -332,6 +354,19 @@ DeclPtr<OwnershipSchema> Shapes::closure() {
     return closureShape;
 }
 
+// The argument is at the declaration, in contract.h - including why the access is what tells the
+// two apart.
+DeclPtr<OwnershipSchema> Shapes::noEnvironment() {
+    if(plainShape) return plainShape;
+
+    ExternalSlot slot;
+    slot.path.push(arena, PathStep::field(kFunEnvironmentComponent));
+    slot.contract = borrowedContract(Access::Unique);
+
+    plainShape = intern(&slot, 1);
+    return plainShape;
+}
+
 Module* Program::addModule(StringId name) {
     auto module = new (decl) Module(name);
     modules.push(module - *decl);
@@ -455,8 +490,21 @@ StringId Program::uniqueSymbol(DeclPtr<Module> module, Context& context, StringV
      */
     auto intern = [&](StringView bytes) { return internName(context, bytes); };
 
+    /*
+     * Counted **per program** and not per module, which is where this was wrong.
+     *
+     * What a symbol has to be unique against is the table it ends up in, and that is the lowered
+     * module's - one map from `StringId` to function for the whole program, and one entry per name
+     * in the backend's symbol table. Two modules each declaring a private `readCount` were two
+     * declarations with one symbol: `LowerModule::addFunction` handed the second the first's
+     * function, and what came out had one signature, both bodies' blocks and a `ret` arity that did
+     * not match - `lib/Test/Options.yana` and `lib/Core/FloatRead.test.yana`, which is how it was
+     * found. A module argument that decides nothing is worse than none, so it is gone.
+     */
+    (void)module;
+
     auto name = intern(text);
-    auto entry = symbolCounts.add(nameKey(module, name));
+    auto entry = symbolCounts.add(U64(name.value));
 
     if(!entry.existed) {
         *entry.value = 1;
@@ -468,7 +516,7 @@ StringId Program::uniqueSymbol(DeclPtr<Module> module, Context& context, StringV
 
     // Recorded under its own text too, so that a module which really does declare `negate'2` cannot
     // be handed the same name a suffix produced.
-    *symbolCounts.add(nameKey(module, unique)).value = 1;
+    *symbolCounts.add(U64(unique.value)).value = 1;
     return unique;
 }
 
@@ -1000,9 +1048,14 @@ StringView attributeName(DeclAttribute attribute) {
         case DeclAttribute::NoInline:     return "noinline"_v;
         case DeclAttribute::Bits:         return "bits"_v;
         case DeclAttribute::Box:          return "box"_v;
+        case DeclAttribute::Capacity:     return "capacity"_v;
         case DeclAttribute::Platform:     return "platform"_v;
         case DeclAttribute::Allocator:    return "allocator"_v;
         case DeclAttribute::Layout:       return "layout"_v;
+        case DeclAttribute::LegacySse:    return nameForLegacySse();
+        case DeclAttribute::Convention:   return "convention"_v;
+        case DeclAttribute::Host:         return "host"_v;
+        case DeclAttribute::Heap:         return "heap"_v;
         case DeclAttribute::Count:        break;
     }
 

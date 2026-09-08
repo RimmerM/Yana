@@ -71,11 +71,22 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
         case Type::Variable:
             writer.writeString(stringView(context.findName(((VariableType&)value).name)));
             break;
-        case Type::Const:
+        case Type::Const: {
             // The number alone. What it is a number *of* is on the parameter it fills, and a dump
-            // that repeated the width at every argument would be describing the head at each use.
-            writeUInt(writer, ((ConstType&)value).value);
+            // that repeated the width at every argument would be describing the head at each use. A
+            // count that is still an expression prints as the call it stands for.
+            auto& number = (ConstType&)value;
+
+            if(number.isDerived()) {
+                writer.writeString("lanes("_v);
+                printType(writer, context, base, number.lanesOf);
+                writer.writeString(")"_v);
+            } else {
+                writeUInt(writer, number.value);
+            }
+
             break;
+        }
         case Type::Array: {
             // `[I32 *4]` - the same spelling `typeText` gives, for the same reason.
             auto& array = (ArrayType&)value;
@@ -269,7 +280,9 @@ void printConstant(Net::Writer& writer, Context& context, DeclBase base,
             break;
         case Constant::Aggregate: {
             // A fixed array, as the literal it reduced from - the bytes of a string literal are one.
-            if(base[value.type]->kind == Type::Array) {
+            // A **vector** prints the same way and for the same reason: `0 :: Vec(I32, 4)` reduces to
+            // the lane repeated, and what it is is a run of values with no constructor over them.
+            if(base[value.type]->kind == Type::Array || base[value.type]->kind == Type::Vector) {
                 auto& parts = *base[value.aggregate()];
                 writer.writeString("["_v);
                 for(U32 i = 0; i < parts.values.size(); i++) {
@@ -419,6 +432,14 @@ struct Printer {
                 auto type = valueOccurrence(value).type;
                 auto index = ((NodeAggregate&)value).constructor;
 
+                // A fill states itself, because the operand list does not: one component at a
+                // quantified count means every slot, and a dump that printed it as a one-element
+                // array would be the one reading that is wrong.
+                if(((NodeAggregate&)value).fill) {
+                    writer.writeString("fill"_v);
+                    return;
+                }
+
                 if(type && decl[type]->kind == Type::Record) {
                     auto& record = *(RecordType*)decl[type];
                     if(index < record.cons.size()) {
@@ -434,6 +455,11 @@ struct Printer {
             // dump that printed it would say the same word for eleven different instructions.
             case Node::Atomic:
                 writer.writeString(atomicOpName(((NodeAtomic&)value).op));
+                return;
+            // The tail-read guarantee, spent. Printed because a golden about `vectorPast` is about
+            // exactly this bit - the place, the mode and the type are `vectorAt`'s.
+            case Node::Read:
+                writer.writeString(((NodeRead&)value).overread ? "read.past"_v : "read"_v);
                 return;
             // The two bits the loan checker's element exemption reads, because a dump that hid them
             // would show two `swap`s a reader could not tell apart from two ordinary borrows.
@@ -474,10 +500,11 @@ struct Printer {
                 printConstant(writer, context, decl, body.constant(mir, ((NodeConst&)value).constant));
                 break;
             case Node::GenValue:
-                // The parameter's name, which is what the body says. What number it turns out to be
-                // is the specialization's, and a dump of the generic body has no such answer.
+                // What the body says the number is - a parameter's name, or the expression a natural
+                // lane count stands for. Which number it turns out to be is the specialization's,
+                // and a dump of the generic body has no such answer.
                 writer.writeString(" "_v);
-                name(((VariableType&)*decl[((NodeGenValue&)value).variable]).name);
+                printType(writer, context, decl, ((NodeGenValue&)value).variable);
                 break;
             case Node::FunValue:
                 // The declaration a value of it points at. What stands behind it in the emitted
@@ -558,6 +585,52 @@ struct Printer {
 
                 break;
             }
+            case Node::Switch: {
+                // The case values, in edge order - the generic edge loop below prints the targets,
+                // and a dump that showed only those could not say which number reaches which.
+                writer.writeString(" ["_v);
+                auto firstCase = true;
+
+                for(Size i = 0; i < ((NodeSwitch&)value).cases.size(); i++) {
+                    if(!firstCase) writer.writeString(", "_v);
+                    firstCase = false;
+
+                    writeInt(writer, ((NodeSwitch&)value).cases.pointer(mir)[i].value);
+                }
+
+                writer.writeString("]"_v);
+                break;
+            }
+            case Node::Map: {
+                /*
+                 * Every entry, and the fallback where the domain is open.
+                 *
+                 * All of them rather than a count, on `VecShuffle`'s reasoning: the table *is* the
+                 * node, and the recognition rule bounds how many there can be. A golden about a
+                 * `match` over constants is a golden about which constant each arm answers.
+                 */
+                auto& map = (NodeMap&)value;
+                writer.writeString(" ["_v);
+                auto first = true;
+
+                for(auto entry: map.entries.contents(mir)) {
+                    if(!first) writer.writeString(", "_v);
+                    first = false;
+
+                    writeInt(writer, entry.selector);
+                    writer.writeString(" -> "_v);
+                    printConstant(writer, context, decl, entry.value);
+                }
+
+                writer.writeString("]"_v);
+
+                if(!map.closed) {
+                    writer.writeString(" else "_v);
+                    printConstant(writer, context, decl, map.fallback);
+                }
+
+                break;
+            }
             case Node::Metric: {
                 // The measurement and the type, which are the whole of the node - it has no operands
                 // at all, so printing nothing would leave a reader unable to tell two apart.
@@ -579,7 +652,7 @@ struct Printer {
 
         loans(body, value);
 
-        forEachEdge(value, [&](Edge& edge) {
+        forEachEdge(mir, value, [&](Edge& edge) {
             writer.writeString(" -> bb"_v);
             writeUInt(writer, mir[edge.target]->index.index);
 
@@ -839,6 +912,17 @@ struct Printer {
             // parameter holding a function. What the two spellings differ in is who builds the
             // thunk, which is exactly what a dump has to show.
             if(argument->lazy) writer.writeString("@lazy "_v);
+
+            // `@caller`, for the same reason: it says the position may be left out, which is a fact
+            // about every call rather than a note on the declaration. Which fill it is is what the
+            // spelling says - a source fill names the parameter it is the text of.
+            if(argument->caller.fill == CallerFill::Source) {
+                writer.writeString("@caller(source: "_v);
+                name(decl[value.args.get(decl, argument->caller.source)]->name);
+                writer.writeString(") "_v);
+            } else if(argument->caller.fill == CallerFill::Site) {
+                writer.writeString("@caller "_v);
+            }
 
             name(argument->name);
             writer.writeString(": "_v);
@@ -1355,8 +1439,8 @@ struct Printer {
              * The same filter the class listing below already applies for the same stated reason -
              * what a fixture wants to see is what its own source said. Core arrives in every
              * compilation through the implicit import (`linkImports`), so without this every dump in
-             * the corpus would open with the whole of `prelude/` and would churn whenever the
-             * prelude did. A program *compiling* the library is not the library's consumer and is
+             * the corpus would open with the whole of `lib/Core` and would churn whenever the
+             * library did. A program *compiling* the library is not the library's consumer and is
              * not filtered: its root is one of these modules, and `fromLibrary` is false there.
              */
             if(module->fromLibrary) continue;

@@ -3,6 +3,7 @@
 #include "body.h"
 #include "gen.h"
 #include "intrinsic/roles.h"
+#include "../lower/convention.h"
 #include "../parse/library.h"
 
 namespace ssa { struct Body; }
@@ -46,6 +47,37 @@ struct GenEnvironment;
  * same one for the slot list it derives, since that list sums four of the others.
  */
 static constexpr U32 kMaxPackedPositions = 0xfff0;
+
+/*
+ * What the compiler puts in a `@caller` position the call site left out - Design-Test.md §11.1's F2.
+ *
+ * `Site` is the call's own location; `Source` is the *text* of the expression that reached some
+ * other parameter. Both are constants built at the **call's** source rather than at the
+ * declaration's, which is the whole of what separates this from an ordinary default - and the only
+ * thing it needs from the rest of the resolver, since "a position no argument reached is filled by
+ * its default" is already how a default works.
+ */
+enum class CallerFill: U8 {
+    None,
+    Site,
+    Source,
+};
+
+/*
+ * The marker as a declaration carries it, once `declareCallerFill` has accepted it.
+ *
+ * A pair rather than two fields of `Arg` because the second is meaningful for one of the fills
+ * only: `source` is the *parameter index* whose written expression a `Source` fill is the text of,
+ * and says nothing for a `Site`. Set only where the fill was checked and found buildable - a marker
+ * that failed leaves `None`, since a position every call may leave out and nothing fills is worse
+ * than the diagnostic that refused it.
+ */
+struct CallerInfo {
+    CallerFill fill = CallerFill::None;
+    U16 source = 0;
+
+    bool isCallerFilled() const { return fill != CallerFill::None; }
+};
 
 /*
  * One argument of a signature.
@@ -113,6 +145,21 @@ struct Arg {
      * position, and a borrow granted for the call is exactly the extent the spec gives it.
      */
     bool lazy = false;
+
+    /*
+     * `@caller` - Design-Test.md §11.1's F2, checked by `Resolver::declareCallerFill`.
+     *
+     * Beside `def` rather than folded into it, because the two answer the same question about a
+     * call - what fills a position it left out - from different places: a default is one constant
+     * written at the declaration, and this is a constant built per call site. Everything that only
+     * asks *whether* the position may be left out reads `omittable()` and sees no difference, which
+     * is what keeps arity, named arguments and overload selection unchanged.
+     */
+    CallerInfo caller;
+
+    // Whether a call may leave this position out. A default and a `@caller` fill are the same answer
+    // to that question, and every arity check asks it here rather than at the two fields.
+    bool omittable() const { return def.isSet() || caller.isCallerFilled(); }
 };
 
 /*
@@ -289,10 +336,11 @@ struct GenCost {
  * still here and still first, because it answers a different question from all of them: whether
  * there is a body to analyse at all.
  *
- * Suspension and the generic cost are computed at this milestone - the first by the fixpoint below
- * and the second by `selectGenForms`, for the pass-order reason its accessor gives. The rest are
- * declared now because the alternative - a summary bolted on once several passes already have
- * private answers - is precisely what §4 of that document is a report on.
+ * Every fact here is computed. Suspension, placement, the three per-argument sets, the stack bound
+ * and divergence are `computeSummaries`' one worklist over the reversed call graph; the generic cost
+ * is `selectGenForms`', for the pass-order reason its accessor gives. That they are one structure
+ * filled by one pass is the whole of §4's point - the arrangement it is a report on is six passes
+ * each with a private answer and its own idea of where the boundary is.
  */
 struct Summary {
     /*
@@ -306,9 +354,11 @@ struct Summary {
         Suspension,
         Stack,
         Retains,
+        Escapes,
         Mutates,
         Consumes,
         Placement,
+        Diverges,
         GenCost,
 
         Count,
@@ -320,32 +370,91 @@ struct Summary {
     Fact<bool> suspension() const { return read(suspends, Which::Suspension); }
     void setSuspension(bool value, Knowledge how) { suspends = value; write(Which::Suspension, how); }
 
-    // How much frame an activation needs, itself and everything it calls - `StackBound`. What a
-    // stack depth check, a region reservation and an external iterator's child stack all need, and
-    // what recursion is the boundary of.
+    /*
+     * How much frame an activation needs, itself and everything it calls - `StackBound`. What a
+     * stack depth check, a region reservation and an external iterator's child stack all need, and
+     * what recursion is the boundary of.
+     *
+     * **The bound is `isBounded()` and the bytes are zero**, which is Analysis-External-Iterators
+     * §4.5's own split rather than a gap: "the resolver can validate that the call graph is bounded,
+     * but it cannot know the exact bytes", because spill slots, the outgoing argument area and saved
+     * registers are decided after register allocation. Its stage 2 is the backend's, and a byte
+     * count invented here would be one an iterator's child stack got reserved from.
+     */
     Fact<StackBound> stack() const { return read(stackBound, Which::Stack); }
     void setStack(StackBound value, Knowledge how) { stackBound = value; write(Which::Stack, how); }
 
     // Which arguments outlive the call - the retention half of the escape analysis, and what decides
-    // whether a caller may hand over a frame-placed value *at that position*.
+    // whether a caller may hand over a frame-placed value *at that position*. Read by
+    // `ssa::Contained`, which admits a call argument at a position nothing here names.
     Fact<ArgumentSet> retains() const { return read(retained, Which::Retains); }
     void setRetains(ArgumentSet value, Knowledge how) { retained = value; write(Which::Retains, how); }
 
+    /*
+     * Which arguments' **storage address** may still be named after the call - the second half of the
+     * retention question, and the one `ssa::Contained` asks.
+     *
+     * `retains` is a reach set over *values*: `growArray(&self, n)` stores a run pointer it read out
+     * of `self` back into `self`, so the walk joins the written value's parameter reach and argument
+     * 0 reads as retained. That is the right answer for the loan checker, which is asking whether
+     * anything the caller can still see was computed from what it lent; it is the wrong answer for
+     * containment, which is asking whether the *address the caller handed over* was written anywhere.
+     * A pointer loaded out of the storage is not that address - and it cannot be, because an
+     * allocation containment admits is one whose address was never stored, so nothing the callee
+     * loads can be it.
+     *
+     * So this row follows only chains that never pass through a load of the caller's bytes: an
+     * address taken of the parameter's place or of a projection of it, the incoming pointer of a
+     * `%T` parameter, and a place handed on at another call's argument position. It is therefore a
+     * subset of `retains` in every body the two walks agree about, and both are computed in the one
+     * walk `computeArgumentFacts` already makes.
+     */
+    Fact<ArgumentSet> escapes() const { return read(escaped, Which::Escapes); }
+    void setEscapes(ArgumentSet value, Knowledge how) { escaped = value; write(Which::Escapes, how); }
+
     // Which arguments the callee writes through. Read by the overlap check, which may otherwise not
-    // distinguish two `&` arguments where only one is written.
+    // distinguish two `&` arguments where only one is written, and by `ssa::mayWriteStorage`, where
+    // a call through a `&` parameter nothing writes stops being a barrier for a forwarded load.
     Fact<ArgumentSet> mutates() const { return read(mutated, Which::Mutates); }
     void setMutates(ArgumentSet value, Knowledge how) { mutated = value; write(Which::Mutates, how); }
 
-    // Which arguments the callee discharges - the linear-consumption fact. An owned argument a
-    // callee consumes is one the caller may not drop, and one it does *not* consume on some path is
-    // a leak the caller cannot see; per argument for the reason the two above are.
+    /*
+     * Which arguments the callee discharges - the linear-consumption fact. An owned argument a
+     * callee consumes is one the caller may not drop, and one it does *not* consume on some path is
+     * a leak the caller cannot see; per argument for the reason the two above are.
+     *
+     * The one row here that a body cannot disagree with its signature about, and that is a fact
+     * about this language rather than a shortcut: `checkLinear` refuses a body where an owned
+     * parameter is not discharged on every path, so the owned positions *are* the answer and the
+     * call-graph join contributes nothing. Published `Known` off one read of the declaration; a
+     * function with no body publishes the top of the lattice, which is the direction that keeps a
+     * caller from dropping something twice.
+     */
     Fact<ArgumentSet> consumes() const { return read(consumed, Which::Consumes); }
     void setConsumes(ArgumentSet value, Knowledge how) { consumed = value; write(Which::Consumes, how); }
 
-    // The strongest placement any object this function creates needs - see `StorageClass`. The
-    // published half of §10.4's lattice; a caller ranks its own answer against this one.
+    // The strongest placement any object this activation needs - see `StorageClass`. Transitive over
+    // the call graph, because that is what a caller asks: whether anything reached from here will
+    // want the allocator. `computePlacement` is the fixpoint, over what `analyze_escape.cpp` decided.
     Fact<StorageClass> placement() const { return read(placed, Which::Placement); }
     void setPlacement(StorageClass value, Knowledge how) { placed = value; write(Which::Placement, how); }
+
+    /*
+     * Whether calling this ever comes back - the divergence fact, and the shipping stage's declared
+     * `Function::noReturn` **inferred** instead.
+     *
+     * Inferred rather than written for the reason suspension is: the seeds are the roles the library
+     * claims (`checkFailed`, `abort`), and everything above them - a body whose every path ends in
+     * one, a loop with no exit - is a CFG answer nobody should have to restate in a signature. A
+     * declaration is also the wrong place for it: `endNonReturningBlocks` wants the answer for every
+     * function on the way to a check's abort arm, and an attribute would only ever be on the first.
+     *
+     * False is the conservative answer, which is what makes an unknown callee safe: a caller that
+     * believes a diverging callee returns keeps a block it did not have to, and one that believes a
+     * returning callee diverges deletes the code after it.
+     */
+    Fact<bool> diverges() const { return read(nonReturning, Which::Diverges); }
+    void setDiverges(bool value, Knowledge how) { nonReturning = value; write(Which::Diverges, how); }
 
     /*
      * How much of this body is work on a generic environment - `GenCost`, and what `selectGenForms`
@@ -390,7 +499,7 @@ private:
 
     void write(Which which, Knowledge how) {
         auto shift = U32(which) * 2;
-        states = U16((states & ~(U16(3) << shift)) | (U16(how) << shift));
+        states = U32((states & ~(U32(3) << shift)) | (U32(how) << shift));
     }
 
     /*
@@ -401,13 +510,19 @@ private:
      * thirty-two of payload and four two-bit numbers. Two bits each in a `U16` is the same six
      * answers in one field, and it is private for the reason the accessors exist - a caller that
      * could reach the value without the confidence is the thing `Fact` was introduced to prevent.
+     *
+     * A `U32` since J37's ninth row, which is what the assertion below turned into rather than a
+     * comment claiming a limit: sixteen bits held eight facts exactly, and it costs nothing here
+     * because the two bytes come out of the padding the five single-byte values below already leave.
      */
     StackBound stackBound;
     ArgumentSet retained;
+    ArgumentSet escaped;
     ArgumentSet mutated;
     ArgumentSet consumed;
-    U16 states = 0;
+    U32 states = 0;
     bool suspends = false;
+    bool nonReturning = false;
     StorageClass placed = StorageClass::Frame;
     GenCost genCosted;
 
@@ -426,18 +541,24 @@ public:
     bool bodyKnown = false;
 };
 
-static_assert(U32(Summary::Which::Count) * 2 <= 16, "`Summary::states` holds two bits per fact");
+static_assert(U32(Summary::Which::Count) * 2 <= 32, "`Summary::states` holds two bits per fact");
 
 /*
- * Forty bytes: four eight-byte lattice values, the seven confidences in two, and four single bytes
- * that share the tail padding those two leave. Eighty was the size before the confidences were
- * gathered, and the difference was entirely padding - `Knowledge` is one byte and followed a `U64`
+ * Fifty-six bytes: five eight-byte lattice values, the nine confidences in four, and five single
+ * bytes, the last nine of which round up to sixteen. Eighty was the size before the confidences were
+ * gathered, and that difference was entirely padding - `Knowledge` is one byte and followed a `U64`
  * four times.
  *
- * A fact whose value does not fit in the tail is what would end this: `GenCost` is a byte precisely
- * so that adding it cost nothing, and the next one that is a `U64` adds eight.
+ * Forty until J37, and `escapes` is what the note here predicted would end it: a fact whose value is
+ * a `U64` adds eight. It cost eight more than that, and the second eight is worth stating because it
+ * is the shape of the next one too. Eight facts fitted `states` exactly at two bits each, so the
+ * ninth took it from a `U16` to a `U32` - and the five single bytes below it were living in the
+ * padding the `U16` left, so the two extra bytes of `states` push the tail from eight bytes to
+ * sixteen rather than costing two. A tenth and an eleventh fact are free again at either width;
+ * `GenCost` is a byte precisely so that adding it cost nothing and `Diverges` is the bool that took
+ * the next byte of the same tail, and those are still the cheap shapes.
  */
-static_assert(sizeof(Summary) == 40, "the layout note above says where the forty bytes go");
+static_assert(sizeof(Summary) == 56, "the layout note above says where the fifty-six bytes go");
 
 /*
  * The two constructors of the wrapper a *skipping* traversal answers with - `declareOutcome`.
@@ -457,8 +578,8 @@ static constexpr U16 kOutcomeExit = 1;
  * By **position**, which is the same dependency every other class role here is under and is stated
  * once at `provideMember`: an emitter reads `Ord`'s `compare` as member 4 and this reads `Try`'s
  * `fromExit` as member 1, so reordering a class in the library breaks it unless the count check
- * catches it. The order is the one both `prelude/Core/Core.yana` and `lib/Core/Core.yana` write, and
- * it is the order the operators read them in: ask which path a value is on, then rebuild.
+ * catches it. The order is `lib/Core/Core.yana`'s, and it is the order the operators read them in:
+ * ask which path a value is on, then rebuild.
  */
 static constexpr U16 kTryToOutcome = 0;
 static constexpr U16 kTryFromExit = 1;
@@ -564,6 +685,17 @@ enum class DeclAttribute: U8 {
     Box,
 
     /*
+     * `@capacity(n)` on a container type, which is only ever written beside `@inline(n)` -
+     * Implementation-Containers.md §7.1's one built row.
+     *
+     * A row here for the spelling and for the placement message; `readContainerRefinement` is the
+     * reader, and it reads the pair because the pair is what selects a layout. `@inline` has no row
+     * of its own for it, since the function attribute already spells that word and the positions are
+     * disjoint - a type's attributes and a declaration's are read by different walks.
+     */
+    Capacity,
+
+    /*
      * `@platform(js)`, `@platform(native, x64)` - `doc/spec/declarations.md`'s platform selection.
      *
      * A row here so that the spelling is written once and so that the attribute walks do not report
@@ -607,6 +739,58 @@ enum class DeclAttribute: U8 {
      * a pin on the type and never a selection of which target's table answers.
      */
     Layout,
+
+    /*
+     * `@x86_legacy_sse` - this function's vector instructions are encoded without a VEX prefix.
+     *
+     * One architecture, one instruction family, one file, and the only backend fact this stage
+     * carries: the SHA extension has no VEX spelling in the architecture, so a body holding one of
+     * those instructions crosses between prefixed and unprefixed encodings every few instructions
+     * unless the whole of it is unprefixed - which `legacyVectorEncodings` in codegen/x64/target.h
+     * measured at 140x. The x64 backend *refuses* such a body without the marker, so a stage that
+     * dropped the attribute could not compile `lib/Digest/Hardware.sha.yana` at all.
+     *
+     * Read by `readAttributes` into `Function::legacySse` and carried to
+     * `LowerFunction::legacyVectors`, which is the one thing anything below reads. Declared rather
+     * than inferred from a pass over the call graph - Analysis-Warts.md §7.
+     */
+    LegacySse,
+
+    /*
+     * `@convention(clobber)` - the calling convention a function is entered under.
+     *
+     * The second backend fact this stage carries, and it is here for `@x86_legacy_sse`'s reason
+     * rather than a new one: what a program may name is a *semantic* promise about a call boundary
+     * (`clobber` keeps nothing, which is what makes a vector-state reset at entry legal) or one of
+     * the two foreign ABIs, and dropping it silently compiles a body that is entered wrongly.
+     * `lower/convention.h` is the one name table, shared with the lower IR's parser and printer.
+     *
+     * `readConventionAttribute` is its reader - the argument is a word, so `readAttributes` cannot
+     * be - and `Function::convention` is the destination, carried to `LowerFunction::callType`.
+     */
+    Convention,
+
+    /*
+     * `@host` on a **field** - `doc/spec/repr.md`'s host-visible property.
+     *
+     * Written where `@box` is and read by the same walk, and a row here for the spelling and for the
+     * placement message. It has no native semantics at all: the field is stored exactly as it would
+     * have been, and what reads it is the JS pipeline, where the property is the object's own rather
+     * than a slot of the record. So this stage's whole job is to record it and to refuse the
+     * spellings that could not mean anything - see `RecordField::host`.
+     */
+    Host,
+
+    /*
+     * `@heap` on a **binding** - `doc/Design.md`'s "forces that one binding onto the general heap".
+     *
+     * The one attribute this stage reads that is written in front of a statement rather than in
+     * front of a declaration, so `readAttributes` is not its reader either: `readBindingAttributes`
+     * in `resolve_stmt.cpp` is, and it is the only walk that has a local to place. A row here for
+     * the spelling and for the placement message - written on a `fn` or a `data` it is refused like
+     * any other misplaced attribute, rather than silently doing nothing.
+     */
+    Heap,
 
     Count,
 };
@@ -727,7 +911,7 @@ struct Alias {
  * here has to be a type a value has.
  *
  * **The three the compiler itself reaches for are declarations like any other.** `class Drop(a)` is
- * written in the library - `prelude/Core/Core.yana` where the stage cannot yet read the real one -
+ * written in the library - `lib/Core/Core.yana` -
  * so `instance Drop(T)` is checked against a class exactly as `instance Describe(T)` is, by one rule
  * rather than by a hand-written shape test per enumerator. `role` is what the ownership classifier
  * keys off, and it is a *tag on a declaration* rather than a second kind of class.
@@ -1036,6 +1220,22 @@ struct Function {
     DeclPtr<Type> environment = nullptr;
 
     /*
+     * Where that environment's storage is - D17, and the one bit that decides what a value of this
+     * lambda carries in its second word.
+     *
+     * `Frame` is a local of the function the lambda was written in, reached by a borrow: the value
+     * carries `Shapes::closure` and may not leave. `Heap` is a block of its own, allocated where
+     * the value is built, whose first word is the teardown that releases the captures and hands the
+     * block back - so the value owns its environment, carries no origin at all, and may go anywhere.
+     * `selectStorage` is what ranks the two, from the position the lambda fills.
+     *
+     * A `StorageClass` and not a bool because that is the vocabulary the rest of the compiler places
+     * storage in, and the day `Region` is selectable an environment is one more thing that can go in
+     * one. Meaningless where `environment` is null.
+     */
+    StorageClass environmentStorage = StorageClass::Frame;
+
+    /*
      * The generic environment this signature binds - `gen.h`, and null for a plain function.
      *
      * Its variables are what the parameters and the result are written in terms of, and its frozen
@@ -1082,6 +1282,21 @@ struct Function {
      * *miss*, so ten calls at one argument list are one body and count once.
      */
     U32 specializations = 0;
+
+    /*
+     * Which entry of `Resolver::inferringDecls` this body is read out of - meaningless unless
+     * `inferResult`.
+     *
+     * A caller may need the result before the body walk has reached the declaration, and what
+     * answers it is resolving that body now - `Resolver::requireResult`. So the declaration has to
+     * be findable from the function rather than only from the walk that is going to reach it.
+     *
+     * An index rather than an `ast::Decl*`, for `Alias::written`'s reason: a declaration-arena node
+     * holding a raw pointer into the parse region is the cross-arena reference this region's rule is
+     * about, and the index is meaningful only while the resolver is running, which is the only time
+     * anything asks.
+     */
+    U32 written = 0;
 
     /*
      * Which class member this signature *is* - null on every other function.
@@ -1139,8 +1354,9 @@ struct Function {
      * How few a call may write - the positions that carry no default.
      *
      * The pair with `writtenArity` is the *range* of call arities this declaration answers, and it is
-     * a range rather than a number because `Arg::def` exists: `fn open(path, mode = Read)` is one
-     * declaration a call reaches with one argument or with two. `Program::addFunctionName` files it
+     * a range rather than a number because `Arg::omittable` exists: `fn open(path, mode = Read)` is
+     * one declaration a call reaches with one argument or with two, and so is a signature whose last
+     * position is `@caller`. `Program::addFunctionName` files it
      * under every arity in the range, so the set a name reaches is still a single hash read - what a
      * second *plain* declaration collides with is a range instead of a point.
      *
@@ -1151,7 +1367,7 @@ struct Function {
         U32 count = 0;
         for(U32 i = 0; i < U32(args.size()); i++) {
             if(i == continuationArg) continue;
-            if(base[args.get(base, i)]->def.isSet()) continue;
+            if(base[args.get(base, i)]->omittable()) continue;
             count++;
         }
 
@@ -1234,12 +1450,25 @@ struct Function {
     bool alwaysInline = false;
 
     /*
+     * `@inline` with no argument - a **hint**, and the one of the three that is neither directive.
+     *
+     * What it says is "weigh this callee as if it were smaller", and what it must not say is "copy
+     * this body": a callee the inliner refuses structurally - a closure, a lens, a recursive one - is
+     * still refused, and the ceiling still applies. That is what makes it honest, and it is why the
+     * reader records a flag rather than a number: the number is the optimizer's and is stated in one
+     * place, `opt/inline.cpp`'s `Budget`.
+     *
+     * On the declaration rather than at the call site, on the same terms as `@platform`: a property
+     * read from the declaration is one two separate compilations agree about without seeing each
+     * other. `resolve_ssa/opt/inline.cpp` is the one reader.
+     */
+    bool inlineHint = false;
+
+    /*
      * `@noinline` - a body the optimizer may not expand into its callers.
      *
-     * A **directive** in the other direction, and the one of the pair the compiler can always carry
-     * out: declining to inline is always possible, where inlining is not. So this is recorded where
-     * the bare `@inline` hint is not - what an optimizer does with a hint is its own business, and a
-     * promise the declaration makes has to be kept by something.
+     * A **directive** in the other direction, and the one of the three the compiler can always carry
+     * out: declining to inline is always possible, where inlining is not.
      *
      * What depends on it is a call boundary a program *needs*: a measurement that would otherwise
      * fold into its caller, a wrapper whose whole content is the call, and every fixture whose
@@ -1248,6 +1477,20 @@ struct Function {
      * refused where both are read.
      */
     bool noInline = false;
+
+    // `@x86_legacy_sse` - see the attribute's row, where the reason a resolver carries a backend
+    // fact at all is written. Carried to `LowerFunction::legacyVectors` and read nowhere else here.
+    bool legacySse = false;
+
+    /*
+     * `@convention(clobber)` - see the attribute's row.
+     *
+     * A `Maybe` rather than a `LowerCallType` initialized to the default, because "wrote nothing"
+     * and "wrote the convention the compiler would have picked" are different statements: the first
+     * leaves the backend free and the second does not, and a field that could not tell them apart
+     * would make a future default change silently break a declaration that pinned the old one.
+     */
+    Maybe<LowerCallType> convention = Nothing();
 
     /*
      * `lens fn` in the `yield` form - Analysis-Lens.md §5.2.
@@ -1300,9 +1543,58 @@ struct Function {
      */
     bool teardown = false;
 
+    /*
+     * Whether this function *is* a derivation - the member that turns an owner into its view,
+     * `isDerivationMember` in `type.cpp` and the same `ViewRow` column `ownerSubject` reads.
+     *
+     * A flag for the reason `teardown` is one, and it is the same failure: the body may not ask for
+     * the thing it makes. An owner reaching a view position is a call to this member, so a
+     * derivation whose own subject reached one would call itself on every path - and unlike a
+     * missing teardown that is silent all the way to the machine. `adaptToView` is the one reader.
+     */
+    bool derivation = false;
+
     // Set for a function the program can reach. Reachability starts at the entry for a program and
     // at the exported declarations for a library, and nothing unreached is converted or lowered.
     bool reachable = false;
+
+    /*
+     * `fn double(x: I32) = x * 2` with no `-> T` - the body is what decides the result.
+     *
+     * `result` holds `{}` until it does, and that is a placeholder rather than an answer: unit is a
+     * type that checks, so a body left at it would have its value computed and dropped at the `ret`
+     * with nothing downstream able to tell. Whoever needs the answer before the body has run asks
+     * `Resolver::requireResult`, which is what makes the type independent of declaration order; the
+     * flag is cleared the moment the body decides, so it doubles as "has this been settled".
+     *
+     * Only a **plain free function** ever sets it - `declareFunction`, which is the one path such a
+     * declaration takes. A class member's result is the class signature's and an instance member's
+     * is inherited from it, so neither has a body to read it off that the caller could not already
+     * see; a lens takes its result from its continuation, and the `=` form is refused on one.
+     */
+    bool inferResult = false;
+
+    /*
+     * The `=` form asked to infer through a cycle, reported once at the call that closed it.
+     *
+     * The poison, and it is a flag rather than an error *type* because this stage has no such type:
+     * recording unit instead would be a second diagnostic about a signature the author never wrote -
+     * a recursive `fact` becomes "no `*` accepts `(I32, {})`". So the function stops being callable
+     * instead, silently, and `checkCallable` is where every later call to it stops.
+     */
+    bool resultUnknown = false;
+
+    /*
+     * Whether this body has been built - the three-colour walk `Alias::state` is, and for the same
+     * shape of reason.
+     *
+     * `Reading` is the cycle guard: a call reached while the callee's own body is on the stack is
+     * the call that closes a recursion, and it is the one place the `=` form can say so. `Read` is
+     * what keeps the body walk from building a body a caller already demanded - two walks over one
+     * declaration would be two sets of blocks in one function.
+     */
+    enum class BodyState: U8 { Unread, Reading, Read };
+    BodyState bodyState = BodyState::Unread;
 };
 
 /*
@@ -1549,6 +1841,45 @@ struct Overloads {
  * It also owns everything that needs a destructor: the interning tables and the by-name indexes.
  * That is not incidental - it is where the "nothing in an arena owns heap memory" rule puts them.
  */
+/*
+ * One `@test` declaration, as the attribute pass read it - Design-Test.md §11.2's F1.
+ *
+ * The `Test.Case` the entry builds out of this holds the same five things, which is not a
+ * coincidence: the library's record is the contract and this is what the compiler can fill it from.
+ */
+struct TestDeclaration {
+    DeclPtr<Function> function = nullptr;
+
+    // The display name - `@test("a key inserted twice keeps the last value")` - or the declaration's
+    // own name where none was written. A test name is prose and reads better than it computes, which
+    // is why it is a string rather than a symbol.
+    StringId name {};
+
+    // Which module it was written in, so a report can group by it, and where, so a failure can be
+    // jumped to. The site is the *declaration's* rather than any assertion's: `@caller` is what
+    // gives an assertion its own.
+    StringId module {};
+    LocationId source = kNullLocation;
+
+    // `@test(aborts)`: the case is expected to stop the process, so the harness runs it in a child
+    // and reads the status rather than a report line. Design-Test.md §5.3.
+    bool aborts = false;
+};
+
+/*
+ * The `@test` declarations of one compilation, in the order they were read.
+ *
+ * A **list and nothing else**: which module they come from, which library type they are wrapped in
+ * and what runs them are `resolveTestEntry`'s questions, asked once where the entry is built. The
+ * registry is the compiler's rather than the library's because there is no static initializer, no
+ * linker section and no reflection here for a `Test` module to register from - and a *written*
+ * registration list, the only alternative, means every test is written twice and the second half is
+ * invisible when it is missing.
+ */
+struct TestRegistry {
+    Array<TestDeclaration> declarations;
+};
+
 struct Program {
     Program() = default;
 
@@ -1651,8 +1982,13 @@ struct Program {
      * What it is for is **reachability**. A box is an allocation, so a program with one calls
      * `allocateHeap` and `freeHeap` - and neither call is written anywhere in the source, so the
      * walk that decides which functions are emitted has nothing to follow to them. This is what it
-     * follows instead: set where a boxed field is made, read once by `markReachable`, which roots
-     * the allocator roles when it is true.
+     * follows instead: set where a boxed field is made or where an object is placed off the frame,
+     * read once by `markReachable`, which roots the allocator roles when it is true.
+     *
+     * Two producers and one flag, because they ask the allocator for the same thing: `@box`'s
+     * indirection and `StorageClass::Heap` are both storage the lowering allocates with no node in
+     * any body to draw an edge from. It is named after the first because that is what it was, and
+     * renaming it would be a bigger diff than the fact deserves.
      *
      * Deliberately a property of the *declarations* rather than of what a body does with them. A
      * program that declares a boxed record and never builds one emits the allocator for nothing,
@@ -1661,6 +1997,22 @@ struct Program {
      * answer.
      */
     bool usesBoxes = false;
+
+    /*
+     * Whether any reachable release site cannot see where the value's interior boxes were placed -
+     * `settleBoxProvenance`, and `ssa::storesBoxProvenance`, which is what spends it.
+     *
+     * The bit a box carries answers one question and only at one kind of site: a teardown reached
+     * through a borrow, a global or a raw address, where the caller may have placed the value
+     * somewhere this program does not hand back to. A program with no such site stores a word that
+     * nothing reads and pays for it in every record that holds a box - `Maybe(Tree)` is a pointer
+     * with a byte behind it, so the record's stride doubles.
+     *
+     * Unlike `usesBoxes` above this is a property of the reachable *bodies*, and it has to be: every
+     * library holds a function that overwrites through a `&`, so the declaration-level answer is
+     * "yes" for every program that links one.
+     */
+    bool asksBoxProvenance = false;
 
     /*
      * Whether a supplied global was refused - `bindSuppliedGlobal`, which runs as each initializer
@@ -1675,8 +2027,20 @@ struct Program {
 
     // Where the program starts. `main` where a module declares one; a synthesized entry once
     // top-level statements are implemented, since a program with initialization that started at
-    // `main` would start after its own initialization.
+    // `main` would start after its own initialization. Under `-test` it is `resolveTestEntry`'s
+    // synthesized runner instead - a test build runs tests.
     DeclPtr<Function> entry = nullptr;
+
+    /*
+     * Everything this compilation knows about its `@test` declarations - Design-Test.md §11.2's F1.
+     *
+     * A member of the program rather than a global, on the same terms as every other program-wide
+     * table: two compilations in one process are two programs, and a registry that outlived one of
+     * them would be a suite that grows every time the language server recompiles.
+     *
+     * Empty in every build without `-test`, where a `@test` is a diagnostic rather than an entry.
+     */
+    TestRegistry tests;
 
     Module* addModule(StringId name);
 
@@ -2064,6 +2428,23 @@ bool hasViewFor(DeclBase base, Program& program, DeclPtr<Type> type, Access acce
 // Whether the record is a view record of some row - the reverse lookup, which is what a
 // constructed value's conversion to the occurrence it manifests asks. Answers the row, or null.
 const ViewRow* viewRowOfRecord(DeclBase base, Program& program, DeclPtr<Type> record);
+
+/*
+ * Whether a value occurring as `held` has to become a view before it can fill `position` - both
+ * occurrences already **substituted**.
+ *
+ * The one predicate behind the adaptation a specialization needs and its generic body could not
+ * write. `substitutedContract` turns a shared variable position into the view, so inside a body
+ * compiled at `a := String` a *position* is two words while the storage a `->x: a` parameter or an
+ * owning field holds is still the owner - and the generic had no concrete type to call a derivation
+ * at. Asked here rather than at each site so that the reachability walk that must keep the
+ * derivation and the conversion that emits it cannot come to disagree about when there is one.
+ *
+ * The reverse - a view where the owner is wanted - is not a derivation and answers false: nothing
+ * reconstructs an owner out of two words, and the caller reports it.
+ */
+bool needsViewDerivation(DeclBase base, Program& program, const Occurrence& held,
+                         const Occurrence& position);
 
 // The row this role is the *view* of, or null where it is not a view role at all. The same reverse
 // lookup one step earlier, for `checkDeclaredRoles`, which has a role in hand and no type yet.

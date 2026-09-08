@@ -26,8 +26,8 @@ import Test
 
 data CopyBorrowBox {tag: String, n: Int}
 
-fn peekTag(return b: CopyBorrowBox) -> 'String = b.tag
-fn peekCount(return b: CopyBorrowBox) -> 'Int = b.n
+fn peekTag(b: 'CopyBorrowBox) -> 'String = b.tag
+fn peekCount(b: 'CopyBorrowBox) -> 'Int = b.n
 
 -- The blanket instance, reached through a borrow of a scalar.
 @test fn scalarThroughBorrow():
@@ -79,7 +79,12 @@ fn (Copy(a)) duplicated(borrowed: 'a) -> a:
 
 @test fn throughAVariable():
     let s = "hello"
-    let ->c = duplicated(peekTag(CopyBorrowBox {tag: s, n: 0}))
+
+    -- The box is bound rather than written inside the call: `peekTag` publishes an origin now
+    -- (`b: 'CopyBorrowBox`, which is what `return b:` used to spell), and a reference into a
+    -- temporary is a reference into storage the call is what created.
+    let box = CopyBorrowBox {tag: s, n: 0}
+    let ->c = duplicated(peekTag(box))
 
     checkEqual(length(c), 5)
 

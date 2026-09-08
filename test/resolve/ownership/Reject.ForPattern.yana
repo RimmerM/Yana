@@ -1,0 +1,35 @@
+{-
+   A `for` pattern that can fail.
+
+   # resolver: ownership
+
+   A `for`'s `|` introduces the *iterator's* failure channel, so there is no position in the grammar
+   for the arms a refutable pattern would need - which makes "the pattern may not fail" the language's
+   answer rather than a limit of this stage. The report is the same coverage question a `let` with no
+   alternative asks, and it names what is left over.
+
+   A pattern the type has no reading for at all is a different mistake and reports as one: it is not
+   a pattern that can fail, it is a pattern that matches nothing.
+-}
+
+data Thing = None | Some {v: Int}
+
+iter fn things(to: Int) -> Thing:
+    for i in 0 .. to:
+        yield Some {v: i}
+
+fn refutable() -> Int:
+    let &total = 0
+    for Some {v} in things(3):
+        total = total + v
+
+    return total
+
+fn shaped() -> Int:
+    let &total = 0
+    for {a, b} in 0 .. 3:
+        total = total + a
+
+    return total
+
+fn main() -> Int = refutable() + shaped()

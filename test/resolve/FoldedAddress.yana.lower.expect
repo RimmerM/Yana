@@ -53,39 +53,33 @@ freeHeap<complex>(%allocation: Ptr) {
 
 total<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
   b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: I32
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: I32
-    %v_7 = sext %v_5: I64
-    %v_8 = cmp_ilt %v_7, %xs$length: I32
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
-    ret %v_2
-  }
-
-  b_9 {
-    %v_11 = sext %v_5: I64
-    %v_12 = cmp_ge %v_11, %xs$length: I32
-    je %v_12, b_13, b_3
+    %v_1 = cast %xs$length: I32
+    %v_2 = sext %v_1: I64
+    jmp b_3
   }
 
   b_3 {
-    %v_14 = shl %v_11, 2: I64
-    %v_15 = add %xs$items, %v_14: Ptr
-    %v_16 = loads %v_15, 4: I32
-    %v_4 = add %v_2, %v_16: I32
-    %v_6 = add %v_5, 1: I32
-    jmp b_1
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: I32
+    %v_7 = phi [b_0, 0], [b_5, %v_8]: I64
+    %v_9 = cmp_ilt %v_7, %v_2: I32
+    je %v_9, b_10, b_11
   }
 
-  b_13 {
-    %v_17 = syscall 60, 134: I64
-    unreachable 
+  b_11 {
+    ret %v_4
+  }
+
+  b_10 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_12 = shl %v_7, 2: I64
+    %v_13 = add %xs$items, %v_12: Ptr
+    %v_14 = loads %v_13, 4: I32
+    %v_6 = add %v_4, %v_14: I32
+    %v_8 = add %v_7, 1: I64
+    jmp b_3
   }
 }
 
@@ -191,13 +185,13 @@ main<complex>(): I32 {
 
   b_50 {
     %v_51 = cast %v_31: I64
-    jmp b_52
+    %v_52 = sext %v_31: I64
+    jmp b_53
   }
 
-  b_52 {
-    %v_53 = phi [b_50, 0], [b_54, %v_55]: I32
-    %v_56 = sext %v_53: I64
-    %v_57 = cmp_ilt %v_56, %v_32: I32
+  b_53 {
+    %v_54 = phi [b_50, 0], [b_55, %v_56]: I64
+    %v_57 = cmp_ilt %v_54, %v_52: I32
     je %v_57, b_58, b_59
   }
 
@@ -246,27 +240,26 @@ main<complex>(): I32 {
   }
 
   b_58 {
-    %v_82 = sext %v_53: I64
-    %v_83 = cmp_ge %v_82, %v_51: I32
-    je %v_83, b_84, b_85
-  }
-
-  b_85 {
-    %v_86 = shl %v_82, 2: I64
-    %v_87 = add %v_17, %v_86: Ptr
-    %value = loads %v_87, 4: I32
-    jmp b_54
-  }
-
-  b_54 {
-    %v_88 = add %value, %value: I32
-    store %v_87, %v_88, 4
-    %v_55 = add %v_53, 1: I32
-    jmp b_52
+    %v_82 = cmp_ge %v_54, %v_51: I32
+    je %v_82, b_83, b_84
   }
 
   b_84 {
-    %v_89 = syscall 60, 134: I64
+    %v_85 = shl %v_54, 2: I64
+    %v_86 = add %v_17, %v_85: Ptr
+    %value = loads %v_86, 4: I32
+    jmp b_55
+  }
+
+  b_55 {
+    %v_87 = add %value, %value: I32
+    store %v_86, %v_87, 4
+    %v_56 = add %v_54, 1: I64
+    jmp b_53
+  }
+
+  b_83 {
+    %v_88 = syscall 60, 134: I64
     unreachable 
   }
 }

@@ -19,7 +19,7 @@
    assertion here would take the driver down rather than be reported. See test/README.md.
 -}
 
-fn pick(return &a: I64, return &b: I64, first: Bool) -> &I64 = if first then a else b
+fn pick(&a: 'I64, &b: 'I64, first: Bool) -> &'I64 = if first then a else b
 
 {-
    A borrow taken *after* a loop that wrote the same storage - the library-free form of the shape

@@ -199,6 +199,28 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             // non-null exactly where that reader ran, so this walk skips it there and reports the
             // placement message everywhere else - which is what `@inline` does one axis over.
             case DeclAttribute::Layout:       if(pinned) continue; break;
+
+            // `@x86_legacy_sse` belongs to a function and `readSignatureAttributes` reads it there,
+            // beside `@inline` and for the same reason: the destination is a field of `Function`
+            // and this walk has none. Here it falls to the placement message. `@convention` is the
+            // same sentence with a word for an argument, which is why it has a reader of its own.
+            case DeclAttribute::LegacySse:
+            case DeclAttribute::Convention:   break;
+
+            // `@host` belongs to a **field**, exactly as `@box` does, and `declareFields` reads it
+            // there. A declaration is not a field, so this is the placement message.
+            case DeclAttribute::Host:         break;
+
+            /*
+             * `@capacity(n)` refines a *type* beside `@inline(n)` and `readContainerRefinement`
+             * reads the pair there; `@heap` is written in front of a *statement* and
+             * `readBindingAttributes` reads it there. Neither has a destination in a declaration's
+             * attribute list, so both fall to the placement message - which is the same sentence
+             * `@bits` and `@box` get one line up.
+             */
+            case DeclAttribute::Capacity:
+            case DeclAttribute::Heap:         break;
+
             case DeclAttribute::Count:        break;
         }
 
@@ -300,14 +322,16 @@ Maybe<I64> Resolver::readValueAttribute(ast::Con& constructor) {
 }
 
 /*
- * What a function says about being expanded at its call sites - `Function::alwaysInline` and
- * `Function::noInline`.
+ * What a function says about being expanded at its call sites - `Function::alwaysInline`,
+ * `Function::inlineHint` and `Function::noInline`.
  *
- * Three spellings and two answers. A bare `@inline` is a hint to the optimizer and this stage
- * records nothing for it - what the optimizer does with a hint is its own business and not a
- * promise the declaration makes. `@inline(always)` is a promise the *resolver* keeps, by grafting
- * the body where it is called. `@noinline` is the promise in the other direction, and is the one
- * of the three that can never be refused: declining to expand a body is always possible.
+ * Three spellings and three answers, which is a correction: a bare `@inline` used to be read and
+ * dropped here, on the argument that what an optimizer does with a hint is its own business. It is,
+ * and that is an argument about the *number* rather than about the flag - the number is stated once,
+ * in `resolve_ssa/opt/inline.cpp`'s `Budget`, and what this stage owes it is the fact that the
+ * author wrote the attribute at all. `@inline(always)` is a promise the *resolver* keeps, by
+ * grafting the body where it is called. `@noinline` is the promise in the other direction, and is
+ * the one of the three that can never be refused: declining to expand a body is always possible.
  *
  * One reader for both attributes rather than one each, because what they say is one thing and the
  * contradiction is only visible to something that has read both. `@inline(always) @noinline` is
@@ -319,12 +343,30 @@ Maybe<I64> Resolver::readValueAttribute(ast::Con& constructor) {
  * because an attribute that is silently misread is a declaration whose author believes something
  * the compiler does not. `@noinline` takes none at all.
  */
-void Resolver::readInlineAttribute(ast::Decl& declaration, bool& always, bool& never) {
+void Resolver::readInlineAttribute(ast::Decl& declaration, bool& always, bool& hint, bool& never,
+                                   bool& legacySse) {
     always = false;
+    hint = false;
     never = false;
+    legacySse = false;
 
     for(auto attribute: declaration.attributes.contents(parse)) {
         auto which = findAttribute(stringView(context.findName(attribute.name)));
+
+        /*
+         * `@x86_legacy_sse`, read on the same walk as the inline pair rather than on one of its own.
+         *
+         * Not because they are related - one is about expansion and the other about encoding - but
+         * because both are flags on a *signature* whose destination is a field of `Function`, and
+         * this is the walk that has one in hand. A reader of its own would be the same loop over the
+         * same list with one arm in it.
+         */
+        if(which == DeclAttribute::LegacySse) {
+            if(!takesNoArguments(attribute, which)) continue;
+
+            legacySse = true;
+            continue;
+        }
 
         if(which == DeclAttribute::NoInline) {
             if(!attribute.args.isEmpty()) {
@@ -336,7 +378,14 @@ void Resolver::readInlineAttribute(ast::Decl& declaration, bool& always, bool& n
             continue;
         }
 
-        if(which != DeclAttribute::Inline || attribute.args.isEmpty()) continue;
+        if(which != DeclAttribute::Inline) continue;
+
+        // The bare spelling, which is the hint. `always` is the only argument the attribute takes,
+        // so no arguments is the whole of what distinguishes the two.
+        if(attribute.args.isEmpty()) {
+            hint = true;
+            continue;
+        }
 
         auto argument = attribute.args.get(parse, 0).value;
         if(attribute.args.size() != 1 || argument.kind != ast::Expr::Var ||
@@ -357,6 +406,11 @@ void Resolver::readInlineAttribute(ast::Decl& declaration, bool& always, bool& n
         always = false;
         never = false;
     }
+
+    // A hint beside the directive that refuses it is the same contradiction one step weaker, and it
+    // is answered rather than reported: `@noinline` is what the compiler can always carry out, so a
+    // hint under it is a term that would be weighed and then thrown away.
+    if(never) hint = false;
 }
 
 /*
@@ -537,6 +591,112 @@ TypeLayout Resolver::readLayoutAttribute(ast::Decl& declaration) {
     }
 
     return pin;
+}
+
+/*
+ * `@convention(clobber)` on a signature - the calling convention this function is entered under.
+ *
+ * The name table is `lower/convention.h`'s, shared with the lower IR's parser and printer, because
+ * the three spellings of one convention have to agree and a fixture round-trips through all three.
+ *
+ * **Not every convention in that table may be written**, and `conventionWritableInSource` is where
+ * the set is argued: `simple` and `complex` are the backend's choice between two internal shapes and
+ * `system` describes what a syscall leaves alone, so naming one writes an implementation detail down
+ * as an interface. The messages are the shipping stage's word for word - one language, one
+ * diagnostic - and `Reject.VectorReset.yana` is what holds the two to it.
+ *
+ * Read here rather than only on a plain `fn`, which is where this stage and the shipping one differ:
+ * `readInlineAttribute` already reads `@x86_legacy_sse` off every signature, and one walk that reads
+ * a signature's backend facts is worth more than a placement rule the two attributes would then have
+ * to state separately. A class member that names a convention says something a call through the
+ * class cannot honour, and that is worth a diagnostic of its own the day one is written.
+ */
+void Resolver::readConventionAttribute(ast::Decl& declaration, Function& function) {
+    for(auto attribute: declaration.attributes.contents(parse)) {
+        if(findAttribute(stringView(context.findName(attribute.name))) !=
+           DeclAttribute::Convention) {
+            continue;
+        }
+
+        if(attribute.args.size() != 1) {
+            context.diagnostics.error("`@convention` takes one argument - the name of a calling convention, as in `@convention(clobber)`"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        auto argument = attribute.args.get(parse, 0).value;
+        if(argument.kind != ast::Expr::Var) {
+            context.diagnostics.error("`@convention` takes the name of a calling convention, written as an identifier"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        auto found = callTypeForName(argument.var);
+        if(!found) {
+            context.diagnostics.error("unknown calling convention %@ - the ones a declaration may name are `clobber`, `sysv` and `win64`"_v,
+                                      attribute.source, context.findName(argument.var));
+            continue;
+        }
+
+        if(!conventionWritableInSource(found.unwrap())) {
+            context.diagnostics.error("%@ is not a convention a declaration may name - `simple` and `complex` are the compiler's own choice between two internal shapes, and `system` describes what a syscall leaves alone rather than how anything is entered. Write `clobber`, `sysv` or `win64`"_v,
+                                      attribute.source, context.findName(argument.var));
+            continue;
+        }
+
+        if(function.convention) {
+            context.diagnostics.error("this declaration already names a calling convention"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        function.convention = found;
+    }
+}
+
+/*
+ * Where a record's `@host` fields may sit, which is after the one field that stores the value.
+ *
+ * The elision makes the record *be* its remaining field, exactly as a one-field record already is on
+ * a target with no layout - so there has to be exactly one such field and the properties hang off it
+ * rather than the other way round. Pinning it to field zero costs nothing: `{items: %a, @host
+ * length: Count}` is the declaration and is also the only order a reader would write, and every walk
+ * that already answers "a transparent record is its first field" keeps answering it.
+ *
+ * A **name** is required, because the name *is* the property: `length` is what the host is asked
+ * for, and a positional field has nothing to ask for.
+ *
+ * What this cannot check is whether the claim is *true* - that is a question about a host value
+ * rather than about a type, and the JS pipeline is where it is answered.
+ */
+void Resolver::checkHostFields(RecordType& record, U16 first, LocationId source) {
+    auto count = U16(record.fields.size());
+
+    auto elided = false;
+    for(U16 i = first; i < count; i++) elided = elided || record.field(decl(), i).host;
+    if(!elided) return;
+
+    if(count - first < 2 || record.field(decl(), first).host) {
+        context.diagnostics.error("`@host` names a property of the value the record holds, so it has to follow the one field that holds it - field zero of the record, which may not itself be `@host`"_v,
+                                  source);
+        return;
+    }
+
+    for(U16 i = U16(first + 1); i < count; i++) {
+        if(record.field(decl(), i).host) continue;
+
+        context.diagnostics.error("a record with a `@host` field has exactly one stored field, and this one has more - every field after the first has to be a host property of it"_v,
+                                  source);
+        return;
+    }
+
+    for(U16 i = U16(first + 1); i < count; i++) {
+        if(record.field(decl(), i).name) continue;
+
+        context.diagnostics.error("a `@host` field is reached by its own name and so has to have one"_v,
+                                  source);
+        return;
+    }
 }
 
 /*
@@ -1143,6 +1303,10 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
             built.boxed = readBoxAttribute(type);
             if(built.boxed) program.usesBoxes = true;
 
+            // `@host`, read in the same position and spent the same way - `RecordField::host`, where
+            // the reason this stage records a fact it never reads is written.
+            built.host = readHostAttribute(type);
+
             record->fields.push(program.decl, built);
 
             /*
@@ -1184,6 +1348,11 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
         }
 
         declared.count = U16(U16(record->fields.size()) - declared.first);
+
+        // And where the constructor's `@host` fields may sit, now that there is a field list to ask
+        // about. Per constructor rather than per record: two arms of a sum are two shapes over one
+        // storage, so which field holds the value is each arm's own question.
+        checkHostFields(*record, declared.first, content ? content->source : constructor.source);
 
         /*
          * And what the attribute needs to have been true of the constructor it was written on.
@@ -1272,6 +1441,25 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
     auto root = here() == program.root();
 
     /*
+     * A test file's `let` may be initialized by code, on the same terms the root module's is -
+     * Design-Test.md §11.2's F5.
+     *
+     * The rule was never about being the root. It is about whether there is a program point at which
+     * the initializer runs, and a test build has one: `resolveTestEntry` runs the top level ahead of
+     * the cases exactly as the ordinary entry runs it ahead of `main`. What the root has that a
+     * library module does not is *an entry at all*, and under `-test` every module with a test file
+     * in it does too.
+     *
+     * Two things keep that from widening into library semantics. A test file is selected in and out
+     * as a **unit**, so in a build without `-test` the global does not exist and neither does the
+     * code that would have filled it - "a dynamic global exists only where something runs its
+     * initializer" then holds by construction rather than by argument. And only a `let` is admitted,
+     * never a bare statement: the program's start stays one file's statements in written order.
+     */
+    auto testFile = context.settings.test && activeTestFile;
+    auto startup = root || testFile;
+
+    /*
      * A statement rather than a declaration - Analysis-Initialization.md stage B.
      *
      * The **root** module has a program point at which one runs, and no other module has: the
@@ -1281,6 +1469,19 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
      * between modules to define and no import side effects to say anything about.
      */
     if(declaration.stmt.kind != ast::Expr::Decl) {
+        /*
+         * A test file gets initializers, not a second program start - so a bare statement is refused
+         * there even when the module around it is the root. Two files' statement sequences would
+         * need an order between them, and the only order this compiler states is the one written
+         * inside a single file.
+         */
+        if(testFile) {
+            context.diagnostics.error(
+                "only a `let` declaration can appear at a test file's module level - its declarations are initialized before the cases run, but a program's start is one file's statements in written order and a test file is not that file"_v,
+                declaration.source);
+            return;
+        }
+
         if(!root) {
             context.diagnostics.error(
                 "only a `let` declaration can appear at module level - a statement has to run at some point in a program's startup, and only the module being compiled has one"_v,
@@ -1288,8 +1489,8 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
             return;
         }
 
-        topLevel.push(TopLevelStmt { declaration.stmt, declaration.source, current->activeFile,
-                                     first, 0 });
+        topLevel.push(TopLevelStmt { declaration.stmt, declaration.source, here(),
+                                     current->activeFile, first, 0 });
         return;
     }
 
@@ -1361,17 +1562,19 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
     }
 
     /*
-     * The statement, in the root module's own sequence.
+     * The statement, in the sequence that will run it - the root module's own, or the one the test
+     * entry runs ahead of the cases.
      *
      * A `let` is in it too, and not because it always runs something: an initializer that folds to a
-     * constant runs nothing at all. What the entry sequence needs from it is the **order** - a
-     * statement above a `let` sees the global as its declaration left it, and a `let` below one sees
-     * what the statement wrote - so a `let` is a position in the sequence whether or not it fills
-     * one.
+     * constant runs nothing at all. What the sequence needs from it is the **order** - a statement
+     * above a `let` sees the global as its declaration left it, and a `let` below one sees what the
+     * statement wrote - so a `let` is a position in the sequence whether or not it fills one.
      */
-    if(root) {
-        topLevel.push(TopLevelStmt { declaration.stmt, declaration.source, current->activeFile,
-                                     first, U16(writtenGlobals.size() - first) });
+    if(startup) {
+        auto& into = testFile ? testTopLevel : topLevel;
+        into.push(TopLevelStmt { declaration.stmt, declaration.source, here(),
+                                 current->activeFile, first,
+                                 U16(writtenGlobals.size() - first) });
     }
 }
 

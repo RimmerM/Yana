@@ -1073,6 +1073,7 @@ void checkModuleClasses(Module& module) {
     auto instanceCount = module.instances.size();
     for(Size i = 0; i < instanceCount; i++) {
         auto instance = (*module.arena)[module.instances[i]];
+        if(instance->origin == ClassInstance::Origin::Superseded) continue;
 
         FileScope scope(module, instance->source);
         checkSuperclasses(module, *instance);

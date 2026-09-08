@@ -215,7 +215,7 @@ bb0:
   %5: I32 trivial = const 4
   %6: I32 [unique slot 0] guaranteed = load inspect %1
   %7: handedOwned.cont.env affine = aggregate.handedOwned.cont.env borrow %6
-  %8: (->Guard) -> I32 [owned here shape3 .0=shared call] affine = fun.value handedOwned.cont borrow %7
+  %8: (->Guard) -> I32 [owned here shape8 .0=shared call] affine = fun.value handedOwned.cont borrow %7
   %9: Outcome(I32, I32) trivial = call opened borrow %5 borrow %8
   store inspect %3 consume %9
   %10: %U8 address = field.addr .# inspect %3
@@ -262,7 +262,7 @@ bb0:
   %7: I32 trivial = sub inspect %5 inspect %6
   %8: I32 [unique slot 0] guaranteed = load inspect %1
   %9: skippedOwned.cont.env affine = aggregate.skippedOwned.cont.env borrow %8
-  %10: (->Guard) -> I32 [owned here shape3 .0=shared call] affine = fun.value skippedOwned.cont borrow %9
+  %10: (->Guard) -> I32 [owned here shape8 .0=shared call] affine = fun.value skippedOwned.cont borrow %9
   %11: Outcome(I32, I32) trivial = call opened borrow %7 borrow %10
   store inspect %3 consume %11
   %12: %U8 address = field.addr .# inspect %3
@@ -309,7 +309,7 @@ bb0:
   %7: I32 trivial = sub inspect %5 inspect %6
   %8: I32 [unique slot 0] guaranteed = load inspect %1
   %9: failedOwned.cont.env affine = aggregate.failedOwned.cont.env borrow %8
-  %10: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value failedOwned.cont borrow %9
+  %10: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value failedOwned.cont borrow %9
   %11: Outcome(I32, Guard) owned = call guarding borrow %7 borrow %10
   store inspect %3 consume %11
   %12: %U8 address = field.addr .# inspect %3
@@ -358,7 +358,7 @@ bb0:
   %7: I32 trivial = sub inspect %5 inspect %6
   %8: I32 [unique slot 0] guaranteed = load inspect %1
   %9: ignoredOwned.cont.env affine = aggregate.ignoredOwned.cont.env borrow %8
-  %10: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value ignoredOwned.cont borrow %9
+  %10: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value ignoredOwned.cont borrow %9
   %11: Outcome(I32, Guard) owned = call guarding borrow %7 borrow %10
   store inspect %3 consume %11
   %12: %U8 address = field.addr .# inspect %3
@@ -404,7 +404,7 @@ bb0:
   %5: I32 trivial = const 5
   %6: I32 [unique slot 0] guaranteed = load inspect %1
   %7: keptOwned.cont.env affine = aggregate.keptOwned.cont.env borrow %6
-  %8: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value keptOwned.cont borrow %7
+  %8: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value keptOwned.cont borrow %7
   %9: Outcome(I32, Guard) owned = call guarding borrow %5 borrow %8
   store inspect %3 consume %9
   %10: %U8 address = field.addr .# inspect %3
@@ -453,7 +453,7 @@ bb0:
   store inspect %2 consume %7
   %8: Counter [unique call] guaranteed from{%1} = load inspect %1
   %9: borrowed.cont.env trivial = aggregate.borrowed.cont.env
-  %10: (&Counter) -> I32 [owned here shape3 .0=shared call] affine = fun.value borrowed.cont inspect %9
+  %10: (&Counter) -> I32 [owned here shape8 .0=shared call] affine = fun.value borrowed.cont inspect %9
   %11: Outcome(I32, I32) trivial = call bumping borrow %8 borrow %10
   store inspect %4 consume %11
   %12: %U8 address = field.addr .# inspect %4
@@ -501,7 +501,7 @@ bb0:
   store inspect %2 consume %9
   %10: Counter [unique call] guaranteed from{%1} = load inspect %1
   %11: borrowedFailing.cont.env trivial = aggregate.borrowedFailing.cont.env
-  %12: (&Counter) -> I32 [owned here shape3 .0=shared call] affine = fun.value borrowedFailing.cont inspect %11
+  %12: (&Counter) -> I32 [owned here shape8 .0=shared call] affine = fun.value borrowedFailing.cont inspect %11
   %13: Outcome(I32, I32) trivial = call bumping borrow %10 borrow %12
   store inspect %4 consume %13
   %14: %U8 address = field.addr .# inspect %4
@@ -545,7 +545,7 @@ bb0:
   %6: I32 trivial = const 2
   %7: I32 [unique slot 0] guaranteed = load inspect %1
   %8: walked.cont.env affine = aggregate.walked.cont.env borrow %7
-  %9: (->Guard) -> I32 [owned here shape3 .0=shared call] affine = fun.value walked.cont borrow %8
+  %9: (->Guard) -> I32 [owned here shape8 .0=shared call] affine = fun.value walked.cont borrow %8
   %10: Outcome(I32, Guard) owned = call opening borrow %5 borrow %6 borrow %9
   store inspect %3 consume %10
   %11: %U8 address = field.addr .# inspect %3
@@ -593,7 +593,7 @@ bb0:
   %6: I32 trivial = const 9
   %7: I32 [unique slot 0] guaranteed = load inspect %1
   %8: ranOut.cont.env affine = aggregate.ranOut.cont.env borrow %7
-  %9: (->Guard) -> I32 [owned here shape3 .0=shared call] affine = fun.value ranOut.cont borrow %8
+  %9: (->Guard) -> I32 [owned here shape8 .0=shared call] affine = fun.value ranOut.cont borrow %8
   %10: Outcome(I32, Guard) owned = call opening borrow %5 borrow %6 borrow %9
   store inspect %3 consume %10
   %11: %U8 address = field.addr .# inspect %3
@@ -780,8 +780,8 @@ bb0(%0: keptOwned.cont.env [unique call] guaranteed, %1: I32 [shared call] guara
   return consume %8
 }
 
-fn borrowed.cont(borrowed.cont.env: borrowed.cont.env [unique call], $handed: Counter [unique call]) -> I32 {
-bb0(%0: borrowed.cont.env [unique call] guaranteed, %1: Counter [unique call] guaranteed):
+fn borrowed.cont(borrowed.cont.env: borrowed.cont.env [unique call], $handed: Counter [unique call owner]) -> I32 {
+bb0(%0: borrowed.cont.env [unique call] guaranteed, %1: Counter [unique call owner] guaranteed):
   %2: %I32 address = field.addr .value inspect %1
   %3: I32 trivial = load inspect %2
   %4: I32 trivial = const 100
@@ -792,8 +792,8 @@ bb0(%0: borrowed.cont.env [unique call] guaranteed, %1: Counter [unique call] gu
   return consume %7
 }
 
-fn borrowedFailing.cont(borrowedFailing.cont.env: borrowedFailing.cont.env [unique call], $handed: Counter [unique call]) -> I32 {
-bb0(%0: borrowedFailing.cont.env [unique call] guaranteed, %1: Counter [unique call] guaranteed):
+fn borrowedFailing.cont(borrowedFailing.cont.env: borrowedFailing.cont.env [unique call], $handed: Counter [unique call owner]) -> I32 {
+bb0(%0: borrowedFailing.cont.env [unique call] guaranteed, %1: Counter [unique call owner] guaranteed):
   %2: %I32 address = field.addr .value inspect %1
   %3: I32 trivial = load inspect %2
   %4: I32 trivial = const 100

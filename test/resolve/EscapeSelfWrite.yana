@@ -39,10 +39,10 @@ import Native
 data Cursor(a) {at: %a}
 
 class Advance(a):
-  fn advance(return p: %a) -> %a
+  fn advance(p: %src'a) -> %src'a
 
 instance Advance(Int):
-  fn advance(return p: %Int) = p
+  fn advance(p: %src'Int) = p
 
 -- The write. `self.at` is replaced by something derived from `self.at`, which is one value's
 -- lifetime through a borrow rather than two overlapping ones.

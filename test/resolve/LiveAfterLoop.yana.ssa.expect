@@ -1,0 +1,213 @@
+module ResolveTest
+
+fn pick(a: I64 [unique slot 0], b: I64 [unique slot 0], first: Bool [shared call]) -> I64 [unique slot 0 owner] {
+bb0(%0: I64 [unique slot 0] guaranteed, %1: I64 [unique slot 0] guaranteed, %2: Bool [shared call] guaranteed):
+  %4: %Bool address = alloc frame Bool [shared call]
+  store inspect %4 borrow %2
+  %5: Bool trivial = load inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I64 [unique slot 0] guaranteed from{%1} = load inspect %1
+  jump -> bb2(borrow %6)
+
+bb2(%3: I64 [unique slot 0] guaranteed):
+  return borrow %3
+
+bb3:
+  %7: I64 [unique slot 0] guaranteed from{%0} = load inspect %0
+  jump -> bb2(borrow %7)
+}
+
+fn borrowAfterLoop(x: I64 [unique call], y: I64 [unique call], flag: Bool [shared call]) -> I64 {
+bb0(%0: I64 [unique call] guaranteed, %1: I64 [unique call] guaranteed, %2: Bool [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I64 address = alloc frame I64
+  store inspect %3 borrow %2
+  %5: I64 trivial = const 0
+  store inspect %4 consume %5
+  jump -> bb1
+
+bb1:
+  %6: I64 trivial = load inspect %4
+  %7: I64 trivial = const 4
+  %8: Bool trivial = lt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  %9: I64 [unique slot 0] guaranteed from{%0} = load inspect %0
+  %10: I64 [unique slot 0] guaranteed from{%1} = load inspect %1
+  %11: Bool trivial = const True
+  %12: I64 [unique slot 0 owner] guaranteed from{%0, %1} = call pick borrow %9 borrow %10 borrow %11
+  %13: Bool trivial = load inspect %3
+  branch inspect %13 -> bb6 -> bb4
+
+bb3:
+  %14: I64 trivial = load inspect %0
+  %15: I64 trivial = const 1
+  %16: I64 trivial = add inspect %14 inspect %15
+  store inspect %0 consume %16
+  %17: I64 trivial = load inspect %4
+  %18: I64 trivial = const 1
+  %19: I64 trivial = add inspect %17 inspect %18
+  store inspect %4 consume %19
+  jump -> bb1
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %20: I64 trivial = load inspect %12
+  %21: I64 trivial = const 1
+  %22: I64 trivial = add inspect %20 inspect %21
+  return consume %22
+
+bb6:
+  %23: I64 trivial = load inspect %12
+  return consume %23
+}
+
+fn endsBeforeWrite(x: I64 [unique call], y: I64 [unique call]) -> I64 {
+bb0(%0: I64 [unique call] guaranteed, %1: I64 [unique call] guaranteed):
+  %2: %I64 address = alloc frame I64
+  %3: I64 [unique slot 0] guaranteed from{%0} = load inspect %0
+  %4: I64 [unique slot 0] guaranteed from{%1} = load inspect %1
+  %5: Bool trivial = const True
+  %6: I64 [unique slot 0 owner] guaranteed from{%0, %1} = call pick borrow %3 borrow %4 borrow %5
+  %7: I64 trivial = load inspect %6
+  store inspect %2 consume %7
+  %8: I64 trivial = load inspect %0
+  %9: I64 trivial = const 1
+  %10: I64 trivial = add inspect %8 inspect %9
+  store inspect %0 consume %10
+  %11: I64 trivial = load inspect %2
+  %12: I64 trivial = load inspect %0
+  %13: I64 trivial = add inspect %11 inspect %12
+  return consume %13
+}
+
+fn otherArm(x: I64 [unique call], y: I64 [unique call], flag: Bool [shared call]) -> I64 {
+bb0(%0: I64 [unique call] guaranteed, %1: I64 [unique call] guaranteed, %2: Bool [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  store inspect %3 borrow %2
+  %4: Bool trivial = load inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: I64 trivial = load inspect %0
+  %6: I64 trivial = const 1
+  %7: I64 trivial = add inspect %5 inspect %6
+  store inspect %0 consume %7
+  %8: I64 trivial = load inspect %0
+  return consume %8
+
+bb3:
+  %9: I64 [unique slot 0] guaranteed from{%0} = load inspect %0
+  %10: I64 [unique slot 0] guaranteed from{%1} = load inspect %1
+  %11: Bool trivial = const True
+  %12: I64 [unique slot 0 owner] guaranteed from{%0, %1} = call pick borrow %9 borrow %10 borrow %11
+  %13: I64 trivial = load inspect %12
+  return consume %13
+}
+
+fn insideOneIteration(x: I64 [unique call], y: I64 [unique call]) -> I64 {
+bb0(%0: I64 [unique call] guaranteed, %1: I64 [unique call] guaranteed):
+  %2: %I64 address = alloc frame I64
+  %3: %I64 address = alloc frame I64
+  %4: I64 trivial = const 0
+  store inspect %2 consume %4
+  %5: I64 trivial = const 0
+  store inspect %3 consume %5
+  jump -> bb1
+
+bb1:
+  %6: I64 trivial = load inspect %2
+  %7: I64 trivial = const 3
+  %8: Bool trivial = lt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  %9: I64 trivial = load inspect %3
+  return consume %9
+
+bb3:
+  %10: I64 [unique slot 0] guaranteed from{%0} = load inspect %0
+  %11: I64 [unique slot 0] guaranteed from{%1} = load inspect %1
+  %12: Bool trivial = const True
+  %13: I64 [unique slot 0 owner] guaranteed from{%0, %1} = call pick borrow %10 borrow %11 borrow %12
+  %14: I64 trivial = load inspect %3
+  %15: I64 trivial = load inspect %13
+  %16: I64 trivial = add inspect %14 inspect %15
+  store inspect %3 consume %16
+  %17: I64 trivial = load inspect %0
+  %18: I64 trivial = const 1
+  %19: I64 trivial = add inspect %17 inspect %18
+  store inspect %0 consume %19
+  %20: I64 trivial = load inspect %2
+  %21: I64 trivial = const 1
+  %22: I64 trivial = add inspect %20 inspect %21
+  store inspect %2 consume %22
+  jump -> bb1
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I64 address = alloc frame I64
+  %1: %I64 address = alloc frame I64
+  %2: %I64 address = alloc frame I64
+  %3: I64 trivial = const 10
+  store inspect %0 consume %3
+  %4: I64 trivial = const 20
+  store inspect %1 consume %4
+  %5: I64 trivial = const 0
+  store inspect %2 consume %5
+  %6: I64 trivial = load inspect %2
+  %7: I64 [unique call] guaranteed from{%0} = load inspect %0
+  %8: I64 [unique call] guaranteed from{%1} = load inspect %1
+  %9: Bool trivial = const True
+  %10: I64 trivial = call borrowAfterLoop borrow %7 borrow %8 borrow %9
+  %11: I64 trivial = add inspect %6 inspect %10
+  store inspect %2 consume %11
+  %12: I64 trivial = const 10
+  store inspect %0 consume %12
+  %13: I64 trivial = load inspect %2
+  %14: I64 [unique call] guaranteed from{%0} = load inspect %0
+  %15: I64 [unique call] guaranteed from{%1} = load inspect %1
+  %16: I64 trivial = call endsBeforeWrite borrow %14 borrow %15
+  %17: I64 trivial = add inspect %13 inspect %16
+  store inspect %2 consume %17
+  %18: I64 trivial = const 10
+  store inspect %0 consume %18
+  %19: I64 trivial = load inspect %2
+  %20: I64 [unique call] guaranteed from{%0} = load inspect %0
+  %21: I64 [unique call] guaranteed from{%1} = load inspect %1
+  %22: Bool trivial = const True
+  %23: I64 trivial = call otherArm borrow %20 borrow %21 borrow %22
+  %24: I64 trivial = add inspect %19 inspect %23
+  store inspect %2 consume %24
+  %25: I64 trivial = const 10
+  store inspect %0 consume %25
+  %26: I64 trivial = load inspect %2
+  %27: I64 [unique call] guaranteed from{%0} = load inspect %0
+  %28: I64 [unique call] guaranteed from{%1} = load inspect %1
+  %29: Bool trivial = const False
+  %30: I64 trivial = call otherArm borrow %27 borrow %28 borrow %29
+  %31: I64 trivial = add inspect %26 inspect %30
+  store inspect %2 consume %31
+  %32: I64 trivial = const 10
+  store inspect %0 consume %32
+  %33: I64 trivial = load inspect %2
+  %34: I64 [unique call] guaranteed from{%0} = load inspect %0
+  %35: I64 [unique call] guaranteed from{%1} = load inspect %1
+  %36: I64 trivial = call insideOneIteration borrow %34 borrow %35
+  %37: I64 trivial = add inspect %33 inspect %36
+  store inspect %2 consume %37
+  %38: I64 trivial = load inspect %2
+  %39: I32 trivial = convert inspect %38
+  return consume %39
+}
+
+entry main

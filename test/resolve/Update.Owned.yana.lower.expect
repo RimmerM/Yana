@@ -1,0 +1,88 @@
+@image$base = []
+mut @closed = [0, 0, 0, 0]
+
+replaceMoved<complex>(%v_0: Ptr, %s: Ptr) {
+  b_1 {
+    %v_2 = load %s, 4: I32
+    %v_3 = add %s, 4: Ptr
+    %v_4 = load %v_3, 4: I32
+    %v_5 = loads @closed, 4: I32
+    %v_6 = add %v_5, %v_2: I32
+    store @closed, %v_6, 4
+    store %v_0, 2, 4
+    %v_7 = add %v_0, 4: Ptr
+    store %v_7, %v_4, 4
+    ret 
+  }
+}
+
+replaceNested<complex>(%v_0: Ptr, %o: Ptr) {
+  b_1 {
+    %v_2 = load %o, 4: I32
+    %v_3 = add %o, 4: Ptr
+    %v_4 = load %v_3, 8: I64
+    %v_5 = loads @closed, 4: I32
+    %v_6 = add %v_5, %v_2: I32
+    store @closed, %v_6, 4
+    store %v_0, 8, 4
+    %v_7 = add %v_0, 4: Ptr
+    store %v_7, %v_4, 8
+    ret 
+  }
+}
+
+retag<complex>(%v_0: Ptr, %s: Ptr) {
+  b_1 {
+    %v_2 = load %s, 4: I32
+    %v_3 = add %s, 4: Ptr
+    %v_4 = load %v_3, 4: I32
+    store %v_0, %v_2, 4
+    %v_5 = add %v_0, 4: Ptr
+    store %v_5, 5, 4
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 0, 4
+    %a = alloca 8, 4: Ptr
+    call_complex replaceMoved, %a, %v_1
+    %v_3 = alloca 12, 4: Ptr
+    store %v_3, 100, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 0, 4
+    %v_5 = add %v_3, 8: Ptr
+    store %v_5, 3, 4
+    %c = alloca 12, 4: Ptr
+    call_complex replaceNested, %c, %v_3
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 1000, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, 0, 4
+    %d = alloca 8, 4: Ptr
+    call_complex retag, %d, %v_6
+    %byUpdates = loads @closed, 4: I32
+    %v_8 = loads %a, 4: I32
+    %v_9 = add %byUpdates, %v_8: I32
+    %v_10 = loads %c, 4: I32
+    %v_11 = add %v_8, %v_10: I32
+    %v_12 = add %c, 8: Ptr
+    %v_13 = loads %v_12, 4: I32
+    %v_14 = add %v_9, %v_10: I32
+    %v_15 = add %v_11, %v_13: I32
+    %v_16 = add %d, 4: Ptr
+    %v_17 = loads %v_16, 4: I32
+    %v_18 = loads %d, 4: I32
+    %v_19 = add %v_14, %v_18: I32
+    store @closed, %v_19, 4
+    %carried = add %v_15, %v_17: I32
+    %v_20 = imul %carried, 10000: I32
+    %v_21 = add %v_20, %byUpdates: I32
+    ret %v_21
+  }
+}
+

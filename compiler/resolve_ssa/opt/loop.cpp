@@ -4,7 +4,7 @@
  * A loop that counts and does nothing else, decided false at its header.
  *
  * What it is for is a cost the library cannot avoid writing. `Reclaim(Array(a))` in
- * `prelude/Core/Array.yana` is one traversal over the live elements handing each to the compiler's
+ * `lib/Core/Array.yana` is one traversal over the live elements handing each to the compiler's
  * per-member teardown, which is the whole of what a container author writes - and for an element
  * type with nothing to run, the per-element work reduces to a read nobody reads. What is left is a
  * loop that counts to the array's length, emitted at every last use of every `[Int]` in every
@@ -185,7 +185,7 @@ struct LoopKiller {
             if(!isTerminator(user.kind)) continue;
 
             auto leaves = false;
-            forEachEdge(user, [&](Edge& edge) {
+            forEachEdge(opt.base, user, [&](Edge& edge) {
                 if(!edge.target || inside(loop, opt.base[edge.target]->index.index)) return;
 
                 for(auto used: edge.arguments.contents(opt.base)) {
@@ -370,7 +370,7 @@ struct LoopKiller {
             auto end = blockAt(U32(index))->terminator(opt.base);
             if(!end) { ok = false; return; }
 
-            forEachEdge(*end, [&](Edge& edge) {
+            forEachEdge(opt.base, *end, [&](Edge& edge) {
                 if(!edge.target || opt.base[edge.target] != &header) return;
                 if(edge.arguments.size() <= position) { ok = false; return; }
 

@@ -1,0 +1,152 @@
+module ResolveTest
+
+let regionSize: I64 = 4194304
+
+let classCount: I64 = 32
+
+let ratio: F32 = 2.5
+
+let nowhere: %U8 = 0
+
+let & counter: I64 = 0
+
+let & slot: I64 = 0
+
+fn integerConstants() -> I64 {
+bb0:
+  %0: I64 trivial = const 4194304
+  %1: I64 trivial = const 32
+  %2: I64 trivial = div inspect %0 inspect %1
+  return consume %2
+}
+
+fn floatConstant() -> I64 {
+bb0:
+  %1: F32 trivial = const 2.5
+  %2: F32 trivial = const 2
+  %3: Bool trivial = gt inspect %1 inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %4: I64 trivial = const 0
+  jump -> bb2(consume %4)
+
+bb2(%0: I64 trivial):
+  return consume %0
+
+bb3:
+  %5: I64 trivial = const 1
+  jump -> bb2(consume %5)
+}
+
+fn pointerConstant() -> I64 {
+bb0:
+  %1: %U8 trivial = const 0
+  jump -> bb4
+
+bb1:
+  %8: I64 trivial = const 0
+  jump -> bb2(consume %8)
+
+bb2(%0: I64 trivial):
+  return consume %0
+
+bb3:
+  %9: I64 trivial = const 10
+  jump -> bb2(consume %9)
+
+bb4:
+  %3: %%U8 address = alloc frame %U8 [shared call]
+  store inspect %3 borrow %1
+  %4: %U8 trivial = load inspect %3
+  %5: Size trivial = call %a.Size.bitcast(U8) borrow %4
+  %6: Size trivial = const 0
+  %7: Bool trivial = eq inspect %5 inspect %6
+  jump -> bb5(consume %7)
+
+bb5(%2: Bool trivial):
+  branch inspect %2 -> bb3 -> bb1
+}
+
+fn fromNative() -> I64 {
+bb0:
+  %0: Size trivial = const 4194304
+  %1: Size trivial = const 32
+  %2: Size trivial = div inspect %0 inspect %1
+  %3: I64 trivial = convert inspect %2
+  return consume %3
+}
+
+fn addressOfConstant() -> I64 {
+bb0:
+  %0: %I64 address = alloc frame I64
+  %1: %%I64 address = alloc frame %I64 [owned here shape6 .*=shared slot 0]
+  %2: I64 trivial = const 4194304
+  store inspect %0 consume %2
+  %3: I64 [unique slot 0] guaranteed from{%0} = load inspect %0
+  %4: %I64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %3
+  store inspect %1 consume %4
+  %5: %I64 [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %6: %I64 [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %7: I64 trivial = load inspect %6
+  %8: I64 trivial = const 1
+  %9: I64 trivial = add inspect %7 inspect %8
+  store inspect %5 consume %9
+  %10: %I64 [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %11: I64 trivial = load inspect %10
+  %12: I64 trivial = const 4194304
+  %13: I64 trivial = sub inspect %11 inspect %12
+  return consume %13
+}
+
+fn addressOfStorage() -> I64 {
+bb0:
+  %0: %%I64 address = alloc frame %I64 [owned here shape6 .*=shared slot 0]
+  %1: %I64 address = global.addr slot
+  %2: I64 [shared slot 0] guaranteed = load inspect %1
+  %3: %I64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %2
+  store inspect %0 consume %3
+  %4: %I64 [owned here shape6 .*=shared slot 0] trivial = load inspect %0
+  %5: I64 trivial = const 7
+  store inspect %4 consume %5
+  %6: %I64 address = global.addr slot
+  %7: I64 trivial = load inspect %6
+  return consume %7
+}
+
+fn mutableGlobal() -> I64 {
+bb0:
+  %0: %I64 address = global.addr counter
+  %1: I64 trivial = load inspect %0
+  %2: I64 trivial = const 5
+  %3: I64 trivial = add inspect %1 inspect %2
+  %4: %I64 address = global.addr counter
+  store inspect %4 consume %3
+  %5: %I64 address = global.addr counter
+  %6: I64 trivial = load inspect %5
+  return consume %6
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I64 address = alloc frame I64
+  %1: I64 trivial = call integerConstants
+  %2: I64 trivial = call floatConstant
+  %3: I64 trivial = add inspect %1 inspect %2
+  %4: I64 trivial = call pointerConstant
+  %5: I64 trivial = add inspect %3 inspect %4
+  %6: I64 trivial = call fromNative
+  %7: I64 trivial = add inspect %5 inspect %6
+  %8: I64 trivial = call addressOfConstant
+  %9: I64 trivial = add inspect %7 inspect %8
+  %10: I64 trivial = call addressOfStorage
+  %11: I64 trivial = add inspect %9 inspect %10
+  %12: I64 trivial = call mutableGlobal
+  %13: I64 trivial = add inspect %11 inspect %12
+  store inspect %0 consume %13
+  %14: I64 trivial = load inspect %0
+  %15: I32 trivial = convert inspect %14
+  return consume %15
+}
+
+entry main

@@ -118,6 +118,23 @@ YANA_MIR_BINOP( MulHi, "mulhi"_v, OpCategory::Integer, WidthEffect::Closed )
 YANA_MIR_BINOP( BitsUpTo, "bitsupto"_v, OpCategory::Integer, WidthEffect::Closed )
 
 /*
+ * The two bit permutations - `Core.BitPermute`, and x86's `pext`/`pdep` at v3.
+ *
+ * `GatherBits` packs the bits of the value standing at the mask's set positions down into a
+ * contiguous low field; `ScatterBits` spreads a low field back out into those positions. The pair
+ * is `lower/inst.def`'s own two rows said one tier up, and the note there is where what a target
+ * without the instruction spends is written.
+ *
+ * `Integer` rather than `Bits`: a permutation of bits is not something a float or a `Bool` has, and
+ * the family the instances are generated over is the machine widths for the reason `provided.def`
+ * gives. **Both are total** - the library is explicit that a zero mask gathers and scatters nothing
+ * - so `Closed` is the whole of the width column: neither can produce a bit the mask did not have
+ * room for.
+ */
+YANA_MIR_BINOP( GatherBits,  "gatherbits"_v,  OpCategory::Integer, WidthEffect::Closed )
+YANA_MIR_BINOP( ScatterBits, "scatterbits"_v, OpCategory::Integer, WidthEffect::Closed )
+
+/*
  * The two unary operations whose result is not their operand's type, and the two rows a library
  * declaration reaches without an operator being written.
  *
@@ -212,6 +229,28 @@ YANA_MIR_UNOP( LeadingZeros,  "leadingzeros"_v,  UnaryCategory::Bits, WidthEffec
 YANA_MIR_UNOP( TrailingZeros, "trailingzeros"_v, UnaryCategory::Bits, WidthEffect::Closed )
 
 /*
+ * The byte reversal - `Core.ByteSwap`'s one member, and the operation every binary format is read
+ * through.
+ *
+ * A row of its own rather than a shape a backend has to recognize, which is the argument the shipping
+ * stage's own table makes at the same operation: written out of shifts and masks it is eleven
+ * instructions at sixty-four bits, the optimizer is free to reassociate the tree before any peephole
+ * looks for it, and what every machine here has is one instruction.
+ *
+ * `Bits` because what it reads is the operand's bytes and a float has none to reverse in any sense
+ * the language could state. `Closed` because a reversal of an in-range value is in range - the bytes
+ * move within the declared width and none is added - which is true at sixteen bits as much as at
+ * sixty-four, although sixteen is the width the *seam* has to spend rather than emit: the lower IR
+ * has no 16-bit scalar, so `narrowByteSwap` writes the shift pair there. That is a fact about the
+ * lowering and not about the arithmetic, which is why it is not a width effect.
+ *
+ * The set of types with an instance is `hasByteOrder` - 16, 32, 64 and the target's word. `U8` has
+ * nothing to reverse, `WideInt` has fifty-three bits, and a `CodeUnit`'s two widths are eight and
+ * sixteen, so which bytes its are is a question with no answer at one of them.
+ */
+YANA_MIR_UNOP( ByteSwap,      "byteswap"_v,      UnaryCategory::Bits, WidthEffect::Closed )
+
+/*
  * The atomics - Analysis-Atomics.md §5.1, and one node with a column rather than a kind each.
  *
  * `YANA_MIR_ATOMIC( kind, mnemonic, form )`, and both tiers read these rows for `op.def`'s own
@@ -295,9 +334,14 @@ YANA_MIR_ATOMIC( SpinHint,   "atomic.spin"_v,     AtomicForm::Bare     )
  * step and no two do it the same way; written portably it is a reduction tree measured at about
  * forty instructions on x64 where the movemask is two.
  *
- * What is deliberately **not** here is the movemask itself. It is a `LowerReduce` row that a backend
- * writes for itself, so a target without the instruction never sees the kind rather than owing it an
- * expansion - and nothing above a backend may produce one.
+ * `Bits` is the movemask - lane `i` of a mask in bit `i` of an integer, and nothing above the lane
+ * count - and it is a row for the opposite reason to the six: it is not a combination at all, and
+ * nothing portable produces it. **Exactly one declaration does**, `Native.bits`, which is
+ * `@platform(native)` and sits beside the pointer operations precisely because a movemask is a
+ * machine fact with no portable answer; `any`, `all`, `count` and `firstSet` over a mask are the
+ * portable spellings and are the four rows above. This row used to say the kind was a backend's own
+ * and that nothing above one might write it - true while nothing here could reach `Native.bits`, and
+ * no longer, since the emitter is what a target with `pmovmskb` folds four reductions into.
  */
 
 //              kind      mnemonic
@@ -308,6 +352,7 @@ YANA_MIR_REDUCE( Max,      "max"_v      )
 YANA_MIR_REDUCE( And,      "and"_v      )
 YANA_MIR_REDUCE( Or,       "or"_v       )
 YANA_MIR_REDUCE( FirstSet, "firstset"_v )
+YANA_MIR_REDUCE( Bits,     "bits"_v     )
 
 #undef YANA_MIR_BINOP
 #undef YANA_MIR_UNOP

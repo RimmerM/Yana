@@ -9,7 +9,7 @@
 
 fn total(xs: [Int]) -> Int:
     let &sum = 0 :: Int
-    let &i = 0 :: Int
+    let &i = 0 :: Size
 
     while i < length(xs):
         sum = sum + xs[i]
@@ -20,7 +20,7 @@ fn total(xs: [Int]) -> Int:
 -- A mutable slice: the elements may be written and the length may not. Same descriptor, borrowed
 -- mutably, which is why this needs no second type and no coercion.
 fn double(&xs: [Int]):
-    let &i = 0 :: Int
+    let &i = 0 :: Size
 
     -- Read out first: the mutable borrow the assignment target creates is exclusive while it is
     -- live, and a read of the same element on the right of it is the two-phase borrow the checker
@@ -50,11 +50,14 @@ data Cursor {items: '[Int], at: Int}
 
 fn atCursor(c: Cursor) -> Int = c.items[c.at]
 
+-- `at` is an `Int` because the record above is, so the length is narrowed to meet it rather than the
+-- other way round: the field is the design document's `pos`, and a slice's length is a `Size`.
+
 fn sumFrom(xs: [Int], from: Int) -> Int:
     let &c = Cursor {items: xs, at: from}
     let &sum = 0 :: Int
 
-    while c.at < length(c.items):
+    while c.at < (truncate(length(c.items)) :: Int):
         sum = sum + atCursor(c)
         c.at = c.at + 1
 

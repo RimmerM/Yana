@@ -117,17 +117,42 @@ pub let runFixed = 2 :: HeapFlag
 pub fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorrowed}
 
 {-
-   A run of `capacity` slots, placed by the compiler.
+   **`newRun` is declared per target, in `Run.native.yana` and `Run.js.yana`, and not here.**
 
-   An intrinsic, because this is the one operation the language has no way to say about itself: what
-   it expands to is an ordinary allocation with a count beside it (InstAlloc::extent), so where the
-   slots live is decided by the same escape analysis that places every other allocation and the bit
-   it writes into `ownsHeap` is that decision reduced to what a run acts on.
+   It claims one role in both, which is the arrangement `blockCopy`/`copyMemory` already uses: a role
+   claimed by declarations on opposite sides of a platform filter is claimed exactly once in every
+   build. What differs is that the native one also carries a *body*, and a body beside a role is not
+   a contradiction - the hook is what a call site expands to and the body is what a call that cannot
+   be expanded reaches.
+
+   The shipping stage expands both, and the expansion is the one operation the language has no way to
+   say about itself: an ordinary allocation with a count beside it (`InstAlloc::extent`), so where
+   the slots live is decided by the same escape analysis that places every other allocation and the
+   bit it writes into `ownsHeap` is that decision reduced to what a run acts on. The ownership
+   resolver has no placement analysis, so on native it calls the body, which allocates from the heap
+   and says so in the tag; the body has to be native because a heap is what it asks for, which is why
+   the declaration could not stay here.
 -}
-@builtin(newRun)
-pub fn newRun(capacity: Size) -> Run(a)
 
-pub fn capacity(self: Run(a)) -> Size = self.capacity :: Size
+{-
+   **There is no `capacity(self: Run(a))` any more**, and `self.capacity :: Size` at the handful of
+   sites that asked is what took its place.
+
+   `doc/spec/overloading.md` R1 keys an overload set by `(name, arity)` and admits at most one plain
+   function in it; `Array(a)` has the other one, so a module importing both got "ambiguous name
+   capacity" for any program that wrote the word. The array's is the one that stays, because it is
+   the one a *program* calls - a run is reached only from this module and `Core/Array.native.yana`,
+   and both have the field in hand.
+
+   A class over the two was the first answer and does not work yet, which is worth writing down
+   because it looks like the obvious one (it is `doc/progress/2026-09-06-inventory.md` D5). A class
+   member's subject for a container is the container's **view** in the ownership stage - a shared
+   `[a]` in a binding position is two words - and a capacity is a fact about the *owner*, which the
+   view does not carry: `instance Capacity(Array(a))` reports "a shared view of Array(a) has no field
+   called run" there, whatever `self` is written as. What gets a member the owner is a `@builtin`
+   role on the class, the way `Viewed` and `Contiguous` do, and that is compiler machinery rather
+   than something a library declares. Worth revisiting when a class can ask for the owner.
+-}
 
 -- Where the slots start. A container indexes off this; nothing here says how many of them hold
 -- anything, because a run does not know. The result is a pointer into the run's storage, which is
@@ -204,6 +229,24 @@ pub fn slots(self: source'Run(a)) -> %source'a = self.items
    written. Nothing above the optimizer is allowed to depend on the optimizer, and the language's most
    common operation is the last place to start. See defineNativeIndexInstances; the generated body and
    the expansion a call site gets are the same emitter, so the two cannot disagree.
+
+   **The ownership stage answers this the other way and it is now half built** - `Core/Array.yana`
+   writes the same six as ordinary bodies marked `@inline(always)`, which that stage grafts at SSA
+   conversion with no optimizer involved, so the cost argument above is met rather than dodged.
+
+   **The attribute is no longer what stands between them** - inventory D12, 2026-09-06. This stage's
+   graft still takes only a single expression with no branch, no call and no field read
+   (`compiler/resolve/inline.cpp`), and what it declines is now admitted by `compiler/opt`'s inliner
+   against its ceiling alone rather than reported as an error, so an `@inline(always)` owner-head
+   `Index` measures identical or shorter at `-mode lower` than these emitters do.
+   `Length(Array(a))` is written in `Core/Array.yana` and carries the attribute for that reason.
+
+   What stands there instead is the **borrow checker**, and it is a fact about `getMut` rather than
+   about cost: a written member hands back a borrow the signature roots in `self`, so a call takes an
+   exclusive loan of the whole container for as long as the element lives, where these emitters
+   produce a borrow of the *element's* address. `xs[k] = xs[k] + 1` and a subscript handed to a lens
+   are then refused. `Core/Array.yana` carries the measurement and the three shapes; the four `Index`
+   heads and the window's `Contiguous`/`Writable` stay here until an element loan is expressible.
 
    Declared over the slice and not over the owner, which is not an omission: reading is structural,
    so the operation that reads asks for the borrow, and an owner reaches it by the ordinary

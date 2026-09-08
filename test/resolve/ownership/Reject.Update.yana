@@ -1,0 +1,31 @@
+{-
+   What a record update refuses.
+
+   # resolver: ownership
+
+   Two refusals and they are different sentences. A source with no `Copy` cannot be *duplicated*,
+   and the message says so by naming the form that does not need to - `->` relocates. A source that
+   is not a single-constructor record has no named fields to replace at all, which is the same rule
+   that makes a field of a sum reachable by matching and by nothing else.
+-}
+
+data Held {n: Int}
+
+instance Drop(Held):
+    fn drop(->value: Held): return
+
+data Box {held: Held, tag: Int}
+
+data Choice = One {a: Int} | Two {b: Int}
+
+fn copied(b: Box) -> Box = {b | tag: 1}
+
+fn ofSum(c: Choice) -> Choice = {c | a: 1}
+
+fn ofScalar(n: Int) -> Int = {n | x: 1}
+
+fn noSuchField(b: Box) -> Box = {->b | missing: 1}
+
+fn badPath(b: Box) -> Box = {->b | .held.missing: 1}
+
+fn main() -> Int = 0

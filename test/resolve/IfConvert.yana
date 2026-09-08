@@ -73,6 +73,23 @@ fn negRight(a: Int, b: Int) -> Bool = a > 0 && !(b > 0)
 fn flipped(a: Int) -> Bool = if a > 0 then False else True
 fn plain(a: Int) -> Bool = if a > 0 then True else False
 
+{-
+   De Morgan: two complements combined are one complement of the combination - `tryDeMorgan` in
+   `opt/simplify.cpp`, which is what the `and` the rewrite above builds is then read by.
+
+   Over `Bool` parameters rather than over comparisons, and that is the cost bound deciding something
+   again: `!(a > 0) && !(b > 0)` costs a load, a constant, a comparison and a complement in its
+   skipped arm, so it stays a branch and the `and` this reads is never formed at all. What reaches
+   the rewrite is a conjunction of complements the caller already computed, which is the one shape in
+   the whole corpus that does.
+-}
+fn negBoth(a: Bool, b: Bool) -> Bool = !a && !b
+
+fn truths(a: Bool, b: Bool) -> Int:
+    let &n = 0 :: Int
+    if negBoth(a, b) then n = n + 1
+    return n
+
 fn truth(a: Int, b: Int) -> Int:
     let &n = 0 :: Int
     if conj(a, b) then n = n + 1
@@ -83,8 +100,39 @@ fn truth(a: Int, b: Int) -> Int:
     if plain(a) then n = n + 32
     return n
 
+{-
+   Return unification: the same conversion with the function's exit as the join.
+
+   `either` is it written out - two arms that both `return`, merging at no block at all - and `guard`
+   is the shape an author actually writes, a guard clause with no `else`. They are the *same* shape
+   here and that is the thing worth pinning: the false edge of `guard`'s branch goes straight to the
+   block holding the second `return`, whose only predecessor is the head, so both targets are return
+   arms and nothing about the missing `else` reaches the pass.
+
+   `guardArm` is the decline, and it is the diamond's decline read at the exit: an arm holding a call
+   may not be made unconditional, so the branch stays. The cost bound and the ownership rule are the
+   same two the join case is held to and are asserted there.
+-}
+fn either(a: Int, b: Int) -> Int:
+    if a > b:
+        return a
+    else:
+        return b
+
+fn guard(n: Int) -> Int:
+    if n > 100:
+        return 9
+
+    return n
+
 @noinline
 fn doubled(value: Int) -> Int = value * 2
+
+fn guardArm(n: Int) -> Int:
+    if n > 0:
+        return doubled(n)
+
+    return 0
 
 -- A call is not speculatable, so this stays a branch. It is the decline the whole pass rests on:
 -- an arm that may do anything is an arm that may not be made unconditional.
@@ -182,6 +230,15 @@ fn main() -> Int:
 
     total = total + ratio(30, zero()) * 59
     total = total + ratio(30, 3) * 61
+
+    total = total + either(3, 8) * 83
+    total = total + either(8, 3) * 89
+    total = total + guard(200) * 97
+    total = total + guard(5) * 101
+    total = total + guardArm(6) * 103
+    total = total + guardArm(-6) * 107
+    total = total + truths(False, False) * 109
+    total = total + truths(True, False) * 113
 
     total = total + owners(True) * 67
     total = total + owners(False) * 71

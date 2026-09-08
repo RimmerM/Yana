@@ -1,0 +1,636 @@
+module ResolveTest
+
+data State = Idle | Locked | Contended
+
+data Code = Ok = 0 | Retry = 1000 | Fatal = 60000
+
+data Wide = Low = 0 | High = 4000000000
+
+fn basics() -> I32 {
+  local c: Atomic(I32)
+  local seen: I32
+  local previous: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(I32) [shared call] = read borrow.shared (c) loan0
+  %4: I32 = const 7
+  %5: StoreOrder = const StoreRelease
+  %6: {} = atomic.store release inspect %3 inspect %4
+  %7: Atomic(I32) [shared call] = read borrow.shared (c) loan1
+  %8: LoadOrder = const LoadAcquire
+  %9: I32 = atomic.load acquire inspect %7
+  write.init borrow.unique (seen) take %9
+  %11: Atomic(I32) [shared call] = read borrow.shared (c) loan2
+  %12: I32 = const 9
+  %13: UpdateOrder = const UpdateAcquireRelease
+  %14: I32 = atomic.xchg acqrel inspect %11 inspect %12
+  write.init borrow.unique (previous) take %14
+  %16: I32 = read copy.trivial (seen)
+  %17: I32 = read copy.trivial (previous)
+  %18: I32 = add inspect %16 inspect %17
+  %19: Atomic(I32) = read take (c)
+  %20: I32 = atomic.into relaxed take %19
+  %21: I32 = add inspect %18 inspect %20
+  return take %21
+}
+
+fn counters() -> I32 {
+  local c: Atomic(I32)
+  local a: I32
+  local s: I32
+  local n: I32
+  local o: I32
+  local x: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(I32) [shared call] = read borrow.shared (c) loan0
+  %4: I32 = const 4
+  %5: UpdateOrder = const UpdateRelaxed
+  %6: I32 = atomic.add relaxed inspect %3 inspect %4
+  write.init borrow.unique (a) take %6
+  %8: Atomic(I32) [shared call] = read borrow.shared (c) loan1
+  %9: I32 = const 2
+  %10: UpdateOrder = const UpdateAcquire
+  %11: I32 = atomic.sub acquire inspect %8 inspect %9
+  write.init borrow.unique (s) take %11
+  %13: Atomic(I32) [shared call] = read borrow.shared (c) loan2
+  %14: I32 = const 255
+  %15: UpdateOrder = const UpdateRelease
+  %16: I32 = atomic.and release inspect %13 inspect %14
+  write.init borrow.unique (n) take %16
+  %18: Atomic(I32) [shared call] = read borrow.shared (c) loan3
+  %19: I32 = const 16
+  %20: UpdateOrder = const UpdateAcquireRelease
+  %21: I32 = atomic.or acqrel inspect %18 inspect %19
+  write.init borrow.unique (o) take %21
+  %23: Atomic(I32) [shared call] = read borrow.shared (c) loan4
+  %24: I32 = const 1
+  %25: UpdateOrder = const UpdateSequential
+  %26: I32 = atomic.xor seqcst inspect %23 inspect %24
+  write.init borrow.unique (x) take %26
+  %28: I32 = read copy.trivial (a)
+  %29: I32 = read copy.trivial (s)
+  %30: I32 = add inspect %28 inspect %29
+  %31: I32 = read copy.trivial (n)
+  %32: I32 = add inspect %30 inspect %31
+  %33: I32 = read copy.trivial (o)
+  %34: I32 = add inspect %32 inspect %33
+  %35: I32 = read copy.trivial (x)
+  %36: I32 = add inspect %34 inspect %35
+  return take %36
+}
+
+fn compare'2() -> I32 {
+  local c: Atomic(I32)
+  local local1: ExchangeResult(I32)
+  local actual: I32
+
+bb0:
+  %0: I32 = const 5
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(I32) [shared call] = read borrow.shared (c) loan0
+  %4: I32 = const 5
+  %5: I32 = const 6
+  %6: UpdateOrder = const UpdateAcquireRelease
+  %7: I32 = atomic.cas acqrel/acquire inspect %3 inspect %4 inspect %5
+  %8: Bool = atomic.ok inspect %7
+  branch inspect %8 -> bb3(take %7) -> bb1(take %7)
+
+bb1(%9: I32):
+  %13: ExchangeResult(I32) = aggregate.Unchanged take %9
+  jump -> bb2(take %13, take %9)
+
+bb2(%14: ExchangeResult(I32), %15: I32):
+  write.init borrow.unique (local1) take %14
+  %19: U8 = read copy.trivial (local1.#)
+  %20: U8 = const 0
+  %21: Bool = eq inspect %19 inspect %20
+  branch inspect %21 -> bb5 -> bb4
+
+bb3(%10: I32):
+  %12: ExchangeResult(I32) = aggregate.Exchanged
+  jump -> bb2(take %12, take %10)
+
+bb4:
+  %25: I32 = read copy.trivial (local1.Unchanged)
+  write.init borrow.unique (actual) take %25
+  %27: I32 = read copy.trivial (actual)
+  return take %27
+
+bb5:
+  %23: I32 = const 1
+  return take %23
+}
+
+fn retry() -> I32 {
+  local c: Atomic(I32)
+  local local1: ExchangeResult(I32)
+  local local2: I32
+  local local3: ExchangeResult(I32)
+  local actual: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(I32) [shared call] = read borrow.shared (c) loan0
+  %4: I32 = const 0
+  %5: I32 = const 1
+  %6: UpdateOrder = const UpdateRelease
+  %7: I32 = atomic.cas release/relaxed weak inspect %3 inspect %4 inspect %5
+  %8: Bool = atomic.ok inspect %7
+  branch inspect %8 -> bb3(take %7) -> bb1(take %7)
+
+bb1(%9: I32):
+  %13: ExchangeResult(I32) = aggregate.Unchanged take %9
+  jump -> bb2(take %13, take %9)
+
+bb2(%14: ExchangeResult(I32), %15: I32):
+  write.init borrow.unique (local1) take %14
+  %19: U8 = read copy.trivial (local1.#)
+  %20: U8 = const 0
+  %21: Bool = eq inspect %19 inspect %20
+  branch inspect %21 -> bb6 -> bb4
+
+bb3(%10: I32):
+  %12: ExchangeResult(I32) = aggregate.Exchanged
+  jump -> bb2(take %12, take %10)
+
+bb4:
+  %24: I32 = read copy.trivial (local1.Unchanged)
+  write.init borrow.unique (local2) take %24
+  %26: {} = const {}
+  jump -> bb5
+
+bb5:
+  %29: Atomic(I32) [shared call] = read borrow.shared (c) loan1
+  %30: I32 = const 1
+  %31: I32 = const 2
+  %32: UpdateOrder = const UpdateSequential
+  %33: LoadOrder = const LoadAcquire
+  %34: I32 = atomic.cas seqcst/acquire inspect %29 inspect %30 inspect %31
+  %35: Bool = atomic.ok inspect %34
+  branch inspect %35 -> bb9(take %34) -> bb7(take %34)
+
+bb6:
+  %23: {} = const {}
+  jump -> bb5
+
+bb7(%36: I32):
+  %40: ExchangeResult(I32) = aggregate.Unchanged take %36
+  jump -> bb8(take %40, take %36)
+
+bb8(%41: ExchangeResult(I32), %42: I32):
+  write.init borrow.unique (local3) take %41
+  %46: U8 = read copy.trivial (local3.#)
+  %47: U8 = const 0
+  %48: Bool = eq inspect %46 inspect %47
+  branch inspect %48 -> bb11 -> bb10
+
+bb9(%37: I32):
+  %39: ExchangeResult(I32) = aggregate.Exchanged
+  jump -> bb8(take %39, take %37)
+
+bb10:
+  %52: I32 = read copy.trivial (local3.Unchanged)
+  write.init borrow.unique (actual) take %52
+  %54: I32 = read copy.trivial (actual)
+  return take %54
+
+bb11:
+  %50: I32 = const 2
+  return take %50
+}
+
+fn ordering() -> I32 {
+  local c: Atomic(I32)
+
+bb0:
+  %0: I32 = const 0
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(I32) [shared call] = read borrow.shared (c) loan0
+  %4: I32 = const 1
+  %5: StoreOrder = const StoreRelaxed
+  %6: {} = atomic.store relaxed inspect %3 inspect %4
+  %7: FenceOrder = const FenceRelease
+  %8: {} = atomic.fence release
+  %9: {} = atomic.spin relaxed
+  %10: Atomic(I32) [shared call] = read borrow.shared (c) loan1
+  %11: LoadOrder = const LoadRelaxed
+  %12: I32 = atomic.load relaxed inspect %10
+  return take %12
+}
+
+fn widths(p: %U8 [shared call]) -> I64 {
+  local byte: Atomic(U8)
+  local half: Atomic(U16)
+  local word: Atomic(U32)
+  local long: Atomic(I64)
+  local flag: Atomic(Bool)
+  local address: Atomic(%U8)
+
+bb0:
+  %0: U8 = const 1
+  %1: Atomic(U8) = atomic.new relaxed inspect %0
+  write.init borrow.unique (byte) take %1
+  %3: U16 = const 2
+  %4: Atomic(U16) = atomic.new relaxed inspect %3
+  write.init borrow.unique (half) take %4
+  %6: U32 = const 3
+  %7: Atomic(U32) = atomic.new relaxed inspect %6
+  write.init borrow.unique (word) take %7
+  %9: I64 = const 4
+  %10: Atomic(I64) = atomic.new relaxed inspect %9
+  write.init borrow.unique (long) take %10
+  %12: Bool = const True
+  %13: Atomic(Bool) = atomic.new relaxed inspect %12
+  write.init borrow.unique (flag) take %13
+  %15: %U8 = read copy.trivial (p)
+  %16: Atomic(%U8) = atomic.new relaxed inspect %15
+  write.init borrow.unique (address) take %16
+  %18: Atomic(U8) [shared call] = read borrow.shared (byte) loan0
+  %19: U8 = const 9
+  %20: StoreOrder = const StoreRelease
+  %21: {} = atomic.store release inspect %18 inspect %19
+  %22: Atomic(U16) [shared call] = read borrow.shared (half) loan1
+  %23: U16 = const 9
+  %24: StoreOrder = const StoreRelease
+  %25: {} = atomic.store release inspect %22 inspect %23
+  %26: Atomic(U32) [shared call] = read borrow.shared (word) loan2
+  %27: U32 = const 9
+  %28: StoreOrder = const StoreRelease
+  %29: {} = atomic.store release inspect %26 inspect %27
+  %30: Atomic(Bool) [shared call] = read borrow.shared (flag) loan3
+  %31: Bool = const False
+  %32: StoreOrder = const StoreRelease
+  %33: {} = atomic.store release inspect %30 inspect %31
+  %34: Atomic(%U8) [shared call] = read borrow.shared (address) loan4
+  %35: %U8 = read copy.trivial (p)
+  %36: UpdateOrder = const UpdateAcquireRelease
+  %37: %U8 = atomic.xchg acqrel inspect %34 inspect %35
+  %38: Atomic(I64) [shared call] = read borrow.shared (long) loan5
+  %39: I64 = const 1
+  %40: UpdateOrder = const UpdateRelaxed
+  %41: I64 = atomic.add relaxed inspect %38 inspect %39
+  return take %41
+}
+
+fn lock'2() -> State {
+  local state: Atomic(State)
+  local local1: ExchangeResult(State)
+  local actual: State
+
+bb0:
+  %0: State = const Idle
+  %1: Atomic(State) = atomic.new relaxed inspect %0
+  write.init borrow.unique (state) take %1
+  %3: Atomic(State) [shared call] = read borrow.shared (state) loan0
+  %4: State = const Idle
+  %5: State = const Locked
+  %6: UpdateOrder = const UpdateAcquire
+  %7: State = atomic.cas acquire/acquire inspect %3 inspect %4 inspect %5
+  %8: Bool = atomic.ok inspect %7
+  branch inspect %8 -> bb3(take %7) -> bb1(take %7)
+
+bb1(%9: State):
+  %13: ExchangeResult(State) = aggregate.Unchanged take %9
+  jump -> bb2(take %13, take %9)
+
+bb2(%14: ExchangeResult(State), %15: State):
+  write.init borrow.unique (local1) take %14
+  %19: U8 = read copy.trivial (local1.#)
+  %20: U8 = const 0
+  %21: Bool = eq inspect %19 inspect %20
+  branch inspect %21 -> bb5 -> bb4
+
+bb3(%10: State):
+  %12: ExchangeResult(State) = aggregate.Exchanged
+  jump -> bb2(take %12, take %10)
+
+bb4:
+  %25: State = read copy.trivial (local1.Unchanged)
+  write.init borrow.unique (actual) take %25
+  %27: State = read copy.trivial (actual)
+  return take %27
+
+bb5:
+  %23: State = const Locked
+  return take %23
+}
+
+fn classify() -> Code {
+  local c: Atomic(Code)
+  local previous: Code
+  local local2: ExchangeResult(Code)
+  local actual: Code
+
+bb0:
+  %0: Code = const Ok
+  %1: Atomic(Code) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(Code) [shared call] = read borrow.shared (c) loan0
+  %4: Code = const Retry
+  %5: StoreOrder = const StoreRelaxed
+  %6: {} = atomic.store relaxed inspect %3 inspect %4
+  %7: Atomic(Code) [shared call] = read borrow.shared (c) loan1
+  %8: Code = const Fatal
+  %9: UpdateOrder = const UpdateAcquireRelease
+  %10: Code = atomic.xchg acqrel inspect %7 inspect %8
+  write.init borrow.unique (previous) take %10
+  %12: Atomic(Code) [shared call] = read borrow.shared (c) loan2
+  %13: Code = const Fatal
+  %14: Code = const Ok
+  %15: UpdateOrder = const UpdateSequential
+  %16: Code = atomic.cas seqcst/seqcst inspect %12 inspect %13 inspect %14
+  %17: Bool = atomic.ok inspect %16
+  branch inspect %17 -> bb3(take %16) -> bb1(take %16)
+
+bb1(%18: Code):
+  %22: ExchangeResult(Code) = aggregate.Unchanged take %18
+  jump -> bb2(take %22, take %18)
+
+bb2(%23: ExchangeResult(Code), %24: Code):
+  write.init borrow.unique (local2) take %23
+  %28: U8 = read copy.trivial (local2.#)
+  %29: U8 = const 0
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb5 -> bb4
+
+bb3(%19: Code):
+  %21: ExchangeResult(Code) = aggregate.Exchanged
+  jump -> bb2(take %21, take %19)
+
+bb4:
+  %34: Code = read copy.trivial (local2.Unchanged)
+  write.init borrow.unique (actual) take %34
+  %36: Code = read copy.trivial (actual)
+  return take %36
+
+bb5:
+  %32: Code = read copy.trivial (previous)
+  return take %32
+}
+
+fn wide() -> Wide {
+  local w: Atomic(Wide)
+
+bb0:
+  %0: Wide = const Low
+  %1: Atomic(Wide) = atomic.new relaxed inspect %0
+  write.init borrow.unique (w) take %1
+  %3: Atomic(Wide) [shared call] = read borrow.shared (w) loan0
+  %4: Wide = const High
+  %5: UpdateOrder = const UpdateRelaxed
+  %6: Wide = atomic.xchg relaxed inspect %3 inspect %4
+  %7: Atomic(Wide) [shared call] = read borrow.shared (w) loan1
+  %8: LoadOrder = const LoadAcquire
+  %9: Wide = atomic.load acquire inspect %7
+  return take %9
+}
+
+fn narrow() -> I64 {
+  local zero: I8
+  local byte: Atomic(U8)
+  local half: Atomic(U16)
+  local signed: Atomic(I8)
+  local a: U8
+  local b: U16
+  local c: I8
+  local local7: ExchangeResult(I8)
+  local actual: I8
+  local d: I8
+
+bb0:
+  %0: I8 = const 0
+  write.init borrow.unique (zero) take %0
+  %2: U8 = const 250
+  %3: Atomic(U8) = atomic.new relaxed inspect %2
+  write.init borrow.unique (byte) take %3
+  %5: U16 = const 1000
+  %6: Atomic(U16) = atomic.new relaxed inspect %5
+  write.init borrow.unique (half) take %6
+  %8: I8 = const 0
+  %9: I8 = const 5
+  %10: I8 = sub inspect %8 inspect %9
+  %11: Atomic(I8) = atomic.new relaxed inspect %10
+  write.init borrow.unique (signed) take %11
+  %13: Atomic(U8) [shared call] = read borrow.shared (byte) loan0
+  %14: U8 = const 10
+  %15: UpdateOrder = const UpdateRelaxed
+  %16: U8 = atomic.sub relaxed inspect %13 inspect %14
+  write.init borrow.unique (a) take %16
+  %18: Atomic(U16) [shared call] = read borrow.shared (half) loan1
+  %19: U16 = const 61680
+  %20: UpdateOrder = const UpdateAcquire
+  %21: U16 = atomic.xor acquire inspect %18 inspect %19
+  write.init borrow.unique (b) take %21
+  %23: Atomic(I8) [shared call] = read borrow.shared (signed) loan2
+  %24: I8 = const 0
+  %25: I8 = const 1
+  %26: I8 = sub inspect %24 inspect %25
+  %27: UpdateOrder = const UpdateRelease
+  %28: I8 = atomic.add release inspect %23 inspect %26
+  write.init borrow.unique (c) take %28
+  %30: Atomic(I8) [shared call] = read borrow.shared (signed) loan3
+  %31: I8 = const 0
+  %32: I8 = const 6
+  %33: I8 = sub inspect %31 inspect %32
+  %34: I8 = const 0
+  %35: I8 = const 7
+  %36: I8 = sub inspect %34 inspect %35
+  %37: UpdateOrder = const UpdateSequential
+  %38: I8 = atomic.cas seqcst/seqcst inspect %30 inspect %33 inspect %36
+  %39: Bool = atomic.ok inspect %38
+  branch inspect %39 -> bb3(take %38) -> bb1(take %38)
+
+bb1(%40: I8):
+  %44: ExchangeResult(I8) = aggregate.Unchanged take %40
+  jump -> bb2(take %44, take %40)
+
+bb2(%45: ExchangeResult(I8), %46: I8):
+  write.init borrow.unique (local7) take %45
+  %50: U8 = read copy.trivial (local7.#)
+  %51: U8 = const 0
+  %52: Bool = eq inspect %50 inspect %51
+  branch inspect %52 -> bb6 -> bb4
+
+bb3(%41: I8):
+  %43: ExchangeResult(I8) = aggregate.Exchanged
+  jump -> bb2(take %43, take %41)
+
+bb4:
+  %55: I8 = read copy.trivial (local7.Unchanged)
+  write.init borrow.unique (actual) take %55
+  %57: I8 = read copy.trivial (actual)
+  jump -> bb5(take %57)
+
+bb5(%58: I8):
+  write.init borrow.unique (d) take %58
+  %62: U8 = read copy.trivial (a)
+  %63: I64 = convert inspect %62
+  %64: U16 = read copy.trivial (b)
+  %65: I64 = convert inspect %64
+  %66: I64 = add inspect %63 inspect %65
+  %67: I8 = read copy.trivial (c)
+  %68: I64 = convert inspect %67
+  %69: I64 = add inspect %66 inspect %68
+  %70: I8 = read copy.trivial (d)
+  %71: I64 = convert inspect %70
+  %72: I64 = add inspect %69 inspect %71
+  return take %72
+
+bb6:
+  %54: I8 = const 0
+  jump -> bb5(take %54)
+}
+
+fn viewed(p: %U8 [shared call]) -> I32 {
+  local view: Atomic(I32) [shared slot 0]
+  local other: Atomic(I32) [shared slot 0]
+  local bumped: I32
+
+bb0:
+  %0: %U8 = read copy.trivial (p)
+  %1: Atomic(I32) [shared slot 0] = read borrow.shared ([%%0]) loan0
+  write.init borrow.unique (view) borrow.shared %1
+  %3: %U8 = read copy.trivial (p)
+  %4: Atomic(I32) [shared slot 0] = read borrow.shared ([%%3]) loan1
+  write.init borrow.unique (other) borrow.shared %4
+  %6: Atomic(I32) [shared slot 0] = read borrow.shared (view) loan2 roots{0}
+  %7: I32 = const 1
+  %8: StoreOrder = const StoreRelease
+  %9: {} = atomic.store release inspect %6 inspect %7
+  %10: Atomic(I32) [shared slot 0] = read borrow.shared (other) loan3 roots{1}
+  %11: I32 = const 2
+  %12: UpdateOrder = const UpdateAcquireRelease
+  %13: I32 = atomic.add acqrel inspect %10 inspect %11
+  write.init borrow.unique (bumped) take %13
+  %15: I32 = read copy.trivial (bumped)
+  %16: Atomic(I32) [shared slot 0] = read borrow.shared (view) loan4 roots{0}
+  %17: LoadOrder = const LoadAcquire
+  %18: I32 = atomic.load acquire inspect %16
+  %19: I32 = add inspect %15 inspect %18
+  return take %19
+}
+
+fn main() -> I32 {
+  local widthSum: I32
+  local locked: I32
+  local retried: I32
+  local high: I32
+  local narrowed: I32
+  local seen: I32
+
+bb0:
+  %0: %U8 = call null(U8)
+  %1: I64 = call widths borrow.shared %0
+  %2: I64 = const 0
+  %3: Bool = gt inspect %1 inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %6: I32 = const 0
+  jump -> bb2(take %6)
+
+bb2(%7: I32):
+  write.init borrow.unique (widthSum) take %7
+  %11: State = call lock'2
+  %12: State = const Locked
+  %13: Bool = eq inspect %11 inspect %12
+  branch inspect %13 -> bb6 -> bb4
+
+bb3:
+  %5: I32 = const 1
+  jump -> bb2(take %5)
+
+bb4:
+  %16: I32 = const 0
+  jump -> bb5(take %16)
+
+bb5(%17: I32):
+  write.init borrow.unique (locked) take %17
+  %21: Code = call classify
+  %22: Code = const Retry
+  %23: Bool = eq inspect %21 inspect %22
+  branch inspect %23 -> bb9 -> bb7
+
+bb6:
+  %15: I32 = const 1
+  jump -> bb5(take %15)
+
+bb7:
+  %26: I32 = const 0
+  jump -> bb8(take %26)
+
+bb8(%27: I32):
+  write.init borrow.unique (retried) take %27
+  %31: Wide = call wide
+  %32: Wide = const High
+  %33: Bool = eq inspect %31 inspect %32
+  branch inspect %33 -> bb12 -> bb10
+
+bb9:
+  %25: I32 = const 1
+  jump -> bb8(take %25)
+
+bb10:
+  %36: I32 = const 0
+  jump -> bb11(take %36)
+
+bb11(%37: I32):
+  write.init borrow.unique (high) take %37
+  %41: I64 = call narrow
+  %42: I64 = const 0
+  %43: Bool = gt inspect %41 inspect %42
+  branch inspect %43 -> bb15 -> bb13
+
+bb12:
+  %35: I32 = const 1
+  jump -> bb11(take %35)
+
+bb13:
+  %46: I32 = const 0
+  jump -> bb14(take %46)
+
+bb14(%47: I32):
+  write.init borrow.unique (narrowed) take %47
+  %51: %U8 = call null(U8)
+  %52: I32 = call viewed borrow.shared %51
+  write.init borrow.unique (seen) take %52
+  %54: I32 = call basics
+  %55: I32 = call counters
+  %56: I32 = add inspect %54 inspect %55
+  %57: I32 = call compare'2
+  %58: I32 = add inspect %56 inspect %57
+  %59: I32 = call retry
+  %60: I32 = add inspect %58 inspect %59
+  %61: I32 = call ordering
+  %62: I32 = add inspect %60 inspect %61
+  %63: I32 = read copy.trivial (widthSum)
+  %64: I32 = add inspect %62 inspect %63
+  %65: I32 = read copy.trivial (locked)
+  %66: I32 = add inspect %64 inspect %65
+  %67: I32 = read copy.trivial (retried)
+  %68: I32 = add inspect %66 inspect %67
+  %69: I32 = read copy.trivial (high)
+  %70: I32 = add inspect %68 inspect %69
+  %71: I32 = read copy.trivial (narrowed)
+  %72: I32 = add inspect %70 inspect %71
+  %73: I32 = read copy.trivial (seen)
+  %74: I32 = add inspect %72 inspect %73
+  return take %74
+
+bb15:
+  %45: I32 = const 1
+  jump -> bb14(take %45)
+}
+
+entry main

@@ -1,0 +1,92 @@
+let image$base: () = <none>
+
+fn absolute(%x: I32) -> I32 {
+  b0:
+    %v3 = cmp_lt %x, 0 : Bool
+    %v7 = sub 0, %x : I32
+    %v12 = select %v3 ? %v7 : %x : I32
+    ret %v12
+}
+
+fn decrement(%x: I32) -> I32 {
+  b0:
+    %v3 = sub %x, 1 : I32
+    ret %v3
+}
+
+fn stepped(%x: I32) -> I32 {
+  b0:
+    %v7 = sub %x, 1 : I32
+    %v4 = add %v7, 1 : I32
+    ret %v4
+}
+
+fn clamped(%x: I32, %limit: I32) -> I32 {
+  b0:
+    %v2 = cmp_gt %x, %limit : Bool
+    je %v2, b1, b2
+
+  b1:
+    ret %limit
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = sub 0, %limit : I32
+    %v9 = cmp_lt %x, %v8 : Bool
+    je %v9, b4, b5
+
+  b4:
+    ret %v8
+
+  b5:
+    jmp b6
+
+  b6:
+    ret %x
+}
+
+(Ord(a)) fn below(%x: a, %y: a) -> Bool {
+  schema {
+    #0 type a
+    #1 class Ord(a)
+  }
+
+  b0:
+    %v2 = gencall Ord(a).<, %x, %y : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, True], [b2, False] : Bool
+    ret %v8
+}
+
+fn source() -> I32 {
+  b0:
+    ret -4
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = call source : I32
+    %v17 = cmp_lt %v0, 0 : Bool
+    %v19 = sub 0, %v0 : I32
+    %v20 = select %v17 ? %v19 : %v0 : I32
+    %v37 = cmp_lt %v20, 5 : Bool
+    %v10 = add %v20, 8 : I32
+    %v45 = select %v37 ? %v10 : 0 : I32
+    ret %v45
+}
+
+fn below(I32)(%x: I32, %y: I32) -> Bool {
+  b0:
+    %v3 = cmp_lt %x, %y : Bool
+    ret %v3
+}

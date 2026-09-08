@@ -1,6 +1,6 @@
 module ResolveTest
 
-fn sum(n: I32 [shared call]) -> I32 {
+fn sum'2(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %9: %I32 address = alloc frame I32 [shared call]
   %10: %I32 address = alloc frame I32
@@ -86,7 +86,7 @@ bb5(%9: I32 trivial, %10: I32 trivial):
   jump -> bb1(consume %9, consume %10)
 }
 
-fn empty() -> I32 {
+fn empty'2() -> I32 {
 bb0:
   %40: %I32 address = alloc frame I32
   %41: %I32 address = alloc frame I32
@@ -461,7 +461,7 @@ bb0:
   store inspect %10 consume %14
   %15: I32 trivial = const 0
   store inspect %11 consume %15
-  %16: U8 trivial = load inspect %10
+  %16: U8 trivial = const 255
   %17: U8 trivial = const 0
   %18: U8 trivial = const 1
   store inspect %12 consume %17
@@ -508,7 +508,7 @@ bb0:
   store inspect %8 consume %12
   %13: I32 trivial = const 0
   store inspect %9 consume %13
-  %14: U8 trivial = load inspect %8
+  %14: U8 trivial = const 255
   %15: U8 trivial = const 0
   %16: U8 trivial = const 1
   store inspect %10 consume %15
@@ -549,8 +549,8 @@ bb0:
   store inspect %8 consume %12
   %13: I32 trivial = const 0
   store inspect %9 consume %13
-  %14: U8 trivial = load inspect %8
-  %15: U8 trivial = load inspect %8
+  %14: U8 trivial = const 0
+  %15: U8 trivial = const 0
   %16: U8 trivial = const 1
   store inspect %10 consume %14
   jump -> bb1(consume %15, consume %16)
@@ -856,11 +856,11 @@ bb8(%20: I32 trivial, %21: I32 trivial, %22: I32 trivial, %23: I32 trivial):
 fn walked() -> I32 {
 bb0:
   %0: I32 trivial = const 5
-  %1: I32 trivial = call sum borrow %0
+  %1: I32 trivial = call sum'2 borrow %0
   %2: I32 trivial = const 5
   %3: I32 trivial = call sumInclusive borrow %2
   %4: I32 trivial = add inspect %1 inspect %3
-  %5: I32 trivial = call empty
+  %5: I32 trivial = call empty'2
   %6: I32 trivial = add inspect %4 inspect %5
   %7: I32 trivial = const 4
   %8: I32 trivial = call ascending borrow %7

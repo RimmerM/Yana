@@ -63,7 +63,7 @@ bb5:
   jump -> bb2
 }
 
-lens fn none($body: (I32) -> I32 [shared call]) -> I32 {
+lens fn none'2($body: (I32) -> I32 [shared call]) -> I32 {
   local & $yielded: I32
 
 bb0:
@@ -102,14 +102,14 @@ bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
   jump -> bb1
 }
 
-fn empty() -> I32 {
+fn empty'2() -> I32 {
   local & sum: I32
   local x: I32 [shared call]
 
 bb0:
   %0: I32 = const 5
   write.init borrow.unique (sum) take %0
-  lens.call none -> bb2
+  lens.call none'2 -> bb2
 
 bb1:
   %10: I32 = read copy.trivial (sum)
@@ -1100,7 +1100,7 @@ bb0:
   %2: I32 = const 4
   %3: I32 = call summed borrow.shared %2
   write.init borrow.unique (a) take %3
-  %5: I32 = call empty
+  %5: I32 = call empty'2
   write.init borrow.unique (b) take %5
   %7: I32 = const 10
   %8: I32 = call broken borrow.shared %7

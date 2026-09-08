@@ -1,0 +1,52 @@
+{-
+   A **literal operand** of an operator whose name reaches more than one declaration.
+
+   R5 pushes a position's type down only where a plain function is the whole overload set, so an
+   untyped number standing in a set of several has nothing to take. Built at its default it then
+   fits nothing: `lib/Core` writes `values(buffer) + at` and `48 + rest` against `Num.+` beside
+   `lib/Native`'s pointer `+`, and an `I32` literal is neither a pointer nor the other operand's
+   width - eight sites reported as "no + accepts these arguments".
+
+   A literal is a `FromInt` call at a type to be decided, so what decides it is the position it
+   fills. The operand is therefore left unbuilt while the candidates are tried: a candidate is
+   viable when its *other* parameters fix the literal's position and a conversion instance exists
+   there, exactly one viable candidate selects, and several is the ambiguity R2 already reports.
+
+   The numbers are what say which candidate each operator reached and at which width the number was
+   built - a rule that broke would change what this program computes rather than whether it compiles.
+-}
+
+data Tag {n: I64}
+
+-- The plain half of the set at `(+, 2)` and at `(-, 2)`, beside Core's `Num.+` and `Num.-`. Neither
+-- takes a number on the left, which is what makes the literal cases below decide on one candidate.
+fn +(lhs: Tag, rhs: I64) -> I64 = lhs.n + rhs + 1000
+fn -(lhs: Tag, rhs: I64) -> I64 = lhs.n - rhs - 1000
+
+fn main() -> Int:
+    let tag = Tag {n: 7}
+    let wide = 40 :: I64
+    let narrow = 3 :: U8
+
+    -- A literal on the **left**, whose type the right operand decides. `Num.+` at `I64` is the one
+    -- viable candidate: the plain `+` wants a `Tag` there and no number is one.
+    if 2 + wide != 42 then return 1
+
+    -- And on the **right**, which is the direction that already worked through the sole callee's
+    -- push-down and has to keep working through a set.
+    if wide - 2 != 38 then return 2
+
+    -- The width is the *other operand's* and not `Int`'s. `narrow` is a `U8`, so the literal is a
+    -- `U8` and the sum wraps at eight bits: 250 + 3 is 253, and 253 - 255 is 254.
+    if 250 + narrow - 255 != (254 :: U8) then return 3
+
+    -- The plain candidate still wins where its own position is what the operand fills, and its own
+    -- body adds a thousand so that reaching it is visible in the answer.
+    if tag + 5 != 1012 then return 4
+    if tag - 5 != -998 then return 5
+
+    -- A chain of nothing but literals has no other operand to read a width off, so each takes its
+    -- own default - which is the same rule a literal in any other position obeys.
+    if 1 - 1023 - 52 - 2 != -1076 then return 6
+
+    return 77

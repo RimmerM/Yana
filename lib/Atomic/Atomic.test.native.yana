@@ -364,11 +364,22 @@ fn flagsAndPointers(p: %U8):
     checkEqual(view.fetchAdd(5, UpdateRelaxed), 7)
     checkEqual(storage, 12)
 
-    -- And the other direction: a plain write is what the next atomic read sees.
-    storage = 100
-    checkEqual(view.load(LoadAcquire), 100)
+    {-
+       And the other direction: a plain write is what the next atomic read sees.
 
-    match view.compareExchange(100, 101, UpdateAcquireRelease):
+       The view is taken **again** after the write rather than held across it, and that is §3.7's
+       fourth promise written out rather than a concession: "nothing else touches them while a view
+       is live" is what the caller of `atomicAt` undertakes, and an assignment to the same storage is
+       something else touching them. The operations entitled to write through a shared borrow of
+       these bytes are the atomic ones. What is being checked is unchanged - the write happens, and
+       the next view of the same location reads it.
+    -}
+    storage = 100
+
+    let again = Native.atomicAt(bitcast(addressOf(storage)) :: %U8) :: 'Atomic(U32)
+    checkEqual(again.load(LoadAcquire), 100)
+
+    match again.compareExchange(100, 101, UpdateAcquireRelease):
         Exchanged -> {}
         Unchanged(->_) -> check(False)
 

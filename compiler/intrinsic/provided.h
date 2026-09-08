@@ -54,6 +54,21 @@ enum class Family: U8 {
     Machine,
 
     /*
+     * The integers whose **bytes** are a set an operation can name - 16 bits, 32, 64, and the
+     * target's word.
+     *
+     * `Machine` with sixteen added, and two named sets rather than one with an exception because the
+     * two are asking different questions: a population count reads the value, so it needs a width the
+     * machine counts in, and a byte reversal reads the value's bytes, of which a sixteen-bit value
+     * has two however wide the register is. `U8` has one and nothing to exchange, `WideInt` is
+     * fifty-three bits, and a `CodeUnit`'s two ends are eight and sixteen - so its answer would
+     * depend on the target, which an instance set may not.
+     *
+     * The set is `hasByteOrder`'s, said once and read from both sides.
+     */
+    Swappable,
+
+    /*
      * No type at all: the heads of this row are **shapes**, supplied by a generator rather than
      * drawn from a list.
      *

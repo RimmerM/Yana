@@ -8,11 +8,12 @@
    analysis finds, and the two cannot share a file because resolution's error checkpoint is what the
    analysis runs after.
 
-   Almost all of them are one sentence: **a closure that outlives the frame its captures live in
-   needs a heap-placed environment**, and this stage has no allocator. The environment is a local of
-   the enclosing frame, the value refers to it, and every position that claims to *own* what it is
-   given is a position that would outlive the frame. A borrowing position is not, which is why a
-   callback is the shape that works and is not on this list.
+   Most of what used to be here is gone, and D17 is why: a closure that outlives the frame its
+   captures live in gets a **heap-placed** environment, decided by the position the lambda is written
+   at, and `ownership/ClosureEscape.yana` is that shape run. What is left is the two things a
+   placement cannot answer - a lambda whose captures would be reached through *another* lambda's
+   environment, and one in a generic body, where argument zero is already spent - plus a lambda that
+   asks for an owning capture at a position that only borrows the closure.
 -}
 
 data Held {v: I32}
@@ -21,18 +22,15 @@ instance Drop(Held):
     fn drop(->value: Held):
         return
 
-data Handler {run: (I32) -> I32}
-
-fn keep(->f: (I32) -> I32) -> I32 = 0
-
 fn take(f: (I32) -> I32) -> I32 = f(1 :: I32)
 
 fn eat(->h: Held) -> I32 = 0
 
--- A lambda writes no result type, so unlike a named function it cannot even be given an arity by
--- the position: what it needs is the whole signature, and a `let` with nothing on it states none.
+-- A lambda that types its own parameters is a signature with no name and its body decides the
+-- result, so a `let` is enough for one. A lambda that types *none* of them has no signature anywhere:
+-- neither the position nor the header says what `x` is, and there is nothing left to take it from.
 fn unpositioned() -> I32:
-    let f = (x: I32) -> x
+    let f = (x) -> x
     return 0 :: I32
 
 -- A written parameter type against the one the position asked for. Checked rather than believed,
@@ -43,35 +41,32 @@ fn wrongType() -> I32 = take(((x: I64) -> 1 :: I32) :: (I32) -> I32)
 -- marker for a plain borrow, so an author who wrote nothing has said nothing to disagree with.
 fn wrongConvention() -> I32 = take(((->x: I32) -> x) :: (I32) -> I32)
 
--- A **consumed** capture - the fourth kind, and the one the spec pairs with "a closure that must
--- outlive the frame that built it has to own what it captures". The environment borrows, so there
--- is nothing in it to hand over.
+-- A **consumed** capture asked for at a **borrowing** position - the fourth capture kind, at the
+-- one place it cannot be had. `take` owns nothing: the closure it is given lives exactly as long as
+-- the call, so its environment is a local of this frame and there is nothing in it to hand over.
+-- Written at a position that owns the closure the same capture is consumed and this compiles, which
+-- is `ownership/ClosureEscape.yana`'s `handedOff`.
 fn consumed() -> I32:
     let h = Held{v: 1}
     return take(((x: I32) -> eat(h)) :: (I32) -> I32)
 
--- Into a field the record **owns**. `Handler` is one type whether or not the value in it captured
--- anything, so the declaration cannot say whose storage this refers to - which is the same refusal
--- `own.cpp` makes about a field whose declared type refers to storage the record does not name.
-fn inRecord() -> Handler:
-    let n = 7
-    return Handler{run: ((x: I32) -> x + n) :: (I32) -> I32}
+{-
+   A `&` capture at a position that **owns** the closure - the one thing a heap-placed environment
+   cannot fix, and therefore the one refusal D17 added rather than removed.
 
--- Into a position the callee **owns**. `take` above is the same call with a borrowing parameter and
--- is accepted everywhere in `Closure.yana`: what an owned position claims is that the value is now
--- the receiver's, and a receiver that outlives this frame would hold a reference into a dead one.
-fn intoSink() -> I32:
-    let n = 7
-    return keep(((x: I32) -> x + n) :: (I32) -> I32)
+   The block outlives this frame, so a capture that is a pointer into it is a reference to storage
+   that will be gone; and nothing downstream catches it, because a value whose environment is its own
+   carries no origin for the loan checker to follow. So it is refused here, at the moment the field
+   is appended, which is where the binding that cannot travel still has a name.
+-}
+fn writtenEscape() -> (I32) -> I32:
+    let &acc = 0
+    return ((x: I32) -> acc + x) :: (I32) -> I32
 
--- Into storage that already exists. A `let` of the same value is accepted, because there the
--- storage is minted from the value; an assignment goes the other way, and what `g` was declared to
--- hold says nothing about this frame.
-fn assigned() -> I32:
-    let n = 7
-    let &g = ((x: I32) -> x * 2) :: (I32) -> I32
-    g = ((x: I32) -> x + n) :: (I32) -> I32
-    return 0 :: I32
+-- The same sentence from the other end: a closure the position does own, over a binding this
+-- function only borrows. What has to change here is the value rather than the position, which is
+-- what makes it a message of its own.
+fn borrowedEscape(h: Held) -> (I32) -> I32 = ((x: I32) -> x + h.v) :: (I32) -> I32
 
 -- A lambda inside a lambda. Its captures would be reached through the enclosing lambda's
 -- environment, which is a chain of places rather than one - the machinery, not the rule.

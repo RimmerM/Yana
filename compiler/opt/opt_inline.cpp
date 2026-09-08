@@ -63,6 +63,14 @@
  * forward, and a bounds check nothing may prove twice. `size` counts a container accessor at eight or
  * ten instructions, which is over the base budget by construction. See `isAccessorBody`.
  *
+ * ## The one callee that is not weighed at all
+ *
+ * `@inline(always)`. The resolver grafts the bodies it can - one expression, no branch, no call -
+ * and hands every other one here as an ordinary call; this pass then takes it whatever the table
+ * says, bounded by `ceiling` alone. The attribute is a directive rather than a hint (resolve/inline.h
+ * argues which pass carries out which half), so weighing it would be reading it as the hint
+ * `@inline` already is. See `worthInlining`, and `describe` where `maxBlocks` is lifted with it.
+ *
  * ## What is declined, and why each one
  *
  * The ownership instructions are the list that matters. `Drop`, `Move`, `Swap` and `Exchange` are
@@ -1345,8 +1353,14 @@ struct Inliner {
          * Lifted for a body that *moves*, which is the one case where the cap is asking the wrong
          * question: those blocks exist either way, in this function or in the one next to it, and
          * what the program holds afterwards is one copy of them and one fewer call.
+         *
+         * And lifted for `@inline(always)`, on the terms `worthInlining` sets: the attribute is a
+         * directive, and a cap the author cannot see is the same thing as weighing it.
          */
-        if(candidate.blocks.size() > policy.maxBlocks && !movesIntoSite(candidate)) return Nothing();
+        if(candidate.blocks.size() > policy.maxBlocks && !callee->alwaysInline &&
+           !movesIntoSite(candidate)) {
+            return Nothing();
+        }
 
         /*
          * The entry block has to be one the caller's own block can *become*, since that is what the
@@ -1962,6 +1976,22 @@ struct Inliner {
         auto moves = movesIntoSite(candidate);
 
         if(!moves && candidate.size > policy.ceiling + closure) return false;
+
+        /*
+         * `@inline(always)`, which is the one thing here that is not weighed.
+         *
+         * Reaching this at all means the resolver's graft declined the body - a branch, a call, a
+         * local, or a class call that landed on a written instance - and D12's decision is that the
+         * attribute still means what it says. So it is admitted above the whole table: no budget, no
+         * call-site count, no penalty, and `maxBlocks` lifted for it in `describe` on the same
+         * terms. `resolve_ssa/opt/inline.cpp` has exactly this rule for exactly this reason.
+         *
+         * The ceiling is the one bound kept, and it is kept because an unbounded copy is not a cost
+         * the author can have meant: a body past it is one whose *own* size is the program, and
+         * copying it per call site trades the call for more than the call. `InlineLevel::None`
+         * leaves the ceiling at zero, which is how "do not inline" stays sayable.
+         */
+        if(candidate.callee->alwaysInline) return true;
 
         auto sites = callSites.getValue(U32(candidate.pointer));
         auto count = sites ? sites.unwrap() : U32(0);

@@ -1,0 +1,139 @@
+module ResolveTest
+
+let regionSize: I64 = 4194304
+
+let classCount: I64 = 32
+
+let ratio: F32 = 2.5
+
+let nowhere: %U8 = 0
+
+let & counter: I64 = 0
+
+let & slot: I64 = 0
+
+fn integerConstants() -> I64 {
+bb0:
+  %0: I64 = const 4194304
+  %1: I64 = const 32
+  %2: I64 = div inspect %0 inspect %1
+  return take %2
+}
+
+fn floatConstant() -> I64 {
+bb0:
+  %0: F32 = const 2.5
+  %1: F32 = const 2
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I64 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I64):
+  return take %6
+
+bb3:
+  %4: I64 = const 1
+  jump -> bb2(take %4)
+}
+
+fn pointerConstant() -> I64 {
+bb0:
+  %0: %U8 = const 0
+  %1: Bool = call isNull(U8) borrow.shared %0
+  branch inspect %1 -> bb3 -> bb1
+
+bb1:
+  %4: I64 = const 0
+  jump -> bb2(take %4)
+
+bb2(%5: I64):
+  return take %5
+
+bb3:
+  %3: I64 = const 10
+  jump -> bb2(take %3)
+}
+
+fn fromNative() -> I64 {
+bb0:
+  %0: Size = const 4194304
+  %1: Size = const 32
+  %2: Size = div inspect %0 inspect %1
+  %3: I64 = convert inspect %2
+  return take %3
+}
+
+fn addressOfConstant() -> I64 {
+  local & local0: I64
+  local p: %I64 [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I64 = const 4194304
+  write.init borrow.unique (local0) take %0
+  %2: I64 [unique slot 0] = read borrow.unique (local0) loan0
+  %3: %I64 [owned here shape6 .*=shared slot 0] = address inspect %2 roots.0{0}
+  write.init borrow.unique (p) take %3
+  %5: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %6: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %7: I64 = read copy.trivial ([%%6])
+  %8: I64 = const 1
+  %9: I64 = add inspect %7 inspect %8
+  write.assign borrow.unique ([%%5]) take %9
+  %11: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %12: I64 = read copy.trivial ([%%11])
+  %13: I64 = const 4194304
+  %14: I64 = sub inspect %12 inspect %13
+  return take %14
+}
+
+fn addressOfStorage() -> I64 {
+  local p: %I64 [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I64 [shared slot 0] = read borrow.shared (global slot) loan0
+  %1: %I64 [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
+  write.init borrow.unique (p) take %1
+  %3: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %4: I64 = const 7
+  write.assign borrow.unique ([%%3]) take %4
+  %6: I64 = read copy.trivial (global slot)
+  return take %6
+}
+
+fn mutableGlobal() -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (global counter)
+  %1: I64 = const 5
+  %2: I64 = add inspect %0 inspect %1
+  write.assign borrow.unique (global counter) take %2
+  %4: I64 = read copy.trivial (global counter)
+  return take %4
+}
+
+fn main() -> I32 {
+  local total: I64
+
+bb0:
+  %0: I64 = call integerConstants
+  %1: I64 = call floatConstant
+  %2: I64 = add inspect %0 inspect %1
+  %3: I64 = call pointerConstant
+  %4: I64 = add inspect %2 inspect %3
+  %5: I64 = call fromNative
+  %6: I64 = add inspect %4 inspect %5
+  %7: I64 = call addressOfConstant
+  %8: I64 = add inspect %6 inspect %7
+  %9: I64 = call addressOfStorage
+  %10: I64 = add inspect %8 inspect %9
+  %11: I64 = call mutableGlobal
+  %12: I64 = add inspect %10 inspect %11
+  write.init borrow.unique (total) take %12
+  %14: I64 = read copy.trivial (total)
+  %15: I32 = convert inspect %14
+  return take %15
+}
+
+entry main

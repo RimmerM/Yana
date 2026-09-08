@@ -890,6 +890,21 @@ void resolveInstance(Module& module, ast::Decl& decl) {
         auto& previous = *(*module.arena)[other];
 
         if(instanceCovers(module, previous, *instance) && instanceCovers(module, *instance, previous)) {
+            // Unless the compiler generated it and said the library may write it instead - the one
+            // container bridge, `ClassInstance::Origin` in class.h. The generated instance is
+            // retired here rather than at its head, because this is the only point in the passes at
+            // which both it and the written one exist.
+            if(previous.origin == ClassInstance::Origin::Replaceable) {
+                previous.origin = ClassInstance::Origin::Superseded;
+                continue;
+            }
+
+            // And the head set where it is the *written* one that stands down - `Index`, D14. A
+            // return rather than a `Superseded` mark, because nothing of this declaration may be
+            // built at all: its members would be resolved, exported and emitted for a stage that
+            // never calls them, and one of the two bodies the library writes is native-only.
+            if(previous.origin == ClassInstance::Origin::Overriding) return;
+
             module.context.diagnostics.error("duplicate instance of %@ for these types"_v, decl.source,
                                              module.context.findName(className));
             return;

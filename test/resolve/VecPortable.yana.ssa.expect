@@ -307,12 +307,12 @@ bb7:
   jump -> bb8
 
 bb8:
-  %30: F32 trivial = const 1
-  %31: Vec(F32) trivial = load inspect %1
-  %32: Vec(F32) trivial = abs inspect %31
-  %33: I32 trivial = const 0
-  %34: F32 trivial = vec.lane #0 inspect %32
-  %35: F32 trivial = div inspect %30 inspect %34
+  %30: Vec(F32) trivial = load inspect %1
+  %31: Vec(F32) trivial = abs inspect %30
+  %32: I32 trivial = const 0
+  %33: F32 trivial = vec.lane #0 inspect %31
+  %34: F32 trivial = const 1
+  %35: F32 trivial = div inspect %34 inspect %33
   %36: F32 trivial = const 0
   %37: Bool trivial = lt inspect %35 inspect %36
   branch inspect %37 -> bb12 -> bb10
@@ -359,7 +359,7 @@ bb0:
   %18: Vec(I32) trivial = load inspect %2
   %19: I32 trivial = const 0
   %20: I32 trivial = vec.lane #0 inspect %18
-  %21: I32 trivial = load inspect %1
+  %21: I32 trivial = const 4
   %22: I32 trivial = const 1
   %23: I32 trivial = sub inspect %21 inspect %22
   %24: Bool trivial = ne inspect %20 inspect %23
@@ -372,7 +372,7 @@ bb2:
   %25: Vec(I32) trivial = load inspect %2
   %26: I32 trivial = const 1
   %27: I32 trivial = vec.lane #1 inspect %25
-  %28: I32 trivial = load inspect %1
+  %28: I32 trivial = const 4
   %29: I32 trivial = const 2
   %30: I32 trivial = sub inspect %28 inspect %29
   %31: Bool trivial = ne inspect %27 inspect %30
@@ -408,7 +408,7 @@ bb8:
   %43: Vec(I32) trivial = vec.shuffle [3, 0, 1, 2] inspect %41 inspect %41
   %44: I32 trivial = const 0
   %45: I32 trivial = vec.lane #0 inspect %43
-  %46: I32 trivial = load inspect %1
+  %46: I32 trivial = const 4
   %47: I32 trivial = const 1
   %48: I32 trivial = sub inspect %46 inspect %47
   %49: Bool trivial = ne inspect %45 inspect %48
@@ -466,7 +466,7 @@ bb17:
   %71: Vec(I32) trivial = load inspect %5
   %72: I32 trivial = const 0
   %73: I32 trivial = vec.lane #0 inspect %71
-  %74: I32 trivial = load inspect %1
+  %74: I32 trivial = const 4
   %75: I32 trivial = const 2
   %76: I32 trivial = div inspect %74 inspect %75
   %77: Bool trivial = ne inspect %73 inspect %76

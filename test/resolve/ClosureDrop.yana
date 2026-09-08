@@ -22,13 +22,19 @@ instance Drop(Guard):
 
 -- The closure escapes, so its caller cannot see which lambda it holds and the environment is not a
 -- local of any frame that drops it.
+--
+-- Written `(): g.id` rather than `(): return g.id`, which is the spelling this fixture carried while
+-- the ownership stage refused it: a lambda's body is its value whichever of the two arrows was
+-- written, and `resolveLiftedBody` states that with `resolveArm`'s rule. The two goldens either
+-- stage produces for this function are the same for both spellings, which is what says they are one
+-- program.
 fn guarded(id: Int) -> () -> Int:
     let g = Guard {id: id}
     return (): g.id
 
 -- One that captured nothing, to prove the same teardown does nothing to it: there is no environment
 -- to tear down, and on the JS target no metadata was attached to look for either.
-fn plain() -> () -> Int = (): 5
+fn plain() -> () -> Int = (): return 5
 
 fn main() -> Int:
     let f = guarded(7)

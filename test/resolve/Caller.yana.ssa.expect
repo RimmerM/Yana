@@ -1,0 +1,550 @@
+module ResolveTest
+
+let string'142: [CodeUnit *5] = [110, 32, 62, 32, 48]
+
+let string'143: [CodeUnit *1] = [64]
+
+let string'144: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'145: [CodeUnit *4] = [109, 97, 105, 110]
+
+let string'146: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'147: [CodeUnit *4] = [109, 97, 105, 110]
+
+let string'148: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'149: [CodeUnit *4] = [109, 97, 105, 110]
+
+let string'150: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'151: [CodeUnit *4] = [109, 97, 105, 110]
+
+let string'152: [CodeUnit *4] = [109, 97, 105, 110]
+
+let string'153: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'154: [CodeUnit *4] = [109, 97, 105, 110]
+
+let string'155: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'156: [CodeUnit *4] = [109, 97, 105, 110]
+
+let string'157: [CodeUnit *6] = [49, 32, 61, 61, 32, 50]
+
+let string'158: [CodeUnit *0] = []
+
+let string'159: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'160: [CodeUnit *4] = [109, 97, 105, 110]
+
+let string'161: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'162: [CodeUnit *4] = [109, 97, 105, 110]
+
+let string'163: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'164: [CodeUnit *4] = [109, 97, 105, 110]
+
+fn lineOf(at: Site [shared call]) -> I32 {
+bb0(%0: Site [shared call] guaranteed):
+  %1: %I32 address = field.addr .line inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn columnOf(at: Site [shared call]) -> I32 {
+bb0(%0: Site [shared call] guaranteed):
+  %1: %I32 address = field.addr .column inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn functionIs(name: String [shared call view], at: Site [shared call]) -> Bool {
+bb0(%0: String [shared call view] guaranteed, %1: Site [shared call] guaranteed):
+  %2: %String address = field.addr .function inspect %1
+  %3: String [shared call] guaranteed from{%1} = load inspect %2
+  %4: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %3
+  %5: String [shared call view] guaranteed from{%0} = load inspect %0
+  %6: Bool trivial = call String.== borrow %4 borrow %5
+  return consume %6
+}
+
+fn shortLine(w: Where [shared call]) -> I32 {
+bb0(%0: Where [shared call] guaranteed):
+  %1: %I32 address = field.addr .line inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn textOf(held: Bool [shared call], text: String [shared call view]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: String [shared call view] guaranteed):
+  %2: %Bool address = alloc frame Bool [shared call]
+  store inspect %2 borrow %0
+  %3: String [shared call view] guaranteed from{%1} = load inspect %1
+  %4: Size trivial = call String.length borrow %3
+  %5: I32 trivial = convert inspect %4
+  return consume %5
+}
+
+fn viaHelper(at: Site [shared call]) -> I32 {
+bb0(%0: Site [shared call] guaranteed):
+  %1: Site [shared call] guaranteed from{%0} = load inspect %0
+  %2: I32 trivial = call lineOf borrow %1
+  return consume %2
+}
+
+fn textViaHelper(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %String address = alloc frame String
+  store inspect %1 borrow %0
+  %3: I32 trivial = load inspect %1
+  %4: I32 trivial = const 0
+  %5: Bool trivial = gt inspect %3 inspect %4
+  %6: %[CodeUnit *5] address = global.addr string'142
+  %7: [CodeUnit *5] [shared slot 0] guaranteed = load inspect %6
+  %8: %[CodeUnit *5] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %7
+  %9: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %8
+  %10: I32 trivial = const 5
+  %11: String owned = call stringLiteral borrow %9 borrow %10
+  store inspect %2 consume %11
+  %12: String [shared slot 0] guaranteed from{%2} = load inspect %2
+  %13: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %12
+  %14: I32 trivial = call textOf borrow %5 borrow %13
+  drop String inspect %2
+  return consume %14
+}
+
+fn describedAt(value: a [shared call], at: Site [shared call]) -> String = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Site address = alloc frame Site
+  %2: %I32 address = alloc frame I32
+  %3: %Site address = alloc frame Site
+  %4: %I32 address = alloc frame I32
+  %5: %Site address = alloc frame Site
+  %6: %Site address = alloc frame Site
+  %7: %String address = alloc frame String
+  %8: %Site address = alloc frame Site
+  %9: %Site address = alloc frame Site
+  %10: %String address = alloc frame String
+  %11: %String address = alloc frame String
+  %12: %Site address = alloc frame Site
+  %13: %Site address = alloc frame Site
+  %14: %Site address = alloc frame Site
+  %15: %String address = alloc frame String
+  %16: I32 trivial = const 0
+  store inspect %0 consume %16
+  %17: %[CodeUnit *11] address = global.addr string'144
+  %18: [CodeUnit *11] [shared slot 0] guaranteed = load inspect %17
+  %19: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %18
+  %20: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %19
+  %21: I32 trivial = const 11
+  %22: String owned = call stringLiteral borrow %20 borrow %21
+  %23: I32 trivial = const 65
+  %24: I32 trivial = const 16
+  %25: %[CodeUnit *4] address = global.addr string'145
+  %26: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %25
+  %27: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %26
+  %28: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %27
+  %29: I32 trivial = const 4
+  %30: String owned = call stringLiteral borrow %28 borrow %29
+  %31: Site owned = aggregate.Site consume %22 consume %23 consume %24 consume %30
+  store inspect %1 consume %31
+  %32: Site [shared call] guaranteed from{%1} = load inspect %1
+  %33: I32 trivial = call lineOf borrow %32
+  drop Site inspect %1
+  store inspect %2 consume %33
+  %34: %[CodeUnit *11] address = global.addr string'146
+  %35: [CodeUnit *11] [shared slot 0] guaranteed = load inspect %34
+  %36: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %35
+  %37: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %36
+  %38: I32 trivial = const 11
+  %39: String owned = call stringLiteral borrow %37 borrow %38
+  %40: I32 trivial = const 66
+  %41: I32 trivial = const 17
+  %42: %[CodeUnit *4] address = global.addr string'147
+  %43: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %42
+  %44: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %43
+  %45: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %44
+  %46: I32 trivial = const 4
+  %47: String owned = call stringLiteral borrow %45 borrow %46
+  %48: Site owned = aggregate.Site consume %39 consume %40 consume %41 consume %47
+  store inspect %3 consume %48
+  %49: Site [shared call] guaranteed from{%3} = load inspect %3
+  %50: I32 trivial = call lineOf borrow %49
+  drop Site inspect %3
+  store inspect %4 consume %50
+  %51: I32 trivial = load inspect %4
+  %52: I32 trivial = load inspect %2
+  %53: I32 trivial = sub inspect %51 inspect %52
+  %54: I32 trivial = const 1
+  %55: Bool trivial = ne inspect %53 inspect %54
+  branch inspect %55 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %56: %[CodeUnit *11] address = global.addr string'148
+  %57: [CodeUnit *11] [shared slot 0] guaranteed = load inspect %56
+  %58: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %57
+  %59: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %58
+  %60: I32 trivial = const 11
+  %61: String owned = call stringLiteral borrow %59 borrow %60
+  %62: I32 trivial = const 72
+  %63: I32 trivial = const 7
+  %64: %[CodeUnit *4] address = global.addr string'149
+  %65: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %64
+  %66: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %65
+  %67: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %66
+  %68: I32 trivial = const 4
+  %69: String owned = call stringLiteral borrow %67 borrow %68
+  %70: Site owned = aggregate.Site consume %61 consume %62 consume %63 consume %69
+  store inspect %5 consume %70
+  %71: Site [shared call] guaranteed from{%5} = load inspect %5
+  %72: I32 trivial = call columnOf borrow %71
+  drop Site inspect %5
+  %73: %[CodeUnit *11] address = global.addr string'150
+  %74: [CodeUnit *11] [shared slot 0] guaranteed = load inspect %73
+  %75: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %74
+  %76: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %75
+  %77: I32 trivial = const 11
+  %78: String owned = call stringLiteral borrow %76 borrow %77
+  %79: I32 trivial = const 72
+  %80: I32 trivial = const 20
+  %81: %[CodeUnit *4] address = global.addr string'151
+  %82: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %81
+  %83: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %82
+  %84: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %83
+  %85: I32 trivial = const 4
+  %86: String owned = call stringLiteral borrow %84 borrow %85
+  %87: Site owned = aggregate.Site consume %78 consume %79 consume %80 consume %86
+  store inspect %6 consume %87
+  %88: Site [shared call] guaranteed from{%6} = load inspect %6
+  %89: I32 trivial = call columnOf borrow %88
+  drop Site inspect %6
+  %90: I32 trivial = sub inspect %72 inspect %89
+  %91: I32 trivial = const 0
+  %92: Bool trivial = ge inspect %90 inspect %91
+  branch inspect %92 -> bb6 -> bb4
+
+bb3:
+  %93: I32 trivial = const 1
+  return consume %93
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %94: %[CodeUnit *4] address = global.addr string'152
+  %95: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %94
+  %96: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %95
+  %97: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %96
+  %98: I32 trivial = const 4
+  %99: String owned = call stringLiteral borrow %97 borrow %98
+  store inspect %7 consume %99
+  %100: String [shared slot 0] guaranteed from{%7} = load inspect %7
+  %101: String [shared slot 0 view] guaranteed from{%7} = call String.view borrow %100
+  %102: %[CodeUnit *11] address = global.addr string'153
+  %103: [CodeUnit *11] [shared slot 0] guaranteed = load inspect %102
+  %104: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %103
+  %105: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %104
+  %106: I32 trivial = const 11
+  %107: String owned = call stringLiteral borrow %105 borrow %106
+  %108: I32 trivial = const 74
+  %109: I32 trivial = const 8
+  %110: %[CodeUnit *4] address = global.addr string'154
+  %111: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %110
+  %112: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %111
+  %113: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %112
+  %114: I32 trivial = const 4
+  %115: String owned = call stringLiteral borrow %113 borrow %114
+  %116: Site owned = aggregate.Site consume %107 consume %108 consume %109 consume %115
+  store inspect %8 consume %116
+  %117: Site [shared call] guaranteed from{%8} = load inspect %8
+  %118: Bool trivial = call functionIs borrow %101 borrow %117
+  drop String inspect %7
+  drop Site inspect %8
+  %119: Bool trivial = not inspect %118
+  branch inspect %119 -> bb9 -> bb7
+
+bb6:
+  %120: I32 trivial = const 2
+  return consume %120
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %121: I32 trivial = const 75
+  %122: Where trivial = aggregate.Where consume %121
+  %123: I32 trivial = call shortLine borrow %122
+  %124: %[CodeUnit *11] address = global.addr string'155
+  %125: [CodeUnit *11] [shared slot 0] guaranteed = load inspect %124
+  %126: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %125
+  %127: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %126
+  %128: I32 trivial = const 11
+  %129: String owned = call stringLiteral borrow %127 borrow %128
+  %130: I32 trivial = const 75
+  %131: I32 trivial = const 22
+  %132: %[CodeUnit *4] address = global.addr string'156
+  %133: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %132
+  %134: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %133
+  %135: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %134
+  %136: I32 trivial = const 4
+  %137: String owned = call stringLiteral borrow %135 borrow %136
+  %138: Site owned = aggregate.Site consume %129 consume %130 consume %131 consume %137
+  store inspect %9 consume %138
+  %139: Site [shared call] guaranteed from{%9} = load inspect %9
+  %140: I32 trivial = call lineOf borrow %139
+  drop Site inspect %9
+  %141: Bool trivial = ne inspect %123 inspect %140
+  branch inspect %141 -> bb12 -> bb10
+
+bb9:
+  %142: I32 trivial = const 3
+  return consume %142
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %143: I32 trivial = const 2
+  %144: I32 trivial = const 1
+  %145: Bool trivial = eq inspect %144 inspect %143
+  %146: %[CodeUnit *6] address = global.addr string'157
+  %147: [CodeUnit *6] [shared slot 0] guaranteed = load inspect %146
+  %148: %[CodeUnit *6] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %147
+  %149: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %148
+  %150: I32 trivial = const 6
+  %151: String owned = call stringLiteral borrow %149 borrow %150
+  store inspect %10 consume %151
+  %152: String [shared slot 0] guaranteed from{%10} = load inspect %10
+  %153: String [shared slot 0 view] guaranteed from{%10} = call String.view borrow %152
+  %154: I32 trivial = call textOf borrow %145 borrow %153
+  drop String inspect %10
+  %155: I32 trivial = const 6
+  %156: Bool trivial = ne inspect %154 inspect %155
+  branch inspect %156 -> bb15 -> bb13
+
+bb12:
+  %157: I32 trivial = const 4
+  return consume %157
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %158: Bool trivial = const True
+  %159: %[CodeUnit *0] address = global.addr string'158
+  %160: [CodeUnit *0] [shared slot 0] guaranteed = load inspect %159
+  %161: %[CodeUnit *0] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %160
+  %162: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %161
+  %163: I32 trivial = const 0
+  %164: String owned = call stringLiteral borrow %162 borrow %163
+  store inspect %11 consume %164
+  %165: String [shared slot 0] guaranteed from{%11} = load inspect %11
+  %166: String [shared slot 0 view] guaranteed from{%11} = call String.view borrow %165
+  %167: I32 trivial = call textOf borrow %158 borrow %166
+  drop String inspect %11
+  %168: I32 trivial = const 0
+  %169: Bool trivial = ne inspect %167 inspect %168
+  branch inspect %169 -> bb18 -> bb16
+
+bb15:
+  %170: I32 trivial = const 5
+  return consume %170
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %171: %[CodeUnit *11] address = global.addr string'159
+  %172: [CodeUnit *11] [shared slot 0] guaranteed = load inspect %171
+  %173: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %172
+  %174: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %173
+  %175: I32 trivial = const 11
+  %176: String owned = call stringLiteral borrow %174 borrow %175
+  %177: I32 trivial = const 87
+  %178: I32 trivial = const 7
+  %179: %[CodeUnit *4] address = global.addr string'160
+  %180: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %179
+  %181: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %180
+  %182: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %181
+  %183: I32 trivial = const 4
+  %184: String owned = call stringLiteral borrow %182 borrow %183
+  %185: Site owned = aggregate.Site consume %176 consume %177 consume %178 consume %184
+  store inspect %12 consume %185
+  %186: Site [shared call] guaranteed from{%12} = load inspect %12
+  %187: I32 trivial = call viaHelper borrow %186
+  drop Site inspect %12
+  %188: %[CodeUnit *11] address = global.addr string'161
+  %189: [CodeUnit *11] [shared slot 0] guaranteed = load inspect %188
+  %190: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %189
+  %191: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %190
+  %192: I32 trivial = const 11
+  %193: String owned = call stringLiteral borrow %191 borrow %192
+  %194: I32 trivial = const 87
+  %195: I32 trivial = const 22
+  %196: %[CodeUnit *4] address = global.addr string'162
+  %197: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %196
+  %198: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %197
+  %199: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %198
+  %200: I32 trivial = const 4
+  %201: String owned = call stringLiteral borrow %199 borrow %200
+  %202: Site owned = aggregate.Site consume %193 consume %194 consume %195 consume %201
+  store inspect %13 consume %202
+  %203: Site [shared call] guaranteed from{%13} = load inspect %13
+  %204: I32 trivial = call lineOf borrow %203
+  drop Site inspect %13
+  %205: Bool trivial = ne inspect %187 inspect %204
+  branch inspect %205 -> bb21 -> bb19
+
+bb18:
+  %206: I32 trivial = const 6
+  return consume %206
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %207: I32 trivial = const 1
+  %208: I32 trivial = call textViaHelper borrow %207
+  %209: I32 trivial = const 5
+  %210: Bool trivial = ne inspect %208 inspect %209
+  branch inspect %210 -> bb24 -> bb22
+
+bb21:
+  %211: I32 trivial = const 7
+  return consume %211
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %212: I32 trivial = const 42
+  %213: %[CodeUnit *11] address = global.addr string'163
+  %214: [CodeUnit *11] [shared slot 0] guaranteed = load inspect %213
+  %215: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %214
+  %216: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %215
+  %217: I32 trivial = const 11
+  %218: String owned = call stringLiteral borrow %216 borrow %217
+  %219: I32 trivial = const 98
+  %220: I32 trivial = const 20
+  %221: %[CodeUnit *4] address = global.addr string'164
+  %222: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %221
+  %223: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %222
+  %224: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %223
+  %225: I32 trivial = const 4
+  %226: String owned = call stringLiteral borrow %224 borrow %225
+  %227: Site owned = aggregate.Site consume %218 consume %219 consume %220 consume %226
+  store inspect %14 consume %227
+  %228: Site [shared call] guaranteed from{%14} = load inspect %14
+  %229: String owned = call describedAt(I32) borrow %212 borrow %228
+  drop Site inspect %14
+  store inspect %15 consume %229
+  %230: String [shared call] guaranteed from{%15} = load inspect %15
+  %231: String [shared slot 0 view] guaranteed from{%15} = call String.view borrow %230
+  %232: Size trivial = call String.length borrow %231
+  %233: I32 trivial = convert inspect %232
+  %234: I32 trivial = const 3
+  %235: Bool trivial = le inspect %233 inspect %234
+  branch inspect %235 -> bb27 -> bb25
+
+bb24:
+  %236: I32 trivial = const 8
+  return consume %236
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %237: String [shared call] guaranteed from{%15} = load inspect %15
+  %238: String [shared slot 0 view] guaranteed from{%15} = call String.view borrow %237
+  %239: Size trivial = const 0
+  %240: I32 trivial = call String.unit borrow %238 borrow %239
+  %241: I32 trivial = const 52
+  %242: Bool trivial = ne inspect %240 inspect %241
+  branch inspect %242 -> bb30 -> bb28
+
+bb27:
+  drop String inspect %15
+  %243: I32 trivial = const 9
+  return consume %243
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %244: String [shared call] guaranteed from{%15} = load inspect %15
+  %245: String [shared slot 0 view] guaranteed from{%15} = call String.view borrow %244
+  %246: Size trivial = const 2
+  %247: I32 trivial = call String.unit borrow %245 borrow %246
+  drop String inspect %15
+  %248: I32 trivial = const 64
+  %249: Bool trivial = ne inspect %247 inspect %248
+  branch inspect %249 -> bb33 -> bb31
+
+bb30:
+  drop String inspect %15
+  %250: I32 trivial = const 10
+  return consume %250
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %251: I32 trivial = load inspect %0
+  return consume %251
+
+bb33:
+  %252: I32 trivial = const 11
+  return consume %252
+}
+
+fn describedAt(I32)(value: I32 [shared call], at: Site [shared call]) -> String {
+bb0(%0: I32 [shared call] guaranteed, %1: Site [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %String address = alloc frame String
+  %4: %String address = alloc frame String
+  store inspect %2 borrow %0
+  %5: Size trivial = const 1
+  %6: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %7: Maybe(Size) trivial = call I32.showBound borrow %6
+  %8: Size trivial = call formatBound borrow %7
+  %9: Size trivial = add inspect %5 inspect %8
+  %10: %I32 address = field.addr .line inspect %1
+  %11: I32 trivial = load inspect %10
+  %12: Maybe(Size) trivial = call I32.showBound borrow %11
+  %13: Size trivial = call formatBound borrow %12
+  %14: Size trivial = add inspect %9 inspect %13
+  %15: String owned = call String.ofCapacity borrow %14
+  store inspect %3 consume %15
+  %16: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %17: String [unique call] guaranteed from{%3} = load inspect %3
+  call I32.show borrow %16 borrow %17
+  %18: String [unique call] guaranteed from{%3} = load inspect %3
+  %19: %[CodeUnit *1] address = global.addr string'143
+  %20: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %19
+  %21: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %20
+  %22: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %21
+  %23: I32 trivial = const 1
+  %24: String owned = call stringLiteral borrow %22 borrow %23
+  store inspect %4 consume %24
+  %25: String [shared slot 0] guaranteed from{%4} = load inspect %4
+  %26: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %25
+  call String.push borrow %18 borrow %26
+  drop String inspect %4
+  %27: %I32 address = field.addr .line inspect %1
+  %28: I32 trivial = load inspect %27
+  %29: String [unique call] guaranteed from{%3} = load inspect %3
+  call I32.show borrow %28 borrow %29
+  %30: String owned = load inspect %3
+  return consume %30
+}
+
+entry main

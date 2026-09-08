@@ -132,6 +132,20 @@ bool providedOperation(intrinsic::Provided role, U16 member, BinaryOp& binary, U
             }
             break;
 
+        // `ByteSwap`'s one member, which is one node.
+        case Provided::byteSwap:
+            if(member == 0) return asUnary(UnaryOp::ByteSwap);
+            break;
+
+        // `BitPermute`'s two, in `lib/Core/Bits.yana`'s declaration order - see `known.def`'s row,
+        // which is where that dependency is stated.
+        case Provided::bitPermute:
+            switch(member) {
+                case 0: return asBinary(BinaryOp::GatherBits);
+                case 1: return asBinary(BinaryOp::ScatterBits);
+            }
+            break;
+
         default:
             break;
     }

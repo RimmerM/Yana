@@ -1,0 +1,37 @@
+module ResolveTest
+
+let & sink: Vec(I32) = [0, 0, 0, 0]
+
+fn regrouping(v: Vec(I32) [shared call]) -> Vec(I16) {
+bb0:
+  %0: Vec(I32) = read copy.trivial (v)
+  %1: Vec(I16) = bitcast inspect %0
+  return take %1
+}
+
+fn bytes'2(v: Vec(I16) [shared call]) -> Vec(U8) {
+bb0:
+  %0: Vec(I16) = read copy.trivial (v)
+  %1: Vec(U8) = bitcast inspect %0
+  return take %1
+}
+
+fn back(v: Vec(U8) [shared call]) -> Vec(I32) {
+bb0:
+  %0: Vec(U8) = read copy.trivial (v)
+  %1: Vec(I32) = bitcast inspect %0
+  return take %1
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Vec(I32) = read copy.trivial (global sink)
+  %1: Vec(I16) = call regrouping borrow.shared %0
+  %2: Vec(U8) = call bytes'2 borrow.shared %1
+  %3: Vec(I32) = call back borrow.shared %2
+  write.assign borrow.unique (global sink) take %3
+  %5: I32 = const 1
+  return take %5
+}
+
+entry main

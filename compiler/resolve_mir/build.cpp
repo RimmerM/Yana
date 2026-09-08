@@ -375,7 +375,18 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
 
         auto reference = body.place(base(), internPlace(Place::Field, &parent, index, occurrence,
                                                         writable));
-        return derefPlace(*reference, occurrence, writable && access == Access::Unique)->id;
+
+        /*
+         * The **pointee**'s writability is the reference's access and not the record's.
+         *
+         * Re-pointing the slot writes the record, so the place above keeps `writable`; writing
+         * through the reference does not touch the record at all, so an exclusive `&'T` field of a
+         * record held in a plain `let` still writes the storage it names. `findMut` answering
+         * `Maybe(&'v)` is that program - `Just(v) -> v = v + 1` writes the map's entry through a
+         * `Maybe` nobody declared `&` - and the narrowing above is what already removed the
+         * capability where the record was reached through a shared borrow.
+         */
+        return derefPlace(*reference, occurrence, access == Access::Unique)->id;
     };
 
     /*
@@ -579,13 +590,18 @@ Node* Builder::addConst(LocationId source, Constant constant) {
  * Owned and trivial like a literal, because that is what it becomes: the number it stands for is
  * decided by the substitution the body is converted under, and everything about the value except
  * *which* number is settled here.
+ *
+ * What it names is a **type-level number**: a const parameter, or the one expression over one this
+ * stage has - `Vec(a)`'s natural lane count, `ConstType::lanesOf`. Both are decided by the same
+ * substitution and neither is a number here, so widening the field to `countType`'s question rather
+ * than to `VariableType` alone is what keeps `lanes(v)` in a generic body one node instead of two.
  */
 Node* Builder::addGenValue(LocationId source, DeclPtr<Type> variable) {
-    auto& declared = *(VariableType*)declBase()[variable];
-    assertTrue(declared.isConst());
+    auto counts = countType(declBase(), variable);
+    assertTrue(counts != nullptr);
 
     auto node = new (arena()) NodeGenValue(source, variable);
-    node->occurrence = owned(declared.constType);
+    node->occurrence = owned(counts);
     return append(node);
 }
 
@@ -597,11 +613,12 @@ Node* Builder::addGenValue(LocationId source, DeclPtr<Type> variable) {
  * makes a loan that the place's own origin keeps alive, and inspecting produces a value nobody owns
  * beyond the expression. §5.3 is the source-form half of the same table.
  */
-Node* Builder::addRead(LocationId source, Place& place, UseMode mode, Request wanted) {
+Node* Builder::addRead(LocationId source, Place& place, UseMode mode, Request wanted,
+                       bool overread) {
     // The mode *is* the request read against this place - `readMode`, which is the one place the
     // four answers are decided. Both travel because the resolver needs the mode in hand to report
     // the two positions it refuses, and this is the assertion that says they cannot disagree.
-    assertTrue(mode == readMode(declBase(), place, wanted));
+    assertTrue(mode == readMode(declBase(), base(), body, place, wanted));
 
     // The lineage this read may carry out of the place, taken *before* the node exists so that a
     // root local with no object yet has one - see `objectOfPlace`.
@@ -661,6 +678,7 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode, Request wa
     // the occurrence from the type alone would lose exactly that.
     auto node = new (arena()) NodeRead(source, placeOperand(place, mode));
     node->occurrence = requalified(place.occurrence, contract);
+    node->overread = overread;
 
     /*
      * The loan, where the read took one.
@@ -757,15 +775,34 @@ static bool retypeEnd(Program& program, UnaryCategory category, DeclPtr<Type> ty
     return operandTypeAllowed(program, category, type);
 }
 
-// The two retyping unary nodes - one body, since the difference between them is the enumerator and
-// what the manifestation makes of it. Both take their result type from the position rather than
-// from the operand, which is the whole reason neither goes through `addUnary`.
+/*
+ * The two retyping unary nodes - one body, since the difference between them is the enumerator and
+ * what the manifestation makes of it. Both take their result type from the position rather than
+ * from the operand, which is the whole reason neither goes through `addUnary`.
+ *
+ * A **pointer restated as a pointer keeps the operand's shape**, and that is not a convenience: a
+ * `%source'a` says its pointee may reach `source`'s storage, and reading the same bytes at another
+ * element type does not change whose storage they are. Dropping the shape here made the result a
+ * bare `%U8` - a pointer whose type publishes nothing - and `analyze_loan.cpp` reads a pointer with
+ * no pointee position as naming *nobody's* storage, which its overlap rule then treats as
+ * everybody's. `bitcast(target + i)` in `Core/Text.native.yana`'s case conversions is that walk.
+ *
+ * Only pointer-to-pointer, and only the shape: a retype between unrelated structures has no
+ * position correspondence to carry, and the *root* is still owned - restating an address produces a
+ * new value, it does not rebind the one that was read.
+ */
 Node* Builder::addRetype(LocationId source, UnaryOp op, Node& value, DeclPtr<Type> to) {
     assertTrue(retypeEnd(program, unaryCategory(op), valueType(value)));
     assertTrue(retypeEnd(program, unaryCategory(op), to));
 
     auto node = new (arena()) NodeUnary(source, op, resultOf(value, UseMode::Inspect));
     node->occurrence = owned(to);
+
+    auto from = valueOccurrence(value);
+    if(declBase()[to]->kind == Type::Pointer && declBase()[from.type]->kind == Type::Pointer) {
+        node->occurrence.shape = from.shape;
+    }
+
     return append(node);
 }
 
@@ -803,7 +840,7 @@ Node* Builder::addBitcast(LocationId source, Node& value, DeclPtr<Type> to) {
  * may ask.
  */
 Node* Builder::addFunValue(LocationId source, DeclPtr<Function> callee, DeclPtr<Type> type,
-                           Node* environment) {
+                           Node* environment, bool owned) {
     auto node = new (arena()) NodeFunValue(source, callee);
 
     /*
@@ -815,13 +852,27 @@ Node* Builder::addFunValue(LocationId source, DeclPtr<Function> callee, DeclPtr<
      * therefore be one pointer where the language has two words, and every call through it would
      * load the wrong thing. What refers to somebody else's storage is the environment word, which is
      * exactly what an interior position is for.
+     *
+     * A **heap-placed** environment is not somebody else's, so it gets no such position: the pair
+     * owns the block, and a shape saying otherwise would put a loan on a value that may leave the
+     * frame. That absence is also what the drop reads - `ownershipOfOccurrence`.
+     *
+     * And a value with **no** environment says so too, with `Shapes::noEnvironment` - which is not
+     * decoration. A `Fun` owes a teardown as a type, so a plain function named as a value would
+     * otherwise be dropped like a closure: a call through the pair would stop being devirtualizable,
+     * and every `@lazy` thunk over nothing would pay a call. It says the word is null, which is a
+     * different statement from "somebody else's" at exactly the one place it matters, and the two
+     * are the same statement everywhere else.
      */
-    node->occurrence = Occurrence { type, ownedContract(),
-                                    environment ? program.shapes.closure() : nullptr };
+    auto shape = !environment ? program.shapes.noEnvironment()
+               : owned        ? nullptr
+                              : program.shapes.closure();
+
+    node->occurrence = Occurrence { type, ownedContract(), shape };
 
     if(environment) {
         node->capturing = true;
-        node->environment = resultOf(*environment, UseMode::Inspect);
+        node->environment = resultOf(*environment, owned ? UseMode::Take : UseMode::Inspect);
     }
 
     append(node);
@@ -913,6 +964,34 @@ Node* Builder::addFma(LocationId source, Node& lhs, Node& rhs, Node& addend) {
     return node;
 }
 
+/*
+ * The entries are copied into the MIR region here rather than pointed at.
+ *
+ * The recognizer builds them in a `SmallArray` on its own stack while it is still deciding whether
+ * the match is a mapping at all, so a node that held the caller's buffer would hold a dead one the
+ * moment recognition returned. Each `Constant` is sixteen bytes by value and its aggregate payload
+ * is in the declaration region, which outlives every body.
+ */
+Node* Builder::addMap(LocationId source, Node& selector, const MapEntry* entries, Size count,
+                      Constant fallback, bool closed, Occurrence result) {
+    assertTrue(count > 0);
+    assertTrue(closed == !fallback.isSet());
+
+    auto node = new (arena()) NodeMap(source, resultOf(selector, UseMode::Inspect), closed);
+    node->occurrence = result;
+    node->fallback = fallback;
+    node->entries.reserve(arena(), count);
+
+    for(Size i = 0; i < count; i++) {
+        assertTrue(!i || entries[i].selector > entries[i - 1].selector);
+        assertTrue(sameType(entries[i].value.type, result.type));
+        node->entries.push(arena(), entries[i]);
+    }
+
+    append(node);
+    return node;
+}
+
 Node* Builder::addSelect(LocationId source, Node& condition, Node& whenTrue, Node& whenFalse) {
     auto type = valueType(whenTrue);
     assertTrue(sameType(type, valueType(whenFalse)));
@@ -981,6 +1060,21 @@ Node* Builder::addVecShuffle(LocationId source, Node& left, Node& right, const U
 Node* Builder::addVecReduce(LocationId source, Node& from, ReduceOp reduce, DeclPtr<Type> result) {
     auto node = new (arena()) NodeVecReduce(source, resultOf(from, UseMode::Inspect), reduce);
     node->occurrence = owned(result);
+
+    append(node);
+    return node;
+}
+
+Node* Builder::addVecIota(LocationId source, DeclPtr<Type> vector) {
+    assertTrue(declBase()[vector]->kind == Type::Vector);
+
+    // Only where the count is not a number here: a countable vector's lane numbers are constants,
+    // and one place deciding that is what keeps the concrete path's goldens unchanged.
+    assertTrue(!((VectorType*)declBase()[vector])->hasFixedCount() ||
+               !((VectorType*)declBase()[vector])->lanes);
+
+    auto node = new (arena()) NodeVecIota(source);
+    node->occurrence = owned(vector);
 
     append(node);
     return node;
@@ -1110,15 +1204,20 @@ Node* Builder::addRequiredCall(LocationId source, DeclPtr<Function> callee, U16 
  * is a `Take` of a value in hand by construction and there is no spelling for anything else.
  */
 Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constructor,
-                            Node* const* components, Size count, DeclPtr<OwnershipSchema> shape) {
+                            Node* const* components, Size count, DeclPtr<OwnershipSchema> shape,
+                            bool fill) {
     auto kind = declBase()[record]->kind;
     assertTrue(kind == Type::Record || kind == Type::Array);
 
-    // A quantified count has no components to check against, and nothing builds one: a literal
-    // states its length by being written, so a `[T *n]` value is only ever produced by a call.
     assertTrue(kind == Type::Array ||
                constructor < ((RecordType*)declBase()[record])->cons.size());
-    assertTrue(count == aggregateComponentCount(declBase(), record, constructor));
+
+    // A **fill** is one component and a count nothing here has - `NodeAggregate::fill`, which is
+    // only ever a fixed array whose length is a const parameter. Everywhere else the list is the
+    // elements themselves, which is what the component count is checked against.
+    assertTrue(!fill || (count == 1 && kind == Type::Array &&
+                         !((ArrayType*)declBase()[record])->hasFixedLength()));
+    assertTrue(fill || count == aggregateComponentCount(declBase(), record, constructor));
 
     auto node = new (arena()) NodeAggregate(source);
 
@@ -1131,6 +1230,7 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constru
      */
     node->occurrence = Occurrence { record, ownedContract(), shape };
     node->constructor = constructor;
+    node->fill = fill;
     node->components.reserve(arena(), count);
 
     for(Size i = 0; i < count; i++) {
@@ -1388,6 +1488,33 @@ Node* Builder::addBranch(LocationId source, Operand condition, Block& whenTrue, 
     return append(node);
 }
 
+Node* Builder::addSwitch(LocationId source, Operand selector, const I64* values,
+                         Block* const* targets, Size count, Block& fallback,
+                         const Operand* arguments, Size argumentCount) {
+    // Below three cases it is a branch, and two spellings of one shape is what this roster refuses
+    // everywhere else. The producer is what decides not to build one; this is where that is checked.
+    assertTrue(count >= 3);
+
+    auto node = new (arena()) NodeSwitch(source, selector);
+    node->cases.reserve(arena(), count);
+
+    for(Size i = 0; i < count; i++) {
+        assertTrue(!i || values[i] > values[i - 1]);
+
+        SwitchCase entry;
+        entry.value = values[i];
+        node->cases.push(arena(), entry);
+    }
+
+    // The edges are filled after the list is complete, because `fillEdge` allocates and the list may
+    // still move: a reference into a `SmallList` is valid only until the next push.
+    auto items = node->cases.pointer(base());
+    for(Size i = 0; i < count; i++) fillEdge(items[i].edge, *targets[i], arguments, argumentCount);
+
+    fillEdge(node->fallback, fallback, arguments, argumentCount);
+    return append(node);
+}
+
 Node* Builder::addUnreachable(LocationId source) {
     return append(new (arena()) NodeUnreachable(source));
 }
@@ -1415,7 +1542,7 @@ void Builder::pruneUnreachable() {
         auto last = base()[block->nodes.get(base(), nodes - 1)];
         if(!isTerminator(last->kind)) continue;
 
-        forEachEdge(*last, [&](Edge& edge) {
+        forEachEdge(base(), *last, [&](Edge& edge) {
             if(!edge.target) return;
 
             auto target = base()[edge.target]->index.index;
@@ -1473,7 +1600,7 @@ void Builder::seal() {
         auto last = base()[block->nodes.get(base(), count - 1)];
         if(!isTerminator(last->kind)) continue;
 
-        forEachEdge(*last, [&](Edge& edge) {
+        forEachEdge(base(), *last, [&](Edge& edge) {
             if(!edge.target) return;
             base()[edge.target]->incoming.push(arena(), block - base());
         });

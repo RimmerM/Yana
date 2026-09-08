@@ -1,0 +1,85 @@
+let image$base: () = <none>
+
+let &trace: I32 = 0
+
+fn size(%g: Guard) -> I32 {
+  b0:
+    %v1 = load %g@Guard.id : I32
+    ret %v1
+}
+
+fn bump(%g: Guard, %by: I32) -> () {
+  b0:
+    %v2 = load %g : Guard
+    %v3 = load %g@Guard.id : I32
+    %v4 = add %v3, %by : I32
+    assign %g@Guard.id, %v4
+    ret
+}
+
+fn twice(%g: Guard) -> () {
+  b0:
+    %v1 = load %g : Guard
+    %v2 = load %g : Guard
+    %v3 = call size, %v2 : I32
+    %v4 = borrow_mut %g : &Guard
+    call bump, %v4, %v3
+    ret
+}
+
+fn viaField(%b: Box) -> () {
+  b0:
+    %v1 = load %b : Box
+    %v2 = load %b@Box.held : Guard
+    %v3 = load %b : Box
+    %v4 = load %b@Box.held : Guard
+    %v5 = call size, %v4 : I32
+    %v6 = load %b : Box
+    %v7 = load %b@Box.tag : I32
+    %v8 = add %v5, %v7 : I32
+    %v9 = borrow_mut %b@Box.held : &Guard
+    call bump, %v9, %v8
+    ret
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = alloc : Guard
+    aggregate %g@Guard.id = 3
+    %v3 = load %g : Guard
+    %v4 = borrow_mut %g : &Guard
+    call twice, %v4
+    %v6 = alloc : Box
+    %v7 = alloc : Guard
+    aggregate %local2@Guard.id = 5
+    aggregate %b@Box.held = %v7, %b@Box.tag = 1
+    %v12 = load %b : Box
+    %v13 = borrow_mut %b : &Box
+    call viaField, %v13
+    %v15 = load %g : Guard
+    %v16 = load %g@Guard.id : I32
+    drop %g via Drop(Guard).drop
+    %v17 = load %b : Box
+    %v18 = load %b@Box.held : Guard
+    %v19 = load %b@Box.held@Guard.id : I32
+    drop_derived %b via drop$Box
+    %v20 = add %v16, %v19 : I32
+    %v21 = load trace : I32
+    %v22 = add %v20, %v21 : I32
+    ret %v22
+}
+
+fn Drop(Guard).drop(%value: Guard) -> () {
+  b0:
+    %v1 = load trace : I32
+    %v2 = load %value@Guard.id : I32
+    %v3 = add %v1, %v2 : I32
+    assign trace, %v3
+    ret
+}
+
+fn drop$Box(%value: Box) -> () {
+  b0:
+    drop %value@Box.held via Drop(Guard).drop
+    ret
+}

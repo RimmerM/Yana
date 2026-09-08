@@ -113,7 +113,7 @@ bb2(%5: Guard [shared call]) handover(Guard [shared call]) -> bb1:
 
 fn written() -> I32 {
   local & c: Counter
-  local & w: Counter [unique call]
+  local & w: Counter [unique call owner]
 
 bb0:
   %0: I32 = const 7
@@ -126,7 +126,7 @@ bb1:
   %12: I32 = read copy.trivial (c.value)
   return take %12
 
-bb2(%4: Counter [unique call]) handover(Counter [unique call]) -> bb1:
+bb2(%4: Counter [unique call owner]) handover(Counter [unique call owner]) -> bb1:
   write.init borrow.unique (w) borrow.unique %4
   %7: I32 = read copy.trivial (w.value)
   %8: I32 = const 100

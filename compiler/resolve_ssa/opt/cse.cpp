@@ -126,6 +126,16 @@ static bool sameImmediates(Inst& a, Inst& b) {
             auto& right = (InstMetric&)b;
             return left.metric == right.metric && left.of == right.of;
         }
+        /*
+         * A `map` declines, and the row is here so that it is a decision rather than the default.
+         *
+         * Two maps are one computation only where their entry lists agree entry for entry, and
+         * unifying two tables that merely share a selector is a wrong answer rather than a missed
+         * one. What declining costs is nothing worth having: two identical tables in one body is one
+         * `match` written twice, which is a source that should say so.
+         */
+        case Inst::Map:
+            return false;
         default:
             return false;
     }
@@ -176,6 +186,53 @@ bool isRemovable(OptContext& opt, Inst& inst) {
 bool isRemovableIfUnread(OptContext& opt, Inst& inst) {
     if(!isPure(inst.kind) && inst.kind != Inst::Load) return false;
     return ownershipAdmitsRemoval(opt, inst);
+}
+
+/*
+ * And whether an instruction **nothing reads at all** may simply be taken out - which is weaker
+ * again, because the two clauses `ownershipAdmitsRemoval` adds are both about *substitution*.
+ *
+ * A tracked operand is refused up there because erasing an instruction drops the uses it records,
+ * and a consumption that went away leaves an owner unconsumed on a path that had consumed it. That
+ * is exactly right for a `Consume` and says nothing about a `Borrow`: dropping a borrow shortens an
+ * extent, which is the direction an extent rule is safe in. A non-`Trivial` result is refused up
+ * there because unifying two borrows on different loans moves an endpoint - and a result nothing
+ * reads is unified with nothing.
+ *
+ * So what is left is the two statements this rule really has to make. **An `Owned` result nothing
+ * reads is IR the verifier has already refused**, so it is not this rule's to remove; an `Affine`
+ * one may be abandoned, which is the whole of what that convention says (`inst.h`). And a **`Load`
+ * whose result is tracked is a destructive read**, which empties storage that MIR's move-path
+ * invariant then says nothing may read again - a rule stated over there and not here, so a rewrite
+ * resting on it is one whose failure mode verifies.
+ *
+ * `Aggregate` and `FunValue` are admitted by name beside the pure kinds. Neither is `kSsaPure` -
+ * both consume their components in the general case - and both are what a flattened adaptor chain
+ * leaves standing with nothing reading it: an environment record of borrowed fields and the
+ * `{code, env}` pair over it, which owe no teardown ([[yana-function-values]]) and are `Affine`
+ * precisely so that they may be abandoned. The consuming case is refused by the operand walk above,
+ * so naming the kinds here costs nothing the rule does not already check.
+ */
+bool isDiscardableIfUnread(OptContext& opt, Inst& inst) {
+    if(!isPure(inst.kind) && inst.kind != Inst::Load && inst.kind != Inst::Aggregate &&
+       inst.kind != Inst::FunValue) {
+        return false;
+    }
+
+    auto ok = true;
+
+    forEachUse(opt.base, inst, [&](Use used) {
+        if(!used.isSet() || used.kind() == UseKind::Consume) ok = false;
+    });
+
+    for(auto resultPointer: inst.results.contents(opt.base)) {
+        auto value = opt.base[resultPointer];
+
+        if(mustConsume(value->convention)) ok = false;
+        if(inst.kind == Inst::Load && isTracked(value->convention)) ok = false;
+    }
+
+    return ok;
 }
 
 bool isUnifiable(Value& from, Value& to) {
@@ -362,16 +419,84 @@ struct Eliminator {
     }
 
     /*
+     * Whether two addresses name the same bytes: the same allocation, reached by the same sequence
+     * of field and element projections.
+     *
+     * Matching on the address **value** is what this replaces, and the reason is the shape every
+     * container has. A body reaches its array through a borrow of the slot - `%a = load %slot`,
+     * `Guaranteed`, which is how a borrow is spelled at this tier and is no instruction at all in
+     * the lowering - and two blocks that each take one hold two SSA values that nothing unifies:
+     * they carry different *occurrences* (a shared borrow in one arm, a unique one in the other),
+     * so `isUnifiable` refuses them and rightly, since unifying two borrows moves a loan endpoint.
+     * The addresses below them are therefore two chains of `field.addr` over two roots, and the
+     * reads at the bottom of them are the same read.
+     *
+     * `addressStep` is the walk and it is shared with `allocationRoot`, which is what keeps "these
+     * two addresses are the same bytes" and "this address is in that allocation" one answer. The
+     * significant steps are the projections - a `Guaranteed` load and a `represent` name the storage
+     * their operand does and contribute nothing - and each is compared by everything the
+     * manifestation reads off it: the record a field belongs to (which is what keeps a window's
+     * `.length` apart from its owner's), the field, the shape and the property, and for an element
+     * the container and the index value.
+     */
+    bool sameProjection(Inst& left, Inst& right) {
+        if(left.kind != right.kind) return false;
+
+        if(left.kind == Inst::FieldAddress) {
+            auto& a = (InstFieldAddress&)left;
+            auto& b = (InstFieldAddress&)right;
+            return a.record == b.record && a.field == b.field && a.shape == b.shape &&
+                   a.property == b.property;
+        }
+
+        auto& a = (InstElementAddress&)left;
+        auto& b = (InstElementAddress&)right;
+        return a.container == b.container && valueOf(a.index) == valueOf(b.index);
+    }
+
+    bool samePlace(Value* left, Value* right) {
+        auto significant = [&](Value*& at) -> Inst* {
+            while(at) {
+                auto definer = at->definer;
+                if(!definer) return nullptr;
+
+                auto inst = opt.base[definer];
+                if(inst->kind == Inst::FieldAddress || inst->kind == Inst::ElementAddress) {
+                    return inst;
+                }
+
+                if(inst->kind == Inst::Alloc) return inst;
+
+                at = addressStep(opt, at);
+            }
+
+            return nullptr;
+        };
+
+        while(true) {
+            if(left == right) return true;
+
+            auto a = significant(left);
+            auto b = significant(right);
+            if(!a || !b) return false;
+
+            if(a == b) return true;
+            if(a->kind == Inst::Alloc || b->kind == Inst::Alloc) return false;
+            if(!sameProjection(*a, *b)) return false;
+
+            left = valueOf(a->kind == Inst::FieldAddress ? ((InstFieldAddress*)a)->base
+                                                         : ((InstElementAddress*)a)->base);
+            right = valueOf(b->kind == Inst::FieldAddress ? ((InstFieldAddress*)b)->base
+                                                          : ((InstElementAddress*)b)->base);
+        }
+    }
+
+    /*
      * A read this may remember, and the allocation whose writes end it.
      *
      * The address has to be **rooted** in an allocation of this body, which is what makes
      * `mayWriteStorage` answerable about it at all: a global's address, a pointer out of storage and
      * a borrowed parameter have no root here, and a write anywhere might be a write of them.
-     *
-     * The two reads are matched on the address **value** rather than on the root, which is what
-     * keeps two fields of one record apart - and it is only answerable because the rule above
-     * unifies the two `field.addr`s first. Within one walk that is guaranteed: an address is defined
-     * before the load reading it, so the walk reaches it first.
      */
     Value* readAllocation(Inst& inst) {
         if(inst.kind != Inst::Load) return nullptr;
@@ -401,7 +526,7 @@ struct Eliminator {
         for(Size i = loads.size(); i-- > 0;) {
             auto& entry = loads[i];
             if(entry.killedAt != AvailableLoad::kAlive) continue;
-            if(entry.address != address) continue;
+            if(!samePlace(entry.address, address)) continue;
             if(entry.result->occurrence != result->occurrence) continue;
             if(!isUnifiable(*result, *entry.result)) continue;
 

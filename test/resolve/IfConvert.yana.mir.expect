@@ -261,6 +261,51 @@ bb3:
   jump -> bb2(take %4)
 }
 
+fn negBoth(a: Bool [shared call], b: Bool [shared call]) -> Bool {
+bb0:
+  %0: Bool = read copy.trivial (a)
+  %1: Bool = not inspect %0
+  branch inspect %1 -> bb3 -> bb1
+
+bb1:
+  %5: Bool = const False
+  jump -> bb2(take %5)
+
+bb2(%6: Bool):
+  return take %6
+
+bb3:
+  %3: Bool = read copy.trivial (b)
+  %4: Bool = not inspect %3
+  jump -> bb2(take %4)
+}
+
+fn truths(a: Bool [shared call], b: Bool [shared call]) -> I32 {
+  local & n: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (n) take %0
+  %2: Bool = read copy.trivial (a)
+  %3: Bool = read copy.trivial (b)
+  %4: Bool = call negBoth borrow.shared %2 borrow.shared %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %12: I32 = read copy.trivial (n)
+  return take %12
+
+bb3:
+  %6: I32 = read copy.trivial (n)
+  %7: I32 = const 1
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (n) take %8
+  jump -> bb2
+}
+
 fn truth(a: I32 [shared call], b: I32 [shared call]) -> I32 {
   local & n: I32
 
@@ -365,12 +410,67 @@ bb18:
   jump -> bb17
 }
 
+fn either(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (b)
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %6: I32 = read copy.trivial (b)
+  return take %6
+
+bb2:
+  %4: I32 = read copy.trivial (a)
+  return take %4
+}
+
+fn guard(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 100
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (n)
+  return take %7
+
+bb3:
+  %4: I32 = const 9
+  return take %4
+}
+
 fn doubled(value: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (value)
   %1: I32 = const 2
   %2: I32 = mul inspect %0 inspect %1
   return take %2
+}
+
+fn guardArm(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I32 = const 0
+  return take %8
+
+bb3:
+  %4: I32 = read copy.trivial (n)
+  %5: I32 = call doubled borrow.shared %4
+  return take %5
 }
 
 fn guarded(value: I32 [shared call]) -> I32 {
@@ -393,7 +493,7 @@ bb3:
   jump -> bb2(take %5)
 }
 
-fn count() -> Bool {
+fn count'2() -> Bool {
 bb0:
   %0: I32 = read copy.trivial (global calls)
   %1: I32 = const 1
@@ -418,7 +518,7 @@ bb2(%8: I32):
   return take %8
 
 bb3:
-  %4: Bool = call count
+  %4: Bool = call count'2
   branch inspect %4 -> bb4 -> bb1
 
 bb4:
@@ -426,7 +526,7 @@ bb4:
   jump -> bb2(take %6)
 }
 
-fn zero() -> I32 {
+fn zero'2() -> I32 {
 bb0:
   %0: I32 = const 0
   return take %0
@@ -659,7 +759,7 @@ bb0:
   write.assign borrow.unique (total) take %125
   %127: I32 = read copy.trivial (total)
   %128: I32 = const 30
-  %129: I32 = call zero
+  %129: I32 = call zero'2
   %130: I32 = call ratio borrow.shared %128 borrow.shared %129
   %131: I32 = const 59
   %132: I32 = mul inspect %130 inspect %131
@@ -674,43 +774,103 @@ bb0:
   %141: I32 = add inspect %135 inspect %140
   write.assign borrow.unique (total) take %141
   %143: I32 = read copy.trivial (total)
-  %144: Bool = const True
-  %145: I32 = call owners borrow.shared %144
-  %146: I32 = const 67
-  %147: I32 = mul inspect %145 inspect %146
-  %148: I32 = add inspect %143 inspect %147
-  write.assign borrow.unique (total) take %148
-  %150: I32 = read copy.trivial (total)
-  %151: Bool = const False
-  %152: I32 = call owners borrow.shared %151
-  %153: I32 = const 71
-  %154: I32 = mul inspect %152 inspect %153
-  %155: I32 = add inspect %150 inspect %154
-  write.assign borrow.unique (total) take %155
-  %157: I32 = read copy.trivial (total)
-  %158: Bool = const True
-  %159: I32 = call releases borrow.shared %158
-  %160: I32 = const 73
-  %161: I32 = mul inspect %159 inspect %160
-  %162: I32 = add inspect %157 inspect %161
-  write.assign borrow.unique (total) take %162
-  %164: I32 = read copy.trivial (total)
-  %165: Bool = const False
-  %166: I32 = call releases borrow.shared %165
-  %167: I32 = const 79
-  %168: I32 = mul inspect %166 inspect %167
-  %169: I32 = add inspect %164 inspect %168
-  write.assign borrow.unique (total) take %169
-  %171: I32 = read copy.trivial (total)
-  %172: I32 = const 1000
-  %173: I32 = mul inspect %171 inspect %172
-  %174: I32 = read copy.trivial (global calls)
-  %175: I32 = const 10
-  %176: I32 = mul inspect %174 inspect %175
-  %177: I32 = add inspect %173 inspect %176
-  %178: I32 = read copy.trivial (global live)
-  %179: I32 = add inspect %177 inspect %178
-  return take %179
+  %144: I32 = const 3
+  %145: I32 = const 8
+  %146: I32 = call either borrow.shared %144 borrow.shared %145
+  %147: I32 = const 83
+  %148: I32 = mul inspect %146 inspect %147
+  %149: I32 = add inspect %143 inspect %148
+  write.assign borrow.unique (total) take %149
+  %151: I32 = read copy.trivial (total)
+  %152: I32 = const 8
+  %153: I32 = const 3
+  %154: I32 = call either borrow.shared %152 borrow.shared %153
+  %155: I32 = const 89
+  %156: I32 = mul inspect %154 inspect %155
+  %157: I32 = add inspect %151 inspect %156
+  write.assign borrow.unique (total) take %157
+  %159: I32 = read copy.trivial (total)
+  %160: I32 = const 200
+  %161: I32 = call guard borrow.shared %160
+  %162: I32 = const 97
+  %163: I32 = mul inspect %161 inspect %162
+  %164: I32 = add inspect %159 inspect %163
+  write.assign borrow.unique (total) take %164
+  %166: I32 = read copy.trivial (total)
+  %167: I32 = const 5
+  %168: I32 = call guard borrow.shared %167
+  %169: I32 = const 101
+  %170: I32 = mul inspect %168 inspect %169
+  %171: I32 = add inspect %166 inspect %170
+  write.assign borrow.unique (total) take %171
+  %173: I32 = read copy.trivial (total)
+  %174: I32 = const 6
+  %175: I32 = call guardArm borrow.shared %174
+  %176: I32 = const 103
+  %177: I32 = mul inspect %175 inspect %176
+  %178: I32 = add inspect %173 inspect %177
+  write.assign borrow.unique (total) take %178
+  %180: I32 = read copy.trivial (total)
+  %181: I32 = const -6
+  %182: I32 = call guardArm borrow.shared %181
+  %183: I32 = const 107
+  %184: I32 = mul inspect %182 inspect %183
+  %185: I32 = add inspect %180 inspect %184
+  write.assign borrow.unique (total) take %185
+  %187: I32 = read copy.trivial (total)
+  %188: Bool = const False
+  %189: Bool = const False
+  %190: I32 = call truths borrow.shared %188 borrow.shared %189
+  %191: I32 = const 109
+  %192: I32 = mul inspect %190 inspect %191
+  %193: I32 = add inspect %187 inspect %192
+  write.assign borrow.unique (total) take %193
+  %195: I32 = read copy.trivial (total)
+  %196: Bool = const True
+  %197: Bool = const False
+  %198: I32 = call truths borrow.shared %196 borrow.shared %197
+  %199: I32 = const 113
+  %200: I32 = mul inspect %198 inspect %199
+  %201: I32 = add inspect %195 inspect %200
+  write.assign borrow.unique (total) take %201
+  %203: I32 = read copy.trivial (total)
+  %204: Bool = const True
+  %205: I32 = call owners borrow.shared %204
+  %206: I32 = const 67
+  %207: I32 = mul inspect %205 inspect %206
+  %208: I32 = add inspect %203 inspect %207
+  write.assign borrow.unique (total) take %208
+  %210: I32 = read copy.trivial (total)
+  %211: Bool = const False
+  %212: I32 = call owners borrow.shared %211
+  %213: I32 = const 71
+  %214: I32 = mul inspect %212 inspect %213
+  %215: I32 = add inspect %210 inspect %214
+  write.assign borrow.unique (total) take %215
+  %217: I32 = read copy.trivial (total)
+  %218: Bool = const True
+  %219: I32 = call releases borrow.shared %218
+  %220: I32 = const 73
+  %221: I32 = mul inspect %219 inspect %220
+  %222: I32 = add inspect %217 inspect %221
+  write.assign borrow.unique (total) take %222
+  %224: I32 = read copy.trivial (total)
+  %225: Bool = const False
+  %226: I32 = call releases borrow.shared %225
+  %227: I32 = const 79
+  %228: I32 = mul inspect %226 inspect %227
+  %229: I32 = add inspect %224 inspect %228
+  write.assign borrow.unique (total) take %229
+  %231: I32 = read copy.trivial (total)
+  %232: I32 = const 1000
+  %233: I32 = mul inspect %231 inspect %232
+  %234: I32 = read copy.trivial (global calls)
+  %235: I32 = const 10
+  %236: I32 = mul inspect %234 inspect %235
+  %237: I32 = add inspect %233 inspect %236
+  %238: I32 = read copy.trivial (global live)
+  %239: I32 = add inspect %237 inspect %238
+  return take %239
 }
 
 entry main

@@ -35,8 +35,14 @@ namespace mir {
  * project's own files. Null is a compilation whose only modules are `root` and whatever `lib/`
  * answers, which is what a single-file fixture is.
  */
+/*
+ * `testRoots` is the modules that declare a `@test`, which nothing imports - Design-Test.md §3.4.
+ * Empty in every build without `-test`; the driver is what finds them, since it is what holds the
+ * parsed groups before anything is resolved.
+ */
 Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root,
-                            ast::ModuleProvider* provider = nullptr);
+                            ast::ModuleProvider* provider = nullptr,
+                            Buffer<ast::ModuleGroup*> testRoots = {});
 Ptr<Program> resolveProgram(Context& context, ast::Module& root,
                             ast::ModuleProvider* provider = nullptr);
 

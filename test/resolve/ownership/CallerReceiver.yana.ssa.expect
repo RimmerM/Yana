@@ -1,0 +1,75 @@
+module ResolveTest
+
+let string'142: [CodeUnit *4] = [102, 108, 97, 103]
+
+let string'143: [CodeUnit *4] = [102, 108, 97, 103]
+
+fn widthOfSelf(self: Bool [shared call], text: String [shared call view]) -> Size {
+bb0(%0: Bool [shared call] guaranteed, %1: String [shared call view] guaranteed):
+  %2: %Bool address = alloc frame Bool [shared call]
+  store inspect %2 borrow %0
+  %3: String [shared call view] guaranteed from{%1} = load inspect %1
+  %4: Size trivial = call String.length borrow %3
+  return consume %4
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Bool address = alloc frame Bool
+  %1: %String address = alloc frame String
+  %2: %String address = alloc frame String
+  %3: Bool trivial = const True
+  store inspect %0 consume %3
+  %4: Bool trivial = const True
+  %5: %[CodeUnit *4] address = global.addr string'142
+  %6: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %5
+  %7: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %6
+  %8: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %7
+  %9: I32 trivial = const 4
+  %10: String owned = call stringLiteral borrow %8 borrow %9
+  store inspect %1 consume %10
+  %11: String [shared slot 0] guaranteed from{%1} = load inspect %1
+  %12: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %11
+  %13: Size trivial = call widthOfSelf borrow %4 borrow %12
+  drop String inspect %1
+  %14: Size trivial = const 4
+  %15: Bool trivial = ne inspect %13 inspect %14
+  branch inspect %15 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %16: Bool trivial = const True
+  %17: %[CodeUnit *4] address = global.addr string'143
+  %18: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %17
+  %19: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %18
+  %20: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %19
+  %21: I32 trivial = const 4
+  %22: String owned = call stringLiteral borrow %20 borrow %21
+  store inspect %2 consume %22
+  %23: String [shared slot 0] guaranteed from{%2} = load inspect %2
+  %24: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %23
+  %25: Size trivial = call widthOfSelf borrow %16 borrow %24
+  drop String inspect %2
+  %26: Size trivial = const 4
+  %27: Bool trivial = ne inspect %25 inspect %26
+  branch inspect %27 -> bb6 -> bb4
+
+bb3:
+  %28: I32 trivial = const 1
+  return consume %28
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %29: I32 trivial = const 0
+  return consume %29
+
+bb6:
+  %30: I32 trivial = const 2
+  return consume %30
+}
+
+entry main

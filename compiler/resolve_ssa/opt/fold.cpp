@@ -64,7 +64,7 @@ Maybe<IntFacts> foldableInt(OptContext& opt, DeclPtr<mir::Type> type) {
 
     /*
      * `Bool` is one unsigned bit, and it is a declared enum in this stage rather than a type kind -
-     * `data Bool = False | True` in `prelude/Core/Core.yana`, claiming `known.def`'s role. Its
+     * `data Bool = False | True` in `lib/Core/Core.yana`, claiming `known.def`'s role. Its
      * constants are constructor indices, which are 0 and 1 by the rule `checkRoles` holds that
      * declaration to, so the three connectives `Bitwise(Bool)` declares are one-bit arithmetic over
      * exactly the numbers this says they are.
@@ -104,8 +104,6 @@ U64 narrowToWidth(U64 value, const IntFacts& facts) {
     return masked;
 }
 
-namespace {
-
 // The constant an instruction is, or null. `Value::definer` is what makes this one lookup rather
 // than a search: a value is defined by exactly one instruction or is a block argument, and a block
 // argument is never a constant.
@@ -117,6 +115,8 @@ const mir::Constant* constantOf(OptContext& opt, Value* value) {
 
     return &((InstConst&)*definer).constant;
 }
+
+namespace {
 
 Value* valueOf(OptContext& opt, Use used) {
     return used.isSet() ? opt.base[used.value()] : nullptr;
@@ -187,6 +187,54 @@ struct Folder {
     }
 
     /*
+     * A select of two constants, compared against a third - the shape a widened boolean is tested in.
+     *
+     * Once a `Bool` has been widened and put back through a comparison, what is left of it is
+     * `select c, 1, 0` and what is left of the test is `eq` of that against `1`. The comparison has
+     * one answer per arm and both are decidable here, so the only question is which of the four
+     * pairs it came out as.
+     *
+     * Three of the four are answerable with a value that already exists: the two arms agreeing is a
+     * constant, and agreeing *with the condition* is the condition. The fourth is `!c`, which is an
+     * instruction rather than a value - and it is declined here on the same terms the mirror pair in
+     * `simplify.cpp` is: whether a complement is free is a question about the rest of the function,
+     * and what it costs where it is not is one `xor` that was going to be emitted anyway.
+     *
+     * The select is looked for on **both** sides, which is this file's convention, and the operand
+     * order is carried into the comparison rather than assumed away - four of the six orderings are
+     * not symmetric.
+     */
+    Value* foldCompareOfSelect(InstBinary& binary, bool isSigned) {
+        auto onLeft = operand(binary.lhs)->definer &&
+                      opt.base[operand(binary.lhs)->definer]->kind == Inst::Select;
+        auto held = operand(onLeft ? binary.lhs : binary.rhs);
+        if(!held->definer) return nullptr;
+
+        auto definer = opt.base[held->definer];
+        if(definer->kind != Inst::Select) return nullptr;
+
+        auto& select = (InstSelect&)*definer;
+        auto whenTrue = constantValueOf(opt, operand(select.whenTrue));
+        auto whenFalse = constantValueOf(opt, operand(select.whenFalse));
+        auto against = constantValueOf(opt, operand(onLeft ? binary.rhs : binary.lhs));
+        if(!whenTrue || !whenFalse || !against) return nullptr;
+
+        auto answer = [&](U64 arm) {
+            return onLeft ? compare(binary.op, arm, against.unwrap(), isSigned)
+                          : compare(binary.op, against.unwrap(), arm, isSigned);
+        };
+
+        auto ifTrue = answer(whenTrue.unwrap());
+        if(ifTrue == answer(whenFalse.unwrap())) return constant(resultType(), ifTrue ? 1 : 0);
+
+        // The condition itself, at the comparison's own type - which is `Bool` for both, but asked
+        // rather than assumed, since what is handed back is one value in place of another.
+        if(ifTrue && typeOf(select.condition) == resultType()) return operand(select.condition);
+
+        return nullptr;
+    }
+
+    /*
      * A comparison, whose result type is `Bool` and whose every question is about the operands.
      *
      * The reflexive answer is given ahead of any type gate, because an ordering is reflexive whatever
@@ -218,10 +266,6 @@ struct Folder {
             return constant(resultType(), compareFloat(binary.op, left.unwrap(), right.unwrap()) ? 1 : 0);
         }
 
-        auto left = constantValueOf(opt, operand(binary.lhs));
-        auto right = constantValueOf(opt, operand(binary.rhs));
-        if(!left || !right) return nullptr;
-
         /*
          * The signedness the two patterns are ordered at, and nothing where there is none.
          *
@@ -237,6 +281,14 @@ struct Folder {
          */
         auto facts = foldableInt(opt, operandType);
         auto isSigned = facts && facts.unwrap().isSigned;
+
+        // The select rule ahead of the both-constants read, because its operand is a select rather
+        // than a constant and the read below would end the walk before it was reached.
+        if(auto folded = foldCompareOfSelect(binary, isSigned)) return folded;
+
+        auto left = constantValueOf(opt, operand(binary.lhs));
+        auto right = constantValueOf(opt, operand(binary.rhs));
+        if(!left || !right) return nullptr;
 
         return constant(resultType(), compare(binary.op, left.unwrap(), right.unwrap(), isSigned) ? 1 : 0);
     }
@@ -456,6 +508,127 @@ struct Folder {
     }
 
     /*
+     * `(x op c1) op c2` becomes `x op (c1 op c2)`, for the operations where that is an identity.
+     *
+     * The five bitwise-and-arithmetic ones are associative **as modular arithmetic**, which is what
+     * the type says they are: both instructions have this result type, so both wrap at the same
+     * width and the combined constant wraps with them. The three shifts are not associative and are
+     * here for the identity they do have - two shifts in one direction are one shift by the sum -
+     * which needs the sum to be a distance the language has an answer for, so all three counts are
+     * required to be **below the width**. At or above it is the second case of this file's rule two:
+     * every machine masks its own way and nothing here decides which.
+     *
+     * A rotation is left out, and not because the identity is false: `(x rol c1) rol c2` is
+     * `x rol ((c1 + c2) mod width)` at every pair of counts. It is left out because nothing writes
+     * one twice - measured at zero over both corpora, where the shift chain is a real shape - and a
+     * rule that fires on nothing is a rule that is not there to be got wrong.
+     *
+     * **The inner operation may have other readers**, and then this is neutral rather than a shrink:
+     * one instruction and one constant replace one instruction and one constant, and the inner stays
+     * standing for its other reader. It is admitted anyway because the *chain* is what pays - the
+     * value this answers with is one a further reassociation above it can take - and because two
+     * `x op c` at one constant are then one computation for `cse`.
+     *
+     * This is the one rule in the file that answers with the result of an instruction it **made**
+     * rather than with a constant or an operand already standing there, which `simplify`'s
+     * `replaceAndErase` handles identically: the folder still rewrites nothing in place and erases
+     * nothing, which is the property the worklist rests on.
+     */
+    Value* reassociate(InstBinary& binary, const IntFacts& facts) {
+        auto op = binary.op;
+
+        auto isShift = op == BinaryOp::Shl || op == BinaryOp::Shr || op == BinaryOp::Sar;
+        auto isCombining = op == BinaryOp::Add || op == BinaryOp::Mul || op == BinaryOp::And ||
+                           op == BinaryOp::Or || op == BinaryOp::Xor;
+        if(!isShift && !isCombining) return nullptr;
+
+        /*
+         * Which side of this instruction the constant is on, and which is the inner operation. A
+         * shift takes its count on the right and nowhere else; the other five are commutative and
+         * both orders are written out, which is this file's convention.
+         *
+         * Both constants are required to be at the **result's** own type, which for the five
+         * `Closed` operations they are by construction and for a shift's count is a thing to ask:
+         * the combined number is written at that type, so a count the author gave another one would
+         * come back as an operand of a type the original never had.
+         */
+        auto atResult = [&](Use used) { return typeOf(used) == resultType(); };
+
+        auto outer = atResult(binary.rhs) ? constantValueOf(opt, operand(binary.rhs)) : Nothing();
+        auto inner = operand(binary.lhs);
+
+        if(!outer && isCombining) {
+            outer = atResult(binary.lhs) ? constantValueOf(opt, operand(binary.lhs)) : Nothing();
+            inner = operand(binary.rhs);
+        }
+
+        if(!outer || !inner->definer) return nullptr;
+
+        auto definer = opt.base[inner->definer];
+        if(definer->kind != Inst::Binary || ((InstBinary&)*definer).op != op) return nullptr;
+        if(inner->type() != resultType()) return nullptr;
+
+        auto& below = (InstBinary&)*definer;
+        auto middle = atResult(below.rhs) ? constantValueOf(opt, valueOf(opt, below.rhs)) : Nothing();
+        auto rest = valueOf(opt, below.lhs);
+
+        if(!middle && isCombining) {
+            middle = atResult(below.lhs) ? constantValueOf(opt, valueOf(opt, below.lhs)) : Nothing();
+            rest = valueOf(opt, below.rhs);
+        }
+
+        if(!middle || !rest) return nullptr;
+
+        /*
+         * What combining the two constants *is*, named per operation rather than defaulted: a sixth
+         * kind added to either list above declines here instead of being read as an `xor`.
+         */
+        U64 combined = 0;
+        switch(op) {
+            case BinaryOp::Add: combined = middle.unwrap() + outer.unwrap(); break;
+            case BinaryOp::Mul: combined = middle.unwrap() * outer.unwrap(); break;
+            case BinaryOp::And: combined = middle.unwrap() & outer.unwrap(); break;
+            case BinaryOp::Or:  combined = middle.unwrap() | outer.unwrap(); break;
+            case BinaryOp::Xor: combined = middle.unwrap() ^ outer.unwrap(); break;
+
+            case BinaryOp::Shl:
+            case BinaryOp::Shr:
+            case BinaryOp::Sar: {
+                // Read as counts rather than as patterns, which is the same masking the evaluator
+                // does - a signed narrow constant is held sign-extended here, so `1` at a
+                // `@bits(5) I32` and `~0` are two spellings the width has to separate.
+                auto first = middle.unwrap() & maskOf(facts.bits);
+                auto second = outer.unwrap() & maskOf(facts.bits);
+                if(first >= facts.bits || second >= facts.bits) return nullptr;
+                if(first + second >= facts.bits) return nullptr;
+
+                combined = first + second;
+                break;
+            }
+
+            default: return nullptr;
+        }
+
+        // The constant first and the cursor after it, in that order: `makeConstant` builds an editor
+        // of its own, so a cursor taken before it is an index the insertion has moved and the binary
+        // would land in front of the constant it names.
+        auto count = constant(resultType(), narrowToWidth(combined, facts));
+
+        auto editor = opt.ir();
+        editor.setInsertBefore(inst);
+
+        // The occurrence and the convention are the original's rather than re-derived, which is the
+        // rule `opt/inline.cpp`'s clone states for the same reason: this computes what that
+        // instruction computed, and a second derivation is a second chance to disagree.
+        auto& result = *opt.base[inst.results.get(opt.base, 0)];
+        auto made = editor.addBinary(inst.source, op, editor.use(*rest, UseKind::Inspect),
+                                     editor.use(*count, UseKind::Inspect), result.occurrence,
+                                     result.convention);
+
+        return editor.resultOf(*made);
+    }
+
+    /*
      * The unary operations over one constant.
      *
      * The three bit counts are folded at the **declared** width, which is what makes them answer the
@@ -524,6 +697,30 @@ struct Folder {
                 }
 
                 return constant(type, narrowToWidth(answer, facts));
+            }
+
+            /*
+             * The byte reversal, at the **declared** width for the bit counts' reason: the bytes an
+             * operation exchanges are the type's, and a narrow value's register holds bits above
+             * them that are the extension rather than the value.
+             *
+             * The double reversal is not here: it is an identity over an arbitrary operand rather
+             * than an evaluation of a constant one, so it is decided in `run` before the gate that
+             * requires the operand to be a constant at all.
+             */
+            case UnaryOp::ByteSwap: {
+                auto operandFacts = foldableInt(opt, typeOf(unary.value));
+                if(!operandFacts) return nullptr;
+
+                auto bits = U32(operandFacts.unwrap().bits);
+                auto pattern = value & maskOf(bits);
+                U64 reversed = 0;
+
+                for(U32 byte = 0; byte < bits / 8; byte++) {
+                    reversed = (reversed << 8) | ((pattern >> (byte * 8)) & 0xFF);
+                }
+
+                return constant(type, narrowToWidth(reversed, facts));
             }
 
             default:
@@ -689,6 +886,36 @@ struct Folder {
      * arm that folded to a constant becomes a select whose condition then folds, and without this the
      * branch that `cleanCfg` would have removed survives as a conditional move on a known flag.
      */
+    /*
+     * A `map` at a selector this pass already knows - the arm's own constant, standing where the
+     * table was.
+     *
+     * One arm and no second opinion: `simplify` calls this and every pass afterwards sees the
+     * result, so an inlined `nameOf(Red)` is the string and not a table read. The lookup is linear
+     * over the entries, which is what the recognition rule's bound makes free.
+     *
+     * The **fallback** answers where the domain is open and the selector is outside it, which is the
+     * one case a chain would have reached through a comparison. There is nothing to prove about a
+     * closed one: recognition covered every constructor, so a selector that matched no entry is a
+     * value of a type the pivot cannot hold.
+     */
+    Value* foldMap(InstMap& map) {
+        auto found = constantValueOf(opt, operand(map.selector));
+        if(!found) return nullptr;
+
+        auto selector = I64(found.unwrap());
+
+        for(auto entry: map.entries.contents(opt.base)) {
+            if(entry.selector != selector) continue;
+
+            return makeConstantValue(opt, inst, entry.value);
+        }
+
+        if(map.closed) return nullptr;
+
+        return makeConstantValue(opt, inst, map.fallback);
+    }
+
     Value* foldSelect(InstSelect& select) {
         // Both arms one value is that value, whatever the condition did. This is what a diamond whose
         // two sides computed one thing leaves - and unlike the block argument it came from, it is one
@@ -737,6 +964,9 @@ struct Folder {
             case Inst::Select:
                 return foldSelect((InstSelect&)inst);
 
+            case Inst::Map:
+                return foldMap((InstMap&)inst);
+
             case Inst::Unary: {
                 auto& unary = (InstUnary&)inst;
 
@@ -746,6 +976,26 @@ struct Folder {
                 // different reason.
                 if(unary.op == UnaryOp::Bitcast) return foldBitcast(unary);
                 if(unary.op == UnaryOp::Convert) return foldConvert(unary);
+
+                /*
+                 * `byteSwap(byteSwap(x))` is `x` - the one identity of this operation, and ahead of
+                 * the constant gate because it holds for any operand at all.
+                 *
+                 * Not left to CSE: the two reversals are different values however identical their
+                 * operands, and what makes the pair the identity is the operation's own algebra
+                 * rather than a repeated computation. Guarded on the two agreeing about the type, so
+                 * that a reversal of a reinterpretation of a reversal is left alone.
+                 */
+                if(unary.op == UnaryOp::ByteSwap) {
+                    if(auto producer = operand(unary.value)->definer) {
+                        auto& before = *opt.base[producer];
+                        if(before.kind == Inst::Unary &&
+                           ((InstUnary&)before).op == UnaryOp::ByteSwap) {
+                            auto inner = operand(((InstUnary&)before).value);
+                            if(inner->type() == resultType()) return inner;
+                        }
+                    }
+                }
 
                 auto facts = foldableInt(opt, resultType());
                 if(!facts) return nullptr;
@@ -764,7 +1014,12 @@ struct Folder {
                 auto facts = foldableInt(opt, resultType());
                 if(!facts) return nullptr;
 
-                return foldBinary(binary, facts.unwrap());
+                if(auto folded = foldBinary(binary, facts.unwrap())) return folded;
+
+                // Behind the table, which has first claim: an identity answers with an operand that
+                // is already there where this makes an instruction, and `x * 1 * 4` should reach
+                // `x * 4` by way of `x * 4` rather than by way of a second multiply.
+                return reassociate(binary, facts.unwrap());
             }
 
             /*
@@ -835,6 +1090,20 @@ Value* makeConstant(OptContext& opt, Inst& at, DeclPtr<mir::Type> type, U64 valu
     auto constant = opt.decl[type]->kind == mir::Type::Int
         ? mir::intConstant(type, value)
         : mir::enumConstant(type, U16(value));
+
+    return editor.resultOf(*editor.addConst(at.source, constant));
+}
+
+/*
+ * Any constant at all as a value - the one a `map` arm answers, whatever kind it is.
+ *
+ * `makeConstant` above takes a number because every other fold produces one; a table's arm may be a
+ * float, a string or a record, and what it is was settled where the mapping was recognized. So this
+ * installs the constant it was given rather than rebuilding one.
+ */
+Value* makeConstantValue(OptContext& opt, Inst& at, const mir::Constant& constant) {
+    auto editor = opt.ir();
+    editor.setInsertBefore(at);
 
     return editor.resultOf(*editor.addConst(at.source, constant));
 }

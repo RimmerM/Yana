@@ -22,7 +22,7 @@ bb0:
   %5: Buffer = aggregate.Buffer take %4
   write.init borrow.unique (buffer) take %5
   %7: %U8 = read copy.trivial (buffer.bytes)
-  %8: Size = const 0
+  %8: U8 = const 0
   %9: Size = read copy.trivial (size)
   %10: {} = native set.memory inspect %7 inspect %8 inspect %9
   %11: %U8 = read copy.trivial (buffer.bytes)
@@ -366,8 +366,8 @@ bb0:
 
 fn swapEnds(xs: Array(I64) [unique call view]) -> {} {
   local last: Size
-  local & local2: I64 [unique slot 0]
-  local & local3: I64 [unique slot 0]
+  local & local2: I64 [unique slot 0 owner]
+  local & local3: I64 [unique slot 0 owner]
   local local4: I64
 
 bb0:
@@ -378,14 +378,14 @@ bb0:
   write.init borrow.unique (last) take %3
   %5: Size = const 0
   %6: Array(I64) [unique call view] = read borrow.unique (xs) loan1
-  %7: I64 [unique slot 0] = call.subscript getMut(Array(I64), Size, I64) borrow.unique %6 borrow.shared %5 roots{1}
+  %7: I64 [unique slot 0 owner] = call.subscript getMut(Array(I64), Size, I64) borrow.unique %6 borrow.shared %5 roots{1}
   write.init borrow.unique (local2) borrow.unique %7
-  %9: I64 [unique slot 0] = read borrow.unique (local2) loan2 roots{1}
+  %9: I64 [unique slot 0 owner] = read borrow.unique (local2) loan2 roots{1}
   %10: Size = read copy.trivial (last)
   %11: Array(I64) [unique call view] = read borrow.unique (xs) loan3
-  %12: I64 [unique slot 0] = call.subscript getMut(Array(I64), Size, I64) borrow.unique %11 borrow.shared %10 roots{3}
+  %12: I64 [unique slot 0 owner] = call.subscript getMut(Array(I64), Size, I64) borrow.unique %11 borrow.shared %10 roots{3}
   write.init borrow.unique (local3) borrow.unique %12
-  %14: I64 [unique slot 0] = read borrow.unique (local3) loan4 roots{3}
+  %14: I64 [unique slot 0 owner] = read borrow.unique (local3) loan4 roots{3}
   %15: %I64 = address.exchange inspect %9
   %16: %I64 = address.exchange inspect %14
   %17: I64 = read copy.trivial ([%%15])
@@ -400,8 +400,8 @@ bb0:
 
 fn swapWindow() -> I64 {
   local & xs: Array(I64)
-  local & local1: I64 [unique slot 0]
-  local & local2: I64 [unique slot 0]
+  local & local1: I64 [unique slot 0 owner]
+  local & local2: I64 [unique slot 0 owner]
   local local3: I64
   local local4: I64 [shared slot 0]
   local local5: I64 [shared slot 0]
@@ -425,15 +425,15 @@ bb0:
   %14: Size = const 0
   %15: Array(I64) [unique call] = read borrow.unique (xs) loan4
   %16: Array(I64) [unique slot 0 view] = call.derivation elementsMut(Array(I64), I64) borrow.unique %15 roots{4}
-  %17: I64 [unique slot 0] = call.subscript getMut(Array(I64), Size, I64) borrow.unique %16 borrow.shared %14 roots{4}
+  %17: I64 [unique slot 0 owner] = call.subscript getMut(Array(I64), Size, I64) borrow.unique %16 borrow.shared %14 roots{4}
   write.init borrow.unique (local1) borrow.unique %17
-  %19: I64 [unique slot 0] = read borrow.unique (local1) loan5 roots{4}
+  %19: I64 [unique slot 0 owner] = read borrow.unique (local1) loan5 roots{4}
   %20: Size = const 1
   %21: Array(I64) [unique call] = read borrow.unique (xs) loan6
   %22: Array(I64) [unique slot 0 view] = call.derivation elementsMut(Array(I64), I64) borrow.unique %21 roots{6}
-  %23: I64 [unique slot 0] = call.subscript getMut(Array(I64), Size, I64) borrow.unique %22 borrow.shared %20 roots{6}
+  %23: I64 [unique slot 0 owner] = call.subscript getMut(Array(I64), Size, I64) borrow.unique %22 borrow.shared %20 roots{6}
   write.init borrow.unique (local2) borrow.unique %23
-  %25: I64 [unique slot 0] = read borrow.unique (local2) loan7 roots{6}
+  %25: I64 [unique slot 0 owner] = read borrow.unique (local2) loan7 roots{6}
   %26: %I64 = address.exchange inspect %19
   %27: %I64 = address.exchange inspect %25
   %28: I64 = read copy.trivial ([%%26])

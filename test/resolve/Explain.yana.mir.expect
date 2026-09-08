@@ -1,0 +1,99 @@
+module ResolveTest
+
+data Pair {left: I64, right: I64}
+
+fn replace(slot: Pair [unique call], with: Pair) -> {} {
+bb0:
+  %0: Pair = read copy.trivial (with)
+  write.assign borrow.unique (slot) take %0
+  return
+}
+
+fn borrowed(p: Pair [shared slot 0]) -> I64 [shared slot 0] {
+bb0:
+  %0: I64 [shared slot 0] = read borrow.shared (p.left) loan0
+  return borrow.shared %0
+}
+
+fn placed() -> I64 {
+  local & p: Pair heap
+
+bb0:
+  %0: I64 = const 10
+  %1: I64 = const 20
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I64 = read copy.trivial (p.left)
+  %5: I64 = const 2
+  %6: I64 = add inspect %4 inspect %5
+  write.assign borrow.unique (p.left) take %6
+  %8: I64 = read copy.trivial (p.left)
+  %9: I64 = read copy.trivial (p.right)
+  %10: I64 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn bump(counter: I64 [unique call]) -> {} {
+bb0:
+  %0: I64 [unique call] = read borrow.unique (counter) loan0
+  %1: I64 = const 1
+  %2: {} = call +=(I64) borrow.unique %0 borrow.shared %1
+  return
+}
+
+fn identity(x: a) -> a {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: a = read take (x)
+  return take %0
+}
+
+fn main() -> I32 {
+  local & pair: Pair
+  local l: I64 [shared slot 0]
+  local & count: I64
+  local a: I32
+  local b: I32
+
+bb0:
+  %0: I64 = const 1
+  %1: I64 = const 2
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (pair) take %2
+  %4: Pair [unique call] = read borrow.unique (pair) loan0
+  %5: I64 = const 3
+  %6: I64 = const 4
+  %7: Pair = aggregate.Pair take %5 take %6
+  %8: {} = call replace borrow.unique %4 take %7
+  %9: Pair [shared slot 0] = read borrow.shared (pair) loan1
+  %10: I64 [shared slot 0] = call borrowed borrow.shared %9 roots{1}
+  write.init borrow.unique (l) borrow.shared %10
+  %12: I64 = const 0
+  write.init borrow.unique (count) take %12
+  %14: I64 [unique call] = read borrow.unique (count) loan2
+  %15: {} = call bump borrow.unique %14
+  %16: I32 = const 3
+  %17: I32 = call identity(I32) take %16
+  write.init borrow.unique (a) take %17
+  %19: I32 = const 4
+  %20: I32 = call identity(I32) take %19
+  write.init borrow.unique (b) take %20
+  %22: I64 = read copy.trivial (l)
+  %23: I64 = call placed
+  %24: I64 = add inspect %22 inspect %23
+  %25: I64 = read copy.trivial (count)
+  %26: I64 = add inspect %24 inspect %25
+  %27: I32 = read copy.trivial (a)
+  %28: I64 = convert inspect %27
+  %29: I64 = add inspect %26 inspect %28
+  %30: I32 = read copy.trivial (b)
+  %31: I64 = convert inspect %30
+  %32: I64 = add inspect %29 inspect %31
+  %33: I32 = convert inspect %32
+  return take %33
+}
+
+fn identity(I32)(x: I32) -> I32 = <identity at I32>
+
+entry main

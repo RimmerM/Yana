@@ -1,0 +1,69 @@
+{-
+   What `@convention` and `@host` refuse - the two attributes this stage parsed and threw away until
+   2026-09-07.
+
+   # resolver: ownership
+
+   That is the failure worth a fixture rather than the spellings: a convention silently dropped is a
+   body entered under one its author did not write, and a `@host` field silently dropped is a record
+   whose JS shape nobody has said anything about. So the subject here is that each is *read*, and the
+   refusals are what reading them looks like.
+
+   The messages are the shipping stage's word for word - one language, one diagnostic - and
+   `../Reject.VectorReset.yana` and `../Reject.Host.yana` are the same programs through it. This is a
+   fixture of its own rather than a directive on those two, because a rejection fixture names one
+   stage and those two are the shipping stage's. The one rule that genuinely differs is placement:
+   that stage reads a convention off a plain `fn` only, and this one reads it off every signature,
+   beside the encoding marker `readInlineAttribute` already reads there.
+-}
+
+-- Two of the six conventions the lower IR has are the compiler's own choice between internal shapes,
+-- and one describes what a syscall leaves alone rather than how anything is entered. Naming one is
+-- writing an implementation detail down as though it were an interface.
+@convention(simple)
+fn internalShape(x: Int) -> Int = x
+
+@convention(system)
+fn kernelSide(x: Int) -> Int = x
+
+-- A name no convention has.
+@convention(fastcall)
+fn unknownName(x: Int) -> Int = x
+
+-- Exactly one argument, and it is a name rather than an expression.
+@convention
+fn noArgument(x: Int) -> Int = x
+
+@convention(clobber, sysv)
+fn twoArguments(x: Int) -> Int = x
+
+-- Two of them on one declaration say two different things about how one function is entered.
+@convention(clobber)
+@convention(sysv)
+fn twice(x: Int) -> Int = x
+
+-- And where it means nothing at all: an attribute about a call boundary, written on a type.
+@convention(clobber)
+data Placed {n: Int}
+
+-- `@host` names a property of the value the record holds, so there has to be a value for it to be a
+-- property *of*, and the field that holds that value cannot itself be one of the properties.
+data Alone {length: @host Int}
+data First {length: @host Int, items: Int}
+
+-- One stored field, not two. A record with two of its own has an object either way, and there is
+-- nothing for the elided field to be reached through.
+data Two {items: Int, count: Int, length: @host Int}
+
+-- `@bits` narrows a field into a word it shares with its neighbours and an elided field has no word;
+-- `@box` makes a field an address and an elided one has no storage to take the address of.
+data Narrow {items: Int, length: @host @bits(30) Int}
+data Boxed {items: Int, length: @host @box Int}
+
+-- The property is the field's own name, so there is nothing to pass.
+data Argued {items: Int, length: @host(size) Int}
+
+-- And outside a field, where it says nothing about the type it was written on.
+fn elided(n: @host Int) -> Int = n
+
+fn main() -> Int = 0

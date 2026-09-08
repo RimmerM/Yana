@@ -12,11 +12,11 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %7: I32 trivial = load inspect %3
   %8: I32 trivial = mul inspect %6 inspect %7
   store inspect %4 consume %8
-  %9: I32 trivial = const 2
-  %10: I32 trivial = load inspect %2
-  %11: I32 trivial = load inspect %3
-  %12: I32 trivial = add inspect %10 inspect %11
-  %13: I32 trivial = mul inspect %9 inspect %12
+  %9: I32 trivial = load inspect %2
+  %10: I32 trivial = load inspect %3
+  %11: I32 trivial = add inspect %9 inspect %10
+  %12: I32 trivial = const 2
+  %13: I32 trivial = mul inspect %12 inspect %11
   store inspect %5 consume %13
   %14: I32 trivial = load inspect %4
   %15: I32 trivial = load inspect %5
@@ -66,7 +66,7 @@ bb0(%0: I32 [shared call] guaranteed):
   store inspect %1 borrow %0
   %3: I32 trivial = const 3
   store inspect %2 consume %3
-  %4: I32 trivial = load inspect %2
+  %4: I32 trivial = const 3
   %5: I32 trivial = const 10
   %6: I32 trivial = mul inspect %4 inspect %5
   return consume %6

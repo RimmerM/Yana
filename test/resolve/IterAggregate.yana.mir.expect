@@ -1,0 +1,344 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+lens fn each(xs: Array(a) [shared call view], $body: (a) -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class TrivialCopy(a)
+  local & $yielded: I32
+  local & i: I32
+  local n: I32
+  local local5: a [shared slot 0]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  %4: Array(a) [shared call view] = read borrow.shared (xs) loan0
+  %5: Size = call length(Array(a)) borrow.shared %4
+  %6: I32 = convert inspect %5
+  write.init borrow.unique (n) take %6
+  jump -> bb1
+
+bb1:
+  %9: I32 = read copy.trivial (i)
+  %10: I32 = read copy.trivial (n)
+  %11: Bool = lt inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb2
+
+bb2:
+  %31: I32 = read copy.trivial ($yielded)
+  return take %31
+
+bb3:
+  %13: I32 = read copy.trivial (i)
+  %14: Array(a) [shared call view] = read borrow.shared (xs) loan1
+  %15: Size = convert inspect %13
+  %16: a [shared slot 0] = call.subscript get(Array(a), Size, a) borrow.shared %14 borrow.shared %15 roots{1}
+  write.init borrow.unique (local5) borrow.shared %16
+  %18: a = read copy.trivial (local5)
+  %19: (a) -> I32 [shared call] = read borrow.shared ($body) loan2
+  %20: I32 = call inspect %19 borrow.shared %18
+  %21: I32 = const 0
+  %22: Bool = eq inspect %20 inspect %21
+  write.assign borrow.unique ($yielded) take %20
+  branch inspect %22 -> bb4 -> bb5
+
+bb4:
+  %26: I32 = read copy.trivial (i)
+  %27: I32 = const 1
+  %28: I32 = add inspect %26 inspect %27
+  write.assign borrow.unique (i) take %28
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+lens fn filtered(xs: Array(a) [shared call view], keep: (a) -> Bool [shared call], $body: (a) -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class TrivialCopy(a)
+  local & $yielded: I32
+  local x: a [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Array(a) [shared call view] = read borrow.shared (xs) loan0
+  lens.call each(a) borrow.shared %2 -> bb2
+
+bb1:
+  %21: I32 = read copy.trivial ($yielded)
+  return take %21
+
+bb2(%3: a [shared call]) handover(a [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: (a) -> Bool [shared call] = read borrow.shared (keep) loan1
+  %7: a = read copy.trivial (x)
+  %8: Bool = call inspect %6 borrow.shared %7
+  branch inspect %8 -> bb5 -> bb3
+
+bb3 handover(a [shared call]) many:
+  jump -> bb4
+
+bb4 handover(a [shared call]) many:
+  jump -> bb1
+
+bb5 handover(a [shared call]) many:
+  %10: a = read copy.trivial (x)
+  %11: (a) -> I32 [shared call] = read borrow.shared ($body) loan2
+  %12: I32 = call inspect %11 borrow.shared %10
+  %13: I32 = const 0
+  %14: Bool = eq inspect %12 inspect %13
+  write.assign borrow.unique ($yielded) take %12
+  branch inspect %14 -> bb6 -> bb7
+
+bb6 handover(a [shared call]) many:
+  jump -> bb4
+
+bb7 handover(a [shared call]) many:
+  break -> bb1
+}
+
+lens fn mapFiltered(xs: Array(a) [shared call view], keep: (a) -> Bool [shared call], f: (a) -> b [shared call], $body: (b) -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 type b
+  slot #2 class TrivialCopy(a)
+  local & $yielded: I32
+  local x: a [shared call]
+  local local6: b
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Array(a) [shared call view] = read borrow.shared (xs) loan0
+  %3: (a) -> Bool [shared call] = read borrow.shared (keep) loan1
+  lens.call filtered(a) borrow.shared %2 borrow.shared %3 -> bb2
+
+bb1:
+  %20: I32 = read copy.trivial ($yielded)
+  return take %20
+
+bb2(%4: a [shared call]) handover(a [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %4
+  %7: (a) -> b [shared call] = read borrow.shared (f) loan2
+  %8: a = read copy.trivial (x)
+  %9: b = call inspect %7 borrow.shared %8
+  write.init borrow.unique (local6) take %9
+  %11: b [shared call] = read borrow.shared (local6) loan3
+  %12: (b) -> I32 [shared call] = read borrow.shared ($body) loan4
+  %13: I32 = call inspect %12 borrow.shared %11
+  drop (local6)
+  %14: I32 = const 0
+  %15: Bool = eq inspect %13 inspect %14
+  write.assign borrow.unique ($yielded) take %13
+  branch inspect %15 -> bb3 -> bb4
+
+bb3 handover(a [shared call]) many:
+  jump -> bb1
+
+bb4 handover(a [shared call]) many:
+  break -> bb1
+}
+
+fn positiveX(v: Point [shared call]) -> Bool {
+bb0:
+  %0: I32 = read copy.trivial (v.x)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  return take %2
+}
+
+fn yOf(v: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (v.y)
+  return take %0
+}
+
+fn direct(ps: Array(Point) [shared call view]) -> I32 {
+  local & sum: I32
+  local p: Point [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: Array(Point) [shared call view] = read borrow.shared (ps) loan0
+  lens.call each(Point) borrow.shared %2 -> bb2
+
+bb1:
+  %11: I32 = read copy.trivial (sum)
+  return take %11
+
+bb2(%3: Point [shared call]) handover(Point [shared call]) many -> bb1:
+  write.init borrow.unique (p) borrow.shared %3
+  %6: I32 = read copy.trivial (sum)
+  %7: I32 = read copy.trivial (p.y)
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (sum) take %8
+  jump -> bb1
+}
+
+fn oneLift(ps: Array(Point) [shared call view]) -> I32 {
+  local & sum: I32
+  local local2: (Point) -> Bool [owned here shape8 .0=unique call]
+  local p: Point [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: Array(Point) [shared call view] = read borrow.shared (ps) loan0
+  %3: (Point) -> Bool [owned here shape8 .0=unique call] = fun.value positiveX
+  write.init borrow.unique (local2) take %3
+  %5: (Point) -> Bool [shared call shape8 .0=unique call] = read borrow.shared (local2) loan1
+  lens.call filtered(Point) borrow.shared %2 borrow.shared %5 -> bb2
+
+bb1:
+  %14: I32 = read copy.trivial (sum)
+  return take %14
+
+bb2(%6: Point [shared call]) handover(Point [shared call]) many -> bb1:
+  write.init borrow.unique (p) borrow.shared %6
+  %9: I32 = read copy.trivial (sum)
+  %10: I32 = read copy.trivial (p.y)
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (sum) take %11
+  jump -> bb1
+}
+
+fn twoLifts(ps: Array(Point) [shared call view]) -> I32 {
+  local & sum: I32
+  local local2: (Point) -> Bool [owned here shape8 .0=unique call]
+  local local3: (Point) -> I32 [owned here shape8 .0=unique call]
+  local i: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: Array(Point) [shared call view] = read borrow.shared (ps) loan0
+  %3: (Point) -> Bool [owned here shape8 .0=unique call] = fun.value positiveX
+  write.init borrow.unique (local2) take %3
+  %5: (Point) -> Bool [shared call shape8 .0=unique call] = read borrow.shared (local2) loan1
+  %6: (Point) -> I32 [owned here shape8 .0=unique call] = fun.value yOf
+  write.init borrow.unique (local3) take %6
+  %8: (Point) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local3) loan2
+  lens.call mapFiltered(Point, I32) borrow.shared %2 borrow.shared %5 borrow.shared %8 -> bb2
+
+bb1:
+  %17: I32 = read copy.trivial (sum)
+  return take %17
+
+bb2(%9: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (i) borrow.shared %9
+  %12: I32 = read copy.trivial (sum)
+  %13: I32 = read copy.trivial (i)
+  %14: I32 = add inspect %12 inspect %13
+  write.assign borrow.unique (sum) take %14
+  jump -> bb1
+}
+
+fn scalar(ns: Array(I32) [shared call view]) -> I32 {
+  local & sum: I32
+  local n: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: Array(I32) [shared call view] = read borrow.shared (ns) loan0
+  lens.call each(I32) borrow.shared %2 -> bb2
+
+bb1:
+  %11: I32 = read copy.trivial (sum)
+  return take %11
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (n) borrow.shared %3
+  %6: I32 = read copy.trivial (sum)
+  %7: I32 = read copy.trivial (n)
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (sum) take %8
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local & local0: Array(Point) object0
+  local & ps: Array(Point) object0
+  local & local2: Array(I32) object3
+  local & ns: Array(I32) object3
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 0
+  %2: Point = aggregate.Point take %0 take %1
+  %3: I32 = const 1
+  %4: I32 = const 2
+  %5: Point = aggregate.Point take %3 take %4
+  %6: I32 = const 3
+  %7: I32 = const 5
+  %8: Point = aggregate.Point take %6 take %7
+  %9: Size = const 3
+  %10: Array(Point) = call literalArray(Point) borrow.shared %9
+  write.init borrow.unique (local0) take %10
+  %12: Array(Point) [unique slot 0] = read borrow.unique (local0) loan0
+  %13: Array(Point) [unique slot 0 view] = call.derivation elementsMut(Array(Point), Point) borrow.unique %12 roots{0}
+  %14: %Point [owned here shape6 .*=shared slot 0] = call valuesMut(Point) borrow.unique %13 roots.0{0}
+  %15: Size = const 0
+  write.init borrow.unique ([%%14][0]) take %2
+  %17: Size = const 1
+  write.init borrow.unique ([%%14][1]) take %5
+  %19: Size = const 2
+  write.init borrow.unique ([%%14][2]) take %8
+  %21: Array(Point) = read take (local0)
+  write.init borrow.unique (ps) take %21
+  %23: I32 = const 1
+  %24: I32 = const 2
+  %25: I32 = const 3
+  %26: I32 = const 4
+  %27: Size = const 4
+  %28: Array(I32) = call literalArray(I32) borrow.shared %27
+  write.init borrow.unique (local2) take %28
+  %30: Array(I32) [unique slot 0] = read borrow.unique (local2) loan1
+  %31: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %30 roots{1}
+  %32: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %31 roots.0{1}
+  %33: Size = const 0
+  write.init borrow.unique ([%%32][0]) take %23
+  %35: Size = const 1
+  write.init borrow.unique ([%%32][1]) take %24
+  %37: Size = const 2
+  write.init borrow.unique ([%%32][2]) take %25
+  %39: Size = const 3
+  write.init borrow.unique ([%%32][3]) take %26
+  %41: Array(I32) = read take (local2)
+  write.init borrow.unique (ns) take %41
+  %43: Array(Point) [shared call] = read borrow.shared (ps) loan2
+  %44: Array(Point) [shared slot 0 view] = call.derivation elements(Array(Point), Point) borrow.shared %43 roots{2}
+  %45: I32 = call direct borrow.shared %44
+  %46: Array(Point) [shared call] = read borrow.shared (ps) loan3
+  %47: Array(Point) [shared slot 0 view] = call.derivation elements(Array(Point), Point) borrow.shared %46 roots{3}
+  %48: I32 = call oneLift borrow.shared %47
+  %49: I32 = add inspect %45 inspect %48
+  %50: Array(Point) [shared call] = read borrow.shared (ps) loan4
+  %51: Array(Point) [shared slot 0 view] = call.derivation elements(Array(Point), Point) borrow.shared %50 roots{4}
+  %52: I32 = call twoLifts borrow.shared %51
+  drop (ps)
+  %53: I32 = add inspect %49 inspect %52
+  %54: Array(I32) [shared call] = read borrow.shared (ns) loan5
+  %55: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %54 roots{5}
+  %56: I32 = call scalar borrow.shared %55
+  drop (ns)
+  %57: I32 = add inspect %53 inspect %56
+  return take %57
+}
+
+lens fn each(Point)(xs: Array(Point) [shared call view], $body: (Point) -> I32 [shared call]) -> I32 = <each at Point>
+
+lens fn filtered(Point)(xs: Array(Point) [shared call view], keep: (Point) -> Bool [shared call], $body: (Point) -> I32 [shared call]) -> I32 = <filtered at Point>
+
+lens fn mapFiltered(Point, I32)(xs: Array(Point) [shared call view], keep: (Point) -> Bool [shared call], f: (Point) -> I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <mapFiltered at Point, I32>
+
+lens fn each(I32)(xs: Array(I32) [shared call view], $body: (I32) -> I32 [shared call]) -> I32 = <each at I32>
+
+entry main

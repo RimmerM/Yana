@@ -1,0 +1,234 @@
+module ResolveTest
+
+fn distinctBlocks() -> I64 {
+bb0:
+  %1: %%U8 address = alloc frame %U8
+  %2: %%U8 address = alloc frame %U8
+  %3: Size trivial = const 32
+  %4: %U8 trivial = call allocateHeap borrow %3
+  store inspect %1 consume %4
+  %5: Size trivial = const 32
+  %6: %U8 trivial = call allocateHeap borrow %5
+  store inspect %2 consume %6
+  %7: %U8 trivial = load inspect %1
+  jump -> bb10
+
+bb1:
+  %14: %U8 trivial = load inspect %2
+  jump -> bb12
+
+bb2(%0: Bool trivial):
+  branch inspect %0 -> bb6 -> bb4
+
+bb3:
+  %21: Bool trivial = const True
+  jump -> bb2(consume %21)
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %22: %U8 trivial = load inspect %1
+  %23: %U8 trivial = load inspect %2
+  %24: Size trivial = bitcast inspect %23
+  %25: Size trivial = bitcast inspect %22
+  %26: Size trivial = sub inspect %24 inspect %25
+  %27: Size trivial = metric stride U8
+  %28: Size trivial = div inspect %26 inspect %27
+  %29: Size trivial = const 32
+  %30: Bool trivial = lt inspect %28 inspect %29
+  branch inspect %30 -> bb9 -> bb7
+
+bb6:
+  %31: I64 trivial = const 0
+  return consume %31
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %32: I64 trivial = const 1
+  return consume %32
+
+bb9:
+  %33: I64 trivial = const 0
+  return consume %33
+
+bb10:
+  %9: %%U8 address = alloc frame %U8 [shared call]
+  store inspect %9 borrow %7
+  %10: %U8 trivial = load inspect %9
+  %11: Size trivial = call %a.Size.bitcast(U8) borrow %10
+  %12: Size trivial = const 0
+  %13: Bool trivial = eq inspect %11 inspect %12
+  jump -> bb11(consume %13)
+
+bb11(%8: Bool trivial):
+  branch inspect %8 -> bb3 -> bb1
+
+bb12:
+  %16: %%U8 address = alloc frame %U8 [shared call]
+  store inspect %16 borrow %14
+  %17: %U8 trivial = load inspect %16
+  %18: Size trivial = call %a.Size.bitcast(U8) borrow %17
+  %19: Size trivial = const 0
+  %20: Bool trivial = eq inspect %18 inspect %19
+  jump -> bb13(consume %20)
+
+bb13(%15: Bool trivial):
+  jump -> bb2(consume %15)
+}
+
+fn writeAndRead() -> I64 {
+bb0:
+  %1: %%I64 address = alloc frame %I64
+  %2: %%I64 address = alloc frame %I64
+  %3: Size trivial = const 8
+  %4: %U8 trivial = call allocateHeap borrow %3
+  %5: %I64 trivial = bitcast inspect %4
+  store inspect %1 consume %5
+  %6: Size trivial = const 8
+  %7: %U8 trivial = call allocateHeap borrow %6
+  %8: %I64 trivial = bitcast inspect %7
+  store inspect %2 consume %8
+  %9: %I64 trivial = load inspect %1
+  jump -> bb7
+
+bb1:
+  %16: %I64 trivial = load inspect %2
+  jump -> bb9
+
+bb2(%0: Bool trivial):
+  branch inspect %0 -> bb6 -> bb4
+
+bb3:
+  %23: Bool trivial = const True
+  jump -> bb2(consume %23)
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %24: %I64 trivial = load inspect %1
+  %25: I64 trivial = const 40
+  store inspect %24 consume %25
+  %26: %I64 trivial = load inspect %2
+  %27: I64 trivial = const 2
+  store inspect %26 consume %27
+  %28: %I64 trivial = load inspect %1
+  %29: I64 trivial = load inspect %28
+  %30: %I64 trivial = load inspect %2
+  %31: I64 trivial = load inspect %30
+  %32: I64 trivial = add inspect %29 inspect %31
+  return consume %32
+
+bb6:
+  %33: I64 trivial = const 0
+  return consume %33
+
+bb7:
+  %11: %%I64 address = alloc frame %I64 [shared call]
+  store inspect %11 borrow %9
+  %12: %I64 trivial = load inspect %11
+  %13: Size trivial = call %a.Size.bitcast(I64) borrow %12
+  %14: Size trivial = const 0
+  %15: Bool trivial = eq inspect %13 inspect %14
+  jump -> bb8(consume %15)
+
+bb8(%10: Bool trivial):
+  branch inspect %10 -> bb3 -> bb1
+
+bb9:
+  %18: %%I64 address = alloc frame %I64 [shared call]
+  store inspect %18 borrow %16
+  %19: %I64 trivial = load inspect %18
+  %20: Size trivial = call %a.Size.bitcast(I64) borrow %19
+  %21: Size trivial = const 0
+  %22: Bool trivial = eq inspect %20 inspect %21
+  jump -> bb10(consume %22)
+
+bb10(%17: Bool trivial):
+  jump -> bb2(consume %17)
+}
+
+fn reuseAfterFree() -> I64 {
+bb0:
+  %0: %%U8 address = alloc frame %U8
+  %1: %%U8 address = alloc frame %U8
+  %2: Size trivial = const 100
+  %3: %U8 trivial = call allocateHeap borrow %2
+  store inspect %0 consume %3
+  %4: %U8 trivial = load inspect %0
+  call freeHeap borrow %4
+  %5: Size trivial = const 100
+  %6: %U8 trivial = call allocateHeap borrow %5
+  store inspect %1 consume %6
+  %7: %U8 trivial = load inspect %0
+  %8: %U8 trivial = load inspect %1
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I64 trivial = const 0
+  return consume %10
+
+bb3:
+  %11: I64 trivial = const 1
+  return consume %11
+}
+
+fn classesAreSeparate() -> I64 {
+bb0:
+  %0: %%U8 address = alloc frame %U8
+  %1: %%U8 address = alloc frame %U8
+  %2: Size trivial = const 8
+  %3: %U8 trivial = call allocateHeap borrow %2
+  store inspect %0 consume %3
+  %4: %U8 trivial = load inspect %0
+  call freeHeap borrow %4
+  %5: Size trivial = const 1000
+  %6: %U8 trivial = call allocateHeap borrow %5
+  store inspect %1 consume %6
+  %7: %U8 trivial = load inspect %0
+  %8: %U8 trivial = load inspect %1
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I64 trivial = const 1
+  return consume %10
+
+bb3:
+  %11: I64 trivial = const 0
+  return consume %11
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I64 address = alloc frame I64
+  %1: I64 trivial = call distinctBlocks
+  %2: I64 trivial = const 1000
+  %3: I64 trivial = mul inspect %1 inspect %2
+  %4: I64 trivial = call writeAndRead
+  %5: I64 trivial = const 10
+  %6: I64 trivial = mul inspect %4 inspect %5
+  %7: I64 trivial = add inspect %3 inspect %6
+  %8: I64 trivial = call reuseAfterFree
+  %9: I64 trivial = const 5
+  %10: I64 trivial = mul inspect %8 inspect %9
+  %11: I64 trivial = add inspect %7 inspect %10
+  %12: I64 trivial = call classesAreSeparate
+  %13: I64 trivial = add inspect %11 inspect %12
+  store inspect %0 consume %13
+  %14: I64 trivial = load inspect %0
+  %15: I32 trivial = convert inspect %14
+  return consume %15
+}
+
+entry main

@@ -1,0 +1,96 @@
+module ResolveTest
+
+fn stream(self: c [shared call], times: Size [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
+
+fn Bag.stream(self: Bag [shared call], times: Size [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+bb0(%0: Bag [shared call] guaranteed, %1: Size [shared call] guaranteed, %2: (I32) -> I32 [shared call] guaranteed):
+  %3: %Size address = alloc frame Size [shared call]
+  %4: %I32 address = alloc frame I32
+  store inspect %3 borrow %1
+  %5: I32 trivial = const 0
+  store inspect %4 consume %5
+  %6: %I32 address = field.addr .w inspect %0
+  %7: I32 trivial = load inspect %6
+  %8: (I32) -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %9: I32 trivial = call [value #0] inspect %8 borrow %7
+  store inspect %4 consume %9
+  %10: I32 trivial = load inspect %4
+  return consume %10
+}
+
+fn stream'2(b: Box [shared call], times: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+bb0(%0: Box [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (I32) -> I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I32 address = alloc frame I32
+  store inspect %3 borrow %1
+  %5: I32 trivial = const 0
+  store inspect %4 consume %5
+  %6: %I32 address = field.addr .v inspect %0
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = load inspect %3
+  %9: I32 trivial = add inspect %7 inspect %8
+  %10: (I32) -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %11: I32 trivial = call [value #0] inspect %10 borrow %9
+  store inspect %4 consume %11
+  %12: I32 trivial = load inspect %4
+  return consume %12
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: I32 trivial = const 0
+  store inspect %0 consume %1
+  %2: I32 trivial = const 1
+  %3: Box trivial = aggregate.Box consume %2
+  %4: I32 trivial = const 2
+  %5: I32 [unique slot 0] guaranteed = load inspect %0
+  %6: main.cont'2.env affine = aggregate.main.cont'2.env borrow %5
+  %7: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value main.cont'2 borrow %6
+  %8: I32 trivial = call stream'2 borrow %3 borrow %4 borrow %7
+  jump -> bb1
+
+bb1:
+  %9: I32 trivial = const 40
+  %10: Bag trivial = aggregate.Bag consume %9
+  %11: Size trivial = const 5
+  %12: I32 [unique slot 0] guaranteed = load inspect %0
+  %13: main.cont.env affine = aggregate.main.cont.env borrow %12
+  %14: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value main.cont borrow %13
+  %15: I32 trivial = call Bag.stream borrow %10 borrow %11 borrow %14
+  jump -> bb2
+
+bb2:
+  %16: I32 trivial = load inspect %0
+  return consume %16
+}
+
+fn main.cont(main.cont.env: main.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: main.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = field.addr .total inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %1
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = load inspect %4
+  %7: I32 trivial = add inspect %5 inspect %6
+  store inspect %3 consume %7
+  %8: I32 trivial = const 0
+  return consume %8
+}
+
+fn main.cont'2(main.cont'2.env: main.cont'2.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: main.cont'2.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = field.addr .total inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %1
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = load inspect %4
+  %7: I32 trivial = add inspect %5 inspect %6
+  store inspect %3 consume %7
+  %8: I32 trivial = const 0
+  return consume %8
+}
+
+entry main

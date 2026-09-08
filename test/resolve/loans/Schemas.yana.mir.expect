@@ -4,19 +4,19 @@ data Guard {id: I32} drop authored
 
 data Cell {v: I32}
 
-data Both {left: 0'Guard, right: 1'Guard} shape1
+data Both {left: 0'Guard, right: 1'Guard} shape3
 
-data Twin {a: 0'Guard, b: 0'Guard} shape2
+data Twin {a: 0'Guard, b: 0'Guard} shape4
 
-data Mixed {read: 0'Cell, write: &1'Cell} shape3
+data Mixed {read: 0'Cell, write: &1'Cell} shape5
 
-data Tagged {held: 0'Guard, n: I32, own: Cell} shape4
+data Tagged {held: 0'Guard, n: I32, own: Cell} shape2
 
-data Reader {held: 0'Guard, at: I32} shape4
+data Reader {held: 0'Guard, at: I32} shape2
 
-data Wrapper {inner: 0'Guard} shape4
+data Wrapper {inner: 0'Guard} shape2
 
-data Editor {input: &0'Cell, at: I32} shape5
+data Editor {input: &0'Cell, at: I32} shape6
 
 instance Drop(Guard): Guard.drop
 
@@ -364,7 +364,7 @@ bb0:
   return take %22
 }
 
-fn bump(c: Cell [unique slot 0]) -> Cell [unique slot 0] {
+fn bump(c: Cell [unique slot 0]) -> Cell [unique slot 0 owner] {
 bb0:
   %0: I32 = read copy.trivial (c.v)
   %1: I32 = const 1
@@ -375,11 +375,11 @@ bb0:
 }
 
 fn viaEditor(e: Editor [unique call]) -> I32 {
-  local & local1: Cell [unique slot 0]
+  local & local1: Cell [unique slot 0 owner]
 
 bb0:
   %0: Cell [unique slot 0] = read borrow.unique (e.input) loan0
-  %1: Cell [unique slot 0] = call bump borrow.unique %0 roots{0}
+  %1: Cell [unique slot 0 owner] = call bump borrow.unique %0 roots{0}
   write.init borrow.unique (local1) borrow.unique %1
   %3: I32 = read copy.trivial (local1.v)
   return take %3

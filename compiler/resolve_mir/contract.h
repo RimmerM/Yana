@@ -242,6 +242,24 @@ struct Request {
      * Null for every position whose value owns what is inside it, which is all but a handful.
      */
     DeclPtr<OwnershipSchema> shape = nullptr;
+
+    /*
+     * Whether this read is a `let &x = e` **establishing** writable storage, rather than a use of
+     * storage somebody already declared writable.
+     *
+     * The pair `Place::writable` refuses to conflate, read at the one moment they differ. "A `&`
+     * argument must name mutable storage" is a rule about a *name*: `mutate(h)` for a plain `let h`
+     * is refused, and `let &z = h` is how the author says otherwise. Asking the same question of a
+     * `let &`'s own initializer would leave the opt-in with no spelling - which is what refused
+     * `let &acc = ifEmpty` over a parameter and `let &taken = held` over a moved-in payload, both of
+     * which `doc/spec/ownership.md` states outright: "`let &d = c` - an exclusive loan: writing
+     * through d writes c".
+     *
+     * It grants nothing about the *storage*, which is the other half and stays where it was: a
+     * shared borrow cannot lend exclusively however the binding is written, and a global has no
+     * frame that owns it - see `bindsOwnStorage`.
+     */
+    bool establishes = false;
 };
 
 // What a declared position - a parameter, a result, a record field - asks for. Its own contract,
@@ -314,7 +332,11 @@ inline Contract grantedContract(Contract storage, Access access, Request wanted)
  * is a second value. What each one *becomes* depends on whether the initializer produced storage or
  * named it, and that is `readMode`'s answer rather than this one.
  */
-inline Request bindingRequest(Access access) { return Request { access, false }; }
+inline Request bindingRequest(Access access, bool establishes = false) {
+    Request request { access, false };
+    request.establishes = establishes;
+    return request;
+}
 
 /*
  * What a position that only computes with a value asks - a condition, an operand of `+`, an
@@ -487,6 +509,28 @@ struct Shapes {
     DeclPtr<OwnershipSchema> closure();
 
     /*
+     * The same position, on a function value that has **no** environment at all - D17's third case.
+     *
+     * A `Fun` owes a teardown as a *type*, because the value of it may own a heap-placed block; what
+     * says otherwise is the occurrence, and there are two ways for an occurrence to say it. One is
+     * `closure()` above - the environment is somebody else's, so this value releases nothing and may
+     * not leave the frame. The other is this: the word is **null**, so there is nothing to release
+     * and nothing to be left behind either, which is what makes `let f = twice` storable in a record
+     * and returnable exactly as it was before there was a teardown.
+     *
+     * Two constants and not one flag, because they are read by two different questions and only one
+     * of them has the same answer for both: `borrowsEnvironment` asks "is there anything here this
+     * value owns" and gets no from each, and `checkCarriedOrigins` asks "does this refer to storage
+     * the position cannot name" and gets yes from the first and no from this one.
+     *
+     * The **access** is what makes it a second interned list, and it is a discriminant rather than a
+     * capability - the one place in this file where a `Contract` is not read as one. `Access::Unique`
+     * because the two readers above are its only readers and neither of them asks; a third reader
+     * arriving is the point at which this wants a field of its own rather than a spelling.
+     */
+    DeclPtr<OwnershipSchema> noEnvironment();
+
+    /*
      * The shape of what is at one step in, with that step removed - `Maybe(Boxed('v))`'s payload.
      *
      * A qualified type argument nests, so a shape describes positions at every depth and the walk
@@ -504,6 +548,7 @@ struct Shapes {
 private:
     HashMap<U64, DeclPtr<OwnershipSchema>> shapes;
     DeclPtr<OwnershipSchema> closureShape = nullptr;
+    DeclPtr<OwnershipSchema> plainShape = nullptr;
     U32 nextId = 1;
 };
 

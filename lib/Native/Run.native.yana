@@ -18,6 +18,36 @@
 -}
 
 {-
+   A run of `capacity` slots, placed by the compiler - and the body a stage that cannot place one
+   reaches instead.
+
+   **A role and a body on one declaration**, which is not a contradiction: the hook is what a call
+   site expands to and the body is what a call that cannot be expanded reaches. The shipping stage
+   always expands - an allocation with a count, placed by the escape analysis that places every
+   other one - so this body is dead there. The ownership resolver has no placement analysis, so
+   every run it builds would be a heap run whatever it expanded to, and a heap run is exactly what
+   is written below, in the language, with the allocator's refusal handled.
+
+   It is here rather than in `Run.yana` because a heap is what it asks for: `allocateHeap` is
+   `Heap.native.yana`'s, and a target with no addresses has neither it nor a run to grow.
+   `Run.js.yana` carries the same role with no body, which is the arrangement `blockCopy` uses.
+
+   A refusal - the allocator saying no, or a count past what `Count` holds - answers the empty run,
+   whose capacity says exactly what it has. The caller that needed the room tests for it; see `push`.
+-}
+@builtin(newRun)
+pub fn newRun(capacity: Size) -> Run(a):
+    if capacity == 0 then return emptyRun()
+    if capacity > maxCount then return emptyRun()
+
+    let probe = null() :: %a
+    let bytes = allocateHeap(byteSpan(probe, capacity))
+    if isNull(bytes) then return emptyRun()
+
+    return Run {items: bitcast(bytes) :: %a, capacity: truncate(capacity) :: Count,
+                ownsHeap: runFromHeap}
+
+{-
    Room for `wanted` slots, relocating if there is not.
 
    `&self` is what makes relocation safe with no new rule: a mutable borrow of the run conflicts with
@@ -101,8 +131,14 @@ pub fn releaseRun(self: Run(a)):
 instance Reclaim(Run(a)):
     fn reclaim(->value: Run(a)): releaseRun(value)
 
--- The element address a window is defined by. The window's record itself is `Core`'s - `ArrayView`
--- in `Core/Array.native.yana`, `@local` and declared beside the owner it is a view of. Absent on
--- `Bits` when that lands, deliberately: a narrow element has no address, and the partiality is what
--- keeps `sizeOf` and pointer arithmetic off the fractional-stride path.
-pub fn values(self: source'[a]) -> %source'a = self.items
+{-
+   `values` and `valuesMut` **were here and are now `Core/Array.native.yana`'s.**
+
+   They read `ArrayView`'s `items`, and that record is `@local` in `Core`: a field of a `@local`
+   record may be named in the module that declares it and nowhere else, so the one place a pointer
+   into a window is given the window's provenance has to be beside the record rather than beside the
+   heap. The argument for them being in `Native` was that what they hand out is a raw pointer and
+   handing one out is this module's business - which is true of `stringBytes` and of every other
+   declaration here, and is not enough on its own to put a reader of another module's private
+   representation on this side of the import.
+-}

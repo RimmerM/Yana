@@ -39,11 +39,11 @@ data Cell {value: Int}
 -- rather than one group per parameter.
 fn keepsBoth(&a: g'Cell, &b: g'Cell) -> &g'Cell = if a.value > b.value then a else b
 
--- The same signature in the spelling the whole library still uses. `return` is the one loan marker
--- left in the name area, and it stays there because it is a *keyword*: it cannot collide with an
--- argument pattern, which is what the rest of that area is being kept free for. It means §4.8 rule
--- 1's anonymous group, and §8.3 is its migration.
-fn keepsBothMarked(return &a: Cell, return &b: Cell) -> &Cell = if a.value > b.value then a else b
+-- The same signature unlabelled, which is the spelling the whole library uses. A bare tick means
+-- §4.8 rule 1's anonymous group, so these two declarations are one contract written two ways; the
+-- marker this used to be written with - `return` in the name area - is §8.3's migration, and is
+-- gone.
+fn keepsBothMarked(&a: 'Cell, &b: 'Cell) -> &'Cell = if a.value > b.value then a else b
 
 -- Two groups. The result is in `l` alone, so a caller holds `a` borrowed until the result's last
 -- use and is free to write through `b` immediately - which is what `main` does below.

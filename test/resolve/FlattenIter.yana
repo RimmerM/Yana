@@ -1,0 +1,106 @@
+{-
+   Adaptor chains flattened into the loop that consumes them - `compiler/resolve_ssa/opt/inline.cpp`'s
+   `flattenContinuations`, and the three things it must be right about.
+
+   A `for` over an `iter fn` converts to a continuation outlined into a function of its own, an
+   environment record of the captures it reads, and a `{code, env}` pair handed to the iterator,
+   which calls back through it once per element. Flattening is the devirtualize-then-inline pair run
+   to a fixed point: copy the iterator's body into the consumer, which brings the indirect call into
+   the frame that built the pair; resolve it to the declaration the pair names; copy that body in,
+   which brings the next link's indirect call with it. `.ssa.opt.expect` beside this is what says the
+   chain came out as one loop with no call in it.
+
+   **Three stages**, because a budget that flattens one link and stops is what the shipping stage's
+   own adaptor work had to measure ([[yana-adaptor-chain-budget]]): `each` -> `doubled` ->
+   `keptOdd`, with a capturing lambda in the middle so the pair is a real closure rather than a bare
+   code word.
+
+   **An early `break`**, because a departure is the one exit that is not the fall-out row: the loop
+   ends and every frame between the `break` and the outermost iterator returns the signal, so a
+   chain three deep stops all three. `trace` counts the elements `each` reached, which is what makes
+   a flattening that lost a level answer a different number rather than emitting different bytes.
+
+   **And a chain that must not flatten.** `nested`'s loop body holds a call to `nested`, so the call
+   graph's cycle runs `nested -> upTo -> nested.cont -> nested` - the continuation is a member of it
+   because the `fun.value` naming it is an edge. `clonableDeclaration` refuses every member, so the
+   devirtualized call to `nested.cont` stays a call: copying a recursive body into its caller is
+   unrolling, with a growth rate nothing here bounds, and this is the exact shape
+   [[yana-inliner-lens-recursion-runaway]] is open on. The number below says it still runs.
+-}
+
+let &trace = 0 :: Int
+
+iter fn each(xs: [Int]) -> Int:
+    let &i = 0 :: Int
+    let n = truncate(length(xs)) :: Int
+
+    while i < n:
+        trace = trace + 1
+        yield xs[i]
+        i = i + 1
+
+-- The middle link, which captures `by` - so the pair its `for` builds holds a closure and the code
+-- word alone does not decide the call.
+iter fn doubled(xs: [Int], by: (Int) -> Int) -> Int:
+    for x in each(xs):
+        yield by(x)
+
+iter fn keptOdd(xs: [Int], by: (Int) -> Int) -> Int:
+    for x in doubled(xs, by):
+        if x `and` 1 != 0:
+            yield x
+
+-- A second iterator with no side effect, so that the recursive consumer below counts nothing into
+-- `trace` and the two claims stay separable.
+iter fn upTo(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+fn chain(xs: [Int], scale: Int) -> Int:
+    let &total = 0 :: Int
+
+    for x in keptOdd(xs, (v) -> v * scale + 1):
+        total = total + x
+
+    return total
+
+-- The same chain left early. `stop` is compared against the running total rather than a count, so
+-- the departure happens in the middle of an element rather than between two.
+fn chainBreak(xs: [Int], scale: Int, stop: Int) -> Int:
+    let &total = 0 :: Int
+
+    for x in keptOdd(xs, (v) -> v * scale + 1):
+        total = total + x
+        if total > stop:
+            break
+
+    return total
+
+-- The guard's subject: the recursive call is in the loop body, which is what the continuation is.
+fn nested(depth: Int) -> Int:
+    let &total = 0 :: Int
+
+    for x in upTo(3):
+        if depth > 0:
+            total = total + nested(depth - 1)
+
+        total = total + x
+
+    return total
+
+fn main() -> Int:
+    let &xs = [] :: [Int]
+    let &i = 0 :: Int
+
+    while i < 6:
+        push(xs, i)
+        i = i + 1
+
+    let a = chain(xs, 3)
+    let b = chainBreak(xs, 3, 5)
+    let c = nested(1)
+
+    return a * 1000000 + b * 10000 + c * 100 + trace

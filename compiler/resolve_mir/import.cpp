@@ -33,9 +33,29 @@ static Module* addModule(Program& program, ast::ModuleGroup& group) {
 }
 
 void discoverModules(Context& context, Program& program, ast::ModuleGroup& root,
-                     ast::ModuleProvider* provider, Array<ast::ModuleGroup*>& groups) {
+                     ast::ModuleProvider* provider, Array<ast::ModuleGroup*>& groups,
+                     Buffer<ast::ModuleGroup*> testRoots) {
     groups.push(&root);
     addModule(program, root);
+
+    /*
+     * The modules that hold tests, seeded before the walk - Design-Test.md §3.4.
+     *
+     * A test module is not reached from the program it tests, because the dependency runs the other
+     * way, so a walk from the root alone would compile the program and none of its tests. Seeded
+     * *before* the walk so that they are ordinary members of it: what each of them imports is
+     * discovered exactly as the root's imports are, which is why a test module's helpers need no
+     * listing of their own.
+     *
+     * Empty in every build without `-test` - the driver is what fills it, and it fills it with the
+     * modules that actually declare a `@test`.
+     */
+    for(auto group: testRoots) {
+        if(group == &root || program.findModule(group->name)) continue;
+
+        groups.push(group);
+        addModule(program, *group);
+    }
 
     /*
      * Core, before any import is walked and whether or not anything wrote one.

@@ -1,0 +1,185 @@
+module ResolveTest
+
+fn make(ok: Bool [shared call], n: Size [shared call]) -> Result(I64, Held) {
+bb0(%0: Bool [shared call] guaranteed, %1: Size [shared call] guaranteed):
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %Size address = alloc frame Size [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Bool trivial = load inspect %2
+  %5: Bool trivial = not inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %6: Size trivial = load inspect %3
+  %7: Run(U8) owned = call newRun(U8) borrow %6
+  %8: Held owned = aggregate.Held consume %7
+  %9: Result(I64, Held) owned = aggregate.Ok consume %8
+  return consume %9
+
+bb3:
+  %10: I64 trivial = const 7
+  %11: Result(I64, Held) owned = aggregate.Err consume %10
+  return consume %11
+}
+
+fn setName(self: Held [unique call], n: Size [shared call]) -> {} {
+bb0(%0: Held [unique call] guaranteed, %1: Size [shared call] guaranteed):
+  %2: %Size address = alloc frame Size [shared call]
+  store inspect %2 borrow %1
+  %3: Size trivial = load inspect %2
+  %4: Run(U8) owned = call newRun(U8) borrow %3
+  %5: %Run(U8) address = field.addr .value inspect %0
+  drop Run(U8) [unique call] boxes borrowed inspect %5
+  %6: %Run(U8) address = field.addr .value inspect %0
+  store inspect %6 consume %4
+  return
+}
+
+fn slotCount(self: Held [shared call]) -> Size {
+bb0(%0: Held [shared call] guaranteed):
+  %1: %Run(U8) address = field.addr .value inspect %0
+  %2: %@bits(30) U32 address = field.addr .capacity inspect %1
+  %3: @bits(30) U32 trivial = load inspect %2
+  %4: Size trivial = convert inspect %3
+  return consume %4
+}
+
+fn viaTry(ok: Bool [shared call], n: Size [shared call]) -> Result(I64, Size) {
+bb0(%0: Bool [shared call] guaranteed, %1: Size [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %Size address = alloc frame Size [shared call]
+  %5: %Outcome(Held, I64) address = alloc frame Outcome(Held, I64)
+  %6: %Held address = alloc frame Held
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %7: Bool trivial = load inspect %3
+  %8: Size trivial = load inspect %4
+  %9: Result(I64, Held) owned = call make borrow %7 borrow %8
+  %10: Outcome(Held, I64) owned = call Result(e, a).toOutcome(I64, Held) consume %9
+  store inspect %5 consume %10
+  %11: %U8 address = field.addr .# inspect %5
+  %12: U8 trivial = load inspect %11
+  %13: U8 trivial = const 1
+  %14: Bool trivial = eq inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb1
+
+bb1:
+  %15: %Held address = field.addr .Proceed inspect %5
+  %16: Held owned = load inspect %15
+  jump -> bb2(consume %16)
+
+bb2(%2: Held owned):
+  store inspect %6 consume %2
+  %17: Held [unique call] guaranteed from{%6} = load inspect %6
+  %18: Size trivial = load inspect %4
+  %19: Size trivial = const 1
+  %20: Size trivial = add inspect %18 inspect %19
+  call setName borrow %17 borrow %20
+  %21: Held [shared call] guaranteed from{%6} = load inspect %6
+  %22: Size trivial = call slotCount borrow %21
+  drop Held inspect %6
+  %23: Result(I64, Size) trivial = aggregate.Ok consume %22
+  return consume %23
+
+bb3:
+  %24: %I64 address = field.addr .Exit inspect %5
+  %25: I64 trivial = load inspect %24
+  drop Outcome(Held, I64) inspect %5
+  %26: Result(I64, Size) trivial = call Result(e, a).fromExit(I64, Size) consume %25
+  return consume %26
+}
+
+fn viaNamedPlace(b: Box, n: Size [shared call]) -> Size {
+bb0(%0: Box owned, %1: Size [shared call] guaranteed):
+  %2: %Box address = alloc frame Box
+  %3: %Size address = alloc frame Size [shared call]
+  %4: %Held address = alloc frame Held
+  store inspect %2 consume %0
+  store inspect %3 borrow %1
+  %5: %U8 address = field.addr .# inspect %2
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 0
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb2 -> bb1
+
+bb1:
+  drop Box inspect %2
+  %9: Size trivial = const 0
+  return consume %9
+
+bb2:
+  %10: %Held address = field.addr .Filled inspect %2
+  %11: Held owned = load inspect %10
+  store inspect %4 consume %11
+  %12: Held [unique call] guaranteed from{%4} = load inspect %4
+  %13: Held [unique call] guaranteed from{%4, %12} = load inspect %12
+  %14: Size trivial = load inspect %3
+  call setName borrow %13 borrow %14
+  %15: Held [shared call] guaranteed from{%4, %12} = load inspect %12
+  %16: Size trivial = call slotCount borrow %15
+  drop Held inspect %4
+  return consume %16
+}
+
+fn fieldOfNamedLocal(n: Size [shared call]) -> Size {
+bb0(%0: Size [shared call] guaranteed):
+  %1: %Size address = alloc frame Size [shared call]
+  %2: %Pair address = alloc frame Pair
+  store inspect %1 borrow %0
+  %3: Size trivial = load inspect %1
+  %4: Run(U8) owned = call newRun(U8) borrow %3
+  %5: Held owned = aggregate.Held consume %4
+  %6: Size trivial = load inspect %1
+  %7: Run(U8) owned = call newRun(U8) borrow %6
+  %8: Held owned = aggregate.Held consume %7
+  %9: Pair owned = aggregate.Pair consume %5 consume %8
+  store inspect %2 consume %9
+  %10: %Held address = field.addr .first inspect %2
+  %11: Held [unique call] guaranteed from{%2} = load inspect %10
+  %12: Held [unique call] guaranteed from{%2, %11} = load inspect %11
+  %13: Size trivial = load inspect %1
+  %14: Size trivial = const 1
+  %15: Size trivial = add inspect %13 inspect %14
+  call setName borrow %12 borrow %15
+  %16: %Run(U8) address = field.addr .value inspect %11
+  %17: %@bits(30) U32 address = field.addr .capacity inspect %16
+  %18: @bits(30) U32 trivial = load inspect %17
+  drop Pair inspect %2
+  %19: Size trivial = convert inspect %18
+  return consume %19
+}
+
+fn viaPattern(b: Box, n: Size [shared call]) -> Size {
+bb0(%0: Box owned, %1: Size [shared call] guaranteed):
+  %2: %Box address = alloc frame Box
+  %3: %Size address = alloc frame Size [shared call]
+  %4: %Held address = alloc frame Held
+  store inspect %2 consume %0
+  store inspect %3 borrow %1
+  %5: %U8 address = field.addr .# inspect %2
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 0
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb2 -> bb1
+
+bb1:
+  drop Box inspect %2
+  %9: Size trivial = const 0
+  return consume %9
+
+bb2:
+  %10: %Held address = field.addr .Filled inspect %2
+  %11: Held owned = load inspect %10
+  store inspect %4 consume %11
+  %12: Held [unique call] guaranteed from{%4} = load inspect %4
+  %13: Size trivial = load inspect %3
+  call setName borrow %12 borrow %13
+  %14: Held [shared call] guaranteed from{%4} = load inspect %4
+  %15: Size trivial = call slotCount borrow %14
+  drop Held inspect %4
+  return consume %15
+}

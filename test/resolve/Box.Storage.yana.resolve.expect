@@ -424,16 +424,18 @@ fn writesThrough() -> I32 {
     init %c@Config.cold.*, %v2
     %v11 = load %c : Config
     %v12 = load %c@Config.cold.* : Diagnostics
-    %before = addressof %c@Config.cold.* : %Diagnostics
-    %v14 = alloc : Diagnostics
+    %v13 = addressof %c@Config.cold.* : %Diagnostics
+    %before = bitcast %v13 : Size
+    %v15 = alloc : Diagnostics
     aggregate %local3@Diagnostics.count = 9, %local3@Diagnostics.level = 30
-    assign %c@Config.cold.*, %v14
-    %v19 = load %c : Config
-    %v20 = load %c@Config.cold.* : Diagnostics
-    %after = addressof %c@Config.cold.* : %Diagnostics
-    %v22 = cmp_eq %before, %after : Bool
-    %v24 = xor %v22, True : Bool
-    je %v24, b4, b2
+    assign %c@Config.cold.*, %v15
+    %v20 = load %c : Config
+    %v21 = load %c@Config.cold.* : Diagnostics
+    %v22 = addressof %c@Config.cold.* : %Diagnostics
+    %after = bitcast %v22 : Size
+    %v24 = cmp_eq %before, %after : Bool
+    %v26 = xor %v24, True : Bool
+    je %v26, b4, b2
 
   b1:
     ret -1
@@ -442,16 +444,16 @@ fn writesThrough() -> I32 {
     jmp b3
 
   b3:
-    %v29 = load %c : Config
-    %v30 = load %c@Config.cold.* : Diagnostics
-    %v31 = load %c@Config.cold.*@Diagnostics.count : I32
-    %v34 = mul %v31, 10 : I32
-    %v35 = load %c : Config
-    %v36 = load %c@Config.cold.* : Diagnostics
-    %v37 = load %c@Config.cold.*@Diagnostics.level : I32
+    %v31 = load %c : Config
+    %v32 = load %c@Config.cold.* : Diagnostics
+    %v33 = load %c@Config.cold.*@Diagnostics.count : I32
+    %v36 = mul %v33, 10 : I32
+    %v37 = load %c : Config
+    %v38 = load %c@Config.cold.* : Diagnostics
+    %v39 = load %c@Config.cold.*@Diagnostics.level : I32
     drop_derived %c via reclaim$Config
-    %v38 = add %v34, %v37 : I32
-    ret %v38
+    %v40 = add %v36, %v39 : I32
+    ret %v40
 
   b4:
     drop_derived %c via reclaim$Config

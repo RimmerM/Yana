@@ -278,6 +278,18 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
                 if(liveBefore(position, id.index)) continue;
 
                 /*
+                 * Storage this frame only lends - `lendsItsContents`, and the reason a `&` parameter
+                 * has a path at all.
+                 *
+                 * Nothing here is released and nothing here dies: the value is the caller's, and
+                 * what the state is for is the hole a take leaves and the refill that fills it -
+                 * `checkRefills` is what reads it. Before the `@explicitDrop` report as well as
+                 * before the teardown, because neither of those is a statement about a value this
+                 * frame ends.
+                 */
+                if(lendingPath(id)) continue;
+
+                /*
                  * The point the value stops being live with nothing in the source having said so -
                  * `doc/spec/ownership.md`'s `@explicitDrop`, reported exactly where it dies.
                  *
@@ -416,6 +428,32 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
             // Gone as a whole, and its members may not be: this is where a partially moved record is
             // descended into.
             descend(id);
+        }
+
+        /*
+         * And the obligation the hole carries, asked where the frame lets go of the reference.
+         *
+         * `doc/spec/ownership.md`'s "taking a value out of borrowed storage" is a loan of two halves
+         * - the take and the write back - and this is the second one enforced. A `return` is the
+         * point the caller may look into its own storage again, so it is the point at which that
+         * storage has to hold something; a body that ends any other way did not return, and nothing
+         * unwinds, so there is nothing there to observe a hole.
+         *
+         * `Maybe` is refused with the same message as `Moved`. A refill on one path and not on
+         * another leaves the caller's storage in a state only a run-time bit knows about, and a drop
+         * flag is not an answer here - the flag would say whether to release, and what is missing is
+         * a *value*.
+         */
+        if(walk == WalkMode::Emit && node.kind == Node::Return) {
+            for(U32 p = 0; p < pathCount; p++) {
+                if(state[p] == PathState::Owned) continue;
+                if(!lendingPath(MovePathId(p))) continue;
+
+                report(node.source,
+                       "%@ was handed over and nothing was written back into it - storage this "
+                       "function borrows has to hold a value when it returns"_v,
+                       pathName(MovePathId(p)));
+            }
         }
 
         /*
@@ -819,7 +857,12 @@ bool analyzeBody(Context& context, Program& program, Function& function) {
     /*
      * The order, and every step of it is a dependency rather than a preference.
      *
-     * The origin environment comes first because nothing it reads is an analysis result - a
+     * Placement is first and depends on none of them, which is the point: where an object lives is a
+     * fact about *storage* and everything below is about *values*, so nothing here reads it and a
+     * reader looking for the decision finds it before anything that could be mistaken for making one.
+     * `analyze_escape.cpp` says where the answer is spent instead.
+     *
+     * The origin environment comes first among the rest because nothing it reads is an analysis result - a
      * `Forward` operand never took a loan, so it does not have to be settled yet - and because
      * everything after it reads the environment. Extents follow it, liveness follows them (a loan
      * keeps the storage it came out of alive), `Forward` follows liveness, and initialization and
@@ -829,6 +872,7 @@ bool analyzeBody(Context& context, Program& program, Function& function) {
      * borrows, and a body that failed it has nothing useful to say about initialization - every
      * value reached through a conflicting borrow would be reported again by the walk below.
      */
+    analysis.selectPlacements();
     analysis.buildPaths();
     analysis.computeOrigins();
     analysis.buildOriginLog();
@@ -842,6 +886,75 @@ bool analyzeBody(Context& context, Program& program, Function& function) {
     analysis.computeInitialization();
     analysis.placeDrops();
     return analysis.errors == 0;
+}
+
+// The argument is in place.h, beside the declaration.
+bool boxesVisibleAt(MirBase base, Place& place) {
+    auto root = &place;
+    while(root->parent) root = base[root->parent];
+
+    switch(root->kind) {
+        case Place::Local:
+            return root->occurrence.contract.isOwned();
+
+        // A global outlives every frame and nothing here placed it; a loan and a raw address name
+        // storage whose owner is somewhere else by construction.
+        case Place::Global:
+        case Place::Loan:
+        case Place::Address:
+            return false;
+
+        /*
+         * Not a root. Every projection has a parent, so the walk above stops at one of the four
+         * above and this arm is unreachable - written out rather than defaulted so that a new root
+         * kind is a compiler error here instead of a silent `true`, which is the answer that frees
+         * somebody else's memory.
+         */
+        case Place::Field:
+        case Place::Property:
+        case Place::Discriminant:
+        case Place::Index:
+        case Place::Deref:
+            break;
+    }
+
+    assertTrue(false);
+    return false;
+}
+
+// The argument is in own.h, beside the declaration.
+void settleBoxProvenance(Program& program) {
+    auto decl = *program.decl;
+    auto base = *program.mir;
+
+    for(auto modulePointer: program.modules) {
+        auto module = decl[modulePointer];
+
+        for(auto functionPointer: module->functions.contents(decl)) {
+            auto& function = *decl[functionPointer];
+
+            /*
+             * Reachable bodies only, and a specialization is asked through the generic it shares a
+             * body with - which is the same pair `analyzeProgram` above makes for the same reason.
+             * A borrow-rooted drop in a body nothing calls is not a question this program asks, and
+             * counting one would put the word into every program that merely *links* a library
+             * holding such a body - which is every program.
+             */
+            if(!function.reachable || function.specializes || !function.mir) continue;
+
+            auto& body = *base[function.mir];
+            if(!body.elaboration) continue;
+
+            for(auto& step: base[body.elaboration]->drops.contents(base)) {
+                auto place = body.place(base, step.place);
+                if(boxesVisibleAt(base, *place)) continue;
+                if(!reachesBox(decl, place->occurrence.type)) continue;
+
+                program.asksBoxProvenance = true;
+                return;
+            }
+        }
+    }
 }
 
 bool analyzeProgram(Context& context, Program& program) {

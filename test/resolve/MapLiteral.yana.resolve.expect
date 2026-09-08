@@ -150,6 +150,15 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
+fn units(%self: 1'String) -> %CodeUnit {
+  b0:
+    %v1 = load [%self] : String
+    %v2 = borrow [%self] : 'String
+    %v3 = call Viewed(String).view, %v2 : StringView
+    %v4 = load %local0@StringView.units : %CodeUnit
+    ret %v4
+}
+
 fn String.unit(%self: String, %index: Size) -> I32 {
   b0:
     %v2 = borrow %self : 1'String
@@ -525,9 +534,15 @@ fn indexReset(I32, I32)(%self: Map(I32, I32)) -> () {
 fn entryCount(I32, I32)(%self: Map(I32, I32)) -> Size {
   b0:
     %v1 = load %self@Map.entries : Array(Entry(I32, I32))
-    %v2 = load %self@Map.entries@Array.length : @bits(30) U32
-    %v3 = cast %v2 : Size
-    ret %v3
+    %v2 = call Length(Array(a)).length(Entry(I32, I32)), %v1 : Size
+    ret %v2
+}
+
+fn Length(Array(a)).length(Entry(I32, I32))(%self: Array(Entry(I32, I32))) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
 }
 
 fn hashAt(I32, I32)(%self: Map(I32, I32), %at: Size) -> U32 {
@@ -1392,9 +1407,15 @@ fn indexReset(String, I32)(%self: Map(String, I32)) -> () {
 fn entryCount(String, I32)(%self: Map(String, I32)) -> Size {
   b0:
     %v1 = load %self@Map.entries : Array(Entry(String, I32))
-    %v2 = load %self@Map.entries@Array.length : @bits(30) U32
-    %v3 = cast %v2 : Size
-    ret %v3
+    %v2 = call Length(Array(a)).length(Entry(String, I32)), %v1 : Size
+    ret %v2
+}
+
+fn Length(Array(a)).length(Entry(String, I32))(%self: Array(Entry(String, I32))) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
 }
 
 fn hashAt(String, I32)(%self: Map(String, I32), %at: Size) -> U32 {
@@ -2204,9 +2225,15 @@ fn indexReset(I32, Array(I32))(%self: Map(I32, Array(I32))) -> () {
 fn entryCount(I32, Array(I32))(%self: Map(I32, Array(I32))) -> Size {
   b0:
     %v1 = load %self@Map.entries : Array(Entry(I32, Array(I32)))
-    %v2 = load %self@Map.entries@Array.length : @bits(30) U32
-    %v3 = cast %v2 : Size
-    ret %v3
+    %v2 = call Length(Array(a)).length(Entry(I32, Array(I32))), %v1 : Size
+    ret %v2
+}
+
+fn Length(Array(a)).length(Entry(I32, Array(I32)))(%self: Array(Entry(I32, Array(I32)))) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
 }
 
 fn hashAt(I32, Array(I32))(%self: Map(I32, Array(I32)), %at: Size) -> U32 {
@@ -2744,6 +2771,13 @@ fn push(Entry(I32, Array(I32)))(%self: Array(Entry(I32, Array(I32))), %item: Ent
     ret
 }
 
+fn Length(Array(a)).length(I32)(%self: Array(I32)) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
 fn pairs(I32, Array(I32), ())(%self: 'Map(I32, Array(I32)), %body: (value$: Entry('I32, 'Array(I32))) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %self = load [%self] : Map(I32, Array(I32))
@@ -3040,9 +3074,15 @@ fn indexReset(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32))) -> () {
 fn entryCount(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32))) -> Size {
   b0:
     %v1 = load %self@Map.entries : Array(Entry(I32, Map(I32, I32)))
-    %v2 = load %self@Map.entries@Array.length : @bits(30) U32
-    %v3 = cast %v2 : Size
-    ret %v3
+    %v2 = call Length(Array(a)).length(Entry(I32, Map(I32, I32))), %v1 : Size
+    ret %v2
+}
+
+fn Length(Array(a)).length(Entry(I32, Map(I32, I32)))(%self: Array(Entry(I32, Map(I32, I32)))) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
 }
 
 fn hashAt(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %at: Size) -> U32 {
@@ -4202,15 +4242,6 @@ fn freeHeap(%allocation: %U8) -> () {
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
     ret
-}
-
-fn units(%self: 1'String) -> %CodeUnit {
-  b0:
-    %v1 = load [%self] : String
-    %v2 = borrow [%self] : 'String
-    %v3 = call Viewed(String).view, %v2 : StringView
-    %v4 = load %local0@StringView.units : %CodeUnit
-    ret %v4
 }
 
 fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {
@@ -6515,14 +6546,13 @@ fn ResolveTest.continuation$24(%env: %{elements: &I32}, %value$: Entry('I32, 'Ar
     %v4 = load [%v3] : I32
     %v5 = load %value$@Entry.value : 'Array(I32)
     %v6 = load [%v5] : Array(I32)
-    %v7 = load [%v5]@Array.length : @bits(30) U32
-    %v8 = cast %v7 : Size
-    %v9 = cast %v8 : I32
-    %v10 = add %v4, %v9 : I32
-    assign [%v2], %v10
-    %v12 = alloc : Outcome((), ())
+    %v7 = call Length(Array(a)).length(I32), %v6 : Size
+    %v8 = cast %v7 : I32
+    %v9 = add %v4, %v8 : I32
+    assign [%v2], %v9
+    %v11 = alloc : Outcome((), ())
     init %local1.discriminant, 0
-    ret %v12
+    ret %v11
 }
 
 fn reclaim$Table(%value: Table) -> () {

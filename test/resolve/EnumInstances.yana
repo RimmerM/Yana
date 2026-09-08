@@ -1,0 +1,94 @@
+{-
+   The three instances a payload-free sum gets for nothing - `Enum`, `Eq` and `Ord`.
+
+   Written to be compiled by **both** resolve stages, which is what separates it from `EnumValue.yana`
+   beside it: that one asserts the shipping stage's golden IR and writes `valueOf(w)` into an `I64`
+   result, which is the dependency-beats-target rule the ownership stage does not have yet. What is
+   here is the part both agree on, and the numbers are what makes that an assertion rather than a
+   claim - each case contributes a distinct power of two, so `main` is 255 when they all pass and a
+   failure names itself in binary.
+
+   The two membership shapes are both present, because `fromValue` compiles to different code for
+   each: `Whence`'s values run consecutively and are a range test, and `Errno`'s have holes in them
+   and are one comparison per constructor.
+
+   `Ord` is here as well as `Eq` although the library never asks a `Weekday` which way round it goes.
+   It is the half that cannot be a bare comparison of the two values: an ordering is arithmetic, and
+   a record reaches it only as the tag it is - see `UnaryCategory::Raw`, which admits an enum for
+   exactly this.
+-}
+
+-- Pinned to the numbers `lseek` takes. Consecutive, so `fromValue`'s membership test is a range.
+data Whence = @value(0) FromStart | @value(1) FromCurrent | @value(2) FromEnd
+
+-- A set with holes in it, which is what an `errno` list is: one comparison per constructor, or-ed.
+data Errno = @value(2) NotFound | @value(13) Access | @value(122) Quota
+
+-- Nothing pinned at all, which is the common case and the one that costs nothing.
+data Weekday = Monday | Tuesday | Wednesday
+
+@noinline fn opaque(x: Int) -> Int = x
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+-- `valueOf` is the identity: the value *is* the number, so what this compiles to is the tag read at
+-- the width the declaration needs.
+fn seekBase(w: Whence) -> Int = valueOf(w)
+fn errorNumber(e: Errno) -> Int = valueOf(e)
+
+fn numbers() -> Int = check(seekBase(FromEnd) == 2 && errorNumber(Quota) == 122, 1)
+
+-- And back, which is partial and says so. The absent case is a number no declaration names.
+fn whenceOf(n: I64) -> Maybe(Whence) = fromValue(n)
+fn errnoOf(n: I64) -> Maybe(Errno) = fromValue(n)
+
+fn present(m: Maybe(Whence)) -> Bool = match m:
+    Just(_) -> True
+    Nothing -> False
+
+fn presentErrno(m: Maybe(Errno)) -> Bool = match m:
+    Just(_) -> True
+    Nothing -> False
+
+fn range() -> Int =
+    check(present(whenceOf(1)), 2) +
+    check(!present(whenceOf(7)), 4)
+
+fn holes() -> Int =
+    check(presentErrno(errnoOf(13)), 8) +
+    check(!presentErrno(errnoOf(14)), 16)
+
+-- The round trip through an opaque number, so that nothing here is answered by folding the literal
+-- that went in: `fromValue` past its membership test is the tag written, and `valueOf` reads it back.
+fn roundTrip() -> Int:
+    let taken = whenceOf(widen(opaque(1)) :: I64)
+    let back = match taken:
+        Just(w) -> valueOf(w)
+        Nothing -> -1
+
+    return check(back == 1, 32)
+
+-- The comparisons, which used to be one written line per enum and the line was always
+-- `valueOf(lhs) == valueOf(rhs)`. Nothing is cast for the equality - a sum *is* its tag - and the
+-- ordering reads that tag as the integer it is.
+fn compares() -> Int =
+    check(Monday == Monday && Monday != Tuesday && Monday < Wednesday &&
+          Wednesday >= Tuesday && compare(Tuesday, Monday) == GT, 64)
+
+{-
+   And `valueOf` reached through a **witness** rather than by name.
+
+   A generated instance is a real function as well as an expansion at the call site, and this is the
+   build that tells the two apart: a fixture with a `.run.expect` is compiled a second time with
+   specialization declined, so this body is compiled once with the instance handed to it and calls
+   the member through the table. That is the least-travelled path and the one where an instance whose
+   body was only ever a call-site expansion would have nothing to call.
+
+   `w` is never written at the call - `anyValue(FromEnd)` names no width and reads one back, which is
+   what the class head's `->` is for.
+-}
+@noinline fn (Enum(a, w)) anyValue(x: a) -> w = valueOf(x)
+
+fn generic() -> Int = check(anyValue(FromEnd) == 2 && anyValue(Quota) == 122, 128)
+
+fn main() -> Int = numbers() + range() + holes() + roundTrip() + compares() + generic()

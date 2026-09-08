@@ -20,27 +20,28 @@ bb0:
   store inspect %0 consume %2
   %3: Size trivial = const 0
   %4: Size trivial = call at borrow %3
-  %5: %U8 address = element.addr inspect %0 inspect %4
-  %6: U8 trivial = load inspect %5
-  %7: I32 trivial = convert inspect %6
-  %8: Size trivial = const 63
-  %9: Size trivial = call at borrow %8
-  %10: %U8 address = element.addr inspect %0 inspect %9
-  %11: U8 trivial = load inspect %10
-  %12: I32 trivial = convert inspect %11
-  %13: I32 trivial = add inspect %7 inspect %12
-  %14: [U8 *64] trivial = copy inspect %0
-  jump -> bb1
-
-bb1:
-  %16: I32 trivial = const 64
-  %17: Size trivial = convert inspect %16
-  jump -> bb2(consume %17)
-
-bb2(%15: Size trivial):
-  %18: I32 trivial = convert inspect %15
-  %19: I32 trivial = add inspect %13 inspect %18
-  return consume %19
+  %5: USize trivial = const 64
+  %6: USize trivial = bitcast inspect %4
+  %7: Bool trivial = ge inspect %6 inspect %5
+  call checkCondition borrow %7
+  %8: %U8 address = element.addr inspect %0 inspect %4
+  %9: U8 trivial = load inspect %8
+  %10: I32 trivial = convert inspect %9
+  %11: Size trivial = const 63
+  %12: Size trivial = call at borrow %11
+  %13: USize trivial = const 64
+  %14: USize trivial = bitcast inspect %12
+  %15: Bool trivial = ge inspect %14 inspect %13
+  call checkCondition borrow %15
+  %16: %U8 address = element.addr inspect %0 inspect %12
+  %17: U8 trivial = load inspect %16
+  %18: I32 trivial = convert inspect %17
+  %19: I32 trivial = add inspect %10 inspect %18
+  %20: [U8 *64] trivial = copy inspect %0
+  %21: Size trivial = call [a *n].length(64, U8) borrow %20
+  %22: I32 trivial = convert inspect %21
+  %23: I32 trivial = add inspect %19 inspect %22
+  return consume %23
 }
 
 fn ones() -> I32 {
@@ -51,20 +52,17 @@ bb0:
   store inspect %0 consume %2
   %3: Size trivial = const 7
   %4: Size trivial = call at borrow %3
-  %5: %I32 address = element.addr inspect %0 inspect %4
-  %6: I32 trivial = load inspect %5
-  %7: [I32 *8] trivial = copy inspect %0
-  jump -> bb1
-
-bb1:
-  %9: I32 trivial = const 8
-  %10: Size trivial = convert inspect %9
-  jump -> bb2(consume %10)
-
-bb2(%8: Size trivial):
-  %11: I32 trivial = convert inspect %8
-  %12: I32 trivial = add inspect %6 inspect %11
-  return consume %12
+  %5: USize trivial = const 8
+  %6: USize trivial = bitcast inspect %4
+  %7: Bool trivial = ge inspect %6 inspect %5
+  call checkCondition borrow %7
+  %8: %I32 address = element.addr inspect %0 inspect %4
+  %9: I32 trivial = load inspect %8
+  %10: [I32 *8] trivial = copy inspect %0
+  %11: Size trivial = call [a *n].length(8, I32) borrow %10
+  %12: I32 trivial = convert inspect %11
+  %13: I32 trivial = add inspect %9 inspect %12
+  return consume %13
 }
 
 fn small() -> I32 {
@@ -75,16 +73,24 @@ bb0:
   store inspect %0 consume %2
   %3: Size trivial = const 0
   %4: Size trivial = call at borrow %3
-  %5: %U8 address = element.addr inspect %0 inspect %4
-  %6: U8 trivial = load inspect %5
-  %7: I32 trivial = convert inspect %6
-  %8: Size trivial = const 7
-  %9: Size trivial = call at borrow %8
-  %10: %U8 address = element.addr inspect %0 inspect %9
-  %11: U8 trivial = load inspect %10
-  %12: I32 trivial = convert inspect %11
-  %13: I32 trivial = add inspect %7 inspect %12
-  return consume %13
+  %5: USize trivial = const 8
+  %6: USize trivial = bitcast inspect %4
+  %7: Bool trivial = ge inspect %6 inspect %5
+  call checkCondition borrow %7
+  %8: %U8 address = element.addr inspect %0 inspect %4
+  %9: U8 trivial = load inspect %8
+  %10: I32 trivial = convert inspect %9
+  %11: Size trivial = const 7
+  %12: Size trivial = call at borrow %11
+  %13: USize trivial = const 8
+  %14: USize trivial = bitcast inspect %12
+  %15: Bool trivial = ge inspect %14 inspect %13
+  call checkCondition borrow %15
+  %16: %U8 address = element.addr inspect %0 inspect %12
+  %17: U8 trivial = load inspect %16
+  %18: I32 trivial = convert inspect %17
+  %19: I32 trivial = add inspect %10 inspect %18
+  return consume %19
 }
 
 fn nonUniform() -> I32 {
@@ -95,14 +101,22 @@ bb0:
   store inspect %0 consume %2
   %3: Size trivial = const 0
   %4: Size trivial = call at borrow %3
-  %5: %I32 address = element.addr inspect %0 inspect %4
-  %6: I32 trivial = load inspect %5
-  %7: Size trivial = const 7
-  %8: Size trivial = call at borrow %7
-  %9: %I32 address = element.addr inspect %0 inspect %8
-  %10: I32 trivial = load inspect %9
-  %11: I32 trivial = add inspect %6 inspect %10
-  return consume %11
+  %5: USize trivial = const 8
+  %6: USize trivial = bitcast inspect %4
+  %7: Bool trivial = ge inspect %6 inspect %5
+  call checkCondition borrow %7
+  %8: %I32 address = element.addr inspect %0 inspect %4
+  %9: I32 trivial = load inspect %8
+  %10: Size trivial = const 7
+  %11: Size trivial = call at borrow %10
+  %12: USize trivial = const 8
+  %13: USize trivial = bitcast inspect %11
+  %14: Bool trivial = ge inspect %13 inspect %12
+  call checkCondition borrow %14
+  %15: %I32 address = element.addr inspect %0 inspect %11
+  %16: I32 trivial = load inspect %15
+  %17: I32 trivial = add inspect %9 inspect %16
+  return consume %17
 }
 
 fn handWritten() -> I32 {
@@ -144,10 +158,14 @@ bb0:
   store inspect %0 consume %33
   %34: Size trivial = const 31
   %35: Size trivial = call at borrow %34
-  %36: %U8 address = element.addr inspect %0 inspect %35
-  %37: U8 trivial = load inspect %36
-  %38: I32 trivial = convert inspect %37
-  return consume %38
+  %36: USize trivial = const 32
+  %37: USize trivial = bitcast inspect %35
+  %38: Bool trivial = ge inspect %37 inspect %36
+  call checkCondition borrow %38
+  %39: %U8 address = element.addr inspect %0 inspect %35
+  %40: U8 trivial = load inspect %39
+  %41: I32 trivial = convert inspect %40
+  return consume %41
 }
 
 fn inferred() -> I32 {
@@ -160,39 +178,33 @@ bb0:
   store inspect %0 consume %4
   %5: Size trivial = const 2
   %6: Size trivial = call at borrow %5
-  %7: %I32 address = element.addr inspect %0 inspect %6
-  %8: I32 trivial = load inspect %7
-  %9: [I32 *3] trivial = copy inspect %0
-  jump -> bb1
-
-bb1:
-  %11: I32 trivial = const 3
-  %12: Size trivial = convert inspect %11
-  jump -> bb2(consume %12)
-
-bb2(%10: Size trivial):
-  %13: I32 trivial = convert inspect %10
-  %14: I32 trivial = add inspect %8 inspect %13
-  %15: Size trivial = const 5
-  %16: Size trivial = call at borrow %15
-  %17: %[U8 *8] address = global.addr table
-  %18: %U8 address = element.addr inspect %17 inspect %16
-  %19: U8 trivial = load inspect %18
-  %20: I32 trivial = convert inspect %19
-  %21: I32 trivial = add inspect %14 inspect %20
-  %22: %[U8 *8] address = global.addr table
-  %23: [U8 *8] trivial = copy inspect %22
-  jump -> bb3
-
-bb3:
-  %25: I32 trivial = const 8
-  %26: Size trivial = convert inspect %25
-  jump -> bb4(consume %26)
-
-bb4(%24: Size trivial):
-  %27: I32 trivial = convert inspect %24
-  %28: I32 trivial = add inspect %21 inspect %27
-  return consume %28
+  %7: USize trivial = const 3
+  %8: USize trivial = bitcast inspect %6
+  %9: Bool trivial = ge inspect %8 inspect %7
+  call checkCondition borrow %9
+  %10: %I32 address = element.addr inspect %0 inspect %6
+  %11: I32 trivial = load inspect %10
+  %12: [I32 *3] trivial = copy inspect %0
+  %13: Size trivial = call [a *n].length(3, I32) borrow %12
+  %14: I32 trivial = convert inspect %13
+  %15: I32 trivial = add inspect %11 inspect %14
+  %16: Size trivial = const 5
+  %17: Size trivial = call at borrow %16
+  %18: USize trivial = const 8
+  %19: USize trivial = bitcast inspect %17
+  %20: Bool trivial = ge inspect %19 inspect %18
+  call checkCondition borrow %20
+  %21: %[U8 *8] address = global.addr table
+  %22: %U8 address = element.addr inspect %21 inspect %17
+  %23: U8 trivial = load inspect %22
+  %24: I32 trivial = convert inspect %23
+  %25: I32 trivial = add inspect %15 inspect %24
+  %26: %[U8 *8] address = global.addr table
+  %27: [U8 *8] trivial = copy inspect %26
+  %28: Size trivial = call [a *n].length(8, U8) borrow %27
+  %29: I32 trivial = convert inspect %28
+  %30: I32 trivial = add inspect %25 inspect %29
+  return consume %30
 }
 
 fn oneElement() -> I32 {
@@ -203,43 +215,37 @@ bb0:
   store inspect %0 consume %2
   %3: Size trivial = const 0
   %4: Size trivial = call at borrow %3
-  %5: %I32 address = element.addr inspect %0 inspect %4
-  %6: I32 trivial = load inspect %5
-  %7: [I32 *1] trivial = copy inspect %0
-  jump -> bb1
-
-bb1:
-  %9: I32 trivial = const 1
-  %10: Size trivial = convert inspect %9
-  jump -> bb2(consume %10)
-
-bb2(%8: Size trivial):
-  %11: I32 trivial = convert inspect %8
-  %12: I32 trivial = add inspect %6 inspect %11
-  return consume %12
+  %5: USize trivial = const 1
+  %6: USize trivial = bitcast inspect %4
+  %7: Bool trivial = ge inspect %6 inspect %5
+  call checkCondition borrow %7
+  %8: %I32 address = element.addr inspect %0 inspect %4
+  %9: I32 trivial = load inspect %8
+  %10: [I32 *1] trivial = copy inspect %0
+  %11: Size trivial = call [a *n].length(1, I32) borrow %10
+  %12: I32 trivial = convert inspect %11
+  %13: I32 trivial = add inspect %9 inspect %12
+  return consume %13
 }
 
 fn constant() -> I32 {
 bb0:
   %0: Size trivial = const 40
   %1: Size trivial = call at borrow %0
-  %2: %[U8 *64] address = global.addr zeroBlock
-  %3: %U8 address = element.addr inspect %2 inspect %1
-  %4: U8 trivial = load inspect %3
-  %5: I32 trivial = convert inspect %4
-  %6: %[U8 *64] address = global.addr zeroBlock
-  %7: [U8 *64] trivial = copy inspect %6
-  jump -> bb1
-
-bb1:
-  %9: I32 trivial = const 64
-  %10: Size trivial = convert inspect %9
-  jump -> bb2(consume %10)
-
-bb2(%8: Size trivial):
-  %11: I32 trivial = convert inspect %8
-  %12: I32 trivial = add inspect %5 inspect %11
-  return consume %12
+  %2: USize trivial = const 64
+  %3: USize trivial = bitcast inspect %1
+  %4: Bool trivial = ge inspect %3 inspect %2
+  call checkCondition borrow %4
+  %5: %[U8 *64] address = global.addr zeroBlock
+  %6: %U8 address = element.addr inspect %5 inspect %1
+  %7: U8 trivial = load inspect %6
+  %8: I32 trivial = convert inspect %7
+  %9: %[U8 *64] address = global.addr zeroBlock
+  %10: [U8 *64] trivial = copy inspect %9
+  %11: Size trivial = call [a *n].length(64, U8) borrow %10
+  %12: I32 trivial = convert inspect %11
+  %13: I32 trivial = add inspect %8 inspect %12
+  return consume %13
 }
 
 fn main() -> I32 {

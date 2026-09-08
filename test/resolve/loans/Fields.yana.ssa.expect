@@ -224,9 +224,9 @@ bb0:
   %5: I32 trivial = const 1
   %6: Editor affine = aggregate.Editor borrow %4 consume %5
   store inspect %1 consume %6
-  %7: Editor [unique call] guaranteed from{%1, %0} = load inspect %1
+  %7: Editor [unique call] guaranteed from{%0, %1} = load inspect %1
   call bumpThrough borrow %7
-  %8: Editor [shared call] guaranteed from{%1, %0} = load inspect %1
+  %8: Editor [shared call] guaranteed from{%0, %1} = load inspect %1
   %9: I32 trivial = call readThrough borrow %8
   return consume %9
 }
@@ -242,7 +242,7 @@ bb0:
   %5: I32 trivial = const 0
   %6: Editor affine = aggregate.Editor borrow %4 consume %5
   store inspect %1 consume %6
-  %7: Editor [unique call] guaranteed from{%1, %0} = load inspect %1
+  %7: Editor [unique call] guaranteed from{%0, %1} = load inspect %1
   call bumpThrough borrow %7
   %8: %I32 address = field.addr .v inspect %0
   %9: I32 trivial = load inspect %8

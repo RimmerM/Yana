@@ -12,7 +12,7 @@
    loops are actually still there.
 
    The loop this pass exists for is not in this file and cannot be: it is `Reclaim(Array(a))` in
-   `prelude/Core/Array.yana`, one traversal over the live elements of an array whose element type
+   `lib/Core/Array.yana`, one traversal over the live elements of an array whose element type
    has nothing to run - and a library body is left out of both dumps. `LiteralReclaim.yana`'s
    lowered golden is where it shows.
 
@@ -189,7 +189,7 @@ fn guarded(x: Int, d: Int) -> Int:
    emits here.
 
    An index at this tier is a `Size` handed straight to `element.addr`, with the stride multiply the
-   lowering's, and the bounds test `prelude/Core/Array.yana` writes is a `bitcast` to `USize` rather
+   lowering's, and the bounds test `lib/Core/Array.yana` writes is a `bitcast` to `USize` rather
    than a widening conversion - so a subscript produces no extension at all. Written out by hand, as
    below, the two extensions are still not of one value, because the unsigned one goes through a
    `bitcast` first. Measured over the whole corpus: no value is both sign-extended and zero-extended

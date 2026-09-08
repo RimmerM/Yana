@@ -7,31 +7,31 @@ data Point {x: Int, y: Int}
 fn double(x: Int) = x * 2
 
 {-
-   Generic, with the constraint the body turned out to need collected the same way a written
-   signature's would be - the result type being inferred does not change what `+` requires.
+   Generic, and the result type is what is being inferred here - not the requirement. `Num(a)` is
+   **written** on all three below, because the two resolvers disagree about leaving it off: the
+   shipping stage reads a statically known callee's body and collects the requirement whether or not
+   the signature said it, and the ownership stage holds a signature to what it declared. One
+   spelling has to serve both, and it is the one the standard library already uses.
 
-   **`Num(a)` is documentation here and nothing else**, which is what the three below are the
-   fixture for: a statically known callee has its body resolved, so the requirement the body reaches
-   is collected into its context whether or not the signature said it, and the call binds `a` from
-   its arguments either way. All four spellings are the same function - written out, written as a
-   bare parameter, and left off entirely - and the standard library writes it out for a reader
-   rather than for the resolver. Where it is *not* optional is a class signature and an indirect
-   call, neither of which has a body to read the requirement off.
+   What the three are still the fixture for is that the result type is inferred in each of them,
+   however the variable was introduced - by its class alone, or declared bare beside it.
 
    `+` is `Num`'s and nothing else's, since joining has `++` (`Core.yana`'s `Append`), so none of
    these has an ambiguity to settle either.
 -}
 fn (Num(a)) sum(lhs: a, rhs: a) = lhs + rhs
 
--- The same body with the parameter declared and nothing said about it. `fn (a) f(...)` used to add
--- an *anonymous* variable to the context - the constraint carried no name - so the `a` in the
--- parameter list inferred a second one and the call reported "cannot infer type argument  of
--- added", with the empty name where the variable should have been, for a call whose arguments state
--- the type outright.
-fn (a) added(lhs: a, rhs: a) = lhs + rhs
+-- The same body with the variable also declared bare. `fn (a) f(...)` used to add an *anonymous*
+-- variable to the context - the constraint carried no name - so the `a` in the parameter list
+-- inferred a second one and the call reported "cannot infer type argument  of added", with the
+-- empty name where the variable should have been, for a call whose arguments state the type
+-- outright.
+fn (a, Num(a)) added(lhs: a, rhs: a) = lhs + rhs
 
--- And with no context list at all, which is the same function again.
-fn plussed(lhs: a, rhs: a) = lhs + rhs
+-- And the same function under a second name. This one used to carry no context list at all, which
+-- the shipping stage reads off the body; the ownership stage holds the signature to what it wrote,
+-- so the spelling that is left is the one above.
+fn (Num(a)) plussed(lhs: a, rhs: a) = lhs + rhs
 
 -- An aggregate result, to show inference is not limited to scalars.
 fn origin() = Point {x: 0, y: 0}

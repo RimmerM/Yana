@@ -209,7 +209,7 @@ struct Planner {
                  */
                 if(mir::isLensCall(node.kind)) continue;
 
-                mir::forEachEdge(node, [&](mir::Edge& edge) {
+                mir::forEachEdge(mir, node, [&](mir::Edge& edge) {
                     if(!edge.target) return;
                     if(mir[edge.target]->region == region) return;
 
@@ -350,6 +350,21 @@ struct Planner {
         lifted->reachable = true;
         lifted->summary.bodyKnown = true;
 
+        /*
+         * And the one published fact this declaration would otherwise have none of: a continuation's
+         * blocks *are* the lifter's blocks, so it suspends exactly when they do.
+         *
+         * `computeSummaries` ran over the MIR, before this declaration existed, and it does not run
+         * again - so an unset fact here is read at every consumer's conservative default. That
+         * default is "may suspend", and the one consumer that acts on it declines to copy the body:
+         * an outlined continuation left unanswered is a caller's own code that its caller may never
+         * take back. Copied from the lifter rather than computed, because the two are one body.
+         */
+        auto suspends = function.summary.suspension();
+        lifted->summary.setSuspension(suspends.get(false), suspends.knowledge == mir::Knowledge::Unknown
+                                                               ? mir::Knowledge::Known
+                                                               : suspends.knowledge);
+
         auto envArg = new (program.decl) mir::Arg();
         envArg->name = envName;
         envArg->occurrence = mir::borrowed(recordPointer, mir::Access::Unique);
@@ -408,6 +423,21 @@ struct Graft {
     // Where `return` lands. `result` is its one block argument, or null for a unit result.
     Block* join;
     Value* result;
+
+    /*
+     * Where the graft was written - the **outermost** call site, kept across nested grafts.
+     *
+     * One reader, and it is what makes `-check-locations` name the subscript rather than the
+     * library: `Index.get` writes its own bounds test and is grafted, so a `checkFailed` inside it
+     * carries `lib/Core/Array.yana`'s line and the site an author wants named is `xs[i]`. That is
+     * `#[track_caller]` semantics obtained from the graft, and it needs no parameter, no `Site`
+     * record materialized on the passing path and no change to a class signature - which is why a
+     * `@caller` fill was not the mechanism: `Index.get`'s parameter list is the class's.
+     *
+     * Outermost rather than nearest, because a check three library bodies deep is still the
+     * author's subscript and every frame in between is the compiler's own.
+     */
+    LocationId site;
 };
 
 struct Conversion {
@@ -470,6 +500,16 @@ struct Conversion {
     ContinuationId scope { 0 };
     Array<Outline>& outlines;
     Outline* outlining = nullptr;
+
+    /*
+     * The slots this scope allocated off the frame - `mir::StorageClass::Heap`, and the addresses
+     * `releaseSlots` hands back.
+     *
+     * A member of the conversion rather than of `Scratch`, because the pairing is per *scope*: a
+     * grafted body and a continuation each allocate their own and each leaves by its own
+     * terminators, and a shared table would release one scope's storage at another's exit.
+     */
+    Array<SsaPtr<Value>> heapSlots;
 
     // The environment parameter, in a continuation - what every capture is loaded out of.
     SsaPtr<Value> environment = nullptr;
@@ -550,6 +590,32 @@ struct Conversion {
     void report(LocationId at, StringView text) {
         errors++;
         context.diagnostics.error(text, at);
+    }
+
+    /*
+     * The float unaries' operand check, made **here** because here is where the type is known.
+     *
+     * `sqrt`, `fma` and the four roundings are `op.def` roles over an unconstrained `a` - there is
+     * no class in the language that says "this is a float", so `expandVecFloatUnary` holds the
+     * argument to one by looking at the type at the call. Inside a generic body there is no type to
+     * look at, and refusing there is what kept `lib/Math` out of this stage: every one of
+     * `modulusOf`, `logOf`, `hypotenuseOf` and the trigonometric bodies rounds or takes a root of
+     * its own `Real(a, m)` parameter.
+     *
+     * So the check moves rather than going away, and this is the one point it can move to: a
+     * specialization is the generic's body read at concrete types, so the substituted occurrence is
+     * exactly what the emitter would have seen had the call been concrete. The node's own source is
+     * the call the author wrote, so the message lands where it did before.
+     */
+    bool requireFloatOperand(mir::UnaryCategory category, DeclPtr<mir::Type> type, LocationId at,
+                             StringView what) {
+        if(category != mir::UnaryCategory::Float) return true;
+        if(mir::operandTypeAllowed(program, category, type)) return true;
+
+        errors++;
+        context.diagnostics.error("%@ takes a float or a vector of floats, and this is %@"_v, at,
+                                  what, mir::typeText(context, decl(), type));
+        return false;
     }
 
     /*
@@ -768,6 +834,20 @@ struct Conversion {
                 auto slot = addressOf(*parent, at);
                 if(!slot) return nullptr;
 
+                /*
+                 * A stored borrow of a container is the container's **descriptor**, and a descriptor
+                 * is not a pointer to one.
+                 *
+                 * `data Formatted(s, a) {value: 'a, style: s}` at `a := Array(U8)` holds a base and
+                 * a length inline - `manifestNative` puts the view row above the reference-value row
+                 * for exactly this reason - so the field's own address already names the object and
+                 * the load below would read the first element's bytes as an address. The test is
+                 * made here rather than in `Builder::fieldPlace` because a generic body is where the
+                 * field is projected and `a` is open there: the substitution is known at this tier
+                 * and nowhere above it, which is the same argument `deriveView` is placed on.
+                 */
+                if(mir::viewRecordOf(context, program, substituted(place.occurrence))) return slot;
+
                 auto held = mir::owned(program.types.pointerType(substituted(place.occurrence.type)));
                 auto inst = editor.addLoad(at, editor.use(*slot, UseKind::Inspect), held,
                                            Convention::Address);
@@ -906,6 +986,224 @@ struct Conversion {
     }
 
     /*
+     * The same operand where the position holds the value and not a reference to it - the load a
+     * borrowed **scalar** needs before it can be added to anything.
+     *
+     * `fn firstOf(xs: [I32]) -> 'I32` answers a loan, and `firstOf(xs) + 1` puts that loan straight
+     * into an operand position. The two are not the same bits: a shared loan of a scalar that
+     * published an origin manifests as its *address* (`isReferenceValue`), so the operand the
+     * arithmetic gets is a pointer where the type says `I32`. It reached the machine as an `add` of
+     * a `Ptr` and an `I32` - "inconsistent argument types to operation" where the verifier is on,
+     * and a number that is an address where it is not.
+     *
+     * Here rather than in MIR, and that is the layer split: MIR is right that reading a loan of a
+     * `TrivialCopy` scalar is a read and not a copy, and which of the two forms that read *is* -
+     * the value, or the address it is reached through - is a manifestation question and this is the
+     * first tier that has one. `xs[i]` is the same shape and is why `Bounds.yana` could not run.
+     *
+     * A loan whose object is itself in memory is left alone: a record's shared loan is its address
+     * and the operand positions that take one want exactly that. So the test is the pair - the
+     * occurrence is a reference, and the thing it refers to is not.
+     */
+    bool valueUseOf(mir::Operand operand, LocationId at, Use& into) {
+        if(!useOf(operand, at, into)) return false;
+
+        auto value = base()[into.value()];
+        auto held = value->occurrence;
+
+        if(!isReferenceValue(layout(), held)) return true;
+        if(manifestNative(layout(), mir::owned(held.type)).inMemory) return true;
+
+        auto read = mir::Occurrence { held.type, mir::ownedContract(), nullptr };
+        auto loaded = editor.addLoad(at, editor.use(*value, UseKind::Inspect), read,
+                                     conventionFor(read), false);
+
+        // The operand's own kind, carried over: what the position asked for is unchanged by the
+        // load, and a call whose parameter says `borrow` is verified against that word.
+        into = editor.use(*editor.resultOf(*loaded), into.kind());
+        return true;
+    }
+
+    /*
+     * And the other direction - a value at a position that holds a **reference** to one.
+     *
+     * `hold(9)` where `hold` takes a `'Int`: the argument is a number in a register and the
+     * position is the address of one, so the temporary that address names has to exist. The
+     * lowering does exactly this at a call it still sees (`frameStorage` in `lower/inst.cpp`) and
+     * that was enough while every call reached the machine as a call - but the inliner and
+     * `graftCall` *erase* the call, and what is left behind is the callee's body reading a
+     * parameter that is now a register value. `test/resolve/BorrowTemporary.yana` is that program,
+     * and it segfaulted at every optimization level above none.
+     *
+     * So the slot is made here, where the call is still one, and by the time anything splices the
+     * callee in the two sides already agree. The rule the slot does not weaken is the one that
+     * fixture states: it is this frame's storage like any other local, so a borrow of it may not
+     * leave through a result.
+     *
+     * Concrete positions of the argument's own type only. An **erased** position takes an address
+     * whatever it was bound to and its declared type is a variable this body cannot allocate, so it
+     * stays the lowering's - which is where the descriptor that sizes it is read.
+     */
+    bool referenceUseOf(mir::Operand operand, const mir::Occurrence& position, LocationId at,
+                        Use& into) {
+        if(!useOf(operand, at, into)) return false;
+
+        auto value = base()[into.value()];
+        auto held = value->occurrence;
+
+        if(arrivesAsAddress(layout(), held)) return true;
+        if(!mir::sameType(held.type, position.type)) return true;
+
+        auto slot = editor.resultOf(*editor.addAlloc(at, mir::owned(held.type),
+                                                     mir::StorageClass::Frame));
+        editor.addStore(at, editor.use(*slot, UseKind::Inspect), editor.use(*value, into.kind()));
+
+        auto loaded = editor.addLoad(at, editor.use(*slot, UseKind::Inspect), position,
+                                     Convention::Guaranteed, false);
+
+        auto borrowed = editor.resultOf(*loaded);
+        SsaPtr<Value> lender[1] = { slot - base() };
+        editor.setDependency(*borrowed, *editor.loanOn(at, lender, 1,
+                                                       position.contract.access()));
+
+        into = editor.use(*borrowed, into.kind());
+        return true;
+    }
+
+    /*
+     * What the storage a place names **holds** - the owner, or a view of one.
+     *
+     * Not `substituted(place.occurrence)`, and the difference is the whole of why this is a
+     * function. A place's contract is the *parent's* qualification carried down, so a field or an
+     * element declared at a type variable reaches `substitutedContract` looking exactly like a
+     * borrowed position - and that rule turns a position into the view, which is right for a
+     * parameter and wrong for storage. `data W(a) = W {v: a}` at `a := String` holds a `String`
+     * owner in `v` however the record was reached; the position that reads it shared is the view,
+     * and the two being told apart is what makes the derivation happen at all.
+     *
+     * A **local** is the other way round and is left alone: a parameter's occurrence *is* a
+     * position - `key: k` at `k := String` was handed the view by its caller - and a binding that
+     * aliases its lender holds whatever the lender produced.
+     */
+    mir::Occurrence storageAt(mir::Place& place) {
+        auto held = substituted(place.occurrence);
+
+        auto owns = [&] {
+            if(place.kind == mir::Place::Index) return true;
+            if(place.kind != mir::Place::Field) return false;
+
+            // The record the field is *on* - `fieldRecordOf`, the same question `addressOf` asks -
+            // and the field's own declared contract on it. A field that refers to somebody else's
+            // storage is a position and keeps the answer above.
+            auto parent = substituted(mir[place.parent]->occurrence);
+            auto record = mir::fieldRecordOf(context, program, parent);
+            if(!record || decl()[record]->kind != mir::Type::Record) return false;
+
+            auto& fields = ((mir::RecordType*)decl()[record])->fields;
+            if(place.payload >= fields.size()) return false;
+
+            return fields.get(decl(), place.payload).occurrence.contract.isOwned();
+        };
+
+        if(!owns()) return held;
+
+        held.contract = mir::Contract { held.contract.access(), held.contract.origin(),
+                                        mir::AccessForm::WholeValue, held.contract.slot() };
+        return held;
+    }
+
+    /*
+     * An **owner** reaching a view position under substitution - the adaptation the generic body
+     * could not write, made here because here is the one place the substitution is known.
+     *
+     * `fn (Hash(k)) probe(->key: k) -> U32 = hashKey(key)` at `k := String` is the program. The
+     * parameter's storage holds the owner - three words - and `hashKey`'s shared position of `k` is
+     * the view under `substitutedContract`, two words in `StringView`'s layout. The resolver derives
+     * one from the other wherever the type is concrete (`Resolver::adaptToView`), and inside the
+     * generic it cannot: `k` is open where the body is resolved, and a specialization has no body of
+     * its own to adapt in. So the same derivation is emitted here, through the same member the
+     * resolver calls - `mir::viewMember` off the `ViewRow` - and never a second one: a body that
+     * already produced the view is a no-op by `needsViewDerivation`'s own test.
+     *
+     * The **erased** form asks for none and cannot answer one: a body compiled once holds an address
+     * and a descriptor, `substitutedContract` needs a concrete substitution to turn a position into
+     * a view at all, and a descriptor carries no per-access entry (Analysis-Manifestations.md §5.3).
+     * So an open type never reaches this, and a call that did would be refused by `viewMember`
+     * answering null below rather than lowered to a derivation of something with no layout.
+     */
+    Value* deriveView(Value& owner, const mir::Occurrence& position, LocationId at) {
+        auto access = position.contract.access();
+        auto target = mir::viewMember(context, program, position.type, access, at);
+
+        /*
+         * Reachability is what keeps it, and this walk may not mint one - `convertProgram` asserts
+         * that the function list does not grow. `rootViewDerivations` in the MIR summary is the
+         * rooting, deliberately blunter than this test, so a miss here is the two walks having come
+         * apart rather than a program the compiler cannot express.
+         */
+        if(!target || !decl()[target]->reachable) {
+            report(at, "internal: no derivation is reachable for a view of this owner"_v);
+            return nullptr;
+        }
+
+        mir::CallSite site;
+        site.target = target;
+        site.through = mir::CallThrough::Declaration;
+
+        Use argument = editor.use(owner, UseKind::Borrow);
+        auto inst = editor.addCall(at, site, Use(), &argument, 1, position,
+                                   conventionFor(position), true);
+
+        return editor.resultOf(*inst);
+    }
+
+    // One value at one position, adapted where the substitution made them the owner and the view -
+    // see `deriveView`. The reverse is not derivable and is reported by the caller that has a
+    // position to name.
+    Value* adaptToView(Value* value, const mir::Occurrence& position, LocationId at) {
+        if(!value) return value;
+        if(!refuseViewForOwner(value->occurrence, position, at)) return nullptr;
+        if(!mir::needsViewDerivation(decl(), program, value->occurrence, position)) return value;
+
+        return deriveView(*value, position, at);
+    }
+
+    /*
+     * The direction that is not a derivation - a window where the owner is wanted.
+     *
+     * `Resolver::adaptToView` reports it wherever the type is concrete; here is where the
+     * *substitution* is what makes the two forms differ, which is a generic body whose value is at a
+     * variable and whose position the role marked `Owner`. Nothing reconstructs a container out of
+     * two words, so this is the program's error and not an adaptation with no site.
+     */
+    bool refuseViewForOwner(const mir::Occurrence& held, const mir::Occurrence& position,
+                            LocationId at) {
+        if(position.contract.form() != mir::AccessForm::Owner) return true;
+        if(held.contract.form() != mir::AccessForm::View) return true;
+        if(!mir::sameType(held.type, position.type)) return true;
+
+        errors++;
+        context.diagnostics.error(
+            "this is a window into %@ and this position takes the container itself, which a window "
+            "cannot be turned back into"_v,
+            at, mir::typeText(context, decl(), position.type));
+        return false;
+    }
+
+    // The same, for an operand already turned into a use - the argument and hand-over positions.
+    bool adaptUseToView(Use& into, const mir::Occurrence& position, LocationId at) {
+        auto value = base()[into.value()];
+        if(!refuseViewForOwner(value->occurrence, position, at)) return false;
+        if(!mir::needsViewDerivation(decl(), program, value->occurrence, position)) return true;
+
+        auto derived = deriveView(*value, position, at);
+        if(!derived) return false;
+
+        into = editor.use(*derived, into.kind());
+        return true;
+    }
+
+    /*
      * One teardown, at the point the analysis put it.
      *
      * The address is computed in the block the walk is currently in, *before* the flag is read, so
@@ -913,58 +1211,12 @@ struct Conversion {
      * address, flag, branch and not branch, address: an address computed inside the arm would
      * dominate nothing else, and a later projection of the same place would recompute it.
      */
-    /*
-     * Whether a teardown at this place can see where the value's interior boxes came from -
-     * `ssa::InstDrop::boxesVisible`, and `BoxRelease` for what it decides.
-     *
-     * The **root** of the place answers it, and nothing else does. Storage this frame owns had its
-     * boxes allocated by whatever built the value, and that is code in this program with this
-     * program's allocator; storage reached through a borrow, a global or a raw address belongs to
-     * somebody whose placement decision is not visible here.
-     *
-     * A **local** is the case that goes both ways: an owned local is this frame's, and a borrowed
-     * parameter is a local whose contract says the storage is the caller's. `Contract::isOwned` is
-     * the same question `buildPaths` asks to decide whether a local gets a move path at all.
-     */
-    bool boxesVisibleAt(mir::Place& place) {
-        auto root = &place;
-        while(root->parent) root = mir[root->parent];
-
-        switch(root->kind) {
-            case mir::Place::Local:
-                return root->occurrence.contract.isOwned();
-
-            // A global outlives every frame and nothing here placed it; a loan and a raw address
-            // name storage whose owner is somewhere else by construction.
-            case mir::Place::Global:
-            case mir::Place::Loan:
-            case mir::Place::Address:
-                return false;
-
-            /*
-             * Not a root. Every projection has a parent, so the walk above stops at one of the four
-             * above and this arm is unreachable - written out rather than defaulted so that a new
-             * root kind is a compiler error here instead of a silent `true`, which is the answer
-             * that frees somebody else's memory.
-             */
-            case mir::Place::Field:
-            case mir::Place::Property:
-            case mir::Place::Discriminant:
-            case mir::Place::Index:
-            case mir::Place::Deref:
-                break;
-        }
-
-        assertTrue(false);
-        return false;
-    }
-
     void emitDrop(const mir::DropStep& step) {
         // The step's own place, and not its path's: an overwrite of a global, a borrow or an element
         // releases what it replaces and has no path at all - see `mir::DropStep`.
         auto place = source.place(mir, step.place);
         auto at = substituted(place->occurrence);
-        auto boxes = boxesVisibleAt(*place);
+        auto boxes = mir::boxesVisibleAt(mir, *place);
 
         /*
          * A teardown the *generic* body needed and this specialization does not.
@@ -1194,15 +1446,50 @@ struct Conversion {
         for(auto operand: written.arguments.contents(mir)) {
             Use used;
             if(!useOf(operand, node.source, used)) return;
+
+            // The block argument is a position like any other, and under substitution it can be the
+            // view where the edge supplies the owner - `deriveView`.
+            if(!adaptEdgeArgument(*target, arguments.size(), used, node.source)) return;
             arguments.push(used);
         }
 
         editor.addJump(node.source, *target, arguments.pointer(), arguments.size());
     }
 
+    // One edge operand at the argument it fills. The block's arguments were declared with the
+    // substituted occurrences, so the position is read off the value that is already there.
+    bool adaptEdgeArgument(Block& target, Size index, Use& used, LocationId at) {
+        if(index >= target.argumentCount()) return true;
+
+        auto position = base()[target.argumentAt(base(), index)]->occurrence;
+        return adaptUseToView(used, position, at);
+    }
+
+    /*
+     * Every allocation this scope made off the frame, handed back - the release half of §10.4.
+     *
+     * Before each terminator that ends this activation rather than at the point the *value* died,
+     * and the two are different questions: a heap-placed local whose value left by a `->` argument
+     * owes no drop and still owes this. One allocation per activation and one release per path out
+     * of it is the pairing, and it is what `test/resolve/DropFlagHeap.yana` measures against the
+     * allocator's own bump pointer.
+     *
+     * Nothing is emitted on a path that does not leave - an `Unreachable`, an abort - which is
+     * right for the same reason a teardown is not run there: the activation does not end, the
+     * program does.
+     */
+    void releaseSlots(LocationId at) {
+        for(Size i = heapSlots.size(); i > 0; i--) {
+            auto slot = base()[heapSlots[i - 1]];
+            editor.addFree(at, editor.use(*slot, UseKind::Inspect));
+        }
+    }
+
     // A continuation answering with which of its exits it took - the whole of the exit signal, and
     // the one thing a `Handover` region's terminators become that an ordinary block's do not.
     void emitExit(LocationId at, U64 code) {
+        releaseSlots(at);
+
         auto constant = mir::intConstant(program.types.exitCode(), code);
         auto value = editor.resultOf(*editor.addConst(at, constant));
         auto used = editor.use(*value, UseKind::Consume);
@@ -1240,16 +1527,19 @@ struct Conversion {
                                                     editor.use(*supplied, UseKind::Inspect),
                                                     declared, conventionFor(declared));
                     auto use = editor.use(*editor.resultOf(*restated), value->kind());
+                    releaseSlots(at);
                     editor.addJump(at, *grafting->join, &use, 1);
                     return;
                 }
             }
 
+            releaseSlots(at);
             editor.addJump(at, *grafting->join, value, value ? 1 : 0);
             return;
         }
 
         if(!outlining) {
+            releaseSlots(at);
             editor.addReturn(at, value, value ? 1 : 0);
             return;
         }
@@ -1564,6 +1854,7 @@ struct Conversion {
         }
 
         if(!resultCarrier) {
+            releaseSlots(at);
             editor.addReturn(at, nullptr, 0);
             return;
         }
@@ -1574,6 +1865,7 @@ struct Conversion {
                                                       result, conventionFor(result)));
 
         auto used = editor.use(*loaded, UseKind::Consume);
+        releaseSlots(at);
         editor.addReturn(at, &used, 1);
     }
 
@@ -1613,7 +1905,8 @@ struct Conversion {
 
         editor.addJump(node.source, *entry, nullptr, 0);
 
-        Graft graft { arguments.pointer(), arguments.size(), entry, join, value };
+        Graft graft { arguments.pointer(), arguments.size(), entry, join, value,
+                      grafting ? grafting->site : node.source };
 
         // A scratch of its own, because this one is in use: the callee's nodes and locals are
         // numbered in its own body. The outlines are none by `checkAlwaysInline`'s refusal.
@@ -1646,6 +1939,24 @@ struct Conversion {
                  * would remove it.
                  */
                 if(constant.kind == mir::Constant::Unit) break;
+
+                /*
+                 * The constant's own **type** is substituted, exactly as every other type on this
+                 * walk is. `zero()` at a generic lane produces `const 0 : a`, and a constant left at
+                 * the generic's variable is a value whose ownership class is the conservative one a
+                 * variable has - which is what `Editor::addConst`'s "a constant is trivial by
+                 * construction" asserts against. The number is what it was; the width it is read at
+                 * is the specialization's.
+                 */
+                auto constantType = substituted(constant.type);
+
+                if(constantType != constant.type) {
+                    auto moved = constant;
+                    moved.type = constantType;
+                    produced[node.id.index] =
+                        editor.resultOf(*editor.addConst(node.source, moved)) - base();
+                    break;
+                }
 
                 produced[node.id.index] =
                     editor.resultOf(*editor.addConst(node.source, constant)) - base();
@@ -1684,6 +1995,19 @@ struct Conversion {
                 }
 
                 auto& value = *(mir::ConstType*)decl()[bound];
+
+                /*
+                 * A count that is still the *expression* - `Vec(a)`'s natural lane count with `a`
+                 * erased. It has no const slot to read, because nothing declared it as a parameter,
+                 * so this is the erased half of G5's gap and is refused by name rather than answered
+                 * with the zero the expression carries where its number would be.
+                 */
+                if(value.isDerived()) {
+                    context.diagnostics.error(
+                        "a vector's natural lane count is not available in an erased body yet - the type it is the count of has no layout here"_v,
+                        node.source);
+                    return;
+                }
                 produced[node.id.index] =
                     editor.resultOf(*editor.addConst(node.source,
                                                      mir::intConstant(value.type, value.value)))
@@ -1692,6 +2016,25 @@ struct Conversion {
             }
             case mir::Node::Read: {
                 auto& written = (mir::NodeRead&)node;
+
+                /*
+                 * A type with **one value** is that value, and never a read of the storage it was
+                 * given - `Resolver::readPlace`'s rule, restated here because this is the first tier
+                 * that can see it.
+                 *
+                 * MIR asks it of the written type and answers it there; a *generic* body reads a
+                 * payload of type `a` and only a specialization at `a := {}` makes it this. `toOutcome`
+                 * at `Result(e, {})` is the one in the library - `?` on a function that answers
+                 * nothing - and what it produced was a load stating a width of zero, which
+                 * `makeMemoryFlags` has no encoding for and `lower/inst.cpp` asserts against by name.
+                 */
+                auto held = substituted(mir::valueOccurrence(node));
+                if(decl()[held.type]->kind == mir::Type::Unit) {
+                    produced[node.id.index] = editor.resultOf(*editor.addConst(
+                        node.source, mir::unitConstant(held.type))) - base();
+                    break;
+                }
+
                 auto place = source.place(mir, written.place.placeId());
                 auto address = addressOf(*place, node.source);
                 if(!address) return;
@@ -1708,6 +2051,27 @@ struct Conversion {
                 auto used = addressUse(*address);
 
                 /*
+                 * The storage this read reaches, which under substitution can be the **owner**
+                 * where the read's own occurrence is the view - `deriveView`.
+                 *
+                 * `->key: k` at `k := String` is an owned local of three words, and a shared read of
+                 * it is the view by `substitutedContract`. The two are not the same bytes, and
+                 * nothing between here and the machine would say so: the load answers the owner and
+                 * the derivation makes the view out of it, exactly as the resolver does where the
+                 * type was concrete. A field of a record holding the owner is the same statement one
+                 * projection down, and reaches it through the same place.
+                 */
+                auto derives = mir::needsViewDerivation(decl(), program, storageAt(*place), result);
+                auto view = result;
+
+                if(derives) {
+                    result.contract = mir::Contract { result.contract.access(),
+                                                      result.contract.origin(),
+                                                      mir::AccessForm::WholeValue,
+                                                      result.contract.slot() };
+                }
+
+                /*
                  * A duplicate, where duplicating is an operation - see `InstCopy`.
                  *
                  * `CopyTrivial` says a second owner is made, and for a value carried in a register a
@@ -1715,15 +2079,61 @@ struct Conversion {
                  * value that lives in storage it is not, and handing a callee the caller's own record
                  * where a copy was meant is the miscompile this line exists to prevent. Which of the
                  * two a value is is the manifestation's answer and is asked here, once.
+                 *
+                 * **And a relocation out of a raw address**, which is the same duplication for the
+                 * other reason. A move out of a *local* leaves the address alone because nothing may
+                 * read the source again - that is what the move said - and a move out of a place
+                 * rooted in a pointer says no such thing: the storage is outside the ownership model,
+                 * so a later `store` through the same pointer is an ordinary operation and the
+                 * "moved" value would follow it. `let ->doomed = *(items + at)` followed by
+                 * `store(items + at, moved)` is `lib/Core/Map.native.yana`'s swap-remove, and read as
+                 * an alias it answers the entry that was moved *into* the gap. The shipping stage
+                 * has always copied here - `InstMove` out of a pointer place is bytes - and this is
+                 * that sentence at this tier.
+                 *
+                 * At a **trivially copyable** result and no other, which is what an `InstCopy` means:
+                 * a value that owes a teardown cannot be duplicated, and a relocation of one out of
+                 * a raw address is a hand-over whose destination write is what moves the bytes.
                  */
-                auto copies = written.place.mode() == mir::UseMode::CopyTrivial &&
-                              isAddressOnly(layout(), result);
+                auto mode = written.place.mode();
+                auto relocates = mode == mir::UseMode::Take || mode == mir::UseMode::Forward;
 
+                auto outside = [&] {
+                    for(auto p = place; p; p = p->parent ? mir[p->parent] : nullptr) {
+                        if(!p->parent) return p->kind == mir::Place::Address;
+                    }
+
+                    return false;
+                };
+
+                auto copies = isAddressOnly(layout(), result) &&
+                              (mode == mir::UseMode::CopyTrivial ||
+                               (relocates && mir::isTriviallyCopyableAt(decl(), result) &&
+                                outside()));
+
+                /*
+                 * The overread flag rides along, and only a load can carry it: a `Copy` is a
+                 * duplication of storage the caller already has, and nothing in the language
+                 * duplicates a place it is reading past the end of.
+                 */
                 auto inst = copies
                     ? editor.addCopy(node.source, used, result, conventionFor(result))
-                    : editor.addLoad(node.source, used, result, conventionFor(result));
+                    : editor.addLoad(node.source, used, result, conventionFor(result),
+                                     written.overread);
 
-                produced[node.id.index] = editor.resultOf(*inst) - base();
+                auto answer = editor.resultOf(*inst);
+
+                if(derives) {
+                    // The owner is rooted in the same storage the view will be, and `attachLoan`
+                    // runs once per node on whatever `produced` holds - so the load's own loan is
+                    // attached here rather than being left at the permissive default.
+                    attachLoan(node, *answer);
+
+                    answer = deriveView(*answer, view, node.source);
+                    if(!answer) return;
+                }
+
+                produced[node.id.index] = answer - base();
                 break;
             }
             case mir::Node::Argument:
@@ -1733,8 +2143,8 @@ struct Conversion {
             case mir::Node::Binary: {
                 auto& written = (mir::NodeBinary&)node;
                 Use lhs, rhs;
-                if(!useOf(written.lhs, node.source, lhs)) return;
-                if(!useOf(written.rhs, node.source, rhs)) return;
+                if(!valueUseOf(written.lhs, node.source, lhs)) return;
+                if(!valueUseOf(written.rhs, node.source, rhs)) return;
 
                 auto result = substituted(mir::valueOccurrence(node));
                 auto inst = editor.addBinary(node.source, written.op, lhs, rhs, result,
@@ -1746,9 +2156,14 @@ struct Conversion {
             case mir::Node::Unary: {
                 auto& written = (mir::NodeUnary&)node;
                 Use value;
-                if(!useOf(written.value, node.source, value)) return;
+                if(!valueUseOf(written.value, node.source, value)) return;
 
                 auto result = substituted(mir::valueOccurrence(node));
+                if(!requireFloatOperand(mir::unaryCategory(written.op), result.type, node.source,
+                                        mir::unaryOpName(written.op))) {
+                    return;
+                }
+
                 auto inst = editor.addUnary(node.source, written.op, value, result,
                                             conventionFor(result));
 
@@ -1766,6 +2181,26 @@ struct Conversion {
                 }
 
                 auto result = substituted(mir::valueOccurrence(node));
+
+                /*
+                 * `[0] :: [U8 *n]` - the fill whose count arrives with the substitution.
+                 *
+                 * Spread here and nowhere earlier, for `NodeAggregate::fill`'s reason: this is the
+                 * first point at which `n` is a number. The one operand is repeated rather than
+                 * re-minted, which is what the resolver's own spreading does at a written count -
+                 * an element of a fill is `TrivialCopy` by the rule `arrayLiteralShape` applies, so
+                 * one value in every slot is one value copied and not one object shared.
+                 */
+                if(written.fill) {
+                    auto& array = *(mir::ArrayType*)decl()[result.type];
+                    if(!array.hasFixedLength()) {
+                        report(node.source,
+                               "internal: a fixed array's length is still a const parameter at the SSA conversion"_v);
+                        return;
+                    }
+
+                    while(components.size() < Size(array.length)) components.push(components[0]);
+                }
                 auto inst = editor.addAggregate(node.source, written.constructor,
                                                 components.pointer(), components.size(), result,
                                                 conventionFor(result));
@@ -1851,7 +2286,7 @@ struct Conversion {
                 SmallArray<Use, 8> arguments;
                 for(auto operand: written.arguments.contents(mir)) {
                     Use used;
-                    if(!useOf(operand, node.source, used)) return;
+                    if(!valueUseOf(operand, node.source, used)) return;
                     arguments.push(used);
                 }
 
@@ -1876,6 +2311,11 @@ struct Conversion {
                 if(!useOf(written.addend, node.source, addend)) return;
 
                 auto result = substituted(mir::valueOccurrence(node));
+                if(!requireFloatOperand(mir::UnaryCategory::Float, result.type, node.source,
+                                        "fma"_v)) {
+                    return;
+                }
+
                 auto inst = editor.addFma(node.source, lhs, rhs, addend, result);
 
                 produced[node.id.index] = editor.resultOf(*inst) - base();
@@ -1892,6 +2332,44 @@ struct Conversion {
                 auto result = substituted(mir::valueOccurrence(node));
                 auto inst = editor.addSelect(node.source, condition, whenTrue, whenFalse, result,
                                              conventionFor(result));
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+
+            /*
+             * A `match` over constants - the selector carried down and the table carried with it.
+             *
+             * Nothing is decided here: which shape the mapping becomes is the lowering's question,
+             * and what this tier owes is the ownership of the result. That is `conventionFor` on the
+             * occurrence the recognizer stated, exactly as a `const` of the same type gets.
+             */
+            case mir::Node::Map: {
+                auto& written = (mir::NodeMap&)node;
+
+                Use selector;
+                if(!useOf(written.selector, node.source, selector)) return;
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto entries = written.entries.contents(mir);
+
+                /*
+                 * Each entry's constant carries its own type, substituted the way `Const`'s is: a
+                 * recognizer inside a generic body may state `a` and the specialization is what
+                 * says which width the number is read at.
+                 */
+                SmallArray<mir::MapEntry, 16> copied;
+                for(auto entry: entries) {
+                    entry.value.type = substituted(entry.value.type);
+                    copied.push(entry);
+                }
+
+                auto fallback = written.fallback;
+                if(fallback.isSet()) fallback.type = substituted(fallback.type);
+
+                auto inst = editor.addMap(node.source, selector, copied.pointer(), copied.size(),
+                                          fallback, written.closed, result,
+                                          conventionFor(result));
 
                 produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
@@ -1968,6 +2446,47 @@ struct Conversion {
                 break;
             }
             /*
+             * `iota` at a count only this conversion knows - inst.def's `VecIota`.
+             *
+             * The chain the concrete emitter builds, built here instead: a zero splat with lane `i`
+             * written as `i`. It is not a second definition of what `iota` means - it is the *same*
+             * definition run at the first point the count is a number, which for a body compiled
+             * once is here and nowhere earlier. Every value in it is a constant, so the folder
+             * answers the whole chain and what reaches a backend is the finished vector, exactly as
+             * on the concrete path.
+             */
+            case mir::Node::VecIota: {
+                auto result = substituted(mir::valueOccurrence(node));
+                auto& vector = *(mir::VectorType*)decl()[result.type];
+                auto lanes = vector.hasFixedCount() ? vector.lanes : 0;
+
+                if(!lanes) {
+                    report(node.source, "internal: a vector's lane count is still open at the SSA conversion"_v);
+                    return;
+                }
+
+                auto laneConstant = [&](U64 index) {
+                    return decl()[vector.lane]->kind == mir::Type::Float
+                        ? mir::floatConstant(vector.lane, double(index))
+                        : mir::intConstant(vector.lane, index);
+                };
+
+                auto zero = editor.addConst(node.source, laneConstant(0));
+                auto value = editor.addVecSplat(node.source,
+                                                editor.use(*editor.resultOf(*zero), UseKind::Inspect),
+                                                result);
+
+                for(U32 i = 1; i < lanes; i++) {
+                    auto number = editor.addConst(node.source, laneConstant(i));
+                    value = editor.addVecWithLane(
+                        node.source, editor.use(*editor.resultOf(*value), UseKind::Inspect), U16(i),
+                        editor.use(*editor.resultOf(*number), UseKind::Inspect), result);
+                }
+
+                produced[node.id.index] = editor.resultOf(*value) - base();
+                break;
+            }
+            /*
              * An atomic operation - the operands carried down under the modes the MIR node gave
              * them, and the order carried with them.
              *
@@ -2017,11 +2536,110 @@ struct Conversion {
                 Use target;
                 if(written.callsValue() && !useOf(written.target, node.source, target)) return;
 
+                /*
+                 * Which function this call reaches, asked of `callTarget` and of nothing else.
+                 *
+                 * A call to a generic names the generic and its type arguments in *this* body's
+                 * terms, so the callee is a question about the substitution the body is being
+                 * converted under - see `specialize.h`. Reachability asked the same question with
+                 * the same function, which is what makes the target this names one that was
+                 * discovered and summarized rather than one invented here.
+                 *
+                 * Asked before the arguments rather than after them, because the *position* is what
+                 * says whether an argument is a reference or a value - `valueUseOf` below.
+                 */
+                mir::CallSite site;
+                mir::callTarget(context, program, function, mir::callRequestOf(written), site);
+
+                auto declared = site.through == mir::CallThrough::Declaration && site.target
+                    ? decl()[site.target] : nullptr;
+
+                /*
+                 * And the positions of a call through a **value**, which are the target's own
+                 * function type rather than a declaration.
+                 *
+                 * The same rule applied to the other half of the boundary: a `yield` is a call
+                 * through the continuation, and `items`' `yield chunk[i]` supplies a subscript's
+                 * published loan - an address - to a position declared `a`, which at a scalar holds
+                 * the number. `verify.cpp`'s `checkValueCall` compares exactly those two, so the
+                 * adaptation belongs here for the same reason it belongs at a declared call.
+                 */
+                mir::FunType* through = nullptr;
+
+                /*
+                 * A **derivation applied to the view it makes**, which is that view.
+                 *
+                 * `fn (Writable(c, a)) sort(&xs: c)` writes `elementsMut(xs)` because at `c :=
+                 * [a *n]` the parameter is the storage and the window has to be built. At `c :=
+                 * Array(a)` the same parameter already *is* the window - a unique variable position
+                 * bound to a type with a view is the view - so the call asks a window to become one,
+                 * which is the recursion `Resolver::adaptToView` refuses inside the derivation's own
+                 * body and is here an identity. Folded rather than called: the member reads the
+                 * owner's fields and a window has none of them.
+                 *
+                 * Only a derivation's subject. Every other `Owner` position is a type written by
+                 * name - `xs: Array(Int)`, which asks for the container itself - and a window there
+                 * is a program error that `refuseViewForOwner` reports.
+                 */
+                auto derivation = site.through == mir::CallThrough::Declaration && site.target &&
+                                  decl()[site.target]->derivation;
+
+                if(written.callsValue() && target.isSet()) {
+                    auto value = base()[target.value()];
+
+                    if(value->type() && decl()[value->type()]->kind == mir::Type::Fun) {
+                        through = (mir::FunType*)decl()[value->type()];
+                    }
+                }
+
                 SmallArray<Use, 8> arguments;
+                U32 position = 0;
+
                 for(auto operand: written.arguments.contents(mir)) {
+                    /*
+                     * A borrowed **scalar** at a position that holds the value - `valueUseOf`, and
+                     * the same manifestation mismatch an arithmetic operand has.
+                     *
+                     * `fn (Index(c, k, v), Num(v)) atBoth(...) = xs[a] + xs[b]` specialized at `I32`
+                     * is the program: the subscript answers a loan with a published origin, which is
+                     * an address, and `I32.+` takes two registers. The lowering already spills the
+                     * other way round - a register into the frame slot an erased position wants -
+                     * and this is that adaptation's other half, made here so the value the optimizer
+                     * sees is the number and not the pointer.
+                     *
+                     * Only where the position is in hand and concrete - a declaration's parameter,
+                     * or a function value's own parameter type. A call through a *slot* is checked
+                     * against one signature both ends read, and an erased position takes an address
+                     * whatever it was bound to.
+                     */
+                    auto held = declared && position < declared->args.size()
+                        ? &decl()[declared->args.get(decl(), position)]->occurrence : nullptr;
+
+                    mir::Occurrence valuePosition;
+                    if(!held && through && position < through->params.size()) {
+                        valuePosition = through->params.get(decl(), position).occurrence;
+                        held = &valuePosition;
+                    }
+
                     Use used;
-                    if(!useOf(operand, node.source, used)) return;
+                    auto adapts = held && !arrivesAsAddress(layout(), *held)
+                        ? valueUseOf(operand, node.source, used)
+                        : held ? referenceUseOf(operand, *held, node.source, used)
+                               : useOf(operand, node.source, used);
+
+                    if(!adapts) return;
+
+                    // And the owner-to-view adaptation, at the same position and for the same
+                    // reason the two above are here: the substitution is known here and was not
+                    // where the generic body was resolved. See `deriveView`. A derivation's own
+                    // subject is left alone - the fold below is what answers it.
+                    if(held && !(derivation && position == 0) &&
+                       !adaptUseToView(used, *held, node.source)) {
+                        return;
+                    }
+
                     arguments.push(used);
+                    position++;
                 }
 
                 /*
@@ -2035,17 +2653,19 @@ struct Conversion {
                 auto result = substituted(mir::valueOccurrence(node));
                 auto hasResult = decl()[result.type]->kind != mir::Type::Unit;
 
-                /*
-                 * Which function this call reaches, asked of `callTarget` and of nothing else.
-                 *
-                 * A call to a generic names the generic and its type arguments in *this* body's
-                 * terms, so the callee is a question about the substitution the body is being
-                 * converted under - see `specialize.h`. Reachability asked the same question with
-                 * the same function, which is what makes the target this names one that was
-                 * discovered and summarized rather than one invented here.
-                 */
-                mir::CallSite site;
-                mir::callTarget(context, program, function, mir::callRequestOf(written), site);
+                // The derivation's identity - see the note where `derivation` is set. The subject is
+                // the answer, and no instruction is emitted for it.
+                if(derivation && arguments.size() == 1 && hasResult) {
+                    auto subject = base()[arguments[0].value()];
+                    auto& occurrence = subject->occurrence;
+
+                    if(occurrence.contract.form() == mir::AccessForm::View &&
+                       occurrence.contract.access() == result.contract.access() &&
+                       mir::sameType(occurrence.type, result.type)) {
+                        produced[node.id.index] = subject - base();
+                        break;
+                    }
+                }
 
                 // A callee declared `@inline(always)`, reached directly: its body, here, in place of
                 // the call - `graftCall`. A callee reached through a slot or a value has no body in
@@ -2057,7 +2677,19 @@ struct Conversion {
                     break;
                 }
 
-                auto inst = editor.addCall(node.source, site, target, arguments.pointer(),
+                /*
+                 * A check inside a grafted body reports the **graft site**, which is the one thing
+                 * about a call this walk changes the source of - see `Graft::site`. Unconditional
+                 * rather than gated on `-check-locations`, because it is a better answer either way
+                 * and nothing but a located check reads a call's location.
+                 */
+                auto at = node.source;
+                if(grafting && site.through == mir::CallThrough::Declaration &&
+                   site.target == program.roles.function(intrinsic::Known::checkFailed)) {
+                    at = grafting->site;
+                }
+
+                auto inst = editor.addCall(at, site, target, arguments.pointer(),
                                            arguments.size(), result, conventionFor(result),
                                            hasResult);
 
@@ -2129,6 +2761,17 @@ struct Conversion {
                 Use used;
                 if(!useOf(written.value, node.source, used)) return;
 
+                /*
+                 * The result is a position, and under substitution it can be the view where the
+                 * body answers with the owner - `deriveView`. The *enclosing* function's result and
+                 * not `emitted`'s: a continuation returns what the function it was outlined from
+                 * declared, which is what the carrier holds.
+                 */
+                auto position = grafting && grafting->result
+                    ? grafting->result->occurrence : substituted(function.result);
+
+                if(!adaptUseToView(used, position, node.source)) return;
+
                 emitLeave(node.source, &used);
                 break;
             }
@@ -2154,10 +2797,13 @@ struct Conversion {
                 // list - so converting the second would be converting the first again.
                 assertTrue(written.whenTrue.arguments.size() == written.whenFalse.arguments.size());
 
+                auto whenTrue = base()[blocks[mir[written.whenTrue.target]->index.index]];
+
                 SmallArray<Use, 8> arguments;
                 for(auto operand: written.whenTrue.arguments.contents(mir)) {
                     Use used;
                     if(!useOf(operand, node.source, used)) return;
+                    if(!adaptEdgeArgument(*whenTrue, arguments.size(), used, node.source)) return;
                     arguments.push(used);
                 }
 
@@ -2165,6 +2811,44 @@ struct Conversion {
                                  *base()[blocks[mir[written.whenTrue.target]->index.index]],
                                  *base()[blocks[mir[written.whenFalse.target]->index.index]],
                                  arguments.pointer(), arguments.size());
+                break;
+            }
+            /*
+             * A multi-way branch - the selector, the cases and one argument list carried down.
+             *
+             * One list read off the fallback and given to every edge, for the reason the `Branch`
+             * arm above gives: `mir::Builder::addSwitch` fills them all from one list, so converting
+             * the others would be converting the first again.
+             */
+            case mir::Node::Switch: {
+                auto& written = (mir::NodeSwitch&)node;
+                auto value = valueOf(written.selector, node.source);
+                if(!value) return;
+
+                auto items = written.cases.pointer(mir);
+                auto count = written.cases.size();
+
+                SmallArray<I64, 16> values;
+                SmallArray<Block*, 16> targets;
+
+                for(Size i = 0; i < count; i++) {
+                    values.push(items[i].value);
+                    targets.push(base()[blocks[mir[items[i].edge.target]->index.index]]);
+                }
+
+                auto fallback = base()[blocks[mir[written.fallback.target]->index.index]];
+
+                SmallArray<Use, 8> arguments;
+                for(auto operand: written.fallback.arguments.contents(mir)) {
+                    Use used;
+                    if(!useOf(operand, node.source, used)) return;
+                    if(!adaptEdgeArgument(*fallback, arguments.size(), used, node.source)) return;
+                    arguments.push(used);
+                }
+
+                editor.addSwitch(node.source, editor.use(*value, UseKind::Inspect), values.pointer(),
+                                 targets.pointer(), count, *fallback, arguments.pointer(),
+                                 arguments.size());
                 break;
             }
             case mir::Node::Unreachable:
@@ -2395,9 +3079,13 @@ struct Conversion {
              * lives is how one object comes to have two allocations that disagree. `Local::object`
              * is the lineage and `storageOf` is the join over it, in one place.
              */
-            auto alloc = editor.addAlloc(local->source, held,
-                                         mir::storageOf(mir, source, *local));
+            auto placed = mir::storageOf(mir, source, *local);
+            auto alloc = editor.addAlloc(local->source, held, placed);
             slots.push(editor.resultOf(*alloc) - base());
+
+            // The other end of it, remembered here because this is the only point at which the
+            // allocation and its placement are both in hand - see `heapSlots`.
+            if(placed != mir::StorageClass::Frame) heapSlots.push(slots[slots.size() - 1]);
         }
 
         /*

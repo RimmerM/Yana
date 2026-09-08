@@ -1,0 +1,63 @@
+import Native
+
+-- What hands a heap-placed allocation back, when the *value* in it is not what says so.
+--
+-- `HeapPlace.yana` is the shape where the two coincide - a value that lives and dies in one frame,
+-- whose teardown and whose release are at the same point. These are the three where they do not, and
+-- each one is a way a build that ties the release to a drop leaks exactly one block per call:
+--
+--  * `plain` places a number. `I64` owes no teardown at all, so there is no drop anywhere in the
+--    body to have hung a release on.
+--  * `handedOver` gives the value away. The storage is still this frame's - what left is what was
+--    in it - so the block comes back here and the `Pair` does not.
+--  * `branching` hands it over on one path and keeps it on the other, which is the pair of the two
+--    above in one function.
+--
+-- Asserted against the allocator rather than against a counter, for `DropFlagHeap.yana`'s reason:
+-- a leak is invisible to a teardown count and invisible in the emitted bytes. `heapNext` is
+-- Native's bump pointer and only moves when the free list had nothing to hand back, so a hundred
+-- calls that each release what they took move it once and a hundred that do not move it a hundred
+-- times.
+
+data Pair {left: I64, right: I64}
+
+fn sum(->p: Pair) -> I64 = p.left + p.right
+
+-- Nothing here owes a teardown, so the whole of what the frame owes is the storage.
+fn plain() -> I64:
+    let @heap &n = 0 :: I64
+    n = n + 5
+    return n
+
+-- The value leaves and the allocation does not.
+fn handedOver() -> I64:
+    let @heap p = Pair {left: 3, right: 4}
+    return sum(p)
+
+fn branching(away: Bool) -> I64:
+    let @heap p = Pair {left: 1, right: 2}
+    if away then return sum(p)
+    return p.left + p.right
+
+fn main() -> Int:
+    -- One of each ahead of the mark, so that what is measured is a steady state rather than the
+    -- first blocks the allocator ever handed out.
+    if plain() != 5 then return -1
+    if handedOver() != 7 then return -2
+    if branching(True) != 3 then return -3
+    if branching(False) != 3 then return -4
+
+    let mark = bitcast(heapNext) :: Size
+
+    let &i = 0 :: Int
+    while i < 100:
+        let a = plain()
+        let b = handedOver()
+        let c = branching(i % 2 == 0)
+        i = i + 1
+
+    -- The whole assertion: the bump pointer did not move, so all four hundred allocations came back
+    -- to the free list.
+    if (bitcast(heapNext) :: Size) != mark then return -5
+
+    return 1

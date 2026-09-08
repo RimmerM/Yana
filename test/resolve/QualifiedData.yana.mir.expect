@@ -9,79 +9,15 @@ data Wrapped {Wrapped: I32}
 fn detailOf(d: Detail [shared call]) -> I32 {
 bb0:
   %0: U8 = read copy.trivial (d.#)
-  %1: U8 = const 0
-  %2: Bool = eq inspect %0 inspect %1
-  branch inspect %2 -> bb5 -> bb1
-
-bb1:
-  %5: U8 = read copy.trivial (d.#)
-  %6: U8 = const 1
-  %7: Bool = eq inspect %5 inspect %6
-  branch inspect %7 -> bb6 -> bb2
-
-bb2:
-  %10: U8 = read copy.trivial (d.#)
-  %11: U8 = const 2
-  %12: Bool = eq inspect %10 inspect %11
-  branch inspect %12 -> bb7 -> bb3
-
-bb3:
-  %15: I32 = const 3
-  jump -> bb4(take %15)
-
-bb4(%16: I32):
-  return take %16
-
-bb5:
-  %4: I32 = const 0
-  jump -> bb4(take %4)
-
-bb6:
-  %9: I32 = const 1
-  jump -> bb4(take %9)
-
-bb7:
-  %14: I32 = const 2
-  jump -> bb4(take %14)
+  %1: I32 = map [0 -> 0, 1 -> 1, 2 -> 2, 3 -> 3] inspect %0
+  return take %1
 }
 
 fn unitOf(u: Unit [shared call]) -> I32 {
 bb0:
   %0: U8 = read copy.trivial (u.#)
-  %1: U8 = const 0
-  %2: Bool = eq inspect %0 inspect %1
-  branch inspect %2 -> bb5 -> bb1
-
-bb1:
-  %5: U8 = read copy.trivial (u.#)
-  %6: U8 = const 1
-  %7: Bool = eq inspect %5 inspect %6
-  branch inspect %7 -> bb6 -> bb2
-
-bb2:
-  %10: U8 = read copy.trivial (u.#)
-  %11: U8 = const 2
-  %12: Bool = eq inspect %10 inspect %11
-  branch inspect %12 -> bb7 -> bb3
-
-bb3:
-  %15: I32 = const 40
-  jump -> bb4(take %15)
-
-bb4(%16: I32):
-  return take %16
-
-bb5:
-  %4: I32 = const 10
-  jump -> bb4(take %4)
-
-bb6:
-  %9: I32 = const 20
-  jump -> bb4(take %9)
-
-bb7:
-  %14: I32 = const 30
-  jump -> bb4(take %14)
+  %1: I32 = map [0 -> 10, 1 -> 20, 2 -> 30, 3 -> 40] inspect %0
+  return take %1
 }
 
 fn bare() -> I32 {

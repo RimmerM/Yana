@@ -408,14 +408,14 @@ fn main() -> I32 {
     %scalars = add %v127, %v129 : I32
     %v131 = call nullHandle : Handle
     %v132 = call handleAddress, %v131 : Size
-    %v133 = alloc : I64
+    %v133 = cast %v132 : I32
+    %v134 = add %scalars, %v133 : I32
+    %v135 = alloc : I64
     init %local43, %slot
-    %v135 = addressof %local43 : %I64
-    %v136 = call boxed, %v135 : Boxed(I64)
-    %v137 = call boxedValue, %v136 : I64
-    %v138 = cast %v132 : I64
-    %v139 = add %v138, %v137 : I64
+    %v137 = addressof %local43 : %I64
+    %v138 = call boxed, %v137 : Boxed(I64)
+    %v139 = call boxedValue, %v138 : I64
     %v140 = cast %v139 : I32
-    %v141 = add %scalars, %v140 : I32
+    %v141 = add %v134, %v140 : I32
     ret %v141
 }

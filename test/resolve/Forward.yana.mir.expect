@@ -4,7 +4,7 @@ data Point {x: I32, y: I32}
 
 data Outer {inner: Point, tag: I32}
 
-fn widen(p: Point [unique call]) -> {} {
+fn widen'2(p: Point [unique call]) -> {} {
 bb0:
   %0: I32 = read copy.trivial (p.x)
   %1: I32 = const 1
@@ -244,7 +244,7 @@ bb2:
 
 bb3:
   %8: Point [unique call] = read borrow.unique (p) loan0
-  %9: {} = call widen borrow.unique %8
+  %9: {} = call widen'2 borrow.unique %8
   jump -> bb2
 }
 

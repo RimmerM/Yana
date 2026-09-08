@@ -356,4 +356,34 @@ Constant Resolver::textConstantValue(StringId written, LocationId source) {
     return Constant();
 }
 
+/*
+ * Every text leaf of a value, built - the deferral applied to an aggregate.
+ *
+ * A walk rather than a special case at the array, because a text may sit at any depth: `data Row
+ * {name: String}` in a fixed array is two levels down and is the same statement. The aggregate is
+ * re-interned through `aggregateConstant` where a leaf moved, which keeps `Constant`'s equality the
+ * comparison of three words it is everywhere else.
+ */
+Constant Resolver::textsResolved(const Constant& constant, LocationId source) {
+    if(constant.kind == Constant::Text) return textConstantValue(constant.asText(), source);
+    if(constant.kind != Constant::Aggregate) return constant;
+
+    auto& parts = *decl()[constant.aggregate()];
+    SmallArray<Constant, 8> values;
+    auto moved = false;
+
+    for(auto value: parts.values.contents(decl())) {
+        auto built = holdsText(decl(), value) ? textsResolved(value, source) : value;
+        if(!built.isSet()) return Constant();
+
+        moved = moved || !(built == value);
+        values.push(built);
+    }
+
+    if(!moved) return constant;
+
+    return program.aggregateConstant(constant.type, parts.constructor, values.pointer(),
+                                     values.size());
+}
+
 } // namespace mir

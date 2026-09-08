@@ -1,0 +1,105 @@
+module ResolveTest
+
+fn shifts(a: Vec(I32) [shared call], b: Vec(I64) [shared call]) -> I32 {
+bb0(%0: Vec(I32) [shared call] guaranteed, %1: Vec(I64) [shared call] guaranteed):
+  %2: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  %3: %Vec(I64) address = alloc frame Vec(I64) [shared call]
+  %4: %Vec(I32) address = alloc frame Vec(I32)
+  %5: %Vec(I32) address = alloc frame Vec(I32)
+  %6: %Vec(I32) address = alloc frame Vec(I32)
+  %7: %Vec(I64) address = alloc frame Vec(I64)
+  %8: %Vec(I64) address = alloc frame Vec(I64)
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %9: Vec(I32) trivial = load inspect %2
+  %10: I64 trivial = const 3
+  %11: I32 trivial = const 3
+  %12: Vec(I32) trivial = vec.splat inspect %11
+  %13: Vec(I32) trivial = shl inspect %9 inspect %12
+  store inspect %4 consume %13
+  %14: Vec(I32) trivial = load inspect %2
+  %15: I64 trivial = const 2
+  %16: I32 trivial = const 2
+  %17: Vec(I32) trivial = vec.splat inspect %16
+  %18: Vec(I32) trivial = shr inspect %14 inspect %17
+  store inspect %5 consume %18
+  %19: Vec(I32) trivial = load inspect %2
+  %20: I64 trivial = const 1
+  %21: I32 trivial = const 1
+  %22: Vec(I32) trivial = vec.splat inspect %21
+  %23: Vec(I32) trivial = sar inspect %19 inspect %22
+  store inspect %6 consume %23
+  %24: Vec(I64) trivial = load inspect %3
+  %25: I64 trivial = const 5
+  %26: I64 trivial = const 5
+  %27: Vec(I64) trivial = vec.splat inspect %26
+  %28: Vec(I64) trivial = shl inspect %24 inspect %27
+  %29: I64 trivial = const 4
+  %30: I64 trivial = const 4
+  %31: Vec(I64) trivial = vec.splat inspect %30
+  %32: Vec(I64) trivial = shr inspect %28 inspect %31
+  store inspect %7 consume %32
+  %33: Vec(I64) trivial = load inspect %3
+  %34: I64 trivial = const 0
+  %35: I64 trivial = const 0
+  %36: Vec(I64) trivial = vec.splat inspect %35
+  %37: Vec(I64) trivial = sub inspect %36 inspect %33
+  %38: I64 trivial = const 1
+  %39: I64 trivial = const 1
+  %40: Vec(I64) trivial = vec.splat inspect %39
+  %41: Vec(I64) trivial = sar inspect %37 inspect %40
+  store inspect %8 consume %41
+  %42: Vec(I32) trivial = load inspect %4
+  %43: I32 trivial = const 0
+  %44: I32 trivial = vec.lane #0 inspect %42
+  %45: Vec(I32) trivial = load inspect %5
+  %46: I32 trivial = const 1
+  %47: I32 trivial = vec.lane #1 inspect %45
+  %48: I32 trivial = add inspect %44 inspect %47
+  %49: Vec(I32) trivial = load inspect %6
+  %50: I32 trivial = const 2
+  %51: I32 trivial = vec.lane #2 inspect %49
+  %52: I32 trivial = add inspect %48 inspect %51
+  %53: Vec(I64) trivial = load inspect %7
+  %54: I32 trivial = const 0
+  %55: I64 trivial = vec.lane #0 inspect %53
+  %56: I32 trivial = convert inspect %55
+  %57: I32 trivial = add inspect %52 inspect %56
+  %58: Vec(I64) trivial = load inspect %8
+  %59: I32 trivial = const 0
+  %60: I64 trivial = vec.lane #0 inspect %58
+  %61: I32 trivial = convert inspect %60
+  %62: I32 trivial = add inspect %57 inspect %61
+  return consume %62
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Vec(I32) address = alloc frame Vec(I32)
+  %1: %Vec(I64) address = alloc frame Vec(I64)
+  %2: I32 trivial = const 64
+  %3: Vec(I32) trivial = vec.splat inspect %2
+  %4: I32 trivial = const 0
+  %5: I32 trivial = const 5
+  %6: Vec(I32) trivial = vec.withlane #0 inspect %3 inspect %5
+  %7: I32 trivial = const 1
+  %8: I32 trivial = const 100
+  %9: Vec(I32) trivial = vec.withlane #1 inspect %6 inspect %8
+  %10: I32 trivial = const 2
+  %11: I32 trivial = const 0
+  %12: I32 trivial = const 32
+  %13: I32 trivial = sub inspect %11 inspect %12
+  %14: Vec(I32) trivial = vec.withlane #2 inspect %9 inspect %13
+  store inspect %0 consume %14
+  %15: I64 trivial = const 3
+  %16: Vec(I64) trivial = vec.splat inspect %15
+  store inspect %1 consume %16
+  %17: Vec(I32) trivial = load inspect %0
+  %18: Vec(I64) trivial = load inspect %1
+  %19: I32 trivial = call shifts borrow %17 borrow %18
+  %20: I32 trivial = const 100
+  %21: I32 trivial = add inspect %19 inspect %20
+  return consume %21
+}
+
+entry main

@@ -743,17 +743,24 @@ LowerPtr<LowerFunction> Lowering::thunkFor(U64 promise, DeclPtr<mir::Function> c
 
 /*
  * The witness table for one class requirement - one function pointer per member, in the class's
- * order.
+ * order, **followed by its superclasses' tables flattened into it**.
  *
  * A table of its own rather than the members inlined into the environment, because a slot is one
  * word: the environment says *which* instance answers a requirement and the table says what that
- * instance does. That is also the shape a superclass will extend - a witness holding the ones it
- * implies, which `freezeSchema` says is why superclasses are not slots of their own.
+ * instance does.
+ *
+ * The superclasses are a *range* rather than a slot of their own, which is what `freezeSchema` means
+ * by them not being slots: holding `Ord(T)` is holding `Eq(T)`, so `Eq`'s members go after `Ord`'s
+ * in one table and a dispatch that reaches one is an offset rather than a second load.
+ * `mir::classWitnessCount` states the layout and `classWitnessAt` reads it back, which is how this
+ * walk knows which class's *declaration* to build each thunk against - the flat index is the
+ * environment's number and only that walk can turn it into a signature.
  */
 LowerPtr<LowerGlobal> Lowering::witnessFor(DeclPtr<mir::Class> klass, mir::GenWitness witness,
                                            LocationId source) {
     auto& declaration = *decl[klass];
     auto count = U32(witness.functions.size());
+    assertTrue(count == mir::classWitnessCount(decl, klass));
 
     /*
      * Interned on the pair the table *is* - the class and the members answering it - for the reason
@@ -775,21 +782,29 @@ LowerPtr<LowerGlobal> Lowering::witnessFor(DeclPtr<mir::Class> klass, mir::GenWi
     auto handle = table - lower;
     witnesses.add(key.hash, handle);
 
-    for(U32 member = 0; member < count; member++) {
-        auto concrete = witness.functions.get(decl, member);
-        auto declared = declaration.members.get(decl, member);
+    for(U32 slot = 0; slot < count; slot++) {
+        auto concrete = witness.functions.get(decl, slot);
+
+        // Which class this flat slot fell into, and which of *its* members - the layout read back.
+        // A promise is keyed on the pair, so a superclass's member promises that superclass's
+        // signature and shares its thunk with a table built for the superclass directly.
+        DeclPtr<mir::Class> owner = nullptr;
+        U16 member = 0;
+        if(!mir::classWitnessAt(decl, klass, U16(slot), owner, member)) continue;
+
+        auto declared = decl[owner]->members.get(decl, member);
 
         SmallArray<mir::Occurrence, 4> positions;
         for(auto argument: decl[declared]->args.contents(decl)) {
             positions.push(decl[argument]->occurrence);
         }
 
-        auto promise = (U64(klass.offset) << 32) | U64(member);
+        auto promise = (U64(owner.offset) << 32) | U64(member);
         auto thunk = thunkFor(promise, concrete, positions.pointer(), positions.size(),
                               decl[declared]->result, source);
         if(!thunk) continue;
 
-        addPointer(*table, member * kSlotBytes, thunk, nullptr);
+        addPointer(*table, slot * kSlotBytes, thunk, nullptr);
     }
 
     return handle;

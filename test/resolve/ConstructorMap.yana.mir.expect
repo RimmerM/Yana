@@ -1,0 +1,779 @@
+module ResolveTest
+
+data Op = Add | Sub | Mul | Div | Neg | Cmp
+
+data Bit = Zero | One
+
+fn budget(op: Op [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: I32 = map [0 -> 5, 1 -> 5, 2 -> 5, 3 -> 5, 4 -> 5, 5 -> 5] inspect %0
+  return take %1
+}
+
+fn indexOf'2(op: Op [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: I32 = map [0 -> 0, 1 -> 1, 2 -> 2, 3 -> 3, 4 -> 4, 5 -> 5] inspect %0
+  return take %1
+}
+
+fn slotOf(op: Op [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: I32 = map [0 -> 100, 1 -> 110, 2 -> 120, 3 -> 130, 4 -> 140, 5 -> 150] inspect %0
+  return take %1
+}
+
+fn opposite(op: Op [shared call]) -> Op {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: Op = map [0 -> Cmp, 1 -> Neg, 2 -> Div, 3 -> Mul, 4 -> Sub, 5 -> Add] inspect %0
+  return take %1
+}
+
+fn arity(op: Op [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: I32 = map [0 -> 2, 1 -> 2, 2 -> 2, 3 -> 2, 4 -> 1, 5 -> 2] inspect %0
+  return take %1
+}
+
+fn code(op: Op [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: I32 = map [0 -> 5, 1 -> 0, 2 -> 7, 3 -> 0, 4 -> 0, 5 -> 0] inspect %0
+  return take %1
+}
+
+fn isArithmetic(op: Op [shared call]) -> Bool {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: Bool = map [0 -> True, 1 -> True, 2 -> True, 3 -> True, 4 -> False, 5 -> False] inspect %0
+  return take %1
+}
+
+fn isLate(op: Op [shared call]) -> Bool {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: Bool = map [0 -> False, 1 -> False, 2 -> False, 3 -> False, 4 -> True, 5 -> True] inspect %0
+  return take %1
+}
+
+fn isMiddle(op: Op [shared call]) -> Bool {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: Bool = map [0 -> False, 1 -> True, 2 -> True, 3 -> True, 4 -> False, 5 -> False] inspect %0
+  return take %1
+}
+
+fn isNegate(op: Op [shared call]) -> Bool {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: Bool = map [0 -> False, 1 -> False, 2 -> False, 3 -> False, 4 -> True, 5 -> False] inspect %0
+  return take %1
+}
+
+fn isBinary(op: Op [shared call]) -> Bool {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: Bool = map [0 -> True, 1 -> True, 2 -> True, 3 -> True, 4 -> False, 5 -> True] inspect %0
+  return take %1
+}
+
+fn isCommutative(op: Op [shared call]) -> Bool {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: Bool = map [0 -> True, 1 -> False, 2 -> True, 3 -> False, 4 -> False, 5 -> True] inspect %0
+  return take %1
+}
+
+fn opcode(op: Op [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: I32 = map [0 -> 1000, 1 -> 2000, 2 -> 3500, 3 -> 4000, 4 -> 5000, 5 -> 6000] inspect %0
+  return take %1
+}
+
+fn weight(op: Op [shared call]) -> F64 {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: F64 = map [0 -> 1.5, 1 -> 2.5, 2 -> 4, 3 -> 8.25, 4 -> 0.5, 5 -> 16] inspect %0
+  return take %1
+}
+
+fn signedZero(op: Op [shared call]) -> F64 {
+bb0:
+  %0: U8 = read copy.trivial (op.#)
+  %1: F64 = map [0 -> 0, 1 -> 0, 2 -> 0, 3 -> 0, 4 -> -0, 5 -> 0] inspect %0
+  return take %1
+}
+
+fn bitValue(b: Bit [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (b.#)
+  %1: I32 = map [0 -> 100, 1 -> 1000] inspect %0
+  return take %1
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (condition)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = read copy.trivial (weight)
+  jump -> bb2(take %2)
+}
+
+fn opaque(op: Op [shared call]) -> Op {
+bb0:
+  %0: Op = read copy.trivial (op)
+  return take %0
+}
+
+fn opaqueBit(b: Bit [shared call]) -> Bit {
+bb0:
+  %0: Bit = read copy.trivial (b)
+  return take %0
+}
+
+fn folded() -> I32 {
+bb0:
+  %0: Op = const Mul
+  %1: I32 = call opcode borrow.shared %0
+  %2: Op = const Neg
+  %3: I32 = call arity borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  %5: Op = const Div
+  %6: I32 = call slotOf borrow.shared %5
+  %7: I32 = add inspect %4 inspect %6
+  return take %7
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Op = const Add
+  %1: Op = call opaque borrow.shared %0
+  %2: I32 = call budget borrow.shared %1
+  %3: I32 = const 5
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %11: Bool = const False
+  jump -> bb2(take %11)
+
+bb2(%12: Bool):
+  %15: I32 = const 1
+  %16: I32 = call check borrow.shared %12 borrow.shared %15
+  %17: Op = const Add
+  %18: Op = call opaque borrow.shared %17
+  %19: I32 = call indexOf'2 borrow.shared %18
+  %20: I32 = const 0
+  %21: Bool = eq inspect %19 inspect %20
+  branch inspect %21 -> bb6(take %16) -> bb4(take %16)
+
+bb3:
+  %6: Op = const Cmp
+  %7: Op = call opaque borrow.shared %6
+  %8: I32 = call budget borrow.shared %7
+  %9: I32 = const 5
+  %10: Bool = eq inspect %8 inspect %9
+  jump -> bb2(take %10)
+
+bb4(%22: I32):
+  %30: Bool = const False
+  jump -> bb5(take %30, take %22)
+
+bb5(%31: Bool, %32: I32):
+  branch inspect %31 -> bb9(take %32) -> bb7(take %32)
+
+bb6(%23: I32):
+  %25: Op = const Cmp
+  %26: Op = call opaque borrow.shared %25
+  %27: I32 = call indexOf'2 borrow.shared %26
+  %28: I32 = const 5
+  %29: Bool = eq inspect %27 inspect %28
+  jump -> bb5(take %29, take %23)
+
+bb7(%35: I32):
+  %43: Bool = const False
+  jump -> bb8(take %43, take %35)
+
+bb8(%44: Bool, %45: I32):
+  %48: I32 = const 2
+  %49: I32 = call check borrow.shared %44 borrow.shared %48
+  %50: I32 = add inspect %45 inspect %49
+  %51: Op = const Add
+  %52: Op = call opaque borrow.shared %51
+  %53: I32 = call slotOf borrow.shared %52
+  %54: I32 = const 100
+  %55: Bool = eq inspect %53 inspect %54
+  branch inspect %55 -> bb12(take %50) -> bb10(take %50)
+
+bb9(%36: I32):
+  %38: Op = const Mul
+  %39: Op = call opaque borrow.shared %38
+  %40: I32 = call indexOf'2 borrow.shared %39
+  %41: I32 = const 2
+  %42: Bool = eq inspect %40 inspect %41
+  jump -> bb8(take %42, take %36)
+
+bb10(%56: I32):
+  %64: Bool = const False
+  jump -> bb11(take %64, take %56)
+
+bb11(%65: Bool, %66: I32):
+  branch inspect %65 -> bb15(take %66) -> bb13(take %66)
+
+bb12(%57: I32):
+  %59: Op = const Cmp
+  %60: Op = call opaque borrow.shared %59
+  %61: I32 = call slotOf borrow.shared %60
+  %62: I32 = const 150
+  %63: Bool = eq inspect %61 inspect %62
+  jump -> bb11(take %63, take %57)
+
+bb13(%69: I32):
+  %77: Bool = const False
+  jump -> bb14(take %77, take %69)
+
+bb14(%78: Bool, %79: I32):
+  %82: I32 = const 4
+  %83: I32 = call check borrow.shared %78 borrow.shared %82
+  %84: I32 = add inspect %79 inspect %83
+  %85: Op = const Add
+  %86: Op = call opaque borrow.shared %85
+  %87: Op = call opposite borrow.shared %86
+  %88: Op = const Cmp
+  %89: Bool = eq inspect %87 inspect %88
+  branch inspect %89 -> bb18(take %84) -> bb16(take %84)
+
+bb15(%70: I32):
+  %72: Op = const Div
+  %73: Op = call opaque borrow.shared %72
+  %74: I32 = call slotOf borrow.shared %73
+  %75: I32 = const 130
+  %76: Bool = eq inspect %74 inspect %75
+  jump -> bb14(take %76, take %70)
+
+bb16(%90: I32):
+  %98: Bool = const False
+  jump -> bb17(take %98, take %90)
+
+bb17(%99: Bool, %100: I32):
+  branch inspect %99 -> bb21(take %100) -> bb19(take %100)
+
+bb18(%91: I32):
+  %93: Op = const Neg
+  %94: Op = call opaque borrow.shared %93
+  %95: Op = call opposite borrow.shared %94
+  %96: Op = const Sub
+  %97: Bool = eq inspect %95 inspect %96
+  jump -> bb17(take %97, take %91)
+
+bb19(%103: I32):
+  %111: Bool = const False
+  jump -> bb20(take %111, take %103)
+
+bb20(%112: Bool, %113: I32):
+  %116: I32 = const 8
+  %117: I32 = call check borrow.shared %112 borrow.shared %116
+  %118: I32 = add inspect %113 inspect %117
+  %119: Op = const Add
+  %120: Op = call opaque borrow.shared %119
+  %121: I32 = call arity borrow.shared %120
+  %122: I32 = const 2
+  %123: Bool = eq inspect %121 inspect %122
+  branch inspect %123 -> bb24(take %118) -> bb22(take %118)
+
+bb21(%104: I32):
+  %106: Op = const Mul
+  %107: Op = call opaque borrow.shared %106
+  %108: Op = call opposite borrow.shared %107
+  %109: Op = const Div
+  %110: Bool = eq inspect %108 inspect %109
+  jump -> bb20(take %110, take %104)
+
+bb22(%124: I32):
+  %132: Bool = const False
+  jump -> bb23(take %132, take %124)
+
+bb23(%133: Bool, %134: I32):
+  branch inspect %133 -> bb27(take %134) -> bb25(take %134)
+
+bb24(%125: I32):
+  %127: Op = const Neg
+  %128: Op = call opaque borrow.shared %127
+  %129: I32 = call arity borrow.shared %128
+  %130: I32 = const 1
+  %131: Bool = eq inspect %129 inspect %130
+  jump -> bb23(take %131, take %125)
+
+bb25(%137: I32):
+  %145: Bool = const False
+  jump -> bb26(take %145, take %137)
+
+bb26(%146: Bool, %147: I32):
+  %150: I32 = const 16
+  %151: I32 = call check borrow.shared %146 borrow.shared %150
+  %152: I32 = add inspect %147 inspect %151
+  %153: Op = const Add
+  %154: Op = call opaque borrow.shared %153
+  %155: I32 = call code borrow.shared %154
+  %156: I32 = const 5
+  %157: Bool = eq inspect %155 inspect %156
+  branch inspect %157 -> bb30(take %152) -> bb28(take %152)
+
+bb27(%138: I32):
+  %140: Op = const Cmp
+  %141: Op = call opaque borrow.shared %140
+  %142: I32 = call arity borrow.shared %141
+  %143: I32 = const 2
+  %144: Bool = eq inspect %142 inspect %143
+  jump -> bb26(take %144, take %138)
+
+bb28(%158: I32):
+  %166: Bool = const False
+  jump -> bb29(take %166, take %158)
+
+bb29(%167: Bool, %168: I32):
+  branch inspect %167 -> bb33(take %168) -> bb31(take %168)
+
+bb30(%159: I32):
+  %161: Op = const Mul
+  %162: Op = call opaque borrow.shared %161
+  %163: I32 = call code borrow.shared %162
+  %164: I32 = const 7
+  %165: Bool = eq inspect %163 inspect %164
+  jump -> bb29(take %165, take %159)
+
+bb31(%171: I32):
+  %179: Bool = const False
+  jump -> bb32(take %179, take %171)
+
+bb32(%180: Bool, %181: I32):
+  branch inspect %180 -> bb36(take %181) -> bb34(take %181)
+
+bb33(%172: I32):
+  %174: Op = const Sub
+  %175: Op = call opaque borrow.shared %174
+  %176: I32 = call code borrow.shared %175
+  %177: I32 = const 0
+  %178: Bool = eq inspect %176 inspect %177
+  jump -> bb32(take %178, take %172)
+
+bb34(%184: I32):
+  %192: Bool = const False
+  jump -> bb35(take %192, take %184)
+
+bb35(%193: Bool, %194: I32):
+  %197: I32 = const 32
+  %198: I32 = call check borrow.shared %193 borrow.shared %197
+  %199: I32 = add inspect %194 inspect %198
+  %200: Op = const Add
+  %201: Op = call opaque borrow.shared %200
+  %202: Bool = call isArithmetic borrow.shared %201
+  branch inspect %202 -> bb39(take %199) -> bb37(take %199)
+
+bb36(%185: I32):
+  %187: Op = const Cmp
+  %188: Op = call opaque borrow.shared %187
+  %189: I32 = call code borrow.shared %188
+  %190: I32 = const 0
+  %191: Bool = eq inspect %189 inspect %190
+  jump -> bb35(take %191, take %185)
+
+bb37(%203: I32):
+  %209: Bool = const False
+  jump -> bb38(take %209, take %203)
+
+bb38(%210: Bool, %211: I32):
+  branch inspect %210 -> bb42(take %211) -> bb40(take %211)
+
+bb39(%204: I32):
+  %206: Op = const Div
+  %207: Op = call opaque borrow.shared %206
+  %208: Bool = call isArithmetic borrow.shared %207
+  jump -> bb38(take %208, take %204)
+
+bb40(%214: I32):
+  %221: Bool = const False
+  jump -> bb41(take %221, take %214)
+
+bb41(%222: Bool, %223: I32):
+  branch inspect %222 -> bb45(take %223) -> bb43(take %223)
+
+bb42(%215: I32):
+  %217: Op = const Neg
+  %218: Op = call opaque borrow.shared %217
+  %219: Bool = call isArithmetic borrow.shared %218
+  %220: Bool = not inspect %219
+  jump -> bb41(take %220, take %215)
+
+bb43(%226: I32):
+  %233: Bool = const False
+  jump -> bb44(take %233, take %226)
+
+bb44(%234: Bool, %235: I32):
+  %238: I32 = const 64
+  %239: I32 = call check borrow.shared %234 borrow.shared %238
+  %240: I32 = add inspect %235 inspect %239
+  %241: Op = const Neg
+  %242: Op = call opaque borrow.shared %241
+  %243: Bool = call isLate borrow.shared %242
+  branch inspect %243 -> bb48(take %240) -> bb46(take %240)
+
+bb45(%227: I32):
+  %229: Op = const Cmp
+  %230: Op = call opaque borrow.shared %229
+  %231: Bool = call isArithmetic borrow.shared %230
+  %232: Bool = not inspect %231
+  jump -> bb44(take %232, take %227)
+
+bb46(%244: I32):
+  %250: Bool = const False
+  jump -> bb47(take %250, take %244)
+
+bb47(%251: Bool, %252: I32):
+  branch inspect %251 -> bb51(take %252) -> bb49(take %252)
+
+bb48(%245: I32):
+  %247: Op = const Cmp
+  %248: Op = call opaque borrow.shared %247
+  %249: Bool = call isLate borrow.shared %248
+  jump -> bb47(take %249, take %245)
+
+bb49(%255: I32):
+  %262: Bool = const False
+  jump -> bb50(take %262, take %255)
+
+bb50(%263: Bool, %264: I32):
+  branch inspect %263 -> bb54(take %264) -> bb52(take %264)
+
+bb51(%256: I32):
+  %258: Op = const Add
+  %259: Op = call opaque borrow.shared %258
+  %260: Bool = call isLate borrow.shared %259
+  %261: Bool = not inspect %260
+  jump -> bb50(take %261, take %256)
+
+bb52(%267: I32):
+  %274: Bool = const False
+  jump -> bb53(take %274, take %267)
+
+bb53(%275: Bool, %276: I32):
+  %279: I32 = const 128
+  %280: I32 = call check borrow.shared %275 borrow.shared %279
+  %281: I32 = add inspect %276 inspect %280
+  %282: Op = const Sub
+  %283: Op = call opaque borrow.shared %282
+  %284: Bool = call isMiddle borrow.shared %283
+  branch inspect %284 -> bb57(take %281) -> bb55(take %281)
+
+bb54(%268: I32):
+  %270: Op = const Div
+  %271: Op = call opaque borrow.shared %270
+  %272: Bool = call isLate borrow.shared %271
+  %273: Bool = not inspect %272
+  jump -> bb53(take %273, take %268)
+
+bb55(%285: I32):
+  %291: Bool = const False
+  jump -> bb56(take %291, take %285)
+
+bb56(%292: Bool, %293: I32):
+  branch inspect %292 -> bb60(take %293) -> bb58(take %293)
+
+bb57(%286: I32):
+  %288: Op = const Div
+  %289: Op = call opaque borrow.shared %288
+  %290: Bool = call isMiddle borrow.shared %289
+  jump -> bb56(take %290, take %286)
+
+bb58(%296: I32):
+  %303: Bool = const False
+  jump -> bb59(take %303, take %296)
+
+bb59(%304: Bool, %305: I32):
+  branch inspect %304 -> bb63(take %305) -> bb61(take %305)
+
+bb60(%297: I32):
+  %299: Op = const Add
+  %300: Op = call opaque borrow.shared %299
+  %301: Bool = call isMiddle borrow.shared %300
+  %302: Bool = not inspect %301
+  jump -> bb59(take %302, take %297)
+
+bb61(%308: I32):
+  %315: Bool = const False
+  jump -> bb62(take %315, take %308)
+
+bb62(%316: Bool, %317: I32):
+  %320: I32 = const 256
+  %321: I32 = call check borrow.shared %316 borrow.shared %320
+  %322: I32 = add inspect %317 inspect %321
+  %323: Op = const Neg
+  %324: Op = call opaque borrow.shared %323
+  %325: Bool = call isNegate borrow.shared %324
+  branch inspect %325 -> bb66(take %322) -> bb64(take %322)
+
+bb63(%309: I32):
+  %311: Op = const Neg
+  %312: Op = call opaque borrow.shared %311
+  %313: Bool = call isMiddle borrow.shared %312
+  %314: Bool = not inspect %313
+  jump -> bb62(take %314, take %309)
+
+bb64(%326: I32):
+  %333: Bool = const False
+  jump -> bb65(take %333, take %326)
+
+bb65(%334: Bool, %335: I32):
+  branch inspect %334 -> bb69(take %335) -> bb67(take %335)
+
+bb66(%327: I32):
+  %329: Op = const Add
+  %330: Op = call opaque borrow.shared %329
+  %331: Bool = call isNegate borrow.shared %330
+  %332: Bool = not inspect %331
+  jump -> bb65(take %332, take %327)
+
+bb67(%338: I32):
+  %345: Bool = const False
+  jump -> bb68(take %345, take %338)
+
+bb68(%346: Bool, %347: I32):
+  %350: I32 = const 512
+  %351: I32 = call check borrow.shared %346 borrow.shared %350
+  %352: I32 = add inspect %347 inspect %351
+  %353: Op = const Add
+  %354: Op = call opaque borrow.shared %353
+  %355: Bool = call isBinary borrow.shared %354
+  branch inspect %355 -> bb72(take %352) -> bb70(take %352)
+
+bb69(%339: I32):
+  %341: Op = const Cmp
+  %342: Op = call opaque borrow.shared %341
+  %343: Bool = call isNegate borrow.shared %342
+  %344: Bool = not inspect %343
+  jump -> bb68(take %344, take %339)
+
+bb70(%356: I32):
+  %362: Bool = const False
+  jump -> bb71(take %362, take %356)
+
+bb71(%363: Bool, %364: I32):
+  branch inspect %363 -> bb75(take %364) -> bb73(take %364)
+
+bb72(%357: I32):
+  %359: Op = const Cmp
+  %360: Op = call opaque borrow.shared %359
+  %361: Bool = call isBinary borrow.shared %360
+  jump -> bb71(take %361, take %357)
+
+bb73(%367: I32):
+  %374: Bool = const False
+  jump -> bb74(take %374, take %367)
+
+bb74(%375: Bool, %376: I32):
+  %379: I32 = const 1024
+  %380: I32 = call check borrow.shared %375 borrow.shared %379
+  %381: I32 = add inspect %376 inspect %380
+  %382: Op = const Add
+  %383: Op = call opaque borrow.shared %382
+  %384: Bool = call isCommutative borrow.shared %383
+  branch inspect %384 -> bb78(take %381) -> bb76(take %381)
+
+bb75(%368: I32):
+  %370: Op = const Neg
+  %371: Op = call opaque borrow.shared %370
+  %372: Bool = call isBinary borrow.shared %371
+  %373: Bool = not inspect %372
+  jump -> bb74(take %373, take %368)
+
+bb76(%385: I32):
+  %391: Bool = const False
+  jump -> bb77(take %391, take %385)
+
+bb77(%392: Bool, %393: I32):
+  branch inspect %392 -> bb81(take %393) -> bb79(take %393)
+
+bb78(%386: I32):
+  %388: Op = const Mul
+  %389: Op = call opaque borrow.shared %388
+  %390: Bool = call isCommutative borrow.shared %389
+  jump -> bb77(take %390, take %386)
+
+bb79(%396: I32):
+  %402: Bool = const False
+  jump -> bb80(take %402, take %396)
+
+bb80(%403: Bool, %404: I32):
+  branch inspect %403 -> bb84(take %404) -> bb82(take %404)
+
+bb81(%397: I32):
+  %399: Op = const Cmp
+  %400: Op = call opaque borrow.shared %399
+  %401: Bool = call isCommutative borrow.shared %400
+  jump -> bb80(take %401, take %397)
+
+bb82(%407: I32):
+  %414: Bool = const False
+  jump -> bb83(take %414, take %407)
+
+bb83(%415: Bool, %416: I32):
+  %419: I32 = const 2048
+  %420: I32 = call check borrow.shared %415 borrow.shared %419
+  %421: I32 = add inspect %416 inspect %420
+  %422: Op = const Add
+  %423: Op = call opaque borrow.shared %422
+  %424: I32 = call opcode borrow.shared %423
+  %425: I32 = const 1000
+  %426: Bool = eq inspect %424 inspect %425
+  branch inspect %426 -> bb87(take %421) -> bb85(take %421)
+
+bb84(%408: I32):
+  %410: Op = const Sub
+  %411: Op = call opaque borrow.shared %410
+  %412: Bool = call isCommutative borrow.shared %411
+  %413: Bool = not inspect %412
+  jump -> bb83(take %413, take %408)
+
+bb85(%427: I32):
+  %435: Bool = const False
+  jump -> bb86(take %435, take %427)
+
+bb86(%436: Bool, %437: I32):
+  branch inspect %436 -> bb90(take %437) -> bb88(take %437)
+
+bb87(%428: I32):
+  %430: Op = const Mul
+  %431: Op = call opaque borrow.shared %430
+  %432: I32 = call opcode borrow.shared %431
+  %433: I32 = const 3500
+  %434: Bool = eq inspect %432 inspect %433
+  jump -> bb86(take %434, take %428)
+
+bb88(%440: I32):
+  %448: Bool = const False
+  jump -> bb89(take %448, take %440)
+
+bb89(%449: Bool, %450: I32):
+  %453: I32 = const 4096
+  %454: I32 = call check borrow.shared %449 borrow.shared %453
+  %455: I32 = add inspect %450 inspect %454
+  %456: Op = const Add
+  %457: Op = call opaque borrow.shared %456
+  %458: F64 = call weight borrow.shared %457
+  %459: F64 = const 1.5
+  %460: Bool = eq inspect %458 inspect %459
+  branch inspect %460 -> bb93(take %455) -> bb91(take %455)
+
+bb90(%441: I32):
+  %443: Op = const Cmp
+  %444: Op = call opaque borrow.shared %443
+  %445: I32 = call opcode borrow.shared %444
+  %446: I32 = const 6000
+  %447: Bool = eq inspect %445 inspect %446
+  jump -> bb89(take %447, take %441)
+
+bb91(%461: I32):
+  %469: Bool = const False
+  jump -> bb92(take %469, take %461)
+
+bb92(%470: Bool, %471: I32):
+  branch inspect %470 -> bb96(take %471) -> bb94(take %471)
+
+bb93(%462: I32):
+  %464: Op = const Div
+  %465: Op = call opaque borrow.shared %464
+  %466: F64 = call weight borrow.shared %465
+  %467: F64 = const 8.25
+  %468: Bool = eq inspect %466 inspect %467
+  jump -> bb92(take %468, take %462)
+
+bb94(%474: I32):
+  %482: Bool = const False
+  jump -> bb95(take %482, take %474)
+
+bb95(%483: Bool, %484: I32):
+  %487: I32 = const 8192
+  %488: I32 = call check borrow.shared %483 borrow.shared %487
+  %489: I32 = add inspect %484 inspect %488
+  %490: Op = const Add
+  %491: Op = call opaque borrow.shared %490
+  %492: F64 = call signedZero borrow.shared %491
+  %493: F64 = const 1
+  %494: F64 = div inspect %493 inspect %492
+  %495: F64 = const 0
+  %496: Bool = gt inspect %494 inspect %495
+  branch inspect %496 -> bb99(take %489) -> bb97(take %489)
+
+bb96(%475: I32):
+  %477: Op = const Cmp
+  %478: Op = call opaque borrow.shared %477
+  %479: F64 = call weight borrow.shared %478
+  %480: F64 = const 16
+  %481: Bool = eq inspect %479 inspect %480
+  jump -> bb95(take %481, take %475)
+
+bb97(%497: I32):
+  %507: Bool = const False
+  jump -> bb98(take %507, take %497)
+
+bb98(%508: Bool, %509: I32):
+  %512: I32 = const 16384
+  %513: I32 = call check borrow.shared %508 borrow.shared %512
+  %514: I32 = add inspect %509 inspect %513
+  %515: Bit = const Zero
+  %516: Bit = call opaqueBit borrow.shared %515
+  %517: I32 = call bitValue borrow.shared %516
+  %518: I32 = const 100
+  %519: Bool = eq inspect %517 inspect %518
+  branch inspect %519 -> bb102(take %514) -> bb100(take %514)
+
+bb99(%498: I32):
+  %500: Op = const Neg
+  %501: Op = call opaque borrow.shared %500
+  %502: F64 = call signedZero borrow.shared %501
+  %503: F64 = const 1
+  %504: F64 = div inspect %503 inspect %502
+  %505: F64 = const 0
+  %506: Bool = lt inspect %504 inspect %505
+  jump -> bb98(take %506, take %498)
+
+bb100(%520: I32):
+  %528: Bool = const False
+  jump -> bb101(take %528, take %520)
+
+bb101(%529: Bool, %530: I32):
+  %533: I32 = const 32768
+  %534: I32 = call check borrow.shared %529 borrow.shared %533
+  %535: I32 = add inspect %530 inspect %534
+  %536: I32 = call folded
+  %537: I32 = const 3631
+  %538: Bool = eq inspect %536 inspect %537
+  %539: I32 = const 65536
+  %540: I32 = call check borrow.shared %538 borrow.shared %539
+  %541: I32 = add inspect %535 inspect %540
+  return take %541
+
+bb102(%521: I32):
+  %523: Bit = const One
+  %524: Bit = call opaqueBit borrow.shared %523
+  %525: I32 = call bitValue borrow.shared %524
+  %526: I32 = const 1000
+  %527: Bool = eq inspect %525 inspect %526
+  jump -> bb101(take %527, take %521)
+}
+
+entry main

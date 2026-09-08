@@ -49,80 +49,71 @@ bb0:
 fn main() -> I32 {
 bb0:
   %8: %Flags address = alloc frame Flags
-  %9: %I32 address = global.addr blockBytes
-  %10: I32 trivial = load inspect %9
-  %11: I32 trivial = const 1048576
-  %12: I32 trivial = div inspect %10 inspect %11
-  %13: %I32 address = global.addr blockMask
-  %14: I32 trivial = load inspect %13
-  %15: I32 trivial = const 1048576
-  %16: I32 trivial = div inspect %14 inspect %15
-  %17: I32 trivial = const 10
-  %18: I32 trivial = mul inspect %16 inspect %17
-  %19: I32 trivial = add inspect %12 inspect %18
-  %20: %I32 address = global.addr both
-  %21: I32 trivial = load inspect %20
-  %22: I32 trivial = const 100
-  %23: I32 trivial = mul inspect %21 inspect %22
-  %24: I32 trivial = add inspect %19 inspect %23
-  %25: %I32 address = global.addr inverted
-  %26: I32 trivial = load inspect %25
-  %27: I32 trivial = add inspect %24 inspect %26
-  %28: I32 trivial = const 1024
-  %29: I32 trivial = call withDefault borrow %28
-  %30: I32 trivial = const 1024
-  %31: I32 trivial = div inspect %29 inspect %30
-  %32: I32 trivial = add inspect %27 inspect %31
-  %33: I32 trivial = const 19
-  %34: Flags trivial = aggregate.Flags consume %33
-  store inspect %8 consume %34
-  %35: %I32 address = field.addr .bits inspect %8
-  %36: I32 trivial = load inspect %35
-  %37: I32 trivial = add inspect %32 inspect %36
-  %38: I32 trivial = call sized
-  %39: I32 trivial = add inspect %37 inspect %38
-  %40: %Bool address = global.addr wide
-  %41: Bool trivial = load inspect %40
-  branch inspect %41 -> bb3(consume %39) -> bb1(consume %39)
+  %9: I32 trivial = const 4194304
+  %10: I32 trivial = const 1048576
+  %11: I32 trivial = div inspect %9 inspect %10
+  %12: I32 trivial = const 4194303
+  %13: I32 trivial = const 1048576
+  %14: I32 trivial = div inspect %12 inspect %13
+  %15: I32 trivial = const 10
+  %16: I32 trivial = mul inspect %14 inspect %15
+  %17: I32 trivial = add inspect %11 inspect %16
+  %18: I32 trivial = const 3
+  %19: I32 trivial = const 100
+  %20: I32 trivial = mul inspect %18 inspect %19
+  %21: I32 trivial = add inspect %17 inspect %20
+  %22: I32 trivial = const -3
+  %23: I32 trivial = add inspect %21 inspect %22
+  %24: I32 trivial = const 1024
+  %25: I32 trivial = call withDefault borrow %24
+  %26: I32 trivial = const 1024
+  %27: I32 trivial = div inspect %25 inspect %26
+  %28: I32 trivial = add inspect %23 inspect %27
+  %29: I32 trivial = const 19
+  %30: Flags trivial = aggregate.Flags consume %29
+  store inspect %8 consume %30
+  %31: %I32 address = field.addr .bits inspect %8
+  %32: I32 trivial = load inspect %31
+  %33: I32 trivial = add inspect %28 inspect %32
+  %34: I32 trivial = call sized
+  %35: I32 trivial = add inspect %33 inspect %34
+  %36: Bool trivial = const True
+  branch inspect %36 -> bb3(consume %35) -> bb1(consume %35)
 
 bb1(%0: I32 trivial):
-  %42: I32 trivial = const 0
-  jump -> bb2(consume %42, consume %0)
+  %37: I32 trivial = const 0
+  jump -> bb2(consume %37, consume %0)
 
 bb2(%1: I32 trivial, %2: I32 trivial):
-  %43: I32 trivial = add inspect %2 inspect %1
-  %44: %Size address = global.addr pageMask
-  %45: Size trivial = load inspect %44
-  %46: Size trivial = const 4095
-  %47: Bool trivial = eq inspect %45 inspect %46
-  branch inspect %47 -> bb6(consume %43) -> bb4(consume %43)
+  %38: I32 trivial = add inspect %2 inspect %1
+  %39: Size trivial = const 4095
+  %40: Size trivial = const 4095
+  %41: Bool trivial = eq inspect %39 inspect %40
+  branch inspect %41 -> bb6(consume %38) -> bb4(consume %38)
 
 bb3(%3: I32 trivial):
-  %48: I32 trivial = const 1000
-  jump -> bb2(consume %48, consume %3)
+  %42: I32 trivial = const 1000
+  jump -> bb2(consume %42, consume %3)
 
 bb4(%4: I32 trivial):
-  %49: I32 trivial = const 0
-  jump -> bb5(consume %49, consume %4)
+  %43: I32 trivial = const 0
+  jump -> bb5(consume %43, consume %4)
 
 bb5(%5: I32 trivial, %6: I32 trivial):
-  %50: I32 trivial = add inspect %6 inspect %5
-  %51: %U8 address = global.addr wrapped
-  %52: U8 trivial = load inspect %51
-  %53: I32 trivial = convert inspect %52
-  %54: I32 trivial = add inspect %50 inspect %53
-  %55: %I8 address = global.addr wrappedSigned
-  %56: I8 trivial = load inspect %55
-  %57: I32 trivial = convert inspect %56
-  %58: I32 trivial = add inspect %54 inspect %57
-  %59: %I32 address = global.addr noDivisor
-  %60: I32 trivial = load inspect %59
-  %61: I32 trivial = add inspect %58 inspect %60
-  return consume %61
+  %44: I32 trivial = add inspect %6 inspect %5
+  %45: U8 trivial = const 44
+  %46: I32 trivial = convert inspect %45
+  %47: I32 trivial = add inspect %44 inspect %46
+  %48: I8 trivial = const 127
+  %49: I32 trivial = convert inspect %48
+  %50: I32 trivial = add inspect %47 inspect %49
+  %51: I32 trivial = const 0
+  %52: I32 trivial = add inspect %50 inspect %51
+  return consume %52
 
 bb6(%7: I32 trivial):
-  %62: I32 trivial = const 2000
-  jump -> bb5(consume %62, consume %7)
+  %53: I32 trivial = const 2000
+  jump -> bb5(consume %53, consume %7)
 }
 
 entry main

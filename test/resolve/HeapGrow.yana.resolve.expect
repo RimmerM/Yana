@@ -130,6 +130,13 @@ fn growArray(I32)(%self: Array(I32), %wanted: Size) -> () {
     ret
 }
 
+fn Length(Array(a)).length(I32)(%self: Array(I32)) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
 fn Reclaim(Array(a)).reclaim(I32)(%value: Array(I32)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
@@ -1153,11 +1160,10 @@ fn main() -> I32 {
 
   b2:
     %v22 = load %xs : Array(I32)
-    %v23 = load %xs@Array.length : @bits(30) U32
-    %v24 = cast %v23 : Size
-    %v25 = cast %v24 : I32
-    %v28 = cmp_ne %v25, 200000 : Bool
-    je %v28, b22, b5
+    %v23 = call Length(Array(a)).length(I32), %v22 : Size
+    %v24 = cast %v23 : I32
+    %v27 = cmp_ne %v24, 200000 : Bool
+    je %v27, b22, b5
 
   b3:
     %v12 = load %xs : Array(I32)
@@ -1176,21 +1182,21 @@ fn main() -> I32 {
     jmp b6
 
   b6:
-    %v33 = load %xs : Array(I32)
-    %v36 = borrow %xs : 'Array(I32)
-    %v37 = load [%v36]@Array.length : @bits(30) U32
-    %v38 = cast 0 : USize
-    %v39 = cast %v37 : USize
-    %v40 = cmp_ge %v38, %v39 : Bool
-    call checkCondition, %v40
-    %v42 = load [%v36]@Array.run@Run.items : %I32
-    %v43 = strideof I32 : I64
-    %v44 = mul 0, %v43 : I64
-    %v45 = add %v42, %v44 : %I32
-    %v46 = borrow [%v45] : 1'I32
-    %v47 = load [%v46] : I32
-    %v50 = cmp_ne %v47, 0 : Bool
-    je %v50, b23, b8
+    %v32 = load %xs : Array(I32)
+    %v35 = borrow %xs : 'Array(I32)
+    %v36 = load [%v35]@Array.length : @bits(30) U32
+    %v37 = cast 0 : USize
+    %v38 = cast %v36 : USize
+    %v39 = cmp_ge %v37, %v38 : Bool
+    call checkCondition, %v39
+    %v41 = load [%v35]@Array.run@Run.items : %I32
+    %v42 = strideof I32 : I64
+    %v43 = mul 0, %v42 : I64
+    %v44 = add %v41, %v43 : %I32
+    %v45 = borrow [%v44] : 1'I32
+    %v46 = load [%v45] : I32
+    %v49 = cmp_ne %v46, 0 : Bool
+    je %v49, b23, b8
 
   b7:
     ret -2
@@ -1199,21 +1205,21 @@ fn main() -> I32 {
     jmp b9
 
   b9:
-    %v55 = load %xs : Array(I32)
-    %v58 = borrow %xs : 'Array(I32)
-    %v59 = load [%v58]@Array.length : @bits(30) U32
-    %v60 = cast 131071 : USize
-    %v61 = cast %v59 : USize
-    %v62 = cmp_ge %v60, %v61 : Bool
-    call checkCondition, %v62
-    %v64 = load [%v58]@Array.run@Run.items : %I32
-    %v65 = strideof I32 : I64
-    %v66 = mul 131071, %v65 : I64
-    %v67 = add %v64, %v66 : %I32
-    %v68 = borrow [%v67] : 1'I32
-    %v69 = load [%v68] : I32
-    %v72 = cmp_ne %v69, 131071 : Bool
-    je %v72, b24, b11
+    %v54 = load %xs : Array(I32)
+    %v57 = borrow %xs : 'Array(I32)
+    %v58 = load [%v57]@Array.length : @bits(30) U32
+    %v59 = cast 131071 : USize
+    %v60 = cast %v58 : USize
+    %v61 = cmp_ge %v59, %v60 : Bool
+    call checkCondition, %v61
+    %v63 = load [%v57]@Array.run@Run.items : %I32
+    %v64 = strideof I32 : I64
+    %v65 = mul 131071, %v64 : I64
+    %v66 = add %v63, %v65 : %I32
+    %v67 = borrow [%v66] : 1'I32
+    %v68 = load [%v67] : I32
+    %v71 = cmp_ne %v68, 131071 : Bool
+    je %v71, b24, b11
 
   b10:
     ret -3
@@ -1222,21 +1228,21 @@ fn main() -> I32 {
     jmp b12
 
   b12:
-    %v77 = load %xs : Array(I32)
-    %v80 = borrow %xs : 'Array(I32)
-    %v81 = load [%v80]@Array.length : @bits(30) U32
-    %v82 = cast 131072 : USize
-    %v83 = cast %v81 : USize
-    %v84 = cmp_ge %v82, %v83 : Bool
-    call checkCondition, %v84
-    %v86 = load [%v80]@Array.run@Run.items : %I32
-    %v87 = strideof I32 : I64
-    %v88 = mul 131072, %v87 : I64
-    %v89 = add %v86, %v88 : %I32
-    %v90 = borrow [%v89] : 1'I32
-    %v91 = load [%v90] : I32
-    %v94 = cmp_ne %v91, 131072 : Bool
-    je %v94, b25, b14
+    %v76 = load %xs : Array(I32)
+    %v79 = borrow %xs : 'Array(I32)
+    %v80 = load [%v79]@Array.length : @bits(30) U32
+    %v81 = cast 131072 : USize
+    %v82 = cast %v80 : USize
+    %v83 = cmp_ge %v81, %v82 : Bool
+    call checkCondition, %v83
+    %v85 = load [%v79]@Array.run@Run.items : %I32
+    %v86 = strideof I32 : I64
+    %v87 = mul 131072, %v86 : I64
+    %v88 = add %v85, %v87 : %I32
+    %v89 = borrow [%v88] : 1'I32
+    %v90 = load [%v89] : I32
+    %v93 = cmp_ne %v90, 131072 : Bool
+    je %v93, b25, b14
 
   b13:
     ret -4
@@ -1245,21 +1251,21 @@ fn main() -> I32 {
     jmp b15
 
   b15:
-    %v99 = load %xs : Array(I32)
-    %v102 = borrow %xs : 'Array(I32)
-    %v103 = load [%v102]@Array.length : @bits(30) U32
-    %v104 = cast 199999 : USize
-    %v105 = cast %v103 : USize
-    %v106 = cmp_ge %v104, %v105 : Bool
-    call checkCondition, %v106
-    %v108 = load [%v102]@Array.run@Run.items : %I32
-    %v109 = strideof I32 : I64
-    %v110 = mul 199999, %v109 : I64
-    %v111 = add %v108, %v110 : %I32
-    %v112 = borrow [%v111] : 1'I32
-    %v113 = load [%v112] : I32
-    %v116 = cmp_ne %v113, 199999 : Bool
-    je %v116, b26, b17
+    %v98 = load %xs : Array(I32)
+    %v101 = borrow %xs : 'Array(I32)
+    %v102 = load [%v101]@Array.length : @bits(30) U32
+    %v103 = cast 199999 : USize
+    %v104 = cast %v102 : USize
+    %v105 = cmp_ge %v103, %v104 : Bool
+    call checkCondition, %v105
+    %v107 = load [%v101]@Array.run@Run.items : %I32
+    %v108 = strideof I32 : I64
+    %v109 = mul 199999, %v108 : I64
+    %v110 = add %v107, %v109 : %I32
+    %v111 = borrow [%v110] : 1'I32
+    %v112 = load [%v111] : I32
+    %v115 = cmp_ne %v112, 199999 : Bool
+    je %v115, b26, b17
 
   b16:
     ret -5
@@ -1275,36 +1281,36 @@ fn main() -> I32 {
     jmp b19
 
   b19:
-    %v128 = load %j : I32
-    %v131 = cmp_lt %v128, 200000 : Bool
-    je %v131, b21, b27
+    %v127 = load %j : I32
+    %v130 = cmp_lt %v127, 200000 : Bool
+    je %v130, b21, b27
 
   b20:
-    %v157 = load %total : I32
-    ret %v157
+    %v156 = load %total : I32
+    ret %v156
 
   b21:
-    %v133 = load %total : I32
-    %v134 = load %xs : Array(I32)
-    %v135 = load %j : I32
-    %v136 = cast %v135 : Size
-    %v137 = borrow %xs : 'Array(I32)
-    %v138 = load [%v137]@Array.length : @bits(30) U32
-    %v139 = cast %v136 : USize
-    %v140 = cast %v138 : USize
-    %v141 = cmp_ge %v139, %v140 : Bool
-    call checkCondition, %v141
-    %v143 = load [%v137]@Array.run@Run.items : %I32
-    %v144 = strideof I32 : I64
-    %v145 = mul %v136, %v144 : I64
-    %v146 = add %v143, %v145 : %I32
-    %v147 = borrow [%v146] : 1'I32
-    %v148 = load [%v147] : I32
-    %v149 = add %v133, %v148 : I32
-    assign %total, %v149
-    %v151 = load %j : I32
-    %v154 = add %v151, 100 : I32
-    assign %j, %v154
+    %v132 = load %total : I32
+    %v133 = load %xs : Array(I32)
+    %v134 = load %j : I32
+    %v135 = cast %v134 : Size
+    %v136 = borrow %xs : 'Array(I32)
+    %v137 = load [%v136]@Array.length : @bits(30) U32
+    %v138 = cast %v135 : USize
+    %v139 = cast %v137 : USize
+    %v140 = cmp_ge %v138, %v139 : Bool
+    call checkCondition, %v140
+    %v142 = load [%v136]@Array.run@Run.items : %I32
+    %v143 = strideof I32 : I64
+    %v144 = mul %v135, %v143 : I64
+    %v145 = add %v142, %v144 : %I32
+    %v146 = borrow [%v145] : 1'I32
+    %v147 = load [%v146] : I32
+    %v148 = add %v132, %v147 : I32
+    assign %total, %v148
+    %v150 = load %j : I32
+    %v153 = add %v150, 100 : I32
+    assign %j, %v153
     jmp b19
 
   b22:

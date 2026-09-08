@@ -1,6 +1,6 @@
 module ResolveTest
 
-fn values() -> Vec(I32) {
+fn values'2() -> Vec(I32) {
   local indices: Vec(I32)
   local steps: Vec(I32)
   local alternating: Vec(I32)
@@ -272,7 +272,7 @@ fn main() -> I32 {
   local uq: Vec(U64)
 
 bb0:
-  %0: Vec(I32) = call values
+  %0: Vec(I32) = call values'2
   write.init borrow.unique (v) take %0
   %2: I32 = const 0
   write.init borrow.unique (n) take %2

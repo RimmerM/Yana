@@ -1158,7 +1158,8 @@ bool hasPaddedWord(Layout layout, DeclPtr<mir::Type> type, U32 depth) {
 
 // The argument is in repr.h, beside the declaration.
 bool storesBoxProvenance(Layout layout) {
-    return !layout.program->roles.function(intrinsic::Known::isHeapAddress);
+    if(layout.program->roles.function(intrinsic::Known::isHeapAddress)) return false;
+    return layout.program->asksBoxProvenance;
 }
 
 Repr reprOf(Layout layout, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipSchema> shape) {

@@ -1,0 +1,35 @@
+{-
+   A **string inside a constant aggregate** - `["ab", "cde", "f"] :: [String *3]` at module level,
+   and a fixed array of records with a string field beside it.
+
+   A string global is placed bytes plus a relocation rather than a startup initializer, and what
+   builds its value is the library's own `stringLiteral` *run* at compile time - which can only
+   happen once every body is resolved, so the global's value is deferred and drained afterwards.
+   That deferral looked at the root of the initializer only, so a literal that was a *leaf* of an
+   aggregate stayed a `Constant::Text` and reached the byte writer, which has no bytes for one and
+   asserted. Three separate `let`s and one array of three are now the same three byte globals and
+   the same three relocations.
+
+   A record with a string field is the same claim one level further in, and is what a table of
+   named rows is: nothing here is about arrays, and a walk that special-cased the element would
+   have missed it.
+
+   Both stages compile it and both answer 25 - 2+3+1 for the names, 2*2 and 3*5 for the rows.
+-}
+
+data Row {name: String, rank: Int}
+
+let names = ["ab", "cde", "f"] :: [String *3]
+let rows = [Row {name: "gh", rank: 2}, Row {name: "ijk", rank: 5}] :: [Row *2]
+
+fn total() -> Int:
+    let &sum = 0 :: Int
+    for i in 0 .. 3:
+        sum = sum + (truncate(length(names[i])) :: Int)
+
+    for i in 0 .. 2:
+        sum = sum + (truncate(length(rows[i].name)) :: Int) * rows[i].rank
+
+    return sum
+
+fn main() -> Int = total()

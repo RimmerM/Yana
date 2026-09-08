@@ -4,6 +4,12 @@
 
 namespace mir {
 
+// Declared here and defined below, because `Selector::select` asks it: a structural class is
+// answered wherever a requirement is discharged, not only where a caller entered. See the
+// definition, where the group and what "no" means for it are argued.
+static Maybe<bool> structuralAnswer(Program& program, DeclBase base, DeclPtr<Class> klass,
+                                    const DeclPtr<Type>* args, Size count);
+
 namespace {
 
 /*
@@ -24,6 +30,18 @@ struct Selector {
     Program& program;
     DeclBase base;
     bool report;
+
+    /*
+     * The context of the declaration this selection is being run *inside*, or null.
+     *
+     * Set only by `selectOpenInstance` - inventory D13. Everywhere else selection is a question
+     * about types the caller already settled, and a body's own requirements have nothing to say
+     * about them; there it stays null and nothing below reads it. Where it is set, a matched head's
+     * context may be discharged by the enclosing signature having promised the same thing, which is
+     * the one answer `holdsContext` cannot reach through the instance table: `Eq(a)` of a body's own
+     * `a` is not in it and never will be.
+     */
+    DeclPtr<GenContext> enclosing = nullptr;
 
     /*
      * The goals being selected right now, outermost first - the class at position `i` asked at
@@ -254,6 +272,29 @@ struct Selector {
 
                 if(!ready) continue;
 
+                /*
+                 * The enclosing signature's own promise, asked before the table - D13's recursion.
+                 *
+                 * `fn (Eq(a)) same(xs: [a]) = xs == xs` reaches `instance (Eq(a)) Eq(Array(a))` with
+                 * the head's `a` bound to the *body's* `a`, and the instance's `Eq(a)` is then a
+                 * goal about a type variable, which no instance answers. What answers it is the
+                 * clause the author wrote, and asking here is what makes the whole derivation
+                 * recursive through the same rule rather than only its first step. Skipped where a
+                 * position is being *asked* rather than supplied, since a null is a question and a
+                 * promise answers none.
+                 */
+                auto supplied = true;
+                for(Size i = 0; i < asking.size(); i++) supplied = supplied && asking[i] == kNoVariable;
+
+                if(enclosing && supplied &&
+                   satisfiesRequirement(context, program, enclosing, requirement.klass,
+                                        arguments.pointer(), arguments.size())) {
+                    discharged[at] = true;
+                    remaining--;
+                    progressed = true;
+                    continue;
+                }
+
                 InstanceMatch inner;
                 if(!select(requirement.klass, arguments.pointer(), arguments.size(), source, inner)) {
                     return false;
@@ -294,6 +335,40 @@ struct Selector {
     bool select(DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count, LocationId source,
                 InstanceMatch& into) {
         if(!klass) return false;
+
+        /*
+         * A **structural** class first, and asked here rather than at the entry point - which is the
+         * whole of what moving it was about.
+         *
+         * `TrivialCopy` and its three neighbours have no table entry and never will: nothing
+         * declares an instance of one and nothing may. Asked only where a caller reached the free
+         * `selectInstance`, a structural goal standing *inside* another instance's context found no
+         * row and was reported as a missing instance - `instance (Magnitude(a, w), TrivialCopy(w),
+         * ...) ReadWith(NumberStyle, a)` at `readHexInt`, whose `w` the dependency had decided to
+         * `U32` one requirement earlier, reported as "there is no instance of TrivialCopy(U32)".
+         * Asking here is that rule said once, wherever a requirement is discharged.
+         *
+         * Ahead of the memo and of the cycle check, because neither has anything to say about it:
+         * the answer is a fold over the type rather than a search, so there is nothing to remember
+         * and no context it could lead back through. The match names no instance, which is sound
+         * because these classes declare no members.
+         */
+        if(auto answer = structuralAnswer(program, base, klass, args, count)) {
+            if(answer.unwrap()) {
+                into.instance = nullptr;
+                into.bindings.clear();
+                into.arguments.clear();
+                for(Size i = 0; i < count; i++) into.arguments.push(args[i]);
+                return true;
+            }
+
+            if(report) {
+                context.diagnostics.error("%@ does not hold - it is a classification the compiler makes from the type rather than one a program declares"_v,
+                                          source, appliedClassText(context, base, klass, args, count));
+            }
+
+            return false;
+        }
 
         auto key = goalKey(klass, args, count);
 
@@ -381,6 +456,132 @@ struct Selector {
         }
 
         return found;
+    }
+
+    /*
+     * Whether a head **narrower than the one chosen** answers the determined positions differently.
+     *
+     * This is the whole of what makes an open query sound, and it is not the same question as "does
+     * a second head match". Matching is one-way, so a head naming `Pair(I32)` cannot match a query
+     * spelling `Pair(a)` at all - and yet a specialization at `a := I32` reaches exactly that head,
+     * because the table orders the narrower one first. So the query's answer and the
+     * specialization's would be two different types with nothing between them saying so.
+     *
+     * Asked by matching the *chosen* head's deciding positions against the narrower head's, which
+     * is what a specialization does to it, and then comparing what each says about the determined
+     * ones under those bindings. `Sized(Pair(a), a)` against `Sized(Pair(Box(b)), Box(b))` agrees -
+     * one is the other at `a := Box(b)`, which is the fundep holding. `Sized(Pair(a), a)` against
+     * `Sized(Pair(I32), Bool)` does not, and that is the program the author has to fix.
+     */
+    bool narrowerDisagrees(Instance& chosen, Instance& other, Size count) {
+        auto& klass = *base[chosen.klass];
+        if(other.klass != chosen.klass || other.args.size() != count) return false;
+
+        SmallArray<DeclPtr<Type>, 4> bindings;
+        if(chosen.gen) {
+            for(Size i = 0; i < base[chosen.gen]->variables.size(); i++) bindings.push(nullptr);
+        }
+
+        auto head = chosen.args.pointer(base);
+        auto narrow = other.args.pointer(base);
+
+        for(Size i = 0; i < count; i++) {
+            if(klass.isDetermined(U16(i))) continue;
+            if(!matchType(base, program.types, chosen.gen, bindings, head[i], narrow[i])) return false;
+        }
+
+        Substitution with { chosen.gen, bindings.pointer(), bindings.size() };
+
+        for(Size i = 0; i < count; i++) {
+            if(!klass.isDetermined(U16(i))) continue;
+            if(!sameType(substituteType(context, program, head[i], with), narrow[i])) return true;
+        }
+
+        return false;
+    }
+
+    void reportDisagreement(Instance& first, Instance& second, LocationId source) {
+        if(!report) return;
+
+        context.diagnostics.error(
+            "%@ and %@ both apply to this body's own type, and they answer differently - so what this call means would change when it is specialized. Require the one this body means"_v,
+            source,
+            appliedClassText(context, base, first.klass, first.args.pointer(base),
+                             first.args.size()),
+            appliedClassText(context, base, second.klass, second.args.pointer(base),
+                             second.args.size()));
+    }
+
+    /*
+     * The same table, asked with the *caller's own type variables still in the query* - D13.
+     *
+     * `xs[i]` inside `fn (Ord(a)) firstBelow(xs: [a], ...)` needs `Index(Array(a), ?, ?)`, and the
+     * three things that make that answerable are here rather than in `select`:
+     *
+     *  - **the match is silent**, because a position nothing decided is the caller's message to
+     *    give at the position rather than this one's to give about the class;
+     *  - **the first match is not the end of the search.** A head that matches this query matches
+     *    every specialization of it, so the specificity order still names the answer - but a head
+     *    the query is *too general to match* is one a specialization can still reach, and if it
+     *    answers the determined positions differently the body has no single answer. Both shapes go
+     *    through `narrowerDisagrees` and are reported naming the two heads;
+     *  - **the enclosing context is carried in.** See `Selector::enclosing`.
+     */
+    bool selectOpen(DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count, LocationId source,
+                    InstanceMatch& into) {
+        SmallArray<DeclPtr<Instance>, 4> tried;
+        program.candidateInstances(base, klass, args, count, tried);
+
+        DeclPtr<Instance> chosen = nullptr;
+
+        for(auto candidate: tried) {
+            if(!candidate || !match(*base[candidate], args, count, into)) continue;
+            chosen = candidate;
+            break;
+        }
+
+        if(!chosen) {
+            into.instance = nullptr;
+            return false;
+        }
+
+        /*
+         * And every other head, in both directions - the whole list rather than the tail of it,
+         * because the head a specialization would prefer is ordered *before* the one this query was
+         * general enough to match.
+         */
+        for(auto candidate: tried) {
+            if(!candidate || candidate == chosen) continue;
+
+            InstanceMatch second;
+            auto matched = match(*base[candidate], args, count, second);
+
+            auto disagrees = matched
+                ? narrowerDisagrees(*base[candidate], *base[chosen], count)
+                : narrowerDisagrees(*base[chosen], *base[candidate], count);
+
+            if(!disagrees) continue;
+
+            reportDisagreement(*base[chosen], *base[candidate], source);
+            into.instance = nullptr;
+            return false;
+        }
+
+        // The match again, since the walk above overwrote it.
+        if(!match(*base[chosen], args, count, into)) {
+            into.instance = nullptr;
+            return false;
+        }
+
+        // The head's own context, on `selectHere`'s terms - the match decided which instance
+        // applies, so a context that does not hold is a mistake reported against it rather than a
+        // reason to look at a more general head.
+        if(!holdsContext(*base[chosen], into, source)) {
+            into.instance = nullptr;
+            return false;
+        }
+
+        return true;
     }
 
     bool selectHere(DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count, LocationId source,
@@ -496,38 +697,126 @@ bool selectInstance(Context& context, Program& program, DeclPtr<Class> klass,
                     InstanceMatch& into) {
     auto base = *program.decl;
 
-    /*
-     * Asked **before** the table, because a structural class has no table entry to find: nothing
-     * declares an instance of one and nothing may. The match that comes back names no instance,
-     * which is sound because these classes declare no members - `checkRoles` holds a claimant to
-     * that - so there is nothing for a caller to dispatch through.
-     */
-    if(auto answer = structuralAnswer(program, base, klass, args, count)) {
-        if(answer.unwrap()) {
-            into.arguments.clear();
-            for(Size i = 0; i < count; i++) into.arguments.push(args[i]);
-            return true;
-        }
-
-        if(report) {
-            context.diagnostics.error("%@ does not hold - it is a classification the compiler makes from the type rather than one a program declares"_v,
-                                      source, appliedClassText(context, base, klass, args, count));
-        }
-
-        return false;
-    }
-
+    // A structural class is answered inside `Selector::select`, so that this entry point and a
+    // requirement discharged under a matched head reach the same rule - `checkRoles` holds a
+    // claimant to these classes declaring no members, which is what makes an answer naming no
+    // instance sound.
     Selector selector { context, program, base, report };
     return selector.select(klass, args, count, source, into);
 }
 
+/*
+ * The instance serving `klass` at an argument list that still mentions the asking body's variables -
+ * `doc/progress/2026-09-06-inventory.md` D13.
+ *
+ * **A deciding position whose outermost constructor is concrete is answerable; a bare variable is
+ * not.** `Index(Array(a), ?, ?)` names `Array`, and a head that matches `Array(a)` with `a` free
+ * matches it at every type a specialization binds - the match is one-way, so a head naming a
+ * narrower constructor inside cannot match a query that leaves it open. `Index(a, ?, ?)` names
+ * nothing, and answering it from whichever instances happen to be declared is exactly the thing
+ * that makes a specialization mean something other than the body it came from.
+ *
+ * **What is recorded is the requirement and not the instance.** The caller uses this to fill in the
+ * determined positions a functional dependency promised - which is a fact about the *class* - and
+ * the requirement then travels with the body under the substitution, discharged again at every
+ * instantiation exactly as a written one is. So a specialization at `a := I32` re-selects and takes
+ * the most specific head that applies there, which may be a narrower one than this saw. That is
+ * consistent rather than a hole *because* the class's dependency says the deciding prefix decides
+ * the rest: two heads under one key that answered `k` and `v` differently is the ambiguity
+ * `selectOpen` refuses here, and two heads of one shape is what `addInstance` refuses at the
+ * declaration. What is left is a narrower head answering the same `k` and `v`, and reaching it is
+ * ordinary specialization.
+ *
+ * Silent where there is no answer: the caller is filling a position in, and "nothing decided this"
+ * is its message to give at the position rather than this function's to give about the class.
+ */
+/*
+ * Whether every variable this type mentions is one of `owner`'s - the walk `isConcreteType` makes,
+ * asked about *whose* variables rather than about whether there are any.
+ *
+ * The distinction is the whole of D13's precondition. A type carrying the asking body's own `a` is
+ * a shape that is settled for every specialization; one carrying an *inference* variable - a callee
+ * parameter nothing has bound yet, which is what a half-resolved call site is full of - is a shape
+ * that is not settled at all, and answering from the table there decides a question the argument
+ * walk was still in the middle of.
+ */
+static bool variablesFrom(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> owner) {
+    if(!type) return true;
+
+    switch(base[type]->kind) {
+        case Type::Variable:
+            return owner && ((VariableType*)base[type])->owner == owner;
+        case Type::Pointer:
+            return variablesFrom(base, ((PointerType*)base[type])->to, owner);
+        /*
+         * A **quantified count is a variable like any other** here, where `isConcreteType` treats it
+         * as an absence. That is the difference the two questions are asking: a body compiled once
+         * cannot lay `[a *n]` out, which is what that function is about, and `[a *n]` is still one
+         * shape for every `n` a specialization supplies, which is what this one is about.
+         * `instance (n: Int) Contiguous([a *n], a)` is the head that matches it.
+         */
+        case Type::Array: {
+            auto& array = *(ArrayType*)base[type];
+            return variablesFrom(base, array.element, owner) && variablesFrom(base, array.count, owner);
+        }
+        case Type::Vector: {
+            auto& vector = *(VectorType*)base[type];
+            return variablesFrom(base, vector.lane, owner) && variablesFrom(base, vector.count, owner);
+        }
+        case Type::Atomic:
+            return variablesFrom(base, ((AtomicType*)base[type])->content, owner);
+        case Type::Record:
+            for(auto argument: ((RecordType*)base[type])->arguments.contents(base)) {
+                if(!variablesFrom(base, argument, owner)) return false;
+            }
+            return true;
+        case Type::Fun: {
+            auto& fun = *(FunType*)base[type];
+            for(auto param: fun.params.contents(base)) {
+                if(!variablesFrom(base, param.occurrence.type, owner)) return false;
+            }
+            return variablesFrom(base, fun.result.type, owner);
+        }
+        default:
+            return true;
+    }
+}
+
+bool openHeadAnswerable(Program& program, DeclPtr<Class> klass, const DeclPtr<Type>* args,
+                        Size count, DeclPtr<GenContext> enclosing) {
+    if(!klass) return false;
+
+    auto base = *program.decl;
+
+    for(Size i = 0; i < count; i++) {
+        if(base[klass]->isDetermined(U16(i))) continue;
+
+        // A bare variable names no constructor, which is the case D13 leaves refused - and a null
+        // is a deciding position the caller has not supplied, which is not a question either.
+        if(!args[i] || base[args[i]]->kind == Type::Variable) return false;
+        if(!variablesFrom(base, args[i], enclosing)) return false;
+    }
+
+    return true;
+}
+
+bool selectOpenInstance(Context& context, Program& program, DeclPtr<Class> klass,
+                        const DeclPtr<Type>* args, Size count, DeclPtr<GenContext> enclosing,
+                        LocationId source, bool report, InstanceMatch& into) {
+    if(!openHeadAnswerable(program, klass, args, count, enclosing)) return false;
+
+    auto base = *program.decl;
+    Selector selector { context, program, base, report, enclosing };
+    return selector.selectOpen(klass, args, count, source, into);
+}
+
 DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, DeclPtr<Class> klass,
-                                      DeclPtr<Type> type, InstanceMatch* into) {
+                                      const DeclPtr<Type>* args, Size count, InstanceMatch* into) {
     if(!klass) return nullptr;
 
     auto base = *program.decl;
     SmallArray<DeclPtr<Instance>, 4> keyed;
-    program.keyedInstances(base, klass, &type, 1, keyed);
+    program.keyedInstances(base, klass, args, count, keyed);
 
     /*
      * Keyed and still matched, because a key is the outer constructor alone: `instance Copy(Box(I32))`
@@ -545,10 +834,31 @@ DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, DeclPt
 
     Selector selector { context, program, base, false };
     for(auto candidate: keyed) {
-        if(selector.match(*base[candidate], &type, 1, found)) return candidate;
+        if(selector.match(*base[candidate], args, count, found)) return candidate;
     }
 
     return nullptr;
+}
+
+/*
+ * The one-argument form, which is every caller that asks about a **class of one** - the three
+ * ownership classes and the two view derivations' subjects.
+ *
+ * The list is as long as the class's head and the determined positions are left null, because
+ * `Selector::match` compares the head's arity against the list it is given and a shorter one is not
+ * a match at all. `Contiguous(c -> a)` is the shape that made this matter: the key is the deciding
+ * prefix, so the *lookup* is one type, and the *match* is still against two positions.
+ */
+DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, DeclPtr<Class> klass,
+                                      DeclPtr<Type> type, InstanceMatch* into) {
+    if(!klass) return nullptr;
+
+    auto base = *program.decl;
+    SmallArray<DeclPtr<Type>, 4> args;
+    args.push(type);
+    for(U16 i = 1; i < base[klass]->arity(base); i++) args.push(nullptr);
+
+    return declaredInstanceFor(context, program, klass, args.pointer(), args.size(), into);
 }
 
 DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, intrinsic::Known klass,

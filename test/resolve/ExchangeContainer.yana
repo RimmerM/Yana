@@ -1,0 +1,74 @@
+{-
+   `exchange` and `swap` over a value that **has a view** - an `Array(Int)`, where every other
+   fixture for these two uses a scalar, a record or a buffer.
+
+   Three positions, and each one is a different reason the operation reached a window instead of the
+   container. `swap(&left: a, &right: a)` and `exchange(&slot: a, ->value: a)` write storage of
+   exactly `a`, so their places are `op.def`'s `placeAt()` and their occurrences are the owner - a
+   `WholeValue` there became the *view* at `a := Array(Int)` and the writes landed in a descriptor
+   built into a temporary, leaving the caller's containers untouched. `Index.getMut`'s result is the
+   same sentence one level down: `xs[0]` in a `&` position names the element's own storage, and a
+   window of it cannot be assigned to, pushed to or exchanged.
+
+   Both stages compile it and both answer 1: the shipping stage has always relocated the containers
+   themselves here.
+-}
+
+data Pair {left: Array(Int), right: Array(Int)}
+
+fn counted(n: Int) -> Array(Int):
+    let &out = [] :: [Int]
+    for i in 0 .. n:
+        push(out, i)
+
+    return out
+
+-- The window and not `Array(Int)`: every caller below passes either a local or an element, and an
+-- element of a container is that element's window.
+fn size(xs: [Int]) -> Int = truncate(length(xs)) :: Int
+
+fn exchangeLocal() -> Int:
+    let &a = counted(3)
+    let ->old = exchange(a, counted(8))
+
+    return size(old) * 10 + size(a)
+
+fn exchangeField() -> Int:
+    let &p = Pair {left: counted(3), right: counted(2)}
+    let ->old = exchange(p.left, counted(8))
+
+    return size(old) * 10 + size(p.left)
+
+fn swapLocals() -> Int:
+    let &a = counted(3)
+    let &b = counted(8)
+    swap(a, b)
+
+    return size(a) * 10 + size(b)
+
+-- Two elements of one container, which is the pair the exchange exemption is for - and the place
+-- each subscript names is the element's storage rather than a window of it.
+fn swapElements() -> Int:
+    let &xs = [counted(3), counted(8), counted(5)]
+    swap(xs[0], xs[1])
+
+    let ->old = exchange(xs[2], counted(2))
+
+    return size(xs[0]) * 1000 + size(xs[1]) * 100 + size(old) * 10 + size(xs[2])
+
+-- The plain assignment through the same borrow, which is what makes the result's form legible: a
+-- window could not have been written to at all.
+fn assignElement() -> Int:
+    let &xs = [counted(3), counted(8)]
+    xs[0] = counted(6)
+
+    return size(xs[0]) * 10 + size(xs[1])
+
+fn main() -> Int:
+    if exchangeLocal() != 38 then return -1
+    if exchangeField() != 38 then return -2
+    if swapLocals() != 83 then return -3
+    if swapElements() != 8352 then return -4
+    if assignElement() != 68 then return -5
+
+    return 1

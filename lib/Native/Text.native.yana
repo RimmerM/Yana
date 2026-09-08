@@ -9,8 +9,7 @@
    string's capacity, its placement tag and its growth path are `Run`'s and not a second
    implementation of them. The name is the primitive's on purpose - a program that writes `String`
    means the type both targets agree on, and what this declares is what that type is made of here.
-   The ownership stage has no primitive and this *is* its `String`; `prelude/Core/String.yana` is
-   the same declaration.
+   The ownership stage has no primitive and this *is* its `String` too.
 
    `length` is the count in native units - UTF-8 bytes here - which part 3 is careful to say is not a
    portable number. It is the run's *live prefix*; `run.capacity` is what was allocated, and the two
@@ -50,16 +49,17 @@
 -}
 
 {-
-   The code unit address a string is defined by - `values` for a string, and for the same reason:
-   the result is rooted in the string, so a read through it is a read of the string.
+   `units` **was here and is now `Core/String.yana`'s**, beside `StringView` and the `Viewed`
+   instance that builds one.
 
-   `self.units` here is the *view's* field, since `self` is a shared string: two words, of which this
-   is the first. Here rather than in Core because what it hands out is a raw pointer, and handing
-   one out is this module's business - `stringBytes` in `CString.native.yana` is the same address
-   as bytes.
+   It reads the view's own `units` field, and `StringView` is `@local` in `Core`: a field of a
+   `@local` record may be named in the module that declares it and nowhere else. The argument for
+   keeping it here was that what it hands out is a raw pointer and handing one out is this module's
+   business - which is true of `stringBytes` in `CString.native.yana`, whose whole body is
+   `bitcast(units(text))`, and which is why that one is still behind this import. Reading another
+   module's private representation is a different act from handing out an address, and only the
+   second of the two is what this module's import warns about.
 -}
-@inline
-pub fn units(self: source'String) -> %source'CodeUnit = self.units
 
 {-
    A string, from bytes that already exist - Implementation-String.md part 9.

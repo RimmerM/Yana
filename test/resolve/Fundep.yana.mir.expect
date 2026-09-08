@@ -1,0 +1,187 @@
+module ResolveTest
+
+data Wrap(a) {item: a} drop derived reclaim derived
+
+data Wrap(I32) {item: I32} of Wrap
+
+class Elem(c -> a): head
+
+class (Elem(c, a)) Deep(c -> a): deep
+
+instance Elem(I32, Bool): I32.head
+
+instance Elem(Bool, I32): Bool.head
+
+instance Elem(Wrap(a), Wrap(a)): Wrap(a).head
+
+instance Deep(I32, Bool): I32.deep
+
+fn head(self: c) -> a = <no body>
+
+fn deep(self: c) -> a = <no body>
+
+fn I32.head(self: I32) -> Bool {
+bb0:
+  %0: Bool = const True
+  return take %0
+}
+
+fn Bool.head(self: Bool) -> I32 {
+bb0:
+  %0: I32 = const 7
+  return take %0
+}
+
+fn Wrap(a).head(self: Wrap(a)) -> Wrap(a) {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: Wrap(a) = read take (self)
+  return take %0
+}
+
+fn fromInstance() -> I32 {
+  local x: Bool
+
+bb0:
+  %0: I32 = const 7
+  %1: Bool = call head(I32, Bool) take %0
+  write.init borrow.unique (x) take %1
+  %3: Bool = read copy.trivial (x)
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I32 = const 0
+  return take %8
+
+bb3:
+  %5: I32 = const 1
+  return take %5
+}
+
+fn fromOtherInstance() -> I32 {
+bb0:
+  %0: Bool = const True
+  %1: I32 = call head(Bool, I32) take %0
+  return take %1
+}
+
+fn fromParametric() -> I32 {
+  local w: Wrap(I32)
+  local inner: Wrap(I32)
+
+bb0:
+  %0: I32 = const 5
+  %1: Wrap(I32) = aggregate.Wrap take %0
+  write.init borrow.unique (w) take %1
+  %3: Wrap(I32) = read copy.trivial (w)
+  %4: Wrap(I32) = call head(Wrap(I32), Wrap(I32)) take %3
+  write.init borrow.unique (inner) take %4
+  %6: I32 = read copy.trivial (inner.item)
+  return take %6
+}
+
+fn first(self: c) -> a {
+  form specialized
+  slot #0 type c
+  slot #1 type a
+  slot #2 class Elem(c, a)
+bb0:
+  %0: c = read take (self)
+  %1: a = call head(c, a) take %0
+  return take %1
+}
+
+fn discards(self: c) -> I32 {
+  form specialized
+  slot #0 type c
+  slot #1 type a
+  slot #2 class Elem(c, a)
+  local x: a
+
+bb0:
+  %0: c = read take (self)
+  %1: a = call head(c, a) take %0
+  write.init borrow.unique (x) take %1
+  drop (x)
+  %3: I32 = const 0
+  return take %3
+}
+
+fn viaConstraint() -> I32 {
+  local x: Bool
+
+bb0:
+  %0: I32 = const 7
+  %1: Bool = call first(I32, Bool) take %0
+  write.init borrow.unique (x) take %1
+  %3: Bool = read copy.trivial (x)
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I32 = const 0
+  return take %8
+
+bb3:
+  %5: I32 = const 1
+  return take %5
+}
+
+fn I32.deep(self: I32) -> Bool {
+bb0:
+  %0: Bool = const True
+  return take %0
+}
+
+fn throughSuper(self: c) -> I32 {
+  form specialized
+  slot #0 type c
+  slot #1 type a
+  slot #2 class Deep(c, a)
+  local x: a
+
+bb0:
+  %0: c = read take (self)
+  %1: a = call head(c, a) take %0
+  write.init borrow.unique (x) take %1
+  drop (x)
+  %3: I32 = const 0
+  return take %3
+}
+
+fn agreeingAscription() -> Bool {
+bb0:
+  %0: I32 = const 7
+  %1: Bool = call head(I32, Bool) take %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+
+bb0:
+  %0: I32 = call fromInstance
+  write.init borrow.unique (a) take %0
+  %2: I32 = call fromOtherInstance
+  write.init borrow.unique (b) take %2
+  %4: I32 = call viaConstraint
+  write.init borrow.unique (c) take %4
+  %6: I32 = read copy.trivial (a)
+  %7: I32 = read copy.trivial (b)
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = read copy.trivial (c)
+  %10: I32 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn first(I32, Bool)(self: I32) -> Bool = <first at I32, Bool>
+
+entry main

@@ -58,11 +58,11 @@ bb0(%0: a [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
 fn twiceApplied(v: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
-  %2: %(I32) -> I32 address = alloc frame (I32) -> I32
+  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
   store inspect %1 borrow %0
-  %3: (I32) -> I32 affine = fun.value twice
+  %3: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value twice
   store inspect %2 consume %3
-  %4: (I32) -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %4: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%2} = load inspect %2
   %5: I32 trivial = load inspect %1
   %6: I32 trivial = call apply borrow %4 borrow %5
   return consume %6
@@ -70,30 +70,31 @@ bb0(%0: I32 [shared call] guaranteed):
 
 fn main() -> I32 {
 bb0:
-  %0: %(I32) -> I32 address = alloc frame (I32) -> I32
-  %1: %(I32) -> I32 address = alloc frame (I32) -> I32
+  %0: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
+  %1: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
   %2: %Handler address = alloc frame Handler
   %3: %Label address = alloc frame Label
-  %4: (I32) -> I32 affine = fun.value twice
+  %4: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value twice
   store inspect %0 consume %4
-  %5: (I32) -> I32 affine = fun.value thrice
+  %5: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value thrice
   store inspect %1 consume %5
-  %6: (I32) -> I32 affine = load inspect %1
+  %6: (I32) -> I32 [owned here shape8 .0=unique call] affine = load inspect %1
   %7: I32 trivial = const 5
-  %8: Handler affine = aggregate.Handler consume %6 consume %7
+  %8: Handler owned = aggregate.Handler consume %6 consume %7
   store inspect %2 consume %8
   %9: I32 trivial = const 7
   %10: Label trivial = aggregate.Label consume %9
   store inspect %3 consume %10
-  %11: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %11: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
   %12: I32 trivial = const 10
   %13: I32 trivial = call apply borrow %11 borrow %12
   %14: Handler [shared call] guaranteed from{%2} = load inspect %2
   %15: I32 trivial = const 100
   %16: I32 trivial = call dispatch borrow %14 borrow %15
+  drop Handler inspect %2
   %17: I32 trivial = add inspect %13 inspect %16
   %18: Label trivial = copy inspect %3
-  %19: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %19: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
   %20: I32 trivial = call twiceOver [Label] borrow %18 borrow %19
   %21: I32 trivial = add inspect %17 inspect %20
   %22: I32 trivial = const 1

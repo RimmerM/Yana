@@ -74,7 +74,7 @@ fn made(n: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = const 3
   %1: I32 = const 3
-  %2: I32 = sub inspect %0 inspect %1
+  %2: I32 = sub inspect %1 inspect %0
   %3: I32 = const 0
   %4: Bool = gt inspect %2 inspect %3
   branch inspect %4 -> bb3 -> bb1
@@ -235,7 +235,7 @@ bb5 handover(I32 [shared call]) many:
   break -> bb1
 }
 
-fn joined(a: Bool [shared call], b: Bool [shared call], c: Bool [shared call]) -> I32 {
+fn joined'2(a: Bool [shared call], b: Bool [shared call], c: Bool [shared call]) -> I32 {
   local ok: Bool
 
 bb0:
@@ -359,7 +359,7 @@ bb0:
   %38: Bool = const True
   %39: Bool = const True
   %40: Bool = const True
-  %41: I32 = call joined borrow.shared %38 borrow.shared %39 borrow.shared %40
+  %41: I32 = call joined'2 borrow.shared %38 borrow.shared %39 borrow.shared %40
   %42: I32 = const 11
   %43: I32 = mul inspect %41 inspect %42
   %44: I32 = add inspect %37 inspect %43
@@ -368,7 +368,7 @@ bb0:
   %47: Bool = const True
   %48: Bool = const True
   %49: Bool = const False
-  %50: I32 = call joined borrow.shared %47 borrow.shared %48 borrow.shared %49
+  %50: I32 = call joined'2 borrow.shared %47 borrow.shared %48 borrow.shared %49
   %51: I32 = const 13
   %52: I32 = mul inspect %50 inspect %51
   %53: I32 = add inspect %46 inspect %52
@@ -377,7 +377,7 @@ bb0:
   %56: Bool = const True
   %57: Bool = const False
   %58: Bool = const True
-  %59: I32 = call joined borrow.shared %56 borrow.shared %57 borrow.shared %58
+  %59: I32 = call joined'2 borrow.shared %56 borrow.shared %57 borrow.shared %58
   %60: I32 = const 17
   %61: I32 = mul inspect %59 inspect %60
   %62: I32 = add inspect %55 inspect %61
@@ -386,7 +386,7 @@ bb0:
   %65: Bool = const True
   %66: Bool = const False
   %67: Bool = const False
-  %68: I32 = call joined borrow.shared %65 borrow.shared %66 borrow.shared %67
+  %68: I32 = call joined'2 borrow.shared %65 borrow.shared %66 borrow.shared %67
   %69: I32 = const 19
   %70: I32 = mul inspect %68 inspect %69
   %71: I32 = add inspect %64 inspect %70
@@ -395,7 +395,7 @@ bb0:
   %74: Bool = const False
   %75: Bool = const True
   %76: Bool = const True
-  %77: I32 = call joined borrow.shared %74 borrow.shared %75 borrow.shared %76
+  %77: I32 = call joined'2 borrow.shared %74 borrow.shared %75 borrow.shared %76
   %78: I32 = const 23
   %79: I32 = mul inspect %77 inspect %78
   %80: I32 = add inspect %73 inspect %79
@@ -404,7 +404,7 @@ bb0:
   %83: Bool = const False
   %84: Bool = const True
   %85: Bool = const False
-  %86: I32 = call joined borrow.shared %83 borrow.shared %84 borrow.shared %85
+  %86: I32 = call joined'2 borrow.shared %83 borrow.shared %84 borrow.shared %85
   %87: I32 = const 29
   %88: I32 = mul inspect %86 inspect %87
   %89: I32 = add inspect %82 inspect %88
@@ -413,7 +413,7 @@ bb0:
   %92: Bool = const False
   %93: Bool = const False
   %94: Bool = const True
-  %95: I32 = call joined borrow.shared %92 borrow.shared %93 borrow.shared %94
+  %95: I32 = call joined'2 borrow.shared %92 borrow.shared %93 borrow.shared %94
   %96: I32 = const 31
   %97: I32 = mul inspect %95 inspect %96
   %98: I32 = add inspect %91 inspect %97
@@ -422,7 +422,7 @@ bb0:
   %101: Bool = const False
   %102: Bool = const False
   %103: Bool = const False
-  %104: I32 = call joined borrow.shared %101 borrow.shared %102 borrow.shared %103
+  %104: I32 = call joined'2 borrow.shared %101 borrow.shared %102 borrow.shared %103
   %105: I32 = const 37
   %106: I32 = mul inspect %104 inspect %105
   %107: I32 = add inspect %100 inspect %106

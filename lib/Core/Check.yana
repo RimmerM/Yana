@@ -29,8 +29,8 @@ import Native
    the library's to decide, and a program that reached in and called it would be aborting for a
    reason no check found.
 -}
-@platform(native) fn checkFailed(): abortProcess()
-@platform(js) fn checkFailed(): hostFail()
+@builtin(checkFailed) @platform(native) fn checkFailed(): abortProcess()
+@builtin(checkFailed) @platform(js) fn checkFailed(): hostFail()
 
 {-
    The same stop, saying where it was - `-check-locations`.
@@ -65,7 +65,7 @@ let &reporting = False
    this body runs once per process and the process is ending. `stringLiteral` is the same
    constructor a written literal goes through.
 -}
-@platform(native) fn checkFailedAt(file: %CodeUnit, fileLength: Int, line: Int, column: Int):
+@builtin(checkFailedAt) @platform(native) fn checkFailedAt(file: %CodeUnit, fileLength: Int, line: Int, column: Int):
     if reporting then abortProcess()
     reporting = True
     print("check failed at {stringLiteral(file, fileLength)}:{line}:{column}\n")
@@ -74,7 +74,7 @@ let &reporting = False
 -- On JavaScript a string *is* a host value rather than a descriptor with an address, so passing one
 -- costs a register and the pointer form has nothing to buy. The two targets take different arguments
 -- for that reason, and `emitCheck` builds whichever this build declared.
-@platform(js) fn checkFailedAt(file: String, line: Int, column: Int):
+@builtin(checkFailedAt) @platform(js) fn checkFailedAt(file: String, line: Int, column: Int):
     if reporting then hostFail()
     reporting = True
     print("check failed at {file}:{line}:{column}\n")
@@ -83,11 +83,12 @@ let &reporting = False
 -- One located check, with its branch inside it, for the same reason `checkCondition` has one: a
 -- subscript is expanded inside whatever expression contains it, and a branch emitted there splits a
 -- block underneath a construct that had already decided which blocks it owns.
-@platform(native) pub fn checkConditionAt(failed: Bool, file: %CodeUnit, fileLength: Int,
-                                          line: Int, column: Int):
+@builtin(checkConditionAt) @platform(native) pub fn checkConditionAt(failed: Bool, file: %CodeUnit,
+                                                                     fileLength: Int, line: Int,
+                                                                     column: Int):
     if failed then checkFailedAt(file, fileLength, line, column)
 
-@platform(js) pub fn checkConditionAt(failed: Bool, file: String, line: Int, column: Int):
+@builtin(checkConditionAt) @platform(js) pub fn checkConditionAt(failed: Bool, file: String, line: Int, column: Int):
     if failed then checkFailedAt(file, line, column)
 
 {-
@@ -102,6 +103,7 @@ let &reporting = False
    Written as the *mistake* rather than as the invariant - the caller passes `index >= length` - so
    that the branch this contains is predicted the way it will actually go.
 -}
+@builtin(checkCondition)
 pub fn checkCondition(failed: Bool):
     if failed then checkFailed()
     return

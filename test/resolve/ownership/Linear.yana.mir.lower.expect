@@ -153,19 +153,12 @@ main<complex>(): I32 {
     call_complex Pool.drop, %v_46
     %v_47 = loads @trace, 4: I32
     %v_48 = cmp_neq %v_47, 12: I32
-    je %v_48, b_49, b_50
+    %v_49 = select %v_48, 18446744073709551602, 0: I32
+    ret %v_49
   }
 
   b_44 {
     ret 18446744073709551604
-  }
-
-  b_50 {
-    ret 0
-  }
-
-  b_49 {
-    ret 18446744073709551602
   }
 }
 

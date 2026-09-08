@@ -27,7 +27,7 @@ bb0:
   return
 }
 
-fn widen(p: Point [unique call]) -> {} {
+fn widen'2(p: Point [unique call]) -> {} {
 bb0:
   %0: I32 = read copy.trivial (p.x)
   %1: I32 = const 1
@@ -324,7 +324,7 @@ bb2:
 
 bb3:
   %11: Point [unique call] = read borrow.unique (r) loan0
-  %12: {} = call widen borrow.unique %11
+  %12: {} = call widen'2 borrow.unique %11
   %13: I32 = read copy.trivial (total)
   %14: I32 = read copy.trivial (r.x)
   %15: I32 = read copy.trivial (r.y)

@@ -202,82 +202,52 @@ main<complex>(): I32 {
     %v_172 = shl %v_171, 6: I32
     %v_173 = add %v_134, %v_172: I32
     %v_174 = alloca 1, 1: Ptr
-    %v_175 = alloca 8, 8: Ptr
-    %v_176 = alloca 8, 8: Ptr
     store %v_174, 0, 1
-    store %v_175, 0, 8
-    %v_177 = bitcast %v_174: I64
-    %v_178 = or %v_177, 844424930131968: I64
-    %v_179 = load %v_175, 8: Ptr
-    %v_180 = and %v_178, 281474976710655: I64
-    %v_181 = bitcast %v_180: Ptr
-    %v_182 = shr %v_178, 48: I64
-    %v_183 = alloca 1, 1: Ptr
-    %v_184 = load %v_181, 1: I64
-    %v_185 = shr %v_184, %v_182: I64
-    %v_186 = and %v_185, 1: I64
-    %v_187 = cast %v_186: I32
-    store %v_183, %v_187, 1
-    %v_188 = call_complex funvalue(raise), %v_179, %v_183: I32
-    %v_189 = load %v_183, 1: I32
-    %v_190 = load %v_181, 1: I64
-    %v_191 = cast %v_189: I64
-    %v_192 = imm 1: I64
-    %v_193 = and %v_191, %v_192: I64
-    %v_194 = shl %v_193, %v_182: I64
-    %v_195 = shl %v_192, %v_182: I64
-    %v_196 = not %v_195: I64
-    %v_197 = and %v_190, %v_196: I64
-    %v_198 = or %v_197, %v_194: I64
-    store %v_181, %v_198, 1
-    store %v_176, 0, 8
-    %v_199 = bitcast %v_174: I64
-    %v_200 = or %v_199, 281474976710656: I64
-    %v_201 = load %v_176, 8: Ptr
-    %v_202 = and %v_200, 281474976710655: I64
-    %v_203 = bitcast %v_202: Ptr
-    %v_204 = shr %v_200, 48: I64
-    %v_205 = alloca 1, 1: Ptr
-    %v_206 = load %v_203, 1: I64
-    %v_207 = shr %v_206, %v_204: I64
-    %v_208 = and %v_207, 1: I64
-    %v_209 = cast %v_208: I32
-    store %v_205, %v_209, 1
-    %v_210 = call_complex funvalue(raise), %v_201, %v_205: I32
-    %v_211 = load %v_205, 1: I32
-    %v_212 = load %v_203, 1: I64
-    %v_213 = cast %v_211: I64
-    %v_214 = imm 1: I64
-    %v_215 = and %v_213, %v_214: I64
-    %v_216 = shl %v_215, %v_204: I64
-    %v_217 = shl %v_214, %v_204: I64
-    %v_218 = not %v_217: I64
-    %v_219 = and %v_212, %v_218: I64
-    %v_220 = or %v_219, %v_216: I64
-    store %v_203, %v_220, 1
-    %v_221 = add %v_188, %v_210: I32
-    %v_222 = load %v_174, 1: I64
-    %v_223 = shr %v_222, 2: I64
-    %v_224 = and %v_223, 1: I64
-    %v_225 = cast %v_224: I32
-    %v_226 = add %v_221, %v_225: I32
-    %v_227 = and %v_222, 1: I64
-    %v_228 = cast %v_227: I32
-    %v_229 = select %v_228, 2, 0: I32
-    %v_230 = add %v_226, %v_229: I32
-    %v_231 = shr %v_222, 1: I64
-    %v_232 = and %v_231, 1: I64
-    %v_233 = cast %v_232: I32
-    %v_234 = select %v_233, 4, 0: I32
-    %v_235 = add %v_230, %v_234: I32
-    %v_236 = shr %v_222, 3: I64
-    %v_237 = and %v_236, 1: I64
-    %v_238 = cast %v_237: I32
-    %v_239 = select %v_238, 8, 0: I32
-    %v_240 = add %v_235, %v_239: I32
-    %v_241 = imul %v_240, 4000: I32
-    %v_242 = add %v_173, %v_241: I32
-    ret %v_242
+    %funvalue(raise) = fun funvalue(raise): Ptr
+    %v_175 = bitcast %v_174: I64
+    %v_176 = or %v_175, 844424930131968: I64
+    %v_177 = and %v_176, 281474976710655: I64
+    %v_178 = bitcast %v_177: Ptr
+    %v_179 = shr %v_176, 48: I64
+    %v_180 = load %v_178, 1: I64
+    %v_181 = shl 1, %v_179: I64
+    %v_182 = not %v_181: I64
+    %v_183 = and %v_180, %v_182: I64
+    %v_184 = or %v_183, %v_181: I64
+    store %v_178, %v_184, 1
+    %funvalue(raise) = fun funvalue(raise): Ptr
+    %v_185 = or %v_175, 281474976710656: I64
+    %v_186 = and %v_185, 281474976710655: I64
+    %v_187 = bitcast %v_186: Ptr
+    %v_188 = shr %v_185, 48: I64
+    %v_189 = load %v_187, 1: I64
+    %v_190 = shl 1, %v_188: I64
+    %v_191 = not %v_190: I64
+    %v_192 = and %v_189, %v_191: I64
+    %v_193 = or %v_192, %v_190: I64
+    store %v_187, %v_193, 1
+    %v_194 = load %v_174, 1: I64
+    %v_195 = shr %v_194, 2: I64
+    %v_196 = and %v_195, 1: I64
+    %v_197 = cast %v_196: I32
+    %v_198 = add 8, %v_197: I32
+    %v_199 = and %v_194, 1: I64
+    %v_200 = cast %v_199: I32
+    %v_201 = select %v_200, 2, 0: I32
+    %v_202 = add %v_198, %v_201: I32
+    %v_203 = shr %v_194, 1: I64
+    %v_204 = and %v_203, 1: I64
+    %v_205 = cast %v_204: I32
+    %v_206 = select %v_205, 4, 0: I32
+    %v_207 = add %v_202, %v_206: I32
+    %v_208 = shr %v_194, 3: I64
+    %v_209 = and %v_208, 1: I64
+    %v_210 = cast %v_209: I32
+    %v_211 = select %v_210, 8, 0: I32
+    %v_212 = add %v_207, %v_211: I32
+    %v_213 = imul %v_212, 4000: I32
+    %v_214 = add %v_173, %v_213: I32
+    ret %v_214
   }
 }
 

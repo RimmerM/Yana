@@ -303,8 +303,8 @@ fn total(%xs: ArrayView(I32)) -> I32 {
   b1:
     %v8 = load %i : I32
     %v9 = load %xs@ArrayView.length : Size
-    %v10 = cast %v8 : Size
-    %v11 = cmp_lt %v10, %v9 : Bool
+    %v10 = cast %v9 : I32
+    %v11 = cmp_lt %v8, %v10 : Bool
     je %v11, b3, b2
 
   b2:
@@ -345,8 +345,8 @@ fn double(%xs: ArrayView(I32)) -> () {
     %v5 = load %i : I32
     %v6 = load %xs : ArrayView(I32)
     %v7 = load %xs@ArrayView.length : Size
-    %v8 = cast %v5 : Size
-    %v9 = cmp_lt %v8, %v7 : Bool
+    %v8 = cast %v7 : I32
+    %v9 = cmp_lt %v5, %v8 : Bool
     je %v9, b3, b2
 
   b2:

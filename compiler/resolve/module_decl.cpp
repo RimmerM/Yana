@@ -1217,6 +1217,71 @@ static void eachBuiltinRole(Module& module, const ast::Decl& decl, F&& body) {
 }
 
 /*
+ * The signature of a role **this stage supplies the definition of**, read at its plain positions.
+ *
+ * A declaration claiming an `op.def` role is not called here: the emitter is the whole definition,
+ * and what it is handed is decided by `native.cpp` and `intrinsic.cpp` rather than by the
+ * convention the declaration wrote. So the ownership qualifiers on such a signature say what the
+ * *language* means by the operation - which is what the ownership stage checks them as - and this
+ * stage folds them away rather than passing arguments under them.
+ *
+ * `addressOf` is what forced it. The correct source is `fn addressOf(it: source'a) -> %source'a`:
+ * the pointer names the argument's own storage, so the argument has to outlive it, and a borrow
+ * taken through the result is a borrow of that storage. Read literally here the parameter becomes a
+ * shared *reference*, so `emitAddressOf` was handed a borrow value, materialized **that** into a
+ * frame slot and answered a `%1'I64` - a pointer to a reference, which is not an address of
+ * anything the caller wrote. `addressOf` of a constant, which `test/resolve/Global.yana` pins as
+ * the address of a temporary holding the value, went with it.
+ *
+ * The fold is exactly the one `bindingType` already makes for `&x: T` and `x: &T`, applied one
+ * position wider: a top-level shared reference on a parameter becomes the plain type, the group it
+ * named is dropped, and a result pointer's pointee group - kept only to be checked - goes with them.
+ * A position the row says the emitter depends on being **published** keeps what it wrote; none does
+ * today, and stating the exception is what keeps the next `borrow`-shaped row from being folded
+ * silently.
+ *
+ * A role that may write a **body** is left alone, and that is the line: a body is the library
+ * defining the operation, so its parameters mean to that body what they say. `newRun`, the seven
+ * bulk walks and every `OpForm::Flow` operator are on that side.
+ */
+static void takeRolePositionsPlain(Module& module, Function& function, intrinsic::Op role) {
+    if(intrinsic::roleMayWriteBody(role)) return;
+
+    auto& shape = intrinsic::opDef(role);
+    auto local = *module.arena;
+    auto global = *module.types;
+
+    auto roots = false;
+    U16 index = 0;
+
+    for(auto argPointer: function.args.contents(local)) {
+        auto arg = local[argPointer];
+        auto position = index < shape.count ? shape.params[index] : intrinsic::PositionShape {};
+        index++;
+
+        if(position.origin == intrinsic::ShapeOrigin::Published) {
+            if(arg->loan != kNoLoan) roots = true;
+            continue;
+        }
+
+        // A `@lazy` position holds the thunk rather than the written type, and only a `Flow` role
+        // may declare one - which this has already returned for.
+        if(!arg->isLazy()) {
+            auto type = global[arg->type];
+
+            if(type->kind == Type::Borrow && !((BorrowType*)type)->mut) {
+                arg->type = ((BorrowType*)type)->to;
+            }
+        }
+
+        arg->loan = kNoLoan;
+    }
+
+    function.returnRoots = roots;
+    function.returnPointeeGroup = kNoLoan;
+}
+
+/*
  * `@builtin(role)` on a function - the operations this compiler implements, `op.def`.
  *
  * The declaration is the signature and is not restated anywhere: the type checker reads it, every
@@ -1255,13 +1320,16 @@ void readIntrinsicRole(Module& module, const ast::Decl& decl, Function& function
             return;
         }
 
-        if(decl.fun.body && !intrinsic::roleWritesBody(intrinsic::opDef(role.unwrap()).form)) {
+        if(decl.fun.body && !intrinsic::roleMayWriteBody(role.unwrap())) {
             context.diagnostics.error("%@ is implemented by the compiler, so it has no body to write"_v,
                                       decl.source, context.findName(decl.fun.name));
             return;
         }
 
         program.operations[index] = &function - *module.arena;
+
+        // And the one thing this stage does *change* about such a declaration - see above.
+        takeRolePositionsPlain(module, function, role.unwrap());
     });
 }
 

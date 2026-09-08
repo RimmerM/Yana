@@ -1,0 +1,118 @@
+module ResolveTest
+
+data Held {value: 0'I32} shape2
+
+fn hold(value: I32 [shared slot 0]) -> Held [owned here shape2 .0=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (value) loan0
+  %1: Held [owned here shape2 .0=shared slot 0] = aggregate.Held borrow.shared %0 roots.0{0}
+  return take %1
+}
+
+fn readBack(held: Held [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (held.value)
+  return take %0
+}
+
+fn ofLiteral() -> I32 {
+bb0:
+  %0: I32 = const 9
+  %1: Held [owned here shape2 .0=shared slot 0] = call hold borrow.shared %0
+  %2: I32 = call readBack borrow.shared %1
+  return take %2
+}
+
+fn ofBinding() -> I32 {
+  local n: I32
+
+bb0:
+  %0: I32 = const 20
+  write.init borrow.unique (n) take %0
+  %2: I32 [shared slot 0] = read borrow.shared (n) loan0
+  %3: Held [owned here shape2 .0=shared slot 0] = call hold borrow.shared %2 roots.0{0}
+  %4: I32 = call readBack borrow.shared %3
+  return take %4
+}
+
+fn ofParameter(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (n) loan0
+  %1: Held [owned here shape2 .0=shared slot 0] = call hold borrow.shared %0 roots.0{0}
+  %2: I32 = call readBack borrow.shared %1
+  return take %2
+}
+
+fn thirty() -> I32 {
+bb0:
+  %0: I32 = const 30
+  return take %0
+}
+
+fn ofCall() -> I32 {
+bb0:
+  %0: I32 = call thirty
+  %1: Held [owned here shape2 .0=shared slot 0] = call hold borrow.shared %0
+  %2: I32 = call readBack borrow.shared %1
+  return take %2
+}
+
+fn ofLetBorrow() -> I32 {
+  local held: Held [owned here shape2 .0=shared slot 0]
+
+bb0:
+  %0: I32 = const 40
+  %1: Held [owned here shape2 .0=shared slot 0] = call hold borrow.shared %0
+  write.init borrow.unique (held) take %1
+  %3: Held [owned here shape2 .0=shared slot 0] = read copy.trivial (held)
+  %4: I32 = call readBack borrow.shared %3
+  return take %4
+}
+
+fn direct(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn wrapped(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (n) loan0
+  %1: Held [owned here shape2 .0=shared slot 0] = call hold borrow.shared %0 roots.0{0}
+  %2: I32 = call readBack borrow.shared %1
+  %3: I32 = const 1
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn main() -> I32 {
+  local viaValue: I32
+  local viaBorrow: I32
+
+bb0:
+  %0: I32 = const 5
+  %1: I32 = call direct borrow.shared %0
+  write.init borrow.unique (viaValue) take %1
+  %3: I32 = const 5
+  %4: I32 = call wrapped borrow.shared %3
+  write.init borrow.unique (viaBorrow) take %4
+  %6: I32 = call ofLiteral
+  %7: I32 = call ofBinding
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = const 3
+  %10: I32 = call ofParameter borrow.shared %9
+  %11: I32 = add inspect %8 inspect %10
+  %12: I32 = call ofCall
+  %13: I32 = add inspect %11 inspect %12
+  %14: I32 = call ofLetBorrow
+  %15: I32 = add inspect %13 inspect %14
+  %16: I32 = read copy.trivial (viaBorrow)
+  %17: I32 = read copy.trivial (viaValue)
+  %18: I32 = sub inspect %16 inspect %17
+  %19: I32 = add inspect %15 inspect %18
+  return take %19
+}
+
+entry main

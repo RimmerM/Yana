@@ -1,0 +1,53 @@
+{-
+   `Enum.nameOf` and `Enum.fromName` - the constructor's own word, generated per enum.
+
+   The other half of `EnumValue.yana`'s pair: `@value(n)` says which *number* each alternative is and
+   the declaration itself says which *word*. Neither is something an author could contribute, so both
+   are generated, and until they were a call of either reached a member the compiler had declared and
+   not supplied.
+
+   `nameOf` is a comparison chain choosing one string constant - the same placed bytes a written
+   literal is, so `nameOf(Green)` and `"Green"` are one global. `fromName` is the chain the other way
+   round, over `Eq`'s own member at the name's type: what comparing two strings costs is the
+   library's, and the only thing the compiler contributes is the list of words.
+
+   `fromName` is generic in what it answers, so - exactly as `fromValue` is - a call of it needs a
+   position that says which enum. Every use below goes through a typed wrapper for that reason.
+-}
+
+data Colour = Red | Green | Blue
+
+-- Values with holes in them, so the tag a name maps back to is not the constructor's position.
+data Signal = @value(2) Stop | @value(13) Slow | @value(122) Go
+
+-- The wrappers a call site needs, which is what `fromValue`'s own note says about the result
+-- position deciding a nullary generic.
+fn colourOf(name: String) -> Maybe(Colour) = fromName(name)
+fn signalOf(name: String) -> Maybe(Signal) = fromName(name)
+
+-- Reached through a witness rather than at a concrete type, so the generated member is a real
+-- function in the instance slot and not only an expansion at a known call.
+fn (Enum(a, w)) anyName(x: a) -> String = nameOf(x)
+
+fn main() -> Int:
+    if nameOf(Red) != "Red" then return 1
+    if nameOf(Blue) != "Blue" then return 2
+    if nameOf(Slow) != "Slow" then return 3
+    if anyName(Green) != "Green" then return 4
+
+    -- The round trip, at a pinned set and at an unpinned one.
+    if colourOf("Green") is Just(c):
+        if c != Green then return 5
+    else:
+        return 6
+
+    if signalOf("Go") is Just(s):
+        if valueOf(s) != 122 then return 7
+    else:
+        return 8
+
+    -- A word the declaration does not name is not one of these.
+    if colourOf("Purple") is Just(_) then return 9
+    if signalOf("") is Just(_) then return 10
+
+    return 99

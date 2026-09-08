@@ -25,7 +25,7 @@ bb0(%0: I32 [unique call] guaranteed):
   return
 }
 
-fn widen(p: Point [unique call]) -> {} {
+fn widen'2(p: Point [unique call]) -> {} {
 bb0(%0: Point [unique call] guaranteed):
   %1: %I32 address = field.addr .x inspect %0
   %2: I32 trivial = load inspect %1
@@ -349,7 +349,7 @@ bb2:
 
 bb3:
   %12: Point [unique call] guaranteed from{%2} = load inspect %2
-  call widen borrow %12
+  call widen'2 borrow %12
   %13: I32 trivial = load inspect %4
   %14: %I32 address = field.addr .x inspect %2
   %15: I32 trivial = load inspect %14

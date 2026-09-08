@@ -11,7 +11,7 @@ bb0(%0: @bits(20) U32 [unique call] guaranteed):
   return
 }
 
-fn high(p: Pair [unique slot 0]) -> @bits(20) U32 [unique slot 0] {
+fn high(p: Pair [unique slot 0]) -> @bits(20) U32 [unique slot 0 owner] {
 bb0(%0: Pair [unique slot 0] guaranteed):
   %1: %@bits(20) U32 address = field.addr .b inspect %0
   %2: @bits(20) U32 [unique slot 0] guaranteed from{%0} = load inspect %1
@@ -26,8 +26,8 @@ bb0:
   %3: Pair trivial = aggregate.Pair consume %1 consume %2
   store inspect %0 consume %3
   %4: Pair [unique slot 0] guaranteed from{%0} = load inspect %0
-  %5: @bits(20) U32 [unique slot 0] guaranteed from{%0} = call high borrow %4
-  %6: @bits(20) U32 [unique slot 0] guaranteed from{%5, %0} = load inspect %5
+  %5: @bits(20) U32 [unique slot 0 owner] guaranteed from{%0} = call high borrow %4
+  %6: @bits(20) U32 [unique slot 0 owner] guaranteed from{%0, %5} = load inspect %5
   call nudge borrow %6
   %7: Pair trivial = copy inspect %0
   return consume %7
@@ -183,9 +183,9 @@ bb0(%0: (&Bool) -> I32 [shared call] guaranteed, %1: Bool [unique call] guarante
 fn flattened() -> I32 {
 bb0:
   %16: %Panel address = alloc frame Panel
-  %17: %(&Bool) -> I32 address = alloc frame (&Bool) -> I32
+  %17: %(&Bool) -> I32 address = alloc frame (&Bool) -> I32 [owned here shape8 .0=unique call]
   %18: %I32 address = alloc frame I32
-  %19: %(&Bool) -> I32 address = alloc frame (&Bool) -> I32
+  %19: %(&Bool) -> I32 address = alloc frame (&Bool) -> I32 [owned here shape8 .0=unique call]
   %20: %I32 address = alloc frame I32
   %21: Bool trivial = const False
   %22: Bool trivial = const False
@@ -194,16 +194,16 @@ bb0:
   %25: Bool trivial = const False
   %26: Panel trivial = aggregate.Panel consume %21 consume %24 consume %25
   store inspect %16 consume %26
-  %27: (&Bool) -> I32 affine = fun.value raise
+  %27: (&Bool) -> I32 [owned here shape8 .0=unique call] affine = fun.value raise
   store inspect %17 consume %27
-  %28: (&Bool) -> I32 [shared call] guaranteed from{%17} = load inspect %17
+  %28: (&Bool) -> I32 [shared call shape8 .0=unique call] guaranteed from{%17} = load inspect %17
   %29: %Bool address = field.addr .trail inspect %16
   %30: Bool [unique call] guaranteed from{%16} = load inspect %29
   %31: I32 trivial = call apply borrow %28 borrow %30
   store inspect %18 consume %31
-  %32: (&Bool) -> I32 affine = fun.value raise
+  %32: (&Bool) -> I32 [owned here shape8 .0=unique call] affine = fun.value raise
   store inspect %19 consume %32
-  %33: (&Bool) -> I32 [shared call] guaranteed from{%19} = load inspect %19
+  %33: (&Bool) -> I32 [shared call shape8 .0=unique call] guaranteed from{%19} = load inspect %19
   %34: %Flags address = field.addr .flags inspect %16
   %35: %Bool address = field.addr .optionB inspect %34
   %36: Bool [unique call] guaranteed from{%16} = load inspect %35

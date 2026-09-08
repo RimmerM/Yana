@@ -84,6 +84,18 @@ YANA_SSA_INST( Fma,           InstFma,            "fma"_v,           kSsaPure )
 YANA_SSA_INST( Select,        InstSelect,         "select"_v,        kSsaPure )
 
 /*
+ * A `match` over constants - the MIR `map` carried down, and inventory D3.
+ *
+ * `kSsaPure`: it reads one value, reads no storage, and answering it twice answers the same thing.
+ *
+ * **Not `kSsaConsumes`**, which is the one flag worth arguing. Every entry is a constant, and a
+ * constant installed is an owned occurrence produced *fresh* rather than transferred - §5.8, and the
+ * same statement `InstConst` makes by carrying neither flag. What the result owes is decided by its
+ * own convention, exactly as a `const` of a record is.
+ */
+YANA_SSA_INST( Map,           InstMap,            "map"_v,           kSsaPure )
+
+/*
  * The four vector operations - the MIR nodes carried down, and Design-Vector §3.2 for why there are
  * four of them rather than a family.
  *
@@ -97,6 +109,20 @@ YANA_SSA_INST( VecWithLane,   InstVecLane,        "vec.withlane"_v,  kSsaPure )
 YANA_SSA_INST( VecShuffle,    InstVecShuffle,     "vec.shuffle"_v,   kSsaPure )
 YANA_SSA_INST( VecReduce,     InstVecReduce,      "vec.reduce"_v,    kSsaPure )
 YANA_SSA_INST( Alloc,         InstAlloc,          "alloc"_v,         0 )
+/*
+ * The other end of one `Alloc` that was not the frame's - §10.4's placement, released.
+ *
+ * A row of its own rather than a bit on `Drop`, and the two answer different questions about
+ * different things: a drop runs what a *value* owes when it dies, and this hands back the *storage*
+ * it was sitting in. A heap-placed local whose value left by a `->` argument still owes this one and
+ * owes no drop at all, which is exactly the pair `test/resolve/DropFlagHeap.yana` measures - so a
+ * shared instruction would have had a flag that is set without the rest of it meaning anything.
+ *
+ * **Not `kSsaPure`**, and not `kSsaConsumes` either: the operand is an address and an address is
+ * never an owner (see `InstAlloc`). What it is is an effect ordered against every other one, because
+ * a read of the storage after it is a read of memory the allocator has taken back.
+ */
+YANA_SSA_INST( Free,          InstFree,           "free"_v,          0 )
 YANA_SSA_INST( FieldAddress,  InstFieldAddress,   "field.addr"_v,    kSsaPure )
 /*
  * The address of one element - `xs[i]`, and `mir::Place::Index` carried down.
@@ -121,14 +147,23 @@ YANA_SSA_INST( Drop,          InstDrop,           "drop"_v,          0 )
 /*
  * A named function as a value - the MIR `fun.value` carried down, and Analysis-IR.md's G7.
  *
- * `kSsaPure`: it reads nothing, writes nothing and depends on no state. What the lowering makes of
- * it does allocate - a function value is two words and address-only - but that is true of an
- * aggregate as well, and purity here is about the *operation* rather than about whether storage
- * comes out of it.
+ * `kSsaConsumes` and **not** `kSsaPure`, which changed with D17: a value whose environment is
+ * heap-placed takes that environment rather than borrowing it, so the operand's lineage ends here
+ * exactly as an aggregate's components do. It was pure while every environment was a borrow, and the
+ * flags are per kind - a form that consumes on some values and not others has to state the one that
+ * admits both, for the same reason `InstCall` does.
  */
-YANA_SSA_INST( FunValue,      InstFunValue,       "fun.value"_v,     kSsaPure )
+YANA_SSA_INST( FunValue,      InstFunValue,       "fun.value"_v,     kSsaConsumes )
 YANA_SSA_INST( Call,          InstCall,           "call"_v,          kSsaConsumes )
 YANA_SSA_INST( Return,        InstReturn,         "return"_v,        kSsaTerminator | kSsaConsumes )
 YANA_SSA_INST( Jump,          InstJump,           "jump"_v,          kSsaTerminator | kSsaConsumes )
 YANA_SSA_INST( Branch,        InstBranch,         "branch"_v,        kSsaTerminator | kSsaConsumes )
+
+/*
+ * A multi-way branch - the MIR `switch` carried down, and inventory D3.
+ *
+ * `kSsaConsumes` for the same reason `Branch` carries it: edge arguments may move owned values, and
+ * a terminator that transferred ownership without saying so is what the flag exists to catch.
+ */
+YANA_SSA_INST( Switch,        InstSwitch,         "switch"_v,        kSsaTerminator | kSsaConsumes )
 YANA_SSA_INST( Unreachable,   InstUnreachable,    "unreachable"_v,   kSsaTerminator )

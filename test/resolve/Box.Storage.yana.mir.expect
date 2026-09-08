@@ -1,0 +1,144 @@
+module ResolveTest
+
+data Diagnostics {count: I32, level: I32}
+
+data Config {hot: I32, cold: @box Diagnostics} reclaim derived
+
+fn levelOf(d: Diagnostics [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (d.level)
+  return take %0
+}
+
+fn outOfLine() -> I32 {
+  local c: Config
+  local owner: %U8 [owned here shape6 .*=shared slot 0]
+  local target: %U8 [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 7
+  %2: I32 = const 8
+  %3: Diagnostics = aggregate.Diagnostics take %1 take %2
+  %4: Config = aggregate.Config take %0 take %3
+  write.init borrow.unique (c) take %4
+  %6: Config [shared slot 0] = read borrow.shared (c) loan0
+  %7: %Config [owned here shape6 .*=shared slot 0] = address inspect %6 roots.0{0}
+  %8: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %7 roots.0{0}
+  write.init borrow.unique (owner) take %8
+  %10: Diagnostics [shared slot 0] = read borrow.shared (c.cold) loan1
+  %11: %Diagnostics [owned here shape6 .*=shared slot 0] = address inspect %10 roots.0{1}
+  %12: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %11 roots.0{1}
+  write.init borrow.unique (target) take %12
+  %14: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (target) roots.0{1}
+  %15: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (owner) roots.0{0}
+  %16: Bool = lt inspect %14 inspect %15
+  %17: Bool = not inspect %16
+  branch inspect %17 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %33: Diagnostics = read copy.trivial (c.cold)
+  drop (c)
+  %34: I32 = call levelOf borrow.shared %33
+  return take %34
+
+bb3:
+  %19: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (target) roots.0{1}
+  %20: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (owner) roots.0{0}
+  %21: Config [shared call] = read borrow.shared (c) loan2
+  %22: Size = call sizeOf(Config) borrow.shared %21
+  %23: Size = metric stride U8
+  %24: Size = mul inspect %22 inspect %23
+  %25: %U8 [owned here shape6 .*=shared slot 0] = add inspect %20 inspect %24 roots.0{0}
+  %26: Bool = lt inspect %19 inspect %25
+  branch inspect %26 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  jump -> bb2
+
+bb6:
+  drop (c)
+  %28: I32 = const -1
+  return take %28
+}
+
+fn writesThrough() -> I32 {
+  local & c: Config
+  local before: Size
+  local after: Size
+
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 1
+  %2: I32 = const 20
+  %3: Diagnostics = aggregate.Diagnostics take %1 take %2
+  %4: Config = aggregate.Config take %0 take %3
+  write.init borrow.unique (c) take %4
+  %6: Diagnostics [shared slot 0] = read borrow.shared (c.cold) loan0
+  %7: %Diagnostics [owned here shape6 .*=shared slot 0] = address inspect %6 roots.0{0}
+  %8: Size = bitcast inspect %7
+  write.init borrow.unique (before) take %8
+  %10: I32 = const 9
+  %11: I32 = const 30
+  %12: Diagnostics = aggregate.Diagnostics take %10 take %11
+  write.assign borrow.unique (c.cold) take %12
+  %14: Diagnostics [shared slot 0] = read borrow.shared (c.cold) loan1
+  %15: %Diagnostics [owned here shape6 .*=shared slot 0] = address inspect %14 roots.0{1}
+  %16: Size = bitcast inspect %15
+  write.init borrow.unique (after) take %16
+  %18: Size = read copy.trivial (before)
+  %19: Size = read copy.trivial (after)
+  %20: Bool = eq inspect %18 inspect %19
+  %21: Bool = not inspect %20
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %26: I32 = read copy.trivial (c.cold.count)
+  %27: I32 = const 10
+  %28: I32 = mul inspect %26 inspect %27
+  %29: I32 = read copy.trivial (c.cold.level)
+  drop (c)
+  %30: I32 = add inspect %28 inspect %29
+  return take %30
+
+bb3:
+  drop (c)
+  %23: I32 = const -1
+  return take %23
+}
+
+fn main() -> I32 {
+  local o: I32
+
+bb0:
+  %0: I32 = call outOfLine
+  write.init borrow.unique (o) take %0
+  %2: I32 = read copy.trivial (o)
+  %3: I32 = const 8
+  %4: Bool = ne inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I32 = read copy.trivial (o)
+  %10: I32 = call writesThrough
+  %11: I32 = add inspect %9 inspect %10
+  return take %11
+
+bb3:
+  %6: I32 = const -2
+  return take %6
+}
+
+entry main

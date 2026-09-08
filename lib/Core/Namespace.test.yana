@@ -54,8 +54,10 @@ fn Hmac.check(key: Int, message: Int, against: Int) -> Bool = Hmac.tag(key, mess
     check(Hmac.check(2, 3, 65))
     check(!Hmac.check(2, 3, 64))
 
-    -- An ordinary name in every other respect, including value position.
-    let f = Hmac.tag
+    -- An ordinary name in every other respect, including value position. The type is written
+    -- because a function *value* is chosen by arity and a bare `let` states none - `Hmac.tag` is
+    -- one declaration today, and a second one at another arity would silently change which.
+    let f = Hmac.tag :: (Int, Int) -> Int
     checkEqual(f(2, 3), 65)
 
 {-

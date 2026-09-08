@@ -92,8 +92,8 @@ constexpr StringView kEntryPointName = YANA_ROLE_TEXT(main);
  * they walk a single import. A library whose root module were renamed would have moved one of them
  * and left the other two looking for something that is no longer there.
  *
- * `prelude/` answers to it as much as `lib/` does, which is the property that makes the prelude a
- * library rather than a mode - see `LibrarySource::directory`.
+ * It is the whole of what `LibrarySource::directory` judges a candidate directory by, which is what
+ * makes a standard library a *directory* rather than a mode.
  */
 constexpr StringView kCoreModuleName = YANA_ROLE_TEXT(Core);
 
@@ -203,11 +203,11 @@ StringView entityName(Entity entity);
  *  - `Optional` - the compiler copes. `checkConditionAt` is only reached under `-check-locations`,
  *    and a role no program's build asks for costs nothing by being absent.
  *
- * There was a third, `Synthesized`, and `prelude/` is what removed it. It meant "the compiler makes
- * one", and what it was for was a stage with no standard library: `class Drop(a)` was built in C++
- * so that a program declaring no instance could still be classified. A small library the stage can
- * compile answers the same need with a declaration, so nothing here has to describe a class that
- * exists without one.
+ * There was a third, `Synthesized`, and a standard library is what removed it. It meant "the compiler
+ * makes one", and what it was for was a stage that had none: `class Drop(a)` was built in C++ so
+ * that a program declaring no instance could still be classified. A library the stage can compile
+ * answers the same need with a declaration, so nothing here has to describe a class that exists
+ * without one.
  */
 enum class Presence: U8 {
     Required,

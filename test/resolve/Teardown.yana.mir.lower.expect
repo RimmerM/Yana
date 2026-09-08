@@ -1,0 +1,248 @@
+mut @effects = [0, 0, 0, 0]
+mut @released = [0, 0, 0, 0]
+mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
+mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
+mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
+
+Buffer.reclaim<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = load %value, 8: Ptr
+    %v_2 = add %value, 8: Ptr
+    %v_3 = load %v_2, 4: I32
+    %v_4 = loads @released, 4: I32
+    %v_5 = add %v_4, 1: I32
+    store @released, %v_5, 4
+    %v_6 = bitcast %v_1: I64
+    %v_7 = cmp_eq %v_6, 0: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 
+  }
+
+  b_9 {
+    %v_10 = sub %v_1, 8: Ptr
+    %v_11 = loads %v_10, 8: I64
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_11, 3: I64
+    %v_14 = add %v_12, %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    store %v_1, %v_15, 8
+    %v_16 = load @heapFree, 8: Ptr
+    %v_17 = add %v_16, %v_13: Ptr
+    store %v_17, %v_1, 8
+    jmp b_8
+  }
+}
+
+Handle.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = load %value, 4: I32
+    %v_2 = loads @effects, 4: I32
+    %v_3 = add %v_2, %v_1: I32
+    store @effects, %v_3, 4
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = load @heapFree, 8: Ptr
+    %v_2 = bitcast %v_1: I64
+    %v_3 = cmp_eq %v_2, 0: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    call_complex initHeap
+    %v_6 = load @heapFree, 8: Ptr
+    %v_7 = bitcast %v_6: I64
+    %v_8 = cmp_eq %v_7, 0: I32
+    je %v_8, b_9, b_5
+  }
+
+  b_5 {
+    jmp b_10
+  }
+
+  b_11 {
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_14, 3: I64
+    %v_15 = add %v_12, %v_13: Ptr
+    %v_16 = load %v_15, 8: Ptr
+    %v_17 = bitcast %v_16: I64
+    %v_18 = cmp_eq %v_17, 0: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    %v_21 = shl 16, %v_14: I64
+    %v_22 = load @heapNext, 8: Ptr
+    %v_23 = add %v_22, %v_21: Ptr
+    %v_24 = load @heapLimit, 8: Ptr
+    %v_25 = cmp_gt %v_23, %v_24: I32
+    je %v_25, b_26, b_27
+  }
+
+  b_26 {
+    %v_28 = call_complex growHeap, %v_21: I32
+    je %v_28, b_27, b_29
+  }
+
+  b_27 {
+    %v_30 = load @heapNext, 8: Ptr
+    %v_31 = add %v_30, %v_21: Ptr
+    store @heapNext, %v_31, 8
+    store %v_30, %v_14, 8
+    %v_32 = add %v_30, 8: Ptr
+    jmp b_33
+  }
+
+  b_29 {
+    %v_34 = bitcast 0: Ptr
+    jmp b_33
+  }
+
+  b_20 {
+    %v_35 = load %v_16, 8: Ptr
+    %v_36 = load @heapFree, 8: Ptr
+    %v_37 = add %v_36, %v_13: Ptr
+    store %v_37, %v_35, 8
+    jmp b_33
+  }
+
+  b_38 {
+    %v_39 = bitcast 0: Ptr
+    jmp b_33
+  }
+
+  b_9 {
+    %v_40 = bitcast 0: Ptr
+    jmp b_33
+  }
+
+  b_33 {
+    %v_41 = phi [b_27, %v_32], [b_29, %v_34], [b_20, %v_16], [b_38, %v_39], [b_9, %v_40]: Ptr
+    %v_42 = alloca 16, 8: Ptr
+    store %v_42, %v_41, 8
+    %v_43 = add %v_42, 8: Ptr
+    store %v_43, 4, 4
+    %v_44 = add %v_42, 12: Ptr
+    store %v_44, 7, 4
+    call_complex Buffer.reclaim, %v_42
+    %v_45 = add %v_42, 12: Ptr
+    call_complex Handle.drop, %v_45
+    %v_46 = loads @effects, 4: I32
+    %v_47 = add 42, %v_46: I32
+    %v_48 = loads @released, 4: I32
+    %v_49 = sub %v_47, %v_48: I32
+    ret %v_49
+  }
+
+  b_50 {
+    %v_51 = cmp_ilt %v_52, 40: I32
+    je %v_51, b_10, b_53
+  }
+
+  b_53 {
+    %v_54 = cmp_ige %v_14, 32: I32
+    je %v_54, b_38, b_11
+  }
+
+  b_10 {
+    %v_55 = phi [b_50, %v_52], [b_5, 16]: I64
+    %v_56 = phi [b_50, %v_14], [b_5, 0]: I64
+    %v_52 = add %v_55, %v_55: I64
+    %v_14 = add %v_56, 1: I64
+    jmp b_50
+  }
+}
+
+initHeap<complex>() {
+  b_0 {
+    %v_1 = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0: I64
+    %v_2 = cmp_ilt %v_1, 0: I32
+    %v_3 = bitcast 0: Ptr
+    %v_4 = bitcast %v_1: Ptr
+    %v_5 = select %v_2, %v_3, %v_4: Ptr
+    %v_6 = bitcast %v_5: I64
+    %v_7 = cmp_eq %v_6, 0: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    setpattern %v_5, 256, 0
+    store @heapFree, %v_5, 8
+    %v_10 = add %v_5, 256: Ptr
+    store @heapNext, %v_10, 8
+    %v_11 = add %v_5, 4194304: Ptr
+    store @heapLimit, %v_11, 8
+    store @heapRegionNext, 8388608, 8
+    ret 
+  }
+
+  b_8 {
+    ret 
+  }
+}
+
+growHeap<complex>(%needed: I64): I32 {
+  b_0 {
+    %v_1 = loads @heapRegionNext, 8: I64
+    %v_2 = cmp_ilt %v_1, %needed: I32
+    %v_3 = select %v_2, %needed, %v_1: I64
+    %v_4 = add %v_3, 4096: I64
+    %v_5 = syscall 9, 0, %v_4, 3, 34, 18446744073709551615, 0: I64
+    %v_6 = cmp_ilt %v_5, 0: I32
+    %v_7 = bitcast 0: Ptr
+    %v_8 = bitcast %v_5: Ptr
+    %v_9 = select %v_6, %v_7, %v_8: Ptr
+    %v_10 = bitcast %v_9: I64
+    %v_11 = cmp_eq %v_10, 0: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_13, %v_3], [b_16, %v_17]: I64
+    %v_18 = phi [b_13, %v_9], [b_16, %v_19]: Ptr
+    store @heapNext, %v_18, 8
+    %v_20 = add %v_18, %v_15: Ptr
+    store @heapLimit, %v_20, 8
+    %v_21 = add %v_15, %v_15: I64
+    store @heapRegionNext, %v_21, 8
+    ret 1
+  }
+
+  b_12 {
+    %v_22 = cmp_igt %needed, 4194304: I32
+    %v_17 = select %v_22, %needed, 4194304: I64
+    %v_23 = cmp_ige %v_17, %v_3: I32
+    je %v_23, b_24, b_25
+  }
+
+  b_25 {
+    %v_26 = add %v_17, 4096: I64
+    %v_27 = syscall 9, 0, %v_26, 3, 34, 18446744073709551615, 0: I64
+    %v_28 = cmp_ilt %v_27, 0: I32
+    %v_29 = bitcast %v_27: Ptr
+    %v_19 = select %v_28, %v_7, %v_29: Ptr
+    %v_30 = bitcast %v_19: I64
+    %v_31 = cmp_eq %v_30, 0: I32
+    je %v_31, b_24, b_16
+  }
+
+  b_24 {
+    ret 0
+  }
+
+  b_16 {
+    jmp b_14
+  }
+}
+

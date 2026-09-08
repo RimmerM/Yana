@@ -22,7 +22,7 @@ instance Sized(Buf(n)): Buf(n).units
 
 fn units(x: a [shared call]) -> I32 = <no body>
 
-fn capacity(b: Buf(n) [shared call]) -> I32 {
+fn capacity'2(b: Buf(n) [shared call]) -> I32 {
   form specialized
   slot #0 const n
 bb0:
@@ -35,7 +35,7 @@ fn free(b: Buf(n) [shared call]) -> I32 {
   slot #0 const n
 bb0:
   %0: Buf(n) = read copy.trivial (b)
-  %1: I32 = call capacity(n) borrow.shared %0
+  %1: I32 = call capacity'2(n) borrow.shared %0
   %2: I32 = read copy.trivial (b.used)
   %3: I32 = sub inspect %1 inspect %2
   return take %3
@@ -66,7 +66,7 @@ fn Buf(n).units(x: Buf(n) [shared call]) -> I32 {
   slot #0 const n
 bb0:
   %0: Buf(n) = read copy.trivial (x)
-  %1: I32 = call capacity(n) borrow.shared %0
+  %1: I32 = call capacity'2(n) borrow.shared %0
   return take %1
 }
 
@@ -132,14 +132,14 @@ bb3:
 
 fn Buf(n).units(16)(x: Buf(16) [shared call]) -> I32 = <Buf(n).units at 16>
 
-fn capacity(16)(b: Buf(16) [shared call]) -> I32 = <capacity at 16>
+fn capacity'2(16)(b: Buf(16) [shared call]) -> I32 = <capacity at 16>
 
 fn free(4)(b: Buf(4) [shared call]) -> I32 = <free at 4>
 
 fn free(64)(b: Buf(64) [shared call]) -> I32 = <free at 64>
 
-fn capacity(4)(b: Buf(4) [shared call]) -> I32 = <capacity at 4>
+fn capacity'2(4)(b: Buf(4) [shared call]) -> I32 = <capacity at 4>
 
-fn capacity(64)(b: Buf(64) [shared call]) -> I32 = <capacity at 64>
+fn capacity'2(64)(b: Buf(64) [shared call]) -> I32 = <capacity at 64>
 
 entry main

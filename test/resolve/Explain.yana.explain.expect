@@ -75,7 +75,7 @@ fn allocateHeap(size: Size) -> %U8
   mutates:    none
   retains:    none
   returns:    a borrow rooted in storage no caller can name
-  calls:      called at 3 sites
+  calls:      called at 4 sites
   hint:       storage the result escapes the frame -> heap; returns a borrow rooted in storage no caller can name
   hover:
 ---
@@ -102,7 +102,7 @@ fn replace(&slot: Pair, ->with: Pair) -> ()
 ---
 - **retains**: with
 
-fn borrowed(return p: Pair) -> 'I64
+fn borrowed(return p: 'Pair) -> 'I64
   suspends:   unknown (not inferred yet)
   ambients:   unknown (not implemented)
   storage:    the result's storage is the caller's, not this frame's

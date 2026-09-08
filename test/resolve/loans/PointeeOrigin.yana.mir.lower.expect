@@ -1,0 +1,36 @@
+mut @trace = [0, 0, 0, 0]
+
+Guard.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = load %value, 4: I32
+    %v_2 = loads @trace, 4: I32
+    %v_3 = add %v_2, %v_1: I32
+    store @trace, %v_3, 4
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 10, 4
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 2, 4
+    %v_4 = imm 20: I32
+    %v_5 = add %v_1, 12: Ptr
+    store %v_5, %v_4, 4
+    %v_6 = loads %v_2, 4: I32
+    %v_7 = loads %v_1, 4: I32
+    call_complex Guard.drop, %v_1
+    %v_8 = add %v_1, 8: Ptr
+    call_complex Guard.drop, %v_8
+    %v_9 = add %v_6, %v_4: I32
+    %v_10 = add %v_9, %v_7: I32
+    %v_11 = loads @trace, 4: I32
+    %v_12 = add %v_10, %v_11: I32
+    ret %v_12
+  }
+}
+

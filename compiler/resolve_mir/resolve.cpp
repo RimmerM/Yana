@@ -56,6 +56,77 @@ Maybe<U64> Resolver::readBitsAttribute(ast::Type& type) {
 }
 
 /*
+ * `@inline(n) @capacity(n)` on a container type - Implementation-Containers.md §7, as far as this
+ * stage can carry it.
+ *
+ * **Only the capacity is honoured here, and the placement is not.** `@capacity(n)` says the
+ * container starts with room for `n` elements, which is a statement about the container and is what
+ * the one caller in `lib/` depends on: `withPathCString` writes `PATH_MAX` bytes through
+ * `valuesMut` into slots above the length. `@inline(n)` says those slots live in the frame, and that
+ * is a *placement*, which this stage decides nowhere - `newRun` puts every run on the heap here, for
+ * the reason Analysis-Manifestations.md §9.3 gives: the escape analysis that would place one in the
+ * frame is unbuilt. So a refined array costs an allocation and a free that the shipping stage does
+ * not pay, and means the same thing.
+ *
+ * The pair is checked exactly as `resolveContainerRefinement` checks it in the shipping stage,
+ * because the rows that spill are the ones neither stage builds and refusing them by name is what
+ * keeps an author from believing in a layout.
+ *
+ * Answers false having reported. `into` is left zero where nothing was written.
+ */
+bool Resolver::readContainerRefinement(ast::Type& type, U64& into) {
+    if(!type.attributes) return true;
+
+    Maybe<U64> slots;
+    Maybe<U64> capacity;
+    LocationId source = type.source;
+
+    for(auto attribute: parse[type.attributes]->contents(parse)) {
+        auto which = findAttribute(stringView(context.findName(attribute.name)));
+        if(which != DeclAttribute::Inline && which != DeclAttribute::Capacity) continue;
+
+        source = attribute.source;
+
+        if(attribute.args.size() != 1) {
+            context.diagnostics.error("`@inline` and `@capacity` each take one count - "
+                                      "`@inline(4) @capacity(4) [Int]`"_v, attribute.source);
+            return false;
+        }
+
+        // A written number, for `readBitsAttribute`'s reason one attribute over: a bound is a
+        // property of the declaration and nothing in the module has been evaluated yet.
+        auto written = attribute.args.get(parse, 0).value;
+        if(written.kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+            context.diagnostics.error("`@inline` and `@capacity` take a written number - "
+                                      "`@inline(4) @capacity(4) [Int]`"_v, written.source);
+            return false;
+        }
+
+        if(which == DeclAttribute::Inline) slots = Just(U64(written.lit.i()));
+        else capacity = Just(U64(written.lit.i()));
+    }
+
+    if(!slots.isJust() && !capacity.isJust()) return true;
+
+    if(!slots.isJust() || !capacity.isJust() || slots.unwrap() != capacity.unwrap()) {
+        context.diagnostics.error(
+            "only `@inline(n) @capacity(n)` is built - the rows that spill need a discriminant "
+            "saying whether the inline bytes hold elements or a pointer to them"_v, source);
+        return false;
+    }
+
+    if(!slots.unwrap()) {
+        context.diagnostics.error(
+            "`@inline(0) @capacity(0)` is an array that can hold nothing - write `[T]` for one that "
+            "allocates, or a larger bound"_v, source);
+        return false;
+    }
+
+    into = slots.unwrap();
+    return true;
+}
+
+/*
  * `@box` written on a field's type.
  *
  * Read here beside `@bits` because the two are written in the same position, and they **compose**:
@@ -88,6 +159,53 @@ bool Resolver::readBoxAttribute(ast::Type& type) {
     }
 
     return boxed;
+}
+
+/*
+ * `@host T` on a field - Implementation-Containers.md §14's elision, and `RecordField::host`.
+ *
+ * The third of `@bits`/`@box`'s family: an annotation written on a field's type that changes the
+ * field's physical representation and that generic code sees straight through. `@bits` narrows the
+ * width, `@box` moves the storage out of line, and this one says the field is not stored at all -
+ * the value the record holds already answers the property, under the field's own name.
+ *
+ * **This stage records it and no more.** Nothing native reads it: a native record with a `@host`
+ * field lays the field out exactly as it would have without one, which is what makes the attribute
+ * a JS-visible *source* fact rather than a representation this stage has to implement. What reads it
+ * is the JS pipeline, later.
+ *
+ * Both pairings are refused, and neither refusal is tidiness: `@bits` narrows a field into a word
+ * shared with its neighbours and an elided field has no word, and `@box` makes the field an address
+ * and an elided field has no storage to take one of.
+ */
+bool Resolver::readHostAttribute(ast::Type& type) {
+    if(!type.attributes) return false;
+
+    auto elided = false;
+    auto conflict = false;
+
+    for(auto attribute: parse[type.attributes]->contents(parse)) {
+        auto which = findAttribute(stringView(context.findName(attribute.name)));
+
+        if(which == DeclAttribute::Bits || which == DeclAttribute::Box) conflict = true;
+        if(which != DeclAttribute::Host) continue;
+
+        if(attribute.args.size()) {
+            context.diagnostics.error("`@host` takes no arguments - the property is the field's own name"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        elided = true;
+    }
+
+    if(elided && conflict) {
+        context.diagnostics.error("`@host` cannot combine with `@bits` or `@box` - a field elided onto a host property has no storage of its own, so there is nothing for a written width to narrow and nothing for an indirection to point at"_v,
+                                  type.source);
+        return false;
+    }
+
+    return elided;
 }
 
 /*
@@ -170,6 +288,13 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
                                   type.source);
     }
 
+    // `@host` is the same sentence one axis over - a statement about a field rather than about a
+    // type - so it is refused in the same position and for the same reason.
+    if(!atField && readHostAttribute(type)) {
+        context.diagnostics.error("`@host` can only be written on a field of a record or tuple - it says the host value answers this property under the field's name, not that the type is one"_v,
+                                  type.source);
+    }
+
     // Resolved *without* the attribute first, so that the refinement applies to whatever the type
     // turned out to be - an alias, a builtin name, a substituted variable - rather than needing an
     // arm per way of spelling an integer.
@@ -177,6 +302,26 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
         auto plain = type;
         plain.attributes = nullptr;
         return resolveBitsType(resolveType(plain), bits.unwrap(), type.source);
+    }
+
+    /*
+     * A container refinement that reached *here* is one written somewhere it means nothing.
+     *
+     * The two positions that honour it - the `::` of an array literal in a body and in a constant -
+     * read it themselves and resolve the type without the attributes, exactly as the `@bits` arm
+     * above does. So anything left is a field, a parameter or a result asking for a capacity the
+     * thing that fills it will not have, and that is reported rather than dropped: an annotation
+     * silently ignored is a representation its author believes in.
+     */
+    U64 capacity = 0;
+    if(!readContainerRefinement(type, capacity)) return nullptr;
+
+    if(capacity) {
+        context.diagnostics.error(
+            "`@inline(n) @capacity(n)` is honoured on the `::` of an array literal, which is what "
+            "builds the container - written here it names a capacity nothing would give it"_v,
+            type.source);
+        return nullptr;
     }
 
     switch(type.kind) {
@@ -378,6 +523,32 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
 
             return tupleType(context, program, fields.pointer(), fields.size(), type.source);
         }
+        /*
+         * `[K: V]` - the map type, written the way its literal is.
+         *
+         * The declaration is `known.def`'s `map` role rather than a name, on the terms every other
+         * container type here is under: what `[K: V]` means is whichever `data` claimed the role,
+         * and a library that declares none reports that by name instead of resolving to something
+         * else called `Map`.
+         */
+        case ast::Type::Map: {
+            auto declared = program.roles.record(intrinsic::Known::map);
+            if(!declared) {
+                reportMissingRole(intrinsic::Known::map, "a map type"_v, type.source);
+                return nullptr;
+            }
+
+            auto& written = type.map;
+            auto key = resolveType(*parse[written.from]);
+            auto value = resolveType(*parse[written.to]);
+            if(!key || !value) return nullptr;
+
+            if(!requireValueType(key, parse[written.from]->source)) return nullptr;
+            if(!requireValueType(value, parse[written.to]->source)) return nullptr;
+
+            DeclPtr<Type> arguments[2] = { key, value };
+            return instantiateRecord(context, program, declared, arguments, 2, type.source);
+        }
         case ast::Type::ArrInferred:
             /*
              * `[T *_]` in a position with no literal to count - `doc/spec/expressions.md`.
@@ -554,6 +725,35 @@ bool Resolver::checkFixedArrayLength(I64 length, LocationId source) {
  * what makes that true rather than something checked for.
  */
 DeclPtr<Type> Resolver::resolveAscribedType(ast::Type& written, ast::Expr& value) {
+    /*
+     * `e :: 'T` and `e :: &T` - a sigil in front of an ascribed type.
+     *
+     * `let view = Native.atomicAt(p) :: 'Atomic(U32)` is what writes it, and what the tick says
+     * there is what the *expression already is*: `atomicAt` hands back a view of somebody's storage,
+     * and the ascription is there to say which `a` the view is of. An ascription is a hint and a
+     * widening - `doc/spec/overloading.md` - so it names a **type** and never a contract: nothing
+     * here could make an owned value into a loan, and a `let` reads its own ownership off the
+     * initializer the way it always does.
+     *
+     * So the sigils are read for the type under them and contribute nothing else. A label is refused
+     * rather than dropped, because it would be naming an origin set - and an expression is not a
+     * signature, so there is nothing here to publish one.
+     */
+    auto type = &written;
+
+    while(type->kind == ast::Type::Shared || type->kind == ast::Type::Borrow) {
+        if(type->ref.group) {
+            context.diagnostics.error(
+                "an origin is published by a signature, and this is an expression - write the type alone"_v,
+                type->source);
+            return nullptr;
+        }
+
+        type = parse[type->ref.to];
+    }
+
+    if(type != &written) return resolveAscribedType(*type, value);
+
     if(written.kind != ast::Type::ArrInferred) return resolveType(written);
 
     /*
@@ -599,6 +799,34 @@ DeclPtr<Type> Resolver::resolveConstParameterType(ast::Type& written) {
 
 DeclPtr<Type> Resolver::resolveTypeArgument(ast::Type& written, DeclPtr<GenContext> head,
                                             Size position) {
+    /*
+     * A lowercase name at a **counting** position introduces a variable that counts.
+     *
+     * `fn (Digest(d, n)) Hmac.of(...) -> [U8 *n]` is the case, and the class head is what decides
+     * it: `class Digest(d -> n: Int)` says the second position is a number, so `n` written opposite
+     * it is a const parameter of *this* signature and not a type it happens to share a spelling
+     * with. Without this the name arrived through `resolveType` as an ordinary type variable and
+     * `checkArgumentKinds` reported the one thing the author could not have written differently -
+     * there is no spelling for "a const parameter introduced by a constraint" in the constraint
+     * list, and `fn (n: Int, Digest(d, n))` declares it *before* the class says what it is.
+     *
+     * Only where the enclosing context has not already bound the name, so an explicit
+     * `fn (n: Int, Digest(d, n))` still means what it says, and only where the head's parameter
+     * carries an annotation - which is the same `constType` the literal arm below reads, so a
+     * number and a name at one position are decided by one fact.
+     */
+    if(written.kind == ast::Type::Gen && !findGenVariable(decl(), genContext, written.name)) {
+        auto counted = headParameterOf(decl(), head, position);
+
+        if(counted && ((VariableType*)decl()[counted])->constType) {
+            if(!roomForVariable(genContext, written.name, written.source)) return nullptr;
+
+            auto introduced = genVariable(program, genContext, written.name, written.source,
+                                          ((VariableType*)decl()[counted])->constType);
+            if(introduced) return introduced;
+        }
+    }
+
     if(written.kind != ast::Type::Lit) return resolveType(written);
 
     /*
@@ -726,7 +954,19 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint, bool* no
             // `resolveAscribedType` rather than `resolveType`, which is what makes `[3, 1, 4] ::
             // [U8 *_]` mean the same thing in a global's initializer as in a body.
             auto& coerce = *parse[expr.coerce];
-            auto type = resolveAscribedType(coerce.type, coerce.target);
+
+            /*
+             * A container refinement is read off and the type resolved without it - the ascription
+             * is one of the two positions that honour one. A *constant* has no run to reserve, so
+             * the capacity is checked here and then means nothing: a global's array literal is
+             * placed bytes, and there is no growth for a bound to be a bound of.
+             */
+            U64 capacity = 0;
+            auto written = coerce.type;
+            if(!readContainerRefinement(written, capacity)) return Constant();
+            if(capacity) written.attributes = nullptr;
+
+            auto type = resolveAscribedType(written, coerce.target);
             if(!type) return Constant();
 
             return resolveConstant(coerce.target, type, notConstant);
@@ -911,6 +1151,31 @@ void Resolver::checkTextDefaults() {
 }
 
 /*
+ * The record a constructor written in a constant position builds - the declaration, or the
+ * instantiation the **position** asked for.
+ *
+ * A generic `data Opt(a) = None | Some(a)` has no type for `None` until something binds `a`, and
+ * what would bind it from the *inside* is the inference a construction runs over its field values -
+ * a `TypeArguments` walk this position has no builder to make one with. What binds it from the
+ * outside is the position, which is written down wherever a constant is what a position is for:
+ * `state: State(Int) = On` and `limit: Maybe(Int) = Just(4) :: Maybe(Int)` are the two shapes, and
+ * `Types::instantiate` has already substituted that head's fields, so the walk below reads them
+ * without substituting anything itself.
+ *
+ * Null where the position says nothing or names a different declaration - "not this form", so the
+ * caller reports at the expression the author wrote rather than about a head this walk inferred.
+ */
+Maybe<DeclPtr<Type>> Resolver::constantHeadFor(DeclPtr<RecordType> declaration, DeclPtr<Type> hint) {
+    if(!decl()[declaration]->gen) return Just(asBase<Type>(declaration));
+    if(!hint || decl()[hint]->kind != Type::Record) return Nothing();
+
+    auto& instantiated = *(RecordType*)decl()[hint];
+    if(instantiated.instanceOf != declaration) return Nothing();
+
+    return Just(hint);
+}
+
+/*
  * `Off`, `True` - a constructor that carries nothing, which is a **compile-time value**.
  *
  * The one construction that folds to a constant, and generally rather than for `Bool`'s sake: a
@@ -935,11 +1200,17 @@ Maybe<Constant> Resolver::resolveConstructorConstant(ast::Expr& expr, DeclPtr<Ty
     auto found = findConstructor(context, program, here(), written.type.name, expr.source);
     if(!found) return Nothing();
 
-    auto& record = *decl()[found.record];
-    if(record.gen || record.layout != RecordLayout::Enum) return Nothing();
+    auto& declared = *decl()[found.record];
+    if(!reachesInside(declared, expr.source, "its constructor"_v)) return Just(Constant());
 
     auto type = asBase<Type>(found.record);
-    if(!reachesInside(record, expr.source, "its constructor"_v)) return Just(Constant());
+    auto instantiated = constantHeadFor(found.record, hint);
+    if(!instantiated) return Nothing();
+
+    auto& record = *(RecordType*)decl()[instantiated.unwrap()];
+    if(record.layout != RecordLayout::Enum) return Nothing();
+
+    type = instantiated.unwrap();
 
     // The same refusal `resolveConstruction` makes in the same words, since it is the same mistake:
     // what this builds is decided by the constructor, and the position asked for something else.
@@ -1140,6 +1411,12 @@ Maybe<Constant> Resolver::resolveArrayConstant(ast::Expr& expr, DeclPtr<Type> hi
     auto shaped = arrayLiteralShape(expr, hint, written.size());
     if(!shaped) return Just(Constant());
 
+    // A count only a specialization knows is not a constant *here*: an `AggregateConstant` holds one
+    // value per element and there is no number to make that list as long as. "Not this form", so the
+    // value path builds the fill - which is where a quantified count can be one at all, since a
+    // constant position is never inside a generic body.
+    if(shaped.unwrap().quantified) return Nothing();
+
     auto element = shaped.unwrap().element;
 
     SmallArray<Constant, 8> values;
@@ -1214,20 +1491,14 @@ Maybe<Constant> Resolver::resolveAggregateConstant(ast::Expr& expr, DeclPtr<Type
     auto found = findConstructor(context, program, here(), written.type.name, expr.source);
     if(!found) return Nothing();
 
-    auto& record = *decl()[found.record];
+    auto& declared = *decl()[found.record];
+    if(!reachesInside(declared, expr.source, "its constructor"_v)) return Just(Constant());
 
-    /*
-     * A **generic** declaration, which is the one limit left.
-     *
-     * `data Opt(a) = None | Some(a)` has no type for `None` until something binds `a`, and what
-     * would bind it here is the inference a construction runs over its field values - which is a
-     * `TypeArguments` walk this position has no builder to make one with. So it comes back as "not
-     * this form", and the position says what it says about anything else it cannot reduce.
-     */
-    if(record.gen) return Nothing();
+    auto instantiated = constantHeadFor(found.record, hint);
+    if(!instantiated) return Nothing();
 
-    auto type = asBase<Type>(found.record);
-    if(!reachesInside(record, expr.source, "its constructor"_v)) return Just(Constant());
+    auto& record = *(RecordType*)decl()[instantiated.unwrap()];
+    auto type = instantiated.unwrap();
 
     // The same refusal `resolveConstruction` makes in the same words, since it is the same mistake:
     // what this builds is decided by the constructor, and the position asked for something else.
@@ -1463,7 +1734,7 @@ static intrinsic::Provided providerOf(intrinsic::Known role) {
  * both. Two spellings of `expr.kind - ast::Expr::Lit` is how one of them comes to test the wrong
  * kind after an enum grows an entry.
  */
-static bool isStringLiteral(ast::Expr& expr) {
+bool isStringLiteral(ast::Expr& expr) {
     return ast::isLiteral(expr) &&
            ast::Literal::Kind(expr.kind - ast::Expr::Lit) == ast::Literal::String;
 }
@@ -1555,6 +1826,30 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
     }
 
     /*
+     * `let &sink = 0 :: Vec(I32, 4)` - a literal at a **vector**, which is the same number in every
+     * lane and therefore an aggregate of `lanes` constants.
+     *
+     * The splat is what `FromInt`'s vector instance already computes in a value position
+     * (`expand_provided.cpp`, where the argument for that answer is made), said here as a value
+     * rather than as a node: a constant position has no builder, and the bytes a global holds before
+     * anything runs are exactly the lane's bytes repeated. So the two paths agree by construction
+     * and neither is a second reading of what a number at a vector means.
+     *
+     * A count nothing has decided - the natural form inside a generic body, or a quantified one - is
+     * refused by the ordinary message below rather than here: there is no number to make the list as
+     * long as, which is `resolveArrayConstant`'s refusal at a different shape.
+     */
+    if(auto lanes = vectorLanes(decl(), type)) {
+        auto lane = resolveLiteral(expr, laneTypeOf(decl(), type), negative);
+        if(!lane.isSet()) return Constant();
+
+        SmallArray<Constant, 8> values;
+        for(U32 i = 0; i < lanes; i++) values.push(lane);
+
+        return program.aggregateConstant(type, 0, values.pointer(), values.size());
+    }
+
+    /*
      * Asked of the **canonical** integer, which is `canonicalInt`'s rule and not an exception here:
      * `@bits(2) U32` is a type of its own because its storage differs, and what it dispatches,
      * computes and converts as is the `U32` it refines. So `0 :: HeapFlag` is the compiler's own
@@ -1632,8 +1927,8 @@ DeclPtr<Global> Resolver::stringBytesGlobal(StringId written, LocationId source)
  * function `known.def` names, whose body is where a run that owns nothing is described and whose
  * result is the `String` the role names. Nothing here spells a field of it.
  *
- * The call is `@inline(always)` in the prelude, so what a use of a literal costs is the stores the
- * body writes and no call.
+ * The call is `@inline(always)` in `lib/`, so what a use of a literal costs is the stores the body
+ * writes and no call.
  *
  * **The one place a text becomes a value**, which is what `Constant::Text` is for: a literal
  * written in a body and a literal written as a default reach the same expansion here, and the day
@@ -1654,20 +1949,57 @@ Node* Resolver::textValue(Builder& builder, StringId written, LocationId source)
         return nullptr;
     }
 
-    // A borrow of the global, at the published request `addressOf`'s parameter states - which is
-    // what makes the read a loan rather than a copy of every byte.
+    /*
+     * A **published shared borrow** of the global, stated here rather than read off whatever the
+     * library declared for `addressOf`.
+     *
+     * The two spellings differ and only one of them is a string literal. Written `it: source'a` the
+     * argument is a loan and the address is the bytes' own; `lib/Native/Pointer.yana`
+     * writes `it: a`, an unpublished position that `readMode` answers with a *trivial copy* - so the
+     * global's three bytes were copied into a frame slot and the `String` handed back described that
+     * slot. `fn abcOf(i: Size) -> String = "abc"` then answered three bytes of the caller's stack,
+     * and every literal that survived its frame was garbage of the right length.
+     *
+     * The compiler placed these bytes, so what it wants of them is not negotiable by a declaration:
+     * a run in static storage has an address and the literal is a description of it. `addressOf` is
+     * still the operation - the pointer's provenance and the diagnostic both belong to it - and this
+     * is only the request the read is made at. `lib`'s spelling stays as it is, because it is what
+     * `test/resolve/Global.yana` pins for `addressOf` of a constant in the shipping stage.
+     */
     auto& taker = *decl()[addressOf];
     auto place = builder.globalPlace(pointer);
     auto borrowed = readPlace(builder, source, *place,
-                              requestOf(decl()[taker.args.get(decl(), 0)]->occurrence));
+                              Request { Access::Shared, true, 0, AccessForm::WholeValue });
     if(!borrowed) return nullptr;
 
     Node* of[1] = { borrowed };
     auto address = callFunction(builder, taker, of, 1, source);
     if(!address) return nullptr;
 
+    auto literal = program.roles.function(intrinsic::Known::stringLiteral);
+    if(!literal) {
+        reportMissingRole(intrinsic::Known::stringLiteral, "a string literal"_v, source);
+        return nullptr;
+    }
+
+    /*
+     * The count at the width `stringLiteral` **declares**, and not at the target word.
+     *
+     * The role's signature is the one source of truth about what this call takes:
+     * `lib/Native/Text.native.yana` writes `length: Int` where the target word is `Size`, and that is
+     * a library saying what its own string builder wants. Building the constant at the target word instead
+     * made every literal in `lib/` "an argument must be I32, and this is Size" - 31 of them in the
+     * Core closure alone - for a number the compiler knows exactly and could have written at either
+     * width. `textConstantValue` in evaluate.cpp has asked the declaration all along; this is the
+     * same question on the path that emits instructions rather than runs the body.
+     */
+    auto& declared = *decl()[literal];
+    auto count_ = declared.args.size() == 2
+        ? decl()[declared.args.get(decl(), 1)]->occurrence.type
+        : program.types.words[1];
+
     auto units = builder.addBitcast(source, *address, program.types.pointerType(unit));
-    auto length = builder.addConst(source, intConstant(program.types.words[1], count));
+    auto length = builder.addConst(source, intConstant(count_, count));
 
     Node* arguments[2] = { units, length };
     return callKnown(builder, intrinsic::Known::stringLiteral, arguments, 2, source);
@@ -1814,7 +2146,8 @@ ModuleScope::~ModuleScope() {
  * statement the first point makes from the other side: a pass that finished a module before starting
  * the next would be an ordering between them, and a cycle has no ordering to be given.
  */
-Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::ModuleProvider* provider) {
+Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::ModuleProvider* provider,
+                            Buffer<ast::ModuleGroup*> testRoots) {
     // The one invariant `compiler/intrinsic`'s four tables cannot state as a `static_assert`: no two
     // rows anywhere share a role name. A duplicate would make which of them `@builtin` reached
     // depend on the order the tables are searched, silently. Assertion builds only.
@@ -1823,7 +2156,7 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     auto program = Ptr<Program>(new Program());
 
     Array<ast::ModuleGroup*> groups;
-    discoverModules(context, *program, root, provider, groups);
+    discoverModules(context, *program, root, provider, groups, testRoots);
 
     Resolver resolver { context, *program, *context.parseRegion, nullptr, toBuffer(groups) };
 
@@ -1925,6 +2258,19 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     resolver.eachFile([&](ast::Module& file) { resolver.declare(file); });
 
     /*
+     * And the instances whose head is a **payload-free sum** - `provideEnumInstances`, one `Enum`,
+     * `Eq` and `Ord` per `data`.
+     *
+     * Here rather than beside `provideInstances` above, and the position is the whole difference
+     * between the two: the families up there are the target's widths, which no declaration can add
+     * to, and these are the program's own enums - so this pass has to see every `data` *and* every
+     * written `instance`, because a program that declared `instance Eq(Colour)` gets its own and not
+     * the compiler's. Skipping a head the table already holds is what states that, where the
+     * shipping stage states it by consulting its hooks only after a lookup failed.
+     */
+    resolver.provideEnumInstances();
+
+    /*
      * The field defaults the record walk queued - `Resolver::PendingDefault`, where the ordering
      * this closes is argued.
      *
@@ -1943,6 +2289,9 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     // The string defaults every pass above queued, now that `stringLiteral`'s own declaration is
     // certainly in - `Resolver::PendingTextDefault`, where the ordering this closes is argued.
     resolver.checkTextDefaults();
+
+    // And the `@caller` positions that have to be that same type - `Resolver::PendingCallerText`.
+    resolver.checkCallerTexts();
 
     /*
      * Every instance's superclasses, now that there is nothing left to declare.
@@ -2019,7 +2368,10 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      * that answer. It is the same statement `resolveInitializers` makes about a constant one, made
      * about the half that is code.
      */
-    resolver.resolveProgramEntry();
+    // Under `-test` the entry is the suite rather than `main` - Design-Test.md §3.3's third rule, and
+    // resolve_test.cpp. Both run the root's top level first, which is what makes the choice a tail.
+    if(context.settings.test) resolver.resolveTestEntry();
+    else resolver.resolveProgramEntry();
 
     resolver.eachFile([&](ast::Module& file) { resolver.resolveBodies(file); });
 
@@ -2027,6 +2379,10 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     // `PendingTextGlobal`. Here because this is the first point at which the library's own string
     // builder has one, and before anything reads what a global holds.
     resolver.resolveTextGlobals();
+
+    // And the string *tables* - a `map` whose arms are literals, on exactly the same terms and for
+    // exactly the same reason. See `PendingTextMap`.
+    resolver.resolveTextMaps();
 
     // The one question a class declaration cannot be asked before its defaults have bodies - see
     // `checkClassDefaults`. Here rather than inside the walk above, because a default may call a
@@ -2070,6 +2426,15 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     if(context.diagnostics.errorCount()) return program;
 
     computeSummaries(context, *program);
+
+    /*
+     * Whether a boxed field needs a provenance bit at all - `settleBoxProvenance`.
+     *
+     * After the summaries because it is a question about the *reachable* bodies and reachability is
+     * what that walk decides, and before anything asks for a layout because the answer is half of
+     * `ssa::storesBoxProvenance` and a `Repr` is memoized on the record it describes.
+     */
+    settleBoxProvenance(*program);
 
     // Every specialization the walks above made, against the generic it came from - `verify.h`. Last
     // because it is the only check whose subject does not exist until the walks have run.

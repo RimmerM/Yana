@@ -1,0 +1,964 @@
+module ResolveTest
+
+data Table {rows: Map(I32, I32)} reclaim derived
+
+let & shared: Map(I32, I32)
+
+let string'142: [CodeUnit *1] = [120]
+
+let string'143: [CodeUnit *1] = [121]
+
+let string'144: [CodeUnit *1] = [120]
+
+let string'145: [CodeUnit *1] = [121]
+
+fn total(m: Map(I32, I32) [shared call]) -> I32 {
+  local & sum: I32
+  local e: Entry(I32, I32) [shared call shape5 .0=shared slot 0 .1=shared slot 0]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: Map(I32, I32) [shared slot 0] = read borrow.shared (m) loan0
+  lens.call pairs(I32, I32) borrow.shared %2 -> bb2
+
+bb1:
+  %11: I32 = read copy.trivial (sum)
+  return take %11
+
+bb2(%3: Entry(I32, I32) [shared call shape5 .0=shared slot 0 .1=shared slot 0]) handover(Entry(I32, I32) [shared call shape5 .0=shared slot 0 .1=shared slot 0]) many -> bb1:
+  write.init borrow.unique (e) borrow.shared %3
+  %6: I32 = read copy.trivial (sum)
+  %7: I32 = read copy.trivial (e.value)
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (sum) take %8
+  jump -> bb1
+}
+
+fn single(key: k, value: v) -> Map(k, v) {
+  form specialized
+  slot #0 type k
+  slot #1 type v
+  slot #2 class Hash(k)
+  local & local2: Map(k, v)
+
+bb0:
+  %0: k = read take (key)
+  %1: v = read take (value)
+  %2: Size = const 1
+  %3: Map(k, v) = call newMap(k, v) borrow.shared %2
+  write.init borrow.unique (local2) take %3
+  %5: Map(k, v) [unique call] = read borrow.unique (local2) loan0
+  %6: {} = call insertAt(Map(k, v), k, v) borrow.unique %5 take %0 take %1
+  %7: Map(k, v) = read take (local2)
+  return take %7
+}
+
+fn pair(k1: k, v1: v, k2: k, v2: v) -> Map(k, v) {
+  form specialized
+  slot #0 type k
+  slot #1 type v
+  slot #2 class Hash(k)
+  local & local4: Map(k, v) object2
+  local & m: Map(k, v) object2
+
+bb0:
+  %0: k = read take (k1)
+  %1: v = read take (v1)
+  %2: Size = const 1
+  %3: Map(k, v) = call newMap(k, v) borrow.shared %2
+  write.init borrow.unique (local4) take %3
+  %5: Map(k, v) [unique call] = read borrow.unique (local4) loan0
+  %6: {} = call insertAt(Map(k, v), k, v) borrow.unique %5 take %0 take %1
+  %7: Map(k, v) = read take (local4)
+  write.init borrow.unique (m) take %7
+  %9: Map(k, v) [unique call] = read borrow.unique (m) loan1
+  %10: k = read take (k2)
+  %11: v = read take (v2)
+  %12: {} = call insertAt(Map(k, v), k, v) borrow.unique %9 take %10 take %11
+  %13: Map(k, v) = read take (m)
+  return take %13
+}
+
+fn emptyOf() -> Map(k, v) {
+  form specialized
+  slot #0 type k
+  slot #1 type v
+  slot #2 class Hash(k)
+  local & local0: Map(k, v)
+
+bb0:
+  %0: Size = const 0
+  %1: Map(k, v) = call newMap(k, v) borrow.shared %0
+  write.init borrow.unique (local0) take %1
+  %3: Map(k, v) = read take (local0)
+  return take %3
+}
+
+fn main() -> I32 {
+  local & local0: Map(I32, I32) object0
+  local & m: Map(I32, I32) object0
+  local local2: I32 [shared slot 0]
+  local local3: I32 [shared slot 0]
+  local local4: I32 [shared slot 0]
+  local local5: I32 [shared slot 0]
+  local local6: I32 [shared slot 0]
+  local & local7: Map(I32, I32) object3
+  local inferred: Map(I32, I32) object3
+  local & local9: Map(I32, I32) object6
+  local & empty: Map(I32, I32) object6
+  local local11: I32 [shared slot 0]
+  local & local12: Map(I32, I32) object9
+  local ascribed: Map(I32, I32) object9
+  local & local14: Map(I32, I32) object12
+  local local15: Map(I32, I32) object12
+  local & local16: Map(I32, I32)
+  local & table: Table
+  local local18: I32 [shared slot 0]
+  local local19: I32 [shared slot 0]
+  local & local20: Map(I32, I32) object19
+  local dup: Map(I32, I32) object19
+  local local22: I32 [shared slot 0]
+  local local23: I32 [shared slot 0]
+  local & local24: Map(I32, I32) object22
+  local & big: Map(I32, I32) object22
+  local & i: I32
+  local & found: I32
+  local local28: I32 [shared slot 0]
+  local & local29: Map(I32, I32) object27
+  local ordered: Map(I32, I32) object27
+  local & seen: I32
+  local e: Entry(I32, I32) [shared call shape5 .0=shared slot 0 .1=shared slot 0]
+  local local33: I32 [shared slot 0]
+  local local34: I32 [shared slot 0]
+  local one: Map(I32, I32)
+  local two: Map(String, I32)
+  local none: Map(I32, I32)
+  local local38: I32 [shared slot 0]
+  local local39: String
+  local local40: I32 [shared slot 0]
+  local local41: String
+  local local42: I32 [shared slot 0]
+  local & local43: Array(I32)
+  local & local44: Array(I32)
+  local & local45: Map(I32, Array(I32)) object47
+  local lists: Map(I32, Array(I32)) object47
+  local & elements: I32
+  local e: Entry(I32, Array(I32)) [shared call shape8 .0=shared slot 0 .1=shared slot 0 view]
+  local & local49: Map(I32, I32)
+  local & local50: Map(I32, Map(I32, I32)) object53
+  local nested: Map(I32, Map(I32, I32)) object53
+  local local52: Map(I32, I32) [shared slot 0]
+  local local53: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 10
+  %2: I32 = const 2
+  %3: I32 = const 20
+  %4: I32 = const 3
+  %5: I32 = const 30
+  %6: Size = const 3
+  %7: Map(I32, I32) = call newMap(I32, I32) borrow.shared %6
+  write.init borrow.unique (local0) take %7
+  %9: Map(I32, I32) [unique call] = read borrow.unique (local0) loan0
+  %10: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %9 take %0 take %1
+  %11: Map(I32, I32) [unique call] = read borrow.unique (local0) loan1
+  %12: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %11 take %2 take %3
+  %13: Map(I32, I32) [unique call] = read borrow.unique (local0) loan2
+  %14: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %13 take %4 take %5
+  %15: Map(I32, I32) = read take (local0)
+  write.init borrow.unique (m) take %15
+  %17: Map(I32, I32) [shared call] = read borrow.shared (m) loan3
+  %18: Size = call length(Map(I32, I32)) borrow.shared %17
+  %19: I32 = convert inspect %18
+  %20: I32 = const 3
+  %21: Bool = ne inspect %19 inspect %20
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %28: I32 = const 1
+  %29: Map(I32, I32) [shared call] = read borrow.shared (m) loan4
+  %30: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %29 borrow.shared %28 roots{4}
+  write.init borrow.unique (local2) borrow.shared %30
+  %32: I32 = read copy.trivial (local2)
+  %33: I32 = const 2
+  %34: Map(I32, I32) [shared call] = read borrow.shared (m) loan5
+  %35: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %34 borrow.shared %33 roots{5}
+  write.init borrow.unique (local3) borrow.shared %35
+  %37: I32 = read copy.trivial (local3)
+  %38: I32 = add inspect %32 inspect %37
+  %39: I32 = const 3
+  %40: Map(I32, I32) [shared call] = read borrow.shared (m) loan6
+  %41: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %40 borrow.shared %39 roots{6}
+  write.init borrow.unique (local4) borrow.shared %41
+  %43: I32 = read copy.trivial (local4)
+  %44: I32 = add inspect %38 inspect %43
+  %45: I32 = const 60
+  %46: Bool = ne inspect %44 inspect %45
+  branch inspect %46 -> bb6 -> bb4
+
+bb3:
+  drop (m)
+  %23: I32 = const 0
+  %24: I32 = const 1
+  %25: I32 = sub inspect %23 inspect %24
+  return take %25
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %53: I32 = const 4
+  %54: I32 = const 40
+  %55: Map(I32, I32) [unique call] = read borrow.unique (m) loan7
+  %56: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %55 take %53 take %54
+  %57: I32 = const 1
+  %58: I32 = const 100
+  %59: Map(I32, I32) [unique call] = read borrow.unique (m) loan8
+  %60: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %59 take %57 take %58
+  %61: Map(I32, I32) [shared call] = read borrow.shared (m) loan9
+  %62: Size = call length(Map(I32, I32)) borrow.shared %61
+  %63: I32 = convert inspect %62
+  %64: I32 = const 4
+  %65: Bool = ne inspect %63 inspect %64
+  branch inspect %65 -> bb9 -> bb7
+
+bb6:
+  drop (m)
+  %48: I32 = const 0
+  %49: I32 = const 2
+  %50: I32 = sub inspect %48 inspect %49
+  return take %50
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %72: I32 = const 1
+  %73: Map(I32, I32) [shared call] = read borrow.shared (m) loan10
+  %74: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %73 borrow.shared %72 roots{10}
+  write.init borrow.unique (local5) borrow.shared %74
+  %76: I32 = read copy.trivial (local5)
+  %77: I32 = const 100
+  %78: Bool = ne inspect %76 inspect %77
+  branch inspect %78 -> bb12 -> bb10
+
+bb9:
+  drop (m)
+  %67: I32 = const 0
+  %68: I32 = const 3
+  %69: I32 = sub inspect %67 inspect %68
+  return take %69
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %85: I32 = const 4
+  %86: Map(I32, I32) [shared call] = read borrow.shared (m) loan11
+  %87: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %86 borrow.shared %85 roots{11}
+  write.init borrow.unique (local6) borrow.shared %87
+  %89: I32 = read copy.trivial (local6)
+  drop (m)
+  %90: I32 = const 40
+  %91: Bool = ne inspect %89 inspect %90
+  branch inspect %91 -> bb15 -> bb13
+
+bb12:
+  drop (m)
+  %80: I32 = const 0
+  %81: I32 = const 4
+  %82: I32 = sub inspect %80 inspect %81
+  return take %82
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %98: I32 = const 7
+  %99: I32 = const 70
+  %100: Size = const 1
+  %101: Map(I32, I32) = call newMap(I32, I32) borrow.shared %100
+  write.init borrow.unique (local7) take %101
+  %103: Map(I32, I32) [unique call] = read borrow.unique (local7) loan12
+  %104: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %103 take %98 take %99
+  %105: Map(I32, I32) = read take (local7)
+  write.init borrow.unique (inferred) take %105
+  %107: Map(I32, I32) [shared call] = read borrow.shared (inferred) loan13
+  %108: I32 = call total borrow.shared %107
+  drop (inferred)
+  %109: I32 = const 70
+  %110: Bool = ne inspect %108 inspect %109
+  branch inspect %110 -> bb18 -> bb16
+
+bb15:
+  %93: I32 = const 0
+  %94: I32 = const 5
+  %95: I32 = sub inspect %93 inspect %94
+  return take %95
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %117: Size = const 0
+  %118: Map(I32, I32) = call newMap(I32, I32) borrow.shared %117
+  write.init borrow.unique (local9) take %118
+  %120: Map(I32, I32) = read take (local9)
+  write.init borrow.unique (empty) take %120
+  %122: Map(I32, I32) [shared call] = read borrow.shared (empty) loan14
+  %123: Size = call length(Map(I32, I32)) borrow.shared %122
+  %124: I32 = convert inspect %123
+  %125: I32 = const 0
+  %126: Bool = ne inspect %124 inspect %125
+  branch inspect %126 -> bb21 -> bb19
+
+bb18:
+  %112: I32 = const 0
+  %113: I32 = const 6
+  %114: I32 = sub inspect %112 inspect %113
+  return take %114
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %133: I32 = const 1
+  %134: I32 = const 5
+  %135: Map(I32, I32) [unique call] = read borrow.unique (empty) loan15
+  %136: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %135 take %133 take %134
+  %137: I32 = const 1
+  %138: Map(I32, I32) [shared call] = read borrow.shared (empty) loan16
+  %139: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %138 borrow.shared %137 roots{16}
+  write.init borrow.unique (local11) borrow.shared %139
+  %141: I32 = read copy.trivial (local11)
+  %142: I32 = const 5
+  %143: Bool = ne inspect %141 inspect %142
+  branch inspect %143 -> bb24 -> bb22
+
+bb21:
+  drop (empty)
+  %128: I32 = const 0
+  %129: I32 = const 7
+  %130: I32 = sub inspect %128 inspect %129
+  return take %130
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %150: Map(I32, I32) [shared call] = read borrow.shared (empty) loan17
+  %151: Size = call length(Map(I32, I32)) borrow.shared %150
+  drop (empty)
+  %152: I32 = convert inspect %151
+  %153: I32 = const 1
+  %154: Bool = ne inspect %152 inspect %153
+  branch inspect %154 -> bb27 -> bb25
+
+bb24:
+  drop (empty)
+  %145: I32 = const 0
+  %146: I32 = const 8
+  %147: I32 = sub inspect %145 inspect %146
+  return take %147
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %161: I32 = const 8
+  %162: I32 = const 80
+  %163: Size = const 1
+  %164: Map(I32, I32) = call newMap(I32, I32) borrow.shared %163
+  write.init borrow.unique (local12) take %164
+  %166: Map(I32, I32) [unique call] = read borrow.unique (local12) loan18
+  %167: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %166 take %161 take %162
+  %168: Map(I32, I32) = read take (local12)
+  write.init borrow.unique (ascribed) take %168
+  %170: Map(I32, I32) [shared call] = read borrow.shared (ascribed) loan19
+  %171: I32 = call total borrow.shared %170
+  drop (ascribed)
+  %172: I32 = const 80
+  %173: Bool = ne inspect %171 inspect %172
+  branch inspect %173 -> bb30 -> bb28
+
+bb27:
+  %156: I32 = const 0
+  %157: I32 = const 9
+  %158: I32 = sub inspect %156 inspect %157
+  return take %158
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %180: I32 = const 1
+  %181: I32 = const 1
+  %182: I32 = const 2
+  %183: I32 = const 2
+  %184: Size = const 2
+  %185: Map(I32, I32) = call newMap(I32, I32) borrow.shared %184
+  write.init borrow.unique (local14) take %185
+  %187: Map(I32, I32) [unique call] = read borrow.unique (local14) loan20
+  %188: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %187 take %180 take %181
+  %189: Map(I32, I32) [unique call] = read borrow.unique (local14) loan21
+  %190: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %189 take %182 take %183
+  %191: Map(I32, I32) = read take (local14)
+  write.init borrow.unique (local15) take %191
+  %193: Map(I32, I32) [shared call] = read borrow.shared (local15) loan22
+  %194: I32 = call total borrow.shared %193
+  drop (local15)
+  %195: I32 = const 3
+  %196: Bool = ne inspect %194 inspect %195
+  branch inspect %196 -> bb33 -> bb31
+
+bb30:
+  %175: I32 = const 0
+  %176: I32 = const 10
+  %177: I32 = sub inspect %175 inspect %176
+  return take %177
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %203: I32 = const 9
+  %204: I32 = const 90
+  %205: Size = const 1
+  %206: Map(I32, I32) = call newMap(I32, I32) borrow.shared %205
+  write.init borrow.unique (local16) take %206
+  %208: Map(I32, I32) [unique call] = read borrow.unique (local16) loan23
+  %209: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %208 take %203 take %204
+  %210: Map(I32, I32) = read take (local16)
+  %211: Table = aggregate.Table take %210
+  write.init borrow.unique (table) take %211
+  %213: I32 = const 8
+  %214: I32 = const 80
+  %215: Map(I32, I32) [unique call] = read borrow.unique (table.rows) loan24
+  %216: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %215 take %213 take %214
+  %217: I32 = const 9
+  %218: Map(I32, I32) [shared call] = read borrow.shared (table.rows) loan25
+  %219: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %218 borrow.shared %217 roots{25}
+  write.init borrow.unique (local18) borrow.shared %219
+  %221: I32 = read copy.trivial (local18)
+  %222: I32 = const 8
+  %223: Map(I32, I32) [shared call] = read borrow.shared (table.rows) loan26
+  %224: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %223 borrow.shared %222 roots{26}
+  write.init borrow.unique (local19) borrow.shared %224
+  %226: I32 = read copy.trivial (local19)
+  drop (table)
+  %227: I32 = add inspect %221 inspect %226
+  %228: I32 = const 170
+  %229: Bool = ne inspect %227 inspect %228
+  branch inspect %229 -> bb36 -> bb34
+
+bb33:
+  %198: I32 = const 0
+  %199: I32 = const 11
+  %200: I32 = sub inspect %198 inspect %199
+  return take %200
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %236: I32 = const 1
+  %237: I32 = const 10
+  %238: I32 = const 2
+  %239: I32 = const 20
+  %240: I32 = const 1
+  %241: I32 = const 30
+  %242: Size = const 3
+  %243: Map(I32, I32) = call newMap(I32, I32) borrow.shared %242
+  write.init borrow.unique (local20) take %243
+  %245: Map(I32, I32) [unique call] = read borrow.unique (local20) loan27
+  %246: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %245 take %236 take %237
+  %247: Map(I32, I32) [unique call] = read borrow.unique (local20) loan28
+  %248: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %247 take %238 take %239
+  %249: Map(I32, I32) [unique call] = read borrow.unique (local20) loan29
+  %250: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %249 take %240 take %241
+  %251: Map(I32, I32) = read take (local20)
+  write.init borrow.unique (dup) take %251
+  %253: Map(I32, I32) [shared call] = read borrow.shared (dup) loan30
+  %254: Size = call length(Map(I32, I32)) borrow.shared %253
+  %255: I32 = convert inspect %254
+  %256: I32 = const 2
+  %257: Bool = ne inspect %255 inspect %256
+  branch inspect %257 -> bb39 -> bb37
+
+bb36:
+  %231: I32 = const 0
+  %232: I32 = const 12
+  %233: I32 = sub inspect %231 inspect %232
+  return take %233
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %264: I32 = const 1
+  %265: Map(I32, I32) [shared call] = read borrow.shared (dup) loan31
+  %266: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %265 borrow.shared %264 roots{31}
+  write.init borrow.unique (local22) borrow.shared %266
+  %268: I32 = read copy.trivial (local22)
+  %269: I32 = const 30
+  %270: Bool = ne inspect %268 inspect %269
+  branch inspect %270 -> bb42 -> bb40
+
+bb39:
+  drop (dup)
+  %259: I32 = const 0
+  %260: I32 = const 13
+  %261: I32 = sub inspect %259 inspect %260
+  return take %261
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %277: I32 = const 2
+  %278: Map(I32, I32) [shared call] = read borrow.shared (dup) loan32
+  %279: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %278 borrow.shared %277 roots{32}
+  write.init borrow.unique (local23) borrow.shared %279
+  %281: I32 = read copy.trivial (local23)
+  drop (dup)
+  %282: I32 = const 20
+  %283: Bool = ne inspect %281 inspect %282
+  branch inspect %283 -> bb45 -> bb43
+
+bb42:
+  drop (dup)
+  %272: I32 = const 0
+  %273: I32 = const 14
+  %274: I32 = sub inspect %272 inspect %273
+  return take %274
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %290: I32 = const 0
+  %291: I32 = const 0
+  %292: I32 = const 1
+  %293: I32 = const 10
+  %294: I32 = const 2
+  %295: I32 = const 20
+  %296: I32 = const 3
+  %297: I32 = const 30
+  %298: I32 = const 4
+  %299: I32 = const 40
+  %300: I32 = const 5
+  %301: I32 = const 50
+  %302: I32 = const 6
+  %303: I32 = const 60
+  %304: I32 = const 7
+  %305: I32 = const 70
+  %306: I32 = const 8
+  %307: I32 = const 80
+  %308: I32 = const 9
+  %309: I32 = const 90
+  %310: I32 = const 10
+  %311: I32 = const 100
+  %312: I32 = const 11
+  %313: I32 = const 110
+  %314: Size = const 12
+  %315: Map(I32, I32) = call newMap(I32, I32) borrow.shared %314
+  write.init borrow.unique (local24) take %315
+  %317: Map(I32, I32) [unique call] = read borrow.unique (local24) loan33
+  %318: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %317 take %290 take %291
+  %319: Map(I32, I32) [unique call] = read borrow.unique (local24) loan34
+  %320: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %319 take %292 take %293
+  %321: Map(I32, I32) [unique call] = read borrow.unique (local24) loan35
+  %322: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %321 take %294 take %295
+  %323: Map(I32, I32) [unique call] = read borrow.unique (local24) loan36
+  %324: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %323 take %296 take %297
+  %325: Map(I32, I32) [unique call] = read borrow.unique (local24) loan37
+  %326: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %325 take %298 take %299
+  %327: Map(I32, I32) [unique call] = read borrow.unique (local24) loan38
+  %328: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %327 take %300 take %301
+  %329: Map(I32, I32) [unique call] = read borrow.unique (local24) loan39
+  %330: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %329 take %302 take %303
+  %331: Map(I32, I32) [unique call] = read borrow.unique (local24) loan40
+  %332: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %331 take %304 take %305
+  %333: Map(I32, I32) [unique call] = read borrow.unique (local24) loan41
+  %334: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %333 take %306 take %307
+  %335: Map(I32, I32) [unique call] = read borrow.unique (local24) loan42
+  %336: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %335 take %308 take %309
+  %337: Map(I32, I32) [unique call] = read borrow.unique (local24) loan43
+  %338: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %337 take %310 take %311
+  %339: Map(I32, I32) [unique call] = read borrow.unique (local24) loan44
+  %340: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %339 take %312 take %313
+  %341: Map(I32, I32) = read take (local24)
+  write.init borrow.unique (big) take %341
+  %343: Map(I32, I32) [shared call] = read borrow.shared (big) loan45
+  %344: Size = call length(Map(I32, I32)) borrow.shared %343
+  %345: I32 = convert inspect %344
+  %346: I32 = const 12
+  %347: Bool = ne inspect %345 inspect %346
+  branch inspect %347 -> bb48 -> bb46
+
+bb45:
+  %285: I32 = const 0
+  %286: I32 = const 15
+  %287: I32 = sub inspect %285 inspect %286
+  return take %287
+
+bb46:
+  jump -> bb47
+
+bb47:
+  %354: I32 = const 0
+  write.init borrow.unique (i) take %354
+  %356: I32 = const 0
+  write.init borrow.unique (found) take %356
+  jump -> bb49
+
+bb48:
+  drop (big)
+  %349: I32 = const 0
+  %350: I32 = const 16
+  %351: I32 = sub inspect %349 inspect %350
+  return take %351
+
+bb49:
+  %359: I32 = read copy.trivial (i)
+  %360: I32 = const 12
+  %361: Bool = lt inspect %359 inspect %360
+  branch inspect %361 -> bb51 -> bb50
+
+bb50:
+  drop (big)
+  %384: I32 = read copy.trivial (found)
+  %385: I32 = const 12
+  %386: Bool = ne inspect %384 inspect %385
+  branch inspect %386 -> bb57 -> bb55
+
+bb51:
+  %363: I32 = read copy.trivial (i)
+  %364: Map(I32, I32) [shared call] = read borrow.shared (big) loan46
+  %365: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %364 borrow.shared %363 roots{46}
+  write.init borrow.unique (local28) borrow.shared %365
+  %367: I32 = read copy.trivial (local28)
+  %368: I32 = read copy.trivial (i)
+  %369: I32 = const 10
+  %370: I32 = mul inspect %368 inspect %369
+  %371: Bool = eq inspect %367 inspect %370
+  branch inspect %371 -> bb54 -> bb52
+
+bb52:
+  jump -> bb53
+
+bb53:
+  %379: I32 = read copy.trivial (i)
+  %380: I32 = const 1
+  %381: I32 = add inspect %379 inspect %380
+  write.assign borrow.unique (i) take %381
+  jump -> bb49
+
+bb54:
+  %373: I32 = read copy.trivial (found)
+  %374: I32 = const 1
+  %375: I32 = add inspect %373 inspect %374
+  write.assign borrow.unique (found) take %375
+  jump -> bb53
+
+bb55:
+  jump -> bb56
+
+bb56:
+  %393: I32 = const 3
+  %394: I32 = const 1
+  %395: I32 = const 1
+  %396: I32 = const 2
+  %397: I32 = const 2
+  %398: I32 = const 3
+  %399: Size = const 3
+  %400: Map(I32, I32) = call newMap(I32, I32) borrow.shared %399
+  write.init borrow.unique (local29) take %400
+  %402: Map(I32, I32) [unique call] = read borrow.unique (local29) loan47
+  %403: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %402 take %393 take %394
+  %404: Map(I32, I32) [unique call] = read borrow.unique (local29) loan48
+  %405: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %404 take %395 take %396
+  %406: Map(I32, I32) [unique call] = read borrow.unique (local29) loan49
+  %407: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %406 take %397 take %398
+  %408: Map(I32, I32) = read take (local29)
+  write.init borrow.unique (ordered) take %408
+  %410: I32 = const 0
+  write.init borrow.unique (seen) take %410
+  %412: Map(I32, I32) [shared slot 0] = read borrow.shared (ordered) loan50
+  lens.call pairs(I32, I32) borrow.shared %412 -> bb59
+
+bb57:
+  %388: I32 = const 0
+  %389: I32 = const 17
+  %390: I32 = sub inspect %388 inspect %389
+  return take %390
+
+bb58:
+  drop (ordered)
+  %423: I32 = read copy.trivial (seen)
+  %424: I32 = const 312
+  %425: Bool = ne inspect %423 inspect %424
+  branch inspect %425 -> bb62 -> bb60
+
+bb59(%413: Entry(I32, I32) [shared call shape5 .0=shared slot 0 .1=shared slot 0]) handover(Entry(I32, I32) [shared call shape5 .0=shared slot 0 .1=shared slot 0]) many -> bb58:
+  write.init borrow.unique (e) borrow.shared %413
+  %416: I32 = read copy.trivial (seen)
+  %417: I32 = const 10
+  %418: I32 = mul inspect %416 inspect %417
+  %419: I32 = read copy.trivial (e.key)
+  %420: I32 = add inspect %418 inspect %419
+  write.assign borrow.unique (seen) take %420
+  jump -> bb58
+
+bb60:
+  jump -> bb61
+
+bb61:
+  %432: I32 = const 6
+  %433: I32 = const 60
+  %434: Map(I32, I32) [unique call] = read borrow.unique (global shared) loan51
+  %435: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %434 take %432 take %433
+  %436: I32 = const 5
+  %437: Map(I32, I32) [shared call] = read borrow.shared (global shared) loan52
+  %438: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %437 borrow.shared %436 roots{52}
+  write.init borrow.unique (local33) borrow.shared %438
+  %440: I32 = read copy.trivial (local33)
+  %441: I32 = const 6
+  %442: Map(I32, I32) [shared call] = read borrow.shared (global shared) loan53
+  %443: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %442 borrow.shared %441 roots{53}
+  write.init borrow.unique (local34) borrow.shared %443
+  %445: I32 = read copy.trivial (local34)
+  %446: I32 = add inspect %440 inspect %445
+  %447: I32 = const 110
+  %448: Bool = ne inspect %446 inspect %447
+  branch inspect %448 -> bb65 -> bb63
+
+bb62:
+  %427: I32 = const 0
+  %428: I32 = const 18
+  %429: I32 = sub inspect %427 inspect %428
+  return take %429
+
+bb63:
+  jump -> bb64
+
+bb64:
+  %455: I32 = const 1
+  %456: I32 = const 10
+  %457: Map(I32, I32) = call single(I32, I32) take %455 take %456
+  write.init borrow.unique (one) take %457
+  %459: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'142) loan54
+  %460: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] = address inspect %459 roots.0{54}
+  %461: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %460 roots.0{54}
+  %462: I32 = const 1
+  %463: String = call stringLiteral borrow.shared %461 borrow.shared %462
+  %464: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'143) loan55
+  %465: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] = address inspect %464 roots.0{55}
+  %466: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %465 roots.0{55}
+  %467: I32 = const 1
+  %468: String = call stringLiteral borrow.shared %466 borrow.shared %467
+  %469: I32 = const 1
+  %470: I32 = const 2
+  %471: Map(String, I32) = call pair(String, I32) take %463 take %469 take %468 take %470
+  write.init borrow.unique (two) take %471
+  %473: Map(I32, I32) = call emptyOf(I32, I32)
+  write.init borrow.unique (none) take %473
+  %475: I32 = const 1
+  %476: Map(I32, I32) [shared call] = read borrow.shared (one) loan56
+  %477: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %476 borrow.shared %475 roots{56}
+  write.init borrow.unique (local38) borrow.shared %477
+  %479: I32 = read copy.trivial (local38)
+  drop (one)
+  %480: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'144) loan57
+  %481: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] = address inspect %480 roots.0{57}
+  %482: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %481 roots.0{57}
+  %483: I32 = const 1
+  %484: String = call stringLiteral borrow.shared %482 borrow.shared %483
+  %485: Map(String, I32) [shared call] = read borrow.shared (two) loan58
+  write.init borrow.unique (local39) take %484
+  %487: String [shared slot 0] = read borrow.shared (local39) loan59
+  %488: String [shared slot 0 view] = call.derivation view(String) borrow.shared %487 roots{59}
+  %489: I32 [shared slot 0] = call.subscript get(Map(String, I32), String, I32) borrow.shared %485 borrow.shared %488 roots{58}
+  drop (local39)
+  write.init borrow.unique (local40) borrow.shared %489
+  %491: I32 = read copy.trivial (local40)
+  %492: I32 = add inspect %479 inspect %491
+  %493: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'145) loan60
+  %494: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] = address inspect %493 roots.0{60}
+  %495: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %494 roots.0{60}
+  %496: I32 = const 1
+  %497: String = call stringLiteral borrow.shared %495 borrow.shared %496
+  %498: Map(String, I32) [shared call] = read borrow.shared (two) loan61
+  write.init borrow.unique (local41) take %497
+  %500: String [shared slot 0] = read borrow.shared (local41) loan62
+  %501: String [shared slot 0 view] = call.derivation view(String) borrow.shared %500 roots{62}
+  %502: I32 [shared slot 0] = call.subscript get(Map(String, I32), String, I32) borrow.shared %498 borrow.shared %501 roots{61}
+  drop (local41)
+  write.init borrow.unique (local42) borrow.shared %502
+  %504: I32 = read copy.trivial (local42)
+  drop (two)
+  %505: I32 = add inspect %492 inspect %504
+  %506: Map(I32, I32) [shared call] = read borrow.shared (none) loan63
+  %507: Size = call length(Map(I32, I32)) borrow.shared %506
+  drop (none)
+  %508: I32 = convert inspect %507
+  %509: I32 = add inspect %505 inspect %508
+  %510: I32 = const 13
+  %511: Bool = ne inspect %509 inspect %510
+  branch inspect %511 -> bb68 -> bb66
+
+bb65:
+  %450: I32 = const 0
+  %451: I32 = const 19
+  %452: I32 = sub inspect %450 inspect %451
+  return take %452
+
+bb66:
+  jump -> bb67
+
+bb67:
+  %518: I32 = const 1
+  %519: I32 = const 10
+  %520: I32 = const 11
+  %521: Size = const 2
+  %522: Array(I32) = call literalArray(I32) borrow.shared %521
+  write.init borrow.unique (local43) take %522
+  %524: Array(I32) [unique slot 0] = read borrow.unique (local43) loan64
+  %525: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %524 roots{64}
+  %526: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %525 roots.0{64}
+  %527: Size = const 0
+  write.init borrow.unique ([%%526][0]) take %519
+  %529: Size = const 1
+  write.init borrow.unique ([%%526][1]) take %520
+  %531: Array(I32) = read take (local43)
+  %532: I32 = const 2
+  %533: I32 = const 20
+  %534: Size = const 1
+  %535: Array(I32) = call literalArray(I32) borrow.shared %534
+  write.init borrow.unique (local44) take %535
+  %537: Array(I32) [unique slot 0] = read borrow.unique (local44) loan65
+  %538: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %537 roots{65}
+  %539: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %538 roots.0{65}
+  %540: Size = const 0
+  write.init borrow.unique ([%%539][0]) take %533
+  %542: Array(I32) = read take (local44)
+  %543: Size = const 2
+  %544: Map(I32, Array(I32)) = call newMap(I32, Array(I32)) borrow.shared %543
+  write.init borrow.unique (local45) take %544
+  %546: Map(I32, Array(I32)) [unique call] = read borrow.unique (local45) loan66
+  %547: {} = call insertAt(Map(I32, Array(I32)), I32, Array(I32)) borrow.unique %546 take %518 take %531
+  %548: Map(I32, Array(I32)) [unique call] = read borrow.unique (local45) loan67
+  %549: {} = call insertAt(Map(I32, Array(I32)), I32, Array(I32)) borrow.unique %548 take %532 take %542
+  %550: Map(I32, Array(I32)) = read take (local45)
+  write.init borrow.unique (lists) take %550
+  %552: I32 = const 0
+  write.init borrow.unique (elements) take %552
+  %554: Map(I32, Array(I32)) [shared slot 0] = read borrow.shared (lists) loan68
+  lens.call pairs(I32, Array(I32)) borrow.shared %554 -> bb70
+
+bb68:
+  %513: I32 = const 0
+  %514: I32 = const 20
+  %515: I32 = sub inspect %513 inspect %514
+  return take %515
+
+bb69:
+  drop (lists)
+  %565: I32 = read copy.trivial (elements)
+  %566: I32 = const 3
+  %567: Bool = ne inspect %565 inspect %566
+  branch inspect %567 -> bb73 -> bb71
+
+bb70(%555: Entry(I32, Array(I32)) [shared call shape8 .0=shared slot 0 .1=shared slot 0 view]) handover(Entry(I32, Array(I32)) [shared call shape8 .0=shared slot 0 .1=shared slot 0 view]) many -> bb69:
+  write.init borrow.unique (e) borrow.shared %555
+  %558: I32 = read copy.trivial (elements)
+  %559: Array(I32) [shared slot 0 view] = read borrow.shared (e.value) loan69 roots{68}
+  %560: Size = call length(Array(I32)) borrow.shared %559
+  %561: I32 = convert inspect %560
+  %562: I32 = add inspect %558 inspect %561
+  write.assign borrow.unique (elements) take %562
+  jump -> bb69
+
+bb71:
+  jump -> bb72
+
+bb72:
+  %574: I32 = const 1
+  %575: I32 = const 2
+  %576: I32 = const 3
+  %577: Size = const 1
+  %578: Map(I32, I32) = call newMap(I32, I32) borrow.shared %577
+  write.init borrow.unique (local49) take %578
+  %580: Map(I32, I32) [unique call] = read borrow.unique (local49) loan70
+  %581: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %580 take %575 take %576
+  %582: Map(I32, I32) = read take (local49)
+  %583: Size = const 1
+  %584: Map(I32, Map(I32, I32)) = call newMap(I32, Map(I32, I32)) borrow.shared %583
+  write.init borrow.unique (local50) take %584
+  %586: Map(I32, Map(I32, I32)) [unique call] = read borrow.unique (local50) loan71
+  %587: {} = call insertAt(Map(I32, Map(I32, I32)), I32, Map(I32, I32)) borrow.unique %586 take %574 take %582
+  %588: Map(I32, Map(I32, I32)) = read take (local50)
+  write.init borrow.unique (nested) take %588
+  %590: I32 = const 1
+  %591: Map(I32, Map(I32, I32)) [shared call] = read borrow.shared (nested) loan72
+  %592: Map(I32, I32) [shared slot 0] = call.subscript get(Map(I32, Map(I32, I32)), I32, Map(I32, I32)) borrow.shared %591 borrow.shared %590 roots{72}
+  write.init borrow.unique (local52) borrow.shared %592
+  %594: I32 = const 2
+  %595: Map(I32, I32) [shared slot 0] = read borrow.shared (local52) loan73 roots{72}
+  %596: I32 [shared slot 0] = call.subscript get(Map(I32, I32), I32, I32) borrow.shared %595 borrow.shared %594 roots{72, 73}
+  write.init borrow.unique (local53) borrow.shared %596
+  %598: I32 = read copy.trivial (local53)
+  drop (nested)
+  %599: I32 = const 3
+  %600: Bool = ne inspect %598 inspect %599
+  branch inspect %600 -> bb76 -> bb74
+
+bb73:
+  %569: I32 = const 0
+  %570: I32 = const 21
+  %571: I32 = sub inspect %569 inspect %570
+  return take %571
+
+bb74:
+  jump -> bb75
+
+bb75:
+  %607: I32 = const 1
+  return take %607
+
+bb76:
+  %602: I32 = const 0
+  %603: I32 = const 22
+  %604: I32 = sub inspect %602 inspect %603
+  return take %604
+}
+
+fn main$() -> I32 {
+  local & local0: Map(I32, I32)
+
+bb0:
+  %0: I32 = const 5
+  %1: I32 = const 50
+  %2: Size = const 1
+  %3: Map(I32, I32) = call newMap(I32, I32) borrow.shared %2
+  write.init borrow.unique (local0) take %3
+  %5: Map(I32, I32) [unique call] = read borrow.unique (local0) loan0
+  %6: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %5 take %0 take %1
+  %7: Map(I32, I32) = read take (local0)
+  write.init borrow.unique (global shared) take %7
+  %9: I32 = call main
+  return take %9
+}
+
+fn single(I32, I32)(key: I32, value: I32) -> Map(I32, I32) = <single at I32, I32>
+
+fn pair(String, I32)(k1: String, v1: I32, k2: String, v2: I32) -> Map(String, I32) = <pair at String, I32>
+
+fn emptyOf(I32, I32)() -> Map(I32, I32) = <emptyOf at I32, I32>
+
+entry main$

@@ -1,0 +1,47 @@
+@image$base = []
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 2, 4
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 3, 4
+    %v_4 = add %v_1, 12: Ptr
+    store %v_4, 4, 4
+    jmp b_5
+  }
+
+  b_6 {
+    %v_7 = cmp_ilt %v_8, 4: I32
+    je %v_7, b_9, b_10
+  }
+
+  b_10 {
+    %v_11 = imul %v_12, 6: I32
+    ret %v_11
+  }
+
+  b_9 {
+    %v_13 = cmp_ge %v_8, 4: I32
+    je %v_13, b_14, b_5
+  }
+
+  b_5 {
+    %v_15 = phi [b_9, %v_12], [b_0, 0]: I32
+    %v_16 = phi [b_9, %v_8], [b_0, 0]: I64
+    %v_17 = shl %v_16, 2: I64
+    %v_18 = add %v_1, %v_17: Ptr
+    %v_19 = loads %v_18, 4: I32
+    %v_12 = add %v_15, %v_19: I32
+    %v_8 = add %v_16, 1: I64
+    jmp b_6
+  }
+
+  b_14 {
+    %v_20 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+

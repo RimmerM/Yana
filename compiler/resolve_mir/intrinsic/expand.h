@@ -41,6 +41,34 @@ Node* expandIntrinsic(Builder& builder, Context& context, intrinsic::Op op, Func
                       LocationId source);
 
 /*
+ * Whether a role is one this stage builds a node for, or one whose *declaration's own body* is the
+ * implementation and every call reaches as a call - `providedExpands` one tier over, and the same
+ * question.
+ *
+ * **A role is not a promise that the compiler does the work.** It says the compiler is entitled to,
+ * and the shipping stage takes that entitlement where it has something to say that the language
+ * cannot: `newRun` is placed by an escape analysis this stage has not got, so what the shipping
+ * stage expands into an allocation with a count, this stage reaches as the ordinary library body
+ * beside the declaration - which allocates from the heap and says so in the tag. The day this stage
+ * places allocations, the row moves and the body becomes dead in both.
+ *
+ * Asked here rather than by a `null` out of `expandIntrinsic`, because the two answers are
+ * different: an emitter returning null failed and has reported, and this is a call that has not
+ * failed at all.
+ */
+bool opExpands(intrinsic::Op op);
+
+/*
+ * Which library body the vector half of a bulk operation is - `known.def`'s `sumVectors` and its six
+ * neighbours, keyed by the `op.def` row that chooses it.
+ *
+ * `intrinsic::Known::Count` for every role that is not one of the seven. The choice itself is
+ * `Resolver::selectBulkBody`, which is at the call site because the question it asks - does this
+ * element have a vector on this target - is about the target and the lane and not about the role.
+ */
+intrinsic::Known bulkVectorRole(intrinsic::Op op);
+
+/*
  * expand_provided.cpp - the members of the instances the compiler generates, `provided.def`.
  *
  * Not `Op` roles: a provided member is reached through instance selection rather than through a
@@ -60,6 +88,19 @@ bool providedExpands(intrinsic::Provided role, U16 member);
 
 // The `Ord` member that is a body rather than a node - `compare`, by `known.def`'s position.
 constexpr U16 kOrdCompare = 4;
+
+// `Enum`'s four members, by `known.def`'s position: the tag read, the range test, the constructor's
+// own word and the word read back. Three of the four are graphs rather than nodes - see
+// `providedExpands`, and `Resolver::provideBodies`, which writes each.
+constexpr U16 kEnumValueOf = 0;
+constexpr U16 kEnumFromValue = 1;
+constexpr U16 kEnumNameOf = 2;
+constexpr U16 kEnumFromName = 3;
+
+// `Show`'s two, by `known.def`'s position - the class's own note calls the order part of the claim.
+// Both are bodies rather than nodes, so neither ever reaches `expandProvided`.
+constexpr U16 kShowShow = 0;
+constexpr U16 kShowBound = 1;
 
 // A written number as a constant of one type - see the definition, which is the one place a
 // literal's bits are decided.

@@ -204,6 +204,13 @@ fn remove(I32)(%self: Array(I32), %index: I32) -> Maybe(I32) {
     ret %v70
 }
 
+fn Length(Array(a)).length(I32)(%self: Array(I32)) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
 fn Reclaim(Array(a)).reclaim(I32)(%value: Array(I32)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
@@ -1443,42 +1450,40 @@ fn sum(%xs: ArrayView(I32)) -> I32 {
   b0:
     %total = alloc : I32
     init %total, 0
-    %i = alloc : I32
+    %i = alloc : Size
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : I32
+    %v8 = load %i : Size
     %v9 = load %xs@ArrayView.length : Size
-    %v10 = cast %v8 : Size
-    %v11 = cmp_lt %v10, %v9 : Bool
-    je %v11, b3, b2
+    %v10 = cmp_lt %v8, %v9 : Bool
+    je %v10, b3, b2
 
   b2:
-    %v36 = load %total : I32
-    ret %v36
+    %v34 = load %total : I32
+    ret %v34
 
   b3:
-    %v13 = load %total : I32
-    %v14 = load %i : I32
-    %v15 = cast %v14 : Size
-    %v16 = borrow %xs : 'ArrayView(I32)
-    %v17 = load [%v16]@ArrayView.length : Size
-    %v18 = cast %v15 : USize
-    %v19 = cast %v17 : USize
-    %v20 = cmp_ge %v18, %v19 : Bool
-    call checkCondition, %v20
-    %v22 = load [%v16]@ArrayView.items : %I32
-    %v23 = strideof I32 : I64
-    %v24 = mul %v15, %v23 : I64
-    %v25 = add %v22, %v24 : %I32
-    %v26 = borrow [%v25] : 1'I32
-    %v27 = load [%v26] : I32
-    %v28 = add %v13, %v27 : I32
-    assign %total, %v28
-    %v30 = load %i : I32
-    %v33 = add %v30, 1 : I32
-    assign %i, %v33
+    %v12 = load %total : I32
+    %v13 = load %i : Size
+    %v14 = borrow %xs : 'ArrayView(I32)
+    %v15 = load [%v14]@ArrayView.length : Size
+    %v16 = cast %v13 : USize
+    %v17 = cast %v15 : USize
+    %v18 = cmp_ge %v16, %v17 : Bool
+    call checkCondition, %v18
+    %v20 = load [%v14]@ArrayView.items : %I32
+    %v21 = strideof I32 : I64
+    %v22 = mul %v13, %v21 : I64
+    %v23 = add %v20, %v22 : %I32
+    %v24 = borrow [%v23] : 1'I32
+    %v25 = load [%v24] : I32
+    %v26 = add %v12, %v25 : I32
+    assign %total, %v26
+    %v28 = load %i : Size
+    %v31 = add %v28, 1 : Size
+    assign %i, %v31
     jmp b1
 }
 
@@ -1589,14 +1594,11 @@ fn main() -> I32 {
     init %local5@ArrayView.length, %v68
     %v70 = call sum, %v64 : I32
     %v71 = load %small : Array(I32)
-    %v72 = load %small@Array.length : @bits(30) U32
+    %v72 = call Length(Array(a)).length(I32), %v71 : Size
     drop %small via Reclaim(Array(a)).reclaim(I32)
-    %v73 = cast %v72 : Size
-    %v74 = cast %v70 : Size
-    %v75 = add %v74, %v73 : Size
-    %v76 = call escaping : I32
-    %v77 = cast %v76 : Size
-    %v78 = add %v75, %v77 : Size
-    %v79 = cast %v78 : I32
-    ret %v79
+    %v73 = cast %v72 : I32
+    %v74 = add %v70, %v73 : I32
+    %v75 = call escaping : I32
+    %v76 = add %v74, %v75 : I32
+    ret %v76
 }

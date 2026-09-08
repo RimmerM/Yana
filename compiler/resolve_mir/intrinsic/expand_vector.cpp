@@ -135,10 +135,22 @@ Node* expandVecZero(Builder& builder, Function& callee, Node* const*, const Subs
     return splatConstant(builder, resultType(builder, callee, with), source, 0);
 }
 
-// The lane numbers of one vector type - `iota` itself, and what `maskUpTo` compares against.
+/*
+ * The lane numbers of one vector type - `iota` itself, and what `maskUpTo` compares against.
+ *
+ * **A count this body cannot measure is the node instead** - inst.def's `VecIota`, on
+ * `expandVecLanes`' terms one operation over. The chain below is as long as the vector has lanes,
+ * and inside a body compiled once that number is the natural form's zero: what came out was a splat
+ * of zero with no diagnostic, so `maskUpTo` answered a mask with no lane set and
+ * `lib/Core/Container.yana`'s `vectors` dropped its tail chunk - `[1..11]` summed to 36 rather than
+ * 66. The node carries the question to the SSA conversion, where the count is a number and the same
+ * chain is built.
+ */
 static Node* iotaOf(Builder& builder, DeclPtr<Type> type, LocationId source) {
     auto shape = vectorOf(builder, type);
     if(!shape) return nullptr;
+
+    if(!shape->hasFixedCount() || !shape->lanes) return builder.addVecIota(source, type);
 
     auto value = splatConstant(builder, type, source, 0);
     if(!value) return nullptr;
@@ -179,13 +191,30 @@ Node* expandVecWithLane(Builder& builder, Function&, Node* const* arguments, con
  *
  * Design-Vector §3.3 calls it a compile-time constant, and this is what makes that true rather than
  * nearly true: there is no call and no vector operation in the result.
+ *
+ * **Inside a generic body it is a `GenValue` instead**, on that node's own terms: a body compiled
+ * once for every `a` has no register width to divide, so what it names is the count rather than a
+ * number, and the substitution that decides `a` is what turns it into one. `lanes(zero() :: Vec(a))`
+ * folded here answered the natural form's zero - a wrong number with no diagnostic, which is what
+ * `lib/Core/Container.yana`'s chunk width was silently getting.
  */
 Node* expandVecLanes(Builder& builder, Function& callee, Node* const* arguments,
                      const Substitution& with, LocationId source) {
+    auto base = builder.declBase();
     auto type = resultType(builder, callee, with);
-    auto lanes = vectorLanes(builder.declBase(), valueOccurrence(*arguments[0]).type);
+    auto vector = valueOccurrence(*arguments[0]).type;
+    auto& shape = *(VectorType*)base[vector];
 
-    return builder.addConst(source, intConstant(type, U64(lanes)));
+    // A quantified count names the parameter; a natural one over a lane this body cannot measure
+    // names the expression `Types::naturalLanesType` stands for. Both are numbers the instantiation
+    // supplies, which is exactly what `GenValue` is.
+    if(!shape.hasFixedCount()) return builder.addGenValue(source, shape.count);
+
+    if(!shape.lanes) {
+        return builder.addGenValue(source, builder.program.types.naturalLanesType(shape.lane, type));
+    }
+
+    return builder.addConst(source, intConstant(type, U64(shape.lanes)));
 }
 
 // The four reductions, whose *order* is a stated language property rather than an implementation
@@ -558,6 +587,13 @@ Node* expandMaskNone(Builder& builder, Function& callee, Node* const* arguments,
  */
 static DeclPtr<Type> laneIndexType(Builder& builder, DeclPtr<Type> lane) {
     auto base = builder.declBase();
+
+    // A lane this body cannot measure keeps its own type, which is the honest answer rather than a
+    // guess: the mapping below is a *float's* and asking it of a variable would decide the domain
+    // before the substitution that settles which one it is. What that costs at a float lane is the
+    // comparison in the float domain, which answers the same mask.
+    if(base[lane]->kind == Type::Variable) return lane;
+
     if(base[lane]->kind != Type::Float) return lane;
 
     // On a host where a mask is a lane's worth of booleans and a comparison is a scalar one in
@@ -573,11 +609,15 @@ Node* expandMaskUpTo(Builder& builder, Function& callee, Node* const* arguments,
                      const Substitution& with, LocationId source) {
     auto type = resultType(builder, callee, with);
     auto shape = vectorOf(builder, type);
-    if(!shape || !shape->lanes) return nullptr;
+    if(!shape) return nullptr;
 
     auto index = laneIndexType(builder, shape->lane);
-    auto indices = makeVectorType(builder.context, builder.program, index, shape->lanes, false,
-                                  source);
+
+    // The count travels with the lane: an unmeasurable one makes the natural form again, which is
+    // what `iotaOf` then defers. `shape->count` is null there by construction - `Mask(a, n)` at a
+    // written count is measurable the moment `a` is - so passing `lanes` through is enough.
+    auto indices = makeVectorType(builder.context, builder.program, index, shape->count,
+                                  shape->lanes, false, source);
     if(!indices) return nullptr;
 
     auto lanes = iotaOf(builder, indices, source);

@@ -175,7 +175,7 @@ bb3:
   jump -> bb1
 }
 
-fn joined(flag: Bool [shared call], a: I32 [shared call], b: I32 [shared call]) -> I32 {
+fn joined'2(flag: Bool [shared call], a: I32 [shared call], b: I32 [shared call]) -> I32 {
   local chosen: Point
 
 bb0:
@@ -234,12 +234,12 @@ bb0:
   %12: Bool = const True
   %13: I32 = const 3
   %14: I32 = const 9
-  %15: I32 = call joined borrow.shared %12 borrow.shared %13 borrow.shared %14
+  %15: I32 = call joined'2 borrow.shared %12 borrow.shared %13 borrow.shared %14
   %16: I32 = add inspect %11 inspect %15
   %17: Bool = const False
   %18: I32 = const 3
   %19: I32 = const 9
-  %20: I32 = call joined borrow.shared %17 borrow.shared %18 borrow.shared %19
+  %20: I32 = call joined'2 borrow.shared %17 borrow.shared %18 borrow.shared %19
   %21: I32 = add inspect %16 inspect %20
   return take %21
 }

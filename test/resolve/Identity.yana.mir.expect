@@ -35,7 +35,7 @@ bb0:
   return take %1
 }
 
-fn rewrap(x: a) -> Boxed(a) {
+fn rewrap'2(x: a) -> Boxed(a) {
   form specialized
   slot #0 type a
 bb0:
@@ -102,7 +102,7 @@ bb0:
   %4: Bool = call also(Bool) take %3
   write.init borrow.unique (flag) take %4
   %6: I32 = const 20
-  %7: Boxed(I32) = call rewrap(I32) take %6
+  %7: Boxed(I32) = call rewrap'2(I32) take %6
   %8: I32 = call boxedValue borrow.shared %7
   write.init borrow.unique (rewrapped) take %8
   %10: I32 = const 300
@@ -143,7 +143,7 @@ fn id(I32)(x: I32) -> I32 = <id at I32>
 
 fn also(Bool)(x: Bool) -> Bool = <also at Bool>
 
-fn rewrap(I32)(x: I32) -> Boxed(I32) = <rewrap at I32>
+fn rewrap'2(I32)(x: I32) -> Boxed(I32) = <rewrap at I32>
 
 fn twice(I32)(x: I32) -> Boxed(Boxed(I32)) = <twice at I32>
 

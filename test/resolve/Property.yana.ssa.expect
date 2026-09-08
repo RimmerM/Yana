@@ -1,6 +1,6 @@
 module ResolveTest
 
-fn nameOf(p: a [shared call]) -> I32 = <no body>
+fn nameOf'2(p: a [shared call]) -> I32 = <no body>
 
 fn labelled(p: a [shared call]) -> I32 = <no body>
 
@@ -13,12 +13,12 @@ bb0:
   %4: I32 trivial = const 5
   %5: I32 trivial = const 90
   %6: Person trivial = aggregate.Person consume %4 consume %5
-  %7: I32 trivial = call nameOf(Person) borrow %6
+  %7: I32 trivial = call nameOf'2(Person) borrow %6
   store inspect %0 consume %7
   %8: I32 trivial = const 2
   %9: I32 trivial = const 7
   %10: Item trivial = aggregate.Item consume %8 consume %9
-  %11: I32 trivial = call nameOf(Item) borrow %10
+  %11: I32 trivial = call nameOf'2(Item) borrow %10
   store inspect %1 consume %11
   %12: I32 trivial = const 1
   %13: I32 trivial = const 3
@@ -44,14 +44,14 @@ bb0:
   return consume %30
 }
 
-fn nameOf(Person)(p: Person [shared call]) -> I32 {
+fn nameOf'2(Person)(p: Person [shared call]) -> I32 {
 bb0(%0: Person [shared call] guaranteed):
   %1: %I32 address = field.addr .name inspect %0
   %2: I32 trivial = load inspect %1
   return consume %2
 }
 
-fn nameOf(Item)(p: Item [shared call]) -> I32 {
+fn nameOf'2(Item)(p: Item [shared call]) -> I32 {
 bb0(%0: Item [shared call] guaranteed):
   %1: %I32 address = field.addr .name inspect %0
   %2: I32 trivial = load inspect %1
@@ -61,7 +61,7 @@ bb0(%0: Item [shared call] guaranteed):
 fn labelled(Left)(p: Left [shared call]) -> I32 {
 bb0(%0: Left [shared call] guaranteed):
   %1: Left [shared call] guaranteed from{%0} = load inspect %0
-  %2: I32 trivial = call nameOf(Left) borrow %1
+  %2: I32 trivial = call nameOf'2(Left) borrow %1
   %3: I32 trivial = const 100
   %4: I32 trivial = mul inspect %2 inspect %3
   %5: %I32 address = field.addr .tag inspect %0
@@ -73,7 +73,7 @@ bb0(%0: Left [shared call] guaranteed):
 fn labelled(Right)(p: Right [shared call]) -> I32 {
 bb0(%0: Right [shared call] guaranteed):
   %1: Right [shared call] guaranteed from{%0} = load inspect %0
-  %2: I32 trivial = call nameOf(Right) borrow %1
+  %2: I32 trivial = call nameOf'2(Right) borrow %1
   %3: I32 trivial = const 100
   %4: I32 trivial = mul inspect %2 inspect %3
   %5: %I32 address = field.addr .tag inspect %0
@@ -82,14 +82,14 @@ bb0(%0: Right [shared call] guaranteed):
   return consume %7
 }
 
-fn nameOf(Left)(p: Left [shared call]) -> I32 {
+fn nameOf'2(Left)(p: Left [shared call]) -> I32 {
 bb0(%0: Left [shared call] guaranteed):
   %1: %I32 address = field.addr .name inspect %0
   %2: I32 trivial = load inspect %1
   return consume %2
 }
 
-fn nameOf(Right)(p: Right [shared call]) -> I32 {
+fn nameOf'2(Right)(p: Right [shared call]) -> I32 {
 bb0(%0: Right [shared call] guaranteed):
   %1: %I32 address = field.addr .name inspect %0
   %2: I32 trivial = load inspect %1

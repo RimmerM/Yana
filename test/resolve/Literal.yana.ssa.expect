@@ -11,7 +11,7 @@ bb0:
   return consume %1
 }
 
-fn maxValue() -> U64 {
+fn maxValue'2() -> U64 {
 bb0:
   %0: U64 trivial = const 0
   %1: U64 trivial = not inspect %0
@@ -26,8 +26,8 @@ bb0:
   store inspect %0 consume %2
   %3: F32 trivial = const 2.5
   store inspect %1 consume %3
-  %4: I32 trivial = load inspect %0
-  %5: F32 trivial = load inspect %1
+  %4: I32 trivial = const 7
+  %5: F32 trivial = const 2.5
   %6: I32 trivial = convert inspect %5
   %7: I32 trivial = add inspect %4 inspect %6
   return consume %7
@@ -122,7 +122,7 @@ bb2(%1: I32 trivial, %2: I32 trivial):
   %33: I64 trivial = call incLong
   %34: I32 trivial = convert inspect %33
   %35: I32 trivial = add inspect %32 inspect %34
-  %36: U64 trivial = call maxValue
+  %36: U64 trivial = call maxValue'2
   %37: U64 trivial = const 18446744073709551615
   %38: Bool trivial = eq inspect %36 inspect %37
   branch inspect %38 -> bb6(consume %35) -> bb4(consume %35)

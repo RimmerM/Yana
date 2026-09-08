@@ -1,0 +1,86 @@
+module ResolveTest
+
+fn pairOf(x: I32 [shared slot 0], y: I32 [shared slot 0]) -> Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] {
+bb0(%0: I32 [shared slot 0] guaranteed, %1: I32 [shared slot 0] guaranteed):
+  %2: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %3: I32 [shared slot 0] guaranteed from{%1} = load inspect %1
+  %4: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] trivial = aggregate.Pair borrow %2 borrow %3
+  return consume %4
+}
+
+fn firstOf(x: I32 [shared slot 0], y: I32 [shared slot 0]) -> I32 [shared slot 0] {
+bb0(%0: I32 [shared slot 0] guaranteed, %1: I32 [shared slot 0] guaranteed):
+  %2: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  return borrow %2
+}
+
+fn passThrough(p: %U8 [shared call shape6 .*=shared slot 0]) -> %U8 [owned here shape6 .*=shared slot 0] = <no body>
+
+fn offsetOf(p: %U8 [shared call shape6 .*=shared slot 0]) -> %U8 [owned here shape6 .*=shared slot 0] = <no body>
+
+fn maybeOf(x: I32 [shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] {
+bb0(%0: I32 [shared slot 0] guaranteed):
+  %1: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: Maybe(I32) [owned here shape2 .0=shared slot 0] trivial = aggregate.Just borrow %1
+  return consume %2
+}
+
+fn main() -> I32 {
+bb0:
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %Pair(I32, I32) address = alloc frame Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0]
+  %4: %Maybe(I32) address = alloc frame Maybe(I32) [owned here shape2 .0=shared slot 0]
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  %7: I32 trivial = const 3
+  store inspect %1 consume %7
+  %8: I32 trivial = const 4
+  store inspect %2 consume %8
+  %9: I32 [shared slot 0] guaranteed from{%1} = load inspect %1
+  %10: I32 [shared slot 0] guaranteed from{%2} = load inspect %2
+  %11: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] trivial = call pairOf borrow %9 borrow %10
+  store inspect %3 consume %11
+  %12: I32 [shared slot 0] guaranteed from{%1} = load inspect %1
+  %13: I32 [shared slot 0] guaranteed from{%2} = load inspect %2
+  %14: I32 [shared slot 0] guaranteed from{%1, %2} = call firstOf borrow %12 borrow %13
+  %15: I32 [shared slot 0] guaranteed from{%1} = load inspect %1
+  %16: Maybe(I32) [owned here shape2 .0=shared slot 0] trivial = call maybeOf borrow %15
+  store inspect %4 consume %16
+  %17: %U8 address = field.addr .# inspect %4
+  %18: U8 trivial = load inspect %17
+  %19: U8 trivial = const 1
+  %20: Bool trivial = eq inspect %18 inspect %19
+  branch inspect %20 -> bb3 -> bb1
+
+bb1:
+  %21: I32 trivial = const 0
+  jump -> bb2(consume %21)
+
+bb2(%0: I32 trivial):
+  store inspect %6 consume %0
+  %22: %I32 address = field.addr .first inspect %3
+  %23: %I32 address = load inspect %22
+  %24: I32 trivial = load inspect %23
+  %25: %I32 address = field.addr .second inspect %3
+  %26: %I32 address = load inspect %25
+  %27: I32 trivial = load inspect %26
+  %28: I32 trivial = add inspect %24 inspect %27
+  %29: I32 trivial = load inspect %14
+  %30: I32 trivial = add inspect %28 inspect %29
+  %31: I32 trivial = load inspect %6
+  %32: I32 trivial = add inspect %30 inspect %31
+  return consume %32
+
+bb3:
+  %33: %I32 address = field.addr .Just inspect %4
+  %34: %I32 address = load inspect %33
+  %35: I32 trivial = load inspect %34
+  store inspect %5 consume %35
+  %36: I32 trivial = load inspect %5
+  %37: I32 trivial = const 0
+  %38: I32 trivial = add inspect %36 inspect %37
+  jump -> bb2(consume %38)
+}
+
+entry main

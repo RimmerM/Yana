@@ -256,6 +256,20 @@ fn growArray(Array(I32))(%self: Array(Array(I32)), %wanted: Size) -> () {
     ret
 }
 
+fn Length(Array(a)).length(String)(%self: Array(String)) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
+fn Length(Array(a)).length(Array(I32))(%self: Array(Array(I32))) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
 fn Reclaim(Array(a)).reclaim(String)(%value: Array(String)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
@@ -1655,39 +1669,36 @@ fn main() -> I32 {
     %c = alloc : Array(Array(I32))
     init %c, %v16
     %v19 = load %a : Array(String)
-    %v20 = load %a@Array.length : @bits(30) U32
+    %v20 = call Length(Array(a)).length(String), %v19 : Size
     drop %a via Reclaim(Array(a)).reclaim(String)
-    %v21 = cast %v20 : Size
-    %v22 = cast %v21 : I32
-    %v23 = load %b : Array(String)
-    %v24 = load %b@Array.length : @bits(30) U32
-    %v25 = cast %v24 : Size
-    %v26 = cast %v25 : I32
-    %v27 = add %v22, %v26 : I32
-    %v28 = load %b : Array(String)
-    %v31 = borrow %b : 'Array(String)
-    %v32 = load [%v31]@Array.length : @bits(30) U32
-    %v33 = cast 2 : USize
-    %v34 = cast %v32 : USize
-    %v35 = cmp_ge %v33, %v34 : Bool
-    call checkCondition, %v35
-    %v37 = load [%v31]@Array.run@Run.items : %String
-    %v38 = strideof String : I64
-    %v39 = mul 2, %v38 : I64
-    %v40 = add %v37, %v39 : %String
-    %v41 = borrow [%v40] : 1'String
-    %v42 = load [%v41] : String
-    %v43 = call Length(String).length, %v42 : Size
+    %v21 = cast %v20 : I32
+    %v22 = load %b : Array(String)
+    %v23 = call Length(Array(a)).length(String), %v22 : Size
+    %v24 = cast %v23 : I32
+    %v25 = add %v21, %v24 : I32
+    %v26 = load %b : Array(String)
+    %v29 = borrow %b : 'Array(String)
+    %v30 = load [%v29]@Array.length : @bits(30) U32
+    %v31 = cast 2 : USize
+    %v32 = cast %v30 : USize
+    %v33 = cmp_ge %v31, %v32 : Bool
+    call checkCondition, %v33
+    %v35 = load [%v29]@Array.run@Run.items : %String
+    %v36 = strideof String : I64
+    %v37 = mul 2, %v36 : I64
+    %v38 = add %v35, %v37 : %String
+    %v39 = borrow [%v38] : 1'String
+    %v40 = load [%v39] : String
+    %v41 = call Length(String).length, %v40 : Size
     drop %b via Reclaim(Array(a)).reclaim(String)
-    %v44 = cast %v43 : I32
-    %v45 = add %v27, %v44 : I32
-    %v46 = load %c : Array(Array(I32))
-    %v47 = load %c@Array.length : @bits(30) U32
+    %v42 = cast %v41 : I32
+    %v43 = add %v25, %v42 : I32
+    %v44 = load %c : Array(Array(I32))
+    %v45 = call Length(Array(a)).length(Array(I32)), %v44 : Size
     drop %c via Reclaim(Array(a)).reclaim(Array(I32))
-    %v48 = cast %v47 : Size
-    %v49 = cast %v48 : I32
-    %v50 = add %v45, %v49 : I32
-    ret %v50
+    %v46 = cast %v45 : I32
+    %v47 = add %v43, %v46 : I32
+    ret %v47
 }
 
 fn funvalue$one(%env: %(), %i: Size) -> String {

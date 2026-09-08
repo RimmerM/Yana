@@ -1,0 +1,109 @@
+module ResolveTest
+
+fn at(i: Size [shared call]) -> Size {
+bb0:
+  %0: Size = read copy.trivial (i)
+  return take %0
+}
+
+fn writtenCount() -> I32 {
+  local & slots: [I32 *4]
+
+bb0:
+  %0: I32 = const 0
+  %1: [I32 *4] = aggregate.0 take %0 take %0 take %0 take %0
+  write.init borrow.unique (slots) take %1
+  %3: Size = const 1
+  %4: Size = call at borrow.shared %3
+  %5: USize = const 4
+  %6: USize = bitcast inspect %4
+  %7: Bool = ge inspect %6 inspect %5
+  %8: {} = call checkCondition borrow.shared %7
+  %9: I32 = const 7
+  write.assign borrow.unique (slots[...]) take %9
+  %11: Size = const 3
+  %12: Size = call at borrow.shared %11
+  %13: USize = const 4
+  %14: USize = bitcast inspect %12
+  %15: Bool = ge inspect %14 inspect %13
+  %16: {} = call checkCondition borrow.shared %15
+  %17: I32 = const 5
+  write.assign borrow.unique (slots[...]) take %17
+  %19: Size = const 1
+  %20: Size = call at borrow.shared %19
+  %21: USize = const 4
+  %22: USize = bitcast inspect %20
+  %23: Bool = ge inspect %22 inspect %21
+  %24: {} = call checkCondition borrow.shared %23
+  %25: I32 = read copy.trivial (slots[...])
+  %26: Size = const 3
+  %27: Size = call at borrow.shared %26
+  %28: USize = const 4
+  %29: USize = bitcast inspect %27
+  %30: Bool = ge inspect %29 inspect %28
+  %31: {} = call checkCondition borrow.shared %30
+  %32: I32 = read copy.trivial (slots[...])
+  %33: I32 = add inspect %25 inspect %32
+  return take %33
+}
+
+fn sumOf(xs: [I32 *n] [shared call]) -> I32 {
+  form erased
+  slot #0 const n
+  local & total: I32
+  local & i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = gen.value n
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %25: I32 = read copy.trivial (total)
+  return take %25
+
+bb3:
+  %9: I32 = read copy.trivial (total)
+  %10: I32 = read copy.trivial (i)
+  %11: Size = convert inspect %10
+  %12: I32 = gen.value n
+  %13: USize = convert inspect %12
+  %14: USize = bitcast inspect %11
+  %15: Bool = ge inspect %14 inspect %13
+  %16: {} = call checkCondition borrow.shared %15
+  %17: I32 = read copy.trivial (xs[...])
+  %18: I32 = add inspect %9 inspect %17
+  write.assign borrow.unique (total) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: I32 = const 1
+  %22: I32 = add inspect %20 inspect %21
+  write.assign borrow.unique (i) take %22
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local block: [I32 *4]
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: I32 = const 4
+  %4: [I32 *4] = aggregate.0 take %0 take %1 take %2 take %3
+  write.init borrow.unique (block) take %4
+  %6: I32 = call writtenCount
+  %7: [I32 *4] = read copy.trivial (block)
+  %8: I32 = call sumOf(4) borrow.shared %7
+  %9: I32 = add inspect %6 inspect %8
+  return take %9
+}
+
+entry main

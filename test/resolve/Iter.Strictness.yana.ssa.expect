@@ -1,0 +1,90 @@
+module ResolveTest
+
+fn walk(self: c [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
+
+fn walk'2(self: c [shared call], fallback: () -> I32 [shared call]) -> I32 = <no body>
+
+fn Bag.walk(self: Bag [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+bb0(%0: Bag [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 0
+  store inspect %2 consume %3
+  %4: %I32 address = field.addr .w inspect %0
+  %5: I32 trivial = load inspect %4
+  %6: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %7: I32 trivial = call [value #0] inspect %6 borrow %5
+  store inspect %2 consume %7
+  %8: I32 trivial = load inspect %2
+  return consume %8
+}
+
+fn walk'3(b: Box [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+bb0(%0: Box [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 0
+  store inspect %2 consume %3
+  %4: %I32 address = field.addr .v inspect %0
+  %5: I32 trivial = load inspect %4
+  %6: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %7: I32 trivial = call [value #0] inspect %6 borrow %5
+  store inspect %2 consume %7
+  %8: I32 trivial = load inspect %2
+  return consume %8
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: I32 trivial = const 0
+  store inspect %0 consume %1
+  %2: I32 trivial = const 7
+  %3: Box trivial = aggregate.Box consume %2
+  %4: I32 [unique slot 0] guaranteed = load inspect %0
+  %5: main.cont'2.env affine = aggregate.main.cont'2.env borrow %4
+  %6: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value main.cont'2 borrow %5
+  %7: I32 trivial = call walk'3 borrow %3 borrow %6
+  jump -> bb1
+
+bb1:
+  %8: I32 trivial = const 30
+  %9: Bag trivial = aggregate.Bag consume %8
+  %10: I32 [unique slot 0] guaranteed = load inspect %0
+  %11: main.cont.env affine = aggregate.main.cont.env borrow %10
+  %12: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value main.cont borrow %11
+  %13: I32 trivial = call Bag.walk borrow %9 borrow %12
+  jump -> bb2
+
+bb2:
+  %14: I32 trivial = load inspect %0
+  return consume %14
+}
+
+fn main.cont(main.cont.env: main.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: main.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = field.addr .total inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %1
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = load inspect %4
+  %7: I32 trivial = add inspect %5 inspect %6
+  store inspect %3 consume %7
+  %8: I32 trivial = const 0
+  return consume %8
+}
+
+fn main.cont'2(main.cont'2.env: main.cont'2.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: main.cont'2.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = field.addr .total inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %1
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = load inspect %4
+  %7: I32 trivial = add inspect %5 inspect %6
+  store inspect %3 consume %7
+  %8: I32 trivial = const 0
+  return consume %8
+}
+
+entry main

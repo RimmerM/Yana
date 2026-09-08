@@ -183,6 +183,17 @@ inline Constant addressConstant(DeclPtr<Type> type, DeclPtr<Global> global) {
     return Constant { type, Constant::Address, U64(global.offset) };
 }
 
+/*
+ * Whether a value has a `Constant::Text` anywhere in it - the root, or a leaf of an aggregate.
+ *
+ * One predicate rather than a test at the root, because a text is deferred and an *array* of texts
+ * is the same deferral with the leaves further in: `let names = ["a", "b"]` has to wait for the
+ * library's own string builder exactly as `let name = "a"` does. Written here beside the kind
+ * rather than in the resolver, so that a second site that has to know "is this settled yet" asks
+ * the same question.
+ */
+bool holdsText(DeclBase base, const Constant& constant);
+
 inline Constant floatConstant(DeclPtr<Type> type, double value) {
     U64 bits;
     copy((const Byte*)&value, (Byte*)&bits, 8);

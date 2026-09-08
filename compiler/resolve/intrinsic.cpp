@@ -1816,6 +1816,43 @@ TypePtr headVariable(Module& module, GlobalPtr<GenEnv> env) {
 }
 
 /*
+ * The one place the container generators stand down - `ClassInstance::Origin::Replaceable`.
+ *
+ * Everything `defineNativeIndexInstances` and `defineContainerInstances` emit goes through here or
+ * through `overriding` below and nothing else does, which is the point: a program that writes
+ * `instance Eq(I32)` still gets the duplicate it always got, and a *library* that writes
+ * `instance Length(Array(a))` gets its own body used instead of the emitter's. That is the bridge
+ * `doc/progress/2026-09-06-inventory.md` D10 decided on, and it is what lets one `lib/` serve both
+ * resolve stages while these generators still exist - the ownership stage has no generators at all
+ * and reads the written instances directly.
+ *
+ * It disappears with them; Analysis-IR.md part 11.5 is when.
+ */
+ModulePtr<ClassInstance> replaceable(Module& module, ModulePtr<ClassInstance> instance) {
+    (*module.arena)[instance]->origin = ClassInstance::Origin::Replaceable;
+    return instance;
+}
+
+/*
+ * And the head set where the generator wins instead - `ClassInstance::Origin::Overriding`, D14.
+ *
+ * `Index` alone, which is why this marks `defineIndex`'s output rather than taking a flag. The
+ * library writes `instance Index(Array(a), Size, a)` because the ownership stage generates nothing
+ * and has to read it, and this stage may not use it: a generated `getMut` hands back a borrow of
+ * the *element* and a written one hands back a borrow this stage's analysis roots in the whole
+ * container, so `xs[k] = xs[k] + 1` and the erased build's return rooting stop compiling. The
+ * written declaration is therefore retired where it is read, in `resolveInstance`, before a single
+ * member of it exists - which also keeps a `@platform(native)` body out of a JS build.
+ *
+ * The reverse of `replaceable` and deliberately the same mechanism: one field, one test, and both
+ * directions gone together when 11.5 deletes these generators.
+ */
+ModulePtr<ClassInstance> overriding(Module& module, ModulePtr<ClassInstance> instance) {
+    (*module.arena)[instance]->origin = ClassInstance::Origin::Overriding;
+    return instance;
+}
+
+/*
  * `Index(c, k, v)` for one head, whose element is always the head's own variable - which is what the
  * class's functional dependency says out loud.
  *
@@ -1829,12 +1866,14 @@ void defineIndex(Module& module, TypePtr head, GlobalPtr<GenEnv> env, TypePtr ke
     TypePtr args[] = { head, key, element };
     IntrinsicMethod methods[] = { { "get"_v, 2, get }, { "getMut"_v, 2, getMut } };
 
-    generateInstance(module, module.coreClasses.index, { args, 3 }, { methods, 2 }, env);
+    // `overriding` and not `replaceable`: this is the one class the library writes and this stage
+    // refuses to read - see the note there, and D14.
+    overriding(module, generateInstance(module, module.coreClasses.index, { args, 3 }, { methods, 2 }, env));
 }
 
 void defineLength(Module& module, TypePtr head, GlobalPtr<GenEnv> env, Emit length) {
     IntrinsicMethod methods[] = { { "length"_v, 1, length } };
-    generateInstance(module, classNamed(module, "Length"_v), { &head, 1 }, { methods, 1 }, env);
+    replaceable(module, generateInstance(module, classNamed(module, "Length"_v), { &head, 1 }, { methods, 1 }, env));
 }
 
 // `Contiguous(c, a)` and `Writable(c, a)` for one head, whose element the class's `->` determines
@@ -1844,10 +1883,10 @@ void defineWindowContainer(Module& module, TypePtr head, GlobalPtr<GenEnv> env, 
     TypePtr args[] = { head, element };
 
     IntrinsicMethod shared[] = { { "elements"_v, 1, emitWindowItself } };
-    generateInstance(module, module.coreClasses.contiguous, { args, 2 }, { shared, 1 }, env);
+    replaceable(module, generateInstance(module, module.coreClasses.contiguous, { args, 2 }, { shared, 1 }, env));
 
     IntrinsicMethod exclusive[] = { { "elementsMut"_v, 1, emitWindowItself } };
-    generateInstance(module, module.coreClasses.writable, { args, 2 }, { exclusive, 1 }, env);
+    replaceable(module, generateInstance(module, module.coreClasses.writable, { args, 2 }, { exclusive, 1 }, env));
 }
 
 } // namespace

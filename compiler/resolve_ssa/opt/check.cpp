@@ -7,17 +7,21 @@
  * ## What a check *is* here, which is not what it is in the shipping stage
  *
  * Over there the compiler emits `checkCondition(index >= length)` at every subscript and holds a
- * pointer to that function, so `dischargeChecks` is a walk looking for a call to it. Nothing in this
- * stage emits anything: `prelude/Core/Array.yana`'s `Index.get` writes
+ * pointer to that function, so `dischargeChecks` is a walk looking for a call to it. This stage
+ * emits one and only one: a `[T *n]` element is a projection of the container's own place rather
+ * than a call, so there is no accessor body for its bound to live in and `checkFixedBound` in
+ * `resolve_mir/resolve_expr.cpp` reaches for the same `checkCondition` role. Every *other* check is
+ * the library's own - `lib/Core/Array.yana`'s `Index.get` writes
  *
  *     if (bitcast(index) :: USize) >= (bitcast(self.length) :: USize) then checkFailed()
  *
  * in the library body and `@inline(always)` grafts it into the caller during SSA conversion. So what
- * arrives is an ordinary comparison, an ordinary branch, and an arm holding one call.
+ * arrives either way is an ordinary comparison, an ordinary branch, and an arm holding one call -
+ * the compiler's own is that shape too, one inlining later.
  *
  * That moves the meaning of the switch and it is worth being exact about it. `-no-checks` here is
- * **not** "the checks the compiler inserted", because there are none; it is "a branch whose whole
- * taken arm is a call to the `checkFailed` role, removed". `prelude/Core/Array.yana`'s `reserve`
+ * **not** "the checks the compiler inserted", of which there is one; it is "a branch whose whole
+ * taken arm is a call to the `checkFailed` role, removed". `lib/Core/Array.yana`'s `reserve`
  * writes `if !resize(self.run, wide) then checkFailed()` and that is the same shape, so a
  * `-no-checks` build drops the allocation-failure stop along with the bounds tests. That is the
  * honest reading of a library whose checks *are* library code and not a hole in the rule: what the

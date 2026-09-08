@@ -97,7 +97,7 @@ fn unpacked() -> Int:
 -- written to it, and that write would go nowhere - `optionA` would still read True. Deferring the
 -- commit to the last use of the result is what makes this 2 rather than 3, and it is why this case
 -- needs no second representation for `&`.
-fn pick(flag: Bool, return &a: Bool, return &b: Bool) -> &Bool = if flag then a else b
+fn pick(flag: Bool, &a: 'Bool, &b: 'Bool) -> &'Bool = if flag then a else b
 
 fn loaned() -> Int:
     let &f = Flags {optionA: True, optionB: True}
@@ -113,7 +113,7 @@ fn loaned() -> Int:
 -- temporary dies with the frame that made it, and the result is supposed to outlive that frame. A
 -- reference carries how to reach the field - the unit's address, and the shift within it - so this
 -- is an ordinary selector with nothing arranged around it.
-fn optionOf(return &f: Flags) -> &Bool = f.optionA
+fn optionOf(&f: 'Flags) -> &'Bool = f.optionA
 
 fn returned() -> Int:
     let &f = Flags {optionA: False, optionB: True}
@@ -209,7 +209,7 @@ fn tally() -> Int:
 
 -- The same word, reached through a reference that outlives the call producing it - the case a
 -- materialized temporary could not serve, now that the word is shared.
-fn liveOf(return &e: Entry) -> &Bool = e.live
+fn liveOf(&e: 'Entry) -> &'Bool = e.live
 
 fn kept() -> Int:
     let &e = Entry {live: False, kind: 1, count: 2}

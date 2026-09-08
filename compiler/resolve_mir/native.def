@@ -13,8 +13,7 @@
  * which is where every reader looks anyway.
  *
  * What is *not* here is the rest of the shipping stage's `NativeOp`: the host operations, which
- * belong to a target this stage does not compile for, and `CloneThread`, which lowers to a backend
- * intrinsic rather than to one of the two forms below. A row with no producer is a description
+ * belong to a target this stage does not compile for. A row with no producer is a description
  * checked against nothing.
  */
 
@@ -32,3 +31,55 @@ YANA_MIR_NATIVE( SetMemory,  "set.memory"_v  )
  * there and carrying it twice is two things to keep in step.
  */
 YANA_MIR_NATIVE( Syscall,    "syscall"_v     )
+
+/*
+ * `cloneThread(flags, stackTop, entry, argument, threadId)` - a thread, started.
+ *
+ * The one row here that does **not** map to a lower-IR instruction of its own shape: it becomes
+ * `LowerIntrinsic::CloneThread`, a backend pseudo whose encoder is the `clone` system call plus the
+ * child's entry sequence. It is a `Native` row all the same, because what it is at this tier is the
+ * thing every row here is - a fixed operation over a flat argument list whose meaning belongs to the
+ * backend.
+ *
+ * **The entry stays one operand.** The declaration takes an ordinary function of the language, so
+ * what arrives is a `Fun` value - the `{code, env}` pair - and the child needs both words. Splitting
+ * it here would need a node for reading a word of a function value, which nothing else in this stage
+ * wants and which `resolve_ssa/lower/inst.cpp` already does by hand for a call through a value:
+ * `wordAt` at `funCodeOffset` and `funEnvOffset`. So the split is at the lowering, one place, beside
+ * the other reader of the same pair, and MIR carries the entry as what the author wrote.
+ */
+YANA_MIR_NATIVE( CloneThread, "clone.thread"_v )
+
+/*
+ * The x86 instructions a program reaches by name - `lib/Native/Intrinsic/X86.yana`, and the one
+ * group here that is a *target's* rather than a machine's in general.
+ *
+ * Rows here rather than nodes of their own, on this file's own terms: each is a fixed operation
+ * over a flat argument list whose meaning belongs to the backend. What made that worth stating
+ * again is that they are `@platform`-gated - a build below the level that has one never resolves
+ * the declaration, so a row nothing claims is a row nothing can reach.
+ *
+ * **`sha1rnds4`'s round group is a row rather than an operand**, which is where this departs from
+ * `Syscall`'s number. The group is the instruction's trailing byte, so a computed one is not an
+ * instruction at all; the lower IR already says so by having four enumerators for it
+ * (`LowerSha::Sha1Rounds0` through `3`), and four rows here make the seam a mapping instead of a
+ * constant read back out of an operand at the tier that can no longer report about it. The
+ * resolver is what holds the argument to being a literal, at the call, which is the only place
+ * that can name it.
+ *
+ * `sha256rnds2`'s third operand is `xmm0` on the machine. That is a register-allocation constraint
+ * the x64 form carries and nothing above the backend has to know, so here it is an ordinary third
+ * argument - which is the same division `LowerInstSha256Rounds` states from its side.
+ */
+YANA_MIR_NATIVE( Crc32,          "crc32"_v       )
+YANA_MIR_NATIVE( VZeroUpper,     "vzeroupper"_v  )
+YANA_MIR_NATIVE( Sha1Message1,   "sha1msg1"_v    )
+YANA_MIR_NATIVE( Sha1Message2,   "sha1msg2"_v    )
+YANA_MIR_NATIVE( Sha1NextE,      "sha1nexte"_v   )
+YANA_MIR_NATIVE( Sha1Rounds0,    "sha1rnds4_0"_v )
+YANA_MIR_NATIVE( Sha1Rounds1,    "sha1rnds4_1"_v )
+YANA_MIR_NATIVE( Sha1Rounds2,    "sha1rnds4_2"_v )
+YANA_MIR_NATIVE( Sha1Rounds3,    "sha1rnds4_3"_v )
+YANA_MIR_NATIVE( Sha256Message1, "sha256msg1"_v  )
+YANA_MIR_NATIVE( Sha256Message2, "sha256msg2"_v  )
+YANA_MIR_NATIVE( Sha256Rounds,   "sha256rnds2"_v )

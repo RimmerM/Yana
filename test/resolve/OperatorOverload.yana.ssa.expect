@@ -1,6 +1,6 @@
 module ResolveTest
 
-fn +(lhs: Tag [shared call], rhs: I32 [shared call]) -> I32 {
+fn +'3(lhs: Tag [shared call], rhs: I32 [shared call]) -> I32 {
 bb0(%0: Tag [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %1
@@ -11,7 +11,7 @@ bb0(%0: Tag [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   return consume %6
 }
 
-fn -(value: Tag [shared call]) -> I32 {
+fn -'4(value: Tag [shared call]) -> I32 {
 bb0(%0: Tag [shared call] guaranteed):
   %1: I32 trivial = const 0
   %2: %I32 address = field.addr .n inspect %0
@@ -20,7 +20,7 @@ bb0(%0: Tag [shared call] guaranteed):
   return consume %4
 }
 
-fn *(lhs: Tag [shared call], rhs: I32 [shared call], scale: I32 [shared call]) -> I32 {
+fn *'3(lhs: Tag [shared call], rhs: I32 [shared call], scale: I32 [shared call]) -> I32 {
 bb0(%0: Tag [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
@@ -49,24 +49,24 @@ bb0:
   %8: I32 trivial = const 5
   %9: Tag trivial = aggregate.Tag consume %8
   %10: I32 trivial = const 6
-  %11: I32 trivial = call + borrow %9 borrow %10
+  %11: I32 trivial = call +'3 borrow %9 borrow %10
   store inspect %1 consume %11
   %12: I32 trivial = const 2
   %13: Tag trivial = aggregate.Tag consume %12
   %14: I32 trivial = const 3
   %15: I32 trivial = const 4
   %16: I32 trivial = mul inspect %14 inspect %15
-  %17: I32 trivial = call + borrow %13 borrow %16
+  %17: I32 trivial = call +'3 borrow %13 borrow %16
   store inspect %2 consume %17
   %18: I32 trivial = const 7
   %19: Tag trivial = aggregate.Tag consume %18
-  %20: I32 trivial = call - borrow %19
+  %20: I32 trivial = call -'4 borrow %19
   store inspect %3 consume %20
   %21: I32 trivial = const 3
   %22: Tag trivial = aggregate.Tag consume %21
   %23: I32 trivial = const 4
   %24: I32 trivial = const 10
-  %25: I32 trivial = call * borrow %22 borrow %23 borrow %24
+  %25: I32 trivial = call *'3 borrow %22 borrow %23 borrow %24
   store inspect %4 consume %25
   %26: I32 trivial = load inspect %0
   %27: I32 trivial = load inspect %1

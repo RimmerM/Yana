@@ -2,17 +2,17 @@ module ResolveTest
 
 data Held {v: I32} drop authored
 
-data Handler {run: (I32) -> I32}
+data Handler {run: (I32) -> I32} drop derived reclaim derived
 
 data plain.lambda.env {}
 
 data copied.lambda.env {n: I32}
 
-data borrowed.lambda.env {h: 0'Held} shape3
+data borrowed.lambda.env {h: 0'Held} shape2
 
 data mutated.lambda.env {acc: &0'I32} shape4
 
-data indirect.lambda.env {g: 0'(I32) -> I32} shape3
+data indirect.lambda.env {g: 0'(I32) -> I32} shape2
 
 instance Drop(Held): Held.drop
 
@@ -57,7 +57,7 @@ bb0:
 
 fn plain() -> Handler {
 bb0:
-  %0: (I32) -> I32 = fun.value plain.lambda
+  %0: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value plain.lambda
   %1: Handler = aggregate.Handler take %0
   return take %1
 }
@@ -65,18 +65,18 @@ bb0:
 fn copied() -> I32 {
   local n: I32
   local copied.lambda.env: copied.lambda.env
-  local local2: (I32) -> I32 [owned here shape2 .0=shared call]
+  local local2: (I32) -> I32 [owned here shape9 .0=shared call]
 
 bb0:
   %0: I32 = const 3
   write.init borrow.unique (n) take %0
-  %2: I32 = read copy.trivial (n)
+  %2: I32 = const 3
   %3: copied.lambda.env = aggregate.copied.lambda.env take %2
   write.init borrow.unique (copied.lambda.env) take %3
   %5: copied.lambda.env [shared call] = read borrow.shared (copied.lambda.env) loan0
-  %6: (I32) -> I32 [owned here shape2 .0=shared call] = fun.value copied.lambda inspect %5 roots.0{0}
+  %6: (I32) -> I32 [owned here shape9 .0=shared call] = fun.value copied.lambda inspect %5 roots.0{0}
   write.init borrow.unique (local2) take %6
-  %8: (I32) -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
+  %8: (I32) -> I32 [shared call shape9 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
   %9: I32 = const 5
   %10: I32 = call twice borrow.shared %8 borrow.shared %9
   return take %10
@@ -85,7 +85,7 @@ bb0:
 fn borrowed() -> I32 {
   local h: Held
   local borrowed.lambda.env: borrowed.lambda.env
-  local f: (I32) -> I32 [owned here shape2 .0=shared call]
+  local f: (I32) -> I32 [owned here shape9 .0=shared call]
 
 bb0:
   %0: I32 = const 9
@@ -95,9 +95,9 @@ bb0:
   %4: borrowed.lambda.env = aggregate.borrowed.lambda.env borrow.shared %3 roots.0{0}
   write.init borrow.unique (borrowed.lambda.env) take %4
   %6: borrowed.lambda.env [shared call] = read borrow.shared (borrowed.lambda.env) loan1 roots.0{0}
-  %7: (I32) -> I32 [owned here shape2 .0=shared call] = fun.value borrowed.lambda inspect %6 roots.0{0, 1}
+  %7: (I32) -> I32 [owned here shape9 .0=shared call] = fun.value borrowed.lambda inspect %6 roots.0{0, 1}
   write.init borrow.unique (f) take %7
-  %9: (I32) -> I32 [shared call shape2 .0=shared call] = read borrow.shared (f) loan2 roots.0{0, 1}
+  %9: (I32) -> I32 [shared call shape9 .0=shared call] = read borrow.shared (f) loan2 roots.0{0, 1}
   %10: I32 = const 1
   %11: I32 = call apply borrow.shared %9 borrow.shared %10
   drop (h)
@@ -107,7 +107,7 @@ bb0:
 fn mutated() -> I32 {
   local & acc: I32
   local mutated.lambda.env: mutated.lambda.env
-  local local2: (I32) -> I32 [owned here shape2 .0=shared call]
+  local local2: (I32) -> I32 [owned here shape9 .0=shared call]
 
 bb0:
   %0: I32 = const 0
@@ -116,29 +116,29 @@ bb0:
   %3: mutated.lambda.env = aggregate.mutated.lambda.env borrow.unique %2 roots.0{0}
   write.init borrow.unique (mutated.lambda.env) take %3
   %5: mutated.lambda.env [shared call] = read borrow.shared (mutated.lambda.env) loan1 roots.0{0}
-  %6: (I32) -> I32 [owned here shape2 .0=shared call] = fun.value mutated.lambda inspect %5 roots.0{0, 1}
+  %6: (I32) -> I32 [owned here shape9 .0=shared call] = fun.value mutated.lambda inspect %5 roots.0{0, 1}
   write.init borrow.unique (local2) take %6
-  %8: (I32) -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
+  %8: (I32) -> I32 [shared call shape9 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
   %9: I32 = const 5
   %10: I32 = call twice borrow.shared %8 borrow.shared %9
   return take %10
 }
 
 fn indirect() -> I32 {
-  local g: (I32) -> I32
+  local g: (I32) -> I32 [owned here shape8 .0=unique call]
   local indirect.lambda.env: indirect.lambda.env
-  local f: (I32) -> I32 [owned here shape2 .0=shared call]
+  local f: (I32) -> I32 [owned here shape9 .0=shared call]
 
 bb0:
-  %0: (I32) -> I32 = fun.value double
+  %0: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value double
   write.init borrow.unique (g) take %0
-  %2: (I32) -> I32 [shared slot 0] = read borrow.shared (g) loan0
+  %2: (I32) -> I32 [shared slot 0 shape8 .0=unique call] = read borrow.shared (g) loan0
   %3: indirect.lambda.env = aggregate.indirect.lambda.env borrow.shared %2 roots.0{0}
   write.init borrow.unique (indirect.lambda.env) take %3
   %5: indirect.lambda.env [shared call] = read borrow.shared (indirect.lambda.env) loan1 roots.0{0}
-  %6: (I32) -> I32 [owned here shape2 .0=shared call] = fun.value indirect.lambda inspect %5 roots.0{0, 1}
+  %6: (I32) -> I32 [owned here shape9 .0=shared call] = fun.value indirect.lambda inspect %5 roots.0{0, 1}
   write.init borrow.unique (f) take %6
-  %8: (I32) -> I32 [shared call shape2 .0=shared call] = read borrow.shared (f) loan2 roots.0{0, 1}
+  %8: (I32) -> I32 [shared call shape9 .0=shared call] = read borrow.shared (f) loan2 roots.0{0, 1}
   %9: I32 = const 4
   %10: I32 = call apply borrow.shared %8 borrow.shared %9
   return take %10
@@ -153,6 +153,7 @@ bb0:
   %2: (I32) -> I32 [shared call] = read borrow.shared (handler.run) loan0
   %3: I32 = const 50
   %4: I32 = call apply borrow.shared %2 borrow.shared %3
+  drop (handler)
   %5: I32 = call copied
   %6: I32 = add inspect %4 inspect %5
   %7: I32 = call borrowed

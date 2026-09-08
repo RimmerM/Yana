@@ -197,6 +197,7 @@ pub fn (Hash(k)) reserveMap(&self: Map(k, v), wanted: Size):
         if slots > indexSlots(self) || self.mask == 0 then indexRebuild(self, slots)
 
 -- A map sized at construction, which is the one construction site where the count is known.
+@builtin(mapLiteral)
 pub fn (Hash(k)) newMap(capacity: Size) -> Map(k, v):
     let &self = emptyMap() :: Map(k, v)
     reserveMap(self, capacity)
@@ -457,6 +458,7 @@ instance (Hash(k)) Index(Map(k, v), k, v):
    - `insert` declares `->key: k`, so the body hands borrowed storage to a sink - and it is invisible
    for every key a copy answers for: `m[1] = 2` compiles and `m["a"] = 2` does not.
 -}
+@builtin(indexInsert)
 pub class IndexInsert(c -> k, v):
   fn insertAt(&self: c, ->index: k, ->value: v) -> {}
 

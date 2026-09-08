@@ -1,6 +1,6 @@
 module ResolveTest
 
-fn sum(p: Two(I32, I32) [shared call]) -> I32 {
+fn sum'2(p: Two(I32, I32) [shared call]) -> I32 {
 bb0(%0: Two(I32, I32) [shared call] guaranteed):
   %1: %I32 address = field.addr .left inspect %0
   %2: I32 trivial = load inspect %1
@@ -30,7 +30,7 @@ bb0:
   %7: Two(I32, I32) trivial = aggregate.Two consume %5 consume %6
   store inspect %1 consume %7
   %8: Two(I32, I32) trivial = copy inspect %0
-  %9: I32 trivial = call sum borrow %8
+  %9: I32 trivial = call sum'2 borrow %8
   %10: Two(I32, I32) trivial = copy inspect %1
   %11: I32 trivial = call first borrow %10
   %12: I32 trivial = add inspect %9 inspect %11

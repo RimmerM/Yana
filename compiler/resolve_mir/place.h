@@ -18,7 +18,12 @@ struct Global;
  * Three rungs from the start, and reachable rather than reserved. The current compiler's equivalent
  * has the region enumerator and never selects it, which left the *decision* shaped like a two-way
  * choice between frame and heap; stating three means the escape analysis that arrives later ranks
- * them instead of learning a third answer. Only `Frame` is produced at this milestone.
+ * them instead of learning a third answer.
+ *
+ * `Frame` and `Heap` are both produced - `selectStorage` below is the one thing that says which, and
+ * `analyze_escape.cpp` is where it is called from. `Region` is still unreachable, and `verifyBody`
+ * refuses it: what it means is "in the region the ambient witness names", and there is no witness
+ * slot in a generic environment for one to be named in.
  */
 enum class StorageClass: U8 {
     Frame,
@@ -27,6 +32,56 @@ enum class StorageClass: U8 {
 };
 
 StringView storageClassName(StorageClass storage);
+
+/*
+ * What was established about one object, as the inputs the rung is ranked from - Analysis-IR.md
+ * §10.4, Implementation-Regions.md §4.
+ *
+ * A record of *findings* rather than a decision, and `selectStorage` is the only thing that turns it
+ * into one. That split is the whole of decision D6: the escape analysis, the `@heap` attribute and
+ * the region witness each establish one field here, and none of them gets to say where the object
+ * goes - so adding regions is a case in one function rather than a second placement rule somewhere
+ * that has to agree with the first.
+ */
+struct Placement {
+    /*
+     * `@heap` on the binding - `doc/Design.md`'s "forces that one binding onto the general heap".
+     *
+     * One-directional by construction: it can move an object off the frame and never onto it,
+     * because the frame answer is the one the analysis gives when it has *proved* the frame is
+     * enough, and an attribute that could overrule that would be an attribute that can dangle.
+     */
+    bool demanded = false;
+
+    /*
+     * Whether the storage is reachable after this frame returns - the escape analysis' answer.
+     *
+     * About the **storage** and not the value: a value returned by copy leaves the frame and its
+     * slot does not, which is why nearly nothing in a value-semantics IR sets this. See
+     * `analyze_escape.cpp`, which lists what does.
+     */
+    bool outlivesFrame = false;
+
+    /*
+     * Whether an ambient region witness is in scope to place this in - Implementation-Regions.md §2.
+     *
+     * Always false, and it is a field rather than a `false` written into the ranking so that the day
+     * a witness exists is a day one producer changes. §4's ladder is stack, then region, then heap,
+     * and the ranking below is that sentence.
+     */
+    bool regionWitness = false;
+};
+
+/*
+ * The rung - §10.4's lattice, ranked cheapest first.
+ *
+ * **The one function that decides where an object lives.** Everything else establishes a field of
+ * `Placement` and calls this; nothing else writes an `Object::storage`. That is what makes the
+ * region rung a rule rather than a mechanism: the line marked below is the whole of what
+ * Implementation-Regions.md §4 adds to this stage's placement, and it is one line because the
+ * findings it ranks are already separate from the ranking.
+ */
+StorageClass selectStorage(const Placement& asked);
 
 /*
  * A place: an object, or a projection of one - Analysis-IR.md §5.2.
@@ -130,5 +185,24 @@ struct Place {
 };
 
 StringView placeKindName(Place::Kind kind);
+
+/*
+ * Whether a teardown at this place can see where the value's interior boxes came from -
+ * `ssa::InstDrop::boxesVisible`, and `ssa::BoxRelease` for what it decides.
+ *
+ * The **root** of the place answers it, and nothing else does. Storage this frame owns had its boxes
+ * allocated by whatever built the value, and that is code in this program with this program's
+ * allocator; storage reached through a borrow, a global or a raw address belongs to somebody whose
+ * placement decision is not visible here.
+ *
+ * A **local** is the case that goes both ways: an owned local is this frame's, and a borrowed
+ * parameter is a local whose contract says the storage is the caller's. `Contract::isOwned` is the
+ * same question `buildPaths` asks to decide whether a local gets a move path at all.
+ *
+ * Here rather than in the conversion because two callers ask it: the conversion, which puts the
+ * answer on the drop it emits, and `settleBoxProvenance`, which asks it of the whole program to
+ * decide whether the answer is ever anything but `Owned`.
+ */
+bool boxesVisibleAt(MirBase base, Place& place);
 
 } // namespace mir

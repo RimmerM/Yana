@@ -2,7 +2,7 @@ module ResolveTest
 
 fn main() -> I32 {
 bb0:
-  %0: %Pair address = alloc frame Pair
+  %0: %Pair address = alloc heap Pair
   %1: I64 trivial = const 10
   %2: I64 trivial = const 20
   %3: Pair trivial = aggregate.Pair consume %1 consume %2
@@ -19,6 +19,7 @@ bb0:
   %12: I64 trivial = load inspect %11
   %13: I64 trivial = add inspect %10 inspect %12
   %14: I32 trivial = convert inspect %13
+  free inspect %0
   return consume %14
 }
 

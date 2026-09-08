@@ -74,7 +74,7 @@ bb3:
 fn container() -> I32 {
   local & local0: Array(Handle) object2
   local & xs: Array(Handle) object2
-  local & local2: Handle [unique slot 0]
+  local & local2: Handle [unique slot 0 owner]
   local & score: I32
   local local4: Maybe(Handle) object8
   local taken: Handle object8
@@ -91,7 +91,7 @@ bb0:
   write.init borrow.unique (local0) take %5
   %7: Array(Handle) [unique slot 0] = read borrow.unique (local0) loan0
   %8: Array(Handle) [unique slot 0 view] = call.derivation elementsMut(Array(Handle), Handle) borrow.unique %7 roots{0}
-  %9: %Handle [owned here shape1 .*=shared slot 0] = call valuesMut(Handle) borrow.unique %8 roots.0{0}
+  %9: %Handle [owned here shape6 .*=shared slot 0] = call valuesMut(Handle) borrow.unique %8 roots.0{0}
   %10: Size = const 0
   write.init borrow.unique ([%%9][0]) take %1
   %12: Size = const 1
@@ -107,7 +107,7 @@ bb0:
   %22: Handle = call openHandle borrow.shared %21
   %23: Array(Handle) [unique call] = read borrow.unique (xs) loan2
   %24: Array(Handle) [unique slot 0 view] = call.derivation elementsMut(Array(Handle), Handle) borrow.unique %23 roots{2}
-  %25: Handle [unique slot 0] = call.subscript getMut(Array(Handle), Size, Handle) borrow.unique %24 borrow.shared %20 roots{2}
+  %25: Handle [unique slot 0 owner] = call.subscript getMut(Array(Handle), Size, Handle) borrow.unique %24 borrow.shared %20 roots{2}
   write.init borrow.unique (local2) borrow.unique %25
   drop (local2)
   write.assign borrow.unique (local2) take %22

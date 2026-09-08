@@ -277,6 +277,13 @@ fn slice(I32)(%self: ArrayView(I32), %from: Size, %to: Size) -> ArrayView(I32) {
     ret %v39
 }
 
+fn Length(Array(a)).length(I32)(%self: Array(I32)) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
 fn Reclaim(Array(a)).reclaim(I32)(%value: Array(I32)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
@@ -1635,12 +1642,11 @@ fn genericEdges() -> I32 {
     init %local0@Array.run@Run.ownsHeap, 0
     aggregate [%v7][0] = 7, [%v7][1] = 8, [%v7][2] = 9
     init %local0@Array.length, 3
-    %v19 = load %local0@Array.length : @bits(30) U32
-    %v20 = cast %v19 : Size
-    %v23 = sub %v20, 1 : Size
-    %v25 = call atBoth(Array(I32), Size, I32), %xs, 0, %v23 : I32
+    %v19 = call Length(Array(a)).length(I32), %xs : Size
+    %v22 = sub %v19, 1 : Size
+    %v24 = call atBoth(Array(I32), Size, I32), %xs, 0, %v22 : I32
     drop %local0 via Reclaim(Array(a)).reclaim(I32)
-    ret %v25
+    ret %v24
 }
 
 fn oneElement() -> I32 {

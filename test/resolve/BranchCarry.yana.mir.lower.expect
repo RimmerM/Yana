@@ -45,33 +45,26 @@ main<complex>(): I32 {
   b_12 {
     %v_13 = loads @trace, 4: I32
     %v_14 = cmp_neq %v_13, 77: I32
-    je %v_14, b_15, b_16
-  }
-
-  b_17 {
-    ret 18446744073709551602
+    %v_15 = select %v_14, 18446744073709551601, 4242: I32
+    ret %v_15
   }
 
   b_16 {
-    ret 4242
-  }
-
-  b_15 {
-    ret 18446744073709551601
+    ret 18446744073709551602
   }
 
   b_3 {
-    %v_18 = loads %v_2, 4: I32
+    %v_17 = loads %v_2, 4: I32
     call_complex Guard.drop, %v_2
-    %v_19 = cmp_neq %v_18, 7: I32
-    je %v_19, b_9, b_4
+    %v_18 = cmp_neq %v_17, 7: I32
+    je %v_18, b_9, b_4
   }
 
   b_11 {
-    %v_20 = loads %v_10, 4: I32
+    %v_19 = loads %v_10, 4: I32
     call_complex Guard.drop, %v_10
-    %v_21 = cmp_neq %v_20, 7: I32
-    je %v_21, b_17, b_12
+    %v_20 = cmp_neq %v_19, 7: I32
+    je %v_20, b_16, b_12
   }
 }
 

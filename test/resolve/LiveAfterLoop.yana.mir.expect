@@ -1,0 +1,220 @@
+module ResolveTest
+
+fn pick(a: I64 [unique slot 0], b: I64 [unique slot 0], first: Bool [shared call]) -> I64 [unique slot 0 owner] {
+bb0:
+  %0: Bool = read copy.trivial (first)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I64 [unique slot 0] = read borrow.unique (b) loan1
+  jump -> bb2(borrow.unique %3)
+
+bb2(%4: I64 [unique slot 0]):
+  return borrow.unique %4
+
+bb3:
+  %2: I64 [unique slot 0] = read borrow.unique (a) loan0
+  jump -> bb2(borrow.unique %2)
+}
+
+fn borrowAfterLoop(x: I64 [unique call], y: I64 [unique call], flag: Bool [shared call]) -> I64 {
+  local & i: I64
+  local & chosen: I64 [unique slot 0 owner]
+
+bb0:
+  %0: I64 = const 0
+  write.init borrow.unique (i) take %0
+  jump -> bb1
+
+bb1:
+  %3: I64 = read copy.trivial (i)
+  %4: I64 = const 4
+  %5: Bool = lt inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb2
+
+bb2:
+  %16: I64 [unique slot 0] = read borrow.unique (x) loan0
+  %17: I64 [unique slot 0] = read borrow.unique (y) loan1
+  %18: Bool = const True
+  %19: I64 [unique slot 0 owner] = call pick borrow.unique %16 borrow.unique %17 borrow.shared %18 roots{0, 1}
+  write.init borrow.unique (chosen) borrow.unique %19
+  %21: Bool = read copy.trivial (flag)
+  branch inspect %21 -> bb6 -> bb4
+
+bb3:
+  %7: I64 = read copy.trivial (x)
+  %8: I64 = const 1
+  %9: I64 = add inspect %7 inspect %8
+  write.assign borrow.unique (x) take %9
+  %11: I64 = read copy.trivial (i)
+  %12: I64 = const 1
+  %13: I64 = add inspect %11 inspect %12
+  write.assign borrow.unique (i) take %13
+  jump -> bb1
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %26: I64 = read copy.trivial (chosen)
+  %27: I64 = const 1
+  %28: I64 = add inspect %26 inspect %27
+  return take %28
+
+bb6:
+  %23: I64 = read copy.trivial (chosen)
+  return take %23
+}
+
+fn endsBeforeWrite(x: I64 [unique call], y: I64 [unique call]) -> I64 {
+  local & chosen: I64 [unique slot 0 owner]
+  local held: I64
+
+bb0:
+  %0: I64 [unique slot 0] = read borrow.unique (x) loan0
+  %1: I64 [unique slot 0] = read borrow.unique (y) loan1
+  %2: Bool = const True
+  %3: I64 [unique slot 0 owner] = call pick borrow.unique %0 borrow.unique %1 borrow.shared %2 roots{0, 1}
+  write.init borrow.unique (chosen) borrow.unique %3
+  %5: I64 = read copy.trivial (chosen)
+  write.init borrow.unique (held) take %5
+  %7: I64 = read copy.trivial (x)
+  %8: I64 = const 1
+  %9: I64 = add inspect %7 inspect %8
+  write.assign borrow.unique (x) take %9
+  %11: I64 = read copy.trivial (held)
+  %12: I64 = read copy.trivial (x)
+  %13: I64 = add inspect %11 inspect %12
+  return take %13
+}
+
+fn otherArm(x: I64 [unique call], y: I64 [unique call], flag: Bool [shared call]) -> I64 {
+  local & chosen: I64 [unique slot 0 owner]
+
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I64 = read copy.trivial (x)
+  %11: I64 = const 1
+  %12: I64 = add inspect %10 inspect %11
+  write.assign borrow.unique (x) take %12
+  %14: I64 = read copy.trivial (x)
+  return take %14
+
+bb3:
+  %2: I64 [unique slot 0] = read borrow.unique (x) loan0
+  %3: I64 [unique slot 0] = read borrow.unique (y) loan1
+  %4: Bool = const True
+  %5: I64 [unique slot 0 owner] = call pick borrow.unique %2 borrow.unique %3 borrow.shared %4 roots{0, 1}
+  write.init borrow.unique (chosen) borrow.unique %5
+  %7: I64 = read copy.trivial (chosen)
+  return take %7
+}
+
+fn insideOneIteration(x: I64 [unique call], y: I64 [unique call]) -> I64 {
+  local & i: I64
+  local & total: I64
+  local & chosen: I64 [unique slot 0 owner]
+
+bb0:
+  %0: I64 = const 0
+  write.init borrow.unique (i) take %0
+  %2: I64 = const 0
+  write.init borrow.unique (total) take %2
+  jump -> bb1
+
+bb1:
+  %5: I64 = read copy.trivial (i)
+  %6: I64 = const 3
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %27: I64 = read copy.trivial (total)
+  return take %27
+
+bb3:
+  %9: I64 [unique slot 0] = read borrow.unique (x) loan0
+  %10: I64 [unique slot 0] = read borrow.unique (y) loan1
+  %11: Bool = const True
+  %12: I64 [unique slot 0 owner] = call pick borrow.unique %9 borrow.unique %10 borrow.shared %11 roots{0, 1}
+  write.init borrow.unique (chosen) borrow.unique %12
+  %14: I64 = read copy.trivial (total)
+  %15: I64 = read copy.trivial (chosen)
+  %16: I64 = add inspect %14 inspect %15
+  write.assign borrow.unique (total) take %16
+  %18: I64 = read copy.trivial (x)
+  %19: I64 = const 1
+  %20: I64 = add inspect %18 inspect %19
+  write.assign borrow.unique (x) take %20
+  %22: I64 = read copy.trivial (i)
+  %23: I64 = const 1
+  %24: I64 = add inspect %22 inspect %23
+  write.assign borrow.unique (i) take %24
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local & a: I64
+  local & b: I64
+  local & total: I64
+
+bb0:
+  %0: I64 = const 10
+  write.init borrow.unique (a) take %0
+  %2: I64 = const 20
+  write.init borrow.unique (b) take %2
+  %4: I64 = const 0
+  write.init borrow.unique (total) take %4
+  %6: I64 = read copy.trivial (total)
+  %7: I64 [unique call] = read borrow.unique (a) loan0
+  %8: I64 [unique call] = read borrow.unique (b) loan1
+  %9: Bool = const True
+  %10: I64 = call borrowAfterLoop borrow.unique %7 borrow.unique %8 borrow.shared %9
+  %11: I64 = add inspect %6 inspect %10
+  write.assign borrow.unique (total) take %11
+  %13: I64 = const 10
+  write.assign borrow.unique (a) take %13
+  %15: I64 = read copy.trivial (total)
+  %16: I64 [unique call] = read borrow.unique (a) loan2
+  %17: I64 [unique call] = read borrow.unique (b) loan3
+  %18: I64 = call endsBeforeWrite borrow.unique %16 borrow.unique %17
+  %19: I64 = add inspect %15 inspect %18
+  write.assign borrow.unique (total) take %19
+  %21: I64 = const 10
+  write.assign borrow.unique (a) take %21
+  %23: I64 = read copy.trivial (total)
+  %24: I64 [unique call] = read borrow.unique (a) loan4
+  %25: I64 [unique call] = read borrow.unique (b) loan5
+  %26: Bool = const True
+  %27: I64 = call otherArm borrow.unique %24 borrow.unique %25 borrow.shared %26
+  %28: I64 = add inspect %23 inspect %27
+  write.assign borrow.unique (total) take %28
+  %30: I64 = const 10
+  write.assign borrow.unique (a) take %30
+  %32: I64 = read copy.trivial (total)
+  %33: I64 [unique call] = read borrow.unique (a) loan6
+  %34: I64 [unique call] = read borrow.unique (b) loan7
+  %35: Bool = const False
+  %36: I64 = call otherArm borrow.unique %33 borrow.unique %34 borrow.shared %35
+  %37: I64 = add inspect %32 inspect %36
+  write.assign borrow.unique (total) take %37
+  %39: I64 = const 10
+  write.assign borrow.unique (a) take %39
+  %41: I64 = read copy.trivial (total)
+  %42: I64 [unique call] = read borrow.unique (a) loan8
+  %43: I64 [unique call] = read borrow.unique (b) loan9
+  %44: I64 = call insideOneIteration borrow.unique %42 borrow.unique %43
+  %45: I64 = add inspect %41 inspect %44
+  write.assign borrow.unique (total) take %45
+  %47: I64 = read copy.trivial (total)
+  %48: I32 = convert inspect %47
+  return take %48
+}
+
+entry main

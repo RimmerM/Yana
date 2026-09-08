@@ -201,6 +201,32 @@ YANA_MIR_INST( Fma,          NodeFma,          "fma"_v,          kMirResult )
 YANA_MIR_INST( Select,       NodeSelect,       "select"_v,       kMirResult )
 
 /*
+ * A `match` whose arms are all compile-time constants, as the mapping it states - inventory D3.
+ *
+ * A value and not a terminator, which is what separates it from `switch` beside it: a `switch` names
+ * *blocks* and its arms may do anything, and this names *constants* and its arms may do nothing at
+ * all. One node carrying either would have a case list whose entries are blocks on half its
+ * instances and constants on the other half, which is the argument this roster already makes against
+ * merging `VecLane` with a computed index into `FieldAddress`.
+ *
+ * **The entries are payload rather than operands**, exactly as `NodeConst::constant` is: what an
+ * operand walk exposes is the values this node reads, and a table of literals is not one of them.
+ * The selector is the single operand, under a role of its own - a condition is a `Bool` and a
+ * selector is an integer that has to hold every case value, which are two different verifier rules.
+ *
+ * `closed` says the listed selectors are the whole domain - a record's own constructors - so there
+ * is no out-of-range case to guard and `fallback` is unset. That is `resolve/map.h`'s "the domain is
+ * closed" carried rather than re-derived at each of the five forms below it.
+ *
+ * **No size rule here.** Which shape the mapping becomes - the constant, two comparisons, a bit
+ * test, an affine step, a packed immediate, or a table in static data - is the target's question and
+ * is answered once, at lowering. Recognition promises nothing, so nothing is decided twice; the
+ * shipping stage's `chooseForm` has to run before it answers and again while it emits, precisely
+ * because its recognizer owes its caller an emission.
+ */
+YANA_MIR_INST( Map,          NodeMap,          "map"_v,          kMirResult )
+
+/*
  * The four vector operations that are not one of the kinds this IR already has - Design-Vector §3.2.
  *
  * Everything else a vector does is an instruction that was already here: an add of two vectors is a
@@ -248,6 +274,23 @@ YANA_MIR_INST( VecShuffle,   NodeVecShuffle,   "vec.shuffle"_v,  kMirResult )
  */
 YANA_MIR_INST( VecReduce,    NodeVecReduce,    "vec.reduce"_v,   kMirResult )
 
+/*
+ * The lane numbers of a vector whose count this body does not know - `iota` deferred.
+ *
+ * At a **concrete** vector `iota` is not a node at all: the emitter writes lane `i` with `i` over a
+ * zero splat and the folder answers the whole of it, which is what makes a tail mask cost a load
+ * from `.rodata` rather than a chain. This row is the other half of that, and it exists for the
+ * reason `expandVecLanes`' `GenValue` does: inside a body compiled once, `Vec(a)`'s count is a
+ * number the *instantiation* supplies, so a chain built here would be a chain of the natural form's
+ * zero lanes - which is what `lib/Core/Container.yana`'s tail mask was silently getting, and what
+ * made `for v in vectors(xs)` drop its last chunk.
+ *
+ * No operands: what it produces is decided entirely by its result type, and the SSA conversion -
+ * the first point at which that type is concrete - is where it becomes the chain the concrete path
+ * builds directly. Nothing below OSSA ever sees one.
+ */
+YANA_MIR_INST( VecIota,      NodeVecIota,      "vec.iota"_v,     kMirResult )
+
 YANA_MIR_INST( Call,         NodeCall,         "call"_v,         kMirResult )
 YANA_MIR_INST( Write,        NodeWrite,        "write"_v,        0 )
 YANA_MIR_INST( Return,       NodeReturn,       "return"_v,       kMirTerminator )
@@ -284,4 +327,23 @@ YANA_MIR_INST( LensCall,     NodeLensCall,     "lens.call"_v,    kMirTerminator 
  */
 YANA_MIR_INST( LensTry,      NodeLensCall,     "lens.try"_v,     kMirTerminator )
 YANA_MIR_INST( Branch,       NodeBranch,       "branch"_v,       kMirTerminator )
+
+/*
+ * A multi-way branch on one discriminant - inventory D3, and the terminator beside `map`.
+ *
+ * **Two nodes and not one**, and they differ in the thing an instruction table exists to state: a
+ * `switch` names *blocks* and its arms may do anything at all, while a `map` names *constants* and
+ * its arms may do nothing. One node whose arms were either would carry a flag set on half its
+ * instances, which is the argument this roster already makes against a `FieldAddress` with a
+ * computed index. They also have different producers and different admissibility rules - a `switch`
+ * arm may bind a payload and a `map` arm may not.
+ *
+ * **The fallback is mandatory and there is no exhaustiveness invariant.** Exhaustiveness is a front
+ * end fact proved by `PatternSpace`; an IR that restated it would oblige every pass that deletes a
+ * case - because its target became unreachable - to re-prove that the remainder still covers the
+ * domain, which is not maintainable. A fallback costs one edge, and where the source *was*
+ * exhaustive it is the last constructor's arm - exactly the alternative `armsValue` already emits
+ * with no failure edge.
+ */
+YANA_MIR_INST( Switch,       NodeSwitch,       "switch"_v,       kMirTerminator )
 YANA_MIR_INST( Unreachable,  NodeUnreachable,  "unreachable"_v,  kMirTerminator )

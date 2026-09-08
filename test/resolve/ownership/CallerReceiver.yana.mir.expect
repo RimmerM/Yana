@@ -1,0 +1,72 @@
+module ResolveTest
+
+let string'142: [CodeUnit *4] = [102, 108, 97, 103]
+
+let string'143: [CodeUnit *4] = [102, 108, 97, 103]
+
+fn widthOfSelf(self: Bool [shared call], @caller(source: self) text: String [shared call view]) -> Size {
+bb0:
+  %0: String [shared call view] = read borrow.shared (text) loan0
+  %1: Size = call length(String) borrow.shared %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local flag: Bool
+  local local1: String
+  local local2: String
+
+bb0:
+  %0: Bool = const True
+  write.init borrow.unique (flag) take %0
+  %2: Bool = const True
+  %3: [CodeUnit *4] [shared slot 0] = read borrow.shared (global string'142) loan0
+  %4: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] = address inspect %3 roots.0{0}
+  %5: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %4 roots.0{0}
+  %6: I32 = const 4
+  %7: String = call stringLiteral borrow.shared %5 borrow.shared %6
+  write.init borrow.unique (local1) take %7
+  %9: String [shared slot 0] = read borrow.shared (local1) loan1
+  %10: String [shared slot 0 view] = call.derivation view(String) borrow.shared %9 roots{1}
+  %11: Size = call widthOfSelf borrow.shared %2 borrow.shared %10
+  drop (local1)
+  %12: Size = const 4
+  %13: Bool = ne inspect %11 inspect %12
+  branch inspect %13 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %18: Bool = const True
+  %19: [CodeUnit *4] [shared slot 0] = read borrow.shared (global string'143) loan2
+  %20: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] = address inspect %19 roots.0{2}
+  %21: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %20 roots.0{2}
+  %22: I32 = const 4
+  %23: String = call stringLiteral borrow.shared %21 borrow.shared %22
+  write.init borrow.unique (local2) take %23
+  %25: String [shared slot 0] = read borrow.shared (local2) loan3
+  %26: String [shared slot 0 view] = call.derivation view(String) borrow.shared %25 roots{3}
+  %27: Size = call widthOfSelf borrow.shared %18 borrow.shared %26
+  drop (local2)
+  %28: Size = const 4
+  %29: Bool = ne inspect %27 inspect %28
+  branch inspect %29 -> bb6 -> bb4
+
+bb3:
+  %15: I32 = const 1
+  return take %15
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %34: I32 = const 0
+  return take %34
+
+bb6:
+  %31: I32 = const 2
+  return take %31
+}
+
+entry main

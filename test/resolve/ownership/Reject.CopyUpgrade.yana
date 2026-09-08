@@ -1,0 +1,29 @@
+{-
+   The half of `CopyUpgrade.yana` that has nothing to spend.
+
+   # resolver: ownership
+
+   Every function here is the *same text* as one beside it with the `TrivialCopy(a)` constraint taken
+   off, which is the whole point: nothing about the body changed, so the only thing that can be
+   refusing these is the promise the signature no longer makes. Implementation-Generics.md §1's first
+   invariant is what that promise is measured against - "an unconstrained `a` is treated as
+   non-`TrivialCopy` even when one call substitutes `Int`" - and *unconstrained* is the word the
+   accepting fixture is about.
+
+   `takenFromAnother` is the one that shows the constraint is read as a promise about a *variable*
+   and not as a mood: `TrivialCopy(b)` is declared, `a` is not, and only `a`'s parameter is refused.
+-}
+
+data Pair(a) {left: a, right: a}
+
+fn nothingPromised(from: a) -> a = from
+
+fn intoAField(x: a) -> Pair(a) = Pair {left: x, right: x}
+
+fn exclusiveBinding(ifEmpty: a) -> a:
+    let &best = ifEmpty
+    return best
+
+fn (TrivialCopy(b)) takenFromAnother(x: a, y: b) -> Pair(b) = Pair {left: y, right: x}
+
+fn main() -> Int = 0

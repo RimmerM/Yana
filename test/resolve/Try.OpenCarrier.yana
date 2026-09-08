@@ -1,0 +1,36 @@
+{-
+   `?` over a carrier that is **applied to the body's own variable** - inventory D13, at the `Try`
+   selection.
+
+   `Result(Problem, a)` inside a generic body is not concrete, so the instance table used to be
+   skipped and the only other answer was a `Try(m, a, e)` requirement the signature declared. Nothing
+   declares one: `Result` names its own constructor, so the instance that serves it is decided for
+   every `a` a specialization binds, and a requirement stating it would have to be written on every
+   signature in the library that returns a result. `lib/Core/Format.yana`'s `readAll` is the line
+   that reported it.
+
+   A **bare** variable carrier still falls through to the requirement, which is the case
+   `Try.Carrier.yana` is about and the line `openHeadAnswerable` draws: a variable names no
+   constructor, and answering it from whichever instances happen to be declared is what would make a
+   specialization mean something other than the body it came from.
+-}
+
+pub data Problem {code: Int}
+
+pub class Reader(a):
+  fn readOne(text: String) -> Result(Problem, a)
+
+instance Reader(Int):
+    fn readOne(text: String) -> Result(Problem, Int) =
+        if length(text) == 0 then Err(Problem {code: 1}) else Ok(7)
+
+fn (Reader(a)) readTwice(text: String) -> Result(Problem, a):
+    let outcome = readOne(text) :: Result(Problem, a)
+    let ->first = outcome?
+    return Ok(first)
+
+fn main() -> Int:
+    let outcome = readTwice("ab") :: Result(Problem, Int)
+    return match outcome:
+        Ok(v) -> v
+        Err(p) -> 0 - p.code

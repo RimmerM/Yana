@@ -1,0 +1,68 @@
+{-
+   A result whose *type* holds a loan, returned with no tick on it - elision rule 1.
+
+   Analysis-Borrows.md §4.8. A record that holds a borrow makes its own anonymous origin slot, and a
+   function handing one back has to say which of the signature's origins fills it. Writing that out
+   is `-> Held(v')`, and §4.8's count of `lib/` is why nobody writes it: **no library signature has
+   more than one origin group**, so the only thing an argument could ever name is the anonymous one.
+   Rule 1 supplies it - a result whose type carries an interior position nobody labelled takes the
+   signature's one anonymous group, exactly as `-> 'v` at the root does.
+
+   That is the shape every named formatter in `lib/Core/Format` has: `padded(value: 'a, width: Size)
+   -> Aligned(a)` over `data Aligned(a) {value: 'a, ...}`, eighteen of them.
+
+   **Where there is no anonymous group, one is promoted onto the signature's candidate parameters** -
+   rules 5 and 6, which `ResultCandidate.yana` next door is. Where the signature has no candidate
+   either, there is nothing to promote and a body returning such a record keeps its diagnostic;
+   `Reject.Signature.yana` records that line.
+
+   The numbers are what says the extent survived: every `Guard` adds its id when it is released, so a
+   holder that outlived the guard it names would be a count taken too early rather than a golden diff.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+-- One borrowed field, so the record publishes one anonymous slot in its own scope.
+data Held(a) {value: 'a, tag: I32}
+
+-- The elided form. `-> Held(Guard)` names no origin and the signature has exactly one, published by
+-- `value: 'a`; the result's interior position takes it.
+fn hold(value: 'a, tag: I32) -> Held(a) = Held {value: value, tag: tag}
+
+fn heldId(h: Held(Guard)) -> I32 = h.value.id * 10 + h.tag
+
+fn elided() -> I32:
+    let g = guard(1)
+    let h = hold(g, 3)
+
+    -- Read through the result after the call that built it: `g` is alive here only because the
+    -- elided slot said the holder refers to it.
+    return heldId(h)
+
+-- Two unlabelled parameters are one group, not two - §4.8's `choose(' left, ' right)` - so a record
+-- with two borrowed fields elides to that one group as well.
+data Both {left: 'Guard, right: 'Guard}
+
+fn bothOf(left: 'Guard, right: 'Guard) -> Both = Both {left: left, right: right}
+
+fn twoFields() -> I32:
+    let a = guard(2)
+    let b = guard(4)
+    let v = bothOf(a, b)
+    return v.left.id * 10 + v.right.id
+
+fn main() -> I32:
+    let first = elided()
+    let second = twoFields()
+
+    -- 13 + 24, and then the four guards released once each: 1 + 2 + 4 is 7 short of nothing being
+    -- released twice.
+    return first + second + trace

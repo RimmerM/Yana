@@ -2,233 +2,32 @@ module ResolveTest
 
 fn defaultAction(s: Signal [shared call]) -> I32 {
 bb0(%0: Signal [shared call] guaranteed):
-  %2: %Signal address = alloc frame Signal [shared call]
-  store inspect %2 borrow %0
-  %3: %U8 address = field.addr .# inspect %2
-  %4: U8 trivial = load inspect %3
-  %5: U8 trivial = const 1
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb12 -> bb1
-
-bb1:
-  %7: %U8 address = field.addr .# inspect %2
-  %8: U8 trivial = load inspect %7
-  %9: U8 trivial = const 2
-  %10: Bool trivial = eq inspect %8 inspect %9
-  branch inspect %10 -> bb13 -> bb2
-
-bb2:
-  %11: %U8 address = field.addr .# inspect %2
-  %12: U8 trivial = load inspect %11
-  %13: U8 trivial = const 3
-  %14: Bool trivial = eq inspect %12 inspect %13
-  branch inspect %14 -> bb14 -> bb3
-
-bb3:
-  %15: %U8 address = field.addr .# inspect %2
-  %16: U8 trivial = load inspect %15
-  %17: U8 trivial = const 4
-  %18: Bool trivial = eq inspect %16 inspect %17
-  branch inspect %18 -> bb15 -> bb4
-
-bb4:
-  %19: %U8 address = field.addr .# inspect %2
-  %20: U8 trivial = load inspect %19
-  %21: U8 trivial = const 6
-  %22: Bool trivial = eq inspect %20 inspect %21
-  branch inspect %22 -> bb16 -> bb5
-
-bb5:
-  %23: %U8 address = field.addr .# inspect %2
-  %24: U8 trivial = load inspect %23
-  %25: U8 trivial = const 8
-  %26: Bool trivial = eq inspect %24 inspect %25
-  branch inspect %26 -> bb17 -> bb6
-
-bb6:
-  %27: %U8 address = field.addr .# inspect %2
-  %28: U8 trivial = load inspect %27
-  %29: U8 trivial = const 9
-  %30: Bool trivial = eq inspect %28 inspect %29
-  branch inspect %30 -> bb18 -> bb7
-
-bb7:
-  %31: %U8 address = field.addr .# inspect %2
-  %32: U8 trivial = load inspect %31
-  %33: U8 trivial = const 11
-  %34: Bool trivial = eq inspect %32 inspect %33
-  branch inspect %34 -> bb19 -> bb8
-
-bb8:
-  %35: %U8 address = field.addr .# inspect %2
-  %36: U8 trivial = load inspect %35
-  %37: U8 trivial = const 13
-  %38: Bool trivial = eq inspect %36 inspect %37
-  branch inspect %38 -> bb20 -> bb9
-
-bb9:
-  %39: %U8 address = field.addr .# inspect %2
-  %40: U8 trivial = load inspect %39
-  %41: U8 trivial = const 14
-  %42: Bool trivial = eq inspect %40 inspect %41
-  branch inspect %42 -> bb21 -> bb10
-
-bb10:
-  %43: I32 trivial = const 1
-  jump -> bb11(consume %43)
-
-bb11(%1: I32 trivial):
-  return consume %1
-
-bb12:
-  %44: I32 trivial = const 1
-  jump -> bb11(consume %44)
-
-bb13:
-  %45: I32 trivial = const 1
-  jump -> bb11(consume %45)
-
-bb14:
-  %46: I32 trivial = const 2
-  jump -> bb11(consume %46)
-
-bb15:
-  %47: I32 trivial = const 2
-  jump -> bb11(consume %47)
-
-bb16:
-  %48: I32 trivial = const 2
-  jump -> bb11(consume %48)
-
-bb17:
-  %49: I32 trivial = const 2
-  jump -> bb11(consume %49)
-
-bb18:
-  %50: I32 trivial = const 3
-  jump -> bb11(consume %50)
-
-bb19:
-  %51: I32 trivial = const 2
-  jump -> bb11(consume %51)
-
-bb20:
-  %52: I32 trivial = const 1
-  jump -> bb11(consume %52)
-
-bb21:
-  %53: I32 trivial = const 1
-  jump -> bb11(consume %53)
+  %1: %Signal address = alloc frame Signal [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [1 -> 1, 2 -> 1, 3 -> 2, 4 -> 2, 6 -> 2, 8 -> 2, 9 -> 3, 11 -> 2, 13 -> 1, 14 -> 1, 15 -> 1] inspect %3
+  return consume %4
 }
 
 fn isLate(s: Signal [shared call]) -> Bool {
 bb0(%0: Signal [shared call] guaranteed):
-  %2: %Signal address = alloc frame Signal [shared call]
-  store inspect %2 borrow %0
-  %3: %U8 address = field.addr .# inspect %2
-  %4: U8 trivial = load inspect %3
-  %5: U8 trivial = const 13
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb5 -> bb1
-
-bb1:
-  %7: %U8 address = field.addr .# inspect %2
-  %8: U8 trivial = load inspect %7
-  %9: U8 trivial = const 14
-  %10: Bool trivial = eq inspect %8 inspect %9
-  branch inspect %10 -> bb6 -> bb2
-
-bb2:
-  %11: %U8 address = field.addr .# inspect %2
-  %12: U8 trivial = load inspect %11
-  %13: U8 trivial = const 15
-  %14: Bool trivial = eq inspect %12 inspect %13
-  branch inspect %14 -> bb7 -> bb3
-
-bb3:
-  %15: Bool trivial = const False
-  jump -> bb4(consume %15)
-
-bb4(%1: Bool trivial):
-  return consume %1
-
-bb5:
-  %16: Bool trivial = const True
-  jump -> bb4(consume %16)
-
-bb6:
-  %17: Bool trivial = const True
-  jump -> bb4(consume %17)
-
-bb7:
-  %18: Bool trivial = const True
-  jump -> bb4(consume %18)
+  %1: %Signal address = alloc frame Signal [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Bool trivial = map [1 -> False, 2 -> False, 3 -> False, 4 -> False, 6 -> False, 8 -> False, 9 -> False, 11 -> False, 13 -> True, 14 -> True, 15 -> True] inspect %3
+  return consume %4
 }
 
 fn isEven(s: Signal [shared call]) -> Bool {
 bb0(%0: Signal [shared call] guaranteed):
-  %2: %Signal address = alloc frame Signal [shared call]
-  store inspect %2 borrow %0
-  %3: %U8 address = field.addr .# inspect %2
-  %4: U8 trivial = load inspect %3
-  %5: U8 trivial = const 2
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb7 -> bb1
-
-bb1:
-  %7: %U8 address = field.addr .# inspect %2
-  %8: U8 trivial = load inspect %7
-  %9: U8 trivial = const 4
-  %10: Bool trivial = eq inspect %8 inspect %9
-  branch inspect %10 -> bb8 -> bb2
-
-bb2:
-  %11: %U8 address = field.addr .# inspect %2
-  %12: U8 trivial = load inspect %11
-  %13: U8 trivial = const 6
-  %14: Bool trivial = eq inspect %12 inspect %13
-  branch inspect %14 -> bb9 -> bb3
-
-bb3:
-  %15: %U8 address = field.addr .# inspect %2
-  %16: U8 trivial = load inspect %15
-  %17: U8 trivial = const 8
-  %18: Bool trivial = eq inspect %16 inspect %17
-  branch inspect %18 -> bb10 -> bb4
-
-bb4:
-  %19: %U8 address = field.addr .# inspect %2
-  %20: U8 trivial = load inspect %19
-  %21: U8 trivial = const 14
-  %22: Bool trivial = eq inspect %20 inspect %21
-  branch inspect %22 -> bb11 -> bb5
-
-bb5:
-  %23: Bool trivial = const False
-  jump -> bb6(consume %23)
-
-bb6(%1: Bool trivial):
-  return consume %1
-
-bb7:
-  %24: Bool trivial = const True
-  jump -> bb6(consume %24)
-
-bb8:
-  %25: Bool trivial = const True
-  jump -> bb6(consume %25)
-
-bb9:
-  %26: Bool trivial = const True
-  jump -> bb6(consume %26)
-
-bb10:
-  %27: Bool trivial = const True
-  jump -> bb6(consume %27)
-
-bb11:
-  %28: Bool trivial = const True
-  jump -> bb6(consume %28)
+  %1: %Signal address = alloc frame Signal [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Bool trivial = map [1 -> False, 2 -> True, 3 -> False, 4 -> True, 6 -> True, 8 -> True, 9 -> False, 11 -> False, 13 -> False, 14 -> True, 15 -> False] inspect %3
+  return consume %4
 }
 
 fn errorClass(e: Errno [shared call]) -> I32 {
@@ -299,178 +98,52 @@ bb5:
 
 fn severity(l: Level [shared call]) -> I32 {
 bb0(%0: Level [shared call] guaranteed):
-  %2: %Level address = alloc frame Level [shared call]
-  store inspect %2 borrow %0
-  %3: %I8 address = field.addr .# inspect %2
-  %4: I8 trivial = load inspect %3
-  %5: I8 trivial = const -2
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb5 -> bb1
-
-bb1:
-  %7: %I8 address = field.addr .# inspect %2
-  %8: I8 trivial = load inspect %7
-  %9: I8 trivial = const -1
-  %10: Bool trivial = eq inspect %8 inspect %9
-  branch inspect %10 -> bb6 -> bb2
-
-bb2:
-  %11: %I8 address = field.addr .# inspect %2
-  %12: I8 trivial = load inspect %11
-  %13: I8 trivial = const 0
-  %14: Bool trivial = eq inspect %12 inspect %13
-  branch inspect %14 -> bb7 -> bb3
-
-bb3:
-  %15: I32 trivial = const 40
-  jump -> bb4(consume %15)
-
-bb4(%1: I32 trivial):
-  return consume %1
-
-bb5:
-  %16: I32 trivial = const 10
-  jump -> bb4(consume %16)
-
-bb6:
-  %17: I32 trivial = const 20
-  jump -> bb4(consume %17)
-
-bb7:
-  %18: I32 trivial = const 30
-  jump -> bb4(consume %18)
+  %1: %Level address = alloc frame Level [shared call]
+  store inspect %1 borrow %0
+  %2: %I8 address = field.addr .# inspect %1
+  %3: I8 trivial = load inspect %2
+  %4: I32 trivial = map [-2 -> 10, -1 -> 20, 0 -> 30, 1 -> 40] inspect %3
+  return consume %4
 }
 
 fn isProblem(l: Level [shared call]) -> Bool {
 bb0(%0: Level [shared call] guaranteed):
-  %2: %Level address = alloc frame Level [shared call]
-  store inspect %2 borrow %0
-  %3: %I8 address = field.addr .# inspect %2
-  %4: I8 trivial = load inspect %3
-  %5: I8 trivial = const 0
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb4 -> bb1
-
-bb1:
-  %7: %I8 address = field.addr .# inspect %2
-  %8: I8 trivial = load inspect %7
-  %9: I8 trivial = const 1
-  %10: Bool trivial = eq inspect %8 inspect %9
-  branch inspect %10 -> bb5 -> bb2
-
-bb2:
-  %11: Bool trivial = const False
-  jump -> bb3(consume %11)
-
-bb3(%1: Bool trivial):
-  return consume %1
-
-bb4:
-  %12: Bool trivial = const True
-  jump -> bb3(consume %12)
-
-bb5:
-  %13: Bool trivial = const True
-  jump -> bb3(consume %13)
+  %1: %Level address = alloc frame Level [shared call]
+  store inspect %1 borrow %0
+  %2: %I8 address = field.addr .# inspect %1
+  %3: I8 trivial = load inspect %2
+  %4: Bool trivial = map [-2 -> False, -1 -> False, 0 -> True, 1 -> True] inspect %3
+  return consume %4
 }
 
-fn tagOf(l: Level [shared call]) -> I32 {
+fn tagOf'2(l: Level [shared call]) -> I32 {
 bb0(%0: Level [shared call] guaranteed):
-  %2: %Level address = alloc frame Level [shared call]
-  store inspect %2 borrow %0
-  %3: %I8 address = field.addr .# inspect %2
-  %4: I8 trivial = load inspect %3
-  %5: I8 trivial = const -2
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb5 -> bb1
-
-bb1:
-  %7: %I8 address = field.addr .# inspect %2
-  %8: I8 trivial = load inspect %7
-  %9: I8 trivial = const -1
-  %10: Bool trivial = eq inspect %8 inspect %9
-  branch inspect %10 -> bb6 -> bb2
-
-bb2:
-  %11: %I8 address = field.addr .# inspect %2
-  %12: I8 trivial = load inspect %11
-  %13: I8 trivial = const 0
-  %14: Bool trivial = eq inspect %12 inspect %13
-  branch inspect %14 -> bb7 -> bb3
-
-bb3:
-  %15: I32 trivial = const 1
-  jump -> bb4(consume %15)
-
-bb4(%1: I32 trivial):
-  return consume %1
-
-bb5:
-  %16: I32 trivial = const 3
-  jump -> bb4(consume %16)
-
-bb6:
-  %17: I32 trivial = const 1
-  jump -> bb4(consume %17)
-
-bb7:
-  %18: I32 trivial = const 4
-  jump -> bb4(consume %18)
+  %1: %Level address = alloc frame Level [shared call]
+  store inspect %1 borrow %0
+  %2: %I8 address = field.addr .# inspect %1
+  %3: I8 trivial = load inspect %2
+  %4: I32 trivial = map [-2 -> 3, -1 -> 1, 0 -> 4, 1 -> 1] inspect %3
+  return consume %4
 }
 
 fn wideIndex(w: Wide [shared call]) -> I32 {
 bb0(%0: Wide [shared call] guaranteed):
-  %2: %Wide address = alloc frame Wide [shared call]
-  store inspect %2 borrow %0
-  %3: %U64 address = field.addr .# inspect %2
-  %4: U64 trivial = load inspect %3
-  %5: U64 trivial = const 4294967296
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb4 -> bb1
-
-bb1:
-  %7: %U64 address = field.addr .# inspect %2
-  %8: U64 trivial = load inspect %7
-  %9: U64 trivial = const 4294967297
-  %10: Bool trivial = eq inspect %8 inspect %9
-  branch inspect %10 -> bb5 -> bb2
-
-bb2:
-  %11: I32 trivial = const 3
-  jump -> bb3(consume %11)
-
-bb3(%1: I32 trivial):
-  return consume %1
-
-bb4:
-  %12: I32 trivial = const 1
-  jump -> bb3(consume %12)
-
-bb5:
-  %13: I32 trivial = const 2
-  jump -> bb3(consume %13)
+  %1: %Wide address = alloc frame Wide [shared call]
+  store inspect %1 borrow %0
+  %2: %U64 address = field.addr .# inspect %1
+  %3: U64 trivial = load inspect %2
+  %4: I32 trivial = map [4294967296 -> 1, 4294967297 -> 2, 4294967300 -> 3] inspect %3
+  return consume %4
 }
 
 fn isFirst(w: Wide [shared call]) -> Bool {
 bb0(%0: Wide [shared call] guaranteed):
-  %2: %Wide address = alloc frame Wide [shared call]
-  store inspect %2 borrow %0
-  %3: %U64 address = field.addr .# inspect %2
-  %4: U64 trivial = load inspect %3
-  %5: U64 trivial = const 4294967296
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb3 -> bb1
-
-bb1:
-  %7: Bool trivial = const False
-  jump -> bb2(consume %7)
-
-bb2(%1: Bool trivial):
-  return consume %1
-
-bb3:
-  %8: Bool trivial = const True
-  jump -> bb2(consume %8)
+  %1: %Wide address = alloc frame Wide [shared call]
+  store inspect %1 borrow %0
+  %2: %U64 address = field.addr .# inspect %1
+  %3: U64 trivial = load inspect %2
+  %4: Bool trivial = map [4294967296 -> True, 4294967297 -> False, 4294967300 -> False] inspect %3
+  return consume %4
 }
 
 fn opaqueSignal(s: Signal [shared call]) -> Signal {
@@ -784,7 +457,7 @@ bb38(%46: Bool trivial, %47: I32 trivial):
   %208: I32 trivial = add inspect %47 inspect %207
   %209: Level trivial = const Debug
   %210: Level trivial = call opaqueLevel borrow %209
-  %211: I32 trivial = call tagOf borrow %210
+  %211: I32 trivial = call tagOf'2 borrow %210
   %212: I32 trivial = const 3
   %213: Bool trivial = eq inspect %211 inspect %212
   branch inspect %213 -> bb42(consume %208) -> bb40(consume %208)
@@ -806,7 +479,7 @@ bb41(%50: Bool trivial, %51: I32 trivial):
 bb42(%52: I32 trivial):
   %219: Level trivial = const Warning
   %220: Level trivial = call opaqueLevel borrow %219
-  %221: I32 trivial = call tagOf borrow %220
+  %221: I32 trivial = call tagOf'2 borrow %220
   %222: I32 trivial = const 4
   %223: Bool trivial = eq inspect %221 inspect %222
   jump -> bb41(consume %223, consume %52)
@@ -829,7 +502,7 @@ bb44(%54: Bool trivial, %55: I32 trivial):
 bb45(%56: I32 trivial):
   %233: Level trivial = const Error
   %234: Level trivial = call opaqueLevel borrow %233
-  %235: I32 trivial = call tagOf borrow %234
+  %235: I32 trivial = call tagOf'2 borrow %234
   %236: I32 trivial = const 1
   %237: Bool trivial = eq inspect %235 inspect %236
   jump -> bb44(consume %237, consume %56)

@@ -407,6 +407,10 @@ pub class (Append(a)) Monoid(a):
    both the measure and the write, so nothing can change it in between. A `showBound` with side
    effects is still a bad instance; it cannot make the buffer wrong.
 -}
+-- `@builtin(show)` is what a format hole reaches: `"n = {x}"` is grammar, so the class it
+-- dispatches through has to be one the compiler can name. The member order is part of that claim -
+-- `show` is member zero and `showBound` member one - and `known.def` is where it is written down.
+@builtin(show)
 pub class Show(a):
   fn show(value: a, &to: String) -> {}
   fn showBound(value: a) -> Maybe(Size) = Nothing

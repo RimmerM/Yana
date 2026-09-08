@@ -11,7 +11,7 @@ bb0:
   return
 }
 
-fn sum(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+fn sum'2(a: I32 [shared call], b: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (a)
   %1: I32 = read copy.trivial (b)
@@ -156,7 +156,7 @@ bb0:
   write.assign borrow.unique (a) take %6
   %8: I32 = read copy.trivial (a)
   %9: I32 = read copy.trivial (b)
-  %10: I32 = call sum borrow.shared %8 borrow.shared %9
+  %10: I32 = call sum'2 borrow.shared %8 borrow.shared %9
   return take %10
 }
 

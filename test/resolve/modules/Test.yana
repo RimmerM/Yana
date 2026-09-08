@@ -1,0 +1,96 @@
+{-
+   A minimal `Test` module, for the fixtures that are about the **harness** - `# test: yes`, and
+   Design-Test.md §11.2's F1.
+
+   `lib/Test/` is the real one and it is what `test/base` runs. What is here is the contract and
+   nothing else: the five fields of `Case`, a `Site` for `@caller` to fill, and a `runMain` that
+   answers a number about the cases it was handed. That is deliberately not a runner - there is no
+   report, no isolation, no filtering - because what a fixture beside this asserts is what the
+   *compiler* synthesized, and a runner would put its own behaviour between the two.
+
+   It is written to what **both** resolve stages can compile, since a harness fixture is worth far
+   more compiled by each of them and held to one answer. So: no `Show`, no format holes, no
+   iterators, no `Maybe`. A `while` over an index and arithmetic.
+
+   `Test` is a sum with an `Ok` because the compiler wraps a `@test` that answers `{}` in one - see
+   `wrapUnitTest`, which reads what that constructor carries rather than assuming: the library's own
+   `Test` is `Result(Failure, {})` and its `Ok` carries a `{}`, and this one carries nothing. A
+   fixture never spells the constructor unless it answers a `Test` outright, which is what keeps the
+   name from colliding with `Result`'s under the shipping stage's `lib/Core`.
+-}
+module Test
+
+pub data Site {file: String, line: Int, column: Int, function: String}
+pub data Failure {site: Site, claim: String, detail: String}
+pub data Test = Failed {failure: Failure} | Ok
+pub data Case {name: String, moduleName: String, site: Site, aborts: Bool, body: () -> Test}
+
+-- What the assertions below recorded, read once by `runMain`. A global rather than a field of
+-- anything, because a `Case`'s body takes no arguments and answers a `Test`: there is nowhere else
+-- for a claim to go, which is the same reason the library's own recorder is one.
+let &failed = 0 :: Int
+let &claimWidth = 0 :: Int
+let &claimLine = 0 :: Int
+
+pub fn record(->failure: Failure):
+    failed = failed + 1
+    claimWidth = claimWidth + (truncate(length(failure.claim)) :: Int)
+    claimLine = claimLine + failure.site.line
+
+{-
+   The one assertion, and the shape every `@caller` fill is asserted through.
+
+   `text` is the source of whatever expression reached `held`, and `at` is where the call is - so a
+   fixture that fails one check on purpose pins both fills in the number `runMain` answers, without
+   ever comparing text against text.
+-}
+pub fn check(held: Bool, @caller(source: held) ->text: String, @caller ->at: Site):
+    if held then return
+    record(Failure {site: at, claim: text, detail: ""})
+
+-- What the recorder has seen, so that a fixture can assert the fills rather than only their effect:
+-- how many claims, how wide their text was, and which line they came from.
+pub fn claims() -> Int = failed
+pub fn claimText() -> Int = claimWidth
+pub fn claimAt() -> Int = claimLine
+
+{-
+   What the synthesized entry calls, and what a harness fixture's `.run.expect` is.
+
+   Four numbers about the array the compiler built, packed so that any one of them moving moves the
+   answer: how many cases there are, how many said `aborts`, how long their names are, whether they
+   all name one module, and whether the assertions recorded an odd number of claims.
+
+   The packing is small on purpose - the ELF driver compares the low byte of an exit status - so each
+   term is reduced to something a fixture can keep under it and still be sensitive. The declaration
+   *lines* are deliberately not in it: a fixture asserts those through `claimAt` below, where it can
+   say what it means relative to a line of its own rather than as a number that moves when a comment
+   above it grows.
+-}
+pub fn runMain(cases: [Case]) -> Int:
+    let &count = 0 :: Int
+    let &aborting = 0 :: Int
+    let &names = 0 :: Int
+    let &modules = 0 :: Int
+    let &lines = 0 :: Int
+
+    let &i = 0 :: Size
+    while i < length(cases):
+        count = count + 1
+        if cases[i].aborts then aborting = aborting + 1
+        names = names + (truncate(length(cases[i].name)) :: Int)
+        modules = modules + (truncate(length(cases[i].moduleName)) :: Int)
+        lines = lines + cases[i].site.line
+
+        -- Run it. What it answers is not read: a fixture states its claims through `check`, and the
+        -- `Test` value exists so that both body shapes are the same shape here.
+        let outcome = cases[i].body()
+        i = i + 1
+
+    -- The modules as a *bit* rather than as a length: every case of one compilation is written in
+    -- one module here, and its name is the driver's to choose - so what is asserted is that they
+    -- all carry the same non-empty one and not how long the driver made it.
+    let sameModule = if count > 0 && modules == count * (truncate(length(cases[0].moduleName)) :: Int)
+                        && length(cases[0].moduleName) > (0 :: Size) then 1 else 0
+
+    return count * 64 + aborting * 32 + (names % 8) * 4 + sameModule * 2 + (failed % 2)

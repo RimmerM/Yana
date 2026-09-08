@@ -16,11 +16,11 @@ table closure$ResolveTest.lambda$23 before ResolveTest.lambda$23 {
   .0 closureRelease${scale: I32, offset: I32}
 }
 
-table closure$ResolveTest.lambda$24 before ResolveTest.lambda$24 {
+table closure$ResolveTest.lambda$26 before ResolveTest.lambda$26 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.lambda$25 before ResolveTest.lambda$25 {
+table closure$ResolveTest.lambda$27 before ResolveTest.lambda$27 {
   .0 teardown$none
 }
 
@@ -391,13 +391,37 @@ fn makeScaler(%scale: I32, %offset: I32) -> (I32) -> I32 {
     ret %v6
 }
 
+fn named(%f: (I32) -> I32, %x: I32) -> I32 {
+  b0:
+    %v2 = calldyn %f, %x : I32
+    ret %v2
+}
+
+fn colonBodies(%x: I32) -> I32 {
+  b0:
+    %inferred = alloc : (I32) -> I32
+    %v2 = symbol ResolveTest.lambda$24 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v7 = alloc : (I32) -> I32
+    %v8 = symbol ResolveTest.lambda$25 : %()
+    init %local1.code, %v8
+    %v11 = cast 0 : %()
+    init %local1.env, %v11
+    %v13 = call named, %v7, %x : I32
+    %v14 = calldyn %inferred, %x : I32
+    %v15 = add %v13, %v14 : I32
+    ret %v15
+}
+
 fn main() -> I32 {
   b0:
     %v2 = alloc : {base: I32}
     init %local0.base, %base
     %v4 = addressof %local0 : %()
     %v5 = alloc : (I32) -> I32
-    %v6 = symbol ResolveTest.lambda$24 : %()
+    %v6 = symbol ResolveTest.lambda$26 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %a = call apply, %v5, 1 : I32
@@ -408,7 +432,7 @@ fn main() -> I32 {
     init %local3.total, %v15
     %v17 = addressof %local3 : %()
     %v18 = alloc : () -> ()
-    %v19 = symbol ResolveTest.lambda$25 : %()
+    %v19 = symbol ResolveTest.lambda$27 : %()
     init %local4.code, %v19
     init %local4.env, %v17
     call applyUnit, %v18
@@ -418,11 +442,13 @@ fn main() -> I32 {
     %scale = call makeScaler, 3, 4 : (I32) -> I32
     %c = calldyn %scale, 10 : I32
     drop_derived %local6 via teardown$(I32) -> I32
-    %v32 = load %total : I32
-    %v33 = add %a, %v32 : I32
-    %v34 = add %v33, %b : I32
-    %v35 = add %v34, %c : I32
-    ret %v35
+    %d = call colonBodies, 6 : I32
+    %v34 = load %total : I32
+    %v35 = add %a, %v34 : I32
+    %v36 = add %v35, %b : I32
+    %v37 = add %v36, %c : I32
+    %v38 = add %v37, %d : I32
+    ret %v38
 }
 
 fn ResolveTest.lambda$22(%env: %{amount: I32}, %x: I32) -> I32 {
@@ -441,14 +467,26 @@ fn ResolveTest.lambda$23(%env: %{scale: I32, offset: I32}, %x: I32) -> I32 {
     ret %v5
 }
 
-fn ResolveTest.lambda$24(%env: %{base: I32}, %x: I32) -> I32 {
+fn ResolveTest.lambda$24(%env: %{}, %n: I32) -> I32 {
+  b0:
+    %v4 = mul %n, 2 : I32
+    ret %v4
+}
+
+fn ResolveTest.lambda$25(%env: %{}, %n: I32) -> I32 {
+  b0:
+    %v4 = add %n, 1 : I32
+    ret %v4
+}
+
+fn ResolveTest.lambda$26(%env: %{base: I32}, %x: I32) -> I32 {
   b0:
     %v2 = load [%env].base : I32
     %v3 = add %x, %v2 : I32
     ret %v3
 }
 
-fn ResolveTest.lambda$25(%env: %{total: &I32}) -> () {
+fn ResolveTest.lambda$27(%env: %{total: &I32}) -> () {
   b0:
     %v1 = load [%env].total : &I32
     %v2 = load [%env].total : &I32

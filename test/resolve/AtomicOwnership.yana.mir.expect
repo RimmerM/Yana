@@ -1,0 +1,223 @@
+module ResolveTest
+
+data Holder {flag: Atomic(I32), tag: I32}
+
+fn immutableBinding() -> I32 {
+  local c: Atomic(I32)
+
+bb0:
+  %0: I32 = const 0
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(I32) [shared call] = read borrow.shared (c) loan0
+  %4: I32 = const 7
+  %5: StoreOrder = const StoreRelease
+  %6: {} = atomic.store release inspect %3 inspect %4
+  %7: Atomic(I32) [shared call] = read borrow.shared (c) loan1
+  %8: LoadOrder = const LoadAcquire
+  %9: I32 = atomic.load acquire inspect %7
+  %10: Atomic(I32) [shared call] = read borrow.shared (c) loan2
+  %11: I32 = const 9
+  %12: UpdateOrder = const UpdateAcquireRelease
+  %13: I32 = atomic.xchg acqrel inspect %10 inspect %11
+  %14: I32 = add inspect %9 inspect %13
+  return take %14
+}
+
+fn throughShared(c: Atomic(I32) [shared slot 0]) -> I32 {
+bb0:
+  %0: Atomic(I32) [shared slot 0] = read borrow.shared (c) loan0
+  %1: I32 = const 1
+  %2: StoreOrder = const StoreRelease
+  %3: {} = atomic.store release inspect %0 inspect %1
+  %4: Atomic(I32) [shared slot 0] = read borrow.shared (c) loan1
+  %5: LoadOrder = const LoadAcquire
+  %6: I32 = atomic.load acquire inspect %4
+  return take %6
+}
+
+fn twoLoans() -> I32 {
+  local c: Atomic(I32)
+
+bb0:
+  %0: I32 = const 0
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(I32) [shared slot 0] = read borrow.shared (c) loan0
+  %4: I32 = call throughShared borrow.shared %3
+  %5: Atomic(I32) [shared slot 0] = read borrow.shared (c) loan1
+  %6: I32 = call throughShared borrow.shared %5
+  %7: I32 = add inspect %4 inspect %6
+  return take %7
+}
+
+fn bothArguments(a: Atomic(I32) [shared slot 0], b: Atomic(I32) [shared slot 0]) -> I32 {
+bb0:
+  %0: Atomic(I32) [shared slot 0] = read borrow.shared (a) loan0
+  %1: LoadOrder = const LoadRelaxed
+  %2: I32 = atomic.load relaxed inspect %0
+  %3: Atomic(I32) [shared slot 0] = read borrow.shared (b) loan1
+  %4: LoadOrder = const LoadRelaxed
+  %5: I32 = atomic.load relaxed inspect %3
+  %6: I32 = add inspect %2 inspect %5
+  return take %6
+}
+
+fn sameTwice() -> I32 {
+  local c: Atomic(I32)
+
+bb0:
+  %0: I32 = const 3
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(I32) [shared slot 0] = read borrow.shared (c) loan0
+  %4: Atomic(I32) [shared slot 0] = read borrow.shared (c) loan1
+  %5: I32 = call bothArguments borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn fieldOfImmutable(h: Holder [shared slot 0]) -> I32 {
+bb0:
+  %0: Atomic(I32) [shared slot 0] = read borrow.shared (h.flag) loan0
+  %1: I32 = const 1
+  %2: StoreOrder = const StoreRelease
+  %3: {} = atomic.store release inspect %0 inspect %1
+  %4: Atomic(I32) [shared slot 0] = read borrow.shared (h.flag) loan1
+  %5: LoadOrder = const LoadAcquire
+  %6: I32 = atomic.load acquire inspect %4
+  %7: I32 = read copy.trivial (h.tag)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn holderCase() -> I32 {
+  local h: Holder
+
+bb0:
+  %0: I32 = const 4
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  %2: I32 = const 5
+  %3: Holder = aggregate.Holder take %1 take %2
+  write.init borrow.unique (h) take %3
+  %5: Holder [shared slot 0] = read borrow.shared (h) loan0
+  %6: I32 = call fieldOfImmutable borrow.shared %5
+  return take %6
+}
+
+fn twoElements() -> I32 {
+  local & local0: Array(Atomic(I32)) object0
+  local & xs: Array(Atomic(I32)) object0
+  local local2: Atomic(I32) [shared slot 0]
+  local local3: Atomic(I32) [shared slot 0]
+  local local4: Atomic(I32) [shared slot 0]
+  local local5: Atomic(I32) [shared slot 0]
+
+bb0:
+  %0: I32 = const 1
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  %2: I32 = const 2
+  %3: Atomic(I32) = atomic.new relaxed inspect %2
+  %4: Size = const 2
+  %5: Array(Atomic(I32)) = call literalArray(Atomic(I32)) borrow.shared %4
+  write.init borrow.unique (local0) take %5
+  %7: Array(Atomic(I32)) [unique slot 0] = read borrow.unique (local0) loan0
+  %8: Array(Atomic(I32)) [unique slot 0 view] = call.derivation elementsMut(Array(Atomic(I32)), Atomic(I32)) borrow.unique %7 roots{0}
+  %9: %Atomic(I32) [owned here shape6 .*=shared slot 0] = call valuesMut(Atomic(I32)) borrow.unique %8 roots.0{0}
+  %10: Size = const 0
+  write.init borrow.unique ([%%9][0]) take %1
+  %12: Size = const 1
+  write.init borrow.unique ([%%9][1]) take %3
+  %14: Array(Atomic(I32)) = read take (local0)
+  write.init borrow.unique (xs) take %14
+  %16: Size = const 0
+  %17: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan1
+  %18: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %17 roots{1}
+  %19: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %18 borrow.shared %16 roots{1}
+  write.init borrow.unique (local2) borrow.shared %19
+  %21: Atomic(I32) [shared slot 0] = read borrow.shared (local2) loan2 roots{1}
+  %22: Size = const 1
+  %23: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan3
+  %24: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %23 roots{3}
+  %25: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %24 borrow.shared %22 roots{3}
+  write.init borrow.unique (local3) borrow.shared %25
+  %27: Atomic(I32) [shared slot 0] = read borrow.shared (local3) loan4 roots{3}
+  %28: I32 = call bothArguments borrow.shared %21 borrow.shared %27
+  %29: Size = const 0
+  %30: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan5
+  %31: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %30 roots{5}
+  %32: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %31 borrow.shared %29 roots{5}
+  write.init borrow.unique (local4) borrow.shared %32
+  %34: Atomic(I32) [shared slot 0] = read borrow.shared (local4) loan6 roots{5}
+  %35: Size = const 0
+  %36: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan7
+  %37: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %36 roots{7}
+  %38: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %37 borrow.shared %35 roots{7}
+  write.init borrow.unique (local5) borrow.shared %38
+  %40: Atomic(I32) [shared slot 0] = read borrow.shared (local5) loan8 roots{7}
+  %41: I32 = call bothArguments borrow.shared %34 borrow.shared %40
+  drop (xs)
+  %42: I32 = add inspect %28 inspect %41
+  return take %42
+}
+
+fn produce() -> Atomic(I32) {
+  local c: Atomic(I32)
+
+bb0:
+  %0: I32 = const 7
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(I32) = read take (c)
+  return take %3
+}
+
+fn intoRecord() -> I32 {
+  local c: Atomic(I32)
+  local h: Holder
+
+bb0:
+  %0: I32 = const 8
+  %1: Atomic(I32) = atomic.new relaxed inspect %0
+  write.init borrow.unique (c) take %1
+  %3: Atomic(I32) = read take (c)
+  %4: I32 = const 1
+  %5: Holder = aggregate.Holder take %3 take %4
+  write.init borrow.unique (h) take %5
+  %7: Atomic(I32) [shared call] = read borrow.shared (h.flag) loan0
+  %8: LoadOrder = const LoadRelaxed
+  %9: I32 = atomic.load relaxed inspect %7
+  %10: I32 = read copy.trivial (h.tag)
+  %11: I32 = add inspect %9 inspect %10
+  return take %11
+}
+
+fn consume() -> I32 {
+  local c: Atomic(I32)
+
+bb0:
+  %0: Atomic(I32) = call produce
+  write.init borrow.unique (c) take %0
+  %2: Atomic(I32) = read take (c)
+  %3: I32 = atomic.into relaxed take %2
+  return take %3
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call immutableBinding
+  %1: I32 = call twoLoans
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call sameTwice
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call holderCase
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call twoElements
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call intoRecord
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = call consume
+  %12: I32 = add inspect %10 inspect %11
+  return take %12
+}
+
+entry main

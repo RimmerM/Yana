@@ -1,0 +1,845 @@
+module ResolveTest
+
+let string'103: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'104: [CodeUnit *15] = [97, 114, 105, 116, 104, 109, 101, 116, 105, 99, 72, 111, 108, 100, 115]
+
+let string'105: [CodeUnit *15] = [97, 114, 105, 116, 104, 109, 101, 116, 105, 99, 72, 111, 108, 100, 115]
+
+let string'106: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'107: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'108: [CodeUnit *9] = [110, 97, 109, 101, 100, 67, 97, 115, 101]
+
+let string'109: [CodeUnit *20] = [97, 32, 110, 97, 109, 101, 32, 116, 104, 97, 116, 32, 105, 115, 32, 112, 114, 111, 115, 101]
+
+let string'110: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'111: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'112: [CodeUnit *12] = [97, 110, 115, 119, 101, 114, 115, 65, 84, 101, 115, 116]
+
+let string'113: [CodeUnit *12] = [97, 110, 115, 119, 101, 114, 115, 65, 84, 101, 115, 116]
+
+let string'114: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'115: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'116: [CodeUnit *12] = [115, 97, 121, 115, 73, 116, 65, 98, 111, 114, 116, 115]
+
+let string'117: [CodeUnit *12] = [115, 97, 121, 115, 73, 116, 65, 98, 111, 114, 116, 115]
+
+let string'118: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'119: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'120: [CodeUnit *12] = [111, 110, 101, 84, 104, 97, 116, 70, 97, 105, 108, 115]
+
+let string'121: [CodeUnit *12] = [111, 110, 101, 84, 104, 97, 116, 70, 97, 105, 108, 115]
+
+let string'122: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'162: [CodeUnit *10] = [49, 32, 43, 32, 49, 32, 61, 61, 32, 50]
+
+let string'163: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'164: [CodeUnit *15] = [97, 114, 105, 116, 104, 109, 101, 116, 105, 99, 72, 111, 108, 100, 115]
+
+let string'165: [CodeUnit *10] = [50, 32, 42, 32, 51, 32, 61, 61, 32, 54]
+
+let string'166: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'167: [CodeUnit *15] = [97, 114, 105, 116, 104, 109, 101, 116, 105, 99, 72, 111, 108, 100, 115]
+
+let string'168: [CodeUnit *4] = [84, 114, 117, 101]
+
+let string'169: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'170: [CodeUnit *9] = [110, 97, 109, 101, 100, 67, 97, 115, 101]
+
+let string'171: [CodeUnit *4] = [84, 114, 117, 101]
+
+let string'172: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'173: [CodeUnit *12] = [97, 110, 115, 119, 101, 114, 115, 65, 84, 101, 115, 116]
+
+let string'174: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'175: [CodeUnit *16] = [102, 97, 105, 108, 101, 100, 73, 102, 78, 101, 103, 97, 116, 105, 118, 101]
+
+let string'176: [CodeUnit *8] = [110, 101, 103, 97, 116, 105, 118, 101]
+
+let string'177: [CodeUnit *0] = []
+
+let string'178: [CodeUnit *4] = [84, 114, 117, 101]
+
+let string'179: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'180: [CodeUnit *12] = [115, 97, 121, 115, 73, 116, 65, 98, 111, 114, 116, 115]
+
+let string'181: [CodeUnit *6] = [49, 32, 61, 61, 32, 50]
+
+let string'182: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'183: [CodeUnit *12] = [111, 110, 101, 84, 104, 97, 116, 70, 97, 105, 108, 115]
+
+let string'184: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'185: [CodeUnit *12] = [111, 110, 101, 84, 104, 97, 116, 70, 97, 105, 108, 115]
+
+let string'186: [CodeUnit *26] = [99, 108, 97, 105, 109, 65, 116, 40, 41, 32, 43, 32, 50, 32, 61, 61, 32, 109, 97, 114, 107, 46, 108, 105, 110, 101]
+
+let string'187: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'188: [CodeUnit *12] = [111, 110, 101, 84, 104, 97, 116, 70, 97, 105, 108, 115]
+
+let string'189: [CodeUnit *16] = [99, 108, 97, 105, 109, 84, 101, 120, 116, 40, 41, 32, 61, 61, 32, 54]
+
+let string'190: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'191: [CodeUnit *12] = [111, 110, 101, 84, 104, 97, 116, 70, 97, 105, 108, 115]
+
+let string'192: [CodeUnit *13] = [99, 108, 97, 105, 109, 115, 40, 41, 32, 61, 61, 32, 49]
+
+let string'193: [CodeUnit *11] = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
+
+let string'194: [CodeUnit *12] = [111, 110, 101, 84, 104, 97, 116, 70, 97, 105, 108, 115]
+
+fn arithmeticHolds() -> {} {
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 1
+  %2: I32 = add inspect %1 inspect %0
+  %3: I32 = const 2
+  %4: Bool = eq inspect %2 inspect %3
+  %5: [CodeUnit *10] [shared slot 0] = read borrow.shared (global string'162) loan0
+  %6: %[CodeUnit *10] [owned here shape6 .*=shared slot 0] = address inspect %5 roots.0{0}
+  %7: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %6 roots.0{0}
+  %8: I32 = const 10
+  %9: String = call stringLiteral borrow.shared %7 borrow.shared %8
+  %10: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'163) loan1
+  %11: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %10 roots.0{1}
+  %12: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %11 roots.0{1}
+  %13: I32 = const 11
+  %14: String = call stringLiteral borrow.shared %12 borrow.shared %13
+  %15: I32 = const 31
+  %16: I32 = const 4
+  %17: [CodeUnit *15] [shared slot 0] = read borrow.shared (global string'164) loan2
+  %18: %[CodeUnit *15] [owned here shape6 .*=shared slot 0] = address inspect %17 roots.0{2}
+  %19: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %18 roots.0{2}
+  %20: I32 = const 15
+  %21: String = call stringLiteral borrow.shared %19 borrow.shared %20
+  %22: Site = aggregate.Site take %14 take %15 take %16 take %21
+  %23: {} = call check borrow.shared %4 take %9 take %22
+  %24: I32 = const 3
+  %25: I32 = const 2
+  %26: I32 = mul inspect %25 inspect %24
+  %27: I32 = const 6
+  %28: Bool = eq inspect %26 inspect %27
+  %29: [CodeUnit *10] [shared slot 0] = read borrow.shared (global string'165) loan3
+  %30: %[CodeUnit *10] [owned here shape6 .*=shared slot 0] = address inspect %29 roots.0{3}
+  %31: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %30 roots.0{3}
+  %32: I32 = const 10
+  %33: String = call stringLiteral borrow.shared %31 borrow.shared %32
+  %34: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'166) loan4
+  %35: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %34 roots.0{4}
+  %36: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %35 roots.0{4}
+  %37: I32 = const 11
+  %38: String = call stringLiteral borrow.shared %36 borrow.shared %37
+  %39: I32 = const 32
+  %40: I32 = const 4
+  %41: [CodeUnit *15] [shared slot 0] = read borrow.shared (global string'167) loan5
+  %42: %[CodeUnit *15] [owned here shape6 .*=shared slot 0] = address inspect %41 roots.0{5}
+  %43: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %42 roots.0{5}
+  %44: I32 = const 15
+  %45: String = call stringLiteral borrow.shared %43 borrow.shared %44
+  %46: Site = aggregate.Site take %38 take %39 take %40 take %45
+  %47: {} = call check borrow.shared %28 take %33 take %46
+  return
+}
+
+fn namedCase() -> {} {
+bb0:
+  %0: Bool = const True
+  %1: [CodeUnit *4] [shared slot 0] = read borrow.shared (global string'168) loan0
+  %2: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] = address inspect %1 roots.0{0}
+  %3: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %2 roots.0{0}
+  %4: I32 = const 4
+  %5: String = call stringLiteral borrow.shared %3 borrow.shared %4
+  %6: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'169) loan1
+  %7: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %6 roots.0{1}
+  %8: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %7 roots.0{1}
+  %9: I32 = const 11
+  %10: String = call stringLiteral borrow.shared %8 borrow.shared %9
+  %11: I32 = const 37
+  %12: I32 = const 4
+  %13: [CodeUnit *9] [shared slot 0] = read borrow.shared (global string'170) loan2
+  %14: %[CodeUnit *9] [owned here shape6 .*=shared slot 0] = address inspect %13 roots.0{2}
+  %15: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %14 roots.0{2}
+  %16: I32 = const 9
+  %17: String = call stringLiteral borrow.shared %15 borrow.shared %16
+  %18: Site = aggregate.Site take %10 take %11 take %12 take %17
+  %19: {} = call check borrow.shared %0 take %5 take %18
+  return
+}
+
+fn answersATest() -> Test {
+bb0:
+  %0: Bool = const True
+  %1: [CodeUnit *4] [shared slot 0] = read borrow.shared (global string'171) loan0
+  %2: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] = address inspect %1 roots.0{0}
+  %3: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %2 roots.0{0}
+  %4: I32 = const 4
+  %5: String = call stringLiteral borrow.shared %3 borrow.shared %4
+  %6: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'172) loan1
+  %7: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %6 roots.0{1}
+  %8: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %7 roots.0{1}
+  %9: I32 = const 11
+  %10: String = call stringLiteral borrow.shared %8 borrow.shared %9
+  %11: I32 = const 42
+  %12: I32 = const 4
+  %13: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'173) loan2
+  %14: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %13 roots.0{2}
+  %15: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %14 roots.0{2}
+  %16: I32 = const 12
+  %17: String = call stringLiteral borrow.shared %15 borrow.shared %16
+  %18: Site = aggregate.Site take %10 take %11 take %12 take %17
+  %19: {} = call check borrow.shared %0 take %5 take %18
+  %20: I32 = const 1
+  %21: Test = call failedIfNegative borrow.shared %20
+  return take %21
+}
+
+fn failedIfNegative(n: I32 [shared call]) -> Test {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %32: Test = aggregate.Ok
+  return take %32
+
+bb3:
+  %4: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'174) loan0
+  %5: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
+  %6: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %5 roots.0{0}
+  %7: I32 = const 11
+  %8: String = call stringLiteral borrow.shared %6 borrow.shared %7
+  %9: I32 = const 46
+  %10: I32 = const 62
+  %11: [CodeUnit *16] [shared slot 0] = read borrow.shared (global string'175) loan1
+  %12: %[CodeUnit *16] [owned here shape6 .*=shared slot 0] = address inspect %11 roots.0{1}
+  %13: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %12 roots.0{1}
+  %14: I32 = const 16
+  %15: String = call stringLiteral borrow.shared %13 borrow.shared %14
+  %16: Site = aggregate.Site take %8 take %9 take %10 take %15
+  %17: Site = call here take %16
+  %18: [CodeUnit *8] [shared slot 0] = read borrow.shared (global string'176) loan2
+  %19: %[CodeUnit *8] [owned here shape6 .*=shared slot 0] = address inspect %18 roots.0{2}
+  %20: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %19 roots.0{2}
+  %21: I32 = const 8
+  %22: String = call stringLiteral borrow.shared %20 borrow.shared %21
+  %23: [CodeUnit *0] [shared slot 0] = read borrow.shared (global string'177) loan3
+  %24: %[CodeUnit *0] [owned here shape6 .*=shared slot 0] = address inspect %23 roots.0{3}
+  %25: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %24 roots.0{3}
+  %26: I32 = const 0
+  %27: String = call stringLiteral borrow.shared %25 borrow.shared %26
+  %28: Failure = aggregate.Failure take %17 take %22 take %27
+  %29: Test = aggregate.Failed take %28
+  return take %29
+}
+
+fn here(@caller at: Site) -> Site {
+bb0:
+  %0: Site = read take (at)
+  return take %0
+}
+
+fn saysItAborts() -> {} {
+bb0:
+  %0: Bool = const True
+  %1: [CodeUnit *4] [shared slot 0] = read borrow.shared (global string'178) loan0
+  %2: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] = address inspect %1 roots.0{0}
+  %3: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %2 roots.0{0}
+  %4: I32 = const 4
+  %5: String = call stringLiteral borrow.shared %3 borrow.shared %4
+  %6: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'179) loan1
+  %7: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %6 roots.0{1}
+  %8: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %7 roots.0{1}
+  %9: I32 = const 11
+  %10: String = call stringLiteral borrow.shared %8 borrow.shared %9
+  %11: I32 = const 54
+  %12: I32 = const 4
+  %13: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'180) loan2
+  %14: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %13 roots.0{2}
+  %15: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %14 roots.0{2}
+  %16: I32 = const 12
+  %17: String = call stringLiteral borrow.shared %15 borrow.shared %16
+  %18: Site = aggregate.Site take %10 take %11 take %12 take %17
+  %19: {} = call check borrow.shared %0 take %5 take %18
+  return
+}
+
+fn oneThatFails() -> {} {
+  local mark: Site
+
+bb0:
+  %0: I32 = const 2
+  %1: I32 = const 1
+  %2: Bool = eq inspect %1 inspect %0
+  %3: [CodeUnit *6] [shared slot 0] = read borrow.shared (global string'181) loan0
+  %4: %[CodeUnit *6] [owned here shape6 .*=shared slot 0] = address inspect %3 roots.0{0}
+  %5: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %4 roots.0{0}
+  %6: I32 = const 6
+  %7: String = call stringLiteral borrow.shared %5 borrow.shared %6
+  %8: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'182) loan1
+  %9: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %8 roots.0{1}
+  %10: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %9 roots.0{1}
+  %11: I32 = const 11
+  %12: String = call stringLiteral borrow.shared %10 borrow.shared %11
+  %13: I32 = const 68
+  %14: I32 = const 4
+  %15: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'183) loan2
+  %16: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %15 roots.0{2}
+  %17: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %16 roots.0{2}
+  %18: I32 = const 12
+  %19: String = call stringLiteral borrow.shared %17 borrow.shared %18
+  %20: Site = aggregate.Site take %12 take %13 take %14 take %19
+  %21: {} = call check borrow.shared %2 take %7 take %20
+  %22: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'184) loan3
+  %23: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %22 roots.0{3}
+  %24: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %23 roots.0{3}
+  %25: I32 = const 11
+  %26: String = call stringLiteral borrow.shared %24 borrow.shared %25
+  %27: I32 = const 70
+  %28: I32 = const 15
+  %29: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'185) loan4
+  %30: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %29 roots.0{4}
+  %31: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %30 roots.0{4}
+  %32: I32 = const 12
+  %33: String = call stringLiteral borrow.shared %31 borrow.shared %32
+  %34: Site = aggregate.Site take %26 take %27 take %28 take %33
+  %35: Site = call here take %34
+  write.init borrow.unique (mark) take %35
+  %37: I32 = call claimAt
+  %38: I32 = const 2
+  %39: I32 = add inspect %37 inspect %38
+  %40: I32 = read copy.trivial (mark.line)
+  drop (mark)
+  %41: Bool = eq inspect %39 inspect %40
+  %42: [CodeUnit *26] [shared slot 0] = read borrow.shared (global string'186) loan5
+  %43: %[CodeUnit *26] [owned here shape6 .*=shared slot 0] = address inspect %42 roots.0{5}
+  %44: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %43 roots.0{5}
+  %45: I32 = const 26
+  %46: String = call stringLiteral borrow.shared %44 borrow.shared %45
+  %47: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'187) loan6
+  %48: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %47 roots.0{6}
+  %49: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %48 roots.0{6}
+  %50: I32 = const 11
+  %51: String = call stringLiteral borrow.shared %49 borrow.shared %50
+  %52: I32 = const 71
+  %53: I32 = const 4
+  %54: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'188) loan7
+  %55: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %54 roots.0{7}
+  %56: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %55 roots.0{7}
+  %57: I32 = const 12
+  %58: String = call stringLiteral borrow.shared %56 borrow.shared %57
+  %59: Site = aggregate.Site take %51 take %52 take %53 take %58
+  %60: {} = call check borrow.shared %41 take %46 take %59
+  %61: I32 = call claimText
+  %62: I32 = const 6
+  %63: Bool = eq inspect %61 inspect %62
+  %64: [CodeUnit *16] [shared slot 0] = read borrow.shared (global string'189) loan8
+  %65: %[CodeUnit *16] [owned here shape6 .*=shared slot 0] = address inspect %64 roots.0{8}
+  %66: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %65 roots.0{8}
+  %67: I32 = const 16
+  %68: String = call stringLiteral borrow.shared %66 borrow.shared %67
+  %69: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'190) loan9
+  %70: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %69 roots.0{9}
+  %71: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %70 roots.0{9}
+  %72: I32 = const 11
+  %73: String = call stringLiteral borrow.shared %71 borrow.shared %72
+  %74: I32 = const 72
+  %75: I32 = const 4
+  %76: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'191) loan10
+  %77: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %76 roots.0{10}
+  %78: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %77 roots.0{10}
+  %79: I32 = const 12
+  %80: String = call stringLiteral borrow.shared %78 borrow.shared %79
+  %81: Site = aggregate.Site take %73 take %74 take %75 take %80
+  %82: {} = call check borrow.shared %63 take %68 take %81
+  %83: I32 = call claims
+  %84: I32 = const 1
+  %85: Bool = eq inspect %83 inspect %84
+  %86: [CodeUnit *13] [shared slot 0] = read borrow.shared (global string'192) loan11
+  %87: %[CodeUnit *13] [owned here shape6 .*=shared slot 0] = address inspect %86 roots.0{11}
+  %88: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %87 roots.0{11}
+  %89: I32 = const 13
+  %90: String = call stringLiteral borrow.shared %88 borrow.shared %89
+  %91: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'193) loan12
+  %92: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %91 roots.0{12}
+  %93: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %92 roots.0{12}
+  %94: I32 = const 11
+  %95: String = call stringLiteral borrow.shared %93 borrow.shared %94
+  %96: I32 = const 73
+  %97: I32 = const 4
+  %98: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'194) loan13
+  %99: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %98 roots.0{13}
+  %100: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %99 roots.0{13}
+  %101: I32 = const 12
+  %102: String = call stringLiteral borrow.shared %100 borrow.shared %101
+  %103: Site = aggregate.Site take %95 take %96 take %97 take %102
+  %104: {} = call check borrow.shared %85 take %90 take %103
+  return
+}
+
+fn main$() -> I32 {
+  local & local0: Array(Case) object35
+  local local1: Array(Case) object35
+
+bb0:
+  %0: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'103) loan0
+  %1: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %1 roots.0{0}
+  %3: I32 = const 11
+  %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
+  %5: I32 = const 30
+  %6: I32 = const 6
+  %7: [CodeUnit *15] [shared slot 0] = read borrow.shared (global string'104) loan1
+  %8: %[CodeUnit *15] [owned here shape6 .*=shared slot 0] = address inspect %7 roots.0{1}
+  %9: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %8 roots.0{1}
+  %10: I32 = const 15
+  %11: String = call stringLiteral borrow.shared %9 borrow.shared %10
+  %12: Site = aggregate.Site take %4 take %5 take %6 take %11
+  %13: [CodeUnit *15] [shared slot 0] = read borrow.shared (global string'105) loan2
+  %14: %[CodeUnit *15] [owned here shape6 .*=shared slot 0] = address inspect %13 roots.0{2}
+  %15: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %14 roots.0{2}
+  %16: I32 = const 15
+  %17: String = call stringLiteral borrow.shared %15 borrow.shared %16
+  %18: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'106) loan3
+  %19: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %18 roots.0{3}
+  %20: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %19 roots.0{3}
+  %21: I32 = const 11
+  %22: String = call stringLiteral borrow.shared %20 borrow.shared %21
+  %23: Bool = const False
+  %24: () -> Test [owned here shape8 .0=unique call] = fun.value arithmeticHolds$case
+  %25: Case = aggregate.Case take %17 take %22 take %12 take %23 take %24
+  %26: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'107) loan4
+  %27: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %26 roots.0{4}
+  %28: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %27 roots.0{4}
+  %29: I32 = const 11
+  %30: String = call stringLiteral borrow.shared %28 borrow.shared %29
+  %31: I32 = const 36
+  %32: I32 = const 30
+  %33: [CodeUnit *9] [shared slot 0] = read borrow.shared (global string'108) loan5
+  %34: %[CodeUnit *9] [owned here shape6 .*=shared slot 0] = address inspect %33 roots.0{5}
+  %35: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %34 roots.0{5}
+  %36: I32 = const 9
+  %37: String = call stringLiteral borrow.shared %35 borrow.shared %36
+  %38: Site = aggregate.Site take %30 take %31 take %32 take %37
+  %39: [CodeUnit *20] [shared slot 0] = read borrow.shared (global string'109) loan6
+  %40: %[CodeUnit *20] [owned here shape6 .*=shared slot 0] = address inspect %39 roots.0{6}
+  %41: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %40 roots.0{6}
+  %42: I32 = const 20
+  %43: String = call stringLiteral borrow.shared %41 borrow.shared %42
+  %44: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'110) loan7
+  %45: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %44 roots.0{7}
+  %46: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %45 roots.0{7}
+  %47: I32 = const 11
+  %48: String = call stringLiteral borrow.shared %46 borrow.shared %47
+  %49: Bool = const False
+  %50: () -> Test [owned here shape8 .0=unique call] = fun.value namedCase$case
+  %51: Case = aggregate.Case take %43 take %48 take %38 take %49 take %50
+  %52: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'111) loan8
+  %53: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %52 roots.0{8}
+  %54: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %53 roots.0{8}
+  %55: I32 = const 11
+  %56: String = call stringLiteral borrow.shared %54 borrow.shared %55
+  %57: I32 = const 41
+  %58: I32 = const 6
+  %59: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'112) loan9
+  %60: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %59 roots.0{9}
+  %61: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %60 roots.0{9}
+  %62: I32 = const 12
+  %63: String = call stringLiteral borrow.shared %61 borrow.shared %62
+  %64: Site = aggregate.Site take %56 take %57 take %58 take %63
+  %65: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'113) loan10
+  %66: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %65 roots.0{10}
+  %67: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %66 roots.0{10}
+  %68: I32 = const 12
+  %69: String = call stringLiteral borrow.shared %67 borrow.shared %68
+  %70: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'114) loan11
+  %71: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %70 roots.0{11}
+  %72: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %71 roots.0{11}
+  %73: I32 = const 11
+  %74: String = call stringLiteral borrow.shared %72 borrow.shared %73
+  %75: Bool = const False
+  %76: () -> Test [owned here shape8 .0=unique call] = fun.value answersATest
+  %77: Case = aggregate.Case take %69 take %74 take %64 take %75 take %76
+  %78: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'115) loan12
+  %79: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %78 roots.0{12}
+  %80: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %79 roots.0{12}
+  %81: I32 = const 11
+  %82: String = call stringLiteral borrow.shared %80 borrow.shared %81
+  %83: I32 = const 53
+  %84: I32 = const 14
+  %85: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'116) loan13
+  %86: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %85 roots.0{13}
+  %87: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %86 roots.0{13}
+  %88: I32 = const 12
+  %89: String = call stringLiteral borrow.shared %87 borrow.shared %88
+  %90: Site = aggregate.Site take %82 take %83 take %84 take %89
+  %91: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'117) loan14
+  %92: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %91 roots.0{14}
+  %93: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %92 roots.0{14}
+  %94: I32 = const 12
+  %95: String = call stringLiteral borrow.shared %93 borrow.shared %94
+  %96: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'118) loan15
+  %97: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %96 roots.0{15}
+  %98: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %97 roots.0{15}
+  %99: I32 = const 11
+  %100: String = call stringLiteral borrow.shared %98 borrow.shared %99
+  %101: Bool = const True
+  %102: () -> Test [owned here shape8 .0=unique call] = fun.value saysItAborts$case
+  %103: Case = aggregate.Case take %95 take %100 take %90 take %101 take %102
+  %104: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'119) loan16
+  %105: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %104 roots.0{16}
+  %106: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %105 roots.0{16}
+  %107: I32 = const 11
+  %108: String = call stringLiteral borrow.shared %106 borrow.shared %107
+  %109: I32 = const 67
+  %110: I32 = const 6
+  %111: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'120) loan17
+  %112: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %111 roots.0{17}
+  %113: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %112 roots.0{17}
+  %114: I32 = const 12
+  %115: String = call stringLiteral borrow.shared %113 borrow.shared %114
+  %116: Site = aggregate.Site take %108 take %109 take %110 take %115
+  %117: [CodeUnit *12] [shared slot 0] = read borrow.shared (global string'121) loan18
+  %118: %[CodeUnit *12] [owned here shape6 .*=shared slot 0] = address inspect %117 roots.0{18}
+  %119: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %118 roots.0{18}
+  %120: I32 = const 12
+  %121: String = call stringLiteral borrow.shared %119 borrow.shared %120
+  %122: [CodeUnit *11] [shared slot 0] = read borrow.shared (global string'122) loan19
+  %123: %[CodeUnit *11] [owned here shape6 .*=shared slot 0] = address inspect %122 roots.0{19}
+  %124: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %123 roots.0{19}
+  %125: I32 = const 11
+  %126: String = call stringLiteral borrow.shared %124 borrow.shared %125
+  %127: Bool = const False
+  %128: () -> Test [owned here shape8 .0=unique call] = fun.value oneThatFails$case
+  %129: Case = aggregate.Case take %121 take %126 take %116 take %127 take %128
+  %130: Size = const 5
+  %131: Array(Case) = call literalArray(Case) borrow.shared %130
+  write.init borrow.unique (local0) take %131
+  %133: Array(Case) [unique slot 0] = read borrow.unique (local0) loan20
+  %134: Array(Case) [unique slot 0 view] = call.derivation elementsMut(Array(Case), Case) borrow.unique %133 roots{20}
+  %135: %Case [owned here shape6 .*=shared slot 0] = call valuesMut(Case) borrow.unique %134 roots.0{20}
+  %136: Size = const 0
+  write.init borrow.unique ([%%135][0]) take %25
+  %138: Size = const 1
+  write.init borrow.unique ([%%135][1]) take %51
+  %140: Size = const 2
+  write.init borrow.unique ([%%135][2]) take %77
+  %142: Size = const 3
+  write.init borrow.unique ([%%135][3]) take %103
+  %144: Size = const 4
+  write.init borrow.unique ([%%135][4]) take %129
+  %146: Array(Case) = read take (local0)
+  write.init borrow.unique (local1) take %146
+  %148: Array(Case) [shared slot 0] = read borrow.shared (local1) loan21
+  %149: Array(Case) [shared slot 0 view] = call.derivation elements(Array(Case), Case) borrow.shared %148 roots{21}
+  %150: I32 = call runMain borrow.shared %149
+  drop (local1)
+  return take %150
+}
+
+fn arithmeticHolds$case() -> Test {
+bb0:
+  %0: {} = call arithmeticHolds
+  %1: Test = aggregate.Ok
+  return take %1
+}
+
+fn namedCase$case() -> Test {
+bb0:
+  %0: {} = call namedCase
+  %1: Test = aggregate.Ok
+  return take %1
+}
+
+fn saysItAborts$case() -> Test {
+bb0:
+  %0: {} = call saysItAborts
+  %1: Test = aggregate.Ok
+  return take %1
+}
+
+fn oneThatFails$case() -> Test {
+bb0:
+  %0: {} = call oneThatFails
+  %1: Test = aggregate.Ok
+  return take %1
+}
+module Test
+
+data Site {file: String, line: I32, column: I32, function: String} reclaim derived
+
+data Failure {site: Site, claim: String, detail: String} reclaim derived
+
+data Test = Failed {failure: Failure} | Ok reclaim derived
+
+data Case {name: String, moduleName: String, site: Site, aborts: Bool, body: () -> Test} drop derived reclaim derived
+
+let & failed: I32 = 0
+
+let & claimWidth: I32 = 0
+
+let & claimLine: I32 = 0
+
+let string'195: [CodeUnit *0] = []
+
+fn record(failure: Failure) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global failed)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global failed) take %2
+  %4: I32 = read copy.trivial (global claimWidth)
+  %5: String [shared call] = read borrow.shared (failure.claim) loan0
+  %6: String [shared slot 0 view] = call.derivation view(String) borrow.shared %5 roots{0}
+  %7: Size = call length(String) borrow.shared %6
+  %8: I32 = convert inspect %7
+  %9: I32 = add inspect %4 inspect %8
+  write.assign borrow.unique (global claimWidth) take %9
+  %11: I32 = read copy.trivial (global claimLine)
+  %12: I32 = read copy.trivial (failure.site.line)
+  drop (failure)
+  %13: I32 = add inspect %11 inspect %12
+  write.assign borrow.unique (global claimLine) take %13
+  return
+}
+
+fn check(held: Bool [shared call], @caller(source: held) text: String, @caller at: Site) -> {} {
+bb0:
+  %0: Bool = read copy.trivial (held)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %4: Site = read take (at)
+  %5: String = read take (text)
+  %6: [CodeUnit *0] [shared slot 0] = read borrow.shared (global string'195) loan0
+  %7: %[CodeUnit *0] [owned here shape6 .*=shared slot 0] = address inspect %6 roots.0{0}
+  %8: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %7 roots.0{0}
+  %9: I32 = const 0
+  %10: String = call stringLiteral borrow.shared %8 borrow.shared %9
+  %11: Failure = aggregate.Failure take %4 take %5 take %10
+  %12: {} = call record take %11
+  return
+
+bb3:
+  drop (text)
+  drop (at)
+  return
+}
+
+fn claims() -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (global failed)
+  return take %0
+}
+
+fn claimText() -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (global claimWidth)
+  return take %0
+}
+
+fn claimAt() -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (global claimLine)
+  return take %0
+}
+
+fn runMain(cases: Array(Case) [shared call view]) -> I32 {
+  local & count: I32
+  local & aborting: I32
+  local & names: I32
+  local & modules: I32
+  local & lines: I32
+  local & i: Size
+  local local7: Case [shared slot 0]
+  local local8: Case [shared slot 0]
+  local local9: Case [shared slot 0]
+  local local10: Case [shared slot 0]
+  local local11: Case [shared slot 0]
+  local outcome: Test
+  local local13: Case [shared slot 0]
+  local local14: Case [shared slot 0]
+  local sameModule: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (count) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (aborting) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (names) take %4
+  %6: I32 = const 0
+  write.init borrow.unique (modules) take %6
+  %8: I32 = const 0
+  write.init borrow.unique (lines) take %8
+  %10: Size = const 0
+  write.init borrow.unique (i) take %10
+  jump -> bb1
+
+bb1:
+  %13: Size = read copy.trivial (i)
+  %14: Array(Case) [shared call view] = read borrow.shared (cases) loan0
+  %15: Size = call length(Array(Case)) borrow.shared %14
+  %16: Bool = lt inspect %13 inspect %15
+  branch inspect %16 -> bb3 -> bb2
+
+bb2:
+  %76: I32 = read copy.trivial (count)
+  %77: I32 = const 0
+  %78: Bool = gt inspect %76 inspect %77
+  branch inspect %78 -> bb9 -> bb7
+
+bb3:
+  %18: I32 = read copy.trivial (count)
+  %19: I32 = const 1
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (count) take %20
+  %22: Size = read copy.trivial (i)
+  %23: Array(Case) [shared call view] = read borrow.shared (cases) loan1
+  %24: Case [shared slot 0] = call.subscript get(Array(Case), Size, Case) borrow.shared %23 borrow.shared %22 roots{1}
+  write.init borrow.unique (local7) borrow.shared %24
+  %26: Bool = read copy.trivial (local7.aborts)
+  branch inspect %26 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %34: I32 = read copy.trivial (names)
+  %35: Size = read copy.trivial (i)
+  %36: Array(Case) [shared call view] = read borrow.shared (cases) loan2
+  %37: Case [shared slot 0] = call.subscript get(Array(Case), Size, Case) borrow.shared %36 borrow.shared %35 roots{2}
+  write.init borrow.unique (local8) borrow.shared %37
+  %39: String [shared slot 0] = read borrow.shared (local8.name) loan3 roots{2}
+  %40: String [shared slot 0 view] = call.derivation view(String) borrow.shared %39 roots{2, 3}
+  %41: Size = call length(String) borrow.shared %40
+  %42: I32 = convert inspect %41
+  %43: I32 = add inspect %34 inspect %42
+  write.assign borrow.unique (names) take %43
+  %45: I32 = read copy.trivial (modules)
+  %46: Size = read copy.trivial (i)
+  %47: Array(Case) [shared call view] = read borrow.shared (cases) loan4
+  %48: Case [shared slot 0] = call.subscript get(Array(Case), Size, Case) borrow.shared %47 borrow.shared %46 roots{4}
+  write.init borrow.unique (local9) borrow.shared %48
+  %50: String [shared slot 0] = read borrow.shared (local9.moduleName) loan5 roots{4}
+  %51: String [shared slot 0 view] = call.derivation view(String) borrow.shared %50 roots{4, 5}
+  %52: Size = call length(String) borrow.shared %51
+  %53: I32 = convert inspect %52
+  %54: I32 = add inspect %45 inspect %53
+  write.assign borrow.unique (modules) take %54
+  %56: I32 = read copy.trivial (lines)
+  %57: Size = read copy.trivial (i)
+  %58: Array(Case) [shared call view] = read borrow.shared (cases) loan6
+  %59: Case [shared slot 0] = call.subscript get(Array(Case), Size, Case) borrow.shared %58 borrow.shared %57 roots{6}
+  write.init borrow.unique (local10) borrow.shared %59
+  %61: I32 = read copy.trivial (local10.site.line)
+  %62: I32 = add inspect %56 inspect %61
+  write.assign borrow.unique (lines) take %62
+  %64: Size = read copy.trivial (i)
+  %65: Array(Case) [shared call view] = read borrow.shared (cases) loan7
+  %66: Case [shared slot 0] = call.subscript get(Array(Case), Size, Case) borrow.shared %65 borrow.shared %64 roots{7}
+  write.init borrow.unique (local11) borrow.shared %66
+  %68: () -> Test [shared slot 0] = read borrow.shared (local11.body) loan8 roots{7}
+  %69: Test = call inspect %68
+  write.init borrow.unique (outcome) take %69
+  drop (outcome)
+  %71: Size = read copy.trivial (i)
+  %72: Size = const 1
+  %73: Size = add inspect %71 inspect %72
+  write.assign borrow.unique (i) take %73
+  jump -> bb1
+
+bb6:
+  %28: I32 = read copy.trivial (aborting)
+  %29: I32 = const 1
+  %30: I32 = add inspect %28 inspect %29
+  write.assign borrow.unique (aborting) take %30
+  jump -> bb5
+
+bb7:
+  %104: I32 = const 0
+  jump -> bb8(take %104)
+
+bb8(%105: I32):
+  write.init borrow.unique (sameModule) take %105
+  %109: I32 = read copy.trivial (count)
+  %110: I32 = const 64
+  %111: I32 = mul inspect %109 inspect %110
+  %112: I32 = read copy.trivial (aborting)
+  %113: I32 = const 32
+  %114: I32 = mul inspect %112 inspect %113
+  %115: I32 = add inspect %111 inspect %114
+  %116: I32 = read copy.trivial (names)
+  %117: I32 = const 8
+  %118: I32 = rem inspect %116 inspect %117
+  %119: I32 = const 4
+  %120: I32 = mul inspect %118 inspect %119
+  %121: I32 = add inspect %115 inspect %120
+  %122: I32 = read copy.trivial (sameModule)
+  %123: I32 = const 2
+  %124: I32 = mul inspect %122 inspect %123
+  %125: I32 = add inspect %121 inspect %124
+  %126: I32 = read copy.trivial (global failed)
+  %127: I32 = const 2
+  %128: I32 = rem inspect %126 inspect %127
+  %129: I32 = add inspect %125 inspect %128
+  return take %129
+
+bb9:
+  %80: I32 = read copy.trivial (modules)
+  %81: I32 = read copy.trivial (count)
+  %82: Size = const 0
+  %83: Array(Case) [shared call view] = read borrow.shared (cases) loan9
+  %84: Case [shared slot 0] = call.subscript get(Array(Case), Size, Case) borrow.shared %83 borrow.shared %82 roots{9}
+  write.init borrow.unique (local13) borrow.shared %84
+  %86: String [shared slot 0] = read borrow.shared (local13.moduleName) loan10 roots{9}
+  %87: String [shared slot 0 view] = call.derivation view(String) borrow.shared %86 roots{9, 10}
+  %88: Size = call length(String) borrow.shared %87
+  %89: I32 = convert inspect %88
+  %90: I32 = mul inspect %81 inspect %89
+  %91: Bool = eq inspect %80 inspect %90
+  branch inspect %91 -> bb10 -> bb7
+
+bb10:
+  %93: Size = const 0
+  %94: Array(Case) [shared call view] = read borrow.shared (cases) loan11
+  %95: Case [shared slot 0] = call.subscript get(Array(Case), Size, Case) borrow.shared %94 borrow.shared %93 roots{11}
+  write.init borrow.unique (local14) borrow.shared %95
+  %97: String [shared slot 0] = read borrow.shared (local14.moduleName) loan12 roots{11}
+  %98: String [shared slot 0 view] = call.derivation view(String) borrow.shared %97 roots{11, 12}
+  %99: Size = call length(String) borrow.shared %98
+  %100: Size = const 0
+  %101: Bool = gt inspect %99 inspect %100
+  branch inspect %101 -> bb11 -> bb7
+
+bb11:
+  %103: I32 = const 1
+  jump -> bb8(take %103)
+}
+
+entry main$

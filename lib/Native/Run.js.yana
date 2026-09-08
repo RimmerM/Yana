@@ -10,4 +10,14 @@
    `items` would hand them the whole array, which is a read past both ends of what they asked for.
 -}
 
+{-
+   A run of `capacity` slots, placed by the compiler - the JS half of `newRun`.
+
+   No body, and there is none to write: a run on this target is a descriptor over a host array the
+   compiler places, and `allocateHeap` is `Heap.native.yana`'s. So this side is the role and nothing
+   else, and `Run.native.yana` is the side that also carries the fallback body.
+-}
+@builtin(newRun)
+pub fn newRun(capacity: Size) -> Run(a)
+
 -- The record is `Core/Array.js.yana`'s `ArrayView`, beside the owner it is a view of.

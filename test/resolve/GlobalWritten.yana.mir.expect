@@ -8,9 +8,9 @@ let & counter: I32 = 0
 
 let origin: Point = Point {x: 1, y: 2}
 
-let greeting: String = String {units: Array {run: Run {items: &string, capacity: 2, ownsHeap: 0}, length: 2}}
+let greeting: String = String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
 
-let string: [CodeUnit *2] = [97, 98]
+let string'143: [CodeUnit *2] = [97, 98]
 
 fn seven() -> I32 {
 bb0:
@@ -40,7 +40,7 @@ bb3:
   return take %4
 }
 
-fn sum(p: Point [shared call]) -> I32 {
+fn sum'2(p: Point [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (p.x)
   %1: I32 = read copy.trivial (p.y)
@@ -81,7 +81,7 @@ bb4:
 
 bb5:
   %23: Point = read copy.trivial (global origin)
-  %24: I32 = call sum borrow.shared %23
+  %24: I32 = call sum'2 borrow.shared %23
   %25: I32 = const 3
   %26: Bool = eq inspect %24 inspect %25
   branch inspect %26 -> bb9 -> bb7

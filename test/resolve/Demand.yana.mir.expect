@@ -2,7 +2,7 @@ module ResolveTest
 
 data Point {x: I32, y: I32}
 
-fn read(it: Point [shared call]) -> I32 {
+fn read'2(it: Point [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (it.x)
   %1: I32 = read copy.trivial (it.y)
@@ -28,9 +28,9 @@ bb0:
   %2: Point = aggregate.Point take %0 take %1
   write.init borrow.unique (p) take %2
   %4: Point = read copy.trivial (p)
-  %5: I32 = call read borrow.shared %4
+  %5: I32 = call read'2 borrow.shared %4
   %6: Point = read copy.trivial (p)
-  %7: I32 = call read borrow.shared %6
+  %7: I32 = call read'2 borrow.shared %6
   %8: I32 = add inspect %5 inspect %7
   return take %8
 }
@@ -51,7 +51,7 @@ bb1:
 
 bb2:
   %10: Point = read copy.trivial (p)
-  %11: I32 = call read borrow.shared %10
+  %11: I32 = call read'2 borrow.shared %10
   return take %11
 
 bb3:
@@ -76,18 +76,16 @@ bb0:
   %8: Point [unique call] = read borrow.unique (duplicate) loan0
   %9: {} = call bump borrow.unique %8
   %10: Point = read copy.trivial (source)
-  %11: I32 = call read borrow.shared %10
+  %11: I32 = call read'2 borrow.shared %10
   %12: Point = read copy.trivial (duplicate)
-  %13: I32 = call read borrow.shared %12
+  %13: I32 = call read'2 borrow.shared %12
   %14: I32 = add inspect %11 inspect %13
   return take %14
 }
 
 fn addressed() -> I32 {
   local p: Point
-  local at: %Point [owned here shape1 .*=shared slot 0]
-  local local2: Point
-  local local3: Point
+  local at: %Point [owned here shape6 .*=shared slot 0]
 
 bb0:
   %0: I32 = const 1
@@ -95,18 +93,14 @@ bb0:
   %2: Point = aggregate.Point take %0 take %1
   write.init borrow.unique (p) take %2
   %4: Point [shared slot 0] = read borrow.shared (p) loan0
-  %5: %Point [owned here shape1 .*=shared slot 0] = address inspect %4 roots.0{0}
+  %5: %Point [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
   write.init borrow.unique (at) take %5
-  %7: %Point [owned here shape1 .*=shared slot 0] = read copy.trivial (at) roots.0{0}
-  %8: Point = read copy.trivial ([%%7])
-  write.init borrow.unique (local2) take %8
-  %10: I32 = read copy.trivial (local2.x)
-  %11: %Point [owned here shape1 .*=shared slot 0] = read copy.trivial (at) roots.0{0}
-  %12: Point = read copy.trivial ([%%11])
-  write.init borrow.unique (local3) take %12
-  %14: I32 = read copy.trivial (local3.y)
-  %15: I32 = add inspect %10 inspect %14
-  return take %15
+  %7: %Point [owned here shape6 .*=shared slot 0] = read copy.trivial (at) roots.0{0}
+  %8: I32 = read copy.trivial ([%%7].x)
+  %9: %Point [owned here shape6 .*=shared slot 0] = read copy.trivial (at) roots.0{0}
+  %10: I32 = read copy.trivial ([%%9].y)
+  %11: I32 = add inspect %8 inspect %10
+  return take %11
 }
 
 fn main() -> I32 {

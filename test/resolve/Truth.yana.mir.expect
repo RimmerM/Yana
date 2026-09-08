@@ -36,7 +36,7 @@ bb3:
   jump -> bb2(take %4)
 }
 
-fn fromInt(value: I32 [shared call]) -> I32 {
+fn fromInt'2(value: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (value)
   %1: I32 = const 0
@@ -205,12 +205,12 @@ bb0:
   %17: I32 = mul inspect %15 inspect %16
   %18: I32 = add inspect %12 inspect %17
   %19: I32 = const 7
-  %20: I32 = call fromInt borrow.shared %19
+  %20: I32 = call fromInt'2 borrow.shared %19
   %21: I32 = const 4
   %22: I32 = mul inspect %20 inspect %21
   %23: I32 = add inspect %18 inspect %22
   %24: I32 = const 0
-  %25: I32 = call fromInt borrow.shared %24
+  %25: I32 = call fromInt'2 borrow.shared %24
   %26: I32 = const 100
   %27: I32 = mul inspect %25 inspect %26
   %28: I32 = add inspect %23 inspect %27

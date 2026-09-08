@@ -39,6 +39,17 @@ fn paintAscending(buffer: %U8, at: Size, first: Size, count: Size):
    `above` is what makes the second property testable: the byte immediately after each window is set
    to disagree, so a `compareMemory` that read one lane too far would answer `LT` where this expects
    `EQ`. It is `0 - 1` on the left window and `0` on the right, which no ascending fill can produce.
+
+   **Both sentinels are written only for a count that is not negative**, and that guard is not
+   defensive tidying: `count` is deliberately negative in one of the cases below, and `buffer + at`
+   is the *start* of a heap block, so `buffer + at + count` is the block's own size-class header
+   rather than a byte past a window. Writing 255 over it made `freeHeap` thread the block onto free
+   list 255, which is 1784 bytes past the 32-entry table and therefore over a live object in the
+   bump area - the bytes written being the block's own address, so what broke depended on where the
+   heap happened to be mapped. It surfaced as this suite freeing a string literal at exit, in about
+   one run in three, under whichever stage laid the early allocations out to put a container
+   descriptor there. There is nothing to sentinel for a negative count anyway: the comparison it
+   asks about reads nothing at all.
 -}
 fn ordered(buffer: %U8, at: Size, to: Size, count: Size, differ: Size, by: Int) -> Int:
     paintAscending(buffer, at, 7, count + overrun)
@@ -47,8 +58,9 @@ fn ordered(buffer: %U8, at: Size, to: Size, count: Size, differ: Size, by: Int) 
     if differ >= 0 && differ < count:
         store(buffer + to + differ, truncate((7 + differ + by) :: Size) :: U8)
 
-    store(buffer + at + count, 255 :: U8)
-    store(buffer + to + count, 0 :: U8)
+    if count >= 0:
+        store(buffer + at + count, 255 :: U8)
+        store(buffer + to + count, 0 :: U8)
 
     let order = compareMemory(buffer + at, buffer + to, count)
     if order == LT then return 0 - 1
@@ -132,20 +144,20 @@ fn ordered(buffer: %U8, at: Size, to: Size, count: Size, differ: Size, by: Int) 
     let low = [1, 2, 3, 4, 5, 6] :: [U32 *6]
     let high = [1, 2, 3, 4, 5, 16777216] :: [U32 *6]
 
-    check(compareMemory(elements(low).items, elements(high).items, 6) == LT)
-    check(compareMemory(elements(high).items, elements(low).items, 6) == GT)
-    check(compareMemory(elements(low).items, elements(low).items, 6) == EQ)
+    check(compareMemory(values(elements(low)), values(elements(high)), 6) == LT)
+    check(compareMemory(values(elements(high)), values(elements(low)), 6) == GT)
+    check(compareMemory(values(elements(low)), values(elements(low)), 6) == EQ)
 
     let small = [1, 2, 3, 4, 5, 6, 7, 8, 9] :: [Long *9]
     let large = [1, 2, 3, 4, 5, 6, 7, 8, 72057594037927936] :: [Long *9]
 
-    check(compareMemory(elements(small).items, elements(large).items, 9) == LT)
-    check(compareMemory(elements(large).items, elements(small).items, 9) == GT)
-    check(compareMemory(elements(small).items, elements(small).items, 9) == EQ)
+    check(compareMemory(values(elements(small)), values(elements(large)), 9) == LT)
+    check(compareMemory(values(elements(large)), values(elements(small)), 9) == GT)
+    check(compareMemory(values(elements(small)), values(elements(small)), 9) == EQ)
 
     -- And a signed element, where the order is the sign's and not the representation's.
     let negative = [0 - 1, 0 - 2] :: [I32 *2]
     let positive = [1, 2] :: [I32 *2]
 
-    check(compareMemory(elements(negative).items, elements(positive).items, 2) == LT)
-    check(compareMemory(elements(positive).items, elements(negative).items, 2) == GT)
+    check(compareMemory(values(elements(negative)), values(elements(positive)), 2) == LT)
+    check(compareMemory(values(elements(positive)), values(elements(negative)), 2) == GT)

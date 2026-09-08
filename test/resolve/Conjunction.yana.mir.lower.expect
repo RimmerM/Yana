@@ -235,22 +235,18 @@ main<complex>(): I32 {
     %v_89 = loads @trace, 4: I32
     %v_90 = add %v_89, 1: I32
     store @trace, %v_90, 4
-    %v_91 = add %v_88, 4096: I32
-    %v_92 = add %v_91, 8192: I32
+    %v_91 = loads @trace, 4: I32
+    %v_92 = add %v_91, 2: I32
+    store @trace, %v_92, 4
     %v_93 = loads @trace, 4: I32
-    %v_94 = add %v_93, 2: I32
+    %v_94 = add %v_93, 4: I32
     store @trace, %v_94, 4
-    %v_95 = add %v_92, 16384: I32
-    %v_96 = add %v_95, 32768: I32
-    %v_97 = loads @trace, 4: I32
-    %v_98 = add %v_97, 4: I32
-    store @trace, %v_98, 4
-    %v_99 = add %v_96, 65536: I32
-    %v_100 = loads @trace, 4: I32
-    %v_101 = cmp_eq %v_100, 7: I32
-    %v_102 = add %v_99, 131072: I32
-    %v_103 = select %v_101, %v_102, %v_99: I32
-    ret %v_103
+    %v_95 = add %v_88, 126976: I32
+    %v_96 = loads @trace, 4: I32
+    %v_97 = cmp_eq %v_96, 7: I32
+    %v_98 = add %v_88, 258048: I32
+    %v_99 = select %v_97, %v_98, %v_95: I32
+    ret %v_99
   }
 
   b_66 {

@@ -49,20 +49,20 @@ fn main() -> I32 {
   local local0: Flags
 
 bb0:
-  %0: I32 = read copy.trivial (global blockBytes)
+  %0: I32 = const 4194304
   %1: I32 = const 1048576
   %2: I32 = div inspect %0 inspect %1
-  %3: I32 = read copy.trivial (global blockMask)
+  %3: I32 = const 4194303
   %4: I32 = const 1048576
   %5: I32 = div inspect %3 inspect %4
   %6: I32 = const 10
   %7: I32 = mul inspect %5 inspect %6
   %8: I32 = add inspect %2 inspect %7
-  %9: I32 = read copy.trivial (global both)
+  %9: I32 = const 3
   %10: I32 = const 100
   %11: I32 = mul inspect %9 inspect %10
   %12: I32 = add inspect %8 inspect %11
-  %13: I32 = read copy.trivial (global inverted)
+  %13: I32 = const -3
   %14: I32 = add inspect %12 inspect %13
   %15: I32 = const 1024
   %16: I32 = call withDefault borrow.shared %15
@@ -76,7 +76,7 @@ bb0:
   %24: I32 = add inspect %19 inspect %23
   %25: I32 = call sized
   %26: I32 = add inspect %24 inspect %25
-  %27: Bool = read copy.trivial (global wide)
+  %27: Bool = const True
   branch inspect %27 -> bb3(take %26) -> bb1(take %26)
 
 bb1(%28: I32):
@@ -85,7 +85,7 @@ bb1(%28: I32):
 
 bb2(%33: I32, %34: I32):
   %37: I32 = add inspect %34 inspect %33
-  %38: Size = read copy.trivial (global pageMask)
+  %38: Size = const 4095
   %39: Size = const 4095
   %40: Bool = eq inspect %38 inspect %39
   branch inspect %40 -> bb6(take %37) -> bb4(take %37)
@@ -100,13 +100,13 @@ bb4(%41: I32):
 
 bb5(%46: I32, %47: I32):
   %50: I32 = add inspect %47 inspect %46
-  %51: U8 = read copy.trivial (global wrapped)
+  %51: U8 = const 44
   %52: I32 = convert inspect %51
   %53: I32 = add inspect %50 inspect %52
-  %54: I8 = read copy.trivial (global wrappedSigned)
+  %54: I8 = const 127
   %55: I32 = convert inspect %54
   %56: I32 = add inspect %53 inspect %55
-  %57: I32 = read copy.trivial (global noDivisor)
+  %57: I32 = const 0
   %58: I32 = add inspect %56 inspect %57
   return take %58
 

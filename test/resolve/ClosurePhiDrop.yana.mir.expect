@@ -1,0 +1,99 @@
+module ResolveTest
+
+data Guard {id: I32} drop authored
+
+data either.lambda.env {g: 0'Guard} shape2
+
+data either.lambda'2.env {g: 0'Guard} shape2
+
+instance Drop(Guard): Guard.drop
+
+let & dropCalls: I32 = 0
+
+fn Guard.drop(self: Guard) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global dropCalls)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global dropCalls) take %2
+  return
+}
+
+fn either(pick: I32 [shared call], id: I32 [shared call]) -> I32 {
+  local g: Guard
+  local either.lambda.env: either.lambda.env
+  local either.lambda'2.env: either.lambda'2.env
+  local f: (I32) -> I32 [owned here shape8 .0=shared call]
+
+bb0:
+  %0: I32 = read copy.trivial (id)
+  %1: Guard = aggregate.Guard take %0
+  write.init borrow.unique (g) take %1
+  %3: I32 = read copy.trivial (pick)
+  %4: I32 = const 1
+  %5: Bool = lt inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %12: Guard [shared slot 0] = read borrow.shared (g) loan2
+  %13: either.lambda'2.env = aggregate.either.lambda'2.env borrow.shared %12 roots.0{2}
+  write.init borrow.unique (either.lambda'2.env) take %13
+  %15: either.lambda'2.env [shared call] = read borrow.shared (either.lambda'2.env) loan3 roots.0{2}
+  %16: (I32) -> I32 [owned here shape8 .0=shared call] = fun.value either.lambda'2 inspect %15 roots.0{2, 3}
+  jump -> bb2(take %16)
+
+bb2(%17: (I32) -> I32 [owned here shape8 .0=shared call]):
+  write.init borrow.unique (f) take %17
+  %21: (I32) -> I32 [shared call shape8 .0=shared call] = read borrow.shared (f) loan4 roots.0{0, 1, 2, 3}
+  %22: I32 = const 10
+  %23: I32 = call inspect %21 borrow.shared %22
+  drop (g)
+  return take %23
+
+bb3:
+  %7: Guard [shared slot 0] = read borrow.shared (g) loan0
+  %8: either.lambda.env = aggregate.either.lambda.env borrow.shared %7 roots.0{0}
+  write.init borrow.unique (either.lambda.env) take %8
+  %10: either.lambda.env [shared call] = read borrow.shared (either.lambda.env) loan1 roots.0{0}
+  %11: (I32) -> I32 [owned here shape8 .0=shared call] = fun.value either.lambda inspect %10 roots.0{0, 1}
+  jump -> bb2(take %11)
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 3
+  %2: I32 = call either borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (a) take %2
+  %4: I32 = const 2
+  %5: I32 = const 5
+  %6: I32 = call either borrow.shared %4 borrow.shared %5
+  write.init borrow.unique (b) take %6
+  %8: I32 = read copy.trivial (a)
+  %9: I32 = read copy.trivial (b)
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = read copy.trivial (global dropCalls)
+  %12: I32 = add inspect %10 inspect %11
+  return take %12
+}
+
+fn either.lambda(either.lambda.env: either.lambda.env [unique call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (either.lambda.env.g.id)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn either.lambda'2(either.lambda'2.env: either.lambda'2.env [unique call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (either.lambda'2.env.g.id)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+entry main

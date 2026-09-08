@@ -50,6 +50,40 @@ void breakRecordLayout(Context& context, Program& program, RecordType& record);
 bool constantNeedsAllocation(DeclBase base, const Constant& constant);
 
 /*
+ * Whether releasing a value of this type releases an **allocation a box is** - anywhere inside it,
+ * through the fields a derived teardown descends into.
+ *
+ * The type half of `Program::asksBoxProvenance`. A record with no box in it is released the same way
+ * whoever placed it, so a drop that cannot see its placement is only an interesting drop where there
+ * is a box under it.
+ *
+ * A type **variable** answers true: what a generic body drops is whatever the caller supplied, and
+ * the placement question is asked of a specialization that this walk cannot see from here.
+ */
+bool reachesBox(DeclBase base, DeclPtr<Type> type, U32 depth = 0);
+
+/*
+ * Whether any release site in the program cannot see where the value's interior boxes were placed -
+ * `boxesVisibleAt`, asked of the whole program rather than of one drop.
+ *
+ * `ssa::storesBoxProvenance` is the consumer and this is the half of it that is about the *program's
+ * bodies* rather than about its allocator: a build whose provider cannot classify an address stores
+ * a provenance bit per boxed field, and the bit is read at exactly one kind of site - a teardown
+ * reached through a borrow, a global or a raw address. A program with no such site writes a word
+ * nothing ever reads, and pays for it in the layout of every record that holds a box: `Maybe(Tree)`
+ * is a pointer with a byte behind it, so eight bytes become sixteen and a `Tree` node thirty-two
+ * instead of twenty.
+ *
+ * Run after `computeSummaries` because reachability is what makes the answer about *this* program:
+ * every library links bodies that overwrite through a `&`, and counting one that nothing calls would
+ * turn the word on everywhere. It over-approximates in the other direction and deliberately - a
+ * reachable ambiguous drop makes the word exist for every boxed record, not only for the type it
+ * releases - because a layout is a fact about a type and a program that answered per drop site would
+ * have two layouts for one record.
+ */
+void settleBoxProvenance(Program& program);
+
+/*
  * Ownership classification - `doc/spec/ownership.md`'s Teardown, and the one thing about a type that
  * a *later declaration* can change.
  *

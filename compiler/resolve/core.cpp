@@ -614,7 +614,7 @@ void definePreludeLookups(Program& program, Module& core) {
     program.coreClasses.viewed = knownClass(program, Known::viewed);
 
     /*
-     * Three more that joined the table as `prelude/` grew to declare them - the two ownership
+     * Three more that joined the table when a library declared them - the two ownership
      * classifications and the one a vector joins on demand. `Optional` every one of them, so a
      * library that marks none generates none rather than asserting.
      */
@@ -627,9 +627,9 @@ void definePreludeLookups(Program& program, Module& core) {
      *
      * Not an oversight and not a smaller dependency - each of these is as much a class the compiler
      * dispatches through as the ones above. What they have not got is a `known.def` row, and
-     * `known.def`'s tail says why: the ownership stage reads `prelude/`, none of these is declared
-     * there, and a row no library in the tree can claim would be a `Presence` that lies. They join
-     * the table above as the prelude grows to reach them.
+     * `known.def`'s tail says why - a row is written the day something in the compiler has to name the
+     * class, and until then a spelling here is the smaller statement. They join the table above one
+     * at a time as that happens.
      */
     program.coreClasses.enum_ = classNamed(*module, "Enum"_v);
     program.coreClasses.index = classNamed(*module, "Index"_v);

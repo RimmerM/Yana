@@ -9,68 +9,22 @@ data Config {flag: Flag = On, level: Level = High, enabled: Bool = True, quiet: 
 fn flagValue(f: Flag [shared call]) -> I32 {
 bb0:
   %0: U8 = read copy.trivial (f.#)
-  %1: U8 = const 1
-  %2: Bool = eq inspect %0 inspect %1
-  branch inspect %2 -> bb3 -> bb1
-
-bb1:
-  %5: I32 = const 0
-  jump -> bb2(take %5)
-
-bb2(%6: I32):
-  return take %6
-
-bb3:
-  %4: I32 = const 1
-  jump -> bb2(take %4)
+  %1: I32 = map [0 -> 0, 1 -> 1] inspect %0
+  return take %1
 }
 
 fn levelValue(l: Level [shared call]) -> I32 {
 bb0:
   %0: U8 = read copy.trivial (l.#)
-  %1: U8 = const 10
-  %2: Bool = eq inspect %0 inspect %1
-  branch inspect %2 -> bb4 -> bb1
-
-bb1:
-  %5: U8 = read copy.trivial (l.#)
-  %6: U8 = const 20
-  %7: Bool = eq inspect %5 inspect %6
-  branch inspect %7 -> bb5 -> bb2
-
-bb2:
-  %10: I32 = const 40
-  jump -> bb3(take %10)
-
-bb3(%11: I32):
-  return take %11
-
-bb4:
-  %4: I32 = const 10
-  jump -> bb3(take %4)
-
-bb5:
-  %9: I32 = const 20
-  jump -> bb3(take %9)
+  %1: I32 = map [10 -> 10, 20 -> 20, 40 -> 40] inspect %0
+  return take %1
 }
 
 fn truthValue(b: Bool [shared call]) -> I32 {
 bb0:
   %0: U8 = read copy.trivial (b.#)
-  %1: U8 = const 1
-  %2: Bool = eq inspect %0 inspect %1
-  branch inspect %2 -> bb3 -> bb1
-
-bb1:
-  %5: I32 = const 0
-  jump -> bb2(take %5)
-
-bb2(%6: I32):
-  return take %6
-
-bb3:
-  %4: I32 = const 1
-  jump -> bb2(take %4)
+  %1: I32 = map [0 -> 0, 1 -> 1] inspect %0
+  return take %1
 }
 
 fn negate(b: Bool [shared call]) -> Bool {
@@ -176,11 +130,11 @@ bb0:
   write.init borrow.unique (scaled) take %2
   %4: F64 = const 1.5
   write.init borrow.unique (wide) take %4
-  %6: I32 = read copy.trivial (counted)
-  %7: F32 = read copy.trivial (scaled)
+  %6: I32 = const 4
+  %7: F32 = const 1.5
   %8: I32 = call takesFloat borrow.shared %7
   %9: I32 = add inspect %6 inspect %8
-  %10: F64 = read copy.trivial (wide)
+  %10: F64 = const 1.5
   %11: I32 = call takesDouble borrow.shared %10
   %12: I32 = add inspect %9 inspect %11
   return take %12

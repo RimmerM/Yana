@@ -1,0 +1,84 @@
+{-
+   `@caller` parameters, through **both** resolve stages - Design-Test.md §11.1's F2.
+
+   `Caller.yana` beside this file is the same feature stated against `lib/`, and it stays there: it
+   asserts through `Show` and `String.unit`, which the ownership stage could not reach while it read
+   a library of its own. What is here is the half that needs nothing but arithmetic, so that the two
+   stages are held to one answer about where a call is - which is the whole reason `.run.expect` is
+   shared.
+
+   Both stages fill the position with the same four values built the same way a written record of
+   them would be - a string literal is a borrowed run over a constant global, so a location costs
+   some constant data and no runtime work. What differs is the shape either stage's IR shows for it,
+   which is what the goldens on either side are.
+
+   Asserted by arithmetic on the filled values rather than by comparing text, because a `String ==`
+   between two things the compiler filled would pass with both sides empty.
+-}
+
+data Site {file: String, line: Int, column: Int, function: String}
+data Where {line: Int}
+
+-- The location, whole. Moving a call below changes the answer, which is the property being tested.
+fn lineOf(@caller at: Site) -> Int = at.line
+fn columnOf(@caller at: Site) -> Int = at.column
+fn functionIs(name: String, @caller at: Site) -> Bool = at.function == name
+fn fileWidth(@caller at: Site) -> Size = length(at.file)
+
+-- A subset of the vocabulary. Nothing requires a declaration to ask for all four.
+fn shortLine(@caller w: Where) -> Int = w.line
+
+-- The text of what reached another parameter, which is the half a library cannot fake.
+fn textWidth(held: Bool, @caller(source: held) text: String) -> Size = length(text)
+
+{-
+   A helper that passes its own `Site` on, which is the rule the whole feature rests on.
+
+   A `@caller` parameter may be passed explicitly, by name, and is filled only where it was omitted -
+   so this reports the line that called *it* rather than the line inside its own body. That is
+   Rust's `#[track_caller]`, and it falls out of "a position no argument reached is filled by its
+   default" rather than being a rule of its own.
+-}
+fn viaHelper(@caller at: Site) -> Int = lineOf(at: at)
+
+-- And the same for the text fill: what reached `held` *here* is the helper's own expression.
+fn textViaHelper(n: Int) -> Size = textWidth(n > 0)
+
+fn main() -> Int:
+    -- The line of the call and not of the declaration. These two are on consecutive lines, so the
+    -- difference is what says the fill is per call rather than per callee.
+    let first = lineOf()
+    let second = lineOf()
+    if second - first != 1 then return 1
+
+    -- Two calls on one line, at different columns. The left one is written first, so its column is
+    -- the smaller and the difference is negative - which says the fill is per *call*.
+    if columnOf() - columnOf() >= 0 then return 2
+
+    if !functionIs("main") then return 3
+
+    -- The file is the module the call is in. Its spelling is the driver's business, so what is
+    -- asserted is that a name got in there at all.
+    if fileWidth() == (0 :: Size) then return 4
+
+    if shortLine() != lineOf() then return 5
+
+    -- The text of the expression, which is `1 == 2` - six units, spanning the whole operand and not
+    -- just the left one.
+    if textWidth(1 == 2) != (6 :: Size) then return 6
+
+    -- Nothing reached the position, so the text is empty rather than a guess.
+    if textWidth(True, text: "") != (0 :: Size) then return 7
+
+    -- The helper reports this line, not the one inside its body.
+    if viaHelper() != lineOf() then return 8
+
+    -- And the text fill inside a helper is the helper's own expression: `n > 0`.
+    if textViaHelper(1) != (5 :: Size) then return 9
+
+    -- A `@caller(source:)` naming a **dot-call's receiver** is `ownership/CallerReceiver.yana` and
+    -- not here: the ownership stage answers the text written to the left of the dot and the
+    -- shipping stage answers the empty string, so the two do not agree and a shared fixture must
+    -- not pretend they do.
+
+    return 0

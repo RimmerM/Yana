@@ -32,7 +32,8 @@ bb0(%0: I32 [shared call] guaranteed):
 
 fn retarget(slot: (I32) -> I32 [unique call]) -> {} {
 bb0(%0: (I32) -> I32 [unique call] guaranteed):
-  %1: (I32) -> I32 affine = fun.value triple
+  %1: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value triple
+  drop (I32) -> I32 [unique call] boxes borrowed inspect %0
   store inspect %0 consume %1
   return
 }
@@ -44,9 +45,11 @@ bb0(%0: Step [unique call] guaranteed, %1: I32 [shared call] guaranteed):
   %3: I32 trivial = load inspect %2
   %4: %I32 address = field.addr .weight inspect %0
   store inspect %4 consume %3
-  %5: (I32) -> I32 affine = fun.value negate
+  %5: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value negate
   %6: %(I32) -> I32 address = field.addr .run inspect %0
-  store inspect %6 consume %5
+  drop (I32) -> I32 [unique call] boxes borrowed inspect %6
+  %7: %(I32) -> I32 address = field.addr .run inspect %0
+  store inspect %7 consume %5
   return
 }
 
@@ -57,8 +60,8 @@ bb0:
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
   %4: I32 trivial = const 1
-  %5: (I32) -> I32 affine = fun.value double
-  %6: Step affine = aggregate.Step consume %4 consume %5
+  %5: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value double
+  %6: Step owned = aggregate.Step consume %4 consume %5
   store inspect %0 consume %6
   %7: %(I32) -> I32 address = field.addr .run inspect %0
   %8: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %7
@@ -88,6 +91,7 @@ bb0:
   %28: I32 trivial = call [value #0] inspect %26 borrow %27
   %29: %I32 address = field.addr .weight inspect %0
   %30: I32 trivial = load inspect %29
+  drop Step inspect %0
   %31: I32 trivial = mul inspect %28 inspect %30
   store inspect %3 consume %31
   %32: I32 trivial = load inspect %1

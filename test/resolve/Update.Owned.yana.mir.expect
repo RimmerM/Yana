@@ -1,0 +1,111 @@
+module ResolveTest
+
+data Handle {id: I32} drop authored
+
+data Slot {held: Handle, tag: I32} drop derived
+
+data Outer {slot: Slot, name: I32} drop derived
+
+instance Drop(Handle): Handle.drop
+
+let & closed: I32 = 0
+
+fn Handle.drop(value: Handle) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global closed)
+  %1: I32 = read copy.trivial (value.id)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global closed) take %2
+  return
+}
+
+fn replaceMoved(s: Slot) -> Slot {
+  local & local1: Slot object0
+
+bb0:
+  %0: I32 = const 2
+  %1: Handle = aggregate.Handle take %0
+  %2: Slot = read take (s)
+  write.init borrow.unique (local1) take %2
+  drop (local1.held)
+  write.assign borrow.unique (local1.held) take %1
+  %5: Slot = read take (local1)
+  return take %5
+}
+
+fn replaceNested(o: Outer) -> Outer {
+  local & local1: Outer object0
+
+bb0:
+  %0: I32 = const 8
+  %1: Handle = aggregate.Handle take %0
+  %2: Outer = read take (o)
+  write.init borrow.unique (local1) take %2
+  drop (local1.slot.held)
+  write.assign borrow.unique (local1.slot.held) take %1
+  %5: Outer = read take (local1)
+  return take %5
+}
+
+fn retag(s: Slot) -> Slot {
+  local & local1: Slot object0
+
+bb0:
+  %0: I32 = const 5
+  %1: Slot = read take (s)
+  write.init borrow.unique (local1) take %1
+  write.assign borrow.unique (local1.tag) take %0
+  %4: Slot = read take (local1)
+  return take %4
+}
+
+fn main() -> I32 {
+  local a: Slot
+  local c: Outer
+  local d: Slot
+  local byUpdates: I32
+  local carried: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: Handle = aggregate.Handle take %0
+  %2: I32 = const 0
+  %3: Slot = aggregate.Slot take %1 take %2
+  %4: Slot = call replaceMoved take %3
+  write.init borrow.unique (a) take %4
+  %6: I32 = const 100
+  %7: Handle = aggregate.Handle take %6
+  %8: I32 = const 0
+  %9: Slot = aggregate.Slot take %7 take %8
+  %10: I32 = const 3
+  %11: Outer = aggregate.Outer take %9 take %10
+  %12: Outer = call replaceNested take %11
+  write.init borrow.unique (c) take %12
+  %14: I32 = const 1000
+  %15: Handle = aggregate.Handle take %14
+  %16: I32 = const 0
+  %17: Slot = aggregate.Slot take %15 take %16
+  %18: Slot = call retag take %17
+  write.init borrow.unique (d) take %18
+  %20: I32 = read copy.trivial (global closed)
+  write.init borrow.unique (byUpdates) take %20
+  %22: I32 = read copy.trivial (a.held.id)
+  drop (a)
+  %23: I32 = read copy.trivial (c.slot.held.id)
+  %24: I32 = add inspect %22 inspect %23
+  %25: I32 = read copy.trivial (c.name)
+  drop (c)
+  %26: I32 = add inspect %24 inspect %25
+  %27: I32 = read copy.trivial (d.tag)
+  drop (d)
+  %28: I32 = add inspect %26 inspect %27
+  write.init borrow.unique (carried) take %28
+  %30: I32 = read copy.trivial (carried)
+  %31: I32 = const 10000
+  %32: I32 = mul inspect %30 inspect %31
+  %33: I32 = read copy.trivial (byUpdates)
+  %34: I32 = add inspect %32 inspect %33
+  return take %34
+}
+
+entry main

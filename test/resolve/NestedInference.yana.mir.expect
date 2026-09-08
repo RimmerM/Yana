@@ -1,0 +1,125 @@
+module ResolveTest
+
+data Box(a) {value: a, tag: I32} drop derived reclaim derived
+
+data Box(I64) {value: I64, tag: I32} of Box
+
+data Box(U32) {value: U32, tag: I32} of Box
+
+fn wrap(v: a, tag: I32 [shared call]) -> Box(a) {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: a = read take (v)
+  %1: I32 = read copy.trivial (tag)
+  %2: Box(a) = aggregate.Box take %0 take %1
+  return take %2
+}
+
+fn tagOf'2(b: Box(a)) -> I32 {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: I32 = read copy.trivial (b.tag)
+  drop (b)
+  return take %0
+}
+
+fn fromResult() -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: I64 = const 1
+  %2: Box(I64) = call wrap(I64) take %1 borrow.shared %0
+  %3: I32 = call tagOf'2(I64) take %2
+  return take %3
+}
+
+fn literalFirst(x: a [shared call], ys: Box(a)) -> I32 {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: I32 = read copy.trivial (ys.tag)
+  drop (ys)
+  return take %0
+}
+
+fn fromArgument(b: Box(I64)) -> I32 {
+bb0:
+  %0: Box(I64) = read copy.trivial (b)
+  %1: I64 = const 1
+  %2: I32 = call literalFirst(I64) borrow.shared %1 take %0
+  return take %2
+}
+
+fn literalLast(ys: Box(a), x: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: I32 = read copy.trivial (ys.tag)
+  drop (ys)
+  return take %0
+}
+
+fn fromArgumentReversed(b: Box(I64)) -> I32 {
+bb0:
+  %0: Box(I64) = read copy.trivial (b)
+  %1: I64 = const 1
+  %2: I32 = call literalLast(I64) take %0 borrow.shared %1
+  return take %2
+}
+
+fn mixedDepth(x: a [shared call], y: Box(a)) -> I32 {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: I32 = read copy.trivial (y.tag)
+  drop (y)
+  return take %0
+}
+
+fn refined(p: @bits(20) U32 [shared call], q: Box(U32)) -> I32 {
+bb0:
+  %0: @bits(20) U32 = read copy.trivial (p)
+  %1: U32 = convert inspect %0
+  %2: Box(U32) = read copy.trivial (q)
+  %3: I32 = call mixedDepth(U32) borrow.shared %1 take %2
+  return take %3
+}
+
+fn main() -> I32 {
+  local packed: @bits(20) U32
+
+bb0:
+  %0: @bits(20) U32 = const 3
+  write.init borrow.unique (packed) take %0
+  %2: I32 = call fromResult
+  %3: I32 = const 7
+  %4: I64 = const 2
+  %5: Box(I64) = call wrap(I64) take %4 borrow.shared %3
+  %6: I32 = call fromArgument take %5
+  %7: I32 = add inspect %2 inspect %6
+  %8: I32 = const 7
+  %9: I64 = const 3
+  %10: Box(I64) = call wrap(I64) take %9 borrow.shared %8
+  %11: I32 = call fromArgumentReversed take %10
+  %12: I32 = add inspect %7 inspect %11
+  %13: @bits(20) U32 = const 3
+  %14: U32 = const 5
+  %15: I32 = const 9
+  %16: Box(U32) = aggregate.Box take %14 take %15
+  %17: I32 = call refined borrow.shared %13 take %16
+  %18: I32 = add inspect %12 inspect %17
+  return take %18
+}
+
+fn wrap(I64)(v: I64, tag: I32 [shared call]) -> Box(I64) = <wrap at I64>
+
+fn tagOf'2(I64)(b: Box(I64)) -> I32 = <tagOf at I64>
+
+fn literalFirst(I64)(x: I64 [shared call], ys: Box(I64)) -> I32 = <literalFirst at I64>
+
+fn literalLast(I64)(ys: Box(I64), x: I64 [shared call]) -> I32 = <literalLast at I64>
+
+fn mixedDepth(U32)(x: U32 [shared call], y: Box(U32)) -> I32 = <mixedDepth at U32>
+
+entry main

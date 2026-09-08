@@ -74,10 +74,11 @@ fn pairs() -> I32:
    it is, so the payload of this `Maybe` is an exclusive window onto the caller's guard rather than a
    shared one - the two axes `&'T` writes independently, one constructor further in.
 
-   What is asserted here is that the spelling resolves, travels and reads back. *Writing* through it
-   is not, and the reason is a pattern rather than this feature: "a pattern cannot bind with `&`", so
-   there is no way to name the payload of a matched `Maybe` exclusively. That is the same gap
-   `Index.getMut` works around by handing the reference back from a call.
+   What is asserted here is that the spelling resolves, travels and reads back - and that a pattern
+   binding it names it exclusively. `&` on a pattern is still not written, and does not have to be:
+   the capability is on the *value*, so a payload whose position is `&m'Guard` binds at that access
+   and `held` is a `&` local. `findMut` answering `Maybe(&'v)` is the library case - `Just(v) ->
+   v = v + 1` writes the map's own entry - and `bindPattern` is where the two are one rule.
 -}
 fn takeMut(g: &m'Guard) -> Maybe(&m'Guard) = Just(g)
 

@@ -1,0 +1,80 @@
+module ResolveTest
+
+data Pair(a, b) {first: a, second: b} drop derived reclaim derived
+
+data Box(a) {item: a} drop derived reclaim derived
+
+data Pair(I32, I32) {first: I32, second: I32} of Pair
+
+data Box(I32) {item: I32} of Box
+
+fn make(x: I32 [shared slot 0], y: I32 [shared slot 0]) -> Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (x) loan0
+  %1: I32 [shared slot 0] = read borrow.shared (y) loan1
+  %2: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] = aggregate.Pair borrow.shared %0 borrow.shared %1 roots.0{0} roots.1{1}
+  return take %2
+}
+
+fn firstOf(self: Box(a) [shared slot 0]) -> a [shared slot 0] {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: a [shared slot 0] = read borrow.shared (self.item) loan0
+  return borrow.shared %0
+}
+
+fn viewed(self: Box(a) [shared slot 0], other: Box(a) [shared slot 0]) -> Pair(a, a) [owned here shape5 .0=shared slot 0 .1=shared slot 0] {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: Box(a) [shared slot 0] = read borrow.shared (self) loan0
+  %1: a [shared slot 0] = call firstOf(a) borrow.shared %0 roots{0}
+  %2: Box(a) [shared slot 0] = read borrow.shared (other) loan1
+  %3: a [shared slot 0] = call firstOf(a) borrow.shared %2 roots{1}
+  %4: Pair(a, a) [owned here shape5 .0=shared slot 0 .1=shared slot 0] = aggregate.Pair borrow.shared %1 borrow.shared %3 roots.0{0} roots.1{1}
+  return take %4
+}
+
+fn main() -> I32 {
+  local & a: I32
+  local & b: I32
+  local p: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0]
+  local x: Box(I32)
+  local y: Box(I32)
+  local q: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0]
+
+bb0:
+  %0: I32 = const 3
+  write.init borrow.unique (a) take %0
+  %2: I32 = const 4
+  write.init borrow.unique (b) take %2
+  %4: I32 [shared slot 0] = read borrow.shared (a) loan0
+  %5: I32 [shared slot 0] = read borrow.shared (b) loan1
+  %6: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] = call make borrow.shared %4 borrow.shared %5 roots.0{0, 1} roots.1{0, 1}
+  write.init borrow.unique (p) take %6
+  %8: I32 = const 5
+  %9: Box(I32) = aggregate.Box take %8
+  write.init borrow.unique (x) take %9
+  %11: I32 = const 6
+  %12: Box(I32) = aggregate.Box take %11
+  write.init borrow.unique (y) take %12
+  %14: Box(I32) [shared slot 0] = read borrow.shared (x) loan2
+  %15: Box(I32) [shared slot 0] = read borrow.shared (y) loan3
+  %16: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] = call viewed(I32) borrow.shared %14 borrow.shared %15 roots.0{2, 3} roots.1{2, 3}
+  write.init borrow.unique (q) take %16
+  %18: I32 = read copy.trivial (p.first)
+  %19: I32 = read copy.trivial (p.second)
+  %20: I32 = add inspect %18 inspect %19
+  %21: I32 = read copy.trivial (q.first)
+  %22: I32 = add inspect %20 inspect %21
+  %23: I32 = read copy.trivial (q.second)
+  %24: I32 = add inspect %22 inspect %23
+  return take %24
+}
+
+fn viewed(I32)(self: Box(I32) [shared slot 0], other: Box(I32) [shared slot 0]) -> Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] = <viewed at I32>
+
+fn firstOf(I32)(self: Box(I32) [shared slot 0]) -> I32 [shared slot 0] = <firstOf at I32>
+
+entry main

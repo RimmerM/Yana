@@ -1,0 +1,259 @@
+module ResolveTest
+
+let & copyCalls: I32 = 0
+
+fn Tracked.copy(from: Tracked [shared call]) -> Tracked {
+bb0(%0: Tracked [shared call] guaranteed):
+  %1: %I32 address = global.addr copyCalls
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 1
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: %I32 address = global.addr copyCalls
+  store inspect %5 consume %4
+  %6: %I32 address = field.addr .value inspect %0
+  %7: I32 trivial = load inspect %6
+  %8: Tracked affine = aggregate.Tracked consume %7
+  return consume %8
+}
+
+fn copyInto(slot: a [unique call], from: a [shared call]) -> {} = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Point address = alloc frame Point
+  %2: %Point address = alloc frame Point
+  %3: %Quad address = alloc frame Quad
+  %4: %Quad address = alloc frame Quad
+  %5: %Tracked address = alloc frame Tracked
+  %6: %Tracked address = alloc frame Tracked
+  %7: I32 trivial = const 0
+  store inspect %0 consume %7
+  %8: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %9: I32 trivial = const 7
+  call copyInto(I32) borrow %8 borrow %9
+  %10: I32 trivial = const 3
+  %11: I32 trivial = const 4
+  %12: Point trivial = aggregate.Point consume %10 consume %11
+  store inspect %1 consume %12
+  %13: I32 trivial = const 0
+  %14: I32 trivial = const 0
+  %15: Point trivial = aggregate.Point consume %13 consume %14
+  store inspect %2 consume %15
+  %16: Point [unique call] guaranteed from{%2} = load inspect %2
+  %17: Point trivial = copy inspect %1
+  call copyInto(Point) borrow %16 borrow %17
+  %18: %I32 address = field.addr .x inspect %1
+  %19: I32 trivial = load inspect %18
+  %20: I32 trivial = const 3
+  %21: Bool trivial = ne inspect %19 inspect %20
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %22: I32 trivial = const 10
+  %23: I32 trivial = const 20
+  %24: I32 trivial = const 30
+  %25: I32 trivial = const 40
+  %26: [I32 *4] trivial = aggregate.0 consume %22 consume %23 consume %24 consume %25
+  %27: I32 trivial = const 1
+  %28: I32 trivial = const 2
+  %29: Point trivial = aggregate.Point consume %27 consume %28
+  %30: I32 trivial = const 3
+  %31: I32 trivial = const 4
+  %32: Point trivial = aggregate.Point consume %30 consume %31
+  %33: [Point *2] trivial = aggregate.0 consume %29 consume %32
+  %34: I32 trivial = const 5
+  %35: Quad trivial = aggregate.Quad consume %26 consume %33 consume %34
+  store inspect %3 consume %35
+  %36: I32 trivial = const 0
+  %37: I32 trivial = const 0
+  %38: I32 trivial = const 0
+  %39: I32 trivial = const 0
+  %40: [I32 *4] trivial = aggregate.0 consume %36 consume %37 consume %38 consume %39
+  %41: I32 trivial = const 0
+  %42: I32 trivial = const 0
+  %43: Point trivial = aggregate.Point consume %41 consume %42
+  %44: I32 trivial = const 0
+  %45: I32 trivial = const 0
+  %46: Point trivial = aggregate.Point consume %44 consume %45
+  %47: [Point *2] trivial = aggregate.0 consume %43 consume %46
+  %48: I32 trivial = const 0
+  %49: Quad trivial = aggregate.Quad consume %40 consume %47 consume %48
+  store inspect %4 consume %49
+  %50: Quad [unique call] guaranteed from{%4} = load inspect %4
+  %51: Quad trivial = copy inspect %3
+  call copyInto(Quad) borrow %50 borrow %51
+  %52: Size trivial = const 0
+  %53: %[I32 *4] address = field.addr .values inspect %4
+  %54: %I32 address = element.addr inspect %53 inspect %52
+  %55: I32 trivial = load inspect %54
+  %56: I32 trivial = const 10
+  %57: Bool trivial = ne inspect %55 inspect %56
+  branch inspect %57 -> bb6 -> bb4
+
+bb3:
+  %58: I32 trivial = const -1
+  return consume %58
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %59: Size trivial = const 3
+  %60: %[I32 *4] address = field.addr .values inspect %4
+  %61: %I32 address = element.addr inspect %60 inspect %59
+  %62: I32 trivial = load inspect %61
+  %63: I32 trivial = const 40
+  %64: Bool trivial = ne inspect %62 inspect %63
+  branch inspect %64 -> bb9 -> bb7
+
+bb6:
+  %65: I32 trivial = const -3
+  return consume %65
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %66: Size trivial = const 1
+  %67: %[Point *2] address = field.addr .places inspect %4
+  %68: %Point address = element.addr inspect %67 inspect %66
+  %69: %I32 address = field.addr .x inspect %68
+  %70: I32 trivial = load inspect %69
+  %71: I32 trivial = const 3
+  %72: Bool trivial = ne inspect %70 inspect %71
+  branch inspect %72 -> bb12 -> bb10
+
+bb9:
+  %73: I32 trivial = const -4
+  return consume %73
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %74: %I32 address = field.addr .tag inspect %4
+  %75: I32 trivial = load inspect %74
+  %76: I32 trivial = const 5
+  %77: Bool trivial = ne inspect %75 inspect %76
+  branch inspect %77 -> bb15 -> bb13
+
+bb12:
+  %78: I32 trivial = const -5
+  return consume %78
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %79: Size trivial = const 0
+  %80: I32 trivial = const 99
+  %81: %[I32 *4] address = field.addr .values inspect %4
+  %82: %I32 address = element.addr inspect %81 inspect %79
+  store inspect %82 consume %80
+  %83: Size trivial = const 1
+  %84: I32 trivial = const 99
+  %85: %[Point *2] address = field.addr .places inspect %4
+  %86: %Point address = element.addr inspect %85 inspect %83
+  %87: %I32 address = field.addr .x inspect %86
+  store inspect %87 consume %84
+  %88: Size trivial = const 0
+  %89: %[I32 *4] address = field.addr .values inspect %3
+  %90: %I32 address = element.addr inspect %89 inspect %88
+  %91: I32 trivial = load inspect %90
+  %92: I32 trivial = const 10
+  %93: Bool trivial = ne inspect %91 inspect %92
+  branch inspect %93 -> bb18 -> bb16
+
+bb15:
+  %94: I32 trivial = const -6
+  return consume %94
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %95: Size trivial = const 1
+  %96: %[Point *2] address = field.addr .places inspect %3
+  %97: %Point address = element.addr inspect %96 inspect %95
+  %98: %I32 address = field.addr .x inspect %97
+  %99: I32 trivial = load inspect %98
+  %100: I32 trivial = const 3
+  %101: Bool trivial = ne inspect %99 inspect %100
+  branch inspect %101 -> bb21 -> bb19
+
+bb18:
+  %102: I32 trivial = const -7
+  return consume %102
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %103: I32 trivial = const 10
+  %104: Tracked affine = aggregate.Tracked consume %103
+  store inspect %5 consume %104
+  %105: Tracked [shared call] guaranteed from{%5} = load inspect %5
+  %106: Tracked affine = call Tracked.copy borrow %105
+  store inspect %6 consume %106
+  %107: %I32 address = global.addr copyCalls
+  %108: I32 trivial = load inspect %107
+  %109: I32 trivial = const 1
+  %110: Bool trivial = ne inspect %108 inspect %109
+  branch inspect %110 -> bb24 -> bb22
+
+bb21:
+  %111: I32 trivial = const -8
+  return consume %111
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %112: I32 trivial = load inspect %0
+  %113: %I32 address = field.addr .x inspect %2
+  %114: I32 trivial = load inspect %113
+  %115: I32 trivial = add inspect %112 inspect %114
+  %116: %I32 address = field.addr .y inspect %2
+  %117: I32 trivial = load inspect %116
+  %118: I32 trivial = add inspect %115 inspect %117
+  %119: %I32 address = field.addr .value inspect %6
+  %120: I32 trivial = load inspect %119
+  %121: I32 trivial = add inspect %118 inspect %120
+  %122: %I32 address = global.addr copyCalls
+  %123: I32 trivial = load inspect %122
+  %124: I32 trivial = add inspect %121 inspect %123
+  return consume %124
+
+bb24:
+  %125: I32 trivial = const -2
+  return consume %125
+}
+
+fn copyInto(I32)(slot: I32 [unique call], from: I32 [shared call]) -> {} {
+bb0(%0: I32 [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  store inspect %0 consume %3
+  return
+}
+
+fn copyInto(Point)(slot: Point [unique call], from: Point [shared call]) -> {} {
+bb0(%0: Point [unique call] guaranteed, %1: Point [shared call] guaranteed):
+  %2: Point trivial = copy inspect %1
+  store inspect %0 consume %2
+  return
+}
+
+fn copyInto(Quad)(slot: Quad [unique call], from: Quad [shared call]) -> {} {
+bb0(%0: Quad [unique call] guaranteed, %1: Quad [shared call] guaranteed):
+  %2: Quad trivial = copy inspect %1
+  store inspect %0 consume %2
+  return
+}
+
+entry main

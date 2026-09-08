@@ -1,0 +1,44 @@
+module ResolveTest
+
+fn resetThenAdd(lhs: Vec(U32, 4) [shared call], rhs: Vec(U32, 4) [shared call]) -> I32 {
+bb0:
+  %0: {} = native vzeroupper
+  %1: Vec(U32, 4) = read copy.trivial (lhs)
+  %2: Vec(U32, 4) = read copy.trivial (rhs)
+  %3: Vec(U32, 4) = add inspect %1 inspect %2
+  %4: I32 = const 0
+  %5: U32 = vec.lane #0 inspect %3
+  %6: I32 = bitcast inspect %5
+  return take %6
+}
+
+fn plainReset(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: {} = native vzeroupper
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = const 1
+  %3: I32 = add inspect %1 inspect %2
+  return take %3
+}
+
+fn main() -> I32 {
+  local a: Vec(U32, 4)
+  local b: Vec(U32, 4)
+
+bb0:
+  %0: U32 = const 3
+  %1: Vec(U32, 4) = vec.splat inspect %0
+  write.init borrow.unique (a) take %1
+  %3: U32 = const 4
+  %4: Vec(U32, 4) = vec.splat inspect %3
+  write.init borrow.unique (b) take %4
+  %6: Vec(U32, 4) = read copy.trivial (a)
+  %7: Vec(U32, 4) = read copy.trivial (b)
+  %8: I32 = call resetThenAdd borrow.shared %6 borrow.shared %7
+  %9: I32 = const 0
+  %10: I32 = call plainReset borrow.shared %9
+  %11: I32 = add inspect %8 inspect %10
+  return take %11
+}
+
+entry main

@@ -1,0 +1,21 @@
+@image$base = []
+mut @start = [0, 0, 0, 0, 0, 0, 0, 0]
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 8: Ptr
+    %v_2 = alloca 12, 4: Ptr
+    %v_3 = load %v_1, 4: I32
+    store %v_1, 3, 4
+    store %v_2, 7, 4
+    %v_4 = add %v_2, 4: Ptr
+    store %v_4, 8, 4
+    %v_5 = add %v_2, 8: Ptr
+    store %v_5, 9, 4
+    store @start, 1, 8
+    %v_6 = loads %v_4, 4: I32
+    %v_7 = sub %v_6, 8: I32
+    ret %v_7
+  }
+}
+

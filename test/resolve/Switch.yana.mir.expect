@@ -1,0 +1,413 @@
+module ResolveTest
+
+data Four = A0 | A1 | A2 | A3
+
+data Nine = B0 | B1 | B2 | B3 | B4 | B5 | B6 | B7 | B8
+
+data Spread = C0 = 0 | C1 = 3 | C2 = 7 | C3 = 11 | C4 = 14 | C5 = 18 | C6 = 22 | C7 = 26 | C8 = 29
+
+data Twenty = D0 | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9 | D10 | D11 | D12 | D13 | D14 | D15 | D16 | D17 | D18 | D19
+
+fn weigh(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 1000
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (n)
+  %8: I32 = const 7
+  %9: I32 = mul inspect %7 inspect %8
+  %10: I32 = const 3
+  %11: I32 = add inspect %9 inspect %10
+  return take %11
+
+bb3:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn opaqueFour(c: Four [shared call]) -> Four {
+bb0:
+  %0: Four = read copy.trivial (c)
+  return take %0
+}
+
+fn opaqueNine(c: Nine [shared call]) -> Nine {
+bb0:
+  %0: Nine = read copy.trivial (c)
+  return take %0
+}
+
+fn opaqueSpread(c: Spread [shared call]) -> Spread {
+bb0:
+  %0: Spread = read copy.trivial (c)
+  return take %0
+}
+
+fn opaqueTwenty(c: Twenty [shared call]) -> Twenty {
+bb0:
+  %0: Twenty = read copy.trivial (c)
+  return take %0
+}
+
+fn four(c: Four [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  switch [0, 1, 2] inspect %0 -> bb1 -> bb2 -> bb3 -> bb4
+
+bb1:
+  %2: I32 = const 0
+  %3: I32 = call weigh borrow.shared %2
+  jump -> bb5(take %3)
+
+bb2:
+  %4: I32 = const 1
+  %5: I32 = call weigh borrow.shared %4
+  jump -> bb5(take %5)
+
+bb3:
+  %6: I32 = const 2
+  %7: I32 = call weigh borrow.shared %6
+  jump -> bb5(take %7)
+
+bb4:
+  %8: I32 = const 3
+  %9: I32 = call weigh borrow.shared %8
+  jump -> bb5(take %9)
+
+bb5(%10: I32):
+  return take %10
+}
+
+fn nine(c: Nine [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  switch [0, 1, 2, 3, 4, 5, 6, 7] inspect %0 -> bb1 -> bb2 -> bb3 -> bb4 -> bb5 -> bb6 -> bb7 -> bb8 -> bb9
+
+bb1:
+  %2: I32 = const 10
+  %3: I32 = call weigh borrow.shared %2
+  jump -> bb10(take %3)
+
+bb2:
+  %4: I32 = const 11
+  %5: I32 = call weigh borrow.shared %4
+  jump -> bb10(take %5)
+
+bb3:
+  %6: I32 = const 12
+  %7: I32 = call weigh borrow.shared %6
+  jump -> bb10(take %7)
+
+bb4:
+  %8: I32 = const 13
+  %9: I32 = call weigh borrow.shared %8
+  jump -> bb10(take %9)
+
+bb5:
+  %10: I32 = const 14
+  %11: I32 = call weigh borrow.shared %10
+  jump -> bb10(take %11)
+
+bb6:
+  %12: I32 = const 15
+  %13: I32 = call weigh borrow.shared %12
+  jump -> bb10(take %13)
+
+bb7:
+  %14: I32 = const 16
+  %15: I32 = call weigh borrow.shared %14
+  jump -> bb10(take %15)
+
+bb8:
+  %16: I32 = const 17
+  %17: I32 = call weigh borrow.shared %16
+  jump -> bb10(take %17)
+
+bb9:
+  %18: I32 = const 18
+  %19: I32 = call weigh borrow.shared %18
+  jump -> bb10(take %19)
+
+bb10(%20: I32):
+  return take %20
+}
+
+fn spread(c: Spread [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  switch [0, 3, 7, 11, 14, 18, 22, 26] inspect %0 -> bb1 -> bb2 -> bb3 -> bb4 -> bb5 -> bb6 -> bb7 -> bb8 -> bb9
+
+bb1:
+  %2: I32 = const 20
+  %3: I32 = call weigh borrow.shared %2
+  jump -> bb10(take %3)
+
+bb2:
+  %4: I32 = const 21
+  %5: I32 = call weigh borrow.shared %4
+  jump -> bb10(take %5)
+
+bb3:
+  %6: I32 = const 22
+  %7: I32 = call weigh borrow.shared %6
+  jump -> bb10(take %7)
+
+bb4:
+  %8: I32 = const 23
+  %9: I32 = call weigh borrow.shared %8
+  jump -> bb10(take %9)
+
+bb5:
+  %10: I32 = const 24
+  %11: I32 = call weigh borrow.shared %10
+  jump -> bb10(take %11)
+
+bb6:
+  %12: I32 = const 25
+  %13: I32 = call weigh borrow.shared %12
+  jump -> bb10(take %13)
+
+bb7:
+  %14: I32 = const 26
+  %15: I32 = call weigh borrow.shared %14
+  jump -> bb10(take %15)
+
+bb8:
+  %16: I32 = const 27
+  %17: I32 = call weigh borrow.shared %16
+  jump -> bb10(take %17)
+
+bb9:
+  %18: I32 = const 28
+  %19: I32 = call weigh borrow.shared %18
+  jump -> bb10(take %19)
+
+bb10(%20: I32):
+  return take %20
+}
+
+fn twenty(c: Twenty [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  switch [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] inspect %0 -> bb1 -> bb2 -> bb3 -> bb4 -> bb5 -> bb6 -> bb7 -> bb8 -> bb9 -> bb10 -> bb11 -> bb12 -> bb13 -> bb14 -> bb15 -> bb16 -> bb17 -> bb18 -> bb19 -> bb20
+
+bb1:
+  %2: I32 = const 30
+  %3: I32 = call weigh borrow.shared %2
+  jump -> bb21(take %3)
+
+bb2:
+  %4: I32 = const 31
+  %5: I32 = call weigh borrow.shared %4
+  jump -> bb21(take %5)
+
+bb3:
+  %6: I32 = const 32
+  %7: I32 = call weigh borrow.shared %6
+  jump -> bb21(take %7)
+
+bb4:
+  %8: I32 = const 33
+  %9: I32 = call weigh borrow.shared %8
+  jump -> bb21(take %9)
+
+bb5:
+  %10: I32 = const 34
+  %11: I32 = call weigh borrow.shared %10
+  jump -> bb21(take %11)
+
+bb6:
+  %12: I32 = const 35
+  %13: I32 = call weigh borrow.shared %12
+  jump -> bb21(take %13)
+
+bb7:
+  %14: I32 = const 36
+  %15: I32 = call weigh borrow.shared %14
+  jump -> bb21(take %15)
+
+bb8:
+  %16: I32 = const 37
+  %17: I32 = call weigh borrow.shared %16
+  jump -> bb21(take %17)
+
+bb9:
+  %18: I32 = const 38
+  %19: I32 = call weigh borrow.shared %18
+  jump -> bb21(take %19)
+
+bb10:
+  %20: I32 = const 39
+  %21: I32 = call weigh borrow.shared %20
+  jump -> bb21(take %21)
+
+bb11:
+  %22: I32 = const 40
+  %23: I32 = call weigh borrow.shared %22
+  jump -> bb21(take %23)
+
+bb12:
+  %24: I32 = const 41
+  %25: I32 = call weigh borrow.shared %24
+  jump -> bb21(take %25)
+
+bb13:
+  %26: I32 = const 42
+  %27: I32 = call weigh borrow.shared %26
+  jump -> bb21(take %27)
+
+bb14:
+  %28: I32 = const 43
+  %29: I32 = call weigh borrow.shared %28
+  jump -> bb21(take %29)
+
+bb15:
+  %30: I32 = const 44
+  %31: I32 = call weigh borrow.shared %30
+  jump -> bb21(take %31)
+
+bb16:
+  %32: I32 = const 45
+  %33: I32 = call weigh borrow.shared %32
+  jump -> bb21(take %33)
+
+bb17:
+  %34: I32 = const 46
+  %35: I32 = call weigh borrow.shared %34
+  jump -> bb21(take %35)
+
+bb18:
+  %36: I32 = const 47
+  %37: I32 = call weigh borrow.shared %36
+  jump -> bb21(take %37)
+
+bb19:
+  %38: I32 = const 48
+  %39: I32 = call weigh borrow.shared %38
+  jump -> bb21(take %39)
+
+bb20:
+  %40: I32 = const 49
+  %41: I32 = call weigh borrow.shared %40
+  jump -> bb21(take %41)
+
+bb21(%42: I32):
+  return take %42
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (condition)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = read copy.trivial (weight)
+  jump -> bb2(take %2)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Four = const A0
+  %1: Four = call opaqueFour borrow.shared %0
+  %2: I32 = call four borrow.shared %1
+  %3: I32 = const 3
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 1
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  %7: Four = const A3
+  %8: Four = call opaqueFour borrow.shared %7
+  %9: I32 = call four borrow.shared %8
+  %10: I32 = const 24
+  %11: Bool = eq inspect %9 inspect %10
+  %12: I32 = const 2
+  %13: I32 = call check borrow.shared %11 borrow.shared %12
+  %14: I32 = add inspect %6 inspect %13
+  %15: Nine = const B0
+  %16: Nine = call opaqueNine borrow.shared %15
+  %17: I32 = call nine borrow.shared %16
+  %18: I32 = const 73
+  %19: Bool = eq inspect %17 inspect %18
+  %20: I32 = const 4
+  %21: I32 = call check borrow.shared %19 borrow.shared %20
+  %22: I32 = add inspect %14 inspect %21
+  %23: Nine = const B4
+  %24: Nine = call opaqueNine borrow.shared %23
+  %25: I32 = call nine borrow.shared %24
+  %26: I32 = const 101
+  %27: Bool = eq inspect %25 inspect %26
+  %28: I32 = const 8
+  %29: I32 = call check borrow.shared %27 borrow.shared %28
+  %30: I32 = add inspect %22 inspect %29
+  %31: Nine = const B8
+  %32: Nine = call opaqueNine borrow.shared %31
+  %33: I32 = call nine borrow.shared %32
+  %34: I32 = const 129
+  %35: Bool = eq inspect %33 inspect %34
+  %36: I32 = const 16
+  %37: I32 = call check borrow.shared %35 borrow.shared %36
+  %38: I32 = add inspect %30 inspect %37
+  %39: Spread = const C0
+  %40: Spread = call opaqueSpread borrow.shared %39
+  %41: I32 = call spread borrow.shared %40
+  %42: I32 = const 143
+  %43: Bool = eq inspect %41 inspect %42
+  %44: I32 = const 32
+  %45: I32 = call check borrow.shared %43 borrow.shared %44
+  %46: I32 = add inspect %38 inspect %45
+  %47: Spread = const C5
+  %48: Spread = call opaqueSpread borrow.shared %47
+  %49: I32 = call spread borrow.shared %48
+  %50: I32 = const 178
+  %51: Bool = eq inspect %49 inspect %50
+  %52: I32 = const 64
+  %53: I32 = call check borrow.shared %51 borrow.shared %52
+  %54: I32 = add inspect %46 inspect %53
+  %55: Spread = const C8
+  %56: Spread = call opaqueSpread borrow.shared %55
+  %57: I32 = call spread borrow.shared %56
+  %58: I32 = const 199
+  %59: Bool = eq inspect %57 inspect %58
+  %60: I32 = const 128
+  %61: I32 = call check borrow.shared %59 borrow.shared %60
+  %62: I32 = add inspect %54 inspect %61
+  %63: Twenty = const D0
+  %64: Twenty = call opaqueTwenty borrow.shared %63
+  %65: I32 = call twenty borrow.shared %64
+  %66: I32 = const 213
+  %67: Bool = eq inspect %65 inspect %66
+  %68: I32 = const 256
+  %69: I32 = call check borrow.shared %67 borrow.shared %68
+  %70: I32 = add inspect %62 inspect %69
+  %71: Twenty = const D9
+  %72: Twenty = call opaqueTwenty borrow.shared %71
+  %73: I32 = call twenty borrow.shared %72
+  %74: I32 = const 276
+  %75: Bool = eq inspect %73 inspect %74
+  %76: I32 = const 512
+  %77: I32 = call check borrow.shared %75 borrow.shared %76
+  %78: I32 = add inspect %70 inspect %77
+  %79: Twenty = const D19
+  %80: Twenty = call opaqueTwenty borrow.shared %79
+  %81: I32 = call twenty borrow.shared %80
+  %82: I32 = const 346
+  %83: Bool = eq inspect %81 inspect %82
+  %84: I32 = const 1024
+  %85: I32 = call check borrow.shared %83 borrow.shared %84
+  %86: I32 = add inspect %78 inspect %85
+  return take %86
+}
+
+entry main

@@ -102,12 +102,13 @@ fn sumWords(xs: [I64]) -> I64:
     return acc
 
 -- A hand-written `Int` counter under `while`. Declined: nothing here says `i + 1` cannot wrap, and
--- the language says it does. Kept so that the golden records the shape that is left alone.
+-- the language says it does. Kept so that the golden records the shape that is left alone - which is
+-- why the length is narrowed at the guard rather than the counter widened to meet it.
 fn sumInt(xs: [Cell]) -> I64:
     let &acc = 0 :: I64
     let &i = 0 :: Int
 
-    while i < length(xs):
+    while i < (truncate(length(xs)) :: Int):
         acc = acc + xs[i].c
         i = i + 1
 

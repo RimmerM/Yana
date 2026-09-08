@@ -9,11 +9,11 @@ bb0:
   %1: I32 = read copy.trivial (h)
   %2: I32 = mul inspect %0 inspect %1
   write.init borrow.unique (a) take %2
-  %4: I32 = const 2
-  %5: I32 = read copy.trivial (w)
-  %6: I32 = read copy.trivial (h)
-  %7: I32 = add inspect %5 inspect %6
-  %8: I32 = mul inspect %4 inspect %7
+  %4: I32 = read copy.trivial (w)
+  %5: I32 = read copy.trivial (h)
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = const 2
+  %8: I32 = mul inspect %7 inspect %6
   write.init borrow.unique (b) take %8
   %10: I32 = read copy.trivial (a)
   %11: I32 = read copy.trivial (b)
@@ -60,7 +60,7 @@ fn shadowed(x: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = const 3
   write.init borrow.unique (x) take %0
-  %2: I32 = read copy.trivial (x)
+  %2: I32 = const 3
   %3: I32 = const 10
   %4: I32 = mul inspect %2 inspect %3
   return take %4

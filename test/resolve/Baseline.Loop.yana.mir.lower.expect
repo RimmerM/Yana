@@ -13,7 +13,9 @@ main<complex>(): I32 {
   }
 
   b_11 {
-    je %v_7, b_12, b_13
+    %v_12 = add %v_5, 1000: I32
+    %v_13 = select %v_7, %v_5, %v_12: I32
+    ret %v_13
   }
 
   b_10 {
@@ -38,30 +40,33 @@ main<complex>(): I32 {
     %v_27 = imul %v_26, 5: I32
     %v_28 = sub %v_2, %v_27: I32
     %v_29 = cmp_eq %v_28, 0: I32
+    jmp b_30
+  }
+
+  b_30 {
+    %v_31 = phi [b_22, %v_29], [b_21, 1]: I32
+    %v_32 = add %v_5, %v_2: I32
+    %v_6 = select %v_31, %v_32, %v_5: I32
+    %v_33 = cmp_igt %v_6, 60: I32
+    je %v_33, b_34, b_35
+  }
+
+  b_21 {
+    jmp b_30
+  }
+
+  b_35 {
     jmp b_3
   }
 
   b_3 {
-    %v_30 = phi [b_22, %v_29], [b_21, 1]: I32
-    %v_31 = add %v_5, %v_2: I32
-    %v_6 = select %v_30, %v_31, %v_5: I32
-    %v_32 = cmp_igt %v_6, 60: I32
-    %v_8 = or %v_32, %v_7: I32
+    %v_8 = phi [b_35, %v_7], [b_34, 1]: I32
     %v_4 = add %v_2, 1: I32
     jmp b_1
   }
 
-  b_21 {
+  b_34 {
     jmp b_3
-  }
-
-  b_13 {
-    %v_33 = add %v_5, 1000: I32
-    ret %v_33
-  }
-
-  b_12 {
-    ret %v_5
   }
 }
 

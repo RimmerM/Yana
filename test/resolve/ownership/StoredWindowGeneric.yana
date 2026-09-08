@@ -1,0 +1,33 @@
+{-
+   The same stored borrow of a container, written at a **type variable** - `'a` where `a` is the
+   record's own parameter and the caller binds it to `Array(Int)`.
+
+   # resolver: ownership
+
+   `lib/Core/Format.yana`'s `with(value: 'a, style: 's)` is this function, and `with("a b",
+   formStyle())` is this call. The interesting half is the *shape*: `Held(a)` carries one interior
+   slot for the field, and a substitution that moved the root's form to `View` and left the slot
+   alone made the two halves of one occurrence disagree - the instantiated record's field was the
+   descriptor and `fieldContract` read the shape's whole-value answer over it.
+
+   Shipping-stage only in the sense that it is the other way round: the shipping stage infers
+   `a := ArrayView(Int)` for a generic `'a` given a window and then cannot convert the result, so
+   the two stages do not read this file and it lives here.
+-}
+
+data Held(a) {view: 'a, tag: Int}
+
+fn hold(xs: 'a, tag: Int) -> Held(a) = Held {view: xs, tag: tag}
+
+fn sum(h: Held(Array(Int))) -> Int:
+    let &total = 0
+    for i in 0 .. length(h.view):
+        total = total + h.view[i]
+
+    return total * h.tag
+
+fn main() -> Int:
+    let &raw = [1, 2, 3, 4] :: [Int *4]
+    let h = hold(elements(raw), 6)
+
+    return sum(h)

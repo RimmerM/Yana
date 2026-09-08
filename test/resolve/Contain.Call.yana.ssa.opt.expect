@@ -48,15 +48,10 @@ bb0:
   %6: I32 trivial = call score borrow %5
   %7: %Bool address = field.addr .write inspect %0
   %8: Bool trivial = load inspect %7
-  branch inspect %8 -> bb3 -> bb1
-
-bb1:
-  return consume %6
-
-bb3:
   %11: I32 trivial = const 100
   %12: I32 trivial = add inspect %6 inspect %11
-  return consume %12
+  %13: I32 trivial = select inspect %8 inspect %12 inspect %6
+  return consume %13
 }
 
 fn mutate(f: Flags [unique call]) -> I32 {
@@ -110,19 +105,19 @@ bb0:
   %23: I32 trivial = add inspect %10 inspect %15
   %24: I32 trivial = add inspect %23 inspect %17
   %25: I32 trivial = add inspect %24 inspect %22
-  %27: %Flags address = alloc frame Flags
-  %28: Bool trivial = const False
-  %29: Bool trivial = const True
-  %30: Flags trivial = aggregate.Flags consume %28 consume %29
-  store inspect %27 consume %30
-  %31: Flags trivial = copy inspect %27
-  %32: I32 trivial = call score borrow %31
-  %33: %Bool address = field.addr .write inspect %27
-  %34: Bool trivial = load inspect %33
-  %35: I32 trivial = const 100
-  %36: I32 trivial = add inspect %32 inspect %35
-  %49: I32 trivial = select inspect %34 inspect %36 inspect %32
-  %2: I32 trivial = add inspect %25 inspect %49
+  %26: %Flags address = alloc frame Flags
+  %27: Bool trivial = const False
+  %28: Bool trivial = const True
+  %29: Flags trivial = aggregate.Flags consume %27 consume %28
+  store inspect %26 consume %29
+  %30: Flags trivial = copy inspect %26
+  %31: I32 trivial = call score borrow %30
+  %32: %Bool address = field.addr .write inspect %26
+  %33: Bool trivial = load inspect %32
+  %34: I32 trivial = const 100
+  %35: I32 trivial = add inspect %31 inspect %34
+  %36: I32 trivial = select inspect %33 inspect %35 inspect %31
+  %2: I32 trivial = add inspect %25 inspect %36
   %37: %Flags address = alloc frame Flags
   %38: Bool trivial = const False
   %39: Bool trivial = const False

@@ -1,0 +1,236 @@
+module ResolveTest
+
+fn tag(m: Maybe(Wide) [shared call]) -> I32 {
+bb0(%0: Maybe(Wide) [shared call] guaranteed):
+  %2: %Wide address = alloc frame Wide
+  %3: %U8 address = field.addr .# inspect %0
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 1
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: I32 trivial = const 0
+  jump -> bb2(consume %7)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %8: %Wide address = field.addr .Just inspect %0
+  %9: Wide trivial = copy inspect %8
+  store inspect %2 consume %9
+  %10: I32 trivial = const 1
+  jump -> bb2(consume %10)
+}
+
+fn setThrough(x: @bits(13) U32 [unique call], v: U32 [shared call]) -> {} {
+bb0(%0: @bits(13) U32 [unique call] guaranteed, %1: U32 [shared call] guaranteed):
+  %2: %U32 address = alloc frame U32 [shared call]
+  store inspect %2 borrow %1
+  %3: U32 trivial = load inspect %2
+  %4: @bits(13) U32 trivial = convert inspect %3
+  store inspect %0 consume %4
+  return
+}
+
+fn put(slot: a [unique call], from: a [shared call]) -> {} = <no body>
+
+fn main() -> I32 {
+bb0:
+  %2: %U32 address = alloc frame U32
+  %3: %I32 address = alloc frame I32
+  %4: %Wide address = alloc frame Wide
+  %5: %I32 address = alloc frame I32
+  %6: %Wide address = alloc frame Wide
+  %7: %I32 address = alloc frame I32
+  %8: %Wide address = alloc frame Wide
+  %9: %I32 address = alloc frame I32
+  %10: %Pair address = alloc frame Pair
+  %11: %I32 address = alloc frame I32
+  %12: %Wide address = alloc frame Wide
+  %13: %I32 address = alloc frame I32
+  %14: %Wide address = alloc frame Wide
+  %15: %Wide address = alloc frame Wide
+  %16: %Wide address = alloc frame Wide
+  %17: %I32 address = alloc frame I32
+  %18: %Wide address = alloc frame Wide
+  %19: %Wide address = alloc frame Wide
+  %20: %I32 address = alloc frame I32
+  %21: U32 trivial = const 0
+  store inspect %2 consume %21
+  %22: U32 trivial = const 20000
+  store inspect %2 consume %22
+  %23: U32 trivial = load inspect %2
+  %24: @bits(13) U32 trivial = convert inspect %23
+  %25: Wide trivial = aggregate.Wide consume %24
+  %26: Maybe(Wide) trivial = aggregate.Just consume %25
+  %27: I32 trivial = call tag borrow %26
+  store inspect %3 consume %27
+  %28: @bits(13) U32 trivial = const 1
+  %29: Wide trivial = aggregate.Wide consume %28
+  store inspect %4 consume %29
+  %30: U32 trivial = load inspect %2
+  %31: @bits(13) U32 trivial = convert inspect %30
+  %32: %@bits(13) U32 address = field.addr .only inspect %4
+  store inspect %32 consume %31
+  %33: Wide trivial = copy inspect %4
+  %34: Maybe(Wide) trivial = aggregate.Just consume %33
+  %35: I32 trivial = call tag borrow %34
+  store inspect %5 consume %35
+  %36: @bits(13) U32 trivial = const 8000
+  %37: Wide trivial = aggregate.Wide consume %36
+  store inspect %6 consume %37
+  %38: %@bits(13) U32 address = field.addr .only inspect %6
+  %39: @bits(13) U32 trivial = load inspect %38
+  %40: U32 trivial = convert inspect %39
+  %41: U32 trivial = load inspect %2
+  %42: U32 trivial = add inspect %40 inspect %41
+  %43: @bits(13) U32 trivial = convert inspect %42
+  %44: %@bits(13) U32 address = field.addr .only inspect %6
+  store inspect %44 consume %43
+  %45: Wide trivial = copy inspect %6
+  %46: Maybe(Wide) trivial = aggregate.Just consume %45
+  %47: I32 trivial = call tag borrow %46
+  store inspect %7 consume %47
+  %48: @bits(13) U32 trivial = const 1
+  %49: Wide trivial = aggregate.Wide consume %48
+  store inspect %8 consume %49
+  %50: %@bits(13) U32 address = field.addr .only inspect %8
+  %51: @bits(13) U32 [unique call] guaranteed from{%8} = load inspect %50
+  %52: U32 trivial = load inspect %2
+  call setThrough borrow %51 borrow %52
+  %53: Wide trivial = copy inspect %8
+  %54: Maybe(Wide) trivial = aggregate.Just consume %53
+  %55: I32 trivial = call tag borrow %54
+  store inspect %9 consume %55
+  %56: @bits(13) U32 trivial = const 1
+  %57: @bits(3) U32 trivial = const 5
+  %58: Pair trivial = aggregate.Pair consume %56 consume %57
+  store inspect %10 consume %58
+  %59: U32 trivial = load inspect %2
+  %60: @bits(13) U32 trivial = convert inspect %59
+  %61: %@bits(13) U32 address = field.addr .a inspect %10
+  store inspect %61 consume %60
+  %62: %@bits(3) U32 address = field.addr .b inspect %10
+  %63: @bits(3) U32 trivial = load inspect %62
+  %64: U32 trivial = convert inspect %63
+  %65: U32 trivial = const 5
+  %66: Bool trivial = eq inspect %64 inspect %65
+  branch inspect %66 -> bb3 -> bb1
+
+bb1:
+  %67: I32 trivial = const 0
+  jump -> bb2(consume %67)
+
+bb2(%0: I32 trivial):
+  store inspect %11 consume %0
+  %68: @bits(13) U32 trivial = const 1
+  %69: Wide trivial = aggregate.Wide consume %68
+  store inspect %12 consume %69
+  %70: Wide [unique call] guaranteed from{%12} = load inspect %12
+  %71: U32 trivial = load inspect %2
+  %72: @bits(13) U32 trivial = convert inspect %71
+  %73: Wide trivial = aggregate.Wide consume %72
+  call put(Wide) borrow %70 borrow %73
+  %74: Wide trivial = copy inspect %12
+  %75: Maybe(Wide) trivial = aggregate.Just consume %74
+  %76: I32 trivial = call tag borrow %75
+  store inspect %13 consume %76
+  %77: U32 trivial = load inspect %2
+  %78: @bits(13) U32 trivial = convert inspect %77
+  %79: Wide trivial = aggregate.Wide consume %78
+  store inspect %14 consume %79
+  %80: @bits(13) U32 trivial = const 2
+  %81: Wide trivial = aggregate.Wide consume %80
+  store inspect %15 consume %81
+  %82: Wide [unique call] guaranteed from{%14} = load inspect %14
+  %83: Wide [unique call] guaranteed from{%15} = load inspect %15
+  %84: %Wide trivial = bitcast inspect %82
+  %85: %Wide trivial = bitcast inspect %83
+  %86: Wide trivial = copy inspect %84
+  store inspect %16 consume %86
+  %87: Wide trivial = copy inspect %16
+  %88: Wide trivial = copy inspect %85
+  store inspect %84 consume %88
+  store inspect %85 consume %87
+  %89: Wide trivial = copy inspect %14
+  %90: Maybe(Wide) trivial = aggregate.Just consume %89
+  %91: I32 trivial = call tag borrow %90
+  %92: Wide trivial = copy inspect %15
+  %93: Maybe(Wide) trivial = aggregate.Just consume %92
+  %94: I32 trivial = call tag borrow %93
+  %95: I32 trivial = add inspect %91 inspect %94
+  %96: I32 trivial = const 2
+  %97: Bool trivial = eq inspect %95 inspect %96
+  branch inspect %97 -> bb6 -> bb4
+
+bb3:
+  %98: I32 trivial = const 1
+  jump -> bb2(consume %98)
+
+bb4:
+  %99: I32 trivial = const 0
+  jump -> bb5(consume %99)
+
+bb5(%1: I32 trivial):
+  store inspect %17 consume %1
+  %100: U32 trivial = load inspect %2
+  %101: @bits(13) U32 trivial = convert inspect %100
+  %102: Wide trivial = aggregate.Wide consume %101
+  store inspect %18 consume %102
+  %103: @bits(13) U32 trivial = const 0
+  %104: Wide trivial = aggregate.Wide consume %103
+  store inspect %19 consume %104
+  %105: %@bits(13) U32 address = field.addr .only inspect %18
+  %106: @bits(13) U32 trivial = load inspect %105
+  %107: %@bits(13) U32 address = field.addr .only inspect %19
+  store inspect %107 consume %106
+  %108: Wide trivial = copy inspect %19
+  %109: Maybe(Wide) trivial = aggregate.Just consume %108
+  %110: I32 trivial = call tag borrow %109
+  store inspect %20 consume %110
+  %111: I32 trivial = load inspect %3
+  %112: I32 trivial = load inspect %5
+  %113: I32 trivial = const 2
+  %114: I32 trivial = mul inspect %112 inspect %113
+  %115: I32 trivial = add inspect %111 inspect %114
+  %116: I32 trivial = load inspect %7
+  %117: I32 trivial = const 4
+  %118: I32 trivial = mul inspect %116 inspect %117
+  %119: I32 trivial = add inspect %115 inspect %118
+  %120: I32 trivial = load inspect %9
+  %121: I32 trivial = const 8
+  %122: I32 trivial = mul inspect %120 inspect %121
+  %123: I32 trivial = add inspect %119 inspect %122
+  %124: I32 trivial = load inspect %11
+  %125: I32 trivial = const 16
+  %126: I32 trivial = mul inspect %124 inspect %125
+  %127: I32 trivial = add inspect %123 inspect %126
+  %128: I32 trivial = load inspect %13
+  %129: I32 trivial = const 32
+  %130: I32 trivial = mul inspect %128 inspect %129
+  %131: I32 trivial = add inspect %127 inspect %130
+  %132: I32 trivial = load inspect %17
+  %133: I32 trivial = const 64
+  %134: I32 trivial = mul inspect %132 inspect %133
+  %135: I32 trivial = add inspect %131 inspect %134
+  %136: I32 trivial = load inspect %20
+  %137: I32 trivial = const 128
+  %138: I32 trivial = mul inspect %136 inspect %137
+  %139: I32 trivial = add inspect %135 inspect %138
+  return consume %139
+
+bb6:
+  %140: I32 trivial = const 1
+  jump -> bb5(consume %140)
+}
+
+fn put(Wide)(slot: Wide [unique call], from: Wide [shared call]) -> {} {
+bb0(%0: Wide [unique call] guaranteed, %1: Wide [shared call] guaranteed):
+  %2: Wide trivial = copy inspect %1
+  store inspect %0 consume %2
+  return
+}
+
+entry main

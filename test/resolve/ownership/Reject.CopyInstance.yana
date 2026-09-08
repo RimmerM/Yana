@@ -50,6 +50,9 @@ instance Copy(I32):
 -- discharged - beside `class Copy(a)`, and that placement is the whole of what makes it legal there
 -- and not here. `generic/Solve.yana` is the accepting side, over a class the fixture declares
 -- itself.
+--
+-- Two reports, and both are true: the placement, and the overlap with the library's own blanket.
+-- The second only appears because the library that is compiled here is the real one.
 instance Copy(a):
     fn copy(from: a) -> a = from
 

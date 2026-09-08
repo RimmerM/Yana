@@ -7,15 +7,22 @@ main<complex>(): I32 {
     %v_4 = alloca 8, 8: Ptr
     store %v_1, 0, 4
     store %v_2, %v_1, 8
-    call_complex main.lambda, %v_2
-    store %v_3, %v_1, 8
-    call_complex main.lambda'2, %v_3
+    %main.lambda = fun main.lambda: Ptr
     %v_5 = loads %v_1, 4: I32
+    %v_6 = add %v_5, 1: I32
+    store %v_1, %v_6, 4
+    store %v_3, %v_1, 8
+    %main.lambda'2 = fun main.lambda'2: Ptr
+    %v_7 = loads %v_1, 4: I32
+    %v_8 = imul %v_7, 10: I32
+    store %v_1, %v_8, 4
     store %v_4, %v_1, 8
-    call_complex main.lambda'3, %v_4
-    %v_6 = loads %v_1, 4: I32
-    %v_7 = add %v_6, %v_5: I32
-    ret %v_7
+    %main.lambda'3 = fun main.lambda'3: Ptr
+    %v_9 = loads %v_1, 4: I32
+    %v_10 = add %v_9, 5: I32
+    store %v_1, %v_10, 4
+    %v_11 = add %v_10, %v_8: I32
+    ret %v_11
   }
 }
 

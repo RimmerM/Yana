@@ -1,0 +1,71 @@
+# The multi-way branch through the LLVM backend - D3 slice 3.
+#
+# `CreateSwitch` and an `addCase` per case, with the fallback as the default, and that is where this
+# backend stops: which of a jump table, a bit test, a binary search or a chain LLVM then emits is its
+# own decision, taken per target and per profile, and it does more with it than this compiler will.
+# The x64 backend's three forms are the same question answered where there is no such machinery -
+# see `compiler/codegen/x64/transform_switch.cpp` and `test/x64/Switch.lower`.
+#
+# `joined` is the half worth asserting beyond the terminator itself: an edge out of a switch carries
+# values exactly as any other edge here does, so the phi in `end` names one incoming block per case
+# and the switch is what puts control on each of them.
+
+dispatch(%v: I32): I32 {
+    start {
+        switch %v, other, [a, 0], [b, 1], [c, 2], [d, 7], [e, 100]
+    }
+
+    a {
+        ret 10
+    }
+
+    b {
+        ret 20
+    }
+
+    c {
+        ret 30
+    }
+
+    d {
+        ret 40
+    }
+
+    e {
+        ret 50
+    }
+
+    other {
+        ret 0
+    }
+}
+
+joined(%v: I64): I64 {
+    start {
+        switch %v, other, [a, -1], [b, 0], [c, 1]
+    }
+
+    a {
+        %xa = add %v, 1l: I64
+        jmp end
+    }
+
+    b {
+        %xb = add %v, 2l: I64
+        jmp end
+    }
+
+    c {
+        %xc = add %v, 3l: I64
+        jmp end
+    }
+
+    other {
+        %xo = add %v, 4l: I64
+        jmp end
+    }
+
+    end {
+        ret (phi [a, %xa], [b, %xb], [c, %xc], [other, %xo]: I64)
+    }
+}

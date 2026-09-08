@@ -30,6 +30,7 @@ struct Flag {
         backend,
         framePointer,
         inlining,
+        switchForm,
         optimization,
         explain,
         project,
@@ -85,6 +86,9 @@ Flag flagTable[] = {
     { "frame-pointer"_v, 1, Flag::framePointer },
     { "opt"_v, 1, Flag::optimization },
     { "inline"_v, 1, Flag::inlining },
+
+    // Which shape a multi-way branch is spent in - see SwitchForm. A measurement's knob.
+    { "switch-form"_v, 1, Flag::switchForm },
     { "explain"_v, 1, Flag::explain },
     { "project"_v, 1, Flag::project },
     { "lib"_v, 1, Flag::library },
@@ -118,6 +122,14 @@ StringView inlineTable[] = {
     "size"_v,     // Size
     "balanced"_v, // Balanced
     "speed"_v,    // Speed
+};
+
+// SwitchForm, in declaration order.
+StringView switchFormTable[] = {
+    "auto"_v,   // Auto
+    "chain"_v,  // Chain
+    "search"_v, // BinarySearch
+    "table"_v,  // JumpTable
 };
 
 // CompileMode, in declaration order. What comes out; `platformTable` below says what it is for, and
@@ -856,6 +868,7 @@ Which machine:
 How hard to try:
   -opt <0-3>            the LLVM pipeline's level, on -backend llvm
   -inline <level>       none, size, balanced or speed
+  -switch-form <f>      auto (default), chain, search or table - how a `match` dispatches
   -no-ir-opt            switch off the IR optimizer      -no-checks    emit no bounds checks
   -check-locations      inserted checks report their source location
 
@@ -1131,6 +1144,14 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     return true;
                 } else {
                     error = Tritium::format("Unrecognized inlining level \"%@\". Valid levels are: none|size|balanced|speed.", value);
+                    return false;
+                }
+            case Flag::switchForm:
+                if(auto form = matchString(switchFormTable, sizeof(switchFormTable) / sizeof(StringView), value)) {
+                    settings.switchForm = (SwitchForm)form.unwrap();
+                    return true;
+                } else {
+                    error = Tritium::format("Unrecognized switch form \"%@\". Valid forms are: auto|chain|search|table.", value);
                     return false;
                 }
             case Flag::optimization: {

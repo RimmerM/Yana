@@ -18,6 +18,11 @@ static U32 widthIndex(U8 bits) {
 Types::Types(DeclArena& arena): arena(arena) {
     unit = asBase<Type>(new (arena) UnitType() - *arena);
 
+    // The undecided result - see the note in type.h. No owner, no index, and a name only a
+    // diagnostic would ever print.
+    undecided = asBase<Type>(new (arena) VariableType(nullptr, 0, StringId(), kNullLocation)
+                             - *arena);
+
     static const U8 widths[4] = { 8, 16, 32, 64 };
     for(U32 i = 0; i < 4; i++) {
         ints[0][i] = asBase<Type>(new (arena) IntType(widths[i], false) - *arena);
@@ -109,10 +114,27 @@ DeclPtr<Type> Types::constType(U64 value, DeclPtr<Type> of) {
     auto created = false;
     auto entry = internSlot(constants, key, created, [&](DeclPtr<Type> existing) {
         auto& held = *(ConstType*)(*arena)[existing];
-        return held.value == value && held.type == of;
+        return !held.isDerived() && held.value == value && held.type == of;
     });
 
     if(created) *entry = asBase<Type>(new (arena) ConstType(value, of) - *arena);
+    return *entry;
+}
+
+// The derived half of the same table - see the declaration, where the choice is argued. Keyed on the
+// lane beside the parameter's type, and separated from a written number by the lane's own offset
+// standing where the value does.
+DeclPtr<Type> Types::naturalLanesType(DeclPtr<Type> lane, DeclPtr<Type> of) {
+    InternKey key;
+    key.mix(lane.offset).next().mix(of.offset);
+
+    auto created = false;
+    auto entry = internSlot(constants, key, created, [&](DeclPtr<Type> existing) {
+        auto& held = *(ConstType*)(*arena)[existing];
+        return held.lanesOf == lane && held.type == of;
+    });
+
+    if(created) *entry = asBase<Type>(new (arena) ConstType(0, of, lane) - *arena);
     return *entry;
 }
 
@@ -192,9 +214,14 @@ DeclPtr<Type> Types::arrayType(DeclBase base, DeclPtr<Type> element, U64 length)
  * array type per element-and-length: `[I32 *n]` substituted at `n = 4` and a written `[I32 *4]` are
  * the same array however the four arrived, and the integer type the const argument was declared at
  * is the *parameter's* business and not the array's.
+ *
+ * A count that is still an **expression** is not a number and is kept as the count it is -
+ * `ConstType::lanesOf`, a `Vec(a)`'s natural width reaching `[a *n]` through a signature that writes
+ * both. Reading `value` there would have laid out a zero-length array with no diagnostic; the
+ * substitution that turns the expression into a number is what makes this an array with a length.
  */
 DeclPtr<Type> Types::arrayType(DeclBase base, DeclPtr<Type> element, DeclPtr<Type> count) {
-    if(count && base[count]->kind == Type::Const) {
+    if(count && base[count]->kind == Type::Const && !((ConstType*)base[count])->isDerived()) {
         return arrayType(base, element, ((ConstType*)base[count])->value);
     }
 
@@ -322,8 +349,8 @@ RecordType* Types::tupleType(DeclBase base, const RecordField* fields, Size coun
  * The names that are types without a declaration - `compiler/intrinsic/primitive.def`.
  *
  * The widths and `{}`, which is all of them: everything the language names that a `data` head could
- * have declared *is* declared, in `lib/Core` and in the prelude beside it. `Bool` was the last one
- * here and is `known.def`'s `boolean` role now.
+ * have declared *is* declared, in `lib/Core`. `Bool` was the last one here and is `known.def`'s
+ * `boolean` role now.
  *
  * The table is in `compiler/intrinsic` rather than here for the reason everything else there is:
  * these are source-visible strings, and they are the compiler's statement of what the language's own
@@ -363,6 +390,36 @@ StringView typeKindName(Type::Kind kind) {
 
 
 /*
+ * Whether the context this variable belongs to has already promised that it duplicates by its bytes
+ * - Design-Memory §2.1's **copy upgrade**, and the one thing a constraint can say back to
+ * `ownershipOf`'s invariant below.
+ *
+ * `fn (TrivialCopy(a)) copy(from: a) -> a = from` is the shape: the signature promised that every
+ * substitution is duplicable, so the body may duplicate, and a shared parameter can therefore fill a
+ * position that consumes. Without it the promise was provable at every call site and unusable inside
+ * the body it was written on.
+ *
+ * The **declared** requirements only, and deliberately not their superclass closure. That walk is
+ * `classProves`, which substitutes into an argument list and therefore interns types - a `Program&`
+ * this has no business holding - and the direction it errs in is the safe one: a body under
+ * `(AtomicValue(a))` is refused where it could have copied, rather than admitted where it could not.
+ * A context that wants the upgrade writes the constraint.
+ */
+static bool promisesTrivialCopy(DeclBase base, DeclPtr<Type> type) {
+    auto& variable = *(VariableType*)base[type];
+    if(!variable.owner) return false;
+
+    for(auto requirement: base[variable.owner]->classes.contents(base)) {
+        if(!requirement.klass) continue;
+        if(base[requirement.klass]->role != intrinsic::Known::trivialCopy) continue;
+        if(requirement.args.size() != 1) continue;
+        if(requirement.args.pointer(base)[0] == type) return true;
+    }
+
+    return false;
+}
+
+/*
  * What a type owes, read rather than recomputed.
  *
  * Every kind but `Record` answers a constant, and those constants are here rather than in `own.cpp`
@@ -392,7 +449,8 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
          * one answer that decides how every generic body is compiled.
          *
          * "An unconstrained `a` is treated as non-`TrivialCopy` even when one call substitutes
-         * `Int`." A generic function has one fixed semantic body, so what the body may assume about
+         * `Int`" - and *unconstrained* is the load-bearing word, which `promisesTrivialCopy` above
+         * is the reading of. A generic function has one fixed semantic body, so what the body may assume about
          * `a` is what *every* substitution supplies, which is nothing: it may not be duplicated
          * without a `Copy` the context does not promise, and it has to be assumed to release
          * something so that the teardown is placed where the value actually dies. A specialization
@@ -411,6 +469,12 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
          * answer to an undecided obligation is that there is none to break.
          */
         case Type::Variable:
+            // The exception the sentence above leaves room for by saying *unconstrained*: a context
+            // that declared `TrivialCopy(a)` has supplied the answer, so the body gets the whole of
+            // it - duplication, and no teardown, since a type that owes one is never `TrivialCopy`
+            // (`classifyTypes` states that once, where the fold is).
+            if(promisesTrivialCopy(base, type)) return Ownership {};
+
             return Ownership { false, true, false, TeardownKind::Derived, TeardownKind::Derived };
 
         /*
@@ -431,28 +495,33 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
          * make two owners of one environment, and the one that ran its teardown second would
          * release storage the first had already handed back.
          *
-         * **No teardown, and that is a statement about placement rather than about function
-         * values.**
-         * An environment is a local of the frame that built the closure (`resolve_lambda.cpp`), it
-         * holds copies and borrows, and neither owes anything: a copy is trivial by the rule that
-         * chose it and a borrow is somebody else's. The capture that *would* make an environment own
-         * something is the spec's **consumed** one - and a closure that consumes a capture is
-         * precisely a closure that has to outlive the frame it was built in, which is the heap
-         * placement `verifyBody` refuses for want of an allocator. So the two arrive together or not
-         * at all, and until they do a function value releases nothing and a teardown that went
-         * looking for a release routine would read a word nothing writes.
+         * **A derived teardown, and that is a statement about placement rather than about function
+         * values** (D17, 2026-09-07). A `Fun` is one type whether the value of it captured nothing,
+         * captured borrows into a frame, or owns a heap-placed environment block; the type cannot
+         * tell them apart, so what it says is the conservative one - there may be something to
+         * release. The environment word carries a tag bit that says which, and the teardown tests it
+         * (`resolve_ssa/lower/fun.cpp`).
+         *
+         * What keeps that from being a cost on every callback is that the question is asked of the
+         * **occurrence** wherever a drop is placed: a value carrying `Shapes::closure` holds
+         * somebody else's environment and owes nothing, exactly as a record holding a borrowed field
+         * does. See `ownershipOfOccurrence`, which is the one place that exemption lives.
+         *
+         * Both halves and not one. The captures' own `Drop` and the block's release run at the same
+         * point - a pair has no storage of its own for the two to be separated over - and stating
+         * both is what makes a record with an authored instance of *either* half still release the
+         * function value it holds. `emitTeardown` emits it once for that reason.
          *
          * `relocatable` is true. Nothing points *into* a function value - the environment is
          * reached through the pointer the pair holds, not through the pair's own address - so the
          * pair may be moved like any other two words.
          *
-         * `trivialCopy` is false all the same, and the two are not the same question. A closure may
-         * hold an exclusive loan of a capture, and duplicating the bytes would be a second exclusive
-         * capability over one object - so its uses are moves, which is what `isTracked` reads this
-         * for and the reason the flags are separate fields.
+         * `trivialCopy` is false, and that was already true before there was a teardown: a closure
+         * may hold an exclusive loan of a capture, and duplicating the bytes would be a second
+         * exclusive capability over one object.
          */
         case Type::Fun:
-            return Ownership { false, true, false, TeardownKind::None, TeardownKind::None };
+            return Ownership { false, true, false, TeardownKind::Derived, TeardownKind::Derived };
 
         /*
          * A fixed array owes exactly what its elements owe, `n` times over.
@@ -561,6 +630,24 @@ U32 laneBytes(DeclBase base, IntWidths widths, DeclPtr<Type> type) {
     return storage == 1 || storage == 2 || storage == 4 || storage == 8 ? storage : 0;
 }
 
+bool hasNaturalVector(Context& context, DeclBase base, DeclPtr<Type> type) {
+    if(!type || !isConcreteType(base, type)) return false;
+
+    auto stride = laneBytes(base, targetIntWidths(context.settings), type);
+    if(!stride) return false;
+
+    // The band a target has no arithmetic for, which on JavaScript is `WideInt`'s - `makeVectorType`
+    // states it, and this is the same test read as a refusal rather than reported as one.
+    if(isJsMode(context.settings) && base[type]->kind == Type::Int && stride == 8) {
+        if(((IntType*)base[canonicalInt(base, type)])->bits <= 53) return false;
+    }
+
+    // A single-lane vector is a scalar with extra steps, and a lane wider than the register is not a
+    // vector at all - the second is what `makeVectorType` reports and the first is what its
+    // power-of-two range refuses.
+    return targetVectorBytes(context.settings) / stride >= 2;
+}
+
 DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane, U64 lanes,
                              bool isMask, LocationId source) {
     return makeVectorType(context, program, lane, nullptr, lanes, isMask, source);
@@ -583,10 +670,23 @@ DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> l
      * keeps one vector type per lane and count: `Vec(F32, n)` specialized at `n = 4` and a written
      * `Vec(F32, 4)` are the same type however the four arrived. `arrayType`'s entry point draws the
      * same line in the same place and for the same reason.
+     *
+     * **A derived count of this vector's own lane is the natural form**, and collapsing it here is
+     * what keeps that true of the handle as well as of the meaning. `Vec(a)` written in a generic
+     * body and `Vec(a, n)` reached with `n` bound to `lanes(a)` are the same type, so a call whose
+     * argument is the first and whose parameter substitutes to the second needs no conversion - and
+     * an argument that did need one would have been reported against a spelling nobody wrote.
      */
     if(count && base[count]->kind == Type::Const) {
-        lanes = ((ConstType*)base[count])->value;
-        count = nullptr;
+        auto& number = *(ConstType*)base[count];
+
+        if(!number.isDerived()) {
+            lanes = number.value;
+            count = nullptr;
+        } else if(number.lanesOf == lane) {
+            lanes = 0;
+            count = nullptr;
+        }
     }
 
     /*
@@ -867,10 +967,17 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
             // an ordering is written on an operation rather than on a location.
             return Tritium::format("Atomic(%@)",
                                    typeText(context, base, ((AtomicType&)logical).content));
-        case Type::Const:
+        case Type::Const: {
             // The number alone - `printType`'s reasoning, and the same answer, so that a message
-            // and a dump spell one type one way.
-            return Tritium::format("%@", ((ConstType&)logical).value);
+            // and a dump spell one type one way. A count that is still an expression is spelled as
+            // the call it stands for, which is what an author wrote where one is reachable.
+            auto& number = (ConstType&)logical;
+            if(number.isDerived()) {
+                return Tritium::format("lanes(%@)", typeText(context, base, number.lanesOf));
+            }
+
+            return Tritium::format("%@", number.value);
+        }
         case Type::Variable: {
             // The written name, which is what the author has to recognize. It says nothing about
             // which declaration bound it, and that is right for a message: a diagnostic about `a`
@@ -1042,6 +1149,29 @@ TagRange tagRangeOf(DeclBase base, RecordType& record) {
 
 U8 tagBitsOf(DeclBase base, RecordType& record) {
     return tagRangeOf(base, record).bits;
+}
+
+/*
+ * The width `class Enum(a -> w)` answers in - the signed integer type every number this declaration
+ * pins fits into.
+ *
+ * `Int` for all but the declarations that need more, which is the whole point of the dependency. A
+ * class fixing one width would have to name the widest any `data` might use - `@value(4294967296)`
+ * is legal - and an `I64` is a `BigInt` on JavaScript, so every enum in the program would pay for
+ * the range of the one that uses it. The declaration already knows which it is.
+ *
+ * Read off `tagRangeOf` rather than walking the constructors again, which is the reason it is here:
+ * the span of the numbers is one answer this file already computes, and a second walk is a second
+ * chance to disagree with it about which values a declaration has.
+ *
+ * **Signed on both rungs**, including for a declaration that pins nothing negative: what `valueOf`
+ * reports is the number written down, and `Int` reports every value up to 2^31 as itself.
+ */
+DeclPtr<Type> enumValueTypeOf(DeclBase base, Types& types, RecordType& record) {
+    auto range = tagRangeOf(base, record);
+    auto wide = range.lowest < I64(minLimit<I32>) || range.highest > I64(maxLimit<I32>);
+
+    return types.intType(wide ? 64 : 32, true);
 }
 
 bool isSumRecord(DeclBase base, DeclPtr<Type> type) {
@@ -1247,6 +1377,15 @@ bool hasViewFor(DeclBase base, Program& program, DeclPtr<Type> type, Access acce
     return false;
 }
 
+bool needsViewDerivation(DeclBase base, Program& program, const Occurrence& held,
+                         const Occurrence& position) {
+    if(position.contract.form() != AccessForm::View) return false;
+    if(held.contract.form() == AccessForm::View) return false;
+    if(!sameType(held.type, position.type)) return false;
+
+    return hasViewFor(base, program, position.type, position.contract.access());
+}
+
 DeclPtr<Type> viewRecordOf(Context& context, Program& program, const Occurrence& occurrence) {
     auto base = *program.decl;
     if(occurrence.contract.form() != AccessForm::View) return nullptr;
@@ -1292,8 +1431,11 @@ bool mentionsVariable(DeclBase base, DeclPtr<Type> type, DeclPtr<Type> variable)
         case Type::Unit:
         case Type::Int:
         case Type::Float:
-        case Type::Const:
             return false;
+        // A written number holds nothing; a derived one holds the lane it is the count of, and a
+        // walk that stopped here would miss the variable inside `Vec(a)`'s count.
+        case Type::Const:
+            return mentionsVariable(base, ((ConstType*)base[type])->lanesOf, variable);
         // A different variable, which stands for itself and holds nothing. The equality above is the
         // only way a variable answers yes.
         case Type::Variable:

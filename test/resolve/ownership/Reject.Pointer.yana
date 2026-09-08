@@ -20,27 +20,32 @@
    it is. This is a rule about values the environment can follow, not a migration of every signature
    that names a pointer.
 
+   **The pointer comes from `values`, and `addressOf` answers the same way since D15.** What the
+   environment follows is the *pointee* position of the value, and a value has one only where its
+   type names an origin: `lib/Core/Array.native.yana` writes `values(self: source'[a]) -> %source'a`
+   and `lib/Native/Pointer.yana` now writes `addressOf(it: source'a) -> %source'a`. It used to write
+   `it: a`, and a pointer taken that way out of this frame's own storage carried a loan in the body
+   and nothing in its type, so every case below written that way was silently accepted - a recorded
+   hole, closed. The cases stay written through `values` because that is what they were pinned at;
+   `let &v = 7 :: I32; return addressOf(v)` is refused with the same sentence.
+
    Body errors, all of them - the placement of `yield'` itself is a declaration error and is in
    `lens/Reject.Handover.yana`, because a file whose declarations failed has no bodies walked.
 -}
 
 import Native
 
--- A record, so that the consumed parameter below is storage rather than a register: what the rule is
--- about is the *slot*, and a scalar the caller lends has none in the callee at all.
-data Pair {a: I32, b: I32}
-
--- A result rooted in this frame's own storage. The address outlives `v`, and the signature says
+-- A result rooted in this frame's own storage. The address outlives `buf`, and the signature says
 -- nothing that would let a caller know it.
 fn leaks() -> %I32:
-    let &v = 7 :: I32
-    return addressOf(v)
+    let &buf = [7] :: [I32 *1]
+    return values(buf)
 
--- The same through an element of a frame array, which is the shape the message has to be able to
--- name: the loan is of `buf[1]` rather than of a whole local.
+-- The same one element along, which is the shape that says the arithmetic carries the provenance:
+-- the offset pointer is still rooted in `buf` and is still refused.
 fn leaksElement() -> %I32:
     let &buf = [1, 2, 3] :: [I32 *3]
-    return addressOf(buf[1])
+    return values(buf) + 1
 
 {-
    And a **hand-over**, which is the other half of §12.3(c)'s sentence and needs a rule of its own.
@@ -55,38 +60,40 @@ fn leaksElement() -> %I32:
    names.
 -}
 lens fn hands() -> %I32:
-    let &cell = 3 :: I32
-    yield addressOf(cell)
+    let &cell = [3] :: [I32 *1]
+    yield values(cell)
 
 {-
    And the same through a parameter the lens **consumed**.
 
    `->box` moves the value in, so the slot holding it is the callee's exactly as a `let`'s is and
    dies with the call - which makes this the same mistake `hands` above makes, reached through the
-   one root the rule has to look past "is this a parameter" to see. An ordinary `box: Box` is *not*
-   this case and is why the distinction is the parameter's contract rather than its position: this
-   resolver hands a read-only parameter over as a shared call-bounded loan of the caller's storage,
-   which outlives the call, and `rooted` below is the same statement written with an origin on it.
+   one root the rule has to look past "is this a parameter" to see. An ordinary `box: [I32 *2]` is
+   *not* this case and is why the distinction is the parameter's contract rather than its position:
+   this resolver hands a read-only parameter over as a shared call-bounded loan of the caller's
+   storage, which outlives the call, and `rooted` below is the same statement written with an origin
+   on it.
 -}
-lens fn handsParameter(->box: Pair) -> %I32:
-    yield addressOf(box.a)
+lens fn handsParameter(->box: [I32 *2]) -> %I32:
+    yield values(box)
 
 -- A pointer rooted in a **parameter** the signature published, which is the accepting shape and is
 -- here so that the fixture says what the rule is about: the storage is the caller's, the signature
 -- says so, and nothing is reported.
-fn rooted(r: source'I32) -> %source'I32 = addressOf(r)
+fn rooted(xs: source'[I32 *3]) -> %source'I32 = values(xs)
 
 -- A pointer this frame did not derive from any storage. There is no loan for the environment to find,
 -- so the bare `%T` is the true statement and is accepted.
-fn manufactured(n: %I32) -> %I32 = advance(n, 1)
+fn manufactured(n: %I32) -> %I32 = n + 1
 
 fn main() -> Int:
     let &v = 11 :: I32
+    let &row = [1, 2, 3] :: [I32 *3]
 
     hands():
         v = v + 1
 
-    handsParameter(Pair {a: 5, b: 6}):
+    handsParameter([5, 6]):
         v = v + 1
 
-    return *leaks() + *leaksElement() + *rooted(v) + *manufactured(addressOf(v))
+    return *leaks() + *leaksElement() + *rooted(row) + *manufactured(values(row))

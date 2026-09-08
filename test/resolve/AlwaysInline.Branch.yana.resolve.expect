@@ -1,0 +1,123 @@
+let image$base: () = <none>
+
+fn absolute(%x: I32) -> I32 {
+  b0:
+    %v3 = cmp_lt %x, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v7 = sub 0, %x : I32
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v7], [b2, %x] : I32
+    ret %v10
+}
+
+fn decrement(%x: I32) -> I32 {
+  b0:
+    %v3 = sub %x, 1 : I32
+    ret %v3
+}
+
+fn stepped(%x: I32) -> I32 {
+  b0:
+    %v1 = call decrement, %x : I32
+    %v4 = add %v1, 1 : I32
+    ret %v4
+}
+
+fn clamped(%x: I32, %limit: I32) -> I32 {
+  b0:
+    %v2 = cmp_gt %x, %limit : Bool
+    je %v2, b1, b2
+
+  b1:
+    ret %limit
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = sub 0, %limit : I32
+    %v9 = cmp_lt %x, %v8 : Bool
+    je %v9, b4, b5
+
+  b4:
+    %v13 = sub 0, %limit : I32
+    ret %v13
+
+  b5:
+    jmp b6
+
+  b6:
+    ret %x
+}
+
+(Ord(a)) fn below(%x: a, %y: a) -> Bool {
+  schema {
+    #0 type a
+    #1 class Ord(a)
+  }
+
+  b0:
+    %v2 = gencall Ord(a).<, %x, %y : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, True], [b2, False] : Bool
+    ret %v8
+}
+
+fn source() -> I32 {
+  b0:
+    %v4 = sub 0, 4 : I32
+    ret %v4
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = call source : I32
+    %a = call absolute, %v0 : I32
+    %b = call stepped, 3 : I32
+    %c = call clamped, 99, 5 : I32
+    %v7 = call below(I32), %a, %c : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v9 = add %a, %b : I32
+    %v10 = add %v9, %c : I32
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v14 = phi [b1, %v10], [b2, 0] : I32
+    ret %v14
+}
+
+fn below(I32)(%x: I32, %y: I32) -> Bool {
+  b0:
+    %v3 = cmp_lt %x, %y : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, True], [b2, False] : Bool
+    ret %v2
+}

@@ -1,0 +1,103 @@
+module ResolveTest
+
+fn shifts(a: Vec(I32) [shared call], b: Vec(I64) [shared call]) -> I32 {
+  local left: Vec(I32)
+  local right: Vec(I32)
+  local arith: Vec(I32)
+  local wide: Vec(I64)
+  local deep: Vec(I64)
+
+bb0:
+  %0: Vec(I32) = read copy.trivial (a)
+  %1: I64 = const 3
+  %2: I32 = const 3
+  %3: Vec(I32) = vec.splat inspect %2
+  %4: Vec(I32) = shl inspect %0 inspect %3
+  write.init borrow.unique (left) take %4
+  %6: Vec(I32) = read copy.trivial (a)
+  %7: I64 = const 2
+  %8: I32 = const 2
+  %9: Vec(I32) = vec.splat inspect %8
+  %10: Vec(I32) = shr inspect %6 inspect %9
+  write.init borrow.unique (right) take %10
+  %12: Vec(I32) = read copy.trivial (a)
+  %13: I64 = const 1
+  %14: I32 = const 1
+  %15: Vec(I32) = vec.splat inspect %14
+  %16: Vec(I32) = sar inspect %12 inspect %15
+  write.init borrow.unique (arith) take %16
+  %18: Vec(I64) = read copy.trivial (b)
+  %19: I64 = const 5
+  %20: I64 = const 5
+  %21: Vec(I64) = vec.splat inspect %20
+  %22: Vec(I64) = shl inspect %18 inspect %21
+  %23: I64 = const 4
+  %24: I64 = const 4
+  %25: Vec(I64) = vec.splat inspect %24
+  %26: Vec(I64) = shr inspect %22 inspect %25
+  write.init borrow.unique (wide) take %26
+  %28: Vec(I64) = read copy.trivial (b)
+  %29: I64 = const 0
+  %30: I64 = const 0
+  %31: Vec(I64) = vec.splat inspect %30
+  %32: Vec(I64) = sub inspect %31 inspect %28
+  %33: I64 = const 1
+  %34: I64 = const 1
+  %35: Vec(I64) = vec.splat inspect %34
+  %36: Vec(I64) = sar inspect %32 inspect %35
+  write.init borrow.unique (deep) take %36
+  %38: Vec(I32) = read copy.trivial (left)
+  %39: I32 = const 0
+  %40: I32 = vec.lane #0 inspect %38
+  %41: Vec(I32) = read copy.trivial (right)
+  %42: I32 = const 1
+  %43: I32 = vec.lane #1 inspect %41
+  %44: I32 = add inspect %40 inspect %43
+  %45: Vec(I32) = read copy.trivial (arith)
+  %46: I32 = const 2
+  %47: I32 = vec.lane #2 inspect %45
+  %48: I32 = add inspect %44 inspect %47
+  %49: Vec(I64) = read copy.trivial (wide)
+  %50: I32 = const 0
+  %51: I64 = vec.lane #0 inspect %49
+  %52: I32 = convert inspect %51
+  %53: I32 = add inspect %48 inspect %52
+  %54: Vec(I64) = read copy.trivial (deep)
+  %55: I32 = const 0
+  %56: I64 = vec.lane #0 inspect %54
+  %57: I32 = convert inspect %56
+  %58: I32 = add inspect %53 inspect %57
+  return take %58
+}
+
+fn main() -> I32 {
+  local a: Vec(I32)
+  local b: Vec(I64)
+
+bb0:
+  %0: I32 = const 64
+  %1: Vec(I32) = vec.splat inspect %0
+  %2: I32 = const 0
+  %3: I32 = const 5
+  %4: Vec(I32) = vec.withlane #0 inspect %1 inspect %3
+  %5: I32 = const 1
+  %6: I32 = const 100
+  %7: Vec(I32) = vec.withlane #1 inspect %4 inspect %6
+  %8: I32 = const 2
+  %9: I32 = const 0
+  %10: I32 = const 32
+  %11: I32 = sub inspect %9 inspect %10
+  %12: Vec(I32) = vec.withlane #2 inspect %7 inspect %11
+  write.init borrow.unique (a) take %12
+  %14: I64 = const 3
+  %15: Vec(I64) = vec.splat inspect %14
+  write.init borrow.unique (b) take %15
+  %17: Vec(I32) = read copy.trivial (a)
+  %18: Vec(I64) = read copy.trivial (b)
+  %19: I32 = call shifts borrow.shared %17 borrow.shared %18
+  %20: I32 = const 100
+  %21: I32 = add inspect %19 inspect %20
+  return take %21
+}
+
+entry main

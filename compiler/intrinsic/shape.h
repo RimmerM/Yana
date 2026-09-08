@@ -147,7 +147,7 @@ StringView shapeOriginName(ShapeOrigin origin);
 /*
  * One position of an intrinsic's signature - a parameter, or the result.
  *
- * Four bytes and a plain aggregate, so the whole table is a constant with no initialization to run.
+ * Five bytes and a plain aggregate, so the whole table is a constant with no initialization to run.
  */
 struct PositionShape {
     ShapeTerm term = ShapeTerm::Any;
@@ -158,6 +158,25 @@ struct PositionShape {
 
     ShapeAccess access = ShapeAccess::Any;
     ShapeOrigin origin = ShapeOrigin::Any;
+
+    /*
+     * Where the position's **pointee** comes from - `%source'a`, the one interior position a
+     * pointer has.
+     *
+     * A fourth field rather than a third value of `origin`, because the two are about different
+     * halves of the same position: a pointer's own contract is an owned scalar's whatever it points
+     * at, so `origin` says how the *address* was passed and this says what the address refers to.
+     * `Any` on it is what every non-pointer row writes and costs them nothing.
+     *
+     * It exists because two libraries drifted in silence. While the ownership stage had a standard
+     * library of its own, that one wrote `advance(it: %source'a, count: Size) -> %source'a` and
+     * `lib/Native/Pointer.yana` wrote plain `%a` at both ends, so an element of a window was a
+     * borrow rooted in nothing and every signature that handed one back was refused - with the
+     * mistake three files away from the message. There is one library now and the drift cannot
+     * happen again; the row stays, because what it states is what a declaration owes its emitter,
+     * and `displace` reads the result's pointee off the declaration.
+     */
+    ShapeOrigin pointee = ShapeOrigin::Any;
 };
 
 /*
@@ -206,6 +225,14 @@ constexpr PositionShape pointerAt() {
     return PositionShape { ShapeTerm::Pointer, 0, ShapeAccess::Shared, ShapeOrigin::CallBounded };
 }
 
+// The same, whose *pointee* names an origin the signature published - `%source'a`. What every
+// operation that hands the storage on depends on: a borrow taken through an unqualified `%a` is
+// rooted in nothing and cannot be returned by anybody.
+constexpr PositionShape rootedPointerAt() {
+    return PositionShape { ShapeTerm::Pointer, 0, ShapeAccess::Shared, ShapeOrigin::CallBounded,
+                           ShapeOrigin::Published };
+}
+
 // What the pointer at `of` points at, with no requirement on how it is passed.
 constexpr PositionShape pointeeOf(U8 of) { return PositionShape { ShapeTerm::PointeeOf, of }; }
 
@@ -232,6 +259,14 @@ constexpr PositionShape pointerTo(U8 of) { return PositionShape { ShapeTerm::Poi
 
 constexpr PositionShape sameAs(U8 of) { return PositionShape { ShapeTerm::SameAs, of }; }
 
+// The same pointer type as `of`, whose pointee names a published origin too - `p + n`, which refers
+// to what `p` referred to one element along. The pair with `rootedPointerAt` at the parameter is
+// what carries a window's provenance across an offset.
+constexpr PositionShape rootedSameAs(U8 of) {
+    return PositionShape { ShapeTerm::SameAs, of, ShapeAccess::Any, ShapeOrigin::Any,
+                           ShapeOrigin::Published };
+}
+
 // The same type as `of`, **handed over** - `fn exchange(&slot: a, ->value: a) -> a`, whose second
 // parameter is the value the slot holds afterwards.
 constexpr PositionShape handedSameAs(U8 of) {
@@ -247,6 +282,24 @@ constexpr PositionShape placeAt() {
 // The same place, said of a position that must agree with an earlier one - `swap`'s second.
 constexpr PositionShape placeSameAs(U8 of) {
     return PositionShape { ShapeTerm::SameAs, of, ShapeAccess::Unique };
+}
+
+/*
+ * Whether a parameter's shape is one of the two above - a **place the expansion writes through**.
+ *
+ * Read by the declaration reader, not only by the shape check, and that is what it is here for: the
+ * position names *storage of exactly this type*, so it is the owner and never the window a
+ * container's exclusive borrow can also be. Without it `swap(&left: a, &right: a)` at `a :=
+ * Array(I32)` had its arguments adapted to windows built into temporaries, and the writes that are
+ * the whole of the operation landed there instead of in the caller's containers.
+ *
+ * The pair rather than "`Unique` and not published", because `borrowMutOf` is exclusive too and is
+ * a pointee rather than a place - the two mean different things and only this one is storage of the
+ * declaration's own variable.
+ */
+constexpr bool isPlaceShape(PositionShape shape) {
+    return shape.access == ShapeAccess::Unique && shape.origin == ShapeOrigin::Any &&
+           (shape.term == ShapeTerm::Var || shape.term == ShapeTerm::SameAs);
 }
 
 // A whole value borrowed from somewhere the signature published, with no requirement on its type -

@@ -1,0 +1,76 @@
+{-
+   The three whole-vector transfers and the movemask - `Native.vectorAt`, `vectorPast`,
+   `setVectorAt` and `bits`, Implementation-Vector.md §3.3 and §12.
+
+   Each of the three transfers is one address computation and one access: the element pointer the
+   caller holds, named at the vector's type. That is a reinterpretation and nothing else - a
+   pointer's value does not depend on what it is said to point at - so there is no arithmetic here
+   and no alignment claim either.
+
+   Four things are asserted, and each contributes a distinct decimal place to `main` so that a
+   failure names itself:
+
+   - a **round trip**: a vector read out of one array and written into another, at the target's
+     natural width, is the same lanes back;
+   - a **pinned width**: `vectorAt(p) :: Vec(U8, 16)` reads sixteen bytes whatever the target's
+     natural width is, which is the shape a Swiss probe is written in;
+   - the **tail read**: `vectorPast` starting one element from the end of a four-element array reads
+     a whole vector, four bytes of which are past the object. What makes that safe is the tail-read
+     guarantee (`TailRead.yana` is what asserts the bytes are mapped); what makes the *answer* right
+     is that the lanes past the end are selected away, which is the only thing a caller may do with
+     them. **This is the only thing in the language that spends the guarantee**, and no store ever
+     does: a write past the end is not a read of unspecified bytes but the destruction of whatever
+     follows;
+   - the **movemask**: lane `i` of a mask in bit `i` of an integer, and nothing above the lane count.
+
+   `Vec(I32, 4)` and `Vec(U8, 16)` are written out rather than left to the target, so that the
+   numbers below are the same on every one.
+-}
+import Native
+
+-- The round trip, at a pinned four lanes so the answer does not depend on the register width.
+fn copyFour(from: %I32, to: %I32):
+    setVectorAt(to, vectorAt(from) :: Vec(I32, 4))
+
+fn roundTrip() -> Int:
+    let &src = [11, 22, 33, 44] :: [I32 *4]
+    let &dst = [0, 0, 0, 0] :: [I32 *4]
+
+    copyFour(addressOf(src[0 :: Size]), addressOf(dst[0 :: Size]))
+
+    return truncate(dst[0 :: Size] + dst[3 :: Size]) :: Int
+
+-- Sixteen bytes at a width the target did not choose - `Vec(U8)` is thirty-two lanes at v3 and this
+-- is sixteen at every level, which is Implementation-Map.md §4.1's whole point.
+fn sixteenBytes() -> Int:
+    let &bytes = [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2] :: [U8 *16]
+    let block = vectorAt(addressOf(bytes[0 :: Size])) :: Vec(U8, 16)
+
+    return (lane(block, 0) :: Int) * 10 + (lane(block, 15) :: Int) * 7
+
+{-
+   The tail read. Three live elements from index one, and a fourth lane that is past the object.
+
+   The three live lanes are read out by name and the fourth is never looked at, which is the only
+   thing a caller may do with it: the bytes past the object are unspecified, so a program that let
+   the fourth lane reach the sum would have no answer to assert.
+-}
+fn tailSum() -> Int:
+    let &xs = [1, 2, 3, 4] :: [I32 *4]
+
+    let raw = vectorPast(addressOf(xs[1 :: Size])) :: Vec(I32, 4)
+
+    return truncate(lane(raw, 0) + lane(raw, 1) + lane(raw, 2)) :: Int
+
+-- The movemask: lanes 1 and 2 match, so bits 1 and 2 are set and nothing above four is.
+fn matchingLanes() -> Int:
+    let &xs = [7, 9, 9, 7] :: [I32 *4]
+    let block = vectorAt(addressOf(xs[0 :: Size])) :: Vec(I32, 4)
+
+    return bits(block .== (splat(9) :: Vec(I32, 4)))
+
+fn main() -> Int =
+    roundTrip() * 1000000 +      -- 55
+    sixteenBytes() * 1000 +      -- 24
+    tailSum() * 10 +             -- 9
+    matchingLanes()              -- 6

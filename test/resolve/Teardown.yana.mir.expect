@@ -1,0 +1,110 @@
+module ResolveTest
+
+data Buffer {cells: %I64, count: I32} reclaim authored
+
+data Handle {id: I32} drop authored
+
+data Session {pages: Buffer, owner: Handle} drop derived reclaim derived
+
+instance Reclaim(Buffer): Buffer.reclaim
+
+instance Drop(Handle): Handle.drop
+
+let & effects: I32 = 0
+
+let & released: I32 = 0
+
+fn Buffer.reclaim(value: Buffer) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global released)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global released) take %2
+  %4: %I64 = read copy.trivial (value.cells)
+  %5: %U8 = bitcast inspect %4
+  %6: {} = call freeHeap borrow.shared %5
+  return
+}
+
+fn Handle.drop(value: Handle) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global effects)
+  %1: I32 = read copy.trivial (value.id)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global effects) take %2
+  return
+}
+
+fn makeBuffer(count: I32 [shared call]) -> Buffer {
+  local cells: %I64
+
+bb0:
+  %0: I32 = read copy.trivial (count)
+  %1: I32 = const 8
+  %2: I32 = mul inspect %0 inspect %1
+  %3: Size = convert inspect %2
+  %4: %U8 = call allocateHeap borrow.shared %3
+  %5: %I64 = bitcast inspect %4
+  write.init borrow.unique (cells) take %5
+  %7: %I64 = read copy.trivial (cells)
+  %8: I32 = read copy.trivial (count)
+  %9: Buffer = aggregate.Buffer take %7 take %8
+  return take %9
+}
+
+fn useSession(s: Session) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (s.owner.id)
+  drop (s)
+  return take %0
+}
+
+fn duplicate(x: a [shared call]) -> {left: a, right: a} {
+  form specialized
+  slot #0 type a
+  slot #1 class TrivialCopy(a)
+  local left: a
+  local right: a
+
+bb0:
+  %0: a = read copy.trivial (x)
+  write.init borrow.unique (left) take %0
+  %2: a = read copy.trivial (x)
+  write.init borrow.unique (right) take %2
+  %4: a = read copy.trivial (left)
+  %5: a = read copy.trivial (right)
+  %6: {left: a, right: a} = aggregate. take %4 take %5
+  return take %6
+}
+
+fn main() -> I32 {
+  local session: Session
+  local used: I32
+  local pair: {left: I32, right: I32}
+
+bb0:
+  %0: I32 = const 4
+  %1: Buffer = call makeBuffer borrow.shared %0
+  %2: I32 = const 7
+  %3: Handle = aggregate.Handle take %2
+  %4: Session = aggregate.Session take %1 take %3
+  write.init borrow.unique (session) take %4
+  %6: Session = read take (session)
+  %7: I32 = call useSession take %6
+  write.init borrow.unique (used) take %7
+  %9: I32 = const 35
+  %10: {left: I32, right: I32} = call duplicate(I32) borrow.shared %9
+  write.init borrow.unique (pair) take %10
+  %12: I32 = read copy.trivial (used)
+  %13: I32 = read copy.trivial (pair.left)
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = read copy.trivial (global effects)
+  %16: I32 = add inspect %14 inspect %15
+  %17: I32 = read copy.trivial (global released)
+  %18: I32 = sub inspect %16 inspect %17
+  return take %18
+}
+
+fn duplicate(I32)(x: I32 [shared call]) -> {left: I32, right: I32} = <duplicate at I32>
+
+entry main

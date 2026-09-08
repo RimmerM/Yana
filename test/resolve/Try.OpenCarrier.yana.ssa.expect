@@ -1,0 +1,112 @@
+module ResolveTest
+
+let string'142: [CodeUnit *2] = [97, 98]
+
+fn readOne(text: String [shared call view]) -> Result(Problem, a) = <no body>
+
+fn I32.readOne(text: String [shared call view]) -> Result(Problem, I32) {
+bb0(%0: String [shared call view] guaranteed):
+  %2: String [shared call view] guaranteed from{%0} = load inspect %0
+  %3: Size trivial = call String.length borrow %2
+  %4: Size trivial = const 0
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I32 trivial = const 7
+  %7: Result(Problem, I32) trivial = aggregate.Ok consume %6
+  jump -> bb2(consume %7)
+
+bb2(%1: Result(Problem, I32) trivial):
+  return consume %1
+
+bb3:
+  %8: I32 trivial = const 1
+  %9: Problem trivial = aggregate.Problem consume %8
+  %10: Result(Problem, I32) trivial = aggregate.Err consume %9
+  jump -> bb2(consume %10)
+}
+
+fn readTwice(text: String [shared call view]) -> Result(Problem, a) = <no body>
+
+fn main() -> I32 {
+bb0:
+  %1: %String address = alloc frame String
+  %2: %Result(Problem, I32) address = alloc frame Result(Problem, I32)
+  %3: %I32 address = alloc frame I32
+  %4: %Problem address = alloc frame Problem
+  %5: %[CodeUnit *2] address = global.addr string'142
+  %6: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %5
+  %7: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %6
+  %8: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %7
+  %9: I32 trivial = const 2
+  %10: String owned = call stringLiteral borrow %8 borrow %9
+  store inspect %1 consume %10
+  %11: String [shared slot 0] guaranteed from{%1} = load inspect %1
+  %12: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %11
+  %13: Result(Problem, I32) trivial = call readTwice(I32) borrow %12
+  drop String inspect %1
+  store inspect %2 consume %13
+  %14: %U8 address = field.addr .# inspect %2
+  %15: U8 trivial = load inspect %14
+  %16: U8 trivial = const 1
+  %17: Bool trivial = eq inspect %15 inspect %16
+  branch inspect %17 -> bb3 -> bb1
+
+bb1:
+  %18: %Problem address = field.addr .Err inspect %2
+  %19: Problem trivial = copy inspect %18
+  store inspect %4 consume %19
+  %20: I32 trivial = const 0
+  %21: %I32 address = field.addr .code inspect %4
+  %22: I32 trivial = load inspect %21
+  %23: I32 trivial = sub inspect %20 inspect %22
+  jump -> bb2(consume %23)
+
+bb2(%0: I32 trivial):
+  return consume %0
+
+bb3:
+  %24: %I32 address = field.addr .Ok inspect %2
+  %25: I32 trivial = load inspect %24
+  store inspect %3 consume %25
+  %26: I32 trivial = load inspect %3
+  jump -> bb2(consume %26)
+}
+
+fn readTwice(I32)(text: String [shared call view]) -> Result(Problem, I32) {
+bb0(%0: String [shared call view] guaranteed):
+  %2: %Result(Problem, I32) address = alloc frame Result(Problem, I32)
+  %3: %Outcome(I32, Problem) address = alloc frame Outcome(I32, Problem)
+  %4: %I32 address = alloc frame I32
+  %5: String [shared call view] guaranteed from{%0} = load inspect %0
+  %6: Result(Problem, I32) trivial = call I32.readOne borrow %5
+  store inspect %2 consume %6
+  %7: Result(Problem, I32) trivial = load inspect %2
+  %8: Outcome(I32, Problem) trivial = call Result(e, a).toOutcome(Problem, I32) consume %7
+  store inspect %3 consume %8
+  %9: %U8 address = field.addr .# inspect %3
+  %10: U8 trivial = load inspect %9
+  %11: U8 trivial = const 1
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  %13: %I32 address = field.addr .Proceed inspect %3
+  %14: I32 trivial = load inspect %13
+  jump -> bb2(consume %14)
+
+bb2(%1: I32 trivial):
+  store inspect %4 consume %1
+  %15: I32 trivial = load inspect %4
+  %16: Result(Problem, I32) trivial = aggregate.Ok consume %15
+  return consume %16
+
+bb3:
+  %17: %Problem address = field.addr .Exit inspect %3
+  %18: Problem trivial = copy inspect %17
+  %19: Result(Problem, I32) trivial = call Result(e, a).fromExit(Problem, I32) consume %18
+  return consume %19
+}
+
+entry main

@@ -69,6 +69,72 @@ bool Resolver::acceptsType(DeclPtr<Type> from, DeclPtr<Type> to, LocationId sour
 }
 
 /*
+ * Whether this operand is a **written number and nothing else** - the one argument shape whose type
+ * the candidate decides rather than the other way round.
+ *
+ * `doc/spec/overloading.md` R5 pushes a position's type down only where a plain function is the whole
+ * set, so an untyped literal standing in a set of several has nothing to take and is built at its
+ * default. `48 + rest` then offers `I32` to `Native`'s pointer `+` and to `Num.+` alike and fits
+ * neither, which is the eight `lib/Core` sites of `doc/progress/2026-09-06-J1-lib-crash.md`. A
+ * literal is a `FromInt` call at a type to be decided, so what it *is* is exactly what a position
+ * decides - and leaving it unbuilt until one has is what turns "no + accepts these" into a
+ * selection.
+ *
+ * A string and a `True` are not this: they have a type of their own before anything asks. A negation
+ * of a number is, since the sign folds into the constant, and so is a parenthesized one - both are
+ * unwrapped by the same walk that will build it.
+ */
+bool Resolver::undecidedLiteral(ast::Expr& expr, intrinsic::Known& role) {
+    if(expr.kind == ast::Expr::Nested) return undecidedLiteral(*parse[expr.nested], role);
+
+    if(expr.kind == ast::Expr::Prefix && isNegation(context, parse, expr)) {
+        return undecidedLiteral(parse[expr.prefix]->on, role);
+    }
+
+    if(!ast::isLiteral(expr)) return false;
+
+    switch(ast::Literal::Kind(expr.kind - ast::Expr::Lit)) {
+        case ast::Literal::Int:
+            role = intrinsic::Known::fromInt;
+            return true;
+        case ast::Literal::Double:
+        case ast::Literal::Float:
+            role = intrinsic::Known::fromDecimal;
+            return true;
+        default:
+            return false;
+    }
+}
+
+/*
+ * Whether a number of this role can be built at this type - `literalNode`'s two answers, asked
+ * without reporting and without building anything.
+ *
+ * A **concrete** type needs the instance to exist, which is `literalInstance`'s question with its
+ * message left out. A type **variable of the enclosing signature** needs that signature to have
+ * required the conversion class, which is the same thing `literalNode` relies on one step later:
+ * `0.5 + r` inside `fn (Real(a, m)) sinOf(r: a)` builds the half at `a` through the `FromDecimal(a)`
+ * that `Real`'s own context promises, so a viability test that answered only for concrete types
+ * would have made every coefficient in `lib/Math` an `F32` standing beside an `a`.
+ */
+static bool admitsLiteral(Resolver& resolver, intrinsic::Known role, DeclPtr<Type> type,
+                          LocationId source) {
+    auto base = resolver.decl();
+    auto klass = resolver.program.roles.klass(role);
+    if(!type) return false;
+
+    if(!isConcreteType(base, type)) {
+        auto enclosing = resolver.currentFunction ? resolver.currentFunction->gen : nullptr;
+        if(base[type]->kind != Type::Variable) return false;
+
+        return satisfiesRequirement(resolver.context, resolver.program, enclosing, klass, &type, 1);
+    }
+
+    InstanceMatch found;
+    return selectInstance(resolver.context, resolver.program, klass, &type, 1, source, false, found);
+}
+
+/*
  * R2's "every argument binds its declared position", asked of one candidate.
  *
  * The trial binds the candidate's own type arguments from what stands opposite them, exactly as the
@@ -85,7 +151,7 @@ bool Resolver::acceptsType(DeclPtr<Type> from, DeclPtr<Type> to, LocationId sour
  */
 bool Resolver::candidateAccepts(Function& callee, const ArgMap& map,
                                 const DeclPtr<Type>* argumentTypes, Size count, LocationId source,
-                                TypeArguments& into) {
+                                TypeArguments& into, const intrinsic::Known* literals) {
     for(Size i = 0; i < count; i++) {
         // Every written argument has a position: `checkCallShape` answered false for this candidate
         // otherwise, and it ran before this did. Read without a guard, so that this and the two
@@ -102,8 +168,55 @@ bool Resolver::candidateAccepts(Function& callee, const ArgMap& map,
          */
         if(parameter.lazy) continue;
 
+        // An **undecided literal** binds nothing: what it is is what this position turns out to be,
+        // so it is checked in the second pass below once every other argument has bound.
+        if(literals && literals[i] != intrinsic::Known::Count) continue;
+
         into.bind(declared, argumentTypes[i]);
         if(!acceptsType(argumentTypes[i], into.expected(declared), source)) return false;
+    }
+
+    /*
+     * The literal positions, after the rest - which is the whole of the ordering.
+     *
+     * A candidate is viable at a literal operand when its *other* parameters have fixed the
+     * position's type and a conversion instance exists there. `48 + rest` at `Native`'s
+     * `+(p: %a, n: Size)` fixes nothing about `%a` from a number and is not viable; at `Num.+(lhs: a,
+     * rhs: a)` the second operand has already bound `a`, and whether the number can be made at it is
+     * `FromInt`'s own question. Exactly one viable candidate selects, and more than one is the
+     * ambiguity R2 already reports - said by the ordinary count below rather than by a rule of its
+     * own.
+     */
+    if(!literals) return true;
+
+    for(Size i = 0; i < count; i++) {
+        if(literals[i] == intrinsic::Known::Count) continue;
+
+        auto& parameter = *decl()[callee.args.get(decl(), map.position(U32(i)))];
+        if(parameter.lazy) continue;
+
+        auto declared = parameter.occurrence.type;
+
+        /*
+         * A position nothing else decided takes the literal's own **default** - `1 - 1023`, whose
+         * two operands are both numbers and where there is no other argument to read one off. That
+         * is the same rule a literal in any other position obeys and the same one `resolveValue`
+         * applies when it builds this operand later, so the trial and the build agree by
+         * construction rather than by both spelling `I32`.
+         *
+         * A position the other arguments left standing at *the enclosing signature's own variable*
+         * is not undecided: it is a type this body is generic in, and the number is built at it
+         * through whatever conversion class the signature required. So the default is taken only
+         * where nothing at all is standing there.
+         */
+        auto expected = into.expected(declared);
+
+        if(!expected || (!isConcreteType(decl(), expected) &&
+                         !admitsLiteral(*this, literals[i], expected, source))) {
+            into.bind(declared, literalDefault(literals[i], source));
+        }
+
+        if(!admitsLiteral(*this, literals[i], into.expected(declared), source)) return false;
     }
 
     return true;
@@ -335,7 +448,9 @@ static bool agreedShape(Resolver& resolver, const Candidate* candidates, Size co
  */
 static const Candidate* chooseCandidate(Resolver& resolver, SmallArray<Candidate, 4>& candidates,
                                         const OverloadSet& set, Node* const* values, Size arguments,
-                                        StringId name, LocationId nameSource, LocationId source) {
+                                        StringId name, LocationId nameSource, LocationId source,
+                                        const intrinsic::Known* literals = nullptr,
+                                        CandidateKind kind = CandidateKind::Any) {
     auto& context = resolver.context;
     auto base = resolver.decl();
 
@@ -343,7 +458,8 @@ static const Candidate* chooseCandidate(Resolver& resolver, SmallArray<Candidate
     // rather than at each caller, because this is where a set settles on one - `checkCallable`, the
     // same question `resolveCall` and `findOperator` ask of a name that reached a single one.
     auto chosen = [&](const Candidate* candidate) -> const Candidate* {
-        return resolver.checkCallable(*base[candidate->function], nameSource) ? candidate : nullptr;
+        return resolver.checkCallable(*base[candidate->function], nameSource,
+                                      kind == CandidateKind::Iterator) ? candidate : nullptr;
     };
 
     /*
@@ -363,7 +479,7 @@ static const Candidate* chooseCandidate(Resolver& resolver, SmallArray<Candidate
         TypeArguments bound(resolver, candidate.gen);
 
         if(!resolver.candidateAccepts(candidate, candidates[i].map, argumentTypes.pointer(),
-                                      arguments, source, bound)) {
+                                      arguments, source, bound, literals)) {
             continue;
         }
 
@@ -466,17 +582,28 @@ static const Candidate* chooseCandidate(Resolver& resolver, SmallArray<Candidate
  * had to answer - so it could not have been built earlier, and every candidate agreeing about which
  * positions are deferred is what makes leaving it until now sound.
  */
-Node* Resolver::finishOverloadedCall(Builder& builder, ast::AppExpr& written, Function& callee,
-                                     const ArgMap& map, SmallArray<Node*, 8>& values,
-                                     DeclPtr<Type> hint, LocationId source) {
-    TypeArguments typeArguments(*this, callee.gen);
-
-    SmallArray<Node*, 8> arguments;
-    for(U32 i = 0; i < map.count(); i++) arguments.push(nullptr);
-
-    HeldList<SmallArray<Node*, 8>> held(*this, arguments);
+bool Resolver::prepareResolvedArguments(Builder& builder, ast::AppExpr& written, Function& callee,
+                                        const ArgMap& map, LocationId source,
+                                        SmallArray<Node*, 8>& values,
+                                        SmallArray<Node*, 8>& arguments,
+                                        TypeArguments& typeArguments, Receiver receiver) {
+    // What the resolved arguments decide, taken before any position is prepared - the types an
+    // undecided literal's own position reads. See `bindResolvedArguments`.
+    bindResolvedArguments(callee, map, values.pointer(), values.size(), typeArguments);
 
     auto at = U32(0);
+
+    // The receiver, whose value was read at the request the set agreed on and which reaches the same
+    // `prepareArgument` every other position does - `Receiver`, and `resolveArguments`' own note.
+    if(receiver) {
+        auto position = map.position(at++);
+        auto& parameter = *decl()[callee.args.get(decl(), position)];
+
+        arguments[position] = prepareArgument(builder, *values[0], parameter, typeArguments,
+                                              receiver.source);
+        if(!arguments[position]) return false;
+    }
+
     for(auto argument: written.args.contents(parse)) {
         auto index = at++;
         auto position = map.position(index);
@@ -485,19 +612,60 @@ Node* Resolver::finishOverloadedCall(Builder& builder, ast::AppExpr& written, Fu
         if(parameter.lazy) {
             auto thunk = resolveDeferred(builder, argument.value,
                                          typeArguments.expected(parameter.occurrence.type));
-            if(!thunk) return nullptr;
+            if(!thunk) return false;
 
             arguments[position] = prepareArgument(builder, *thunk, parameter, typeArguments,
+                                                  argument.value.source);
+        } else if(!values[index]) {
+            /*
+             * The undecided literal, built at the position the winner declared - see
+             * `undecidedLiteral`. `bindResolvedArguments` ran above, so this reads what the *other*
+             * arguments decided rather than what the positions before it happened to bind.
+             *
+             * `resolveValue` and not `literalValue`, because what was left standing is the written
+             * expression: a negated number is a prefix node whose sign folds into the constant one
+             * level down, and a parenthesized one is a nested node, and unwrapping either is the
+             * value walk's own job rather than a second copy of it here.
+             */
+            auto value = resolveValue(builder, argument.value,
+                                      typeArguments.hint(parameter.occurrence.type),
+                                      requestOf(parameter.occurrence));
+            if(!value) return false;
+
+            arguments[position] = prepareArgument(builder, *value, parameter, typeArguments,
                                                   argument.value.source);
         } else {
             arguments[position] = prepareArgument(builder, *values[index], parameter, typeArguments,
                                                   argument.value.source);
         }
 
-        if(!arguments[position]) return nullptr;
+        if(!arguments[position]) return false;
     }
 
-    if(!fillDefaultArguments(builder, callee, map, source, arguments)) return nullptr;
+    if(!widenPreparedArguments(builder, callee, map, source, arguments, typeArguments)) {
+        return false;
+    }
+
+    return fillDefaultArguments(builder, callee, map, source, arguments);
+}
+
+// See the declaration. The winner's positions, then the call - the second half of R5, split from the
+// first so that a `for` loop's traversal can reach the same preparation without also being a call.
+Node* Resolver::finishOverloadedCall(Builder& builder, ast::AppExpr& written, Function& callee,
+                                     const ArgMap& map, SmallArray<Node*, 8>& values,
+                                     DeclPtr<Type> hint, LocationId source, Receiver receiver) {
+    TypeArguments typeArguments(*this, callee.gen);
+    typeArguments.unifies = true;
+
+    SmallArray<Node*, 8> arguments;
+    for(U32 i = 0; i < map.count(); i++) arguments.push(nullptr);
+
+    HeldList<SmallArray<Node*, 8>> held(*this, arguments);
+
+    if(!prepareResolvedArguments(builder, written, callee, map, source, values, arguments,
+                                 typeArguments, receiver)) {
+        return nullptr;
+    }
 
     return finishCall(builder, callee, arguments, typeArguments, hint, source);
 }
@@ -511,10 +679,15 @@ Node* Resolver::finishOverloadedCall(Builder& builder, ast::AppExpr& written, Fu
  * next, because it decides how the arguments are resolved; the arguments are resolved once; and
  * only then is a candidate chosen.
  */
-Node* Resolver::resolveOverloadedCall(Builder& builder, ast::AppExpr& written,
-                                      const OverloadSet& set, StringId name, LocationId nameSource,
-                                      DeclPtr<Type> hint, LocationId source) {
+bool Resolver::selectOverload(Builder& builder, ast::AppExpr& written, const OverloadSet& set,
+                              StringId name, LocationId nameSource, LocationId source,
+                              Receiver receiver, CandidateKind kind, OverloadChoice& into) {
     SmallArray<Candidate, 4> candidates;
+
+    // A dot-call's receiver fills position 0 of every candidate's mapping - `ArgSite::leading`. It
+    // takes part in selection exactly as a written argument does, which is what makes `x.f(y)` and
+    // `f(x, y)` choose the same candidate.
+    auto leading = receiver.leading();
 
     /*
      * The candidates this call's *shape* admits - the written names map onto declared positions, and
@@ -527,7 +700,13 @@ Node* Resolver::resolveOverloadedCall(Builder& builder, ast::AppExpr& written,
         Candidate candidate;
         candidate.function = set.at(i);
 
-        if(!checkCallShape(written, *decl()[candidate.function], source, candidate.map, false)) {
+        // And the kind the *position* admits, which is the filter this takes: a `for` runs an
+        // iterator, so a plain function of the name is not a candidate of that loop at all and must
+        // not constrain what the set agrees about. `CandidateKind::Any` is every other call.
+        if(kind == CandidateKind::Iterator && !decl()[candidate.function]->iterator) continue;
+
+        if(!checkCallShape(written, *decl()[candidate.function], source, candidate.map, false,
+                           leading, receiver.source)) {
             continue;
         }
 
@@ -552,33 +731,54 @@ Node* Resolver::resolveOverloadedCall(Builder& builder, ast::AppExpr& written,
         context.diagnostics.error("no %@ takes these arguments - the candidates at this arity are %@, and none of them has the positions this call writes"_v,
                                   nameSource, context.findName(name),
                                   candidateList(context, decl(), listed.pointer(), listed.size()));
-        return nullptr;
+        return false;
     }
 
-    auto arguments = Size(written.args.size());
+    auto arguments = Size(leading) + Size(written.args.size());
 
     SmallArray<Request, 8> requests;
     SmallArray<bool, 8> deferred;
     if(!agreedShape(*this, candidates.pointer(), candidates.size(), set, arguments, source,
                     requests, deferred)) {
-        return nullptr;
+        return false;
+    }
+
+    // The receiver's own position, refused for the reason `resolveArguments` gives: deciding that
+    // this was a call at all needed the receiver evaluated, and a deferred position is the one that
+    // must not be.
+    if(leading && deferred[0]) {
+        context.diagnostics.error(
+            "%@ defers its first argument, so it cannot be called with a dot - the receiver has to be evaluated to decide the form, and a `@lazy` position may not be. Write it as %@(...)"_v,
+            receiver.source, context.findName(name), context.findName(name));
+        return false;
     }
 
     /*
      * The arguments, resolved once and in written order, with **no expected type** - R5's last
      * paragraph, and the note at the top of this file.
      *
-     * `HeldList` for the reason `resolveArguments` uses one: an `if` in argument three puts a branch
-     * between arguments one and two and the call that uses them, so a value already produced has to
-     * travel that branch's edges.
+     * The `HeldList` over them is the **caller's**, for the reason `resolveArguments` has one at
+     * all: an `if` in argument three puts a branch between arguments one and two and whatever uses
+     * them, so a value already produced has to travel that branch's edges - and what uses them here
+     * is the caller, after this returns.
      */
-    SmallArray<Node*, 8> values;
-    for(Size i = 0; i < arguments; i++) values.push(nullptr);
-
-    HeldList<SmallArray<Node*, 8>> held(*this, values);
+    auto& values = into.values;
+    SmallArray<intrinsic::Known, 8> literals;
+    for(Size i = 0; i < arguments; i++) {
+        values.push(nullptr);
+        literals.push(intrinsic::Known::Count);
+    }
 
     {
-        auto at = U32(0);
+
+        // The receiver first, because it was written first - read at the request the whole set
+        // agreed on, exactly as every other argument below is.
+        if(leading) {
+            values[0] = readPlace(builder, receiver.source, *receiver.place, requests[0]);
+            if(!values[0]) return false;
+        }
+
+        auto at = leading;
         for(auto argument: written.args.contents(parse)) {
             auto index = at++;
 
@@ -587,17 +787,54 @@ Node* Resolver::resolveOverloadedCall(Builder& builder, ast::AppExpr& written,
             // not known until a candidate is chosen. So it is left for `resolveArguments` below.
             if(deferred[index]) continue;
 
+            // And an **undecided literal** is left for the same reason at one remove: what it is is
+            // the winner's position to decide - `undecidedLiteral`. Built in `finishOverloadedCall`
+            // beside the deferred one, so nothing is resolved twice and no constant is built at a
+            // width the call then has to convert away from.
+            if(undecidedLiteral(argument.value, literals[index])) continue;
+
             values[index] = resolveValue(builder, argument.value, nullptr, requests[index]);
-            if(!values[index]) return nullptr;
+            if(!values[index]) return false;
         }
     }
 
     auto chosen = chooseCandidate(*this, candidates, set, values.pointer(), arguments, name,
-                                  nameSource, source);
-    if(!chosen) return nullptr;
+                                  nameSource, source, literals.pointer(), kind);
+    if(!chosen) return false;
 
-    return finishOverloadedCall(builder, written, *decl()[chosen->function], chosen->map, values,
-                                hint, source);
+    into.function = chosen->function;
+
+    // The winner's mapping, copied out because the candidate list is a local of this walk. Element
+    // by element rather than by assignment: a `SmallArray` is deliberately not copy-assignable, so
+    // that a list of anything with an identity cannot be duplicated by accident.
+    for(Size i = 0; i < chosen->map.sources.size(); i++) into.map.sources.push(chosen->map.sources[i]);
+    for(Size i = 0; i < chosen->map.positions.size(); i++) into.map.positions.push(chosen->map.positions[i]);
+    for(Size i = 0; i < chosen->map.written.size(); i++) into.map.written.push(chosen->map.written[i]);
+
+    return true;
+}
+
+/*
+ * A call whose name and arity reach more than one candidate - the selection above, then the call.
+ *
+ * Two functions because the *first* half serves something that is not a call: a `for` loop runs an
+ * iterator of a name that may reach several, and what it does with the winner is open a continuation
+ * region rather than emit a call. `handoverCall` takes the choice this made, which is what keeps
+ * R2-R5 one rule instead of two that would have to agree.
+ */
+Node* Resolver::resolveOverloadedCall(Builder& builder, ast::AppExpr& written,
+                                      const OverloadSet& set, StringId name, LocationId nameSource,
+                                      DeclPtr<Type> hint, LocationId source, Receiver receiver) {
+    OverloadChoice chosen;
+    HeldList<SmallArray<Node*, 8>> held(*this, chosen.values);
+
+    if(!selectOverload(builder, written, set, name, nameSource, source, receiver,
+                       CandidateKind::Any, chosen)) {
+        return nullptr;
+    }
+
+    return finishOverloadedCall(builder, written, *decl()[chosen.function], chosen.map,
+                                chosen.values, hint, source, receiver);
 }
 
 /*
@@ -679,14 +916,16 @@ bool Resolver::operatorRequests(const OverloadSet& set, StringId name, Size oper
  */
 Node* Resolver::selectOperatorCall(Builder& builder, const OverloadSet& set, StringId name,
                                    LocationId source, Node* const* values, Size operands,
-                                   DeclPtr<Type> hint) {
+                                   DeclPtr<Type> hint, ast::Expr* const* pending,
+                                   const intrinsic::Known* literals) {
     SmallArray<Candidate, 4> candidates;
     operatorCandidates(*this, set, operands, candidates);
 
-    auto chosen = chooseCandidate(*this, candidates, set, values, operands, name, source, source);
+    auto chosen = chooseCandidate(*this, candidates, set, values, operands, name, source, source,
+                                  literals);
     if(!chosen) return nullptr;
 
-    return callFunction(builder, *decl()[chosen->function], values, operands, source, hint);
+    return callFunction(builder, *decl()[chosen->function], values, operands, source, hint, pending);
 }
 
 } // namespace mir

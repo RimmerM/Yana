@@ -179,7 +179,7 @@ bb3:
   jump -> bb1
 }
 
-fn joined(flag: Bool [shared call], a: I32 [shared call], b: I32 [shared call]) -> I32 {
+fn joined'2(flag: Bool [shared call], a: I32 [shared call], b: I32 [shared call]) -> I32 {
 bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
   %4: %Bool address = alloc frame Bool [shared call]
   %5: %I32 address = alloc frame I32 [shared call]
@@ -248,12 +248,12 @@ bb0:
   %12: Bool trivial = const True
   %13: I32 trivial = const 3
   %14: I32 trivial = const 9
-  %15: I32 trivial = call joined borrow %12 borrow %13 borrow %14
+  %15: I32 trivial = call joined'2 borrow %12 borrow %13 borrow %14
   %16: I32 trivial = add inspect %11 inspect %15
   %17: Bool trivial = const False
   %18: I32 trivial = const 3
   %19: I32 trivial = const 9
-  %20: I32 trivial = call joined borrow %17 borrow %18 borrow %19
+  %20: I32 trivial = call joined'2 borrow %17 borrow %18 borrow %19
   %21: I32 trivial = add inspect %16 inspect %20
   return consume %21
 }

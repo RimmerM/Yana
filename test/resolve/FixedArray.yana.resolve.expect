@@ -257,66 +257,23 @@ fn total(%xs: ArrayView(I32)) -> I32 {
   b0:
     %sum = alloc : I32
     init %sum, 0
-    %i = alloc : I32
+    %i = alloc : Size
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : I32
+    %v8 = load %i : Size
     %v9 = load %xs@ArrayView.length : Size
-    %v10 = cast %v8 : Size
-    %v11 = cmp_lt %v10, %v9 : Bool
-    je %v11, b3, b2
+    %v10 = cmp_lt %v8, %v9 : Bool
+    je %v10, b3, b2
 
   b2:
-    %v36 = load %sum : I32
-    ret %v36
+    %v34 = load %sum : I32
+    ret %v34
 
   b3:
-    %v13 = load %sum : I32
-    %v14 = load %i : I32
-    %v15 = cast %v14 : Size
-    %v16 = borrow %xs : 'ArrayView(I32)
-    %v17 = load [%v16]@ArrayView.length : Size
-    %v18 = cast %v15 : USize
-    %v19 = cast %v17 : USize
-    %v20 = cmp_ge %v18, %v19 : Bool
-    call checkCondition, %v20
-    %v22 = load [%v16]@ArrayView.items : %I32
-    %v23 = strideof I32 : I64
-    %v24 = mul %v15, %v23 : I64
-    %v25 = add %v22, %v24 : %I32
-    %v26 = borrow [%v25] : 1'I32
-    %v27 = load [%v26] : I32
-    %v28 = add %v13, %v27 : I32
-    assign %sum, %v28
-    %v30 = load %i : I32
-    %v33 = add %v30, 1 : I32
-    assign %i, %v33
-    jmp b1
-}
-
-fn double(%xs: ArrayView(I32)) -> () {
-  b0:
-    %i = alloc : I32
-    init %i, 0
-    jmp b1
-
-  b1:
-    %v5 = load %i : I32
-    %v6 = load %xs : ArrayView(I32)
-    %v7 = load %xs@ArrayView.length : Size
-    %v8 = cast %v5 : Size
-    %v9 = cmp_lt %v8, %v7 : Bool
-    je %v9, b3, b2
-
-  b2:
-    ret
-
-  b3:
-    %v11 = load %xs : ArrayView(I32)
-    %v12 = load %i : I32
-    %v13 = cast %v12 : Size
+    %v12 = load %sum : I32
+    %v13 = load %i : Size
     %v14 = borrow %xs : 'ArrayView(I32)
     %v15 = load [%v14]@ArrayView.length : Size
     %v16 = cast %v13 : USize
@@ -328,26 +285,64 @@ fn double(%xs: ArrayView(I32)) -> () {
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I32
     %v24 = borrow [%v23] : 1'I32
-    %value = load [%v24] : I32
-    %v26 = load %xs : ArrayView(I32)
-    %v27 = load %i : I32
-    %v28 = cast %v27 : Size
-    %v29 = borrow_mut %xs : &ArrayView(I32)
-    %v30 = load [%v29]@ArrayView.length : Size
-    %v31 = cast %v28 : USize
-    %v32 = cast %v30 : USize
-    %v33 = cmp_ge %v31, %v32 : Bool
-    call checkCondition, %v33
-    %v35 = load [%v29]@ArrayView.items : %I32
-    %v36 = strideof I32 : I64
-    %v37 = mul %v28, %v36 : I64
-    %v38 = add %v35, %v37 : %I32
-    %v39 = borrow_mut [%v38] : &1'I32
-    %v40 = add %value, %value : I32
-    assign [%v39], %v40
-    %v42 = load %i : I32
-    %v45 = add %v42, 1 : I32
-    assign %i, %v45
+    %v25 = load [%v24] : I32
+    %v26 = add %v12, %v25 : I32
+    assign %sum, %v26
+    %v28 = load %i : Size
+    %v31 = add %v28, 1 : Size
+    assign %i, %v31
+    jmp b1
+}
+
+fn double(%xs: ArrayView(I32)) -> () {
+  b0:
+    %i = alloc : Size
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v5 = load %i : Size
+    %v6 = load %xs : ArrayView(I32)
+    %v7 = load %xs@ArrayView.length : Size
+    %v8 = cmp_lt %v5, %v7 : Bool
+    je %v8, b3, b2
+
+  b2:
+    ret
+
+  b3:
+    %v10 = load %xs : ArrayView(I32)
+    %v11 = load %i : Size
+    %v12 = borrow %xs : 'ArrayView(I32)
+    %v13 = load [%v12]@ArrayView.length : Size
+    %v14 = cast %v11 : USize
+    %v15 = cast %v13 : USize
+    %v16 = cmp_ge %v14, %v15 : Bool
+    call checkCondition, %v16
+    %v18 = load [%v12]@ArrayView.items : %I32
+    %v19 = strideof I32 : I64
+    %v20 = mul %v11, %v19 : I64
+    %v21 = add %v18, %v20 : %I32
+    %v22 = borrow [%v21] : 1'I32
+    %value = load [%v22] : I32
+    %v24 = load %xs : ArrayView(I32)
+    %v25 = load %i : Size
+    %v26 = borrow_mut %xs : &ArrayView(I32)
+    %v27 = load [%v26]@ArrayView.length : Size
+    %v28 = cast %v25 : USize
+    %v29 = cast %v27 : USize
+    %v30 = cmp_ge %v28, %v29 : Bool
+    call checkCondition, %v30
+    %v32 = load [%v26]@ArrayView.items : %I32
+    %v33 = strideof I32 : I64
+    %v34 = mul %v25, %v33 : I64
+    %v35 = add %v32, %v34 : %I32
+    %v36 = borrow_mut [%v35] : &1'I32
+    %v37 = add %value, %value : I32
+    assign [%v36], %v37
+    %v39 = load %i : Size
+    %v42 = add %v39, 1 : Size
+    assign %i, %v42
     jmp b1
 }
 

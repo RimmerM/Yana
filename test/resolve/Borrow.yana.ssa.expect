@@ -11,7 +11,7 @@ bb0(%0: I32 [unique call] guaranteed, %1: I32 [shared call] guaranteed):
   return
 }
 
-fn swap(a: I32 [unique call], b: I32 [unique call]) -> {} {
+fn swap'2(a: I32 [unique call], b: I32 [unique call]) -> {} {
 bb0(%0: I32 [unique call] guaranteed, %1: I32 [unique call] guaranteed):
   %2: %I32 address = alloc frame I32
   %3: I32 trivial = load inspect %0
@@ -74,7 +74,7 @@ bb0:
   store inspect %2 consume %12
   %13: I32 [unique call] guaranteed from{%1} = load inspect %1
   %14: I32 [unique call] guaranteed from{%2} = load inspect %2
-  call swap borrow %13 borrow %14
+  call swap'2 borrow %13 borrow %14
   %15: I32 trivial = const 10
   %16: I32 trivial = const 20
   %17: Point trivial = aggregate.Point consume %15 consume %16

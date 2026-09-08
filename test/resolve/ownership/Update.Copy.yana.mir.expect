@@ -1,0 +1,103 @@
+module ResolveTest
+
+data Pair {left: I32, right: I32}
+
+instance Copy(Pair): Pair.copy
+
+let & copies: I32 = 0
+
+fn Pair.copy(from: Pair [shared call]) -> Pair {
+bb0:
+  %0: I32 = read copy.trivial (global copies)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global copies) take %2
+  %4: I32 = read copy.trivial (from.left)
+  %5: I32 = const 100
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = read copy.trivial (from.right)
+  %8: Pair = aggregate.Pair take %6 take %7
+  return take %8
+}
+
+fn withRight(p: Pair [shared call], r: I32 [shared call]) -> Pair {
+  local & local2: Pair
+
+bb0:
+  %0: Pair [shared call] = read borrow.shared (p) loan0
+  %1: Pair = call copy(Pair) borrow.shared %0
+  write.init borrow.unique (local2) take %1
+  %3: I32 = read copy.trivial (r)
+  write.assign borrow.unique (local2.right) take %3
+  %5: Pair = read take (local2)
+  return take %5
+}
+
+fn both(p: Pair [shared call]) -> Pair {
+  local & local1: Pair
+
+bb0:
+  %0: Pair [shared call] = read borrow.shared (p) loan0
+  %1: Pair = call copy(Pair) borrow.shared %0
+  write.init borrow.unique (local1) take %1
+  %3: I32 = const 7
+  %4: I32 = const 8
+  write.assign borrow.unique (local1.left) take %3
+  write.assign borrow.unique (local1.right) take %4
+  %7: Pair = read take (local1)
+  return take %7
+}
+
+fn madeHere() -> Pair {
+  local & local0: Pair
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (local0) take %2
+  %4: I32 = const 5
+  write.assign borrow.unique (local0.right) take %4
+  %6: Pair = read take (local0)
+  return take %6
+}
+
+fn main() -> I32 {
+  local p: Pair
+  local a: Pair
+  local b: Pair
+  local local3: Pair
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: Pair [shared call] = read borrow.shared (p) loan0
+  %5: I32 = const 3
+  %6: Pair = call withRight borrow.shared %4 borrow.shared %5
+  write.init borrow.unique (a) take %6
+  %8: Pair [shared call] = read borrow.shared (p) loan1
+  %9: Pair = call both borrow.shared %8
+  write.init borrow.unique (b) take %9
+  %11: I32 = read copy.trivial (p.left)
+  %12: I32 = const 10000
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = read copy.trivial (a.left)
+  %15: I32 = const 100
+  %16: I32 = mul inspect %14 inspect %15
+  %17: I32 = add inspect %13 inspect %16
+  %18: I32 = read copy.trivial (b.left)
+  %19: I32 = const 10
+  %20: I32 = mul inspect %18 inspect %19
+  %21: I32 = add inspect %17 inspect %20
+  %22: Pair = call madeHere
+  write.init borrow.unique (local3) take %22
+  %24: I32 = read copy.trivial (local3.right)
+  %25: I32 = add inspect %21 inspect %24
+  %26: I32 = read copy.trivial (global copies)
+  %27: I32 = add inspect %25 inspect %26
+  return take %27
+}
+
+entry main

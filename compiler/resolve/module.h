@@ -494,14 +494,16 @@ struct Function {
     /*
      * `@inline(always)` - the third of them, and the one that is neither of the two above.
      *
-     * A *directive the resolver carries out*, so it is not weighed by anything and never reaches
-     * compiler/opt: a call to one of these is replaced by the body where it is written, and the
-     * function is emitted only if something took its address. What makes that promise keepable is
-     * the restriction - one expression, no control flow, no storage, no ownership - which is checked
-     * at the declaration and reported there. See resolve/fold.h, which is the whole of it.
+     * A *directive*, carried out by whichever of the two passes can: the resolver grafts a body that
+     * is one expression where it is called, and compiler/opt's inliner takes every other one
+     * unconditionally, against its ceiling and nothing else in its table. So a call to one of these
+     * is gone from the optimized program however the body is written, and the function is emitted
+     * only if something took its address or the build asked for no optimizer at all. inline.h argues
+     * the split; inventory D12 is where it was decided.
      *
-     * Cleared by that check when the body does not qualify, so a refused declaration is still a
-     * function and is still callable; the diagnostic is what says the attribute did nothing.
+     * Cleared by `checkAlwaysInline` for the one body neither pass can spend - one that calls itself
+     * - so a refused declaration is still a function and is still callable; the diagnostic is what
+     * says the attribute did nothing.
      */
     bool alwaysInline = false;
 

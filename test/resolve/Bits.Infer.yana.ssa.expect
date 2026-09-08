@@ -1,6 +1,6 @@
 module ResolveTest
 
-fn sum(both: Same(U64) [shared call]) -> U64 {
+fn sum'2(both: Same(U64) [shared call]) -> U64 {
 bb0(%0: Same(U64) [shared call] guaranteed):
   %1: %U64 address = field.addr .left inspect %0
   %2: U64 trivial = load inspect %1
@@ -23,7 +23,7 @@ bb0(%0: @bits(53) U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed
   %8: Same(U64) trivial = aggregate.Same consume %6 consume %7
   store inspect %4 consume %8
   %9: Same(U64) trivial = copy inspect %4
-  %10: U64 trivial = call sum borrow %9
+  %10: U64 trivial = call sum'2 borrow %9
   return consume %10
 }
 
@@ -40,7 +40,7 @@ bb0(%0: U64 [shared call] guaranteed, %1: @bits(53) U64 [shared call] guaranteed
   %8: Same(U64) trivial = aggregate.Same consume %5 consume %7
   store inspect %4 consume %8
   %9: Same(U64) trivial = copy inspect %4
-  %10: U64 trivial = call sum borrow %9
+  %10: U64 trivial = call sum'2 borrow %9
   return consume %10
 }
 

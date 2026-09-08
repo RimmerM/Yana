@@ -34,10 +34,25 @@ pub fn *(it: %a) -> a
 @builtin(pointerStore)
 pub fn store(to: %a, ->value: a) -> {}
 
--- The address of a value. A value this is applied to cannot stay in a register, so it is what
--- forces storage to exist for something that would otherwise have had none.
+{-
+   The address of a value. A value this is applied to cannot stay in a register, so it is what
+   forces storage to exist for something that would otherwise have had none.
+
+   **The parameter publishes its pointee** - `it: source'a` and `-> %source'a`, the same qualifier
+   `+`, `-`, `borrow` and `values` carry. It is what is true: the pointer names the argument's own
+   storage, so a borrow taken through it is a borrow of that storage and the argument has to outlive
+   the pointer. Written `it: a` the result was a pointer into nothing a signature could name, and the
+   escape rule at a signature had nothing to follow - which is what
+   `test/resolve/ownership/Reject.Pointer.yana` used to state as a cost.
+
+   The shipping stage **reads none of this**: it supplies its own definition of the role (see
+   `readIntrinsicRole` in `compiler/resolve/module_sig.cpp`), so a trivially copyable argument is
+   still copied into the call and the address is the copy's, which is what `test/resolve/Global.yana`
+   documents as the meaning of `addressOf` of a constant there. The two stages therefore disagree
+   about that one program, deliberately, and this file states what the *language* means.
+-}
 @builtin(addressOf)
-pub fn addressOf(it: a) -> %a
+pub fn addressOf(it: source'a) -> %source'a
 
 {-
    Reinterpreting a pointer - which is `Core.bitcast`, and not three functions of this module's own.
@@ -180,11 +195,20 @@ pub fn borrowMut(it: %source'a) -> &source'a
 @platform(native) pub fn alignOf(it: a) -> Size = traitsOf(it).align
 @platform(native) pub fn strideOf(it: a) -> Size = traitsOf(it).stride
 
--- Pointer arithmetic, in elements rather than in bytes: `p + 1` advances by one `a`, whatever an
--- `a` is. Byte-granular work casts to `%U8` first, where the two coincide.
+{-
+   Pointer arithmetic, in elements rather than in bytes: `p + 1` advances by one `a`, whatever an
+   `a` is. Byte-granular work casts to `%U8` first, where the two coincide.
+
+   **The result refers to what the argument referred to** - `%source'a` at both ends. An element of a
+   window is `borrow(values(xs) + i)`, and the borrow is rooted wherever the pointer says its pointee
+   is: `values` published `xs`'s loan on its result, and this is what carries it across the offset. A
+   plain `%a` result carries nothing, so the borrow would be one no signature can say whose storage
+   it is - and `op.def`'s `pointerAdd` row now requires the qualifier rather than leaving the two
+   readings to drift.
+-}
 @builtin(pointerAdd)
-pub fn +(it: %a, count: Size) -> %a
+pub fn +(it: %source'a, count: Size) -> %source'a
 @builtin(pointerSub)
-pub fn -(it: %a, count: Size) -> %a
+pub fn -(it: %source'a, count: Size) -> %source'a
 @builtin(pointerDifference)
 pub fn difference(from: %a, to: %a) -> Size

@@ -1,0 +1,83 @@
+module ResolveTest
+
+data Box {v: I32}
+
+data Bag {w: I32}
+
+class Streamed(c): stream
+
+instance Streamed(Bag): Bag.stream
+
+lens fn stream(self: c [shared call], times: Size [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
+
+lens fn Bag.stream(self: Bag [shared call], times: Size [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (self.w)
+  %3: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %4: I32 = call inspect %3 borrow.shared %2
+  write.assign borrow.unique ($yielded) take %4
+  %6: I32 = read copy.trivial ($yielded)
+  return take %6
+}
+
+lens fn stream'2(b: Box [shared call], times: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (b.v)
+  %3: I32 = read copy.trivial (times)
+  %4: I32 = add inspect %2 inspect %3
+  %5: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %6: I32 = call inspect %5 borrow.shared %4
+  write.assign borrow.unique ($yielded) take %6
+  %8: I32 = read copy.trivial ($yielded)
+  return take %8
+}
+
+fn main() -> I32 {
+  local & total: I32
+  local x: I32 [shared call]
+  local y: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = const 1
+  %3: Box = aggregate.Box take %2
+  %4: I32 = const 2
+  lens.call stream'2 borrow.shared %3 borrow.shared %4 -> bb2
+
+bb1:
+  %13: I32 = const 40
+  %14: Bag = aggregate.Bag take %13
+  %15: Size = const 5
+  lens.call stream(Bag) borrow.shared %14 borrow.shared %15 -> bb4
+
+bb2(%5: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %5
+  %8: I32 = read copy.trivial (total)
+  %9: I32 = read copy.trivial (x)
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (total) take %10
+  jump -> bb1
+
+bb3:
+  %24: I32 = read copy.trivial (total)
+  return take %24
+
+bb4(%16: I32 [shared call]) handover(I32 [shared call]) many -> bb3:
+  write.init borrow.unique (y) borrow.shared %16
+  %19: I32 = read copy.trivial (total)
+  %20: I32 = read copy.trivial (y)
+  %21: I32 = add inspect %19 inspect %20
+  write.assign borrow.unique (total) take %21
+  jump -> bb3
+}
+
+entry main

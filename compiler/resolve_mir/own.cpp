@@ -328,6 +328,35 @@ struct CycleBreaker {
     }
 };
 
+/*
+ * Whether a declared `Copy` instance's answer is its **payload's** rather than its own.
+ *
+ * The question is about the instance and not about the arguments: a head that binds variables and
+ * whose own context requires `Copy` of one of them says "this carrier copies exactly as far as what
+ * it holds does", which is the structural answer restated - and where the payload does not copy, the
+ * member fold has already said so. A head that binds nothing, and one that promises `Copy` at every
+ * payload, are both the author overriding that fold, and those subtract.
+ *
+ * `instance.klass` and not the role, because this is asked of one class and the recursion it is
+ * about is the class asking for itself.
+ */
+static bool inheritedCopy(DeclBase base, Instance& instance) {
+    if(!instance.gen) return false;
+
+    auto& gen = *base[instance.gen];
+    if(gen.variables.size() == 0) return false;
+
+    for(auto requirement: gen.classes.contents(base)) {
+        if(requirement.klass != instance.klass) continue;
+
+        for(auto argument: requirement.args.contents(base)) {
+            if(argument && base[argument]->kind == Type::Variable) return true;
+        }
+    }
+
+    return false;
+}
+
 struct Classifier {
     Context& context;
     Program& program;
@@ -516,10 +545,26 @@ struct Classifier {
          * an authored `Copy` and no teardown is tracked without being linear. Its uses are moves and
          * a use after one is a diagnostic, and nothing runs when it dies - which is what
          * `isTracked`'s `|| !trivialCopy` term is for, and the first type to actually reach it.
+         *
+         * **At exactly this head, and a parametric one over the carrier is not that** -
+         * `doc/spec/ownership.md`'s TrivialCopy row, refined 2026-09-07. `instance (Copy(a))
+         * Copy(Maybe(a))` says nothing about `Maybe(Int)`: what it subtracts is its payload's, and
+         * where the payload is trivial the `Copy(a)` it asks for is the *blanket* instance, which
+         * subtracts from nothing. `lib/Core/Core.yana` says so beside the three carriers - "the two
+         * are candidates only where the payload is trivial *and* the carrier is not, which cannot
+         * happen" - and the shipping stage has always agreed. Read literally, this line disagreed:
+         * `let b = x` over a `Maybe(Int)` became a move, `node(n)?.leaf?.value` a use after one.
+         *
+         * So a conditional parametric head defers to the fold above, which already has the answer:
+         * `Maybe(String)` is non-trivial because its member is, and no subtraction is needed to say
+         * it. What still subtracts here is the head that is a statement about *this* type - a
+         * concrete one (`instance Copy(String)`), and a parametric one whose context does **not**
+         * make it conditional, since that one claims `Copy` at every payload including the trivial
+         * ones and is therefore an author overriding the structural answer.
          */
-        if(auto instance = declaredInstanceFor(context, program, intrinsic::Known::copy, asBase<Type>(&record - decl))) {
-            (void)instance;
-            result.trivialCopy = false;
+        if(auto instance = declaredInstanceFor(context, program, intrinsic::Known::copy,
+                                               asBase<Type>(&record - decl))) {
+            if(!inheritedCopy(decl, *decl[instance])) result.trivialCopy = false;
         }
 
         /*
@@ -684,6 +729,18 @@ struct Classifier {
 
 } // namespace
 
+// The argument is in constant.h, beside the kind.
+bool holdsText(DeclBase base, const Constant& constant) {
+    if(constant.kind == Constant::Text) return true;
+    if(constant.kind != Constant::Aggregate) return false;
+
+    for(auto value: base[constant.aggregate()]->values.contents(base)) {
+        if(holdsText(base, value)) return true;
+    }
+
+    return false;
+}
+
 // The argument is in own.h, beside the declaration.
 bool constantNeedsAllocation(DeclBase base, const Constant& constant) {
     if(constant.kind != Constant::Aggregate) return false;
@@ -717,6 +774,38 @@ bool constantNeedsAllocation(DeclBase base, const Constant& constant) {
         auto field = record.field(base, U16(arm.first + i));
         if(indirectField(base, field)) return true;
         if(constantNeedsAllocation(base, parts.values.get(base, i))) return true;
+    }
+
+    return false;
+}
+
+// The argument is in own.h, beside the declaration. `depth` bounds nothing a correct program can
+// reach - every containment cycle has a boxed edge, and this stops at the first one - and is here so
+// that a cut that did not happen is a conservative answer rather than a recursion with no bottom.
+bool reachesBox(DeclBase base, DeclPtr<Type> type, U32 depth) {
+    if(!type || depth > 16) return true;
+
+    switch(base[type]->kind) {
+        case Type::Variable:
+            return true;
+
+        // An array's slots are its element repeated, so a box in one is a box in the array.
+        case Type::Array:
+            return reachesBox(base, ((ArrayType*)base[type])->element, depth + 1);
+
+        case Type::Record: break;
+        default: return false;
+    }
+
+    auto& record = *(RecordType*)base[type];
+
+    // `tearsDownField` and not the field list, because what this answers is a question about the
+    // *teardown*: a field the record does not own, or one whose type owes nothing, is a field the
+    // derived walk never descends into and so never releases a box through.
+    for(auto field: record.fields.contents(base)) {
+        if(!tearsDownField(base, field)) continue;
+        if(indirectField(base, field)) return true;
+        if(reachesBox(base, field.occurrence.type, depth + 1)) return true;
     }
 
     return false;

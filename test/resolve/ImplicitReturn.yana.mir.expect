@@ -1,0 +1,147 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+fn double(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn sum'2(lhs: a [shared call], rhs: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (lhs) loan0
+  %1: a [shared call] = read borrow.shared (rhs) loan1
+  %2: a = call +(a) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn added(lhs: a [shared call], rhs: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (lhs) loan0
+  %1: a [shared call] = read borrow.shared (rhs) loan1
+  %2: a = call +(a) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn plussed(lhs: a [shared call], rhs: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (lhs) loan0
+  %1: a [shared call] = read borrow.shared (rhs) loan1
+  %2: a = call +(a) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn origin() -> Point {
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 0
+  %2: Point = aggregate.Point take %0 take %1
+  return take %2
+}
+
+fn answer() -> I32 {
+bb0:
+  %0: I32 = const 42
+  return take %0
+}
+
+fn useLater() -> I32 {
+bb0:
+  %0: I32 = call later
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn later() -> I32 {
+bb0:
+  %0: I32 = const 41
+  return take %0
+}
+
+fn annotated(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn fact(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 1
+  %2: Bool = le inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = read copy.trivial (n)
+  %7: I32 = const 1
+  %8: I32 = sub inspect %6 inspect %7
+  %9: I32 = call fact borrow.shared %8
+  %10: I32 = mul inspect %5 inspect %9
+  jump -> bb2(take %10)
+
+bb2(%11: I32):
+  return take %11
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn main() -> I32 {
+  local p: Point
+
+bb0:
+  %0: Point = call origin
+  write.init borrow.unique (p) take %0
+  %2: I32 = const 3
+  %3: I32 = call double borrow.shared %2
+  %4: I32 = const 1
+  %5: I32 = const 2
+  %6: I32 = call sum'2(I32) borrow.shared %4 borrow.shared %5
+  %7: I32 = add inspect %3 inspect %6
+  %8: I32 = const 1
+  %9: I32 = const 2
+  %10: I32 = call added(I32) borrow.shared %8 borrow.shared %9
+  %11: I32 = add inspect %7 inspect %10
+  %12: I32 = const 1
+  %13: I32 = const 2
+  %14: I32 = call plussed(I32) borrow.shared %12 borrow.shared %13
+  %15: I32 = add inspect %11 inspect %14
+  %16: I32 = call answer
+  %17: I32 = add inspect %15 inspect %16
+  %18: I32 = call useLater
+  %19: I32 = add inspect %17 inspect %18
+  %20: I32 = const 0
+  %21: I32 = call annotated borrow.shared %20
+  %22: I32 = add inspect %19 inspect %21
+  %23: I32 = const 4
+  %24: I32 = call fact borrow.shared %23
+  %25: I32 = add inspect %22 inspect %24
+  %26: I32 = read copy.trivial (p.x)
+  %27: I32 = add inspect %25 inspect %26
+  return take %27
+}
+
+fn sum'2(I32)(lhs: I32 [shared call], rhs: I32 [shared call]) -> I32 = <sum at I32>
+
+fn added(I32)(lhs: I32 [shared call], rhs: I32 [shared call]) -> I32 = <added at I32>
+
+fn plussed(I32)(lhs: I32 [shared call], rhs: I32 [shared call]) -> I32 = <plussed at I32>
+
+entry main

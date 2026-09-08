@@ -347,10 +347,10 @@ fn replace(%slot: Pair, %with: Pair) -> () {
     ret
 }
 
-fn borrowed(%p: Pair) -> 'I64 {
+fn borrowed(%p: 'Pair) -> 'I64 {
   b0:
-    %v1 = load %p@Pair.left : I64
-    %v2 = borrow %p@Pair.left : 'I64
+    %v1 = load [%p]@Pair.left : I64
+    %v2 = borrow [%p]@Pair.left : 'I64
     ret %v2
 }
 

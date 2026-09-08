@@ -1,0 +1,118 @@
+{-
+   A closure that **leaves the frame its captures were written in** - decision D17, and the second
+   half of `generic/Closure.yana`.
+
+   # resolver: ownership
+
+   `generic/Closure.yana` is the closure that stays: its environment is a local of the enclosing
+   frame, the value borrows it, and the drop of a capture is ordered after the closure's last use.
+   This is the other one. The environment is a **block of its own**, its first word is the teardown
+   that releases the captures and hands the block back, and the value's second word carries that
+   block's address with its low bit set - which is how a drop at a site that cannot name the lambda
+   finds anything to run at all.
+
+   **Which of the two a lambda gets is the position's answer.** A borrowing position is bounded by
+   its call, so a callback stays on the frame; an *owning* one - a `return`, a field, a `->`
+   parameter, an assignment into storage that already exists - claims the value is the receiver's,
+   and a value that referred to this frame could not be. That is the same condition
+   `checkCarriedOrigins` fires at, which is what makes this fixture the four shapes of that check.
+
+   Asserted by **counting**, for `ClosureDrop.yana`'s reason: a teardown that never ran and one that
+   ran twice are both invisible in the answer, because the captured value is collected either way.
+   `heapNext` is read for the same reason `HeapRelease.yana` reads it - a block that was allocated
+   and never handed back is a leak no teardown counter can see.
+-}
+
+import Native
+
+let &dropCalls = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->self: Guard):
+        dropCalls = dropCalls + 1
+
+data Handler {run: (I32) -> I32}
+
+fn consume(->f: (I32) -> I32, v: I32) -> I32 = f(v)
+
+fn call(f: (I32) -> I32, v: I32) -> I32 = f(v)
+
+-- **Returned.** The capture is consumed into the environment, so `g` is gone here and the block is
+-- what owns it; the caller's drop of the value is what releases it.
+fn returned(id: I32) -> (I32) -> I32:
+    let g = Guard {id: id}
+    return (x: I32) -> x + g.id
+
+-- **Into a field the record owns.** `Handler` is one type whether or not the value in it captured
+-- anything, which is why the declaration cannot say and the value has to - and why the answer had
+-- to be an environment the value owns rather than one it points at.
+fn inRecord(id: I32) -> Handler:
+    let g = Guard {id: id}
+    return Handler {run: (x: I32) -> x + g.id}
+
+-- **Into a position the callee owns.** `consume` drops the value it was given, and the lambda is
+-- not in view there: what runs is the block's header. This is `ClosureHeaderDead.yana`'s `handedOff`
+-- through this stage.
+fn handedOff(id: I32) -> I32:
+    let g = Guard {id: id}
+    return consume((x: I32) -> x + g.id, 1)
+
+-- **Dropped on one path only**, which is the drop flag doing its ordinary work over a value whose
+-- teardown is reached through a word rather than by name. `f` is a closure this frame did not
+-- build - the lambda is not in view here at all - so it is handed away on one arm and released here
+-- on the other, and exactly one release happens either way.
+fn oneArm(id: I32, away: Bool) -> I32:
+    let f = returned(id)
+
+    if away then return consume(f, 10)
+    return call(f, 20)
+
+-- A **borrowing** position, unchanged: the environment stays on the frame, the value carries the
+-- loan, and nothing is allocated at all. Here so that the numbers below say that the two placements
+-- coexist rather than that one of them replaced the other.
+fn borrowed(id: I32) -> I32:
+    let g = Guard {id: id}
+    return call((x: I32) -> x + g.id, 30)
+
+-- Every shape above, once. A function of its own so that the loop below can run it a hundred times
+-- against the allocator's bump pointer: a block that was allocated and never handed back is a leak
+-- no teardown counter can see, which is `HeapRelease.yana`'s reason for measuring the same thing.
+fn round() -> I32:
+    let &total = 0 :: I32
+
+    let f = returned(1)
+    total = total + f(10)
+
+    let h = inRecord(2)
+    total = total + h.run(20)
+
+    total = total + handedOff(3)
+    total = total + oneArm(4, True)
+    total = total + oneArm(5, False)
+    total = total + borrowed(6)
+
+    -- 11 + 22 + 4 + 14 + 25 + 36 = 112
+    return total
+
+fn main() -> I32:
+    -- One round ahead of the mark, so that what is measured is a steady state rather than the first
+    -- blocks the allocator ever handed out.
+    if round() != 112 then return -1
+    if dropCalls != 6 then return -2
+
+    let mark = bitcast(heapNext) :: Size
+
+    let &i = 0 :: I32
+    while i < 100:
+        if round() != 112 then return -3
+        i = i + 1
+
+    -- The whole leak assertion: the bump pointer did not move, so every environment block came back
+    -- to the free list.
+    if (bitcast(heapNext) :: Size) != mark then return -4
+
+    -- 606 guards released, and 112 from the last round - taken modulo 256 by the exit status, which
+    -- is why the answer is stated as one number rather than as a sum.
+    return 112 + (dropCalls - 600)

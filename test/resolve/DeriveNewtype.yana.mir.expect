@@ -16,7 +16,7 @@ instance Eq(Priority): Priority.==, Eq.!=
 
 instance Ord(Priority): Ord.<, Ord.<=, Ord.>, Ord.>=, Priority.compare, Ord.min, Ord.max
 
-fn OpenFlags.and(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags {
+fn OpenFlags.and'2(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags {
 bb0:
   %0: I64 = read copy.trivial (lhs.OpenFlags)
   %1: I64 = read copy.trivial (rhs.OpenFlags)
@@ -25,7 +25,7 @@ bb0:
   return take %3
 }
 
-fn OpenFlags.or(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags {
+fn OpenFlags.or'2(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags {
 bb0:
   %0: I64 = read copy.trivial (lhs.OpenFlags)
   %1: I64 = read copy.trivial (rhs.OpenFlags)
@@ -34,7 +34,7 @@ bb0:
   return take %3
 }
 
-fn OpenFlags.xor(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags {
+fn OpenFlags.xor'2(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags {
 bb0:
   %0: I64 = read copy.trivial (lhs.OpenFlags)
   %1: I64 = read copy.trivial (rhs.OpenFlags)
@@ -43,7 +43,7 @@ bb0:
   return take %3
 }
 
-fn OpenFlags.not(value: OpenFlags [shared call]) -> OpenFlags {
+fn OpenFlags.not'2(value: OpenFlags [shared call]) -> OpenFlags {
 bb0:
   %0: I64 = read copy.trivial (value.OpenFlags)
   %1: I64 = not inspect %0
@@ -51,7 +51,7 @@ bb0:
   return take %2
 }
 
-fn OpenFlags.truthy(value: OpenFlags [shared call]) -> Bool {
+fn OpenFlags.truthy'2(value: OpenFlags [shared call]) -> Bool {
 bb0:
   %0: I64 = read copy.trivial (value.OpenFlags)
   %1: I64 = const 0

@@ -455,12 +455,12 @@ bb1:
   jump -> bb2
 
 bb2:
-  %5: Maybe((I32) -> I32) affine = aggregate.Nothing
+  %5: Maybe((I32) -> I32) owned = aggregate.Nothing
   return consume %5
 
 bb3:
-  %6: (I32) -> I32 affine = fun.value twice
-  %7: Maybe((I32) -> I32) affine = aggregate.Just consume %6
+  %6: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value twice
+  %7: Maybe((I32) -> I32) owned = aggregate.Just consume %6
   return consume %7
 }
 
@@ -471,8 +471,8 @@ bb0(%0: I32 [shared call] guaranteed):
   %4: %(I32) -> I32 address = alloc frame (I32) -> I32
   store inspect %2 borrow %0
   %5: I32 trivial = load inspect %2
-  %6: Maybe((I32) -> I32) affine = call maybeFn borrow %5
-  %7: Outcome((I32) -> I32, {}) affine = call Maybe(a).toOutcome((I32) -> I32) consume %6
+  %6: Maybe((I32) -> I32) owned = call maybeFn borrow %5
+  %7: Outcome((I32) -> I32, {}) owned = call Maybe(a).toOutcome((I32) -> I32) consume %6
   store inspect %3 consume %7
   %8: %U8 address = field.addr .# inspect %3
   %9: U8 trivial = load inspect %8
@@ -485,17 +485,19 @@ bb1(%1: Maybe(I32) trivial):
   return consume %1
 
 bb2:
+  drop Outcome((I32) -> I32, {}) inspect %3
   %13: {} trivial = const {}
   %14: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %13
   jump -> bb1(consume %14)
 
 bb3:
   %15: %(I32) -> I32 address = field.addr .Proceed inspect %3
-  %16: (I32) -> I32 affine = load inspect %15
+  %16: (I32) -> I32 owned = load inspect %15
   store inspect %4 consume %16
   %17: (I32) -> I32 [shared call] guaranteed from{%4} = load inspect %4
   %18: I32 trivial = const 21
   %19: I32 trivial = call [value #0] inspect %17 borrow %18
+  drop (I32) -> I32 inspect %4
   %20: Maybe(I32) trivial = call Maybe(a).rewrap((I32) -> I32, I32) consume %19
   jump -> bb1(consume %20)
 }

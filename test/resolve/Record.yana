@@ -128,4 +128,8 @@ fn main() -> Int:
         directionValue(South) +
         heldTag(held())
 
-    return scalars + (truncate((handleAddress(nullHandle()) + boxedValue(boxed(addressOf(slot))))) :: Int)
+    -- Each of the two narrowed on its own rather than added at whichever width the pair happened to
+    -- share: `Size` is the target's word read signed and `I64` is sixty-four bits, so what their sum
+    -- is depends on the target and the two stages disagree about it.
+    return scalars + (truncate(handleAddress(nullHandle())) :: Int) +
+           (truncate(boxedValue(boxed(addressOf(slot)))) :: Int)

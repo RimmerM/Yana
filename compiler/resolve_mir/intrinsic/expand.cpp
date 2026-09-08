@@ -5,6 +5,76 @@ namespace mir {
 using namespace intrinsic;
 
 /*
+ * The roles whose implementation is the library's own body - see `opExpands`, where the reason is.
+ *
+ * A list and not a `case` in the roster below, because these are calls that never reach it: what
+ * they are is a fact about the *dispatch*, decided before an emitter is chosen, and an arm in the
+ * roster would be one that could only assert it is unreachable.
+ */
+bool opExpands(Op op) {
+    switch(op) {
+        /*
+         * `newRun(n)` - `lib/Native/Run.native.yana`'s body.
+         *
+         * The shipping stage expands it into an allocation with a count whose *placement* its escape
+         * analysis decides, writing that decision into the run's tag; this stage has no placement
+         * analysis (D6), so a run it built would always be a heap one - which is what the library
+         * body already says, in the language, with the allocator's refusal handled. Expanding it
+         * here would be the compiler spelling out a record's three fields in C++ to reach the same
+         * answer, which is exactly the arrangement `known.def`'s `arrayLiteral` note records moving
+         * away from.
+         */
+        case Op::newRun:
+
+        /*
+         * And the bulk operations - `lib/Core/Reduce.yana`, where each declaration carries the
+         * element walk and a second body beside it is the vector one.
+         *
+         * Neither half is a node this file builds: the expansion is a *selection between two
+         * ordinary library functions*, so it is `selectBulkBody` at the call rather than an emitter
+         * here, and the answer it settles on is still a call. What used to be on this list as "the
+         * fourteen bodies by name, which this stage's intrinsic framework does not hold" is
+         * `bulkVectorRole` below - a `known.def` row per vector half, which is the row-per-body
+         * answer that note named as one of the two ways out.
+         */
+        case Op::bulkSum:
+        case Op::bulkProduct:
+        case Op::bulkMaximum:
+        case Op::bulkMinimum:
+        case Op::bulkOccurrences:
+        case Op::bulkIndexOf:
+        case Op::bulkItemsEqual:
+            return false;
+
+        default:
+            return true;
+    }
+}
+
+/*
+ * The vector half of a bulk operation, as a role - `known.def`'s seven `*Vectors` rows.
+ *
+ * The table is here rather than in `known.def` because it is a statement about the *pair*: which
+ * `op.def` row chooses which `known.def` body. Neither file can hold it alone, and a switch is what
+ * makes a `bulk*` row added without a body a `-Wswitch` warning at the one place that has to pair
+ * them.
+ *
+ * `Known::Count` for every other role, which is what `selectBulkBody` reads as "not a choice".
+ */
+Known bulkVectorRole(Op op) {
+    switch(op) {
+        case Op::bulkSum:         return Known::sumVectors;
+        case Op::bulkProduct:     return Known::productVectors;
+        case Op::bulkMaximum:     return Known::maximumVectors;
+        case Op::bulkMinimum:     return Known::minimumVectors;
+        case Op::bulkOccurrences: return Known::occurrencesVectors;
+        case Op::bulkIndexOf:     return Known::indexOfVectors;
+        case Op::bulkItemsEqual:  return Known::itemsEqualVectors;
+        default:                  return Known::Count;
+    }
+}
+
+/*
  * The roster: one arm per `op.def` row.
  *
  * A switch and not a table of function pointers, and the difference is what `-Wswitch` does with it:
@@ -37,6 +107,17 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::typeTraits:
             return expandTypeTraits(builder, callee, arguments, with, source);
 
+        /*
+         * The whole-vector transfers - `expand_pointer.cpp`, where the argument for their being the
+         * two roles above at a vector type is.
+         *
+         * Two emitters for three rows: `vectorAt` and `vectorPast` are one load and differ by the
+         * tail-read flag, which is a column here for the reason the atomic updates' operation is one.
+         */
+        case Op::vectorAt:    return expandVectorAt(builder, callee, arguments, with, source);
+        case Op::vectorPast:  return expandVectorPast(builder, callee, arguments, with, source);
+        case Op::setVectorAt: return expandSetVectorAt(builder, callee, arguments, with, source);
+
         // The two relocations through a place - `expand_exchange.cpp`, and `analyze_loan.cpp` for
         // the one exemption they are granted.
         case Op::swap:     return expandSwap(builder, callee, arguments, with, source);
@@ -55,6 +136,43 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::syscall5:
         case Op::syscall6:
             return expandSyscall(builder, callee, arguments, count, with, source);
+
+        case Op::cloneThread:
+            return expandCloneThread(builder, callee, arguments, with, source);
+
+        /*
+         * The x86 family - `lib/Native/Intrinsic/X86.yana`, a `native.def` row each.
+         *
+         * One arm apiece although eight of them share an emitter, because the row is what the arm
+         * decides: a table from `Op` to `NativeOp` would be a second place for the pairing to live
+         * and the switch is what `-Wswitch` checks. `sha1rnds4` is the one with an argument to
+         * hold to a rule, so it has an emitter of its own - see it.
+         */
+        case Op::x86Crc32:
+            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::Crc32);
+        case Op::x86VZeroUpper:
+            return expandX86Native(builder, callee, arguments, 0, with, source,
+                                   NativeOp::VZeroUpper);
+        case Op::x86Sha1Message1:
+            return expandX86Native(builder, callee, arguments, 2, with, source,
+                                   NativeOp::Sha1Message1);
+        case Op::x86Sha1Message2:
+            return expandX86Native(builder, callee, arguments, 2, with, source,
+                                   NativeOp::Sha1Message2);
+        case Op::x86Sha1NextE:
+            return expandX86Native(builder, callee, arguments, 2, with, source,
+                                   NativeOp::Sha1NextE);
+        case Op::x86Sha1Rounds:
+            return expandX86Sha1Rounds(builder, callee, arguments, with, source);
+        case Op::x86Sha256Message1:
+            return expandX86Native(builder, callee, arguments, 2, with, source,
+                                   NativeOp::Sha256Message1);
+        case Op::x86Sha256Message2:
+            return expandX86Native(builder, callee, arguments, 2, with, source,
+                                   NativeOp::Sha256Message2);
+        case Op::x86Sha256Rounds:
+            return expandX86Native(builder, callee, arguments, 3, with, source,
+                                   NativeOp::Sha256Rounds);
 
         /*
          * The atomics - `lib/Atomic/Atomic.native.yana`, and `expand_atomic.cpp` for the family.
@@ -90,6 +208,30 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
             return expandAtomicFence(builder, callee, arguments, with, source);
         case Op::atomicSpinHint:
             return expandAtomicSpinHint(builder, callee, arguments, with, source);
+
+        /*
+         * `atomicAt(address)` - Analysis-Atomics.md §3.7's unchecked entrance, and it is
+         * `expandPointerBorrow` with **no difference at all**.
+         *
+         * That is the design of it rather than an economy. What the two emitters would have to say
+         * is the same sentence - the place is the memory the pointer names, read at the occurrence
+         * the declared result states, shared or exclusive as that result says - and `atomicAt`'s
+         * declaration states `-> source'Atomic(a)` where `borrow`'s states `-> source'a`. So the
+         * unchecked entrance *reuses* the semantics rather than defining a second set, and there is
+         * no path on which an externally provided location behaves differently from an owned one.
+         *
+         * No reinterpretation of the address, which the shipping stage needs and this does not: a
+         * place here is what its *occurrence* says it is, and the pointer is a root rather than a
+         * type. Keeping the argument is also what keeps the origin the signature published - a
+         * bitcast's result is `owned(to)` and would have dropped the pointee's own position, so the
+         * loan checker would have refused a result the declaration promised.
+         *
+         * Nothing here checks §3.7's four promises and nothing could: the address is a run-time
+         * value, and whether every other accessor of those bytes uses a view of this width is a
+         * fact about a program this compiler is not reading. `Native` is where the language says so.
+         */
+        case Op::atomicAt:
+            return expandPointerBorrow(builder, callee, arguments, with, source);
 
         /*
          * The portable vector set - `expand_vector.cpp`, and Design-Vector §3.3 for what each is.
@@ -160,6 +302,19 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::maskNone: return expandMaskNone(builder, callee, arguments, with, source);
         case Op::maskUpTo: return expandMaskUpTo(builder, callee, arguments, with, source);
 
+        // The movemask, which is `expandVecReduce` again and the one reduction kind that is a
+        // machine's rather than the language's - `Native.bits`, and `op.def`'s reduction block for
+        // why it is a row at all.
+        case Op::maskBits:
+            return expandVecReduce(builder, callee, ReduceOp::Bits, arguments, with, source);
+
+        // The map's probe limit - `expand_container.cpp`, and one emitter for the two rows because
+        // what differs is where the key is rather than what is computed from it.
+        case Op::scanLimitFor:
+            return expandScanLimit(builder, callee, true, arguments, with, source);
+        case Op::scanLimitForKeys:
+            return expandScanLimit(builder, callee, false, arguments, with, source);
+
         /*
          * The `Flow` roles - `!`, `&&` and `||` - are the resolver's, because what they expand to
          * is a branch with an operand resolved *under* it, and the block structure and the values
@@ -182,6 +337,22 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::atomicCompareExchangeWeak:
         case Op::atomicComparePair:
         case Op::atomicComparePairWeak:
+
+        /*
+         * And the roles this stage answers with the *declaration's own body* - `opExpands`, which
+         * `finishCall` asks before it comes here, and where the reason each is on that list is.
+         *
+         * An arm rather than nothing, for the roster's reason: a row with no `case` anywhere is
+         * `-Wswitch`, and the assertion is what says the dispatch above already took it.
+         */
+        case Op::newRun:
+        case Op::bulkSum:
+        case Op::bulkProduct:
+        case Op::bulkMaximum:
+        case Op::bulkMinimum:
+        case Op::bulkOccurrences:
+        case Op::bulkIndexOf:
+        case Op::bulkItemsEqual:
             assertTrue(false);
             break;
 
@@ -196,35 +367,29 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
          * way every other construct this stage has not reached is spelled, and it shrinks from the
          * top as the emitters arrive.
          *
-         * Four groups, and they are held up by different things.
+         * One group now, and it is held up by a pipeline rather than by a gap.
          *
-         * The **machine** family - the vector transfers, the movemask, the thread clone - is the
-         * one whose blocker went: vector types are here, and what is left of it is a declaration
-         * each in `prelude/Native` and, for the clone, a backend intrinsic rather than either of
-         * `Node::Native`'s two shapes. The widening multiply was the first of them out, and what
-         * it took was that declaration and one `op.def` row - see `expandMulHigh`.
+         * The **machine** family is gone from this list. The three whole-vector transfers and the
+         * movemask are emitters above - what their blocker had been was vector types, and what it
+         * took once those arrived was a declaration each in `lib/Native/Pointer.native.yana` and one
+         * reduction row - and `cloneThread` joined them with a `native.def` row of its own, whose
+         * entry pair is split where the lowering already splits one.
          *
-         * The **library** family - `newRun`, the string's two words, the scan limits, and the bulk
-         * operations, which are a choice between two library bodies rather than a node - needs the
-         * allocator, the container classes and the real `Core`.
+         * The **library** family is gone from this list entirely. `newRun` and the seven bulk
+         * operations went to `opExpands` - the library's own body is what this stage calls, and what
+         * is lost is a placement decision and a vectorization rather than an operation - and the two
+         * scan limits and the unchecked atomic entrance are emitters above.
          *
          * The **host** family needs the JavaScript pipeline `Analysis-IR-JS.md` describes, and is
          * the one group that may never arrive here as written: this stage does not compile for that
          * target at all yet, so what these arms record is that the roles exist rather than that they
          * are nearly done.
          *
-         * The **CPU** instructions are their own case: each is `@platform`-gated at a declaration
-         * `prelude/` does not carry, so a role nothing claims is a role nothing can call, and the
-         * arm is what would answer if one did.
+         * The **CPU** instructions are gone from this list too - a `native.def` row apiece, and the
+         * `sha1rnds4` round group as four rows rather than an operand, since it is the
+         * instruction's trailing byte. Each stays `@platform`-gated at its declaration, so a build
+         * below the level that has one never resolves the name.
          */
-        case Op::vectorAt:
-        case Op::vectorPast:
-        case Op::setVectorAt:
-        case Op::maskBits:
-        case Op::cloneThread:
-        case Op::newRun:
-        case Op::scanLimitFor:
-        case Op::scanLimitForKeys:
         case Op::hostField:
         case Op::hostCall0:
         case Op::hostCall1:
@@ -246,28 +411,6 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::hostVector:
         case Op::hostVectorUpTo:
         case Op::hostSetVector:
-        case Op::atomicAt:
-
-        // The bulk operations, whose blocker is reaching `Reduce.yana` at all rather than an
-        // emitter - the group above.
-        case Op::bulkSum:
-        case Op::bulkProduct:
-        case Op::bulkMaximum:
-        case Op::bulkMinimum:
-        case Op::bulkOccurrences:
-        case Op::bulkIndexOf:
-        case Op::bulkItemsEqual:
-
-        // The CPU instructions - see the group above, which is where the reason they are here is.
-        case Op::x86Crc32:
-        case Op::x86VZeroUpper:
-        case Op::x86Sha1Message1:
-        case Op::x86Sha1Message2:
-        case Op::x86Sha1NextE:
-        case Op::x86Sha1Rounds:
-        case Op::x86Sha256Message1:
-        case Op::x86Sha256Message2:
-        case Op::x86Sha256Rounds:
             context.diagnostics.error("the ownership resolver does not implement %@ yet"_v, source,
                                       context.findName(callee.name));
             return nullptr;

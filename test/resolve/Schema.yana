@@ -16,9 +16,9 @@ fn identity(->value: a) -> a = value
 -- time anything reads the numbering.
 fn (Num(a)) scale(x: a, y: a) -> a = x * y + x
 
--- A constraint the signature never wrote. `<` records Ord(a) on the context while the body is being
--- resolved, which renumbers nothing before it: requirements are appended.
-fn smallest(->x: a, ->y: a, ->z: a) -> a =
+-- A second class over the same variable, declared after the variable it constrains: it is appended
+-- to the requirement list rather than renumbering anything before it.
+fn (Ord(a)) smallest(->x: a, ->y: a, ->z: a) -> a =
     if x < y then (if x < z then x else z) else (if y < z then y else z)
 
 -- Two variables and two classes. `a` and `b` are numbered by first appearance across the

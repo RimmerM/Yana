@@ -1,0 +1,20 @@
+mut @counter = [0, 0, 0, 0, 0, 0, 0, 0]
+mut @slot = [0, 0, 0, 0, 0, 0, 0, 0]
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 4194305, 8
+    store @slot, 7, 8
+    %v_2 = loads @slot, 8: I64
+    %v_3 = add 262156, %v_2: I64
+    %v_4 = loads @counter, 8: I64
+    %v_5 = add %v_4, 5: I64
+    store @counter, %v_5, 8
+    %v_6 = loads @counter, 8: I64
+    %v_7 = add %v_3, %v_6: I64
+    %v_8 = sext %v_7: I32
+    ret %v_8
+  }
+}
+

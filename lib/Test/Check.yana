@@ -136,20 +136,28 @@ pub fn (Ord(a), Show(a)) requireAtLeast(actual: a, limit: a, @caller ->at: Site)
 {-
    Floating point, where equality is the wrong question.
 
-   `Real(a)` rather than one instance per width, which is what that class is for: `abs` and the
-   comparison are its members, so this is one body for `Float` and `Double` both. The tolerance is
-   the caller's and has no default - a number this file chose would be wrong for every unit that is
-   not the one it was chosen in, and an assertion whose tolerance is invisible is one nobody checks.
+   `Real(a)` rather than one instance per width, which is what that class is for: one body for
+   `Float` and `Double` both. The tolerance is the caller's and has no default - a number this file
+   chose would be wrong for every unit that is not the one it was chosen in, and an assertion whose
+   tolerance is invisible is one nobody checks.
+
+   **`Signed(a)` is written out beside it, and it is not `Real`'s to give.** `abs` is `Signed`'s
+   member and `<=` is `Ord`'s, which `Signed` has as a superclass; `Real`'s own are `Num`,
+   `FromDecimal`, `Lanewise` and `Bitwise` - because `Real` is instanced at `Vec(F32)` as well as at
+   `Float`, and a vector has neither a total order nor a scalar `abs`. So what this family really
+   asks for is a *scalar* real, which is `Real` plus `Signed`, and saying so is what makes the
+   constraint list the whole contract rather than something a reader has to reconstruct from the
+   body.
 -}
-pub fn (Real(a, m), Show(a)) checkNear(actual: a, expected: a, tolerance: a, @caller ->at: Site):
+pub fn (Real(a, m), Signed(a), Show(a)) checkNear(actual: a, expected: a, tolerance: a, @caller ->at: Site):
     if nearEnough(actual, expected, tolerance) then return
     record(Failure {site: at, claim: nearClaim(actual, expected, tolerance), detail: ""})
 
-pub fn (Real(a, m), Show(a)) requireNear(actual: a, expected: a, tolerance: a, @caller ->at: Site) -> Test:
+pub fn (Real(a, m), Signed(a), Show(a)) requireNear(actual: a, expected: a, tolerance: a, @caller ->at: Site) -> Test:
     if nearEnough(actual, expected, tolerance) then return Ok({})
     return failing(Failure {site: at, claim: nearClaim(actual, expected, tolerance), detail: ""})
 
-fn (Real(a, m)) nearEnough(actual: a, expected: a, tolerance: a) -> Bool =
+fn (Real(a, m), Signed(a)) nearEnough(actual: a, expected: a, tolerance: a) -> Bool =
     abs(actual - expected) <= tolerance
 
 fn (Real(a, m), Show(a)) nearClaim(actual: a, expected: a, tolerance: a) -> String =

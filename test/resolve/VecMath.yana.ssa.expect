@@ -56,12 +56,12 @@ bb10:
   jump -> bb11
 
 bb11:
-  %21: F32 trivial = const 1
+  %21: F32 trivial = const 0
   %22: F32 trivial = const 0
-  %23: F32 trivial = const 0
-  %24: F32 trivial = sub inspect %22 inspect %23
-  %25: F32 trivial = sqrt inspect %24
-  %26: F32 trivial = div inspect %21 inspect %25
+  %23: F32 trivial = sub inspect %21 inspect %22
+  %24: F32 trivial = sqrt inspect %23
+  %25: F32 trivial = const 1
+  %26: F32 trivial = div inspect %25 inspect %24
   %27: F32 trivial = const 1
   %28: F32 trivial = const 0
   %29: F32 trivial = const 0
@@ -86,7 +86,7 @@ bb15:
   return consume %35
 }
 
-fn lanes() -> I32 {
+fn lanes'2() -> I32 {
 bb0:
   %0: %Vec(F32) address = alloc frame Vec(F32)
   %1: %Vec(F32) address = alloc frame Vec(F32)
@@ -217,7 +217,7 @@ bb1:
   jump -> bb2
 
 bb2:
-  %3: I32 trivial = call lanes
+  %3: I32 trivial = call lanes'2
   %4: I32 trivial = const 0
   %5: Bool trivial = ne inspect %3 inspect %4
   branch inspect %5 -> bb6 -> bb4
@@ -234,7 +234,7 @@ bb5:
   return consume %7
 
 bb6:
-  %8: I32 trivial = call lanes
+  %8: I32 trivial = call lanes'2
   %9: I32 trivial = const 10
   %10: I32 trivial = mul inspect %8 inspect %9
   return consume %10

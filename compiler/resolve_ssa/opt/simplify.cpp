@@ -150,6 +150,115 @@ struct Simplifier {
     }
 
     /*
+     * A field read out of an aggregate **value** this body built - the shape a record that never
+     * reaches storage puts in front of every storage pass.
+     *
+     * `forwardMemory` answers a load from the store that filled the slot, and that is the whole of
+     * what it can see: an `Aggregate` writes no slot, so a record built as a value and then projected
+     * is a read with no write above it and the pass declines. The value is right there in the
+     * instruction's operand list, though, which is what makes this a peephole rather than a
+     * dataflow question - the address chain is two instructions long and both ends are in hand.
+     *
+     * **The shape that produces it is a flattened adaptor chain.** A `for` over an `iter fn` builds
+     * the continuation's environment as one aggregate of borrowed fields and hands the pair to the
+     * iterator (`resolve_ssa/convert.cpp`); once `flattenContinuations` has copied both bodies into
+     * the consumer, every capture the continuation reads is `load field.addr .x %env` against that
+     * aggregate. Without this the record survives to the lowering as a frame object and every
+     * capture is a load per iteration - which is the second half of the flattening rather than a
+     * separate optimization.
+     *
+     * Three things are required and each is the same statement from a different side:
+     *
+     *  - **the record's storage is never written and never escapes.** Every use of the aggregate is
+     *    a `field.addr`, and every use of each of those is a `load`. A `fun.value` holding it, a
+     *    call handed it, a `store` through it or a `drop` of it all leave, because what would then
+     *    be at the field is not what the aggregate put there.
+     *  - **the component is borrowed rather than consumed.** A consuming component's ownership ends
+     *    at the aggregate, so pointing a reader below it at the same value is a second consumption.
+     *    Every field of a continuation environment is a borrow, which is why this fires there.
+     *  - **the two ends are restated rather than unified.** A borrowed field is `T [slot n]` with a
+     *    `Guaranteed` convention where the load of its address answers `%T address` - the same
+     *    pointer, and two different statements about it (`convert.cpp` makes the pair). `represent`
+     *    is what says so, and it is the same restatement the inliner makes at a graft's two ends.
+     */
+    bool tryAggregateField(Inst& inst) {
+        if(inst.kind != Inst::Load || ((InstLoad&)inst).overread) return false;
+
+        auto result = soleResult(inst);
+        if(!result) return false;
+
+        /*
+         * A read that hands back a **borrow** is declined, and it is `replaceAllUses`' rule rather
+         * than a shape this cannot reach: a borrow is checked against its loan, and what would stand
+         * in its place is a value rooted where the aggregate's component was rooted. That is a
+         * different extent, and moving one is not this rewrite's to do.
+         */
+        if(result->convention != Convention::Trivial && result->convention != Convention::Address) {
+            return false;
+        }
+
+        auto address = opt.base[((InstLoad&)inst).address.value()];
+        if(!address->definer) return false;
+
+        auto projection = opt.base[address->definer];
+        if(projection->kind != Inst::FieldAddress) return false;
+
+        auto& field = (InstFieldAddress&)*projection;
+        if(field.property != InstFieldAddress::kNoProperty) return false;
+        if(field.field == InstFieldAddress::kDiscriminant) return false;
+
+        auto record = opt.base[field.base.value()];
+        if(!record->definer) return false;
+
+        auto made = opt.base[record->definer];
+        if(made->kind != Inst::Aggregate) return false;
+
+        auto& aggregate = (InstAggregate&)*made;
+        if(field.field >= aggregate.components.size()) return false;
+
+        if(!readOnlyRecord(*record)) return false;
+
+        auto component = aggregate.components.get(opt.base, field.field);
+        if(component.kind() == UseKind::Consume) return false;
+
+        auto held = opt.base[component.value()];
+
+        auto editor = opt.ir();
+        editor.setInsertBefore(inst);
+
+        auto with = held;
+        if(held->occurrence != result->occurrence || held->convention != result->convention) {
+            if(isTracked(held->convention)) return false;
+
+            with = editor.resultOf(*editor.addUnary(inst.source, mir::UnaryOp::Represent,
+                                                    editor.use(*held, UseKind::Inspect),
+                                                    result->occurrence, result->convention));
+        }
+
+        replaceAndErase(inst, *result, *with);
+        return true;
+    }
+
+    // The aggregate's storage read and nothing else - see above. A linear walk of two short use
+    // lists, which is what an aggregate nothing stores into has.
+    bool readOnlyRecord(Value& record) {
+        for(auto pointer: record.uses(opt.base)) {
+            auto user = opt.base[pointer];
+            if(user->kind != Inst::FieldAddress) return false;
+            if(((InstFieldAddress&)*user).property != InstFieldAddress::kNoProperty) return false;
+
+            auto projected = soleResult(*user);
+            if(!projected) return false;
+
+            for(auto readerPointer: projected->uses(opt.base)) {
+                if(opt.base[readerPointer]->kind != Inst::Load) return false;
+            }
+        }
+
+        return true;
+    }
+
+    /*
      * A `Bool` select is a boolean function of two truth values, and every one of those is bitwise.
      *
      * `a && b` reaches this tier as a diamond whose join is a block argument; if-conversion (phase 7)
@@ -159,9 +268,12 @@ struct Simplifier {
      * between them is `and`, `or` or `not` of values the function already has, and all three are
      * `Bitwise(Bool)` members that `lower/inst.cpp` already lowers.
      *
-     * **Here rather than in the folder because every rule needs an instruction that does not exist
-     * yet.** That is the division between the two files: `c ? True : False` is `c`, a value already
-     * standing there, so it is `foldSelect`'s and is answered before this is reached.
+     * **Here rather than in the folder because every rule replaces this instruction with one of a
+     * different kind.** That is the division between the two files, and it is not "makes an
+     * instruction": `fold.cpp` makes constants, and its one reassociation rule makes a binary of the
+     * kind it was already given. What is here is a `select` becoming an `and`. `c ? True : False` is
+     * `c`, a value already standing there, so it is `foldSelect`'s and is answered before this is
+     * reached.
      *
      * **What produces a `Bool` select is `convertSelects`, and nothing else.** The only other
      * `select` in the corpus is the vector one - `Lanewise.select`, and `min`/`max` expanded out of
@@ -177,11 +289,8 @@ struct Simplifier {
      * rather than about this instruction. It is free where the program already computed `!c` and
      * costs a `not` where it did not, and nothing here can see which.
      *
-     * **De Morgan is not here either.** `!a || !b` becoming `!(a && b)` is one instruction fewer and
-     * puts the complement where a branch can absorb it, which is real - but the branch that absorbs
-     * it is `negatedBranchCondition` in `lower/lower_fold.cpp`, one tier down, and the shape it reads
-     * arrives there whichever way this stage spells it. Worth doing when there is a measurement
-     * asking for it.
+     * De Morgan is `tryDeMorgan` below, and it is the rewrite this comment used to say was worth
+     * doing when a measurement asked for one.
      *
      * The condition is checked against `Bool` as well as the result, because `Select` is also the
      * lane-wise one: a vector select's condition is a `Mask`, its arms are vectors, and neither the
@@ -234,6 +343,94 @@ struct Simplifier {
         return true;
     }
 
+    /*
+     * The operand of a complement, or null where this value is not one.
+     *
+     * One spelling, `UnaryOp::Not`, where the shipping stage's version reads two. Over there `!c` at
+     * a `Bool` may also arrive as `xor c, 1`, because its `reduceBooleanOperations` *builds* that
+     * form; here the same rewrite builds `not` (see `tryBoolean` above, whose first rule is the one
+     * that would produce it), `op.def` gives `Bitwise(Bool).not` the same `Not`, and `lower/inst.cpp`
+     * is where a `Bool`'s complement becomes an `xor` against one. So the second spelling does not
+     * exist at this tier and reading for it would be reading for a shape nothing writes.
+     */
+    Value* complementOf(Use used) {
+        if(!used.isSet()) return nullptr;
+
+        auto value = opt.base[used.value()];
+        if(!value->definer) return nullptr;
+
+        auto definer = opt.base[value->definer];
+        if(definer->kind != Inst::Unary || ((InstUnary&)*definer).op != UnaryOp::Not) return nullptr;
+
+        // Read once, which is what makes this a shrink rather than a copy: a complement two things
+        // read stays where it is and the combined one is an instruction on top of it.
+        if(value->useCount() != 1) return nullptr;
+
+        auto operand = ((InstUnary&)*definer).value;
+        if(!operand.isSet()) return nullptr;
+
+        return opt.base[operand.value()];
+    }
+
+    /*
+     * De Morgan: `!a & !b` is `!(a | b)`, and `!a | !b` is `!(a & b)`.
+     *
+     * Three instructions become two, and the one that is left is a complement in the position a
+     * branch can absorb - `negatedBranchCondition` in `lower/lower_fold.cpp` reads a `je` whose
+     * condition is a complement and inverts the arms instead. That second half is why the shipping
+     * stage's own comment argued the rewrite was worth having and this file's argued it was not: the
+     * lower tier sees the same shape whichever way this stage spells it, so what is actually bought
+     * is the *instruction*, and that is a count rather than an argument. `IfConvert.yana`'s `negBoth`
+     * is the shape and F's phase 16 note is the number.
+     *
+     * **Both complements read once.** Otherwise the two `not`s stay standing and this adds a third
+     * instruction on top of them; `tryDead` is what removes them once their last reader is this one.
+     * The same spelling on both sides is therefore automatic here, where the shipping stage has to
+     * ask - it reads two spellings of a complement and has to rebuild the one it took apart.
+     *
+     * One type throughout, asked rather than assumed: `and` and `or` are `Closed` in `op.def` so a
+     * combination is at its operands' type, but a complement's operand and result are the same type
+     * only because `not` is `Wraps`, and the two sides of the combination may be at a type the
+     * result is not (a `Bool` combined out of `@bits` refinements is the shape). What the rewrite
+     * rebuilds is one `and`/`or` at the *operands*' type, so all four have to be that one type.
+     */
+    bool tryDeMorgan(Inst& inst) {
+        if(inst.kind != Inst::Binary || !isRemovable(inst)) return false;
+
+        auto& binary = (InstBinary&)inst;
+        if(binary.op != BinaryOp::And && binary.op != BinaryOp::Or) return false;
+
+        auto result = soleResult(inst);
+        if(!result) return false;
+
+        auto left = complementOf(binary.lhs);
+        auto right = complementOf(binary.rhs);
+        if(!left || !right) return false;
+
+        auto type = result->type();
+        if(left->type() != type || right->type() != type) return false;
+        if(opt.base[binary.lhs.value()]->type() != type) return false;
+        if(opt.base[binary.rhs.value()]->type() != type) return false;
+
+        auto editor = opt.ir();
+        editor.setInsertBefore(inst);
+
+        auto combined = binary.op == BinaryOp::And ? BinaryOp::Or : BinaryOp::And;
+        auto inner = editor.addBinary(inst.source, combined, editor.use(*left, UseKind::Inspect),
+                                      editor.use(*right, UseKind::Inspect), result->occurrence,
+                                      Convention::Trivial);
+
+        auto outer = editor.addUnary(inst.source, UnaryOp::Not,
+                                     editor.use(*editor.resultOf(*inner), UseKind::Inspect),
+                                     result->occurrence, Convention::Trivial);
+
+        replaceAndErase(inst, *result, *editor.resultOf(*outer));
+
+        push(inner);
+        push(outer);
+        return true;
+    }
+
     // Whether two pure instructions compute the same thing, and whether one is spelled at its use
     // rather than computed - `opt/cse.cpp`, which is where both are defined and argued. The
     // block-local CSE below and the walk of the dominator tree there are one rewrite at two scopes,
@@ -282,7 +479,7 @@ struct Simplifier {
     // A pure instruction whose results nothing reads. The last of the five and the one the other four
     // leave work for: a fold points every reader somewhere else, and what it leaves behind is this.
     bool tryDead(Inst& inst) {
-        if(!isRemovable(inst)) return false;
+        if(!isDiscardableIfUnread(opt, inst)) return false;
 
         for(auto resultPointer: inst.results.contents(opt.base)) {
             if(opt.base[resultPointer]->useCount() != 0) return false;
@@ -299,7 +496,9 @@ struct Simplifier {
         if(!inst.block) return;
 
         if(tryFold(inst)) return;
+        if(tryAggregateField(inst)) return;
         if(tryBoolean(inst)) return;
+        if(tryDeMorgan(inst)) return;
         if(tryCommonSubexpression(inst)) return;
         tryDead(inst);
     }

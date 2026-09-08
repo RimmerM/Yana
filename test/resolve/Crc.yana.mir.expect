@@ -1,0 +1,69 @@
+module ResolveTest
+
+fn wide() -> U32 {
+bb0:
+  %0: U32 = const 4294967295
+  %1: U64 = convert inspect %0
+  %2: U64 = const 81985529216486895
+  %3: U64 = native crc32 inspect %1 inspect %2
+  %4: U32 = convert inspect %3
+  return take %4
+}
+
+fn folded(seed: U32 [shared call], chunk: U64 [shared call]) -> U32 {
+bb0:
+  %0: U32 = read copy.trivial (seed)
+  %1: U64 = convert inspect %0
+  %2: U64 = read copy.trivial (chunk)
+  %3: U64 = native crc32 inspect %1 inspect %2
+  %4: U32 = convert inspect %3
+  return take %4
+}
+
+fn chained() -> U32 {
+bb0:
+  %0: U32 = call wide
+  %1: U64 = const 4822678189205111
+  %2: U32 = call folded borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn main() -> I32 {
+  local a: U32
+  local b: U32
+  local total: I64
+
+bb0:
+  %0: U32 = call wide
+  write.init borrow.unique (a) take %0
+  %2: U32 = call chained
+  write.init borrow.unique (b) take %2
+  %4: U32 = read copy.trivial (a)
+  %5: I64 = convert inspect %4
+  %6: U32 = read copy.trivial (b)
+  %7: I64 = convert inspect %6
+  %8: I64 = add inspect %5 inspect %7
+  write.init borrow.unique (total) take %8
+  %10: U32 = const 4294967295
+  %11: U64 = const 81985529216486895
+  %12: U32 = call folded borrow.shared %10 borrow.shared %11
+  %13: U32 = read copy.trivial (a)
+  %14: Bool = ne inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %19: I64 = read copy.trivial (total)
+  %20: I64 = const 1000
+  %21: I64 = rem inspect %19 inspect %20
+  %22: I32 = convert inspect %21
+  return take %22
+
+bb3:
+  %16: I32 = const -1
+  return take %16
+}
+
+entry main

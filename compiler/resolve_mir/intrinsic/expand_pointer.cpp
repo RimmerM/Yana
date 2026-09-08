@@ -19,14 +19,75 @@ using namespace intrinsic;
  */
 
 /*
+ * The storage an operand that arrived as a *value* does not have.
+ *
+ * `addAddressOf` takes the value a borrowing read produced, because an address is the address of
+ * somewhere and an owned node result is nowhere - the builder asserts it. That leaves the case where
+ * the argument really is only a value, and this is what the language does with it: an unnamed local
+ * of the frame, written once, and the address is that slot's. `resolve/expr_construct.cpp`'s
+ * `materialize` is the shipping stage's same answer, and `test/resolve/Global.yana` is where the
+ * meaning is written down - the address of a constant is the address of a temporary holding its
+ * value, "which is the only reading available for a value that cannot be assigned to".
+ *
+ * Either declaration reaches it. `lib/Native/Pointer.yana` writes `fn addressOf(it: a) -> %a`, so a
+ * trivially copyable argument is copied into the call and every call of it lands here; written
+ * `it: source'a` an argument that names storage would arrive as a loan of it and only a literal or a
+ * call result would land here. The published spelling says *whose* storage the pointer is in and
+ * the library deliberately does not use it (`test/resolve/Global.yana` is what pins the other
+ * meaning); what this function supplies is that there *is* storage, which both spellings need and
+ * neither can state.
+ *
+ * The read is the **declared parameter's own request, published**, and both halves of that are
+ * load-bearing. Published, because an unpublished request is answered `CopyTrivial` at every scalar
+ * and a copy is the very step that lost the storage on the way in. The declaration's, because the
+ * loan then carries the origin the signature named and is the *same* loan `addressOf(v)` of a name
+ * takes - so the two paths into this role differ in where the storage came from and in nothing the
+ * checker can see afterwards. Taking a fresh shared request instead would leave a temporary holding
+ * a call-bounded loan where a name holds a published one, which is a difference nothing wanted.
+ *
+ * The slot is writable, because the pointer handed back is a `%a` and a store through one reaches
+ * it - `test/resolve/Global.yana`'s `addressOfConstant` is that program. Nothing checks the store; a
+ * `Place::Address` is a root with no parent by construction, which is where `doc/spec/native.md`
+ * stops. The capability is on the storage so that the elaboration below the checker agrees.
+ */
+static Node* materialize(Builder& builder, const Occurrence& declared, Node& value,
+                         LocationId source) {
+    auto local = builder.addLocal(StringId(), owned(valueOccurrence(value).type), source, true);
+    auto place = builder.localPlace(*local);
+
+    builder.addWrite(source, *place, value, Destination::Init);
+
+    // The declared position's interior shape is dropped: it describes what a value *filling that
+    // position* holds inside it, and this read is of a slot this function just filled with the whole
+    // value, which owns its own interior.
+    auto wanted = requestOf(declared);
+    wanted.published = true;
+    wanted.shape = nullptr;
+
+    /*
+     * And the loan is **exclusive**, whatever the declaration asked for.
+     *
+     * `published` alone is not enough and the reason is the manifestation: a shared, call-bounded
+     * loan of a trivially copyable scalar *is* the scalar, in a register (`isReferenceValue`), so
+     * `addressOf(9)` under `lib`'s unpublished spelling read the slot back as a number and the SSA
+     * conversion reported the address of a value that is not reached through storage. An exclusive
+     * loan of a slot this function just made is reached through it, which is the same thing the
+     * paragraph above says about the capability from the other end - the pointer handed back is a
+     * `%a` and a store through one reaches this storage.
+     */
+    wanted.access = Access::Unique;
+
+    return builder.addRead(source, *place, readMode(*builder.program.decl, builder.base(), builder.body, *place, wanted), wanted);
+}
+
+/*
  * `addressOf(x)` - the address of the storage a value occupies.
  *
- * One node and nothing else, and everything that makes it safe enough to have is in the
- * *declaration*: `fn addressOf(it: source'a) -> %source'a` borrows and publishes, so the ordinary
- * call path has already read the argument as a loan of a place and the origin environment already
- * knows the pointer is in `source`. Written `it: a` the position would be an ordinary unpublished
- * one, `readMode` would answer `CopyTrivial` at every scalar, and what came back would be the
- * address of a copy - which is both the wrong storage and an address rooted in nothing.
+ * One node, over a place: `fn addressOf(it: source'a) -> %source'a` borrows and publishes, so the
+ * ordinary call path has already read the argument as a loan of a place and the origin environment
+ * already knows the pointer is in `source`. Written `it: a` the position is an ordinary unpublished
+ * one, `readMode` answers `CopyTrivial` at every scalar, and what arrives is a value rather than a
+ * loan - `materialize` above is what that gets, and why the two library spellings both work.
  *
  * The occurrence is the *declared result's*, substituted, exactly as `pointerLoad` below takes its
  * pointee from the result: the two are the same type by `op.def`'s `pointerTo(0)`, and reading it
@@ -35,8 +96,68 @@ using namespace intrinsic;
  */
 Node* expandAddressOf(Builder& builder, Function& callee, Node* const* arguments,
                       const Substitution& with, LocationId source) {
+    auto base = *builder.program.decl;
     auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
-    return builder.addAddressOf(source, *arguments[0], result);
+    auto& of = *arguments[0];
+
+    if(valueOccurrence(of).contract.isOwned()) {
+        /*
+         * The storage the argument was *copied out of*, where the copy is one this position made.
+         *
+         * `let &status = 0 :: Int` followed by `waitProcess(id, addressOf(status), 0)` is the
+         * program, and under `lib`'s unpublished spelling the ordinary argument path answers it
+         * `CopyTrivial` - so what reaches here is a scalar in a register and the address of a slot
+         * holding a *copy* of the exit code, which the callee then writes and nobody reads. The
+         * shipping stage does not do that: `resolve/expr_construct.cpp`'s `materialize` asks
+         * `findPlace` first and hands back the storage the value was loaded from. This is that same
+         * question, and it is what keeps the two stages saying one thing about one program.
+         *
+         * **Storage this frame owns**, and that is the line rather than an economy: "the memory a
+         * pointer names is always mutable, the pointer itself is not" is
+         * `lib/Native/Pointer.yana`'s own sentence, so `let node = Node {...}` followed by
+         * `copyMemory(addressOf(node), ...)` writes that record - which is
+         * `test/resolve/Pointer.yana`'s `blockOperations`, and what the shipping stage's `findPlace`
+         * has always answered. Whether the *binding* may be assigned is a different question and was
+         * the test here until 2026-09-07; it refused a plain `let` whose storage is this frame's and
+         * addressed a copy of it instead.
+         *
+         * The **occurrence's access** is what decides, because the loan below is exclusive: a `%a`
+         * is an address a store reaches, and an address is what a shared loan of a scalar is
+         * precisely not (`isReferenceValue`). A place this frame only *shares* - a borrowed
+         * parameter, a field of one - has no exclusive loan to give, so it keeps the copy, which is
+         * also the only reading available for storage the callee does not own. An owned local and a
+         * `&` parameter both do, which is `viaBorrowMut` in `intrinsic/Pointer.yana` and
+         * `blockOperations` in `Pointer.yana` - the two ends this line has to admit.
+         *
+         * What `test/resolve/Global.yana` records for `addressOf` of a *constant* survives this, and
+         * it was never the writability that answered it: an immutable global whose initializer is a
+         * scalar constant reads **as** that constant (`readPlace`, and `Local::initial` one scope
+         * down), so there is no place here at all and the copy below is what it gets.
+         */
+        if(of.kind == Node::Read) {
+            auto& read = (NodeRead&)of;
+
+            if(read.place.source() == SourceKind::Place) {
+                auto place = builder.body.place(builder.base(), read.place.placeId());
+
+                if(place->occurrence.contract.access() != Access::Shared) {
+                    auto wanted = Request { Access::Unique, true, kNoOriginSlot,
+                                            AccessForm::WholeValue };
+                    auto mode = readMode(*builder.program.decl, builder.base(), builder.body,
+                                         *place, wanted);
+
+                    return builder.addAddressOf(source, *builder.addRead(source, *place, mode, wanted),
+                                                result);
+                }
+            }
+        }
+
+        auto declared = substituteOccurrence(builder.context, builder.program,
+                                             base[callee.args.get(base, 0)]->occurrence, with);
+        return builder.addAddressOf(source, *materialize(builder, declared, of, source), result);
+    }
+
+    return builder.addAddressOf(source, of, result);
 }
 
 /*
@@ -66,10 +187,22 @@ Node* expandPointerBorrow(Builder& builder, Function& callee, Node* const* argum
      * turns a declared position into what a read of it asks for.
      */
     auto wanted = requestOf(result);
-    auto place = builder.addressPlace(*arguments[0], requalified(result, ownedContract()),
+
+    /*
+     * The storage keeps the result's **form**, and `ownedContract()` alone did not.
+     *
+     * A place reached through a raw pointer is storage, and the loan taken from it inherits the
+     * storage's form (`grantedContract`). Built at `WholeValue` the loan was one too, and inside a
+     * generic body `substitutedContract` then turned it into the *view* at `a := Array(I32)` - so
+     * `getMut(&self, index) = borrowMut(valuesMut(self) + index)` handed back a descriptor where its
+     * declared `-> &source'v` names the element's own storage. The declared result is the one place
+     * that says which of the two this is, and this reads it rather than restating it.
+     */
+    auto storage = Contract { Access::Owned, Origin::Here, result.contract.form(), 0 };
+    auto place = builder.addressPlace(*arguments[0], requalified(result, storage),
                                       wanted.access == Access::Unique);
 
-    return builder.addRead(source, *place, readMode(*builder.program.decl, *place, wanted), wanted);
+    return builder.addRead(source, *place, readMode(*builder.program.decl, builder.base(), builder.body, *place, wanted), wanted);
 }
 
 /*
@@ -187,7 +320,7 @@ Node* expandTypeTraits(Builder& builder, Function& callee, Node* const*, const S
     auto of = record->arguments.get(builder.declBase(), 0);
 
     // In declaration order, which is the only thing this and the source agree by - see metric.def,
-    // where that is written down, and the field list in `prelude/Native/Pointer.yana`.
+    // where that is written down, and the field list in `lib/Native/Pointer.yana`.
     Node* components[kTypeMetricCount];
     for(Size i = 0; i < kTypeMetricCount; i++) {
         auto field = record->fields.get(builder.declBase(), i);
@@ -217,7 +350,7 @@ Node* expandPointerLoad(Builder& builder, Function& callee, Node* const* argumen
     auto place = builder.addressPlace(*arguments[0], result, false);
 
     auto wanted = bindingRequest(Access::Owned);
-    return builder.addRead(source, *place, readMode(*builder.program.decl, *place, wanted), wanted);
+    return builder.addRead(source, *place, readMode(*builder.program.decl, builder.base(), builder.body, *place, wanted), wanted);
 }
 
 /*
@@ -246,6 +379,86 @@ Node* expandPointerStore(Builder& builder, Function& callee, Node* const* argume
     auto pointee = valueOccurrence(*arguments[1]);
     auto place = builder.addressPlace(*arguments[0], requalified(pointee, ownedContract()), true);
 
+    builder.addWrite(source, *place, *arguments[1], Destination::Assign);
+
+    auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
+    return builder.addConst(source, unitConstant(result.type));
+}
+
+/*
+ * The whole-vector transfers - `vectorAt`, `vectorPast` and `setVectorAt`, `lib/Native/Pointer.native.yana`.
+ *
+ * **Each is `*p` or `store(p, v)` at a vector type, and nothing else.** The address the caller hands
+ * over is an element pointer - a `%U8` into a run of bytes - and what a whole-register transfer
+ * wants is that same address named at the vector's type. A pointer's *value* does not depend on what
+ * it is said to point at, so the whole address computation is a `Bitcast`: no arithmetic, and no
+ * alignment claim either, a vector access being unaligned on both of this compiler's backends by
+ * construction.
+ *
+ * So there is no node here that the pointer path does not already have, and that is the decision
+ * worth recording: a dedicated `vector.load` would be a second spelling of `Read` at an address
+ * root, and every pass that reasons about places - the loan checker, the drop elaboration, the
+ * conversion below - would need an arm for it that said the same thing. `vectorAt(p, i)` therefore
+ * reads through a pointer loan exactly as `pointerLoad` does, and `setVectorAt` writes through a `%`
+ * with `pointerStore`'s rule, because they *are* those two operations.
+ *
+ * `vectorPast` is the one bit of difference: the same load with the tail-read guarantee spent - see
+ * `NodeRead::overread`, which is where the promise is written down. No store ever carries it.
+ */
+static Node* asVectorAddress(Builder& builder, Node& pointer, DeclPtr<Type> vector,
+                             LocationId source) {
+    if(!vector || builder.declBase()[vector]->kind != Type::Vector) {
+        builder.context.diagnostics.error("a whole-vector transfer needs a vector type, and %@ is not one"_v,
+                                          source, typeText(builder.context, builder.declBase(), vector));
+        return nullptr;
+    }
+
+    return builder.addBitcast(source, pointer, builder.program.types.pointerType(vector));
+}
+
+// One emitter for the load and the overreading load, because the flag is the whole difference and a
+// second copy of these four lines is what would let the two drift apart.
+static Node* loadVector(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source, bool overread) {
+    auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
+
+    auto address = asVectorAddress(builder, *arguments[0], result.type, source);
+    if(!address) return nullptr;
+
+    auto place = builder.addressPlace(*address, result, false);
+
+    auto wanted = bindingRequest(Access::Owned);
+    return builder.addRead(source, *place, readMode(*builder.program.decl, builder.base(), builder.body, *place, wanted), wanted,
+                           overread);
+}
+
+Node* expandVectorAt(Builder& builder, Function& callee, Node* const* arguments,
+                     const Substitution& with, LocationId source) {
+    return loadVector(builder, callee, arguments, with, source, false);
+}
+
+Node* expandVectorPast(Builder& builder, Function& callee, Node* const* arguments,
+                       const Substitution& with, LocationId source) {
+    return loadVector(builder, callee, arguments, with, source, true);
+}
+
+/*
+ * `setVectorAt(p, v)` - the store, which never overreads.
+ *
+ * The vector type comes from the *value* rather than from the result, the result being `{}`: what
+ * width is written is what the caller had in hand. `Destination::Assign` and it releases nothing,
+ * exactly as `pointerStore` does and for the same reason - an address root has no move path, so
+ * what the memory held before is neither dropped nor tracked, and that is Native's to be unsafe
+ * about.
+ */
+Node* expandSetVectorAt(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source) {
+    auto held = valueOccurrence(*arguments[1]);
+
+    auto address = asVectorAddress(builder, *arguments[0], held.type, source);
+    if(!address) return nullptr;
+
+    auto place = builder.addressPlace(*address, requalified(held, ownedContract()), true);
     builder.addWrite(source, *place, *arguments[1], Destination::Assign);
 
     auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);

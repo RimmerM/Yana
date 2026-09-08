@@ -1,0 +1,119 @@
+module ResolveTest
+
+data Row {name: String, rank: I32} reclaim derived
+
+let names: [String *3] = [String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}, String {units: Array {run: Run {items: &string'144, capacity: 3, ownsHeap: 0}, length: 3}}, String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}]
+
+let rows: [Row *2] = [Row {name: String {units: Array {run: Run {items: &string'146, capacity: 2, ownsHeap: 0}, length: 2}}, rank: 2}, Row {name: String {units: Array {run: Run {items: &string'147, capacity: 3, ownsHeap: 0}, length: 3}}, rank: 5}]
+
+let string'143: [CodeUnit *2] = [97, 98]
+
+let string'144: [CodeUnit *3] = [99, 100, 101]
+
+let string'145: [CodeUnit *1] = [102]
+
+let string'146: [CodeUnit *2] = [103, 104]
+
+let string'147: [CodeUnit *3] = [105, 106, 107]
+
+fn total() -> I32 {
+  local & sum: I32
+  local & local1: I32
+  local i: I32
+  local & local3: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  %3: I32 = const 3
+  %4: I32 = const 1
+  write.init borrow.unique (local1) take %2
+  jump -> bb1(take %3, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local1)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %34: I32 = read copy.trivial (local1)
+  %35: I32 = add inspect %34 inspect %8
+  write.assign borrow.unique (local1) take %35
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %38: I32 = const 0
+  %39: I32 = const 2
+  %40: I32 = const 1
+  write.init borrow.unique (local3) take %38
+  jump -> bb5(take %39, take %40)
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local1)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (sum)
+  %21: I32 = read copy.trivial (i)
+  %22: Size = convert inspect %21
+  %23: USize = const 3
+  %24: USize = bitcast inspect %22
+  %25: Bool = ge inspect %24 inspect %23
+  %26: {} = call checkCondition borrow.shared %25
+  %27: String [shared call] = read borrow.shared (global names[...]) loan0
+  %28: String [shared slot 0 view] = call.derivation view(String) borrow.shared %27 roots{0}
+  %29: Size = call length(String) borrow.shared %28
+  %30: I32 = convert inspect %29
+  %31: I32 = add inspect %20 inspect %30
+  write.assign borrow.unique (sum) take %31
+  jump -> bb2(take %15, take %16)
+
+bb5(%41: I32, %42: I32):
+  %49: I32 = read copy.trivial (local3)
+  %50: Bool = lt inspect %49 inspect %41
+  branch inspect %50 -> bb8(take %41, take %42) -> bb7(take %41, take %42)
+
+bb6(%43: I32, %44: I32):
+  %78: I32 = read copy.trivial (local3)
+  %79: I32 = add inspect %78 inspect %44
+  write.assign borrow.unique (local3) take %79
+  jump -> bb5(take %43, take %44)
+
+bb7(%45: I32, %46: I32):
+  %82: I32 = read copy.trivial (sum)
+  return take %82
+
+bb8(%51: I32, %52: I32):
+  %54: I32 = read copy.trivial (local3)
+  write.init borrow.unique (i) take %54
+  %56: I32 = read copy.trivial (sum)
+  %57: I32 = read copy.trivial (i)
+  %58: Size = convert inspect %57
+  %59: USize = const 2
+  %60: USize = bitcast inspect %58
+  %61: Bool = ge inspect %60 inspect %59
+  %62: {} = call checkCondition borrow.shared %61
+  %63: String [shared call] = read borrow.shared (global rows[...].name) loan1
+  %64: String [shared slot 0 view] = call.derivation view(String) borrow.shared %63 roots{1}
+  %65: Size = call length(String) borrow.shared %64
+  %66: I32 = convert inspect %65
+  %67: I32 = read copy.trivial (i)
+  %68: Size = convert inspect %67
+  %69: USize = const 2
+  %70: USize = bitcast inspect %68
+  %71: Bool = ge inspect %70 inspect %69
+  %72: {} = call checkCondition borrow.shared %71
+  %73: I32 = read copy.trivial (global rows[...].rank)
+  %74: I32 = mul inspect %66 inspect %73
+  %75: I32 = add inspect %56 inspect %74
+  write.assign borrow.unique (sum) take %75
+  jump -> bb6(take %51, take %52)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call total
+  return take %0
+}
+
+entry main

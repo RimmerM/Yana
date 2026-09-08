@@ -1,6 +1,6 @@
 module ResolveTest
 
-fn widen(value: I32 [shared call]) -> I64 {
+fn widen'2(value: I32 [shared call]) -> I64 {
 bb0:
   %0: I32 = read copy.trivial (value)
   %1: I64 = convert inspect %0
@@ -67,7 +67,7 @@ bb0:
 
 bb1:
   %5: I32 = const 7
-  %6: I64 = call widen borrow.shared %5
+  %6: I64 = call widen'2 borrow.shared %5
   %7: I32 = convert inspect %6
   jump -> bb2(take %7)
 

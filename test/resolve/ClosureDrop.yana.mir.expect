@@ -1,0 +1,110 @@
+module ResolveTest
+
+data Guard {id: I32} drop authored
+
+data guarded.lambda.env {g: Guard} drop derived
+
+data plain.lambda.env {}
+
+instance Drop(Guard): Guard.drop
+
+let & dropCalls: I32 = 0
+
+fn Guard.drop(self: Guard) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global dropCalls)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global dropCalls) take %2
+  return
+}
+
+fn guarded(id: I32 [shared call]) -> () -> I32 {
+  local g: Guard
+  local guarded.lambda.env: guarded.lambda.env
+
+bb0:
+  %0: I32 = read copy.trivial (id)
+  %1: Guard = aggregate.Guard take %0
+  write.init borrow.unique (g) take %1
+  %3: Guard = read take (g)
+  %4: guarded.lambda.env = aggregate.guarded.lambda.env take %3
+  write.init borrow.unique (guarded.lambda.env) take %4
+  %6: guarded.lambda.env = read take (guarded.lambda.env)
+  %7: () -> I32 = fun.value guarded.lambda take %6
+  return take %7
+}
+
+fn plain() -> () -> I32 {
+bb0:
+  %0: () -> I32 [owned here shape8 .0=unique call] = fun.value plain.lambda
+  return take %0
+}
+
+fn main() -> I32 {
+  local f: () -> I32
+  local a: I32
+  local p: () -> I32
+  local b: I32
+
+bb0:
+  %0: I32 = const 7
+  %1: () -> I32 = call guarded borrow.shared %0
+  write.init borrow.unique (f) take %1
+  %3: () -> I32 [shared call] = read borrow.shared (f) loan0
+  %4: I32 = call inspect %3
+  drop (f)
+  write.init borrow.unique (a) take %4
+  %6: I32 = read copy.trivial (global dropCalls)
+  %7: I32 = const 1
+  %8: Bool = ne inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: () -> I32 = call plain
+  write.init borrow.unique (p) take %13
+  %15: () -> I32 [shared call] = read borrow.shared (p) loan1
+  %16: I32 = call inspect %15
+  drop (p)
+  write.init borrow.unique (b) take %16
+  %18: I32 = read copy.trivial (global dropCalls)
+  %19: I32 = const 1
+  %20: Bool = ne inspect %18 inspect %19
+  branch inspect %20 -> bb6 -> bb4
+
+bb3:
+  %10: I32 = const -1
+  return take %10
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %25: I32 = read copy.trivial (a)
+  %26: I32 = read copy.trivial (b)
+  %27: I32 = add inspect %25 inspect %26
+  %28: I32 = read copy.trivial (global dropCalls)
+  %29: I32 = add inspect %27 inspect %28
+  return take %29
+
+bb6:
+  %22: I32 = const -2
+  return take %22
+}
+
+fn guarded.lambda(guarded.lambda.env: guarded.lambda.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (guarded.lambda.env.g.id)
+  return take %0
+}
+
+fn plain.lambda(plain.lambda.env: plain.lambda.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 5
+  return take %0
+}
+
+entry main

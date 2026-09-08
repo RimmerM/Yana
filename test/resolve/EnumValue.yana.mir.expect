@@ -1,0 +1,128 @@
+module ResolveTest
+
+data Whence = FromStart = 0 | FromCurrent = 1 | FromEnd = 2
+
+data Errno = NotFound = 2 | Access = 13 | Quota = 122
+
+data Continued = First = 10 | Second | Third
+
+data Unpinned = Zero | One | Two
+
+data Wide = Near = 0 | Far = 4294967296
+
+fn seekBase(w: Whence [shared call]) -> I64 {
+bb0:
+  %0: Whence = read copy.trivial (w)
+  %1: U8 = bitcast inspect %0
+  %2: I32 = convert inspect %1
+  %3: I64 = convert inspect %2
+  return take %3
+}
+
+fn errorNumber(e: Errno [shared call]) -> I64 {
+bb0:
+  %0: Errno = read copy.trivial (e)
+  %1: U8 = bitcast inspect %0
+  %2: I32 = convert inspect %1
+  %3: I64 = convert inspect %2
+  return take %3
+}
+
+fn continuedNumber(c: Continued [shared call]) -> I64 {
+bb0:
+  %0: Continued = read copy.trivial (c)
+  %1: U8 = bitcast inspect %0
+  %2: I32 = convert inspect %1
+  %3: I64 = convert inspect %2
+  return take %3
+}
+
+fn wideNumber(w: Wide [shared call]) -> I64 {
+bb0:
+  %0: Wide = read copy.trivial (w)
+  %1: U64 = bitcast inspect %0
+  %2: I64 = convert inspect %1
+  return take %2
+}
+
+fn anyValue(x: a [shared call]) -> w {
+  form specialized
+  slot #0 type a
+  slot #1 type w
+  slot #2 class Enum(a, w)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: w = call valueOf(a, w) borrow.shared %0
+  return take %1
+}
+
+fn whenceOf(n: I64 [shared call]) -> Maybe(Whence) {
+bb0:
+  %0: I64 = read copy.trivial (n)
+  %1: Maybe(Whence) = call fromValue(Whence, I32) borrow.shared %0
+  return take %1
+}
+
+fn errnoOf'2(n: I64 [shared call]) -> Maybe(Errno) {
+bb0:
+  %0: I64 = read copy.trivial (n)
+  %1: Maybe(Errno) = call fromValue(Errno, I32) borrow.shared %0
+  return take %1
+}
+
+fn unpinnedOf(n: I64 [shared call]) -> Maybe(Unpinned) {
+bb0:
+  %0: I64 = read copy.trivial (n)
+  %1: Maybe(Unpinned) = call fromValue(Unpinned, I32) borrow.shared %0
+  return take %1
+}
+
+fn isQuota(e: Errno [shared call]) -> Bool {
+bb0:
+  %0: U8 = read copy.trivial (e.#)
+  %1: U8 = const 122
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Bool = const False
+  jump -> bb2(take %5)
+
+bb2(%6: Bool):
+  return take %6
+
+bb3:
+  %4: Bool = const True
+  jump -> bb2(take %4)
+}
+
+fn main() -> I32 {
+  local generic: I64
+
+bb0:
+  %0: Whence = const FromEnd
+  %1: I32 = call anyValue(Whence, I32) borrow.shared %0
+  %2: I64 = convert inspect %1
+  %3: Wide = const Far
+  %4: I64 = call wideNumber borrow.shared %3
+  %5: I64 = add inspect %2 inspect %4
+  %6: I64 = const 4294967296
+  %7: I64 = sub inspect %5 inspect %6
+  write.init borrow.unique (generic) take %7
+  %9: Whence = const FromEnd
+  %10: I64 = call seekBase borrow.shared %9
+  %11: Errno = const Quota
+  %12: I64 = call errorNumber borrow.shared %11
+  %13: I64 = add inspect %10 inspect %12
+  %14: Continued = const Third
+  %15: I64 = call continuedNumber borrow.shared %14
+  %16: I64 = add inspect %13 inspect %15
+  %17: I64 = read copy.trivial (generic)
+  %18: I64 = add inspect %16 inspect %17
+  %19: I32 = convert inspect %18
+  return take %19
+}
+
+fn anyValue(Whence, I32)(x: Whence [shared call]) -> I32 = <anyValue at Whence, I32>
+
+entry main

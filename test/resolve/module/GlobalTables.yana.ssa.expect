@@ -1,6 +1,6 @@
 module ResolveTest
 
-let string: [CodeUnit *20] = [48, 48, 48, 49, 48, 50, 48, 51, 48, 52, 48, 53, 48, 54, 48, 55, 48, 56, 48, 57]
+let string'142: [CodeUnit *20] = [48, 48, 48, 49, 48, 50, 48, 51, 48, 52, 48, 53, 48, 54, 48, 55, 48, 56, 48, 57]
 
 fn main() -> I32 {
 bb0:
@@ -53,146 +53,73 @@ bb7:
 bb8:
   %20: %String address = global.addr decimalPairs
   %21: String [shared call] guaranteed = load inspect %20
-  jump -> bb13
+  %22: String [shared slot 0 view] guaranteed = call String.view borrow %21
+  %23: %[CodeUnit *20] address = global.addr string'142
+  %24: [CodeUnit *20] [shared slot 0] guaranteed = load inspect %23
+  %25: %[CodeUnit *20] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %24
+  %26: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %25
+  %27: I32 trivial = const 20
+  %28: String owned = call stringLiteral borrow %26 borrow %27
+  store inspect %1 consume %28
+  %29: String [shared slot 0] guaranteed from{%1} = load inspect %1
+  %30: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %29
+  %31: Bool trivial = call String.== borrow %22 borrow %30
+  drop String inspect %1
+  branch inspect %31 -> bb12 -> bb10
 
 bb9:
-  %69: I32 trivial = load inspect %0
-  %70: I32 trivial = const 4
-  %71: I32 trivial = add inspect %69 inspect %70
-  store inspect %0 consume %71
+  %32: I32 trivial = load inspect %0
+  %33: I32 trivial = const 4
+  %34: I32 trivial = add inspect %32 inspect %33
+  store inspect %0 consume %34
   jump -> bb8
 
 bb10:
   jump -> bb11
 
 bb11:
-  %72: I32 trivial = load inspect %0
-  return consume %72
+  %35: I32 trivial = load inspect %0
+  return consume %35
 
 bb12:
-  %73: I32 trivial = load inspect %0
-  %74: I32 trivial = const 8
-  %75: I32 trivial = add inspect %73 inspect %74
-  store inspect %0 consume %75
+  %36: I32 trivial = load inspect %0
+  %37: I32 trivial = const 8
+  %38: I32 trivial = add inspect %36 inspect %37
+  store inspect %0 consume %38
   jump -> bb11
-
-bb13:
-  %23: %Array(CodeUnit) address = field.addr .units inspect %21
-  %24: %Run(CodeUnit) address = field.addr .run inspect %23
-  %25: %%CodeUnit address = field.addr .items inspect %24
-  %26: %CodeUnit trivial = load inspect %25
-  %27: %Array(CodeUnit) address = field.addr .units inspect %21
-  %28: %@bits(30) U32 address = field.addr .length inspect %27
-  %29: @bits(30) U32 trivial = load inspect %28
-  %30: U32 trivial = convert inspect %29
-  %31: Size trivial = convert inspect %30
-  %32: StringView trivial = aggregate.StringView consume %26 consume %31
-  %33: String [shared slot 0 view] guaranteed = represent inspect %32
-  jump -> bb14(borrow %33)
-
-bb14(%22: String [shared slot 0 view] guaranteed):
-  %34: %[CodeUnit *20] address = global.addr string
-  %35: [CodeUnit *20] [shared slot 0] guaranteed = load inspect %34
-  %36: %[CodeUnit *20] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %35
-  %37: %CodeUnit trivial = bitcast inspect %36
-  %38: Size trivial = const 20
-  jump -> bb15
-
-bb15:
-  %40: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %41: %Size address = alloc frame Size [shared call]
-  store inspect %40 borrow %37
-  store inspect %41 borrow %38
-  %42: %CodeUnit trivial = load inspect %40
-  %43: Size trivial = load inspect %41
-  %44: U32 trivial = convert inspect %43
-  %45: @bits(30) U32 trivial = convert inspect %44
-  %46: %U32 address = global.addr runBorrowed
-  %47: U32 trivial = load inspect %46
-  %48: @bits(2) U32 trivial = convert inspect %47
-  %49: Run(CodeUnit) owned = aggregate.Run consume %42 consume %45 consume %48
-  %50: Size trivial = load inspect %41
-  %51: U32 trivial = convert inspect %50
-  %52: @bits(30) U32 trivial = convert inspect %51
-  %53: Array(CodeUnit) owned = aggregate.Array consume %49 consume %52
-  %54: String owned = aggregate.String consume %53
-  jump -> bb16(consume %54)
-
-bb16(%39: String owned):
-  store inspect %1 consume %39
-  %55: String [shared slot 0] guaranteed from{%1} = load inspect %1
-  jump -> bb17
-
-bb17:
-  %57: %Array(CodeUnit) address = field.addr .units inspect %55
-  %58: %Run(CodeUnit) address = field.addr .run inspect %57
-  %59: %%CodeUnit address = field.addr .items inspect %58
-  %60: %CodeUnit trivial = load inspect %59
-  %61: %Array(CodeUnit) address = field.addr .units inspect %55
-  %62: %@bits(30) U32 address = field.addr .length inspect %61
-  %63: @bits(30) U32 trivial = load inspect %62
-  %64: U32 trivial = convert inspect %63
-  %65: Size trivial = convert inspect %64
-  %66: StringView trivial = aggregate.StringView consume %60 consume %65
-  %67: String [shared slot 0 view] guaranteed = represent inspect %66
-  jump -> bb18(borrow %67)
-
-bb18(%56: String [shared slot 0 view] guaranteed from{%1}):
-  %68: Bool trivial = call String.== borrow %22 borrow %56
-  drop String inspect %1
-  branch inspect %68 -> bb12 -> bb10
 }
 module Tables
 
-let decimalPairs: String = String {units: Array {run: Run {items: &string, capacity: 20, ownsHeap: 0}, length: 20}}
+let decimalPairs: String = String {units: Array {run: Run {items: &string'144, capacity: 20, ownsHeap: 0}, length: 20}}
 
 let powers: [I64 *5] = [1, 10, 100, 1000, 10000]
 
-let string: [CodeUnit *20] = [48, 48, 48, 49, 48, 50, 48, 51, 48, 52, 48, 53, 48, 54, 48, 55, 48, 56, 48, 57]
+let string'144: [CodeUnit *20] = [48, 48, 48, 49, 48, 50, 48, 51, 48, 52, 48, 53, 48, 54, 48, 55, 48, 56, 48, 57]
 
 fn power(index: Size [shared call]) -> I64 {
 bb0(%0: Size [shared call] guaranteed):
   %1: %Size address = alloc frame Size [shared call]
   store inspect %1 borrow %0
   %2: Size trivial = load inspect %1
-  %3: %[I64 *5] address = global.addr powers
-  %4: %I64 address = element.addr inspect %3 inspect %2
-  %5: I64 trivial = load inspect %4
-  return consume %5
+  %3: USize trivial = const 5
+  %4: USize trivial = bitcast inspect %2
+  %5: Bool trivial = ge inspect %4 inspect %3
+  call checkCondition borrow %5
+  %6: %[I64 *5] address = global.addr powers
+  %7: %I64 address = element.addr inspect %6 inspect %2
+  %8: I64 trivial = load inspect %7
+  return consume %8
 }
 
 fn pairCount() -> Size {
 bb0:
   %0: %String address = global.addr decimalPairs
   %1: String [shared call] guaranteed = load inspect %0
-  jump -> bb1
-
-bb1:
-  %3: %Array(CodeUnit) address = field.addr .units inspect %1
-  %4: %Run(CodeUnit) address = field.addr .run inspect %3
-  %5: %%CodeUnit address = field.addr .items inspect %4
-  %6: %CodeUnit trivial = load inspect %5
-  %7: %Array(CodeUnit) address = field.addr .units inspect %1
-  %8: %@bits(30) U32 address = field.addr .length inspect %7
-  %9: @bits(30) U32 trivial = load inspect %8
-  %10: U32 trivial = convert inspect %9
-  %11: Size trivial = convert inspect %10
-  %12: StringView trivial = aggregate.StringView consume %6 consume %11
-  %13: String [shared slot 0 view] guaranteed = represent inspect %12
-  jump -> bb2(borrow %13)
-
-bb2(%2: String [shared slot 0 view] guaranteed):
-  jump -> bb3
-
-bb3:
-  %15: %Size address = field.addr .length inspect %2
-  %16: Size trivial = load inspect %15
-  jump -> bb4(consume %16)
-
-bb4(%14: Size trivial):
-  %17: Size trivial = const 2
-  %18: Size trivial = div inspect %14 inspect %17
-  return consume %18
+  %2: String [shared slot 0 view] guaranteed = call String.view borrow %1
+  %3: Size trivial = call String.length borrow %2
+  %4: Size trivial = const 2
+  %5: Size trivial = div inspect %3 inspect %4
+  return consume %5
 }
 
 entry main

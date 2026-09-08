@@ -1,0 +1,45 @@
+module ResolveTest
+
+data Cursor(a) {at: %a}
+
+data Cursor(I32) {at: %I32} of Cursor
+
+class Advance(a): advance
+
+instance Advance(I32): I32.advance
+
+fn advance(p: %a [shared call shape4 .*=shared slot 0]) -> %a [owned here shape4 .*=shared slot 0] = <no body>
+
+fn I32.advance(p: %I32 [shared call shape4 .*=shared slot 0]) -> %I32 [owned here shape4 .*=shared slot 0] {
+bb0:
+  %0: %I32 [owned here shape4 .*=shared slot 0] = read copy.trivial (p)
+  return take %0
+}
+
+fn step(self: Cursor(a) [unique call]) -> {} {
+  form specialized
+  slot #0 type a
+  slot #1 class Advance(a)
+bb0:
+  %0: %a = read copy.trivial (self.at)
+  %1: %a [owned here shape4 .*=shared slot 0] = call advance(a) borrow.shared %0
+  write.assign borrow.unique (self.at) take %1
+  return
+}
+
+fn main() -> I32 {
+  local & cursor: Cursor(I32)
+
+bb0:
+  %0: %I32 = call null(I32)
+  %1: Cursor(I32) = aggregate.Cursor take %0
+  write.init borrow.unique (cursor) take %1
+  %3: Cursor(I32) [unique call] = read borrow.unique (cursor) loan0
+  %4: {} = call step(I32) borrow.unique %3
+  %5: I32 = const 0
+  return take %5
+}
+
+fn step(I32)(self: Cursor(I32) [unique call]) -> {} = <step at I32>
+
+entry main

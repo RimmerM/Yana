@@ -1,0 +1,111 @@
+module ResolveTest
+
+fn at(i: Size [shared call]) -> Size {
+bb0(%0: Size [shared call] guaranteed):
+  %1: %Size address = alloc frame Size [shared call]
+  store inspect %1 borrow %0
+  %2: Size trivial = load inspect %1
+  return consume %2
+}
+
+fn writtenCount() -> I32 {
+bb0:
+  %0: %[I32 *4] address = alloc frame [I32 *4]
+  %1: I32 trivial = const 0
+  %2: [I32 *4] trivial = aggregate.0 consume %1 consume %1 consume %1 consume %1
+  store inspect %0 consume %2
+  %3: Size trivial = const 1
+  %4: Size trivial = call at borrow %3
+  %5: USize trivial = const 4
+  %6: USize trivial = bitcast inspect %4
+  %7: Bool trivial = ge inspect %6 inspect %5
+  call checkCondition borrow %7
+  %8: I32 trivial = const 7
+  %9: %I32 address = element.addr inspect %0 inspect %4
+  store inspect %9 consume %8
+  %10: Size trivial = const 3
+  %11: Size trivial = call at borrow %10
+  %12: USize trivial = const 4
+  %13: USize trivial = bitcast inspect %11
+  %14: Bool trivial = ge inspect %13 inspect %12
+  call checkCondition borrow %14
+  %15: I32 trivial = const 5
+  %16: %I32 address = element.addr inspect %0 inspect %11
+  store inspect %16 consume %15
+  %17: Size trivial = const 1
+  %18: Size trivial = call at borrow %17
+  %19: USize trivial = const 4
+  %20: USize trivial = bitcast inspect %18
+  %21: Bool trivial = ge inspect %20 inspect %19
+  call checkCondition borrow %21
+  %22: %I32 address = element.addr inspect %0 inspect %18
+  %23: I32 trivial = load inspect %22
+  %24: Size trivial = const 3
+  %25: Size trivial = call at borrow %24
+  %26: USize trivial = const 4
+  %27: USize trivial = bitcast inspect %25
+  %28: Bool trivial = ge inspect %27 inspect %26
+  call checkCondition borrow %28
+  %29: %I32 address = element.addr inspect %0 inspect %25
+  %30: I32 trivial = load inspect %29
+  %31: I32 trivial = add inspect %23 inspect %30
+  return consume %31
+}
+
+fn sumOf(xs: [I32 *n] [shared call]) -> I32 {
+bb0(%0: [I32 *n] [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 0
+  store inspect %1 consume %3
+  %4: I32 trivial = const 0
+  store inspect %2 consume %4
+  jump -> bb1
+
+bb1:
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = gen.value n
+  %7: Bool trivial = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %8: I32 trivial = load inspect %1
+  return consume %8
+
+bb3:
+  %9: I32 trivial = load inspect %1
+  %10: I32 trivial = load inspect %2
+  %11: Size trivial = convert inspect %10
+  %12: I32 trivial = gen.value n
+  %13: USize trivial = convert inspect %12
+  %14: USize trivial = bitcast inspect %11
+  %15: Bool trivial = ge inspect %14 inspect %13
+  call checkCondition borrow %15
+  %16: %I32 address = element.addr inspect %0 inspect %11
+  %17: I32 trivial = load inspect %16
+  %18: I32 trivial = add inspect %9 inspect %17
+  store inspect %1 consume %18
+  %19: I32 trivial = load inspect %2
+  %20: I32 trivial = const 1
+  %21: I32 trivial = add inspect %19 inspect %20
+  store inspect %2 consume %21
+  jump -> bb1
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %[I32 *4] address = alloc frame [I32 *4]
+  %1: I32 trivial = const 1
+  %2: I32 trivial = const 2
+  %3: I32 trivial = const 3
+  %4: I32 trivial = const 4
+  %5: [I32 *4] trivial = aggregate.0 consume %1 consume %2 consume %3 consume %4
+  store inspect %0 consume %5
+  %6: I32 trivial = call writtenCount
+  %7: [I32 *4] trivial = copy inspect %0
+  %8: I32 trivial = call sumOf [4] borrow %7
+  %9: I32 trivial = add inspect %6 inspect %8
+  return consume %9
+}
+
+entry main

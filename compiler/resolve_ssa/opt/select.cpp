@@ -99,6 +99,41 @@
  * So the case is here because "this shape needs no rule of its own" and "this shape never arrives"
  * are different statements and it is the second one that is true.
  *
+ * ## The second shape: the exit as the join
+ *
+ * A conditional whose two arms both **return** merges its two values at the function's exit rather
+ * than at a block, so `findDiamond` has nothing to find - there is no join, no block argument and no
+ * pair of edges:
+ *
+ *     bb0: %c = gt %n, 100        bb0: %c = gt %n, 100
+ *          branch %c -> bb1 -> bb2     %v = select %c, 9, %n
+ *     bb1: return 9                    return %v
+ *     bb2: return %n
+ *
+ * `convertReturns` is that shape and it is the same conversion with one thing replaced: what the two
+ * sides hand over is a `return`'s operand list instead of an edge's argument list. Everything else -
+ * what an arm may hold, what it may cost, what a select may carry - is the rule above unchanged, and
+ * the two share `armCost` and `selectableType` rather than restating either.
+ *
+ * **The exit is treated as the join it already is, and no returns are merged anywhere else.** That is
+ * the shipping stage's ruling ([[yana-if-conversion]]'s pass, `convertReturnBranch`) and the reason
+ * for it holds here too: unifying every `return` into one block with a block argument costs a jump
+ * per return, and the only thing that would read such a join is this rewrite. Two returns that stay
+ * two returns are what `codegen/x64/README.md` §7.2 shares an epilogue between.
+ *
+ * **`if c: return a` followed by a plain `return b` is the same shape**, not a second one, and that
+ * is worth knowing because it is what a guard clause is written as. The branch's false edge goes
+ * straight to the block holding the second `return`, which has the head as its only predecessor -
+ * so both targets are return arms and nothing about a missing `else` reaches this code.
+ *
+ * A returned value is a `Consume` use where a join's edge operand is one too, so the linear rule is
+ * the same precondition: two sides handing over the same value need no select and are merged as they
+ * stand, and two different values must both be `Trivial`. What is asked in addition is that the two
+ * agree on their **occurrence**, which the join case asks against the argument's - here there is no
+ * argument to ask against, and a `return` is not held to the function's declared result
+ * (`opt/inline.cpp`'s `handoverAgrees` is where that tolerance is written down), so the two operands
+ * are held to each other instead.
+ *
  * ## Where it runs
  *
  * Between `cleanCfg` and `threadBranches`, which is README.md's section B rows 6 and 7. The fold has
@@ -369,6 +404,42 @@ struct SelectConverter {
     Use operandAt(Edge& edge, Size index) { return edge.arguments.get(opt.base, index); }
 
     /*
+     * Whether the join hands what it merges straight back round a loop - the one shape this
+     * conversion **costs**, and it is a measurement rather than a caution.
+     *
+     * `if p then total = total + x` inside a loop is a conditional update of a loop-carried value,
+     * and a select there is not a branch removed: the value is a block argument of the header either
+     * way, and what the select adds is a `cmov` on the loop-carried dependency and, where the
+     * allocator cannot coalesce it with the header's argument, a register copy on the back edge as
+     * well. Measured on `Pipeline`, whose two adaptor loops are exactly this: **1.135x to 1.358x
+     * instructions and 1.244x to 1.520x on the clock** the day `promote` first put such an
+     * accumulator in a register and made the arm pure enough to convert. The branch it would replace
+     * is the loop's own and is taken three times in four, which is the case a predictor is for.
+     *
+     * The test is that the join **is a latch** - it leaves to a block that dominates it - which is
+     * where a merged value is on the loop-carried path by construction. A conversion further inside
+     * the loop is left alone: what it merges is used and dropped inside one iteration.
+     */
+    bool carriesRoundALoop(Block& join) {
+        auto last = join.terminator(opt.base);
+        if(!last) return false;
+
+        auto& dominators = dominatorsOf(opt);
+        if(!dominators.isReachable(join.index.index)) return false;
+
+        auto carried = false;
+        forEachEdge(opt.base, *last, [&](Edge& edge) {
+            if(!edge.target) return;
+
+            auto target = opt.base[edge.target];
+            if(!dominators.isReachable(target->index.index)) return;
+            if(dominators.dominates(target->index.index, join.index.index)) carried = true;
+        });
+
+        return carried;
+    }
+
+    /*
      * Whether the join's arguments and the two operands feeding each of them are ones a select may
      * carry - the linear rule as a precondition, and the register-shape question beside it.
      *
@@ -425,6 +496,7 @@ struct SelectConverter {
 
         Diamond diamond;
         if(!findDiamond(head, branch, diamond)) return false;
+        if(carriesRoundALoop(*diamond.join)) return false;
 
         Size cost = 0;
         for(auto arm: diamond.arms) {
@@ -518,12 +590,27 @@ struct SelectConverter {
          * And the branch itself, which becomes a jump straight to the join.
          *
          * The head's edge into the join is created only where it did not already have one, and that
-         * is `replaceTerminator`'s multiset rule rather than a test written here: a triangle's branch
-         * already led to the join down one side, and that is the edge that survives - arguments
-         * included, which is why the triangle case above is the one that carries none.
+         * is `replaceTerminator`'s multiset rule rather than a test written here: a **triangle**'s
+         * branch already led to the join down one side, and that is the edge that survives -
+         * arguments included, which are the ones the *false* side was handing over rather than the
+         * selects just built. So the operands are written back over it, one position at a time.
+         *
+         * That is a correction and it was a live miscompile the moment `promote` started putting a
+         * loop's accumulator in a register: a triangle's direct edge used to carry nothing, so the
+         * rule above was invisible, and `if odd then total = total + x` converted to a select whose
+         * result was then dropped in favour of the value the branch's own edge already named. Every
+         * iteration read the unchanged total. Writing them back is unconditional rather than a
+         * triangle case, because on a diamond both edges belong to arms this is about to delete and
+         * the write is then over the operands `makeJump` supplied.
          */
-        editor.replaceTerminator(head, editor.makeJump(source, *join, arguments.pointer(),
-                                                       arguments.size()));
+        auto placed = editor.replaceTerminator(head, editor.makeJump(source, *join,
+                                                                     arguments.pointer(),
+                                                                     arguments.size()));
+        assertTrue(placed != nullptr);
+
+        for(Size i = 0; i < arguments.size(); i++) {
+            editor.setEdgeArgument(*placed, 0, i, arguments[i]);
+        }
 
         /*
          * The arms, which now have no way in at all.
@@ -541,6 +628,127 @@ struct SelectConverter {
         return true;
     }
 
+    /*
+     * One arm of a return branch: a block reached only from the head, computing a little and leaving
+     * the function. The `return` it ends with comes back through `returned`.
+     *
+     * The first five questions are `armEdge`'s and are asked for its five reasons. The sixth is where
+     * the two part company: this arm leaves rather than joining, so what is required of its
+     * terminator is a `Return` and not a `Jump`.
+     */
+    Maybe<Size> returnArm(Block& head, SsaPtr<Block> pointer, InstReturn*& returned) {
+        if(!pointer) return Nothing();
+
+        auto block = opt.base[pointer];
+        if(block == &head || block->deleted) return Nothing();
+        if(block == opt.base[opt.body->entry]) return Nothing();
+
+        if(block->argumentCount()) return Nothing();
+        if(block->predecessorCount() != 1) return Nothing();
+        if(opt.base[block->predecessorAt(opt.base, 0)] != &head) return Nothing();
+        if(block->region != head.region || isAnchor(*block)) return Nothing();
+
+        auto last = block->terminator(opt.base);
+        if(!last || last->kind != Inst::Return) return Nothing();
+
+        returned = &(InstReturn&)*last;
+        return armCost(*block);
+    }
+
+    // Return unification - the file comment's second shape. The same conversion with the exit as the
+    // join, so what is read out of each side is a `return`'s operands rather than an edge's.
+    bool convertReturns(Block& head) {
+        auto last = head.terminator(opt.base);
+        if(!last || last->kind != Inst::Branch) return false;
+
+        auto& branch = (InstBranch&)*last;
+        if(!branch.condition.isSet()) return false;
+        if(branch.whenTrue.target == branch.whenFalse.target) return false;
+
+        // The condition is a `Bool`, for `convert`'s reason: the tier below tells a scalar select
+        // from the lane-wise one by it.
+        auto boolean = mir::booleanType(opt.program);
+        if(!boolean || opt.base[branch.condition.value()]->type() != boolean) return false;
+
+        InstReturn* fromTrue = nullptr;
+        InstReturn* fromFalse = nullptr;
+
+        auto trueCost = returnArm(head, branch.whenTrue.target, fromTrue);
+        if(!trueCost) return false;
+
+        auto falseCost = returnArm(head, branch.whenFalse.target, fromFalse);
+        if(!falseCost) return false;
+
+        if(trueCost.unwrap() + falseCost.unwrap() > kMaxSpeculated) return false;
+        if(fromTrue->values.size() != fromFalse->values.size()) return false;
+
+        /*
+         * Everything the rewrite reads, read out before it starts - `convert`'s rule, and here it is
+         * not optional either: the two `return`s are instructions in blocks this is about to delete.
+         */
+        SmallArray<Use, 4> whenTrue, whenFalse;
+        for(auto used: fromTrue->values.contents(opt.base)) whenTrue.push(used);
+        for(auto used: fromFalse->values.contents(opt.base)) whenFalse.push(used);
+
+        for(Size i = 0; i < whenTrue.size(); i++) {
+            if(!whenTrue[i].isSet() || !whenFalse[i].isSet()) return false;
+            if(whenTrue[i].value() == whenFalse[i].value()) continue;
+
+            auto left = opt.base[whenTrue[i].value()];
+            auto right = opt.base[whenFalse[i].value()];
+
+            if(left->convention != Convention::Trivial) return false;
+            if(right->convention != Convention::Trivial) return false;
+            if(left->occurrence != right->occurrence) return false;
+            if(!selectableType(left->type())) return false;
+        }
+
+        auto condition = opt.base[branch.condition.value()];
+        auto source = last->source;
+        Block* arms[2] = { opt.base[branch.whenTrue.target], opt.base[branch.whenFalse.target] };
+
+        auto editor = opt.ir();
+
+        // The arms move up first, for `convert`'s reason: a value one of them computed has to be
+        // defined above the select that reads it, and the head is each arm's only predecessor.
+        for(auto arm: arms) {
+            for(;;) {
+                if(!arm->instructionCount()) break;
+
+                auto inst = opt.base[arm->instructionAt(opt.base, 0)];
+                if(isTerminator(inst->kind)) break;
+
+                editor.moveInst(*inst, head, head.instructionCount() - 1);
+            }
+        }
+
+        editor.setInsertBefore(*last);
+
+        SmallArray<Use, 4> values;
+        for(Size i = 0; i < whenTrue.size(); i++) {
+            if(whenTrue[i].value() == whenFalse[i].value()) {
+                values.push(whenTrue[i]);
+                continue;
+            }
+
+            auto declared = opt.base[whenTrue[i].value()];
+            auto select = editor.addSelect(source, editor.use(*condition, UseKind::Inspect),
+                                           whenTrue[i].withKind(UseKind::Inspect),
+                                           whenFalse[i].withKind(UseKind::Inspect),
+                                           declared->occurrence, Convention::Trivial);
+
+            values.push(editor.use(*editor.resultOf(*select), UseKind::Consume));
+        }
+
+        // The branch becomes the return, which takes both edges with it; the arms then have no way in
+        // and are deleted here rather than left for `cleanCfg`, on `convert`'s rule about what a pass
+        // owes its own checkpoint.
+        editor.replaceTerminator(head, editor.makeReturn(source, values.pointer(), values.size()));
+        for(auto arm: arms) editor.deleteBlock(*arm);
+
+        return true;
+    }
+
     void run() {
         // Over a snapshot of the table, because a conversion deletes blocks the walk would otherwise
         // still be pointed at. Nothing here makes a block, so one visit per block is one attempt at
@@ -550,7 +758,9 @@ struct SelectConverter {
 
         for(auto block: blocks) {
             if(block->deleted) continue;
-            convert(*block);
+            if(convert(*block)) continue;
+
+            convertReturns(*block);
         }
     }
 };

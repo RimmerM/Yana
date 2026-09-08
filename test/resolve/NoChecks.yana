@@ -7,7 +7,7 @@
    `Divide.yana`: this program reads one element past the end of a window, which a checked build
    stops on and an unchecked one does not, so the answer below is only reachable with the switch.
 
-   **What the check is here.** The compiler emits nothing. `prelude/Core/Array.yana`'s `Index.get`
+   **What the check is here.** The compiler emits nothing. `lib/Core/Array.yana`'s `Index.get`
    writes `if index >= self.length then checkFailed()` as an ordinary library `if`, and
    `@inline(always)` grafts it into every subscript during SSA conversion - so what `-no-checks`
    removes is a branch whose whole taken arm calls the `checkFailed` role, and not a call the

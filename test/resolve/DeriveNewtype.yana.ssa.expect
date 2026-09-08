@@ -1,8 +1,8 @@
 module ResolveTest
 
-fn OpenFlags.and(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags = <no body>
+fn OpenFlags.and'2(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags = <no body>
 
-fn OpenFlags.or(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags {
+fn OpenFlags.or'2(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags {
 bb0(%0: OpenFlags [shared call] guaranteed, %1: OpenFlags [shared call] guaranteed):
   %2: %I64 address = field.addr .OpenFlags inspect %0
   %3: I64 trivial = load inspect %2
@@ -13,11 +13,11 @@ bb0(%0: OpenFlags [shared call] guaranteed, %1: OpenFlags [shared call] guarante
   return consume %7
 }
 
-fn OpenFlags.xor(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags = <no body>
+fn OpenFlags.xor'2(lhs: OpenFlags [shared call], rhs: OpenFlags [shared call]) -> OpenFlags = <no body>
 
-fn OpenFlags.not(value: OpenFlags [shared call]) -> OpenFlags = <no body>
+fn OpenFlags.not'2(value: OpenFlags [shared call]) -> OpenFlags = <no body>
 
-fn OpenFlags.truthy(value: OpenFlags [shared call]) -> Bool {
+fn OpenFlags.truthy'2(value: OpenFlags [shared call]) -> Bool {
 bb0(%0: OpenFlags [shared call] guaranteed):
   %1: %I64 address = field.addr .OpenFlags inspect %0
   %2: I64 trivial = load inspect %1
@@ -54,14 +54,14 @@ bb0:
   %1: OpenFlags trivial = aggregate.OpenFlags consume %0
   %2: I64 trivial = const 512
   %3: OpenFlags trivial = aggregate.OpenFlags consume %2
-  %4: OpenFlags trivial = call OpenFlags.or borrow %1 borrow %3
+  %4: OpenFlags trivial = call OpenFlags.or'2 borrow %1 borrow %3
   return consume %4
 }
 
 fn anySet(flags: OpenFlags [shared call]) -> Bool {
 bb0(%0: OpenFlags [shared call] guaranteed):
   %2: OpenFlags trivial = copy inspect %0
-  %3: Bool trivial = call OpenFlags.truthy borrow %2
+  %3: Bool trivial = call OpenFlags.truthy'2 borrow %2
   branch inspect %3 -> bb3 -> bb1
 
 bb1:

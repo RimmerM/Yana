@@ -24,6 +24,12 @@ struct Printer {
         writer.writeBytes(64, [&](Byte* buffer) { return show(value, (char*)buffer, 64); });
     }
 
+    // A signed number, for the one instruction whose static field may be negative: a `map`'s case
+    // values are `@value(n)`'s, and those are somebody else's numbers.
+    void sint(I64 value) {
+        writer.writeBytes(64, [&](Byte* buffer) { return show(value, (char*)buffer, 64); });
+    }
+
     void name(StringId id) {
         auto text = context.findName(id);
         writer.writeString(stringView(text));
@@ -124,6 +130,11 @@ struct Printer {
                 writer.writeString(stringView(Tritium::format("%@", U64(index))));
                 break;
             }
+            // The tail-read guarantee, spent - `mir::NodeRead::overread`, and a golden about
+            // `vectorPast` is about exactly this bit.
+            case Inst::Load:
+                writer.writeString(((InstLoad&)value).overread ? "load.past"_v : "load"_v);
+                break;
             // Which operation, from op.def's atomic block - `instMnemonic` says `atomic` for
             // eleven of them, which is the base name a dump has no use for.
             case Inst::Atomic:
@@ -244,6 +255,47 @@ struct Printer {
 
                 break;
             }
+            case Inst::Switch: {
+                // The case values in edge order - the edge loop below prints the targets, and a
+                // dump that showed only those could not say which number reaches which.
+                writer.writeString(" ["_v);
+                auto firstCase = true;
+
+                for(Size i = 0; i < ((InstSwitch&)value).cases.size(); i++) {
+                    if(!firstCase) writer.writeString(", "_v);
+                    firstCase = false;
+
+                    sint(((InstSwitch&)value).cases.pointer(base)[i].value);
+                }
+
+                writer.writeString("]"_v);
+                break;
+            }
+            case Inst::Map: {
+                // Every entry, and the fallback where the domain is open - the MIR printer's arm,
+                // for the reason it gives: the table is the instruction.
+                auto& map = (InstMap&)value;
+                writer.writeString(" ["_v);
+                auto firstEntry = true;
+
+                for(auto entry: map.entries.contents(base)) {
+                    if(!firstEntry) writer.writeString(", "_v);
+                    firstEntry = false;
+
+                    sint(entry.selector);
+                    writer.writeString(" -> "_v);
+                    mir::printConstant(writer, context, decl, entry.value);
+                }
+
+                writer.writeString("]"_v);
+
+                if(!map.closed) {
+                    writer.writeString(" else "_v);
+                    mir::printConstant(writer, context, decl, map.fallback);
+                }
+
+                break;
+            }
             case Inst::Metric: {
                 // The measurement and the type, which are the whole of the instruction.
                 auto& metric = (InstMetric&)value;
@@ -310,7 +362,7 @@ struct Printer {
             use(used);
         });
 
-        forEachEdge(value, [&](Edge& edge) {
+        forEachEdge(base, value, [&](Edge& edge) {
             writer.writeString(" -> bb"_v);
             uint(base[edge.target]->index.index);
 

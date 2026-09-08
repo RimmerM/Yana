@@ -25,11 +25,10 @@ struct Pipeline {
      * Constructing one *is* choosing this stage, so the setting is set here rather than by the
      * caller.
      *
-     * It is read below this: `LibrarySource::directory` answers `prelude/` for the ownership stage
-     * and `lib/` for the shipping one, because the standard library the two compile against is not
-     * the same one yet. A caller that had to remember the assignment would be a second statement of
-     * which stage is running, and the one that forgets gets a library it cannot compile - which is
-     * exactly what happened to the driver that found this.
+     * It is read below this - the stage decides how a program is resolved, and a caller that had to
+     * remember the assignment would be a second statement of which stage is running. It used to
+     * decide which *library* was read as well (`prelude/` here, `lib/` there); both stages read
+     * `lib/` since 2026-09-07 and `LibrarySource::directory` no longer asks.
      */
     Pipeline(Context& context): context(context) {
         context.settings.resolver = ResolverStage::Ownership;
@@ -42,9 +41,10 @@ struct Pipeline {
 
     // Parse to verified MIR. False if the program was rejected or the IR failed verification;
     // `program` is still set either way, so a driver can print what it got. `provider` is where a
-    // module an `import` names comes from when it is not the standard library's - see
-    // `mir::resolveProgram`.
-    bool resolve(ast::ModuleGroup& root, ast::ModuleProvider* provider = nullptr);
+    // module an `import` names comes from when it is not the standard library's, and `testRoots` is
+    // the modules that declare a `@test` and that nothing imports - see `mir::resolveProgram`.
+    bool resolve(ast::ModuleGroup& root, ast::ModuleProvider* provider = nullptr,
+                 Buffer<ast::ModuleGroup*> testRoots = {});
     bool resolve(ast::Module& root, ast::ModuleProvider* provider = nullptr);
 
     // Verified MIR to verified SSA.

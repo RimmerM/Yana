@@ -55,19 +55,19 @@ bb0:
   write.init borrow.unique (counter) take %2
   %4: I32 = const 7
   write.init borrow.unique (small) take %4
-  %6: I32 = const 1
-  %7: I32 [unique call] = read borrow.unique (counter) loan0
-  %8: {} = call genericBump(I32) borrow.shared %6 borrow.unique %7
+  %6: I32 [unique call] = read borrow.unique (counter) loan0
+  %7: I32 = const 1
+  %8: {} = call genericBump(I32) borrow.shared %7 borrow.unique %6
   %9: I32 = const 1
   %10: I32 [unique call] = read borrow.unique (counter) loan1
   %11: {} = call plainBump borrow.shared %9 borrow.unique %10
-  %12: I32 = const 1
-  %13: @bits(53) U64 = read copy.trivial (narrow)
-  %14: U64 = convert inspect %13
-  %15: U64 = call genericWidth(I32) borrow.shared %12 borrow.shared %14
+  %12: @bits(53) U64 = const 21
+  %13: U64 = convert inspect %12
+  %14: I32 = const 1
+  %15: U64 = call genericWidth(I32) borrow.shared %14 borrow.shared %13
   %16: I32 = convert inspect %15
   %17: I32 = const 1
-  %18: @bits(53) U64 = read copy.trivial (narrow)
+  %18: @bits(53) U64 = const 21
   %19: U64 = convert inspect %18
   %20: U64 = call plainWidth borrow.shared %17 borrow.shared %19
   %21: I32 = convert inspect %20
@@ -76,10 +76,10 @@ bb0:
   %24: I32 = read copy.trivial (widths)
   %25: I32 = read copy.trivial (counter)
   %26: I32 = add inspect %24 inspect %25
-  %27: I32 = const 1
-  %28: I32 = read copy.trivial (small)
-  %29: I64 = convert inspect %28
-  %30: I64 = call genericWiden(I32) borrow.shared %27 borrow.shared %29
+  %27: I32 = const 7
+  %28: I64 = convert inspect %27
+  %29: I32 = const 1
+  %30: I64 = call genericWiden(I32) borrow.shared %29 borrow.shared %28
   %31: I32 = convert inspect %30
   %32: I32 = add inspect %26 inspect %31
   return take %32

@@ -1,0 +1,431 @@
+module ResolveTest
+
+fn weigh(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 1000
+  %4: Bool trivial = gt inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: I32 trivial = load inspect %1
+  %6: I32 trivial = const 7
+  %7: I32 trivial = mul inspect %5 inspect %6
+  %8: I32 trivial = const 3
+  %9: I32 trivial = add inspect %7 inspect %8
+  return consume %9
+
+bb3:
+  %10: I32 trivial = const 0
+  return consume %10
+}
+
+fn opaqueFour(c: Four [shared call]) -> Four {
+bb0(%0: Four [shared call] guaranteed):
+  %1: %Four address = alloc frame Four [shared call]
+  store inspect %1 borrow %0
+  %2: Four trivial = load inspect %1
+  return consume %2
+}
+
+fn opaqueNine(c: Nine [shared call]) -> Nine {
+bb0(%0: Nine [shared call] guaranteed):
+  %1: %Nine address = alloc frame Nine [shared call]
+  store inspect %1 borrow %0
+  %2: Nine trivial = load inspect %1
+  return consume %2
+}
+
+fn opaqueSpread(c: Spread [shared call]) -> Spread {
+bb0(%0: Spread [shared call] guaranteed):
+  %1: %Spread address = alloc frame Spread [shared call]
+  store inspect %1 borrow %0
+  %2: Spread trivial = load inspect %1
+  return consume %2
+}
+
+fn opaqueTwenty(c: Twenty [shared call]) -> Twenty {
+bb0(%0: Twenty [shared call] guaranteed):
+  %1: %Twenty address = alloc frame Twenty [shared call]
+  store inspect %1 borrow %0
+  %2: Twenty trivial = load inspect %1
+  return consume %2
+}
+
+fn four(c: Four [shared call]) -> I32 {
+bb0(%0: Four [shared call] guaranteed):
+  %2: %Four address = alloc frame Four [shared call]
+  store inspect %2 borrow %0
+  %3: %U8 address = field.addr .# inspect %2
+  %4: U8 trivial = load inspect %3
+  switch [0, 1, 2] inspect %4 -> bb1 -> bb2 -> bb3 -> bb4
+
+bb1:
+  %5: I32 trivial = const 0
+  %6: I32 trivial = call weigh borrow %5
+  jump -> bb5(consume %6)
+
+bb2:
+  %7: I32 trivial = const 1
+  %8: I32 trivial = call weigh borrow %7
+  jump -> bb5(consume %8)
+
+bb3:
+  %9: I32 trivial = const 2
+  %10: I32 trivial = call weigh borrow %9
+  jump -> bb5(consume %10)
+
+bb4:
+  %11: I32 trivial = const 3
+  %12: I32 trivial = call weigh borrow %11
+  jump -> bb5(consume %12)
+
+bb5(%1: I32 trivial):
+  return consume %1
+}
+
+fn nine(c: Nine [shared call]) -> I32 {
+bb0(%0: Nine [shared call] guaranteed):
+  %2: %Nine address = alloc frame Nine [shared call]
+  store inspect %2 borrow %0
+  %3: %U8 address = field.addr .# inspect %2
+  %4: U8 trivial = load inspect %3
+  switch [0, 1, 2, 3, 4, 5, 6, 7] inspect %4 -> bb1 -> bb2 -> bb3 -> bb4 -> bb5 -> bb6 -> bb7 -> bb8 -> bb9
+
+bb1:
+  %5: I32 trivial = const 10
+  %6: I32 trivial = call weigh borrow %5
+  jump -> bb10(consume %6)
+
+bb2:
+  %7: I32 trivial = const 11
+  %8: I32 trivial = call weigh borrow %7
+  jump -> bb10(consume %8)
+
+bb3:
+  %9: I32 trivial = const 12
+  %10: I32 trivial = call weigh borrow %9
+  jump -> bb10(consume %10)
+
+bb4:
+  %11: I32 trivial = const 13
+  %12: I32 trivial = call weigh borrow %11
+  jump -> bb10(consume %12)
+
+bb5:
+  %13: I32 trivial = const 14
+  %14: I32 trivial = call weigh borrow %13
+  jump -> bb10(consume %14)
+
+bb6:
+  %15: I32 trivial = const 15
+  %16: I32 trivial = call weigh borrow %15
+  jump -> bb10(consume %16)
+
+bb7:
+  %17: I32 trivial = const 16
+  %18: I32 trivial = call weigh borrow %17
+  jump -> bb10(consume %18)
+
+bb8:
+  %19: I32 trivial = const 17
+  %20: I32 trivial = call weigh borrow %19
+  jump -> bb10(consume %20)
+
+bb9:
+  %21: I32 trivial = const 18
+  %22: I32 trivial = call weigh borrow %21
+  jump -> bb10(consume %22)
+
+bb10(%1: I32 trivial):
+  return consume %1
+}
+
+fn spread(c: Spread [shared call]) -> I32 {
+bb0(%0: Spread [shared call] guaranteed):
+  %2: %Spread address = alloc frame Spread [shared call]
+  store inspect %2 borrow %0
+  %3: %U8 address = field.addr .# inspect %2
+  %4: U8 trivial = load inspect %3
+  switch [0, 3, 7, 11, 14, 18, 22, 26] inspect %4 -> bb1 -> bb2 -> bb3 -> bb4 -> bb5 -> bb6 -> bb7 -> bb8 -> bb9
+
+bb1:
+  %5: I32 trivial = const 20
+  %6: I32 trivial = call weigh borrow %5
+  jump -> bb10(consume %6)
+
+bb2:
+  %7: I32 trivial = const 21
+  %8: I32 trivial = call weigh borrow %7
+  jump -> bb10(consume %8)
+
+bb3:
+  %9: I32 trivial = const 22
+  %10: I32 trivial = call weigh borrow %9
+  jump -> bb10(consume %10)
+
+bb4:
+  %11: I32 trivial = const 23
+  %12: I32 trivial = call weigh borrow %11
+  jump -> bb10(consume %12)
+
+bb5:
+  %13: I32 trivial = const 24
+  %14: I32 trivial = call weigh borrow %13
+  jump -> bb10(consume %14)
+
+bb6:
+  %15: I32 trivial = const 25
+  %16: I32 trivial = call weigh borrow %15
+  jump -> bb10(consume %16)
+
+bb7:
+  %17: I32 trivial = const 26
+  %18: I32 trivial = call weigh borrow %17
+  jump -> bb10(consume %18)
+
+bb8:
+  %19: I32 trivial = const 27
+  %20: I32 trivial = call weigh borrow %19
+  jump -> bb10(consume %20)
+
+bb9:
+  %21: I32 trivial = const 28
+  %22: I32 trivial = call weigh borrow %21
+  jump -> bb10(consume %22)
+
+bb10(%1: I32 trivial):
+  return consume %1
+}
+
+fn twenty(c: Twenty [shared call]) -> I32 {
+bb0(%0: Twenty [shared call] guaranteed):
+  %2: %Twenty address = alloc frame Twenty [shared call]
+  store inspect %2 borrow %0
+  %3: %U8 address = field.addr .# inspect %2
+  %4: U8 trivial = load inspect %3
+  switch [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] inspect %4 -> bb1 -> bb2 -> bb3 -> bb4 -> bb5 -> bb6 -> bb7 -> bb8 -> bb9 -> bb10 -> bb11 -> bb12 -> bb13 -> bb14 -> bb15 -> bb16 -> bb17 -> bb18 -> bb19 -> bb20
+
+bb1:
+  %5: I32 trivial = const 30
+  %6: I32 trivial = call weigh borrow %5
+  jump -> bb21(consume %6)
+
+bb2:
+  %7: I32 trivial = const 31
+  %8: I32 trivial = call weigh borrow %7
+  jump -> bb21(consume %8)
+
+bb3:
+  %9: I32 trivial = const 32
+  %10: I32 trivial = call weigh borrow %9
+  jump -> bb21(consume %10)
+
+bb4:
+  %11: I32 trivial = const 33
+  %12: I32 trivial = call weigh borrow %11
+  jump -> bb21(consume %12)
+
+bb5:
+  %13: I32 trivial = const 34
+  %14: I32 trivial = call weigh borrow %13
+  jump -> bb21(consume %14)
+
+bb6:
+  %15: I32 trivial = const 35
+  %16: I32 trivial = call weigh borrow %15
+  jump -> bb21(consume %16)
+
+bb7:
+  %17: I32 trivial = const 36
+  %18: I32 trivial = call weigh borrow %17
+  jump -> bb21(consume %18)
+
+bb8:
+  %19: I32 trivial = const 37
+  %20: I32 trivial = call weigh borrow %19
+  jump -> bb21(consume %20)
+
+bb9:
+  %21: I32 trivial = const 38
+  %22: I32 trivial = call weigh borrow %21
+  jump -> bb21(consume %22)
+
+bb10:
+  %23: I32 trivial = const 39
+  %24: I32 trivial = call weigh borrow %23
+  jump -> bb21(consume %24)
+
+bb11:
+  %25: I32 trivial = const 40
+  %26: I32 trivial = call weigh borrow %25
+  jump -> bb21(consume %26)
+
+bb12:
+  %27: I32 trivial = const 41
+  %28: I32 trivial = call weigh borrow %27
+  jump -> bb21(consume %28)
+
+bb13:
+  %29: I32 trivial = const 42
+  %30: I32 trivial = call weigh borrow %29
+  jump -> bb21(consume %30)
+
+bb14:
+  %31: I32 trivial = const 43
+  %32: I32 trivial = call weigh borrow %31
+  jump -> bb21(consume %32)
+
+bb15:
+  %33: I32 trivial = const 44
+  %34: I32 trivial = call weigh borrow %33
+  jump -> bb21(consume %34)
+
+bb16:
+  %35: I32 trivial = const 45
+  %36: I32 trivial = call weigh borrow %35
+  jump -> bb21(consume %36)
+
+bb17:
+  %37: I32 trivial = const 46
+  %38: I32 trivial = call weigh borrow %37
+  jump -> bb21(consume %38)
+
+bb18:
+  %39: I32 trivial = const 47
+  %40: I32 trivial = call weigh borrow %39
+  jump -> bb21(consume %40)
+
+bb19:
+  %41: I32 trivial = const 48
+  %42: I32 trivial = call weigh borrow %41
+  jump -> bb21(consume %42)
+
+bb20:
+  %43: I32 trivial = const 49
+  %44: I32 trivial = call weigh borrow %43
+  jump -> bb21(consume %44)
+
+bb21(%1: I32 trivial):
+  return consume %1
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  jump -> bb2(consume %6)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %7: I32 trivial = load inspect %4
+  jump -> bb2(consume %7)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Four trivial = const A0
+  %1: Four trivial = call opaqueFour borrow %0
+  %2: I32 trivial = call four borrow %1
+  %3: I32 trivial = const 3
+  %4: Bool trivial = eq inspect %2 inspect %3
+  %5: I32 trivial = const 1
+  %6: I32 trivial = call check borrow %4 borrow %5
+  %7: Four trivial = const A3
+  %8: Four trivial = call opaqueFour borrow %7
+  %9: I32 trivial = call four borrow %8
+  %10: I32 trivial = const 24
+  %11: Bool trivial = eq inspect %9 inspect %10
+  %12: I32 trivial = const 2
+  %13: I32 trivial = call check borrow %11 borrow %12
+  %14: I32 trivial = add inspect %6 inspect %13
+  %15: Nine trivial = const B0
+  %16: Nine trivial = call opaqueNine borrow %15
+  %17: I32 trivial = call nine borrow %16
+  %18: I32 trivial = const 73
+  %19: Bool trivial = eq inspect %17 inspect %18
+  %20: I32 trivial = const 4
+  %21: I32 trivial = call check borrow %19 borrow %20
+  %22: I32 trivial = add inspect %14 inspect %21
+  %23: Nine trivial = const B4
+  %24: Nine trivial = call opaqueNine borrow %23
+  %25: I32 trivial = call nine borrow %24
+  %26: I32 trivial = const 101
+  %27: Bool trivial = eq inspect %25 inspect %26
+  %28: I32 trivial = const 8
+  %29: I32 trivial = call check borrow %27 borrow %28
+  %30: I32 trivial = add inspect %22 inspect %29
+  %31: Nine trivial = const B8
+  %32: Nine trivial = call opaqueNine borrow %31
+  %33: I32 trivial = call nine borrow %32
+  %34: I32 trivial = const 129
+  %35: Bool trivial = eq inspect %33 inspect %34
+  %36: I32 trivial = const 16
+  %37: I32 trivial = call check borrow %35 borrow %36
+  %38: I32 trivial = add inspect %30 inspect %37
+  %39: Spread trivial = const C0
+  %40: Spread trivial = call opaqueSpread borrow %39
+  %41: I32 trivial = call spread borrow %40
+  %42: I32 trivial = const 143
+  %43: Bool trivial = eq inspect %41 inspect %42
+  %44: I32 trivial = const 32
+  %45: I32 trivial = call check borrow %43 borrow %44
+  %46: I32 trivial = add inspect %38 inspect %45
+  %47: Spread trivial = const C5
+  %48: Spread trivial = call opaqueSpread borrow %47
+  %49: I32 trivial = call spread borrow %48
+  %50: I32 trivial = const 178
+  %51: Bool trivial = eq inspect %49 inspect %50
+  %52: I32 trivial = const 64
+  %53: I32 trivial = call check borrow %51 borrow %52
+  %54: I32 trivial = add inspect %46 inspect %53
+  %55: Spread trivial = const C8
+  %56: Spread trivial = call opaqueSpread borrow %55
+  %57: I32 trivial = call spread borrow %56
+  %58: I32 trivial = const 199
+  %59: Bool trivial = eq inspect %57 inspect %58
+  %60: I32 trivial = const 128
+  %61: I32 trivial = call check borrow %59 borrow %60
+  %62: I32 trivial = add inspect %54 inspect %61
+  %63: Twenty trivial = const D0
+  %64: Twenty trivial = call opaqueTwenty borrow %63
+  %65: I32 trivial = call twenty borrow %64
+  %66: I32 trivial = const 213
+  %67: Bool trivial = eq inspect %65 inspect %66
+  %68: I32 trivial = const 256
+  %69: I32 trivial = call check borrow %67 borrow %68
+  %70: I32 trivial = add inspect %62 inspect %69
+  %71: Twenty trivial = const D9
+  %72: Twenty trivial = call opaqueTwenty borrow %71
+  %73: I32 trivial = call twenty borrow %72
+  %74: I32 trivial = const 276
+  %75: Bool trivial = eq inspect %73 inspect %74
+  %76: I32 trivial = const 512
+  %77: I32 trivial = call check borrow %75 borrow %76
+  %78: I32 trivial = add inspect %70 inspect %77
+  %79: Twenty trivial = const D19
+  %80: Twenty trivial = call opaqueTwenty borrow %79
+  %81: I32 trivial = call twenty borrow %80
+  %82: I32 trivial = const 346
+  %83: Bool trivial = eq inspect %81 inspect %82
+  %84: I32 trivial = const 1024
+  %85: I32 trivial = call check borrow %83 borrow %84
+  %86: I32 trivial = add inspect %78 inspect %85
+  return consume %86
+}
+
+entry main

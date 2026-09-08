@@ -6,7 +6,7 @@ mut @trace = [0, 0, 0, 0]
 @environment(present(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0]
 @descriptor(Guard) = [8, 0, 0, 14, 0, 0, 0, 0]
 @witness(Describe(Guard.size)) = [0, 0, 0, 0]
-@environment(capacity(4)) = [4, 0, 0, 0]
+@environment(capacity'2(4)) = [4, 0, 0, 0]
 @environment(twice(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 Guard.drop<complex>(%value: Ptr) {
@@ -64,7 +64,7 @@ present<complex>(%v_0: Ptr, %x: Ptr): I32 {
   }
 }
 
-capacity<complex>(%v_0: Ptr, %b: Ptr): I32 {
+capacity'2<complex>(%v_0: Ptr, %b: Ptr): I32 {
   b_1 {
     %v_2 = load %v_0, 4: I32
     ret %v_2
@@ -154,7 +154,7 @@ main<complex>(): I32 {
     %v_7 = add %v_5, %v_6: I32
     %v_8 = alloca 4, 4: Ptr
     store %v_8, 1, 4
-    %v_9 = call_complex capacity, @environment(capacity(4)), %v_8: I32
+    %v_9 = call_complex capacity'2, @environment(capacity'2(4)), %v_8: I32
     %v_10 = add %v_7, %v_9: I32
     %v_11 = call_complex twice, @environment(twice(Guard)), %v_1: I32
     call_complex Guard.drop, %v_1

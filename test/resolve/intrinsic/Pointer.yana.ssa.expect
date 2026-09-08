@@ -21,24 +21,17 @@ bb0(%0: %I32 [shared call] guaranteed, %1: I32 trivial):
   return
 }
 
-fn through(r: I32 [shared slot 0]) -> %I32 [owned here shape1 .*=shared slot 0] {
-bb0(%0: I32 [shared slot 0] guaranteed):
-  %1: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
-  %2: %I32 [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %1
-  return consume %2
-}
-
 fn roundTrip() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
-  %1: %%I32 address = alloc frame %I32 [owned here shape1 .*=shared slot 0]
+  %1: %%I32 address = alloc frame %I32 [owned here shape6 .*=shared slot 0]
   %2: I32 trivial = const 41
   store inspect %0 consume %2
   %3: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
-  %4: %I32 [owned here shape1 .*=shared slot 0] trivial = call through borrow %3
+  %4: %I32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %3
   store inspect %1 consume %4
-  %5: %I32 [owned here shape1 .*=shared slot 0] trivial = load inspect %1
-  %6: %I32 [owned here shape1 .*=shared slot 0] trivial = load inspect %1
+  %5: %I32 [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %6: %I32 [owned here shape6 .*=shared slot 0] trivial = load inspect %1
   %7: I32 trivial = load inspect %6
   %8: I32 trivial = const 1
   %9: I32 trivial = add inspect %7 inspect %8
@@ -50,7 +43,7 @@ bb0:
 fn viaBorrow(r: I32 [shared slot 0]) -> I32 {
 bb0(%0: I32 [shared slot 0] guaranteed):
   %1: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
-  %2: %I32 [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %1
+  %2: %I32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1
   %3: I32 [shared slot 0] guaranteed = load inspect %2
   %4: I32 trivial = load inspect %3
   %5: I32 trivial = const 0
@@ -61,8 +54,8 @@ bb0(%0: I32 [shared slot 0] guaranteed):
 fn viaBorrowMut(r: I32 [unique call]) -> I32 {
 bb0(%0: I32 [unique call] guaranteed):
   %1: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
-  %2: %I32 [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %1
-  %3: I32 [unique slot 0] guaranteed = load inspect %2
+  %2: %I32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1
+  %3: I32 [unique slot 0 owner] guaranteed = load inspect %2
   %4: I32 trivial = load inspect %3
   %5: I32 trivial = const 2
   %6: I32 trivial = mul inspect %4 inspect %5
@@ -74,78 +67,72 @@ bb0(%0: I32 [unique call] guaranteed):
 fn walked() -> I32 {
 bb0:
   %0: %[Pad *2] address = alloc frame [Pad *2]
-  %1: %%Pad address = alloc frame %Pad [owned here shape1 .*=shared slot 0]
-  %2: %%Pad address = alloc frame %Pad [owned here shape1 .*=shared slot 0]
-  %3: %Pad address = alloc frame Pad
+  %1: %%Pad address = alloc frame %Pad [owned here shape6 .*=shared slot 0]
+  %2: %%Pad address = alloc frame %Pad [owned here shape6 .*=shared slot 0]
+  %3: %I64 address = alloc frame I64
   %4: %I64 address = alloc frame I64
-  %5: %Pad address = alloc frame Pad
-  %6: %I64 address = alloc frame I64
-  %7: I64 trivial = const 1
-  %8: I8 trivial = const 2
-  %9: Pad trivial = aggregate.Pad consume %7 consume %8
-  %10: I64 trivial = const 3
-  %11: I8 trivial = const 4
-  %12: Pad trivial = aggregate.Pad consume %10 consume %11
-  %13: [Pad *2] trivial = aggregate.0 consume %9 consume %12
-  store inspect %0 consume %13
-  %14: Size trivial = const 0
-  %15: %Pad address = element.addr inspect %0 inspect %14
-  %16: Pad [shared slot 0] guaranteed from{%0} = load inspect %15
-  %17: %Pad [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %16
-  store inspect %1 consume %17
-  %18: %Pad [owned here shape1 .*=shared slot 0] trivial = load inspect %1
-  %19: Size trivial = const 1
-  %20: Size trivial = metric stride Pad
-  %21: Size trivial = mul inspect %19 inspect %20
-  %22: %Pad [owned here shape1 .*=shared slot 0] trivial = add inspect %18 inspect %21
-  store inspect %2 consume %22
-  %23: %Pad [owned here shape1 .*=shared slot 0] trivial = load inspect %2
-  %24: Pad trivial = copy inspect %23
-  store inspect %3 consume %24
-  %25: %I64 address = field.addr .wide inspect %3
-  %26: I64 trivial = load inspect %25
-  store inspect %4 consume %26
-  %27: %Pad [owned here shape1 .*=shared slot 0] trivial = load inspect %2
-  %28: Size trivial = const 1
-  %29: Size trivial = metric stride Pad
-  %30: Size trivial = mul inspect %28 inspect %29
-  %31: %Pad [owned here shape1 .*=shared slot 0] trivial = sub inspect %27 inspect %30
-  %32: Pad trivial = copy inspect %31
-  store inspect %5 consume %32
-  %33: %I64 address = field.addr .wide inspect %5
-  %34: I64 trivial = load inspect %33
-  store inspect %6 consume %34
-  %35: I64 trivial = load inspect %4
-  %36: I64 trivial = const 10
-  %37: I64 trivial = mul inspect %35 inspect %36
-  %38: I64 trivial = load inspect %6
-  %39: I64 trivial = add inspect %37 inspect %38
-  %40: %Pad [owned here shape1 .*=shared slot 0] trivial = load inspect %1
-  %41: %Pad [owned here shape1 .*=shared slot 0] trivial = load inspect %2
-  %42: Size trivial = bitcast inspect %41
-  %43: Size trivial = bitcast inspect %40
-  %44: Size trivial = sub inspect %42 inspect %43
-  %45: Size trivial = metric stride Pad
-  %46: Size trivial = div inspect %44 inspect %45
-  %47: I64 trivial = convert inspect %46
-  %48: I64 trivial = add inspect %39 inspect %47
-  %49: I32 trivial = convert inspect %48
-  return consume %49
+  %5: I64 trivial = const 1
+  %6: I8 trivial = const 2
+  %7: Pad trivial = aggregate.Pad consume %5 consume %6
+  %8: I64 trivial = const 3
+  %9: I8 trivial = const 4
+  %10: Pad trivial = aggregate.Pad consume %8 consume %9
+  %11: [Pad *2] trivial = aggregate.0 consume %7 consume %10
+  store inspect %0 consume %11
+  %12: Size trivial = const 0
+  %13: %Pad address = element.addr inspect %0 inspect %12
+  %14: Pad [shared slot 0] guaranteed from{%0} = load inspect %13
+  %15: %Pad [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %14
+  store inspect %1 consume %15
+  %16: %Pad [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %17: Size trivial = const 1
+  %18: Size trivial = metric stride Pad
+  %19: Size trivial = mul inspect %17 inspect %18
+  %20: %Pad [owned here shape6 .*=shared slot 0] trivial = add inspect %16 inspect %19
+  store inspect %2 consume %20
+  %21: %Pad [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %22: %I64 address = field.addr .wide inspect %21
+  %23: I64 trivial = load inspect %22
+  store inspect %3 consume %23
+  %24: %Pad [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %25: Size trivial = const 1
+  %26: Size trivial = metric stride Pad
+  %27: Size trivial = mul inspect %25 inspect %26
+  %28: %Pad [owned here shape6 .*=shared slot 0] trivial = sub inspect %24 inspect %27
+  %29: %I64 address = field.addr .wide inspect %28
+  %30: I64 trivial = load inspect %29
+  store inspect %4 consume %30
+  %31: I64 trivial = load inspect %3
+  %32: I64 trivial = const 10
+  %33: I64 trivial = mul inspect %31 inspect %32
+  %34: I64 trivial = load inspect %4
+  %35: I64 trivial = add inspect %33 inspect %34
+  %36: %Pad [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %37: %Pad [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %38: Size trivial = bitcast inspect %37
+  %39: Size trivial = bitcast inspect %36
+  %40: Size trivial = sub inspect %38 inspect %39
+  %41: Size trivial = metric stride Pad
+  %42: Size trivial = div inspect %40 inspect %41
+  %43: I64 trivial = convert inspect %42
+  %44: I64 trivial = add inspect %35 inspect %43
+  %45: I32 trivial = convert inspect %44
+  return consume %45
 }
 
 fn secondOf(xs: [a *2] [unique call]) -> a {
 bb0(%0: [a *2] [unique call] guaranteed):
-  %1: %%a address = alloc frame %a [owned here shape1 .*=shared slot 0]
+  %1: %%a address = alloc frame %a [owned here shape6 .*=shared slot 0]
   %2: Size trivial = const 0
   %3: %a address = element.addr inspect %0 inspect %2
   %4: a [shared slot 0] guaranteed from{%0} = load inspect %3
-  %5: %a [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %4
+  %5: %a [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %4
   store inspect %1 consume %5
-  %6: %a [owned here shape1 .*=shared slot 0] trivial = load inspect %1
+  %6: %a [owned here shape6 .*=shared slot 0] trivial = load inspect %1
   %7: Size trivial = const 1
   %8: Size trivial = metric stride a
   %9: Size trivial = mul inspect %7 inspect %8
-  %10: %a [owned here shape1 .*=shared slot 0] trivial = add inspect %6 inspect %9
+  %10: %a [owned here shape6 .*=shared slot 0] trivial = add inspect %6 inspect %9
   %11: a owned = load inspect %10
   return consume %11
 }
@@ -186,11 +173,11 @@ bb0:
   %2: I32 trivial = const 7
   store inspect %0 consume %2
   %3: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
-  %4: %I32 [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %3
+  %4: %I32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %3
   %5: I32 trivial = const 5
   call writeIt borrow %4 consume %5
   %6: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
-  %7: %I32 [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %6
+  %7: %I32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %6
   %8: I32 trivial = call readIt borrow %7
   store inspect %1 consume %8
   %9: I32 trivial = load inspect %1

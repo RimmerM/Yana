@@ -110,7 +110,7 @@ bb0:
 
 fn taken(mark: I32 [shared call]) -> I32 {
   local taken.thunk.env: taken.thunk.env
-  local local2: () -> I32 [owned here shape2 .0=shared call]
+  local local2: () -> I32 [owned here shape8 .0=shared call]
 
 bb0:
   %0: I32 = const 1
@@ -119,16 +119,16 @@ bb0:
   %3: taken.thunk.env = aggregate.taken.thunk.env take %2
   write.init borrow.unique (taken.thunk.env) take %3
   %5: taken.thunk.env [shared call] = read borrow.shared (taken.thunk.env) loan0
-  %6: () -> I32 [owned here shape2 .0=shared call] = fun.value taken.thunk inspect %5 roots.0{0}
+  %6: () -> I32 [owned here shape8 .0=shared call] = fun.value taken.thunk inspect %5 roots.0{0}
   write.init borrow.unique (local2) take %6
-  %8: () -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
+  %8: () -> I32 [shared call shape8 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
   %9: I32 = call pick(Gate) borrow.shared %1 borrow.shared %8
   return take %9
 }
 
 fn skipped(mark: I32 [shared call]) -> I32 {
   local skipped.thunk.env: skipped.thunk.env
-  local local2: () -> I32 [owned here shape2 .0=shared call]
+  local local2: () -> I32 [owned here shape8 .0=shared call]
 
 bb0:
   %0: I32 = const 0
@@ -137,16 +137,16 @@ bb0:
   %3: skipped.thunk.env = aggregate.skipped.thunk.env take %2
   write.init borrow.unique (skipped.thunk.env) take %3
   %5: skipped.thunk.env [shared call] = read borrow.shared (skipped.thunk.env) loan0
-  %6: () -> I32 [owned here shape2 .0=shared call] = fun.value skipped.thunk inspect %5 roots.0{0}
+  %6: () -> I32 [owned here shape8 .0=shared call] = fun.value skipped.thunk inspect %5 roots.0{0}
   write.init borrow.unique (local2) take %6
-  %8: () -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
+  %8: () -> I32 [shared call shape8 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
   %9: I32 = call pick(Gate) borrow.shared %1 borrow.shared %8
   return take %9
 }
 
 fn shut(mark: I32 [shared call]) -> I32 {
   local shut.thunk.env: shut.thunk.env
-  local local2: () -> I32 [owned here shape2 .0=shared call]
+  local local2: () -> I32 [owned here shape8 .0=shared call]
 
 bb0:
   %0: I32 = const 0
@@ -155,16 +155,16 @@ bb0:
   %3: shut.thunk.env = aggregate.shut.thunk.env take %2
   write.init borrow.unique (shut.thunk.env) take %3
   %5: shut.thunk.env [shared call] = read borrow.shared (shut.thunk.env) loan0
-  %6: () -> I32 [owned here shape2 .0=shared call] = fun.value shut.thunk inspect %5 roots.0{0}
+  %6: () -> I32 [owned here shape8 .0=shared call] = fun.value shut.thunk inspect %5 roots.0{0}
   write.init borrow.unique (local2) take %6
-  %8: () -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
+  %8: () -> I32 [shared call shape8 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
   %9: I32 = call pick(Shut) borrow.shared %1 borrow.shared %8
   return take %9
 }
 
 fn inherited(depth: I32 [shared call], mark: I32 [shared call]) -> I32 {
   local inherited.thunk.env: inherited.thunk.env
-  local local3: () -> I32 [owned here shape2 .0=shared call]
+  local local3: () -> I32 [owned here shape8 .0=shared call]
 
 bb0:
   %0: I32 = read copy.trivial (depth)
@@ -173,16 +173,16 @@ bb0:
   %3: inherited.thunk.env = aggregate.inherited.thunk.env take %2
   write.init borrow.unique (inherited.thunk.env) take %3
   %5: inherited.thunk.env [shared call] = read borrow.shared (inherited.thunk.env) loan0
-  %6: () -> I32 [owned here shape2 .0=shared call] = fun.value inherited.thunk inspect %5 roots.0{0}
+  %6: () -> I32 [owned here shape8 .0=shared call] = fun.value inherited.thunk inspect %5 roots.0{0}
   write.init borrow.unique (local3) take %6
-  %8: () -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local3) loan1 roots.0{0}
+  %8: () -> I32 [shared call shape8 .0=shared call] = read borrow.shared (local3) loan1 roots.0{0}
   %9: I32 = call orZero(Gate) borrow.shared %1 borrow.shared %8
   return take %9
 }
 
 fn replaced(mark: I32 [shared call]) -> I32 {
   local replaced.thunk.env: replaced.thunk.env
-  local local2: () -> I32 [owned here shape2 .0=shared call]
+  local local2: () -> I32 [owned here shape8 .0=shared call]
 
 bb0:
   %0: I32 = const 0
@@ -191,9 +191,9 @@ bb0:
   %3: replaced.thunk.env = aggregate.replaced.thunk.env take %2
   write.init borrow.unique (replaced.thunk.env) take %3
   %5: replaced.thunk.env [shared call] = read borrow.shared (replaced.thunk.env) loan0
-  %6: () -> I32 [owned here shape2 .0=shared call] = fun.value replaced.thunk inspect %5 roots.0{0}
+  %6: () -> I32 [owned here shape8 .0=shared call] = fun.value replaced.thunk inspect %5 roots.0{0}
   write.init borrow.unique (local2) take %6
-  %8: () -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
+  %8: () -> I32 [shared call shape8 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
   %9: I32 = call orZero(Shut) borrow.shared %1 borrow.shared %8
   return take %9
 }
@@ -211,8 +211,8 @@ bb0:
 
 fn main() -> I32 {
   local & score: I32
-  local local1: () -> I32
-  local local2: () -> I32
+  local local1: () -> I32 [owned here shape9 .0=unique call]
+  local local2: () -> I32 [owned here shape9 .0=unique call]
 
 bb0:
   %0: I32 = const 0
@@ -299,9 +299,9 @@ bb13:
 bb14:
   %59: I32 = const 1
   %60: Gate = aggregate.Gate take %59
-  %61: () -> I32 = fun.value main.thunk
+  %61: () -> I32 [owned here shape9 .0=unique call] = fun.value main.thunk
   write.init borrow.unique (local1) take %61
-  %63: () -> I32 [shared call] = read borrow.shared (local1) loan0
+  %63: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local1) loan0
   %64: I32 = call forwarded(Gate) borrow.shared %60 borrow.shared %63
   %65: I32 = const 32
   %66: Bool = eq inspect %64 inspect %65
@@ -320,9 +320,9 @@ bb16:
 bb17:
   %74: I32 = const 0
   %75: Shut = aggregate.Shut take %74
-  %76: () -> I32 = fun.value main.thunk'2
+  %76: () -> I32 [owned here shape9 .0=unique call] = fun.value main.thunk'2
   write.init borrow.unique (local2) take %76
-  %78: () -> I32 [shared call] = read borrow.shared (local2) loan1
+  %78: () -> I32 [shared call shape9 .0=unique call] = read borrow.shared (local2) loan1
   %79: I32 = call forwarded(Shut) borrow.shared %75 borrow.shared %78
   %80: I32 = const 0
   %81: Bool = eq inspect %79 inspect %80

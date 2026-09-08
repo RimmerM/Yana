@@ -1,0 +1,72 @@
+module ResolveTest
+
+fn wide() -> U32 {
+bb0:
+  %0: U32 trivial = const 4294967295
+  %1: U64 trivial = convert inspect %0
+  %2: U64 trivial = const 81985529216486895
+  %3: U64 trivial = native crc32 inspect %1 inspect %2
+  %4: U32 trivial = convert inspect %3
+  return consume %4
+}
+
+fn folded(seed: U32 [shared call], chunk: U64 [shared call]) -> U32 {
+bb0(%0: U32 [shared call] guaranteed, %1: U64 [shared call] guaranteed):
+  %2: %U32 address = alloc frame U32 [shared call]
+  %3: %U64 address = alloc frame U64 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: U32 trivial = load inspect %2
+  %5: U64 trivial = convert inspect %4
+  %6: U64 trivial = load inspect %3
+  %7: U64 trivial = native crc32 inspect %5 inspect %6
+  %8: U32 trivial = convert inspect %7
+  return consume %8
+}
+
+fn chained() -> U32 {
+bb0:
+  %0: U32 trivial = call wide
+  %1: U64 trivial = const 4822678189205111
+  %2: U32 trivial = call folded borrow %0 borrow %1
+  return consume %2
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %U32 address = alloc frame U32
+  %1: %U32 address = alloc frame U32
+  %2: %I64 address = alloc frame I64
+  %3: U32 trivial = call wide
+  store inspect %0 consume %3
+  %4: U32 trivial = call chained
+  store inspect %1 consume %4
+  %5: U32 trivial = load inspect %0
+  %6: I64 trivial = convert inspect %5
+  %7: U32 trivial = load inspect %1
+  %8: I64 trivial = convert inspect %7
+  %9: I64 trivial = add inspect %6 inspect %8
+  store inspect %2 consume %9
+  %10: U32 trivial = const 4294967295
+  %11: U64 trivial = const 81985529216486895
+  %12: U32 trivial = call folded borrow %10 borrow %11
+  %13: U32 trivial = load inspect %0
+  %14: Bool trivial = ne inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %15: I64 trivial = load inspect %2
+  %16: I64 trivial = const 1000
+  %17: I64 trivial = rem inspect %15 inspect %16
+  %18: I32 trivial = convert inspect %17
+  return consume %18
+
+bb3:
+  %19: I32 trivial = const -1
+  return consume %19
+}
+
+entry main

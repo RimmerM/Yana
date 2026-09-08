@@ -122,6 +122,13 @@ fn growArray(I32)(%self: Array(I32), %wanted: Size) -> () {
     ret
 }
 
+fn Length(Array(a)).length(I32)(%self: Array(I32)) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
 fn Reclaim(Array(a)).reclaim(I32)(%value: Array(I32)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
@@ -1188,13 +1195,11 @@ fn grown() -> I32 {
     %v41 = borrow [%v40] : 1'I32
     %v42 = load [%v41] : I32
     %v43 = load %xs : Array(I32)
-    %v44 = load %xs@Array.length : @bits(30) U32
+    %v44 = call Length(Array(a)).length(I32), %v43 : Size
     drop %xs via Reclaim(Array(a)).reclaim(I32)
-    %v45 = cast %v44 : Size
-    %v46 = cast %v42 : Size
-    %v47 = add %v46, %v45 : Size
-    %v48 = cast %v47 : I32
-    ret %v48
+    %v45 = cast %v44 : I32
+    %v46 = add %v42, %v45 : I32
+    ret %v46
 }
 
 fn boundMutable() -> I32 {

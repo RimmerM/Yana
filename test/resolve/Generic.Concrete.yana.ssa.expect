@@ -58,19 +58,19 @@ bb0:
   store inspect %1 consume %5
   %6: I32 trivial = const 7
   store inspect %2 consume %6
-  %7: I32 trivial = const 1
-  %8: I32 [unique call] guaranteed from{%1} = load inspect %1
-  call genericBump [I32] borrow %7 borrow %8
+  %7: I32 [unique call] guaranteed from{%1} = load inspect %1
+  %8: I32 trivial = const 1
+  call genericBump [I32] borrow %8 borrow %7
   %9: I32 trivial = const 1
   %10: I32 [unique call] guaranteed from{%1} = load inspect %1
   call plainBump borrow %9 borrow %10
-  %11: I32 trivial = const 1
-  %12: @bits(53) U64 trivial = load inspect %0
-  %13: U64 trivial = convert inspect %12
-  %14: U64 trivial = call genericWidth [I32] borrow %11 borrow %13
+  %11: @bits(53) U64 trivial = const 21
+  %12: U64 trivial = convert inspect %11
+  %13: I32 trivial = const 1
+  %14: U64 trivial = call genericWidth [I32] borrow %13 borrow %12
   %15: I32 trivial = convert inspect %14
   %16: I32 trivial = const 1
-  %17: @bits(53) U64 trivial = load inspect %0
+  %17: @bits(53) U64 trivial = const 21
   %18: U64 trivial = convert inspect %17
   %19: U64 trivial = call plainWidth borrow %16 borrow %18
   %20: I32 trivial = convert inspect %19
@@ -79,10 +79,10 @@ bb0:
   %22: I32 trivial = load inspect %3
   %23: I32 trivial = load inspect %1
   %24: I32 trivial = add inspect %22 inspect %23
-  %25: I32 trivial = const 1
-  %26: I32 trivial = load inspect %2
-  %27: I64 trivial = convert inspect %26
-  %28: I64 trivial = call genericWiden [I32] borrow %25 borrow %27
+  %25: I32 trivial = const 7
+  %26: I64 trivial = convert inspect %25
+  %27: I32 trivial = const 1
+  %28: I64 trivial = call genericWiden [I32] borrow %27 borrow %26
   %29: I32 trivial = convert inspect %28
   %30: I32 trivial = add inspect %24 inspect %29
   return consume %30

@@ -8,6 +8,13 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
+fn Length(Array(a)).length(I32)(%self: Array(I32)) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
 fn Reclaim(Array(a)).reclaim(I32)(%value: Array(I32)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
@@ -434,11 +441,10 @@ fn twiceGeneric(%f: (a) -> a, %x: a) -> a {
 
 fn consume(%xs: Array(I32)) -> I32 {
   b0:
-    %v1 = load %xs@Array.length : @bits(30) U32
+    %v1 = call Length(Array(a)).length(I32), %xs : Size
     drop %xs via Reclaim(Array(a)).reclaim(I32)
-    %v2 = cast %v1 : Size
-    %v3 = cast %v2 : I32
-    ret %v3
+    %v2 = cast %v1 : I32
+    ret %v2
 }
 
 fn run(%f: (->Array(I32)) -> I32) -> I32 {

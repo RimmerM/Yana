@@ -1,0 +1,557 @@
+module ResolveTest
+
+data Corner = TopLeft | TopRight | BottomLeft | BottomRight
+
+data Point {x: I32, y: I32}
+
+data Box {origin: Point, span: Point}
+
+data Token {id: I32} drop authored
+
+instance Drop(Token): Token.drop
+
+let & tokensDropped: I32 = 0
+
+fn cornerOf(c: Corner [shared call]) -> Point {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: Point = map [0 -> Point {x: 0, y: 0}, 1 -> Point {x: 1, y: 0}, 2 -> Point {x: 0, y: 1}, 3 -> Point {x: 1, y: 1}] inspect %0
+  return take %1
+}
+
+fn axesOf(c: Corner [shared call]) -> {I32, Bool, F32} {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  switch [0, 1, 2] inspect %0 -> bb1 -> bb2 -> bb3 -> bb4
+
+bb1:
+  %2: I32 = const 0
+  %3: Bool = const True
+  %4: F32 = const 0.5
+  %5: {I32, Bool, F32} = aggregate. take %2 take %3 take %4
+  jump -> bb5(take %5)
+
+bb2:
+  %6: I32 = const 1
+  %7: Bool = const True
+  %8: F32 = const 1.5
+  %9: {I32, Bool, F32} = aggregate. take %6 take %7 take %8
+  jump -> bb5(take %9)
+
+bb3:
+  %10: I32 = const 2
+  %11: Bool = const False
+  %12: F32 = const 2.5
+  %13: {I32, Bool, F32} = aggregate. take %10 take %11 take %12
+  jump -> bb5(take %13)
+
+bb4:
+  %14: I32 = const 3
+  %15: Bool = const False
+  %16: F32 = const 3.5
+  %17: {I32, Bool, F32} = aggregate. take %14 take %15 take %16
+  jump -> bb5(take %17)
+
+bb5(%18: {I32, Bool, F32}):
+  return take %18
+}
+
+fn boxOf(c: Corner [shared call]) -> Box {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: Box = map [0 -> Box {origin: Point {x: 0, y: 0}, span: Point {x: 4, y: 4}}, 1 -> Box {origin: Point {x: 4, y: 0}, span: Point {x: 4, y: 4}}, 2 -> Box {origin: Point {x: 0, y: 4}, span: Point {x: 4, y: 4}}, 3 -> Box {origin: Point {x: 4, y: 4}, span: Point {x: 4, y: 4}}] inspect %0
+  return take %1
+}
+
+fn hintOf(c: Corner [shared call]) -> Maybe(I32) {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: Maybe(I32) = map [0 -> Nothing, 1 -> Just(1), 2 -> Just(2), 3 -> Just(3)] inspect %0
+  return take %1
+}
+
+fn always(c: Corner [shared call]) -> Point {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: Point = map [0 -> Point {x: 9, y: 9}, 1 -> Point {x: 9, y: 9}, 2 -> Point {x: 9, y: 9}, 3 -> Point {x: 9, y: 9}] inspect %0
+  return take %1
+}
+
+fn Token.drop(value: Token) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global tokensDropped)
+  %1: I32 = read copy.trivial (value.id)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global tokensDropped) take %2
+  return
+}
+
+fn tokenOf(c: Corner [shared call]) -> Token {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  switch [0, 1, 2] inspect %0 -> bb1 -> bb2 -> bb3 -> bb4
+
+bb1:
+  %2: I32 = const 10
+  %3: Token = aggregate.Token take %2
+  jump -> bb5(take %3)
+
+bb2:
+  %4: I32 = const 20
+  %5: Token = aggregate.Token take %4
+  jump -> bb5(take %5)
+
+bb3:
+  %6: I32 = const 30
+  %7: Token = aggregate.Token take %6
+  jump -> bb5(take %7)
+
+bb4:
+  %8: I32 = const 40
+  %9: Token = aggregate.Token take %8
+  jump -> bb5(take %9)
+
+bb5(%10: Token):
+  return take %10
+}
+
+fn opaque(c: Corner [shared call]) -> Corner {
+bb0:
+  %0: Corner = read copy.trivial (c)
+  return take %0
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (condition)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = read copy.trivial (weight)
+  jump -> bb2(take %2)
+}
+
+fn independent(c: Corner [shared call]) -> I32 {
+  local & first: Point
+  local second: Point
+
+bb0:
+  %0: Corner = read copy.trivial (c)
+  %1: Point = call cornerOf borrow.shared %0
+  write.init borrow.unique (first) take %1
+  %3: Corner = read copy.trivial (c)
+  %4: Point = call cornerOf borrow.shared %3
+  write.init borrow.unique (second) take %4
+  %6: I32 = const 100
+  write.assign borrow.unique (first.x) take %6
+  %8: I32 = read copy.trivial (first.x)
+  %9: I32 = const 100
+  %10: Bool = eq inspect %8 inspect %9
+  %11: I32 = const 1
+  %12: I32 = call check borrow.shared %10 borrow.shared %11
+  %13: I32 = read copy.trivial (second.x)
+  %14: I32 = const 100
+  %15: Bool = ne inspect %13 inspect %14
+  branch inspect %15 -> bb3(take %12) -> bb1(take %12)
+
+bb1(%16: I32):
+  %20: Corner = read copy.trivial (c)
+  %21: Corner = const TopRight
+  %22: Bool = eq inspect %20 inspect %21
+  jump -> bb2(take %22, take %16)
+
+bb2(%23: Bool, %24: I32):
+  branch inspect %23 -> bb6(take %24) -> bb4(take %24)
+
+bb3(%17: I32):
+  %19: Bool = const True
+  jump -> bb2(take %19, take %17)
+
+bb4(%27: I32):
+  %31: Corner = read copy.trivial (c)
+  %32: Corner = const BottomRight
+  %33: Bool = eq inspect %31 inspect %32
+  jump -> bb5(take %33, take %27)
+
+bb5(%34: Bool, %35: I32):
+  %38: I32 = const 2
+  %39: I32 = call check borrow.shared %34 borrow.shared %38
+  %40: I32 = add inspect %35 inspect %39
+  return take %40
+
+bb6(%28: I32):
+  %30: Bool = const True
+  jump -> bb5(take %30, take %28)
+}
+
+fn main() -> I32 {
+  local local0: Point
+  local local1: Point
+  local local2: Point
+  local local3: Point
+  local local4: Point
+  local local5: Point
+  local local6: {I32, Bool, F32}
+  local local7: {I32, Bool, F32}
+  local local8: {I32, Bool, F32}
+  local local9: {I32, Bool, F32}
+  local local10: {I32, Bool, F32}
+  local local11: {I32, Bool, F32}
+  local local12: Box
+  local local13: Box
+  local local14: Box
+  local local15: Box
+  local local16: Box
+  local local17: Maybe(I32)
+  local local18: Maybe(I32)
+  local local19: Point
+  local local20: Point
+  local local21: Token
+  local local22: Token
+
+bb0:
+  %0: Corner = const TopLeft
+  %1: Corner = call opaque borrow.shared %0
+  %2: Point = call cornerOf borrow.shared %1
+  write.init borrow.unique (local0) take %2
+  %4: I32 = read copy.trivial (local0.x)
+  %5: I32 = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %15: Bool = const False
+  jump -> bb2(take %15)
+
+bb2(%16: Bool):
+  %19: I32 = const 1
+  %20: I32 = call check borrow.shared %16 borrow.shared %19
+  %21: Corner = const BottomRight
+  %22: Corner = call opaque borrow.shared %21
+  %23: Point = call cornerOf borrow.shared %22
+  write.init borrow.unique (local2) take %23
+  %25: I32 = read copy.trivial (local2.x)
+  %26: I32 = const 1
+  %27: Bool = eq inspect %25 inspect %26
+  branch inspect %27 -> bb6(take %20) -> bb4(take %20)
+
+bb3:
+  %8: Corner = const TopLeft
+  %9: Corner = call opaque borrow.shared %8
+  %10: Point = call cornerOf borrow.shared %9
+  write.init borrow.unique (local1) take %10
+  %12: I32 = read copy.trivial (local1.y)
+  %13: I32 = const 0
+  %14: Bool = eq inspect %12 inspect %13
+  jump -> bb2(take %14)
+
+bb4(%28: I32):
+  %38: Bool = const False
+  jump -> bb5(take %38, take %28)
+
+bb5(%39: Bool, %40: I32):
+  %43: I32 = const 2
+  %44: I32 = call check borrow.shared %39 borrow.shared %43
+  %45: I32 = add inspect %40 inspect %44
+  %46: Corner = const TopRight
+  %47: Corner = call opaque borrow.shared %46
+  %48: Point = call cornerOf borrow.shared %47
+  write.init borrow.unique (local4) take %48
+  %50: I32 = read copy.trivial (local4.x)
+  %51: I32 = const 1
+  %52: Bool = eq inspect %50 inspect %51
+  branch inspect %52 -> bb9(take %45) -> bb7(take %45)
+
+bb6(%29: I32):
+  %31: Corner = const BottomRight
+  %32: Corner = call opaque borrow.shared %31
+  %33: Point = call cornerOf borrow.shared %32
+  write.init borrow.unique (local3) take %33
+  %35: I32 = read copy.trivial (local3.y)
+  %36: I32 = const 1
+  %37: Bool = eq inspect %35 inspect %36
+  jump -> bb5(take %37, take %29)
+
+bb7(%53: I32):
+  %63: Bool = const False
+  jump -> bb8(take %63, take %53)
+
+bb8(%64: Bool, %65: I32):
+  %68: I32 = const 4
+  %69: I32 = call check borrow.shared %64 borrow.shared %68
+  %70: I32 = add inspect %65 inspect %69
+  %71: Corner = const TopLeft
+  %72: Corner = call opaque borrow.shared %71
+  %73: {I32, Bool, F32} = call axesOf borrow.shared %72
+  write.init borrow.unique (local6) take %73
+  %75: I32 = read copy.trivial (local6.0)
+  %76: I32 = const 0
+  %77: Bool = eq inspect %75 inspect %76
+  branch inspect %77 -> bb12(take %70) -> bb10(take %70)
+
+bb9(%54: I32):
+  %56: Corner = const BottomLeft
+  %57: Corner = call opaque borrow.shared %56
+  %58: Point = call cornerOf borrow.shared %57
+  write.init borrow.unique (local5) take %58
+  %60: I32 = read copy.trivial (local5.y)
+  %61: I32 = const 1
+  %62: Bool = eq inspect %60 inspect %61
+  jump -> bb8(take %62, take %54)
+
+bb10(%78: I32):
+  %86: Bool = const False
+  jump -> bb11(take %86, take %78)
+
+bb11(%87: Bool, %88: I32):
+  %91: I32 = const 8
+  %92: I32 = call check borrow.shared %87 borrow.shared %91
+  %93: I32 = add inspect %88 inspect %92
+  %94: Corner = const BottomRight
+  %95: Corner = call opaque borrow.shared %94
+  %96: {I32, Bool, F32} = call axesOf borrow.shared %95
+  write.init borrow.unique (local8) take %96
+  %98: I32 = read copy.trivial (local8.0)
+  %99: I32 = const 3
+  %100: Bool = eq inspect %98 inspect %99
+  branch inspect %100 -> bb15(take %93) -> bb13(take %93)
+
+bb12(%79: I32):
+  %81: Corner = const TopLeft
+  %82: Corner = call opaque borrow.shared %81
+  %83: {I32, Bool, F32} = call axesOf borrow.shared %82
+  write.init borrow.unique (local7) take %83
+  %85: Bool = read copy.trivial (local7.1)
+  jump -> bb11(take %85, take %79)
+
+bb13(%101: I32):
+  %110: Bool = const False
+  jump -> bb14(take %110, take %101)
+
+bb14(%111: Bool, %112: I32):
+  %115: I32 = const 16
+  %116: I32 = call check borrow.shared %111 borrow.shared %115
+  %117: I32 = add inspect %112 inspect %116
+  %118: Corner = const BottomLeft
+  %119: Corner = call opaque borrow.shared %118
+  %120: {I32, Bool, F32} = call axesOf borrow.shared %119
+  write.init borrow.unique (local10) take %120
+  %122: F32 = read copy.trivial (local10.2)
+  %123: F32 = const 2.5
+  %124: Bool = eq inspect %122 inspect %123
+  branch inspect %124 -> bb18(take %117) -> bb16(take %117)
+
+bb15(%102: I32):
+  %104: Corner = const BottomRight
+  %105: Corner = call opaque borrow.shared %104
+  %106: {I32, Bool, F32} = call axesOf borrow.shared %105
+  write.init borrow.unique (local9) take %106
+  %108: Bool = read copy.trivial (local9.1)
+  %109: Bool = not inspect %108
+  jump -> bb14(take %109, take %102)
+
+bb16(%125: I32):
+  %135: Bool = const False
+  jump -> bb17(take %135, take %125)
+
+bb17(%136: Bool, %137: I32):
+  %140: I32 = const 32
+  %141: I32 = call check borrow.shared %136 borrow.shared %140
+  %142: I32 = add inspect %137 inspect %141
+  %143: Corner = const BottomRight
+  %144: Corner = call opaque borrow.shared %143
+  %145: Box = call boxOf borrow.shared %144
+  write.init borrow.unique (local12) take %145
+  %147: I32 = read copy.trivial (local12.origin.x)
+  %148: I32 = const 4
+  %149: Bool = eq inspect %147 inspect %148
+  branch inspect %149 -> bb21(take %142) -> bb19(take %142)
+
+bb18(%126: I32):
+  %128: Corner = const TopRight
+  %129: Corner = call opaque borrow.shared %128
+  %130: {I32, Bool, F32} = call axesOf borrow.shared %129
+  write.init borrow.unique (local11) take %130
+  %132: F32 = read copy.trivial (local11.2)
+  %133: F32 = const 1.5
+  %134: Bool = eq inspect %132 inspect %133
+  jump -> bb17(take %134, take %126)
+
+bb19(%150: I32):
+  %160: Bool = const False
+  jump -> bb20(take %160, take %150)
+
+bb20(%161: Bool, %162: I32):
+  %165: I32 = const 64
+  %166: I32 = call check borrow.shared %161 borrow.shared %165
+  %167: I32 = add inspect %162 inspect %166
+  %168: Corner = const TopRight
+  %169: Corner = call opaque borrow.shared %168
+  %170: Box = call boxOf borrow.shared %169
+  write.init borrow.unique (local14) take %170
+  %172: I32 = read copy.trivial (local14.origin.x)
+  %173: I32 = const 4
+  %174: Bool = eq inspect %172 inspect %173
+  branch inspect %174 -> bb24(take %167) -> bb22(take %167)
+
+bb21(%151: I32):
+  %153: Corner = const BottomRight
+  %154: Corner = call opaque borrow.shared %153
+  %155: Box = call boxOf borrow.shared %154
+  write.init borrow.unique (local13) take %155
+  %157: I32 = read copy.trivial (local13.origin.y)
+  %158: I32 = const 4
+  %159: Bool = eq inspect %157 inspect %158
+  jump -> bb20(take %159, take %151)
+
+bb22(%175: I32):
+  %185: Bool = const False
+  jump -> bb23(take %185, take %175)
+
+bb23(%186: Bool, %187: I32):
+  %190: I32 = const 128
+  %191: I32 = call check borrow.shared %186 borrow.shared %190
+  %192: I32 = add inspect %187 inspect %191
+  %193: Corner = const TopLeft
+  %194: Corner = call opaque borrow.shared %193
+  %195: Box = call boxOf borrow.shared %194
+  write.init borrow.unique (local16) take %195
+  %197: I32 = read copy.trivial (local16.span.x)
+  %198: I32 = const 4
+  %199: Bool = eq inspect %197 inspect %198
+  %200: I32 = const 256
+  %201: I32 = call check borrow.shared %199 borrow.shared %200
+  %202: I32 = add inspect %192 inspect %201
+  %203: Corner = const TopLeft
+  %204: Corner = call opaque borrow.shared %203
+  %205: Maybe(I32) = call hintOf borrow.shared %204
+  write.init borrow.unique (local17) take %205
+  %208: U8 = read copy.trivial (local17.#)
+  %209: U8 = const 0
+  %210: Bool = eq inspect %208 inspect %209
+  branch inspect %210 -> bb27(take %202) -> bb25(take %202)
+
+bb24(%176: I32):
+  %178: Corner = const TopRight
+  %179: Corner = call opaque borrow.shared %178
+  %180: Box = call boxOf borrow.shared %179
+  write.init borrow.unique (local15) take %180
+  %182: I32 = read copy.trivial (local15.origin.y)
+  %183: I32 = const 0
+  %184: Bool = eq inspect %182 inspect %183
+  jump -> bb23(take %184, take %176)
+
+bb25(%207: I32):
+  %214: Bool = const False
+  jump -> bb26(take %214, take %207)
+
+bb26(%215: Bool, %216: I32):
+  %219: I32 = const 512
+  %220: I32 = call check borrow.shared %215 borrow.shared %219
+  %221: I32 = add inspect %216 inspect %220
+  %222: Corner = const BottomLeft
+  %223: Corner = call opaque borrow.shared %222
+  %224: Maybe(I32) = call hintOf borrow.shared %223
+  write.init borrow.unique (local18) take %224
+  %227: U8 = read copy.trivial (local18.#)
+  %228: U8 = const 1
+  %229: Bool = eq inspect %227 inspect %228
+  branch inspect %229 -> bb30(take %221) -> bb28(take %221)
+
+bb27(%211: I32):
+  %213: Bool = const True
+  jump -> bb26(take %213, take %211)
+
+bb28(%226: I32):
+  %238: Bool = const False
+  jump -> bb29(take %238, take %226)
+
+bb29(%239: Bool, %240: I32):
+  %243: I32 = const 1024
+  %244: I32 = call check borrow.shared %239 borrow.shared %243
+  %245: I32 = add inspect %240 inspect %244
+  %246: Corner = const TopLeft
+  %247: Corner = call opaque borrow.shared %246
+  %248: Point = call always borrow.shared %247
+  write.init borrow.unique (local19) take %248
+  %250: I32 = read copy.trivial (local19.x)
+  %251: I32 = const 9
+  %252: Bool = eq inspect %250 inspect %251
+  branch inspect %252 -> bb34(take %245) -> bb32(take %245)
+
+bb30(%230: I32):
+  %232: I32 = read copy.trivial (local18.Just)
+  %233: I32 = const 2
+  %234: Bool = eq inspect %232 inspect %233
+  branch inspect %234 -> bb31(take %230) -> bb28(take %230)
+
+bb31(%235: I32):
+  %237: Bool = const True
+  jump -> bb29(take %237, take %235)
+
+bb32(%253: I32):
+  %263: Bool = const False
+  jump -> bb33(take %263, take %253)
+
+bb33(%264: Bool, %265: I32):
+  %268: I32 = const 2048
+  %269: I32 = call check borrow.shared %264 borrow.shared %268
+  %270: I32 = add inspect %265 inspect %269
+  %271: Corner = const TopLeft
+  %272: Corner = call opaque borrow.shared %271
+  %273: Token = call tokenOf borrow.shared %272
+  write.init borrow.unique (local21) take %273
+  %275: I32 = read copy.trivial (local21.id)
+  drop (local21)
+  %276: I32 = const 10
+  %277: Bool = eq inspect %275 inspect %276
+  branch inspect %277 -> bb37(take %270) -> bb35(take %270)
+
+bb34(%254: I32):
+  %256: Corner = const BottomRight
+  %257: Corner = call opaque borrow.shared %256
+  %258: Point = call always borrow.shared %257
+  write.init borrow.unique (local20) take %258
+  %260: I32 = read copy.trivial (local20.y)
+  %261: I32 = const 9
+  %262: Bool = eq inspect %260 inspect %261
+  jump -> bb33(take %262, take %254)
+
+bb35(%278: I32):
+  %288: Bool = const False
+  jump -> bb36(take %288, take %278)
+
+bb36(%289: Bool, %290: I32):
+  %293: I32 = const 4096
+  %294: I32 = call check borrow.shared %289 borrow.shared %293
+  %295: I32 = add inspect %290 inspect %294
+  %296: Corner = const TopLeft
+  %297: Corner = call opaque borrow.shared %296
+  %298: I32 = call independent borrow.shared %297
+  %299: I32 = const 3
+  %300: Bool = eq inspect %298 inspect %299
+  %301: I32 = const 8192
+  %302: I32 = call check borrow.shared %300 borrow.shared %301
+  %303: I32 = add inspect %295 inspect %302
+  return take %303
+
+bb37(%279: I32):
+  %281: Corner = const BottomRight
+  %282: Corner = call opaque borrow.shared %281
+  %283: Token = call tokenOf borrow.shared %282
+  write.init borrow.unique (local22) take %283
+  %285: I32 = read copy.trivial (local22.id)
+  drop (local22)
+  %286: I32 = const 40
+  %287: Bool = eq inspect %285 inspect %286
+  jump -> bb36(take %287, take %279)
+}
+
+entry main

@@ -47,7 +47,7 @@ fn double(xs: Array(I32) [unique call view]) -> {} {
   local & i: Size
   local local2: I32 [shared slot 0]
   local local3: I32 [shared slot 0]
-  local & local4: I32 [unique slot 0]
+  local & local4: I32 [unique slot 0 owner]
 
 bb0:
   %0: Size = const 0
@@ -78,7 +78,7 @@ bb3:
   %18: I32 = read copy.trivial (local3)
   %19: I32 = add inspect %13 inspect %18
   %20: Array(I32) [unique call view] = read borrow.unique (xs) loan3
-  %21: I32 [unique slot 0] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %20 borrow.shared %8 roots{3}
+  %21: I32 [unique slot 0 owner] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %20 borrow.shared %8 roots{3}
   write.init borrow.unique (local4) borrow.unique %21
   write.assign borrow.unique (local4) take %19
   %24: Size = read copy.trivial (i)

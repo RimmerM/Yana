@@ -1,0 +1,43 @@
+{-
+   Taking a value **out of borrowed storage** and writing one back into it - `doc/spec/ownership.md`,
+   and the rule `acc = acc ++ part` through a `&` parameter is.
+
+   The storage is the caller's and this frame may write it, so the value in it may fill a position
+   that consumes provided something is written back before the frame lets go of the reference. Two
+   properties of the language make the window between the two unobservable, and both are properties
+   rather than assumptions: an exclusive loan is exclusive while it is live, so no second reader
+   exists to look into the hole, and nothing unwinds, so no teardown runs over one on the way out.
+
+   Without it `pub fn (Append(a)) ++=(&target: a, ->amount: a)` in `lib/Core/Core.yana` had no body
+   that could be written: `target` is a shared place under the old rule, and `++` consumes both of
+   its operands.
+
+   The goldens are the assertion, in two halves. The read of `target` is `read take` - the hole - and
+   the write that follows it is `write.reinit` rather than `write.assign`, because an assignment to a
+   place that holds nothing releases nothing. `Reject.BorrowRefill.yana` is the other half: a hole
+   nothing fills, and a hole filled on one path only.
+-}
+
+fn joined(->a: String, ->b: String) -> String = a ++ b
+
+-- The shape the operator is. One take and one refill, in one statement.
+fn append(&target: String, ->amount: String):
+    target = joined(target, amount)
+
+-- Twice over, so the state after the first refill is what the second take reads.
+fn twice(&target: String):
+    target = joined(target, "cd")
+    target = joined(target, "ef")
+
+-- Emptied and refilled on both arms, which is what the meet at the join has to agree about.
+fn conditional(&target: String, flag: Bool):
+    if flag then target = joined(target, "gh") else target = joined(target, "ijk")
+
+fn main() -> Int:
+    let &acc = "ab" :: String
+    append(acc, "12")
+    twice(acc)
+    conditional(acc, True)
+
+    -- "ab" "12" "cd" "ef" "gh"
+    return truncate(length(acc)) :: Int

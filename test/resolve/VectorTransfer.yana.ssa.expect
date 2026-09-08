@@ -1,0 +1,174 @@
+module ResolveTest
+
+fn copyFour(from: %I32 [shared call], to: %I32 [shared call]) -> {} {
+bb0(%0: %I32 [shared call] guaranteed, %1: %I32 [shared call] guaranteed):
+  %2: %%I32 address = alloc frame %I32 [shared call]
+  %3: %%I32 address = alloc frame %I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: %I32 trivial = load inspect %3
+  %5: %I32 trivial = load inspect %2
+  %6: %Vec(I32) trivial = bitcast inspect %5
+  %7: Vec(I32) trivial = load inspect %6
+  %8: %Vec(I32) trivial = bitcast inspect %4
+  store inspect %8 consume %7
+  return
+}
+
+fn roundTrip() -> I32 {
+bb0:
+  %0: %[I32 *4] address = alloc frame [I32 *4]
+  %1: %[I32 *4] address = alloc frame [I32 *4]
+  %2: I32 trivial = const 11
+  %3: I32 trivial = const 22
+  %4: I32 trivial = const 33
+  %5: I32 trivial = const 44
+  %6: [I32 *4] trivial = aggregate.0 consume %2 consume %3 consume %4 consume %5
+  store inspect %0 consume %6
+  %7: I32 trivial = const 0
+  %8: I32 trivial = const 0
+  %9: I32 trivial = const 0
+  %10: I32 trivial = const 0
+  %11: [I32 *4] trivial = aggregate.0 consume %7 consume %8 consume %9 consume %10
+  store inspect %1 consume %11
+  %12: Size trivial = const 0
+  %13: %I32 address = element.addr inspect %0 inspect %12
+  %14: I32 [shared slot 0] guaranteed from{%0} = load inspect %13
+  %15: %I32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %14
+  %16: Size trivial = const 0
+  %17: %I32 address = element.addr inspect %1 inspect %16
+  %18: I32 [shared slot 0] guaranteed from{%1} = load inspect %17
+  %19: %I32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %18
+  call copyFour borrow %15 borrow %19
+  %20: Size trivial = const 0
+  %21: %I32 address = element.addr inspect %1 inspect %20
+  %22: I32 trivial = load inspect %21
+  %23: Size trivial = const 3
+  %24: %I32 address = element.addr inspect %1 inspect %23
+  %25: I32 trivial = load inspect %24
+  %26: I32 trivial = add inspect %22 inspect %25
+  %27: I32 trivial = convert inspect %26
+  return consume %27
+}
+
+fn sixteenBytes() -> I32 {
+bb0:
+  %0: %[U8 *16] address = alloc frame [U8 *16]
+  %1: %Vec(U8) address = alloc frame Vec(U8)
+  %2: U8 trivial = const 1
+  %3: U8 trivial = const 1
+  %4: U8 trivial = const 1
+  %5: U8 trivial = const 1
+  %6: U8 trivial = const 1
+  %7: U8 trivial = const 1
+  %8: U8 trivial = const 1
+  %9: U8 trivial = const 1
+  %10: U8 trivial = const 2
+  %11: U8 trivial = const 2
+  %12: U8 trivial = const 2
+  %13: U8 trivial = const 2
+  %14: U8 trivial = const 2
+  %15: U8 trivial = const 2
+  %16: U8 trivial = const 2
+  %17: U8 trivial = const 2
+  %18: [U8 *16] trivial = aggregate.0 consume %2 consume %3 consume %4 consume %5 consume %6 consume %7 consume %8 consume %9 consume %10 consume %11 consume %12 consume %13 consume %14 consume %15 consume %16 consume %17
+  store inspect %0 consume %18
+  %19: Size trivial = const 0
+  %20: %U8 address = element.addr inspect %0 inspect %19
+  %21: U8 [shared slot 0] guaranteed from{%0} = load inspect %20
+  %22: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %21
+  %23: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %22
+  %24: Vec(U8) trivial = load inspect %23
+  store inspect %1 consume %24
+  %25: Vec(U8) trivial = load inspect %1
+  %26: I32 trivial = const 0
+  %27: U8 trivial = vec.lane #0 inspect %25
+  %28: I32 trivial = convert inspect %27
+  %29: I32 trivial = const 10
+  %30: I32 trivial = mul inspect %28 inspect %29
+  %31: Vec(U8) trivial = load inspect %1
+  %32: I32 trivial = const 15
+  %33: U8 trivial = vec.lane #15 inspect %31
+  %34: I32 trivial = convert inspect %33
+  %35: I32 trivial = const 7
+  %36: I32 trivial = mul inspect %34 inspect %35
+  %37: I32 trivial = add inspect %30 inspect %36
+  return consume %37
+}
+
+fn tailSum() -> I32 {
+bb0:
+  %0: %[I32 *4] address = alloc frame [I32 *4]
+  %1: %Vec(I32) address = alloc frame Vec(I32)
+  %2: I32 trivial = const 1
+  %3: I32 trivial = const 2
+  %4: I32 trivial = const 3
+  %5: I32 trivial = const 4
+  %6: [I32 *4] trivial = aggregate.0 consume %2 consume %3 consume %4 consume %5
+  store inspect %0 consume %6
+  %7: Size trivial = const 1
+  %8: %I32 address = element.addr inspect %0 inspect %7
+  %9: I32 [shared slot 0] guaranteed from{%0} = load inspect %8
+  %10: %I32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %9
+  %11: %Vec(I32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %10
+  %12: Vec(I32) trivial = load.past inspect %11
+  store inspect %1 consume %12
+  %13: Vec(I32) trivial = load inspect %1
+  %14: I32 trivial = const 0
+  %15: I32 trivial = vec.lane #0 inspect %13
+  %16: Vec(I32) trivial = load inspect %1
+  %17: I32 trivial = const 1
+  %18: I32 trivial = vec.lane #1 inspect %16
+  %19: I32 trivial = add inspect %15 inspect %18
+  %20: Vec(I32) trivial = load inspect %1
+  %21: I32 trivial = const 2
+  %22: I32 trivial = vec.lane #2 inspect %20
+  %23: I32 trivial = add inspect %19 inspect %22
+  %24: I32 trivial = convert inspect %23
+  return consume %24
+}
+
+fn matchingLanes() -> I32 {
+bb0:
+  %0: %[I32 *4] address = alloc frame [I32 *4]
+  %1: %Vec(I32) address = alloc frame Vec(I32)
+  %2: I32 trivial = const 7
+  %3: I32 trivial = const 9
+  %4: I32 trivial = const 9
+  %5: I32 trivial = const 7
+  %6: [I32 *4] trivial = aggregate.0 consume %2 consume %3 consume %4 consume %5
+  store inspect %0 consume %6
+  %7: Size trivial = const 0
+  %8: %I32 address = element.addr inspect %0 inspect %7
+  %9: I32 [shared slot 0] guaranteed from{%0} = load inspect %8
+  %10: %I32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %9
+  %11: %Vec(I32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %10
+  %12: Vec(I32) trivial = load inspect %11
+  store inspect %1 consume %12
+  %13: Vec(I32) trivial = load inspect %1
+  %14: I32 trivial = const 9
+  %15: Vec(I32) trivial = vec.splat inspect %14
+  %16: Mask(I32) trivial = eq inspect %13 inspect %15
+  %17: I32 trivial = vec.reduce bits inspect %16
+  return consume %17
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call roundTrip
+  %1: I32 trivial = const 1000000
+  %2: I32 trivial = mul inspect %0 inspect %1
+  %3: I32 trivial = call sixteenBytes
+  %4: I32 trivial = const 1000
+  %5: I32 trivial = mul inspect %3 inspect %4
+  %6: I32 trivial = add inspect %2 inspect %5
+  %7: I32 trivial = call tailSum
+  %8: I32 trivial = const 10
+  %9: I32 trivial = mul inspect %7 inspect %8
+  %10: I32 trivial = add inspect %6 inspect %9
+  %11: I32 trivial = call matchingLanes
+  %12: I32 trivial = add inspect %10 inspect %11
+  return consume %12
+}
+
+entry main

@@ -1,0 +1,75 @@
+let image$base: () = <none>
+
+fn reciprocalIsNegative(%value: F64) -> Bool {
+  b0:
+    %v3 = div 1, %value : F64
+    %v6 = cmp_lt %v3, 0 : Bool
+    ret %v6
+}
+
+(Num(a)) fn scaledDown(%v: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v4 = gencall FromInt(a).fromInt, 4 : a
+    %v2 = gencall Num(a).*, %v4, %v : a
+    ret %v2
+}
+
+fn widened(%n: I64) -> Bool {
+  b0:
+    %v3 = cmp_lt 1, %n : Bool
+    ret %v3
+}
+
+fn main() -> I32 {
+  b0:
+    %v4 = sub 0, 2 : F32
+    %v5 = cast %v4 : F64
+    %v6 = call reciprocalIsNegative, %v5 : Bool
+    %v8 = xor %v6, True : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v14 = sub 0, 1 : I32
+    ret %v14
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = call scaledDown(I64), 3 : I64
+    %v20 = cmp_ne %v18, 12 : Bool
+    je %v20, b4, b5
+
+  b4:
+    %v26 = sub 0, 2 : I32
+    ret %v26
+
+  b5:
+    jmp b6
+
+  b6:
+    %v30 = call widened, 9 : Bool
+    %v32 = xor %v30, True : Bool
+    je %v32, b7, b8
+
+  b7:
+    %v38 = sub 0, 3 : I32
+    ret %v38
+
+  b8:
+    jmp b9
+
+  b9:
+    ret 41
+}
+
+fn scaledDown(I64)(%v: I64) -> I64 {
+  b0:
+    %v3 = mul 4, %v : I64
+    ret %v3
+}

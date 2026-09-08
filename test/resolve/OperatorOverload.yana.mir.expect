@@ -2,7 +2,7 @@ module ResolveTest
 
 data Tag {n: I32}
 
-fn +(lhs: Tag [shared call], rhs: I32 [shared call]) -> I32 {
+fn +'3(lhs: Tag [shared call], rhs: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (lhs.n)
   %1: I32 = read copy.trivial (rhs)
@@ -10,7 +10,7 @@ bb0:
   return take %2
 }
 
-fn -(value: Tag [shared call]) -> I32 {
+fn -'4(value: Tag [shared call]) -> I32 {
 bb0:
   %0: I32 = const 0
   %1: I32 = read copy.trivial (value.n)
@@ -18,7 +18,7 @@ bb0:
   return take %2
 }
 
-fn *(lhs: Tag [shared call], rhs: I32 [shared call], scale: I32 [shared call] = 10) -> I32 {
+fn *'3(lhs: Tag [shared call], rhs: I32 [shared call], scale: I32 [shared call] = 10) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (lhs.n)
   %1: I32 = read copy.trivial (rhs)
@@ -43,24 +43,24 @@ bb0:
   %4: I32 = const 5
   %5: Tag = aggregate.Tag take %4
   %6: I32 = const 6
-  %7: I32 = call + borrow.shared %5 borrow.shared %6
+  %7: I32 = call +'3 borrow.shared %5 borrow.shared %6
   write.init borrow.unique (tagged) take %7
   %9: I32 = const 2
   %10: Tag = aggregate.Tag take %9
   %11: I32 = const 3
   %12: I32 = const 4
   %13: I32 = mul inspect %11 inspect %12
-  %14: I32 = call + borrow.shared %10 borrow.shared %13
+  %14: I32 = call +'3 borrow.shared %10 borrow.shared %13
   write.init borrow.unique (grouped) take %14
   %16: I32 = const 7
   %17: Tag = aggregate.Tag take %16
-  %18: I32 = call - borrow.shared %17
+  %18: I32 = call -'4 borrow.shared %17
   write.init borrow.unique (negated) take %18
   %20: I32 = const 3
   %21: Tag = aggregate.Tag take %20
   %22: I32 = const 4
   %23: I32 = const 10
-  %24: I32 = call * borrow.shared %21 borrow.shared %22 borrow.shared %23
+  %24: I32 = call *'3 borrow.shared %21 borrow.shared %22 borrow.shared %23
   write.init borrow.unique (scaled) take %24
   %26: I32 = read copy.trivial (sum)
   %27: I32 = read copy.trivial (tagged)

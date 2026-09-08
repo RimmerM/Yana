@@ -1,0 +1,152 @@
+module ResolveTest
+
+fn buffers(count: Size [shared call], unit: Size [shared call], $body: (->Size) -> I32 [shared call]) -> I32 {
+bb0(%0: Size [shared call] guaranteed, %1: Size [shared call] guaranteed, %2: (->Size) -> I32 [shared call] guaranteed):
+  %3: %Size address = alloc frame Size [shared call]
+  %4: %Size address = alloc frame Size [shared call]
+  %5: %I32 address = alloc frame I32
+  %6: %Size address = alloc frame Size
+  %7: %Run(U8) address = alloc frame Run(U8)
+  %8: %%U8 address = alloc frame %U8 [owned here shape6 .*=shared slot 0]
+  %9: %Size address = alloc frame Size
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %10: I32 trivial = const 0
+  store inspect %5 consume %10
+  %11: Size trivial = const 0
+  store inspect %6 consume %11
+  jump -> bb1
+
+bb1:
+  %12: Size trivial = load inspect %6
+  %13: Size trivial = load inspect %3
+  %14: Bool trivial = lt inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb2
+
+bb2:
+  %15: I32 trivial = load inspect %5
+  return consume %15
+
+bb3:
+  %16: Size trivial = load inspect %4
+  %17: Size trivial = load inspect %6
+  %18: Size trivial = const 1
+  %19: Size trivial = add inspect %17 inspect %18
+  %20: Size trivial = mul inspect %16 inspect %19
+  %21: Run(U8) owned = call newRun(U8) borrow %20
+  store inspect %7 consume %21
+  %22: Run(U8) [shared slot 0] guaranteed from{%7} = load inspect %7
+  %23: %U8 [owned here shape6 .*=shared slot 0] trivial = call slots(U8) borrow %22
+  store inspect %8 consume %23
+  %24: %@bits(30) U32 address = field.addr .capacity inspect %7
+  %25: @bits(30) U32 trivial = load inspect %24
+  %26: Size trivial = convert inspect %25
+  %27: Size trivial = const 1
+  %28: Size trivial = sub inspect %26 inspect %27
+  store inspect %9 consume %28
+  %29: %U8 [owned here shape6 .*=shared slot 0] trivial = load inspect %8
+  %30: Size trivial = load inspect %9
+  %31: U8 trivial = const 42
+  call writeByte borrow %29 borrow %30 borrow %31
+  %32: %@bits(30) U32 address = field.addr .capacity inspect %7
+  %33: @bits(30) U32 trivial = load inspect %32
+  %34: Size trivial = convert inspect %33
+  %35: Size trivial = const 1000
+  %36: Size trivial = mul inspect %34 inspect %35
+  %37: %U8 [owned here shape6 .*=shared slot 0] trivial = load inspect %8
+  %38: Size trivial = load inspect %9
+  %39: Size trivial = call readByte borrow %37 borrow %38
+  drop Run(U8) inspect %7
+  %40: Size trivial = add inspect %36 inspect %39
+  %41: (->Size) -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %42: I32 trivial = call [value #0] inspect %41 consume %40
+  %43: I32 trivial = const 0
+  %44: Bool trivial = eq inspect %42 inspect %43
+  store inspect %5 consume %42
+  branch inspect %44 -> bb4 -> bb5
+
+bb4:
+  %45: Size trivial = load inspect %6
+  %46: Size trivial = const 1
+  %47: Size trivial = add inspect %45 inspect %46
+  store inspect %6 consume %47
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+fn writeByte(base: %U8 [shared call], at: Size [shared call], value: U8 [shared call]) -> {} {
+bb0(%0: %U8 [shared call] guaranteed, %1: Size [shared call] guaranteed, %2: U8 [shared call] guaranteed):
+  %3: %%U8 address = alloc frame %U8 [shared call]
+  %4: %Size address = alloc frame Size [shared call]
+  %5: %U8 address = alloc frame U8 [shared call]
+  %6: %%U8 address = alloc frame %U8 [owned here shape6 .*=shared slot 0]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  store inspect %5 borrow %2
+  %7: %U8 trivial = load inspect %3
+  %8: Size trivial = load inspect %4
+  %9: Size trivial = metric stride U8
+  %10: Size trivial = mul inspect %8 inspect %9
+  %11: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %7 inspect %10
+  store inspect %6 consume %11
+  %12: %U8 [owned here shape6 .*=shared slot 0] trivial = load inspect %6
+  %13: U8 trivial = load inspect %5
+  store inspect %12 consume %13
+  return
+}
+
+fn readByte(base: %U8 [shared call], at: Size [shared call]) -> Size {
+bb0(%0: %U8 [shared call] guaranteed, %1: Size [shared call] guaranteed):
+  %2: %%U8 address = alloc frame %U8 [shared call]
+  %3: %Size address = alloc frame Size [shared call]
+  %4: %%U8 address = alloc frame %U8 [owned here shape6 .*=shared slot 0]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %5: %U8 trivial = load inspect %2
+  %6: Size trivial = load inspect %3
+  %7: Size trivial = metric stride U8
+  %8: Size trivial = mul inspect %6 inspect %7
+  %9: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %5 inspect %8
+  store inspect %4 consume %9
+  %10: %U8 [owned here shape6 .*=shared slot 0] trivial = load inspect %4
+  %11: U8 trivial = load inspect %10
+  %12: Size trivial = convert inspect %11
+  return consume %12
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Size address = alloc frame Size
+  %1: Size trivial = const 0
+  store inspect %0 consume %1
+  %2: Size trivial = const 3
+  %3: Size trivial = const 4
+  %4: Size [unique slot 0] guaranteed = load inspect %0
+  %5: main.cont.env affine = aggregate.main.cont.env borrow %4
+  %6: (->Size) -> I32 [owned here shape8 .0=shared call] affine = fun.value main.cont borrow %5
+  %7: I32 trivial = call buffers borrow %2 borrow %3 borrow %6
+  jump -> bb1
+
+bb1:
+  %8: Size trivial = load inspect %0
+  %9: I32 trivial = convert inspect %8
+  return consume %9
+}
+
+fn main.cont(main.cont.env: main.cont.env [unique call], $handed: Size) -> I32 {
+bb0(%0: main.cont.env [unique call] guaranteed, %1: Size trivial):
+  %2: %Size address = field.addr .total inspect %0
+  %3: %Size address = load inspect %2
+  %4: %Size address = alloc frame Size
+  store inspect %4 consume %1
+  %5: Size trivial = load inspect %3
+  %6: Size trivial = load inspect %4
+  %7: Size trivial = add inspect %5 inspect %6
+  store inspect %3 consume %7
+  %8: I32 trivial = const 0
+  return consume %8
+}
+
+entry main

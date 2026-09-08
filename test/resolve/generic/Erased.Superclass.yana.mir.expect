@@ -1,0 +1,123 @@
+module ResolveTest
+
+data Vessel {size: I32}
+
+class Base(a): tag, scale
+
+class (Base(a)) Middle(a): shift
+
+class (Middle(a)) Top(a): crown
+
+instance Base(Vessel): Vessel.tag, Vessel.scale
+
+instance Middle(Vessel): Vessel.shift
+
+instance Top(Vessel): Vessel.crown
+
+fn tag(x: a [shared call]) -> I32 = <no body>
+
+fn scale(x: a [shared call]) -> I32 = <no body>
+
+fn shift(x: a [shared call]) -> I32 = <no body>
+
+fn crown(x: a [shared call]) -> I32 = <no body>
+
+fn Vessel.tag(x: Vessel [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x.size)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn Vessel.scale(x: Vessel [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x.size)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn Vessel.shift(x: Vessel [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x.size)
+  %1: I32 = const 100
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn Vessel.crown(x: Vessel [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x.size)
+  %1: I32 = const 1000
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn oneLevel(x: a [shared call]) -> I32 {
+  form erased
+  slot #0 type a
+  slot #1 class Middle(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I32 = call tag(a) borrow.shared %0
+  %2: a [shared call] = read borrow.shared (x) loan1
+  %3: I32 = call shift(a) borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+fn twoLevels(x: a [shared call]) -> I32 {
+  form erased
+  slot #0 type a
+  slot #1 class Top(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I32 = call scale(a) borrow.shared %0
+  %2: a [shared call] = read borrow.shared (x) loan1
+  %3: I32 = call crown(a) borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+fn both(x: a [shared call]) -> I32 {
+  form erased
+  slot #0 type a
+  slot #1 class Middle(a)
+  slot #2 class Top(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I32 = call tag(a) borrow.shared %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local v: Vessel
+  local a: I32
+  local b: I32
+  local c: I32
+
+bb0:
+  %0: I32 = const 5
+  %1: Vessel = aggregate.Vessel take %0
+  write.init borrow.unique (v) take %1
+  %3: Vessel = read copy.trivial (v)
+  %4: I32 = call oneLevel(Vessel) borrow.shared %3
+  write.init borrow.unique (a) take %4
+  %6: Vessel = read copy.trivial (v)
+  %7: I32 = call twoLevels(Vessel) borrow.shared %6
+  write.init borrow.unique (b) take %7
+  %9: Vessel = read copy.trivial (v)
+  %10: I32 = call both(Vessel) borrow.shared %9
+  write.init borrow.unique (c) take %10
+  %12: I32 = read copy.trivial (a)
+  %13: I32 = read copy.trivial (b)
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = read copy.trivial (c)
+  %16: I32 = add inspect %14 inspect %15
+  %17: I32 = const 1024
+  %18: I32 = sub inspect %16 inspect %17
+  return take %18
+}
+
+entry main

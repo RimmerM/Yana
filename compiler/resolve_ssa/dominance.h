@@ -21,7 +21,7 @@ void forEachSuccessor(SsaBase base, Block& block, F&& f) {
     auto last = block.terminator(base);
     if(!last) return;
 
-    forEachEdge(*last, [&](Edge& edge) {
+    forEachEdge(base, *last, [&](Edge& edge) {
         if(edge.target) f(base[edge.target]->index.index);
     });
 }

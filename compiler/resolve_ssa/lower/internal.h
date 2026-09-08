@@ -188,6 +188,16 @@ struct Lowering {
     LowerPtr<LowerValue> currentReturnPlace = nullptr;
 
     /*
+     * The function whose blocks are being written, for the one instruction whose expansion needs
+     * more of them than it was given - `Inst::Switch`, which becomes a chain of tests.
+     *
+     * A member rather than a parameter threaded through `lowerInst`, because it is the *walk's*
+     * state and not the instruction's: `emitSumTeardown` takes one because its caller is the erased
+     * thunk writer rather than the block walk, and everything here is inside one body.
+     */
+    LowerFunction* currentLowerFunction = nullptr;
+
+    /*
      * gen.cpp.
      */
 
@@ -288,7 +298,61 @@ struct Lowering {
     // Storage in this frame, for a value that has no register to be in: an aggregate under
     // construction, a copy, a call's hidden result. One `alloca` with the manifestation's size and
     // alignment, which is the only form of it this stage builds.
+    // An allocation on the heap, at the point a frame slot would have been - see the definition.
+    LowerPtr<LowerValue> heapStorage(LowerBlock& block, const mir::Occurrence& occurrence,
+                                     LocationId source);
+
     LowerPtr<LowerValue> frameStorage(LowerBlock& block, const mir::Occurrence& occurrence);
+
+    /*
+     * Where a memory-resident value is **going**, decided before its producer runs - §5.6's
+     * destination passing.
+     *
+     * The position decides the placement, which is the same sentence D17 applies to a closure
+     * environment: a value with exactly one consumer, and a consumer that is going to copy it into
+     * storage it knows the address of, does not need a frame slot of its own at all. What it needs
+     * is that address, and the two consumers that have one are the `return` - the caller's hidden
+     * result pointer - and an `aggregate` component, whose address is a field of the record being
+     * built or the box that field is.
+     *
+     * `storageFor` is the entry point and is what every producer of a memory value asks; it answers
+     * the destination where there is one and a frame slot where there is not, and records the answer
+     * so that the consumer knows not to copy. `destinationFor` is the search behind it and recurses:
+     * the aggregate whose field is the destination may itself be destined for its own consumer, so
+     * `Tree {left: Just(build(..))}` builds the child inside the box inside the caller's storage.
+     *
+     * Left to a later pass this is `compiler/lower`'s `forwardCopyDestinations`, and it costs 28.2 G
+     * instructions on the library where the shipping stage pays 0.09 G (findings.md §78.6) - a
+     * quadratic chase after copies that were never necessary. It also cannot reach the box: the
+     * allocation is emitted *after* the temporary is filled, so the destination does not dominate
+     * the writes and the copy has to stay.
+     */
+    LowerPtr<LowerValue> storageFor(LowerBlock& block, Value& value);
+    LowerPtr<LowerValue> destinationFor(LowerBlock& block, Value& value);
+
+    /*
+     * The values `storageFor` placed at a destination rather than in a slot of their own, and where.
+     *
+     * Read by the consumer that supplied the address: an `install` of a value that is already in the
+     * storage it would be installed into is a self-copy, and a boxed component whose box was made
+     * early must not be given a second one. Per function, like `values` beside it.
+     */
+    HashMap<U32, LowerPtr<LowerValue>> destinations;
+
+    /*
+     * The box targets whose teardown is being expanded in place right now - `emitBoxTeardown`.
+     *
+     * A boxed field's release is written inline where it can be, so that one frame walks one level
+     * of a recursive structure rather than two: `Maybe(Tree)`'s teardown frees the node itself and
+     * calls its children's, where a call to a second per-type function made `teardown(Maybe(Tree))`
+     * and `box(Tree)` alternate down the tree. This is what stops that expansion from being
+     * infinite - a type whose box edge is its own, `data Chain {next: @box Chain}`, is on the stack
+     * when the walk reaches it again and takes the call instead.
+     *
+     * A stack rather than a visited set: two boxed fields of one record are two expansions and
+     * neither is inside the other, and a set would refuse the second for the first's sake.
+     */
+    SmallArray<DeclPtr<mir::Type>, 8> boxExpansion;
 
     // Installing a value into storage: a store where it is a register value and a block copy where
     // it lives in memory. One function, because "install this here" is one operation and the
@@ -314,6 +378,34 @@ struct Lowering {
      * than a message. Here the message names the role and the type whose storage wanted it.
      */
     LowerPtr<LowerFunction> roleFunction(intrinsic::Known role, LocationId source);
+
+    /*
+     * `-check-locations` - the located check this call becomes, or null.
+     *
+     * **The substitution is here and not in the resolver**, which is the one decision this feature
+     * turns on. A located call carries three or four constant arguments, and every rule that reads a
+     * check - the discharge of a branch whose arm calls `checkFailed`, the fold that removes a bound
+     * it has proved, the memory pass that keeps storage live across one - was written against the
+     * shape with none. Emitting the located form up in MIR makes each of those a second pattern to
+     * recognize, which is what the shipping stage's `isCheckCall` exists to paper over. Emitted
+     * *here*, after every one of those passes has run, the optimizer only ever sees one shape and
+     * the switch cannot change what a program computes.
+     *
+     * The other half is `Conversion::graftCall`, which is what makes the location the **subscript's**
+     * rather than the library's: `Index.get` writes its own bounds test and `@inline(always)` grafts
+     * it, so the call this substitutes for was written in `lib/Core/Array.yana` and the site an
+     * author wants named is the one it was grafted into.
+     */
+    DeclPtr<mir::Function> locatedCheck(DeclPtr<mir::Function> callee);
+
+    // Its four trailing arguments - the module's bytes, their count, the line and the column, each
+    // at the width the located declaration wrote for it. `from` is the first of the four.
+    bool checkLocationArguments(LowerBlock& block, mir::Function& located, U32 from,
+                                LocationId source, SmallArray<LowerPtr<LowerValue>, 8>& passed);
+
+    // The bytes of one module's name, as a constant global - one per module, since every check in a
+    // file names the same file.
+    LowerPtr<LowerGlobal> moduleNameBytes(StringId name);
 
     /*
      * A boxed field's storage, made - `allocateHeap` at the target's size, the pointer stored into
@@ -396,6 +488,9 @@ struct Lowering {
      * aggregates of one shape at two types share a table entry and are two values.
      */
     HashMap<U64, LowerPtr<LowerGlobal>> placedConstants;
+
+    // `-check-locations`: one bytes global per module name - see `moduleNameBytes`.
+    HashMap<U32, LowerPtr<LowerGlobal>> checkModuleNames;
     U32 placedConstantCount = 0;
 
     // The one empty teardown every descriptor with nothing to run points at - see `emptyTeardown`.
@@ -416,10 +511,52 @@ struct Lowering {
      */
     LowerPtr<LowerGlobal> placeConstant(const mir::Constant& constant,
                                         const mir::Occurrence& occurrence);
+
+    // A constant as a value - see the definition, and `lowerMap`, which is the second caller.
+    LowerPtr<LowerValue> emitConstant(LowerBlock& block, const mir::Constant& constant,
+                                      const mir::Occurrence& occurrence);
+
+    /*
+     * A `match` over constants, as the shape the target wants - map.cpp, where the six forms are.
+     *
+     * The one place the algebra of a mapping is decided, so that x64 and LLVM cannot disagree about
+     * what `indexOf` costs. What is left below it is the memory form of a residual table, which is a
+     * global and a load and needs no instruction of its own.
+     */
+    void lowerMap(LowerBlock& block, InstMap& written);
+
+    /*
+     * The table a residual `map` was placed in, interned on its **contents** - see `lowerMap`.
+     *
+     * Keyed on the bytes rather than on the entry list, and the reason is where the copies come
+     * from: the inliner clones a `map` per call site, so one `nameOf` opened three times is three
+     * instructions holding three equal tables. Their entry lists are three different lists in three
+     * different regions and their bytes are one run, which is what a reader of the image sees.
+     */
+    Array<LowerPtr<LowerGlobal>> placedMapTables;
     void addPointer(LowerGlobal& table, U32 offset, LowerPtr<LowerFunction> function,
                     LowerPtr<LowerGlobal> global);
 
     LowerPtr<LowerFunction> emptyTeardown();
+
+    /*
+     * D17's three numbers and the two functions behind them - `fun.cpp`, where they are argued.
+     *
+     * `closureHeaderBytes` is how far past a heap environment block its record starts,
+     * `funEnvironmentBias` is what a heap-placed lambda adds to its own environment parameter, and
+     * the two teardowns are the header the block carries and the one shared function every drop of a
+     * `Fun` calls.
+     */
+    U32 closureHeaderBytes(DeclPtr<mir::Type> environment);
+    U32 funEnvironmentBias(DeclPtr<mir::Function> lambda);
+    LowerPtr<LowerValue> emitClosureBlock(LowerBlock& block, DeclPtr<mir::Type> environment,
+                                          LowerPtr<LowerValue> from, LocationId source);
+    LowerPtr<LowerFunction> closureBlockTeardown(DeclPtr<mir::Type> environment, LocationId source);
+    LowerPtr<LowerFunction> funTeardown(LocationId source);
+
+    // One per environment record, and one for the whole program - see the two definitions.
+    HashMap<U32, LowerPtr<LowerFunction>> closureTeardowns;
+    LowerPtr<LowerFunction> funRelease = nullptr;
     // The teardown asked for by which halves it runs - `teardownFor`'s answer once the placement has
     // been read. See the definition, which is where the two callers are told apart.
     LowerPtr<LowerFunction> teardownHalves(DeclPtr<mir::Type> type, bool runDrop, bool runReclaim,
@@ -614,6 +751,7 @@ struct Lowering {
 
     // What an address operand names where it does not name storage - a projection this body made,
     // or a reference that carried one. See the definition.
+    DeclPtr<mir::Type> narrowPointee(Value& value);
     Maybe<VirtualPlace> narrowPlace(LowerBlock& block, Value& value, LowerPtr<LowerValue> address);
 
     // ...and reading it, in the four shapes a result can want. Also see the definition.
@@ -691,6 +829,8 @@ struct Lowering {
     LowerPtr<LowerValue> narrowRotate(LowerBlock& block, LowerPtr<LowerValue> lhs,
                                       LowerPtr<LowerValue> rhs, NarrowWidth width, bool left,
                                       StringId name);
+    LowerPtr<LowerValue> narrowByteSwap(LowerBlock& block, LowerPtr<LowerValue> value,
+                                        NarrowWidth width, StringId name);
 
     /*
      * fun.cpp - function values.

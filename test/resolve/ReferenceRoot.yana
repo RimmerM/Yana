@@ -1,7 +1,8 @@
 -- The accepting half of Reject.ReferenceRoot.yana: the same signatures with their roots declared.
 --
--- What this pins is that `return` may be written on a parameter whose value is an address, which is
--- the half of the fix that is not a rejection. `&T` and `%T` are both direct types, so both arrive
+-- What this pins is that a borrow may be published from a parameter whose value is an address: a
+-- reference states it with `'` on the type, a pointer with a label on its pointee (`%src'U8`), and
+-- the two spellings root a result the same way. `&T` and `%T` are both direct types, so both arrive
 -- in a register - and `arrivesAsCopy` used to refuse the marker on the first of them for that
 -- reason, which left `pairOf` below with no way to state a contract it was nevertheless held to.
 
@@ -13,9 +14,9 @@ fn pairOf(x: 'Int, y: 'Int) -> Pair('Int, 'Int) = Pair {first: x, second: y}
 
 fn firstOf(x: 'Int, y: 'Int) -> 'Int = x
 
-fn passThrough(return p: %U8) -> %U8 = p
+fn passThrough(p: %src'U8) -> %src'U8 = p
 
-fn offsetOf(return p: %U8) -> %U8 = p + (1 :: Size)
+fn offsetOf(p: %src'U8) -> %src'U8 = p + (1 :: Size)
 
 fn maybeOf(x: 'Int) -> Maybe('Int) = Just(x)
 

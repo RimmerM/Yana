@@ -8,16 +8,13 @@
    under the declared contract, and what the role decides is only which node the call site builds at
    the end - see `resolve_mir/intrinsic/expand.h`.
 
-   The declarations are `Native`'s, and this fixture does not write them: `prelude/Native/Pointer.yana`
-   does, and an ordinary `import` is what reaches them. That is the arrangement `lib/Native` will be
-   in - the prelude is a library, found by the same walk and bound by the same attribute - so what is
-   here is a program that *calls* the family.
+   The declarations are `Native`'s, and this fixture does not write them: `lib/Native/Pointer.yana`
+   does, and an ordinary `import` is what reaches them - so what is here is a program that *calls*
+   the family.
 
-   The load is spelled `load` and the real library spells it `*`, which is not sloppiness - it is what
-   the attribute buys. A role is bound by `@builtin`, so the compiler holds no name for any of these
-   and the library is free to call them whatever reads best. The prefix-operator *syntax* is a
-   separate thing this stage does not resolve yet, which is also why the arithmetic is `advance` and
-   `retreat` here and `+` and `-` there.
+   A role is bound by `@builtin` and the compiler holds no name for any of these, so what each is
+   *called* is the library's choice: the load is `*`, the arithmetic is `+` and `-`, and a rename in
+   `lib/Native` moves nothing in the compiler.
 
    `store`'s second parameter is `->value` and the shape says so, which is the whole reason the check
    exists: the pointee holds the value afterwards, so the frame that owned it stops owing it a
@@ -40,18 +37,22 @@ fn readIt(p: %I32) -> I32 = *p
 fn writeIt(p: %I32, ->v: I32) -> {} = store(p, v)
 
 {-
-   `addressOf`, and the qualifier that makes it more than a cast.
+   `addressOf`, and which storage the pointer is in.
 
-   The declaration is `fn addressOf(it: source'a) -> %source'a`: the parameter publishes an origin and
-   the result names it, so the storage `it` names stays live to the pointer's last use and this
-   signature can say the same thing one level up. Written `it: a` the argument would be *copied* at
-   every scalar and the address would be the copy's - the wrong storage, and rooted in nothing.
+   `lib/Native/Pointer.yana` declares `fn addressOf(it: a) -> %a` - no published origin - so what an
+   argument that arrives as a *value* gets is storage of its own: `expandAddressOf` materializes a
+   frame slot, writes the value into it, and hands back that slot's address.
+   `test/resolve/AddressTemporary.yana` is that rule, and `test/resolve/Global.yana` is what
+   documents it for a global. A signature that wanted the caller's storage instead would have to
+   publish the origin the way `borrow` does, and this library does not.
+
+   So the pointer here has to come from the *name*: `addressOf(v)` over a `let &` local is the local,
+   and the store below is visible through the name afterwards. Handed through a
+   `fn through(r: I32) -> %I32` it would be the copy's, and the read back would answer 41.
 -}
-fn through(r: source'I32) -> %source'I32 = addressOf(r)
-
 fn roundTrip() -> Int:
     let &v = 41 :: I32
-    let p = through(v)
+    let p = addressOf(v)
     store(p, *p + 1)
 
     -- Read back through the *name* rather than through the pointer, so that a `store` which wrote a
@@ -92,12 +93,12 @@ fn walked() -> Int:
     let &pads = [Pad {wide: 1, narrow: 2}, Pad {wide: 3, narrow: 4}] :: [Pad *2]
 
     let base = addressOf(pads[0])
-    let next = advance(base, 1)
+    let next = base + 1
 
     -- Three answers from one pair of addresses: what the second element holds, that stepping back
     -- lands on the first again, and how many elements apart the two are.
     let stepped = (*next).wide
-    let back = (*retreat(next, 1)).wide
+    let back = (*(next - 1)).wide
 
     return truncate(stepped * 10 + back + difference(base, next))
 
@@ -115,13 +116,15 @@ fn walked() -> Int:
 -}
 @generic fn secondOf(xs: &[a *2]) -> a:
     let base = addressOf(xs[0])
-    return *advance(base, 1)
+    return *(base + 1)
 
 fn erased() -> Int:
     let &ns = [3, 9] :: [I32 *2]
     let &pads = [Pad {wide: 1, narrow: 2}, Pad {wide: 4, narrow: 5}] :: [Pad *2]
 
-    return secondOf(ns) + truncate(secondOf(pads).wide)
+    -- The ascription is not decoration: `Native`'s pointer `+` stands in the same overload set as
+    -- `Num`'s, so the position does not decide `truncate`'s result on its own.
+    return secondOf(ns) + (truncate(secondOf(pads).wide) :: Int)
 
 fn main() -> Int:
     let &n = 7 :: I32

@@ -68,12 +68,12 @@ function findEntry_I32_I32(self, key, h) {
 }
 
 function scanEntries_I32_I32(self, key) {
-  var v24 = self.keys.length;
+  var v26 = self.keys.length;
   var v3 = 0;
-  var v29 = self.keys.items;
-  while (v3 < v24) {
+  var v31 = self.keys.items;
+  while (v3 < v26) {
     var at = v3;
-    if (v29[at] === key) {
+    if (v31[at] === key) {
       return at;
     } else {
       v3 = v3 + 1 | 0;
@@ -117,9 +117,9 @@ function findEntry_String_I32(self, key, h) {
 }
 
 function scanEntries_String_I32(self, key) {
-  var v24 = self.keys.length;
+  var v26 = self.keys.length;
   var v3 = 0;
-  while (v3 < v24) {
+  while (v3 < v26) {
     var at = v3;
     if (self.keys[at] === key) {
       return at;
@@ -177,9 +177,9 @@ function indexRebuild_I32_I32(self, slots) {
     v45 = v45 + 1 | 0;
   }
   self.live = 0;
-  var v83 = self.keys.length;
+  var v85 = self.keys.length;
   var v23 = 0;
-  while (v23 < v83) {
+  while (v23 < v85) {
     var at = v23;
     indexPlace_I32_I32(self, at, mix32(Math.imul((self.keys.items[at] ^ 2166136261) >>> 0, 16777619) >>> 0));
     v23 = v23 + 1 | 0;
@@ -271,9 +271,9 @@ function indexRebuild_String_I32(self, slots) {
     v45 = v45 + 1 | 0;
   }
   self.live = 0;
-  var v80 = self.keys.length;
+  var v82 = self.keys.length;
   var v23 = 0;
-  while (v23 < v80) {
+  while (v23 < v82) {
     var at = v23;
     indexPlace_String_I32(self, at, mix32(Hash_String_hash(self.keys[at], 2166136261)));
     v23 = v23 + 1 | 0;

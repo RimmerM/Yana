@@ -1,0 +1,53 @@
+{-
+   `addressOf` of something that is not storage - `resolve_mir/intrinsic/expand_pointer.cpp`.
+
+   A scalar lives in a register, which is the point of it, so taking the address of one is the
+   operation that *makes storage exist*. `resolve/Global.yana` states the same rule for a constant
+   global - "the address of a temporary holding its value, which is the only reading available for a
+   value that cannot be assigned to" - and this is that rule for the two positions inside a body
+   where nothing named the value: a literal, and a call result.
+
+   Both stages materialize, and they had better agree about it, which is why this is in the shared
+   corpus rather than beside the ownership fixtures. The shipping stage's `materialize` has done it
+   since raw pointers existed; the rewrite reached `addAddressOf` with an owned value instead and
+   asserted, because an address is the address of somewhere and a node result is nowhere. `lib/Native/Pointer.yana` writes
+   `fn addressOf(it: a) -> %a`, so *every* call of it materializes; written `it: source'a` only these
+   two would. The answer is the same either way, which is what this fixture is for.
+
+   **What the answers are for.** None of this is visible in the emitted text: an address that was
+   the address of a copy, or two temporaries folded onto one slot, both produce well-formed IR and a
+   different number.
+-}
+
+import Native
+
+fn seven() -> I32 = 7
+
+-- A literal occupies no storage of its own, so what the pointer names is a frame slot the call
+-- wrote the value into - and reading it back through the pointer is what says the slot is real.
+fn ofLiteral() -> I32 = *addressOf(5 :: I32)
+
+-- A call result is the same case: nothing named it, so nothing gave it a place.
+fn ofCall() -> I32 = *addressOf(seven())
+
+-- Two of them are two slots. A materialization that reused one temporary for the whole body would
+-- pass every test above and fail this one, which is the reason it is here.
+fn distinct() -> I32:
+    let p = addressOf(5 :: I32)
+    let q = addressOf(5 :: I32)
+
+    if (bitcast(p) :: Size) == (bitcast(q) :: Size):
+        return 0
+
+    return 100
+
+-- And a name that does have storage keeps it: nothing is materialized, so a write through the
+-- pointer is seen by the next read of the name. An address of a copy answers 20 here.
+fn ofStorage() -> I32:
+    let &v = 20 :: I32
+    let p = addressOf(v)
+
+    store(p, *p + 1)
+    return v
+
+fn main() -> I32 = ofLiteral() + ofCall() + distinct() + ofStorage()

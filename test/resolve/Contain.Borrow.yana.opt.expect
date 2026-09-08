@@ -63,6 +63,32 @@ fn mapMemory(%size: Size) -> %U8 {
     ret %v19
 }
 
+fn initHeap() -> () {
+  b0:
+    %result = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0 : Size
+    %v41 = cmp_lt %result, 0 : Bool
+    %v47 = bitcast 0 : %U8
+    %v44 = bitcast %result : %U8
+    %region = select %v41 ? %v47 : %v44 : %U8
+    %v4 = bitcast %region : Size
+    %v6 = cmp_eq %v4, 0 : Bool
+    je %v6, b2, b1
+
+  b1:
+    setmemory %region, 0, 256
+    %v16 = bitcast %region : %%U8
+    assign heapFree, %v16
+    %v20 = add %region, 256 : %U8
+    assign heapNext, %v20
+    %v25 = add %region, 4194304 : %U8
+    assign heapLimit, %v25
+    assign heapRegionNext, 8388608
+    ret
+
+  b2:
+    ret
+}
+
 fn growHeap(%needed: Size) -> Bool {
   b0:
     %v1 = load heapRegionNext : Size
@@ -135,121 +161,98 @@ fn allocateHeap(%size: Size) -> %U8 {
     je %v4, b2, b1
 
   b1:
-    jmp b7
+    jmp b4
 
   b2:
-    %result = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0 : Size
-    %v81 = cmp_lt %result, 0 : Bool
-    %v83 = bitcast 0 : %U8
-    %v84 = bitcast %result : %U8
-    %region = select %v81 ? %v83 : %v84 : %U8
-    %v86 = bitcast %region : Size
-    %v88 = cmp_eq %v86, 0 : Bool
-    je %v88, b4, b3
-
-  b3:
-    setmemory %region, 0, 256
-    %v93 = bitcast %region : %%U8
-    assign heapFree, %v93
-    %v96 = add %region, 256 : %U8
-    assign heapNext, %v96
-    %v99 = add %region, 4194304 : %U8
-    assign heapLimit, %v99
-    assign heapRegionNext, 8388608
-    jmp b5
-
-  b4:
-    jmp b5
-
-  b5:
+    call initHeap
     %v7 = load heapFree : %%U8
     %v8 = bitcast %v7 : Size
     %v10 = cmp_eq %v8, 0 : Bool
-    je %v10, b20, b6
+    je %v10, b17, b3
 
-  b6:
-    jmp b7
+  b3:
+    jmp b4
 
-  b7:
+  b4:
     %v20 = add %size, 8 : Size
     %size = alloc : Size
     init %size, 16
     %sizeClass = alloc : Size
     init %sizeClass, 0
-    jmp b8
+    jmp b5
 
-  b8:
-    %v112 = load %size : Size
-    %v113 = cmp_lt %v112, %v20 : Bool
-    je %v113, b19, b9
+  b5:
+    %v79 = load %size : Size
+    %v80 = cmp_lt %v79, %v20 : Bool
+    je %v80, b16, b6
 
-  b9:
-    %v115 = load %sizeClass : Size
-    %v23 = cmp_ge %v115, 32 : Bool
-    je %v23, b18, b10
+  b6:
+    %v82 = load %sizeClass : Size
+    %v23 = cmp_ge %v82, 32 : Bool
+    je %v23, b15, b7
 
-  b10:
-    %v125 = load heapFree : %%U8
-    %v127 = mul %v115, 8 : Size
-    %v128 = add %v125, %v127 : %%U8
-    %v129 = load [%v128] : %U8
-    %v30 = bitcast %v129 : Size
+  b7:
+    %v92 = load heapFree : %%U8
+    %v94 = mul %v82, 8 : Size
+    %v95 = add %v92, %v94 : %%U8
+    %v96 = load [%v95] : %U8
+    %v30 = bitcast %v96 : Size
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
-    je %v34, b17, b11
+    je %v34, b14, b8
 
-  b11:
-    %v136 = shl 16, %v115 : Size
+  b8:
+    %v103 = shl 16, %v82 : Size
     %v42 = load heapNext : %U8
-    %v45 = add %v42, %v136 : %U8
+    %v45 = add %v42, %v103 : %U8
     %v46 = load heapLimit : %U8
     %v47 = cmp_gt %v45, %v46 : Bool
-    je %v47, b13, b12
+    je %v47, b10, b9
+
+  b9:
+    jmp b12
+
+  b10:
+    %v49 = call growHeap, %v103 : Bool
+    %v51 = xor %v49, True : Bool
+    je %v51, b13, b11
+
+  b11:
+    jmp b12
 
   b12:
-    jmp b15
-
-  b13:
-    %v49 = call growHeap, %v136 : Bool
-    %v51 = xor %v49, True : Bool
-    je %v51, b16, b14
-
-  b14:
-    jmp b15
-
-  b15:
     %block = load heapNext : %U8
-    %v62 = add %block, %v136 : %U8
+    %v62 = add %block, %v103 : %U8
     assign heapNext, %v62
     %v64 = bitcast %block : %Size
-    assign [%v64], %v115
+    assign [%v64], %v82
     %v70 = add %block, 8 : %U8
     ret %v70
 
-  b16:
+  b13:
     %v54 = bitcast 0 : %U8
     ret %v54
 
-  b17:
-    %v36 = bitcast %v129 : %%U8
+  b14:
+    %v36 = bitcast %v96 : %%U8
     %v37 = load [%v36] : %U8
-    assign [%v128], %v37
-    ret %v129
+    assign [%v95], %v37
+    ret %v96
 
-  b18:
+  b15:
     %v26 = bitcast 0 : %U8
     ret %v26
 
-  b19:
-    %v117 = load %size : Size
-    %v118 = add %v117, %v117 : Size
-    assign %size, %v118
-    %v120 = load %sizeClass : Size
-    %v122 = add %v120, 1 : Size
-    assign %sizeClass, %v122
-    jmp b8
+  b16:
+    %v84 = load %size : Size
+    %v85 = add %v84, %v84 : Size
+    assign %size, %v85
+    %v87 = load %sizeClass : Size
+    %v89 = add %v87, 1 : Size
+    assign %sizeClass, %v89
+    jmp b5
 
-  b20:
+  b17:
     %v13 = bitcast 0 : %U8
     ret %v13
 }

@@ -2,7 +2,7 @@ module ResolveTest
 
 let & trace: I32 = 0
 
-fn find(n: I32 [shared call]) -> Maybe {
+fn find'2(n: I32 [shared call]) -> Maybe {
 bb0(%0: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -45,7 +45,7 @@ bb0(%0: I32 [shared call] guaranteed):
   %3: %I32 address = alloc frame I32
   store inspect %1 borrow %0
   %4: I32 trivial = load inspect %1
-  %5: Maybe trivial = call find borrow %4
+  %5: Maybe trivial = call find'2 borrow %4
   store inspect %2 consume %5
   %6: %U8 address = field.addr .# inspect %2
   %7: U8 trivial = load inspect %6
@@ -83,7 +83,7 @@ bb0(%0: I32 [shared call] guaranteed):
   %3: %I32 address = alloc frame I32
   store inspect %1 borrow %0
   %4: I32 trivial = load inspect %1
-  %5: Maybe trivial = call find borrow %4
+  %5: Maybe trivial = call find'2 borrow %4
   store inspect %2 consume %5
   %6: %U8 address = field.addr .# inspect %2
   %7: U8 trivial = load inspect %6
@@ -140,7 +140,7 @@ bb2:
 
 bb3:
   %8: I32 trivial = load inspect %1
-  %9: Maybe trivial = call find borrow %8
+  %9: Maybe trivial = call find'2 borrow %8
   store inspect %2 consume %9
   %10: %U8 address = field.addr .# inspect %2
   %11: U8 trivial = load inspect %10
@@ -175,7 +175,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   store inspect %2 borrow %0
   store inspect %3 borrow %1
   %8: I32 trivial = load inspect %2
-  %9: Maybe trivial = call find borrow %8
+  %9: Maybe trivial = call find'2 borrow %8
   store inspect %4 consume %9
   %10: %U8 address = field.addr .# inspect %4
   %11: U8 trivial = load inspect %10
@@ -195,7 +195,7 @@ bb3:
   %16: I32 trivial = load inspect %15
   store inspect %5 consume %16
   %17: I32 trivial = load inspect %3
-  %18: Maybe trivial = call find borrow %17
+  %18: Maybe trivial = call find'2 borrow %17
   store inspect %6 consume %18
   %19: %U8 address = field.addr .# inspect %6
   %20: U8 trivial = load inspect %19
@@ -220,7 +220,7 @@ bb0(%0: Pair [shared call] guaranteed):
   %1: %Maybe address = alloc frame Maybe
   %2: %I32 address = field.addr .left inspect %0
   %3: I32 trivial = load inspect %2
-  %4: Maybe trivial = call find borrow %3
+  %4: Maybe trivial = call find'2 borrow %3
   store inspect %1 consume %4
   %5: %U8 address = field.addr .# inspect %1
   %6: U8 trivial = load inspect %5
@@ -271,7 +271,7 @@ bb0(%0: I32 [shared call] guaranteed):
 
 bb1:
   %8: I32 trivial = load inspect %2
-  %9: Maybe trivial = call find borrow %8
+  %9: Maybe trivial = call find'2 borrow %8
   store inspect %4 consume %9
   %10: %U8 address = field.addr .# inspect %4
   %11: U8 trivial = load inspect %10

@@ -24,7 +24,7 @@ bb0(%0: Vec(F32, 2) [shared call] guaranteed):
   return consume %2
 }
 
-fn bytes(v: Vec(U8) [shared call]) -> Vec(U8) {
+fn bytes'2(v: Vec(U8) [shared call]) -> Vec(U8) {
 bb0(%0: Vec(U8) [shared call] guaranteed):
   %1: %Vec(U8) address = alloc frame Vec(U8) [shared call]
   store inspect %1 borrow %0
@@ -73,7 +73,7 @@ bb0(%0: Wrapped [shared call] guaranteed):
   return consume %2
 }
 
-fn tagOf(w: Wrapped [shared call]) -> I32 {
+fn tagOf'2(w: Wrapped [shared call]) -> I32 {
 bb0(%0: Wrapped [shared call] guaranteed):
   %1: %I32 address = field.addr .tag inspect %0
   %2: I32 trivial = load inspect %1

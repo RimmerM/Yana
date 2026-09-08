@@ -112,6 +112,34 @@ struct Local {
      * object and starts no lineage of its own.
      */
     ObjectId object;
+
+    /*
+     * `@heap` written on the binding - `doc/Design.md`'s per-binding placement override.
+     *
+     * On the **local** and not on the object, because that is where the author wrote it: a lineage is
+     * a fact this stage derives and a binding is a thing a program says. `selectPlacements` is what
+     * carries it to the object, joined over every local that names the lineage, so `let @heap a =
+     * ...; let b = a` places the one object once.
+     */
+    bool demandsHeap = false;
+
+    /*
+     * The constant this binding was established with, or `Constant::None` - what makes
+     * `let width = vectorBytes` a number where it is read.
+     *
+     * Recorded only for a local that is **not** writable, which is the whole of what makes it sound:
+     * nothing may assign to one after its `Init`, so the value it holds is forever the one written
+     * here and `readPlace` may answer with it instead of a load. The storage still exists and is
+     * still written - a published position takes a loan of it and `addressOf` names it - so this is
+     * a fact *beside* the place rather than a place that went away.
+     *
+     * It is the same rule `readPlace` applies to an immutable global one scope up, and it is here
+     * for the same reason: `lib/Native/Memory.native.yana` gates a `Vec(U8, 32)` load on
+     * `width > 32`, and behind a frame slot the comparison is opaque, the arm survives, and the x64
+     * backend refuses the load outright below v3. Nothing promotes that slot on an unoptimized
+     * build, so the fold has to be here rather than in a pass.
+     */
+    Constant initial;
 };
 
 /*
@@ -148,10 +176,9 @@ struct Object {
     /*
      * Where this object lives - §10.4, on the lineage rather than on a slot.
      *
-     * Only `Frame` is produced at this milestone, and `Region` is what an ambient region witness
-     * will select. Three rungs from the start rather than two and a later surprise: the current
-     * compiler's equivalent reserves the region enumerator and never selects it, which left the
-     * decision shaped like a two-way choice.
+     * Written by `selectPlacements` and by nothing else, out of `selectStorage`'s one ranking.
+     * `Frame` is the default because it is the answer for an object nothing established anything
+     * about, and because a body that reported before the placement pass ran must still print.
      */
     StorageClass storage = StorageClass::Frame;
 };

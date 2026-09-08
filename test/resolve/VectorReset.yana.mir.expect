@@ -1,0 +1,72 @@
+module ResolveTest
+
+fn compressLike(state: Vec(U32, 4) [shared call], message: Vec(U32, 4) [shared call]) -> I32 {
+  local mixed: Vec(U32, 4)
+
+bb0:
+  %0: {} = native vzeroupper
+  %1: Vec(U32, 4) = read copy.trivial (state)
+  %2: Vec(U32, 4) = read copy.trivial (message)
+  %3: Vec(U32, 4) = native sha256msg1 inspect %1 inspect %2
+  write.init borrow.unique (mixed) take %3
+  %5: Vec(U32, 4) = read copy.trivial (mixed)
+  %6: Vec(U32, 4) = read copy.trivial (state)
+  %7: Vec(U32, 4) = add inspect %5 inspect %6
+  %8: I32 = const 0
+  %9: U32 = vec.lane #0 inspect %7
+  %10: I32 = bitcast inspect %9
+  return take %10
+}
+
+fn helper(words: Vec(U32, 4) [shared call]) -> Vec(U32, 4) {
+bb0:
+  %0: Vec(U32, 4) = read copy.trivial (words)
+  %1: Vec(U32, 4) = read copy.trivial (words)
+  %2: Vec(U32, 4) = native sha256msg2 inspect %0 inspect %1
+  return take %2
+}
+
+fn throughHelper(state: Vec(U32, 4) [shared call]) -> I32 {
+bb0:
+  %0: {} = native vzeroupper
+  %1: Vec(U32, 4) = read copy.trivial (state)
+  %2: Vec(U32, 4) = call helper borrow.shared %1
+  %3: I32 = const 0
+  %4: U32 = vec.lane #0 inspect %2
+  %5: I32 = bitcast inspect %4
+  return take %5
+}
+
+fn plainReset(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: {} = native vzeroupper
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = const 1
+  %3: I32 = add inspect %1 inspect %2
+  return take %3
+}
+
+fn main() -> I32 {
+  local a: Vec(U32, 4)
+  local b: Vec(U32, 4)
+
+bb0:
+  %0: U32 = const 1
+  %1: Vec(U32, 4) = vec.splat inspect %0
+  write.init borrow.unique (a) take %1
+  %3: U32 = const 2
+  %4: Vec(U32, 4) = vec.splat inspect %3
+  write.init borrow.unique (b) take %4
+  %6: Vec(U32, 4) = read copy.trivial (a)
+  %7: Vec(U32, 4) = read copy.trivial (b)
+  %8: I32 = call compressLike borrow.shared %6 borrow.shared %7
+  %9: Vec(U32, 4) = read copy.trivial (a)
+  %10: I32 = call throughHelper borrow.shared %9
+  %11: I32 = add inspect %8 inspect %10
+  %12: I32 = const 0
+  %13: I32 = call plainReset borrow.shared %12
+  %14: I32 = add inspect %11 inspect %13
+  return take %14
+}
+
+entry main

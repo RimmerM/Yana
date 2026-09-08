@@ -97,221 +97,154 @@ bb0:
   %6: Array(I32) owned = call literalArray(I32) borrow %5
   store inspect %0 consume %6
   %7: Array(I32) [unique slot 0] guaranteed from{%0} = load inspect %0
+  %8: Array(I32) [unique slot 0 view] guaranteed from{%0} = call Array(a).elementsMut(I32) borrow %7
+  %9: %I32 [owned here shape6 .*=shared slot 0] trivial = call valuesMut(I32) borrow %8
+  %10: Size trivial = const 0
+  %11: %I32 address = element.addr inspect %9 inspect %10
+  store inspect %11 consume %3
+  %12: Size trivial = const 1
+  %13: %I32 address = element.addr inspect %9 inspect %12
+  store inspect %13 consume %4
+  %14: Array(I32) owned = load inspect %0
+  store inspect %1 consume %14
+  %15: I32 trivial = const 4
+  %16: I32 trivial = call note borrow %15
+  store inspect %2 consume %16
+  %17: Size trivial = const 0
+  %18: I32 trivial = const 5
+  %19: I32 trivial = call note borrow %18
+  %20: Array(I32) [unique call] guaranteed from{%1} = load inspect %1
+  %21: Array(I32) [unique slot 0 view] guaranteed from{%1} = call Array(a).elementsMut(I32) borrow %20
   jump -> bb1
 
 bb1:
-  %9: %Run(I32) address = field.addr .run inspect %7
-  %10: %%I32 address = field.addr .items inspect %9
-  %11: %I32 trivial = load inspect %10
-  %12: %@bits(30) U32 address = field.addr .length inspect %7
-  %13: @bits(30) U32 trivial = load inspect %12
-  %14: U32 trivial = convert inspect %13
-  %15: Size trivial = convert inspect %14
-  %16: ArrayView(I32) trivial = aggregate.ArrayView consume %11 consume %15
-  %17: Array(I32) [unique slot 0 view] guaranteed = represent inspect %16
-  jump -> bb2(borrow %17)
+  %23: %Size address = alloc frame Size [shared call]
+  store inspect %23 borrow %17
+  %24: Size trivial = load inspect %23
+  %25: USize trivial = bitcast inspect %24
+  %26: Array(I32) [shared slot 0 view] guaranteed from{%21} = load inspect %21
+  jump -> bb6
 
-bb2(%8: Array(I32) [unique slot 0 view] guaranteed from{%0}):
-  jump -> bb3
+bb2(%22: I32 [unique slot 0 owner] guaranteed from{%1}):
+  store inspect %22 consume %19
+  %39: Size trivial = const 0
+  %40: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %41: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %40
+  jump -> bb8
 
 bb3:
-  %19: %%I32 address = field.addr .items inspect %8
-  %20: %I32 trivial = load inspect %19
-  %21: %I32 [owned here shape1 .*=shared slot 0] trivial = represent inspect %20
-  jump -> bb4(consume %21)
+  jump -> bb4
 
-bb4(%18: %I32 [owned here shape1 .*=shared slot 0] trivial):
-  %22: Size trivial = const 0
-  %23: %I32 address = element.addr inspect %18 inspect %22
-  store inspect %23 consume %3
-  %24: Size trivial = const 1
-  %25: %I32 address = element.addr inspect %18 inspect %24
-  store inspect %25 consume %4
-  %26: Array(I32) owned = load inspect %0
-  store inspect %1 consume %26
-  %27: I32 trivial = const 4
-  %28: I32 trivial = call note borrow %27
-  store inspect %2 consume %28
-  %29: Size trivial = const 0
-  %30: I32 trivial = const 5
-  %31: I32 trivial = call note borrow %30
-  %32: Array(I32) [unique call] guaranteed from{%1} = load inspect %1
-  jump -> bb5
+bb4:
+  %32: Array(I32) [unique slot 0 view] guaranteed from{%21} = load inspect %21
+  %33: %I32 [owned here shape6 .*=shared slot 0] trivial = call valuesMut(I32) borrow %32
+  %34: Size trivial = load inspect %23
+  %35: Size trivial = metric stride I32
+  %36: Size trivial = mul inspect %34 inspect %35
+  %37: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %33 inspect %36
+  %38: I32 [unique slot 0 owner] guaranteed = load inspect %37
+  jump -> bb2(borrow %38)
 
 bb5:
-  %34: %Run(I32) address = field.addr .run inspect %32
-  %35: %%I32 address = field.addr .items inspect %34
-  %36: %I32 trivial = load inspect %35
-  %37: %@bits(30) U32 address = field.addr .length inspect %32
-  %38: @bits(30) U32 trivial = load inspect %37
-  %39: U32 trivial = convert inspect %38
-  %40: Size trivial = convert inspect %39
-  %41: ArrayView(I32) trivial = aggregate.ArrayView consume %36 consume %40
-  %42: Array(I32) [unique slot 0 view] guaranteed = represent inspect %41
-  jump -> bb6(borrow %42)
+  call checkFailed
+  jump -> bb4
 
-bb6(%33: Array(I32) [unique slot 0 view] guaranteed from{%1}):
-  jump -> bb7
+bb6:
+  %28: %Size address = field.addr .length inspect %26
+  %29: Size trivial = load inspect %28
+  jump -> bb7(consume %29)
 
-bb7:
-  %44: %Size address = alloc frame Size [shared call]
-  store inspect %44 borrow %29
-  %45: Size trivial = load inspect %44
-  %46: USize trivial = bitcast inspect %45
-  %47: %Size address = field.addr .length inspect %33
-  %48: Size trivial = load inspect %47
-  %49: USize trivial = bitcast inspect %48
-  %50: Bool trivial = ge inspect %46 inspect %49
-  branch inspect %50 -> bb11 -> bb9
+bb7(%27: Size trivial):
+  %30: USize trivial = bitcast inspect %27
+  %31: Bool trivial = ge inspect %25 inspect %30
+  branch inspect %31 -> bb5 -> bb3
 
-bb8(%43: I32 [unique slot 0] guaranteed from{%1}):
-  store inspect %43 consume %31
-  %61: Size trivial = const 0
-  %62: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
-  jump -> bb14
+bb8:
+  %43: %Size address = alloc frame Size [shared call]
+  store inspect %43 borrow %39
+  %44: Size trivial = load inspect %43
+  %45: USize trivial = bitcast inspect %44
+  %46: Array(I32) [shared slot 0 view] guaranteed from{%41} = load inspect %41
+  jump -> bb13
 
-bb9:
-  jump -> bb10
+bb9(%42: I32 [shared slot 0] guaranteed from{%1}):
+  %59: I32 trivial = load inspect %42
+  %60: I32 trivial = const 10
+  %61: I32 trivial = mul inspect %59 inspect %60
+  %62: Size trivial = const 1
+  %63: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %64: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %63
+  jump -> bb15
 
 bb10:
-  %51: Array(I32) [shared slot 0 view] guaranteed from{%33} = load inspect %33
-  jump -> bb12
+  jump -> bb11
 
 bb11:
-  call checkFailed
-  jump -> bb10
+  %52: Array(I32) [shared slot 0 view] guaranteed from{%41} = load inspect %41
+  %53: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %52
+  %54: Size trivial = load inspect %43
+  %55: Size trivial = metric stride I32
+  %56: Size trivial = mul inspect %54 inspect %55
+  %57: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %53 inspect %56
+  %58: I32 [shared slot 0] guaranteed = load inspect %57
+  jump -> bb9(borrow %58)
 
 bb12:
-  %53: %%I32 address = field.addr .items inspect %51
-  %54: %I32 trivial = load inspect %53
-  %55: %I32 [owned here shape1 .*=shared slot 0] trivial = represent inspect %54
-  jump -> bb13(consume %55)
+  call checkFailed
+  jump -> bb11
 
-bb13(%52: %I32 [owned here shape1 .*=shared slot 0] trivial):
-  %56: Size trivial = load inspect %44
-  %57: Size trivial = metric stride I32
-  %58: Size trivial = mul inspect %56 inspect %57
-  %59: %I32 [owned here shape1 .*=shared slot 0] trivial = add inspect %52 inspect %58
-  %60: I32 [unique slot 0] guaranteed = load inspect %59
-  jump -> bb8(borrow %60)
+bb13:
+  %48: %Size address = field.addr .length inspect %46
+  %49: Size trivial = load inspect %48
+  jump -> bb14(consume %49)
 
-bb14:
-  %64: %Run(I32) address = field.addr .run inspect %62
-  %65: %%I32 address = field.addr .items inspect %64
-  %66: %I32 trivial = load inspect %65
-  %67: %@bits(30) U32 address = field.addr .length inspect %62
-  %68: @bits(30) U32 trivial = load inspect %67
-  %69: U32 trivial = convert inspect %68
-  %70: Size trivial = convert inspect %69
-  %71: ArrayView(I32) trivial = aggregate.ArrayView consume %66 consume %70
-  %72: Array(I32) [shared slot 0 view] guaranteed = represent inspect %71
-  jump -> bb15(borrow %72)
+bb14(%47: Size trivial):
+  %50: USize trivial = bitcast inspect %47
+  %51: Bool trivial = ge inspect %45 inspect %50
+  branch inspect %51 -> bb12 -> bb10
 
-bb15(%63: Array(I32) [shared slot 0 view] guaranteed from{%1}):
-  jump -> bb16
+bb15:
+  %66: %Size address = alloc frame Size [shared call]
+  store inspect %66 borrow %62
+  %67: Size trivial = load inspect %66
+  %68: USize trivial = bitcast inspect %67
+  %69: Array(I32) [shared slot 0 view] guaranteed from{%64} = load inspect %64
+  jump -> bb20
 
-bb16:
-  %74: %Size address = alloc frame Size [shared call]
-  store inspect %74 borrow %61
-  %75: Size trivial = load inspect %74
-  %76: USize trivial = bitcast inspect %75
-  %77: %Size address = field.addr .length inspect %63
-  %78: Size trivial = load inspect %77
-  %79: USize trivial = bitcast inspect %78
-  %80: Bool trivial = ge inspect %76 inspect %79
-  branch inspect %80 -> bb20 -> bb18
+bb16(%65: I32 [shared slot 0] guaranteed from{%1}):
+  %82: I32 trivial = load inspect %65
+  drop Array(I32) inspect %1
+  %83: I32 trivial = add inspect %61 inspect %82
+  %84: I32 trivial = load inspect %2
+  %85: I32 trivial = add inspect %83 inspect %84
+  return consume %85
 
-bb17(%73: I32 [shared slot 0] guaranteed from{%1}):
-  %91: I32 trivial = load inspect %73
-  %92: I32 trivial = const 10
-  %93: I32 trivial = mul inspect %91 inspect %92
-  %94: Size trivial = const 1
-  %95: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
-  jump -> bb23
+bb17:
+  jump -> bb18
 
 bb18:
-  jump -> bb19
+  %75: Array(I32) [shared slot 0 view] guaranteed from{%64} = load inspect %64
+  %76: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %75
+  %77: Size trivial = load inspect %66
+  %78: Size trivial = metric stride I32
+  %79: Size trivial = mul inspect %77 inspect %78
+  %80: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %76 inspect %79
+  %81: I32 [shared slot 0] guaranteed = load inspect %80
+  jump -> bb16(borrow %81)
 
 bb19:
-  %81: Array(I32) [shared slot 0 view] guaranteed from{%63} = load inspect %63
-  jump -> bb21
+  call checkFailed
+  jump -> bb18
 
 bb20:
-  call checkFailed
-  jump -> bb19
+  %71: %Size address = field.addr .length inspect %69
+  %72: Size trivial = load inspect %71
+  jump -> bb21(consume %72)
 
-bb21:
-  %83: %%I32 address = field.addr .items inspect %81
-  %84: %I32 trivial = load inspect %83
-  %85: %I32 [owned here shape1 .*=shared slot 0] trivial = represent inspect %84
-  jump -> bb22(consume %85)
-
-bb22(%82: %I32 [owned here shape1 .*=shared slot 0] trivial):
-  %86: Size trivial = load inspect %74
-  %87: Size trivial = metric stride I32
-  %88: Size trivial = mul inspect %86 inspect %87
-  %89: %I32 [owned here shape1 .*=shared slot 0] trivial = add inspect %82 inspect %88
-  %90: I32 [shared slot 0] guaranteed = load inspect %89
-  jump -> bb17(borrow %90)
-
-bb23:
-  %97: %Run(I32) address = field.addr .run inspect %95
-  %98: %%I32 address = field.addr .items inspect %97
-  %99: %I32 trivial = load inspect %98
-  %100: %@bits(30) U32 address = field.addr .length inspect %95
-  %101: @bits(30) U32 trivial = load inspect %100
-  %102: U32 trivial = convert inspect %101
-  %103: Size trivial = convert inspect %102
-  %104: ArrayView(I32) trivial = aggregate.ArrayView consume %99 consume %103
-  %105: Array(I32) [shared slot 0 view] guaranteed = represent inspect %104
-  jump -> bb24(borrow %105)
-
-bb24(%96: Array(I32) [shared slot 0 view] guaranteed from{%1}):
-  jump -> bb25
-
-bb25:
-  %107: %Size address = alloc frame Size [shared call]
-  store inspect %107 borrow %94
-  %108: Size trivial = load inspect %107
-  %109: USize trivial = bitcast inspect %108
-  %110: %Size address = field.addr .length inspect %96
-  %111: Size trivial = load inspect %110
-  %112: USize trivial = bitcast inspect %111
-  %113: Bool trivial = ge inspect %109 inspect %112
-  branch inspect %113 -> bb29 -> bb27
-
-bb26(%106: I32 [shared slot 0] guaranteed from{%1}):
-  %124: I32 trivial = load inspect %106
-  drop Array(I32) inspect %1
-  %125: I32 trivial = add inspect %93 inspect %124
-  %126: I32 trivial = load inspect %2
-  %127: I32 trivial = add inspect %125 inspect %126
-  return consume %127
-
-bb27:
-  jump -> bb28
-
-bb28:
-  %114: Array(I32) [shared slot 0 view] guaranteed from{%96} = load inspect %96
-  jump -> bb30
-
-bb29:
-  call checkFailed
-  jump -> bb28
-
-bb30:
-  %116: %%I32 address = field.addr .items inspect %114
-  %117: %I32 trivial = load inspect %116
-  %118: %I32 [owned here shape1 .*=shared slot 0] trivial = represent inspect %117
-  jump -> bb31(consume %118)
-
-bb31(%115: %I32 [owned here shape1 .*=shared slot 0] trivial):
-  %119: Size trivial = load inspect %107
-  %120: Size trivial = metric stride I32
-  %121: Size trivial = mul inspect %119 inspect %120
-  %122: %I32 [owned here shape1 .*=shared slot 0] trivial = add inspect %115 inspect %121
-  %123: I32 [shared slot 0] guaranteed = load inspect %122
-  jump -> bb26(borrow %123)
+bb21(%70: Size trivial):
+  %73: USize trivial = bitcast inspect %70
+  %74: Bool trivial = ge inspect %68 inspect %73
+  branch inspect %74 -> bb19 -> bb17
 }
 
 fn folds() -> I32 {

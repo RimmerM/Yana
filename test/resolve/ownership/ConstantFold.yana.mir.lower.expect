@@ -1,51 +1,9 @@
-@blockBytes = [0, 0, 64, 0]
-@blockMask = [255, 255, 63, 0]
-@both = [3, 0, 0, 0]
-@inverted = [253, 255, 255, 255]
-@pageMask = [255, 15, 0, 0, 0, 0, 0, 0]
-@wide = [1]
-@wrapped = [44]
-@wrappedSigned = [127]
-@noDivisor = [0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = loads @blockBytes, 4: I32
-    %v_2 = sar %v_1, 31: I32
-    %v_3 = shr %v_2, 12: I32
-    %v_4 = add %v_1, %v_3: I32
-    %v_5 = sar %v_4, 20: I32
-    %v_6 = loads @blockMask, 4: I32
-    %v_7 = sar %v_6, 31: I32
-    %v_8 = shr %v_7, 12: I32
-    %v_9 = add %v_6, %v_8: I32
-    %v_10 = sar %v_9, 20: I32
-    %v_11 = imul %v_10, 10: I32
-    %v_12 = add %v_5, %v_11: I32
-    %v_13 = loads @both, 4: I32
-    %v_14 = imul %v_13, 100: I32
-    %v_15 = add %v_12, %v_14: I32
-    %v_16 = loads @inverted, 4: I32
-    %v_17 = add %v_15, %v_16: I32
-    %v_18 = add %v_17, 1: I32
-    %v_19 = add %v_18, 19: I32
-    %v_20 = alloca 32, 4: Ptr
-    setpattern %v_20, 32, 0
-    %v_21 = add %v_19, 6: I32
-    %v_22 = load @wide, 1: I32
-    %v_23 = select %v_22, 1000, 0: I32
-    %v_24 = add %v_21, %v_23: I32
-    %v_25 = loads @pageMask, 8: I64
-    %v_26 = cmp_eq %v_25, 4095: I32
-    %v_27 = select %v_26, 2000, 0: I32
-    %v_28 = add %v_24, %v_27: I32
-    %v_29 = load @wrapped, 1: I32
-    %v_30 = add %v_28, %v_29: I32
-    %v_31 = loads @wrappedSigned, 1: I32
-    %v_32 = add %v_30, %v_31: I32
-    %v_33 = loads @noDivisor, 4: I32
-    %v_34 = add %v_32, %v_33: I32
-    ret %v_34
+    %v_1 = alloca 32, 4: Ptr
+    setpattern %v_1, 32, 0
+    ret 3528
   }
 }
 

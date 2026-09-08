@@ -12,7 +12,7 @@ let & live: I32 = 0
 
 let & trace: I32 = 0
 
-let string: [CodeUnit *6] = [97, 98, 99, 100, 101, 102]
+let string'142: [CodeUnit *6] = [97, 98, 99, 100, 101, 102]
 
 fn Held.drop(self: Held) -> {} {
 bb0:
@@ -182,10 +182,10 @@ fn handed() -> I32 {
   local text: String
 
 bb0:
-  %0: [CodeUnit *6] [shared slot 0] = read borrow.shared (global string) loan0
-  %1: %[CodeUnit *6] [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
-  %2: %CodeUnit = bitcast inspect %1
-  %3: Size = const 6
+  %0: [CodeUnit *6] [shared slot 0] = read borrow.shared (global string'142) loan0
+  %1: %[CodeUnit *6] [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %1 roots.0{0}
+  %3: I32 = const 6
   %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
   write.init borrow.unique (text) take %4
   %6: String = read take (text)

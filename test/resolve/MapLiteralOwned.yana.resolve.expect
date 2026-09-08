@@ -347,6 +347,15 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
+fn units(%self: 1'String) -> %CodeUnit {
+  b0:
+    %v1 = load [%self] : String
+    %v2 = borrow [%self] : 'String
+    %v3 = call Viewed(String).view, %v2 : StringView
+    %v4 = load %local0@StringView.units : %CodeUnit
+    ret %v4
+}
+
 fn String.unit(%self: String, %index: Size) -> I32 {
   b0:
     %v2 = borrow %self : 1'String
@@ -605,6 +614,12 @@ fn bitfield(U32)(%value: U32, %start: U32, %count: U32) -> U32 {
     %v3 = shr %value, %start : U32
     %v4 = bitsupto %v3, %count : U32
     ret %v4
+}
+
+fn values(CodeUnit)(%self: ArrayView(CodeUnit)) -> %CodeUnit {
+  b0:
+    %v1 = load %self@ArrayView.items : %CodeUnit
+    ret %v1
 }
 
 fn reserve(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
@@ -938,9 +953,15 @@ fn indexReset(String, Held)(%self: Map(String, Held)) -> () {
 fn entryCount(String, Held)(%self: Map(String, Held)) -> Size {
   b0:
     %v1 = load %self@Map.entries : Array(Entry(String, Held))
-    %v2 = load %self@Map.entries@Array.length : @bits(30) U32
-    %v3 = cast %v2 : Size
-    ret %v3
+    %v2 = call Length(Array(a)).length(Entry(String, Held)), %v1 : Size
+    ret %v2
+}
+
+fn Length(Array(a)).length(Entry(String, Held))(%self: Array(Entry(String, Held))) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
 }
 
 fn hashAt(String, Held)(%self: Map(String, Held), %at: Size) -> U32 {
@@ -1945,15 +1966,6 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn units(%self: 1'String) -> %CodeUnit {
-  b0:
-    %v1 = load [%self] : String
-    %v2 = borrow [%self] : 'String
-    %v3 = call Viewed(String).view, %v2 : StringView
-    %v4 = load %local0@StringView.units : %CodeUnit
-    ret %v4
-}
-
 fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
     %v6 = cmp_ge %count, 8 : Bool
@@ -2565,12 +2577,6 @@ fn emptyRun(U8)() -> Run(U8) {
     init %local0@Run.capacity, 0
     init %local0@Run.ownsHeap, 0
     ret %v0
-}
-
-fn values(CodeUnit)(%self: ArrayView(CodeUnit)) -> %CodeUnit {
-  b0:
-    %v1 = load %self@ArrayView.items : %CodeUnit
-    ret %v1
 }
 
 fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {

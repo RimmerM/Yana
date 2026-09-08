@@ -207,8 +207,14 @@ DeclPtr<Function> specializeFunction(Context& context, Program& program, DeclPtr
     // two to agreeing.
     function->lens = written.lens;
     function->alwaysInline = written.alwaysInline;
+    function->inlineHint = written.inlineHint;
     function->noInline = written.noInline;
     function->teardown = written.teardown;
+
+    // And whether it *is* a view's derivation, on the same terms: `Contiguous(Array(a), a).elements`
+    // specialized at `a := I32` is still the member that makes a window out of a container, and the
+    // SSA conversion reads the flag to fold one applied to a window it already has.
+    function->derivation = written.derivation;
     function->originSlots = written.originSlots;
     function->summary.bodyKnown = written.summary.bodyKnown;
 
@@ -334,6 +340,31 @@ DeclPtr<Function> instanceMember(Context& context, Program& program, const Insta
     }
 
     auto declared = base[instance.klass]->members.get(base, member);
+
+    /*
+     * A slot the instance left empty whose class declaration has **no default** - which for a written
+     * instance is already reported (`resolveInstance` refuses one that leaves a bodiless member out)
+     * and for a *generated* one is a gap in the compiler.
+     *
+     * Reported here rather than where the instance is built, because the two are different
+     * statements: the compiler generating three of a class's four members is a fact about the
+     * compiler, and only a call of the fourth is a program that cannot be compiled. Nothing is in
+     * that state today - `Enum`'s `nameOf` and `fromName` were, and are generated since 2026-09-06 -
+     * so this is the guard a partial `providesMember` row would otherwise be found by.
+     *
+     * The specialization is still handed back, so the caller carries on and reports whatever else it
+     * finds rather than cascading off a null; the compilation has an error and stops at the next
+     * checkpoint. Without this a call reached a `Function` with no body at all, which every pass
+     * below silently skips - and what came out was a call to a symbol nothing emits.
+     */
+    if(!base[declared]->summary.bodyKnown && instance.provided != intrinsic::Provided::Count) {
+        context.diagnostics.error("the compiler does not generate %@ for %@ yet"_v, source,
+                                  context.findName(base[declared]->name),
+                                  appliedClassText(context, base, instance.klass,
+                                                   found.arguments.pointer(),
+                                                   found.arguments.size()));
+    }
+
     return specializeFunction(context, program, declared,
                               (DeclPtr<Type>*)found.arguments.pointer(), found.arguments.size(),
                               source);
@@ -345,6 +376,22 @@ DeclPtr<Function> teardownMember(Context& context, Program& program, intrinsic::
     if(!declaredInstanceFor(context, program, klass, type, &found)) return nullptr;
 
     return instanceMember(context, program, found, 0, source);
+}
+
+DeclPtr<Function> viewMember(Context& context, Program& program, DeclPtr<Type> type, Access access,
+                             LocationId source) {
+    auto base = *program.decl;
+    auto row = viewRowOf(base, program, type);
+    if(!row) return nullptr;
+
+    auto adaptor = access == Access::Unique ? row->uniqueAdaptor : row->sharedAdaptor;
+    auto member = access == Access::Unique ? row->uniqueMember : row->sharedMember;
+    if(adaptor == intrinsic::Known::Count) return nullptr;
+
+    InstanceMatch found;
+    if(!declaredInstanceFor(context, program, adaptor, type, &found)) return nullptr;
+
+    return instanceMember(context, program, found, member, source);
 }
 
 bool matchCallable(Context& context, Program& program, DeclPtr<Module> from,
@@ -474,37 +521,92 @@ static void callableTarget(Context& context, Program& program, Function& enclosi
 }
 
 /*
- * Which declared class requirement of `gen` promises `klass(args)` - the slot a member call in an
- * erased body dispatches through.
+ * Which declared class requirement of `gen` promises `klass(args)`, and **where in its witness** the
+ * members are - the slot a member call in an erased body dispatches through, plus the offset.
  *
- * A **direct** match only, and `satisfiesRequirement` is deliberately not asked. That walk also
- * answers yes where a *superclass* gives the promise, which is a different runtime question: the
- * witness in the slot is the subclass's, and reaching the superclass's member out of it is a path
- * through a table that does not carry one yet - `freezeSchema` says superclasses are not slots of
- * their own. So the two halves of one rule live where each is checkable: the discharge admits the
- * call, and this reports the shape the environment cannot express.
+ * A direct match is offset zero. A match through a **superclass** is the rest, and it works because
+ * a witness table is flattened: `class (Eq(a)) Ord(a)` puts `Eq`'s members after `Ord`'s in one
+ * table, so the promise the discharge already admitted has somewhere to be read from. That is what
+ * `freezeSchema` means by superclasses not being slots of their own - they are not slots, they are
+ * ranges - and it is why this is `classWitnessPath` rather than `satisfiesRequirement`: the latter
+ * answers yes without saying which superclass of which requirement it took, and two requirements can
+ * both prove one class.
+ *
+ * The **declared** requirements only, in schema order, because that is what a caller fills.
  */
-static bool classRequirementSlot(DeclBase base, DeclPtr<GenContext> gen, DeclPtr<Class> klass,
-                                 const DeclPtr<Type>* args, Size count, U16& into) {
+static bool classRequirementSlot(Context& context, Program& program, DeclPtr<GenContext> gen,
+                                 DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count,
+                                 U16& into, U16& offset) {
     if(!gen) return false;
 
+    auto base = *program.decl;
     auto& owner = *base[gen];
+
     for(U32 i = 0; i < owner.classes.size(); i++) {
         auto requirement = owner.classes.get(base, i);
-        if(requirement.klass != klass || requirement.args.size() != count) continue;
+        auto held = requirementArgs(base, requirement);
 
-        auto agrees = true;
-        for(Size argument = 0; argument < count; argument++) {
-            agrees = agrees && sameType(requirement.args.get(base, argument), args[argument]);
+        U16 found = 0;
+        if(!classWitnessPath(context, program, requirement.klass, held.data, held.count, klass,
+                             args, count, found)) {
+            continue;
         }
 
-        if(!agrees) continue;
-
         into = U16(i);
+        offset = found;
         return true;
     }
 
     return false;
+}
+
+/*
+ * One class witness, **flattened**: the class's own members, then each superclass's, recursively.
+ *
+ * The layout `classWitnessCount` states, filled. A superclass is discharged here rather than left to
+ * a second slot because the caller holds `Ord(T)` and the callee may call `same` - the promise is
+ * already proved by the instance declaration, so what was missing was somewhere to put the answer.
+ *
+ * `instanceMember` is what fills a member the instance left out with the class's default, and it is
+ * the same function `callTarget` reaches under specialization. That it is the same one is the point:
+ * an erased call and a specialized call to one class member run one body, so nothing about which
+ * form a caller took can change what a program does.
+ */
+static bool fillClassWitness(Context& context, Program& program, DeclPtr<Class> klass,
+                             const DeclPtr<Type>* args, Size count, LocationId source,
+                             GenWitness& into) {
+    auto base = *program.decl;
+
+    InstanceMatch found;
+    if(!selectInstance(context, program, klass, (DeclPtr<Type>*)args, count, source, true, found)) {
+        return false;
+    }
+
+    auto members = base[klass]->members.size();
+    for(U16 member = 0; member < members; member++) {
+        auto reached = instanceMember(context, program, found, member, source);
+        if(!reached) return false;
+
+        into.functions.push(program.decl, reached);
+    }
+
+    // The superclasses, at what this class's head says they are applied to - `classProves`'
+    // substitution, made here for the same reason it is made there.
+    Substitution with { base[klass]->gen, (DeclPtr<Type>*)args, count };
+
+    for(auto super: base[klass]->superclasses.contents(base)) {
+        SmallArray<DeclPtr<Type>, 4> arguments;
+        for(auto argument: super.args.contents(base)) {
+            arguments.push(substituteType(context, program, argument, with));
+        }
+
+        if(!fillClassWitness(context, program, super.klass, arguments.pointer(), arguments.size(),
+                             source, into)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /*
@@ -590,7 +692,13 @@ DeclPtr<GenEnvironment> environmentFor(Context& context, Program& program, DeclP
                 auto bound = substituteType(context, program, row.type, with);
                 if(!bound || base[bound]->kind != Type::Const) { failed = true; break; }
 
-                witness.constant = ((ConstType*)base[bound])->value;
+                // A count that is still an expression is not a number, so the witness has nothing to
+                // put in the slot - the same failure a variable is, said for the second state a
+                // `ConstType` has.
+                auto& number = *(ConstType*)base[bound];
+                if(number.isDerived()) { failed = true; break; }
+
+                witness.constant = number.value;
                 break;
             }
 
@@ -609,21 +717,9 @@ DeclPtr<GenEnvironment> environmentFor(Context& context, Program& program, DeclP
                     arguments.push(substituteType(context, program, argument, with));
                 }
 
-                InstanceMatch found;
-                if(!selectInstance(context, program, row.klass, arguments.pointer(),
-                                   arguments.size(), source, true, found)) {
-                    failed = true;
-                    break;
-                }
-
-                auto members = base[row.klass]->members.size();
-                for(U16 member = 0; member < members; member++) {
-                    auto reached = instanceMember(context, program, found, member, source);
-                    if(!reached) { failed = true; break; }
-
-                    witness.functions.push(program.decl, reached);
-                }
-
+                failed = failed || !fillClassWitness(context, program, row.klass,
+                                                     arguments.pointer(), arguments.size(), source,
+                                                     witness);
                 break;
             }
 
@@ -842,21 +938,26 @@ void callTarget(Context& context, Program& program, Function& enclosing, CallReq
      * witness is.
      */
     if(callee.klass && erased) {
-        // Reported by `erasableCall`, which is what qualified this form - a body with a call it
-        // could not find a slot for was made a specialization instead, so arriving here means the
-        // two disagree about what an environment holds rather than that the program is unusual.
-        if(!classRequirementSlot(base, enclosing.gen, callee.klass, arguments.pointer(),
-                                 arguments.size(), into.requirement)) {
-            context.diagnostics.error(
-                "internal: %@ has no requirement slot in a body chosen to be compiled once"_v,
-                node.source, appliedClassText(context, base, callee.klass, arguments.pointer(),
-                                              arguments.size()));
+        /*
+         * The requirement whose witness answers it, where this signature declared one.
+         *
+         * Not found means the call binds concrete arguments - a member call at a named type inside an
+         * erased body - and that is selected below exactly as it is in a specialization. Which of the
+         * two a call is, is `erasableCall`'s question too, and the two ask it the same way: a body
+         * that could not find a slot *and* names a variable was made a specialization instead, so
+         * arriving here with neither is impossible rather than unusual.
+         */
+        U16 offset = 0;
+        if(classRequirementSlot(context, program, enclosing.gen, callee.klass, arguments.pointer(),
+                                arguments.size(), into.requirement, offset)) {
+            into.through = CallThrough::ClassSlot;
+
+            // The **flat** index into the requirement's witness, which is the member's own where the
+            // requirement is the class and the superclass's range plus it where it is not. One
+            // number and not a path, because the table is flattened - `classRequirementSlot`.
+            into.member = U16(offset + callee.classMember);
             return;
         }
-
-        into.through = CallThrough::ClassSlot;
-        into.member = callee.classMember;
-        return;
     }
 
     /*
@@ -1170,19 +1271,20 @@ static bool erasableCall(Context& context, Program& program, Function& function,
 
     if(callee.klass) {
         U16 requirement = 0;
-        if(classRequirementSlot(decl, function.gen, callee.klass, arguments.pointer(),
-                                arguments.size(), requirement)) {
+        U16 offset = 0;
+        if(classRequirementSlot(context, program, function.gen, callee.klass, arguments.pointer(),
+                                arguments.size(), requirement, offset)) {
             return true;
         }
 
-        if(report) {
-            context.diagnostics.error(
-                "the ownership resolver does not implement reaching %@ through a superclass of a requirement in a generic body compiled once yet"_v,
-                node.source, appliedClassText(context, decl, callee.klass, arguments.pointer(),
-                                              arguments.size()));
-        }
-
-        return false;
+        /*
+         * Nothing this signature declared proves the class, directly or through a superclass.
+         *
+         * `dischargeRequirements` admitted the call, so what is left is a promise that came from
+         * somewhere the environment does not carry - a concrete instance the substitution would have
+         * found. That is a call at *this body's own* type parameters read one construct in, and it
+         * falls to the same message the loop below gives.
+         */
     }
 
     for(auto argument: arguments) {

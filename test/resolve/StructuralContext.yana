@@ -1,0 +1,50 @@
+{-
+   A **structural** class standing in an instance's own context, at a width a functional dependency
+   decided one requirement earlier.
+
+   `TrivialCopy` and its neighbours have no instance table: the compiler answers them from the type's
+   own shape, and a program may not declare one. That answer used to be asked only where a caller
+   entered instance selection, so a structural goal *inside* a matched head's context found no row
+   and was reported as a missing instance - `lib/Core/Format/Number.yana`'s
+
+       instance (Magnitude(a, w), ..., TrivialCopy(w), ...) ReadWith(NumberStyle, a)
+
+   at `readHexInt`, where `Magnitude(a -> w)` had just decided `w` to `U32`: "there is no instance of
+   TrivialCopy(U32)", four times over. The question is asked wherever a requirement is discharged
+   now, which is the same rule said once.
+
+   The order matters and is what this fixture pins: the dependency is written *before* the structural
+   requirement in one instance and *after* it in the other, and both select - `holdsContext` is a
+   fixpoint rather than a walk, so which order the author wrote them in is not a question a caller
+   should have to have.
+-}
+
+pub class Widthy(a -> w):
+  fn widthValue(x: a) -> w
+
+instance Widthy(I32, U32):
+  fn widthValue(x: I32) -> U32 = bitcast(x) :: U32
+
+instance Widthy(I64, U64):
+  fn widthValue(x: I64) -> U64 = bitcast(x) :: U64
+
+data Style {scale: I32}
+
+pub class Scaled(s, a):
+  fn scaled(style: s, x: a) -> I32
+
+-- The dependency first, the structural class after it.
+instance (Widthy(a, w), TrivialCopy(w), Narrow(w, I32)) Scaled(Style, a):
+  fn scaled(style: Style, x: a) -> I32 = (truncate(widthValue(x)) :: I32) * style.scale
+
+data Twice {scale: I32}
+
+-- And the other way round, which the fixpoint has to reach in a second round.
+instance (TrivialCopy(w), Widthy(a, w), Narrow(w, I32)) Scaled(Twice, a):
+  fn scaled(style: Twice, x: a) -> I32 = (truncate(widthValue(x)) :: I32) * style.scale * 2
+
+fn main() -> Int:
+    if scaled(Style {scale: 3}, 5 :: I32) != 15 then return 1
+    if scaled(Twice {scale: 3}, 5 :: I32) != 30 then return 2
+    if scaled(Style {scale: 2}, 7 :: I64) != 14 then return 3
+    return 55

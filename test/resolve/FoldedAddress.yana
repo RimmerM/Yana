@@ -22,11 +22,14 @@
 
 import Native
 
+-- The counters below are `Int` deliberately: what the addressing mode folds is a sign-extended
+-- thirty-two-bit index, and widening them to `Size` would take that away along with the register
+-- pressure this fixture needs. So the length is narrowed at the guard instead.
 fn total(xs: [Int]) -> Int:
     let &sum = 0 :: Int
     let &i = 0 :: Int
 
-    while i < length(xs):
+    while i < (truncate(length(xs)) :: Int):
         sum = sum + xs[i]
         i = i + 1
 
@@ -35,7 +38,7 @@ fn total(xs: [Int]) -> Int:
 fn double(&xs: [Int]):
     let &i = 0 :: Int
 
-    while i < length(xs):
+    while i < (truncate(length(xs)) :: Int):
         let value = xs[i]
         xs[i] = value + value
         i = i + 1

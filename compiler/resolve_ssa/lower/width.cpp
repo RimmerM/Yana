@@ -174,6 +174,41 @@ LowerPtr<LowerValue> Lowering::putInRange(LowerBlock& block, LowerPtr<LowerValue
  * is what makes it the **unsigned** reading the modulus is defined over - a negative count is a bit
  * pattern here, exactly as it is to `rol cl`.
  */
+/*
+ * A byte reversal at a width the lower IR has no scalar for - sixteen bits, which is the only one.
+ *
+ * `lowerType` answers `Int32` for every integer below the sixty-four bit family, so a `Bswap` there
+ * would say "reverse four bytes" whatever the program declared. The definition is emitted instead:
+ * the two halves are shifted past each other and joined, which is one instruction fewer than the
+ * `((v shl 8) and 0xFF00) or ((v shr 8) and 0xFF)` a library body would have written, because the
+ * masks are what `putInRange` already owes at the end.
+ *
+ * The operand goes through `zeroExtended` and not `maskToWidth`, which is the difference from
+ * `narrowRotate` above: only the `shr` half reads the operand's storage, so an unsigned value needs
+ * nothing and a signed one needs its register's copies of the sign cleared before they are shifted
+ * down into the answer. The `shl` half is wrapped away by the same `putInRange` that puts the
+ * declared width's sign back.
+ */
+LowerPtr<LowerValue> Lowering::narrowByteSwap(LowerBlock& block, LowerPtr<LowerValue> value,
+                                              NarrowWidth width, StringId name) {
+    auto operand = zeroExtended(block, value, width);
+
+    auto eightImm = block.addInst(lower, new (to.arena) LowerImm(StringId(), width.type, U64(8)));
+    auto eight = ((LowerInstSingle*)eightImm)->created().ptr - lower;
+
+    auto up = binary<LowerInst::Shl>(lower, to, block, lower[operand], lower[eight], width.type,
+                                     StringId());
+    auto down = binary<LowerInst::Shr>(lower, to, block, lower[operand], lower[eight], width.type,
+                                       StringId());
+
+    auto joined = binary<LowerInst::Or>(lower, to, block,
+                                        lower[((LowerInstSingle*)up)->created().ptr - lower],
+                                        lower[((LowerInstSingle*)down)->created().ptr - lower],
+                                        width.type, StringId());
+
+    return putInRange(block, ((LowerInstSingle*)joined)->created().ptr - lower, width, name);
+}
+
 LowerPtr<LowerValue> Lowering::narrowRotate(LowerBlock& block, LowerPtr<LowerValue> lhs,
                                             LowerPtr<LowerValue> rhs, NarrowWidth width, bool left,
                                             StringId name) {

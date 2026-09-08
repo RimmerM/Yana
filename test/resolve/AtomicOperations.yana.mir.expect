@@ -82,7 +82,7 @@ bb0:
   return take %36
 }
 
-fn compare() -> I32 {
+fn compare'2() -> I32 {
   local c: Atomic(I32)
   local local1: ExchangeResult(I32)
   local actual: I32
@@ -271,7 +271,7 @@ bb0:
   return take %34
 }
 
-fn lock() -> State {
+fn lock'2() -> State {
   local state: Atomic(State)
   local local1: ExchangeResult(State)
   local actual: State
@@ -352,79 +352,57 @@ fn main() -> I32 {
   local narrowed: I32
 
 bb0:
-  %0: State = call lock
+  %0: State = call lock'2
   write.init borrow.unique (local0) take %0
   %2: U8 = read copy.trivial (local0.#)
-  %3: U8 = const 1
-  %4: Bool = eq inspect %2 inspect %3
-  branch inspect %4 -> bb4 -> bb1
+  %3: I32 = map [0 -> 0, 1 -> 1, 2 -> 0] inspect %2
+  write.init borrow.unique (locked) take %3
+  %5: I64 = call widths
+  %6: I64 = const 0
+  %7: Bool = gt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
 
 bb1:
-  %7: U8 = read copy.trivial (local0.#)
-  %8: U8 = const 0
-  %9: Bool = eq inspect %7 inspect %8
-  branch inspect %9 -> bb5 -> bb2
+  %10: I32 = const 0
+  jump -> bb2(take %10)
 
-bb2:
-  %12: I32 = const 0
-  jump -> bb3(take %12)
+bb2(%11: I32):
+  write.init borrow.unique (wide) take %11
+  %15: I64 = call narrow
+  %16: I64 = const 0
+  %17: Bool = gt inspect %15 inspect %16
+  branch inspect %17 -> bb6 -> bb4
 
-bb3(%13: I32):
-  write.init borrow.unique (locked) take %13
-  %18: I64 = call widths
-  %19: I64 = const 0
-  %20: Bool = gt inspect %18 inspect %19
-  branch inspect %20 -> bb8 -> bb6
+bb3:
+  %9: I32 = const 1
+  jump -> bb2(take %9)
 
 bb4:
-  %6: I32 = const 1
-  jump -> bb3(take %6)
+  %20: I32 = const 0
+  jump -> bb5(take %20)
 
-bb5:
-  %11: I32 = const 0
-  jump -> bb3(take %11)
+bb5(%21: I32):
+  write.init borrow.unique (narrowed) take %21
+  %25: I32 = call basics
+  %26: I32 = call counters
+  %27: I32 = add inspect %25 inspect %26
+  %28: I32 = call compare'2
+  %29: I32 = add inspect %27 inspect %28
+  %30: I32 = call retry
+  %31: I32 = add inspect %29 inspect %30
+  %32: I32 = call ordering
+  %33: I32 = add inspect %31 inspect %32
+  %34: I32 = read copy.trivial (locked)
+  %35: I32 = add inspect %33 inspect %34
+  %36: I32 = read copy.trivial (wide)
+  %37: I32 = add inspect %35 inspect %36
+  %38: I32 = read copy.trivial (narrowed)
+  %39: I32 = add inspect %37 inspect %38
+  return take %39
 
 bb6:
-  %23: I32 = const 0
-  jump -> bb7(take %23)
-
-bb7(%24: I32):
-  write.init borrow.unique (wide) take %24
-  %28: I64 = call narrow
-  %29: I64 = const 0
-  %30: Bool = gt inspect %28 inspect %29
-  branch inspect %30 -> bb11 -> bb9
-
-bb8:
-  %22: I32 = const 1
-  jump -> bb7(take %22)
-
-bb9:
-  %33: I32 = const 0
-  jump -> bb10(take %33)
-
-bb10(%34: I32):
-  write.init borrow.unique (narrowed) take %34
-  %38: I32 = call basics
-  %39: I32 = call counters
-  %40: I32 = add inspect %38 inspect %39
-  %41: I32 = call compare
-  %42: I32 = add inspect %40 inspect %41
-  %43: I32 = call retry
-  %44: I32 = add inspect %42 inspect %43
-  %45: I32 = call ordering
-  %46: I32 = add inspect %44 inspect %45
-  %47: I32 = read copy.trivial (locked)
-  %48: I32 = add inspect %46 inspect %47
-  %49: I32 = read copy.trivial (wide)
-  %50: I32 = add inspect %48 inspect %49
-  %51: I32 = read copy.trivial (narrowed)
-  %52: I32 = add inspect %50 inspect %51
-  return take %52
-
-bb11:
-  %32: I32 = const 1
-  jump -> bb10(take %32)
+  %19: I32 = const 1
+  jump -> bb5(take %19)
 }
 
 entry main

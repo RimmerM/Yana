@@ -13,6 +13,19 @@ endless<complex>(%n: I32): I32 {
   }
 }
 
+spins<complex>(): I32 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = loads @seed, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store @seed, %v_3, 4
+    jmp b_1
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = loads @seed, 4: I32
@@ -37,7 +50,25 @@ main<complex>(): I32 {
     %v_11 = shl %v_10, 1: I32
     %v_12 = add %v_11, 1: I32
     %v_13 = add %v_9, %v_12: I32
-    ret %v_13
+    %v_14 = cmp_igt %v_10, 1000000: I32
+    je %v_14, b_15, b_16
+  }
+
+  b_16 {
+    %v_17 = imul %v_10, 3: I32
+    jmp b_18
+  }
+
+  b_15 {
+    %v_19 = call_complex spins: I32
+    jmp b_18
+  }
+
+  b_18 {
+    %v_20 = phi [b_16, %v_17], [b_15, %v_19]: I32
+    %v_21 = imul %v_20, 5: I32
+    %v_22 = add %v_13, %v_21: I32
+    ret %v_22
   }
 }
 

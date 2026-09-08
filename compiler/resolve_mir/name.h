@@ -308,6 +308,15 @@ DeclPtr<Global> findGlobal(Context& context, Program& program, DeclPtr<Module> f
 void findOverloads(Context& context, Program& program, DeclPtr<Module> from, StringId name,
                    U32 arity, LocationId source, OverloadSet& into, bool report = true);
 
+/*
+ * `String.push` for `s.push(v)` - the receiver's own namespace, as a name to look up.
+ *
+ * See the definition, where composing the name rather than registering it is argued. Empty where the
+ * receiver's type has no declaration to hang a namespace on, which leaves the bare name as the whole
+ * of what a dot-call reaches.
+ */
+StringId namespacedName(Context& context, Program& program, DeclPtr<Type> receiver, StringId member);
+
 // The one function of that name and arity, where the set has exactly one - `Program::findFunction`,
 // where "and also null where it has several" is argued.
 DeclPtr<Function> findFunction(Context& context, Program& program, DeclPtr<Module> from,

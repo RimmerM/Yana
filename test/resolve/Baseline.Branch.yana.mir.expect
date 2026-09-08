@@ -11,26 +11,26 @@ fn main() -> I32 {
 bb0:
   %0: I32 = const 7
   write.init borrow.unique (n) take %0
-  %2: I32 = read copy.trivial (n)
+  %2: I32 = const 7
   %3: I32 = const 5
   %4: Bool = gt inspect %2 inspect %3
   branch inspect %4 -> bb3 -> bb1
 
 bb1:
-  %9: I32 = read copy.trivial (n)
+  %9: I32 = const 7
   %10: I32 = const 1
   %11: I32 = sub inspect %9 inspect %10
   jump -> bb2(take %11)
 
 bb2(%12: I32):
   write.init borrow.unique (doubled) take %12
-  %16: I32 = read copy.trivial (n)
+  %16: I32 = const 7
   %17: I32 = const 3
   %18: Bool = gt inspect %16 inspect %17
   branch inspect %18 -> bb6 -> bb4
 
 bb3:
-  %6: I32 = read copy.trivial (n)
+  %6: I32 = const 7
   %7: I32 = const 2
   %8: I32 = mul inspect %6 inspect %7
   jump -> bb2(take %8)
@@ -41,19 +41,19 @@ bb4:
 
 bb5(%24: Bool):
   write.init borrow.unique (inRange) take %24
-  %28: I32 = read copy.trivial (n)
+  %28: I32 = const 7
   %29: I32 = const 0
   %30: Bool = eq inspect %28 inspect %29
   branch inspect %30 -> bb9 -> bb7
 
 bb6:
-  %20: I32 = read copy.trivial (n)
+  %20: I32 = const 7
   %21: I32 = const 9
   %22: Bool = lt inspect %20 inspect %21
   jump -> bb5(take %22)
 
 bb7:
-  %33: I32 = read copy.trivial (n)
+  %33: I32 = const 7
   %34: I32 = const 100
   %35: Bool = gt inspect %33 inspect %34
   jump -> bb8(take %35)

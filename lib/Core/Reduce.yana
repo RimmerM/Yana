@@ -14,11 +14,25 @@ import Native
    program that wrote it said neither. Every one of them is over `Chunked`, so every container in the
    language has them, and none of them mentions a vector in its signature.
 
-   **Each is one declaration with no body and two implementations.** The declaration is the
-   intrinsic: `expandBulk` in the compiler picks the pair by asking whether the element has a vector
-   *on this target*, which is a question about the lane's stride and the target's register width and
-   so is not a question a constraint could carry. The two implementations below are ordinary source
-   and are the whole of what runs.
+   **Each is one declaration and two implementations, and the declaration carries the scalar one.**
+   The declaration is the intrinsic: `expandBulk` in the shipping compiler picks the pair by asking
+   whether the element has a vector *on this target*, which is a question about the lane's stride and
+   the target's register width and so is not a question a constraint could carry - the vector half
+   needs a `Num(Vec(a))` or a `Bitwise(Mask(a))` no signature here can state. The two implementations
+   below are ordinary source and are the whole of what runs.
+
+   The one-line body on each declaration is the element half - `roleMayWriteBody` in
+   `compiler/intrinsic/op.h`, where the rule that a role may carry the fallback beside it is written
+   down. It is what a stage that makes no choice runs, and it is also what the *ownership* stage's
+   "no vector for this element" answer **is**: that stage picks the vector half or leaves the call
+   alone, so the body is reached rather than dead there. In the shipping stage it is dead, because
+   that one names `...Elements` explicitly. Either way "no vector on this target" and "no compiler
+   that picks" are the same answer, said once.
+
+   **The vector half of each carries a `@builtin` role too**, and that is the ownership stage's half
+   of the same link: the shipping stage finds these seven bodies by name in Core, and a name outside
+   `compiler/intrinsic` is what a `known.def` row exists to replace. The rows are `Optional`, so a
+   library that deletes a vector half is one whose operation is the loop it always was.
 
    The vector halves are written over `vectors` and `vectorsMasked` rather than over `loadVector`,
    which is what makes them four lines each: the protocol already walks the chunks, reads the tail
@@ -32,17 +46,29 @@ import Native
    element out of one, and it is what the vector half wants anyway: the seed is what the accumulator
    is splatted from and what the masked-off lanes hold.
 -}
-@builtin(bulkSum) pub fn (Chunked(c, a), Num(a)) sum(xs: c) -> a
-@builtin(bulkProduct) pub fn (Chunked(c, a), Num(a)) product(xs: c) -> a
-@builtin(bulkMaximum) pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximum(xs: c, ifEmpty: a) -> a
-@builtin(bulkMinimum) pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimum(xs: c, ifEmpty: a) -> a
-@builtin(bulkOccurrences) pub fn (Chunked(c, a), Eq(a)) occurrences(xs: c, wanted: a) -> Int
-@builtin(bulkIndexOf) pub fn (Chunked(c, a), Eq(a)) indexOf(xs: c, wanted: a) -> Maybe(Size)
+@builtin(bulkSum)
+pub fn (Chunked(c, a), Num(a)) sum(xs: c) -> a = sumElements(xs)
+
+@builtin(bulkProduct)
+pub fn (Chunked(c, a), Num(a)) product(xs: c) -> a = productElements(xs)
+
+@builtin(bulkMaximum)
+pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximum(xs: c, ifEmpty: a) -> a = maximumElements(xs, ifEmpty)
+
+@builtin(bulkMinimum)
+pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimum(xs: c, ifEmpty: a) -> a = minimumElements(xs, ifEmpty)
+
+@builtin(bulkOccurrences)
+pub fn (Chunked(c, a), Eq(a)) occurrences(xs: c, wanted: a) -> Int = occurrencesElements(xs, wanted)
+
+@builtin(bulkIndexOf)
+pub fn (Chunked(c, a), Eq(a)) indexOf(xs: c, wanted: a) -> Maybe(Size) = indexOfElements(xs, wanted)
 
 -- Reached through `indexOf`, so it is one function rather than a seventh pair. A search that stops
 -- at the first hit is what both halves of that one already are.
 pub fn (Chunked(c, a), Eq(a)) contains(xs: c, wanted: a) -> Bool = indexOf(xs, wanted) is Just(_)
 
+@builtin(sumVectors)
 fn (Chunked(c, a), Num(a), Num(Vec(a))) sumVectors(xs: c) -> a:
     let &acc = zero() :: Vec(a)
 
@@ -59,6 +85,7 @@ fn (Chunked(c, a), Num(a)) sumElements(xs: c) -> a:
 
     return acc
 
+@builtin(productVectors)
 fn (Chunked(c, a), Num(a), Num(Vec(a))) productVectors(xs: c) -> a:
     let ones = splat(1 :: a)
     let &acc = ones
@@ -76,6 +103,7 @@ fn (Chunked(c, a), Num(a)) productElements(xs: c) -> a:
 
     return acc
 
+@builtin(maximumVectors)
 fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumVectors(xs: c, ifEmpty: a) -> a:
     let &acc = splat(ifEmpty)
 
@@ -92,6 +120,7 @@ fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumElements(xs: c, ifEmpty: a) ->
 
     return acc
 
+@builtin(minimumVectors)
 fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumVectors(xs: c, ifEmpty: a) -> a:
     let &acc = splat(ifEmpty)
 
@@ -115,6 +144,7 @@ fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumElements(xs: c, ifEmpty: a) ->
    whatever `wanted` is not. That is not something this can rely on, so the masked form is what it
    takes and the live mask is what it counts against.
 -}
+@builtin(occurrencesVectors)
 fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) occurrencesVectors(xs: c, wanted: a) -> Int:
     let sought = splat(wanted)
     let &total = 0
@@ -147,6 +177,7 @@ fn (Chunked(c, a), Eq(a)) occurrencesElements(xs: c, wanted: a) -> Int:
    At the same type they are one register. Measured on `test/bench/text`'s single-unit scan, which is
    this function under `String.findAscii`.
 -}
+@builtin(indexOfVectors)
 fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) indexOfVectors(xs: c, wanted: a) -> Maybe(Size):
     let sought = splat(wanted)
     let &at = 0 :: Size
@@ -199,7 +230,8 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
    first, and what is compared here is `left`'s length in both windows. A comparison of two windows
    of different lengths is a question this has no answer for and does not ask.
 -}
-@builtin(bulkItemsEqual) pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool
+@builtin(bulkItemsEqual)
+pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool = itemsEqualElements(left, right)
 
 {-
    Natively this is `Native.compareMemory`, which is the vector walk with the element type taken out
@@ -216,12 +248,12 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
    difference**, so reading a register's worth ahead of the test is strictly more work than the walk
    it would replace, and it allocates to do it.
 -}
-@platform(native) fn (Eq(a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a)))
-    itemsEqualVectors(left: [a], right: [a]) -> Bool =
+@builtin(itemsEqualVectors) @platform(native)
+fn (Eq(a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) itemsEqualVectors(left: [a], right: [a]) -> Bool =
     compareMemory(left.items, right.items, length(left)) == EQ
 
-@platform(js) fn (Eq(a)) itemsEqualVectors(left: [a], right: [a]) -> Bool =
-    itemsEqualElements(left, right)
+@builtin(itemsEqualVectors) @platform(js)
+fn (Eq(a)) itemsEqualVectors(left: [a], right: [a]) -> Bool = itemsEqualElements(left, right)
 
 fn (Eq(a)) itemsEqualElements(left: [a], right: [a]) -> Bool:
     let count = length(left)

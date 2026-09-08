@@ -1,0 +1,124 @@
+module ResolveTest
+
+let & sink: Vec(I16, 4) = [0, 0, 0, 0]
+
+fn arithmetic(a: Vec(I16, 4) [shared call]) -> Vec(I16, 4) {
+  local b: Vec(I16, 4)
+  local sum: Vec(I16, 4)
+  local product: Vec(I16, 4)
+  local masked: Vec(I16, 4)
+  local shifted: Vec(I16, 4)
+
+bb0:
+  %0: I64 = const 4
+  %1: I16 = const 4
+  %2: Vec(I16, 4) = vec.splat inspect %1
+  write.init borrow.unique (b) take %2
+  %4: Vec(I16, 4) = read copy.trivial (a)
+  %5: Vec(I16, 4) = read copy.trivial (b)
+  %6: Vec(I16, 4) = add inspect %4 inspect %5
+  write.init borrow.unique (sum) take %6
+  %8: Vec(I16, 4) = read copy.trivial (a)
+  %9: Vec(I16, 4) = read copy.trivial (b)
+  %10: Vec(I16, 4) = mul inspect %8 inspect %9
+  write.init borrow.unique (product) take %10
+  %12: Vec(I16, 4) = read copy.trivial (sum)
+  %13: Vec(I16, 4) = read copy.trivial (product)
+  %14: Vec(I16, 4) = and inspect %12 inspect %13
+  write.init borrow.unique (masked) take %14
+  %16: Vec(I16, 4) = read copy.trivial (masked)
+  %17: Vec(I16, 4) = read copy.trivial (b)
+  %18: Vec(I16, 4) = shl inspect %16 inspect %17
+  write.init borrow.unique (shifted) take %18
+  %20: Vec(I16, 4) = read copy.trivial (shifted)
+  %21: Vec(I16, 4) = read copy.trivial (a)
+  %22: Vec(I16, 4) = sub inspect %20 inspect %21
+  return take %22
+}
+
+fn widths(narrow: Vec(U8, 4) [shared call], middle: Vec(U32, 2) [shared call]) -> Vec(U8, 4) {
+  local doubled: Vec(U32, 2)
+
+bb0:
+  %0: Vec(U32, 2) = read copy.trivial (middle)
+  %1: Vec(U32, 2) = read copy.trivial (middle)
+  %2: Vec(U32, 2) = add inspect %0 inspect %1
+  write.init borrow.unique (doubled) take %2
+  %4: Vec(U8, 4) = read copy.trivial (narrow)
+  %5: Vec(U8, 4) = read copy.trivial (narrow)
+  %6: Vec(U8, 4) = read copy.trivial (narrow)
+  %7: Vec(U8, 4) = shl inspect %5 inspect %6
+  %8: Vec(U8, 4) = or inspect %4 inspect %7
+  return take %8
+}
+
+fn widening(v: Vec(I16, 4) [shared call]) -> Vec(I32) {
+bb0:
+  %0: Vec(I16, 4) = read copy.trivial (v)
+  %1: Vec(I32) = convert inspect %0
+  return take %1
+}
+
+fn narrowing(v: Vec(I32) [shared call]) -> Vec(I16, 4) {
+bb0:
+  %0: Vec(I32) = read copy.trivial (v)
+  %1: Vec(I16, 4) = convert inspect %0
+  return take %1
+}
+
+fn reinterpreting(v: Vec(I32) [shared call]) -> Vec(F32) {
+bb0:
+  %0: Vec(I32) = read copy.trivial (v)
+  %1: Vec(F32) = bitcast inspect %0
+  return take %1
+}
+
+fn aliases(v: Vec(F32) [shared call]) -> Vec(F32) {
+bb0:
+  %0: Vec(F32) = read copy.trivial (v)
+  return take %0
+}
+
+fn main() -> I32 {
+  local sized: Vec(I16, 4)
+  local widened: Vec(I32)
+  local back: Vec(I16, 4)
+  local bits: Vec(F32)
+  local narrow: Vec(U8, 4)
+
+bb0:
+  %0: Vec(I16, 4) = read copy.trivial (global sink)
+  %1: Vec(I16, 4) = call arithmetic borrow.shared %0
+  write.init borrow.unique (sized) take %1
+  %3: Vec(I16, 4) = read copy.trivial (sized)
+  %4: Vec(I32) = call widening borrow.shared %3
+  write.init borrow.unique (widened) take %4
+  %6: Vec(I32) = read copy.trivial (widened)
+  %7: Vec(I16, 4) = call narrowing borrow.shared %6
+  write.init borrow.unique (back) take %7
+  %9: Vec(I32) = read copy.trivial (widened)
+  %10: Vec(F32) = call reinterpreting borrow.shared %9
+  %11: Vec(F32) = call aliases borrow.shared %10
+  write.init borrow.unique (bits) take %11
+  %13: I64 = const 1
+  %14: U8 = const 1
+  %15: Vec(U8, 4) = vec.splat inspect %14
+  %16: I64 = const 2
+  %17: U32 = const 2
+  %18: Vec(U32, 2) = vec.splat inspect %17
+  %19: Vec(U8, 4) = call widths borrow.shared %15 borrow.shared %18
+  write.init borrow.unique (narrow) take %19
+  %21: Vec(I16, 4) = read copy.trivial (back)
+  %22: Vec(F32) = read copy.trivial (bits)
+  %23: Vec(I32) = bitcast inspect %22
+  %24: Vec(I16, 4) = convert inspect %23
+  %25: Vec(I16, 4) = xor inspect %21 inspect %24
+  %26: Vec(U8, 4) = read copy.trivial (narrow)
+  %27: Vec(I16, 4) = convert inspect %26
+  %28: Vec(I16, 4) = xor inspect %25 inspect %27
+  write.assign borrow.unique (global sink) take %28
+  %30: I32 = const 1
+  return take %30
+}
+
+entry main

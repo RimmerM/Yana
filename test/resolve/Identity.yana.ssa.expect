@@ -6,7 +6,7 @@ fn also(x: a) -> a = <no body>
 
 fn boxed(x: a) -> Boxed(a) = <no body>
 
-fn rewrap(x: a) -> Boxed(a) = <no body>
+fn rewrap'2(x: a) -> Boxed(a) = <no body>
 
 fn twice(x: a) -> Boxed(Boxed(a)) = <no body>
 
@@ -52,7 +52,7 @@ bb0:
   %10: Bool trivial = call also(Bool) consume %9
   store inspect %2 consume %10
   %11: I32 trivial = const 20
-  %12: Boxed(I32) trivial = call rewrap(I32) consume %11
+  %12: Boxed(I32) trivial = call rewrap'2(I32) consume %11
   %13: I32 trivial = call boxedValue borrow %12
   store inspect %3 consume %13
   %14: I32 trivial = const 300
@@ -105,7 +105,7 @@ bb0(%0: Bool trivial):
   return consume %2
 }
 
-fn rewrap(I32)(x: I32) -> Boxed(I32) {
+fn rewrap'2(I32)(x: I32) -> Boxed(I32) {
 bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32
   store inspect %1 consume %0

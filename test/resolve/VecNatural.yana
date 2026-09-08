@@ -1,0 +1,37 @@
+-- `Vec(a)` inside a generic body - the natural lane count as a value decided at specialization.
+--
+-- A count written nowhere is still a count: `Vec(a)` means `Vec(a, n)` at `vectorBytes / sizeOf(a)`,
+-- and inside a body generic in `a` there is no stride to divide by yet. So the count is a *derived*
+-- number - `ConstType::lanesOf` - which the specialization that binds `a` turns into the number, and
+-- which is what lets a body over an open lane call the portable set's counted signatures at all.
+--
+-- The answers below are all functions of the target's vector width, so the fixture states them as
+-- relations between two lanes rather than as numbers: eight `I32` lanes and sixteen `I16` ones on
+-- one target are the same claim at any width.
+
+-- The three shapes a count reaches here: a reduction whose parameter names it, `lanes` which *is*
+-- it, and a signature that hands the whole vector on.
+fn (Num(a), Num(Vec(a))) sumOfSplat(x: a) -> a = horizontalSum(splat(x))
+fn (Num(a), Num(Vec(a))) laneCount(x: a) -> Int = lanes(splat(x))
+fn (Num(a), Num(Vec(a))) doubled(x: a) -> Vec(a) = splat(x) + splat(x)
+
+-- The same body reached through a second generic, so the derived count travels a substitution that
+-- was itself made under one.
+fn (Num(a), Num(Vec(a))) twiceSummed(x: a) -> a = horizontalSum(doubled(x))
+
+fn main() -> Int:
+    -- Two lanes of the same register: an `I16` holds twice as many as an `I32`.
+    let wide = laneCount(1 :: I32)
+    let narrow = laneCount(1 :: I16)
+    if narrow != wide * 2 then return 1
+
+    -- A reduction over a splat is the lane repeated, so the sum is the count times the value.
+    if sumOfSplat(3 :: I32) != wide * 3 then return 2
+    if twiceSummed(3 :: I32) != wide * 6 then return 3
+
+    -- And the natural count is what a concrete spelling of the same type has.
+    if lanes(splat(1 :: I32)) != wide then return 4
+
+    -- The ratio rather than the count, so the answer is the same at every vector width - which is
+    -- what a golden shared across feature levels needs.
+    return 100 + narrow / wide

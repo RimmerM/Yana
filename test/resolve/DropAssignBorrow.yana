@@ -38,9 +38,9 @@ data Holder {slot: Buffer, tag: I64}
 -- The selector shape, and the whole point of the fixture: nothing about `pick` is a raw pointer or
 -- an intrinsic, so the borrow its caller writes through is one the language handed out on its own.
 -- `Array.getMut` is this signature with an index; what differs is only how the referent is found.
-fn pick(return &a: Buffer, return &b: Buffer, first: Bool) -> &Buffer = if first then a else b
+fn pick(&a: 'Buffer, &b: 'Buffer, first: Bool) -> &'Buffer = if first then a else b
 
-fn holderOf(return &self: Holder) -> &Holder = self
+fn holderOf(&self: 'Holder) -> &'Holder = self
 
 -- A whole write through a borrow. `chosen` names `x`'s storage, so this replaces what `x` held and
 -- owes a drop of it - and `x` itself is untouched, still owned by this frame and still torn down at

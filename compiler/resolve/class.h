@@ -124,6 +124,40 @@ struct ClassInstance {
      * wider word here would be carried by every instance in the program.
      */
     U8 windowArgs = 0;
+
+    /*
+     * Whether the library is allowed to declare this instance itself - the bridge to `lib/` writing
+     * its own container instances, and nothing wider.
+     *
+     * `Written` is every instance in a program's source and every one the compiler generates for a
+     * primitive width: a second declaration at the same head is the duplicate it always was.
+     * `Replaceable` is the container set alone - `defineContainerInstances` and
+     * `defineNativeIndexInstances` - which `lib/` is in the process of writing for itself. A source
+     * instance at one of those heads *supersedes* the generated one rather than colliding with it,
+     * so the two stages read one library while only one of them still generates anything, and the
+     * generated one becomes `Superseded` and is skipped by every lookup.
+     *
+     * `Overriding` is the same bridge run **backwards**, and it exists for exactly one head set -
+     * `Index`, `defineIndex`'s three. The library writes that instance too, because the ownership
+     * stage generates nothing and has to read it; this stage may not use it, because the two stages
+     * disagree about what a written `getMut` *means*. A generated one hands back a borrow whose
+     * place is the element - `atPointer(items + i)` - and a written one hands back a borrow the
+     * signature roots in `self`, so `xs[k] = xs[k] + 1`, a subscript in a lens argument and the
+     * erased build's return rooting are all refused here and all compile there. So a source
+     * instance at one of those heads is *retired where it is declared* rather than superseding the
+     * generated one, and nothing of it - no member, no body, no export - is ever built. See D14 in
+     * `doc/progress/2026-09-06-inventory.md` and the note in `lib/Core/Array.yana`.
+     *
+     * The alternative was to make the generators consult the source declarations before running,
+     * which they cannot: `definePreludeContainers` runs between `passFunctionSignatures` and
+     * `passInstances`, so at that point no instance the library wrote exists yet. Deciding it where
+     * the collision is *found* is the same decision made in the one place that already knows both,
+     * and it is what lets the two directions be one test.
+     *
+     * This whole field goes with the generators - `doc/inflight/Analysis-IR.md` part 11.5.
+     */
+    enum class Origin: U8 { Written, Replaceable, Overriding, Superseded };
+    Origin origin = Origin::Written;
 };
 
 // Where a class function was found: the class, and which of its signatures.

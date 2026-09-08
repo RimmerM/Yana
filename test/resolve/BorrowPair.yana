@@ -11,9 +11,9 @@ fn make(x: 'Int, y: 'Int) -> Pair('Int, 'Int) = Pair {first: x, second: y}
 
 -- The generic form: the borrows come out of accessors rather than in as parameters, which is how
 -- the map's iterator gets them.
-fn firstOf(return self: Box(a)) -> 'a = self.item
+fn firstOf(self: 'Box(a)) -> 'a = self.item
 
-fn viewed(return self: Box(a), return other: Box(a)) -> Pair('a, 'a) =
+fn viewed(self: 'Box(a), other: 'Box(a)) -> Pair('a, 'a) =
     Pair {first: firstOf(self), second: firstOf(other)}
 
 fn main() -> Int:

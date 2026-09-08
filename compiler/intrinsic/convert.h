@@ -15,7 +15,7 @@
  * Both resolve stages read this file, and that is the reason it exists rather than the reason it is
  * convenient. A fixture is compiled by both stages and the two answers are compared, so two ladders
  * that disagreed by one rung would mean one program that compiles and one that does not, from one
- * source - which is the same failure the fixity table had before `prelude/` took it over.
+ * source - which is the same failure the fixity table had before `lib/Core` took it over.
  *
  * ## What is *not* here
  *

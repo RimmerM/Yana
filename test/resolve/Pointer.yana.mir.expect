@@ -1,0 +1,420 @@
+module ResolveTest
+
+data Node {value: I64, next: %Node}
+
+fn roundTrip() -> I64 {
+  local slot: I64
+  local p: %I64 [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I64 = const 7
+  write.init borrow.unique (slot) take %0
+  %2: I64 [shared slot 0] = read borrow.shared (slot) loan0
+  %3: %I64 [owned here shape6 .*=shared slot 0] = address inspect %2 roots.0{0}
+  write.init borrow.unique (p) take %3
+  %5: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %6: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %7: I64 = read copy.trivial ([%%6])
+  %8: I64 = const 1
+  %9: I64 = add inspect %7 inspect %8
+  write.assign borrow.unique ([%%5]) take %9
+  %11: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %12: I64 = read copy.trivial ([%%11])
+  return take %12
+}
+
+fn throughField() -> I64 {
+  local node: Node
+  local p: %Node [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I64 = const 3
+  %1: %Node = call null(Node)
+  %2: Node = aggregate.Node take %0 take %1
+  write.init borrow.unique (node) take %2
+  %4: Node [shared slot 0] = read borrow.shared (node) loan0
+  %5: %Node [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
+  write.init borrow.unique (p) take %5
+  %7: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %8: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %9: I64 = read copy.trivial ([%%8].value)
+  %10: I64 = const 5
+  %11: I64 = mul inspect %9 inspect %10
+  write.assign borrow.unique ([%%7].value) take %11
+  %13: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %14: I64 = read copy.trivial ([%%13].value)
+  return take %14
+}
+
+fn pointerFields() -> I64 {
+  local first: Node
+  local second: Node
+  local n: %Node [owned here shape6 .*=shared slot 0]
+  local m: %Node [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I64 = const 1
+  %1: %Node = call null(Node)
+  %2: Node = aggregate.Node take %0 take %1
+  write.init borrow.unique (first) take %2
+  %4: I64 = const 2
+  %5: %Node = call null(Node)
+  %6: Node = aggregate.Node take %4 take %5
+  write.init borrow.unique (second) take %6
+  %8: Node [shared slot 0] = read borrow.shared (first) loan0
+  %9: %Node [owned here shape6 .*=shared slot 0] = address inspect %8 roots.0{0}
+  write.init borrow.unique (n) take %9
+  %11: Node [shared slot 0] = read borrow.shared (second) loan1
+  %12: %Node [owned here shape6 .*=shared slot 0] = address inspect %11 roots.0{1}
+  write.init borrow.unique (m) take %12
+  %14: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (n) roots.0{0}
+  %15: I64 = const 5
+  write.assign borrow.unique ([%%14].value) take %15
+  %17: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (n) roots.0{0}
+  %18: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (m) roots.0{1}
+  write.assign borrow.unique ([%%17].next) take %18
+  %20: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (n) roots.0{0}
+  %21: %Node = read copy.trivial ([%%20].next)
+  %22: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (n) roots.0{0}
+  %23: I64 = read copy.trivial ([%%22].value)
+  %24: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (n) roots.0{0}
+  %25: %Node = read copy.trivial ([%%24].next)
+  %26: I64 = read copy.trivial ([%%25].value)
+  %27: I64 = add inspect %23 inspect %26
+  write.assign borrow.unique ([%%21].value) take %27
+  %29: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (n) roots.0{0}
+  %30: I64 = read copy.trivial ([%%29].value)
+  %31: I64 = const 100
+  %32: I64 = mul inspect %30 inspect %31
+  %33: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (n) roots.0{0}
+  %34: %Node = read copy.trivial ([%%33].next)
+  %35: I64 = read copy.trivial ([%%34].value)
+  %36: I64 = add inspect %32 inspect %35
+  return take %36
+}
+
+fn total(node: %Node [shared call]) -> I64 {
+bb0:
+  %0: %Node = read copy.trivial (node)
+  %1: I64 = read copy.trivial ([%%0].value)
+  %2: %Node = read copy.trivial (node)
+  %3: %Node = read copy.trivial ([%%2].next)
+  %4: I64 = read copy.trivial ([%%3].value)
+  %5: I64 = add inspect %1 inspect %4
+  %6: %Node = read copy.trivial (node)
+  %7: %Node = read copy.trivial ([%%6].next)
+  %8: %Node = read copy.trivial ([%%7].next)
+  %9: I64 = read copy.trivial ([%%8].value)
+  %10: I64 = add inspect %5 inspect %9
+  return take %10
+}
+
+fn walkList() -> I64 {
+  local third: Node
+  local second: Node
+  local first: Node
+  local a: %Node [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I64 = const 3
+  %1: %Node = call null(Node)
+  %2: Node = aggregate.Node take %0 take %1
+  write.init borrow.unique (third) take %2
+  %4: I64 = const 2
+  %5: %Node = call null(Node)
+  %6: Node = aggregate.Node take %4 take %5
+  write.init borrow.unique (second) take %6
+  %8: I64 = const 1
+  %9: %Node = call null(Node)
+  %10: Node = aggregate.Node take %8 take %9
+  write.init borrow.unique (first) take %10
+  %12: Node [shared slot 0] = read borrow.shared (first) loan0
+  %13: %Node [owned here shape6 .*=shared slot 0] = address inspect %12 roots.0{0}
+  write.init borrow.unique (a) take %13
+  %15: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (a) roots.0{0}
+  %16: Node [shared slot 0] = read borrow.shared (second) loan1
+  %17: %Node [owned here shape6 .*=shared slot 0] = address inspect %16 roots.0{1}
+  write.assign borrow.unique ([%%15].next) take %17
+  %19: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (a) roots.0{0}
+  %20: %Node = read copy.trivial ([%%19].next)
+  %21: Node [shared slot 0] = read borrow.shared (third) loan2
+  %22: %Node [owned here shape6 .*=shared slot 0] = address inspect %21 roots.0{2}
+  write.assign borrow.unique ([%%20].next) take %22
+  %24: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (a) roots.0{0}
+  %25: I64 = call total borrow.shared %24
+  return take %25
+}
+
+fn elementStride() -> I64 {
+  local node: Node
+  local base: %Node [owned here shape6 .*=shared slot 0]
+  local next: %Node [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I64 = const 0
+  %1: %Node = call null(Node)
+  %2: Node = aggregate.Node take %0 take %1
+  write.init borrow.unique (node) take %2
+  %4: Node [shared slot 0] = read borrow.shared (node) loan0
+  %5: %Node [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
+  write.init borrow.unique (base) take %5
+  %7: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %8: Size = const 1
+  %9: Size = metric stride Node
+  %10: Size = mul inspect %8 inspect %9
+  %11: %Node [owned here shape6 .*=shared slot 0] = add inspect %7 inspect %10 roots.0{0}
+  write.init borrow.unique (next) take %11
+  %13: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %14: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (next) roots.0{0}
+  %15: Size = bitcast inspect %14
+  %16: Size = bitcast inspect %13
+  %17: Size = sub inspect %15 inspect %16
+  %18: Size = metric stride Node
+  %19: Size = div inspect %17 inspect %18
+  %20: Size = const 100
+  %21: Size = mul inspect %19 inspect %20
+  %22: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %23: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %22 roots.0{0}
+  %24: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (next) roots.0{0}
+  %25: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %24 roots.0{0}
+  %26: Size = bitcast inspect %25
+  %27: Size = bitcast inspect %23
+  %28: Size = sub inspect %26 inspect %27
+  %29: Size = metric stride U8
+  %30: Size = div inspect %28 inspect %29
+  %31: Size = add inspect %21 inspect %30
+  %32: I64 = convert inspect %31
+  return take %32
+}
+
+fn compareAddresses() -> I64 {
+  local node: Node
+  local base: %Node [owned here shape6 .*=shared slot 0]
+  local & score: I64
+
+bb0:
+  %0: I64 = const 0
+  %1: %Node = call null(Node)
+  %2: Node = aggregate.Node take %0 take %1
+  write.init borrow.unique (node) take %2
+  %4: Node [shared slot 0] = read borrow.shared (node) loan0
+  %5: %Node [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
+  write.init borrow.unique (base) take %5
+  %7: I64 = const 0
+  write.init borrow.unique (score) take %7
+  %9: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %10: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %11: Size = const 1
+  %12: Size = metric stride Node
+  %13: Size = mul inspect %11 inspect %12
+  %14: %Node [owned here shape6 .*=shared slot 0] = add inspect %10 inspect %13 roots.0{0}
+  %15: Bool = lt inspect %9 inspect %14
+  branch inspect %15 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %23: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %24: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %25: Bool = eq inspect %23 inspect %24
+  branch inspect %25 -> bb6 -> bb4
+
+bb3:
+  %17: I64 = read copy.trivial (score)
+  %18: I64 = const 1
+  %19: I64 = add inspect %17 inspect %18
+  write.assign borrow.unique (score) take %19
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %33: %Node = call null(Node)
+  %34: Bool = call isNull(Node) borrow.shared %33
+  branch inspect %34 -> bb9 -> bb7
+
+bb6:
+  %27: I64 = read copy.trivial (score)
+  %28: I64 = const 2
+  %29: I64 = add inspect %27 inspect %28
+  write.assign borrow.unique (score) take %29
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %42: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %43: Bool = call isNull(Node) borrow.shared %42
+  %44: Bool = not inspect %43
+  branch inspect %44 -> bb12 -> bb10
+
+bb9:
+  %36: I64 = read copy.trivial (score)
+  %37: I64 = const 4
+  %38: I64 = add inspect %36 inspect %37
+  write.assign borrow.unique (score) take %38
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %52: I64 = read copy.trivial (score)
+  return take %52
+
+bb12:
+  %46: I64 = read copy.trivial (score)
+  %47: I64 = const 8
+  %48: I64 = add inspect %46 inspect %47
+  write.assign borrow.unique (score) take %48
+  jump -> bb11
+}
+
+fn blockOperations() -> I64 {
+  local source: Node
+  local target: Node
+  local copied: I64
+
+bb0:
+  %0: I64 = const 9
+  %1: %Node = call null(Node)
+  %2: Node = aggregate.Node take %0 take %1
+  write.init borrow.unique (source) take %2
+  %4: I64 = const 0
+  %5: %Node = call null(Node)
+  %6: Node = aggregate.Node take %4 take %5
+  write.init borrow.unique (target) take %6
+  %8: Node [shared slot 0] = read borrow.shared (target) loan0
+  %9: %Node [owned here shape6 .*=shared slot 0] = address inspect %8 roots.0{0}
+  %10: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %9 roots.0{0}
+  %11: Node [shared slot 0] = read borrow.shared (source) loan1
+  %12: %Node [owned here shape6 .*=shared slot 0] = address inspect %11 roots.0{1}
+  %13: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %12 roots.0{1}
+  %14: Node = read copy.trivial (source)
+  %15: Size = call sizeOf(Node) borrow.shared %14
+  %16: {} = call copyMemory borrow.shared %10 borrow.shared %13 borrow.shared %15
+  %17: I64 = read copy.trivial (target.value)
+  write.init borrow.unique (copied) take %17
+  %19: Node [shared slot 0] = read borrow.shared (target) loan2
+  %20: %Node [owned here shape6 .*=shared slot 0] = address inspect %19 roots.0{2}
+  %21: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %20 roots.0{2}
+  %22: U8 = const 0
+  %23: Node = read copy.trivial (target)
+  %24: Size = call sizeOf(Node) borrow.shared %23
+  %25: {} = native set.memory inspect %21 inspect %22 inspect %24
+  %26: I64 = read copy.trivial (copied)
+  %27: I64 = const 10
+  %28: I64 = mul inspect %26 inspect %27
+  %29: I64 = read copy.trivial (target.value)
+  %30: I64 = add inspect %28 inspect %29
+  return take %30
+}
+
+fn sizes() -> I64 {
+bb0:
+  %0: I64 = const 0
+  %1: Size = call sizeOf(I64) borrow.shared %0
+  %2: Size = const 100
+  %3: Size = mul inspect %1 inspect %2
+  %4: U8 = const 0
+  %5: Size = call alignOf(U8) borrow.shared %4
+  %6: Size = const 10
+  %7: Size = mul inspect %5 inspect %6
+  %8: Size = add inspect %3 inspect %7
+  %9: U16 = const 0
+  %10: Size = call sizeOf(U16) borrow.shared %9
+  %11: Size = add inspect %8 inspect %10
+  %12: I64 = convert inspect %11
+  return take %12
+}
+
+fn maybePointer() -> I64 {
+  local slot: U8
+  local empty: Maybe(%U8)
+  local full: Maybe(%U8)
+
+bb0:
+  %0: U8 = const 0
+  write.init borrow.unique (slot) take %0
+  %2: Maybe(%U8) = aggregate.Nothing
+  write.init borrow.unique (empty) take %2
+  %4: U8 [shared slot 0] = read borrow.shared (slot) loan0
+  %5: %U8 [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
+  %6: Maybe(%U8) = aggregate.Just take %5
+  write.init borrow.unique (full) take %6
+  %8: Maybe(%U8) = read copy.trivial (empty)
+  %9: I64 = call unwrapPointer borrow.shared %8
+  %10: Maybe(%U8) = read copy.trivial (full)
+  %11: I64 = call unwrapPointer borrow.shared %10
+  %12: I64 = const 2
+  %13: I64 = mul inspect %11 inspect %12
+  %14: I64 = add inspect %9 inspect %13
+  return take %14
+}
+
+fn unwrapPointer(value: Maybe(%U8) [shared call]) -> I64 {
+  local p: %U8
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %14: I64 = const 0
+  jump -> bb2(take %14)
+
+bb2(%15: I64):
+  return take %15
+
+bb3:
+  %4: %U8 = read copy.trivial (value.Just)
+  write.init borrow.unique (p) take %4
+  %6: %U8 = read copy.trivial (p)
+  %7: Bool = call isNull(U8) borrow.shared %6
+  branch inspect %7 -> bb6 -> bb4
+
+bb4:
+  %10: I64 = const 1
+  jump -> bb5(take %10)
+
+bb5(%11: I64):
+  jump -> bb2(take %11)
+
+bb6:
+  %9: I64 = const 0
+  jump -> bb5(take %9)
+}
+
+fn main() -> I32 {
+  local result: I64
+
+bb0:
+  %0: I64 = call roundTrip
+  %1: I64 = call throughField
+  %2: I64 = add inspect %0 inspect %1
+  %3: I64 = call pointerFields
+  %4: I64 = add inspect %2 inspect %3
+  %5: I64 = call walkList
+  %6: I64 = add inspect %4 inspect %5
+  %7: I64 = call elementStride
+  %8: I64 = add inspect %6 inspect %7
+  %9: I64 = call compareAddresses
+  %10: I64 = add inspect %8 inspect %9
+  %11: I64 = call blockOperations
+  %12: I64 = add inspect %10 inspect %11
+  %13: I64 = call sizes
+  %14: I64 = add inspect %12 inspect %13
+  %15: I64 = call maybePointer
+  %16: I64 = add inspect %14 inspect %15
+  write.init borrow.unique (result) take %16
+  %18: I64 = read copy.trivial (result)
+  %19: I32 = convert inspect %18
+  return take %19
+}
+
+entry main

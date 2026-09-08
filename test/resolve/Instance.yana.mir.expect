@@ -1,0 +1,329 @@
+module ResolveTest
+
+data Opt(a) = None | Some {Some: a} drop derived reclaim derived
+
+data Opt(I32) = None | Some {Some: I32} of Opt
+
+data Opt(Bool) = None | Some {Some: Bool} of Opt
+
+data Opt(%I64) = None | Some {Some: %I64} of Opt
+
+instance (Eq(a)) Eq(Opt(a)): Opt(a).==, Opt(a).!=
+
+fn Opt(a).==(lhs: Opt(a) [shared call], rhs: Opt(a) [shared call]) -> Bool {
+  form specialized
+  slot #0 type a
+  slot #1 class Eq(a)
+  local x: a [shared call]
+  local y: a [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (lhs.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %15: U8 = read copy.trivial (lhs.#)
+  %16: U8 = const 0
+  %17: Bool = eq inspect %15 inspect %16
+  branch inspect %17 -> bb6 -> bb2
+
+bb2:
+  %24: Bool = const False
+  jump -> bb3(take %24)
+
+bb3(%25: Bool):
+  return take %25
+
+bb4:
+  %4: U8 = read copy.trivial (rhs.#)
+  %5: U8 = const 1
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb5 -> bb1
+
+bb5:
+  %8: a [shared call] = read borrow.shared (lhs.Some) loan0
+  write.init borrow.unique (x) borrow.shared %8
+  %10: a [shared call] = read borrow.shared (rhs.Some) loan1
+  write.init borrow.unique (y) borrow.shared %10
+  %12: a [shared call] = read borrow.shared (x) loan2 roots{0}
+  %13: a [shared call] = read borrow.shared (y) loan3 roots{1}
+  %14: Bool = call ==(a) borrow.shared %12 borrow.shared %13
+  jump -> bb3(take %14)
+
+bb6:
+  %19: U8 = read copy.trivial (rhs.#)
+  %20: U8 = const 0
+  %21: Bool = eq inspect %19 inspect %20
+  branch inspect %21 -> bb7 -> bb2
+
+bb7:
+  %23: Bool = const True
+  jump -> bb3(take %23)
+}
+
+fn Opt(a).!=(lhs: Opt(a) [shared call], rhs: Opt(a) [shared call]) -> Bool {
+  form specialized
+  slot #0 type a
+  slot #1 class Eq(a)
+bb0:
+  %0: Opt(a) [shared call] = read borrow.shared (lhs) loan0
+  %1: Opt(a) [shared call] = read borrow.shared (rhs) loan1
+  %2: Bool = call ==(Opt(a)) borrow.shared %0 borrow.shared %1
+  %3: Bool = not inspect %2
+  return take %3
+}
+
+fn none'2() -> Opt(I32) {
+bb0:
+  %0: Opt(I32) = aggregate.None
+  return take %0
+}
+
+fn maybes() -> I64 {
+  local & score: I64
+
+bb0:
+  %0: I64 = const 0
+  write.init borrow.unique (score) take %0
+  %2: I32 = const 1
+  %3: Opt(I32) = aggregate.Some take %2
+  %4: I32 = const 1
+  %5: Opt(I32) = aggregate.Some take %4
+  %6: Bool = call ==(Opt(I32)) borrow.shared %3 borrow.shared %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %14: I32 = const 1
+  %15: Opt(I32) = aggregate.Some take %14
+  %16: I32 = const 2
+  %17: Opt(I32) = aggregate.Some take %16
+  %18: Bool = call !=(Opt(I32)) borrow.shared %15 borrow.shared %17
+  branch inspect %18 -> bb6 -> bb4
+
+bb3:
+  %8: I64 = read copy.trivial (score)
+  %9: I64 = const 1
+  %10: I64 = add inspect %8 inspect %9
+  write.assign borrow.unique (score) take %10
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %26: Opt(I32) = call none'2
+  %27: Opt(I32) = call none'2
+  %28: Bool = call ==(Opt(I32)) borrow.shared %26 borrow.shared %27
+  branch inspect %28 -> bb9 -> bb7
+
+bb6:
+  %20: I64 = read copy.trivial (score)
+  %21: I64 = const 2
+  %22: I64 = add inspect %20 inspect %21
+  write.assign borrow.unique (score) take %22
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %36: Bool = const True
+  %37: Opt(Bool) = aggregate.Some take %36
+  %38: Bool = const False
+  %39: Opt(Bool) = aggregate.Some take %38
+  %40: Bool = call !=(Opt(Bool)) borrow.shared %37 borrow.shared %39
+  branch inspect %40 -> bb12 -> bb10
+
+bb9:
+  %30: I64 = read copy.trivial (score)
+  %31: I64 = const 4
+  %32: I64 = add inspect %30 inspect %31
+  write.assign borrow.unique (score) take %32
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %48: I64 = read copy.trivial (score)
+  return take %48
+
+bb12:
+  %42: I64 = read copy.trivial (score)
+  %43: I64 = const 8
+  %44: I64 = add inspect %42 inspect %43
+  write.assign borrow.unique (score) take %44
+  jump -> bb11
+}
+
+fn smaller(x: a, y: a) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Ord(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: a [shared call] = read borrow.shared (y) loan1
+  %2: Bool = call <(a) borrow.shared %0 borrow.shared %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  drop (x)
+  %5: a = read take (y)
+  jump -> bb2(take %5)
+
+bb2(%6: a):
+  return take %6
+
+bb3:
+  drop (y)
+  %4: a = read take (x)
+  jump -> bb2(take %4)
+}
+
+fn pointers() -> I64 {
+  local first: I64
+  local second: I64
+  local a: %I64 [owned here shape6 .*=shared slot 0]
+  local b: %I64 [owned here shape6 .*=shared slot 0]
+  local low: %I64
+  local high: %I64
+  local & score: I64
+  local local7: Ordering
+
+bb0:
+  %0: I64 = const 0
+  write.init borrow.unique (first) take %0
+  %2: I64 = const 0
+  write.init borrow.unique (second) take %2
+  %4: I64 [shared slot 0] = read borrow.shared (first) loan0
+  %5: %I64 [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
+  write.init borrow.unique (a) take %5
+  %7: I64 [shared slot 0] = read borrow.shared (second) loan1
+  %8: %I64 [owned here shape6 .*=shared slot 0] = address inspect %7 roots.0{1}
+  write.init borrow.unique (b) take %8
+  %10: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (a) roots.0{0}
+  %11: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (b) roots.0{1}
+  %12: %I64 = call smaller(%I64) take %10 take %11
+  write.init borrow.unique (low) take %12
+  %14: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (b) roots.0{1}
+  %15: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (a) roots.0{0}
+  %16: %I64 = call smaller(%I64) take %14 take %15
+  write.init borrow.unique (high) take %16
+  %18: I64 = const 0
+  write.init borrow.unique (score) take %18
+  %20: %I64 = read copy.trivial (low)
+  %21: %I64 = read copy.trivial (high)
+  %22: Bool = le inspect %20 inspect %21
+  branch inspect %22 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %30: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (a) roots.0{0}
+  %31: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (b) roots.0{1}
+  %32: %I64 = call smaller(%I64) take %30 take %31
+  %33: %I64 = read copy.trivial (low)
+  %34: Bool = eq inspect %32 inspect %33
+  branch inspect %34 -> bb6 -> bb4
+
+bb3:
+  %24: I64 = read copy.trivial (score)
+  %25: I64 = const 1
+  %26: I64 = add inspect %24 inspect %25
+  write.assign borrow.unique (score) take %26
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %42: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (a) roots.0{0}
+  %43: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (a) roots.0{0}
+  %44: Ordering = call compare(%I64) borrow.shared %42 borrow.shared %43
+  write.init borrow.unique (local7) take %44
+  %46: U8 = read copy.trivial (local7.#)
+  %47: U8 = const 1
+  %48: Bool = eq inspect %46 inspect %47
+  branch inspect %48 -> bb9 -> bb7
+
+bb6:
+  %36: I64 = read copy.trivial (score)
+  %37: I64 = const 2
+  %38: I64 = add inspect %36 inspect %37
+  write.assign borrow.unique (score) take %38
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %56: I64 = read copy.trivial (score)
+  return take %56
+
+bb9:
+  %50: I64 = read copy.trivial (score)
+  %51: I64 = const 4
+  %52: I64 = add inspect %50 inspect %51
+  write.assign borrow.unique (score) take %52
+  jump -> bb8
+}
+
+fn nested() -> I64 {
+  local value: I64
+  local p: %I64 [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I64 = const 0
+  write.init borrow.unique (value) take %0
+  %2: I64 [shared slot 0] = read borrow.shared (value) loan0
+  %3: %I64 [owned here shape6 .*=shared slot 0] = address inspect %2 roots.0{0}
+  write.init borrow.unique (p) take %3
+  %5: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %6: Opt(%I64) = aggregate.Some take %5
+  %7: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %8: Opt(%I64) = aggregate.Some take %7
+  %9: Bool = call ==(Opt(%I64)) borrow.shared %6 borrow.shared %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %14: I64 = const 0
+  return take %14
+
+bb3:
+  %11: I64 = const 16
+  return take %11
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I64 = call maybes
+  %1: I64 = call pointers
+  %2: I64 = add inspect %0 inspect %1
+  %3: I64 = call nested
+  %4: I64 = add inspect %2 inspect %3
+  %5: I32 = convert inspect %4
+  return take %5
+}
+
+fn Opt(a).==(I32)(lhs: Opt(I32) [shared call], rhs: Opt(I32) [shared call]) -> Bool = <Opt(a).== at I32>
+
+fn Opt(a).!=(I32)(lhs: Opt(I32) [shared call], rhs: Opt(I32) [shared call]) -> Bool = <Opt(a).!= at I32>
+
+fn Opt(a).!=(Bool)(lhs: Opt(Bool) [shared call], rhs: Opt(Bool) [shared call]) -> Bool = <Opt(a).!= at Bool>
+
+fn smaller(%I64)(x: %I64, y: %I64) -> %I64 = <smaller at %I64>
+
+fn Opt(a).==(%I64)(lhs: Opt(%I64) [shared call], rhs: Opt(%I64) [shared call]) -> Bool = <Opt(a).== at %I64>
+
+fn Opt(a).==(Bool)(lhs: Opt(Bool) [shared call], rhs: Opt(Bool) [shared call]) -> Bool = <Opt(a).== at Bool>
+
+entry main

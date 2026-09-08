@@ -78,10 +78,21 @@
  * intrinsic or a body the conversion declined; `Lowering::run` skips it on that test alone, so
  * clearing its flag would change nothing and lose the record of what MIR concluded.
  *
- * Globals are left alone entirely. `Global::reachable` is what `lowerGlobal` reads, nothing in this
- * directory removes a `global.addr`, and a sweep that answered about globals would have to be right
- * about the constant tree as well - which is a second question with a second way to be wrong for a
- * few bytes of read-only data.
+ * ## And the globals, which are a second walk and not this one
+ *
+ * `markReachableGlobals` is below, and it runs **once, after the per-function loop** rather than
+ * inside the inliner's rounds. That is the whole of the difference between the two questions: a
+ * function stops being reachable when the inliner splices its last call away, which is a fact the
+ * inliner's own threshold then reads; a *global* stops being reachable when the folder answers its
+ * last read, which does not happen until every body has been optimized. Asking early would answer
+ * about a program that no longer exists by the time anything is lowered.
+ *
+ * This file used to say globals were "left alone entirely", on the grounds that a sweep would have
+ * to be right about the constant tree as well. It does have to be, and that is the walk below: a
+ * string global is bytes plus a relocation from the run that describes it, so a global reachable
+ * only from another global's initializer is reachable. The cost of getting it wrong is not "a few
+ * bytes of read-only data" but a relocation pointing at storage that was never emitted, which is
+ * why the tree is walked rather than approximated.
  */
 
 namespace ssa {
@@ -165,6 +176,18 @@ struct Reachability {
             for(auto role: allocator) root(program.roles.function(role));
         }
 
+        /*
+         * And the located check pair under `-check-locations`, for exactly the allocator's reason:
+         * the substitution happens in the lowering (`Lowering::locatedCheck`), which is after this
+         * walk, so nothing in the SSA names either declaration and a walk over calls finds neither.
+         */
+        if(opt.context.settings.checkLocations) {
+            intrinsic::Known located[2] = { intrinsic::Known::checkFailedAt,
+                                            intrinsic::Known::checkConditionAt };
+
+            for(auto role: located) root(program.roles.function(role));
+        }
+
         if(program.entry) {
             root(program.entry);
         } else {
@@ -214,6 +237,136 @@ struct Reachability {
 
 void markProgramReachable(OptContext& opt) {
     Reachability walk { opt };
+    walk.run();
+}
+
+namespace {
+
+/*
+ * The globals a reachable body still names, and the ones those name in turn.
+ *
+ * The reason this is worth a walk: `lib/`'s scalar constants - `pageBytes`, `vectorBytes`,
+ * `heapRegionSize`, `runFromHeap` and six more - are immutable module-level `let`s whose *reads*
+ * fold to the number, in this stage as in the shipping one. What did not go away was the storage,
+ * so every program that touched the heap carried ten `.data` objects each referenced exactly once,
+ * by its own definition. §78.7's item 7 and 1584 bytes over the thirteen-program corpus.
+ *
+ * Two kinds of edge, and both are needed:
+ *
+ *  - a **`GlobalAddress`** in a surviving instruction, which is every read, every write and every
+ *    `addressOf`. A global reference in this IR has no other spelling;
+ *  - a **`Constant::Address`** anywhere in a rooted global's initializer or in a body's own
+ *    constants, which is the string case: `stringLiteral` describes a run out of the address of a
+ *    byte global, so the bytes are named by the descriptor's initializer and by nothing else. Three
+ *    instructions hold a constant, not one - `Const`, and a `Map`'s table and its fallback. A walk
+ *    that missed the table asserted in `Lowering::materialize` on the first constructor map of
+ *    strings, which is what says the third edge is real rather than defensive.
+ *
+ * `Global::dynamic` needs no root of its own. What fills such a global is a `store` through a
+ * `global.addr` in the entry's own body, so the first edge finds it; a dynamic global nothing writes
+ * and nothing reads is one whose initializer ran nowhere.
+ *
+ * The supplied roles need none either, and that is the same answer the shipping stage gives:
+ * `Lowering::declareGlobal` is what fills `LowerModule::builtins`, so a global this walk drops is
+ * one the entry stub then stores nothing into - which is what `commandLineCount` unread has always
+ * meant.
+ *
+ * **Clear, never set**, for `Reachability`'s reason: MIR marked every global a body mentioned, and
+ * this is that answer minus what the optimizer removed.
+ */
+struct GlobalReachability {
+    OptContext& opt;
+
+    Array<DeclPtr<mir::Global>> reached;
+    HashMap<U32, bool> seen;
+    Size next = 0;
+
+    void root(DeclPtr<mir::Global> global) {
+        if(!global) return;
+
+        auto entry = seen.add(global.offset);
+        if(entry.existed) return;
+
+        *entry.value = true;
+        reached.push(global);
+    }
+
+    // A constant and everything under it - the aggregate case is a fixed array's elements or a
+    // constructor's fields, and a string's descriptor is exactly that shape with an address in it.
+    void rootConstant(const mir::Constant& constant) {
+        if(constant.kind == mir::Constant::Address) {
+            root(constant.asGlobal());
+            return;
+        }
+
+        if(constant.kind != mir::Constant::Aggregate) return;
+
+        for(auto part: opt.decl[constant.aggregate()]->values.contents(opt.decl)) {
+            rootConstant(part);
+        }
+    }
+
+    void walk(mir::Function& function) {
+        if(!function.ssa) return;
+
+        auto body = opt.base[function.ssa];
+
+        for(U32 i = 0; i < body->blocks.size(); i++) {
+            auto block = body->block(opt.base, BlockId(i));
+            if(block->deleted) continue;
+
+            for(auto pointer: block->instructions(opt.base)) {
+                auto inst = opt.base[pointer];
+
+                if(inst->kind == Inst::GlobalAddress) {
+                    root(((InstGlobalAddress&)*inst).global);
+                } else if(inst->kind == Inst::Const) {
+                    rootConstant(((InstConst&)*inst).constant);
+                } else if(inst->kind == Inst::Map) {
+                    // The third holder of a constant, and the one a walk over `Const` alone misses:
+                    // a `match` over literals carries its whole table, so a constructor map of
+                    // strings names every one of their byte globals and nothing else does.
+                    auto& map = (InstMap&)*inst;
+                    for(auto entry: map.entries.contents(opt.base)) rootConstant(entry.value);
+                    rootConstant(map.fallback);
+                }
+            }
+        }
+    }
+
+    void run() {
+        auto& program = opt.program;
+
+        for(auto modulePointer: program.modules) {
+            auto module = opt.decl[modulePointer];
+
+            for(auto pointer: module->functions.contents(opt.decl)) {
+                auto function = opt.decl[pointer];
+                if(function->reachable) walk(*function);
+            }
+        }
+
+        // The tree, after the bodies: a global reached from a body may name others in its own
+        // initializer, and those may name more.
+        while(next < reached.size()) rootConstant(opt.decl[reached[next++]]->initial);
+
+        for(auto modulePointer: program.modules) {
+            auto module = opt.decl[modulePointer];
+
+            for(auto pointer: module->globals.contents(opt.decl)) {
+                auto global = opt.decl[pointer];
+                if(!global->reachable) continue;
+
+                if(!seen.getValue(pointer.offset)) global->reachable = false;
+            }
+        }
+    }
+};
+
+} // namespace
+
+void markReachableGlobals(OptContext& opt) {
+    GlobalReachability walk { opt };
     walk.run();
 }
 

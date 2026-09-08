@@ -16,7 +16,7 @@ bb0:
   store inspect %0 consume %3
   %4: I32 [unique slot 0] guaranteed = load inspect %0
   %5: lastUse.cont.env affine = aggregate.lastUse.cont.env borrow %4
-  %6: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value lastUse.cont borrow %5
+  %6: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value lastUse.cont borrow %5
   %7: I32 trivial = call logged(I32) borrow %6
   jump -> bb1
 
@@ -38,7 +38,7 @@ bb0:
   store inspect %0 consume %3
   %4: I32 [unique slot 0] guaranteed = load inspect %0
   %5: boundInside.cont.env affine = aggregate.boundInside.cont.env borrow %4
-  %6: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value boundInside.cont borrow %5
+  %6: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value boundInside.cont borrow %5
   %7: I32 trivial = call logged(I32) borrow %6
   jump -> bb1
 
@@ -60,7 +60,7 @@ bb0:
   store inspect %0 consume %3
   %4: I32 [unique slot 0] guaranteed = load inspect %0
   %5: nestedFlat.cont'2.env affine = aggregate.nestedFlat.cont'2.env borrow %4
-  %6: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value nestedFlat.cont'2 borrow %5
+  %6: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value nestedFlat.cont'2 borrow %5
   %7: I32 trivial = call logged(I32) borrow %6
   jump -> bb1
 
@@ -84,7 +84,7 @@ bb0(%0: I32 [shared call] guaranteed):
   %6: I32 [unique slot 1] guaranteed = load inspect %2
   %7: I32 [unique slot 2] guaranteed = load inspect %3
   %8: returnInside.cont.env affine = aggregate.returnInside.cont.env borrow %5 borrow %6 borrow %7
-  %9: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value returnInside.cont borrow %8
+  %9: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value returnInside.cont borrow %8
   %10: I32 trivial = call logged(I32) borrow %9
   %11: I32 trivial = const 1
   %12: Bool trivial = eq inspect %10 inspect %11
@@ -124,7 +124,7 @@ bb2:
 
 bb3:
   %9: insideArm.cont.env trivial = aggregate.insideArm.cont.env
-  %10: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value insideArm.cont inspect %9
+  %10: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value insideArm.cont inspect %9
   %11: I32 trivial = call logged(I32) borrow %10
   jump -> bb4
 
@@ -142,7 +142,7 @@ bb0:
   store inspect %0 consume %3
   %4: I32 [unique slot 0] guaranteed = load inspect %0
   %5: insideScoped.cont'2.env affine = aggregate.insideScoped.cont'2.env borrow %4
-  %6: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value insideScoped.cont'2 borrow %5
+  %6: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value insideScoped.cont'2 borrow %5
   %7: I32 trivial = call logged(I32) borrow %6
   jump -> bb1
 
@@ -166,7 +166,7 @@ bb0:
   %5: Counter [unique call] guaranteed from{%0} = load inspect %0
   %6: I32 [unique slot 0] guaranteed = load inspect %1
   %7: borrowed.cont.env affine = aggregate.borrowed.cont.env borrow %6
-  %8: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value borrowed.cont borrow %7
+  %8: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value borrowed.cont borrow %7
   %9: I32 trivial = call bumped(I32) borrow %5 borrow %8
   jump -> bb1
 
@@ -194,7 +194,7 @@ bb0:
   store inspect %0 consume %3
   %4: I32 [unique slot 0] guaranteed = load inspect %0
   %5: scopedInside.cont'2.env affine = aggregate.scopedInside.cont'2.env borrow %4
-  %6: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value scopedInside.cont'2 borrow %5
+  %6: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value scopedInside.cont'2 borrow %5
   %7: I32 trivial = call logged(I32) borrow %6
   jump -> bb1
 
@@ -235,7 +235,7 @@ bb3:
   store inspect %2 consume %12
   %13: I32 [unique slot 0] guaranteed = load inspect %3
   %14: inLoop.cont.env affine = aggregate.inLoop.cont.env borrow %13
-  %15: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value inLoop.cont borrow %14
+  %15: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value inLoop.cont borrow %14
   %16: I32 trivial = call logged(I32) borrow %15
   jump -> bb4
 
@@ -447,7 +447,7 @@ bb0(%0: nestedFlat.cont'2.env [unique call] guaranteed, %1: I32 [shared call] gu
   %5: I32 [unique slot 0] guaranteed = load inspect %4
   %6: I32 [unique slot 1] guaranteed = load inspect %3
   %7: nestedFlat.cont.env affine = aggregate.nestedFlat.cont.env borrow %5 borrow %6
-  %8: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value nestedFlat.cont borrow %7
+  %8: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value nestedFlat.cont borrow %7
   %9: I32 trivial = call logged(I32) borrow %8
   jump -> bb1
 
@@ -532,7 +532,7 @@ bb0(%0: insideScoped.cont'2.env [unique call] guaranteed, %1: I32 [shared call] 
   %5: I32 [unique slot 0] guaranteed = load inspect %4
   %6: I32 [unique slot 1] guaranteed = load inspect %3
   %7: insideScoped.cont.env affine = aggregate.insideScoped.cont.env borrow %5 borrow %6
-  %8: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value insideScoped.cont borrow %7
+  %8: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value insideScoped.cont borrow %7
   %9: I32 trivial = call logged(I32) borrow %8
   jump -> bb1
 
@@ -585,7 +585,7 @@ bb0(%0: scopedInside.cont'2.env [unique call] guaranteed, %1: I32 [shared call] 
   %5: I32 [unique slot 0] guaranteed = load inspect %4
   %6: I32 [unique slot 1] guaranteed = load inspect %3
   %7: scopedInside.cont.env affine = aggregate.scopedInside.cont.env borrow %5 borrow %6
-  %8: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value scopedInside.cont borrow %7
+  %8: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value scopedInside.cont borrow %7
   %9: I32 trivial = call logged(I32) borrow %8
   jump -> bb1
 

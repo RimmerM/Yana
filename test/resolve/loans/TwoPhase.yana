@@ -1,0 +1,51 @@
+{-
+   An argument evaluated after the one that borrowed its storage exclusively.
+
+   `doc/spec/expressions.md` evaluates arguments left to right and the callee runs after all of them,
+   so `pushFill(to, value.fill, value.width - (length(to) - start))` - `lib/Core/Format/Field.yana` -
+   reads `to` at a point where nothing can yet have written through the `&to` the first argument
+   took. `remove(self.entries, entryCount(self) - 1)` and `indexPlace(self, at, hashAt(self, at))` in
+   `lib/Core/Map` are the same line written twice more.
+
+   So a unique loan **excludes a shared read only once something has used it**. Between the read that
+   mints it and the first operand naming that read's result it is a *reservation*: it still excludes
+   a write, a move and a second unique loan - the three that could observe or invalidate it - and it
+   does not exclude a read. `Reject.TwoPhase.yana` is the other half, where the reservation becomes
+   exclusive at the call and the shared borrow handed over beside it is still live there.
+
+   The subject is a type with a teardown, so the reads are loans rather than copies: a `TrivialCopy`
+   argument is copied at a default position and mints nothing at all, which is why the same shape
+   over an `Int` never needed this.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+-- Shared, and the result is owned: what comes back is a number and not a borrow, so the loan this
+-- read takes dies at the call.
+fn size(g: Guard) -> I32 = g.id
+
+fn bump(&g: Guard, by: I32): g.id = g.id + by
+
+-- The argument that reads what the argument before it borrowed exclusively.
+fn twice(&g: Guard): bump(g, size(g))
+
+-- The same through a projection, which is what `to` in `Format/Field.yana` is.
+data Box {held: Guard, tag: I32}
+
+fn viaField(&b: Box): bump(b.held, size(b.held) + b.tag)
+
+fn main() -> I32:
+    let &g = Guard {id: 3}
+    twice(g)
+
+    let &b = Box {held: Guard {id: 5}, tag: 1}
+    viaField(b)
+
+    -- 6 and 11, read before either goes out of scope, so `trace` is still nothing.
+    return g.id + b.held.id + trace

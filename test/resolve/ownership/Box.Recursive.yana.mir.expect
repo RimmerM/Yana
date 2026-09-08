@@ -8,7 +8,7 @@ data Stack(a) = Empty | Top {item: a, rest: Stack(a)} drop derived reclaim deriv
 
 data Stack(I32) = Empty | Top {item: I32, rest: @box Stack(I32)} of Stack reclaim derived
 
-fn sum(xs: List [shared call]) -> I32 {
+fn sum'2(xs: List [shared call]) -> I32 {
   local head: I32
   local tail: List [shared call]
 
@@ -25,7 +25,7 @@ bb1:
   write.init borrow.unique (tail) borrow.shared %8
   %10: I32 = read copy.trivial (head)
   %11: List [shared call] = read borrow.shared (tail) loan1 roots{0}
-  %12: I32 = call sum borrow.shared %11
+  %12: I32 = call sum'2 borrow.shared %11
   %13: I32 = add inspect %10 inspect %12
   return take %13
 
@@ -34,7 +34,7 @@ bb2:
   return take %4
 }
 
-fn length(xs: List [shared call]) -> I32 {
+fn length'2(xs: List [shared call]) -> I32 {
   local head: I32
   local tail: List [shared call]
 
@@ -51,7 +51,7 @@ bb1:
   write.init borrow.unique (tail) borrow.shared %8
   %10: I32 = const 1
   %11: List [shared call] = read borrow.shared (tail) loan1 roots{0}
-  %12: I32 = call length borrow.shared %11
+  %12: I32 = call length'2 borrow.shared %11
   %13: I32 = add inspect %10 inspect %12
   return take %13
 
@@ -192,7 +192,7 @@ bb2:
   return take %4
 }
 
-fn count(s: Stack(I32) [shared call]) -> I32 {
+fn count'2(s: Stack(I32) [shared call]) -> I32 {
   local item: I32
   local rest: Stack(I32) [shared call]
 
@@ -209,7 +209,7 @@ bb1:
   write.init borrow.unique (rest) borrow.shared %8
   %10: I32 = const 1
   %11: Stack(I32) [shared call] = read borrow.shared (rest) loan1 roots{0}
-  %12: I32 = call count borrow.shared %11
+  %12: I32 = call count'2 borrow.shared %11
   %13: I32 = add inspect %10 inspect %12
   return take %13
 
@@ -236,7 +236,7 @@ bb1:
   %10: I32 = read copy.trivial (item)
   %11: Stack(I32) [shared call] = read borrow.shared (rest) loan1 roots{0}
   %12: I32 = call peak borrow.shared %11
-  %13: I32 = call max borrow.shared %10 borrow.shared %12
+  %13: I32 = call max'3 borrow.shared %10 borrow.shared %12
   return take %13
 
 bb2:
@@ -244,7 +244,7 @@ bb2:
   return take %4
 }
 
-fn max(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+fn max'3(a: I32 [shared call], b: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (a)
   %1: I32 = read copy.trivial (b)
@@ -282,7 +282,7 @@ bb0:
   %6: List = aggregate.Cons take %0 take %5
   write.init borrow.unique (xs) take %6
   %8: List [shared call] = read borrow.shared (xs) loan0
-  %9: I32 = call sum borrow.shared %8
+  %9: I32 = call sum'2 borrow.shared %8
   drop (xs)
   %10: I32 = const 6
   %11: Bool = ne inspect %9 inspect %10
@@ -299,7 +299,7 @@ bb2:
   %20: List = aggregate.Cons take %16 take %19
   write.init borrow.unique (ys) take %20
   %22: List [shared call] = read borrow.shared (ys) loan1
-  %23: I32 = call length borrow.shared %22
+  %23: I32 = call length'2 borrow.shared %22
   drop (ys)
   %24: I32 = const 2
   %25: Bool = ne inspect %23 inspect %24
@@ -375,7 +375,7 @@ bb11:
   %75: Stack(I32) = aggregate.Top take %69 take %74
   write.init borrow.unique (stack) take %75
   %77: Stack(I32) [shared call] = read borrow.shared (stack) loan4
-  %78: I32 = call count borrow.shared %77
+  %78: I32 = call count'2 borrow.shared %77
   %79: I32 = const 3
   %80: Bool = ne inspect %78 inspect %79
   branch inspect %80 -> bb15 -> bb13

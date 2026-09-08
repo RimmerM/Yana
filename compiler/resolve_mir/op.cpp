@@ -221,14 +221,41 @@ bool operandTypeAllowed(Program& program, UnaryCategory category, DeclPtr<Type> 
         case UnaryCategory::Bits:
             return kind == Type::Int || type == booleanType(program);
 
-        // An address is one of these, which is the whole of what the row adds - see `UnaryCategory`.
+        /*
+         * An address is one of these, which is the whole of what the row adds - see `UnaryCategory`.
+         *
+         * And an **enum**, for the reason it compares: its value *is* its tag, so reading it as the
+         * integer the tag is is a renaming rather than a conversion, and the two ends are the same
+         * width by construction (`tagTypeOf` is what the pair is built from). That is the crossing
+         * `Enum`'s `valueOf` and `fromValue` are made of, and the one that lets a payload-free sum
+         * be *ordered*: `Ord`'s four comparisons are `Order`, which is arithmetic and refuses a
+         * record, so the operands arrive here first. Nothing else about a record is admitted - a
+         * multi-constructor sum with a payload has bits a number could not stand for.
+         */
         case UnaryCategory::Raw:
-            return kind == Type::Int || kind == Type::Float || kind == Type::Pointer;
+            return kind == Type::Int || kind == Type::Float || kind == Type::Pointer ||
+                   isEnumRecord(base, type);
 
-        // A float and nothing else - see `UnaryCategory::Float`, where the reason it is a category
-        // rather than a test at each emitter is written.
+        /*
+         * A float, and a **type variable** - see `UnaryCategory::Float`, where the reason it is a
+         * category rather than a test at each emitter is written.
+         *
+         * The variable is the one place this category differs from `Arith` and `Bits`, and the
+         * reason is which end the promise is at. `neg` at an open `a` is a body assuming something
+         * about `a` that no constraint said, and there is a class - `Num` - it could have said it
+         * with. `sqrt`, `fma` and the four roundings have none: `op.def` declares each over an
+         * unconstrained `a` because "the class that would bound it does not exist", so a body
+         * compiled once over `Real(a, m)` has nothing it could have written and no way to reach
+         * them at all if a variable is refused - twelve sites in `lib/Math`.
+         *
+         * What is given up is nothing new: a *vector* whose lane is a variable has been admitted
+         * here since the portable set landed, on the same argument. What replaces the check is where
+         * it is made - `resolve_ssa/convert.cpp` asks it again with the substitution applied, which
+         * is the point the type is known and the point a specialization at a non-float would
+         * otherwise reach the machine.
+         */
         case UnaryCategory::Float:
-            return kind == Type::Float;
+            return kind == Type::Float || kind == Type::Variable;
     }
 
     return false;

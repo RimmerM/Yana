@@ -244,6 +244,23 @@ enum class InlineLevel: U8 {
     Speed,    /// Larger budgets and smaller penalties for a callee called from several places.
 };
 
+/*
+ * Which shape a multi-way branch is spent in, for a target that has to choose - see
+ * `chooseSwitchForm` in codegen/x64/transform_switch.cpp.
+ *
+ * `Auto` is the thresholds, and is what everything but a measurement wants. The other three force
+ * one form on every switch in the program, which is the same kind of knob `-inline` is and exists
+ * for the same reason: which form is worth taking is a *measurement*, and a measurement needs the
+ * three compiled from one binary over one program. §77 of test/bench/findings.md is what it
+ * produced, and it is also how the binary search - which the thresholds never pick - stays exercised.
+ */
+enum class SwitchForm: U8 {
+    Auto,         /// The thresholds decide. The default and the only thing a build should ship with.
+    Chain,        /// A comparison per case, in case order.
+    BinarySearch, /// A tree of comparisons over the sorted case values.
+    JumpTable,    /// A placed table of code offsets, indexed by the selector.
+};
+
 // The one provider name the compiler knows, and it knows it only as what `-allocator` starts at -
 // see `allocatorSelector`, where the argument for that is written.
 static constexpr StringView kDefaultAllocator = "bootstrap"_v;
@@ -408,6 +425,10 @@ struct CompileSettings {
     /// since the whole stage is off otherwise.
     InlineLevel inlining = InlineLevel::Balanced;
 
+    /// Which shape a multi-way branch is spent in - see SwitchForm. A measurement's knob; `Auto` is
+    /// the thresholds and is what every build but a probe uses.
+    SwitchForm switchForm = SwitchForm::Auto;
+
     /*
      * The checks a program stops on - a subscript's bounds test, and the range test on a store
      * through a `@bits` refinement.
@@ -425,7 +446,7 @@ struct CompileSettings {
      * **What a check *is* differs between the two resolve stages, and the switch means the same
      * thing either way.** `compiler/resolve` emits `checkCondition(index >= length)` at the
      * subscript and `opt/opt_check.cpp` removes the calls it emitted. The ownership stage emits
-     * nothing at all: `prelude/Core/Array.yana`'s `Index.get` writes the test as a library `if` and
+     * nothing at all: `lib/Core/Array.yana`'s `Index.get` writes the test as a library `if` and
      * `@inline(always)` grafts it into the caller, so what `resolve_ssa/opt/check.cpp` removes is a
      * branch whose whole taken arm calls the `checkFailed` role. Both are read in the optimizer and
      * above its own gate, so a resolved program is the same either way - a library built checked
@@ -434,7 +455,7 @@ struct CompileSettings {
      * **Under the ownership stage it takes the library's other stops with it**, and that is the one
      * place the two switches do not remove the same set. What is recognized there is the role and
      * not the site, so every `checkFailed` the library reached for goes:
-     * `prelude/Core/Array.yana`'s `reserve` writes `if !resize(self.run, wide) then checkFailed()`,
+     * `lib/Core/Array.yana`'s `reserve` writes `if !resize(self.run, wide) then checkFailed()`,
      * so an unchecked build has no allocation-failure stop and a `push` that could not get the room
      * carries on into storage it does not have. That is the honest consequence of a library whose
      * checks are library code rather than a hole in the rule - recognizing the *condition* instead

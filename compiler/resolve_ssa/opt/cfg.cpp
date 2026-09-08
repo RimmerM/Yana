@@ -172,31 +172,153 @@ struct ArgumentCleaner {
      * because a predecessor whose two arms both land here owes two answers.
      */
     Value* onlyAnswer(Block& block, Size position, Value& argument) {
-        Value* only = nullptr;
-        auto agreed = true;
+        SmallArray<Value*, 8> supplied;
+        auto complete = true;
 
         for(auto pointer: block.incoming(opt.base)) {
             auto end = opt.base[pointer]->terminator(opt.base);
             if(!end) return nullptr;
 
-            forEachEdge(*end, [&](Edge& edge) {
+            forEachEdge(opt.base, *end, [&](Edge& edge) {
                 if(!edge.target || opt.base[edge.target] != &block) return;
 
                 auto used = edge.arguments.get(opt.base, position);
-                if(!used.isSet()) { agreed = false; return; }
+                if(!used.isSet()) { complete = false; return; }
 
-                auto value = opt.base[used.value()];
-                if(value == &argument) return;
-
-                if(!only) only = value;
-                else if(only != value) agreed = false;
+                supplied.push(opt.base[used.value()]);
             });
+        }
 
-            if(!agreed) return nullptr;
+        if(!complete) return nullptr;
+
+        /*
+         * The candidate first, over a list of the operands rather than as the walk goes.
+         *
+         * An operand that *chooses between* this argument and the answer is an answer too - see
+         * `choosesBetween` - and whether it is one cannot be decided until the answer is known. So
+         * the candidate is the first operand that is neither the argument nor such a choice, and
+         * only then is every operand checked against it. Deciding as the walk went made the verdict
+         * depend on which edge came first.
+         */
+        Value* only = nullptr;
+        for(auto value: supplied) {
+            if(value == &argument || choosesOver(value, argument, 0)) continue;
+
+            only = value;
+            break;
+        }
+
+        // And the fallback, which is the rule as it stood: where every operand is such a choice
+        // there is nothing for them to agree *with*, so the first non-self operand is the candidate
+        // and the loop below decides it on identity and constants alone.
+        if(!only) {
+            for(auto value: supplied) {
+                if(value == &argument) continue;
+
+                only = value;
+                break;
+            }
+        }
+
+        if(!only) return nullptr;
+
+        for(auto value: supplied) {
+            if(value == &argument || value == only) continue;
+
+            if(sameConstant(only, value)) { byConstant = true; continue; }
+            if(choosesBetween(value, argument, only, 0)) continue;
+
+            return nullptr;
         }
 
         return only;
     }
+
+    // How deep a chain of choices is followed. Two nested selects is past anything if-conversion
+    // builds over one block argument, and the bound is what makes this terminate on a cycle.
+    static constexpr U32 kChoiceDepth = 3;
+
+    /*
+     * Whether a value is a `select` this argument is an arm of - the operands that cannot answer for
+     * themselves and have to wait for a candidate. Read only by the candidate scan above.
+     */
+    bool choosesOver(Value* value, Value& argument, U32 depth) {
+        if(!value || !value->definer || depth > kChoiceDepth) return false;
+
+        auto definer = opt.base[value->definer];
+        if(definer->kind != Inst::Select) return false;
+
+        auto& select = (InstSelect&)*definer;
+        for(auto used: { select.whenTrue, select.whenFalse }) {
+            if(!used.isSet()) return false;
+
+            auto arm = opt.base[used.value()];
+            if(arm == &argument || choosesOver(arm, argument, depth + 1)) return true;
+        }
+
+        return false;
+    }
+
+    /*
+     * Whether a `select` between the argument and the answer is that answer - the second rule, and
+     * the one a promoted loop-carried value needs.
+     *
+     * The reasoning is the loop's own induction and is the same one that makes "the argument's own
+     * value is not an answer" sound one line up: if the argument is the answer everywhere it is
+     * read, then a choice whose every arm is either the argument or the answer produces the answer,
+     * whichever way the condition went - so the assumption survives the round trip and is therefore
+     * true of every iteration.
+     *
+     * What produces the shape is `convertSelects` over a promoted slot: an `iter fn`'s outcome
+     * signal is written on the arm that yielded and carried unchanged on the arm that did not, so
+     * if-conversion turns the two arms into `select(c, Proceed, %signal)` and hands *that* round the
+     * loop. Before `promote` reached such a slot the signal lived in storage and
+     * `removeDeadStorage` took it; as a value it is a cycle of two live-looking instructions that
+     * nothing outside reads, and this is what collapses it.
+     */
+    bool choosesBetween(Value* value, Value& argument, Value* only, U32 depth) {
+        if(!value || !value->definer || depth > kChoiceDepth) return false;
+
+        auto definer = opt.base[value->definer];
+        if(definer->kind != Inst::Select) return false;
+
+        auto& select = (InstSelect&)*definer;
+        for(auto used: { select.whenTrue, select.whenFalse }) {
+            if(!used.isSet()) return false;
+
+            auto arm = opt.base[used.value()];
+            if(arm == &argument || arm == only) continue;
+            if(sameConstant(only, arm)) { byConstant = true; continue; }
+            if(choosesBetween(arm, argument, only, depth + 1)) continue;
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /*
+     * Two `const` instructions holding one value, which this IR does not intern - `cse.cpp`'s
+     * `sameOperand` states the same rule for the same reason.
+     *
+     * Without it a block argument every edge answers with zero is not "one answer": the entry edge
+     * carries the conversion's constant and the latch carries one a fold made, and identity says
+     * they are two values. That is exactly what `decideBranchConditions` leaves behind on the arm it
+     * decided, so the two rules are one rewrite read from either end.
+     *
+     * The substitution then may **not** use either of them - a constant defined in one predecessor
+     * does not dominate the join - so `step` makes a fresh one at the top of the block, which is
+     * what `byConstant` says it has to.
+     */
+    bool sameConstant(Value* left, Value* right) {
+        auto a = constantOf(opt, left);
+        auto b = constantOf(opt, right);
+        return a && b && *a == *b;
+    }
+
+    // Whether the answer above was reached by comparing constants rather than by identity - see
+    // `sameConstant`. Set by `onlyAnswer` and read by its one caller.
+    bool byConstant = false;
 
     // The block arguments an edge was handing this value to - the readers a substitution can make
     // trivial. Taken before `replaceAllUses` moves them off this value's use list.
@@ -205,7 +327,7 @@ struct ArgumentCleaner {
             auto& user = *opt.base[pointer];
             if(!isTerminator(user.kind)) continue;
 
-            forEachEdge(user, [&](Edge& edge) {
+            forEachEdge(opt.base, user, [&](Edge& edge) {
                 if(!edge.target) return;
 
                 auto target = opt.base[edge.target];
@@ -227,7 +349,7 @@ struct ArgumentCleaner {
             auto end = opt.base[pointer]->terminator(opt.base);
             if(!end) continue;
 
-            forEachEdge(*end, [&](Edge& edge) {
+            forEachEdge(opt.base, *end, [&](Edge& edge) {
                 if(!edge.target || opt.base[edge.target] != &block) return;
 
                 auto used = edge.arguments.get(opt.base, position);
@@ -252,8 +374,24 @@ struct ArgumentCleaner {
         Value* only = nullptr;
 
         if(argument.useCount()) {
+            byConstant = false;
             only = onlyAnswer(*block, position, argument);
             if(!only) return false;
+
+            /*
+             * A fresh constant at the top of this block, where the edges agreed on a *value* rather
+             * than on one instruction - see `sameConstant`. It has to be here rather than in a
+             * predecessor: every use of a block argument is in a block this one dominates, so a
+             * constant at the top of it dominates all of them and one in an arm dominates none.
+             */
+            if(byConstant) {
+                if(!block->instructionCount()) return false;
+
+                auto constant = constantOf(opt, only);
+                auto at = opt.base[block->instructionAt(opt.base, 0)];
+                only = makeConstantValue(opt, *at, *constant);
+                if(!only) return false;
+            }
 
             // The conventions agree by construction - `checkEdge` compares an edge's operand
             // against the argument it fills - and this is that read back, the way `canSubstitute`
@@ -339,7 +477,7 @@ struct CfgCleaner {
         for(auto pointer: block.incoming(opt.base)) push(pointer);
 
         if(auto last = block.terminator(opt.base)) {
-            forEachEdge(*last, [&](Edge& edge) { push(edge.target); });
+            forEachEdge(opt.base, *last, [&](Edge& edge) { push(edge.target); });
         }
     }
 
@@ -436,6 +574,34 @@ struct CfgCleaner {
                                               whenFalse.pointer(), whenFalse.size());
             }
 
+            /*
+             * A multi-way branch - the cases, the fallback, and the one argument list they share.
+             *
+             * One list read off the fallback, on the same terms `makeBranch` supplies one to both of
+             * a branch's edges: every edge of a `switch` carries what was live before it.
+             */
+            case Inst::Switch: {
+                auto& written = (InstSwitch&)from;
+                auto items = written.cases.pointer(opt.base);
+                auto count = written.cases.size();
+
+                SmallArray<I64, 16> values;
+                SmallArray<Block*, 16> targets;
+
+                for(Size i = 0; i < count; i++) {
+                    values.push(items[i].value);
+                    targets.push(opt.base[items[i].edge.target]);
+                }
+
+                SmallArray<Use, 4> arguments;
+                for(auto used: written.fallback.arguments.contents(opt.base)) arguments.push(used);
+
+                return editor.makeSwitch(from.source, written.selector, values.pointer(),
+                                         targets.pointer(), count,
+                                         *opt.base[written.fallback.target], arguments.pointer(),
+                                         arguments.size());
+            }
+
             default:
                 return editor.makeUnreachable(from.source);
         }
@@ -481,6 +647,64 @@ struct CfgCleaner {
 
             taken = condition.unwrap() ? &branch.whenTrue : &branch.whenFalse;
         }
+
+        SmallArray<Use, 4> arguments;
+        for(auto used: taken->arguments.contents(opt.base)) arguments.push(used);
+
+        auto target = opt.base[taken->target];
+        auto editor = opt.ir();
+        editor.replaceTerminator(block, editor.makeJump(last->source, *target, arguments.pointer(),
+                                                        arguments.size()));
+
+        push(&block);
+        pushNeighbours(block);
+        return true;
+    }
+
+    /*
+     * The same three foldings for a multi-way branch - inventory D3.
+     *
+     * A **constant selector** is what arrives from the inliner: `nameOf(Red)` opened at a call whose
+     * argument is a literal is a `switch` on a number this pass knows, and the answer is one of its
+     * own edges. **Every edge at one target** is what this pass makes itself, and the tier below
+     * refuses it by name for a branch; a `switch` reaching only one block is a jump for the same
+     * reason.
+     *
+     * The third is **one case left**, which becomes a branch. Nothing produces one today, because
+     * the builder refuses to make a `switch` below three cases at all - it is here because that rule
+     * is only maintainable if a pass that deletes a case has somewhere to go, and
+     * `endNonReturningBlocks` is the pass that will.
+     */
+    bool foldSwitch(Block& block) {
+        auto last = block.terminator(opt.base);
+        if(!last || last->kind != Inst::Switch) return false;
+
+        auto& written = (InstSwitch&)*last;
+        auto items = written.cases.pointer(opt.base);
+        auto count = written.cases.size();
+        if(!written.fallback.target) return false;
+
+        Edge* taken = nullptr;
+
+        auto everyEdgeAgrees = true;
+        for(Size i = 0; i < count && everyEdgeAgrees; i++) {
+            everyEdgeAgrees = items[i].edge.target == written.fallback.target &&
+                              edgesAgree(items[i].edge, written.fallback);
+        }
+
+        if(everyEdgeAgrees) {
+            taken = &written.fallback;
+        } else if(written.selector.isSet()) {
+            auto selector = constantValueOf(opt, opt.base[written.selector.value()]);
+            if(!selector) return false;
+
+            taken = &written.fallback;
+            for(Size i = 0; i < count; i++) {
+                if(items[i].value == I64(selector.unwrap())) taken = &items[i].edge;
+            }
+        }
+
+        if(!taken) return false;
 
         SmallArray<Use, 4> arguments;
         for(auto used: taken->arguments.contents(opt.base)) arguments.push(used);
@@ -682,7 +906,7 @@ struct CfgCleaner {
 
             Size arm = 0;
             auto found = Size(~Size(0));
-            forEachEdge(*end, [&](Edge& edge) {
+            forEachEdge(opt.base, *end, [&](Edge& edge) {
                 if(found == ~Size(0) && edge.target && opt.base[edge.target] == &block) found = arm;
                 arm++;
             });
@@ -782,6 +1006,7 @@ struct CfgCleaner {
             if(block->deleted) continue;
 
             if(foldBranch(*block)) continue;
+            if(foldSwitch(*block)) continue;
             if(mergeInto(*block)) continue;
             spliceEmpty(*block);
         }
@@ -835,6 +1060,22 @@ struct CfgCleaner {
  * §44 of `test/bench/findings.md` measured the general form and it *costs*, because an empty block
  * in front of a join is where a set of edge copies is shared. So the predecessor of a threadable
  * join is always a `jump`, and the constant case is not a subset of the three - it is all of them.
+ *
+ * ## The join's own test, which is what an `iter fn`'s exit signal arrives as
+ *
+ * `branch %arg` is the shape a `Bool` join has and it is **not** the shape a continuation's signal
+ * has. The desugaring hands a plain integer over - `0` where the body ran on, `1` where it left -
+ * and the join compares it: `%c = eq %arg, 0` and `branch %c`. So the join holds two instructions,
+ * the branch reads neither of the edges' values directly, and every predecessor still knows outright
+ * which arm it selects. Reading the comparison here is what reaches `indexOfVectors`, whose loop
+ * carries that integer round the header and re-tests it every iteration - `decideBranchConditions`
+ * cannot, because the value is decided at a *merge* rather than under the arm that decided it.
+ *
+ * What the extra instructions cost is two conditions rather than one. Every instruction the join
+ * holds besides its terminator must be **pure**, since a threaded edge skips all of them, and its
+ * results must be read **only inside the join**, since a join every predecessor goes round is
+ * deleted with everything defined in it. An arm's edge operand defined in the join is refused for
+ * the second reason read forwards: it would name, at the predecessor, a value only the join defines.
  *
  * ## The three things that make a redirect legal, and they are the three rules of this tier
  *
@@ -903,6 +1144,97 @@ struct BranchThreader {
     }
 
     /*
+     * The join's own test, and the two shapes it has - see the note above.
+     *
+     * `compare` is null where the branch reads the block argument outright, which is the `Bool` join
+     * this pass was written for; where it is set, the join holds one equality against a constant and
+     * the branch reads that.
+     */
+    struct JoinTest {
+        Inst* compare = nullptr;
+        U64 constant = 0;
+        bool equal = true;
+    };
+
+    Maybe<JoinTest> readTest(Block& join, InstBranch& branch, Value& argument) {
+        auto condition = opt.base[branch.condition.value()];
+        if(condition == &argument) return Just(JoinTest {});
+
+        if(!condition->definer) return Nothing();
+
+        auto definer = opt.base[condition->definer];
+        if(definer->kind != Inst::Binary) return Nothing();
+        if(!definer->block || opt.base[definer->block] != &join) return Nothing();
+
+        auto& compare = (InstBinary&)*definer;
+        if(compare.op != BinaryOp::Eq && compare.op != BinaryOp::Ne) return Nothing();
+        if(!compare.lhs.isSet() || !compare.rhs.isSet()) return Nothing();
+
+        auto lhs = opt.base[compare.lhs.value()];
+        auto rhs = opt.base[compare.rhs.value()];
+
+        Maybe<U64> number = Nothing();
+        if(lhs == &argument) number = constantValueOf(opt, rhs);
+        else if(rhs == &argument) number = constantValueOf(opt, lhs);
+        if(!number) return Nothing();
+
+        return Just(JoinTest { definer, number.unwrap(), compare.op == BinaryOp::Eq });
+    }
+
+    // Which arm the value a predecessor hands over selects.
+    bool selectsTrue(const JoinTest& test, U64 supplied) {
+        if(!test.compare) return supplied != 0;
+        return (supplied == test.constant) == test.equal;
+    }
+
+    // Whether a value is defined by this block - its argument, or an instruction it holds.
+    bool definedIn(Block& join, Value& value) {
+        if(value.block) return opt.base[value.block] == &join;
+        return value.definer && opt.base[value.definer]->block
+               && opt.base[opt.base[value.definer]->block] == &join;
+    }
+
+    /*
+     * Whether everything the join computes stays inside it - the condition the extra instructions
+     * cost, in its two halves.
+     *
+     * A threaded edge **skips** the join, so nothing it holds may be anything but pure; and a join
+     * every predecessor goes round is **deleted**, so nothing it defines may be read from outside.
+     * The block argument is included in the second half rather than tested by use count, which is
+     * what makes "the argument's one reader is the branch" the special case it always was.
+     */
+    bool isSelfContained(Block& join, InstBranch& branch) {
+        for(Size i = 0; i < join.instructionCount(); i++) {
+            auto inst = opt.base[join.instructionAt(opt.base, i)];
+            if(isTerminator(inst->kind)) continue;
+            if(!isPure(inst->kind)) return false;
+
+            for(auto resultPointer: inst->results.contents(opt.base)) {
+                auto result = opt.base[resultPointer];
+                for(auto userPointer: result->uses(opt.base)) {
+                    if(opt.base[opt.base[userPointer]->block] != &join) return false;
+                }
+            }
+        }
+
+        auto argument = opt.base[join.argumentAt(opt.base, 0)];
+        for(auto userPointer: argument->uses(opt.base)) {
+            if(opt.base[opt.base[userPointer]->block] != &join) return false;
+        }
+
+        // And the way out: an arm operand this block defines would name, at the predecessor a
+        // redirect moves the edge to, a value only the join has.
+        auto outside = true;
+        forEachEdge(opt.base, branch, [&](Edge& edge) {
+            for(auto used: edge.arguments.contents(opt.base)) {
+                if(used.isSet() && definedIn(join, *opt.base[used.value()])) outside = false;
+            }
+        });
+
+        return outside;
+    }
+
+    /*
      * The constant a predecessor hands the join, and nothing where this pass would not move that
      * predecessor at all - the one statement of "this edge is one that goes round", read twice: once
      * by the strand test below and once by the walk that performs the redirect.
@@ -953,7 +1285,7 @@ struct BranchThreader {
      * `cleanCfg` deletes the arm, which is the same answer this declines to reach the wrong way
      * round.
      */
-    bool wouldStrand(Block& join, InstBranch& branch) {
+    bool wouldStrand(Block& join, InstBranch& branch, const JoinTest& test) {
         Size movable = 0;
         Size toTrue = 0;
         Size toFalse = 0;
@@ -963,7 +1295,7 @@ struct BranchThreader {
             if(!constant) continue;
 
             movable++;
-            if(constant.unwrap()) toTrue++; else toFalse++;
+            if(selectsTrue(test, constant.unwrap())) toTrue++; else toFalse++;
         }
 
         // A join that keeps a predecessor keeps its branch, and both arms keep the edge it owns.
@@ -979,7 +1311,7 @@ struct BranchThreader {
     }
 
     bool thread(Block& join) {
-        if(join.argumentCount() != 1 || join.instructionCount() != 1) return false;
+        if(join.argumentCount() != 1) return false;
 
         auto last = join.terminator(opt.base);
         if(!last || last->kind != Inst::Branch) return false;
@@ -987,16 +1319,19 @@ struct BranchThreader {
         auto& branch = (InstBranch&)*last;
         if(!branch.condition.isSet()) return false;
 
-        // The condition is the block argument and its only reader. Both halves: an argument with a
-        // second reader is one the join is still needed for, and a condition that is not the
-        // argument is a join no incoming edge decides.
+        // What the join decides its argument by: the argument itself, or one equality against a
+        // constant that the join holds. A condition that is neither is a join no incoming edge
+        // decides.
         auto argument = opt.base[join.argumentAt(opt.base, 0)];
-        if(opt.base[branch.condition.value()] != argument) return false;
-        if(argument->useCount() != 1 || isTracked(argument->convention)) return false;
+        if(isTracked(argument->convention)) return false;
+
+        auto test = readTest(join, branch, *argument);
+        if(!test) return false;
+        if(!isSelfContained(join, branch)) return false;
 
         if(!armIsThreadable(join, branch.whenTrue)) return false;
         if(!armIsThreadable(join, branch.whenFalse)) return false;
-        if(wouldStrand(join, branch)) return false;
+        if(wouldStrand(join, branch, test.unwrap())) return false;
 
         auto editor = opt.ir();
         auto threaded = false;
@@ -1016,7 +1351,8 @@ struct BranchThreader {
             if(!constant) { i++; continue; }
 
             auto end = from->terminator(opt.base);
-            auto& arm = constant.unwrap() ? branch.whenTrue : branch.whenFalse;
+            auto& arm = selectsTrue(test.unwrap(), constant.unwrap()) ? branch.whenTrue
+                                                                      : branch.whenFalse;
 
             SmallArray<Use, 4> arguments;
             for(auto used: arm.arguments.contents(opt.base)) arguments.push(used);
@@ -1073,6 +1409,283 @@ void threadBranches(OptContext& opt) {
     threader.run();
 }
 
+namespace {
+
+/*
+ * A condition a branch has already decided, handed on again from inside the arm it decided.
+ *
+ * This is **not** the branch-implied *range* facts README.md's two notes measured and did not keep.
+ * Those relate two different values - `i < n` proving something about `i` where `n` is read - and
+ * cost a lattice. This relates a value to itself: below `branch %c, T, F`, `%c` **is** `True` in
+ * everything `T` alone reaches and `False` in everything `F` alone reaches, which is one comparison
+ * and no lattice at all.
+ *
+ * What it is for is the shape an `iter fn`'s early exit leaves. `findAscii` yields out of the middle
+ * of its scan, and the desugaring makes that a `found` flag carried round the loop header: the latch
+ * hands the header the very value the branch above it just tested false, so the header phis `0` on
+ * the entry edge and "the thing that was false" on the back edge, and every iteration re-tests a
+ * value that cannot be anything but zero. Rewriting the operand makes both edges the same constant,
+ * `removeTrivialArguments` takes the argument out, and the two tests fold - which takes the store of
+ * the result out of the loop with them, and with the loop no longer writing storage the invariant
+ * lane mask leaves it as well.
+ *
+ * **Only a terminator's edge operands are rewritten**, which is narrower than "every use in the arm"
+ * and is what makes it a rewrite rather than surgery: an edge operand is replaced by rebuilding the
+ * terminator, which is the one way this directory moves an edge, and the shape that matters is
+ * exactly an operand handed to a block argument. A use inside an instruction is left alone; the
+ * folder reaches those from the other end when the branch itself folds.
+ *
+ * The arm's target must have **one** way in, which is what makes "dominated by the target" mean
+ * "reached only through this arm". Without it a block dominated by the target could also be entered
+ * on a path that never took the branch.
+ */
+struct ConditionDecider {
+    OptContext& opt;
+    Dominators& dominators;
+
+    Value* valueOf(Use used) { return used.isSet() ? opt.base[used.value()] : nullptr; }
+
+    /*
+     * Every edge operand this terminator hands `condition` over as, exchanged for `decided`.
+     *
+     * Through `setEdgeArgument` rather than by rebuilding the terminator, and that is a distinction
+     * `replaceTerminator` makes on purpose: it preserves the arguments of an edge present on both
+     * sides, because a folded branch has nothing at hand that knows what its target was being
+     * handed. Rebuilding here would therefore change nothing at all.
+     */
+    bool handsOver(Inst& end, Value& condition) {
+        auto found = false;
+
+        forEachEdge(opt.base, end, [&](Edge& edge) {
+            for(auto used: edge.arguments.contents(opt.base)) {
+                if(used.isSet() && opt.base[used.value()] == &condition) found = true;
+            }
+        });
+
+        return found;
+    }
+
+    void replaceEdgeOperands(Inst& end, Value& condition, Value& decided) {
+        auto editor = opt.ir();
+        Size arm = 0;
+
+        forEachEdge(opt.base, end, [&](Edge& edge) {
+            auto here = arm++;
+
+            for(Size i = 0; i < edge.arguments.size(); i++) {
+                auto used = edge.arguments.get(opt.base, i);
+                if(!used.isSet() || opt.base[used.value()] != &condition) continue;
+
+                editor.setEdgeArgument(end, here, i, editor.use(decided, used.kind()));
+            }
+        });
+    }
+
+    void decide(Block& block, Edge& arm, Value& condition, U64 answer) {
+        auto target = opt.base[arm.target];
+        if(!target || target->deleted || target == &block) return;
+
+        // One way in, so that "dominated by the target" is "reached only through this arm".
+        if(target->predecessorCount() != 1) return;
+        if(!dominators.isReachable(target->index.index)) return;
+
+        for(auto pointer: opt.body->blocks.contents(opt.base)) {
+            auto inside = opt.base[pointer];
+            if(inside->deleted) continue;
+            if(!dominators.dominates(target->index.index, inside->index.index)) continue;
+
+            auto end = inside->terminator(opt.base);
+            if(!end || !handsOver(*end, condition)) continue;
+
+            // The constant is made only once the scan above has found something to spend it on: one
+            // made and left unread is dead IR every golden below this then carries, because this
+            // pass runs behind the folder rather than in front of it.
+            auto decided = makeConstant(opt, *end, condition.occurrence.type, answer);
+            if(!decided) continue;
+
+            replaceEdgeOperands(*end, condition, *decided);
+        }
+    }
+
+    /*
+     * What one arm proves about one value, where it proves anything.
+     *
+     * Two shapes, and the second is the one the corpus has. `branch %c` proves `%c` outright on both
+     * arms, which is the reading the pass is named for. `branch (%v == K)` proves `%v == K` on the
+     * **true** arm and `branch (%v != K)` proves it on the **false** one - which is where an
+     * `iter fn`'s exit signal lives: the desugaring compares the signal against `Proceed` and carries
+     * the *signal* round the loop, so what is handed on is one comparison away from the branch rather
+     * than the branch's own operand.
+     *
+     * The other arm of an equality proves nothing and is deliberately not guessed at: `%v != K` says
+     * which value it is *not*, and this pass installs a value rather than a set of them.
+     */
+    struct Decided {
+        Value* value = nullptr;
+        U64 answer = 0;
+    };
+
+    Decided provedBy(Value& condition, bool whenTrue) {
+        // The condition itself, where a branch is written on a `Bool` the body computed.
+        Decided direct { &condition, whenTrue ? U64(1) : U64(0) };
+
+        if(!condition.definer) return direct;
+
+        auto definer = opt.base[condition.definer];
+        if(definer->kind != Inst::Binary) return direct;
+
+        auto& compare = (InstBinary&)*definer;
+        if(compare.op != BinaryOp::Eq && compare.op != BinaryOp::Ne) return direct;
+
+        auto lhs = valueOf(compare.lhs);
+        auto rhs = valueOf(compare.rhs);
+
+        Value* subject = nullptr;
+        Maybe<U64> number = Nothing();
+
+        if((number = constantValueOf(opt, rhs))) subject = lhs;
+        else if((number = constantValueOf(opt, lhs))) subject = rhs;
+
+        if(!subject || !number) return Decided {};
+
+        // The arm the comparison decided outright.
+        if(whenTrue == (compare.op == BinaryOp::Eq)) {
+            return Decided { subject, number.unwrap() };
+        }
+
+        /*
+         * And the other arm, where the type has **two** values: "not this one" is "that one".
+         *
+         * Which is not a general fact and is exactly the shape this pass exists for. An `iter fn`'s
+         * exit signal is `Proceed | Leave`, the desugaring branches on `signal == Leave`, and what it
+         * carries round the loop is the signal itself along the arm that did *not* leave - so
+         * without this row the one operand worth rewriting is the one arm that proves nothing.
+         *
+         * A payload-free two-constructor record is the only type admitted, and its constructor
+         * indices are 0 and 1 by construction: `constantValueOf` answers an `Enum` constant with its
+         * constructor index and `makeConstant` builds one back from the same number.
+         */
+        if(isTwoValued(subject->occurrence.type)) {
+            return Decided { subject, number.unwrap() ? U64(0) : U64(1) };
+        }
+
+        if(auto other = soleOtherAnswer(*subject, number.unwrap())) {
+            return Decided { subject, other.unwrap() };
+        }
+
+        return Decided {};
+    }
+
+    // A record of exactly two constructors, neither carrying anything - `Bool`, and every enum an
+    // author wrote with two cases.
+    bool isTwoValued(DeclPtr<mir::Type> type) {
+        if(!type || opt.decl[type]->kind != mir::Type::Record) return false;
+
+        auto& record = *(mir::RecordType*)opt.decl[type];
+        return record.cons.size() == 2 && record.fields.isEmpty();
+    }
+
+    /*
+     * The one value a block argument can hold that is not `excluded`, where every edge answers it
+     * with a constant.
+     *
+     * The type-level rule above says "not this one, so that one" from the declaration; this says the
+     * same thing from the *edges*, which is where an `iter fn`'s exit signal actually is. The
+     * desugaring hands the signal over as a plain integer - `0` on the arm that ran out, `1` on the
+     * arm that yielded and left - so the type is `I32` and says nothing, while the two edges into the
+     * block say everything.
+     *
+     * A `Nothing` for an argument whose edges are not all constants, or where excluding one leaves
+     * more than one. Declining the argument's own value on an edge would be a loop-carried answer,
+     * and there is none: what this is asked about is a merge of two exits.
+     */
+    Maybe<U64> soleOtherAnswer(Value& subject, U64 excluded) {
+        if(subject.definer || !subject.block) return Nothing();
+
+        auto block = opt.base[subject.block];
+        if(block == opt.base[opt.body->entry]) return Nothing();
+
+        Size position = ~Size(0);
+        for(Size i = 0; i < block->argumentCount(); i++) {
+            if(opt.base[block->argumentAt(opt.base, i)] == &subject) position = i;
+        }
+
+        if(position == ~Size(0)) return Nothing();
+
+        Maybe<U64> only = Nothing();
+        auto agreed = true;
+
+        for(auto pointer: block->incoming(opt.base)) {
+            auto end = opt.base[pointer]->terminator(opt.base);
+            if(!end) return Nothing();
+
+            forEachEdge(opt.base, *end, [&](Edge& edge) {
+                if(!edge.target || opt.base[edge.target] != block) return;
+                if(position >= edge.arguments.size()) { agreed = false; return; }
+
+                auto used = edge.arguments.get(opt.base, position);
+                auto number = used.isSet() ? constantValueOf(opt, opt.base[used.value()]) : Nothing();
+                if(!number) { agreed = false; return; }
+
+                auto value = number.unwrap();
+                if(value == excluded) return;
+
+                if(!only) only = Just(value);
+                else if(only.unwrap() != value) agreed = false;
+            });
+
+            if(!agreed) return Nothing();
+        }
+
+        return only;
+    }
+
+    void decideArm(Block& block, Edge& arm, Value& condition, bool whenTrue) {
+        auto proved = provedBy(condition, whenTrue);
+        if(!proved.value || proved.value->convention != Convention::Trivial) return;
+
+        // Already a constant is one `cleanCfg` folds; one reader is the comparison or the branch
+        // itself, and there is nothing else to rewrite.
+        if(constantValueOf(opt, proved.value)) return;
+        if(proved.value->useCount() < 2) return;
+
+        decide(block, arm, *proved.value, proved.answer);
+    }
+
+    void run() {
+        SmallArray<Block*, 32> blocks;
+        for(auto pointer: opt.body->blocks.contents(opt.base)) blocks.push(opt.base[pointer]);
+
+        for(auto block: blocks) {
+            if(block->deleted) continue;
+
+            auto end = block->terminator(opt.base);
+            if(!end || end->kind != Inst::Branch) continue;
+
+            auto condition = valueOf(((InstBranch&)*end).condition);
+            if(!condition) continue;
+
+            decideArm(*block, ((InstBranch&)*end).whenTrue, *condition, true);
+
+            // Re-read: the walk above may have rebuilt this block's own terminator.
+            auto again = block->terminator(opt.base);
+            if(!again || again->kind != Inst::Branch) continue;
+
+            auto& branch = (InstBranch&)*again;
+            if(valueOf(branch.condition) != condition) continue;
+
+            decideArm(*block, branch.whenFalse, *condition, false);
+        }
+    }
+};
+
+} // namespace
+
+void decideBranchConditions(OptContext& opt) {
+    ConditionDecider decider { opt, dominatorsOf(opt) };
+    decider.run();
+}
+
 /*
  * The sweep alone, for the one caller that needs it without the queue - `opt/check.cpp`.
  *
@@ -1084,6 +1697,76 @@ void threadBranches(OptContext& opt) {
 void removeUnreachableBlocks(OptContext& opt) {
     CfgCleaner cleaner { opt };
     cleaner.removeUnreachable();
+}
+
+
+
+/*
+ * A block whose last call does not come back, ended there - §10 item 2 of `test/bench/findings.md`,
+ * and the shipping stage's `endNonReturningBlocks` over an **inferred** divergence fact rather than
+ * a declared one.
+ *
+ * Every bounds check and every `@bits` narrowing in `lib/` is `if bad then checkFailed()`, grafted
+ * into the caller by `@inline(always)`, so what arrives here is a branch with a call in one arm and
+ * both arms jumping to the block below the check. `checkFailed` does not come back -
+ * `mir::Summary::diverges`, whose seed is that role - so that second edge is one no execution takes,
+ * and everything it costs is paid by the code that does:
+ *
+ *  - the block below the check is a *join*, which ends every block-local fact. `forwardMemory` stops
+ *    there and so does everything else in this directory that reasons within a block;
+ *  - a length read by two checks of one index is two loads, because the arm is on a path between
+ *    them;
+ *  - and the branch survives, since a condition that has not folded is a branch either way.
+ *
+ * With the edge gone the join has one predecessor and `cleanCfg` - which the driver runs immediately
+ * below this - folds all three at once.
+ *
+ * **The call has to be the last instruction of its block**, exactly as it does in the shipping
+ * stage, and here that is a *rule about this pass* rather than one the inliner maintains: what
+ * follows a call in the middle of a block is equally dead, and erasing it would mean pointing the
+ * readers of everything it defined somewhere, in blocks that are about to become unreachable and
+ * have not yet. Ending at the terminator costs nothing and needs no such argument - the check arms
+ * this exists for hold a call and nothing else.
+ *
+ * Values still owned where the block now ends are not a leak and `verifyBody` says so: `Unreachable`
+ * is a claim that no execution arrives, so the linear rule has no path there to hold anything to.
+ * See the note at its exit check, which is where that reading is argued.
+ */
+void endNonReturningBlocks(OptContext& opt) {
+    auto ended = false;
+    auto editor = opt.ir();
+
+    for(auto pointer: opt.body->blocks.contents(opt.base)) {
+        auto block = opt.base[pointer];
+        if(block->deleted) continue;
+
+        auto terminator = block->terminator(opt.base);
+        if(!terminator || terminator->kind == Inst::Unreachable) continue;
+
+        auto count = block->instructionCount();
+        if(count < 2) continue;
+
+        auto& last = *opt.base[block->instructionAt(opt.base, count - 2)];
+        if(last.kind != Inst::Call) continue;
+
+        /*
+         * The summary is the *callee's*, so it may be read only where `callee` is what runs: through
+         * a slot or a value it is the signature the call was checked against, which has no body and
+         * publishes nothing. `get(false)` is the conservative direction - a caller that believes a
+         * diverging callee returns keeps a block, and the other way round it deletes live code.
+         */
+        auto& call = (InstCall&)last;
+        if(!call.callee || call.through != mir::CallThrough::Declaration) continue;
+        if(!opt.decl[call.callee]->summary.diverges().get(false)) continue;
+
+        editor.replaceTerminator(*block, editor.makeUnreachable(terminator->source));
+        ended = true;
+    }
+
+    // The arm that stopped leading anywhere may have been a block's only way in. The rest of the
+    // cleanup - a join left with one predecessor, the merge that follows - is `cleanCfg`'s, which
+    // the driver runs directly below this.
+    if(ended) removeUnreachableBlocks(opt);
 }
 
 } // namespace ssa

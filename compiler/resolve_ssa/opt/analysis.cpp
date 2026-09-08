@@ -150,30 +150,121 @@ Reachable reachableOf(OptContext& opt) {
     return Reachable { &dominatorsOf(opt) };
 }
 
+/*
+ * One step up an address chain, or null where the chain ends.
+ *
+ * The three ways an address in this IR names storage some *other* value already names, and they are
+ * the same three `Contained` admits as projections rather than escapes:
+ *
+ *  - a **field** or an **element** of a record or a container, which is the ordinary walk;
+ *  - a `load` whose result is **`Guaranteed`**, which at this tier is how a borrow is spelled: there
+ *    is no `Borrow` instruction, so `&x` is a `load` of the slot whose result is a second name for
+ *    that storage and is no instruction at all in the lowering. Following it is what lets a body
+ *    that reaches its container through a borrow be rooted in the container's own slot;
+ *  - `represent`, which restates a view record as the occurrence it manifests without moving a byte
+ *    (`mir::UnaryOp::Represent`, whose lowering answers the operand's address).
+ *
+ * Everything else ends the chain, and the two callers below read the end differently.
+ */
+Value* addressStep(OptContext& opt, Value* address) {
+    if(!address) return nullptr;
+
+    auto definer = address->definer;
+    if(!definer) return nullptr;
+
+    auto inst = opt.base[definer];
+    switch(inst->kind) {
+        case Inst::FieldAddress:
+            return opt.base[((InstFieldAddress*)inst)->base.value()];
+        case Inst::ElementAddress:
+            return opt.base[((InstElementAddress*)inst)->base.value()];
+        case Inst::Load: {
+            if(!inst->results.size()) return nullptr;
+            if(opt.base[inst->results.get(opt.base, 0)]->convention != Convention::Guaranteed) {
+                return nullptr;
+            }
+
+            return opt.base[((InstLoad*)inst)->address.value()];
+        }
+        case Inst::Unary:
+            if(((InstUnary*)inst)->op != mir::UnaryOp::Represent) return nullptr;
+            return opt.base[((InstUnary*)inst)->value.value()];
+        default:
+            return nullptr;
+    }
+}
+
 Value* allocationRoot(OptContext& opt, Value* address) {
     while(address) {
         auto definer = address->definer;
         if(!definer) return nullptr;
+        if(opt.base[definer]->kind == Inst::Alloc) return address;
 
-        auto inst = opt.base[definer];
-        switch(inst->kind) {
-            case Inst::Alloc:
-                return address;
-            case Inst::FieldAddress:
-                address = opt.base[((InstFieldAddress*)inst)->base.value()];
-                break;
-            case Inst::ElementAddress:
-                address = opt.base[((InstElementAddress*)inst)->base.value()];
-                break;
-            default:
-                // A global's address, a pointer loaded out of storage, an address the unsafe
-                // boundary produced. None of them is an allocation of this body, and the permissive
-                // answer is the only sound one for all three.
-                return nullptr;
-        }
+        address = addressStep(opt, address);
     }
 
+    // A global's address, a pointer loaded out of storage, an address the unsafe boundary produced.
+    // None of them is an allocation of this body, and the permissive answer is the only sound one
+    // for all three.
     return nullptr;
+}
+
+/*
+ * Whether an address this body cannot root in an allocation was **read out of storage**.
+ *
+ * The other half of `allocationRoot`'s null: a chain that ends at a `Load` is a pointer that was
+ * sitting in memory, where one ending at a global's address, at a block argument or at an unsafe
+ * cast is not. The distinction is worth making because a contained allocation's address never
+ * reaches memory - see `loadedAddressMisses`.
+ *
+ * A `Guaranteed` load is not an end of the chain at all - `addressStep` walks through it, because it
+ * names the same storage its operand does - so what stops here is a load of a pointer *out of* a
+ * slot, which is exactly the value the claim is about.
+ *
+ * A **`Binary` add** is walked through where one side is a pointer, and that is the one step this
+ * makes that `allocationRoot` does not. Pointer arithmetic stays inside the object it started in -
+ * the same claim `ElementAddress` states as an instruction, restated for the spelling `lib/`'s own
+ * subscript uses, where the element address is `elementBase(xs) + i * stride` written in source.
+ */
+bool addressIsLoaded(OptContext& opt, Value* address) {
+    while(address) {
+        auto definer = address->definer;
+        if(!definer) return false;
+
+        auto inst = opt.base[definer];
+
+        if(inst->kind == Inst::Load) {
+            if(!inst->results.size()) return false;
+            if(opt.base[inst->results.get(opt.base, 0)]->convention != Convention::Guaranteed) {
+                return true;
+            }
+        }
+
+        if(inst->kind == Inst::Binary) {
+            auto& binary = (InstBinary&)*inst;
+            if(binary.op != mir::BinaryOp::Add) return false;
+
+            auto lhs = opt.base[binary.lhs.value()];
+            auto rhs = opt.base[binary.rhs.value()];
+            auto isPointer = [&](Value* value) {
+                return value->occurrence.type &&
+                       opt.decl[value->occurrence.type]->kind == mir::Type::Pointer;
+            };
+
+            if(isPointer(lhs) && !isPointer(rhs)) address = lhs;
+            else if(isPointer(rhs) && !isPointer(lhs)) address = rhs;
+            else return false;
+
+            continue;
+        }
+
+        auto next = addressStep(opt, address);
+        if(!next) return false;
+
+        address = next;
+    }
+
+    return false;
 }
 
 namespace {
@@ -231,6 +322,25 @@ struct Containment {
                 return named(((InstCopy&)user).address);
             case Inst::Drop:
                 return named(((InstDrop&)user).address);
+
+            /*
+             * The release of a heap or region placement, which **keeps the address in the frame**
+             * rather than letting it out - and that is what this row corrects.
+             *
+             * `allocateHeap`/`freeHeap` are library calls by the time the machine sees them, and
+             * with no row here the `free` fell to the default and every heap-placed object read as
+             * escaping. It is the opposite of escaping: a `free` is the last event of the storage's
+             * life, inside this body, so an allocation whose only other uses are accesses is one
+             * nothing outside the frame can name. A heap slot is a frame slot with an allocator in
+             * front of it as far as every reader of `Contained` is concerned, and what makes that
+             * true is that both ends are here.
+             *
+             * `HeapPlace.yana` is the shape it was costing: `@heap &p` written and read in one
+             * block kept every store and every load, because `forwardMemory` reads containment and
+             * an escaping allocation is one it may not carry a fact across.
+             */
+            case Inst::Free:
+                return named(((InstFree&)user).address);
             case Inst::Store:
                 return named(((InstStore&)user).address) && !named(((InstStore&)user).value);
 
@@ -260,6 +370,23 @@ struct Containment {
              * address used as a number: nothing here computes one, and admitting it would be
              * admitting an arbitrary arithmetic use.
              */
+            /*
+             * `represent` - a view record restated as the occurrence it manifests, which moves no
+             * byte: `mir::UnaryOp::Represent`'s own row says "storage is shared: the lowering
+             * answers the operand's address". So the result is a second name for this storage on
+             * exactly the terms a `Guaranteed` load result is, and it keeps the address in the frame
+             * exactly as far as its own result does.
+             *
+             * Missing this row is what kept every container's slot out of `Contained`: a body
+             * reaches its window by building the view record and representing it, so the one
+             * instruction between the slot and every read of it read as an escape.
+             */
+            case Inst::Unary: {
+                auto& unary = (InstUnary&)user;
+                if(unary.op != mir::UnaryOp::Represent || !named(unary.value)) return false;
+                return !user.results.size() || !escapes(*opt.base[user.results.get(opt.base, 0)]);
+            }
+
             case Inst::FieldAddress:
                 if(!named(((InstFieldAddress&)user).base)) return false;
                 return !user.results.size() || !escapes(*opt.base[user.results.get(opt.base, 0)]);
@@ -269,10 +396,53 @@ struct Containment {
                 return !user.results.size() || !escapes(*opt.base[user.results.get(opt.base, 0)]);
             }
 
-            // And no default that admits. A call argument, an aggregate component, a native operand,
-            // a returned value, an edge operand and a captured environment are each a way for the
-            // address to outlive the instruction naming it, and a kind nobody has looked at is one
-            // whose effect on the address has not been checked.
+            /*
+             * A **call argument at a position whose address the callee does not keep** - the one
+             * escape with an end to it, and what `mir::Summary::escapes` is for.
+             *
+             * The address is handed over and the callee may do anything with it *for the duration of
+             * the call*; what `escapes` says is that no address of the storage at that position was
+             * written anywhere, so nothing outside can name it afterwards - which is the whole of
+             * what containment claims. The half this leaves behind is what the callee wrote
+             * *through* it while it had it, which is `mayWriteStorage`'s `mutates` row and is asked
+             * of the call itself.
+             *
+             * **`retains` is the wrong row here, and asking it kept every container's slot out of
+             * containment.** That row is a reach set over values: `growArray(&self, n)` reads a run
+             * pointer out of `self` and stores it back into `self`, so parameter 0 is in the written
+             * value's reach and reads as retained - while no address of `self`'s storage went
+             * anywhere at all. Separating the two is sound in exactly this predicate's terms: an
+             * allocation admitted here is one whose address is never stored, so no pointer the
+             * callee loads out of memory can be it.
+             *
+             * `Unknown` reads back as `ArgumentSet::all()`, so a callee whose row nothing filled is
+             * the outright escape this used to be for every call. The two rows are read in two
+             * places on purpose: escape is about the *address*, mutation is about the *storage*, and
+             * one predicate answering both would be a containment that quietly means "and never
+             * written", which is not what any reader of `Contained` asks it.
+             */
+            case Inst::Call: {
+                auto& call = (InstCall&)user;
+                // The summary is the *callee's*, so it may be read only where `callee` is who runs.
+                // Through a slot or a value it is the signature the call was checked against, which
+                // has no body and publishes nothing - see `InstCall::callee`.
+                if(!call.callee || call.through != mir::CallThrough::Declaration) return false;
+                if(named(call.target)) return false;
+
+                auto kept = opt.decl[call.callee]->summary.escapes().get(mir::ArgumentSet::all());
+
+                for(Size i = 0; i < call.arguments.size(); i++) {
+                    if(!named(call.arguments.get(opt.base, i))) continue;
+                    if(kept.has(U32(i))) return false;
+                }
+
+                return true;
+            }
+
+            // And no default that admits. An aggregate component, a native operand, a returned
+            // value, an edge operand and a captured environment are each a way for the address to
+            // outlive the instruction naming it, and a kind nobody has looked at is one whose effect
+            // on the address has not been checked.
             default:
                 return false;
         }
@@ -311,14 +481,44 @@ Contained& containedOf(OptContext& opt) {
 
 namespace {
 
+/*
+ * A **contained** allocation's storage cannot be named by a pointer that came out of memory.
+ *
+ * Worth stating as a claim rather than as a case, because it is the whole of the fact. `Contained`
+ * says every use of the allocation's address keeps that address in this frame: it is refused as a
+ * `Store` *value*, as an aggregate component, as a native operand, as a returned value, as an edge
+ * operand and as a captured environment, and admitted at a call argument only where the callee's
+ * `escapes` row says no address of that position's storage was written anywhere. So the address is
+ * never **written anywhere** - and a `Load` therefore cannot produce it, nor a projection of it, since a projection
+ * is refused wherever the address itself is.
+ *
+ * What it buys is the shape every container has. `countPrimes` holds its `Array(Bool)` header in a
+ * frame slot; the marking loop loads the run pointer out of that header and stores through it every
+ * step. The run and the header are different storage and the run pointer was *loaded from* the
+ * header, so no store through it can write the header back - which is what lets `hoist` move the
+ * base and the length into the preheader instead of re-reading both every iteration.
+ *
+ * Deliberately a statement about the *allocation* rather than about the two addresses. Two loaded
+ * pointers say nothing about each other, and neither does a loaded pointer against an allocation
+ * that escapes - so containment is the premise, and the address chain only says where it came from.
+ */
+bool loadedAddressMisses(OptContext& opt, const Contained& contained, Value* address,
+                         Value& allocation) {
+    return contained[allocation] && addressIsLoaded(opt, address);
+}
+
 // Whether an address may name bytes inside this allocation. Two addresses rooted in two different
-// allocations cannot; an address with no root of this body's may name anything, which is the
-// permissive direction and the only sound one for a pointer.
-bool addressMayReach(OptContext& opt, Use address, Value& allocation) {
+// allocations cannot; neither can a pointer read out of memory and an allocation whose address was
+// never written anywhere. An address that is neither may name anything, which is the permissive
+// direction and the only sound one for a pointer.
+bool addressMayReach(OptContext& opt, const Contained& contained, Use address, Value& allocation) {
     if(!address.isSet()) return true;
 
-    auto root = allocationRoot(opt, opt.base[address.value()]);
-    return !root || root == &allocation;
+    auto value = opt.base[address.value()];
+    auto root = allocationRoot(opt, value);
+    if(root) return root == &allocation;
+
+    return !loadedAddressMisses(opt, contained, value, allocation);
 }
 
 } // namespace
@@ -327,7 +527,7 @@ bool mayWriteStorage(OptContext& opt, const Contained& contained, Inst& inst,
                      Value& allocation) {
     switch(inst.kind) {
         case Inst::Store:
-            return addressMayReach(opt, ((InstStore&)inst).address, allocation);
+            return addressMayReach(opt, contained, ((InstStore&)inst).address, allocation);
 
         /*
          * The **handover**: a destructive read takes the object out and leaves the slot empty, which
@@ -339,21 +539,21 @@ bool mayWriteStorage(OptContext& opt, const Contained& contained, Inst& inst,
             if(!inst.results.size()) return false;
             if(!isTracked(opt.base[inst.results.get(opt.base, 0)]->convention)) return false;
 
-            return addressMayReach(opt, ((InstLoad&)inst).address, allocation);
+            return addressMayReach(opt, contained, ((InstLoad&)inst).address, allocation);
         }
 
         // A teardown receives an address and may write through it, so a drop is a read *and* a write
         // of its own storage. What it may not reach is an allocation whose address it was never
         // given, which is the opaque case below.
         case Inst::Drop:
-            if(addressMayReach(opt, ((InstDrop&)inst).address, allocation)) return true;
+            if(addressMayReach(opt, contained, ((InstDrop&)inst).address, allocation)) return true;
             return !contained[allocation];
 
         case Inst::Atomic: {
             auto& atomic = (InstAtomic&)inst;
             if(!atomic.arguments.size()) return true;
 
-            return addressMayReach(opt, atomic.arguments.get(opt.base, 0), allocation);
+            return addressMayReach(opt, contained, atomic.arguments.get(opt.base, 0), allocation);
         }
 
         // Storage that has just come into existence with nothing in it.
@@ -367,28 +567,34 @@ bool mayWriteStorage(OptContext& opt, const Contained& contained, Inst& inst,
             return false;
 
         /*
-         * The opaque kinds, and the one fact that answers them.
+         * A call, and the two facts that answer it.
          *
-         * A callee cannot write storage whose address it was never given, and `Contained` is exactly
-         * that statement about this allocation. Where the allocation escapes, what would answer
-         * instead is the callee's own `mutates` row - read here through the `Fact` API so that
-         * filling it later changes nothing at this site. It is `Unknown` today, so `get` hands back
-         * the caller's conservative answer and every argument counts as written.
+         * A callee cannot write storage whose address it was never given, so an allocation that is
+         * **not** contained is one it may have reached by some other route - and then the only
+         * question left is whether the callee writes through anything at all.
+         *
+         * A **contained** allocation is the case `escapes` opened. `Contained` now admits a call
+         * argument at a position whose address the callee does not keep, so "contained" no longer
+         * means "no call ever saw it" - it means no call kept it. This call may still be the one holding it, so the
+         * positions it was handed at are asked directly: a position the callee does not write
+         * through is not a barrier, and neither is a position this call did not point here.
+         *
+         * `Unknown` reads back as `ArgumentSet::all()` at both rows, which is the answer this had
+         * before either was filled: every argument written, every call a barrier.
          */
         case Inst::Call: {
-            if(contained[allocation]) return false;
+            auto& call = (InstCall&)inst;
+            if(!call.callee || call.through != mir::CallThrough::Declaration) return true;
 
-            auto callee = ((InstCall&)inst).callee;
-            if(!callee) return true;
+            auto mutated = opt.decl[call.callee]->summary.mutates().get(mir::ArgumentSet::all());
+            if(!contained[allocation]) return mutated.any();
 
-            /*
-             * `Unknown` reads back as `ArgumentSet::all()` - every argument written, and therefore
-             * a barrier. The read is here rather than a constant `true` so that the day
-             * `computeSummaries` fills the row, a callee that writes through nothing stops being one
-             * without this file changing; and the judgement about storage a callee reaches *without*
-             * being handed it belongs with the row rather than with this reader.
-             */
-            return opt.decl[callee]->summary.mutates().get(mir::ArgumentSet::all()).any();
+            for(Size i = 0; i < call.arguments.size(); i++) {
+                if(!mutated.has(U32(i))) continue;
+                if(addressMayReach(opt, contained, call.arguments.get(opt.base, i), allocation)) return true;
+            }
+
+            return false;
         }
 
         default:

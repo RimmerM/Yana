@@ -1,0 +1,82 @@
+module ResolveTest
+
+data Guard {id: I32} drop authored
+
+data Box {held: Guard, tag: I32} drop derived
+
+instance Drop(Guard): Guard.drop
+
+let & trace: I32 = 0
+
+fn Guard.drop(value: Guard) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = read copy.trivial (value.id)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global trace) take %2
+  return
+}
+
+fn size(g: Guard [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (g.id)
+  return take %0
+}
+
+fn bump(g: Guard [unique call], by: I32 [shared call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (g.id)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (g.id) take %2
+  return
+}
+
+fn twice(g: Guard [unique call]) -> {} {
+bb0:
+  %0: Guard [unique call] = read borrow.unique (g) loan0
+  %1: Guard [shared call] = read borrow.shared (g) loan1
+  %2: I32 = call size borrow.shared %1
+  %3: {} = call bump borrow.unique %0 borrow.shared %2
+  return
+}
+
+fn viaField(b: Box [unique call]) -> {} {
+bb0:
+  %0: Guard [unique call] = read borrow.unique (b.held) loan0
+  %1: Guard [shared call] = read borrow.shared (b.held) loan1
+  %2: I32 = call size borrow.shared %1
+  %3: I32 = read copy.trivial (b.tag)
+  %4: I32 = add inspect %2 inspect %3
+  %5: {} = call bump borrow.unique %0 borrow.shared %4
+  return
+}
+
+fn main() -> I32 {
+  local & g: Guard
+  local & b: Box
+
+bb0:
+  %0: I32 = const 3
+  %1: Guard = aggregate.Guard take %0
+  write.init borrow.unique (g) take %1
+  %3: Guard [unique call] = read borrow.unique (g) loan0
+  %4: {} = call twice borrow.unique %3
+  %5: I32 = const 5
+  %6: Guard = aggregate.Guard take %5
+  %7: I32 = const 1
+  %8: Box = aggregate.Box take %6 take %7
+  write.init borrow.unique (b) take %8
+  %10: Box [unique call] = read borrow.unique (b) loan1
+  %11: {} = call viaField borrow.unique %10
+  %12: I32 = read copy.trivial (g.id)
+  drop (g)
+  %13: I32 = read copy.trivial (b.held.id)
+  drop (b)
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = read copy.trivial (global trace)
+  %16: I32 = add inspect %14 inspect %15
+  return take %16
+}
+
+entry main

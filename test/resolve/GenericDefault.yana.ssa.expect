@@ -1,0 +1,150 @@
+module ResolveTest
+
+fn counted(x: a [shared call]) -> I32 = <no body>
+
+fn takesNatural(b: Buffer(I32, 4) [shared call]) -> I32 {
+bb0(%0: Buffer(I32, 4) [shared call] guaranteed):
+  %1: Buffer(I32, 4) trivial = copy inspect %0
+  %2: I32 trivial = call countOf(4) borrow %1
+  return consume %2
+}
+
+fn takesHalf(b: Buffer(I32, 4) [shared call]) -> I32 {
+bb0(%0: Buffer(I32, 4) [shared call] guaranteed):
+  %1: Buffer(I32, 4) trivial = copy inspect %0
+  %2: I32 trivial = call countOf(4) borrow %1
+  return consume %2
+}
+
+fn takesFull(b: Buffer(I32, 4) [shared call]) -> I32 {
+bb0(%0: Buffer(I32, 4) [shared call] guaranteed):
+  %1: Buffer(I32, 4) trivial = copy inspect %0
+  %2: I32 trivial = call countOf(4) borrow %1
+  return consume %2
+}
+
+fn takesEight(b: Buffer(I32, 8) [shared call]) -> I32 {
+bb0(%0: Buffer(I32, 8) [shared call] guaranteed):
+  %1: Buffer(I32, 8) trivial = copy inspect %0
+  %2: I32 trivial = call countOf(8) borrow %1
+  return consume %2
+}
+
+fn countOf(b: Buffer(I32, n) [shared call]) -> I32 = <no body>
+
+fn tagged(value: I32 [shared call]) -> Tagged(n) = <no body>
+
+fn defaulted() -> I32 {
+bb0:
+  %0: I32 trivial = const 1
+  %1: Tagged(4) trivial = call tagged(4) borrow %0
+  %2: I32 trivial = call tagOf'2(4) borrow %1
+  return consume %2
+}
+
+fn ascribed() -> I32 {
+bb0:
+  %0: I32 trivial = const 1
+  %1: Tagged(8) trivial = call tagged(8) borrow %0
+  %2: I32 trivial = call tagOf'2(8) borrow %1
+  return consume %2
+}
+
+fn tagOf'2(t: Tagged(n) [shared call]) -> I32 = <no body>
+
+fn I32.counted(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn I64.counted(x: I64 [shared call]) -> I32 = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %Buffer(I32, 4) address = alloc frame Buffer(I32, 4)
+  %1: %Buffer(I32, 8) address = alloc frame Buffer(I32, 8)
+  %2: I32 trivial = const 1
+  %3: I32 trivial = const 2
+  %4: I32 trivial = const 3
+  %5: I32 trivial = const 4
+  %6: [I32 *4] trivial = aggregate.0 consume %2 consume %3 consume %4 consume %5
+  %7: Buffer(I32, 4) trivial = aggregate.Buffer consume %6
+  store inspect %0 consume %7
+  %8: I32 trivial = const 1
+  %9: I32 trivial = const 2
+  %10: I32 trivial = const 3
+  %11: I32 trivial = const 4
+  %12: I32 trivial = const 5
+  %13: I32 trivial = const 6
+  %14: I32 trivial = const 7
+  %15: I32 trivial = const 8
+  %16: [I32 *8] trivial = aggregate.0 consume %8 consume %9 consume %10 consume %11 consume %12 consume %13 consume %14 consume %15
+  %17: Buffer(I32, 8) trivial = aggregate.Buffer consume %16
+  store inspect %1 consume %17
+  %18: Buffer(I32, 4) trivial = copy inspect %0
+  %19: I32 trivial = call takesNatural borrow %18
+  %20: Buffer(I32, 4) trivial = copy inspect %0
+  %21: I32 trivial = call takesHalf borrow %20
+  %22: I32 trivial = add inspect %19 inspect %21
+  %23: Buffer(I32, 4) trivial = copy inspect %0
+  %24: I32 trivial = call takesFull borrow %23
+  %25: I32 trivial = add inspect %22 inspect %24
+  %26: Buffer(I32, 8) trivial = copy inspect %1
+  %27: I32 trivial = call takesEight borrow %26
+  %28: I32 trivial = add inspect %25 inspect %27
+  %29: I32 trivial = call defaulted
+  %30: I32 trivial = add inspect %28 inspect %29
+  %31: I32 trivial = call ascribed
+  %32: I32 trivial = add inspect %30 inspect %31
+  %33: I32 trivial = const 1
+  %34: I32 trivial = call I32.counted borrow %33
+  %35: I32 trivial = add inspect %32 inspect %34
+  return consume %35
+}
+
+fn countOf(4)(b: Buffer(I32, 4) [shared call]) -> I32 {
+bb0(%0: Buffer(I32, 4) [shared call] guaranteed):
+  %1: I32 trivial = const 4
+  return consume %1
+}
+
+fn countOf(8)(b: Buffer(I32, 8) [shared call]) -> I32 {
+bb0(%0: Buffer(I32, 8) [shared call] guaranteed):
+  %1: I32 trivial = const 8
+  return consume %1
+}
+
+fn tagged(4)(value: I32 [shared call]) -> Tagged(4) {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: Tagged(4) trivial = aggregate.Tagged consume %2
+  return consume %3
+}
+
+fn tagOf'2(4)(t: Tagged(4) [shared call]) -> I32 {
+bb0(%0: Tagged(4) [shared call] guaranteed):
+  %1: I32 trivial = const 4
+  return consume %1
+}
+
+fn tagged(8)(value: I32 [shared call]) -> Tagged(8) {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: Tagged(8) trivial = aggregate.Tagged consume %2
+  return consume %3
+}
+
+fn tagOf'2(8)(t: Tagged(8) [shared call]) -> I32 {
+bb0(%0: Tagged(8) [shared call] guaranteed):
+  %1: I32 trivial = const 8
+  return consume %1
+}
+
+entry main

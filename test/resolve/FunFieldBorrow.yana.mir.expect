@@ -1,6 +1,6 @@
 module ResolveTest
 
-data Step {weight: I32, run: (I32) -> I32}
+data Step {weight: I32, run: (I32) -> I32} drop derived reclaim derived
 
 fn double(x: I32 [shared call]) -> I32 {
 bb0:
@@ -28,7 +28,8 @@ bb0:
 
 fn retarget(slot: (I32) -> I32 [unique call]) -> {} {
 bb0:
-  %0: (I32) -> I32 = fun.value triple
+  %0: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value triple
+  drop (slot)
   write.assign borrow.unique (slot) take %0
   return
 }
@@ -37,7 +38,8 @@ fn reweight(step: Step [unique call], weight: I32 [shared call]) -> {} {
 bb0:
   %0: I32 = read copy.trivial (weight)
   write.assign borrow.unique (step.weight) take %0
-  %2: (I32) -> I32 = fun.value negate
+  %2: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value negate
+  drop (step.run)
   write.assign borrow.unique (step.run) take %2
   return
 }
@@ -50,7 +52,7 @@ fn main() -> I32 {
 
 bb0:
   %0: I32 = const 1
-  %1: (I32) -> I32 = fun.value double
+  %1: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value double
   %2: Step = aggregate.Step take %0 take %1
   write.init borrow.unique (s) take %2
   %4: (I32) -> I32 [shared call] = read borrow.shared (s.run) loan0
@@ -74,6 +76,7 @@ bb0:
   %22: I32 = const 10
   %23: I32 = call inspect %21 borrow.shared %22
   %24: I32 = read copy.trivial (s.weight)
+  drop (s)
   %25: I32 = mul inspect %23 inspect %24
   write.init borrow.unique (last) take %25
   %27: I32 = read copy.trivial (before)

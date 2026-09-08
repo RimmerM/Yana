@@ -237,7 +237,7 @@ bb15:
   write.init borrow.unique (n) take %60
   %62: I32 = const 0
   write.init borrow.unique (z) take %62
-  %64: I32 = read copy.trivial (n)
+  %64: I32 = const 3
   %65: I32 = const 0
   %66: Bool = ne inspect %64 inspect %65
   branch inspect %66 -> bb19 -> bb17
@@ -251,7 +251,7 @@ bb17:
   jump -> bb18
 
 bb18:
-  %72: I32 = read copy.trivial (z)
+  %72: I32 = const 0
   %73: I32 = const 0
   %74: Bool = ne inspect %72 inspect %73
   %75: Bool = not inspect %74
@@ -266,7 +266,7 @@ bb20:
   jump -> bb21
 
 bb21:
-  %81: I32 = read copy.trivial (n)
+  %81: I32 = const 3
   %82: I32 = const 0
   %83: Bool = ne inspect %81 inspect %82
   branch inspect %83 -> bb25 -> bb23
@@ -280,7 +280,7 @@ bb23:
   jump -> bb24
 
 bb24:
-  %92: I32 = read copy.trivial (z)
+  %92: I32 = const 0
   %93: I32 = const 0
   %94: Bool = ne inspect %92 inspect %93
   branch inspect %94 -> bb29 -> bb27
@@ -296,7 +296,7 @@ bb26:
   jump -> bb24
 
 bb27:
-  %97: I32 = read copy.trivial (n)
+  %97: I32 = const 3
   %98: I32 = const 0
   %99: Bool = ne inspect %97 inspect %98
   jump -> bb28(take %99)
@@ -312,7 +312,7 @@ bb30:
   jump -> bb31
 
 bb31:
-  %108: I32 = read copy.trivial (n)
+  %108: I32 = const 3
   %109: I32 = const 7
   %110: I32 = call min(I32) take %108 take %109
   %111: I32 = const 3
@@ -328,7 +328,7 @@ bb33:
   jump -> bb34
 
 bb34:
-  %124: I32 = read copy.trivial (n)
+  %124: I32 = const 3
   %125: I32 = const 7
   %126: Ordering = call compare(I32) borrow.shared %124 borrow.shared %125
   %127: Ordering = const LT
@@ -336,7 +336,7 @@ bb34:
   branch inspect %128 -> bb39 -> bb37
 
 bb35:
-  %114: I32 = read copy.trivial (n)
+  %114: I32 = const 3
   %115: I32 = const 7
   %116: I32 = call max(I32) take %114 take %115
   %117: I32 = const 7
@@ -356,24 +356,24 @@ bb38:
   write.init borrow.unique (yes) take %146
   %148: Bool = const False
   write.init borrow.unique (no) take %148
-  %150: Bool = read copy.trivial (yes)
-  %151: Bool = read copy.trivial (no)
+  %150: Bool = const True
+  %151: Bool = const False
   %152: Bool = and inspect %150 inspect %151
   %153: Bool = const False
   %154: Bool = eq inspect %152 inspect %153
   branch inspect %154 -> bb44 -> bb42
 
 bb39:
-  %130: I32 = const 7
-  %131: I32 = read copy.trivial (n)
-  %132: Ordering = call compare(I32) borrow.shared %130 borrow.shared %131
+  %130: I32 = const 3
+  %131: I32 = const 7
+  %132: Ordering = call compare(I32) borrow.shared %131 borrow.shared %130
   %133: Ordering = const GT
   %134: Bool = eq inspect %132 inspect %133
   branch inspect %134 -> bb40 -> bb37
 
 bb40:
-  %136: I32 = read copy.trivial (n)
-  %137: I32 = read copy.trivial (n)
+  %136: I32 = const 3
+  %137: I32 = const 3
   %138: Ordering = call compare(I32) borrow.shared %136 borrow.shared %137
   %139: Ordering = const EQ
   %140: Bool = eq inspect %138 inspect %139
@@ -390,7 +390,7 @@ bb42:
 bb43:
   %173: U32 = const 2147483649
   write.init borrow.unique (word) take %173
-  %175: U32 = read copy.trivial (word)
+  %175: U32 = const 2147483649
   %176: U32 = const 1
   %177: U32 = rol inspect %175 inspect %176
   %178: U32 = const 3
@@ -398,21 +398,21 @@ bb43:
   branch inspect %179 -> bb50 -> bb48
 
 bb44:
-  %156: Bool = read copy.trivial (yes)
-  %157: Bool = read copy.trivial (no)
+  %156: Bool = const True
+  %157: Bool = const False
   %158: Bool = or inspect %156 inspect %157
   branch inspect %158 -> bb45 -> bb42
 
 bb45:
-  %160: Bool = read copy.trivial (yes)
-  %161: Bool = read copy.trivial (yes)
+  %160: Bool = const True
+  %161: Bool = const True
   %162: Bool = xor inspect %160 inspect %161
   %163: Bool = const False
   %164: Bool = eq inspect %162 inspect %163
   branch inspect %164 -> bb46 -> bb42
 
 bb46:
-  %166: Bool = read copy.trivial (no)
+  %166: Bool = const False
   %167: Bool = not inspect %166
   branch inspect %167 -> bb47 -> bb42
 
@@ -427,7 +427,7 @@ bb48:
 bb49:
   %191: F32 = const 1
   write.init borrow.unique (half) take %191
-  %193: F32 = read copy.trivial (half)
+  %193: F32 = const 1
   %194: F32 = const 2
   %195: F32 = div inspect %193 inspect %194
   %196: F32 = const 0.5
@@ -435,7 +435,7 @@ bb49:
   branch inspect %197 -> bb54 -> bb52
 
 bb50:
-  %181: U32 = read copy.trivial (word)
+  %181: U32 = const 2147483649
   %182: U32 = const 1
   %183: U32 = ror inspect %181 inspect %182
   %184: U32 = const 3221225472
@@ -494,7 +494,7 @@ bb59:
   jump -> bb60
 
 bb60:
-  %240: I32 = read copy.trivial (n)
+  %240: I32 = const 3
   %241: I32 = call twice(I32) borrow.shared %240
   %242: I32 = call inc(I32) borrow.shared %241
   %243: I32 = const 7

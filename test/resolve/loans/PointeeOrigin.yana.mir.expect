@@ -1,0 +1,109 @@
+module ResolveTest
+
+data Guard {id: I32} drop authored
+
+data Cell {inner: Guard, tag: I32} drop derived
+
+instance Drop(Guard): Guard.drop
+
+let & trace: I32 = 0
+
+fn Guard.drop(value: Guard) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = read copy.trivial (value.id)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global trace) take %2
+  return
+}
+
+fn elementAt(xs: Array(Cell) [shared slot 0 view], index: Size [shared call]) -> Cell [shared slot 0] {
+bb0:
+  %0: Array(Cell) [shared slot 0 view] = read borrow.shared (xs) loan0
+  %1: %Cell [owned here shape6 .*=shared slot 0] = call values(Cell) borrow.shared %0 roots.0{0}
+  %2: Size = read copy.trivial (index)
+  %3: Size = metric stride Cell
+  %4: Size = mul inspect %2 inspect %3
+  %5: %Cell [owned here shape6 .*=shared slot 0] = add inspect %1 inspect %4 roots.0{0}
+  %6: Cell [shared slot 0] = read borrow.shared ([%%5]) loan1
+  return borrow.shared %6
+}
+
+fn elementTag(xs: Array(Cell) [shared slot 0 view], index: Size [shared call]) -> I32 [shared slot 0] {
+  local local2: Cell [shared slot 0]
+
+bb0:
+  %0: Array(Cell) [shared slot 0 view] = read borrow.shared (xs) loan0
+  %1: Size = read copy.trivial (index)
+  %2: Cell [shared slot 0] = call elementAt borrow.shared %0 borrow.shared %1 roots{0}
+  write.init borrow.unique (local2) borrow.shared %2
+  %4: I32 [shared slot 0] = read borrow.shared (local2.tag) loan1 roots{0}
+  return borrow.shared %4
+}
+
+fn elementField(xs: Array(Cell) [shared slot 0 view], index: Size [shared call]) -> Guard [shared slot 0] {
+  local local2: Cell [shared slot 0]
+
+bb0:
+  %0: Array(Cell) [shared slot 0 view] = read borrow.shared (xs) loan0
+  %1: %Cell [owned here shape6 .*=shared slot 0] = call values(Cell) borrow.shared %0 roots.0{0}
+  %2: Size = read copy.trivial (index)
+  %3: Size = metric stride Cell
+  %4: Size = mul inspect %2 inspect %3
+  %5: %Cell [owned here shape6 .*=shared slot 0] = add inspect %1 inspect %4 roots.0{0}
+  %6: Cell [shared slot 0] = read borrow.shared ([%%5]) loan1
+  write.init borrow.unique (local2) borrow.shared %6
+  %8: Guard [shared slot 0] = read borrow.shared (local2.inner) loan2 roots{1}
+  return borrow.shared %8
+}
+
+fn main() -> I32 {
+  local & cells: [Cell *2]
+  local local1: Cell [shared slot 0]
+  local first: I32
+  local second: I32 [shared slot 0]
+  local local4: Guard [shared slot 0]
+  local third: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: Guard = aggregate.Guard take %0
+  %2: I32 = const 10
+  %3: Cell = aggregate.Cell take %1 take %2
+  %4: I32 = const 2
+  %5: Guard = aggregate.Guard take %4
+  %6: I32 = const 20
+  %7: Cell = aggregate.Cell take %5 take %6
+  %8: [Cell *2] = aggregate.0 take %3 take %7
+  write.init borrow.unique (cells) take %8
+  %10: [Cell *2] [shared slot 0] = read borrow.shared (cells) loan0
+  %11: Array(Cell) [shared slot 0 view] = call.derivation elements([Cell *2], Cell) borrow.shared %10 roots{0}
+  %12: Size = const 0
+  %13: Cell [shared slot 0] = call elementAt borrow.shared %11 borrow.shared %12 roots{0}
+  write.init borrow.unique (local1) borrow.shared %13
+  %15: I32 = read copy.trivial (local1.tag)
+  write.init borrow.unique (first) take %15
+  %17: [Cell *2] [shared slot 0] = read borrow.shared (cells) loan1
+  %18: Array(Cell) [shared slot 0 view] = call.derivation elements([Cell *2], Cell) borrow.shared %17 roots{1}
+  %19: Size = const 1
+  %20: I32 [shared slot 0] = call elementTag borrow.shared %18 borrow.shared %19 roots{1}
+  write.init borrow.unique (second) borrow.shared %20
+  %22: [Cell *2] [shared slot 0] = read borrow.shared (cells) loan2
+  %23: Array(Cell) [shared slot 0 view] = call.derivation elements([Cell *2], Cell) borrow.shared %22 roots{2}
+  %24: Size = const 0
+  %25: Guard [shared slot 0] = call elementField borrow.shared %23 borrow.shared %24 roots{2}
+  write.init borrow.unique (local4) borrow.shared %25
+  %27: I32 = read copy.trivial (local4.id)
+  write.init borrow.unique (third) take %27
+  %29: I32 = read copy.trivial (first)
+  %30: I32 = read copy.trivial (second)
+  drop (cells)
+  %31: I32 = add inspect %29 inspect %30
+  %32: I32 = read copy.trivial (third)
+  %33: I32 = add inspect %31 inspect %32
+  %34: I32 = read copy.trivial (global trace)
+  %35: I32 = add inspect %33 inspect %34
+  return take %35
+}
+
+entry main

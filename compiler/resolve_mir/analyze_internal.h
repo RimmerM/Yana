@@ -378,6 +378,17 @@ struct Analysis {
      */
     MovePathId teardownSubject;
 
+    /*
+     * Whether this path names storage the frame **lends** rather than owns - `lendsItsContents`.
+     *
+     * A path with nothing to release and an obligation instead. Asked of the place rather than
+     * carried as a bit on `MovePath`, because the place is where the contract already is and a
+     * second copy of it would be a second answer to "whose value is this".
+     */
+    bool lendingPath(MovePathId id) {
+        return lendsItsContents(decl, base, body, *body.place(base, path(id).place));
+    }
+
     bool underTeardownSubject(MovePathId id) {
         if(!teardownSubject.valid()) return false;
         for(auto up = id; up.valid(); up = path(up).parent) {
@@ -432,7 +443,7 @@ struct Analysis {
         if(!count) return;
 
         auto last = base[block->nodes.get(base, count - 1)];
-        forEachEdge(*last, [&](Edge& edge) {
+        forEachEdge(base, *last, [&](Edge& edge) {
             if(edge.target) f(base[edge.target]->index.index);
         });
 
@@ -453,7 +464,7 @@ struct Analysis {
         auto region = body.region(base, block->region);
         if(!region || region->multiplicity != Continuation::Many) return;
 
-        forEachEdge(*last, [&](Edge& edge) {
+        forEachEdge(base, *last, [&](Edge& edge) {
             if(edge.target && base[edge.target]->region != block->region) {
                 f(body.block(base, region->entry)->index.index);
 
@@ -583,6 +594,16 @@ struct Analysis {
     /*
      * The three halves, in the order they run.
      */
+
+    /*
+     * analyze_escape.cpp - §10.4's placement, per object, before anything reads one.
+     *
+     * First, and that is a dependency rather than a preference: a heap-placed object is released by
+     * the frame that allocated it whether or not its *type* owes anything, so `buildPaths` has to
+     * know the answer before it decides which locals are tracked at all.
+     */
+    void selectPlacements();
+
 
     // analyze_path.cpp - the move-path tree, and the two place maps.
     void buildPaths();

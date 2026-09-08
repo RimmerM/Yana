@@ -1,6 +1,6 @@
 module ResolveTest
 
-data Handler {run: (I32) -> I32, times: I32}
+data Handler {run: (I32) -> I32, times: I32} drop derived reclaim derived
 
 data Label {tag: I32}
 
@@ -52,44 +52,45 @@ bb0:
 }
 
 fn twiceApplied(v: I32 [shared call]) -> I32 {
-  local local1: (I32) -> I32
+  local local1: (I32) -> I32 [owned here shape8 .0=unique call]
 
 bb0:
-  %0: (I32) -> I32 = fun.value twice
+  %0: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value twice
   write.init borrow.unique (local1) take %0
-  %2: (I32) -> I32 [shared call] = read borrow.shared (local1) loan0
+  %2: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local1) loan0
   %3: I32 = read copy.trivial (v)
   %4: I32 = call apply borrow.shared %2 borrow.shared %3
   return take %4
 }
 
 fn main() -> I32 {
-  local f: (I32) -> I32
-  local g: (I32) -> I32
+  local f: (I32) -> I32 [owned here shape8 .0=unique call]
+  local g: (I32) -> I32 [owned here shape8 .0=unique call]
   local h: Handler
   local l: Label
 
 bb0:
-  %0: (I32) -> I32 = fun.value twice
+  %0: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value twice
   write.init borrow.unique (f) take %0
-  %2: (I32) -> I32 = fun.value thrice
+  %2: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value thrice
   write.init borrow.unique (g) take %2
-  %4: (I32) -> I32 = read take (g)
+  %4: (I32) -> I32 [owned here shape8 .0=unique call] = read take (g)
   %5: I32 = const 5
   %6: Handler = aggregate.Handler take %4 take %5
   write.init borrow.unique (h) take %6
   %8: I32 = const 7
   %9: Label = aggregate.Label take %8
   write.init borrow.unique (l) take %9
-  %11: (I32) -> I32 [shared call] = read borrow.shared (f) loan0
+  %11: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (f) loan0
   %12: I32 = const 10
   %13: I32 = call apply borrow.shared %11 borrow.shared %12
   %14: Handler [shared call] = read borrow.shared (h) loan1
   %15: I32 = const 100
   %16: I32 = call dispatch borrow.shared %14 borrow.shared %15
+  drop (h)
   %17: I32 = add inspect %13 inspect %16
   %18: Label = read copy.trivial (l)
-  %19: (I32) -> I32 [shared call] = read borrow.shared (f) loan2
+  %19: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (f) loan2
   %20: I32 = call twiceOver(Label) borrow.shared %18 borrow.shared %19
   %21: I32 = add inspect %17 inspect %20
   %22: I32 = const 1

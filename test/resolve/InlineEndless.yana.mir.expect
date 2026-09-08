@@ -11,9 +11,9 @@ bb0:
   jump -> bb1
 
 bb1:
-  %3: I32 = const 1
-  %4: I32 = const 2
-  %5: Bool = lt inspect %3 inspect %4
+  %3: I32 = const 2
+  %4: I32 = const 1
+  %5: Bool = lt inspect %4 inspect %3
   branch inspect %5 -> bb3 -> bb2
 
 bb2:
@@ -60,6 +60,47 @@ bb0:
   return take %4
 }
 
+fn spins() -> I32 {
+bb0:
+  jump -> bb1
+
+bb1:
+  %1: Bool = const True
+  branch inspect %1 -> bb3 -> bb2
+
+bb2:
+  %8: I32 = read copy.trivial (global seed)
+  return take %8
+
+bb3:
+  %3: I32 = read copy.trivial (global seed)
+  %4: I32 = const 1
+  %5: I32 = add inspect %3 inspect %4
+  write.assign borrow.unique (global seed) take %5
+  jump -> bb1
+}
+
+fn reaches(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 1000000
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (n)
+  %8: I32 = const 3
+  %9: I32 = mul inspect %7 inspect %8
+  return take %9
+
+bb3:
+  %4: I32 = call spins
+  return take %4
+}
+
 fn main() -> I32 {
 bb0:
   %0: I32 = read copy.trivial (global seed)
@@ -69,7 +110,12 @@ bb0:
   %4: I32 = read copy.trivial (global seed)
   %5: I32 = call doubled borrow.shared %4
   %6: I32 = add inspect %3 inspect %5
-  return take %6
+  %7: I32 = read copy.trivial (global seed)
+  %8: I32 = call reaches borrow.shared %7
+  %9: I32 = const 5
+  %10: I32 = mul inspect %8 inspect %9
+  %11: I32 = add inspect %6 inspect %10
+  return take %11
 }
 
 entry main

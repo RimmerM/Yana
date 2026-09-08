@@ -1,0 +1,136 @@
+module ResolveTest
+
+fn chunks'2(b: Box [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+bb0(%0: Box [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 0
+  store inspect %2 consume %3
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = const 0
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb1 -> bb2
+
+bb1:
+  %7: %I32 address = field.addr .n inspect %0
+  %8: I32 trivial = load inspect %7
+  %9: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %10: I32 trivial = call [value #0] inspect %9 borrow %8
+  store inspect %2 consume %10
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %11: I32 trivial = load inspect %2
+  %12: I32 trivial = const 0
+  %13: Bool trivial = eq inspect %11 inspect %12
+  branch inspect %13 -> bb4 -> bb5
+
+bb4:
+  %14: %I32 address = field.addr .n inspect %0
+  %15: I32 trivial = load inspect %14
+  %16: I32 trivial = const 1
+  %17: I32 trivial = add inspect %15 inspect %16
+  %18: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %19: I32 trivial = call [value #0] inspect %18 borrow %17
+  store inspect %2 consume %19
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %20: I32 trivial = load inspect %2
+  return consume %20
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Array(I32) address = alloc frame Array(I32)
+  %2: %Array(I32) address = alloc frame Array(I32)
+  %3: I32 trivial = const 0
+  store inspect %0 consume %3
+  %4: I32 trivial = const 7
+  %5: Box trivial = aggregate.Box consume %4
+  %6: I32 [unique slot 0] guaranteed = load inspect %0
+  %7: main.cont'2.env affine = aggregate.main.cont'2.env borrow %6
+  %8: (I32) -> I32 [owned here shape9 .0=shared call] affine = fun.value main.cont'2 borrow %7
+  %9: I32 trivial = call chunks'2 borrow %5 borrow %8
+  jump -> bb1
+
+bb1:
+  %10: I32 trivial = const 10
+  %11: I32 trivial = const 20
+  %12: I32 trivial = const 30
+  %13: Size trivial = const 3
+  %14: Array(I32) owned = call literalArray(I32) borrow %13
+  store inspect %1 consume %14
+  %15: Array(I32) [unique slot 0] guaranteed from{%1} = load inspect %1
+  %16: Array(I32) [unique slot 0 view] guaranteed from{%1} = call Array(a).elementsMut(I32) borrow %15
+  %17: %I32 [owned here shape6 .*=shared slot 0] trivial = call valuesMut(I32) borrow %16
+  %18: Size trivial = const 0
+  %19: %I32 address = element.addr inspect %17 inspect %18
+  store inspect %19 consume %10
+  %20: Size trivial = const 1
+  %21: %I32 address = element.addr inspect %17 inspect %20
+  store inspect %21 consume %11
+  %22: Size trivial = const 2
+  %23: %I32 address = element.addr inspect %17 inspect %22
+  store inspect %23 consume %12
+  %24: Array(I32) owned = load inspect %1
+  store inspect %2 consume %24
+  %25: Array(I32) [shared call] guaranteed from{%2} = load inspect %2
+  %26: Array(I32) [shared slot 0 view] guaranteed from{%2} = call Array(a).elements(I32) borrow %25
+  %27: I32 [unique slot 0] guaranteed = load inspect %0
+  %28: Array(I32) [unique slot 1] guaranteed = load inspect %2
+  %29: main.cont.env affine = aggregate.main.cont.env borrow %27 borrow %28
+  %30: (Array(I32)) -> I32 [owned here shape9 .0=shared call] affine = fun.value main.cont borrow %29
+  %31: I32 trivial = call Array(a).chunks(I32) borrow %26 borrow %30
+  jump -> bb2
+
+bb2:
+  drop Array(I32) inspect %2
+  %32: I32 trivial = load inspect %0
+  return consume %32
+}
+
+fn main.cont(main.cont.env: main.cont.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
+bb0(%0: main.cont.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
+  %2: %I32 address = field.addr .total inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %Array(I32) address = field.addr .xs inspect %0
+  %5: %Array(I32) address = load inspect %4
+  %6: I32 trivial = load inspect %3
+  %7: Array(I32) [shared call view] guaranteed from{%1, %5} = load inspect %1
+  jump -> bb1
+
+bb1:
+  %9: %Size address = field.addr .length inspect %7
+  %10: Size trivial = load inspect %9
+  jump -> bb2(consume %10)
+
+bb2(%8: Size trivial):
+  %11: I32 trivial = convert inspect %8
+  %12: I32 trivial = add inspect %6 inspect %11
+  store inspect %3 consume %12
+  %13: I32 trivial = const 0
+  return consume %13
+}
+
+fn main.cont'2(main.cont'2.env: main.cont'2.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: main.cont'2.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = field.addr .total inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %1
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = load inspect %4
+  %7: I32 trivial = add inspect %5 inspect %6
+  store inspect %3 consume %7
+  %8: I32 trivial = const 0
+  return consume %8
+}
+
+entry main

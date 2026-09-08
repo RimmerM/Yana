@@ -1,0 +1,546 @@
+module ResolveTest
+
+fn roundTrip() -> I64 {
+bb0:
+  %0: %I64 address = alloc frame I64
+  %1: %%I64 address = alloc frame %I64 [owned here shape6 .*=shared slot 0]
+  %2: I64 trivial = const 7
+  store inspect %0 consume %2
+  %3: I64 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %4: %I64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %3
+  store inspect %1 consume %4
+  %5: %I64 [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %6: %I64 [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %7: I64 trivial = load inspect %6
+  %8: I64 trivial = const 1
+  %9: I64 trivial = add inspect %7 inspect %8
+  store inspect %5 consume %9
+  %10: %I64 [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %11: I64 trivial = load inspect %10
+  return consume %11
+}
+
+fn throughField() -> I64 {
+bb0:
+  %0: %Node address = alloc frame Node
+  %1: %%Node address = alloc frame %Node [owned here shape6 .*=shared slot 0]
+  %2: I64 trivial = const 3
+  jump -> bb1
+
+bb1:
+  %4: Size trivial = const 0
+  %5: %Node trivial = call Size.%a.bitcast(Node) borrow %4
+  jump -> bb2(consume %5)
+
+bb2(%3: %Node trivial):
+  %6: Node trivial = aggregate.Node consume %2 consume %3
+  store inspect %0 consume %6
+  %7: Node [shared slot 0] guaranteed from{%0} = load inspect %0
+  %8: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %7
+  store inspect %1 consume %8
+  %9: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %10: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %11: %I64 address = field.addr .value inspect %10
+  %12: I64 trivial = load inspect %11
+  %13: I64 trivial = const 5
+  %14: I64 trivial = mul inspect %12 inspect %13
+  %15: %I64 address = field.addr .value inspect %9
+  store inspect %15 consume %14
+  %16: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %17: %I64 address = field.addr .value inspect %16
+  %18: I64 trivial = load inspect %17
+  return consume %18
+}
+
+fn pointerFields() -> I64 {
+bb0:
+  %0: %Node address = alloc frame Node
+  %1: %Node address = alloc frame Node
+  %2: %%Node address = alloc frame %Node [owned here shape6 .*=shared slot 0]
+  %3: %%Node address = alloc frame %Node [owned here shape6 .*=shared slot 0]
+  %4: I64 trivial = const 1
+  jump -> bb1
+
+bb1:
+  %6: Size trivial = const 0
+  %7: %Node trivial = call Size.%a.bitcast(Node) borrow %6
+  jump -> bb2(consume %7)
+
+bb2(%5: %Node trivial):
+  %8: Node trivial = aggregate.Node consume %4 consume %5
+  store inspect %0 consume %8
+  %9: I64 trivial = const 2
+  jump -> bb3
+
+bb3:
+  %11: Size trivial = const 0
+  %12: %Node trivial = call Size.%a.bitcast(Node) borrow %11
+  jump -> bb4(consume %12)
+
+bb4(%10: %Node trivial):
+  %13: Node trivial = aggregate.Node consume %9 consume %10
+  store inspect %1 consume %13
+  %14: Node [shared slot 0] guaranteed from{%0} = load inspect %0
+  %15: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %14
+  store inspect %2 consume %15
+  %16: Node [shared slot 0] guaranteed from{%1} = load inspect %1
+  %17: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %16
+  store inspect %3 consume %17
+  %18: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %19: I64 trivial = const 5
+  %20: %I64 address = field.addr .value inspect %18
+  store inspect %20 consume %19
+  %21: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %22: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %3
+  %23: %%Node address = field.addr .next inspect %21
+  store inspect %23 consume %22
+  %24: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %25: %%Node address = field.addr .next inspect %24
+  %26: %Node trivial = load inspect %25
+  %27: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %28: %I64 address = field.addr .value inspect %27
+  %29: I64 trivial = load inspect %28
+  %30: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %31: %%Node address = field.addr .next inspect %30
+  %32: %Node trivial = load inspect %31
+  %33: %I64 address = field.addr .value inspect %32
+  %34: I64 trivial = load inspect %33
+  %35: I64 trivial = add inspect %29 inspect %34
+  %36: %I64 address = field.addr .value inspect %26
+  store inspect %36 consume %35
+  %37: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %38: %I64 address = field.addr .value inspect %37
+  %39: I64 trivial = load inspect %38
+  %40: I64 trivial = const 100
+  %41: I64 trivial = mul inspect %39 inspect %40
+  %42: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %43: %%Node address = field.addr .next inspect %42
+  %44: %Node trivial = load inspect %43
+  %45: %I64 address = field.addr .value inspect %44
+  %46: I64 trivial = load inspect %45
+  %47: I64 trivial = add inspect %41 inspect %46
+  return consume %47
+}
+
+fn total(node: %Node [shared call]) -> I64 {
+bb0(%0: %Node [shared call] guaranteed):
+  %1: %%Node address = alloc frame %Node [shared call]
+  store inspect %1 borrow %0
+  %2: %Node trivial = load inspect %1
+  %3: %I64 address = field.addr .value inspect %2
+  %4: I64 trivial = load inspect %3
+  %5: %Node trivial = load inspect %1
+  %6: %%Node address = field.addr .next inspect %5
+  %7: %Node trivial = load inspect %6
+  %8: %I64 address = field.addr .value inspect %7
+  %9: I64 trivial = load inspect %8
+  %10: I64 trivial = add inspect %4 inspect %9
+  %11: %Node trivial = load inspect %1
+  %12: %%Node address = field.addr .next inspect %11
+  %13: %Node trivial = load inspect %12
+  %14: %%Node address = field.addr .next inspect %13
+  %15: %Node trivial = load inspect %14
+  %16: %I64 address = field.addr .value inspect %15
+  %17: I64 trivial = load inspect %16
+  %18: I64 trivial = add inspect %10 inspect %17
+  return consume %18
+}
+
+fn walkList() -> I64 {
+bb0:
+  %0: %Node address = alloc frame Node
+  %1: %Node address = alloc frame Node
+  %2: %Node address = alloc frame Node
+  %3: %%Node address = alloc frame %Node [owned here shape6 .*=shared slot 0]
+  %4: I64 trivial = const 3
+  jump -> bb1
+
+bb1:
+  %6: Size trivial = const 0
+  %7: %Node trivial = call Size.%a.bitcast(Node) borrow %6
+  jump -> bb2(consume %7)
+
+bb2(%5: %Node trivial):
+  %8: Node trivial = aggregate.Node consume %4 consume %5
+  store inspect %0 consume %8
+  %9: I64 trivial = const 2
+  jump -> bb3
+
+bb3:
+  %11: Size trivial = const 0
+  %12: %Node trivial = call Size.%a.bitcast(Node) borrow %11
+  jump -> bb4(consume %12)
+
+bb4(%10: %Node trivial):
+  %13: Node trivial = aggregate.Node consume %9 consume %10
+  store inspect %1 consume %13
+  %14: I64 trivial = const 1
+  jump -> bb5
+
+bb5:
+  %16: Size trivial = const 0
+  %17: %Node trivial = call Size.%a.bitcast(Node) borrow %16
+  jump -> bb6(consume %17)
+
+bb6(%15: %Node trivial):
+  %18: Node trivial = aggregate.Node consume %14 consume %15
+  store inspect %2 consume %18
+  %19: Node [shared slot 0] guaranteed from{%2} = load inspect %2
+  %20: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %19
+  store inspect %3 consume %20
+  %21: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %3
+  %22: Node [shared slot 0] guaranteed from{%1} = load inspect %1
+  %23: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %22
+  %24: %%Node address = field.addr .next inspect %21
+  store inspect %24 consume %23
+  %25: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %3
+  %26: %%Node address = field.addr .next inspect %25
+  %27: %Node trivial = load inspect %26
+  %28: Node [shared slot 0] guaranteed from{%0} = load inspect %0
+  %29: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %28
+  %30: %%Node address = field.addr .next inspect %27
+  store inspect %30 consume %29
+  %31: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %3
+  %32: I64 trivial = call total borrow %31
+  return consume %32
+}
+
+fn elementStride() -> I64 {
+bb0:
+  %0: %Node address = alloc frame Node
+  %1: %%Node address = alloc frame %Node [owned here shape6 .*=shared slot 0]
+  %2: %%Node address = alloc frame %Node [owned here shape6 .*=shared slot 0]
+  %3: I64 trivial = const 0
+  jump -> bb1
+
+bb1:
+  %5: Size trivial = const 0
+  %6: %Node trivial = call Size.%a.bitcast(Node) borrow %5
+  jump -> bb2(consume %6)
+
+bb2(%4: %Node trivial):
+  %7: Node trivial = aggregate.Node consume %3 consume %4
+  store inspect %0 consume %7
+  %8: Node [shared slot 0] guaranteed from{%0} = load inspect %0
+  %9: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %8
+  store inspect %1 consume %9
+  %10: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %11: Size trivial = const 1
+  %12: Size trivial = metric stride Node
+  %13: Size trivial = mul inspect %11 inspect %12
+  %14: %Node [owned here shape6 .*=shared slot 0] trivial = add inspect %10 inspect %13
+  store inspect %2 consume %14
+  %15: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %16: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %17: Size trivial = bitcast inspect %16
+  %18: Size trivial = bitcast inspect %15
+  %19: Size trivial = sub inspect %17 inspect %18
+  %20: Size trivial = metric stride Node
+  %21: Size trivial = div inspect %19 inspect %20
+  %22: Size trivial = const 100
+  %23: Size trivial = mul inspect %21 inspect %22
+  %24: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %25: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %24
+  %26: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %27: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %26
+  %28: Size trivial = bitcast inspect %27
+  %29: Size trivial = bitcast inspect %25
+  %30: Size trivial = sub inspect %28 inspect %29
+  %31: Size trivial = metric stride U8
+  %32: Size trivial = div inspect %30 inspect %31
+  %33: Size trivial = add inspect %23 inspect %32
+  %34: I64 trivial = convert inspect %33
+  return consume %34
+}
+
+fn compareAddresses() -> I64 {
+bb0:
+  %0: %Node address = alloc frame Node
+  %1: %%Node address = alloc frame %Node [owned here shape6 .*=shared slot 0]
+  %2: %I64 address = alloc frame I64
+  %3: I64 trivial = const 0
+  jump -> bb13
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %18: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %19: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %20: Bool trivial = eq inspect %18 inspect %19
+  branch inspect %20 -> bb6 -> bb4
+
+bb3:
+  %21: I64 trivial = load inspect %2
+  %22: I64 trivial = const 1
+  %23: I64 trivial = add inspect %21 inspect %22
+  store inspect %2 consume %23
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  jump -> bb15
+
+bb6:
+  %33: I64 trivial = load inspect %2
+  %34: I64 trivial = const 2
+  %35: I64 trivial = add inspect %33 inspect %34
+  store inspect %2 consume %35
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %36: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  jump -> bb19
+
+bb9:
+  %44: I64 trivial = load inspect %2
+  %45: I64 trivial = const 4
+  %46: I64 trivial = add inspect %44 inspect %45
+  store inspect %2 consume %46
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %47: I64 trivial = load inspect %2
+  return consume %47
+
+bb12:
+  %48: I64 trivial = load inspect %2
+  %49: I64 trivial = const 8
+  %50: I64 trivial = add inspect %48 inspect %49
+  store inspect %2 consume %50
+  jump -> bb11
+
+bb13:
+  %5: Size trivial = const 0
+  %6: %Node trivial = call Size.%a.bitcast(Node) borrow %5
+  jump -> bb14(consume %6)
+
+bb14(%4: %Node trivial):
+  %7: Node trivial = aggregate.Node consume %3 consume %4
+  store inspect %0 consume %7
+  %8: Node [shared slot 0] guaranteed from{%0} = load inspect %0
+  %9: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %8
+  store inspect %1 consume %9
+  %10: I64 trivial = const 0
+  store inspect %2 consume %10
+  %11: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %12: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %13: Size trivial = const 1
+  %14: Size trivial = metric stride Node
+  %15: Size trivial = mul inspect %13 inspect %14
+  %16: %Node [owned here shape6 .*=shared slot 0] trivial = add inspect %12 inspect %15
+  %17: Bool trivial = lt inspect %11 inspect %16
+  branch inspect %17 -> bb3 -> bb1
+
+bb15:
+  %25: Size trivial = const 0
+  %26: %Node trivial = call Size.%a.bitcast(Node) borrow %25
+  jump -> bb16(consume %26)
+
+bb16(%24: %Node trivial):
+  jump -> bb17
+
+bb17:
+  %28: %%Node address = alloc frame %Node [shared call]
+  store inspect %28 borrow %24
+  %29: %Node trivial = load inspect %28
+  %30: Size trivial = call %a.Size.bitcast(Node) borrow %29
+  %31: Size trivial = const 0
+  %32: Bool trivial = eq inspect %30 inspect %31
+  jump -> bb18(consume %32)
+
+bb18(%27: Bool trivial):
+  branch inspect %27 -> bb9 -> bb7
+
+bb19:
+  %38: %%Node address = alloc frame %Node [shared call]
+  store inspect %38 borrow %36
+  %39: %Node trivial = load inspect %38
+  %40: Size trivial = call %a.Size.bitcast(Node) borrow %39
+  %41: Size trivial = const 0
+  %42: Bool trivial = eq inspect %40 inspect %41
+  jump -> bb20(consume %42)
+
+bb20(%37: Bool trivial):
+  %43: Bool trivial = not inspect %37
+  branch inspect %43 -> bb12 -> bb10
+}
+
+fn blockOperations() -> I64 {
+bb0:
+  %0: %Node address = alloc frame Node
+  %1: %Node address = alloc frame Node
+  %2: %I64 address = alloc frame I64
+  %3: I64 trivial = const 9
+  jump -> bb1
+
+bb1:
+  %5: Size trivial = const 0
+  %6: %Node trivial = call Size.%a.bitcast(Node) borrow %5
+  jump -> bb2(consume %6)
+
+bb2(%4: %Node trivial):
+  %7: Node trivial = aggregate.Node consume %3 consume %4
+  store inspect %0 consume %7
+  %8: I64 trivial = const 0
+  jump -> bb3
+
+bb3:
+  %10: Size trivial = const 0
+  %11: %Node trivial = call Size.%a.bitcast(Node) borrow %10
+  jump -> bb4(consume %11)
+
+bb4(%9: %Node trivial):
+  %12: Node trivial = aggregate.Node consume %8 consume %9
+  store inspect %1 consume %12
+  %13: Node [shared slot 0] guaranteed from{%1} = load inspect %1
+  %14: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %13
+  %15: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %14
+  %16: Node [shared slot 0] guaranteed from{%0} = load inspect %0
+  %17: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %16
+  %18: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %17
+  %19: Node trivial = copy inspect %0
+  %20: Size trivial = call sizeOf(Node) borrow %19
+  call copyMemory borrow %15 borrow %18 borrow %20
+  %21: %I64 address = field.addr .value inspect %1
+  %22: I64 trivial = load inspect %21
+  store inspect %2 consume %22
+  %23: Node [shared slot 0] guaranteed from{%1} = load inspect %1
+  %24: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %23
+  %25: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %24
+  %26: U8 trivial = const 0
+  %27: Node trivial = copy inspect %1
+  %28: Size trivial = call sizeOf(Node) borrow %27
+  native set.memory inspect %25 inspect %26 inspect %28
+  %29: I64 trivial = load inspect %2
+  %30: I64 trivial = const 10
+  %31: I64 trivial = mul inspect %29 inspect %30
+  %32: %I64 address = field.addr .value inspect %1
+  %33: I64 trivial = load inspect %32
+  %34: I64 trivial = add inspect %31 inspect %33
+  return consume %34
+}
+
+fn sizes() -> I64 {
+bb0:
+  %0: I64 trivial = const 0
+  %1: Size trivial = call sizeOf(I64) borrow %0
+  %2: Size trivial = const 100
+  %3: Size trivial = mul inspect %1 inspect %2
+  %4: U8 trivial = const 0
+  %5: Size trivial = call alignOf(U8) borrow %4
+  %6: Size trivial = const 10
+  %7: Size trivial = mul inspect %5 inspect %6
+  %8: Size trivial = add inspect %3 inspect %7
+  %9: U16 trivial = const 0
+  %10: Size trivial = call sizeOf(U16) borrow %9
+  %11: Size trivial = add inspect %8 inspect %10
+  %12: I64 trivial = convert inspect %11
+  return consume %12
+}
+
+fn maybePointer() -> I64 {
+bb0:
+  %0: %U8 address = alloc frame U8
+  %1: %Maybe(%U8) address = alloc frame Maybe(%U8)
+  %2: %Maybe(%U8) address = alloc frame Maybe(%U8)
+  %3: U8 trivial = const 0
+  store inspect %0 consume %3
+  %4: Maybe(%U8) trivial = aggregate.Nothing
+  store inspect %1 consume %4
+  %5: U8 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %6: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %5
+  %7: Maybe(%U8) trivial = aggregate.Just consume %6
+  store inspect %2 consume %7
+  %8: Maybe(%U8) trivial = copy inspect %1
+  %9: I64 trivial = call unwrapPointer borrow %8
+  %10: Maybe(%U8) trivial = copy inspect %2
+  %11: I64 trivial = call unwrapPointer borrow %10
+  %12: I64 trivial = const 2
+  %13: I64 trivial = mul inspect %11 inspect %12
+  %14: I64 trivial = add inspect %9 inspect %13
+  return consume %14
+}
+
+fn unwrapPointer(value: Maybe(%U8) [shared call]) -> I64 {
+bb0(%0: Maybe(%U8) [shared call] guaranteed):
+  %3: %%U8 address = alloc frame %U8
+  %4: %U8 address = field.addr .# inspect %0
+  %5: U8 trivial = load inspect %4
+  %6: U8 trivial = const 1
+  %7: Bool trivial = eq inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %8: I64 trivial = const 0
+  jump -> bb2(consume %8)
+
+bb2(%1: I64 trivial):
+  return consume %1
+
+bb3:
+  %9: %%U8 address = field.addr .Just inspect %0
+  %10: %U8 trivial = load inspect %9
+  store inspect %3 consume %10
+  %11: %U8 trivial = load inspect %3
+  jump -> bb7
+
+bb4:
+  %18: I64 trivial = const 1
+  jump -> bb5(consume %18)
+
+bb5(%2: I64 trivial):
+  jump -> bb2(consume %2)
+
+bb6:
+  %19: I64 trivial = const 0
+  jump -> bb5(consume %19)
+
+bb7:
+  %13: %%U8 address = alloc frame %U8 [shared call]
+  store inspect %13 borrow %11
+  %14: %U8 trivial = load inspect %13
+  %15: Size trivial = call %a.Size.bitcast(U8) borrow %14
+  %16: Size trivial = const 0
+  %17: Bool trivial = eq inspect %15 inspect %16
+  jump -> bb8(consume %17)
+
+bb8(%12: Bool trivial):
+  branch inspect %12 -> bb6 -> bb4
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I64 address = alloc frame I64
+  %1: I64 trivial = call roundTrip
+  %2: I64 trivial = call throughField
+  %3: I64 trivial = add inspect %1 inspect %2
+  %4: I64 trivial = call pointerFields
+  %5: I64 trivial = add inspect %3 inspect %4
+  %6: I64 trivial = call walkList
+  %7: I64 trivial = add inspect %5 inspect %6
+  %8: I64 trivial = call elementStride
+  %9: I64 trivial = add inspect %7 inspect %8
+  %10: I64 trivial = call compareAddresses
+  %11: I64 trivial = add inspect %9 inspect %10
+  %12: I64 trivial = call blockOperations
+  %13: I64 trivial = add inspect %11 inspect %12
+  %14: I64 trivial = call sizes
+  %15: I64 trivial = add inspect %13 inspect %14
+  %16: I64 trivial = call maybePointer
+  %17: I64 trivial = add inspect %15 inspect %16
+  store inspect %0 consume %17
+  %18: I64 trivial = load inspect %0
+  %19: I32 trivial = convert inspect %18
+  return consume %19
+}
+
+entry main

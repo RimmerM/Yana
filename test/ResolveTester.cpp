@@ -301,7 +301,9 @@ static Maybe<I64> executeModule(Context& context, LowerModule& module, bool unit
     for(auto functionPointer: module.functionOrder) {
         auto function = base[functionPointer];
         machine.reset();
-        transformFunction(context, base, *function, machine);
+        // Refused by the backend and already reported - the driver's own diagnostic count is what
+        // fails the fixture. Nothing after it may run: see `transformFunction`.
+        if(!transformFunction(context, base, *function, machine)) continue;
 
         scratch.resetRecords();
         allocateRegisters(context, base, *function, machine, scratch, registers);
@@ -1121,7 +1123,7 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
     if(fileExists(mirReprPath)) {
         // Opt-in, and **not** created by `generate` - the same terms as the shipping stage's
         // `checkRepr`. A fixture that is not about layout should not grow a layout golden that then
-        // churns whenever the prelude changes; an empty file beside the source is how one opts in.
+        // churns whenever the library changes; an empty file beside the source is how one opts in.
         if(generate) {
             writeText(mirReprPath, [&](Net::Writer& writer) {
                 ssa::printReprs(writer, context, *pipeline.program);

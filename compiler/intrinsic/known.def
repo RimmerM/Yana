@@ -44,7 +44,7 @@
  * dependency on the library's *order* rather than a name per member, and it is the same one the
  * ownership classes already had at one member each: the alternative is a spelling of every member
  * in this directory, which is the table of library names the directory exists to not be. The
- * order is the real `lib/Core`'s, and `prelude/` copies each class head and member list verbatim.
+ * order is `lib/Core`'s, and `checkRoles` is what refuses a class whose members do not line up.
  */
 
 /*
@@ -58,9 +58,9 @@
  * `Required`, because the classifier asks these three about every type in every program: a stage
  * whose library does not declare them cannot compile anything, so saying so once at the end of the
  * declaration passes is the whole of what a program with no `Drop` needs to hear. They were
- * *synthesized* in C++ until `prelude/` existed - a second implementation of a class declaration,
- * belonging to no module so that it could be found from every one - and the prelude declares them
- * instead, which is what makes a declared one and a stood-in one the same class by construction
+ * *synthesized* in C++ until the ownership stage had a library at all - a second implementation of a
+ * class declaration, belonging to no module so that it could be found from every one - and
+ * `lib/Core` declares them instead, which is what makes both stages read one class by construction
  * rather than by agreement.
  *
  * One member each: `drop(->value: a)`, `reclaim(->value: a)`, `copy(from: a) -> a`.
@@ -85,10 +85,10 @@ YANA_KNOWN_ROLE( copy,    Entity::Class, 1,    1,      0,      false,   Presence
  * `structuralAnswer`. The shipping stage reaches them through `Program::coreClasses` by name, which
  * is what these two rows replace for the stage that reads the attribute instead.
  *
- * **`Optional`**, for the reason the atomics' rows are: `prelude/` declares neither, and a stage
- * pointed at it is a stage whose programs may not constrain on them - which is a smaller library
- * rather than a missing one. Nothing the compiler itself does needs the *class*; the classification
- * is `Ownership`'s and exists whether or not a declaration names it.
+ * **`Optional`**, for the reason the atomics' rows are: a library that declares neither is one whose
+ * programs may not constrain on them, which is a smaller library rather than a missing one. Nothing
+ * the compiler itself does needs the *class*; the classification is `Ownership`'s and exists whether
+ * or not a declaration names it.
  */
 //              role         entity         arity members payload teardown presence
 YANA_KNOWN_ROLE( trivialCopy, Entity::Class, 1,    0,      0,      false,   Presence::Optional )
@@ -124,8 +124,8 @@ YANA_KNOWN_ROLE( fromDecimal, Entity::Class, 1,    1,      0,      false,   Pres
  * An **ordinary declared enum**, and the whole of what this row buys is that the compiler can name
  * it. `Bool` used to be a row in `primitive.def`, on the argument that "a comparison has to answer
  * something and this stage may have no declarations to answer with" - which stopped being true the
- * day `prelude/` existed, and cost a type kind, a constant kind and its two constructors' spellings
- * to keep saying. A comparison answers whatever declaration claimed this, `if` reads one, and the
+ * day that stage read a standard library, and cost a type kind, a constant kind and its two
+ * constructors' spellings to keep saying. A comparison answers whatever declaration claimed this, `if` reads one, and the
  * manifestation layer gives a two-constructor enum one byte the way it gives every other one.
  *
  * **Two constructors, false first.** That is what `members` states, and `checkRoles` is where the
@@ -144,11 +144,10 @@ YANA_KNOWN_ROLE( boolean, Entity::Record, 0,    2,      0,      false,   Presenc
  * handle: `[a]` is a type the language's own grammar spells, so the bracket form has to resolve to
  * something, and `doc/spec/collections.md` is explicit that "`[a]` and `Array(a)` are one type".
  *
- * `Required` and declared, like every other row. `prelude/Core/Core.yana` writes `data Array(a)`
- * with this attribute on it and `lib/Core/Array.native.yana` writes the same attribute on the real
- * one, so the two are the same declaration to everything above - which is the property the bracket
- * spelling needs: `doc/spec/collections.md` is explicit that "`[a]` and `Array(a)` are one type",
- * and a compiler that invented a second one would have made them two.
+ * `Required` and declared, like every other row. `lib/Core/Array.native.yana` writes the attribute
+ * on the one declaration, which is the property the bracket spelling needs:
+ * `doc/spec/collections.md` is explicit that "`[a]` and `Array(a)` are one type", and a compiler
+ * that invented a second one would have made them two.
  *
  * What the compiler decides about it is the **window** - `AccessForm::View`, whose two
  * words are a manifestation and not a type - and nothing else. What an *owner* holds is the
@@ -158,7 +157,7 @@ YANA_KNOWN_ROLE( boolean, Entity::Record, 0,    2,      0,      false,   Presenc
 YANA_KNOWN_ROLE( array,   Entity::Record, 1,    0,      0,      false,   Presence::Required )
 
 /*
- * What a shared or unique `[a]` **is** - the array's view record, `prelude/Core/Array.yana`'s
+ * What a shared or unique `[a]` **is** - the array's view record, `lib/Core/Array.native.yana`'s
  * `data ArrayView(a)`, and the row above's other half.
  *
  * `array` names the *owner*. This names the **representation record** a window manifests as: an
@@ -183,7 +182,7 @@ YANA_KNOWN_ROLE( array,   Entity::Record, 1,    0,      0,      false,   Presenc
 YANA_KNOWN_ROLE( arrayView, Entity::Record, 1,    0,      0,      false,   Presence::Required )
 
 /*
- * The string, and what a shared one is - `prelude/Core/String.yana`'s `data String` and its
+ * The string, and what a shared one is - `lib/Core/String.yana`'s `data String` and its
  * `@local data StringView`.
  *
  * `String` is a declaration on `Array`'s terms, not a kind of the compiler's: a record claiming
@@ -271,16 +270,63 @@ YANA_KNOWN_ROLE( arrayLiteral, Entity::Function, 1,   0,      0,      false,   P
 YANA_KNOWN_ROLE( elementBase,  Entity::Function, 1,   0,      0,      false,   Presence::Optional )
 
 /*
- * Where a check that did not hold stops the program - `prelude/Core/Array.yana`'s `checkFailed`.
+ * The third of the same family - `arrayReserve(&self: [a], wanted: Size)`, which is what
+ * `@inline(n) @capacity(n) [T]` becomes.
  *
- * The one role here the compiler never *calls*. The shipping stage emits `checkCondition(index >=
+ * A refined array is a container with room for `n` elements before it has to grow, and the two rows
+ * above cannot say that: `arrayLiteral` sizes a run to the number of elements the literal *wrote*,
+ * and a bound is a statement about the ones it did not. So the literal is built and then reserved,
+ * which is the operation a library already writes and the one place the compiler asks for a
+ * capacity by name.
+ *
+ * What this row does **not** carry is the `@inline` half - where those slots live. That is a
+ * placement, and the ownership stage decides none: every run is the heap here (see
+ * `Analysis-Manifestations.md` §9.3), so the refinement costs an allocation the shipping stage's
+ * frame storage does not. The shipping stage reads neither row - it spells the refined array's run,
+ * capacity and tag out at the literal - which is why this is `Optional` on the same terms as the two
+ * above.
+ */
+//              role          entity            arity members payload teardown presence
+YANA_KNOWN_ROLE( arrayReserve, Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+
+/*
+ * `["a": 1, "b": 2]` and `[:]` - Implementation-Map.md §7, as three rows instead of a record layout.
+ *
+ * The same division the two array-literal rows are under, applied to the one container whose
+ * representation the compiler has even less business knowing: a map's storage is an insertion order,
+ * a probe and an index, and none of those is a thing a literal has an opinion about. So `map` is the
+ * declaration a literal builds - needed because `[:] :: [K: V]` names it and nothing else does -
+ * `mapLiteral` is the sized construction (`newMap(n)`, which §4.5 measures at 1.8-2.2x over a small
+ * map's life and which is the one site where the entry count is a compile-time constant), and
+ * `indexInsert` is the class `m[k] = v` already goes through. The literal is that call and `n` of
+ * these, left to right, with no field of `Map` read here.
+ *
+ * `indexInsert` rather than `insert`, and it is the same argument the shipping stage's literal
+ * makes: `insert` hands back the value it replaced, so a literal built out of it would drop a
+ * `Maybe(v)` at every entry. Two equal keys are therefore the assignment's rule and not a new one.
+ *
+ * `Optional` on the array rows' terms. A library that declares no map is one without maps, and what
+ * an unfilled row costs is that a map literal reports the missing role by name rather than failing
+ * somewhere below it.
+ */
+//              role         entity            arity members payload teardown presence
+YANA_KNOWN_ROLE( map,         Entity::Record,   2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( mapLiteral,  Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( indexInsert, Entity::Class,    3,   1,      0,      false,   Presence::Optional )
+
+/*
+ * Where a check that did not hold stops the program - `lib/Core/Check.yana`'s `checkFailed`.
+ *
+ * The role neither stage calls *directly*. The shipping stage emits `checkCondition(index >=
  * length)` at every subscript and holds a pointer to that function so it can find its own calls
- * again; the ownership stage inserts nothing at all, because `Index.get` writes the test itself and
- * `@inline(always)` grafts it into the caller. What arrives is an ordinary comparison, an ordinary
- * branch, and an arm that calls this - so what the role is for is *recognition* rather than
- * emission: `-no-checks` has to be able to say which branch is a check, and comparing a callee
- * against a declaration is the only statement of that which a rename cannot silently unfill.
- * `resolve_ssa/opt/check.cpp` is the one reader, and its file comment is the structural rule.
+ * again; the ownership stage reaches for the condition function too, but at one subscript only - a
+ * `[T *n]` element, which has no accessor to write the test in - and everywhere else `Index.get`
+ * writes the test itself and `@inline(always)` grafts it into the caller. What arrives either way is
+ * an ordinary comparison, an ordinary branch, and an arm that calls this - so what *this* role is
+ * for is *recognition* rather than emission: `-no-checks` has to be able to say which branch is a
+ * check, and comparing a callee against a declaration is the only statement of that which a rename
+ * cannot silently unfill. `resolve_ssa/opt/check.cpp` is the one reader, and its file comment is the
+ * structural rule.
  *
  * `arity` zero because the declaration takes nothing: a check that fails says its exit status and
  * no more, which is `lib/Core/Check.yana`'s argument - formatting a message would put the format
@@ -293,6 +339,56 @@ YANA_KNOWN_ROLE( elementBase,  Entity::Function, 1,   0,      0,      false,   P
  * nothing to discharge, which is exactly what it should find.
  */
 YANA_KNOWN_ROLE( checkFailed,   Entity::Function, 0,   0,      0,      false,   Presence::Optional )
+
+/*
+ * The branch a check *is*, in a function of its own - `lib/Core/Check.yana`'s `checkCondition`,
+ * taking the mistake (`index >= length`) rather than the invariant.
+ *
+ * A row here because the ownership stage now emits one call: a `[T *n]` element is a projection of
+ * the container's own place, so there is no library body for the test to be written in the way
+ * `Index.get`'s is, and the compiler owes the bound itself. The note below this file's `Show` block
+ * used to say that a condition function was a declaration this stage would never reach for; a fixed
+ * array is the one subscript that has no accessor, and it is what refuted that.
+ *
+ * **A call and not the branch, for the reason the shipping stage has and this stage now shares.** A
+ * subscript is resolved inside whatever expression contains it, and this IR hands every value that
+ * crosses a block boundary over as a block argument - so a branch emitted there would have to thread
+ * everything the enclosing expression had already computed through two new blocks, under a construct
+ * that has already decided which blocks it owns. The branch inside a callee is the same test where
+ * nothing is looking, and inlining removes the call in an optimized build.
+ *
+ * `Optional`, on `checkFailed`'s terms: a library that declares no condition function is one whose
+ * fixed arrays are unchecked, which is a smaller library rather than a broken one.
+ */
+YANA_KNOWN_ROLE( checkCondition, Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+
+/*
+ * The same two, carrying where the check was written - `-check-locations`, Design-Test.md §5.4.
+ *
+ * `checkFailedAt(file: %CodeUnit, fileLength: Int, line: Int, column: Int)` and `checkConditionAt`
+ * with the failure flag in front of it. **Scalars and not a `String`**, which is the whole of what
+ * the measurement decided: a native `String` is a two-word descriptor passed by *address*, so a
+ * literal one in an argument position is sixteen bytes stored into a stack slot **at the call** -
+ * ahead of the branch, on the path a check that holds takes. That shape cost 34% of a loop whose
+ * bounds check cannot be folded; passed as the pointer and the count it is made of, the same program
+ * runs to within noise of an unlocated build. The line and the column were never the problem.
+ *
+ * `arity` **zero** on both, unlike the two rows above. The JS declaration takes a `String` where the
+ * native one takes a pointer and a count, so the two platforms spell different lists for one role
+ * and a number here would have to be wrong on one of them. What the arity would have caught -
+ * a declaration of the wrong shape - is caught instead where the call is built, which reads the
+ * declared parameter list rather than assuming it.
+ *
+ * `Optional`, on `checkFailed`'s terms, and one rung weaker still: a library that declares no
+ * located pair is one where `-check-locations` changes nothing, and the switch is a debug switch.
+ * **Where the substitution happens is the lowering** and not the resolver - see
+ * `Lowering::locatedCheck`. That keeps the located form out of the SSA optimizer entirely, so
+ * `resolve_ssa/opt/check.cpp`'s discharge rule and every bounds-check fold go on seeing the one
+ * shape they were written against, which is the trap the shipping stage's `isCheckCall` exists to
+ * work around.
+ */
+YANA_KNOWN_ROLE( checkFailedAt,    Entity::Function, 0,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( checkConditionAt, Entity::Function, 0,   0,      0,      false,   Presence::Optional )
 
 /*
  * The heap, as three functions - Design-Allocator.md §18.5's binding, and the roles that replace
@@ -536,20 +632,161 @@ YANA_KNOWN_ROLE( lanewise,      Entity::Class, 2,    7,      0,      false,   Pr
 YANA_KNOWN_ROLE( bits,          Entity::Class, 1,    5,      0,      false,   Presence::Optional )
 
 /*
+ * `ByteSwap(a)` - `lib/Core/Bits.yana`, and the one operation a binary format cannot be read without.
+ *
+ * A class of its own rather than a member of `Integral`, which is the library's own argument and is
+ * about the types rather than about the operation: a type can be `Integral` and have no byte order at
+ * all - `WideInt` is fifty-three bits in a sixty-four bit register, so which eight bytes its are is a
+ * question with no answer - and a separate class is how a width says it has one.
+ *
+ * **One member, `byteSwap(value: a) -> a`.** `expand_provided.cpp` reaches it by position through
+ * `providedOperation`, so this column is the second place that order is written down.
+ *
+ * `Optional` on `bits`' terms: the class is the library's, and a build reading a library without it
+ * generates nothing rather than reporting.
+ */
+YANA_KNOWN_ROLE( byteSwap,      Entity::Class, 1,    1,      0,      false,   Presence::Optional )
+
+/*
+ * `BitPermute(a)` - `lib/Core/Bits.yana`, the two operations that move a value's bits by a mask.
+ *
+ * A class of its own for the reason the library states and not for a second one: `Bits` is four
+ * counts every target has an instruction for at some level, and these are a *permutation*, which
+ * x86 has only at v3 and most machines have never had. A type can be `Integral` and have neither.
+ *
+ * **Two members, `gatherBits(value, mask)` and `scatterBits(value, mask)`**, in that order -
+ * `expand_provided.cpp` reaches each by position through `providedOperation`, so this column is the
+ * second place that order is written down.
+ *
+ * `Optional` on `bits`' terms: the class is the library's, and a build reading a library without it
+ * generates nothing rather than reporting.
+ */
+YANA_KNOWN_ROLE( bitPermute,    Entity::Class, 1,    2,      0,      false,   Presence::Optional )
+
+/*
+ * `Enum(a -> w)` - `lib/Core/Enum.yana`, the number and the name a payload-free sum is.
+ *
+ * The one class in the library **nobody may write an instance of**: what all four members answer is
+ * decided by the `data` declaration and there is nothing an author could add, so the compiler
+ * supplies one per enum - `provideEnumInstances`, on `Family::Shapes`' terms, since "every
+ * payload-free sum in the program" is not a family of primitives.
+ *
+ * **Two parameters, and the second is determined.** `w` is the width the declaration's own numbers
+ * need - `Int` where every `@value` fits a signed thirty-two bits and `I64` where one does not,
+ * which is `enumValueTypeOf` and is the one place that is decided. A call never names it; it reads
+ * back what the head put there, which is what the `->` in the class head is for.
+ *
+ * **Four members, and the order is `lib/Core/Enum.yana`'s**: `valueOf`, `fromValue`, `nameOf`,
+ * `fromName`. The first two are generated; the second two are not yet, and a call of one reports
+ * where it is written rather than reaching a body that is not there.
+ *
+ * The role is spelled `enumeration` and not `enum` for one reason: the attribute's spelling is the
+ * enumerator's own name (`role.h`), and `enum` is a keyword in the language this compiler is written
+ * in. It reads beside `boolean` and `ordering`, which are the other two library declarations named
+ * here as nouns.
+ *
+ * `Optional` on `bits`' and `show`'s terms: a library without it generates nothing rather than
+ * being refused.
+ */
+YANA_KNOWN_ROLE( enumeration,   Entity::Class, 2,    4,      0,      false,   Presence::Optional )
+
+/*
+ * Turning a value into text - `lib/Core/Core.yana`'s `class Show(a)`, which is what a hole in a
+ * string literal dispatches through.
+ *
+ * `"n = {x}"` is grammar, so the class it reaches has to be nameable here: the compiler holds a
+ * chunk list and a resolved value per hole and has no call site for name resolution to start from.
+ * Everything else about a format is an ordinary call.
+ *
+ * **Two members, and the order is the one `lib/Core/Core.yana` declares them in**: `show(value: a,
+ * &to: String)` writes the text, and `showBound(value: a) -> Maybe(Size)` says how much of it there
+ * will be - `Nothing` where measuring costs what formatting costs. A format reaches each by
+ * position, so this column is where that order is written down.
+ *
+ * `Optional`, on the atomics' terms: a library without it is one in which a string interpolation
+ * reports where it is written, rather than one the compiler refuses to load.
+ */
+//              role  entity         arity members payload teardown presence
+YANA_KNOWN_ROLE( show, Entity::Class, 1,    2,      0,      false,   Presence::Optional )
+
+/*
+ * The three functions a format expression is built out of - Implementation-Storage.md part 8.
+ *
+ * `stringOfCapacity(capacity: Size) -> String` is the buffer, sized from the literal segments plus
+ * what the holes said they would need; `formatBound(bound: Maybe(Size)) -> Size` is the line that
+ * turns an unmeasurable hole into a seed of zero, which is what makes part 8's three strategies one
+ * shape rather than three code paths; `String.push(&self: String, other: String)` is what each
+ * literal segment reaches. The compiler holds the arity and nothing else: what a growable string
+ * *is* stays the library's, exactly as `arrayLiteral` and `elementBase` leave an array's shape to
+ * it.
+ *
+ * `String.reserve` is deliberately **not** here. The shipping stage reads it for one optimization -
+ * `to ++= "a{x}b"` reserving on the caller's string instead of building a temporary - and that is a
+ * rewrite of a *written* operator rather than part of what a format is. A row for it would be a
+ * role the ownership stage never reaches.
+ *
+ * `Optional` for the same reason `show` is: a library that declares no formatter is one where an
+ * interpolation reports at the literal.
+ */
+//              role              entity            arity members payload teardown presence
+YANA_KNOWN_ROLE( stringOfCapacity, Entity::Function, 1,    0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( stringPush,       Entity::Function, 2,    0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( formatBound,      Entity::Function, 1,    0,      0,      false,   Presence::Optional )
+
+/*
+ * The seven vector halves of `lib/Core/Reduce.yana`'s bulk operations - `op.def`'s `bulk*` rows read
+ * from the other end.
+ *
+ * Each bulk operation is one declaration and two bodies, and the declaration carries the element
+ * walk (`roleMayWriteBody`). The *choice* between the two is the `op.def` role's expansion and is
+ * made where the call is, because whether the element has a vector on this target is a question
+ * about the lane's stride and the register width rather than about anything a constraint could
+ * carry. What a stage making that choice needs is a handle on the body it is choosing, and these are
+ * those handles - the one thing the ownership stage's intrinsic framework did not hold, which is why
+ * the seven `bulk*` rows sat in `opExpands` answering with the element walk on every target.
+ *
+ * A role per body rather than a lookup by name in Core, on this file's own terms: the shipping stage
+ * finds them with `collectionsFunction(module, "indexOfVectors"_v)`, which is exactly the spelling
+ * outside this directory that a row replaces. The names coincide because a role's enumerator *is*
+ * the attribute's spelling, so the library reads the same either way and only the compiler's
+ * dependency on it moved.
+ *
+ * `Optional`, and it is what makes the choice safe rather than what makes it possible: a library
+ * that declares no vector half is one whose bulk operations are the loops they always were, which is
+ * the same answer a target with no vector for the element gets. Nothing reports.
+ *
+ * `itemsEqualVectors` is claimed twice, `@platform`-split, exactly as `checkFailed` is - one
+ * declaration survives platform selection, so one claim reaches the table.
+ */
+//              role                entity            arity members payload teardown presence
+YANA_KNOWN_ROLE( sumVectors,         Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( productVectors,     Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( maximumVectors,     Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( minimumVectors,     Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( occurrencesVectors, Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( indexOfVectors,     Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( itemsEqualVectors,  Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+
+/*
  * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
  *
  * The classes the language's syntax is written in terms of that are not yet here (`Enum`,
- * `IndexInsert`, `Show`, `Chunked`, and `ByteSwap`, `BitPermute`, `Length` beside them), and the
- * functions it inserts calls to (`checkCondition`, and the three a format expression is built out
- * of).
+ * `Chunked`, and `ByteSwap`, `BitPermute`, `Length` beside them).
  *
- * `checkFailed` was on that list and is a row now - see above - and **`checkCondition` stays,
- * because the two are not a pair here.** The shipping stage's check is a *call* to a function whose
- * body holds the branch, for a reason that has nothing to do with checking: a branch emitted inside
- * an expression splits a block a lifted `iter fn` had already recorded. The ownership stage's check
- * is the branch itself, written in `Index.get` and grafted by `@inline(always)`, so there is no
- * condition function for a role to name - and a row for one would be a `Presence` describing a
- * declaration this stage will never reach for.
+ * `Show` was on that list and is a row now, with the three functions a format expression is built
+ * out of beside it - see above. **They are `Optional` rather than `Required` and that is the
+ * difference from every earlier row here**: the argument against a row for an unreachable
+ * declaration was that `Presence` would have to lie, and an optional row does not - it says that a
+ * library without a formatter is one where `"{x}"` reports at the literal. The rows are what let the
+ * ownership stage compile `lib/Core`'s formatter rather than need one written for it.
+ *
+ * `checkFailed` and `checkCondition` were both on that list and are both rows now - see above. The
+ * argument for leaving the second off was that this stage's check is the branch itself, written in
+ * `Index.get` and grafted by `@inline(always)`, so no condition function would ever be reached for.
+ * A **fixed array** refuted it: `xs[i]` on a `[T *n]` is a projection of the container's own place
+ * rather than a call, so there is no accessor body to hold the test and the compiler owes it - and
+ * emitting the branch in the expression is what this IR's block-argument rule refuses, which is the
+ * shipping stage's own reason for the indirection arrived at from the other end.
  *
  * `TrivialCopy`, `TrivialSink` and `Bits` were on that list and are rows now. What moved the first
  * two is that they are `Ownership`'s own classification and `structuralAnswer` could answer them
@@ -557,8 +794,8 @@ YANA_KNOWN_ROLE( bits,          Entity::Class, 1,    5,      0,      false,   Pr
  * so `provided.def` supplies the instances the way it supplies `Integral`'s.
  *
  * The heap's allocate and free were on that list and are rows now - see `allocateHeap` above. What
- * moved them is that `prelude/Native/Heap.native.yana` declares them and this stage compiles it, so
- * they are no longer roles nothing could fill.
+ * moved them is that `lib/Native/Heap.native.yana` declares them and this stage compiles it, so they
+ * are no longer roles nothing could fill.
  *
  * They are not here yet because the stage that would bind them cannot compile the parts of `lib/`
  * that declare them. Adding rows for declarations nothing can reach would be a table of roles that
@@ -574,11 +811,13 @@ YANA_KNOWN_ROLE( bits,          Entity::Class, 1,    5,      0,      false,   Pr
  * generators beside it - `classNamed(module, "Show"_v)` and its neighbours. Nothing else: the older
  * resolver binds the class rows here now, so every one of `CoreClasses` that has a row is read out
  * of `Program::knownClasses` and the spelling of each went with the lookup. `TrivialCopy`,
- * `TrivialSink`, `Lanewise` and `Bits` were on the by-name list and came off it the day `prelude/`
- * declared them, which is what that list predicts. What is left - `Enum`, `Index`, `Show`,
- * `Contiguous`, `Chunked`, `Writable`, `IndexInsert`, `ByteSwap`, `BitPermute` and `Length` - is the
- * same paragraph as the one above: a row apiece the day `prelude/` reaches them, and a lie about
- * `Presence` before that.
+ * `TrivialSink`, `Lanewise` and `Bits` were on the by-name list and came off it the day the
+ * ownership stage read a library that declared them, which is what that list predicts. `Show` came off it the day the row above was
+ * written, which is the other way one can go: an `Optional` row costs the shipping stage nothing and
+ * is what the ownership stage reads. What is left - `Enum`, `Index`, `Contiguous`, `Chunked`,
+ * `Writable`, `ByteSwap`, `BitPermute` and `Length` - is a row apiece the day something in the
+ * compiler has to name one. `IndexInsert` came off that list the day the map-literal rows above were
+ * written, which is what the list predicts.
  *
  * `Proceed` and `Exit` in `resolve_sig.cpp` were the last entry before those and went with the
  * `outcome` row above.
@@ -591,7 +830,7 @@ YANA_KNOWN_ROLE( bits,          Entity::Class, 1,    5,      0,      false,   Pr
  *  - `True` and `False` were `primitive.def`'s tail, beside `Bool` itself, and all three are gone:
  *    the `boolean` row above is the declaration they are constructors of, so the compiler holds an
  *    index into a constructor list and no spelling at all. `Int` and `Long` went with them - they
- *    were rows there *and* aliases in the prelude, and `findBuiltin` runs first, so the declaration
+ *    were rows there *and* aliases in `lib/Core`, and `findBuiltin` runs first, so the declaration
  *    was dead.
  *  - The **width of an unadorned literal** was `intType(32, true)` and `floatType(64)` in
  *    `resolveLiteral`. It is `fromInt` and `fromDecimal`'s head defaults now, and the second one had
@@ -600,8 +839,8 @@ YANA_KNOWN_ROLE( bits,          Entity::Class, 1,    5,      0,      false,   Pr
  *    could have renamed its entry point and moved one of them.
  *  - `Core` is `role.h`'s `kCoreModuleName`. Three places spelled it - both resolve stages and the
  *    library locator, which judges a directory by whether it holds `Core/Core.yana`.
- *  - The **fixities** are gone from `resolve_mir/resolve_expr.cpp` entirely and are declared in
- *    `prelude/Core/Core.yana`, which copies `lib/Core/Core.yana`'s block number for number. They had
+ *  - The **fixities** are gone from `resolve_mir/resolve_expr.cpp` entirely and are read out of
+ *    `lib/Core/Core.yana`'s own block. They had
  *    to move rather than be corrected: the table's numbers and Core's *had already diverged*, so
  *    `a and b shl c` grouped one way under each stage. `doc/spec/declarations.md` is explicit that
  *    "an operator used infix with no fixity declaration in scope is an error - there is no default

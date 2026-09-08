@@ -38,14 +38,17 @@
  * decline it, and each of them is a use `Contained` has already refused - so what this walk adds over
  * that analysis is the two conditions below.
  *
- * **Every load's result and every store's value are `Trivial` and agree on their whole occurrence.**
- * The convention half is the linear rule: what replaces the loads is one value per definition, and
- * duplicating an owner or a borrow is not a substitution - `Editor::replaceAllUses` refuses both. The
- * occurrence half is `Forwarder::isForwardable`'s rule and has the same reason: a value's occurrence
- * is what `lower/manifest.cpp` manifests it from, and a block argument declares exactly one. Whether
- * two occurrences happen to manifest alike is the **target's** answer and `optimizeProgram` runs once
- * per program, which is the refusal `fold.cpp` makes about a width and `memory.cpp` about a sum's
- * fields.
+ * **Every load's result and every store's value are `Trivial` and agree on their type and their
+ * root's contract.** The convention half is the linear rule: what replaces the loads is one value
+ * per definition, and duplicating an owner or a borrow is not a substitution -
+ * `Editor::replaceAllUses` refuses both. The occurrence half is `Forwarder::isForwardable`'s rule and
+ * has the same reason: a value's occurrence is what `lower/manifest.cpp` manifests it from, and a
+ * block argument declares exactly one. Whether two occurrences happen to manifest alike is the
+ * **target's** answer and `optimizeProgram` runs once per program, which is the refusal `fold.cpp`
+ * makes about a width and `memory.cpp` about a sum's fields.
+ *
+ * The interior **shape** is the one part of the occurrence excused, and `agree` is where the
+ * argument for that is.
  *
  * That is what keeps a **borrowed** parameter's slot in storage. `fn f(n: Int)` stores an
  * `I32 [shared call] guaranteed` into a slot its loads read back as a plain `I32 trivial`, so the
@@ -54,12 +57,25 @@
  * ordinary owned occurrence at both ends and promotes with every other local, and so does every
  * parameter slot of an **inlined** body, where what the store installs is the caller's own value.
  *
- * A **borrow of the allocation** is refused by the same clause and it is worth stating on its own,
- * because `Contained` admits one: there is no `Borrow` instruction at this tier, so `&x` is a `load`
- * whose result is `Guaranteed` and whose loan names the allocation, and containment recurses into it
- * rather than declining it. Here the load's result is not `Trivial`, so the allocation is not
- * promoted - which is the only answer available, since the loan names storage the promotion would
- * remove and a loan with no lender is a loan whose endpoints are never found.
+ * A **borrow of the allocation** is a second *name* for it rather than a use of what is in it, and
+ * since J37 the walk follows one. There is no `Borrow` instruction at this tier, so `&x` is a `load`
+ * whose result is `Guaranteed` and whose loan names the allocation, and `represent` restates such a
+ * name at another occurrence without moving a byte - which is exactly the pair `allocationRoot`
+ * already walks and `Containment` already recurses into. What the walk here adds is that the *whole*
+ * of what those names are used for must again be loads, stores and drops of the whole of it: then
+ * the borrow, the restatements and the storage all go together, and the loan that named the
+ * allocation goes with the instruction that made it rather than being left without a lender.
+ *
+ * **This is the shape a grafted continuation leaves and it is most of what this pass is worth.** An
+ * `iter fn`'s `for` keeps its outcome signal, its accumulator and its result in slots the
+ * continuation was handed a borrow of; the inliner puts the body back but leaves the borrow, so
+ * before this every one of those stayed in storage - `indexOfVectors` re-loaded and re-stored its
+ * flag, its running position and its `Maybe(Size)` on every iteration, which is also what kept
+ * `lower_licm` from hoisting a loop-invariant load out of a loop that "writes storage" and
+ * `threadBranches` from seeing a join that holds its branch and nothing else.
+ *
+ * It is refused where any of those names is used for anything else - a `FieldAddress`, a call
+ * argument, a `Copy` - which is where the loan really does describe storage somebody else reads.
  *
  * Three smaller answers, each of which had to be decided rather than assumed:
  *
@@ -138,6 +154,11 @@ struct Slot {
     Occurrence occurrence;
     U32 column = 0;
 
+    // The instructions that give this storage a second name - a `Guaranteed` load and the
+    // `represent`s over it. In discovery order, so erasing them backwards erases each one after
+    // everything that read it. Empty for the ordinary slot, which is most of them.
+    Array<Inst*> aliases;
+
     // Per block, indexed by `BlockId`: what the slot holds on the way in, and on the way out.
     Array<Value*> entry;
     Array<Value*> exit;
@@ -193,10 +214,25 @@ struct Promoter {
         return slotOf[value->id.index];
     }
 
+    // Every *name* for one slot's storage answers as that slot, which is what makes the accesses
+    // through a borrow of it the same accesses - see `scan`.
+    void name(Value& value, U32 slot) {
+        if(value.id.index < slotOf.size()) slotOf[value.id.index] = slot;
+    }
+
     // The slot an instruction reads and the slot it writes, asked separately because a `Drop` is
     // neither and every other kind is one or the other or nothing.
     U32 readSlot(Inst& inst) {
         if(inst.kind != Inst::Load) return kNoSlot;
+
+        // A borrow of the slot is a second *name* for it and not a read of what is in it - `scan`
+        // followed it and `run` erases it with the storage, so neither the survey nor the rewrite
+        // may treat it as an access. The `represent`s over it are not `Load`s and never arrive here.
+        if(inst.results.size() == 1
+           && opt.base[inst.results.get(opt.base, 0)]->convention == Convention::Guaranteed) {
+            return kNoSlot;
+        }
+
         return slotAt(addressOf(((InstLoad&)inst).address));
     }
 
@@ -206,47 +242,93 @@ struct Promoter {
     }
 
     /*
-     * Whether one allocation's whole use list is loads, stores and teardown-free drops of the whole
-     * of it, agreeing on one `Trivial` occurrence - the eligibility rule, and the file comment is
-     * the argument for each clause.
+     * What one candidate has been found out about while its names are walked.
+     *
+     * A structure rather than four reference parameters, because the walk is recursive: a borrow of
+     * the allocation is a second name whose uses have to answer the same questions, and threading
+     * four out-parameters through that reads as four independent facts when it is one verdict.
      */
-    bool eligible(Value& allocation, Occurrence& agreed) {
-        auto& alloc = (InstAlloc&)*opt.base[allocation.definer];
+    struct Survey {
+        Occurrence agreed;
+        bool typed = false;
+        bool read = false;
+        Array<Inst*> aliases;
+    };
 
-        // Frame storage only, and the held occurrence owing nothing - `removeDeadStorage`'s two
-        // questions, asked here for the same reason: what this ends with is deleting the request for
-        // the storage, which is a complete answer exactly where the frame supplied it and where
-        // nothing was owed when it went away.
-        if(alloc.storage != mir::StorageClass::Frame) return false;
-        if(hasTeardownAt(opt, alloc.held) || isLinearAt(opt, alloc.held)) return false;
-        if(!contained[allocation]) return false;
+    /*
+     * The type and the root's contract, and **not** the interior shape.
+     *
+     * The shape says which positions inside the value somebody else owns, which is an ownership
+     * statement and not a manifestation - so excusing it here would be exactly the "they happen to
+     * manifest alike" shortcut the file comment refuses, were it not for the clause above it: every
+     * load and every store here is `Convention::Trivial`, and a trivially copied value owes no
+     * teardown at either end. A shape carries no obligation across a pair like that; the loans it
+     * described were decided in `resolve_mir` and nothing at this tier reads it.
+     *
+     * The case is a **grafted parameter slot whose argument knows more than the callee asked for**:
+     * `bitcast(addressOf(global))` is a `%CodeUnit` whose pointee names the global's loan,
+     * `stringLiteral(bytes: %CodeUnit)` declared no origin, so the store installs a shape the load
+     * reads back without. Leaving the slot in storage cost two instructions per string literal -
+     * enough to move an inlining decision in `resolve/NicheOwned.yana`, which is how it was noticed.
+     *
+     * What the promoted slot then declares is the shape they agreed on, or none where they did not:
+     * an empty shape is "nothing inside is anyone else's", which is what a slot whose ends disagree
+     * can honestly say and what its own declaration already said.
+     */
+    bool agree(Survey& survey, Value& value) {
+        if(value.convention != Convention::Trivial) return false;
 
-        auto typed = false;
-        auto read = false;
+        if(!survey.typed) {
+            survey.agreed = value.occurrence;
+            survey.typed = true;
+            return true;
+        }
 
-        auto agree = [&](Value& value) {
-            if(value.convention != Convention::Trivial) return false;
+        if(survey.agreed.type != value.occurrence.type) return false;
+        if(survey.agreed.contract != value.occurrence.contract) return false;
 
-            if(!typed) {
-                agreed = value.occurrence;
-                typed = true;
-                return true;
-            }
+        if(survey.agreed.shape != value.occurrence.shape) survey.agreed.shape = nullptr;
+        return true;
+    }
 
-            return agreed == value.occurrence;
-        };
+    // How far a chain of second names is followed. A borrow restated three times over is past
+    // anything the inliner builds, and the bound is what makes this terminate on IR the verifier has
+    // not seen yet rather than on an invariant.
+    static constexpr U32 kAliasDepth = 4;
 
-        for(auto userPointer: allocation.uses(opt.base)) {
+    /*
+     * Whether the whole use list of one **name** for this storage is loads, stores and teardown-free
+     * drops of the whole of it - the eligibility rule, recursing into every second name it finds.
+     * The file comment is the argument for each clause.
+     */
+    bool scan(Survey& survey, Value& name, U32 depth) {
+        if(depth > kAliasDepth) return false;
+
+        for(auto userPointer: name.uses(opt.base)) {
             auto& user = *opt.base[userPointer];
-            auto names = [&](Use used) { return addressOf(used) == &allocation; };
+            auto names = [&](Use used) { return addressOf(used) == &name; };
 
             switch(user.kind) {
                 case Inst::Load: {
                     if(!names(((InstLoad&)user).address)) return false;
                     if(user.results.size() != 1) return false;
-                    if(!agree(*opt.base[user.results.get(opt.base, 0)])) return false;
 
-                    read = true;
+                    auto result = opt.base[user.results.get(opt.base, 0)];
+
+                    /*
+                     * A `Guaranteed` result is a **borrow**: a second name for this storage rather
+                     * than a read of what is in it, which is how `&x` is spelled at this tier. It is
+                     * followed rather than declined, and what follows it is the same question.
+                     */
+                    if(result->convention == Convention::Guaranteed) {
+                        survey.aliases.push(&user);
+                        if(!scan(survey, *result, depth + 1)) return false;
+                        break;
+                    }
+
+                    if(!agree(survey, *result)) return false;
+
+                    survey.read = true;
                     break;
                 }
 
@@ -257,7 +339,25 @@ struct Promoter {
                     // address escaping into storage, which `Contained` has already refused and which
                     // this states again because the two operands are one use list entry each.
                     if(!names(store.address) || names(store.value)) return false;
-                    if(!agree(*opt.base[store.value.value()])) return false;
+                    if(!agree(survey, *opt.base[store.value.value()])) return false;
+                    break;
+                }
+
+                /*
+                 * `represent` - the same storage restated at another occurrence, which moves no byte
+                 * and is what the inliner leaves where a continuation's handover crossed a
+                 * signature. A second name exactly as the borrow above is.
+                 */
+                case Inst::Unary: {
+                    auto& unary = (InstUnary&)user;
+                    if(unary.op != mir::UnaryOp::Represent || !names(unary.value)) return false;
+                    if(user.results.size() != 1) return false;
+
+                    survey.aliases.push(&user);
+                    if(!scan(survey, *opt.base[user.results.get(opt.base, 0)], depth + 1)) {
+                        return false;
+                    }
+
                     break;
                 }
 
@@ -285,9 +385,25 @@ struct Promoter {
             }
         }
 
+        return true;
+    }
+
+    bool eligible(Value& allocation, Survey& survey) {
+        auto& alloc = (InstAlloc&)*opt.base[allocation.definer];
+
+        // Frame storage only, and the held occurrence owing nothing - `removeDeadStorage`'s two
+        // questions, asked here for the same reason: what this ends with is deleting the request for
+        // the storage, which is a complete answer exactly where the frame supplied it and where
+        // nothing was owed when it went away.
+        if(alloc.storage != mir::StorageClass::Frame) return false;
+        if(hasTeardownAt(opt, alloc.held) || isLinearAt(opt, alloc.held)) return false;
+        if(!contained[allocation]) return false;
+
+        if(!scan(survey, allocation, 0)) return false;
+
         // No reads, no promotion: an allocation nothing reads is `removeDeadStorage`'s, and placing
         // arguments for a value nothing names would be work only to take it back.
-        return typed && read;
+        return survey.typed && survey.read;
     }
 
     void collect() {
@@ -301,16 +417,20 @@ struct Promoter {
             auto definer = opt.base[value->definer];
             if(definer->kind != Inst::Alloc || !definer->block) continue;
 
-            Occurrence agreed;
-            if(!eligible(*value, agreed)) continue;
+            Survey survey;
+            if(!eligible(*value, survey)) continue;
 
             Slot slot;
             slot.allocation = value;
             slot.alloc = definer;
-            slot.occurrence = agreed;
+            slot.occurrence = survey.agreed;
             slot.column = U32(slots.size());
+            slot.aliases = ::move(survey.aliases);
 
-            slotOf[value->id.index] = U32(slots.size());
+            name(*value, U32(slots.size()));
+            for(auto alias: slot.aliases) name(*opt.base[alias->results.get(opt.base, 0)],
+                                                U32(slots.size()));
+
             slots.push(::move(slot));
         }
     }
@@ -433,7 +553,8 @@ struct Promoter {
 
         for(Size i = 0; i < slotOf.size(); i++) slotOf[i] = kNoSlot;
         for(Size i = 0; i < slots.size(); i++) {
-            slotOf[slots[i].allocation->id.index] = U32(i);
+            name(*slots[i].allocation, U32(i));
+            for(auto alias: slots[i].aliases) name(*opt.base[alias->results.get(opt.base, 0)], U32(i));
 
             for(U32 b = 0; b < blockCount; b++) {
                 slots[i].entry.push(nullptr);
@@ -527,6 +648,7 @@ struct Promoter {
         }
 
         for(Size i = 0; i < slots.size(); i++) slots[i].exit[index] = current[i];
+
     }
 
     /*
@@ -565,7 +687,7 @@ struct Promoter {
 
                 Size arm = 0;
                 SmallArray<Size, 4> arms;
-                forEachEdge(*end, [&](Edge& edge) {
+                forEachEdge(opt.base, *end, [&](Edge& edge) {
                     if(edge.target && opt.base[edge.target] == block) arms.push(arm);
                     arm++;
                 });
@@ -610,8 +732,18 @@ struct Promoter {
         auto editor = opt.ir();
         for(auto index: dominators.order) enter(editor, *opt.body->block(opt.base, BlockId(index)));
 
-        // Nothing may still be reading storage that is about to go. Asserted here rather than left
-        // to `eraseInst`, because this is where the answer names which allocation was missed.
+        /*
+         * The second names go first, deepest first, and then nothing may still be reading storage
+         * that is about to go. The order is the discovery order reversed: a `represent` was found
+         * below the borrow it restates, so erasing backwards erases each name after everything that
+         * read it - and the loan the borrow minted goes with the instruction that made it.
+         */
+        for(auto& slot: slots) {
+            for(Size i = slot.aliases.size(); i-- > 0;) editor.eraseInst(*slot.aliases[i]);
+        }
+
+        // Asserted here rather than left to `eraseInst`, because this is where the answer names
+        // which allocation was missed.
         for(auto& slot: slots) assertTrue(slot.allocation->useCount() == 0);
 
         fill(editor);

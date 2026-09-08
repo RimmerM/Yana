@@ -17,7 +17,7 @@ bb0:
   write.init borrow.unique (mask) take %0
   %2: Size = const 0
   write.init borrow.unique (low) take %2
-  %4: Size = read copy.trivial (low)
+  %4: Size = const 0
   %5: Size = const 1
   %6: Size = sub inspect %4 inspect %5
   %7: Size = const 0
@@ -30,7 +30,7 @@ bb1:
 bb2:
   %16: USize = const 0
   write.init borrow.unique (zero) take %16
-  %18: USize = read copy.trivial (zero)
+  %18: USize = const 0
   %19: USize = const 1
   %20: USize = sub inspect %18 inspect %19
   %21: USize = const 0
@@ -50,7 +50,7 @@ bb4:
 bb5:
   %30: Size = const 2147483647
   write.init borrow.unique (big) take %30
-  %32: Size = read copy.trivial (big)
+  %32: Size = const 2147483647
   %33: Size = const 0
   %34: Bool = gt inspect %32 inspect %33
   branch inspect %34 -> bb9 -> bb7
@@ -68,13 +68,13 @@ bb7:
 bb8:
   %48: CodeUnit = const 255
   write.init borrow.unique (unit) take %48
-  %50: CodeUnit = read copy.trivial (unit)
+  %50: CodeUnit = const 255
   %51: CodeUnit = const 0
   %52: Bool = gt inspect %50 inspect %51
   branch inspect %52 -> bb13 -> bb11
 
 bb9:
-  %36: Size = read copy.trivial (big)
+  %36: Size = const 2147483647
   %37: Size = const 2
   %38: Size = div inspect %36 inspect %37
   %39: Size = const 1073741823
@@ -96,7 +96,7 @@ bb12:
   write.init borrow.unique (wide) take %66
   %68: WideInt = const -4503599627370496
   write.init borrow.unique (least) take %68
-  %70: WideInt = read copy.trivial (wide)
+  %70: WideInt = const 4503599627370495
   %71: WideInt = const 2147483647
   %72: WideInt = div inspect %70 inspect %71
   %73: WideInt = const 2097152
@@ -104,7 +104,7 @@ bb12:
   branch inspect %74 -> bb17 -> bb15
 
 bb13:
-  %54: CodeUnit = read copy.trivial (unit)
+  %54: CodeUnit = const 255
   %55: CodeUnit = const 5
   %56: CodeUnit = div inspect %54 inspect %55
   %57: CodeUnit = const 51
@@ -136,14 +136,14 @@ bb16:
   branch inspect %104 -> bb22 -> bb20
 
 bb17:
-  %76: WideInt = read copy.trivial (least)
+  %76: WideInt = const -4503599627370496
   %77: WideInt = const 0
   %78: Bool = lt inspect %76 inspect %77
   branch inspect %78 -> bb18 -> bb15
 
 bb18:
-  %80: WideInt = read copy.trivial (least)
-  %81: WideInt = read copy.trivial (wide)
+  %80: WideInt = const -4503599627370496
+  %81: WideInt = const 4503599627370495
   %82: WideInt = add inspect %80 inspect %81
   %83: WideInt = const 0
   %84: WideInt = const 1

@@ -1,0 +1,607 @@
+module ResolveTest
+
+let origin: Point = Point {x: 3, y: 4}
+
+let corner: Point = Point {x: 5, y: 6}
+
+let diagonal: Line = Line {from: Point {x: 1, y: 2}, to: Point {x: 3, y: 5}}
+
+let & cursor: Point = Point {x: 10, y: 20}
+
+let pair: {left: I32, right: I32}
+
+let some: Maybe(I32) = Just(9)
+
+let none: Maybe(I32) = Nothing
+
+let boxShape: Shape = Rect {w: 4, h: 6}
+
+let roundShape: Shape = Circle(11)
+
+let table: [I32 *3] = [12, 13, 14]
+
+let corners: [Point *2] = [Point {x: 1, y: 1}, Point {x: 2, y: 4}]
+
+let greeting: String = String {units: Array {run: Run {items: &string'144, capacity: 5, ownsHeap: 0}, length: 5}}
+
+let labelled: Tagged = Tagged {name: String {units: Array {run: Run {items: &string'145, capacity: 6, ownsHeap: 0}, length: 6}}, id: 15}
+
+let flags: Flags = Flags {low: 5, high: 9, set: True}
+
+let packed: Boxed = Packed {lo: 3, hi: 6}
+
+let wrapped: Boxed = Wrapped {only: 40}
+
+let string'142: [CodeUnit *2] = [111, 107]
+
+let string'144: [CodeUnit *5] = [104, 101, 108, 108, 111]
+
+let string'145: [CodeUnit *6] = [119, 111, 114, 108, 100, 33]
+
+fn scaled(by: I32 [shared call], base: Point [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: Point [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  %3: %I32 address = field.addr .x inspect %1
+  %4: I32 trivial = load inspect %3
+  %5: %I32 address = field.addr .y inspect %1
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = add inspect %4 inspect %6
+  %8: I32 trivial = load inspect %2
+  %9: I32 trivial = mul inspect %7 inspect %8
+  return consume %9
+}
+
+fn sum'2(p: Point [shared call]) -> I32 {
+bb0(%0: Point [shared call] guaranteed):
+  %1: %I32 address = field.addr .x inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: %I32 address = field.addr .y inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  return consume %5
+}
+
+fn area(s: Shape [shared call]) -> I32 {
+bb0(%0: Shape [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %U8 address = field.addr .# inspect %0
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 0
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  %9: %I32 address = field.addr .w inspect %0
+  %10: I32 trivial = load inspect %9
+  store inspect %3 consume %10
+  %11: %I32 address = field.addr .h inspect %0
+  %12: I32 trivial = load inspect %11
+  store inspect %4 consume %12
+  %13: I32 trivial = load inspect %3
+  %14: I32 trivial = load inspect %4
+  %15: I32 trivial = mul inspect %13 inspect %14
+  jump -> bb2(consume %15)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %16: %I32 address = field.addr .Circle inspect %0
+  %17: I32 trivial = load inspect %16
+  store inspect %2 consume %17
+  %18: I32 trivial = load inspect %2
+  jump -> bb2(consume %18)
+}
+
+fn unwrapOr(m: Maybe(I32) [shared call], fallback: I32 [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I32 address = alloc frame I32
+  store inspect %3 borrow %1
+  %5: %U8 address = field.addr .# inspect %0
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 1
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  %9: I32 trivial = load inspect %3
+  jump -> bb2(consume %9)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %10: %I32 address = field.addr .Just inspect %0
+  %11: I32 trivial = load inspect %10
+  store inspect %4 consume %11
+  %12: I32 trivial = load inspect %4
+  jump -> bb2(consume %12)
+}
+
+fn boxedValue(b: Boxed [shared call]) -> I32 {
+bb0(%0: Boxed [shared call] guaranteed):
+  %2: %@bits(4) U32 address = alloc frame @bits(4) U32
+  %3: %@bits(4) U32 address = alloc frame @bits(4) U32
+  %4: %I32 address = alloc frame I32
+  %5: %U8 address = field.addr .# inspect %0
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 0
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb4 -> bb1
+
+bb1:
+  %9: %U8 address = field.addr .# inspect %0
+  %10: U8 trivial = load inspect %9
+  %11: U8 trivial = const 1
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb5 -> bb2
+
+bb2:
+  %13: I32 trivial = const 0
+  jump -> bb3(consume %13)
+
+bb3(%1: I32 trivial):
+  return consume %1
+
+bb4:
+  %14: %@bits(4) U32 address = field.addr .lo inspect %0
+  %15: @bits(4) U32 trivial = load inspect %14
+  store inspect %2 consume %15
+  %16: %@bits(4) U32 address = field.addr .hi inspect %0
+  %17: @bits(4) U32 trivial = load inspect %16
+  store inspect %3 consume %17
+  %18: @bits(4) U32 trivial = load inspect %2
+  %19: I32 trivial = convert inspect %18
+  %20: @bits(4) U32 trivial = load inspect %3
+  %21: I32 trivial = convert inspect %20
+  %22: I32 trivial = const 16
+  %23: I32 trivial = mul inspect %21 inspect %22
+  %24: I32 trivial = add inspect %19 inspect %23
+  jump -> bb3(consume %24)
+
+bb5:
+  %25: %I32 address = field.addr .only inspect %0
+  %26: I32 trivial = load inspect %25
+  store inspect %4 consume %26
+  %27: I32 trivial = load inspect %4
+  jump -> bb3(consume %27)
+}
+
+fn flagValue(f: Flags [shared call]) -> I32 {
+bb0(%0: Flags [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %@bits(4) U32 address = field.addr .low inspect %0
+  %4: @bits(4) U32 trivial = load inspect %3
+  %5: I32 trivial = convert inspect %4
+  %6: %@bits(4) U32 address = field.addr .high inspect %0
+  %7: @bits(4) U32 trivial = load inspect %6
+  %8: I32 trivial = convert inspect %7
+  %9: I32 trivial = const 16
+  %10: I32 trivial = mul inspect %8 inspect %9
+  %11: I32 trivial = add inspect %5 inspect %10
+  store inspect %2 consume %11
+  %12: %Bool address = field.addr .set inspect %0
+  %13: Bool trivial = load inspect %12
+  branch inspect %13 -> bb3 -> bb1
+
+bb1:
+  %14: I32 trivial = load inspect %2
+  jump -> bb2(consume %14)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %15: I32 trivial = load inspect %2
+  %16: I32 trivial = const 256
+  %17: I32 trivial = add inspect %15 inspect %16
+  jump -> bb2(consume %17)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Settings address = alloc frame Settings
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 0
+  store inspect %0 consume %3
+  %4: %Point address = global.addr origin
+  %5: %I32 address = field.addr .x inspect %4
+  %6: I32 trivial = load inspect %5
+  %7: %Point address = global.addr origin
+  %8: %I32 address = field.addr .y inspect %7
+  %9: I32 trivial = load inspect %8
+  %10: I32 trivial = add inspect %6 inspect %9
+  %11: I32 trivial = const 7
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: %Point address = global.addr corner
+  %14: Point trivial = copy inspect %13
+  %15: I32 trivial = call sum'2 borrow %14
+  %16: I32 trivial = const 11
+  %17: Bool trivial = eq inspect %15 inspect %16
+  branch inspect %17 -> bb6 -> bb4
+
+bb3:
+  %18: I32 trivial = load inspect %0
+  %19: I32 trivial = const 1
+  %20: I32 trivial = add inspect %18 inspect %19
+  store inspect %0 consume %20
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %21: %Point address = global.addr cursor
+  %22: %I32 address = field.addr .x inspect %21
+  %23: I32 trivial = load inspect %22
+  %24: I32 trivial = const 1
+  %25: I32 trivial = add inspect %23 inspect %24
+  %26: %Point address = global.addr cursor
+  %27: %I32 address = field.addr .x inspect %26
+  store inspect %27 consume %25
+  %28: %Point address = global.addr cursor
+  %29: Point trivial = copy inspect %28
+  %30: I32 trivial = call sum'2 borrow %29
+  %31: I32 trivial = const 31
+  %32: Bool trivial = eq inspect %30 inspect %31
+  branch inspect %32 -> bb9 -> bb7
+
+bb6:
+  %33: I32 trivial = load inspect %0
+  %34: I32 trivial = const 2
+  %35: I32 trivial = add inspect %33 inspect %34
+  store inspect %0 consume %35
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %36: %Line address = global.addr diagonal
+  %37: %Point address = field.addr .from inspect %36
+  %38: %I32 address = field.addr .y inspect %37
+  %39: I32 trivial = load inspect %38
+  %40: %Line address = global.addr diagonal
+  %41: %Point address = field.addr .to inspect %40
+  %42: %I32 address = field.addr .x inspect %41
+  %43: I32 trivial = load inspect %42
+  %44: I32 trivial = add inspect %39 inspect %43
+  %45: I32 trivial = const 5
+  %46: Bool trivial = eq inspect %44 inspect %45
+  branch inspect %46 -> bb12 -> bb10
+
+bb9:
+  %47: I32 trivial = load inspect %0
+  %48: I32 trivial = const 4
+  %49: I32 trivial = add inspect %47 inspect %48
+  store inspect %0 consume %49
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %50: %{left: I32, right: I32} address = global.addr pair
+  %51: %I32 address = field.addr .left inspect %50
+  %52: I32 trivial = load inspect %51
+  %53: %{left: I32, right: I32} address = global.addr pair
+  %54: %I32 address = field.addr .right inspect %53
+  %55: I32 trivial = load inspect %54
+  %56: I32 trivial = add inspect %52 inspect %55
+  %57: I32 trivial = const 15
+  %58: Bool trivial = eq inspect %56 inspect %57
+  branch inspect %58 -> bb15 -> bb13
+
+bb12:
+  %59: I32 trivial = load inspect %0
+  %60: I32 trivial = const 8
+  %61: I32 trivial = add inspect %59 inspect %60
+  store inspect %0 consume %61
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %62: %Maybe(I32) address = global.addr some
+  %63: Maybe(I32) trivial = copy inspect %62
+  %64: I32 trivial = const 0
+  %65: I32 trivial = call unwrapOr borrow %63 borrow %64
+  %66: I32 trivial = const 9
+  %67: Bool trivial = eq inspect %65 inspect %66
+  branch inspect %67 -> bb18 -> bb16
+
+bb15:
+  %68: I32 trivial = load inspect %0
+  %69: I32 trivial = const 16
+  %70: I32 trivial = add inspect %68 inspect %69
+  store inspect %0 consume %70
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %71: %Maybe(I32) address = global.addr none
+  %72: Maybe(I32) trivial = copy inspect %71
+  %73: I32 trivial = const 100
+  %74: I32 trivial = call unwrapOr borrow %72 borrow %73
+  %75: I32 trivial = const 100
+  %76: Bool trivial = eq inspect %74 inspect %75
+  branch inspect %76 -> bb21 -> bb19
+
+bb18:
+  %77: I32 trivial = load inspect %0
+  %78: I32 trivial = const 32
+  %79: I32 trivial = add inspect %77 inspect %78
+  store inspect %0 consume %79
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %80: %Shape address = global.addr boxShape
+  %81: Shape trivial = copy inspect %80
+  %82: I32 trivial = call area borrow %81
+  %83: I32 trivial = const 24
+  %84: Bool trivial = eq inspect %82 inspect %83
+  branch inspect %84 -> bb24 -> bb22
+
+bb21:
+  %85: I32 trivial = load inspect %0
+  %86: I32 trivial = const 64
+  %87: I32 trivial = add inspect %85 inspect %86
+  store inspect %0 consume %87
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %88: %Shape address = global.addr roundShape
+  %89: Shape trivial = copy inspect %88
+  %90: I32 trivial = call area borrow %89
+  %91: I32 trivial = const 11
+  %92: Bool trivial = eq inspect %90 inspect %91
+  branch inspect %92 -> bb27 -> bb25
+
+bb24:
+  %93: I32 trivial = load inspect %0
+  %94: I32 trivial = const 128
+  %95: I32 trivial = add inspect %93 inspect %94
+  store inspect %0 consume %95
+  jump -> bb23
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %96: Size trivial = const 0
+  %97: %[I32 *3] address = global.addr table
+  %98: %I32 address = element.addr inspect %97 inspect %96
+  %99: I32 trivial = load inspect %98
+  %100: Size trivial = const 2
+  %101: %[I32 *3] address = global.addr table
+  %102: %I32 address = element.addr inspect %101 inspect %100
+  %103: I32 trivial = load inspect %102
+  %104: I32 trivial = add inspect %99 inspect %103
+  %105: I32 trivial = const 26
+  %106: Bool trivial = eq inspect %104 inspect %105
+  branch inspect %106 -> bb30 -> bb28
+
+bb27:
+  %107: I32 trivial = load inspect %0
+  %108: I32 trivial = const 256
+  %109: I32 trivial = add inspect %107 inspect %108
+  store inspect %0 consume %109
+  jump -> bb26
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %110: Size trivial = const 1
+  %111: %[Point *2] address = global.addr corners
+  %112: %Point address = element.addr inspect %111 inspect %110
+  %113: Point trivial = copy inspect %112
+  %114: I32 trivial = call sum'2 borrow %113
+  %115: I32 trivial = const 6
+  %116: Bool trivial = eq inspect %114 inspect %115
+  branch inspect %116 -> bb33 -> bb31
+
+bb30:
+  %117: I32 trivial = load inspect %0
+  %118: I32 trivial = const 512
+  %119: I32 trivial = add inspect %117 inspect %118
+  store inspect %0 consume %119
+  jump -> bb29
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %120: %String address = global.addr greeting
+  %121: String [shared call] guaranteed = load inspect %120
+  %122: String [shared slot 0 view] guaranteed = call String.view borrow %121
+  %123: Size trivial = call String.length borrow %122
+  %124: I32 trivial = convert inspect %123
+  %125: I32 trivial = const 5
+  %126: Bool trivial = eq inspect %124 inspect %125
+  branch inspect %126 -> bb36 -> bb34
+
+bb33:
+  %127: I32 trivial = load inspect %0
+  %128: I32 trivial = const 1024
+  %129: I32 trivial = add inspect %127 inspect %128
+  store inspect %0 consume %129
+  jump -> bb32
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %130: %Tagged address = global.addr labelled
+  %131: %String address = field.addr .name inspect %130
+  %132: String [shared call] guaranteed = load inspect %131
+  %133: String [shared slot 0 view] guaranteed = call String.view borrow %132
+  %134: Size trivial = call String.length borrow %133
+  %135: I32 trivial = convert inspect %134
+  %136: %Tagged address = global.addr labelled
+  %137: %I32 address = field.addr .id inspect %136
+  %138: I32 trivial = load inspect %137
+  %139: I32 trivial = add inspect %135 inspect %138
+  %140: I32 trivial = const 21
+  %141: Bool trivial = eq inspect %139 inspect %140
+  branch inspect %141 -> bb39 -> bb37
+
+bb36:
+  %142: I32 trivial = load inspect %0
+  %143: I32 trivial = const 2048
+  %144: I32 trivial = add inspect %142 inspect %143
+  store inspect %0 consume %144
+  jump -> bb35
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %145: %Flags address = global.addr flags
+  %146: Flags trivial = copy inspect %145
+  %147: I32 trivial = call flagValue borrow %146
+  %148: I32 trivial = const 405
+  %149: Bool trivial = eq inspect %147 inspect %148
+  branch inspect %149 -> bb42 -> bb40
+
+bb39:
+  %150: I32 trivial = load inspect %0
+  %151: I32 trivial = const 4096
+  %152: I32 trivial = add inspect %150 inspect %151
+  store inspect %0 consume %152
+  jump -> bb38
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %153: %Boxed address = global.addr packed
+  %154: Boxed trivial = copy inspect %153
+  %155: I32 trivial = call boxedValue borrow %154
+  %156: %Boxed address = global.addr wrapped
+  %157: Boxed trivial = copy inspect %156
+  %158: I32 trivial = call boxedValue borrow %157
+  %159: I32 trivial = add inspect %155 inspect %158
+  %160: I32 trivial = const 139
+  %161: Bool trivial = eq inspect %159 inspect %160
+  branch inspect %161 -> bb45 -> bb43
+
+bb42:
+  %162: I32 trivial = load inspect %0
+  %163: I32 trivial = const 8192
+  %164: I32 trivial = add inspect %162 inspect %163
+  store inspect %0 consume %164
+  jump -> bb41
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %165: Point trivial = const Point {x: 2, y: 3}
+  %166: %[CodeUnit *2] address = global.addr string'142
+  %167: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %166
+  %168: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %167
+  %169: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %168
+  %170: I32 trivial = const 2
+  %171: String owned = call stringLiteral borrow %169 borrow %170
+  %172: Shape trivial = const Rect {w: 2, h: 5}
+  %173: Maybe(I32) trivial = const Just(4)
+  %174: Settings owned = aggregate.Settings consume %165 consume %171 consume %172 consume %173
+  store inspect %1 consume %174
+  %175: %Point address = field.addr .home inspect %1
+  %176: Point trivial = copy inspect %175
+  %177: I32 trivial = call sum'2 borrow %176
+  %178: %String address = field.addr .label inspect %1
+  %179: String [shared call] guaranteed from{%1} = load inspect %178
+  %180: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %179
+  %181: Size trivial = call String.length borrow %180
+  %182: I32 trivial = convert inspect %181
+  %183: I32 trivial = add inspect %177 inspect %182
+  %184: %Shape address = field.addr .mode inspect %1
+  %185: Shape trivial = copy inspect %184
+  %186: I32 trivial = call area borrow %185
+  %187: I32 trivial = add inspect %183 inspect %186
+  %188: %Maybe(I32) address = field.addr .limit inspect %1
+  %189: Maybe(I32) trivial = copy inspect %188
+  drop Settings inspect %1
+  %190: I32 trivial = const 0
+  %191: I32 trivial = call unwrapOr borrow %189 borrow %190
+  %192: I32 trivial = add inspect %187 inspect %191
+  store inspect %2 consume %192
+  %193: I32 trivial = load inspect %2
+  %194: I32 trivial = const 21
+  %195: Bool trivial = eq inspect %193 inspect %194
+  branch inspect %195 -> bb48 -> bb46
+
+bb45:
+  %196: I32 trivial = load inspect %0
+  %197: I32 trivial = const 65536
+  %198: I32 trivial = add inspect %196 inspect %197
+  store inspect %0 consume %198
+  jump -> bb44
+
+bb46:
+  jump -> bb47
+
+bb47:
+  %199: I32 trivial = const 2
+  %200: Point trivial = const Point {x: 6, y: 7}
+  %201: I32 trivial = call scaled borrow %199 borrow %200
+  %202: I32 trivial = const 26
+  %203: Bool trivial = eq inspect %201 inspect %202
+  branch inspect %203 -> bb51 -> bb49
+
+bb48:
+  %204: I32 trivial = load inspect %0
+  %205: I32 trivial = const 16384
+  %206: I32 trivial = add inspect %204 inspect %205
+  store inspect %0 consume %206
+  jump -> bb47
+
+bb49:
+  jump -> bb50
+
+bb50:
+  %207: I32 trivial = load inspect %0
+  return consume %207
+
+bb51:
+  %208: I32 trivial = load inspect %0
+  %209: I32 trivial = const 32768
+  %210: I32 trivial = add inspect %208 inspect %209
+  store inspect %0 consume %210
+  jump -> bb50
+}
+
+fn main$() -> I32 {
+bb0:
+  %0: I32 trivial = const 7
+  %1: I32 trivial = const 8
+  %2: {left: I32, right: I32} trivial = aggregate. consume %0 consume %1
+  %3: %{left: I32, right: I32} address = global.addr pair
+  store inspect %3 consume %2
+  %4: I32 trivial = call main
+  return consume %4
+}
+
+entry main$

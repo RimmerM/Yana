@@ -1,0 +1,102 @@
+module ResolveTest
+
+fn tag(x: a [shared call]) -> I32 = <no body>
+
+fn scale(x: a [shared call]) -> I32 = <no body>
+
+fn shift(x: a [shared call]) -> I32 = <no body>
+
+fn crown(x: a [shared call]) -> I32 = <no body>
+
+fn Vessel.tag(x: Vessel [shared call]) -> I32 {
+bb0(%0: Vessel [shared call] guaranteed):
+  %1: %I32 address = field.addr .size inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 1
+  %4: I32 trivial = add inspect %2 inspect %3
+  return consume %4
+}
+
+fn Vessel.scale(x: Vessel [shared call]) -> I32 {
+bb0(%0: Vessel [shared call] guaranteed):
+  %1: %I32 address = field.addr .size inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 2
+  %4: I32 trivial = mul inspect %2 inspect %3
+  return consume %4
+}
+
+fn Vessel.shift(x: Vessel [shared call]) -> I32 {
+bb0(%0: Vessel [shared call] guaranteed):
+  %1: %I32 address = field.addr .size inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 100
+  %4: I32 trivial = add inspect %2 inspect %3
+  return consume %4
+}
+
+fn Vessel.crown(x: Vessel [shared call]) -> I32 {
+bb0(%0: Vessel [shared call] guaranteed):
+  %1: %I32 address = field.addr .size inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 1000
+  %4: I32 trivial = add inspect %2 inspect %3
+  return consume %4
+}
+
+fn oneLevel(x: a [shared call]) -> I32 {
+bb0(%0: a [shared call] guaranteed):
+  %1: a [shared call] guaranteed from{%0} = load inspect %0
+  %2: I32 trivial = call tag [class #0.1] borrow %1
+  %3: a [shared call] guaranteed from{%0} = load inspect %0
+  %4: I32 trivial = call shift [class #0.0] borrow %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  return consume %5
+}
+
+fn twoLevels(x: a [shared call]) -> I32 {
+bb0(%0: a [shared call] guaranteed):
+  %1: a [shared call] guaranteed from{%0} = load inspect %0
+  %2: I32 trivial = call scale [class #0.3] borrow %1
+  %3: a [shared call] guaranteed from{%0} = load inspect %0
+  %4: I32 trivial = call crown [class #0.0] borrow %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  return consume %5
+}
+
+fn both(x: a [shared call]) -> I32 {
+bb0(%0: a [shared call] guaranteed):
+  %1: a [shared call] guaranteed from{%0} = load inspect %0
+  %2: I32 trivial = call tag [class #0.1] borrow %1
+  return consume %2
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Vessel address = alloc frame Vessel
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: I32 trivial = const 5
+  %5: Vessel trivial = aggregate.Vessel consume %4
+  store inspect %0 consume %5
+  %6: Vessel trivial = copy inspect %0
+  %7: I32 trivial = call oneLevel [Vessel] borrow %6
+  store inspect %1 consume %7
+  %8: Vessel trivial = copy inspect %0
+  %9: I32 trivial = call twoLevels [Vessel] borrow %8
+  store inspect %2 consume %9
+  %10: Vessel trivial = copy inspect %0
+  %11: I32 trivial = call both [Vessel] borrow %10
+  store inspect %3 consume %11
+  %12: I32 trivial = load inspect %1
+  %13: I32 trivial = load inspect %2
+  %14: I32 trivial = add inspect %12 inspect %13
+  %15: I32 trivial = load inspect %3
+  %16: I32 trivial = add inspect %14 inspect %15
+  %17: I32 trivial = const 1024
+  %18: I32 trivial = sub inspect %16 inspect %17
+  return consume %18
+}
+
+entry main

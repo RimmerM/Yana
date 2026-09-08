@@ -192,7 +192,7 @@ bb15:
   store inspect %11 consume %60
   %61: I32 trivial = const 0
   store inspect %12 consume %61
-  %62: I32 trivial = load inspect %11
+  %62: I32 trivial = const 3
   %63: I32 trivial = const 0
   %64: Bool trivial = ne inspect %62 inspect %63
   branch inspect %64 -> bb19 -> bb17
@@ -206,7 +206,7 @@ bb17:
   jump -> bb18
 
 bb18:
-  %67: I32 trivial = load inspect %12
+  %67: I32 trivial = const 0
   %68: I32 trivial = const 0
   %69: Bool trivial = ne inspect %67 inspect %68
   %70: Bool trivial = not inspect %69
@@ -221,7 +221,7 @@ bb20:
   jump -> bb21
 
 bb21:
-  %73: I32 trivial = load inspect %11
+  %73: I32 trivial = const 3
   %74: I32 trivial = const 0
   %75: Bool trivial = ne inspect %73 inspect %74
   branch inspect %75 -> bb25 -> bb23
@@ -235,7 +235,7 @@ bb23:
   jump -> bb24
 
 bb24:
-  %78: I32 trivial = load inspect %12
+  %78: I32 trivial = const 0
   %79: I32 trivial = const 0
   %80: Bool trivial = ne inspect %78 inspect %79
   branch inspect %80 -> bb29 -> bb27
@@ -251,7 +251,7 @@ bb26:
   jump -> bb24
 
 bb27:
-  %85: I32 trivial = load inspect %11
+  %85: I32 trivial = const 3
   %86: I32 trivial = const 0
   %87: Bool trivial = ne inspect %85 inspect %86
   jump -> bb28(consume %87)
@@ -267,7 +267,7 @@ bb30:
   jump -> bb31
 
 bb31:
-  %89: I32 trivial = load inspect %11
+  %89: I32 trivial = const 3
   %90: I32 trivial = const 7
   %91: I32 trivial = call min(I32) consume %89 consume %90
   %92: I32 trivial = const 3
@@ -283,7 +283,7 @@ bb33:
   jump -> bb34
 
 bb34:
-  %96: I32 trivial = load inspect %11
+  %96: I32 trivial = const 3
   %97: I32 trivial = const 7
   %98: Ordering trivial = call I32.compare borrow %96 borrow %97
   %99: Ordering trivial = const LT
@@ -291,7 +291,7 @@ bb34:
   branch inspect %100 -> bb39 -> bb37
 
 bb35:
-  %101: I32 trivial = load inspect %11
+  %101: I32 trivial = const 3
   %102: I32 trivial = const 7
   %103: I32 trivial = call max(I32) consume %101 consume %102
   %104: I32 trivial = const 7
@@ -311,24 +311,24 @@ bb38:
   store inspect %13 consume %108
   %109: Bool trivial = const False
   store inspect %14 consume %109
-  %110: Bool trivial = load inspect %13
-  %111: Bool trivial = load inspect %14
+  %110: Bool trivial = const True
+  %111: Bool trivial = const False
   %112: Bool trivial = and inspect %110 inspect %111
   %113: Bool trivial = const False
   %114: Bool trivial = eq inspect %112 inspect %113
   branch inspect %114 -> bb44 -> bb42
 
 bb39:
-  %115: I32 trivial = const 7
-  %116: I32 trivial = load inspect %11
-  %117: Ordering trivial = call I32.compare borrow %115 borrow %116
+  %115: I32 trivial = const 3
+  %116: I32 trivial = const 7
+  %117: Ordering trivial = call I32.compare borrow %116 borrow %115
   %118: Ordering trivial = const GT
   %119: Bool trivial = eq inspect %117 inspect %118
   branch inspect %119 -> bb40 -> bb37
 
 bb40:
-  %120: I32 trivial = load inspect %11
-  %121: I32 trivial = load inspect %11
+  %120: I32 trivial = const 3
+  %121: I32 trivial = const 3
   %122: Ordering trivial = call I32.compare borrow %120 borrow %121
   %123: Ordering trivial = const EQ
   %124: Bool trivial = eq inspect %122 inspect %123
@@ -345,7 +345,7 @@ bb42:
 bb43:
   %127: U32 trivial = const 2147483649
   store inspect %15 consume %127
-  %128: U32 trivial = load inspect %15
+  %128: U32 trivial = const 2147483649
   %129: U32 trivial = const 1
   %130: U32 trivial = rol inspect %128 inspect %129
   %131: U32 trivial = const 3
@@ -353,21 +353,21 @@ bb43:
   branch inspect %132 -> bb50 -> bb48
 
 bb44:
-  %133: Bool trivial = load inspect %13
-  %134: Bool trivial = load inspect %14
+  %133: Bool trivial = const True
+  %134: Bool trivial = const False
   %135: Bool trivial = or inspect %133 inspect %134
   branch inspect %135 -> bb45 -> bb42
 
 bb45:
-  %136: Bool trivial = load inspect %13
-  %137: Bool trivial = load inspect %13
+  %136: Bool trivial = const True
+  %137: Bool trivial = const True
   %138: Bool trivial = xor inspect %136 inspect %137
   %139: Bool trivial = const False
   %140: Bool trivial = eq inspect %138 inspect %139
   branch inspect %140 -> bb46 -> bb42
 
 bb46:
-  %141: Bool trivial = load inspect %14
+  %141: Bool trivial = const False
   %142: Bool trivial = not inspect %141
   branch inspect %142 -> bb47 -> bb42
 
@@ -382,7 +382,7 @@ bb48:
 bb49:
   %145: F32 trivial = const 1
   store inspect %16 consume %145
-  %146: F32 trivial = load inspect %16
+  %146: F32 trivial = const 1
   %147: F32 trivial = const 2
   %148: F32 trivial = div inspect %146 inspect %147
   %149: F32 trivial = const 0.5
@@ -390,7 +390,7 @@ bb49:
   branch inspect %150 -> bb54 -> bb52
 
 bb50:
-  %151: U32 trivial = load inspect %15
+  %151: U32 trivial = const 2147483649
   %152: U32 trivial = const 1
   %153: U32 trivial = ror inspect %151 inspect %152
   %154: U32 trivial = const 3221225472
@@ -449,7 +449,7 @@ bb59:
   jump -> bb60
 
 bb60:
-  %175: I32 trivial = load inspect %11
+  %175: I32 trivial = const 3
   %176: I32 trivial = call twice(I32) borrow %175
   %177: I32 trivial = call inc(I32) borrow %176
   %178: I32 trivial = const 7

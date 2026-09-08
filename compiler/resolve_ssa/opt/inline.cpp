@@ -43,45 +43,36 @@
  * that cannot - which is the same order `Lowering::lowerBody` takes and for the same reason. A block
  * the callee cannot reach is not cloned at all: it is on no path, and its instructions owe nothing.
  *
- * **Loans**, re-minted in the caller's table. A `LoanId` is dense per body, so carrying one across
- * is the mistake §8.8 refused to make with `mir::LoanId`. A loan whose storage set names the
- * callee's own allocations is re-minted naming the clones of them, which is exact. A loan with an
- * **empty** set is the *caller's* loan seen from inside the callee - a borrowed parameter arrives
- * already borrowed - and it maps to the caller's own empty loan of the same capability rather than
- * to the loan the borrowing argument carries. That is the permissive answer and it is the only one
- * that works:
+ * **Loans**, re-minted in the caller's table - `rootLender`, which is where each of the three
+ * answers is argued. A `LoanId` is dense per body, so carrying one across is the mistake §8.8
+ * refused to make with `mir::LoanId`. What a loan has to be re-minted *on* is caller-side storage,
+ * and the callee named three kinds of lender: its own allocations, which map to the clones of them;
+ * its parameters, which map to whatever the corresponding **argument**'s own loan names; and its
+ * unrooted loan - the one `Editor::addResult` gives every borrow the conversion did not refine -
+ * which is the callee saying "somewhere outside" and maps to the union of the borrowing arguments'
+ * lenders, with a handed-over `->` argument left out because its storage is released in front of
+ * the splice.
  *
- *  - the empty loan is not one lender. `Editor::addResult` gives it to *every* borrow the conversion
- *    did not refine, so it is the callee's "rooted somewhere outside" rather than "rooted in
- *    parameter 2"; a callee with two borrowed parameters has one of them, and picking either is
- *    picking wrong for the other's borrows. Rooting it in the union of the borrowing arguments'
- *    lenders is sound as a may-set and *over*-reports: the loan then ends when any of them is
- *    released, and a `->` argument handed over in front of the call has already released one;
- *  - and `Editor::replaceAllUses` admits a borrow replaced by one "on the same loan or on the
- *    caller's", which is exactly what the continuation handover needs when a callee returns a
- *    borrow. An empty loan is admitted at that substitution and a body-local one has to match
- *    whatever the caller's own `attachLoan` decided, which nothing here can arrange.
+ * That union is a may-set and *over*-reports: the loan ends when the first of its lenders is
+ * released. Over-reporting is the safe direction for an extent rule, and it is only reached where
+ * the callee itself could not be precise - a loan naming a parameter is answered by that parameter's
+ * argument alone, so `fn middle(a: x'G, b: y'G, c: z'G) -> y'G` comes back on the second argument's
+ * lender and not on all three.
  *
- * What it costs is stated precisely rather than left as "the endpoint rule inside the copy", because
- * the case that reaches it is not the one that sentence describes. A callee's loan is re-minted onto
- * the clones only when **every** member of its storage set is a value this clone made; a set holding
- * a *parameter* takes the whole loan back to the empty one, and `fn tagOf(p: 'Held) -> 'Int = p.tag`
- * is that shape in four tokens - `attachLoan` roots the returned borrow in `%0`, the parameter, and
- * the copy therefore hands the caller a borrow rooted nowhere where the call's own result was rooted
- * in the caller's slot. Every use of it is then outside what `verifyBody`'s third rule can measure,
- * and the `drop` of that slot a line below is an endpoint the rule would otherwise be measured
- * against.
+ * This used to take every one of those to the caller's **empty** loan, on the argument that the
+ * empty loan is the one substitution `Editor::replaceAllUses` always admits. What that bought was a
+ * borrow rooted nowhere where the call's own result was rooted in the caller's slot -
+ * `fn tagOf(p: 'Held) -> 'Int = p.tag` is the shape in four tokens - so every use of it landed
+ * outside what `verifyBody`'s third rule can measure, and the `drop` of that slot a line below was
+ * an endpoint the rule was never measured against. It was also not enough: a callee whose result
+ * borrows a *field* of a borrow it took through a pointer roots its loan in a callee **temporary**,
+ * which is neither empty nor a parameter, and re-minting that onto the clone handed
+ * `replaceAllUses` a body-local loan it refuses outright - `lib/Core/Map`'s three accessors, and
+ * `elementField` in `test/resolve/loans/PointeeOrigin.yana`.
  *
- * That is a **verification** gap and not a live defect, and the difference is which direction the
- * passes below move an instruction. The clone's uses land exactly where the callee wrote them, which
- * is strictly in front of the call the splice replaced; `opt/memory.cpp` moves nothing at all and
- * substitutes only `Trivial` for `Trivial`; `opt/cfg.cpp`'s merge relinks a block's instructions in
- * order in front of its predecessor's terminator; `opt/select.cpp` moves an arm's instructions *up*
- * into the head, which is earlier on the path they were already on and no later on the other; and
- * `simplify`'s CSE removes a use rather than making one. So nothing here can carry such a use past
- * an endpoint - and the day something can, this is the rule that will not report it. What closes it
- * is the union of the borrowing arguments' lenders with the `->` case above excluded, which needs
- * the argument's own use kind at the site rather than the loan alone.
+ * `Editor::loanOn` canonicalizes the set it is given, which this needs and did not have: the caller
+ * reached `{a, b}` from the origin analysis and this walk reaches it from the argument list, and an
+ * order-sensitive interning made those two loans over one relationship.
  *
  * **Continuation regions**, re-created under the call site's. A cloned region keeps its kind and its
  * multiplicity; the callee's *root* region maps to the region the call site's block is in, so a
@@ -101,21 +92,15 @@
  *
  * ## What is declined, and why each
  *
- *  - **a call that does not name a declaration.** `CallThrough::ClassSlot`, `FunctionSlot` and
- *    `Value` all resolve through something only the lowering can read - a witness slot, a word of a
- *    function value - so there is no body in hand. The one case worth taking is a `Value` call whose
- *    target is a `FunValue` of a non-capturing function in the same block, and it is left for a
- *    later round: what makes it pay is an adaptor chain, and this stage does not build one yet.
+ *  - **a call that does not name a declaration.** `CallThrough::ClassSlot` and `FunctionSlot`
+ *    resolve through something only the lowering can read - a witness slot - so there is no body in
+ *    hand. `CallThrough::Value` is the one that is *made* into a direct call first, where this body
+ *    is what built the pair: see `devirtualizeSite` below.
  *  - **a callee with no `ssa` body** - a signature, an intrinsic, or a body the conversion declined.
  *  - **an `Erased` generic form.** It is called across the erased ABI with a witness table as a
  *    leading argument, and its body reads its own environment's slots (`gen.value`, a property
  *    projection, a descriptor teardown). Those slots are numbered against *that* declaration's
  *    schema, so a copy of the body inside another function reads the wrong table.
- *  - **a closure or an outlined continuation** - `Function::environment` - and **a lens**
- *    (`Function::lens`, `iterator`, or a `continuationArg`). An outlined continuation takes the
- *    caller's frame by reference and is called with it as its last argument; embedding one is the
- *    *embed* lowering `ssa::Continuation`'s note is about, which needs a region kind that has no
- *    producer yet, and it is a different transformation from this one.
  *  - **recursion**, direct or mutual. Copying a recursive body into a caller copies the recursive
  *    call with it, which is unrolling rather than inlining - a different transformation with a
  *    growth rate nothing here bounds. The call graph's cycles are found once, before the rounds,
@@ -124,7 +109,9 @@
  *    shipping stage's one exception - `collapsesCycle`, taking one *other* member of the caller's
  *    own cycle - is deliberately not ported: it is what
  *    [[yana-inliner-lens-recursion-runaway]] is open on, where a lens call site inside a
- *    self-recursive function does not converge at all.
+ *    self-recursive function does not converge at all. The same refusal is what makes a *recursive
+ *    adaptor chain* stop: a `for` whose body reaches its own function puts the outlined continuation
+ *    in the cycle too, since the `fun.value` naming it is an edge of this graph.
  *  - **a callee that may suspend**, read off its published `Summary`. It answers false for every
  *    function today - nothing in this stage is a suspension point - so this is a row rather than a
  *    case, and it is here because the milestone that makes one true is not the milestone that would
@@ -145,6 +132,36 @@
  * A `Native` is **not** declined. A system call is an ordinary effect, and nothing in a cloned one
  * names the callee's frame: its operands are values, mapped like any other, and the frame it would
  * have addressed is the storage the clone brought with it.
+ *
+ * ## Adaptor chains, which are the one thing this does in two steps
+ *
+ * A `for` over an `iter fn` is a **continuation**: `resolve_ssa/convert.cpp` outlines the loop body
+ * into a function of its own, builds an environment record of the captures it reads, pairs the two
+ * as a `{code, env}` function value and hands it to the iterator, which calls back through it once
+ * per element. Nothing about that is removable one half at a time - the indirect call is in a frame
+ * that only has the pair as a parameter, and the pair is in a frame that never calls it - so the two
+ * alternate:
+ *
+ *  1. **inline the iterator** into its consumer, which brings the `call [value]` into the frame that
+ *     built the pair;
+ *  2. **devirtualize** it - `devirtualizeSite`, which rewrites the call to name the declaration the
+ *     pair holds, with the environment as argument zero ([[yana-function-values]]: `code` always
+ *     takes it first, so a capturing value's declaration already has that parameter and a plain one
+ *     reaches its declaration through a thunk that only absorbs it);
+ *  3. **inline the continuation**, which brings the next link's `call [value]` in with it.
+ *
+ * `flattenContinuations` runs that to a fixed point, and `filter(map(each(xs)))` is six of those
+ * steps. What each step leaves for the passes below is the other half of the win: the environment
+ * record is an aggregate nothing writes, so `simplify`'s `tryAggregateField` answers every capture's
+ * read from the component the aggregate was built with, and the record, the pair and the loads
+ * around them are then values nothing reads at all - which is what `isDiscardableIfUnread` is for.
+ *
+ * **Two budgets bound it**, and they are in `Budget` beside the other three because a chain is where
+ * the per-callee number stops meaning anything: every link copied brings its own call sites with it,
+ * so a chain is a product rather than a sum. `kMaxChainDepth` is how many links one body may absorb
+ * and `Budget::chain` is what they may weigh together; `worthInlining`'s `flattening` term weighs
+ * each link at `soleBudget` underneath both. [[yana-adaptor-chain-budget]] is the shipping stage's
+ * version of the same three-term arrangement.
  *
  * ## The cost model
  *
@@ -172,6 +189,30 @@
  * running after the round is what then takes the original away. "Only reference" is stricter than
  * "only call": a function value naming it, a witness table holding it, and `Function::teardown` all
  * mean the declaration outlives the call, and each is counted.
+ *
+ * **And the bare `@inline` hint, weighed at the same number.** It is the third thing a declaration
+ * says about being copied and the only one of the three that is not a directive - it says "weigh
+ * this callee as if it were smaller", never "copy this body", so every structural refusal above and
+ * the ceiling below still apply. `soleBudget` is what it is weighed at because that number is
+ * already this file's statement of "a body this large is worth copying where there is a reason to",
+ * and a hint is a reason; a third budget between the two would be a number with nothing behind it.
+ * `Size` declines it, which is `limits.budget` being zero.
+ *
+ * ## The two terms the shipping stage has that this does not, each measured rather than argued
+ *
+ * **No accessor bonus.** [[yana-accessor-inline-bonus]] is 6 at Balanced and 12 at Speed for a body
+ * whose whole content is an address crossing the call boundary, and its two callees were size 7 and
+ * 10 against a limit of 6 and 7. Here a body of twenty or under is admitted whatever shape it has,
+ * so an accessor cannot be declined for its size: counted over both corpora, the smallest callee
+ * this pass declines that is one block with a load and no call is **21** instructions, which is not
+ * an accessor by any reading. The flat budget covers the term.
+ *
+ * **No block-count cap.** `maxBlocks` is a hard cap over there beside `blockCost`, and what it
+ * prices is the *graft* blocking the passes downstream - a callee spliced as five blocks leaves its
+ * `alloc` behind a branch where forwarding stops answering. Here `promote` runs first in the
+ * per-function list and answers most of that, and the corpus says so: a cap at 32, 24, 16 and 8 is
+ * a regression at every setting, +3, +7, +39 and +828 lowered instructions, for at most 23 fewer
+ * blocks at the setting that costs the most. Measured in phase 16 and not kept.
  */
 
 namespace ssa {
@@ -187,10 +228,24 @@ namespace {
 constexpr Size kMaxInlineRounds = 3;
 
 /*
+ * How many links of an adaptor chain one body may absorb - `flattenContinuations`.
+ *
+ * Eight, which is a three-stage chain and one to spare: each stage costs two (the iterator's body,
+ * then the continuation the devirtualized call names), and the consumer's own continuation is the
+ * last of them. This is a cap on the *cascade* and not the thing that keeps the pass finite - the
+ * weight budget below and `clonableDeclaration`'s refusal of a cycle are - so raising it grows what
+ * is reachable and never what is possible.
+ */
+constexpr U32 kMaxChainDepth = 8;
+
+/*
  * What a callee may cost, by `settings.inlining`.
  *
  * Three numbers, and the ceiling is the one that is not a budget: it is the size past which the sole
  * call site stops helping, so that a body of any size is not copied on the strength of one reason.
+ * `soleBudget` is read by two rules rather than one - the sole call site and the `@inline` hint -
+ * because both are "there is a reason to copy this" and pricing them apart would be inventing a
+ * difference the corpus cannot rank.
  *
  * `budget` at `Balanced` is twenty, which is the shipping stage's `Speed` number rather than its
  * `Balanced` eight. The two are not comparable and taking the larger is the honest translation:
@@ -210,23 +265,56 @@ struct Budget {
     U32 soleBudget = 0;
 
     U32 ceiling = 0;
+
+    /*
+     * And what a whole adaptor chain may weigh in one body, which is a budget the other three cannot
+     * express: they price one copy, and a chain is a product - every link copied brings its own call
+     * sites with it, so a per-callee number bounds each of eight levels and nothing bounds the eight.
+     *
+     * Zero at `Size` for that level's one sentence, and it is the same zero `budget` carries: a
+     * chain flattened is a program grown.
+     */
+    U32 chain = 0;
 };
 
+/*
+ * A **repeated-callee penalty was built here, swept and not kept** - `test/bench/findings.md` §81,
+ * and it is worth the paragraph because the premise it was built on had already been removed.
+ *
+ * The term was the shipping stage's `repeatedPenalty` restated for the two-number model: `budget`
+ * shrinks by a fixed amount per copy of one callee already made *into this caller*, so the sixth
+ * `push(stack, ...)` spliced into `Sort`'s `sort` is priced differently from the second. §78.7's
+ * item 4 asked for it on the strength of `Sort` at 1.395x code and 1.162x wall against the shipping
+ * stage at 0.997x instructions - a pure instruction-cache regression.
+ *
+ * Swept at 0, 1, 2, 3, 4, 5, 6, 8, 12 and 20 over the thirteen-program corpus. Code: 24572 bytes at
+ * zero, best at **24403** (penalty 2) and 24415 (penalty 3), all of it `Sort`, and above 4 it grows
+ * again - a refused copy leaves the callee *and* the call. Wall time on `Sort`, §78's protocol:
+ * **0.986x** of the shipping stage at zero, 0.997x at 2 and **1.158x** at 3. `Hash` does not move at
+ * any value.
+ *
+ * So the term buys 169 bytes for 1.1% of `Sort`'s wall time, and falls off a cliff one step further
+ * along. What made it not worth keeping is the first number: `Sort` is 0.986x here, not 1.162x -
+ * `endNonReturningBlocks` running in front of the inliner took the joins and the phis out of every
+ * checked subscript, and the regression the term was for went with them. A number that trades time
+ * for bytes on a program that is already faster than what it is compared against is a number with
+ * nothing behind it.
+ */
 Budget budgetFor(InlineLevel level) {
     switch(level) {
         case InlineLevel::None:
-            return Budget { 0, 0, 0 };
+            return Budget { 0, 0, 0, 0 };
 
         // Only the case that cannot grow the program, which is why the budget is zero: a callee
         // qualifies here through the sole call site and through nothing else.
         case InlineLevel::Size:
-            return Budget { 0, 96, 96 };
+            return Budget { 0, 96, 96, 0 };
 
         case InlineLevel::Balanced:
-            return Budget { 20, 76, 96 };
+            return Budget { 20, 76, 96, 240 };
 
         case InlineLevel::Speed:
-            return Budget { 40, 120, 160 };
+            return Budget { 40, 120, 160, 480 };
     }
 
     return Budget();
@@ -261,6 +349,23 @@ struct Clone {
     // than to a clone. `mintLoans` is the reader: a borrowed argument's loan was decided where the
     // argument was made and is not this body's to re-mint.
     Array<bool> parameters;
+
+    /*
+     * What "somewhere outside the callee" is, named in the **caller**: the storage every borrowing
+     * argument's own loan is rooted in, unioned - `bindParameters` fills it and `mintLoans` is the
+     * reader.
+     *
+     * A may-set, and it has to be: the callee's unrooted loan is not one lender (`Editor::addResult`
+     * gives it to every borrow the conversion did not refine), so a callee with two borrowed
+     * parameters has one loan covering both and picking either is picking wrong for the other. The
+     * union over-reports - the loan then ends when the first of them is released - which is the safe
+     * direction for an extent rule, where under-reporting is what lets a use past an endpoint.
+     *
+     * **A handed-over argument is left out.** A `->` operand is consumed at the call, so its storage
+     * has already been released in front of the body that is being spliced in and naming it here
+     * would put an endpoint before every use of the clone.
+     */
+    Array<SsaPtr<Value>> outside;
 
     Array<SsaPtr<Block>> blocks;
     Array<SsaPtr<Loan>> loans;
@@ -357,6 +462,15 @@ struct Inliner {
                     case Inst::Unreachable:
                         break;
 
+                    /*
+                     * A multi-way branch is **not** free, and it is not one instruction either: it
+                     * expands to a comparison and a branch per case unless the backend finds a table
+                     * for it. Understating it is how the inliner admits a body that then explodes.
+                     */
+                    case Inst::Switch:
+                        size += U32(((InstSwitch&)*base()[pointer]).cases.size());
+                        break;
+
                     default:
                         size++;
                         break;
@@ -377,13 +491,9 @@ struct Inliner {
         if(callee == &caller) return false;
         if(!callee->ssa || !callee->reachable) return false;
 
-        // A generic compiled once, and a closure or a continuation. Both read something the copy
-        // cannot bring with it: a slot of the callee's own environment, or the caller's frame.
+        // A generic compiled once, which reads something the copy cannot bring with it: a slot of
+        // the callee's own environment, numbered against that declaration's schema.
         if(callee->form == mir::GenForm::Erased && mir::isGeneric(decl(), callee->gen)) return false;
-        if(callee->environment) return false;
-
-        if(callee->lens || callee->iterator) return false;
-        if(callee->continuationArg != mir::Function::kNoContinuation) return false;
 
         // A suspension has no representation at this tier, so this is a row rather than a case - see
         // the file comment.
@@ -431,8 +541,13 @@ struct Inliner {
      * `@inline(always)` reaching here at all means the conversion's graft declined it, which happens
      * at eight expansions deep and nowhere else; it is weighed against the ceiling alone, because
      * the attribute is a directive the declaration was already checked for.
+     *
+     * `flattening` is the one term that is about the *site* rather than about the callee - a link of
+     * an adaptor chain, weighed at `soleBudget` because what the copy buys is not the body: it is
+     * the indirect call on the other side of it becoming a direct one. See `flattenContinuations`,
+     * where the chain's own two budgets are.
      */
-    bool worthInlining(DeclPtr<mir::Function> pointer) {
+    bool worthInlining(DeclPtr<mir::Function> pointer, bool flattening = false) {
         if(!limits.ceiling) return false;
 
         auto callee = decl()[pointer];
@@ -441,11 +556,54 @@ struct Inliner {
         // possible, so this is the one thing a declaration says here that is never traded against a
         // size. Asked before the numbers for that reason, and not after them.
         if(callee->noInline) return false;
+
+        /*
+         * And the two check roles under `-check-locations`, which is the same shape of rule.
+         *
+         * The located pair is substituted for the unlocated one in the **lowering**
+         * (`Lowering::locatedCheck`), so a call that has been expanded by then is a check with no
+         * location left to give. Refusing the expansion is what keeps that substitution the one
+         * place the feature lives; the alternative is emitting the located form up in MIR, where
+         * every rule that reads a check would have to learn a second shape.
+         *
+         * The cost is a call per check site in a build that asked for locations, which is a debug
+         * switch, and it is the same call the shipping stage's located build makes.
+         */
+        if(opt.context.settings.checkLocations &&
+           (pointer == opt.program.roles.function(intrinsic::Known::checkFailed) ||
+            pointer == opt.program.roles.function(intrinsic::Known::checkCondition))) {
+            return false;
+        }
         auto size = sizeOf(*callee);
         if(size > limits.ceiling) return false;
 
         if(callee->alwaysInline) return true;
         if(size <= limits.budget) return true;
+
+        // A link of a chain, at `soleBudget` and for the same sentence the hint is weighed by: there
+        // is a reason to copy this body that the body itself does not show.
+        if(flattening && limits.budget && size <= limits.soleBudget) return true;
+
+        /*
+         * The bare `@inline` hint, weighed at `soleBudget` - one number, and it is the one already
+         * in the table rather than a fourth.
+         *
+         * What the attribute says is that the author knows something the body does not show: a loop
+         * this call sits in, or folding that only happens two passes later. What the *number* says
+         * is how far that is worth trusting, and `soleBudget` is the honest answer here, because it
+         * is already this file's statement of "a body this large is worth copying where there is a
+         * reason to". A hint is a reason; being the only reference is the other one. Making it a
+         * third budget between the two would be a number with nothing behind it.
+         *
+         * It cannot ask for something the pass would then quietly not do: the ceiling was compared
+         * above, and every structural refusal - a closure, a lens, recursion, `@noinline` - is
+         * ahead of this and reads no number at all.
+         *
+         * Declined at `Size`, which is what `limits.budget` being zero says: that level's whole
+         * statement is that nothing grows the program, and a hint is a request to grow it. The two
+         * sentences are one test because they are one number.
+         */
+        if(callee->inlineHint && limits.budget && size <= limits.soleBudget) return true;
 
         auto found = references.getValue(pointer.offset);
         if(!found) return false;
@@ -457,6 +615,7 @@ struct Inliner {
         return size <= limits.soleBudget;
     }
 
+
     // ---------------------------------------------------------------- the clone
 
     Value* mapValue(Clone& clone, SsaPtr<Value> value) {
@@ -465,9 +624,30 @@ struct Inliner {
         return base()[clone.values[index]];
     }
 
+    /*
+     * One operand mapped, and the one place a use kind is not carried across unchanged.
+     *
+     * A **borrowed parameter bound to an owned argument** is where the two conventions meet: inside
+     * the callee the parameter is `Guaranteed`, so a use of it that owes nothing is an `Inspect`;
+     * the caller's value is one the linear dataflow follows, and an `Inspect` of one of those is not
+     * representable (`verify.cpp`'s rule, and it is the rule rather than a check - a tracked value's
+     * uses *are* what the dataflow counts). A `Borrow` is the same use with the obligation restored,
+     * which is what the call's own operand already was, so this restates the site rather than
+     * inventing anything.
+     *
+     * The shape that reaches it is every adaptor chain: `call each borrow %xs borrow %pair` passes
+     * an owned `{code, env}` to a `[shared call]` parameter, and the callee re-reads that parameter
+     * at every `yield`.
+     */
     Use mapUse(Clone& clone, Use used) {
         if(!used.isSet()) return Use();
-        return Use(mapValue(clone, used.value()) - base(), used.kind());
+
+        auto value = mapValue(clone, used.value());
+        auto kind = used.kind();
+
+        if(kind == UseKind::Inspect && isTracked(value->convention)) kind = UseKind::Borrow;
+
+        return Use(value - base(), kind);
     }
 
     Block* mapBlock(Clone& clone, SsaPtr<Block> block) {
@@ -556,6 +736,22 @@ struct Inliner {
                 break;
             }
 
+            /*
+             * A `map`'s entries are copied entry for entry - the table is the instruction, so a
+             * clone that shared the callee's list would be a body holding another body's region.
+             */
+            case Inst::Map: {
+                auto& written = (InstMap&)from;
+
+                SmallArray<mir::MapEntry, 16> entries;
+                for(auto entry: written.entries.contents(base())) entries.push(entry);
+
+                made = editor.addMap(at, mapUse(clone, written.selector), entries.pointer(),
+                                     entries.size(), written.fallback, written.closed,
+                                     occurrence(), convention());
+                break;
+            }
+
             case Inst::VecSplat:
                 made = editor.addVecSplat(at, mapUse(clone, ((InstVecSplat&)from).from), occurrence());
                 break;
@@ -611,9 +807,13 @@ struct Inliner {
                 break;
             }
 
+            // The overread flag travels with the clone. A copy that dropped it is a load nothing
+            // downstream knows is deliberately past the end - and `vectorPast` is only ever reached
+            // through a library body, so *every* overreading load in a real program is an inlined
+            // one.
             case Inst::Load:
                 made = editor.addLoad(at, mapUse(clone, ((InstLoad&)from).address), occurrence(),
-                                      convention());
+                                      convention(), ((InstLoad&)from).overread);
                 break;
 
             case Inst::Copy:
@@ -659,6 +859,19 @@ struct Inliner {
                 break;
             }
 
+            /*
+             * The release of an allocation the callee made - copied like any other effect.
+             *
+             * A body that allocates and frees in one activation carries both ends into its caller,
+             * which is what makes inlining leave the pairing intact. What it does *not* do is
+             * re-decide the placement: `escape-before-inlining` in the shipping stage is a demote
+             * pass over the copied allocation, and there is nothing to demote here until the escape
+             * half selects a rung on its own.
+             */
+            case Inst::Free:
+                made = editor.addFree(at, mapUse(clone, ((InstFree&)from).address));
+                break;
+
             case Inst::FunValue: {
                 auto& written = (InstFunValue&)from;
                 auto environment = mapUse(clone, written.environment);
@@ -697,6 +910,7 @@ struct Inliner {
             case Inst::Return:
             case Inst::Jump:
             case Inst::Branch:
+            case Inst::Switch:
             case Inst::Unreachable:
             case Inst::KindCount:
                 // The terminators are `cloneTerminator`'s, and the two refused kinds never reach a
@@ -803,6 +1017,36 @@ struct Inliner {
                 return;
             }
 
+            /*
+             * A multi-way branch - the cases and one argument list, which `makeSwitch` gives to
+             * every edge. The per-edge form `makeBranchEdges` exists for is not needed here: a
+             * `switch` is built by the recognizer with one list and `promote` places a block
+             * argument where slots meet, which is a *branch* shape.
+             */
+            case Inst::Switch: {
+                auto& written = (InstSwitch&)from;
+                auto items = written.cases.pointer(base());
+                auto count = written.cases.size();
+
+                SmallArray<I64, 16> values;
+                SmallArray<Block*, 16> targets;
+
+                for(Size i = 0; i < count; i++) {
+                    values.push(items[i].value);
+                    targets.push(mapBlock(clone, items[i].edge.target));
+                }
+
+                SmallArray<Use, 8> arguments;
+                mapUses(clone, written.fallback.arguments, arguments);
+
+                editor.replaceTerminator(into,
+                    editor.makeSwitch(at, mapUse(clone, written.selector), values.pointer(),
+                                      targets.pointer(), count,
+                                      *mapBlock(clone, written.fallback.target),
+                                      arguments.pointer(), arguments.size()));
+                return;
+            }
+
             default:
                 editor.replaceTerminator(into, editor.makeUnreachable(at));
                 return;
@@ -819,6 +1063,87 @@ struct Inliner {
      * for exactly this reason - `Editor::addResult` gives every borrow the caller's loan and
      * `setDependency` refines it - so the order falls out.
      */
+    // One lender into a set, once. A linear scan: these sets are two or three entries.
+    static void pushLender(SmallArray<SsaPtr<Value>, 4>& into, SsaPtr<Value> held) {
+        for(auto already: into) {
+            if(already == held) return;
+        }
+
+        into.push(held);
+    }
+
+    /*
+     * What one lender the **callee** named becomes in the caller - the file comment's fourth
+     * mapping, and the whole of what re-minting a loan is.
+     *
+     * Three answers, in the order of how much is known:
+     *
+     *  - **storage this clone made.** An allocation of the callee's frame becomes an allocation of
+     *    the caller's, and the loan over it ends where the clone of its `drop` does. Exact.
+     *  - **a parameter**, whose lender is the caller's: the *argument*'s own loan already names
+     *    which storage that is, so the answer is its members. Exact too, and it is what makes
+     *    `fn middle(a: x'G, b: y'G, c: z'G) -> y'G` come back rooted in the second argument's
+     *    lender rather than in all three - a union there would be a loan the caller's own call
+     *    result is not on, which `Editor::replaceAllUses` refuses outright.
+     *  - **a borrow of the callee's**, whose lender is whatever *it* was rooted in - the same
+     *    question one level down. At the end of that chain is either a parameter or the callee's
+     *    unrooted loan, and the unrooted one is `Clone::outside`: the callee could only say
+     *    "somewhere outside", and the caller's borrowing arguments are where that is.
+     *
+     * Bounded by depth rather than by a visited set, because a loan rooted in a block argument can
+     * name a value rooted in it again round a back edge, and eight levels of reborrowing is past
+     * anything a body writes. Falling out of it lands on `outside`, which is the same over-report
+     * the third case is.
+     *
+     * Taking every one of these to the *empty* loan - which is what this did - hands the caller a
+     * borrow rooted nowhere where the call's own result was rooted in the caller's slot, so every
+     * use of it is outside what `verifyBody`'s third rule can measure. A callee whose result borrows
+     * a field of a borrow it took through a pointer (`lib/Core/Map`'s three accessors, and
+     * `elementField` in `loans/PointeeOrigin.yana`) went further and minted a body-local loan over
+     * the cloned borrow, which is neither the caller's loan nor the empty one.
+     */
+    void rootLender(Clone& clone, SsaPtr<Value> held, SmallArray<SsaPtr<Value>, 4>& into,
+                    U32 depth) {
+        static constexpr U32 kMaxReborrowDepth = 8;
+
+        auto index = base()[held]->id.index;
+
+        if(index < clone.values.size() && clone.values[index]) {
+            if(clone.parameters[index]) {
+                auto& argument = *base()[clone.values[index]];
+
+                if(argument.convention == Convention::Guaranteed && argument.loan) {
+                    auto& lent = *base()[argument.loan];
+                    if(lent.storage.size()) {
+                        for(auto member: lent.storage.contents(base())) pushLender(into, member);
+                        return;
+                    }
+                }
+            } else {
+                auto& source = *clone.source.value(base(), ValueId(index));
+
+                if(source.convention == Convention::Address) {
+                    pushLender(into, clone.values[index]);
+                    return;
+                }
+
+                if(depth < kMaxReborrowDepth && source.convention == Convention::Guaranteed &&
+                   source.loan) {
+                    auto& inner = *base()[source.loan];
+                    if(inner.storage.size()) {
+                        for(auto member: inner.storage.contents(base())) {
+                            rootLender(clone, member, into, depth + 1);
+                        }
+
+                        return;
+                    }
+                }
+            }
+        }
+
+        for(auto lender: clone.outside) pushLender(into, lender);
+    }
+
     void mintLoans(Clone& clone, Editor& editor) {
         clone.loans.reserve(clone.source.loans.size());
 
@@ -826,28 +1151,8 @@ struct Inliner {
             auto loan = clone.source.loan(base(), LoanId(i));
 
             SmallArray<SsaPtr<Value>, 4> storage;
-            auto complete = true;
 
-            for(auto held: loan->storage.contents(base())) {
-                auto index = base()[held]->id.index;
-
-                /*
-                 * A lender that is a **parameter**, or one in a block the clone did not copy.
-                 *
-                 * Both take the loan back to the caller's empty set, which never ends inside this
-                 * body - the file comment's third mapping and its argument. A parameter's lender is
-                 * the caller's storage and the caller's own loan already names it; re-minting one
-                 * here would root every unrefined borrow of the callee in one argument's storage.
-                 */
-                if(index >= clone.values.size() || !clone.values[index] || clone.parameters[index]) {
-                    complete = false;
-                    break;
-                }
-
-                storage.push(clone.values[index]);
-            }
-
-            if(!complete) storage.clear();
+            for(auto held: loan->storage.contents(base())) rootLender(clone, held, storage, 0);
 
             clone.loans.push(editor.loanOn(loan->source, storage.pointer(), storage.size(),
                                            loan->capability) - base());
@@ -895,6 +1200,29 @@ struct Inliner {
             clone.values[index] = call.arguments.get(base(), i).value();
             clone.parameters[index] = true;
         }
+
+        // And what the callee could only call "outside" - see `Clone::outside`. Over every argument
+        // rather than over the parameters alone, because a witness table or an environment operand
+        // is an argument the callee's entry has no block argument for and it lends storage all the
+        // same.
+        for(auto use: call.arguments.contents(base())) {
+            if(use.kind() == UseKind::Consume) continue;
+
+            auto& value = *base()[use.value()];
+            if(value.convention != Convention::Guaranteed || !value.loan) continue;
+
+            for(auto held: base()[value.loan]->storage.contents(base())) addOutside(clone, held);
+        }
+    }
+
+    // One lender into the may-set, once. A linear scan because the set is the arity of the call and
+    // an argument list that would make this cost anything is one the budget refused long before.
+    static void addOutside(Clone& clone, SsaPtr<Value> held) {
+        for(auto already: clone.outside) {
+            if(already == held) return;
+        }
+
+        clone.outside.push(held);
     }
 
     /*
@@ -1097,7 +1425,285 @@ struct Inliner {
         return returns;
     }
 
-    bool inlineSite(mir::Function& caller, InstCall& call) {
+    // ---------------------------------------------------------------- adaptor chains
+
+    /*
+     * The `fun.value` a call goes through, where **this body** is what built it.
+     *
+     * Four steps, and each of them is a restatement of one value rather than a guess about which of
+     * several it might be:
+     *
+     *  - a **`represent`**, which is what "the same bytes, a different statement" is spelled as. A
+     *    borrowed function value, a pointer to the pair and the pair itself are one word with three
+     *    readings, and the conversion and this pass both emit the restatement between them.
+     *  - a **`load`**, which at this tier is either a read *through* a borrow of the pair - the
+     *    conversion emits one at every `yield` - or a read of the slot below. Both are answered by
+     *    walking to the address, so there is no case here.
+     *  - a **frame slot with one writer**: an `alloc` whose users are that one `store` and loads.
+     *    Any load that runs reads what that store wrote, because a load before it would be reading
+     *    storage nothing filled, which MIR has already refused. `let f = (v) -> v * scale` puts the
+     *    pair in exactly such a slot, and without this step every lambda a chain is written with
+     *    stays an indirect call.
+     *  - a **block argument** stops it, and that is decided rather than missing: two edges carry two
+     *    values, so a `fun.value` on one of them is not what the call goes through.
+     */
+    InstFunValue* funValueBehind(Value& target) {
+        static constexpr U32 kMaxSteps = 12;
+
+        auto value = &target;
+
+        for(U32 step = 0; step < kMaxSteps; step++) {
+            if(!value->definer) return nullptr;
+
+            auto inst = base()[value->definer];
+
+            switch(inst->kind) {
+                case Inst::FunValue:
+                    return (InstFunValue*)inst;
+
+                case Inst::Unary:
+                    if(((InstUnary&)*inst).op != mir::UnaryOp::Represent) return nullptr;
+                    value = base()[((InstUnary&)*inst).value.value()];
+                    continue;
+
+                case Inst::Load:
+                    value = base()[((InstLoad&)*inst).address.value()];
+                    continue;
+
+                case Inst::Alloc: {
+                    auto stored = soleStoredValue(*value);
+                    if(!stored) return nullptr;
+
+                    value = stored;
+                    continue;
+                }
+
+                default:
+                    return nullptr;
+            }
+        }
+
+        return nullptr;
+    }
+
+    /*
+     * The one value a frame slot is ever given - the third step above.
+     *
+     * Every user is a `load` or the one `store`, so nothing writes the slot twice and nothing takes
+     * its address anywhere this cannot see: a `field.addr` of it, a call handed it or a `drop` of it
+     * all leave, because each is a route by which the bytes could become something else.
+     */
+    Value* soleStoredValue(Value& slot) {
+        Value* stored = nullptr;
+
+        for(auto pointer: slot.uses(base())) {
+            auto user = base()[pointer];
+
+            if(user->kind == Inst::Load) continue;
+            if(user->kind != Inst::Store) return nullptr;
+
+            auto& written = (InstStore&)*user;
+            if(written.address.value() != &slot - base()) return nullptr;
+            if(stored) return nullptr;
+
+            stored = base()[written.value.value()];
+        }
+
+        return stored;
+    }
+
+    /*
+     * A call through a function value this body built, rewritten as a call to the declaration that
+     * value names - the devirtualization half of flattening a chain.
+     *
+     * The environment becomes argument zero, which is not a convention this pass invents: a function
+     * value is `{code, env}` and `code` always takes the environment first
+     * ([[yana-function-values]]), so a capturing value's declaration already *has* that parameter
+     * and a non-capturing one reaches its declaration through a thunk that only absorbs it. Removing
+     * the thunk is what the second case buys; the first is what makes the continuation inlinable at
+     * all, because a `CallThrough::Value` site names no body.
+     *
+     * Worth making on its own terms even where the inliner then declines the body: an indirect call
+     * through two loads becomes a direct one, and the callee's summary becomes readable at the site.
+     */
+    bool devirtualizeSite(InstCall& call) {
+        if(call.through != mir::CallThrough::Value || !call.target.isSet()) return false;
+
+        auto made = funValueBehind(*base()[call.target.value()]);
+        if(!made || !made->callee) return false;
+
+        auto callee = decl()[made->callee];
+
+        /*
+         * A generic compiled once is reached across the erased ABI, whose argument zero is a witness
+         * table rather than an environment - so a value of one is a *thunk* over the pair and the
+         * table it closes over is not written down here. `InstCall::environment` is what a direct
+         * call to one would need and a `fun.value` does not carry it.
+         */
+        if(mir::isGeneric(decl(), callee->gen)) return false;
+
+        auto written = call.arguments.size();
+        if(callee->args.size() != written + Size(made->capturing ? 1 : 0)) return false;
+
+        /*
+         * The operands restated as the **declaration** asks for them, which is the one thing a call
+         * through a value and a direct call to the same body disagree about.
+         *
+         * A function type's positions carry contracts of their own, so the pair's call site supplies
+         * an `Inspect` wherever nothing is owed - and a direct call is held to `argumentMode`, which
+         * answers `Consume` or `Borrow` and never `Inspect` (`verify.cpp` states the rule, and this
+         * reads it rather than copying it). Weakening a borrow into an inspection is what the two
+         * differ by and restoring it is free; the two directions that are *not* free are refused,
+         * because each would move an obligation: a consumed operand at a borrowed position leaves an
+         * owner unconsumed below the call, and a borrowed one at a consuming position hands over
+         * storage this frame still names. Neither is reachable through a `fun.value` today - a
+         * continuation's environment is declared `borrowed` - so this is the rule rather than a
+         * workaround for a shape in the corpus.
+         */
+        SmallArray<Use, 8> arguments;
+
+        auto declared = [&](Size index, Use used, Use& into) {
+            auto& parameter = *decl()[callee->args.get(decl(), index)];
+            auto mode = mir::argumentMode(parameter.occurrence.contract, mir::SourceKind::Result);
+            auto wanted = mode == mir::UseMode::Take ? UseKind::Consume : UseKind::Borrow;
+
+            if((used.kind() == UseKind::Consume) != (wanted == UseKind::Consume)) return false;
+
+            into = used.withKind(wanted);
+            return true;
+        };
+
+        Size position = 0;
+
+        if(made->capturing) {
+            Use environment;
+            if(!declared(position++, made->environment, environment)) return false;
+
+            arguments.push(environment);
+        }
+
+        for(auto used: call.arguments.contents(base())) {
+            Use supplied;
+            if(!declared(position++, used, supplied)) return false;
+
+            arguments.push(supplied);
+        }
+
+        auto result = call.results.size() ? base()[call.results.get(base(), 0)] : nullptr;
+
+        mir::CallSite site;
+        site.target = made->callee;
+
+        auto editor = opt.ir();
+        editor.setInsertBefore(call);
+
+        auto direct = editor.addCall(call.source, site, Use(), arguments.pointer(),
+                                     arguments.size(), result ? result->occurrence : Occurrence(),
+                                     result ? result->convention : Convention::Trivial,
+                                     result != nullptr);
+
+        if(result) {
+            auto answered = editor.resultOf(*direct);
+
+            // The site's own loan, carried over rather than re-derived: the two calls are one
+            // relationship and the readers below have already been measured against this one.
+            if(result->loan) editor.setDependency(*answered, *base()[result->loan]);
+
+            editor.replaceAllUses(*result, *answered);
+        }
+
+        editor.eraseInst(call);
+        return true;
+    }
+
+    // Whether a site hands over a function value this body built - the consumer's end of a chain,
+    // and where flattening starts. `each(xs, {code, env})` is the shape.
+    bool handsOverLocalFunValue(InstCall& call) {
+        for(auto used: call.arguments.contents(base())) {
+            if(funValueBehind(*base()[used.value()])) return true;
+        }
+
+        return false;
+    }
+
+    /*
+     * An adaptor chain collapsed into the loop that consumes it - the devirtualize-then-inline pair
+     * run to a fixed point over one body.
+     *
+     * `for x in mapped(xs, f)` converts to four things in the consumer (an environment record, the
+     * `{code, env}` pair over the continuation the region was outlined into, the call, and a test of
+     * the exit code) and one indirect call *per element* inside the callee. Neither half is
+     * removable on its own: the indirect call is in a frame that only has the pair as a parameter,
+     * and the pair is in a frame that never calls it. So the two steps alternate - copy the
+     * iterator's body in, which brings the `call [value]` into the frame that built the value;
+     * devirtualize it; copy the continuation in, which brings the *next* link's `call [value]` in
+     * with it - and a three-stage chain is six of those.
+     *
+     * **Two budgets bound it and neither is the per-callee one.** `kMaxChainDepth` is how many links
+     * one body may absorb, and `limits.chain` is how much they may weigh together. The per-callee
+     * number still applies underneath - `worthInlining`'s `flattening` term weighs each link at
+     * `soleBudget` - so what these two add is the statement the per-callee number cannot make: a
+     * chain is a *product* rather than a sum, since every link copied brings its own sites with it.
+     * A three-stage chain flattens and a long one stops, which is the shape
+     * [[yana-adaptor-chain-budget]] measured over there.
+     *
+     * The recursion guard is underneath both and is not relaxed: `clonableDeclaration` refuses any
+     * member of a call-graph cycle, so a self-recursive iterator is left as a call and
+     * [[yana-inliner-lens-recursion-runaway]] has nothing here to run away through.
+     */
+    bool flattenContinuations(mir::Function& function) {
+        auto flattened = false;
+        U32 spent = 0;
+
+        Array<SsaPtr<Inst>> sites;
+
+        for(U32 depth = 0; depth < kMaxChainDepth; depth++) {
+            sites.clear();
+
+            for(U32 i = 0; i < opt.body->blocks.size(); i++) {
+                auto block = opt.body->block(base(), BlockId(i));
+                if(block->deleted) continue;
+
+                for(auto pointer: block->instructions(base())) {
+                    if(base()[pointer]->kind == Inst::Call) sites.push(pointer);
+                }
+            }
+
+            auto moved = false;
+
+            for(auto pointer: sites) {
+                auto inst = base()[pointer];
+                if(!inst->block) continue;
+
+                auto& call = (InstCall&)*inst;
+
+                if(call.through == mir::CallThrough::Value) {
+                    moved = devirtualizeSite(call) || moved;
+                    continue;
+                }
+
+                if(call.through != mir::CallThrough::Declaration || !call.callee) continue;
+                if(spent >= limits.chain) continue;
+
+                // The two ends of a link: the continuation a devirtualized call now names, and the
+                // consumer's own call into the iterator that will call it.
+                auto callee = decl()[call.callee];
+                if(!callee->environment && !handsOverLocalFunValue(call)) continue;
+
+                if(!inlineSite(function, call, true)) continue;
+
+                spent += sizeOf(*callee);
+                moved = true;
+            }
+
+            if(!moved) break;
+            flattened = true;
+        }
+
+        return flattened;
+    }
+
+    bool inlineSite(mir::Function& caller, InstCall& call, bool flattening = false) {
         if(call.through != mir::CallThrough::Declaration || !call.callee) return false;
         if(!clonableDeclaration(caller, call.callee)) return false;
 
@@ -1121,7 +1727,7 @@ struct Inliner {
 
         auto result = call.results.size() ? base()[call.results.get(base(), 0)] : nullptr;
         if(!handoverChecks(*body, result)) return false;
-        if(!worthInlining(call.callee)) return false;
+        if(!worthInlining(call.callee, flattening)) return false;
 
         auto block = base()[call.block];
         Size position = 0;
@@ -1242,6 +1848,13 @@ struct Inliner {
 
             inlined = inlineSite(function, (InstCall&)*inst) || inlined;
         }
+
+        /*
+         * And then the chain, after the ordinary sites rather than among them: what makes a link
+         * flattenable is that the link above it has already been copied in, so a pass that weighed
+         * the two together would be deciding the second before the shape that justifies it exists.
+         */
+        inlined = flattenContinuations(function) || inlined;
 
         if(!inlined) return false;
 

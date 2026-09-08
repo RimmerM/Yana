@@ -1,6 +1,6 @@
 module ResolveTest
 
-fn sum(n: I32 [shared call]) -> I32 {
+fn sum'2(n: I32 [shared call]) -> I32 {
   local & total: I32
   local & local2: I32
   local i: I32
@@ -84,7 +84,7 @@ bb5(%28: I32, %29: I32):
   jump -> bb1(take %28, take %29)
 }
 
-fn empty() -> I32 {
+fn empty'2() -> I32 {
   local & total: I32
   local & local1: I32
   local i: I32
@@ -457,7 +457,7 @@ bb0:
   write.init borrow.unique (limit) take %0
   %2: I32 = const 0
   write.init borrow.unique (count) take %2
-  %4: U8 = read copy.trivial (limit)
+  %4: U8 = const 255
   %5: U8 = const 0
   %6: U8 = const 1
   write.init borrow.unique (local2) take %5
@@ -505,7 +505,7 @@ bb0:
   write.init borrow.unique (limit) take %0
   %2: I32 = const 0
   write.init borrow.unique (count) take %2
-  %4: U8 = read copy.trivial (limit)
+  %4: U8 = const 255
   %5: U8 = const 0
   %6: U8 = const 1
   write.init borrow.unique (local2) take %5
@@ -547,8 +547,8 @@ bb0:
   write.init borrow.unique (zero) take %0
   %2: I32 = const 0
   write.init borrow.unique (count) take %2
-  %4: U8 = read copy.trivial (zero)
-  %5: U8 = read copy.trivial (zero)
+  %4: U8 = const 0
+  %5: U8 = const 0
   %6: U8 = const 1
   write.init borrow.unique (local2) take %4
   jump -> bb1(take %5, take %6)
@@ -849,11 +849,11 @@ bb8(%39: I32, %40: I32, %41: I32, %42: I32):
 fn walked() -> I32 {
 bb0:
   %0: I32 = const 5
-  %1: I32 = call sum borrow.shared %0
+  %1: I32 = call sum'2 borrow.shared %0
   %2: I32 = const 5
   %3: I32 = call sumInclusive borrow.shared %2
   %4: I32 = add inspect %1 inspect %3
-  %5: I32 = call empty
+  %5: I32 = call empty'2
   %6: I32 = add inspect %4 inspect %5
   %7: I32 = const 4
   %8: I32 = call ascending borrow.shared %7

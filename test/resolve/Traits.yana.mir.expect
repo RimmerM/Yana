@@ -2,7 +2,7 @@ module ResolveTest
 
 data Pad {a: I64, b: U8}
 
-fn padded() -> Size {
+fn padded'2() -> Size {
   local t: TypeTraits(Pad)
 
 bb0:
@@ -129,59 +129,60 @@ bb0:
   branch inspect %14 -> bb3 -> bb1
 
 bb1:
-  %17: Size = const 0
+  %17: I32 = const 0
   jump -> bb2(take %17)
 
-bb2(%18: Size):
+bb2(%18: I32):
   %21: Bool = read copy.trivial (i.hasTeardown)
   branch inspect %21 -> bb6(take %18) -> bb4(take %18)
 
 bb3:
-  %16: Size = const 1000
+  %16: I32 = const 1000
   jump -> bb2(take %16)
 
-bb4(%22: Size):
-  %26: Size = const 0
+bb4(%22: I32):
+  %26: I32 = const 0
   jump -> bb5(take %26, take %22)
 
-bb5(%27: Size, %28: Size):
-  %31: Size = add inspect %28 inspect %27
+bb5(%27: I32, %28: I32):
+  %31: I32 = add inspect %28 inspect %27
   %32: Bool = read copy.trivial (s.trivialCopy)
   branch inspect %32 -> bb9(take %31) -> bb7(take %31)
 
-bb6(%23: Size):
-  %25: Size = const 100
+bb6(%23: I32):
+  %25: I32 = const 100
   jump -> bb5(take %25, take %23)
 
-bb7(%33: Size):
-  %37: Size = const 0
+bb7(%33: I32):
+  %37: I32 = const 0
   jump -> bb8(take %37, take %33)
 
-bb8(%38: Size, %39: Size):
-  %42: Size = add inspect %39 inspect %38
+bb8(%38: I32, %39: I32):
+  %42: I32 = add inspect %39 inspect %38
   %43: Bool = read copy.trivial (s.hasTeardown)
   branch inspect %43 -> bb12(take %42) -> bb10(take %42)
 
-bb9(%34: Size):
-  %36: Size = const 10
+bb9(%34: I32):
+  %36: I32 = const 10
   jump -> bb8(take %36, take %34)
 
-bb10(%44: Size):
-  %48: Size = const 0
+bb10(%44: I32):
+  %48: I32 = const 0
   jump -> bb11(take %48, take %44)
 
-bb11(%49: Size, %50: Size):
-  %53: Size = add inspect %50 inspect %49
-  return take %53
+bb11(%49: I32, %50: I32):
+  %53: I32 = add inspect %50 inspect %49
+  %54: Size = convert inspect %53
+  return take %54
 
-bb12(%45: Size):
-  %47: Size = const 1
+bb12(%45: I32):
+  %47: I32 = const 1
   jump -> bb11(take %47, take %45)
 }
 
 fn main() -> I32 {
 bb0:
-  %0: Size = call padded
+  %0: Size = call padded'2
   %1: Size = const 91608
   %2: Bool = ne inspect %0 inspect %1
   branch inspect %2 -> bb3 -> bb1

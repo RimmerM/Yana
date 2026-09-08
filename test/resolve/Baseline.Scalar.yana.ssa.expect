@@ -11,17 +11,17 @@ bb0:
   store inspect %0 consume %5
   %6: I32 trivial = const 5
   store inspect %1 consume %6
-  %7: I32 trivial = load inspect %0
-  %8: I32 trivial = load inspect %1
+  %7: I32 trivial = const 17
+  %8: I32 trivial = const 5
   %9: I32 trivial = mul inspect %7 inspect %8
-  %10: I32 trivial = load inspect %0
-  %11: I32 trivial = load inspect %1
+  %10: I32 trivial = const 17
+  %11: I32 trivial = const 5
   %12: I32 trivial = div inspect %10 inspect %11
   %13: I32 trivial = sub inspect %9 inspect %12
   store inspect %2 consume %13
   %14: I32 trivial = load inspect %2
-  %15: I32 trivial = load inspect %0
-  %16: I32 trivial = load inspect %1
+  %15: I32 trivial = const 17
+  %16: I32 trivial = const 5
   %17: I32 trivial = rem inspect %15 inspect %16
   %18: I32 trivial = add inspect %14 inspect %17
   store inspect %2 consume %18
@@ -48,7 +48,7 @@ bb2:
   return consume %29
 
 bb3:
-  %30: I64 trivial = load inspect %3
+  %30: I64 trivial = const -9
   %31: I64 trivial = const 1
   %32: I64 trivial = sar inspect %30 inspect %31
   %33: I64 trivial = const -5
@@ -56,7 +56,7 @@ bb3:
   branch inspect %34 -> bb4 -> bb1
 
 bb4:
-  %35: U8 trivial = load inspect %4
+  %35: U8 trivial = const 200
   %36: U8 trivial = const 3
   %37: U8 trivial = div inspect %35 inspect %36
   %38: U8 trivial = const 66
@@ -64,7 +64,7 @@ bb4:
   branch inspect %39 -> bb5 -> bb1
 
 bb5:
-  %40: I64 trivial = load inspect %3
+  %40: I64 trivial = const -9
   %41: I64 trivial = const 0
   %42: Bool trivial = gt inspect %40 inspect %41
   %43: Bool trivial = not inspect %42

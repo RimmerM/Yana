@@ -212,8 +212,28 @@ bool Resolver::readClassRequirement(ast::Constraint constraint, DeclPtr<GenConte
         return false;
     }
 
+    /*
+     * The same clause twice, which says nothing the first did not.
+     *
+     * **The clause and not what it proves** - `satisfiesRequirement` was what this asked, and it
+     * walks the superclass closure, so `fn (Index(c, k, v), Num(v), FromInt(v))` was refused for
+     * writing a superclass `Num` already implies. Writing one out is redundant and is not a mistake:
+     * it names the class a body calls a member of, the shipping stage accepts it, and
+     * `lib/`'s signatures are written that way. What is left is the literal duplicate that
+     * `generic/Reject.Class.yana` pins - `(Describe(a), Describe(a))`.
+     */
     auto held = requirementArgs(decl(), into);
-    if(satisfiesRequirement(context, program, gen, klass, held.data, held.count)) {
+
+    for(auto written: decl()[gen]->classes.contents(decl())) {
+        if(written.klass != klass) continue;
+
+        auto other = requirementArgs(decl(), written);
+        if(other.count != held.count) continue;
+
+        auto same = true;
+        for(Size i = 0; i < held.count; i++) same = same && sameType(other.data[i], held.data[i]);
+        if(!same) continue;
+
         context.diagnostics.error("this declaration already requires %@"_v, constraint.source,
                                   appliedClassText(context, decl(), klass, held.data, held.count));
         return false;
@@ -454,7 +474,8 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
         declared++;
 
         // The derivation of a view takes the owner - `Resolver::ownerSubjectNext`.
-        ownerSubjectNext = isDerivationMember(klass->role, U32(klass->members.size()));
+        auto derivation = isDerivationMember(klass->role, U32(klass->members.size()));
+        ownerSubjectNext = derivation;
 
         /*
          * The member's signature, in the class's context.
@@ -468,6 +489,7 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
 
         function->klass = pointer;
         function->classMember = U16(klass->members.size());
+        function->derivation = derivation;
 
         /*
          * One member per `(name, arity)` **within this class**, which is the part of R1 the module's
@@ -965,6 +987,10 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         // value, so the drop elaboration has no reason to reach it, and the flag that tells it not
         // to place one for the subject would be wrong.
         function->teardown = intrinsic::isTeardownRole(declared.role);
+
+        // And the same statement `ownerSubjectNext` made about the signature, kept for the body:
+        // this is where an owner becomes a view, so nothing in it may ask for one - `adaptToView`.
+        function->derivation = isDerivationMember(declared.role, U32(index));
 
         instance->members.set(decl(), U32(index), function - *program.decl);
     }

@@ -1,0 +1,73 @@
+{-
+   The entry a **test build** synthesizes - Design-Test.md §11.2's F1, through both resolve stages.
+
+   # test: yes
+
+   This fixture has no `main`. What runs is the entry the compiler builds out of the `@test`
+   declarations below: an array of `Test.Case`, one per declaration in the order they were read, and
+   one call of `Test.runMain`. `resolve/modules/Test.yana` is the module that contract is with, and
+   it is deliberately not a runner - what is asserted here is what the *compiler* put in the array.
+
+   The number `runMain` answers is the assertion, and every term of it is something the entry filled:
+   how many cases there are, how many said `aborts`, how long their names and modules are, and what
+   line each was declared on. A case that went missing, a display name that was not read, a `Site`
+   that was not filled or an order that changed all move it.
+
+   The two body shapes are here too. A `@test` answering `{}` is wrapped in a function answering
+   `Test` - `wrapUnitTest`, one call and one `Ok` - and one answering `Test` is the case's body as it
+   stands. A `Case` holds one shape and both spellings are allowed, so absorbing the difference is
+   the compiler's rather than the author's.
+
+   `test/base` is the same feature at full size, over `lib/Test` and the library's own suite. This is
+   what a golden corpus can say about it: the shipping stage and the ownership stage build the same
+   entry out of the same declarations, and `.run.expect` is shared.
+-}
+
+import Test
+
+-- The plain case: no argument, answers nothing, states a claim. `check` is the whole vocabulary here
+-- and its two compiler-filled positions are what the deliberate failure below pins.
+@test fn arithmeticHolds():
+    check(1 + 1 == 2)
+    check(2 * 3 == 6)
+
+-- A display name, which is what a report line says. It is prose and has nothing to do with the
+-- declaration's own name, which is why `runMain` sums the lengths rather than comparing them.
+@test("a name that is prose") fn namedCase():
+    check(True)
+
+-- The other body shape. Nothing here mentions `Ok`: the case's own `Test` value comes back from
+-- `Test.check`'s side of the module, and the wrapper is what the `{}` cases above got instead.
+@test fn answersATest() -> Test:
+    check(True)
+    return failedIfNegative(1)
+
+fn failedIfNegative(n: Int) -> Test:
+    if n < 0 then return Test.Failed {failure: Failure {site: here(), claim: "negative", detail: ""}}
+    return Test.Ok
+
+fn here(@caller ->at: Site) -> Site = at
+
+-- `@test(aborts)`: the harness runs this one in a child and reads its status. There is no harness
+-- here, so what is asserted is the bit reaching the `Case` - the runner beside this file counts it.
+@test(aborts) fn saysItAborts():
+    check(True)
+
+{-
+   And one deliberate failure, which is what pins the two `@caller` fills.
+
+   `1 == 2` is the text that reached `held` - six units, spanning the whole operand - and the site is
+   the line the call is written on rather than a line inside `check`. Both are read back from the
+   recorder here, and against a line of *this* fixture rather than against a number: `mark` is two
+   lines below the failing call, so the difference is what says the site was filled at the call.
+
+   These two `check`s pass, so the recorder still holds exactly one claim - which is the term
+   `runMain` reads. A fill that went wrong makes it two and the fixture's answer moves.
+-}
+@test fn oneThatFails():
+    check(1 == 2)
+
+    let mark = here()
+    check(claimAt() + 2 == mark.line)
+    check(claimText() == 6)
+    check(claims() == 1)

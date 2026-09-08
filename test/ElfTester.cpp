@@ -301,10 +301,17 @@ static bool runTest(const String& path, StringView source, const String& outputD
     context.settings.target = TargetType::Linux;
     context.settings.arch = TargetArch::X64;
 
-    // A `lib/` fixture is a suite rather than a program - Design-Test.md §11.2's F1. It has no
-    // `main`; it has `@test` declarations and an entry the compiler synthesizes, and this is the
-    // flag that says so. `resolve/` is unchanged and still writes its own.
-    context.settings.test = stringView(path).startsWith("lib/"_v);
+    /*
+     * A `lib/` fixture is a suite rather than a program - Design-Test.md §11.2's F1. It has no
+     * `main`; it has `@test` declarations and an entry the compiler synthesizes, and this is the
+     * flag that says so.
+     *
+     * Or-ed with what the directives already read, rather than assigned: a `resolve/` fixture may
+     * be a test build too - `# test: yes`, which is how the *harness* is a golden fixture - and an
+     * assignment here silently unset it, so every `@test` in that fixture reported "needs a test
+     * build" against a fixture that had said exactly that.
+     */
+    context.settings.test = context.settings.test || stringView(path).startsWith("lib/"_v);
 
     auto name = context.addUnqualifiedName("ElfTest", 7);
     Lexer lexer(context, diagnostics, source, name);

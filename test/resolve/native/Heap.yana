@@ -4,15 +4,15 @@
 
    # resolver: ownership
 
-   `prelude/Native/Heap.native.yana` is the policy and this is what says it runs. Nothing the compiler
+   `lib/Native/Heap.native.yana` is the policy and this is what says it runs. Nothing the compiler
    emits reaches it yet - `Op::newRun` is what a container allocates through and it is still
    unimplemented - so what is asserted here is the *path*: `mmap` through `syscall6`, `pageBytes` as a
    value the target supplied, `setMemory` over the class table, `advance`/`retreat` scaling by a
    pointee's stride, and a block threaded onto a free list through the first word of its own payload.
 
-   The old stage cannot compile this file, and not because of the heap: `prelude/` spells pointer
-   arithmetic `advance` where `lib/` spells it `+`, so the two libraries' surfaces differ here even
-   though the policy is the same file twice.
+   The old stage cannot compile this file: what it wants from `mmap` and the class table is the same,
+   but nothing the old resolver emits reaches a written heap policy, so the assertions below have no
+   counterpart there.
 
    **Every number is a fact about the policy** rather than a value read off a run. The blocks are the
    size classes the request rounds up to, the second allocation of a class is the first one back off
@@ -34,9 +34,9 @@ fn roundTrip() -> Int:
 
     let cells = bitcast(p) :: %I32
     store(cells, 11)
-    store(advance(cells, 3), 22)
+    store(cells + 3, 22)
 
-    return (*cells) * 100 + *advance(cells, 3)
+    return (*cells) * 100 + *(cells + 3)
 
 {-
    **A freed block comes back**, which is the whole of the free list.

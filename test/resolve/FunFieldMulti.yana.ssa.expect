@@ -42,16 +42,19 @@ bb0(%0: I32 [shared call] guaranteed):
 
 fn retarget(slot: (I32) -> I32 [unique call]) -> {} {
 bb0(%0: (I32) -> I32 [unique call] guaranteed):
-  %1: (I32) -> I32 affine = fun.value triple
+  %1: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value triple
+  drop (I32) -> I32 [unique call] boxes borrowed inspect %0
   store inspect %0 consume %1
   return
 }
 
 fn retargetBoth(a: (I32) -> I32 [unique call], b: (I32) -> I32 [unique call]) -> {} {
 bb0(%0: (I32) -> I32 [unique call] guaranteed, %1: (I32) -> I32 [unique call] guaranteed):
-  %2: (I32) -> I32 affine = fun.value negate
+  %2: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value negate
+  drop (I32) -> I32 [unique call] boxes borrowed inspect %0
   store inspect %0 consume %2
-  %3: (I32) -> I32 affine = fun.value square
+  %3: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value square
+  drop (I32) -> I32 [unique call] boxes borrowed inspect %1
   store inspect %1 consume %3
   return
 }
@@ -62,9 +65,9 @@ bb0:
   %1: %I32 address = alloc frame I32
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
-  %4: (I32) -> I32 affine = fun.value double
-  %5: (I32) -> I32 affine = fun.value triple
-  %6: Handlers affine = aggregate.Handlers consume %4 consume %5
+  %4: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value double
+  %5: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value triple
+  %6: Handlers owned = aggregate.Handlers consume %4 consume %5
   store inspect %0 consume %6
   %7: %(I32) -> I32 address = field.addr .first inspect %0
   %8: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %7
@@ -102,6 +105,7 @@ bb0:
   %36: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %35
   %37: I32 trivial = const 10
   %38: I32 trivial = call [value #0] inspect %36 borrow %37
+  drop Handlers inspect %0
   %39: I32 trivial = add inspect %34 inspect %38
   store inspect %3 consume %39
   %40: I32 trivial = load inspect %1

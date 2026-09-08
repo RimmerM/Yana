@@ -1,0 +1,124 @@
+module ResolveTest
+
+fn widthValue(x: a [shared call]) -> w = <no body>
+
+fn scaled(style: s [shared call], x: a [shared call]) -> I32 = <no body>
+
+fn I32.widthValue(x: I32 [shared call]) -> U32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: U32 trivial = bitcast inspect %2
+  return consume %3
+}
+
+fn I64.widthValue(x: I64 [shared call]) -> U64 {
+bb0(%0: I64 [shared call] guaranteed):
+  %1: %I64 address = alloc frame I64 [shared call]
+  store inspect %1 borrow %0
+  %2: I64 trivial = load inspect %1
+  %3: U64 trivial = bitcast inspect %2
+  return consume %3
+}
+
+fn Style.scaled(style: Style [shared call], x: a [shared call]) -> I32 = <no body>
+
+fn Twice.scaled(style: Twice [shared call], x: a [shared call]) -> I32 = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = const 3
+  %1: Style trivial = aggregate.Style consume %0
+  %2: I32 trivial = const 5
+  %3: I32 trivial = call Style.scaled(I32, U32) borrow %1 borrow %2
+  %4: I32 trivial = const 15
+  %5: Bool trivial = ne inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %6: I32 trivial = const 3
+  %7: Twice trivial = aggregate.Twice consume %6
+  %8: I32 trivial = const 5
+  %9: I32 trivial = call Twice.scaled(I32, U32) borrow %7 borrow %8
+  %10: I32 trivial = const 30
+  %11: Bool trivial = ne inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb4
+
+bb3:
+  %12: I32 trivial = const 1
+  return consume %12
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %13: I32 trivial = const 2
+  %14: Style trivial = aggregate.Style consume %13
+  %15: I64 trivial = const 7
+  %16: I32 trivial = call Style.scaled(I64, U64) borrow %14 borrow %15
+  %17: I32 trivial = const 14
+  %18: Bool trivial = ne inspect %16 inspect %17
+  branch inspect %18 -> bb9 -> bb7
+
+bb6:
+  %19: I32 trivial = const 2
+  return consume %19
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %20: I32 trivial = const 55
+  return consume %20
+
+bb9:
+  %21: I32 trivial = const 3
+  return consume %21
+}
+
+fn Style.scaled(I32, U32)(style: Style [shared call], x: I32 [shared call]) -> I32 {
+bb0(%0: Style [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %4: U32 trivial = call I32.widthValue borrow %3
+  %5: I32 trivial = call U32.I32.truncate borrow %4
+  %6: %I32 address = field.addr .scale inspect %0
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = mul inspect %5 inspect %7
+  return consume %8
+}
+
+fn Twice.scaled(I32, U32)(style: Twice [shared call], x: I32 [shared call]) -> I32 {
+bb0(%0: Twice [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %4: U32 trivial = call I32.widthValue borrow %3
+  %5: I32 trivial = call U32.I32.truncate borrow %4
+  %6: %I32 address = field.addr .scale inspect %0
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = mul inspect %5 inspect %7
+  %9: I32 trivial = const 2
+  %10: I32 trivial = mul inspect %8 inspect %9
+  return consume %10
+}
+
+fn Style.scaled(I64, U64)(style: Style [shared call], x: I64 [shared call]) -> I32 {
+bb0(%0: Style [shared call] guaranteed, %1: I64 [shared call] guaranteed):
+  %2: %I64 address = alloc frame I64 [shared call]
+  store inspect %2 borrow %1
+  %3: I64 [shared call] guaranteed from{%2} = load inspect %2
+  %4: U64 trivial = call I64.widthValue borrow %3
+  %5: I32 trivial = call U64.I32.truncate borrow %4
+  %6: %I32 address = field.addr .scale inspect %0
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = mul inspect %5 inspect %7
+  return consume %8
+}
+
+entry main

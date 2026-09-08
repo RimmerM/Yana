@@ -188,7 +188,9 @@ fn pathRoundTrip(path: String) -> Bool:
    a merge; a phi with an owned arm and a borrowed one is exactly the shape the fix has to tell apart
    from a phi of two owned closures, which drops at its edges and must go on doing so.
 -}
-lens fn chosenReference(text: String, inline: Bool) -> %U8:
+-- `%yield'U8`, for `withPathCString`'s reason next door: the buffer is this lens's own frame, so
+-- what the pointee belongs to is the hand-over rather than any caller's storage.
+lens fn chosenReference(text: String, inline: Bool) -> %yield'U8:
     let &buffer = [] :: @inline(64) @capacity(64) [CodeUnit]
     let spilled = cString(text)
 

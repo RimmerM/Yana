@@ -33,7 +33,7 @@ bb0:
   %5: %Marked address = alloc frame Marked
   %6: @bits(53) U64 trivial = const 21
   store inspect %0 consume %6
-  %7: @bits(53) U64 trivial = load inspect %0
+  %7: @bits(53) U64 trivial = const 21
   %8: @bits(53) U64 trivial = call double borrow %7
   store inspect %1 consume %8
   %9: @bits(53) U64 trivial = load inspect %1
@@ -61,20 +61,19 @@ bb0:
   %27: I32 trivial = convert inspect %26
   %28: I32 trivial = load inspect %4
   %29: I32 trivial = add inspect %27 inspect %28
-  %30: %@bits(53) U64 address = global.addr tagged
-  %31: @bits(53) U64 trivial = load inspect %30
-  %32: U64 trivial = convert inspect %31
-  %33: I32 trivial = convert inspect %32
-  %34: I32 trivial = const 1000000
-  %35: I32 trivial = mul inspect %33 inspect %34
-  %36: I32 trivial = add inspect %29 inspect %35
-  %37: %@bits(4) U32 address = field.addr .tag inspect %5
-  %38: @bits(4) U32 trivial = load inspect %37
-  %39: I32 trivial = convert inspect %38
-  %40: I32 trivial = const 100000
-  %41: I32 trivial = mul inspect %39 inspect %40
-  %42: I32 trivial = add inspect %36 inspect %41
-  return consume %42
+  %30: @bits(53) U64 trivial = const 3
+  %31: U64 trivial = convert inspect %30
+  %32: I32 trivial = convert inspect %31
+  %33: I32 trivial = const 1000000
+  %34: I32 trivial = mul inspect %32 inspect %33
+  %35: I32 trivial = add inspect %29 inspect %34
+  %36: %@bits(4) U32 address = field.addr .tag inspect %5
+  %37: @bits(4) U32 trivial = load inspect %36
+  %38: I32 trivial = convert inspect %37
+  %39: I32 trivial = const 100000
+  %40: I32 trivial = mul inspect %38 inspect %39
+  %41: I32 trivial = add inspect %35 inspect %40
+  return consume %41
 }
 
 entry main

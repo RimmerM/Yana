@@ -183,7 +183,13 @@ struct Verifier {
 
         if(operand.mode() == UseMode::Take && operand.source() == SourceKind::Place) {
             auto place = body.place(base, operand.placeId());
-            if(!place->occurrence.contract.isOwned()) {
+
+            // `lendsItsContents` is the one place a take out of storage the frame does not own is
+            // legal - a `&` parameter emptied and written back. The obligation that makes it legal
+            // is a dataflow answer and belongs to `analyze_drop`; what this walk can say is that the
+            // place is one the rule admits at all.
+            if(!place->occurrence.contract.isOwned() &&
+               !lendsItsContents(decl, base, body, *place)) {
                 report(node.source, "internal: %@ takes from a place this function does not own"_v,
                        mnemonic);
             }
@@ -272,13 +278,10 @@ struct Verifier {
          * the symptom of that is a placement decision with nothing to place into - which is a
          * miscompile at the far end rather than a report here.
          *
-         * `StorageClass::Heap` is the other rung and is refused in the same walk, for the same
-         * sentence with a different missing half: what it needs is an allocator. A **closure whose
-         * environment escapes** is the first thing in the language that asks for one
-         * (`resolve_lambda.cpp`), and every path that would select it reports where the escape is
-         * written instead. So this is the backstop at the point the allocation would have to be
-         * emitted - something that selected the rung anyway would otherwise reach the lowering,
-         * which allocates a frame slot whatever the object says.
+         * `StorageClass::Heap` used to be refused here for the sentence's other half - there was no
+         * allocator - and is not any more: `selectStorage` selects it, `Alloc` carries it, and the
+         * lowering emits `allocateHeap` and the release that answers it. What is left is the region
+         * rung alone, which is the check that still buys the day it stops being true.
          */
         for(U32 i = 0; i < body.objects.size(); i++) {
             auto object = body.object(base, ObjectId(i));
@@ -286,12 +289,6 @@ struct Verifier {
             if(object->storage == StorageClass::Region) {
                 report(object->source,
                        "internal: object %@ is placed in a region, and no witness declares one"_v, i);
-            }
-
-            if(object->storage == StorageClass::Heap) {
-                report(object->source,
-                       "internal: object %@ is placed on the heap, and this stage has no allocator"_v,
-                       i);
             }
         }
     }
@@ -324,10 +321,16 @@ struct Verifier {
                  * projection of a place the function only shares is shared - both are recorded on
                  * the record rather than walked to at every use, which means both are things that
                  * can be recorded *wrong*. This is where a walk that only happens once checks them.
+                 *
+                 * **A `Deref` is exempt from the first half**, and it is the one projection that
+                 * has to be: writing through a reference does not write the storage holding it. A
+                 * `Maybe(&'v)` bound by a plain `let` is that case - `findMut`'s result - and so is
+                 * a raw pointer read out of a field nobody may assign to. The capability there is
+                 * the *pointee's* access, which the second check below still holds it to.
                  */
                 auto parent = base[place->parent];
 
-                if(place->writable && !parent->writable) {
+                if(place->kind != Place::Deref && place->writable && !parent->writable) {
                     report(kNullLocation,
                            "internal: place %@ is writable and its parent is not"_v, i);
                 }
@@ -761,7 +764,18 @@ struct Verifier {
         // The components are one constructor's fields, which is every field of a record with one
         // constructor - `NodeAggregate::constructor` - and every element of a fixed array.
         // `aggregateComponentCount` is the one place that split is made.
-        auto expected = aggregateComponentCount(decl, type, written.constructor);
+        // A fill is one component and a count only a specialization has - `NodeAggregate::fill`,
+        // where the one shape it is legal at is stated. `aggregateComponentCount` answers zero for
+        // such an array, which is what this check would otherwise read as a component too many.
+        auto expected = written.fill ? Size(1)
+                                     : aggregateComponentCount(decl, type, written.constructor);
+
+        if(written.fill && (kind != Type::Array || ((ArrayType*)decl[type])->hasFixedLength())) {
+            report(node.source, "internal: aggregate fills %@, whose length is not a const parameter"_v,
+                   typeText(context, decl, type));
+            return;
+        }
+
         if(written.components.size() != expected) {
             report(node.source, "internal: aggregate supplies %@ components, and %@ holds %@"_v,
                    written.components.size(), typeText(context, decl, type), U64(expected));
@@ -1154,13 +1168,199 @@ struct Verifier {
         }
     }
 
+    /*
+     * An operation the machine has and this IR does not - native.def, and the one thing a `Native`
+     * node has that can be checked here.
+     *
+     * There is no signature to compare against: what a `@builtin(syscall3)` promises was checked at
+     * its declaration and the arguments came through the ordinary call path. What is left is the
+     * **arity**, which native.def deliberately does not carry as a column - a system call has seven
+     * of them - so it is stated here, once, for the rows whose operand count is the operation's
+     * rather than a declaration's. A row with a variable count answers `kAnyArity`.
+     *
+     * Worth stating at all because the lowering indexes `args` positionally and by name: a
+     * `sha256rnds2` that reached it with two operands would read past the list rather than report.
+     */
+    static constexpr Size kAnyArity = ~Size(0);
+
+    static Size nativeArity(NativeOp op) {
+        switch(op) {
+            case NativeOp::VZeroUpper:     return 0;
+
+            case NativeOp::Crc32:
+            case NativeOp::Sha1Message1:
+            case NativeOp::Sha1Message2:
+            case NativeOp::Sha1NextE:
+            case NativeOp::Sha1Rounds0:
+            case NativeOp::Sha1Rounds1:
+            case NativeOp::Sha1Rounds2:
+            case NativeOp::Sha1Rounds3:
+            case NativeOp::Sha256Message1:
+            case NativeOp::Sha256Message2: return 2;
+
+            case NativeOp::CopyMemory:
+            case NativeOp::SetMemory:
+            case NativeOp::Sha256Rounds:   return 3;
+
+            case NativeOp::CloneThread:    return 5;
+
+            // The number is operand zero and the rest are the call's, which is a declaration's
+            // arity rather than the operation's - see native.def's `Syscall` row.
+            case NativeOp::Syscall:        return kAnyArity;
+        }
+
+        return kAnyArity;
+    }
+
+    void checkNative(Node& node) {
+        auto& written = (NodeNative&)node;
+        auto expected = nativeArity(written.op);
+
+        if(expected != kAnyArity && written.arguments.size() != expected) {
+            report(node.source, "internal: %@ takes %@ operands and was given %@"_v,
+                   nativeOpName(written.op), U64(expected), U64(written.arguments.size()));
+        }
+    }
+
+    /*
+     * A `match` over constants - inst.def's `Map` row, and the four things a form selection below is
+     * entitled to assume about one.
+     *
+     * The entries being ascending and distinct is the load-bearing one: every shape the lowering
+     * derives - the interval a range test states, the bit a mask holds, the line an affine fit
+     * solves from two points, the slot a table read lands in - walks this list once and would answer
+     * differently for a permutation of it.
+     */
+    void checkMap(Node& node) {
+        auto& written = (NodeMap&)node;
+        auto entries = written.entries.contents(base);
+
+        if(!entries.size()) {
+            report(node.source, "internal: a map has no entries"_v);
+            return;
+        }
+
+        if(written.closed == written.fallback.isSet()) {
+            report(node.source, written.closed
+                ? "internal: a map over a closed domain carries a fallback"_v
+                : "internal: a map over an open domain has no fallback"_v);
+        }
+
+        auto result = valueOccurrence(node).type;
+        if(!written.closed && written.fallback.isSet() &&
+           !sameType(written.fallback.type, result)) {
+            report(node.source, "internal: a map answering %@ falls back to a %@"_v,
+                   typeText(context, decl, result),
+                   typeText(context, decl, written.fallback.type));
+        }
+
+        for(Size i = 0; i < entries.size(); i++) {
+            if(i && entries[i].selector <= entries[i - 1].selector) {
+                report(node.source, "internal: a map's entries are not ascending and distinct"_v);
+                break;
+            }
+        }
+
+        for(auto entry: entries) {
+            if(!sameType(entry.value.type, result)) {
+                report(node.source, "internal: a map answering %@ has an entry of %@"_v,
+                       typeText(context, decl, result),
+                       typeText(context, decl, entry.value.type));
+                break;
+            }
+        }
+
+        /*
+         * Every case value is a value of the selector's own type.
+         *
+         * `@value(n)` pins a constructor to somebody else's number, so an enumeration's selectors
+         * are not a range this compiler chose - and a case the tag cannot hold is a comparison that
+         * can never be true rather than a mapping.
+         */
+        if(written.selector.source() != SourceKind::Result) return;
+
+        auto selectorType = valueOccurrence(*body.node(base, written.selector.nodeId())).type;
+        if(!selectorType || decl[selectorType]->kind != Type::Int) {
+            report(node.source, "internal: a map selects on %@, which is not an integer"_v,
+                   typeText(context, decl, selectorType));
+            return;
+        }
+
+        auto& integer = *(IntType*)decl[selectorType];
+        for(auto entry: entries) {
+            auto negative = entry.selector < 0;
+            auto magnitude = negative ? U64(-(entry.selector + 1)) + 1 : U64(entry.selector);
+
+            if(integerHolds(integer, magnitude, negative)) continue;
+
+            report(node.source, "internal: a map selects on %@, which cannot hold the case %@"_v,
+                   typeText(context, decl, selectorType), entry.selector);
+            break;
+        }
+    }
+
+    /*
+     * A multi-way branch - inst.def's `Switch` row, and the three things below it are entitled to
+     * assume.
+     *
+     * The edges themselves are `checkEdge`'s, which is generic and already runs over every one of
+     * them; what is left here is the case list. There is deliberately no exhaustiveness rule - see
+     * inst.def, where the fallback is argued.
+     */
+    void checkSwitch(Node& node) {
+        auto& written = (NodeSwitch&)node;
+        auto cases = written.cases.pointer(base);
+        auto count = written.cases.size();
+
+        if(count < 3) {
+            report(node.source, "internal: a switch has %@ cases, and below three it is a branch"_v,
+                   U64(count));
+            return;
+        }
+
+        for(Size i = 1; i < count; i++) {
+            if(cases[i].value > cases[i - 1].value) continue;
+
+            report(node.source, "internal: a switch's cases are not ascending and distinct"_v);
+            break;
+        }
+
+        if(!written.fallback.target) {
+            report(node.source, "internal: a switch has no fallback"_v);
+        }
+
+        if(written.selector.source() != SourceKind::Result) return;
+
+        auto selectorType = valueOccurrence(*body.node(base, written.selector.nodeId())).type;
+        if(!selectorType || decl[selectorType]->kind != Type::Int) {
+            report(node.source, "internal: a switch selects on %@, which is not an integer"_v,
+                   typeText(context, decl, selectorType));
+            return;
+        }
+
+        auto& integer = *(IntType*)decl[selectorType];
+        for(Size i = 0; i < count; i++) {
+            auto negative = cases[i].value < 0;
+            auto magnitude = negative ? U64(-(cases[i].value + 1)) + 1 : U64(cases[i].value);
+
+            if(integerHolds(integer, magnitude, negative)) continue;
+
+            report(node.source, "internal: a switch selects on %@, which cannot hold the case %@"_v,
+                   typeText(context, decl, selectorType), cases[i].value);
+            break;
+        }
+    }
+
     void checkNode(Node& node) {
         switch(node.kind) {
+            case Node::Switch: return checkSwitch(node);
+            case Node::Map:    return checkMap(node);
             case Node::Aggregate: return checkAggregate(node);
             case Node::Write:  return checkWrite(node);
             case Node::Call:   return checkCall(node);
             case Node::Return: return checkReturn(node);
             case Node::Atomic: return checkAtomic(node);
+            case Node::Native: return checkNative(node);
             default:           return;
         }
     }
@@ -1203,7 +1403,7 @@ struct Verifier {
             checkNode(*node);
             if(isLensCall(node->kind)) checkLensCall(*node, block);
 
-            forEachEdge(*node, [&](Edge& edge) {
+            forEachEdge(base, *node, [&](Edge& edge) {
                 checkEdge(*node, edge);
                 if(edge.target) checkEdgeRegion(*node, block, *base[edge.target]);
             });
@@ -1255,6 +1455,35 @@ struct Verifier {
         }
     }
 
+    /*
+     * The signature, for the one thing about it a *body* can then be wrong about: a `@lazy`
+     * parameter arrives as a **function**.
+     *
+     * `doc/spec/functions.md`'s deferred argument is not a `T` the callee has and defers reading -
+     * it is a `() -> T` the callee calls, and `Arg::lazy` is the bit that says the *caller* writes a
+     * `T` there. So the flag and the type are two halves of one decision made in two files
+     * (`declareArgs` sets the flag, `resolveArgType` builds the thunk type), and the failure mode of
+     * getting them apart is a body that reads the name as a value and a call that passes a thunk.
+     *
+     * The shipping stage's `verify.cpp:653` restated. Here rather than in `resolve_sig.cpp` because
+     * it is a claim about the finished declaration and this is what runs over finished declarations;
+     * per body rather than per declaration for the same reason every check here is - a signature
+     * with no body has nothing this could be wrong about.
+     */
+    void checkSignature() {
+        for(auto pointer: function.args.contents(decl)) {
+            auto arg = decl[pointer];
+            if(!arg->lazy) continue;
+
+            auto type = arg->occurrence.type;
+            if(type && decl[type]->kind == Type::Fun) continue;
+
+            report(function.source,
+                   "internal: the @lazy parameter %@ of %@ does not arrive as a function"_v,
+                   context.findName(arg->name), context.findName(function.name));
+        }
+    }
+
     bool run() {
         if(!body.sealed) {
             report(function.source, "internal: the body of %@ was verified before it was sealed"_v,
@@ -1265,6 +1494,7 @@ struct Verifier {
         checkPlaces();
         checkObjects();
         checkRegions();
+        checkSignature();
         checkValueScope();
         for(U32 i = 0; i < body.blocks.size(); i++) checkBlock(*body.block(base, BlockId(i)));
 

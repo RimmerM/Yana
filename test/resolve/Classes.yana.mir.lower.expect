@@ -70,19 +70,12 @@ main<complex>(): I32 {
     call_complex Guard.drop, %v_17
     %v_18 = loads @trace, 4: I32
     %v_19 = cmp_neq %v_18, 4: I32
-    je %v_19, b_20, b_21
+    %v_20 = select %v_19, 18446744073709551603, 4243: I32
+    ret %v_20
   }
 
   b_15 {
     ret 18446744073709551605
-  }
-
-  b_21 {
-    ret 4243
-  }
-
-  b_20 {
-    ret 18446744073709551603
   }
 }
 

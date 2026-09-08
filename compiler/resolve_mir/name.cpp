@@ -259,4 +259,40 @@ Fixity findFixity(Context& context, Program& program, DeclPtr<Module> from, Stri
     }, false);
 }
 
+/*
+ * `String.push` for `s.push(v)` - the name a **dot-call** looks up before the bare one.
+ *
+ * A function written under a type's name is that type's, and `doc/spec/overloading.md`'s R1 makes it
+ * the *plain* function of the set a dot on a value of the type selects from. That is the whole
+ * reason the namespace exists: a name declared for this type is what a dot on a value of it means,
+ * and a plain function of the same name is what it means for every other type - which is the one
+ * place two plain functions could otherwise reach one call.
+ *
+ * Composed and interned rather than registered by a declaration pass. The shipping stage keys a hash
+ * map on (declaring type, member) precisely to avoid this concatenation at every call site; here it
+ * would be a second table to fill, to keep in step with the declarations and to answer a question
+ * `findOverloads` already answers - and the cost it saves is one interning lookup per dot-call on a
+ * record, against a walk that resolves the whole argument list. What a composed name buys is that
+ * `pub`, the import lists and `hiding` decide the dot form exactly as they decide the written
+ * spelling `String.push(s, v)`, because it *is* that lookup.
+ *
+ * Only a record answers. A builtin width has no declaration to hang a namespace on and every other
+ * kind of type is structural, so there is nothing an author could have written the prefix of.
+ */
+StringId namespacedName(Context& context, Program& program, DeclPtr<Type> receiver,
+                        StringId member) {
+    auto base = *program.decl;
+    if(!receiver || base[receiver]->kind != Type::Record) return StringId();
+
+    // The **declaration** and not an instantiation of it: `Array(Int)` and `Array(U8)` share the one
+    // namespace `Array` was declared under.
+    auto& record = *(RecordType*)base[receiver];
+    auto owner = record.instanceOf ? base[record.instanceOf]->name : record.name;
+    if(!owner) return StringId();
+
+    auto text = context.findName(owner) + Tritium::String(".") + context.findName(member);
+    return context.addQualifiedName(text.text(), text.size(),
+                                    context.find(owner).segmentCount + 1);
+}
+
 } // namespace mir

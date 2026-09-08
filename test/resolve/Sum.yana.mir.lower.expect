@@ -47,71 +47,55 @@ main<complex>(): I32 {
     jmp b_9
   }
 
+  b_10 {
+    jmp b_11
+  }
+
   b_9 {
     jmp b_10
   }
 
-  b_10 {
-    jmp b_11
+  b_12 {
+    %v_13 = alloca 8, 4: Ptr
+    store %v_13, 1, 1
+    %v_14 = add %v_13, 4: Ptr
+    store %v_14, 1, 1
+    %v_15 = load %v_13, 1: I32
+    %v_16 = cmp_eq %v_15, 0: I32
+    je %v_16, b_17, b_18
   }
 
   b_11 {
     jmp b_12
   }
 
-  b_12 {
-    jmp b_13
+  b_18 {
+    %v_19 = load %v_14, 1: I32
+    %v_20 = select %v_19, 1, 2: I32
+    jmp b_21
   }
 
-  b_14 {
-    jmp b_15
-  }
-
-  b_13 {
-    jmp b_14
-  }
-
-  b_16 {
-    %v_17 = alloca 8, 4: Ptr
-    store %v_17, 1, 1
-    %v_18 = add %v_17, 4: Ptr
-    store %v_18, 1, 1
-    %v_19 = load %v_17, 1: I32
-    %v_20 = cmp_eq %v_19, 0: I32
-    je %v_20, b_21, b_22
-  }
-
-  b_15 {
-    jmp b_16
-  }
-
-  b_22 {
-    %v_23 = load %v_18, 1: I32
-    %v_24 = select %v_23, 1, 2: I32
-    jmp b_25
+  b_17 {
+    %v_22 = loads %v_14, 4: I32
+    %v_23 = sub 0, %v_22: I32
+    jmp b_21
   }
 
   b_21 {
-    %v_26 = loads %v_18, 4: I32
-    %v_27 = sub 0, %v_26: I32
-    jmp b_25
-  }
-
-  b_25 {
-    %v_28 = phi [b_22, %v_24], [b_21, %v_27]: I32
-    %v_29 = add 16, %v_28: I32
-    %v_30 = add 23400, %v_29: I32
-    %v_31 = alloca 8, 4: Ptr
-    %v_32 = alloca 8, 4: Ptr
-    store %v_31, 0, 1
-    %v_33 = add %v_31, 4: Ptr
-    store %v_33, 4, 4
-    call_complex teardown(Held), %v_31
-    store %v_32, 1, 1
-    call_complex teardown(Held), %v_32
-    %v_34 = loads @trace, 4: I32
-    %v_35 = add %v_30, %v_34: I32
-    ret %v_35
+    %v_24 = phi [b_18, %v_20], [b_17, %v_23]: I32
+    %v_25 = add 16, %v_24: I32
+    %v_26 = add 23400, %v_25: I32
+    %v_27 = alloca 8, 4: Ptr
+    %v_28 = alloca 8, 4: Ptr
+    %v_29 = add %v_27, 4: Ptr
+    store %v_29, 4, 4
+    store %v_27, 0, 1
+    call_complex teardown(Held), %v_27
+    store %v_28, 1, 1
+    call_complex teardown(Held), %v_28
+    %v_30 = loads @trace, 4: I32
+    %v_31 = add %v_26, %v_30: I32
+    ret %v_31
   }
 }
 

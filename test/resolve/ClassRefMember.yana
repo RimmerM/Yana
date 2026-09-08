@@ -19,25 +19,25 @@ import Native
    The shared member is here beside them because it is the case that does *not* fold: `self: 'c`
    stays a reference type, since BindType has `Ref` for an exclusive borrow and nothing for a shared
    one that is not also pass-by-value. So `peek` is a reference-valued parameter and `poke` is a
-   borrow convention, and both root their result in the signature's anonymous group with no `return`
-   written anywhere.
+   borrow convention, and both root their result in the signature's one anonymous group - which the
+   tick on the result names, the subject having published it.
 -}
 
 data Boxed(a) {value: a, tag: Int}
 
 class Peek(c -> v):
   fn peek(self: 'c) -> 'v
-  fn poke(&self: 'c) -> &v
-  fn swap(&self: 'c, ->other: v) -> &v
+  fn poke(&self: 'c) -> &'v
+  fn swap(&self: 'c, ->other: v) -> &'v
 
 instance Peek(Boxed(a), a):
     fn peek(self: 'Boxed(a)) -> 'a = self.value
 
     -- The tick written on both sides.
-    fn poke(&self: 'Boxed(a)) -> &a = self.value
+    fn poke(&self: 'Boxed(a)) -> &'a = self.value
 
     -- And left off, which is the same declaration.
-    fn swap(&self: Boxed(a), ->other: a) -> &a:
+    fn swap(&self: Boxed(a), ->other: a) -> &'a:
         self.value = other
         return self.value
 

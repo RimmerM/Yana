@@ -1,0 +1,73 @@
+let image$base: () = <none>
+
+fn seven() -> I32 {
+  b0:
+    ret 7
+}
+
+fn ofLiteral() -> I32 {
+  b0:
+    %v1 = alloc : I32
+    init %local0, 5
+    %v3 = addressof %local0 : %I32
+    %v4 = load [%v3] : I32
+    ret %v4
+}
+
+fn ofCall() -> I32 {
+  b0:
+    %v0 = call seven : I32
+    %v1 = alloc : I32
+    init %local0, %v0
+    %v3 = addressof %local0 : %I32
+    %v4 = load [%v3] : I32
+    ret %v4
+}
+
+fn distinct() -> I32 {
+  b0:
+    %v1 = alloc : I32
+    init %local0, 5
+    %p = addressof %local0 : %I32
+    %v5 = alloc : I32
+    init %local1, 5
+    %q = addressof %local1 : %I32
+    %v8 = bitcast %p : Size
+    %v9 = bitcast %q : Size
+    %v10 = cmp_eq %v8, %v9 : Bool
+    je %v10, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 100
+}
+
+fn ofStorage() -> I32 {
+  b0:
+    %v = alloc : I32
+    init %v, 20
+    %v3 = load %v : I32
+    %p = addressof %v : %I32
+    %v5 = load [%p] : I32
+    %v8 = add %v5, 1 : I32
+    assign [%p], %v8
+    %v10 = load %v : I32
+    ret %v10
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = call ofLiteral : I32
+    %v1 = call ofCall : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call distinct : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call ofStorage : I32
+    %v6 = add %v4, %v5 : I32
+    ret %v6
+}

@@ -30,7 +30,11 @@ fn exchangeCounted(n: Int) -> Array(Int):
         push(out, i)
     return out
 
-fn exchangeSize(xs: Array(Int)) -> Int = truncate(length(xs)) :: Int
+-- The **window** and not `Array(Int)`, which is what a name spelling asks for: every caller below
+-- passes either a local this frame owns or an element of a container, and an element of a container
+-- is that element's window - there is no owner left to hand over. An owner adapts to this position
+-- and a window is already it.
+fn exchangeSize(xs: [Int]) -> Int = truncate(length(xs)) :: Int
 
 -- A local, which is the shortest shape that reaches the bug at all: `&a` is a mutable borrow of
 -- this frame's own storage, and that is already enough for the place to be a name rather than a slot.

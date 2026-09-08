@@ -69,11 +69,11 @@ bb1:
   jump -> bb2
 
 bb2:
-  %17: F32 = const 1
-  %18: Vec(F32) = read copy.trivial (g)
-  %19: I32 = const 0
-  %20: F32 = vec.lane #0 inspect %18
-  %21: F32 = div inspect %17 inspect %20
+  %17: Vec(F32) = read copy.trivial (g)
+  %18: I32 = const 0
+  %19: F32 = vec.lane #0 inspect %17
+  %20: F32 = const 1
+  %21: F32 = div inspect %20 inspect %19
   %22: F32 = const 0
   %23: Bool = gt inspect %21 inspect %22
   branch inspect %23 -> bb6 -> bb4

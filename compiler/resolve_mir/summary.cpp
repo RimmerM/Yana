@@ -62,11 +62,13 @@ static bool suspendsAt(Node& node) {
         // any of them to hand control over to.
         case Node::Fma:
         case Node::Select:
+        case Node::Map:
         case Node::VecSplat:
         case Node::VecLane:
         case Node::VecWithLane:
         case Node::VecShuffle:
         case Node::VecReduce:
+        case Node::VecIota:
         case Node::Call:
         case Node::Write:
         case Node::Return:
@@ -75,6 +77,7 @@ static bool suspendsAt(Node& node) {
         case Node::LensCall:
         case Node::LensTry:
         case Node::Branch:
+        case Node::Switch:
         case Node::Unreachable:
             return false;
         case Node::KindCount:
@@ -168,6 +171,45 @@ struct Interprocedural {
     };
 
     Array<EnvironmentUse> environmentUses;
+
+    /*
+     * The same call edges again, with the **node** on them - what the per-argument facts read.
+     *
+     * `edges` is the invocation relation and nothing else, which is all suspension, placement and
+     * divergence need; retention, mutation and consumption are per *position*, so they need the call
+     * the edge came from. A second array rather than a wider `edges`, because the suspension
+     * worklist reads `edges` once per round over the whole program and paying two words per teardown
+     * edge for a field three passes read would be paying it there.
+     *
+     * Recorded during the reachability walk rather than by a second one: which function a call
+     * reaches is `callTarget`'s answer, and that walk is also what *makes* the specialization, so a
+     * second traversal asking again would either duplicate the discovery or have to trust it.
+     */
+    struct CallEdge {
+        U32 caller;
+        U32 callee;
+        NodeId node;
+    };
+
+    Array<CallEdge> callEdges;
+
+    /*
+     * Which callers made a call this pass cannot attribute to a position - an indirect call, a
+     * witness slot, a generic with no specialization.
+     *
+     * One flag per caller and not per call: what it means is that the *body* passed arguments
+     * somewhere unattributable, so every per-argument fact for it starts at the top of its lattice.
+     * That is the same fallback `bodyKnown == false` gets one level out, and it is stated here
+     * because the reachability walk is where the unattributable call is recognized.
+     */
+    Array<U8> opaque;
+
+    void markOpaque(U32 caller) {
+        while(opaque.size() <= caller) opaque.push(0);
+        opaque[caller] = 1;
+    }
+
+    bool isOpaque(U32 caller) const { return caller < opaque.size() && opaque[caller] != 0; }
 
     /*
      * Per body compiled once, the slots of its environment it reads - one bit per slot of its frozen
@@ -282,6 +324,20 @@ struct Interprocedural {
 
         rootAllocator();
 
+        /*
+         * And the located check pair under `-check-locations`, for the allocator's reason exactly:
+         * the call is built by the *lowering* (`Lowering::locatedCheck`), so no node in any body
+         * names either declaration and neither this walk nor the SSA one could find an edge to it.
+         */
+        if(context.settings.checkLocations) {
+            intrinsic::Known located[2] = { intrinsic::Known::checkFailedAt,
+                                            intrinsic::Known::checkConditionAt };
+
+            for(auto role: located) {
+                if(auto declared = program.roles.function(role)) root(declared);
+            }
+        }
+
         if(program.entry) {
             root(program.entry);
         } else {
@@ -327,6 +383,8 @@ struct Interprocedural {
             function->reachable = true;
             if(!function->mir) continue;
 
+            rootViewDerivations(*function, [&](DeclPtr<Function> target) { root(target); });
+
             auto& body = *mir[function->mir];
 
             for(U32 i = 0; i < body.nodes.size(); i++) {
@@ -344,9 +402,57 @@ struct Interprocedural {
                  * flow set by type, and it is what keeps a body that merely builds, stores or
                  * returns a suspending value from being a suspending body.
                  */
+                /*
+                 * The globals a **constant inside a body** names - a `map`'s string table.
+                 *
+                 * Not a place, which is what makes this its own arm: a mapping's entries are payload
+                 * rather than operands, so the place walk below - which is how every other global a
+                 * body reaches is found - cannot see them. Marking the global here is enough;
+                 * `reachGlobalAddresses` follows whatever its own initializer names.
+                 */
+                if(node->kind == Node::Map) {
+                    auto& map = *(NodeMap*)node;
+
+                    auto reachAddresses = [&](const Constant& constant, auto&& again) -> void {
+                        if(constant.kind == Constant::Address) {
+                            decl[constant.asGlobal()]->reachable = true;
+                            return;
+                        }
+
+                        if(constant.kind != Constant::Aggregate) return;
+
+                        for(auto value: decl[constant.aggregate()]->values.contents(decl)) {
+                            again(value, again);
+                        }
+                    };
+
+                    for(auto entry: map.entries.contents(mir)) {
+                        reachAddresses(entry.value, reachAddresses);
+                    }
+
+                    if(map.fallback.isSet()) reachAddresses(map.fallback, reachAddresses);
+                    continue;
+                }
+
                 if(node->kind == Node::FunValue) {
                     auto callee = ((NodeFunValue*)node)->callee;
                     root(callee);
+
+                    /*
+                     * And what a **heap-placed** environment owes - D17.
+                     *
+                     * Nothing in any body names it: the captures are released by the teardown in
+                     * front of the block, which the lowering writes and which is reached through the
+                     * value's second word rather than by a `drop` anything can walk. So this is the
+                     * one place a capture's `instance Drop(T)` can be found, and it is the same
+                     * argument `reachEnvironment` makes about a descriptor slot.
+                     */
+                    auto& lifted = *decl[callee];
+                    if(lifted.environment && lifted.environmentStorage != StorageClass::Frame) {
+                        reachTeardown(lifted.environment,
+                                      [&](DeclPtr<Function> target) { root(target); });
+                    }
+
                     flowsTo[U32(valueOccurrence(*node).type.offset)].push(callee);
                     continue;
                 }
@@ -382,6 +488,7 @@ struct Interprocedural {
                 if(request.callsValue) {
                     auto& call = *(NodeCall*)node;
                     valueCalls.push(ValueCall { caller, U32(occurrenceOf(body, call.target).type.offset) });
+                    markOpaque(caller);
                     continue;
                 }
 
@@ -400,7 +507,10 @@ struct Interprocedural {
                     markSlot(*function, requirementSlotOf(*function, kind, site.requirement));
                 }
 
-                if(site.through != CallThrough::Declaration) continue;
+                if(site.through != CallThrough::Declaration) {
+                    markOpaque(caller);
+                    continue;
+                }
 
                 /*
                  * The environment a call to a generic compiled **once** hands over.
@@ -435,13 +545,20 @@ struct Interprocedural {
                  * One that **is** compiled once is an ordinary reachable function whose body is
                  * walked under the empty substitution, which is what an erased form means.
                  */
-                if(!site.target) continue;
+                if(!site.target) { markOpaque(caller); continue; }
                 if(isGeneric(decl, decl[site.target]->gen) &&
                    decl[site.target]->form != GenForm::Erased) {
+                    markOpaque(caller);
                     continue;
                 }
 
-                edges.push(edgeOf(caller, root(site.target)));
+                auto target = root(site.target);
+                edges.push(edgeOf(caller, target));
+
+                // And the same edge with the *node* on it - see `CallEdge`. Recorded here rather
+                // than by a second walk because `site.target` is what the second walk would have to
+                // re-derive, and `callTarget` is the walk that makes specializations exist.
+                callEdges.push(CallEdge { caller, target, NodeId(i) });
             }
 
             /*
@@ -682,6 +799,38 @@ struct Interprocedural {
         }
     }
 
+    /*
+     * The derivations a **specialization** may need - `viewMember`, rooted per type argument.
+     *
+     * A body compiled at `k := String` reaches a shared position of `k` holding an owner, and the
+     * SSA conversion turns that into a call to `Viewed(String).view`. Nothing in the MIR body names
+     * that function - the generic had no concrete type to name it at - so this walk is the only
+     * thing that can keep it, and the conversion may not mint one: `convertProgram` asserts that the
+     * function list does not grow.
+     *
+     * Deliberately blunter than the conversion's own test, on `opt/reach.cpp`'s terms for teardowns:
+     * *which* positions of a body need the adaptation is a walk over its nodes under this
+     * substitution, and reproducing it here would be a second statement of a rule that has one, in a
+     * walk that would then have to be kept in step with it. What the over-approximation costs is a
+     * derivation body emitted for a specialization that never adapts - two loads and an aggregate -
+     * and it cannot be wrong in the direction that matters.
+     */
+    template<class F>
+    void rootViewDerivations(Function& function, F&& root) {
+        if(!function.specializes) return;
+
+        for(auto argument: function.typeArguments.contents(decl)) {
+            Access accesses[2] = { Access::Shared, Access::Unique };
+
+            for(auto access: accesses) {
+                if(!hasViewFor(decl, program, argument, access)) continue;
+                if(auto member = viewMember(context, program, argument, access, kNullLocation)) {
+                    root(member);
+                }
+            }
+        }
+    }
+
     // The types `reachTeardown` is currently inside - a boxed field can reach its own record, which
     // is what a recursive declaration is, so the walk needs somewhere to notice that it has been
     // here. Sixteen inline is more nesting than a member graph reaches in practice.
@@ -825,10 +974,1101 @@ struct Interprocedural {
         }
     }
 
+    /*
+     * The strongest placement any object one activation needs - §10.4's published half.
+     *
+     * The base case is the body's own objects, which `analyze_escape.cpp` decided before this pass
+     * ran, and the join is over the **call graph**: an activation that calls one that allocates
+     * needs whatever that one needs. That reading rather than "this body's objects alone" is what a
+     * caller actually wants to rank against - a `region` block asks whether anything inside it will
+     * reach the allocator, and the answer is transitive.
+     *
+     * Ranked by *cost* and not by the enumerator's order, which is why `stronger` exists: `Region`
+     * sits between the other two in `StorageClass` because that is the order a reader wants to read
+     * the declaration in, and it sits between them in cost as well - but the two orders agreeing is
+     * a coincidence worth not relying on.
+     *
+     * The same worklist `computeSuspension` uses, for its reasons: monotone, so it terminates; a
+     * body with no body starts at the strongest rung, because §3.5's rule for an unknown target is
+     * that it joins as whatever the caller cannot rule out.
+     */
+    static StorageClass stronger(StorageClass a, StorageClass b) {
+        auto cost = [](StorageClass storage) {
+            return storage == StorageClass::Frame ? 0 : storage == StorageClass::Region ? 1 : 2;
+        };
+
+        return cost(a) >= cost(b) ? a : b;
+    }
+
+    StorageClass bodyPlacement(Function& function) {
+        if(!function.summary.bodyKnown) return StorageClass::Heap;
+        if(!function.mir) return StorageClass::Frame;
+
+        auto& body = *mir[function.mir];
+        auto strongest = StorageClass::Frame;
+
+        for(U32 i = 0; i < body.objects.size(); i++) {
+            strongest = stronger(strongest, body.object(mir, ObjectId(i))->storage);
+        }
+
+        return strongest;
+    }
+
+    void computePlacement() {
+        Array<U32> work;
+        Size next = 0;
+
+        for(U32 i = 0; i < reached.size(); i++) {
+            auto function = decl[reached[i]];
+            auto initial = bodyPlacement(*function);
+
+            function->summary.setPlacement(initial, Knowledge::Assumed);
+            if(initial != StorageClass::Frame) work.push(i);
+        }
+
+        while(next < work.size()) {
+            auto index = work[next++];
+            auto placed = decl[reached[index]]->summary.placement().value;
+
+            for(auto slot = callerStart[index]; slot < callerStart[index + 1]; slot++) {
+                auto caller = decl[reached[callerList[slot]]];
+                auto joined = stronger(caller->summary.placement().value, placed);
+                if(joined == caller->summary.placement().value) continue;
+
+                caller->summary.setPlacement(joined, Knowledge::Assumed);
+                work.push(callerList[slot]);
+            }
+        }
+
+        // Published on `computeSuspension`'s terms: a body that is here has a settled answer, and a
+        // declaration with no body has an assumption this pass made on no evidence.
+        for(auto pointer: reached) {
+            auto function = decl[pointer];
+            if(!function->summary.bodyKnown) continue;
+
+            function->summary.setPlacement(function->summary.placement().value, Knowledge::Known);
+        }
+    }
+
+
+    /*
+     * ------------------------------------------------------------------- the per-argument facts
+     *
+     * `retains`, `mutates` and `consumes` - Analysis-Sharing.md §4's three per-position rows, and
+     * one walk that answers all three, because they are the same question about three verbs.
+     *
+     * What makes them answerable here rather than by the eight hundred lines the shipping stage
+     * spends is the observation `analyze_escape.cpp` opens with: **nothing in an ownership MIR
+     * reaches a caller's storage by being a value.** A record is copied, an owned argument is moved
+     * into the callee's own slot, a returned value is written into storage the caller passed in. The
+     * two ways back are a **loan**, which the loan checker has already resolved per value and per
+     * interior position (`Elaboration::rootedIn`), and a **raw address**, which takes no loan and is
+     * followed structurally here.
+     *
+     * So a body's own answer is one sweep over its nodes, and the interprocedural half is a join per
+     * call site over the callee's rows. That join is what the worklist is for, exactly as with
+     * suspension: a callee whose row grew is the only reason to look at a caller again.
+     */
+
+    // How far the two rooting walks follow a chain before answering the top of the lattice. A
+    // reborrow through eight levels of pointer arithmetic is past anything a body writes, and the
+    // bound is what makes a cycle through a block argument terminate rather than a visited set.
+    static constexpr U32 kRootDepth = 8;
+
+    // The per-body state the walks share, built once per body rather than once per fact.
+    struct BodyRooting {
+        Body& body;
+        Function& owner;
+        Elaboration* elaboration = nullptr;
+
+        // Per loan, the parameters its borrowed place is rooted in - empty for a loan of a local, a
+        // global or an address, which is every loan that names nothing a caller lent. A set rather
+        // than an index because a loan through a raw address can name several.
+        SmallArray<ArgumentSet, 8> lender;
+    };
+
+    /*
+     * Whether a value at this occurrence can be a way back to storage somebody else owns.
+     *
+     * The filter that keeps these rows small enough to be worth having: an owned `Int` read out of a
+     * parameter is a copy, and following it would put every parameter of every arithmetic body into
+     * every row. A borrow is not owned, and a raw pointer is a machine address; those two are the
+     * whole of what a value can carry.
+     */
+    bool carriesStorage(const Occurrence& occurrence) {
+        if(!occurrence.contract.isOwned()) return true;
+        return mentionsPointer(occurrence.type, 0);
+    }
+
+    // Whether a type has a raw pointer anywhere in it - `eachVariable`'s shape asked about pointers.
+    // A type variable answers yes: a body compiled once cannot see the shape it was handed, so it
+    // cannot rule one out either.
+    bool mentionsPointer(DeclPtr<Type> type, U32 depth) {
+        if(!type) return false;
+        if(depth > kRootDepth) return true;
+
+        switch(decl[type]->kind) {
+            case Type::Pointer:
+            case Type::Variable:
+                return true;
+            case Type::Array:
+                return mentionsPointer(((ArrayType*)decl[type])->element, depth + 1);
+            case Type::Record:
+                for(auto field: ((RecordType*)decl[type])->fields.contents(decl)) {
+                    if(mentionsPointer(field.occurrence.type, depth + 1)) return true;
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /*
+     * The parameters whose storage a place may reach.
+     *
+     * A walk up the interned parent chain to the root, which is what `Place` is interned for, and
+     * then four answers: a **local** is a parameter or it is not, a **global** is nobody's argument,
+     * a **loan** is the place it borrowed one level down, and an **address** is a value, so the
+     * question becomes the node's.
+     *
+     * `throughDeref` is what makes an *owned* pointer parameter count. `p: %U8` arrives by value and
+     * `*p = 0` writes storage the caller owns, so a writer asking only "is the root a borrow" would
+     * call that the callee's own copy - the one shape where the contract and the reach disagree.
+     */
+    ArgumentSet placeParameters(BodyRooting& rooting, PlaceId id, bool& throughDeref, U32 depth) {
+        if(depth > kRootDepth) return ArgumentSet::all();
+
+        auto place = rooting.body.place(mir, id);
+
+        while(place->parent) {
+            if(place->kind == Place::Deref) throughDeref = true;
+            place = mir[place->parent];
+        }
+
+        switch(place->kind) {
+            case Place::Local: {
+                auto local = rooting.body.local(mir, LocalId(place->payload));
+                if(!local->isParameter()) return ArgumentSet();
+
+                ArgumentSet set;
+                set.add(local->parameter);
+                return set;
+            }
+
+            case Place::Loan: {
+                auto loan = rooting.body.loan(mir, LoanId(place->payload));
+                if(!loan) return ArgumentSet::all();
+
+                throughDeref = true;
+                return placeParameters(rooting, loan->place, throughDeref, depth + 1);
+            }
+
+            case Place::Address:
+                throughDeref = true;
+                return nodeParameters(rooting, NodeId(place->payload), depth + 1);
+
+            default:
+                // A global root, and the projection kinds, which cannot be a root. The empty set
+                // rather than an assertion: a malformed place is the verifier's to report and this
+                // pass has no position to report one at.
+                return ArgumentSet();
+        }
+    }
+
+    /*
+     * The same question about a value, and the two halves of the answer.
+     *
+     * The **loans** it is rooted in are the loan checker's own answer - `rootedInPosition` over every
+     * interior position, which is exactly the union `ssa::Loan` is a may-set of - and each maps to a
+     * parameter through the place it borrowed. That half is precise, and it is why this is a walk
+     * rather than a dataflow: the dataflow already ran.
+     *
+     * The **structural** half is the raw pointer, which takes no loan and is therefore invisible to
+     * the first. Those are followed through the operands, and a kind this does not recognize answers
+     * the top of the lattice rather than the bottom: forgetting too much costs an optimization and
+     * forgetting too little is a wrong answer a caller acts on.
+     */
+    ArgumentSet nodeParameters(BodyRooting& rooting, NodeId id, U32 depth) {
+        if(depth > kRootDepth) return ArgumentSet::all();
+
+        auto node = rooting.body.node(mir, id);
+        ArgumentSet set;
+
+        if(rooting.elaboration && rooting.elaboration->loanCount) {
+            auto& elaboration = *rooting.elaboration;
+            auto positions = elaboration.originPositionCount(mir, id);
+
+            for(U32 p = 0; p < positions; p++) {
+                for(U32 l = 0; l < elaboration.loanCount; l++) {
+                    if(!elaboration.rootedInPosition(mir, id, p, LoanId(l))) continue;
+                    set = set.join(rooting.lender[l]);
+                }
+            }
+        }
+
+        // And the pointer half. A value carrying no pointer and owning what it holds is a copy, so
+        // the walk stops rather than reporting every parameter the arithmetic touched.
+        if(!carriesStorage(valueOccurrence(*node))) return set;
+
+        switch(node->kind) {
+            case Node::Address:
+                return set.join(operandParameters(rooting, ((NodeAddress*)node)->of, depth + 1));
+
+            case Node::Read:
+                return set.join(operandParameters(rooting, ((NodeRead*)node)->place, depth + 1));
+
+            // A pointer out of arithmetic, a choice or a construction points into whatever its
+            // operands named. `forEachOperand` rather than a case each, because the answer is the
+            // union and the union is what every one of them has.
+            case Node::Unary:
+            case Node::Binary:
+            case Node::Select:
+            case Node::Aggregate:
+                forEachOperand(mir, *node, [&](Operand& operand, OperandRole) {
+                    set = set.join(operandParameters(rooting, operand, depth + 1));
+                });
+
+                return set;
+
+            /*
+             * A block argument, which is where a value crosses an edge.
+             *
+             * The origins above already answer it for a borrow - the loan analysis carried its sets
+             * across the edges - and what is left is a *pointer* merged at a join, which this walk
+             * cannot follow backwards without the predecessor list. The top of the lattice is the
+             * honest answer and it is bounded: a body that merges pointers at a join reports all of
+             * its own parameters, not all of everybody's.
+             */
+            case Node::Argument:
+                return ArgumentSet::all();
+
+            case Node::Const:
+            case Node::Metric:
+            case Node::GenValue:
+            case Node::FunValue:
+                return set;
+
+            default:
+                return ArgumentSet::all();
+        }
+    }
+
+    ArgumentSet operandParameters(BodyRooting& rooting, Operand operand, U32 depth) {
+        switch(operand.source()) {
+            case SourceKind::Place: {
+                auto place = rooting.body.place(mir, operand.placeId());
+                if(!carriesStorage(place->occurrence)) return ArgumentSet();
+
+                auto throughDeref = false;
+                return placeParameters(rooting, operand.placeId(), throughDeref, depth);
+            }
+
+            case SourceKind::Result:
+                return nodeParameters(rooting, operand.nodeId(), depth);
+
+            default:
+                return ArgumentSet();
+        }
+    }
+
+    /*
+     * ------------------------------------------------------------------ and the same three walks
+     * for the **address** rather than for the data - the `escapes` row.
+     *
+     * The two questions look alike and are not. `retains` asks whether anything *computed out of*
+     * an argument is still alive after the call, which is what a loan endpoint is about; this asks
+     * whether the **address the caller handed over** was written anywhere, which is what
+     * `ssa::Contained` is about. `growArray(&self, n)` is the body that separates them: it stores a
+     * run pointer read out of `self` back into `self`, so the value reach of the written pointer
+     * contains parameter 0 and `retains` says so - and no address of `self`'s storage went anywhere.
+     *
+     * What makes the narrower walk sound is `Contained`'s own premise: an allocation it admits is
+     * one whose address is never stored, so no pointer the callee **loads out of memory** can be it.
+     * So a chain is followed only while it never passes through such a load - an `addressOf` of the
+     * parameter's place or of a projection of it, the incoming pointer of a `%T` parameter, and a
+     * place handed on at another call's argument position - and a value read out of the parameter's
+     * bytes ends it.
+     *
+     * Three entry points rather than one, because the same operand means different things in
+     * different positions: `Given` is a place whose *address* is handed over (a call argument, an
+     * `addressOf`, a returned borrow) and `Carried` is a value that may *be* such an address (a
+     * stored value, a returned owned value, an aggregate component).
+     */
+    ArgumentSet placeAddressParameters(BodyRooting& rooting, PlaceId id, U32 depth) {
+        if(depth > kRootDepth) return ArgumentSet::all();
+
+        auto place = rooting.body.place(mir, id);
+
+        /*
+         * A `Deref` whose parent is not the root reads a pointer *out of* the storage, and what it
+         * names is wherever that pointer pointed rather than this parameter's slot. A `Deref` of the
+         * root is the other case and is not a break: it is the incoming pointer of a `%T` parameter,
+         * whose pointee is exactly the storage the caller handed over.
+         */
+        for(auto step = place; step->parent; step = mir[step->parent]) {
+            if(step->kind == Place::Deref && mir[step->parent]->parent) return ArgumentSet();
+        }
+
+        while(place->parent) place = mir[place->parent];
+
+        switch(place->kind) {
+            case Place::Local: {
+                auto local = rooting.body.local(mir, LocalId(place->payload));
+                if(!local->isParameter()) return ArgumentSet();
+
+                ArgumentSet set;
+                set.add(local->parameter);
+                return set;
+            }
+
+            case Place::Loan: {
+                auto loan = rooting.body.loan(mir, LoanId(place->payload));
+                if(!loan) return ArgumentSet::all();
+
+                return placeAddressParameters(rooting, loan->place, depth + 1);
+            }
+
+            case Place::Address:
+                return nodeAddressParameters(rooting, NodeId(place->payload), depth + 1);
+
+            default:
+                // A global root, which is nobody's argument, and the projection kinds, which the
+                // walk to the root has already passed.
+                return ArgumentSet();
+        }
+    }
+
+    /*
+     * Whether the **contents** of a place can be an address naming a parameter's storage.
+     *
+     * Only where the place is the parameter itself - the incoming pointer of `p: %T`, or a borrow
+     * whose value is the caller's address. A projection's contents came out of the caller's bytes,
+     * and by `Contained`'s premise the address of a contained allocation is never among them.
+     */
+    ArgumentSet readAddressParameters(BodyRooting& rooting, PlaceId id, U32 depth) {
+        if(depth > kRootDepth) return ArgumentSet::all();
+
+        auto place = rooting.body.place(mir, id);
+        if(!carriesStorage(place->occurrence)) return ArgumentSet();
+        if(place->parent) return ArgumentSet();
+
+        switch(place->kind) {
+            case Place::Local: {
+                auto local = rooting.body.local(mir, LocalId(place->payload));
+                if(!local->isParameter()) return ArgumentSet();
+
+                ArgumentSet set;
+                set.add(local->parameter);
+                return set;
+            }
+
+            case Place::Loan: {
+                auto loan = rooting.body.loan(mir, LoanId(place->payload));
+                if(!loan) return ArgumentSet::all();
+
+                return readAddressParameters(rooting, loan->place, depth + 1);
+            }
+
+            case Place::Address:
+                return nodeAddressParameters(rooting, NodeId(place->payload), depth + 1);
+
+            default:
+                return ArgumentSet();
+        }
+    }
+
+    ArgumentSet nodeAddressParameters(BodyRooting& rooting, NodeId id, U32 depth) {
+        if(depth > kRootDepth) return ArgumentSet::all();
+
+        auto node = rooting.body.node(mir, id);
+        if(!carriesStorage(valueOccurrence(*node))) return ArgumentSet();
+
+        switch(node->kind) {
+            case Node::Address:
+                return operandAddressGiven(rooting, ((NodeAddress*)node)->of, depth + 1);
+
+            case Node::Read:
+                return operandAddressCarried(rooting, ((NodeRead*)node)->place, depth + 1);
+
+            // Arithmetic on an address is still that address, and a choice or a construction carries
+            // whatever its operands carried.
+            case Node::Unary:
+            case Node::Binary:
+            case Node::Select:
+            case Node::Aggregate: {
+                ArgumentSet set;
+                forEachOperand(mir, *node, [&](Operand& operand, OperandRole) {
+                    set = set.join(operandAddressCarried(rooting, operand, depth + 1));
+                });
+
+                return set;
+            }
+
+            // A value merged at a join, which this walk cannot follow backwards - the top of the
+            // lattice, bounded by this body's own parameters exactly as `nodeParameters` is.
+            case Node::Argument:
+                return ArgumentSet::all();
+
+            case Node::Const:
+            case Node::Metric:
+            case Node::GenValue:
+            case Node::FunValue:
+                return ArgumentSet();
+
+            default:
+                return ArgumentSet::all();
+        }
+    }
+
+    ArgumentSet operandAddressGiven(BodyRooting& rooting, Operand operand, U32 depth) {
+        switch(operand.source()) {
+            case SourceKind::Place:
+                return placeAddressParameters(rooting, operand.placeId(), depth);
+
+            case SourceKind::Result:
+                return nodeAddressParameters(rooting, operand.nodeId(), depth);
+
+            default:
+                return ArgumentSet();
+        }
+    }
+
+    ArgumentSet operandAddressCarried(BodyRooting& rooting, Operand operand, U32 depth) {
+        switch(operand.source()) {
+            case SourceKind::Place:
+                return readAddressParameters(rooting, operand.placeId(), depth);
+
+            case SourceKind::Result:
+                return nodeAddressParameters(rooting, operand.nodeId(), depth);
+
+            default:
+                return ArgumentSet();
+        }
+    }
+
+    // Whether a place is rooted in a global, which is the one root that outlives every frame and is
+    // therefore what makes a write into it a retention of whatever it wrote.
+    bool rootsInGlobal(BodyRooting& rooting, PlaceId id) {
+        auto place = rooting.body.place(mir, id);
+        while(place->parent) place = mir[place->parent];
+        return place->kind == Place::Global;
+    }
+
+    /*
+     * The parameters a **write** through this place reaches, which is not the same set as reading it.
+     *
+     * `p: Pair` arrives by value and `p.left = 3` writes the callee's own copy; `&p: Pair` and
+     * `p: %Pair` both write the caller's. So a destination counts only where the walk reached the
+     * caller's storage - through a `Deref`, a loan or an address, or from a root that is a reference
+     * parameter - and that is the one thing separating this from `placeParameters`.
+     */
+    ArgumentSet writtenParameters(BodyRooting& rooting, PlaceId id) {
+        auto throughDeref = false;
+        auto reached = placeParameters(rooting, id, throughDeref, 0);
+        if(!reached.any() || throughDeref) return reached;
+
+        ArgumentSet written;
+        for(auto pointer: rooting.owner.args.contents(decl)) {
+            auto arg = decl[pointer];
+            if(!reached.has(arg->index) || arg->occurrence.contract.isOwned()) continue;
+
+            written.add(arg->index);
+        }
+
+        return written;
+    }
+
+    // One body's own four rows, before anything it calls is joined in.
+    struct BodyFacts {
+        ArgumentSet retains;
+        ArgumentSet escapes;
+        ArgumentSet mutates;
+        ArgumentSet consumes;
+    };
+
+    /*
+     * What one body does to its own parameters.
+     *
+     * Four node kinds carry the whole of it. A **write** mutates what its destination reaches and
+     * retains what it stored where the destination outlives this frame; a **return** retains what it
+     * hands back; and an **atomic** or a **native** operation reaches storage through an address this
+     * tier cannot read further into, so both verbs take the union of its operands. A call is not
+     * here: it is an edge, and the fixpoint below is what walks it.
+     *
+     * `consumes` is the odd one and says so: an owned parameter of a linear type is discharged on
+     * every path *by construction*, because `checkLinear` refuses a body where it is not. So the
+     * body contributes the signature and the fixpoint contributes nothing - which is a fact about
+     * this language rather than a gap, and is why the row is published `Known` off one read of the
+     * declaration.
+     */
+    BodyFacts bodyArgumentFacts(BodyRooting& rooting) {
+        BodyFacts facts;
+
+        for(auto pointer: rooting.owner.args.contents(decl)) {
+            auto arg = decl[pointer];
+            if(!arg->occurrence.contract.isOwned()) continue;
+            if(!isLinearAt(decl, arg->occurrence)) continue;
+
+            facts.consumes.add(arg->index);
+        }
+
+        auto& body = rooting.body;
+
+        for(U32 i = 0; i < body.nodes.size(); i++) {
+            auto node = body.node(mir, NodeId(i));
+
+            switch(node->kind) {
+                case Node::Write: {
+                    auto& write = *(NodeWrite*)node;
+
+                    auto outside = false;
+                    ArgumentSet target;
+
+                    if(write.destination.source() == SourceKind::Place) {
+                        target = writtenParameters(rooting, write.destination.placeId());
+                        outside = target.any() || rootsInGlobal(rooting, write.destination.placeId());
+                    } else {
+                        // A destination that is a value is an address computed here, so what it
+                        // names is that value's reach and the write is through it either way.
+                        target = operandParameters(rooting, write.destination, 0);
+                        outside = true;
+                    }
+
+                    facts.mutates = facts.mutates.join(target);
+                    if(outside) {
+                        facts.retains = facts.retains.join(operandParameters(rooting, write.value, 0));
+                        facts.escapes =
+                            facts.escapes.join(operandAddressCarried(rooting, write.value, 0));
+                    }
+
+                    break;
+                }
+
+                case Node::Return: {
+                    auto& returned = *(NodeReturn*)node;
+                    if(!returned.hasValue) break;
+
+                    facts.retains =
+                        facts.retains.join(operandParameters(rooting, returned.value, 0));
+
+                    /*
+                     * The result decides which of the two address questions a return is. An owned
+                     * result hands back a *value*, so `elementBase(&self) -> %a` returns the run
+                     * pointer it read out of the header and not the header's address; a borrowed
+                     * result hands back a place, and that place's address does outlive the call.
+                     */
+                    facts.escapes = facts.escapes.join(
+                        rooting.owner.result.contract.isOwned()
+                            ? operandAddressCarried(rooting, returned.value, 0)
+                            : operandAddressGiven(rooting, returned.value, 0));
+                    break;
+                }
+
+                case Node::Atomic:
+                case Node::Native: {
+                    ArgumentSet reached;
+                    ArgumentSet handed;
+                    forEachOperand(mir, *node, [&](Operand& operand, OperandRole) {
+                        reached = reached.join(operandParameters(rooting, operand, 0));
+                        handed = handed.join(operandAddressGiven(rooting, operand, 0));
+                    });
+
+                    facts.mutates = facts.mutates.join(reached);
+                    facts.retains = facts.retains.join(reached);
+
+                    // An address handed to a system call or a block move is one this tier cannot
+                    // follow, so a place at any operand of one counts as given away.
+                    facts.escapes = facts.escapes.join(handed);
+                    break;
+                }
+
+                default:
+                    break;
+            }
+        }
+
+        return facts;
+    }
+
+    /*
+     * The call sites, grouped both ways, and each site's arguments resolved to the caller's
+     * parameters **once**.
+     *
+     * The fixpoint below is then pure set algebra: no body is walked twice, and a callee whose row
+     * grows costs a join per site rather than a re-analysis of every caller. That is the same trade
+     * the reversed call graph makes for suspension, one level of detail further in.
+     */
+    Array<U32> siteStart;      // per callee, the range of `siteOrder` naming sites that call it
+    Array<U32> siteOrder;      // indices into `callEdges`
+    Array<U32> madeStart;      // per caller, the range of `madeOrder` naming sites it made
+    Array<U32> madeOrder;      // indices into `callEdges`
+    Array<U32> siteArgStart;   // per site, the range of `siteArgs` holding its argument reaches
+    Array<U32> siteArity;      // per site, how many of them there are
+    Array<ArgumentSet> siteArgs;
+    // The same range, in the address question's terms - which parameters' *storage* this position
+    // hands over. Beside `siteArgs` rather than folded into it because the two are different sets
+    // over the same positions, and resolving each once is what keeps the fixpoint set algebra.
+    Array<ArgumentSet> siteAddrArgs;
+
+    // Both groupings, by the same counting sort `buildCallers` uses. Two rather than one because the
+    // two halves of the fixpoint ask opposite questions: the base case is per *caller* body and the
+    // propagation is per *callee* answer, and a scan of the whole site list for either is the
+    // quadratic this pass was rewritten to avoid once already.
+    void groupSites() {
+        auto count = U32(reached.size());
+        auto sites = U32(callEdges.size());
+
+        auto group = [&](Array<U32>& start, Array<U32>& order, auto&& keyOf) {
+            start.clear();
+            for(U32 i = 0; i <= count; i++) start.push(0);
+            for(auto& site: callEdges) start[keyOf(site) + 1]++;
+            for(U32 i = 0; i < count; i++) start[i + 1] += start[i];
+
+            order.clear();
+            for(U32 i = 0; i < sites; i++) order.push(0);
+
+            Array<U32> cursor;
+            for(U32 i = 0; i < count; i++) cursor.push(start[i]);
+            for(U32 i = 0; i < sites; i++) order[cursor[keyOf(callEdges[i])]++] = i;
+        };
+
+        group(siteStart, siteOrder, [](const CallEdge& site) { return site.callee; });
+        group(madeStart, madeOrder, [](const CallEdge& site) { return site.caller; });
+    }
+
+    // The arguments of one call, in the callee's own position order - `mapArguments` normalized them
+    // there, so position i of the list is parameter i of the declaration.
+    template<class F> void eachCallArgument(Body& body, NodeId id, F&& f) {
+        auto node = body.node(mir, id);
+
+        if(node->kind == Node::Call) {
+            auto& call = *(NodeCall*)node;
+            auto items = call.arguments.contents(mir);
+            for(Size i = 0; i < items.size(); i++) f(U32(i), items[i]);
+            return;
+        }
+
+        auto& call = *(NodeLensCall*)node;
+        auto items = call.arguments.contents(mir);
+        for(Size i = 0; i < items.size(); i++) f(U32(i), items[i]);
+    }
+
+    /*
+     * The four rows, over the whole program.
+     *
+     * The base case is each body's own verbs, and the top of every lattice is what a body with no
+     * body and a body that made an unattributable call both start from - `isOpaque`, whose whole
+     * content is that this pass could not say *which* position an argument went to.
+     *
+     * The schedule is `computeSuspension`'s: monotone, so it terminates, and a function is queued
+     * when one of its rows grew because that is the only reason a caller has to be looked at again.
+     */
+    void computeArgumentFacts() {
+        auto count = U32(reached.size());
+        groupSites();
+
+        Array<ArgumentSet> retains;
+        Array<ArgumentSet> escapes;
+        Array<ArgumentSet> mutates;
+        Array<ArgumentSet> consumes;
+
+        siteArgStart.clear();
+        siteArity.clear();
+        siteArgs.clear();
+        siteAddrArgs.clear();
+        for(Size i = 0; i < callEdges.size(); i++) { siteArgStart.push(0); siteArity.push(0); }
+
+        for(U32 i = 0; i < count; i++) {
+            retains.push(ArgumentSet());
+            escapes.push(ArgumentSet());
+            mutates.push(ArgumentSet());
+            consumes.push(ArgumentSet());
+        }
+
+        // The bodies, once each: the base rows, and every site's arguments resolved in the terms of
+        // the body that wrote them.
+        for(U32 i = 0; i < count; i++) {
+            auto function = decl[reached[i]];
+
+            /*
+             * The top of the lattice, and the two reasons for it are not the same reason.
+             *
+             * No body is every row: nothing here established anything about this declaration. An
+             * **opaque call** is only the two rows a call can be about - what the callee kept and
+             * what it wrote - because `consumes` is a statement about this function's own signature
+             * and an unattributable call it made says nothing about that.
+             */
+            if(!function->summary.bodyKnown || !function->mir) {
+                retains[i] = ArgumentSet::all();
+                escapes[i] = ArgumentSet::all();
+                mutates[i] = ArgumentSet::all();
+                consumes[i] = ArgumentSet::all();
+                if(!function->mir) continue;
+            } else if(isOpaque(i)) {
+                retains[i] = ArgumentSet::all();
+                escapes[i] = ArgumentSet::all();
+                mutates[i] = ArgumentSet::all();
+            }
+
+            auto& body = *mir[function->mir];
+            BodyRooting rooting { body, *function,
+                                  body.elaboration ? mir[body.elaboration] : nullptr, {} };
+
+            // The lenders first, and with the origin half switched off: a loan's own root is a
+            // *place*, so the table can be built without reading the table being built.
+            BodyRooting bare { body, *function, nullptr, {} };
+            for(U32 l = 0; l < body.loans.size(); l++) {
+                auto loan = body.loan(mir, LoanId(l));
+                auto throughDeref = false;
+                rooting.lender.push(loan ? placeParameters(bare, loan->place, throughDeref, 0)
+                                         : ArgumentSet());
+            }
+
+            auto facts = bodyArgumentFacts(rooting);
+            retains[i] = retains[i].join(facts.retains);
+            escapes[i] = escapes[i].join(facts.escapes);
+            mutates[i] = mutates[i].join(facts.mutates);
+            consumes[i] = consumes[i].join(facts.consumes);
+
+            for(auto slot = madeStart[i]; slot < madeStart[i + 1]; slot++) {
+                auto s = madeOrder[slot];
+
+                siteArgStart[s] = U32(siteArgs.size());
+                eachCallArgument(body, callEdges[s].node, [&](U32, Operand operand) {
+                    siteArgs.push(operandParameters(rooting, operand, 0));
+                    siteAddrArgs.push(operandAddressGiven(rooting, operand, 0));
+                    siteArity[s]++;
+                });
+            }
+        }
+
+        Array<U32> work;
+        Size next = 0;
+        Array<U8> queued;
+        for(U32 i = 0; i < count; i++) queued.push(1);
+        for(U32 i = 0; i < count; i++) work.push(i);
+
+        while(next < work.size()) {
+            auto index = work[next++];
+            queued[index] = 0;
+
+            for(auto slot = siteStart[index]; slot < siteStart[index + 1]; slot++) {
+                auto s = siteOrder[slot];
+                auto caller = callEdges[s].caller;
+                auto base = siteArgStart[s];
+
+                ArgumentSet grownRetains;
+                ArgumentSet grownEscapes;
+                ArgumentSet grownMutates;
+
+                for(U32 a = 0; a < siteArity[s]; a++) {
+                    auto reachedSet = siteArgs[base + a];
+                    if(retains[index].has(a)) grownRetains = grownRetains.join(reachedSet);
+                    if(mutates[index].has(a)) grownMutates = grownMutates.join(reachedSet);
+
+                    // The address row propagates over the *address* each position hands over, which
+                    // is a different set than what the position reaches as a value.
+                    if(escapes[index].has(a)) grownEscapes = grownEscapes.join(siteAddrArgs[base + a]);
+                }
+
+                auto joinedRetains = retains[caller].join(grownRetains);
+                auto joinedEscapes = escapes[caller].join(grownEscapes);
+                auto joinedMutates = mutates[caller].join(grownMutates);
+                if(joinedRetains == retains[caller] && joinedEscapes == escapes[caller]
+                   && joinedMutates == mutates[caller]) continue;
+
+                retains[caller] = joinedRetains;
+                escapes[caller] = joinedEscapes;
+                mutates[caller] = joinedMutates;
+
+                if(queued[caller]) continue;
+                queued[caller] = 1;
+                work.push(caller);
+            }
+        }
+
+        /*
+         * Published on `computeSuspension`'s terms: a body that is here has a settled answer, and a
+         * declaration with no body has an assumption this pass made on no evidence.
+         *
+         * `consumes` publishes `Known` for a body-known function whatever the walk found, because
+         * what it read is the *signature* - see `bodyArgumentFacts`.
+         */
+        for(U32 i = 0; i < count; i++) {
+            auto function = decl[reached[i]];
+            auto how = function->summary.bodyKnown ? Knowledge::Known : Knowledge::Assumed;
+
+            function->summary.setRetains(retains[i], how);
+            function->summary.setEscapes(escapes[i], how);
+            function->summary.setMutates(mutates[i], how);
+            function->summary.setConsumes(consumes[i], how);
+        }
+    }
+
+    /*
+     * ------------------------------------------------------------------------- the stack bound
+     *
+     * Whether an activation's frame is finite - Analysis-External-Iterators §4.4, and the half of
+     * §4.5 that belongs to the resolver.
+     *
+     * §4.5 states the split outright: "the resolver can validate that the call graph is bounded, but
+     * it cannot know the exact bytes", because spill slots, the outgoing argument area and saved
+     * registers are decided after register allocation. So what this pass publishes is the
+     * **eligibility** half - `StackBound::isBounded()` - and the byte count stays zero, which is
+     * `plus` waiting for the backend term rather than a number this tier invented. A fake byte count
+     * would be worse than none: an external iterator's child stack would be reserved from it.
+     *
+     * The lattice is what makes that honest rather than lossy. `unbounded` is the top and it is what
+     * recursion, an indirect call and a separately compiled callee all give; a bounded answer with no
+     * bytes in it is a floor, and §4.5's stage 2 is what raises it.
+     *
+     * Recursion is the one thing here that is not a join, and it is why this pass is a peel rather
+     * than a worklist over the reversed graph: nothing in a cycle ever *becomes* unbounded by a
+     * callee changing its answer, because every member of the cycle starts bounded. Kahn's algorithm
+     * over the callee graph finalizes exactly the functions that reach no cycle, and what is left
+     * over is the answer.
+     */
+    void computeStack() {
+        auto count = U32(reached.size());
+
+        Array<U32> outDegree;
+        for(U32 i = 0; i < count; i++) outDegree.push(0);
+        for(auto edge: edges) outDegree[U32(edge >> 32)]++;
+
+        // A function that already cannot answer starts finalized-as-unbounded, so that the peel
+        // below does not have to distinguish "reaches a cycle" from "reaches an unknown".
+        Array<U8> bounded;
+        for(U32 i = 0; i < count; i++) {
+            auto function = decl[reached[i]];
+            bounded.push(function->summary.bodyKnown && !isOpaque(i) ? 1 : 0);
+        }
+
+        Array<U32> work;
+        Size next = 0;
+        Array<U8> settled;
+        for(U32 i = 0; i < count; i++) settled.push(0);
+
+        for(U32 i = 0; i < count; i++) {
+            if(outDegree[i]) continue;
+            settled[i] = 1;
+            work.push(i);
+        }
+
+        while(next < work.size()) {
+            auto index = work[next++];
+
+            for(auto slot = callerStart[index]; slot < callerStart[index + 1]; slot++) {
+                auto caller = callerList[slot];
+                if(!bounded[index]) bounded[caller] = 0;
+
+                if(--outDegree[caller]) continue;
+                if(settled[caller]) continue;
+
+                settled[caller] = 1;
+                work.push(caller);
+            }
+        }
+
+        // Whatever the peel never settled is in a cycle or reaches one - direct or mutual recursion,
+        // which §4.4 rejects rather than bounds.
+        for(U32 i = 0; i < count; i++) {
+            auto function = decl[reached[i]];
+            auto answer = settled[i] && bounded[i] ? StackBound { 0 } : StackBound::unbounded();
+
+            function->summary.setStack(answer, function->summary.bodyKnown ? Knowledge::Known
+                                                                           : Knowledge::Assumed);
+        }
+    }
+
+    /*
+     * --------------------------------------------------------------------------- divergence
+     *
+     * Whether calling this ever comes back - `Summary::diverges`, and what `endNonReturningBlocks`
+     * in `resolve_ssa/opt` reads.
+     *
+     * The seed is a **role** and not a walk: `lib/Core/Check.yana`'s `checkFailed` is
+     * `abortProcess()`, which is `exitProcess(134)`, which is a `syscall1` followed by an ordinary
+     * `return` - so no CFG in the program says the process stopped, and nothing below the seed can
+     * be inferred. Above it everything is a CFG answer: a body diverges when its entry cannot reach
+     * a `return` with the block of every diverging call cut off at that call.
+     *
+     * False is the conservative direction and is what a body with no body gets. A caller that thinks
+     * a diverging callee returns keeps a block it did not have to; one that thinks a returning callee
+     * diverges deletes the code after it.
+     *
+     * The schedule is the suspension worklist again, and the base case is recomputed rather than
+     * joined - a callee turning diverging changes which blocks of the caller reach a `return`, which
+     * is a graph question and not a lattice one.
+     */
+    /*
+     * The constant a branch's condition is, or nothing - which is the whole of what `while True`
+     * needed.
+     *
+     * The optimizer folds a decided branch and this runs before it, so a body whose loop header
+     * tests a literal still has both edges in its graph and the walk below reaches a `return`
+     * through the one the program never takes. The constant is read here rather than folded into
+     * MIR, because folding it is a CFG edit that would move every golden for the sake of a fact,
+     * and this is the one reader of that fact.
+     *
+     * `Bool` is a declared enum, so its constants are constructor indices - `False` is zero and
+     * `True` is one, which is the rule `checkRoles` holds the declaration to.
+     */
+    Maybe<bool> decidedCondition(Body& body, Operand condition) {
+        if(condition.source() != SourceKind::Result) return Nothing();
+
+        auto node = body.node(mir, NodeId(condition.id()));
+        if(!node || node->kind != Node::Const) return Nothing();
+
+        auto held = body.constant(mir, ((NodeConst*)node)->constant);
+        if(held.kind == Constant::Enum) return Just(held.asConstructor() != 0);
+        if(held.kind == Constant::Int) return Just(held.asInt() != 0);
+
+        return Nothing();
+    }
+
+    // Every edge control can take out of one terminator, which for a branch on a literal is one of
+    // its two. Anything else is `forEachEdge` unchanged.
+    template<class F> void forEachLiveEdge(Body& body, Node& terminator, F&& f) {
+        if(terminator.kind == Node::Branch) {
+            auto& branch = (NodeBranch&)terminator;
+
+            if(auto decided = decidedCondition(body, branch.condition)) {
+                f(decided.unwrap() ? branch.whenTrue : branch.whenFalse);
+                return;
+            }
+        }
+
+        forEachEdge(mir, terminator, f);
+    }
+
+    bool bodyDiverges(U32 index, Array<U8>& diverges) {
+        auto function = decl[reached[index]];
+        if(!function->summary.bodyKnown || !function->mir) return false;
+
+        auto& body = *mir[function->mir];
+        auto blocks = body.blocks.size();
+        if(!blocks) return false;
+
+        /*
+         * Which blocks end at a call that does not come back. The call's own node is what says so,
+         * and `callEdges` is where the node and the callee meet - but a node does not carry the
+         * block it is in (`Node` is a dense id and nothing else), so the map is built here from the
+         * lists that do.
+         */
+        Array<U8> stops;
+        for(Size i = 0; i < blocks; i++) stops.push(0);
+
+        auto diverging = false;
+        for(auto slot = madeStart[index]; slot < madeStart[index + 1]; slot++) {
+            if(diverges[callEdges[madeOrder[slot]].callee]) diverging = true;
+        }
+
+        if(diverging) {
+            Array<U32> blockOfNode;
+            for(U32 i = 0; i < body.nodes.size(); i++) blockOfNode.push(~U32(0));
+
+            for(U32 b = 0; b < blocks; b++) {
+                for(auto pointer: body.block(mir, BlockId(b))->nodes.contents(mir)) {
+                    blockOfNode[mir[pointer]->id.index] = b;
+                }
+            }
+
+            for(auto slot = madeStart[index]; slot < madeStart[index + 1]; slot++) {
+                auto& site = callEdges[madeOrder[slot]];
+                if(!diverges[site.callee]) continue;
+
+                auto found = blockOfNode[site.node.index];
+                if(found != ~U32(0)) stops[found] = 1;
+            }
+        }
+
+        // The blocks a `return` is reachable from, backwards. A stopping block reaches none: its own
+        // terminator is behind a call that never returns.
+        Array<U8> reachesReturn;
+        for(Size i = 0; i < blocks; i++) reachesReturn.push(0);
+
+        for(auto progress = true; progress;) {
+            progress = false;
+
+            for(U32 b = 0; b < blocks; b++) {
+                if(reachesReturn[b] || stops[b]) continue;
+
+                auto block = body.block(mir, BlockId(b));
+                auto nodes = block->nodes.size();
+                if(!nodes) continue;
+
+                auto& terminator = *mir[block->nodes.get(mir, nodes - 1)];
+                auto found = terminator.kind == Node::Return;
+
+                forEachLiveEdge(body, terminator, [&](Edge& edge) {
+                    if(edge.target && reachesReturn[mir[edge.target]->index.index]) found = true;
+                });
+
+                if(!found) continue;
+
+                reachesReturn[b] = 1;
+                progress = true;
+            }
+        }
+
+        return !reachesReturn[mir[body.entry]->index.index];
+    }
+
+    void computeDivergence() {
+        auto count = U32(reached.size());
+
+        Array<U8> diverges;
+        for(U32 i = 0; i < count; i++) diverges.push(0);
+
+        Array<U32> work;
+        Size next = 0;
+
+        // The seed, and the one place the answer is not a CFG's.
+        if(auto failed = program.roles.function(intrinsic::Known::checkFailed)) {
+            if(auto found = indexOf.get(failed.offset)) {
+                diverges[found.unwrap()] = 1;
+                work.push(found.unwrap());
+            }
+        }
+
+        // And everything whose own graph says so before any callee did - an endless loop, and a body
+        // whose every arm calls the seed.
+        for(U32 i = 0; i < count; i++) {
+            if(diverges[i] || !bodyDiverges(i, diverges)) continue;
+
+            diverges[i] = 1;
+            work.push(i);
+        }
+
+        while(next < work.size()) {
+            auto index = work[next++];
+
+            for(auto slot = callerStart[index]; slot < callerStart[index + 1]; slot++) {
+                auto caller = callerList[slot];
+                if(diverges[caller] || !bodyDiverges(caller, diverges)) continue;
+
+                diverges[caller] = 1;
+                work.push(caller);
+            }
+        }
+
+        for(U32 i = 0; i < count; i++) {
+            auto function = decl[reached[i]];
+            function->summary.setDiverges(diverges[i] != 0,
+                                          function->summary.bodyKnown ? Knowledge::Known
+                                                                      : Knowledge::Assumed);
+        }
+    }
+
     void run() {
         markReachable();
         buildCallers();
         computeSuspension();
+        computePlacement();
+        computeArgumentFacts();
+        computeStack();
+        computeDivergence();
+
     }
 };
 

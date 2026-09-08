@@ -28,12 +28,19 @@ fn outOfLine() -> Int:
 -- And that assigning the *whole* field writes through the box it already has rather than allocating
 -- a new one. That is what "the address stays stable while the value changes" means, and it is most
 -- of why a field would be boxed for a reason other than a cycle.
+--
+-- The two addresses are kept as **numbers**, and that is the shape the question has rather than a
+-- detour: `addressOf` publishes its argument's origin (`it: source'a`), so a pointer held across the
+-- assignment is a shared borrow of the very storage being written - which the ownership stage
+-- refuses, and rightly, since nothing in a raw pointer says the write goes through the box. What is
+-- being compared is where the target *is*, and an address read out and kept as a `Size` is that
+-- question with no borrow left over.
 fn writesThrough() -> Int:
     let &c = Config {hot: 3, cold: Diagnostics {count: 1, level: 20}}
-    let before = addressOf(c.cold)
+    let before = bitcast(addressOf(c.cold)) :: Size
 
     c.cold = Diagnostics {count: 9, level: 30}
-    let after = addressOf(c.cold)
+    let after = bitcast(addressOf(c.cold)) :: Size
 
     if !(before == after) then return -1
     return c.cold.count * 10 + c.cold.level

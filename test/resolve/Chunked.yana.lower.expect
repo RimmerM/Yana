@@ -396,11 +396,11 @@ main<complex>(): I32 {
   b_61 {
     call_complex Reclaim(Array(a)).reclaim(I32), %arr
     %v_62 = add %v_46, %v_54: I32
-    %v_63 = add %ring, 12: Ptr
-    %v_64 = load %v_63, 4: I32
-    %v_65 = load %ring, 8: Ptr
-    %v_66 = cast %v_64: I64
-    %v_67 = sext %v_64: I64
+    %v_63 = load %ring, 8: Ptr
+    %v_64 = add %ring, 12: Ptr
+    %v_65 = load %v_64, 4: I32
+    %v_66 = cast %v_65: I64
+    %v_67 = sext %v_65: I64
     jmp b_68
   }
 
@@ -414,7 +414,7 @@ main<complex>(): I32 {
   b_76 {
     %v_77 = add %v_62, %v_69: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %ring
-    %v_78 = add %v_77, %v_64: I32
+    %v_78 = add %v_77, %v_65: I32
     %v_79 = call_complex firstOver, %v_1, 3: I32
     %v_80 = add %v_78, %v_79: I32
     %total = alloca 4, 4: Ptr
@@ -444,7 +444,7 @@ main<complex>(): I32 {
 
   b_70 {
     %v_91 = shl %v_72, 2: I64
-    %v_92 = add %v_65, %v_91: Ptr
+    %v_92 = add %v_63, %v_91: Ptr
     %v_93 = loads %v_92, 4: I32
     %v_71 = add %v_69, %v_93: I32
     %v_73 = add %v_72, 1: I64

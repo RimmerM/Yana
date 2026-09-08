@@ -354,7 +354,7 @@ struct InstConst: Inst {
     mir::Constant constant;
 
     template<class F> void eachUse(SsaBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 // The address of a module-level `let`. An `Address` value, not an owner: what the global holds is
@@ -366,7 +366,7 @@ struct InstGlobalAddress: Inst {
     DeclPtr<mir::Global> global;
 
     template<class F> void eachUse(SsaBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -410,7 +410,30 @@ struct InstAlloc: Inst {
     StorageClass storage;
 
     template<class F> void eachUse(SsaBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
+};
+
+/*
+ * One allocation handed back - the release half of a placement that was not the frame's.
+ *
+ * Paired with an `Alloc` and with nothing else, which is what makes it checkable: the address is the
+ * allocation's own result rather than any address the body happens to hold, so a `free` of a
+ * projection or of a borrow is not representable rather than refused. `Conversion::releaseSlots`
+ * emits one per heap slot at each of the function's exits, so a body allocates once per activation
+ * and releases once on every path out of it.
+ *
+ * What runs *inside* the storage - the value's own teardown - is `Drop`, at whatever point the value
+ * died, which may be a different point on a different path or nowhere at all. Keeping the two apart
+ * is Analysis-IR.md §6.7's "`Drop` and `Reclaim` remain separate until representation lowering
+ * decides how storage is returned", one tier further on.
+ */
+struct InstFree: Inst {
+    InstFree(LocationId source, Use address): Inst(Free, source), address(address) {}
+
+    Use address;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(address); }
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -443,7 +466,7 @@ struct InstGenValue: Inst {
     DeclPtr<mir::Type> variable;
 
     template<class F> void eachUse(SsaBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -461,7 +484,7 @@ struct InstMetric: Inst {
     mir::TypeMetric metric;
 
     template<class F> void eachUse(SsaBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -480,7 +503,7 @@ struct InstNative: Inst {
         for(auto used: arguments.contents(base)) f(used);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -511,7 +534,7 @@ struct InstAtomic: Inst {
         for(auto used: arguments.contents(base)) f(used);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 // The second result of a compare-exchange - `mir::NodeAtomicOk` carried down. `cas` names the
@@ -523,7 +546,7 @@ struct InstAtomicOk: Inst {
     Use cas;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(cas); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 // `a * b + c` at most once rounded - `mir::NodeFma` carried down.
@@ -534,7 +557,7 @@ struct InstFma: Inst {
     Use lhs, rhs, addend;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(lhs); f(rhs); f(addend); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 // A branch-free choice between two values - `mir::NodeSelect` carried down. The condition is a
@@ -546,7 +569,28 @@ struct InstSelect: Inst {
     Use condition, whenTrue, whenFalse;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(condition); f(whenTrue); f(whenFalse); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
+};
+
+/*
+ * A `match` over constants - `mir::NodeMap` carried down, entries and all.
+ *
+ * The entries are `mir::MapEntry` by value rather than a handle back into MIR, for the reason
+ * `InstConst` states about a literal: the MIR region is released the moment conversion ends, and a
+ * table held there would be a table with nothing behind it. Each `Constant` is sixteen bytes and its
+ * aggregate payload lives in the declaration region, which outlives both.
+ */
+struct InstMap: Inst {
+    InstMap(LocationId source, Use selector, bool closed):
+        Inst(Map, source), selector(selector), closed(closed) {}
+
+    Use selector;
+    SsaList<mir::MapEntry, false> entries;
+    mir::Constant fallback;
+    bool closed = false;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(selector); }
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 // A scalar in every lane - `mir::NodeVecSplat` carried down.
@@ -556,7 +600,7 @@ struct InstVecSplat: Inst {
     Use from;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(from); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 // One lane read, and one lane written - `mir::NodeVecLane`'s two kinds, sharing this the way they
@@ -576,7 +620,7 @@ struct InstVecLane: Inst {
         if(writesLane()) f(value);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 // Lanes selected from two vectors by a constant pattern - `mir::NodeVecShuffle` carried down, with
@@ -589,7 +633,7 @@ struct InstVecShuffle: Inst {
     SsaList<U8, false> pattern;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(left); f(right); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 // Every lane folded into one scalar - `mir::NodeVecReduce` carried down.
@@ -601,7 +645,7 @@ struct InstVecReduce: Inst {
     mir::ReduceOp reduce;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(from); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 struct InstFieldAddress: Inst {
@@ -650,7 +694,7 @@ struct InstFieldAddress: Inst {
     U16 property = kNoProperty;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(base); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -675,7 +719,7 @@ struct InstElementAddress: Inst {
     DeclPtr<mir::Type> container;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(base); f(index); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -691,8 +735,14 @@ struct InstLoad: Inst {
 
     Use address;
 
+    // `mir::NodeRead::overread`, carried across the seam unchanged - the bit that says this access
+    // is deliberately past the extent of what its address names, and that the tail-read guarantee
+    // covers it. Copied rather than re-derived because nothing below MIR can tell one vector load
+    // from another, which is the whole reason the flag exists.
+    bool overread = false;
+
     template<class F> void eachUse(SsaBase, F&& f) { f(address); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -712,7 +762,7 @@ struct InstStore: Inst {
     Use value;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(address); f(value); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -734,7 +784,7 @@ struct InstCopy: Inst {
     Use address;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(address); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 struct InstBinary: Inst {
@@ -745,7 +795,7 @@ struct InstBinary: Inst {
     BinaryOp op;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(lhs); f(rhs); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 struct InstUnary: Inst {
@@ -756,7 +806,7 @@ struct InstUnary: Inst {
     UnaryOp op;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(value); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -781,7 +831,7 @@ struct InstAggregate: Inst {
         for(auto used: components.contents(base)) f(used);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -825,7 +875,7 @@ struct InstDrop: Inst {
     bool boxesVisible = true;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(address); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -851,7 +901,7 @@ struct InstFunValue: Inst {
         if(capturing) f(environment);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 /*
@@ -910,7 +960,7 @@ struct InstCall: Inst {
         for(auto used: arguments.contents(base)) f(used);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 struct InstReturn: Inst {
@@ -921,7 +971,7 @@ struct InstReturn: Inst {
     UseList values;
 
     template<class F> void eachUse(SsaBase base, F&& f) { for(auto use: values.contents(base)) f(use); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 struct InstJump: Inst {
@@ -930,7 +980,7 @@ struct InstJump: Inst {
     Edge to;
 
     template<class F> void eachUse(SsaBase, F&&) {}
-    template<class F> void eachEdge(F&& f) { f(to); }
+    template<class F> void eachEdge(SsaBase, F&& f) { f(to); }
 };
 
 struct InstBranch: Inst {
@@ -941,14 +991,43 @@ struct InstBranch: Inst {
     Edge whenFalse;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(condition); }
-    template<class F> void eachEdge(F&& f) { f(whenTrue); f(whenFalse); }
+    template<class F> void eachEdge(SsaBase, F&& f) { f(whenTrue); f(whenFalse); }
+};
+
+// One case of a `switch` - `mir::SwitchCase` carried down.
+struct SwitchCase {
+    I64 value = 0;
+    Edge edge;
+};
+
+/*
+ * A multi-way branch - `mir::NodeSwitch` carried down, cases and all.
+ *
+ * The ordinal order of the edges is case order then the fallback, which is what `redirectEdge` and
+ * `addEdgeArgument` index by - see the MIR node, where the contract is stated.
+ */
+struct InstSwitch: Inst {
+    InstSwitch(LocationId source, Use selector): Inst(Switch, source), selector(selector) {}
+
+    Use selector;
+    SsaList<SwitchCase, false> cases;
+    Edge fallback;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(selector); }
+
+    template<class F> void eachEdge(SsaBase base, F&& f) {
+        auto items = cases.pointer(base);
+        for(Size i = 0; i < cases.size(); i++) f(items[i].edge);
+
+        f(fallback);
+    }
 };
 
 struct InstUnreachable: Inst {
     explicit InstUnreachable(LocationId source): Inst(Unreachable, source) {}
 
     template<class F> void eachUse(SsaBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
 };
 
 template<class F>
@@ -982,8 +1061,8 @@ void forEachUse(SsaBase base, Inst& inst, F&& f) {
 }
 
 template<class F>
-void forEachEdge(Inst& inst, F&& f) {
-    visitInst(inst, [&](auto& i) { i.eachEdge(f); });
+void forEachEdge(SsaBase base, Inst& inst, F&& f) {
+    visitInst(inst, [&](auto& i) { i.eachEdge(base, f); });
 }
 
 /*

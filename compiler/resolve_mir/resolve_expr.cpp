@@ -167,6 +167,10 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, 
                 return builder.localPlace(*local);
             }
 
+            // A name this body bound and whose binding failed - see `findLocal`. Silent, and it
+            // stops here: the spelling is the local's, whatever else in scope carries it.
+            if(bound) return nullptr;
+
             /*
              * A name a **lambda** says that its enclosing function bound - a capture.
              *
@@ -228,112 +232,292 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, 
         case ast::Expr::Sub:
             return resolveSubscript(builder, expr, complain, access);
 
-        case ast::Expr::Field: {
-            auto& written = *parse[expr.field];
+        /*
+         * `*p` - the object a raw pointer names, which is a place and not an operation.
+         *
+         * The *role* decides and not the spelling: `pointerLoad` is what `lib/Native/Pointer.yana`
+         * claims on its `*`, and a program that declares a unary `*` of its own is an ordinary call
+         * that answers a value. So this is silent wherever the sole callee is anything else, and
+         * `resolvePrefix` resolves it as the call it is.
+         */
+        case ast::Expr::Prefix: {
+            auto& written = *parse[expr.prefix];
+            if(written.op.kind != ast::Expr::Var) return nullptr;
 
-            auto target = projectionTarget(builder, written.target, access);
+            OverloadSet set;
+            findOverloads(context, program, here(), written.op.var, 1, written.op.source, set);
+
+            auto found = set.sole();
+            if(!found || decl()[found]->intrinsic != intrinsic::Op::pointerLoad) return nullptr;
+
+            auto address = resolveValue(builder, written.on, nullptr, inspectRequest());
+            if(!address) return nullptr;
+
+            return pointeeAt(builder, *address, written.on.source, complain);
+        }
+
+        case ast::Expr::Field: {
+            auto target = projectionTarget(builder, parse[expr.field]->target, access);
             if(!target) return nullptr;
 
-            /*
-             * `t.0` - selection by **position**, which is the other half of the grammar and the one
-             * an anonymous field has.
-             *
-             * The literal is read as a whole because a field position takes an integer and nothing
-             * else: there is no expression here to evaluate, and a spelling that is neither a name
-             * nor a number is a parse the grammar admits and the language has no reading for.
-             */
-            if(written.field.kind == ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
-                return positionalField(builder, *target, written.field);
-            }
-
-            if(written.field.kind != ast::Expr::Var) {
-                unsupported(written.field.source, "a field selected by anything but a name"_v);
-                return nullptr;
-            }
-
-            /*
-             * A field of a value whose type is a **variable** - `fn (a.size: I32) f(x: a)`.
-             *
-             * The signature is what says the field is there, so the requirement is looked up before
-             * the type is reported as having no fields: an unconstrained `a` genuinely has none, and
-             * the difference between the two is exactly what the constraint states.
-             */
-            if(decl()[target->occurrence.type]->kind == Type::Variable) {
-                auto found = findProperty(target->occurrence.type, written.field.var);
-                if(found == kNoProperty) {
-                    context.diagnostics.error(
-                        "%@ has no field called %@, and the signature does not require one"_v,
-                        written.field.source, typeText(context, decl(), target->occurrence.type),
-                        context.findName(written.field.var));
-                    return nullptr;
-                }
-
-                auto property = decl()[currentFunction->gen]->properties.get(decl(), found);
-                return builder.propertyPlace(*target, U16(found), owned(property.result));
-            }
-
-            /*
-             * The record the name is looked up on is the **occurrence's**, not the type's -
-             * `fieldRecordOf`, which is where a window's fields are decided to be the view's.
-             *
-             * This is the hole Analysis-Manifestations.md Part 8 opens with: keyed on the type,
-             * `xs.length` on a `[I32]` resolved against `Array(I32)`'s declaration and projected the
-             * owner's field onto the view's two words, right only while the two field lists
-             * happened to agree. Keyed on the occurrence, `xs.run` on a window is a field the view
-             * does not have, and the message says whose fields were looked at.
-             */
-            auto recordType = fieldRecordOf(context, program, target->occurrence);
-            if(!recordType) {
-                context.diagnostics.error("%@ has no fields"_v, written.target.source,
-                                          typeText(context, decl(), target->occurrence.type));
-                return nullptr;
-            }
-
-            auto viewed = recordType != target->occurrence.type;
-            auto record = (RecordType*)decl()[recordType];
-
-            /*
-             * A field of a **sum** is not reachable by name - Analysis-IR.md's G7d.
-             *
-             * Which fields a value has is what its discriminant says, and a selector says nothing
-             * about it: `o.value` on an `Outcome` that turned out to be an `Exit` would read a type
-             * out of bytes holding another one. What proves the arm is a pattern, so a pattern is
-             * the only thing that projects one - which is also what lets the loan checker treat two
-             * arms' fields as one storage and the drop pass leave them to the tag.
-             */
-            if(record->layout != RecordLayout::Single) {
-                context.diagnostics.error(
-                    "%@ has several constructors, so %@ is reached by matching rather than by name"_v,
-                    written.field.source, typeText(context, decl(), target->occurrence.type),
-                    context.findName(written.field.var));
-                return nullptr;
-            }
-
-            for(auto field: record->fields.contents(decl())) {
-                if(field.name != written.field.var) continue;
-                if(!reachesInside(*record, written.field.source, "its fields"_v)) return nullptr;
-
-                return builder.fieldPlace(*target, field.index);
-            }
-
-            if(viewed) {
-                context.diagnostics.error(
-                    "a %@ view of %@ has no field called %@ - a view's fields are the ones its view record declares, not the owner's"_v,
-                    written.field.source, accessName(target->occurrence.contract.access()),
-                    typeText(context, decl(), target->occurrence.type),
-                    context.findName(written.field.var));
-                return nullptr;
-            }
-
-            context.diagnostics.error("%@ has no field called %@"_v, written.field.source,
-                                      typeText(context, decl(), target->occurrence.type),
-                                      context.findName(written.field.var));
-            return nullptr;
+            return fieldStep(builder, *target, expr);
         }
 
         default:
             return nullptr;
     }
+}
+
+/*
+ * One `.f` of a projection, over a target that is **already resolved**.
+ *
+ * Split out so that `resolveAssign` can apply the same steps to a place it built itself: a target
+ * written `xs[i].f` has its accessor chosen after the right-hand side has been read, and the field
+ * steps above it are then the ones this walk would have made. Two spellings of a projection is
+ * exactly the drift this stage is written to avoid, so there is one.
+ */
+Place* Resolver::fieldStep(Builder& builder, Place& target, ast::Expr& expr) {
+    auto& written = *parse[expr.field];
+
+    /*
+     * `p.value` on a `%Node` is `(*p).value` - the projection reaches **through** a pointer.
+     *
+     * Here and not in `projectionTarget`, which a dot-*call* shares: `p.f(y)` is `f(p, y)` with the
+     * pointer itself as argument zero - `lib/Native`'s own operators are written that way - so the
+     * step belongs to the projections rather than to every receiver.
+     */
+    auto through = pointeeThrough(builder, target, written.target.source);
+    if(!through) return nullptr;
+
+    /*
+     * `t.0` - selection by **position**, which is the other half of the grammar and the one an
+     * anonymous field has.
+     *
+     * The literal is read as a whole because a field position takes an integer and nothing else:
+     * there is no expression here to evaluate, and a spelling that is neither a name nor a number
+     * is a parse the grammar admits and the language has no reading for.
+     */
+    if(written.field.kind == ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+        return positionalField(builder, *through, written.field);
+    }
+
+    return fieldOf(builder, *through, written.field, written.target.source);
+}
+
+/*
+ * The type a run of named field steps selects, without building the places.
+ *
+ * The one caller is `resolveAssign`, and what it needs the answer for is a **hint**: an assignment
+ * to `xs[i].f` reads its right-hand side before it takes the exclusive loan the target needs, and a
+ * value resolved against no expected type at all is a different program (`xs[i].f = []` has nowhere
+ * to get an element type from). The place is still built afterwards and is still what the write is
+ * checked against, so this walk decides an order and never a meaning.
+ *
+ * Null wherever a step is anything but a named field of a single-constructor record read at its own
+ * type - a positional field, a pointee, a view whose fields are its record's, a type variable's
+ * requirement. Each of those is a step whose place walk emits or renames something, and the caller
+ * simply builds the target first, which is what every assignment did before this.
+ */
+DeclPtr<Type> Resolver::fieldPathType(DeclPtr<Type> from, ast::Expr* const* steps, Size count) {
+    for(Size i = count; i > 0; i--) {
+        if(!from || decl()[from]->kind != Type::Record) return nullptr;
+
+        auto& written = *parse[steps[i - 1]->field];
+        if(written.field.kind != ast::Expr::Var) return nullptr;
+
+        DeclPtr<Type> recordType = nullptr;
+        auto index = fieldNamed(owned(from), written.field.var, recordType);
+
+        if(!recordType || index == kNoField || recordType != from) return nullptr;
+
+        from = ((RecordType*)decl()[recordType])->field(decl(), index).occurrence.type;
+    }
+
+    return from;
+}
+
+/*
+ * Which field of an occurrence a name selects - **the one walk over a record's fields**.
+ *
+ * It reports nothing, and that is what makes it one walk rather than two. `fieldOf` turns a no into
+ * a message and `resolveDotCall` turns the same no into a search for a function of the name, so a
+ * predicate written for the second question would be a second reading of a record - and what it
+ * decides is which of the two forms `x.f(y)` is, which is the last place two readings may drift.
+ *
+ * `record` comes back as the record the fields were read off, which is the **occurrence's** and not
+ * the type's - `fieldRecordOf`, where a window's fields are decided to be its view's. Null there
+ * means the occurrence has no fields at all; a record with several constructors answers `kNoField`
+ * with `record` set, which is what lets the caller tell "reached by matching" from "no such field".
+ */
+U16 Resolver::fieldNamed(const Occurrence& occurrence, StringId name, DeclPtr<Type>& record) {
+    record = fieldRecordOf(context, program, occurrence);
+    if(!record) return kNoField;
+
+    auto& declared = *(RecordType*)decl()[record];
+    if(declared.layout != RecordLayout::Single) return kNoField;
+
+    for(auto field: declared.fields.contents(decl())) {
+        if(field.name == name) return field.index;
+    }
+
+    return kNoField;
+}
+
+/*
+ * Whether the receiver's own type answers this name at all - a declared field, or one a signature
+ * requires of a type variable.
+ *
+ * The **probe** half of the projection, and the only thing `resolveDotCall` needs to choose between
+ * the two forms. A generic receiver is asked through `findProperty` rather than through the
+ * requiring form for the reason the projection gives: a declared `a.name: T` selects the field and
+ * its absence selects the function, and asking the form that reports would name a missing constraint
+ * before the function half had been tried.
+ */
+bool Resolver::hasMemberNamed(const Occurrence& occurrence, StringId name) {
+    if(!occurrence.type) return false;
+
+    if(decl()[occurrence.type]->kind == Type::Variable) {
+        return findProperty(occurrence.type, name) != kNoProperty;
+    }
+
+    DeclPtr<Type> record = nullptr;
+    return fieldNamed(occurrence, name, record) != kNoField;
+}
+
+/*
+ * `target.name` as a place, over a target that is **already resolved**.
+ *
+ * Split out of `resolvePlace` so that a dot-call reaches it with the receiver it has already got:
+ * resolving is emission, so a form that decided between a field and a function by resolving the
+ * receiver twice would leave the first walk's instructions behind in a stage that runs no pass to
+ * remove them. The two callers hand it the same target and get the same place.
+ */
+Place* Resolver::fieldOf(Builder& builder, Place& target, ast::Expr& selector,
+                         LocationId targetSource) {
+    if(selector.kind != ast::Expr::Var) {
+        unsupported(selector.source, "a field selected by anything but a name"_v);
+        return nullptr;
+    }
+
+    return fieldNamedOf(builder, target, selector.var, selector.source, targetSource);
+}
+
+/*
+ * The object a raw address names, as a place - `Place::Address`, and the one root outside the safe
+ * model.
+ *
+ * **Always writable**, which is `Builder::addressPlace`'s own sentence said at the source level: the
+ * memory a pointer names is mutable whatever binding the pointer itself was read out of, so
+ * `n.value = 5` through a plain `let n = addressOf(node)` is a write and `n = m` on the same binding
+ * is still refused. What a raw store does *not* do is release what was there - a store through an
+ * address is `Destination::Assign` over a root with no move path, which `expandPointerStore` says at
+ * length and is Native's to be unsafe about.
+ *
+ * The pointee's occurrence is `owned`, which is the same occurrence `pointerLoad`'s declared result
+ * substitutes to: `fn *(it: %a) -> a` answers an owned `a`, and reading the place through a request
+ * is what decides whether that is a copy or a move.
+ */
+Place* Resolver::pointeeAt(Builder& builder, Node& address, LocationId source, bool complain) {
+    auto type = valueType(address);
+
+    if(!type || decl()[type]->kind != Type::Pointer) {
+        if(complain) {
+            context.diagnostics.error("`*` names the object a pointer holds, and %@ is not one"_v,
+                                      source, typeText(context, decl(), type));
+        }
+
+        return nullptr;
+    }
+
+    return builder.addressPlace(address, owned(((PointerType*)decl()[type])->to), true);
+}
+
+/*
+ * A place that holds a pointer, read as the place its pointee is.
+ *
+ * `target` itself wherever it holds anything else, so the caller writes one line rather than a test:
+ * a projection through a pointer is a projection with one extra step, and the step is either there
+ * or it is not.
+ */
+Place* Resolver::pointeeThrough(Builder& builder, Place& target, LocationId source) {
+    if(!target.occurrence.type || decl()[target.occurrence.type]->kind != Type::Pointer) {
+        return &target;
+    }
+
+    auto address = readPlace(builder, source, target, inspectRequest());
+    if(!address) return nullptr;
+
+    return pointeeAt(builder, *address, source, true);
+}
+
+Place* Resolver::fieldNamedOf(Builder& builder, Place& target, StringId name,
+                              LocationId nameSource, LocationId targetSource) {
+    /*
+     * A field of a value whose type is a **variable** - `fn (a.size: I32) f(x: a)`.
+     *
+     * The signature is what says the field is there, so the requirement is looked up before the type
+     * is reported as having no fields: an unconstrained `a` genuinely has none, and the difference
+     * between the two is exactly what the constraint states.
+     */
+    if(decl()[target.occurrence.type]->kind == Type::Variable) {
+        auto found = findProperty(target.occurrence.type, name);
+        if(found == kNoProperty) {
+            context.diagnostics.error(
+                "%@ has no field called %@, and the signature does not require one"_v,
+                nameSource, typeText(context, decl(), target.occurrence.type),
+                context.findName(name));
+            return nullptr;
+        }
+
+        auto property = decl()[currentFunction->gen]->properties.get(decl(), found);
+        return builder.propertyPlace(target, U16(found), owned(property.result));
+    }
+
+    DeclPtr<Type> recordType = nullptr;
+    auto index = fieldNamed(target.occurrence, name, recordType);
+
+    if(!recordType) {
+        context.diagnostics.error("%@ has no fields"_v, targetSource,
+                                  typeText(context, decl(), target.occurrence.type));
+        return nullptr;
+    }
+
+    auto& record = *(RecordType*)decl()[recordType];
+
+    /*
+     * A field of a **sum** is not reachable by name - Analysis-IR.md's G7d.
+     *
+     * Which fields a value has is what its discriminant says, and a selector says nothing about it:
+     * `o.value` on an `Outcome` that turned out to be an `Exit` would read a type out of bytes
+     * holding another one. What proves the arm is a pattern, so a pattern is the only thing that
+     * projects one - which is also what lets the loan checker treat two arms' fields as one storage
+     * and the drop pass leave them to the tag.
+     */
+    if(record.layout != RecordLayout::Single) {
+        context.diagnostics.error(
+            "%@ has several constructors, so %@ is reached by matching rather than by name"_v,
+            nameSource, typeText(context, decl(), target.occurrence.type),
+            context.findName(name));
+        return nullptr;
+    }
+
+    if(index != kNoField) {
+        if(!reachesInside(record, nameSource, "its fields"_v)) return nullptr;
+        return builder.fieldPlace(target, index);
+    }
+
+    if(recordType != target.occurrence.type) {
+        context.diagnostics.error(
+            "a %@ view of %@ has no field called %@ - a view's fields are the ones its view record declares, not the owner's"_v,
+            nameSource, accessName(target.occurrence.contract.access()),
+            typeText(context, decl(), target.occurrence.type), context.findName(name));
+        return nullptr;
+    }
+
+    context.diagnostics.error("%@ has no field called %@"_v, nameSource,
+                              typeText(context, decl(), target.occurrence.type),
+                              context.findName(name));
+    return nullptr;
 }
 
 /*
@@ -561,16 +745,35 @@ bool Resolver::resolveSubscriptTarget(Builder& builder, ast::Expr& expr, bool co
     }
 
     /*
-     * The index, at the word width - `Size`, which `primitive.def` argues is signed precisely
-     * because it is "the type an `Int` index widens *into*".
+     * The index, at the key type the container's own `Index` instance names.
      *
-     * A hint first, so a literal is built at the width it will be used at, and then the ordinary
-     * coercion - which is what makes `xs[n]` at an `Int` compile: every `I32` is a `Size` on every
-     * target, so `Widen` relates them and the widening is the one the language already performs at
-     * every other position. A container whose `Index` instance keys on something else is coerced
-     * again at the call, by the ordinary argument rule.
+     * A **fixed array** has no instance and keys at the word width - `Size`, which `primitive.def`
+     * argues is signed precisely because it is "the type an `Int` index widens *into*". The hint is
+     * what makes `xs[n]` at an `Int` compile: every `I32` is a `Size` on every target, so `Widen`
+     * relates them and the widening is the one the language performs at every other position.
+     *
+     * Everything else is asked, because the widening only runs one way. `m[900]` on a
+     * `Map(Int, Int)` built the literal at `Size` and then had to narrow it into the `k` the
+     * instance declares, which is the conversion the language refuses outright - sixteen sites in
+     * the library's own suite. The class's functional dependency is what answers it: `Index(c -> k,
+     * v)` at a known `c` decides both, so `selectInstance` with the two positions left open reads
+     * `k` off the head that matched. A container whose instance cannot be found here - a generic
+     * body's own variable - falls back to the word width and is coerced at the call as before.
      */
-    auto index = resolveValue(builder, argument.value, program.types.words[1], inspectRequest());
+    auto key = program.types.words[1];
+
+    if(!into.fixed) {
+        DeclPtr<Type> query[3] = { target->occurrence.type, nullptr, nullptr };
+        InstanceMatch found;
+
+        if(selectInstance(context, program, program.roles.klass(intrinsic::Known::index), query, 3,
+                          expr.source, false, found) &&
+           found.arguments.size() == 3 && found.arguments[1]) {
+            key = found.arguments[1];
+        }
+    }
+
+    auto index = resolveValue(builder, argument.value, key, inspectRequest());
     if(!index) return false;
 
     if(into.fixed) {
@@ -582,9 +785,109 @@ bool Resolver::resolveSubscriptTarget(Builder& builder, ast::Expr& expr, bool co
     return true;
 }
 
+/*
+ * `m[k] = v` where the container declares `IndexInsert` - Implementation-Map.md §7's second
+ * decision, and the one place an assignment is a call rather than a write through a place.
+ *
+ * True when this rule took the statement over, whether it emitted or reported; false when the
+ * container has no such instance, which is `Array` and every fixed array and leaves the assignment
+ * exactly where it was. The test is the *instance*, not the class: a library may declare
+ * `IndexInsert` and a container may still be one that only `getMut` serves.
+ */
+bool Resolver::resolveIndexInsert(Builder& builder, const Subscript& subscript, Node& value,
+                                  LocationId source) {
+    auto klass = program.roles.klass(intrinsic::Known::indexInsert);
+    if(!klass) return false;
+
+    DeclPtr<Type> query[3] = { subscript.container->occurrence.type, nullptr, nullptr };
+    InstanceMatch found;
+
+    if(!selectInstance(context, program, klass, query, 3, source, false, found)) return false;
+
+    auto self = readPlace(builder, source, *subscript.container, bindingRequest(Access::Unique));
+    if(!self) return true;
+
+    Node* operands[3] = { self, subscript.index, &value };
+    applyMember(builder, intrinsic::Known::indexInsert, 0, operands, 3, source);
+    return true;
+}
+
+/*
+ * `xs[i]` on a `[T *n]` stops the program where `i` is not an element - `doc/spec/collections.md`.
+ *
+ * The only bounds test the *compiler* emits. Every other container is subscripted through a library
+ * `Index` body, and the test is written there beside the length it reads; a fixed array has no such
+ * body, because its element is a projection of the container's own place and there is nothing for a
+ * call to hand back. So the one place a `[T *n]` element place is projected from a written index is
+ * the one place this has to be built, and it goes through the same `checkFailed` role the library
+ * reaches for - which is what lets `-no-checks` remove it with everything else (`opt/check.cpp`
+ * recognizes a block that is one call to the role and a way out).
+ *
+ * **Unsigned**, exactly as `lib/Core/Array.yana`'s `Index` body writes it: an index is a signed
+ * `Size`, and one comparison against the length catches a negative index as well, because a negative
+ * number read unsigned is larger than any length.
+ *
+ * **A call to `checkCondition` and not the branch**, which is the shipping stage's own indirection
+ * arrived at from the other end - `known.def`'s row says why it now has one. A subscript is resolved
+ * inside whatever expression contains it, and this IR hands every value that crosses a block
+ * boundary over as a block argument: a branch emitted here would have to thread everything the
+ * enclosing expression has already computed through two new blocks, under a construct that has
+ * already decided which blocks it owns. The branch inside the callee is the same test where nothing
+ * is looking, and the inliner removes the call in an optimized build.
+ *
+ * **Skipped for a constant index that is in range**, which is why `[0] :: [U8 *64]` and every
+ * `xs[0]` in the corpus cost nothing and change no golden. A constant that is *out* of range still
+ * gets the test, and the optimizer folds it to the unconditional stop it is; refusing it at
+ * compile time is a diagnostic this stage does not owe and the shipping stage does not make.
+ */
+void Resolver::checkFixedBound(Builder& builder, const Subscript& subscript, LocationId source) {
+    auto array = (ArrayType*)decl()[subscript.container->occurrence.type];
+    assertTrue(array->kind == Type::Array);
+
+    // Silently, because the role is `Optional`: a library that declares no condition function is one
+    // whose fixed arrays are unchecked, and saying so at every subscript would be a diagnostic about
+    // the library repeated once per element access.
+    if(!program.roles.function(intrinsic::Known::checkCondition)) return;
+
+    auto unsignedWord = program.types.words[0];
+    Node* bound = nullptr;
+
+    if(array->hasFixedLength()) {
+        // The index the source wrote, where it wrote a number. A `Const` at this point is the whole
+        // of what is knowable: nothing here folds arithmetic, and what does is `fold.cpp`, above.
+        if(subscript.index->kind == Node::Const) {
+            auto written = builder.body.constant(builder.base(),
+                                                 ((NodeConst*)subscript.index)->constant);
+            if(written.kind == Constant::Int && written.asInt() < array->length) return;
+        }
+
+        bound = builder.addConst(source, intConstant(unsignedWord, array->length));
+    } else {
+        // A quantified count is a number of the const parameter's own declared type, which is an
+        // `Int` where a signature wrote `n: Int` - so it is converted rather than reinterpreted.
+        auto counted = builder.addGenValue(source, array->count);
+        if(!counted) return;
+
+        bound = builder.addConvert(source, *counted, unsignedWord);
+    }
+
+    if(!bound) return;
+
+    auto index = builder.addBitcast(source, *subscript.index, unsignedWord);
+    if(!index) return;
+
+    // The mistake rather than the invariant - `index >= length` - which is what the library's own
+    // comment on `checkCondition` asks for: the branch it holds is then predicted the way it goes.
+    Node* past = builder.addBinary(source, BinaryOp::Ge, *index, *bound);
+    callKnown(builder, intrinsic::Known::checkCondition, &past, 1, source);
+}
+
 Place* Resolver::elementAccess(Builder& builder, const Subscript& subscript, Access access,
                                LocationId source) {
-    if(subscript.fixed) return builder.elementPlace(*subscript.container, *subscript.index);
+    if(subscript.fixed) {
+        checkFixedBound(builder, subscript, source);
+        return builder.elementPlace(*subscript.container, *subscript.index);
+    }
 
     /*
      * Which accessor, from what the position does: a write or a `&` argument reaches `getMut`, and
@@ -699,14 +1002,41 @@ void positionalMap(Function& callee, Size supplied, ArgMap& into) {
  * `count` is what the name was found at rather than what the callee declares, so the assertion is
  * the arity *range* - `acceptsArity`, the same predicate the table filed the declaration under.
  */
+/*
+ * The callee's type arguments as the **resolved** arguments decide them, with nothing prepared.
+ *
+ * One pass ahead of the argument walk, for the one case that needs it: a position holding an
+ * undecided literal takes its type from what the other arguments bound, and the argument walk binds
+ * them in written order - so `48 + rest` would read an empty `a` at position zero and build the
+ * number at its default, which is the state this rule exists to leave. Binding is structural and
+ * writes into empty slots only, so the walk below binds the same things again and changes nothing.
+ */
+void Resolver::bindResolvedArguments(Function& callee, const ArgMap& map, Node* const* values,
+                                     Size count, TypeArguments& into) {
+    for(Size i = 0; i < count; i++) {
+        if(!values[i]) continue;
+
+        auto& parameter = *decl()[callee.args.get(decl(), map.position(U32(i)))];
+        if(parameter.lazy) continue;
+
+        into.bind(parameter.occurrence.type, valueType(*values[i]));
+    }
+}
+
 Node* Resolver::callFunction(Builder& builder, Function& callee, Node* const* operands, Size count,
-                             LocationId source, DeclPtr<Type> hint) {
+                             LocationId source, DeclPtr<Type> hint, ast::Expr* const* pending) {
     assertTrue(callee.acceptsArity(decl(), U32(count)));
 
     ArgMap map;
     positionalMap(callee, count, map);
 
     TypeArguments typeArguments(*this, callee.gen);
+
+    // What the resolved operands decide, before any of them is prepared - so that an operand left
+    // for this call to type reads what the *others* bound rather than what the positions ahead of it
+    // happened to. `48 + rest` is the case: the literal is operand zero and `rest` is what says what
+    // it is. See `bindResolvedArguments`.
+    if(pending) bindResolvedArguments(callee, map, operands, count, typeArguments);
 
     SmallArray<Node*, 8> arguments;
     for(U32 i = 0; i < map.count(); i++) arguments.push(nullptr);
@@ -715,9 +1045,21 @@ Node* Resolver::callFunction(Builder& builder, Function& callee, Node* const* op
 
     for(Size i = 0; i < count; i++) {
         auto position = map.position(U32(i));
-        auto prepared = prepareArgument(builder, *operands[i],
-                                        *decl()[callee.args.get(decl(), position)], typeArguments,
-                                        source);
+        auto& parameter = *decl()[callee.args.get(decl(), position)];
+        auto operand = operands[i];
+
+        // An undecided literal, built at the position the winner declared - `undecidedLiteral`, and
+        // the operator half of what `finishOverloadedCall` does for a written argument list. Through
+        // the value walk, since what was left standing is the written expression - a negation and a
+        // parenthesis are unwrapped there and nowhere else.
+        if(!operand && pending && pending[i]) {
+            operand = resolveValue(builder, *pending[i],
+                                   typeArguments.hint(parameter.occurrence.type),
+                                   requestOf(parameter.occurrence));
+            if(!operand) return nullptr;
+        }
+
+        auto prepared = prepareArgument(builder, *operand, parameter, typeArguments, source);
         if(!prepared) return nullptr;
 
         arguments[position] = prepared;
@@ -733,6 +1075,33 @@ Node* Resolver::resolveField(Builder& builder, ast::Expr& expr, Request wanted) 
     if(!place) return nullptr;
 
     return readPlace(builder, expr.source, *place, wanted);
+}
+
+/*
+ * Whether an exclusive loan may be taken of this place although the name it goes through was never
+ * declared `&`.
+ *
+ * `let &x = e` only - `Request::establishes`, where the pair of questions is argued - and only over
+ * storage **this frame's own**. A place rooted in a local is that: a `let`, a pattern binding that
+ * took a payload out, and a parameter alike, and what `doc/spec/ownership.md` grants over one is
+ * exactly this - "`let &d = c` - an exclusive loan: writing through d writes c", with the `&` on the
+ * new binding as the author's statement of intent.
+ *
+ * A **global** is deliberately not: the program declared whether it may be written, there is no
+ * frame that owns it, and `writable` is the whole record of the answer. A raw address is the same
+ * case, with the pointer's own mutability in that field.
+ *
+ * What this does not touch is the `&`-*argument* rule. `mutate(h)` for a plain `let h` is still
+ * refused by the test below, which is the rule that makes `let &z = h` the way an author opts in.
+ */
+static bool bindsOwnStorage(Builder& builder, const Place& place, Request wanted) {
+    if(!wanted.establishes) return false;
+
+    auto base = builder.base();
+    const Place* root = &place;
+    while(root->parent) root = base[root->parent];
+
+    return root->kind == Place::Local;
 }
 
 Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Request wanted) {
@@ -754,7 +1123,69 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
         return builder.addConst(source, unitConstant(place.occurrence.type));
     }
 
-    auto mode = readMode(decl(), place, wanted);
+    /*
+     * An **immutable global whose initializer is a constant is that constant** - Analysis-
+     * Initialization.md's stage A, said about a read rather than about a constant position.
+     *
+     * Nothing in the program can assign to it, so its value is forever what `resolveGlobals`
+     * recorded and a read of the storage would load bytes that never change. What makes it worth
+     * doing here rather than leaving to a later fold is that it is the *only* thing that makes the
+     * compiler's supplied constants usable: `lib/Native/Memory.native.yana` writes
+     * `let width = vectorBytes` and gates a `Vec(U8, 32)` load on `width > 32`, and the x64 backend
+     * refuses that load outright below v3. Behind a load the comparison is opaque, the arm survives
+     * and the *build fails*; folded, it is gone before any pass has run. `pageBytes`, `wordBits` and
+     * `Target.byteOrder` are read the same way.
+     *
+     * The root only, and not a projection of one. `origin.x` of a constant record folds for exactly
+     * the same reason and is the shipping stage's `constantAt` walk; nothing in `lib/` needs it yet,
+     * so the walk is not written twice before there is a second reader.
+     *
+     * A **scalar** value only, which is the narrower half of that. An `Aggregate` or a `Text` global
+     * has a *placement* - one run of bytes the program refers to - and a read of it is a read of
+     * that storage rather than a description of what is in it; `resolve/NicheOwned.yana` answers a
+     * different number when the byte image behind a string literal is handed to two readers as two
+     * constants. What the supplied globals are is numbers, and numbers have no placement.
+     */
+    if(place.kind == Place::Global && !place.parent && wanted.access != Access::Unique) {
+        auto& global = *decl()[DeclPtr<Global>(place.payload)];
+        auto kind = global.initial.kind;
+        auto scalar = kind == Constant::Int || kind == Constant::Float ||
+                      kind == Constant::Enum || kind == Constant::Unit;
+
+        if(!global.writable && !global.dynamic && scalar) {
+            return builder.addConst(source, global.initial);
+        }
+    }
+
+    /*
+     * The same sentence about a **local**, and it is the one that makes the global rule above pay
+     * off: `lib/Native/Memory.native.yana` writes `let width = vectorBytes` and gates a
+     * `Vec(U8, 32)` load on `width > 32`, so folding the global read alone only moves the constant
+     * into a frame slot the comparison then loads it back out of. Nothing promotes that slot on an
+     * unoptimized build, the arm survives, and the x64 backend refuses the load outright below v3.
+     *
+     * `Local::initial` is set only for a binding nothing may assign to, so the value is permanent;
+     * the storage is still there for a position that needs one.
+     *
+     * **Not for a published position**, which is where a local differs from a global. `'T` and `&T`
+     * ask for a loan of *this* storage, and a constant has none to lend - the whole point of the
+     * qualifier is the relationship to the place. A plain value position is the one that only wants
+     * the number, and it is the one every arithmetic operand is.
+     *
+     * A **scalar** only, on the global rule's own terms: an aggregate or a text constant has a
+     * placement, and a read of one is a read of that storage rather than a description of it.
+     */
+    if(place.kind == Place::Local && !place.parent && !wanted.published &&
+       wanted.access != Access::Unique && wanted.form == AccessForm::WholeValue) {
+        auto& local = *builder.body.local(builder.base(), LocalId(place.payload));
+        auto kind = local.initial.kind;
+
+        if(kind == Constant::Int || kind == Constant::Float || kind == Constant::Enum) {
+            return builder.addConst(source, local.initial);
+        }
+    }
+
+    auto mode = readMode(decl(), builder.base(), builder.body, place, wanted);
 
     /*
      * A sink position, and storage that has nothing to give it.
@@ -778,6 +1209,12 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
      * else's and shared, or the *binding* is one the author did not declare `&`. They are different
      * mistakes with different fixes - see `Place::writable`, where the pair is kept apart - so they
      * get different messages.
+     *
+     * The second is about a **name**, so it does not apply to the one position that is establishing
+     * one: `let &x = e` is where an author declares mutable storage, and asking the source to have
+     * been declared `&` already would leave that with no spelling. `bindsOwnStorage` is that case
+     * and nothing wider - the storage half above still refuses a shared borrow, and a global still
+     * answers with the mutability the program gave it.
      */
     if(mode == UseMode::BorrowUnique) {
         if(place.occurrence.contract.access() == Access::Shared) {
@@ -787,7 +1224,7 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
             return nullptr;
         }
 
-        if(!place.writable) {
+        if(!place.writable && !bindsOwnStorage(builder, place, wanted)) {
             context.diagnostics.error(
                 "%@ is not declared `&`, so it cannot be handed out for writing"_v,
                 source, placeText(context, decl(), builder.base(), builder.body, place));
@@ -803,13 +1240,31 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
          * The general message would be right and would name a local the author never wrote: the
          * environment is synthesized, so "`f.lambda.env.h` cannot be handed over" describes the
          * compiler rather than the program. What the author asked for is a closure that owns what it
-         * captured, and the spec pairs that with outliving the frame - which is the heap placement
-         * nothing here selects.
+         * captured, and the spec pairs that with outliving the frame - which since D17 is what a
+         * lambda written at an *owning* position gets. At a borrowing one the environment is a local
+         * of this frame, so there is nothing in it to hand over and the position is what has to
+         * change.
          */
         if(isCapture(builder, place)) {
             context.diagnostics.error(
-                "a lambda cannot hand over what it captured - a closure that owns its captures is one that outlives its frame, which needs a heap-placed environment the ownership resolver does not implement yet"_v,
+                "a lambda cannot hand over what it captured, because this one is a callback - a closure owns its captures only where the position it fills owns the closure"_v,
                 source);
+            return nullptr;
+        }
+
+        /*
+         * The same sentence from the other end: a closure the position *does* own, capturing
+         * something this function only borrows.
+         *
+         * `buildEnvironment` reads each capture under the field's own contract, and at a heap-placed
+         * environment that contract is owned - so a binding that is itself a loan of somebody else's
+         * storage arrives here. What the author has to change is not the position but the value, and
+         * the general message below would send them to the position.
+         */
+        if(lambdaFrames.size() && lambdaFrames[lambdaFrames.size() - 1].heap) {
+            context.diagnostics.error(
+                "this closure leaves the frame it was written in, so it owns what it captured - and %@ is storage this function borrows rather than owns"_v,
+                source, placeText(context, decl(), builder.base(), builder.body, place));
             return nullptr;
         }
 
@@ -875,23 +1330,34 @@ bool Resolver::constructionArguments(ast::Expr& expr, RecordType& declared, cons
     auto& written = *parse[expr.con];
 
     /*
-     * `Proceed(x)` - the one-payload spelling, which writes no field name because there is one field.
+     * `Cell(5)`, `Tagged{value}`, `Proceed(x)` - fields given by position, in declaration order.
      *
-     * The field carries the constructor's own name (see `declareFields`), so the mapping below needs
-     * nothing said about it: a positional argument in a one-payload constructor fills position zero,
-     * which is the field of that name. What the flag is for is the *refusal* beside it - a positional
-     * argument anywhere else is a constructor of unnamed fields, which is a declaration form this
-     * stage does not have.
+     * The same thing a call does with its arguments, and it is the same mapping below that does it:
+     * a field is a declared position with a name, and writing one by position is leaving the name to
+     * the declaration. `Proceed(x)` is not a special case of it either - its one field carries the
+     * constructor's own name (`declareFields`), so filling position zero *is* naming that field.
+     *
+     * **A construction is all one or all the other**, which is where it parts from a call. A call
+     * may write its positional arguments and then start naming; a construction's positions are the
+     * record's *fields*, and `doc/spec/types.md` says of the shape they are closest to - the tuple -
+     * that its fields are all positional or all named. The mixed form buys nothing here: a record's
+     * fields have names, so a construction that has started using them has no reason to stop, and
+     * one that never used them is reading the declaration in order. Reported here rather than left
+     * to `mapArguments`' ordering rule, which would say something narrower and less useful about the
+     * half of the mix it happens to see first.
      */
-    auto payload = arm.count == 1 && declared.field(decl(), arm.first).name == arm.name;
+    auto named = false;
+    auto positional = false;
 
-    if(!payload) {
-        for(auto argument: written.args.contents(parse)) {
-            if(argument.name) continue;
+    for(auto argument: written.args.contents(parse)) {
+        if(argument.name) named = true; else positional = true;
+    }
 
-            unsupported(argument.value.source, "a positional field in a construction"_v);
-            return false;
-        }
+    if(named && positional) {
+        context.diagnostics.error(
+            "%@ is built with some fields named and some by position - write every one of them the same way"_v,
+            expr.source, context.findName(arm.name));
+        return false;
     }
 
     /*
@@ -1196,6 +1662,416 @@ Node* Resolver::resolveTupleLiteral(Builder& builder, ast::Expr& expr, DeclPtr<T
     return builder.addAggregate(expr.source, type, 0, values.pointer(), values.size());
 }
 
+/*
+ * The source of a record update, into the copy's storage - a duplicate or a relocation.
+ *
+ * One function because the two forms differ in what a read of a place *means* and in nothing else,
+ * and the difference is `readMode`'s: an owned request over a place either duplicates it, where the
+ * type duplicates freely, or moves out of it - and moving out is exactly what `->` asks for. So the
+ * copying form is that request plus one thing, which is that a type with no free duplicate has to
+ * say what a duplicate of it is. `Copy` is the language's answer, and this is an ordinary call of
+ * it: a type with no instance is told so in the words every other missing instance is told in.
+ */
+bool Resolver::initializeUpdate(Builder& builder, Place& root, Place* from, Node* produced,
+                                bool sink, LocationId source) {
+    auto value = produced;
+
+    if(!value) {
+        if(!sink && !isTriviallyCopyableAt(decl(), from->occurrence)) {
+            /*
+             * Asked before it is called, because the instance's absence is what the *author* has to
+             * be told about and the ordinary "there is no instance of Copy(T)" does not say what to
+             * write instead. An update is the one position where the answer is a spelling: `->`
+             * relocates and needs no duplicate at all.
+             */
+            auto type = from->occurrence.type;
+            InstanceMatch found;
+            if(!selectInstance(context, program, program.roles.klass(intrinsic::Known::copy), &type,
+                               1, source, false, found)) {
+                context.diagnostics.error(
+                    "%@ has no instance of `Copy`, so there is nothing here to copy it with - write `{->...}` to relocate the source into the update instead"_v,
+                    source, typeText(context, decl(), type));
+                return false;
+            }
+
+            auto shared = readPlace(builder, source, *from, bindingRequest(Access::Shared));
+            if(!shared) return false;
+
+            Node* of[1] = { shared };
+            value = applyMember(builder, intrinsic::Known::copy, 0, of, 1, source);
+        } else {
+            value = readPlace(builder, source, *from, requestOf(ownedContract()));
+        }
+    }
+
+    if(!value) return false;
+
+    builder.addWrite(source, root, *value, Destination::Init);
+    return true;
+}
+
+/*
+ * `{p | y: 3}`, `{->p | y: 3}`, `{p | ~y}` and `{r | .a.b: 1, .a.c: 2}` - the record update,
+ * `doc/spec/expressions.md`.
+ *
+ * **One copy and a run of writes into it**, which is the whole construct and is why it is not a
+ * construction. A construction is a component per field handed to an aggregate; this starts from a
+ * value that already has every field and replaces some of them, so what it needs is *storage* - and
+ * once there is storage, a path is a place projection and nothing else. That is what makes
+ * `{v | .a.b: 1, .a.c: 2}` set two fields of one `v.a` by construction rather than by a rule: both
+ * paths are projections of the same local, so there is nothing for a second copy to discard.
+ *
+ * **What the copy is, is the ownership rules and not this expression's business.** The source is
+ * read once, at the request the position it lands in makes - an owned one - and `readMode` answers
+ * with the duplication a `TrivialCopy` type gets for free. Where the type has no such answer the
+ * language's word for a duplicate is `Copy`, so what this emits is the ordinary `copy(v)` class
+ * call - the one site in the compiler that *calls* that member rather than reading the capability an
+ * authored instance subtracts. A type with no instance is the one refusal this expression words for
+ * itself, because it is the one position where the answer is a spelling: `->` relocates.
+ *
+ * `{->v | ...}` is the same shape with a **relocation** in place of the copy - no duplication at
+ * all, so a type that cannot be copied can still be updated, which is what the arrow is for. The
+ * source is a place either way; a source that is *produced* - a call result, another update - is in
+ * no storage for either to act on and is simply the value, which is why `->` on one is neither an
+ * error nor a second path.
+ *
+ * The order is written rather than incidental. The replacements are resolved **before** the source
+ * relocates, so `{->v | x: v.x + 1}` reads `v` while it is still there - and it is what a move
+ * update is usually for. A copy is taken as early as it can be, because it leaves the source
+ * readable and delaying it would only lengthen the value's live range.
+ *
+ * Every replacement is a `Destination::Assign` through the same `Builder::addWrite` a written
+ * `v.f = x` reaches, and that is the one thing this construct owes: the copy put a live value in
+ * every field, so a field being replaced has one to release. An `Init` here would leak it.
+ */
+Node* Resolver::resolveUpdate(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+    auto& written = *parse[expr.tupUpdate];
+    auto sink = written.bind == ast::BindType::Sink;
+
+    /*
+     * The source as a **place** where it names one, and as a value where it does not - `evaluatedPlace`'s
+     * question, asked here for the same reason: what the source *is* decides what taking a copy of
+     * it means, and only a place can be copied out of or relocated out of.
+     */
+    ErrorMark mark(context);
+    auto from = resolvePlace(builder, written.value, false);
+    Node* produced = nullptr;
+
+    if(!from) {
+        if(mark.reported()) return nullptr;
+
+        produced = resolveValue(builder, written.value, hint, requestOf(ownedContract()));
+        if(!produced) return nullptr;
+    }
+
+    auto type = from ? from->occurrence.type : valueType(*produced);
+
+    /*
+     * A single-constructor record, which is a `data T {..}` and an anonymous tuple both - the second
+     * is the first with `tuple` set, so one test covers the two spellings the spec gives.
+     *
+     * A sum is refused for the reason a field of one is not reachable by name: which fields the
+     * value has is what its discriminant says, and an update names fields.
+     */
+    auto record = decl()[type]->kind == Type::Record ? (RecordType*)decl()[type] : nullptr;
+
+    if(!record || record->layout != RecordLayout::Single) {
+        context.diagnostics.error(
+            "%@ cannot be updated - an update replaces named fields, so its source has to be a record with one constructor or a tuple"_v,
+            written.value.source, typeText(context, decl(), type));
+        return nullptr;
+    }
+
+    /*
+     * The copy's storage, declared before the source is read so that a path can be projected out of
+     * it while the replacements are still being resolved.
+     *
+     * Writable, which `hold` cannot give it: that reads the permission off the value's own contract,
+     * and an owned record's says nothing about whether the storage holding it may be written. Here
+     * it may - the local is this frame's temporary and writing the replacements into it is the whole
+     * reason it exists, exactly as a growable array literal's run is.
+     */
+    auto local = builder.addLocal(StringId(), owned(type), expr.source, true);
+    auto root = builder.localPlace(*local);
+
+    // The copy, as early as it can be - see the header. The relocation waits below.
+    if(!sink && !initializeUpdate(builder, *root, from, produced, sink, written.value.source)) {
+        return nullptr;
+    }
+
+    /*
+     * One replacement per written argument, each into the place its path reaches.
+     *
+     * The values are held rather than written as they are resolved, because the `->` form has not
+     * relocated yet: a write before that would land in storage the relocation is about to overwrite.
+     * The copying form could write as it goes and does not, so that there is one order here rather
+     * than one per form.
+     */
+    struct Replacement {
+        Place* place = nullptr;
+        Node* value = nullptr;
+        LocationId source = kNullLocation;
+    };
+
+    SmallArray<Replacement, 4> replacements;
+
+    SmallArray<Node*, 4> values;
+    HeldList<SmallArray<Node*, 4>> held(*this, values);
+
+    auto ok = true;
+
+    for(auto argument: written.args.contents(parse)) {
+        auto place = root;
+
+        // The path, one field at a time, off whatever the segment before it reached - which is the
+        // same answer a `.` gives, because an update path *is* field selection with a value on the
+        // end of it.
+        for(auto field: argument.path.contents(parse)) {
+            place = fieldNamedOf(builder, *place, field, argument.value.source,
+                                 written.value.source);
+            if(!place) break;
+        }
+
+        if(!place) { ok = false; continue; }
+
+        auto value = resolveValue(builder, argument.value, place->occurrence.type,
+                                  requestOf(place->occurrence));
+        if(!value) { ok = false; continue; }
+
+        value = coerce(builder, *value, place->occurrence.type, argument.value.source,
+                       "a replaced field"_v, place->occurrence.contract.access());
+        if(!value) { ok = false; continue; }
+
+        // Storage that already exists says what may be in it - the same check an assignment makes,
+        // because this is the same write.
+        if(!checkCarriedOrigins(*value, place->occurrence, argument.value.source,
+                                "this field"_v)) {
+            ok = false;
+            continue;
+        }
+
+        replacements.push(Replacement { place, value, argument.value.source });
+        values.push(value);
+    }
+
+    // Every replacement resolved even after one has failed, which is `resolveConstruction`'s rule: a
+    // mistyped field and a second mistyped field are two mistakes.
+    if(!ok) return nullptr;
+
+    // The relocation, after everything that still reads the source - see the header.
+    if(sink && !initializeUpdate(builder, *root, from, produced, sink, written.value.source)) {
+        return nullptr;
+    }
+
+    for(auto& replacement: replacements) {
+        builder.addWrite(replacement.source, *replacement.place, *replacement.value,
+                         Destination::Assign);
+    }
+
+    // The finished record, moved out of the local it was built in - the same read a growable array
+    // literal ends with, and for the same reason: what the position receives is the temporary rather
+    // than a borrow of a local that is about to end.
+    return readPlace(builder, expr.source, *root, requestOf(ownedContract()));
+}
+
+/*
+ * `"a{x}b{y}c"` - string interpolation, Implementation-Storage.md part 8.
+ *
+ * **One allocation and a run of appends**, and every one of the document's three strategies is what
+ * the *existing* passes then make of that one shape rather than a path of its own:
+ *
+ *  1. the literal segments are known now, so their total is a constant;
+ *  2. each hole contributes `formatBound(showBound(v))`, which is that hole's own promise about how
+ *     much text it will write and is zero where it declines to make one;
+ *  3. `String.ofCapacity(sum)`, then the literals and the holes appended in written order.
+ *
+ * So a format all of whose bounds are constants has a constant extent and folds to a buffer of a
+ * known size; one whose bounds are values allocates that many units; and one with an unbounded hole
+ * is seeded with the bounds that *are* known and grows past it through the library's own append.
+ * Nothing here tells them apart, which is the argument the document makes.
+ *
+ * **Four library declarations and no compiler knowledge of what a string is.** `Show` is the class a
+ * hole dispatches through, `showBound` and `show` are its two members, and `formatBound`,
+ * `String.ofCapacity` and `String.push` are the three functions - all five named through
+ * `known.def` rather than by spelling, so a library that declares none of them gets one message at
+ * the literal instead of a compiler that cannot be built against it. That is what lets a library
+ * without a formatter be a smaller library rather than a broken one.
+ *
+ * **The order is left to right and each hole is evaluated exactly once.** A hole is resolved into a
+ * place (`evaluatedPlace`) before anything is measured, because it is read *twice* - once for its
+ * bound and once for its text - and resolving it twice would run its expression twice. A hole may
+ * hold any expression, braces included: the parser ends a hole at the `}` matching its own opening,
+ * so `"{{v | .a.b: 1}.a}"` arrives here as one expression and is resolved as one.
+ *
+ * The hole comes before the text of its own chunk, and that is the parser's record rather than the
+ * written order: `parseStringExpr` opens with the leading text and then pushes one chunk per hole
+ * holding *that hole's expression and the text following it*. Appending a chunk's text first
+ * renders `"n={7}!"` as `n=!7`, which is a wrong string of the right length.
+ */
+Node* Resolver::resolveFormat(Builder& builder, ast::Expr& expr) {
+    auto klass = program.roles.klass(intrinsic::Known::show);
+    auto sized = program.roles.function(intrinsic::Known::stringOfCapacity);
+    auto pushed = program.roles.function(intrinsic::Known::stringPush);
+    auto bounded = program.roles.function(intrinsic::Known::formatBound);
+
+    /*
+     * The library's four, checked here rather than at each use - a format needs all of them, and a
+     * program written against a library with none should be told once which piece is missing rather
+     * than at the first hole that happens to reach one.
+     */
+    if(!klass) {
+        reportMissingRole(intrinsic::Known::show, "a string interpolation"_v, expr.source);
+        return nullptr;
+    }
+
+    if(!sized || !pushed || !bounded) {
+        reportMissingRole(!sized   ? intrinsic::Known::stringOfCapacity
+                        : !pushed  ? intrinsic::Known::stringPush
+                                   : intrinsic::Known::formatBound,
+                          "a string interpolation"_v, expr.source);
+        return nullptr;
+    }
+
+    auto& allocate = *decl()[sized];
+    auto& append = *decl()[pushed];
+    auto sizeType = decl()[allocate.args.get(decl(), 0)]->occurrence.type;
+
+    /*
+     * Every hole, in written order and each as a place - see the header, where evaluating one once
+     * and reading it twice is argued.
+     *
+     * The literal units are counted on the same walk, because they are what the buffer is seeded
+     * with and the walk already has the chunk in hand.
+     */
+    struct Hole {
+        Place* place = nullptr;
+        StringId text;
+    };
+
+    SmallArray<Hole, 8> holes;
+    U64 literalUnits = 0;
+
+    for(auto chunk: expr.format.contents(parse)) {
+        Hole hole;
+        hole.text = chunk.string;
+
+        if(chunk.string) literalUnits += U64(context.findName(chunk.string).size());
+
+        if(chunk.format) {
+            hole.place = evaluatedPlace(builder, *parse[chunk.format]);
+            if(!hole.place) return nullptr;
+        }
+
+        holes.push(hole);
+    }
+
+    // Step 1's constant, at the width the allocation declares rather than at the target word - the
+    // role's signature is the one source of truth about what its argument is, which is the same rule
+    // `textValue` follows for `stringLiteral`'s count.
+    auto total = builder.addConst(expr.source, intConstant(sizeType, literalUnits));
+    if(!total) return nullptr;
+
+    // The running sum crosses whatever control flow a hole's own expression builds - `&&` in one,
+    // a `?`, a `match` - so it is held the way every other value spanning a construct is.
+    HeldValue heldTotal(*this, total);
+
+    for(auto& hole: holes) {
+        if(!hole.place) continue;
+
+        /*
+         * `formatBound(showBound(v))` - the hole's promise, reached the way an ordinary call to
+         * either would be.
+         *
+         * The hole's type is this body's own variable wherever the format is written in a generic
+         * function, which is where an interpolation is most worth writing: a constrained `show`
+         * instance is one of these, and the alternative by hand is longer and one allocation per
+         * piece. `applyMember` selects at the type or defers to the requirement exactly as a written
+         * `showBound(v)` would.
+         */
+        auto value = readPlace(builder, expr.source, *hole.place, bindingRequest(Access::Shared));
+        if(!value) return nullptr;
+
+        Node* measured[1] = { value };
+        auto bound = applyMember(builder, intrinsic::Known::show, 1, measured, 1, expr.source);
+        if(!bound) return nullptr;
+
+        Node* of[1] = { bound };
+        auto units = callFunction(builder, *decl()[bounded], of, 1, expr.source);
+        if(!units) return nullptr;
+
+        units = coerce(builder, *units, sizeType, expr.source, "a hole's size"_v);
+        if(!units) return nullptr;
+
+        total = applyBinary(builder, expr.source, BinaryOp::Add, *total, *units);
+        if(!total) return nullptr;
+    }
+
+    auto extent = coerce(builder, *total, sizeType, expr.source, "a format's size"_v);
+    if(!extent) return nullptr;
+
+    Node* room[1] = { extent };
+    auto sink = callFunction(builder, allocate, room, 1, expr.source);
+    if(!sink) return nullptr;
+
+    /*
+     * The buffer's own storage, and a **writable** local - which is exactly what
+     * `let &sink = String.ofCapacity(n)` compiles to and is written out here for the same reason
+     * that line would have been. Every append takes a `&`, and a borrow is writable only where the
+     * place it names is; `hold` reads the permission off the value's own contract and an owned
+     * string's says nothing about the storage holding it.
+     */
+    auto local = builder.addLocal(StringId(), valueOccurrence(*sink), expr.source, true);
+    auto into = builder.localPlace(*local);
+    builder.addWrite(expr.source, *into, *sink, Destination::Init);
+
+    /*
+     * A fresh borrow per append rather than one held across all of them.
+     *
+     * The buffer is a local of this frame, so a borrow costs nothing, and taking one per call keeps
+     * each loan's extent to the call that uses it - which is what lets a hole's own expression
+     * borrow whatever it likes in between.
+     */
+    auto borrow = [&](Arg& parameter) {
+        return readPlace(builder, expr.source, *into, requestOf(parameter.occurrence));
+    };
+
+    auto& writer = *decl()[decl()[klass]->members.get(decl(), 0)];
+
+    for(auto& hole: holes) {
+        if(hole.place) {
+            auto value = readPlace(builder, expr.source, *hole.place, bindingRequest(Access::Shared));
+            if(!value) return nullptr;
+
+            auto to = borrow(*decl()[writer.args.get(decl(), 1)]);
+            if(!to) return nullptr;
+
+            // The sink is second here and first in `String.push` below, and that is not a detail:
+            // `show(value: a, &to: String)` and `push(&self: String, other: String)` take them in
+            // opposite orders, and one order for both is a call whose arguments are swapped.
+            Node* written[2] = { value, to };
+            if(!applyMember(builder, intrinsic::Known::show, 0, written, 2, expr.source)) {
+                return nullptr;
+            }
+        }
+
+        if(hole.text) {
+            auto to = borrow(*decl()[append.args.get(decl(), 0)]);
+            if(!to) return nullptr;
+
+            auto literal = textValue(builder, hole.text, expr.source);
+            if(!literal) return nullptr;
+
+            Node* arguments[2] = { to, literal };
+            if(!callFunction(builder, append, arguments, 2, expr.source)) return nullptr;
+        }
+    }
+
+    // The finished string, moved out of the storage it was built in - the same read a growable array
+    // literal ends with, and the same reason: what the position receives is the temporary rather
+    // than a borrow of a local that is about to end.
+    return readPlace(builder, expr.source, *into, requestOf(ownedContract()));
+}
+
 Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted) {
     /*
      * The top of a chain holding a `?.`, which is where the join those skip to has to be set up.
@@ -1244,8 +2120,13 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              * place walk below would hand back the thunk's storage and every position after it would
              * be checked against `() -> T`, which is the type the author did not write.
              */
-            auto local = findLocal(expr.var);
+            auto boundHere = false;
+            auto local = findLocal(expr.var, &boundHere);
             if(local && deferredParameter(*local)) return forceDeferred(builder, *local, expr.source);
+
+            // A binding of this body whose initializer failed - reported there, and the name is
+            // taken here whatever else in scope carries it. See `findLocal`.
+            if(!local && boundHere) return nullptr;
 
             if(!local && currentFunction) {
                 auto found = findGenVariable(decl(), currentFunction->gen, expr.var);
@@ -1340,7 +2221,18 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              * on one target while being free on the other.
              */
             auto& ascription = *parse[expr.coerce];
-            auto type = resolveAscribedType(ascription.type, ascription.target);
+
+            /*
+             * `@inline(n) @capacity(n) [T]` - read off here and the type resolved without it, the
+             * way the `@bits` arm does one level down. This is one of the two positions that honour
+             * a container refinement, and `resolveType` reports it anywhere else.
+             */
+            U64 capacity = 0;
+            auto written = ascription.type;
+            if(!readContainerRefinement(written, capacity)) return nullptr;
+            if(capacity) written.attributes = nullptr;
+
+            auto type = resolveAscribedType(written, ascription.target);
             if(!type) return nullptr;
 
             /*
@@ -1356,6 +2248,26 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              */
             auto asked = wanted;
             asked.form = AccessForm::WholeValue;
+
+            /*
+             * The literal built with the bound, which is the one expression a refinement is about.
+             * `resolveValue` would reach the same literal with the capacity dropped on the way, so
+             * the array arm is called with it rather than the number travelling in a `Request`.
+             */
+            if(capacity) {
+                if(ascription.target.kind != ast::Expr::Array) {
+                    context.diagnostics.error(
+                        "`@inline(n) @capacity(n)` says how much room an array literal starts with, "
+                        "and this is not one"_v, ascription.target.source);
+                    return nullptr;
+                }
+
+                auto made = resolveArrayLiteral(builder, ascription.target, type, asked, capacity);
+                if(!made) return nullptr;
+
+                return convertValue(builder, *made, type, expr.source, false,
+                                    "an ascribed value"_v);
+            }
 
             auto value = resolveValue(builder, ascription.target, type, asked);
             if(!value) return nullptr;
@@ -1375,6 +2287,14 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             if(expr.tup.size()) return resolveTupleLiteral(builder, expr, hint);
             return builder.addConst(expr.source, unitConstant(program.types.unit));
         }
+
+        // `"a{x}b"` - see `resolveFormat`, which is where the whole of it is.
+        case ast::Expr::Format:
+            return resolveFormat(builder, expr);
+
+        // `{p | y: 3}` - see `resolveUpdate`, which is where the whole of it is.
+        case ast::Expr::TupUpdate:
+            return resolveUpdate(builder, expr, hint);
 
         // `[1, 2, 3]` - see `resolveArrayLiteral`, which is where the whole of it is.
         case ast::Expr::Array:
@@ -1446,7 +2366,10 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 
         // A lambda - `resolve_lambda.cpp`, where the whole of it is.
         case ast::Expr::Fun:
-            return resolveLambda(builder, expr, hint);
+            return resolveLambda(builder, expr, hint, wanted);
+
+        case ast::Expr::Map:
+            return resolveMapLiteral(builder, expr, hint);
 
         default:
             // A literal is a call to `FromInt` - `literalValue`, which is where the fold to a
@@ -1575,6 +2498,12 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
     }
 
     auto& callee = *decl()[found];
+
+    // What the signature says it answers, which for an `=` form with no result type is what its body
+    // says - and `funTypeOf` below is about to read it. The other position that reads a signature
+    // without calling it; `checkCallable` is the one every call goes through.
+    if(!requireResult(callee, source)) return nullptr;
+
     if(!callee.summary.bodyKnown) {
         unsupported(source, "a value of a function with no body"_v);
         return nullptr;
@@ -1663,6 +2592,34 @@ Node* Resolver::adaptToView(Builder& builder, Node& value, const Occurrence& pos
         return nullptr;
     }
 
+    /*
+     * The derivation reaching **itself** - a body that asks for the view it is the definition of.
+     *
+     * `fn elements(self: source'Array(a)) -> source'[a] = unclampedSlice(self, 0, ...)` is that
+     * program: the argument holds a window, the subject is the owner, and the only way an owner
+     * becomes a window is this member - so the call this function would insert is a call to the
+     * body it is inserting it into, and the answer at run time is a stack that never returns.
+     *
+     * Reported rather than accepted, because nothing further down can catch it: the recursion
+     * type-checks, lowers and links, and the first sign of it is a segfault in a program that only
+     * read an array. What the body has to do instead is *build* the view record - `ArrayView
+     * {items: ..., length: ...}`, the `addRepresent` case above - which is what a derivation is.
+     *
+     * The same type and the same access, which is what makes this the recursion and not a
+     * neighbour: a container whose `elements` derives a *different* container's view is an ordinary
+     * call, and so is `elements` reaching the unique derivation, since that is the other member.
+     */
+    if(currentFunction && currentFunction->derivation && currentFunction->args.size() &&
+       sameType(position.type,
+                decl()[currentFunction->args.get(decl(), 0)]->occurrence.type) &&
+       currentFunction->result.contract.access() == access) {
+        context.diagnostics.error(
+            "this is the body that makes %@'s view, so it cannot ask for one - build the view "
+            "record out of the fields the owner holds"_v,
+            at, typeText(context, decl(), position.type));
+        return nullptr;
+    }
+
     Node* operands[1] = { &value };
     auto derived = applyMember(builder, adaptor, member, operands, 1, at, position.type);
 
@@ -1690,14 +2647,33 @@ Maybe<ArrayLiteralShape> Resolver::arrayLiteralShape(ast::Expr& expr, DeclPtr<Ty
                                                      Size written) {
     auto& array = *(ArrayType*)decl()[hint];
 
+    /*
+     * A **fill** at a quantified count - `[0] :: [U8 *n]`, `lib/Digest/Digest.yana`'s digest buffer.
+     *
+     * Legal, and the refusal this replaces was right about the wrong half. *Stating* a length a
+     * const parameter holds is what a literal cannot do - `[1, 2, 3] :: [U8 *n]` claims `n` is
+     * three - but "every slot is this value" claims nothing about the count, so it is exactly as
+     * well-formed here as at a written number and means the same thing. What it costs is that the
+     * component list cannot be spread now: the number arrives with the specialization, which is
+     * what `NodeAggregate::fill` carries it to.
+     */
     if(!array.hasFixedLength()) {
-        // A quantified count with a written literal opposite it. The number is what a specialization
-        // supplies, and a literal is written before there is one - so this is a program that cannot
-        // state its own length rather than one this stage has not caught up with.
-        context.diagnostics.error(
-            "this array's length is a const parameter, so a literal here cannot state it"_v,
-            expr.source);
-        return Nothing();
+        if(written != 1) {
+            context.diagnostics.error(
+                "this array's length is a const parameter, so a literal can only fill it - write one element, which every slot then holds"_v,
+                expr.source);
+            return Nothing();
+        }
+
+        if(!isTriviallyCopyable(decl(), array.element)) {
+            context.diagnostics.error(
+                "one element fills the whole array, and %@ cannot be duplicated - write every element, "
+                "or give each its own value"_v,
+                expr.source, typeText(context, decl(), array.element));
+            return Nothing();
+        }
+
+        return Just(ArrayLiteralShape { array.element, 0, true, true });
     }
 
     auto length = array.length;
@@ -1754,7 +2730,8 @@ Maybe<ArrayLiteralShape> Resolver::arrayLiteralShape(ast::Expr& expr, DeclPtr<Ty
  * The window in which the length promises values that are not there yet contains no program of the
  * author's - see `literalArray`, where the library states the same thing from its side.
  */
-Node* Resolver::resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+Node* Resolver::resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
+                                       U64 capacity) {
     auto written = expr.arr.contents(parse);
     auto element = elementTypeOf(decl(), program, hint);
 
@@ -1794,15 +2771,190 @@ Node* Resolver::resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPt
         return nullptr;
     }
 
+    return buildGrowableArray(builder, element, components, expr.source, capacity);
+}
+
+/*
+ * `["a": 1, "b": 2]` and `[:]` - `doc/spec/collections.md`'s `[K: V]`, and Implementation-Map.md §7.
+ *
+ * Not built in place the way an array literal is, and the difference is what makes this function
+ * short: an array's elements *are* its representation, so the literal writes the run itself; a map's
+ * are an insertion order, a probe and an index, none of which the compiler knows or should. So the
+ * literal is `known.def`'s `mapLiteral` - `newMap(n)`, the one construction site where the entry
+ * count is a compile-time constant - and one `IndexInsert.insertAt` per pair, left to right, which
+ * is the same member `m[k] = v` reaches. No field of `Map` is read here, exactly as none of `Array`
+ * is one function above.
+ *
+ * **The entries are resolved before the map is made**, which is the array literal's ordering and is
+ * here for both of its reasons: the written expressions run left to right exactly once, and the
+ * first pair is what says what the map holds when the position did not.
+ *
+ * `insertAt` and not `insert`, which is the shipping stage's argument said again: `insert` hands
+ * back the value it replaced, so a literal built out of it would drop a `Maybe(v)` at every entry.
+ * Two equal keys are therefore the assignment's rule and not a new one - the later entry wins.
+ */
+Node* Resolver::resolveMapLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+    auto source = expr.source;
+
+    auto declared = program.roles.record(intrinsic::Known::map);
+    if(!declared) {
+        reportMissingRole(intrinsic::Known::map, "a map literal"_v, source);
+        return nullptr;
+    }
+
+    /*
+     * What the position says the map holds, where it is a map at all.
+     *
+     * Both types together, because a map's two parameters are decided together: an ascription
+     * naming `Map(String, Int)` settles the key and the value, and one naming anything else settles
+     * neither and is left to the entries and then to the ordinary mismatch at the binding.
+     */
+    DeclPtr<Type> key = nullptr;
+    DeclPtr<Type> value = nullptr;
+
+    if(hint && decl()[hint]->kind == Type::Record) {
+        auto& record = *(RecordType*)decl()[hint];
+
+        if(record.instanceOf == declared && record.arguments.size() == 2) {
+            key = record.arguments.get(decl(), 0);
+            value = record.arguments.get(decl(), 1);
+        }
+    }
+
+    struct Pair { Node* key; Node* value; };
+    SmallArray<Pair, 8> pairs;
+
+    // One list for the hold, since both halves of every pair have to stay live across the
+    // construction call - `HeldList` is over one array and the pairs are two.
+    SmallArray<Node*, 8> live;
+    HeldList<SmallArray<Node*, 8>> held(*this, live);
+
+    for(auto entry: expr.map.contents(parse)) {
+        // Owned, which is what both positions are: an insert stores the key as well as the value,
+        // and storage that outlives the call cannot be borrowed - `IndexInsert`'s own note.
+        auto written = resolveValue(builder, entry.key, key, requestOf(ownedContract()));
+        if(!written) return nullptr;
+
+        if(!key) key = valueType(*written);
+        else {
+            written = coerce(builder, *written, key, entry.key.source, "a key"_v);
+            if(!written) return nullptr;
+        }
+
+        auto held_ = resolveValue(builder, entry.value, value, requestOf(ownedContract()));
+        if(!held_) return nullptr;
+
+        if(!value) value = valueType(*held_);
+        else {
+            held_ = coerce(builder, *held_, value, entry.value.source, "a value"_v);
+            if(!held_) return nullptr;
+        }
+
+        live.push(written);
+        live.push(held_);
+        pairs.push(Pair { written, held_ });
+    }
+
+    if(!key || !value) {
+        context.diagnostics.error(
+            "cannot tell what this empty map holds - give it a type, as `[:] :: [String: Int]`"_v,
+            source);
+        return nullptr;
+    }
+
+    DeclPtr<Type> arguments[2] = { key, value };
+    auto mapType = instantiateRecord(context, program, declared, arguments, 2, source);
+    if(!mapType) return nullptr;
+
+    /*
+     * The map, at the literal's own count.
+     *
+     * `newMap` names neither `k` nor `v` in its arguments, so the result position is the only thing
+     * that decides them - the same rule `Nothing :: Maybe(I32)` is selected by, and why the type is
+     * built above rather than read back off the call.
+     */
+    auto count = builder.addConst(source, intConstant(program.types.words[1], U64(pairs.size())));
+    if(!count) return nullptr;
+
+    Node* made[1] = { count };
+    auto map = callKnown(builder, intrinsic::Known::mapLiteral, made, 1, source, mapType);
+    if(!map) return nullptr;
+
+    /*
+     * Held in a writable local, because `insertAt` takes a `&`: a call result is a value and a
+     * `&` argument names storage. The same local the array literal builds its slots through, and
+     * writable for the same reason - it is this frame's temporary and the literal is still filling
+     * it.
+     */
+    auto local = builder.addLocal(StringId(), valueOccurrence(*map), source, true);
+    auto place = builder.localPlace(*local);
+    builder.addWrite(source, *place, *map, Destination::Init);
+
+    for(auto& pair: pairs) {
+        auto self = readPlace(builder, source, *place, bindingRequest(Access::Unique));
+        if(!self) return nullptr;
+
+        Node* operands[3] = { self, pair.key, pair.value };
+        if(!applyMember(builder, intrinsic::Known::indexInsert, 0, operands, 3, source)) {
+            return nullptr;
+        }
+    }
+
+    // The map itself, moved out of the local - what makes the literal the owned temporary the
+    // surrounding position receives rather than a borrow of a local that is about to end.
+    return readPlace(builder, source, *place, requestOf(ownedContract()));
+}
+
+/*
+ * The container half of the literal above, over values that are already in hand.
+ *
+ * Split out because it has a second caller and only one of the two has an expression: the
+ * synthesized test entry builds an `[Case]` out of cases it constructed, and a suite whose array is
+ * assembled by a second piece of code that spells `Array`'s fields is exactly what the library roles
+ * exist to prevent. Everything about *what* a literal is - the element type, the ordering, the
+ * coercion of the second element to the first's type - stays above this line, because none of it is
+ * a question the entry has.
+ */
+/*
+ * The room a refined array starts with - `reserve(&self, wanted)`, through the `arrayReserve` role.
+ *
+ * Its own function so that "what `@capacity(n)` costs" is one call in one place. What the role does
+ * *not* say is where the slots live: `@inline(n)` asks for the frame and this stage places every run
+ * on the heap, which is the note on the role and the one way a refined array here differs from the
+ * shipping stage's.
+ */
+bool Resolver::reserveCapacity(Builder& builder, Place& place, U64 capacity, LocationId source) {
+    auto found = program.roles.function(intrinsic::Known::arrayReserve);
+    if(!found) {
+        reportMissingRole(intrinsic::Known::arrayReserve, "`@inline(n) @capacity(n)`"_v, source);
+        return false;
+    }
+
+    auto& reserve = *decl()[found];
+
+    auto self = readPlace(builder, source, place,
+                          requestOf(decl()[reserve.args.get(decl(), 0)]->occurrence));
+    if(!self) return false;
+
+    auto wanted = builder.addConst(source, intConstant(program.types.words[1], capacity));
+    if(!wanted) return false;
+
+    Node* arguments[2] = { self, wanted };
+    return callFunction(builder, reserve, arguments, 2, source) != nullptr;
+}
+
+Node* Resolver::buildGrowableArray(Builder& builder, DeclPtr<Type> element,
+                                   SmallArray<Node*, 8>& components, LocationId source,
+                                   U64 capacity) {
     auto declared = program.roles.record(intrinsic::Known::array);
     if(!declared) {
-        reportMissingRole(intrinsic::Known::array, "a growable array literal"_v, expr.source);
+        reportMissingRole(intrinsic::Known::array, "a growable array literal"_v, source);
         return nullptr;
     }
 
     // The array's own type, built here rather than taken from the hint: a literal with no hint has
     // none to take, and one with a hint has already agreed with it - `element` came out of it.
-    auto arrayType = instantiateRecord(context, program, declared, &element, 1, expr.source);
+    auto arrayType = instantiateRecord(context, program, declared, &element, 1, source);
     if(!arrayType) return nullptr;
 
     /*
@@ -1812,12 +2964,12 @@ Node* Resolver::resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPt
      * position - which is the same rule `Nothing :: Maybe(I32)` is selected by, and is why the type
      * is built above rather than read back off the call.
      */
-    auto count = builder.addConst(expr.source, intConstant(program.types.words[1],
-                                                           U64(written.size())));
+    auto count = builder.addConst(source, intConstant(program.types.words[1],
+                                                           U64(components.size())));
     if(!count) return nullptr;
 
     Node* made[1] = { count };
-    auto array = callKnown(builder, intrinsic::Known::arrayLiteral, made, 1, expr.source, arrayType);
+    auto array = callKnown(builder, intrinsic::Known::arrayLiteral, made, 1, source, arrayType);
     if(!array) return nullptr;
 
     /*
@@ -1831,23 +2983,36 @@ Node* Resolver::resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPt
      * building, and handing its window out for writing is the whole reason it exists.
      */
     auto& occurrence = valueOccurrence(*array);
-    auto local = builder.addLocal(StringId(), occurrence, expr.source, true);
+    auto local = builder.addLocal(StringId(), occurrence, source, true);
     auto place = builder.localPlace(*local);
-    builder.addWrite(expr.source, *place, *array, Destination::Init);
+    builder.addWrite(source, *place, *array, Destination::Init);
+
+    /*
+     * `@inline(n) @capacity(n)` - the room the container starts with, asked for through the library's
+     * own `reserve` (`known.def`'s `arrayReserve`).
+     *
+     * Here rather than at the construction, because `arrayLiteral`'s count is the number of elements
+     * the literal *wrote* and a bound is a statement about the ones it did not: sizing the run from
+     * the bound would make `length` the bound as well. Before the base is taken, because reserving
+     * relocates the run - an address read first would name the storage the growth just released.
+     */
+    if(capacity > components.size() && !reserveCapacity(builder, *place, capacity, source)) {
+        return nullptr;
+    }
 
     auto based = program.roles.function(intrinsic::Known::elementBase);
     if(!based) {
-        reportMissingRole(intrinsic::Known::elementBase, "a growable array literal"_v, expr.source);
+        reportMissingRole(intrinsic::Known::elementBase, "a growable array literal"_v, source);
         return nullptr;
     }
 
     auto& baseOf = *decl()[based];
-    auto window = readPlace(builder, expr.source, *place,
+    auto window = readPlace(builder, source, *place,
                             requestOf(decl()[baseOf.args.get(decl(), 0)]->occurrence));
     if(!window) return nullptr;
 
     Node* of[1] = { window };
-    auto base = callFunction(builder, baseOf, of, 1, expr.source);
+    auto base = callFunction(builder, baseOf, of, 1, source);
     if(!base) return nullptr;
 
     /*
@@ -1869,17 +3034,17 @@ Node* Resolver::resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPt
     auto slots = builder.addressPlace(*base, Occurrence { run, ownedContract(), nullptr }, true);
 
     for(Size i = 0; i < components.size(); i++) {
-        auto index = builder.addConst(expr.source, intConstant(program.types.words[1], U64(i)));
+        auto index = builder.addConst(source, intConstant(program.types.words[1], U64(i)));
         if(!index) return nullptr;
 
         auto slot = builder.elementPlace(*slots, *index);
-        builder.addWrite(expr.source, *slot, *components[i], Destination::Init);
+        builder.addWrite(source, *slot, *components[i], Destination::Init);
     }
 
     // The array itself, moved out of the local it was held in. A read at an owning request, which is
     // what makes it the temporary the surrounding position receives rather than a borrow of a local
     // that is about to end.
-    return readPlace(builder, expr.source, *place, requestOf(ownedContract()));
+    return readPlace(builder, source, *place, requestOf(ownedContract()));
 }
 
 /*
@@ -1897,7 +3062,7 @@ Node* Resolver::resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPt
  * stated once for this and for the constant path both.
  */
 Node* Resolver::resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
-                                    Request wanted) {
+                                    Request wanted, U64 capacity) {
     auto written = expr.arr.contents(parse);
 
     /*
@@ -1935,7 +3100,19 @@ Node* Resolver::resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<T
      * one - its count is part of its type, and a literal has no type to put a count in.
      */
     if(!hint || isSequenceType(decl(), program, hint)) {
-        return resolveGrowableLiteral(builder, expr, hint);
+        return resolveGrowableLiteral(builder, expr, hint, capacity);
+    }
+
+    /*
+     * A capacity written at a literal that is not a growable array - `[0] :: @inline(4) @capacity(4)
+     * [Int *4]`. Reported rather than dropped, on `readContainerRefinement`'s own terms: a fixed
+     * array's storage is its type and there is no run for a bound to be a bound of.
+     */
+    if(capacity) {
+        context.diagnostics.error(
+            "`@inline(n) @capacity(n)` refines a growable array - `[T]` - and this literal builds "
+            "%@"_v, expr.source, typeText(context, decl(), hint));
+        return nullptr;
     }
 
     if(decl()[hint]->kind != Type::Array) {
@@ -1973,12 +3150,16 @@ Node* Resolver::resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<T
         components.push(value);
     }
 
-    // The fill, spread here rather than by the builder: what `addAggregate` takes is one component
-    // per element, and a node that meant "this value, n times" would be a second aggregate shape for
-    // every consumer to learn.
-    while(components.size() < length) components.push(components[0]);
+    // The fill, spread here rather than by the builder wherever there is a number to spread it to:
+    // what `addAggregate` takes is one component per element, and a node that meant "this value, n
+    // times" at a *countable* array would be a second aggregate shape for every consumer to learn.
+    // A quantified count has no number here and is the one case the node carries - see `fill`.
+    if(!shaped.unwrap().quantified) {
+        while(components.size() < length) components.push(components[0]);
+    }
 
-    return builder.addAggregate(expr.source, hint, 0, components.pointer(), components.size());
+    return builder.addAggregate(expr.source, hint, 0, components.pointer(), components.size(),
+                                nullptr, shaped.unwrap().quantified);
 }
 
 /*
@@ -2013,10 +3194,19 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
      * a walk that had built the arguments first would place a loan of the callee after the loans of
      * what it is passed.
      *
-     * Note that a projection wins over a **dot-call** here, which is the language's own rule and not
-     * an artifact: `h.run(v)` where `run` is a field is a call through that field. This stage does
-     * not implement dot-call at all, so nothing is being chosen between yet.
      */
+    /*
+     * `x.f(y)` - the dot-call form, ahead of the indirect path because deciding between the two is
+     * exactly what it does.
+     *
+     * A projection wins over a dot-call, which is the language's own rule and not an artifact:
+     * `h.run(v)` where `run` is a field is a call through that field. `resolveDotCall` is where that
+     * choice is made and it is the only place it is made.
+     */
+    if(written.callee.kind == ast::Expr::Field) {
+        return resolveDotCall(builder, written, *parse[written.callee.field], hint, expr.source);
+    }
+
     // `findCapture` appends the field on the first name it answers for, which is what makes it the
     // test as well as the lookup: where it says yes the walk below reads the name through the very
     // capture it just made, and where it says no it made nothing.
@@ -2116,6 +3306,182 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
     return finishCall(builder, callee, arguments, typeArguments, hint, expr.source);
 }
 
+/*
+ * The overload set a **dot-call** selects from - R1's set, with the receiver's own namespace
+ * deciding the plain half.
+ *
+ * `String.push` is *the* plain function where it exists, rather than joining the set beside a bare
+ * `push`: R1 admits at most one plain function and this is which one it is, which is what makes
+ * `s.push(v)` reach `String`'s and `xs.push(v)` reach `Array`'s from one body. The class half is
+ * gathered from the bare name alone, because a member is a name a class declared and no receiver
+ * namespaces it.
+ *
+ * **The namespaced reading is asked first**, and that ordering is load-bearing rather than tidy:
+ * `search` reports an ambiguity as it looks, so a bare lookup performed first would already have
+ * said "visible through more than one import" by the time the type's own function could have
+ * replaced its answer. `store` on an `Atomic` beside `Native`'s is exactly that shape. Where the
+ * namespace answered, the bare lookup runs with reporting off for the same reason.
+ */
+void Resolver::findDotOverloads(DeclPtr<Type> receiver, StringId name, U32 arity, LocationId source,
+                                OverloadSet& into) {
+    OverloadSet namespaced;
+
+    if(auto qualified = namespacedName(context, program, receiver, name)) {
+        findOverloads(context, program, here(), qualified, arity, source, namespaced, false);
+    }
+
+    OverloadSet bare;
+    findOverloads(context, program, here(), name, arity, source, bare, !namespaced.plain);
+
+    into.plain = namespaced.plain ? namespaced.plain : bare.plain;
+    into.members.clear();
+    for(auto member: bare.members) into.members.push(member);
+}
+
+/*
+ * `x.f(y)` - `doc/spec/expressions.md`'s dot call, which is `f(x, y)` for every `f` a body can name.
+ *
+ * The receiver is resolved **once**, at the top, and handed to whichever half wins. That is the
+ * whole shape of this function and the reason it exists rather than the two halves each doing their
+ * own lookup: resolving is emission, so a probe that resolved the receiver and then gave up would
+ * leave its instructions behind and the winning half would emit them again.
+ *
+ * It is resolved as a **place**, which is what makes the call form itself no different from a
+ * written one. What a receiver is read as is `readMode`'s answer at the position it fills, and the
+ * position is not known until the callee is - so a place is exactly what can be carried across the
+ * selection, and `argumentMode` stays the one rule for `&self`, `->self` and a plain borrow alike.
+ * There is no second call path: `resolveArguments` and `resolveOverloadedCall` take the receiver as
+ * argument 0 of the same mapping every call uses.
+ *
+ * **The field wins.** A record whose field holds a function is called through that field, as it was
+ * before this form existed, and the consequence is stated rather than hidden: adding a field to a
+ * record shadows a dot-call on that type. It is the same shape as a local binding shadowing a
+ * declaration and is decided the same way, by asking the nearer thing first.
+ *
+ * Universal, and that includes this module's private functions. There is no `impl` block and no
+ * per-type namespace to *join* - `fn String.push` is R1's one plain function for `String` and
+ * nothing more, and what a body can call a body can call with a dot.
+ *
+ * Two things the form does not reach, each grammar rather than rule. A receiver whose own resolution
+ * depends on the access - `xs[i].bump()` where `bump` takes `&self` - is read shared, because the
+ * accessor `Index.get` had to be emitted before a candidate could say it wanted `getMut`; the
+ * shipping stage refuses the same program with the same reason. And the receiver takes no type
+ * pushdown, since its type is what decided this was a dot-call at all.
+ */
+Node* Resolver::resolveDotCall(Builder& builder, ast::AppExpr& written, ast::FieldExpr& field,
+                               DeclPtr<Type> hint, LocationId source) {
+    /*
+     * A selector that is not a plain name is a field position and nothing else: `t.0(x)` is a tuple
+     * index holding a callable. It is not a name a function could have, so nothing is being chosen
+     * between and the ordinary value walk resolves the whole callee expression.
+     */
+    if(field.field.kind != ast::Expr::Var) {
+        auto target = resolveValue(builder, written.callee, nullptr, bindingRequest(Access::Shared));
+        if(!target) return nullptr;
+
+        return resolveValueCall(builder, written, *target, source);
+    }
+
+    /*
+     * Shared, which is the one thing the receiver cannot take from the selected signature - see the
+     * note above. Everywhere but a subscript the place is the same under either access, so `&self`
+     * on a name, a field or a global is decided by `readPlace` below exactly as a written `&`
+     * argument is.
+     */
+    auto receiver = projectionTarget(builder, field.target, Access::Shared);
+    if(!receiver) return nullptr;
+
+    /*
+     * **The choice, and the only place it is made.**
+     *
+     * A binding of the name is deliberately not consulted: `f` in `x.f(y)` is a member position and
+     * not a scope one, so a local called `map` does not become every value's `.map`. That is the one
+     * place this form departs from `resolveCall`'s "a binding shadows a declaration", and it departs
+     * from it because the two are not in the same namespace to begin with.
+     */
+    if(hasMemberNamed(receiver->occurrence, field.field.var)) {
+        auto place = fieldOf(builder, *receiver, field.field, field.target.source);
+        if(!place) return nullptr;
+
+        // At the callee expression, which is where `resolveValue` would have read it: the two paths
+        // differ in how the place was reached and in nothing a diagnostic should point at.
+        auto target = readPlace(builder, written.callee.source, *place,
+                                bindingRequest(Access::Shared));
+        if(!target) return nullptr;
+
+        return resolveValueCall(builder, written, *target, source);
+    }
+
+    auto name = field.field.var;
+
+    // The receiver is argument 0, so it is part of the arity R1 keys the set by - `x.f(y)` selects
+    // what `f(x, y)` selects and by the same lookup.
+    auto arity = U32(written.args.size()) + 1;
+
+    OverloadSet set;
+    findDotOverloads(receiver->occurrence.type, name, arity, field.field.source, set);
+
+    Receiver from { receiver, field.target.source };
+
+    if(set.size() > 1) {
+        return resolveOverloadedCall(builder, written, set, name, field.field.source, hint, source,
+                                     from);
+    }
+
+    auto found = set.sole();
+
+    if(!found) {
+        /*
+         * Nothing answered, and the message says what was looked for - both halves, because both
+         * were looked in.
+         *
+         * The projection's own wording survives for the one case it is still true of: the name is
+         * neither a field of the receiver nor a function anything in scope declares. Where a
+         * function of the name does exist, the mistake is the count, and the receiver being the
+         * first of them is the part an author of `x.f()` has to be told.
+         */
+        auto qualified = namespacedName(context, program, receiver->occurrence.type, name);
+        auto declared = hasFunctionName(context, program, here(), name) ||
+                        (qualified && hasFunctionName(context, program, here(), qualified));
+
+        if(declared) {
+            context.diagnostics.error(
+                "no %@ takes %@ arguments - `x.%@(...)` is `%@(x, ...)`, so the receiver is the first of them"_v,
+                field.field.source, context.findName(name), U64(arity), context.findName(name),
+                context.findName(name));
+        } else if(qualified) {
+            context.diagnostics.error(
+                "%@ has no field called %@, and nothing in scope declares %@ or a function %@"_v,
+                field.field.source, typeText(context, decl(), receiver->occurrence.type),
+                context.findName(name), context.findName(qualified), context.findName(name));
+        } else {
+            context.diagnostics.error(
+                "%@ has no field called %@, and nothing in scope declares a function %@"_v,
+                field.field.source, typeText(context, decl(), receiver->occurrence.type),
+                context.findName(name), context.findName(name));
+        }
+
+        return nullptr;
+    }
+
+    auto& callee = *decl()[found];
+
+    if(!checkCallable(callee, source)) return nullptr;
+
+    ArgMap map;
+    if(!checkCallShape(written, callee, source, map, true, 1, from.source)) return nullptr;
+
+    TypeArguments typeArguments(*this, callee.gen);
+
+    SmallArray<Node*, 8> arguments;
+    if(!resolveArguments(builder, written, callee, map, source, arguments, typeArguments, hint,
+                         from)) {
+        return nullptr;
+    }
+
+    return finishCall(builder, callee, arguments, typeArguments, hint, source);
+}
+
 Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
                                 TypeArguments& typeArguments, LocationId source) {
     auto declared = parameter.occurrence.type;
@@ -2205,11 +3571,15 @@ Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*,
      * hint is what the surrounding position would like; binding the hint first would let a position
      * expecting `Maybe(I64)` silently decide a call whose argument said `I32`, and the mismatch
      * would then be reported against the argument rather than against the binding.
+     *
+     * `bindResult` and not `bind`, because *which* positions it filled is what the line below has to
+     * know: a determined one is the dependency's to answer and the hint is only a wish about it.
      */
-    if(hint) typeArguments.bind(callee.result.type, hint);
+    if(hint) typeArguments.bindResult(callee.result.type, hint);
 
     // What the callee's own constraints decide, before anything is called undecided - a functional
-    // dependency's whole purpose is that these positions have an answer no argument supplied.
+    // dependency's whole purpose is that these positions have an answer no argument supplied, and
+    // that its answer beats the one the result position wished for.
     typeArguments.fillDetermined(source);
 
     if(typeArguments.reportUndecided(source, "argument"_v,
@@ -2242,9 +3612,18 @@ Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*,
     if(callee.intrinsic != intrinsic::Op::Count) {
         auto form = intrinsic::opDef(callee.intrinsic).form;
 
-        if(form == intrinsic::OpForm::Node) {
+        // ...and a `Node` role this stage does not build a node for is an ordinary call of the body
+        // the declaration carries - `opExpands`, where which those are and why is written down.
+        if(form == intrinsic::OpForm::Node && opExpands(callee.intrinsic)) {
             return expandIntrinsic(builder, context, callee.intrinsic, callee, arguments.pointer(),
                                    arguments.size(), typeArguments.with(), source);
+        }
+
+        // A bulk operation, whose expansion is a choice between two library bodies rather than a
+        // node - so it is the same call with a different callee. Null where the element has no
+        // vector here, which is the declaration's own body and the loop the operation always was.
+        if(auto chosen = selectBulkBody(builder, callee, arguments, typeArguments, source)) {
+            return chosen;
         }
 
         // A `Branch` role is the same last step laid out here instead, because what it expands to
@@ -2324,6 +3703,84 @@ Node* Resolver::expandProvidedCall(Builder& builder, Function& callee,
                           with.count, arguments.pointer(), arguments.size(), source);
 }
 
+/*
+ * Which of a bulk operation's two bodies this call reaches - `lib/Core/Reduce.yana`, and `op.def`'s
+ * seven `bulk*` rows read as the choice they are.
+ *
+ * The rule: **the vector body where the element has a vector on this target, and the declaration's
+ * own body where it does not.** That question is about the lane's stride and the register width, so
+ * it is not a constraint the library could have written - `Vec(U8)` exists everywhere, `Vec(Long)`
+ * natively and not on JS, `Vec(String)` nowhere - which is the whole reason these are roles. The
+ * shipping stage's `expandBulk` makes the same choice on the same rule; the two must agree, or one
+ * source compiles to two different programs.
+ *
+ * **Where the element comes from is the one thing here that needed deciding.** It is not a position:
+ * `sum(xs) -> a` answers one, `occurrences(xs, wanted: a)` takes one, and `itemsEqual(left: [a],
+ * right: [a])` neither. What is common to all seven is that the declaration's *variables* are a
+ * container and an element and nothing else, and a container is a record - so at most one of the
+ * bound arguments can be a machine lane, and asking which of them has a vector is asking about the
+ * element without having to name `Chunked` to find it. A library whose `Chunked` instance made a
+ * lane type into a container would defeat that, and would be a container of itself.
+ *
+ * The bindings are rebuilt against the chosen body rather than reused: it has the same signature the
+ * declaration does, so matching the same arguments recovers the same answers, and its *context* is a
+ * different one - `indexOfVectors` requires `Bitwise(Mask(a))` where `indexOf` requires nothing of
+ * the kind, and that instance is what has to exist here. Nothing is re-prepared: the arguments were
+ * read under the declared contracts, which the two bodies share.
+ *
+ * Null wherever the choice does not apply - not a bulk role, no library body claiming the role, an
+ * element with no vector - so the caller carries on to the call it would have built anyway.
+ */
+Node* Resolver::selectBulkBody(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                               TypeArguments& typeArguments, LocationId source) {
+    auto role = bulkVectorRole(callee.intrinsic);
+    if(role == intrinsic::Known::Count) return nullptr;
+
+    // A library that declares no vector half - the rows are `Optional`, and its bulk operations are
+    // the loops they always were.
+    auto declared = program.roles.function(role);
+    if(!declared) return nullptr;
+
+    auto with = typeArguments.with();
+    auto vectorized = false;
+
+    for(Size i = 0; i < with.count; i++) {
+        vectorized = vectorized || hasNaturalVector(context, decl(), with.arguments[i]);
+    }
+
+    if(!vectorized) return nullptr;
+
+    auto& body = *decl()[declared];
+    if(body.writtenArity() != arguments.size()) return nullptr;
+
+    TypeArguments bindings(*this, body.gen);
+
+    for(Size i = 0; i < arguments.size(); i++) {
+        if(!arguments[i]) return nullptr;
+
+        auto& parameter = *decl()[body.args.get(decl(), U32(i))];
+        bindings.bind(parameter.occurrence.type, valueType(*arguments[i]));
+    }
+
+    bindings.fillDetermined(source);
+
+    // A position the same arguments left open here but decided at the declaration is a vector half
+    // whose signature has drifted from the one it stands beside; the element walk is still a correct
+    // program, so this takes it rather than reporting a call the author did not write.
+    if(bindings.undecided()) return nullptr;
+
+    /*
+     * The context, which is the one thing the two bodies do not share - and the one place here that
+     * *does* report. A missing `Bitwise(Mask(a))` for an element that has a vector is a library
+     * whose vector half asks for something the lane does not have, which is not a fact this call
+     * could work around: taking the element walk instead would hide a broken pair behind a slower
+     * program on whichever target the instance is missing from.
+     */
+    if(!dischargeRequirements(body, bindings, source)) return nullptr;
+
+    return builder.addCall(source, body, arguments.pointer(), arguments.size(), bindings.with());
+}
+
 Node* Resolver::applyMember(Builder& builder, intrinsic::Known klass, U16 member,
                             Node* const* operands, Size count, LocationId source,
                             DeclPtr<Type> hint, DeclPtr<Type> subject) {
@@ -2385,7 +3842,9 @@ Held::~Held() { resolver.held = outer; }
  */
 Carry::Carry(Resolver& resolver, LocationId source): source(source) {
     SmallArray<Held*, 4> frames;
-    for(auto frame = resolver.held; frame; frame = frame->outer) frames.push(frame);
+    for(auto frame = resolver.held; frame && frame != resolver.heldFloor; frame = frame->outer) {
+        frames.push(frame);
+    }
 
     for(Size i = frames.size(); i-- > 0;) {
         auto frame = frames[i];
@@ -2447,6 +3906,10 @@ DeclPtr<Type> TypeArguments::expected(DeclPtr<Type> declared) {
     return substituteType(resolver.context, resolver.program, declared, with());
 }
 
+bool TypeArguments::undecided(DeclPtr<Type> declared) {
+    return mentionsContext(resolver.decl(), expected(declared), owner);
+}
+
 DeclPtr<Type> TypeArguments::hint(DeclPtr<Type> declared) {
     auto type = expected(declared);
 
@@ -2494,8 +3957,68 @@ void TypeArguments::bind(DeclPtr<Type> declared, DeclPtr<Type> supplied) {
      * `Box(U32)` - and binding a variable to the canonical *there* would select an instance
      * specialized for a record with different bytes.
      */
-    matchType(resolver.decl(), resolver.program.types, owner, arguments, declared,
-              canonicalInt(resolver.decl(), supplied));
+    auto base = resolver.decl();
+    auto value = canonicalInt(base, supplied);
+
+    /*
+     * And **two arguments at one variable meet at their `Widen` upper bound** -
+     * `doc/spec/overloading.md`'s "within a single call, the positions bound to the same class
+     * variable are unified to their unique `Widen` upper bound where one exists", applied to a
+     * function's own type arguments as well as to a class's.
+     *
+     * `checkAtMost(shown(x), bound(x))` at `(Size, Int)` and `valueOf(e) == want` at `(I32, I64)`
+     * are the shape - one variable, two positions, and one of the two spellings the language calls
+     * lossless. Without it the first argument bound the variable and every later one had to convert
+     * *into* it, so the wider argument was a narrowing and the call was refused; six sites in the
+     * library's suite carried an ascription for exactly that. `commonWiden` is the same function the
+     * arms of an `if` and a `match` already meet through, so there is one rule and not two.
+     *
+     * **At the outermost position of an argument, and nowhere else**, which is the guardrail rather
+     * than a shortcut: needing a conversion is part of an argument fitting its parameter, and
+     * nothing else in the language converts. A variable reached *inside* a type - `Boxed(a)` given a
+     * `Boxed(I32)` and a `Boxed(I64)` - is two different records and there is no conversion between
+     * them; `bindResult` does not come here at all, because a result is what the call produces and a
+     * result that needs converting has not decided anything. The shipping stage draws the line in
+     * the same place, with `widen` false for a result and at every depth.
+     */
+    if(unifies && base[declared]->kind == Type::Variable) {
+        auto& variable = *(VariableType*)base[declared];
+
+        if(variable.owner == owner && variable.index < arguments.size() && variable.index < 64) {
+            auto mask = U64(1) << variable.index;
+            auto held = arguments[variable.index];
+
+            /*
+             * The meet, and it applies to a position **an earlier argument decided** and to no
+             * other. `fromArgument` is what says which those are, and the two it excludes are the
+             * two that are promises rather than offers: a functional dependency or a field
+             * requirement filled through `fillFromRequirements` - `class Enum(a -> w)` says what
+             * width an enum's value has, and an argument is in no position to widen it - and the
+             * call's own result, which `bindResult` fills with `unifies` off for the same reason
+             * the shipping stage's `widen` is false there.
+             *
+             * Through `canonicalInt` on the held side too, because a binding that already *accepts*
+             * this argument is not two positions to unify: `Maybe(@bits(4) U32)` bound from the
+             * destination and a `U32` argument are the same type to `matchType`, and meeting them
+             * here would replace the refinement with the width it refines.
+             */
+            if(held && (fromArgument & mask) && canonicalInt(base, held) != value) {
+                if(auto common = resolver.commonWiden(held, value, kNullLocation)) {
+                    widened = widened || common != held;
+                    arguments[variable.index] = common;
+                    return;
+                }
+            }
+
+            if(!held) {
+                matchType(base, resolver.program.types, owner, arguments, declared, value);
+                if(arguments[variable.index]) fromArgument |= mask;
+                return;
+            }
+        }
+    }
+
+    matchType(base, resolver.program.types, owner, arguments, declared, value);
 }
 
 void TypeArguments::seed(RecordType& expected) {
@@ -2506,6 +4029,87 @@ void TypeArguments::seed(RecordType& expected) {
     assertTrue(expected.arguments.size() == arguments.size());
 
     for(Size i = 0; i < arguments.size(); i++) arguments[i] = expected.arguments.get(resolver.decl(), i);
+}
+
+/*
+ * What one clause of a context **promises** about a class, at a deciding prefix - the clause itself,
+ * or a superclass of it expressed in the clause's own arguments.
+ *
+ * The closure is the point. `class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m)`
+ * is a class whose `m` no argument of it names: what says what `m` is is `Lanewise(a -> m)` in its
+ * own context. So a body written `fn (Real(a, m)) magnitudeOf(value: a)` calling `value .<= 0.0`
+ * asks `Lanewise(a, ?)`, and the clause it wrote is `Real` - a search for the class as written finds
+ * nothing, and every comparison in `lib/Math` reported "no argument decides what m is", 24 of them.
+ *
+ * `classProves` already states this closure for the *discharge* half, which is why the two had to be
+ * one rule rather than two: a requirement a signature can prove is a requirement it can be asked to
+ * decide from. What is different here is the direction - a superclass's arguments come back and are
+ * read - so the walk carries the answer rather than a yes.
+ *
+ * Bounded by a depth rather than by a visited set, on `superclassPath`'s reading: a superclass cycle
+ * is a declaration error caught where classes are declared, and a real hierarchy stacks few.
+ */
+static constexpr U32 kSuperclassDepth = 8;
+
+static bool heldPromises(Resolver& resolver, DeclPtr<Class> heldClass, const DeclPtr<Type>* heldArgs,
+                         Size heldCount, DeclPtr<Class> klass, const DeclPtr<Type>* deciding,
+                         U16 decidingCount, U32 depth, SmallArray<DeclPtr<Type>, 4>& into) {
+    auto base = resolver.decl();
+    if(!heldClass || !depth) return false;
+
+    if(heldClass == klass && heldCount == base[klass]->arity(base)) {
+        auto same = true;
+        for(U16 i = 0; i < decidingCount && same; i++) same = sameType(heldArgs[i], deciding[i]);
+
+        if(same) {
+            into.clear();
+            for(Size i = 0; i < heldCount; i++) into.push(heldArgs[i]);
+            return true;
+        }
+    }
+
+    auto gen = base[heldClass]->gen;
+    if(!gen || base[gen]->variables.size() != heldCount) return false;
+
+    Substitution with { gen, (DeclPtr<Type>*)heldArgs, heldCount };
+
+    for(auto superclass: base[gen]->classes.contents(base)) {
+        // The class's own self-requirement, which `declareClass` writes and which is the step this
+        // walk just took. Following it is how a depth budget gets spent on one class.
+        if(superclass.klass == heldClass) continue;
+
+        SmallArray<DeclPtr<Type>, 4> expressed;
+        for(auto argument: superclass.args.contents(base)) {
+            expressed.push(substituteType(resolver.context, resolver.program, argument, with));
+        }
+
+        if(heldPromises(resolver, superclass.klass, expressed.pointer(), expressed.size(), klass,
+                        deciding, decidingCount, depth - 1, into)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// The same, over every clause the enclosing signature wrote - which is the answer that does not
+// depend on which instances happen to be declared.
+static bool contextPromises(Resolver& resolver, DeclPtr<GenContext> gen, DeclPtr<Class> klass,
+                            const DeclPtr<Type>* deciding, U16 decidingCount,
+                            SmallArray<DeclPtr<Type>, 4>& into) {
+    auto base = resolver.decl();
+    if(!gen) return false;
+
+    for(auto held: base[gen]->classes.contents(base)) {
+        auto args = requirementArgs(base, held);
+
+        if(heldPromises(resolver, held.klass, args.data, args.count, klass, deciding, decidingCount,
+                        kSuperclassDepth, into)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /*
@@ -2557,32 +4161,63 @@ static bool fillFromRequirement(Resolver& resolver, GenRequirement requirement,
     auto enclosing = resolver.currentFunction ? resolver.currentFunction->gen : nullptr;
     auto deciding = klass.determined;
 
+    // Closed over the clauses' own superclasses - `heldPromises`, where the `Real(a -> m)` shape
+    // that made the closure necessary is written down.
     if(enclosing) {
-        for(auto held: base[enclosing]->classes.contents(base)) {
-            if(held.klass != requirement.klass) continue;
-
-            auto same = true;
-            for(U32 i = 0; i < deciding && same; i++) {
-                same = sameType(held.args.get(base, i), applied[i]);
-            }
-
-            if(!same) continue;
-
-            for(U32 i = 0; i < arity; i++) answer.push(held.args.get(base, i));
-            break;
-        }
+        contextPromises(resolver, enclosing, requirement.klass, applied.pointer(), U16(deciding),
+                        answer);
     }
 
     if(!answer.size()) {
+        /*
+         * The instance table, asked with whatever the substitution left in the deciding positions -
+         * `doc/progress/2026-09-06-inventory.md` D13.
+         *
+         * A **concrete** prefix is the ordinary question and `selectInstance` answers it. A prefix
+         * that still carries this body's own variables is answerable too where its outermost
+         * constructor is not one of them: `xs[i]` inside `fn (Ord(a)) firstBelow(xs: [a], ...)` asks
+         * `Index(Array(a), ?, ?)`, and a head matching `Array(a)` with `a` free matches it at every
+         * type a specialization binds. `selectOpenInstance` is where that is argued and where a bare
+         * variable head is refused; the answer it gives fills `k` and `v` in, which is the whole of
+         * what the dependency promised and is what the signature would otherwise have had to write
+         * out as a second clause.
+         *
+         * Only the concrete question sets `missingClass`. An open one that finds nothing is not a
+         * mistake about the class - the body may simply be one whose signature has to say what it
+         * needs - so the position is left undecided and reported as that.
+         */
         auto concrete = true;
         for(U32 i = 0; i < deciding; i++) concrete = concrete && isConcreteType(base, applied[i]);
-        if(!concrete) return false;
 
         InstanceMatch found;
         for(U32 i = deciding; i < arity; i++) applied[i] = nullptr;
 
-        if(!selectInstance(resolver.context, resolver.program, requirement.klass, applied.pointer(),
-                           applied.size(), source, false, found)) {
+        if(!concrete) {
+            /*
+             * Not every open prefix is a question - `openHeadAnswerable`, asked here rather than
+             * left to the selection so that a shape this may not be asked about costs no diagnostic.
+             * `fillFromRequirements` runs once from `prepareArgument` before the argument that binds
+             * the deciding position has been resolved, so the first sight of any requirement is a
+             * variable of the *callee's* own context; a message there would name a type nobody wrote
+             * and would spend the one report below on it.
+             */
+            auto enclosing = resolver.currentFunction ? resolver.currentFunction->gen : nullptr;
+
+            if(!openHeadAnswerable(resolver.program, requirement.klass, applied.pointer(),
+                                   applied.size(), enclosing)) {
+                return false;
+            }
+
+            if(!selectOpenInstance(resolver.context, resolver.program, requirement.klass,
+                                   applied.pointer(), applied.size(), enclosing, source,
+                                   !typeArguments.reportedOpen, found)) {
+                typeArguments.reportedOpen = true;
+                return false;
+            }
+
+            for(auto argument: found.arguments) answer.push(argument);
+        } else if(!selectInstance(resolver.context, resolver.program, requirement.klass,
+                                  applied.pointer(), applied.size(), source, false, found)) {
             // A concrete question with no answer, which is what the position's openness means from
             // here on - `TypeArguments::reportUndecided`. The first such, since one is a reason.
             if(!typeArguments.missingClass) {
@@ -2591,9 +4226,9 @@ static bool fillFromRequirement(Resolver& resolver, GenRequirement requirement,
             }
 
             return false;
+        } else {
+            for(auto argument: found.arguments) answer.push(argument);
         }
-
-        for(auto argument: found.arguments) answer.push(argument);
     }
 
     auto moved = false;
@@ -2687,9 +4322,109 @@ static bool fillFromProperty(Resolver& resolver, GenProperty property, DeclPtr<G
     return false;
 }
 
+/*
+ * Which of the positions the **result hint** filled a functional dependency is the one entitled to
+ * answer - the mask `fillDetermined` reopens before its fixpoint runs.
+ *
+ * A position is one of these when the variable standing in it is written *bare* in a determined
+ * position of one of this context's own requirements and nowhere in that requirement's deciding
+ * prefix. Bare, because a determined position naming a structure - `Contiguous(c, Array(e))` -
+ * decides `e` inside it and reopening `e` would throw away what the argument bound one level down;
+ * and not in the prefix, because a variable the dependency is asked *by* is not one it answers.
+ */
+static U64 resultDecidedDeterminedPositions(DeclBase base, DeclPtr<GenContext> owner, U64 fromResult) {
+    if(!fromResult) return 0;
+
+    U64 mask = 0;
+
+    for(auto requirement: base[owner]->classes.contents(base)) {
+        auto& klass = *base[requirement.klass];
+        auto arity = klass.arity(base);
+        if(klass.determined >= arity) continue;
+
+        U64 deciding = 0;
+        for(U16 i = 0; i < klass.determined; i++) {
+            auto written = requirement.args.get(base, i);
+            if(written && base[written]->kind == Type::Variable) {
+                auto& variable = *(VariableType*)base[written];
+                if(variable.owner == owner && variable.index < 64) deciding |= U64(1) << variable.index;
+            }
+        }
+
+        for(U16 i = klass.determined; i < arity; i++) {
+            auto written = requirement.args.get(base, i);
+            if(!written || base[written]->kind != Type::Variable) continue;
+
+            auto& variable = *(VariableType*)base[written];
+            if(variable.owner != owner || variable.index >= 64) continue;
+
+            auto bit = U64(1) << variable.index;
+            if((fromResult & bit) && !(deciding & bit)) mask |= bit;
+        }
+    }
+
+    return mask;
+}
+
+/*
+ * The determined positions, and the one rule about who decides them: **a dependency beats the
+ * target**.
+ *
+ * `class Enum(a -> w)` promises that one enum has one width, so in `fn seekBase(w: Whence) -> I64 =
+ * valueOf(w)` the `I64` is not what `w` *is* - it is what the caller wants the answer converted to.
+ * Binding the result first wrote `I64` into the position the dependency answers, and the lookup then
+ * asked for `Enum(Whence, I64)` and reported a missing instance for what the author wrote as an
+ * ordinary widening. `prepareArgument` already states the same sentence one position earlier - a
+ * determined position is decided before the argument offers an answer - and this is the half of it
+ * the result position needed.
+ *
+ * So a position the *result hint* filled and a requirement determines is put back to open, the
+ * fixpoint runs, and the hint's answer is restored only where nothing answered - the wish stands
+ * where there is no promise to beat it, and `coerce` at the call's result is then where the
+ * conversion happens or is refused. A position an **argument** filled is never reopened: that one is
+ * the type of a value that already exists rather than a wish about this call.
+ */
 void TypeArguments::fillDetermined(LocationId source) {
+    auto reopen = resultDecidedDeterminedPositions(resolver.decl(), owner, fromResult);
+
+    SmallArray<DeclPtr<Type>, 4> wished;
+
+    if(reopen) {
+        for(Size i = 0; i < arguments.size(); i++) {
+            auto held = i < 64 && (reopen & (U64(1) << i)) ? arguments[i] : nullptr;
+            wished.push(held);
+            if(held) arguments[i] = nullptr;
+        }
+    }
+
     fillFromRequirements(source);
+
+    for(Size i = 0; i < wished.size(); i++) {
+        if(!arguments[i]) arguments[i] = wished[i];
+    }
+
     fillDeclaredDefaults();
+}
+
+void TypeArguments::bindResult(DeclPtr<Type> declared, DeclPtr<Type> supplied) {
+    if(!any()) return;
+
+    SmallArray<bool, 4> before;
+    for(auto argument: arguments) before.push(bool(argument));
+
+    // With the meet off, which is the same line the shipping stage draws: a *result* that would need
+    // converting has not decided the type arguments by itself, so it fills what nothing filled and
+    // never moves what an argument did. See `bind`, where `fromArgument` is argued.
+    auto meets = unifies;
+    unifies = false;
+
+    bind(declared, supplied);
+
+    unifies = meets;
+
+    for(Size i = 0; i < arguments.size() && i < 64; i++) {
+        if(arguments[i] && !before[i]) fromResult |= U64(1) << i;
+    }
 }
 
 void TypeArguments::fillFromRequirements(LocationId source) {
@@ -2767,6 +4502,11 @@ DeclPtr<Type> TypeArguments::undecided() const {
 bool TypeArguments::reportUndecided(LocationId source, StringView decider, const String& where) {
     auto open = undecided();
     if(!open) return false;
+
+    // A reason already given - `reportedOpen`. The position is open because two heads answered it
+    // differently, which is what the author has to fix; "no argument decides this" said after it is
+    // the same fact from the side that cannot be acted on.
+    if(reportedOpen) return true;
 
     auto& context = resolver.context;
     auto base = resolver.decl();
@@ -3006,11 +4746,15 @@ bool Resolver::dischargeRequirement(GenRequirement requirement, const Substituti
      * decides the head is the pointer constructor around it.
      *
      * **Sound because a head is a pattern.** If it matches with `a` free, it matches with `a` at
-     * every type a specialization binds - and `holdsContext` inside the selection has already
-     * discharged the instance's own requirements at those bindings, which is what makes this
-     * ordinary instance resolution rather than a hole: an instance whose context needs `Copy(a)` of
-     * this body's `a` does not resolve here, and the declared requirement above is what a body has
-     * to state for that.
+     * every type a specialization binds - and the instance's own context is discharged at those
+     * bindings, which is what makes this ordinary instance resolution rather than a hole.
+     *
+     * `selectOpenInstance` rather than `selectInstance` since D13, and it is the same statement made
+     * twice: a *bare variable* head is refused here rather than looked up, a narrower head that
+     * would answer a specialization differently is refused, and the instance's own context may be
+     * discharged from what **this** declaration promised - `instance (Tag(a)) Sized(Pair(a), a)`
+     * reached from `fn (Tag(a)) measured(p: Pair(a))` is the shape, and the table has nothing to say
+     * about `Tag` of a body's own variable.
      *
      * Tried second, so a declared requirement always wins. It is the cheaper answer and the one an
      * author wrote down.
@@ -3018,6 +4762,19 @@ bool Resolver::dischargeRequirement(GenRequirement requirement, const Substituti
     InstanceMatch matched;
     if(selectInstance(context, program, requirement.klass, arguments.pointer(), arguments.size(),
                       source, false, matched)) {
+        return true;
+    }
+
+    /*
+     * And the same table once more with the *enclosing* context carried in - D13, and additive:
+     * everything above is unchanged, and what this reaches is only an instance whose own requirements
+     * this declaration promised. `instance (Tag(a)) Sized(Pair(a), a)` reached from
+     * `fn (Tag(a)) measured(p: Pair(a))` is the shape - the head matches, and `Tag` of a body's own
+     * variable is a goal the table has nothing to say about, so the selection above stops at the
+     * context while this one gets past it.
+     */
+    if(selectOpenInstance(context, program, requirement.klass, arguments.pointer(),
+                          arguments.size(), enclosing, source, false, matched)) {
         return true;
     }
 
@@ -3057,7 +4814,8 @@ Node* Resolver::resolveDeferred(Builder& builder, ast::Expr& written, DeclPtr<Ty
 
 bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
                                 const ArgMap& map, LocationId source, SmallArray<Node*, 8>& into,
-                                TypeArguments& typeArguments, DeclPtr<Type> hint) {
+                                TypeArguments& typeArguments, DeclPtr<Type> hint,
+                                Receiver receiver) {
     /*
      * One slot per declared position, filled in **written** order.
      *
@@ -3069,13 +4827,70 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
      */
     for(U32 i = 0; i < map.count(); i++) into.push(nullptr);
 
+    // Two positions at one variable meet here rather than the second being refused - see
+    // `TypeArguments::unifies`, and `widenPreparedArguments` below, which is the other half of it.
+    typeArguments.unifies = true;
+
     // The arguments already in hand, while the next one is resolved: an `if` in argument three puts
     // a branch between arguments one and two and the call that uses them.
     HeldList<SmallArray<Node*, 8>> held(*this, into);
 
     auto at = U32(0);
-    for(auto argument: written.args.contents(parse)) {
+
+    /*
+     * The receiver, first because it was written first - `Receiver`.
+     *
+     * It is an argument in every respect the loop below states, and it reaches the same
+     * `prepareArgument`; what differs is only where the value comes from, since the expression was
+     * resolved into a place before the callee was known. `readPlace` at the parameter's own request
+     * is exactly what `resolveValue` would have spent on a bare name in this position, so `&self`
+     * borrows the receiver's storage and `->self` moves out of it with no rule written twice.
+     *
+     * What it does not get is **pushdown**: its type is what decided this was a dot-call rather than
+     * a field projection, so it was resolved before any candidate could say what it expected. Every
+     * written argument keeps pushdown, which is what indexing the map from `at` rather than from
+     * zero preserves.
+     */
+    if(receiver) {
         auto position = map.position(at++);
+        auto& parameter = *decl()[callee.args.get(decl(), position)];
+
+        // A `@lazy` first parameter cannot be reached this way, and the reason is the form's own:
+        // deciding that `x.f(y)` is a call at all needs the receiver's type, which needs it
+        // evaluated - and a deferred position is the one that must not be. The written spelling
+        // still reaches it.
+        if(parameter.lazy) {
+            context.diagnostics.error(
+                "%@ defers its first argument, so it cannot be called with a dot - the receiver has to be evaluated to decide the form, and a `@lazy` position may not be. Write it as %@(...)"_v,
+                receiver.source, context.findName(callee.name), context.findName(callee.name));
+            return false;
+        }
+
+        auto value = readPlace(builder, receiver.source, *receiver.place,
+                               requestOf(parameter.occurrence));
+        if(!value) return false;
+
+        into[position] = prepareArgument(builder, *value, parameter, typeArguments,
+                                         receiver.source);
+        if(!into[position]) return false;
+    }
+
+    /*
+     * The written arguments, in **turns**: an argument whose type is the *position's* to decide is
+     * resolved after the ones that decide it, and `turnOf` below is the whole of the order.
+     *
+     * `select(steep, 5.2359877559829887e-1, zeroLike(value))` in `lib/Math` is the case, at
+     * `Lanewise(v -> m)`'s `select(mask: m, ifTrue: v, ifFalse: v)`: written left to right, the
+     * decimal binds `v` to its own default width and the third argument - which knows what `v` is -
+     * then arrives at a position already decided, and is reported against it. A literal has no type
+     * of its own until a position gives it one, so it is not the thing that should be deciding one.
+     *
+     * The overloaded path has made this split for a literal since J8 (`undecidedLiteral`, where a
+     * candidate's viability at a literal operand is read off its *other* parameters); this is that
+     * rule at a call with one callee, which is where the whole of `lib/Math`'s kernels are.
+     * `resolveOne` is shared rather than written per turn so the turns cannot drift.
+     */
+    auto resolveOne = [&](ast::TupArg& argument, U32 position) -> bool {
         auto& parameter = *decl()[callee.args.get(decl(), position)];
         auto declared = parameter.occurrence.type;
         auto wanted = requestOf(parameter.occurrence);
@@ -3111,10 +4926,151 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
 
         into[position] = prepareArgument(builder, *value, parameter, typeArguments,
                                          argument.value.source);
-        if(!into[position]) return false;
+        return into[position] != nullptr;
+    };
+
+    /*
+     * Whether this argument is one of those - asked where the argument stands, so that what counts
+     * as "the position has not been decided" is the state the walk is actually in.
+     *
+     * Narrow on purpose: a literal at a position the call has already decided - every concrete
+     * parameter, and every variable an earlier argument bound - is resolved where it is written,
+     * because there is nothing for the reorder to buy and the code a dump shows should be the code
+     * the author wrote. `@lazy` is left out for the same reason: what fills one is a thunk, and its
+     * result type is the position taken open by construction.
+     */
+    /*
+     * Which turn an argument is resolved on, and the order is **how much the argument itself knows**.
+     *
+     * `0` is a value with a type of its own: it decides what it decides, and it decides it first.
+     * `1` is an untyped number, which has a *default* and so can decide a position nothing else
+     * does - `select(steep, 5.2e-1, zeroLike(v))` is the case, where reading it first bound the
+     * class argument to the literal's own width and the third argument was then reported against a
+     * position it had the answer to. `2` is a **lambda**, which knows nothing at all:
+     * `apply((v) -> v + 1, 3)` at `fn (a, b) apply(f: (a) -> b, x: a)` takes `v`'s type from the
+     * position, and the position is made of the callee's variables until `x` has bound them - so it
+     * goes after the literal, which could still be what binds them.
+     *
+     * Only where the position is **undecided**, so an argument at a concrete parameter - and at a
+     * variable an earlier argument already bound - is resolved where it was written. There is
+     * nothing for the turn to buy there, and a dump should show the code the author wrote.
+     */
+    auto turnOf = [&](ast::TupArg& argument, U32 position) -> U32 {
+        auto& parameter = *decl()[callee.args.get(decl(), position)];
+        if(parameter.lazy) return 0;
+        if(!typeArguments.any() || !typeArguments.undecided(parameter.occurrence.type)) return 0;
+
+        auto written = &argument.value;
+        while(written->kind == ast::Expr::Nested) written = parse[written->nested];
+        if(written->kind == ast::Expr::Fun) return 2;
+
+        intrinsic::Known role = intrinsic::Known::Count;
+        return undecidedLiteral(argument.value, role) ? 1 : 0;
+    };
+
+    /*
+     * Decided on the first turn and **remembered**, never asked twice: the question is about the
+     * state the walk was in when the argument was passed over, and by the later turns the arguments
+     * it was held back for are exactly the ones that have changed the answer. Asking again there
+     * skipped the argument on every turn and handed the callee a null.
+     *
+     * **Evaluation order is unaffected**, which is what makes the reorder legal at all: what is held
+     * back is a constant or a lambda, neither of which has anything to observe about when it was
+     * built - the same reason `fillDefaultArguments` runs after every written argument rather than
+     * interleaved with them.
+     */
+    SmallArray<U32, 8> turns;
+    auto first = at;
+    auto index = first;
+
+    for(auto argument: written.args.contents(parse)) {
+        auto position = map.position(index++);
+
+        auto turn = turnOf(argument, position);
+        turns.push(turn);
+        if(turn) continue;
+
+        if(!resolveOne(argument, position)) return false;
     }
 
+    for(U32 turn = 1; turn <= 2; turn++) {
+        /*
+         * What the callee's own **requirements** decide, before the arguments that have nothing of
+         * their own are resolved - the fixpoint `prepareArgument` already runs one position at a
+         * time, asked once here for the positions no argument will ever answer.
+         *
+         * `sortBy(xs, (l: Int, r: Int) -> l < r)` at `fn (Writable(c, a)) sortBy(&xs: c, before:
+         * (a, a) -> Bool)` is why: `a` is the *element*, which the dependency answers from `c` and
+         * which no argument of this call supplies. Without it the lambda's position is still
+         * `(a, a) -> Bool` when its turn comes, and a lambda at a position that states nothing is
+         * the diagnostic - about a call that had the answer.
+         *
+         * The declared defaults are deliberately not run with it: `fillDeclaredDefaults` is what a
+         * position means when *nothing* says, and the result hint has not been read yet.
+         */
+        if(turn == 2 && typeArguments.any()) typeArguments.fillFromRequirements(source);
+
+        index = first;
+        auto which = Size(0);
+
+        for(auto argument: written.args.contents(parse)) {
+            auto position = map.position(index++);
+            if(turns[which++] != turn) continue;
+
+            if(!resolveOne(argument, position)) return false;
+        }
+    }
+
+    if(!widenPreparedArguments(builder, callee, map, source, into, typeArguments)) return false;
+
     return fillDefaultArguments(builder, callee, map, source, into);
+}
+
+/*
+ * The widening a **later** argument decided, applied to the ones already prepared.
+ *
+ * `TypeArguments::bind` unifies two positions at one variable to their `Widen` upper bound, so
+ * `checkAtMost(shown(x), bound(x))` at `(Size, Int)` binds `Size` from the second argument after the
+ * first has already been coerced into `Int`, and `valueOf(e) == want` at `(I32, I64)` does the same
+ * to an operator's left operand. The walk resolves one position at a time by design - a position is
+ * decided before its argument offers an answer, which is what a functional dependency needs - so the
+ * only place an earlier argument can be brought up to the answer is here, once the walk is over.
+ *
+ * **Integers only, and only where the two differ**, which is what keeps this from being a second
+ * conversion pass: a widening between two integer widths is a `cast` with nothing to observe about
+ * when it runs, and every other way a value's type can differ from its position's - a view adapted
+ * from a container, a borrow of the declared type - was settled by `prepareArgument` and must not be
+ * reconsidered here. A `@lazy` position holds a thunk and is left alone for the same reason.
+ *
+ * Called from the three walks that prepare a call's positions - the written one above, the
+ * overloaded one in `resolve_overload.cpp` and the operator chain - each immediately before
+ * `fillDefaultArguments`, which is the point at which every written position is in hand.
+ */
+bool Resolver::widenPreparedArguments(Builder& builder, Function& callee, const ArgMap& map,
+                                      LocationId source, SmallArray<Node*, 8>& into,
+                                      TypeArguments& typeArguments) {
+    if(!typeArguments.any() || !typeArguments.widened) return true;
+
+    for(U32 position = 0; position < map.count(); position++) {
+        if(!into[position]) continue;
+
+        auto& parameter = *decl()[callee.args.get(decl(), position)];
+        if(parameter.lazy) continue;
+
+        auto held = valueType(*into[position]);
+        auto expected = typeArguments.expected(parameter.occurrence.type);
+
+        if(!held || !expected || sameType(held, expected)) continue;
+        if(decl()[held]->kind != Type::Int || decl()[expected]->kind != Type::Int) continue;
+
+        auto widened = coerce(builder, *into[position], expected, source, "an argument"_v,
+                              parameter.occurrence.contract.access());
+        if(!widened) return false;
+
+        into[position] = widened;
+    }
+
+    return true;
 }
 
 /*
@@ -3134,6 +5090,10 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
  * the one shape the marker promises does not arrive. `defaultThunk` is where the rest of that is
  * argued.
  *
+ * A `@caller` position is the same walk over a value this call built rather than over a constant
+ * the declaration wrote - see `callerFillValue`, and `Arg::omittable`, which is why the two arrive
+ * here through one path at all.
+ *
  * Its own function because both call paths end in it - the ordinary one above and the overloaded one
  * in `resolve_overload.cpp` - and what a position left out means is a property of the callee rather
  * than of how the callee was chosen.
@@ -3145,8 +5105,35 @@ bool Resolver::fillDefaultArguments(Builder& builder, Function& callee, const Ar
 
         auto& parameter = *decl()[callee.args.get(decl(), position)];
 
-        auto value = parameter.lazy ? defaultThunk(builder, callee, parameter, source)
-                                    : constantValue(builder, parameter.def, source);
+        /*
+         * A `@caller` position, whose value is built from *this* call's syntax rather than from a
+         * constant the declaration wrote - `callerFillValue`, and the only difference between the
+         * two ways a position gets filled. What follows is the line a written default goes through.
+         */
+        Node* value = nullptr;
+
+        if(parameter.caller.isCallerFilled()) {
+            value = callerFillValue(builder, parameter, map, source);
+
+            /*
+             * And the one adaptation a written argument gets and a constant does not need: what the
+             * fill produces is an **owner** - `Site` holds two of them, and a text fill *is* one -
+             * where a shared position of a viewed type manifests as the view. A `@caller` position
+             * is concrete by construction (`declareCallerFill` admits a record or the text type and
+             * nothing else), so the position it is adapted to is the declared occurrence itself and
+             * there is no binding for it to take part in.
+             *
+             * The rest of `prepareArgument` is deliberately not run here. A default is a constant
+             * that must not decide a generic position - see `fillFromRequirements` - and running
+             * the whole of it for one of the two fills would make that rule depend on which.
+             */
+            if(value) value = adaptToView(builder, *value, parameter.occurrence, source);
+        } else if(parameter.lazy) {
+            value = defaultThunk(builder, callee, parameter, source);
+        } else {
+            value = constantValue(builder, parameter.def, source);
+        }
+
         if(!value) return false;
 
         into[position] = holdBorrowed(builder, *value, requestOf(parameter.occurrence),
@@ -3158,17 +5145,31 @@ bool Resolver::fillDefaultArguments(Builder& builder, Function& callee, const Ar
 
 bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& site,
                             ArgMap& into) {
+    // The leading positions are filled before the walk starts, because they were written before the
+    // name - see `ArgSite::leading`. A site whose declared positions do not reach them is one the
+    // arity lookup already excluded, and answering false is what keeps that a candidate filter
+    // rather than an assertion.
+    if(site.count < site.leading) return false;
+
     for(U32 i = 0; i < site.count; i++) into.sources.push(ArgMap::kOmitted);
+    for(U32 i = 0; i < site.count; i++) into.written.push(kNullLocation);
+    for(U32 i = 0; i < site.leading; i++) into.sources[i] = i;
+
+    // The receiver of a dot-call, which is written before the list this walks - `ArgSite::leading`.
+    // One position, since that is all a receiver ever is, and null where the site has none.
+    for(U32 i = 0; i < site.leading; i++) into.written[i] = site.leadingSource;
+
+    for(U32 i = 0; i < site.leading; i++) into.positions.push(i);
     for(Size i = 0; i < written.size(); i++) into.positions.push(ArgMap::kOmitted);
 
     auto ok = true;
 
     // The next position a *positional* argument fills, and whether a named one has been seen. The
     // two together are the whole of the ordering rule below.
-    auto position = U32(0);
+    auto position = site.leading;
     auto anyNamed = false;
 
-    auto index = U32(0);
+    auto index = site.leading;
     for(auto argument: written.contents(parse)) {
         auto at = index++;
 
@@ -3204,12 +5205,13 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
                 if(site.report) {
                     context.diagnostics.error("%@ takes %@ %@ but was given %@"_v, site.source,
                                               context.findName(site.subject), U64(site.count),
-                                              site.many, U64(written.size()));
+                                              site.many, U64(site.leading + written.size()));
                 }
                 return false;
             }
 
             into.positions[at] = position;
+            into.written[position] = argument.value.source;
             into.sources[position++] = at;
             continue;
         }
@@ -3248,6 +5250,7 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
         }
 
         into.positions[at] = found;
+        into.written[found] = argument.value.source;
         into.sources[found] = at;
     }
 
@@ -3294,13 +5297,21 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
  * anywhere else has nothing to be. Naming both spellings is the whole of this diagnostic - the
  * scoped one, and the flat one whose extent is the rest of the statement's own block.
  */
-bool Resolver::checkCallable(Function& callee, LocationId source) {
+bool Resolver::checkCallable(Function& callee, LocationId source, bool traversal) {
+    // **An inferred result, demanded here.** A call reads the callee's result, so this is the point
+    // at which "the body decides it" has to have happened - and it is the point at which a recursive
+    // one is the call that closed the cycle. See `requireResult`.
+    if(!requireResult(callee, source)) return false;
+
     if(!callee.summary.bodyKnown && !callee.klass && callee.intrinsic == intrinsic::Op::Count) {
         unsupported(source, "calling a function with no body"_v);
         return false;
     }
 
-    if(callee.lens) {
+    // ... and not where the *position* is the continuation, which is the one place a lens is exactly
+    // what was wanted: a `for` selects among the iterators of a name (`CandidateKind::Iterator`) and
+    // then hands the winner the loop body. Everything above it is asked there too.
+    if(callee.lens && !traversal) {
         context.diagnostics.error(
             "%@ is a lens, so it needs a continuation - write `%@(...):` with a block under it, or "
             "`let x = %@(...)` where what it hands over is used"_v,
@@ -3323,11 +5334,11 @@ bool Resolver::checkCallable(Function& callee, LocationId source) {
  * continuation is the desugaring's own parameter and no call site fills it.
  */
 bool Resolver::checkCallShape(ast::AppExpr& written, Function& callee, LocationId source,
-                              ArgMap& into, bool report) {
+                              ArgMap& into, bool report, U32 leading, LocationId leadingSource) {
     SmallArray<ArgPosition, 8> parameters;
     for(U32 i = 0; i < callee.writtenArity(); i++) {
         auto& parameter = *decl()[callee.args.get(decl(), i)];
-        parameters.push(ArgPosition { parameter.name, parameter.def.isSet() });
+        parameters.push(ArgPosition { parameter.name, parameter.omittable() });
     }
 
     ArgSite site;
@@ -3338,6 +5349,8 @@ bool Resolver::checkCallShape(ast::AppExpr& written, Function& callee, LocationI
     site.many = "arguments"_v;
     site.source = source;
     site.report = report;
+    site.leading = leading;
+    site.leadingSource = leadingSource;
 
     return mapArguments(written.args, site, into);
 }
@@ -3597,10 +5610,82 @@ bool Resolver::splitsAtConjunction(Chain& chain) {
     return found;
 }
 
+/*
+ * Whether a value this candidate answers could fill the position - the **result** half of R2.
+ *
+ * Two questions and neither is the other: `matchType` asks whether the declared result could *be*
+ * the position under some binding of the candidate's own variables, which is what admits `Num.+`'s
+ * `a` at an `Int`; `acceptsType` asks whether a value of a decided result converts into it, which is
+ * what admits an `I32` answer at an `I64` position. `Native`'s `+(p: %a, n: Size) -> %a` answers
+ * neither - no binding of `a` makes `%a` an integer - which is the whole of what this rules out.
+ *
+ * Reported nothing and binds nothing: the array is scratch, so a candidate this admits still solves
+ * its signature from the arguments in the ordinary way.
+ */
+static bool resultCouldFill(Resolver& resolver, DeclPtr<Function> candidate, DeclPtr<Type> wanted,
+                            LocationId source) {
+    auto base = resolver.decl();
+    auto& declared = *base[candidate];
+
+    SmallArray<DeclPtr<Type>, 4> scratch;
+    if(declared.gen) {
+        for(Size i = 0; i < base[declared.gen]->variables.size(); i++) scratch.push(nullptr);
+    }
+
+    if(matchType(base, resolver.program.types, declared.gen, scratch, declared.result.type,
+                 wanted)) {
+        return true;
+    }
+
+    return resolver.acceptsType(declared.result.type, wanted, source);
+}
+
 Node* Resolver::resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
                              Request wanted) {
     Chain chain;
     if(!flattenChain(expr, chain)) return nullptr;
+
+    /*
+     * One operator whose set has something to choose between, narrowed by what the **position**
+     * asks for - `doc/progress/2026-09-07-J21-retire-prelude.md`'s third finding.
+     *
+     * `import Native` puts the pointer `+` in the same set as `Num`'s, and
+     * `fn add(a: I64, b: I64) -> Int = truncate(a) + truncate(b)` then reported "no argument decides
+     * what `b` is": with something to choose between, both operands are resolved on their own, and
+     * `truncate`'s result is exactly what has nothing of its own to be. A candidate whose result
+     * cannot fill the position was never a candidate, and removing it leaves one - which is R5's
+     * "only where the plain function is the whole overload set" reached by subtraction rather than
+     * by ranking.
+     *
+     * **One operator, and that is the bound rather than a first step.** The hint is what the
+     * *chain's* value fills, and only a chain of one has an operator whose result is that value:
+     * `p + n * 4` at a `%U8` says nothing about what `*` answers, and a heterogeneous operator is
+     * precisely the kind this narrowing is about. Where the chain is longer the loop below is what
+     * decides whether the hint travels at all, unchanged.
+     */
+    if(hint && chain.operators.size() == 1 && !chain.operators[0].callee) {
+        auto& op = chain.operators[0];
+
+        DeclPtr<Function> only = nullptr;
+        auto viable = Size(0);
+
+        for(Size i = 0; i < op.set.size(); i++) {
+            if(!resultCouldFill(*this, op.set.at(i), hint, expr.source)) continue;
+
+            only = op.set.at(i);
+            viable++;
+        }
+
+        // Nothing viable is left alone: the ordinary path reports what it reports, and a narrowing
+        // that removed every candidate has said nothing an author could act on.
+        if(viable == 1) {
+            auto& function = *decl()[only];
+            op.callee = only;
+            op.form = function.intrinsic == intrinsic::Op::truthAnd ? OperatorForm::ShortAnd
+                    : function.intrinsic == intrinsic::Op::truthOr  ? OperatorForm::ShortOr
+                                                                    : OperatorForm::Call;
+        }
+    }
 
     /*
      * Whether the position's own type says anything about the chain's **leftmost operand**, which
@@ -3683,6 +5768,10 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
     Request operands[2] = { outer, outer };
     auto overloaded = false;
 
+    // Whether the sole callee's left parameter is a position only the other operand can decide -
+    // the second half of the deferral rule below.
+    auto openLeft = false;
+
     if(operatorIndex < chain.operators.size() &&
        chain.operators[operatorIndex].precedence >= minimumPrecedence &&
        chain.operators[operatorIndex].form == OperatorForm::Call) {
@@ -3690,7 +5779,10 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
 
         if(op.callee) {
             auto& callee = *decl()[op.callee];
-            wanted = requestOf(decl()[callee.args.get(decl(), 0)]->occurrence);
+            auto& left = *decl()[callee.args.get(decl(), 0)];
+
+            wanted = requestOf(left.occurrence);
+            openLeft = !isConcreteType(decl(), left.occurrence.type);
         } else {
             if(!operatorRequests(op.set, op.name, 2, chain.sources[operatorIndex], operands)) {
                 return nullptr;
@@ -3707,9 +5799,46 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
      * A hint is the callee's parameter type read through the result, and which parameter that is is
      * exactly what selection has not decided yet. `resolveOverloadedCall` states the same rule for
      * the written form and for the same reason.
+     *
+     * An **undecided literal** operand is then not built at all - `undecidedLiteral`, where the rule
+     * is. `48 + rest` with no hint is built at `I32` and fits neither `Native`'s pointer `+` nor
+     * `Num.+`; left standing, it is what the *other* operand decides, and `selectOperatorCall`
+     * builds it at the position the winner declared. Only where the operator is overloaded: where
+     * the set has one callee its parameter type is known before the operand is, which is the
+     * ordinary push-down and needs none of this.
+     *
+     * A **sole callee whose left parameter is open** defers for the same reason and by the same
+     * mechanism - `0.5 + r` inside `fn (Real(a, m)) expSeries(r: a)`, and `1.0 / value` where
+     * `value` is a `Double`. There is one signature, so nothing about *selection* is waiting; what
+     * is waiting is the one thing that decides the position, which is the other operand. Built at
+     * the default it reported `there is no instance of FromDecimal(Bool)` and `an argument must be
+     * F32, and this is F64` against types the author never wrote, where `r + 0.5` beside it worked
+     * because the right operand takes the hint the left one bound.
+     *
+     * Sound because a number has no effects: when it is built is not observable, only what it is
+     * built at. What it costs is that the constant is emitted *after* the other operand in every
+     * body that writes one, which is the golden reordering
+     * `doc/progress/2026-09-06-J8-inference.md` measured and declined to pay before there was a
+     * library site that needed it.
+     *
+     * Only where nothing else decided it. A `hint` reaching this operand is the position's own type
+     * and is a better answer than either operand's; a concrete left parameter is the push-down that
+     * already works.
      */
-    auto lhs = resolveValue(builder, *chain.operands[operandIndex++], overloaded ? nullptr : hint,
-                            wanted);
+    ast::Expr* pending[2] = { nullptr, nullptr };
+    intrinsic::Known literals[2] = { intrinsic::Known::Count, intrinsic::Known::Count };
+
+    auto& leftOperand = *chain.operands[operandIndex++];
+    Node* lhs = nullptr;
+
+    auto defers = overloaded || (openLeft && !hint);
+
+    if(defers && undecidedLiteral(leftOperand, literals[0])) {
+        pending[0] = &leftOperand;
+    } else {
+        lhs = resolveValue(builder, leftOperand, overloaded ? nullptr : hint, wanted);
+        if(!lhs) return nullptr;
+    }
 
     while(operatorIndex < chain.operators.size() &&
           chain.operators[operatorIndex].precedence >= minimumPrecedence) {
@@ -3728,7 +5857,7 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
             continue;
         }
 
-        if(!lhs) return nullptr;
+        if(!lhs && !pending[0]) return nullptr;
 
         /*
          * The overloaded path: both operands resolved on their own, then one choice.
@@ -3740,14 +5869,36 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
         if(!op.callee) {
             HeldValue heldLeft(*this, lhs);
 
-            auto operand = climb(builder, chain, operandIndex, operatorIndex, next, nullptr,
-                                 operands[1]);
-            if(!operand) return nullptr;
+            /*
+             * The right operand, which is a *span* of the chain rather than one expression - so it
+             * is left for the selection to type only where the span is exactly one written literal.
+             * That is the case whenever the next operator binds looser than this rung, which is the
+             * same test the climb below would have used to stop.
+             */
+            auto loneRight = operandIndex < chain.operands.size() &&
+                             (operatorIndex >= chain.operators.size() ||
+                              chain.operators[operatorIndex].precedence < next);
+
+            Node* operand = nullptr;
+
+            if(loneRight && undecidedLiteral(*chain.operands[operandIndex], literals[1])) {
+                pending[1] = chain.operands[operandIndex++];
+            } else {
+                operand = climb(builder, chain, operandIndex, operatorIndex, next, nullptr,
+                                operands[1]);
+                if(!operand) return nullptr;
+            }
 
             Node* values[2] = { lhs, operand };
 
-            lhs = selectOperatorCall(builder, op.set, op.name, source, values, 2, hint);
+            lhs = selectOperatorCall(builder, op.set, op.name, source, values, 2, hint, pending,
+                                     literals);
             if(!lhs) return nullptr;
+
+            // What this operator left for the selection is spent. The next rung's left operand is
+            // the call above, which is a value.
+            pending[0] = pending[1] = nullptr;
+            literals[0] = literals[1] = intrinsic::Known::Count;
             continue;
         }
 
@@ -3771,26 +5922,91 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
         auto& right = *decl()[callee.args.get(decl(), map.position(1))];
 
         TypeArguments typeArguments(*this, callee.gen);
+        typeArguments.unifies = true;
 
         SmallArray<Node*, 8> arguments;
         for(U32 i = 0; i < map.count(); i++) arguments.push(nullptr);
 
         HeldList<SmallArray<Node*, 8>> held(*this, arguments);
 
-        auto prepared = prepareArgument(builder, *lhs, left, typeArguments, source);
-        if(!prepared) return nullptr;
+        if(lhs) {
+            auto prepared = prepareArgument(builder, *lhs, left, typeArguments, source);
+            if(!prepared) return nullptr;
 
-        arguments[map.position(0)] = prepared;
+            arguments[map.position(0)] = prepared;
+        }
 
-        auto rhs = climb(builder, chain, operandIndex, operatorIndex, next,
-                         typeArguments.hint(right.occurrence.type),
-                         requestOf(right.occurrence));
+        /*
+         * A **`@lazy` right operand** - `m ?? fallback`, which is the one infix declaration in
+         * `lib/Core` that defers a position and is not `&&` or `||`.
+         *
+         * The two are not one case: `&&` and `||` are `Flow` roles whose laziness *is* the branch
+         * `shortCircuit` builds, so they never arrive here. An ordinary operator with a deferred
+         * position wants what a written call's does - a thunk - and climbing the operand as a value
+         * hands a `T` to a position typed `() -> T`, which is what the diagnostic said.
+         *
+         * **Only where the operand is one written expression**, because that is the only place there
+         * is an AST node to lift: the right operand of a rung is a *span* of the chain, and a span
+         * that re-associates into a call has no expression anybody can point at. The parenthesis is
+         * the spelling that makes one, and the message says so - it is a real form and not a
+         * workaround, since `(a + b)` is a single operand of this chain by construction.
+         */
+        Node* rhs = nullptr;
+
+        if(right.lazy) {
+            // The same test the climb below stops on: the next operator binds looser, so this rung's
+            // right operand is exactly the operand standing here.
+            auto lone = operandIndex < chain.operands.size() &&
+                        (operatorIndex >= chain.operators.size() ||
+                         chain.operators[operatorIndex].precedence < next);
+
+            if(!lone) {
+                context.diagnostics.error(
+                    "%@ defers its right operand, and this writes an operator chain there - a deferred operand has to be one expression, so put it in brackets"_v,
+                    source, context.findName(callee.name));
+                return nullptr;
+            }
+
+            rhs = resolveDeferred(builder, *chain.operands[operandIndex++],
+                                  typeArguments.expected(right.occurrence.type));
+        } else {
+            rhs = climb(builder, chain, operandIndex, operatorIndex, next,
+                        typeArguments.hint(right.occurrence.type),
+                        requestOf(right.occurrence));
+        }
+
         if(!rhs) return nullptr;
 
         auto preparedRight = prepareArgument(builder, *rhs, right, typeArguments, source);
         if(!preparedRight) return nullptr;
 
         arguments[map.position(1)] = preparedRight;
+
+        /*
+         * And the left operand the peek left standing, now that the right one has bound its
+         * position - the deferral above, spent.
+         *
+         * `typeArguments.hint` and not the declared type: what the literal is built at is what the
+         * *other* operand decided the parameter to be, which is the whole point of waiting.
+         */
+        if(pending[0]) {
+            auto built = resolveValue(builder, *pending[0],
+                                      typeArguments.hint(left.occurrence.type), wanted);
+            if(!built) return nullptr;
+
+            auto preparedLeft = prepareArgument(builder, *built, left, typeArguments, source);
+            if(!preparedLeft) return nullptr;
+
+            arguments[map.position(0)] = preparedLeft;
+
+            // Spent: the next rung's left operand is this call, which is a value.
+            pending[0] = nullptr;
+            literals[0] = intrinsic::Known::Count;
+        }
+
+        if(!widenPreparedArguments(builder, callee, map, source, arguments, typeArguments)) {
+            return nullptr;
+        }
 
         if(!fillDefaultArguments(builder, callee, map, source, arguments)) return nullptr;
 
@@ -3894,17 +6110,17 @@ Node* Resolver::constantBool(Builder& builder, LocationId source, bool value) {
 }
 
 // See the declaration, where the difference between `merged` and a null `value` is argued.
-void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, bool merged,
+bool Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, bool merged,
                         LocationId source, Carry& carry, const Node* const* carried) {
     builder.setBlock(end);
-    if(builder.isTerminated()) return;
+    if(builder.isTerminated()) return false;
 
     if(merged && !value) {
         // The alternative produced no value and did not leave, which only happens after a
         // diagnostic. `unreachable` rather than a jump, because a merge it entered would need a
         // parameter it has nothing to supply.
         builder.addUnreachable(source);
-        return;
+        return false;
     }
 
     SmallArray<Operand, 8> arguments;
@@ -3930,6 +6146,7 @@ void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, 
     carry.edge(builder, carried, arguments);
 
     builder.addJump(source, join, arguments.pointer(), arguments.size());
+    return true;
 }
 
 // See the declaration. Everything here is a statement about *one* occurrence being the merge's, and
@@ -3998,6 +6215,77 @@ Node* Resolver::resolveArm(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint
     return resolveValue(builder, expr, hint, wanted);
 }
 
+/*
+ * Analysis-Borrows.md §2.5's arm join, in the one shape it is built for - see the declaration.
+ *
+ * An **owned** alternative beside a call-bounded loan is the pair `lib/Test/Harness.native.yana`
+ * writes, and it is the one a reader would not expect to be a question:
+ *
+ *     let directory = match variable("TMPDIR"):
+ *         Just(->named) -> named
+ *         Nothing -> "/tmp"
+ *
+ * `named` names storage that already exists and the literal produces some, which is
+ * `doc/spec/ownership.md`'s two initializer kinds arriving at one binding. The join is the
+ * **weaker** of them: the frame keeps the produced value in a temporary and the merge borrows it,
+ * so what `directory` is worth is a loan over the union of both arms' origins and neither arm has
+ * claimed anything it did not have. Weakening upward instead - copying the loan so the merge owns
+ * one - is the allocation this language makes a program say out loud (`Copy`, `++`), and inserting
+ * it at a merge would be the one place it happened silently.
+ *
+ * `holdBorrowed` is the whole of the edge, because it is already the rule for the same situation
+ * one construct down: a produced value filling a borrowing position gets a frame slot and the
+ * position reads a borrow of it. Emitted in the alternative's **own** block for `mergeArms`'
+ * reason - the jump into the merge supplies the merge's occurrence, so anything that changes it has
+ * to stand before the jump.
+ *
+ * What is deliberately *not* joined is two loans that disagree. A published origin weakened to a
+ * call-bounded one, or an exclusive loan weakened to a shared one, changes what the merge is
+ * carrying rather than where it came from - there is no `Read` of a value, only of a place - and the
+ * refusal below is a better report than a merge quietly holding one arm's contract. A `TrivialCopy`
+ * type never reaches either case: `promisesTrivialCopy` has already made every arm owned.
+ */
+void Resolver::joinArmLoans(Builder& builder, SmallArray<Block*, 8>& ends,
+                            SmallArray<Node*, 8>& values, DeclPtr<Type> merged,
+                            LocationId source) {
+    Contract loan;
+    auto lends = false;
+    auto owns = false;
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(!values[i]) continue;
+
+        auto contract = valueOccurrence(*values[i]).contract;
+        if(contract.isOwned()) { owns = true; continue; }
+
+        // Only where every lending alternative already agrees, and only a loan the call bounds.
+        // Both are the "not joined" case above, and reporting them is `mergeArms`'.
+        if(contract.origin() != Origin::CallBounded) return;
+        if(lends && contract != loan) return;
+
+        loan = contract;
+        lends = true;
+    }
+
+    if(!owns || !lends) return;
+
+    auto standing = builder.currentBlock();
+
+    Request wanted;
+    wanted.access = loan.access();
+    wanted.form = loan.form();
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(!values[i] || !valueOccurrence(*values[i]).contract.isOwned()) continue;
+
+        builder.setBlock(*ends[i]);
+        values[i] = holdBorrowed(builder, *values[i], wanted, merged, source);
+        ends[i] = builder.currentBlock();
+    }
+
+    if(standing) builder.setBlock(*standing);
+}
+
 Node* Resolver::mergeArms(Builder& builder, Block& join, SmallArray<Block*, 8>& ends,
                           SmallArray<Node*, 8>& values, LocationId source) {
     /*
@@ -4057,6 +6345,9 @@ Node* Resolver::mergeArms(Builder& builder, Block& join, SmallArray<Block*, 8>& 
 
     if(standing) builder.setBlock(*standing);
 
+    // §2.5's join, in the one shape it is built for - see the definition.
+    joinArmLoans(builder, ends, values, merged, source);
+
     Node* first = nullptr;
 
     for(Size i = 0; i < values.size(); i++) {
@@ -4083,6 +6374,13 @@ Node* Resolver::mergeArms(Builder& builder, Block& join, SmallArray<Block*, 8>& 
          * edge*, which is a node this milestone has no reason to have anywhere else. Refusing is the
          * honest report until it does; accepting and handing the merge one arm's contract is the
          * silent version of the same gap.
+         *
+         * The three `lib/Core` bodies that reported it were **not** it. Each had one arm holding a
+         * borrowed parameter of a `TrivialCopy`-constrained variable and the other an arithmetic
+         * result, and the copy upgrade - `promisesTrivialCopy` in type.cpp - makes both arms owned,
+         * so there is nothing left to weaken. What still reaches here is an owned arm beside a
+         * genuine loan and two loans of different origins, and nothing in `lib/` writes either;
+         * whichever caller arrives first is what the reborrow should be designed against.
          */
         if(answered.contract != expected.contract) {
             context.diagnostics.error(
@@ -4283,6 +6581,12 @@ Node* Resolver::resolveMultiIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> 
 Node* Resolver::resolveBlock(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                              Request wanted) {
     auto scope = bindings.size();
+
+    // A lens call written inside a statement, lifted in front of it - `hoistBlockLenses`. Before the
+    // list is read, so that everything below sees the rewritten block and nothing has to know a
+    // rewrite happened; the extent scan included, since an extent is a slice of this same list.
+    hoistBlockLenses(expr);
+
     auto statements = expr.multi;
 
     // The walk itself is `resolveStatements`, because a block is not the only run of statements

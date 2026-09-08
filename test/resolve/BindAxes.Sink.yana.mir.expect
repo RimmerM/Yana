@@ -1,12 +1,12 @@
 module ResolveTest
 
-let string: [CodeUnit *3] = [97, 98, 99]
+let string'142: [CodeUnit *3] = [97, 98, 99]
 
-let string'2: [CodeUnit *4] = [119, 120, 121, 122]
+let string'143: [CodeUnit *4] = [119, 120, 121, 122]
 
-let string'3: [CodeUnit *1] = [122]
+let string'144: [CodeUnit *1] = [122]
 
-let string'4: [CodeUnit *1] = [113]
+let string'145: [CodeUnit *1] = [113]
 
 fn rebuilt(seed: String) -> String {
   local & acc: String object0
@@ -15,10 +15,10 @@ bb0:
   %0: String = read take (seed)
   write.init borrow.unique (acc) take %0
   drop (acc)
-  %2: [CodeUnit *3] [shared slot 0] = read borrow.shared (global string) loan0
-  %3: %[CodeUnit *3] [owned here shape1 .*=shared slot 0] = address inspect %2 roots.0{0}
-  %4: %CodeUnit = bitcast inspect %3
-  %5: Size = const 3
+  %2: [CodeUnit *3] [shared slot 0] = read borrow.shared (global string'142) loan0
+  %3: %[CodeUnit *3] [owned here shape6 .*=shared slot 0] = address inspect %2 roots.0{0}
+  %4: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %3 roots.0{0}
+  %5: I32 = const 3
   %6: String = call stringLiteral borrow.shared %4 borrow.shared %5
   write.reinit borrow.unique (acc) take %6
   %8: String = read take (acc)
@@ -32,10 +32,10 @@ bb0:
   %0: String = read take (seed)
   write.init borrow.unique (acc) take %0
   drop (acc)
-  %2: [CodeUnit *4] [shared slot 0] = read borrow.shared (global string'2) loan0
-  %3: %[CodeUnit *4] [owned here shape1 .*=shared slot 0] = address inspect %2 roots.0{0}
-  %4: %CodeUnit = bitcast inspect %3
-  %5: Size = const 4
+  %2: [CodeUnit *4] [shared slot 0] = read borrow.shared (global string'143) loan0
+  %3: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] = address inspect %2 roots.0{0}
+  %4: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %3 roots.0{0}
+  %5: I32 = const 4
   %6: String = call stringLiteral borrow.shared %4 borrow.shared %5
   write.reinit borrow.unique (acc) take %6
   %8: String [shared call] = read borrow.shared (acc) loan1
@@ -49,10 +49,10 @@ fn main() -> I32 {
   local local0: String
 
 bb0:
-  %0: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'3) loan0
-  %1: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
-  %2: %CodeUnit = bitcast inspect %1
-  %3: Size = const 1
+  %0: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'144) loan0
+  %1: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %1 roots.0{0}
+  %3: I32 = const 1
   %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
   %5: String = call rebuilt take %4
   write.init borrow.unique (local0) take %5
@@ -60,10 +60,10 @@ bb0:
   %8: String [shared slot 0 view] = call.derivation view(String) borrow.shared %7 roots{1}
   %9: Size = call length(String) borrow.shared %8
   drop (local0)
-  %10: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'4) loan2
-  %11: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] = address inspect %10 roots.0{2}
-  %12: %CodeUnit = bitcast inspect %11
-  %13: Size = const 1
+  %10: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'145) loan2
+  %11: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] = address inspect %10 roots.0{2}
+  %12: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %11 roots.0{2}
+  %13: I32 = const 1
   %14: String = call stringLiteral borrow.shared %12 borrow.shared %13
   %15: Size = call scoped take %14
   %16: Size = add inspect %9 inspect %15

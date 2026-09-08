@@ -1,0 +1,26 @@
+{-
+   Why the take-out-and-put-back rule is narrower than "an exclusive loan".
+
+   # resolver: ownership
+
+   `let &d = c` re-lends storage this frame is *also* tracking, under `c`'s own move path. A take
+   through the alias would empty one place while the other still said it held a value - two answers
+   to one question, which is the arrangement this stage exists to not have - and the hole would then
+   be observable from `c` between the two, where a `&` parameter's lender is the caller and holds the
+   argument exclusively for the length of the call.
+
+   Refused here rather than in `Reject.BorrowRefill.yana` because resolution stops before the
+   analysis runs, and a fixture holding both would only ever report one of them.
+
+   The fix is the one the language already has: `->c` names the value the author meant to move.
+-}
+
+fn eat(->s: String) -> Int = truncate(length(s)) :: Int
+
+fn aliased(->owned: String) -> Int:
+    let &d = owned
+    let n = eat(d)
+    d = "put back"
+    return n
+
+fn main() -> Int = 0

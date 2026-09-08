@@ -308,12 +308,12 @@ bb7:
   jump -> bb8
 
 bb8:
-  %40: F32 = const 1
-  %41: Vec(F32) = read copy.trivial (zeros)
-  %42: Vec(F32) = abs inspect %41
-  %43: I32 = const 0
-  %44: F32 = vec.lane #0 inspect %42
-  %45: F32 = div inspect %40 inspect %44
+  %40: Vec(F32) = read copy.trivial (zeros)
+  %41: Vec(F32) = abs inspect %40
+  %42: I32 = const 0
+  %43: F32 = vec.lane #0 inspect %41
+  %44: F32 = const 1
+  %45: F32 = div inspect %44 inspect %43
   %46: F32 = const 0
   %47: Bool = lt inspect %45 inspect %46
   branch inspect %47 -> bb12 -> bb10
@@ -361,7 +361,7 @@ bb0:
   %15: Vec(I32) = read copy.trivial (backwards)
   %16: I32 = const 0
   %17: I32 = vec.lane #0 inspect %15
-  %18: I32 = read copy.trivial (width)
+  %18: I32 = const 4
   %19: I32 = const 1
   %20: I32 = sub inspect %18 inspect %19
   %21: Bool = ne inspect %17 inspect %20
@@ -374,7 +374,7 @@ bb2:
   %26: Vec(I32) = read copy.trivial (backwards)
   %27: I32 = const 1
   %28: I32 = vec.lane #1 inspect %26
-  %29: I32 = read copy.trivial (width)
+  %29: I32 = const 4
   %30: I32 = const 2
   %31: I32 = sub inspect %29 inspect %30
   %32: Bool = ne inspect %28 inspect %31
@@ -410,7 +410,7 @@ bb8:
   %50: Vec(I32) = vec.shuffle [3, 0, 1, 2] inspect %48 inspect %48
   %51: I32 = const 0
   %52: I32 = vec.lane #0 inspect %50
-  %53: I32 = read copy.trivial (width)
+  %53: I32 = const 4
   %54: I32 = const 1
   %55: I32 = sub inspect %53 inspect %54
   %56: Bool = ne inspect %52 inspect %55
@@ -468,7 +468,7 @@ bb17:
   %90: Vec(I32) = read copy.trivial (high)
   %91: I32 = const 0
   %92: I32 = vec.lane #0 inspect %90
-  %93: I32 = read copy.trivial (width)
+  %93: I32 = const 4
   %94: I32 = const 2
   %95: I32 = div inspect %93 inspect %94
   %96: Bool = ne inspect %92 inspect %95

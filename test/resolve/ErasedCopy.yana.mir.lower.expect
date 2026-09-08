@@ -1,0 +1,127 @@
+mut @copyCalls = [0, 0, 0, 0]
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 36, 4: Ptr
+    %v_2 = alloca 36, 4: Ptr
+    jmp b_3
+  }
+
+  b_3 {
+    store %v_1, 10, 4
+    %v_4 = add %v_1, 4: Ptr
+    store %v_4, 20, 4
+    %v_5 = add %v_1, 8: Ptr
+    store %v_5, 30, 4
+    %v_6 = add %v_1, 12: Ptr
+    store %v_6, 40, 4
+    %v_7 = add %v_1, 16: Ptr
+    store %v_7, 1, 4
+    %v_8 = add %v_1, 20: Ptr
+    store %v_8, 2, 4
+    %v_9 = add %v_1, 24: Ptr
+    store %v_9, 3, 4
+    %v_10 = add %v_1, 28: Ptr
+    store %v_10, 4, 4
+    %v_11 = add %v_1, 32: Ptr
+    store %v_11, 5, 4
+    %v_12 = alloca 36, 4: Ptr
+    setpattern %v_12, 16, 0
+    %v_13 = add %v_12, 16: Ptr
+    store %v_13, 0, 4
+    %v_14 = add %v_12, 20: Ptr
+    store %v_14, 0, 4
+    %v_15 = add %v_12, 24: Ptr
+    store %v_15, 0, 4
+    %v_16 = add %v_12, 28: Ptr
+    store %v_16, 0, 4
+    %v_17 = add %v_12, 32: Ptr
+    store %v_17, 0, 4
+    copy %v_2, %v_12, 36
+    %v_18 = alloca 36, 4: Ptr
+    copy %v_18, %v_1, 36
+    copy %v_2, %v_18, 36
+    %v_19 = loads %v_2, 4: I32
+    %v_20 = cmp_neq %v_19, 10: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    %v_23 = add %v_2, 12: Ptr
+    %v_24 = loads %v_23, 4: I32
+    %v_25 = cmp_neq %v_24, 40: I32
+    je %v_25, b_26, b_27
+  }
+
+  b_21 {
+    ret 18446744073709551613
+  }
+
+  b_27 {
+    %v_28 = add %v_2, 24: Ptr
+    %v_29 = loads %v_28, 4: I32
+    %v_30 = cmp_neq %v_29, 3: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_26 {
+    ret 18446744073709551612
+  }
+
+  b_32 {
+    %v_33 = add %v_2, 32: Ptr
+    %v_34 = loads %v_33, 4: I32
+    %v_35 = cmp_neq %v_34, 5: I32
+    je %v_35, b_36, b_37
+  }
+
+  b_31 {
+    ret 18446744073709551611
+  }
+
+  b_37 {
+    store %v_2, 99, 4
+    store %v_28, 99, 4
+    %v_38 = loads %v_1, 4: I32
+    %v_39 = cmp_neq %v_38, 10: I32
+    je %v_39, b_40, b_41
+  }
+
+  b_36 {
+    ret 18446744073709551610
+  }
+
+  b_41 {
+    %v_42 = loads %v_9, 4: I32
+    %v_43 = cmp_neq %v_42, 3: I32
+    je %v_43, b_44, b_45
+  }
+
+  b_40 {
+    ret 18446744073709551609
+  }
+
+  b_45 {
+    %v_46 = loads @copyCalls, 4: I32
+    %v_47 = add %v_46, 1: I32
+    store @copyCalls, %v_47, 4
+    %v_48 = loads @copyCalls, 4: I32
+    %v_49 = cmp_neq %v_48, 1: I32
+    je %v_49, b_50, b_51
+  }
+
+  b_44 {
+    ret 18446744073709551608
+  }
+
+  b_51 {
+    %v_52 = loads @copyCalls, 4: I32
+    %v_53 = add 24, %v_52: I32
+    ret %v_53
+  }
+
+  b_50 {
+    ret 18446744073709551614
+  }
+}
+

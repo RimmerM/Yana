@@ -1,0 +1,156 @@
+module ResolveTest
+
+let nowhere: %I32 = 0
+
+fn guarded(p: %I32 [shared call]) -> I32 {
+bb0:
+  %0: %I32 = read copy.trivial (p)
+  %1: Bool = call isNull(I32) borrow.shared %0
+  %2: Bool = not inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %11: I32 = const 0
+  jump -> bb2(take %11)
+
+bb2(%12: I32):
+  return take %12
+
+bb3:
+  %4: %I32 = read copy.trivial (p)
+  %5: I32 = read copy.trivial ([%%4])
+  %6: I32 = const 0
+  %7: Bool = gt inspect %5 inspect %6
+  branch inspect %7 -> bb4 -> bb1
+
+bb4:
+  %9: %I32 = read copy.trivial (p)
+  %10: I32 = read copy.trivial ([%%9])
+  jump -> bb2(take %10)
+}
+
+fn defaulted(p: %I32 [shared call]) -> I32 {
+bb0:
+  %0: %I32 = read copy.trivial (p)
+  %1: Bool = call isNull(I32) borrow.shared %0
+  branch inspect %1 -> bb3 -> bb1
+
+bb1:
+  %4: %I32 = read copy.trivial (p)
+  %5: I32 = read copy.trivial ([%%4])
+  %6: I32 = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  jump -> bb2(take %7)
+
+bb2(%8: Bool):
+  branch inspect %8 -> bb6 -> bb4
+
+bb3:
+  %3: Bool = const True
+  jump -> bb2(take %3)
+
+bb4:
+  %13: %I32 = read copy.trivial (p)
+  %14: I32 = read copy.trivial ([%%13])
+  jump -> bb5(take %14)
+
+bb5(%15: I32):
+  return take %15
+
+bb6:
+  %12: I32 = const -1
+  jump -> bb5(take %12)
+}
+
+fn main() -> I32 {
+  local & score: I32
+  local slot: I32
+  local p: %I32 [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: %I32 = const 0
+  %3: I32 = call guarded borrow.shared %2
+  %4: I32 = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: %I32 = const 0
+  %14: I32 = call defaulted borrow.shared %13
+  %15: I32 = const -1
+  %16: Bool = eq inspect %14 inspect %15
+  branch inspect %16 -> bb6 -> bb4
+
+bb3:
+  %7: I32 = read copy.trivial (score)
+  %8: I32 = const 1
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (score) take %9
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %24: I32 = const 41
+  write.init borrow.unique (slot) take %24
+  %26: I32 [shared slot 0] = read borrow.shared (slot) loan0
+  %27: %I32 [owned here shape6 .*=shared slot 0] = address inspect %26 roots.0{0}
+  write.init borrow.unique (p) take %27
+  %29: %I32 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %30: %I32 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %31: I32 = read copy.trivial ([%%30])
+  %32: I32 = const 1
+  %33: I32 = add inspect %31 inspect %32
+  write.assign borrow.unique ([%%29]) take %33
+  %35: %I32 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %36: I32 = call guarded borrow.shared %35
+  %37: I32 = const 42
+  %38: Bool = eq inspect %36 inspect %37
+  branch inspect %38 -> bb9 -> bb7
+
+bb6:
+  %18: I32 = read copy.trivial (score)
+  %19: I32 = const 2
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (score) take %20
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %46: %I32 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %47: I32 = call defaulted borrow.shared %46
+  %48: I32 = const 42
+  %49: Bool = eq inspect %47 inspect %48
+  branch inspect %49 -> bb12 -> bb10
+
+bb9:
+  %40: I32 = read copy.trivial (score)
+  %41: I32 = const 4
+  %42: I32 = add inspect %40 inspect %41
+  write.assign borrow.unique (score) take %42
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %57: I32 = read copy.trivial (score)
+  return take %57
+
+bb12:
+  %51: I32 = read copy.trivial (score)
+  %52: I32 = const 8
+  %53: I32 = add inspect %51 inspect %52
+  write.assign borrow.unique (score) take %53
+  jump -> bb11
+}
+
+entry main

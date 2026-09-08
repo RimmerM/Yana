@@ -79,6 +79,16 @@ pub let &heapFree = 0 :: %(%U8)
 -- never maps more than the first 4 MiB.
 pub let &heapRegionNext = 0 :: Size
 
+{-
+   The first region, mapped once in the life of a program.
+
+   `@noinline` for the reason `growHeap` below carries, and it is the same reason: this runs once and
+   `allocateHeap` runs at every allocation, so a body moved into that one lengthens the bump-pointer
+   path it is a detour from. Both have a single caller, which is exactly the term that would
+   otherwise take them - a body with one caller is one the inliner moves rather than copies, and
+   moving is free of code size and not free of anything else.
+-}
+@noinline
 fn initHeap():
     let region = mapMemory(heapRegionSize + pageBytes)
     if isNull(region) then return
@@ -109,7 +119,17 @@ fn initHeap():
    already taken a gigabyte asks the kernel for two before it asks for the sixteen bytes it wanted,
    and being told no to the first is not being told no to the second. The retry is skipped when the
    two sizes are the same request, so an ordinary refusal still costs one syscall.
+
+   **`@noinline`, and it is what the split is for.** This is the slow half of `allocateHeap` - it
+   runs once per doubling where its caller runs at every allocation - so a body copied into that
+   caller puts a syscall, a retry and three global writes in front of the bump pointer every hot
+   allocation steps through. `growArray` in `lib/Core/Array.native.yana` carries the same attribute
+   for the same sentence, and the term that would otherwise take both is the sole call site: a body
+   with one caller is one the inliner *moves* rather than copies, which costs no bytes and is still
+   the wrong answer. Saying it here rather than in a cost model is deliberate - what makes this cold
+   is that it runs once per region, which is a fact about the program and not one the body shows.
 -}
+@noinline
 fn growHeap(needed: Size) -> Bool:
     let &size = heapRegionNext :: Size
     if size < needed then size = needed
@@ -148,6 +168,16 @@ fn setFreeListHead(sizeClass: Size, block: %U8): store(heapFree + sizeClass, blo
 
 -- Allocates `size` bytes, 8-byte aligned, or null when the kernel refused more address space or the
 -- request is larger than the largest size class.
+--
+-- `@builtin(allocateHeap)` is what makes this the function `StorageClass::Heap` means - a `@box`
+-- field's storage, a container's run - rather than one the compiler finds by its spelling. See
+-- `compiler/intrinsic/known.def`, where the role and the argument for it are written.
+--
+-- `@allocator(bootstrap)` is the *policy* axis beside the machine one - Design-Allocator.md §18.3,
+-- and `-allocator` is what selects between this file and `HeapWindow.native.yana`. On the two
+-- role-claiming functions and nowhere else: a role is filled once, so what a second provider has to
+-- exclude is the claim rather than the helpers around it.
+@allocator(bootstrap) @builtin(allocateHeap)
 pub fn allocateHeap(size: Size) -> %U8:
     if isNull(heapFree):
         initHeap()
@@ -177,6 +207,7 @@ pub fn allocateHeap(size: Size) -> %U8:
 
 -- Returns an allocation to the free list of its own size class. The pointer must be one
 -- allocateHeap returned and must not be freed twice; nothing here checks either.
+@allocator(bootstrap) @builtin(freeHeap)
 pub fn freeHeap(allocation: %U8):
     if isNull(allocation) then return
 

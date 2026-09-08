@@ -1,0 +1,82 @@
+{-
+   A class member reached through a **superclass** of a declared requirement, from a body compiled
+   once.
+
+   # resolver: ownership
+
+   The promise was never in doubt - an instance of `Ord(T)` cannot be declared without one of
+   `Eq(T)`, which is why `dischargeRequirements` admits the call. What was missing was somewhere to
+   read the answer from: the environment slot holds `Ord`'s witness, and `Eq`'s members were not in
+   it.
+
+   **A witness table is flattened.** A class's own members come first, then each superclass's table
+   in declaration order, recursively - so reaching `same` out of an `Ord` slot is an *offset* rather
+   than a second load, and a chain three deep costs exactly what a direct call costs.
+   `mir::classWitnessCount` states the layout, `classWitnessAt` reads it back (which is how the
+   lowering knows which class's declaration to build each thunk against), and `classWitnessPath` is
+   `classProves` carrying the offset the proof landed at - one walk and not two, because two
+   superclasses that are the same class at different arguments are two ranges of one table.
+
+   The alternative is a **pointer** per superclass, which is what the shipping stage writes. It buys
+   a shared grandparent being one table and costs a load per level at every dispatch; a hierarchy
+   here is two or three deep with three or four cells per class, so the duplication is smaller than
+   the indirection.
+
+   Asserted by **arithmetic**, and every member answers a different multiple of what it is given:
+   what a wrong offset produces is the wrong member of the right table, which is a call that returns
+   rather than a crash.
+-}
+
+data Vessel {size: I32}
+
+class Base(a):
+    fn tag(x: a) -> I32
+    fn scale(x: a) -> I32
+
+class (Base(a)) Middle(a):
+    fn shift(x: a) -> I32
+
+class (Middle(a)) Top(a):
+    fn crown(x: a) -> I32
+
+instance Base(Vessel):
+    fn tag(x: Vessel) -> I32 = x.size + 1
+    fn scale(x: Vessel) -> I32 = x.size * 2
+
+instance Middle(Vessel):
+    fn shift(x: Vessel) -> I32 = x.size + 100
+
+instance Top(Vessel):
+    fn crown(x: Vessel) -> I32 = x.size + 1000
+
+-- One level: the requirement is `Middle` and the member is `Base`'s, so the witness is read past
+-- `Middle`'s own single member.
+@generic
+fn (Middle(a)) oneLevel(x: a) -> I32 = tag(x) + shift(x)
+
+-- Two levels, and the second member of the grandparent - the case an offset that counted classes
+-- rather than members would get wrong. `Top` has one member, `Middle` one, and `scale` is `Base`'s
+-- second, so it is flat slot 3.
+@generic
+fn (Top(a)) twoLevels(x: a) -> I32 = scale(x) + crown(x)
+
+-- Both requirements in one signature, each proving `Base` by a different path. The slot chosen is
+-- the first declared requirement that proves it, which is `Middle`'s - and either answer is the same
+-- function here, which is what makes the choice a numbering question rather than a semantic one.
+@generic
+fn (Middle(a), Top(a)) both(x: a) -> I32 = tag(x)
+
+fn main() -> I32:
+    let v = Vessel {size: 5 :: I32}
+
+    -- (5 + 1) + (5 + 100) = 111
+    let a = oneLevel(v)
+
+    -- (5 * 2) + (5 + 1000) = 1015
+    let b = twoLevels(v)
+
+    -- 5 + 1 = 6
+    let c = both(v)
+
+    -- 111 + 1015 + 6 = 1132, taken modulo 256 by the exit status: 108.
+    return (a + b + c) - 1024

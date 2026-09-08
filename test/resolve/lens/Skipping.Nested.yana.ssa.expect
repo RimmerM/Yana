@@ -111,7 +111,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (I32
   %12: I32 [unique slot 0] guaranteed = load inspect %6
   %13: (I32) -> I32 [unique slot 1] guaranteed = load inspect %2
   %14: defaulting.cont.env affine = aggregate.defaulting.cont.env borrow %12 borrow %13
-  %15: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value defaulting.cont borrow %14
+  %15: (I32) -> I32 [owned here shape9 .0=shared call] affine = fun.value defaulting.cont borrow %14
   %16: Outcome(I32, I32) trivial = call inner borrow %10 borrow %11 borrow %15
   store inspect %8 consume %16
   %17: %U8 address = field.addr .# inspect %8
@@ -166,7 +166,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %7: I32 trivial = load inspect %3
   %8: I32 [unique slot 0] guaranteed = load inspect %4
   %9: nested.cont'2.env affine = aggregate.nested.cont'2.env borrow %8
-  %10: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value nested.cont'2 borrow %9
+  %10: (I32) -> I32 [owned here shape9 .0=shared call] affine = fun.value nested.cont'2 borrow %9
   %11: Outcome(I32, I32) trivial = call wrap borrow %7 borrow %10
   store inspect %6 consume %11
   %12: %U8 address = field.addr .# inspect %6
@@ -210,7 +210,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %4: I32 trivial = load inspect %2
   %5: I32 trivial = load inspect %3
   %6: adapted.cont.env trivial = aggregate.adapted.cont.env
-  %7: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value adapted.cont inspect %6
+  %7: (I32) -> I32 [owned here shape9 .0=shared call] affine = fun.value adapted.cont inspect %6
   %8: I32 trivial = call defaulting borrow %4 borrow %5 borrow %7
   jump -> bb1
 
@@ -335,7 +335,7 @@ bb0(%0: nested.cont'2.env [unique call] guaranteed, %1: I32 [shared call] guaran
   %8: I32 trivial = load inspect %4
   %9: I32 [unique slot 0] guaranteed = load inspect %5
   %10: nested.cont.env affine = aggregate.nested.cont.env borrow %9
-  %11: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value nested.cont borrow %10
+  %11: (I32) -> I32 [owned here shape9 .0=shared call] affine = fun.value nested.cont borrow %10
   %12: Outcome(I32, I32) trivial = call wrap borrow %8 borrow %11
   store inspect %7 consume %12
   %13: %U8 address = field.addr .# inspect %7

@@ -1,0 +1,49 @@
+{-
+   A class whose own **superclass** is what decides one of its parameters, seen from a generic body.
+
+   `lib/Math` writes `class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m)` - `m`
+   is the comparison result, `Bool` for a scalar and a mask for a vector, and nothing in `Real`'s own
+   member list mentions it. What says what `m` is is `Lanewise(a -> m)` in the superclass list.
+
+   So a kernel written `fn (Real(a, m)) magnitudeOf(value: a)` calling `value .<= 0.0` asks
+   `Lanewise(a, ?)`, and the clause it wrote is `Real`. A search of the enclosing signature for the
+   class *as written* finds nothing and the call reports "no argument decides what m is" - 24 times
+   across `lib/Math`. The requirement list a body is asked to decide from has to be closed over its
+   clauses' superclasses, which is the closure `classProves` already applies to the discharge half.
+
+   The walk carries a depth rather than one step, on `superclassPath`'s reading - a superclass cycle
+   is caught where classes are declared. Only the one level `lib/Math` writes is asserted here,
+   because this fixture is shared and the shipping stage looks exactly one superclass deep: a body
+   constrained two classes above the dependency compiles under `-resolver ownership` and is refused
+   by the default resolver, which is a difference to settle before it is written into a golden.
+-}
+
+pub class Lane(v -> m):
+  fn cmp(lhs: v, rhs: v) -> m
+  fn pick(mask: m, ifTrue: v, ifFalse: v) -> v
+
+-- The dependency is one level up, which is the `Real`/`Lanewise` shape.
+pub class (Lane(a, m)) Rated(a -> m):
+  fn rating(x: a) -> a
+
+instance Lane(I32, Bool):
+  fn cmp(lhs: I32, rhs: I32) -> Bool = lhs < rhs
+  fn pick(mask: Bool, ifTrue: I32, ifFalse: I32) -> I32 = if mask then ifTrue else ifFalse
+
+instance Rated(I32, Bool):
+  fn rating(x: I32) -> I32 = x * 2
+
+-- `m` is decided by `Lane(a -> m)`, which this signature promises through `Rated`.
+fn (Rated(a, m)) smaller(x: a, y: a) -> a = pick(cmp(x, y), x, y)
+
+-- The same with the operands the other way round, so the answer says which arm `pick` took.
+fn (Rated(a, m)) larger(x: a, y: a) -> a = pick(cmp(x, y), y, x)
+
+-- And through the member the class itself declares, so the closure did not displace the direct hit.
+fn (Rated(a, m)) ratedSmaller(x: a, y: a) -> a = rating(smaller(x, y))
+
+fn main() -> Int:
+    if smaller(9 :: I32, 4) != 4 then return 1
+    if larger(9 :: I32, 4) != 9 then return 2
+    if ratedSmaller(9 :: I32, 4) != 8 then return 3
+    return 88

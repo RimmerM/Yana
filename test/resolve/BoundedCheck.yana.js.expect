@@ -93,12 +93,12 @@ function sumDown(xs$items, xs$length, xs$offset) {
 function sumStrided(xs$items, xs$length, xs$offset, n) {
   var acc = 0n;
   var i = 0;
-  var v23 = xs$length >>> 0;
-  while (BigInt.asIntN(64, BigInt(i)) < n) {
-    var v17 = Math.imul(i, 2);
-    var v20 = xs$offset + v17 | 0;
-    checkCondition(v17 >>> 0 >= v23 ? 1 : 0);
-    acc = BigInt.asIntN(64, acc + xs$items[v20]);
+  var v22 = xs$length >>> 0;
+  while (i < n) {
+    var v16 = Math.imul(i, 2);
+    var v19 = xs$offset + v16 | 0;
+    checkCondition(v16 >>> 0 >= v22 ? 1 : 0);
+    acc = BigInt.asIntN(64, acc + xs$items[v19]);
     i = i + 1 | 0;
   }
   return acc;
@@ -136,7 +136,7 @@ function main() {
   if (sumDown(v7, 6, 0) === 21n) {
     total = total + 1 | 0;
   }
-  if (sumStrided(v7, 6, 0, 3n) === 9n) {
+  if (sumStrided(v7, 6, 0, 3) === 9n) {
     total = total + 1 | 0;
   }
   if (sumWords(v37, 0, 0) === 0n) {
@@ -154,7 +154,7 @@ function main() {
   if (sumDown(v37, 0, 0) === 0n) {
     total = total + 1 | 0;
   }
-  if (sumStrided(v7, 6, 0, 0n) === 0n) {
+  if (sumStrided(v7, 6, 0, 0) === 0n) {
     total = total + 1 | 0;
   }
   var v344 = [9n];

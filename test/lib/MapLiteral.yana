@@ -1,0 +1,62 @@
+{-
+   The map literal, compiled by both resolve stages - Implementation-Map.md §7.
+
+   `test/resolve/MapLiteral.yana` is the whole feature and is the shipping stage's alone. This one is
+   here because `test/lib` is compiled against the real library by both stages, which is what a map
+   literal needs; it was written here when `test/resolve` still compiled the rewrite against a
+   stand-in library with no `Map` in it.
+
+   The compiler builds no map. `[k: v]` is `known.def`'s `mapLiteral` role - `newMap(n)`, the one
+   construction site where the entry count is a compile-time constant - and one
+   `IndexInsert.insertAt` per pair, left to right, which is the same member `m[k] = v` reaches. No
+   field of `Map` is read by either stage.
+
+   Four claims, each of which fails on its own:
+
+    - **A literal with an expected type.** `newMap` names neither `k` nor `v` in its arguments, so
+      the result position is the only thing that decides them.
+    - **`[:]` is a usable map** rather than a value that only type-checks; inserting into one and
+      reading it back is the whole of that difference.
+    - **`m[k] = v` over an absent key inserts.** `getMut` cannot express that - there is nothing to
+      borrow for a key the map has not got - which is why `IndexInsert` exists, and a literal is that
+      member applied `n` times.
+    - **Two equal keys are one entry and the later wins**, which follows from the line above rather
+      than being a rule of its own.
+
+   `Int` keys throughout, deliberately: a `Map(String, v)` does not yet *run* under the rewrite (the
+   hash reaches the string's own storage), and this fixture is about the literal.
+-}
+
+import Test
+
+@test fn literalWithAType():
+    let m = [1: 10, 2: 20] :: Map(Int, Int)
+    checkEqual(m[1], 10)
+    checkEqual(m[2], 20)
+    checkEqual(truncate(length(m)) :: Int, 2)
+
+@test fn emptyLiteralIsAMap():
+    let &m = [:] :: Map(Int, Int)
+    checkEqual(truncate(length(m)) :: Int, 0)
+
+    m[7] = 3
+    checkEqual(m[7], 3)
+    checkEqual(truncate(length(m)) :: Int, 1)
+
+@test fn assignmentInsertsAndReplaces():
+    let &m = [1: 10] :: Map(Int, Int)
+    m[2] = 20
+    m[1] = 40
+
+    checkEqual(m[1], 40)
+    checkEqual(m[2], 20)
+    checkEqual(truncate(length(m)) :: Int, 2)
+
+@test fn theLaterOfTwoEqualKeysWins():
+    let m = [5: 1, 5: 2] :: Map(Int, Int)
+    checkEqual(m[5], 2)
+    checkEqual(truncate(length(m)) :: Int, 1)
+
+@test fn theBracketTypeSpelling():
+    let m = [1: 2] :: [Int: Int]
+    checkEqual(m[1], 2)

@@ -150,47 +150,40 @@ main<complex>(): I32 {
   b_44 {
     %v_45 = loads @trace, 4: I32
     %v_46 = cmp_neq %v_45, 2: I32
-    je %v_46, b_47, b_48
-  }
-
-  b_49 {
-    ret 18446744073709551608
+    %v_47 = select %v_46, 18446744073709551607, 100: I32
+    ret %v_47
   }
 
   b_48 {
-    ret 100
+    ret 18446744073709551608
   }
 
-  b_47 {
-    ret 18446744073709551607
+  b_49 {
+    %v_50 = cmp_ilt %v_51, 3: I32
+    je %v_50, b_43, b_52
   }
 
-  b_50 {
-    %v_51 = cmp_ilt %v_52, 3: I32
-    je %v_51, b_43, b_53
-  }
-
-  b_53 {
+  b_52 {
     call_complex Guard.drop, %v_42
-    %v_54 = imul %v_55, 10: I32
-    %v_56 = loads %v_41, 4: I32
+    %v_53 = imul %v_54, 10: I32
+    %v_55 = loads %v_41, 4: I32
     call_complex Guard.drop, %v_41
-    %v_57 = add %v_54, %v_56: I32
-    %v_58 = cmp_neq %v_57, 94: I32
-    je %v_58, b_49, b_44
+    %v_56 = add %v_53, %v_55: I32
+    %v_57 = cmp_neq %v_56, 94: I32
+    je %v_57, b_48, b_44
   }
 
   b_43 {
-    %v_59 = phi [b_50, %v_52], [b_40, 0]: I32
-    %v_60 = phi [b_50, %v_55], [b_40, 0]: I32
-    %v_61 = loads %v_41, 4: I32
-    %v_62 = add %v_61, 1: I32
-    store %v_41, %v_62, 4
-    %v_63 = loads %v_42, 4: I32
-    %v_64 = add %v_60, %v_63: I32
-    %v_55 = add %v_64, %v_59: I32
-    %v_52 = add %v_59, 1: I32
-    jmp b_50
+    %v_58 = phi [b_49, %v_51], [b_40, 0]: I32
+    %v_59 = phi [b_49, %v_54], [b_40, 0]: I32
+    %v_60 = loads %v_41, 4: I32
+    %v_61 = add %v_60, 1: I32
+    store %v_41, %v_61, 4
+    %v_62 = loads %v_42, 4: I32
+    %v_63 = add %v_59, %v_62: I32
+    %v_54 = add %v_63, %v_58: I32
+    %v_51 = add %v_58, 1: I32
+    jmp b_49
   }
 }
 

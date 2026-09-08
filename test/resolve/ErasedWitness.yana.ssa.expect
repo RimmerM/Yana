@@ -78,17 +78,19 @@ bb8:
   %35: %I64 address = field.addr .right inspect %3
   %36: I64 trivial = load inspect %35
   %37: I64 trivial = add inspect %34 inspect %36
-  %38: I64 trivial = const 19
-  %39: I64 trivial = call twice(I64) borrow %38
-  %40: I64 trivial = add inspect %37 inspect %39
-  %41: I64 trivial = const 4
-  %42: I64 trivial = call numeric(I64) borrow %41
-  %43: I64 trivial = add inspect %40 inspect %42
-  return consume %43
+  %38: I32 trivial = const 19
+  %39: I32 trivial = call twice(I32) borrow %38
+  %40: I64 trivial = convert inspect %39
+  %41: I64 trivial = add inspect %37 inspect %40
+  %42: I32 trivial = const 4
+  %43: I32 trivial = call numeric(I32) borrow %42
+  %44: I64 trivial = convert inspect %43
+  %45: I64 trivial = add inspect %41 inspect %44
+  return consume %45
 
 bb9:
-  %44: I64 trivial = const -3
-  return consume %44
+  %46: I64 trivial = const -3
+  return consume %46
 }
 
 fn relocate(Handle)(x: Handle) -> Handle {
@@ -113,48 +115,48 @@ bb0(%0: Pair trivial):
   return consume %4
 }
 
-fn twice(I64)(x: I64 [shared call]) -> I64 {
-bb0(%0: I64 [shared call] guaranteed):
-  %1: %I64 address = alloc frame I64 [shared call]
-  %2: %I64 address = alloc frame I64
+fn twice(I32)(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
-  %3: I64 [shared call] guaranteed from{%1} = load inspect %1
-  %4: I64 trivial = call increment(I64) borrow %3
+  %3: I32 [shared call] guaranteed from{%1} = load inspect %1
+  %4: I32 trivial = call increment(I32) borrow %3
   store inspect %2 consume %4
-  %5: I64 [shared call] guaranteed from{%2} = load inspect %2
-  %6: I64 trivial = call increment(I64) borrow %5
+  %5: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %6: I32 trivial = call increment(I32) borrow %5
   return consume %6
 }
 
-fn numeric(I64)(x: I64 [shared call]) -> I64 {
-bb0(%0: I64 [shared call] guaranteed):
-  %1: %I64 address = alloc frame I64 [shared call]
+fn numeric(I32)(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
-  %2: I64 [shared call] guaranteed from{%1} = load inspect %1
-  %3: I64 trivial = call unit(I64) borrow %2
+  %2: I32 [shared call] guaranteed from{%1} = load inspect %1
+  %3: I32 trivial = call unit(I32) borrow %2
   return consume %3
 }
 
-fn increment(I64)(x: I64 [shared call]) -> I64 {
-bb0(%0: I64 [shared call] guaranteed):
-  %1: %I64 address = alloc frame I64 [shared call]
-  %2: %I64 address = alloc frame I64
+fn increment(I32)(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
-  %3: I64 [shared call] guaranteed from{%1} = load inspect %1
+  %3: I32 [shared call] guaranteed from{%1} = load inspect %1
   %4: I64 trivial = const 1
-  %5: I64 trivial = call I64.fromInt borrow %4
+  %5: I32 trivial = call I32.fromInt borrow %4
   store inspect %2 consume %5
-  %6: I64 [shared call] guaranteed from{%2} = load inspect %2
-  %7: I64 trivial = call I64.+ borrow %3 borrow %6
+  %6: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %7: I32 trivial = call I32.+ borrow %3 borrow %6
   return consume %7
 }
 
-fn unit(I64)(like: I64 [shared call]) -> I64 {
-bb0(%0: I64 [shared call] guaranteed):
-  %1: %I64 address = alloc frame I64 [shared call]
+fn unit(I32)(like: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I64 trivial = const 1
-  %3: I64 trivial = call I64.fromInt borrow %2
+  %3: I32 trivial = call I32.fromInt borrow %2
   return consume %3
 }
 

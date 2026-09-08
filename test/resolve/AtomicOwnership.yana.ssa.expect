@@ -1,0 +1,360 @@
+module ResolveTest
+
+fn immutableBinding() -> I32 {
+bb0:
+  %0: %Atomic(I32) address = alloc frame Atomic(I32)
+  %1: I32 trivial = const 0
+  %2: Atomic(I32) affine = atomic.new relaxed inspect %1
+  store inspect %0 consume %2
+  %3: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %4: I32 trivial = const 7
+  %5: StoreOrder trivial = const StoreRelease
+  atomic.store release inspect %3 inspect %4
+  %6: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %7: LoadOrder trivial = const LoadAcquire
+  %8: I32 trivial = atomic.load acquire inspect %6
+  %9: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %10: I32 trivial = const 9
+  %11: UpdateOrder trivial = const UpdateAcquireRelease
+  %12: I32 trivial = atomic.xchg acqrel inspect %9 inspect %10
+  %13: I32 trivial = add inspect %8 inspect %12
+  return consume %13
+}
+
+fn throughShared(c: Atomic(I32) [shared slot 0]) -> I32 {
+bb0(%0: Atomic(I32) [shared slot 0] guaranteed):
+  %1: Atomic(I32) [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: I32 trivial = const 1
+  %3: StoreOrder trivial = const StoreRelease
+  atomic.store release inspect %1 inspect %2
+  %4: Atomic(I32) [shared slot 0] guaranteed from{%0} = load inspect %0
+  %5: LoadOrder trivial = const LoadAcquire
+  %6: I32 trivial = atomic.load acquire inspect %4
+  return consume %6
+}
+
+fn twoLoans() -> I32 {
+bb0:
+  %0: %Atomic(I32) address = alloc frame Atomic(I32)
+  %1: I32 trivial = const 0
+  %2: Atomic(I32) affine = atomic.new relaxed inspect %1
+  store inspect %0 consume %2
+  %3: Atomic(I32) [shared slot 0] guaranteed from{%0} = load inspect %0
+  %4: I32 trivial = call throughShared borrow %3
+  %5: Atomic(I32) [shared slot 0] guaranteed from{%0} = load inspect %0
+  %6: I32 trivial = call throughShared borrow %5
+  %7: I32 trivial = add inspect %4 inspect %6
+  return consume %7
+}
+
+fn bothArguments(a: Atomic(I32) [shared slot 0], b: Atomic(I32) [shared slot 0]) -> I32 {
+bb0(%0: Atomic(I32) [shared slot 0] guaranteed, %1: Atomic(I32) [shared slot 0] guaranteed):
+  %2: Atomic(I32) [shared slot 0] guaranteed from{%0} = load inspect %0
+  %3: LoadOrder trivial = const LoadRelaxed
+  %4: I32 trivial = atomic.load relaxed inspect %2
+  %5: Atomic(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
+  %6: LoadOrder trivial = const LoadRelaxed
+  %7: I32 trivial = atomic.load relaxed inspect %5
+  %8: I32 trivial = add inspect %4 inspect %7
+  return consume %8
+}
+
+fn sameTwice() -> I32 {
+bb0:
+  %0: %Atomic(I32) address = alloc frame Atomic(I32)
+  %1: I32 trivial = const 3
+  %2: Atomic(I32) affine = atomic.new relaxed inspect %1
+  store inspect %0 consume %2
+  %3: Atomic(I32) [shared slot 0] guaranteed from{%0} = load inspect %0
+  %4: Atomic(I32) [shared slot 0] guaranteed from{%0} = load inspect %0
+  %5: I32 trivial = call bothArguments borrow %3 borrow %4
+  return consume %5
+}
+
+fn fieldOfImmutable(h: Holder [shared slot 0]) -> I32 {
+bb0(%0: Holder [shared slot 0] guaranteed):
+  %1: %Atomic(I32) address = field.addr .flag inspect %0
+  %2: Atomic(I32) [shared slot 0] guaranteed from{%0} = load inspect %1
+  %3: I32 trivial = const 1
+  %4: StoreOrder trivial = const StoreRelease
+  atomic.store release inspect %2 inspect %3
+  %5: %Atomic(I32) address = field.addr .flag inspect %0
+  %6: Atomic(I32) [shared slot 0] guaranteed from{%0} = load inspect %5
+  %7: LoadOrder trivial = const LoadAcquire
+  %8: I32 trivial = atomic.load acquire inspect %6
+  %9: %I32 address = field.addr .tag inspect %0
+  %10: I32 trivial = load inspect %9
+  %11: I32 trivial = add inspect %8 inspect %10
+  return consume %11
+}
+
+fn holderCase() -> I32 {
+bb0:
+  %0: %Holder address = alloc frame Holder
+  %1: I32 trivial = const 4
+  %2: Atomic(I32) affine = atomic.new relaxed inspect %1
+  %3: I32 trivial = const 5
+  %4: Holder affine = aggregate.Holder consume %2 consume %3
+  store inspect %0 consume %4
+  %5: Holder [shared slot 0] guaranteed from{%0} = load inspect %0
+  %6: I32 trivial = call fieldOfImmutable borrow %5
+  return consume %6
+}
+
+fn twoElements() -> I32 {
+bb0:
+  %0: %Array(Atomic(I32)) address = alloc frame Array(Atomic(I32))
+  %1: %Array(Atomic(I32)) address = alloc frame Array(Atomic(I32))
+  %2: I32 trivial = const 1
+  %3: Atomic(I32) affine = atomic.new relaxed inspect %2
+  %4: I32 trivial = const 2
+  %5: Atomic(I32) affine = atomic.new relaxed inspect %4
+  %6: Size trivial = const 2
+  %7: Array(Atomic(I32)) owned = call literalArray(Atomic(I32)) borrow %6
+  store inspect %0 consume %7
+  %8: Array(Atomic(I32)) [unique slot 0] guaranteed from{%0} = load inspect %0
+  %9: Array(Atomic(I32)) [unique slot 0 view] guaranteed from{%0} = call Array(a).elementsMut(Atomic(I32)) borrow %8
+  %10: %Atomic(I32) [owned here shape6 .*=shared slot 0] trivial = call valuesMut(Atomic(I32)) borrow %9
+  %11: Size trivial = const 0
+  %12: %Atomic(I32) address = element.addr inspect %10 inspect %11
+  store inspect %12 consume %3
+  %13: Size trivial = const 1
+  %14: %Atomic(I32) address = element.addr inspect %10 inspect %13
+  store inspect %14 consume %5
+  %15: Array(Atomic(I32)) owned = load inspect %0
+  store inspect %1 consume %15
+  %16: Size trivial = const 0
+  %17: Array(Atomic(I32)) [shared call] guaranteed from{%1} = load inspect %1
+  %18: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Atomic(I32)) borrow %17
+  jump -> bb1
+
+bb1:
+  %20: %Size address = alloc frame Size [shared call]
+  store inspect %20 borrow %16
+  %21: Size trivial = load inspect %20
+  %22: USize trivial = bitcast inspect %21
+  %23: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%18} = load inspect %18
+  jump -> bb6
+
+bb2(%19: Atomic(I32) [shared slot 0] guaranteed from{%1}):
+  %36: Atomic(I32) [shared slot 0] guaranteed from{%1, %19} = load inspect %19
+  %37: Size trivial = const 1
+  %38: Array(Atomic(I32)) [shared call] guaranteed from{%1} = load inspect %1
+  %39: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Atomic(I32)) borrow %38
+  jump -> bb8
+
+bb3:
+  jump -> bb4
+
+bb4:
+  %29: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%18} = load inspect %18
+  %30: %Atomic(I32) [owned here shape6 .*=shared slot 0] trivial = call values(Atomic(I32)) borrow %29
+  %31: Size trivial = load inspect %20
+  %32: Size trivial = metric stride Atomic(I32)
+  %33: Size trivial = mul inspect %31 inspect %32
+  %34: %Atomic(I32) [owned here shape6 .*=shared slot 0] trivial = add inspect %30 inspect %33
+  %35: Atomic(I32) [shared slot 0] guaranteed = load inspect %34
+  jump -> bb2(borrow %35)
+
+bb5:
+  call checkFailed
+  jump -> bb4
+
+bb6:
+  %25: %Size address = field.addr .length inspect %23
+  %26: Size trivial = load inspect %25
+  jump -> bb7(consume %26)
+
+bb7(%24: Size trivial):
+  %27: USize trivial = bitcast inspect %24
+  %28: Bool trivial = ge inspect %22 inspect %27
+  branch inspect %28 -> bb5 -> bb3
+
+bb8:
+  %41: %Size address = alloc frame Size [shared call]
+  store inspect %41 borrow %37
+  %42: Size trivial = load inspect %41
+  %43: USize trivial = bitcast inspect %42
+  %44: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%39} = load inspect %39
+  jump -> bb13
+
+bb9(%40: Atomic(I32) [shared slot 0] guaranteed from{%1}):
+  %57: Atomic(I32) [shared slot 0] guaranteed from{%1, %40} = load inspect %40
+  %58: I32 trivial = call bothArguments borrow %36 borrow %57
+  %59: Size trivial = const 0
+  %60: Array(Atomic(I32)) [shared call] guaranteed from{%1} = load inspect %1
+  %61: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Atomic(I32)) borrow %60
+  jump -> bb15
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %50: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%39} = load inspect %39
+  %51: %Atomic(I32) [owned here shape6 .*=shared slot 0] trivial = call values(Atomic(I32)) borrow %50
+  %52: Size trivial = load inspect %41
+  %53: Size trivial = metric stride Atomic(I32)
+  %54: Size trivial = mul inspect %52 inspect %53
+  %55: %Atomic(I32) [owned here shape6 .*=shared slot 0] trivial = add inspect %51 inspect %54
+  %56: Atomic(I32) [shared slot 0] guaranteed = load inspect %55
+  jump -> bb9(borrow %56)
+
+bb12:
+  call checkFailed
+  jump -> bb11
+
+bb13:
+  %46: %Size address = field.addr .length inspect %44
+  %47: Size trivial = load inspect %46
+  jump -> bb14(consume %47)
+
+bb14(%45: Size trivial):
+  %48: USize trivial = bitcast inspect %45
+  %49: Bool trivial = ge inspect %43 inspect %48
+  branch inspect %49 -> bb12 -> bb10
+
+bb15:
+  %63: %Size address = alloc frame Size [shared call]
+  store inspect %63 borrow %59
+  %64: Size trivial = load inspect %63
+  %65: USize trivial = bitcast inspect %64
+  %66: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%61} = load inspect %61
+  jump -> bb20
+
+bb16(%62: Atomic(I32) [shared slot 0] guaranteed from{%1}):
+  %79: Atomic(I32) [shared slot 0] guaranteed from{%1, %62} = load inspect %62
+  %80: Size trivial = const 0
+  %81: Array(Atomic(I32)) [shared call] guaranteed from{%1} = load inspect %1
+  %82: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Atomic(I32)) borrow %81
+  jump -> bb22
+
+bb17:
+  jump -> bb18
+
+bb18:
+  %72: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%61} = load inspect %61
+  %73: %Atomic(I32) [owned here shape6 .*=shared slot 0] trivial = call values(Atomic(I32)) borrow %72
+  %74: Size trivial = load inspect %63
+  %75: Size trivial = metric stride Atomic(I32)
+  %76: Size trivial = mul inspect %74 inspect %75
+  %77: %Atomic(I32) [owned here shape6 .*=shared slot 0] trivial = add inspect %73 inspect %76
+  %78: Atomic(I32) [shared slot 0] guaranteed = load inspect %77
+  jump -> bb16(borrow %78)
+
+bb19:
+  call checkFailed
+  jump -> bb18
+
+bb20:
+  %68: %Size address = field.addr .length inspect %66
+  %69: Size trivial = load inspect %68
+  jump -> bb21(consume %69)
+
+bb21(%67: Size trivial):
+  %70: USize trivial = bitcast inspect %67
+  %71: Bool trivial = ge inspect %65 inspect %70
+  branch inspect %71 -> bb19 -> bb17
+
+bb22:
+  %84: %Size address = alloc frame Size [shared call]
+  store inspect %84 borrow %80
+  %85: Size trivial = load inspect %84
+  %86: USize trivial = bitcast inspect %85
+  %87: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%82} = load inspect %82
+  jump -> bb27
+
+bb23(%83: Atomic(I32) [shared slot 0] guaranteed from{%1}):
+  %100: Atomic(I32) [shared slot 0] guaranteed from{%1, %83} = load inspect %83
+  %101: I32 trivial = call bothArguments borrow %79 borrow %100
+  drop Array(Atomic(I32)) inspect %1
+  %102: I32 trivial = add inspect %58 inspect %101
+  return consume %102
+
+bb24:
+  jump -> bb25
+
+bb25:
+  %93: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%82} = load inspect %82
+  %94: %Atomic(I32) [owned here shape6 .*=shared slot 0] trivial = call values(Atomic(I32)) borrow %93
+  %95: Size trivial = load inspect %84
+  %96: Size trivial = metric stride Atomic(I32)
+  %97: Size trivial = mul inspect %95 inspect %96
+  %98: %Atomic(I32) [owned here shape6 .*=shared slot 0] trivial = add inspect %94 inspect %97
+  %99: Atomic(I32) [shared slot 0] guaranteed = load inspect %98
+  jump -> bb23(borrow %99)
+
+bb26:
+  call checkFailed
+  jump -> bb25
+
+bb27:
+  %89: %Size address = field.addr .length inspect %87
+  %90: Size trivial = load inspect %89
+  jump -> bb28(consume %90)
+
+bb28(%88: Size trivial):
+  %91: USize trivial = bitcast inspect %88
+  %92: Bool trivial = ge inspect %86 inspect %91
+  branch inspect %92 -> bb26 -> bb24
+}
+
+fn produce() -> Atomic(I32) {
+bb0:
+  %0: %Atomic(I32) address = alloc frame Atomic(I32)
+  %1: I32 trivial = const 7
+  %2: Atomic(I32) affine = atomic.new relaxed inspect %1
+  store inspect %0 consume %2
+  %3: Atomic(I32) affine = load inspect %0
+  return consume %3
+}
+
+fn intoRecord() -> I32 {
+bb0:
+  %0: %Atomic(I32) address = alloc frame Atomic(I32)
+  %1: %Holder address = alloc frame Holder
+  %2: I32 trivial = const 8
+  %3: Atomic(I32) affine = atomic.new relaxed inspect %2
+  store inspect %0 consume %3
+  %4: Atomic(I32) affine = load inspect %0
+  %5: I32 trivial = const 1
+  %6: Holder affine = aggregate.Holder consume %4 consume %5
+  store inspect %1 consume %6
+  %7: %Atomic(I32) address = field.addr .flag inspect %1
+  %8: Atomic(I32) [shared call] guaranteed from{%1} = load inspect %7
+  %9: LoadOrder trivial = const LoadRelaxed
+  %10: I32 trivial = atomic.load relaxed inspect %8
+  %11: %I32 address = field.addr .tag inspect %1
+  %12: I32 trivial = load inspect %11
+  %13: I32 trivial = add inspect %10 inspect %12
+  return consume %13
+}
+
+fn consume() -> I32 {
+bb0:
+  %0: %Atomic(I32) address = alloc frame Atomic(I32)
+  %1: Atomic(I32) affine = call produce
+  store inspect %0 consume %1
+  %2: Atomic(I32) affine = load inspect %0
+  %3: I32 trivial = atomic.into relaxed consume %2
+  return consume %3
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call immutableBinding
+  %1: I32 trivial = call twoLoans
+  %2: I32 trivial = add inspect %0 inspect %1
+  %3: I32 trivial = call sameTwice
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: I32 trivial = call holderCase
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: I32 trivial = call twoElements
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: I32 trivial = call intoRecord
+  %10: I32 trivial = add inspect %8 inspect %9
+  %11: I32 trivial = call consume
+  %12: I32 trivial = add inspect %10 inspect %11
+  return consume %12
+}
+
+entry main

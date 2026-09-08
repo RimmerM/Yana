@@ -1,0 +1,46 @@
+{-
+   A string literal outliving the frame that wrote it - `lib/Native/Pointer.yana`'s declaration of
+   `addressOf`, again.
+
+   `PointerAddress.yana`'s question read from the other end. `"abc"` is placed bytes plus a call of
+   the library's `stringLiteral` over *their address*, and how that address is taken is the read the
+   compiler makes of the bytes global. Written `addressOf(it: source'a)` the read would be a loan and
+   the address the global's; under `lib/`'s `addressOf(it: a)` an unpublished position answers a
+   trivially copyable argument with a **copy**, so the three bytes went into a frame slot and the
+   `String` described that slot.
+
+   Which is invisible wherever the literal is inlined into its caller - the slot is then the caller's
+   frame and outlives the read by luck - so every case below keeps the literal behind a call the
+   inliner is told to leave alone. `newArrayStrings`, the enum name tables, `Date`'s day names and
+   `Terminal`'s box drawing were thirteen cases of the library's suite reading text of the right
+   length and the wrong bytes.
+
+   Both stages compile it and both answer the same, which is the point: the shipping stage has never
+   copied the bytes here.
+-}
+
+import Test
+
+@noinline fn literalBehindACall() -> String = "abc"
+
+@noinline fn literalOfIndex(i: Size) -> String = "xy"
+
+@test fn literalSurvivesItsFrame():
+    let s = literalBehindACall()
+    checkEqual(s, "abc")
+    checkEqual(truncate(length(s)) :: Int, 3)
+
+    -- And again after another frame has been and gone over the same stack bytes.
+    let t = literalBehindACall()
+    let u = literalOfIndex(0)
+    checkEqual(t, "abc")
+    checkEqual(u, "xy")
+
+-- The shape `Core.newArrayStrings` reaches: a literal produced through a function value, stored in a
+-- container, and read back after every frame that made one has returned.
+@test fn literalsThroughAFunctionValue():
+    let &xs = newArray(4, literalOfIndex)
+
+    checkEqual(truncate(length(xs)) :: Int, 4)
+    checkEqual(xs[0], "xy")
+    checkEqual(xs[3], "xy")

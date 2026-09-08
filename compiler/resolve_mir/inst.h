@@ -131,6 +131,7 @@ enum class OperandRole: U8 {
     WriteTarget,  // the place a `write` stores into
     Stored,       // the value a `write` installs
     Condition,    // the value a `branch` tests
+    Selector,     // the value a `map` or a `switch` chooses by
     Returned,     // the value a `return` hands back
     EdgeArgument, // an operand supplied to a successor's parameter, on an outgoing edge
     Argument,     // an operand supplied to a callee's parameter, on a call
@@ -221,7 +222,7 @@ struct NodeArgument: NodeResult {
     U32 index;
 
     template<class F> void eachOperand(MirBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 // A literal named by a body: an index into `Body::constants`.
@@ -232,7 +233,7 @@ struct NodeConst: NodeResult {
     ConstantId constant;
 
     template<class F> void eachOperand(MirBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -272,7 +273,7 @@ struct NodeAtomic: NodeResult {
         for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Argument);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 // `a * b + c` at most once rounded - inst.def's `Fma` row, where the argument for a node is. Every
@@ -289,7 +290,7 @@ struct NodeFma: NodeResult {
         f(addend, OperandRole::Argument);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -311,7 +312,51 @@ struct NodeSelect: NodeResult {
         f(whenFalse, OperandRole::Argument);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
+};
+
+/*
+ * One entry of a `map` - the number the pivot carries for this arm, and what the arm answers.
+ *
+ * `selector` is `I64` and not the tag's own width, because `@value(n)` may pin a constructor outside
+ * thirty-two bits and the numbers an enumeration is pinned to are somebody else's ABI. Whether every
+ * entry is representable at the selector's declared type is a verifier rule rather than a
+ * representation choice, so a truncation is reported rather than performed.
+ */
+struct MapEntry {
+    I64 selector = 0;
+    Constant value;
+};
+
+/*
+ * A `match` over constants, as the mapping it states - inst.def's `Map` row, where the argument for
+ * a node is.
+ *
+ * The selector is `Inspect`: the pivot's discriminant is a number already read, and a table of
+ * literals reads nothing else. The entries are ascending by `selector` and pairwise distinct, which
+ * is what lets every form below - a range test, a bit mask, an affine step, a packed word, a placed
+ * table - be derived by walking them once.
+ */
+struct NodeMap: NodeResult {
+    NodeMap(LocationId source, Operand selector, bool closed):
+        NodeResult(Map, source), selector(selector), closed(closed) {}
+
+    Operand selector;
+
+    // Non-embedding for `OperandList`'s reason and one more: a `MapEntry` is twenty-four bytes, and
+    // `SmallList`'s embedded encoding tags a bit inside the element.
+    MirList<MapEntry, false> entries;
+
+    // What a selector outside the listed ones answers, and set exactly when the domain is open. A
+    // record's own constructors are the whole domain of a match over them, so the overwhelmingly
+    // common case carries nothing here at all.
+    Constant fallback;
+
+    // Whether the listed selectors *are* the domain - see inst.def.
+    bool closed = false;
+
+    template<class F> void eachOperand(MirBase, F&& f) { f(selector, OperandRole::Selector); }
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -328,7 +373,7 @@ struct NodeVecSplat: NodeResult {
     Operand from;
 
     template<class F> void eachOperand(MirBase, F&& f) { f(from, OperandRole::Argument); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -359,7 +404,7 @@ struct NodeVecLane: NodeResult {
         if(writesLane()) f(value, OperandRole::Argument);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -384,7 +429,20 @@ struct NodeVecShuffle: NodeResult {
         f(right, OperandRole::Argument);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
+};
+
+/*
+ * The lane numbers `0, 1, ... n - 1` of a vector this body cannot count - inst.def's `VecIota` row.
+ *
+ * No operands and no fields: the result type is the whole of it, and a substitution is what turns
+ * the count into a number.
+ */
+struct NodeVecIota: NodeResult {
+    explicit NodeVecIota(LocationId source): NodeResult(VecIota, source) {}
+
+    template<class F> void eachOperand(MirBase, F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 // Every lane folded into one scalar - inst.def's `VecReduce` row, and op.def's reduction block for
@@ -397,7 +455,7 @@ struct NodeVecReduce: NodeResult {
     ReduceOp reduce;
 
     template<class F> void eachOperand(MirBase, F&& f) { f(from, OperandRole::Argument); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -413,7 +471,7 @@ struct NodeAtomicOk: NodeResult {
     Operand from;
 
     template<class F> void eachOperand(MirBase, F&& f) { f(from, OperandRole::Argument); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -432,7 +490,7 @@ struct NodeGenValue: NodeResult {
     DeclPtr<Type> variable;
 
     template<class F> void eachOperand(MirBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -459,8 +517,25 @@ struct NodeRead: NodeResult {
      */
     LoanId loan;
 
+    /*
+     * That this read deliberately takes up to a vector's width past the extent of what the place
+     * names - Design-Vector §5.4, Implementation-Vector.md §3.3.
+     *
+     * A flag on the read rather than a node of its own, because what it changes is not what the
+     * operation *is*: `vectorPast(p)` reads a whole vector at an address exactly as `vectorAt(p)`
+     * does, and the difference is a promise about the bytes at the far end. Nothing between here
+     * and the machine has to branch on it - it travels to `LowerInstLoad::isOverread`, where the
+     * three passes that must not treat "reads past the end" as a bug read it.
+     *
+     * `Native.vectorPast` is the only thing in the language that sets it, which is what keeps the
+     * reasoning about when the tail-read guarantee may be spent in one place. No write ever carries
+     * it: a store past the end of an object is not a read of unspecified bytes but the destruction
+     * of whatever follows.
+     */
+    bool overread = false;
+
     template<class F> void eachOperand(MirBase, F&& f) { f(place, OperandRole::ReadSource); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -482,7 +557,7 @@ struct NodeBinary: NodeResult {
         f(rhs, OperandRole::Value);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 struct NodeUnary: NodeResult {
@@ -493,7 +568,7 @@ struct NodeUnary: NodeResult {
     UnaryOp op;
 
     template<class F> void eachOperand(MirBase, F&& f) { f(value, OperandRole::Value); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -532,6 +607,17 @@ struct NodeAggregate: NodeResult {
      */
     U16 constructor = 0;
 
+    /*
+     * One component filling **every** slot of a fixed array whose count is a const parameter -
+     * `[0] :: [U8 *n]`, and only that.
+     *
+     * A written number is spread by the resolver, so this bit is never set where there is one: the
+     * component list is the array's elements everywhere else, which is what keeps every consumer
+     * reading one shape. What it is for is the case where the number does not exist yet - the SSA
+     * conversion is the first point that can count the slots, and it repeats the one operand there.
+     */
+    bool fill = false;
+
     // By reference, for the reason `NodeCall::eachOperand` gives: a `Forward` in a component is
     // rewritten in place by liveness, and a masked list has no address to rewrite through.
     template<class F> void eachOperand(MirBase base, F&& f) {
@@ -539,7 +625,7 @@ struct NodeAggregate: NodeResult {
         for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Component);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -580,7 +666,7 @@ struct NodeFunValue: NodeResult {
         if(capturing) f(environment, OperandRole::Value);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -606,7 +692,7 @@ struct NodeAddress: NodeResult {
     bool exchange = false;
 
     template<class F> void eachOperand(MirBase, F&& f) { f(of, OperandRole::Value); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -626,7 +712,7 @@ struct NodeMetric: NodeResult {
     TypeMetric metric;
 
     template<class F> void eachOperand(MirBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -649,7 +735,7 @@ struct NodeNative: NodeResult {
         for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Argument);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -771,7 +857,7 @@ struct NodeCall: NodeResult {
         for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Argument);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -810,7 +896,7 @@ struct NodeWrite: Node {
         f(value, OperandRole::Stored);
     }
 
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 /*
@@ -837,7 +923,7 @@ struct NodeReturn: Node {
     bool hasValue;
 
     template<class F> void eachOperand(MirBase, F&& f) { if(hasValue) f(value, OperandRole::Returned); }
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 struct NodeJump: Node {
@@ -846,7 +932,7 @@ struct NodeJump: Node {
     Edge to;
 
     template<class F> void eachOperand(MirBase, F&&) {}
-    template<class F> void eachEdge(F&& f) { f(to); }
+    template<class F> void eachEdge(MirBase, F&& f) { f(to); }
 };
 
 /*
@@ -913,7 +999,7 @@ struct NodeLensCall: Node {
 
     // The kind and not a validity test on the edge, because "this call can skip" is a fact about the
     // callee's signature and stays true for a `lens.try` whose skip block is unreachable.
-    template<class F> void eachEdge(F&& f) {
+    template<class F> void eachEdge(MirBase, F&& f) {
         f(to);
         if(kind == LensTry) f(otherwise);
     }
@@ -927,14 +1013,54 @@ struct NodeBranch: Node {
     Edge whenFalse;
 
     template<class F> void eachOperand(MirBase, F&& f) { f(condition, OperandRole::Condition); }
-    template<class F> void eachEdge(F&& f) { f(whenTrue); f(whenFalse); }
+    template<class F> void eachEdge(MirBase, F&& f) { f(whenTrue); f(whenFalse); }
+};
+
+/*
+ * One case of a `switch` - the number the selector must equal, and where control goes.
+ *
+ * `I64` for `MapEntry`'s reason: `@value(n)` may pin a constructor outside thirty-two bits, and
+ * whether every case is representable at the selector's declared type is a verifier rule rather
+ * than a representation choice.
+ */
+struct SwitchCase {
+    I64 value = 0;
+    Edge edge;
+};
+
+/*
+ * A multi-way branch - inst.def's `Switch` row, where the argument for two nodes is.
+ *
+ * The cases are ascending by value and pairwise distinct, and the ordinal order of the edges is case
+ * order then the fallback - which is what `Editor::redirectEdge` and `addEdgeArgument` index by, so
+ * it is part of the contract rather than an implementation detail.
+ */
+struct NodeSwitch: Node {
+    NodeSwitch(LocationId source, Operand selector): Node(Switch, source), selector(selector) {}
+
+    Operand selector;
+
+    // Non-embedding: a `SwitchCase` is an `I64` beside an `Edge`, and `SmallList`'s embedded
+    // encoding tags a bit inside the element.
+    MirList<SwitchCase, false> cases;
+
+    Edge fallback;
+
+    template<class F> void eachOperand(MirBase, F&& f) { f(selector, OperandRole::Selector); }
+
+    template<class F> void eachEdge(MirBase base, F&& f) {
+        auto items = cases.pointer(base);
+        for(Size i = 0; i < cases.size(); i++) f(items[i].edge);
+
+        f(fallback);
+    }
 };
 
 struct NodeUnreachable: Node {
     explicit NodeUnreachable(LocationId source): Node(Unreachable, source) {}
 
     template<class F> void eachOperand(MirBase, F&&) {}
-    template<class F> void eachEdge(F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
 };
 
 // The concrete type of a node, from inst.def, so that the kind list and the cast list are one
@@ -983,8 +1109,8 @@ void forEachOperand(MirBase base, Node& node, F&& f) {
 }
 
 template<class F>
-void forEachEdge(Node& node, F&& f) {
-    visitNode(node, [&](auto& n) { n.eachEdge(f); });
+void forEachEdge(MirBase base, Node& node, F&& f) {
+    visitNode(node, [&](auto& n) { n.eachEdge(base, f); });
 }
 
 StringView nodeMnemonic(Node::Kind kind);
@@ -1047,12 +1173,36 @@ UseMode argumentMode(Contract parameter, SourceKind source);
  *    whether the place *can* grant it is `Resolver::readPlace`'s report rather than a mode.
  *  - Storage this function does not own has nothing to hand over whatever the position wanted, so it
  *    is borrowed from. A `Forward` out of a shared parameter would be a move out of the caller's
- *    value.
+ *    value. The one exception is `lendsItsContents` below, where the storage is writable and the
+ *    frame owes a refill.
  *  - Otherwise: a borrow position borrows - which is what makes `let d = c` the shared loan the spec
  *    says it is - and a sink position gets `Forward`, the bare owned name the language moves when it
  *    is dead afterwards, which §5.4 insists a single forward pass may not decide.
  */
-UseMode readMode(DeclBase base, const Place& place, Request wanted);
+UseMode readMode(DeclBase base, MirBase mir, Body& body, const Place& place, Request wanted);
+
+/*
+ * Whether the contents of this place may be **taken out and put back** - `doc/spec/ownership.md`'s
+ * "taking a value out of borrowed storage", and the rule `acc = acc ++ part` through a `&` is.
+ *
+ * The storage is somebody else's and this frame may write it, so the value in it may fill a position
+ * that consumes provided something is written back before the frame lets go of the reference. Two
+ * properties of the language make the window between the two unobservable, and both are properties
+ * rather than assumptions: an exclusive loan is exclusive while it is live, so no second reader
+ * exists to look into the hole, and nothing unwinds, so no teardown runs over one on the way out.
+ *
+ * A **`&` parameter** and nothing else, which is narrower than "an exclusive loan" and deliberately
+ * so. `let &d = c` re-lends storage this frame is *also* tracking under `c`'s own move path, and a
+ * take through the alias would empty one place while the other still said it held a value - two
+ * answers to one question, which is the arrangement this stage exists to not have. A parameter's
+ * lender is the caller, whose own analysis already holds the argument exclusively for the length of
+ * the call, so there is no second path here to disagree with.
+ *
+ * `isTrackedAt` is asked because the answer has to be one the analysis can carry: an untracked type
+ * has no move path, so there would be nowhere to record the hole or the refill - and a trivially
+ * copyable one is copied by the first arm of `readMode` long before this.
+ */
+bool lendsItsContents(DeclBase base, MirBase mir, Body& body, const Place& place);
 
 // Whether this node may suspend the enclosing fiber, from the callee's published summary rather than
 // from the node's kind - Analysis-Sharing.md §3.3, and the reason inst.def has no such column.

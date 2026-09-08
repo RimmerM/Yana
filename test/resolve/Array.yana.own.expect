@@ -35,6 +35,11 @@ fn remove(I32) {
   %local4: Maybe(I32) readonly live [62, 63) [64, 66)
 }
 
+fn Length(Array(a)).length(I32) {
+  arg self readonly
+  %self: Array(I32) borrowed droppable readonly live [0, 1)
+}
+
 fn Reclaim(Array(a)).reclaim(I32) {
   arg value readonly
   %value: Array(I32) readonly live [0, 25)
@@ -152,9 +157,9 @@ fn releaseRun(I32) {
 
 fn sum {
   arg xs readonly
-  %xs: ArrayView(I32) borrowed readonly live [0, 10) [12, 33)
-  %total: I32 writable live [0, 11) [12, 33)
-  %i: I32 writable live [2, 10) [12, 33)
+  %xs: ArrayView(I32) borrowed readonly live [0, 9) [11, 31)
+  %total: I32 writable live [0, 10) [11, 31)
+  %i: Size writable live [2, 9) [11, 31)
 }
 
 fn make {
@@ -169,7 +174,7 @@ fn escaping {
 
 fn main {
   %small: Array(I32) droppable writable resizable live [0, 48)
-  %local1: I32 writable addressed live [1, 48)
+  %local1: I32 writable addressed live [1, 47)
   %local2: Maybe(I32) readonly live [29, 30)
   %local3: Maybe(I32) readonly live [32, 33)
   %local4: Maybe(I32) readonly live [36, 37)

@@ -1,0 +1,232 @@
+module ResolveTest
+
+data Tracked {value: I32}
+
+data Point {x: I32, y: I32}
+
+data Quad {values: [I32 *4], places: [Point *2], tag: I32}
+
+instance Copy(Tracked): Tracked.copy
+
+let & copyCalls: I32 = 0
+
+fn Tracked.copy(from: Tracked [shared call]) -> Tracked {
+bb0:
+  %0: I32 = read copy.trivial (global copyCalls)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global copyCalls) take %2
+  %4: I32 = read copy.trivial (from.value)
+  %5: Tracked = aggregate.Tracked take %4
+  return take %5
+}
+
+fn copyInto(slot: a [unique call], from: a [shared call]) -> {} {
+  form specialized
+  slot #0 type a
+  slot #1 class TrivialCopy(a)
+bb0:
+  %0: a = read copy.trivial (from)
+  write.assign borrow.unique (slot) take %0
+  return
+}
+
+fn main() -> I32 {
+  local & number: I32
+  local pair: Point
+  local & target: Point
+  local quad: Quad
+  local & copied: Quad
+  local local5: Tracked
+  local tracked: Tracked
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (number) take %0
+  %2: I32 [unique call] = read borrow.unique (number) loan0
+  %3: I32 = const 7
+  %4: {} = call copyInto(I32) borrow.unique %2 borrow.shared %3
+  %5: I32 = const 3
+  %6: I32 = const 4
+  %7: Point = aggregate.Point take %5 take %6
+  write.init borrow.unique (pair) take %7
+  %9: I32 = const 0
+  %10: I32 = const 0
+  %11: Point = aggregate.Point take %9 take %10
+  write.init borrow.unique (target) take %11
+  %13: Point [unique call] = read borrow.unique (target) loan1
+  %14: Point = read copy.trivial (pair)
+  %15: {} = call copyInto(Point) borrow.unique %13 borrow.shared %14
+  %16: I32 = read copy.trivial (pair.x)
+  %17: I32 = const 3
+  %18: Bool = ne inspect %16 inspect %17
+  branch inspect %18 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %23: I32 = const 10
+  %24: I32 = const 20
+  %25: I32 = const 30
+  %26: I32 = const 40
+  %27: [I32 *4] = aggregate.0 take %23 take %24 take %25 take %26
+  %28: I32 = const 1
+  %29: I32 = const 2
+  %30: Point = aggregate.Point take %28 take %29
+  %31: I32 = const 3
+  %32: I32 = const 4
+  %33: Point = aggregate.Point take %31 take %32
+  %34: [Point *2] = aggregate.0 take %30 take %33
+  %35: I32 = const 5
+  %36: Quad = aggregate.Quad take %27 take %34 take %35
+  write.init borrow.unique (quad) take %36
+  %38: I32 = const 0
+  %39: I32 = const 0
+  %40: I32 = const 0
+  %41: I32 = const 0
+  %42: [I32 *4] = aggregate.0 take %38 take %39 take %40 take %41
+  %43: I32 = const 0
+  %44: I32 = const 0
+  %45: Point = aggregate.Point take %43 take %44
+  %46: I32 = const 0
+  %47: I32 = const 0
+  %48: Point = aggregate.Point take %46 take %47
+  %49: [Point *2] = aggregate.0 take %45 take %48
+  %50: I32 = const 0
+  %51: Quad = aggregate.Quad take %42 take %49 take %50
+  write.init borrow.unique (copied) take %51
+  %53: Quad [unique call] = read borrow.unique (copied) loan2
+  %54: Quad = read copy.trivial (quad)
+  %55: {} = call copyInto(Quad) borrow.unique %53 borrow.shared %54
+  %56: Size = const 0
+  %57: I32 = read copy.trivial (copied.values[0])
+  %58: I32 = const 10
+  %59: Bool = ne inspect %57 inspect %58
+  branch inspect %59 -> bb6 -> bb4
+
+bb3:
+  %20: I32 = const -1
+  return take %20
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %64: Size = const 3
+  %65: I32 = read copy.trivial (copied.values[3])
+  %66: I32 = const 40
+  %67: Bool = ne inspect %65 inspect %66
+  branch inspect %67 -> bb9 -> bb7
+
+bb6:
+  %61: I32 = const -3
+  return take %61
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %72: Size = const 1
+  %73: I32 = read copy.trivial (copied.places[1].x)
+  %74: I32 = const 3
+  %75: Bool = ne inspect %73 inspect %74
+  branch inspect %75 -> bb12 -> bb10
+
+bb9:
+  %69: I32 = const -4
+  return take %69
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %80: I32 = read copy.trivial (copied.tag)
+  %81: I32 = const 5
+  %82: Bool = ne inspect %80 inspect %81
+  branch inspect %82 -> bb15 -> bb13
+
+bb12:
+  %77: I32 = const -5
+  return take %77
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %87: Size = const 0
+  %88: I32 = const 99
+  write.assign borrow.unique (copied.values[0]) take %88
+  %90: Size = const 1
+  %91: I32 = const 99
+  write.assign borrow.unique (copied.places[1].x) take %91
+  %93: Size = const 0
+  %94: I32 = read copy.trivial (quad.values[0])
+  %95: I32 = const 10
+  %96: Bool = ne inspect %94 inspect %95
+  branch inspect %96 -> bb18 -> bb16
+
+bb15:
+  %84: I32 = const -6
+  return take %84
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %101: Size = const 1
+  %102: I32 = read copy.trivial (quad.places[1].x)
+  %103: I32 = const 3
+  %104: Bool = ne inspect %102 inspect %103
+  branch inspect %104 -> bb21 -> bb19
+
+bb18:
+  %98: I32 = const -7
+  return take %98
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %109: I32 = const 10
+  %110: Tracked = aggregate.Tracked take %109
+  write.init borrow.unique (local5) take %110
+  %112: Tracked [shared call] = read borrow.shared (local5) loan3
+  %113: Tracked = call copy(Tracked) borrow.shared %112
+  write.init borrow.unique (tracked) take %113
+  %115: I32 = read copy.trivial (global copyCalls)
+  %116: I32 = const 1
+  %117: Bool = ne inspect %115 inspect %116
+  branch inspect %117 -> bb24 -> bb22
+
+bb21:
+  %106: I32 = const -8
+  return take %106
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %122: I32 = read copy.trivial (number)
+  %123: I32 = read copy.trivial (target.x)
+  %124: I32 = add inspect %122 inspect %123
+  %125: I32 = read copy.trivial (target.y)
+  %126: I32 = add inspect %124 inspect %125
+  %127: I32 = read copy.trivial (tracked.value)
+  %128: I32 = add inspect %126 inspect %127
+  %129: I32 = read copy.trivial (global copyCalls)
+  %130: I32 = add inspect %128 inspect %129
+  return take %130
+
+bb24:
+  %119: I32 = const -2
+  return take %119
+}
+
+fn copyInto(I32)(slot: I32 [unique call], from: I32 [shared call]) -> {} = <copyInto at I32>
+
+fn copyInto(Point)(slot: Point [unique call], from: Point [shared call]) -> {} = <copyInto at Point>
+
+fn copyInto(Quad)(slot: Quad [unique call], from: Quad [shared call]) -> {} = <copyInto at Quad>
+
+entry main

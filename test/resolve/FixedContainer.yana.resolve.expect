@@ -149,28 +149,13 @@ fn Chunked([a *n], a).chunks(3, I32, Outcome((), ()))(%self: [I32 *3], %body: (v
 
 fn Contiguous([a *n], a).elements(3, I32)(%self: [I32 *3]) -> 2'ArrayView(I32) {
   b0:
-    %v1 = countof 3 : I32
-    %v2 = cast %v1 : Size
-    %v3 = borrow %self : '[I32 *3]
-    %self = alloc : ArrayView(I32)
-    %v5 = addressof [%v3] : %I32
-    init %self@ArrayView.items, %v5
-    %v7 = countof 3 : Size
-    init %self@ArrayView.length, %v7
-    %v10 = borrow %self : 'ArrayView(I32)
-    %v11 = call unclampedSlice(I32), %v10, 0, %v2 : ArrayView(I32)
-    ret %v11
-}
-
-fn unclampedSlice(I32)(%self: ArrayView(I32), %from: Size, %count: Size) -> ArrayView(I32) {
-  b0:
-    %v3 = alloc : ArrayView(I32)
-    %v4 = load %self@ArrayView.items : %I32
-    %v5 = strideof I32 : Size
-    %v6 = mul %from, %v5 : Size
-    %v7 = add %v4, %v6 : %I32
-    aggregate %local1@ArrayView.items = %v7, %local1@ArrayView.length = %count
-    ret %v3
+    %v1 = alloc : 2'ArrayView(I32)
+    %v2 = addressof %self : %[I32 *3]
+    %v3 = bitcast %v2 : %I32
+    %v4 = countof 3 : I32
+    %v5 = cast %v4 : Size
+    aggregate %local1@ArrayView.items = %v3, %local1@ArrayView.length = %v5
+    ret %v1
 }
 
 fn sort([I32 *3], I32)(%xs: [I32 *3]) -> () {
@@ -192,14 +177,14 @@ fn sort([I32 *3], I32)(%xs: [I32 *3]) -> () {
 
 fn Writable([a *n], a).elementsMut(3, I32)(%self: [I32 *3]) -> &2'ArrayView(I32) {
   b0:
-    %v1 = load %self : [I32 *3]
-    %v2 = borrow_mut %self : &[I32 *3]
-    %v3 = alloc : &2'ArrayView(I32)
-    %v4 = addressof [%v2] : %I32
-    init %local1@ArrayView.items, %v4
-    %v6 = countof 3 : Size
-    init %local1@ArrayView.length, %v6
-    ret %v3
+    %v1 = alloc : &2'ArrayView(I32)
+    %v2 = load %self : [I32 *3]
+    %v3 = addressof %self : %[I32 *3]
+    %v4 = bitcast %v3 : %I32
+    %v5 = countof 3 : I32
+    %v6 = cast %v5 : Size
+    aggregate %local1@ArrayView.items = %v4, %local1@ArrayView.length = %v6
+    ret %v1
 }
 
 fn sortRange(I32)(%xs: ArrayView(I32), %first: Size, %last: Size, %depth: I32) -> () {

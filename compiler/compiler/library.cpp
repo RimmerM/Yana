@@ -100,19 +100,14 @@ const String& LibrarySource::directory(Context& context) {
     }
 
     /*
-     * Which library, when nothing named one - `prelude/` for the ownership resolver and `lib/` for
-     * the shipping one.
+     * `lib/` is the standard library of both resolvers.
      *
-     * A *library* and not a mode: `prelude/Core/Core.yana` is Core written small, every declaration
-     * in it binds through `@builtin` exactly as the real one's does, and the walk below cannot tell
-     * the two apart. What the stage gets is a standard library it can compile, which is the whole
-     * of the difference - so the day it compiles the real one, this line goes and nothing else does.
-     *
-     * `-lib` is above and wins over both, which is what makes pointing the new stage at the real
-     * library a flag rather than a build.
+     * There used to be a second candidate here, `prelude/` - Core written small, so that the
+     * ownership stage had a standard library it could compile while it was being built. It is gone
+     * (2026-09-07): that stage compiles the real `lib/` in full, so a second library would only be
+     * a second answer to "what does this program import" that nobody reads.
      */
-    auto ownership = context.settings.resolver == ResolverStage::Ownership;
-    auto leaf = ownership ? "prelude"_v : "lib"_v;
+    auto leaf = "lib"_v;
 
     auto binary = executableDirectory();
     if(binary != "") {
@@ -126,7 +121,7 @@ const String& LibrarySource::directory(Context& context) {
         }
     }
 
-    auto built = String(ownership ? YANA_PRELUDE_DIR : YANA_LIBRARY_DIR);
+    auto built = String(YANA_LIBRARY_DIR);
     if(holdsLibrary(built)) root = built;
 
     return root;

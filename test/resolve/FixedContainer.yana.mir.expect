@@ -1,0 +1,96 @@
+module ResolveTest
+
+fn total(xs: c [shared call]) -> I32 {
+  form specialized
+  slot #0 type c
+  slot #1 class Chunked(c, I32)
+  local & sum: I32
+  local v: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: c [shared call] = read borrow.shared (xs) loan0
+  lens.call items(c, I32) borrow.shared %2 -> bb2
+
+bb1:
+  %11: I32 = read copy.trivial (sum)
+  return take %11
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (v) borrow.shared %3
+  %6: I32 = read copy.trivial (sum)
+  %7: I32 = read copy.trivial (v)
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (sum) take %8
+  jump -> bb1
+}
+
+fn main() -> I64 {
+  local & fixed: [I32 *3]
+  local seen: Size
+  local & unsorted: [I32 *3]
+
+bb0:
+  %0: I32 = const 4
+  %1: I32 = const 5
+  %2: I32 = const 6
+  %3: [I32 *3] = aggregate.0 take %0 take %1 take %2
+  write.init borrow.unique (fixed) take %3
+  %5: [I32 *3] = read copy.trivial (fixed)
+  %6: I32 = call total([I32 *3]) borrow.shared %5
+  %7: I32 = const 15
+  %8: Bool = ne inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: [I32 *3] [shared slot 0] = read borrow.shared (fixed) loan0
+  %14: Array(I32) [shared slot 0 view] = call elements([I32 *3], I32) borrow.shared %13 roots{0}
+  %15: Size = call length(Array(I32)) borrow.shared %14
+  write.init borrow.unique (seen) take %15
+  %17: Size = read copy.trivial (seen)
+  %18: Size = const 3
+  %19: Bool = ne inspect %17 inspect %18
+  branch inspect %19 -> bb6 -> bb4
+
+bb3:
+  %10: I64 = const -1
+  return take %10
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %24: I32 = const 3
+  %25: I32 = const 1
+  %26: I32 = const 2
+  %27: [I32 *3] = aggregate.0 take %24 take %25 take %26
+  write.init borrow.unique (unsorted) take %27
+  %29: [I32 *3] [unique call] = read borrow.unique (unsorted) loan1
+  %30: {} = call sort([I32 *3], I32) borrow.unique %29
+  %31: Size = const 0
+  %32: I32 = read copy.trivial (unsorted[0])
+  %33: I32 = const 100
+  %34: I32 = mul inspect %32 inspect %33
+  %35: Size = const 1
+  %36: I32 = read copy.trivial (unsorted[1])
+  %37: I32 = const 10
+  %38: I32 = mul inspect %36 inspect %37
+  %39: I32 = add inspect %34 inspect %38
+  %40: Size = const 2
+  %41: I32 = read copy.trivial (unsorted[2])
+  %42: I32 = add inspect %39 inspect %41
+  %43: I64 = convert inspect %42
+  return take %43
+
+bb6:
+  %21: I64 = const -2
+  return take %21
+}
+
+fn total([I32 *3])(xs: [I32 *3] [shared call]) -> I32 = <total at [I32 *3]>
+
+entry main

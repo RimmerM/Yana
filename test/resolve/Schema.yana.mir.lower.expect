@@ -1,0 +1,71 @@
+@environment(tagOf'2(Labelled)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(Labelled) = [8, 0, 0, 13, 0, 0, 0, 0]
+@image$base = []
+@environment(doubled(Labelled)) = [0, 0, 0, 0, 0, 0, 0, 0]
+
+tagOf'2<complex>(%v_0: Ptr, %value: Ptr): I32 {
+  b_1 {
+    ret 7
+  }
+}
+
+double<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = shl %n, 1: I32
+    ret %v_1
+  }
+}
+
+doubled<complex>(%v_0: Ptr, %value: Ptr): I32 {
+  b_1 {
+    ret 8
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    jmp b_2
+  }
+
+  b_2 {
+    jmp b_3
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = alloca 8, 4: Ptr
+    store %v_5, 1, 4
+    %v_6 = add %v_5, 4: Ptr
+    store %v_6, 2, 4
+    %v_7 = call_complex tagOf'2, @environment(tagOf'2(Labelled)), %v_5: I32
+    %v_8 = add 38, %v_7: I32
+    %v_9 = alloca 8, 4: Ptr
+    store %v_9, 1, 4
+    %v_10 = add %v_9, 4: Ptr
+    store %v_10, 2, 4
+    %v_11 = call_complex doubled, @environment(doubled(Labelled)), %v_9: I32
+    %v_12 = add %v_8, %v_11: I32
+    ret %v_12
+  }
+}
+
+teardown()<complex>(%v_0: Ptr) {
+  b_1 {
+    ret 
+  }
+}
+
+thunk(double)<complex>(%v_0: Ptr, %v_1: I32): I32 {
+  b_2 {
+    %v_3 = call_complex double, %v_1: I32
+    ret %v_3
+  }
+}
+

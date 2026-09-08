@@ -39,6 +39,20 @@ fn +=(I64)(%target: I64, %amount: I64) -> () {
     ret
 }
 
+fn Length(Array(a)).length(Handle)(%self: Array(Handle)) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
+fn Length(Array(a)).length(I32)(%self: Array(I32)) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
 fn push(I32)(%self: Array(I32), %item: I32) -> () {
   b0:
     %v2 = load %self : Array(I32)
@@ -1462,11 +1476,10 @@ fn holdHandles() -> I64 {
     init %local3@Array.run@Run.ownsHeap, 2
     %v17 = load %hs@Array.length : @bits(30) U32
     init %local3@Array.length, %v17
-    %v19 = load %local3@Array.length : @bits(30) U32
+    %v19 = call Length(Array(a)).length(Handle), %v10 : Size
     drop %hs via teardown$@inline(2) @capacity(2) Array(Handle)
-    %v20 = cast %v19 : Size
-    %v21 = cast %v20 : I64
-    ret %v21
+    %v20 = cast %v19 : I64
+    ret %v20
 }
 
 fn holdInRecord() -> I32 {
@@ -1530,10 +1543,9 @@ fn main() -> I32 {
     init %local1@Array.run@Run.ownsHeap, 2
     %v41 = load %xs@Array.length : @bits(30) U32
     init %local1@Array.length, %v41
-    %v43 = load %local1@Array.length : @bits(30) U32
-    %v44 = cast %v43 : Size
-    %v47 = cmp_ne %v44, 2 : Bool
-    je %v47, b43, b11
+    %v43 = call Length(Array(a)).length(I32), %v34 : Size
+    %v46 = cmp_ne %v43, 2 : Bool
+    je %v46, b43, b11
 
   b10:
     ret -4
@@ -1542,17 +1554,17 @@ fn main() -> I32 {
     jmp b12
 
   b12:
-    %v52 = load %xs : @inline(4) @capacity(4) Array(I32)
-    %v53 = borrow %xs : '@inline(4) @capacity(4) Array(I32)
-    %v54 = alloc : ArrayView(I32)
-    %v55 = addressof [%v53]@Array.run : %I32
-    init %local2@ArrayView.items, %v55
-    %v57 = load [%v53]@Array.length : @bits(30) U32
-    %v58 = cast %v57 : Size
-    init %local2@ArrayView.length, %v58
-    %v60 = call total, %v54 : I32
-    %v63 = cmp_ne %v60, 3 : Bool
-    je %v63, b44, b14
+    %v51 = load %xs : @inline(4) @capacity(4) Array(I32)
+    %v52 = borrow %xs : '@inline(4) @capacity(4) Array(I32)
+    %v53 = alloc : ArrayView(I32)
+    %v54 = addressof [%v52]@Array.run : %I32
+    init %local2@ArrayView.items, %v54
+    %v56 = load [%v52]@Array.length : @bits(30) U32
+    %v57 = cast %v56 : Size
+    init %local2@ArrayView.length, %v57
+    %v59 = call total, %v53 : I32
+    %v62 = cmp_ne %v59, 3 : Bool
+    je %v62, b44, b14
 
   b13:
     ret -5
@@ -1561,28 +1573,28 @@ fn main() -> I32 {
     jmp b15
 
   b15:
-    %v68 = load %xs : @inline(4) @capacity(4) Array(I32)
-    %v70 = alloc : Array(I32)
-    %v71 = addressof %xs@Array.run : %I32
-    init %local3@Array.run@Run.items, %v71
+    %v67 = load %xs : @inline(4) @capacity(4) Array(I32)
+    %v69 = alloc : Array(I32)
+    %v70 = addressof %xs@Array.run : %I32
+    init %local3@Array.run@Run.items, %v70
     init %local3@Array.run@Run.capacity, 4
     init %local3@Array.run@Run.ownsHeap, 2
-    %v77 = load %xs@Array.length : @bits(30) U32
-    init %local3@Array.length, %v77
-    %v80 = borrow %local3 : 'Array(I32)
-    %v81 = load [%v80]@Array.length : @bits(30) U32
-    %v82 = cast 0 : USize
-    %v83 = cast %v81 : USize
-    %v84 = cmp_ge %v82, %v83 : Bool
-    call checkCondition, %v84
-    %v86 = load [%v80]@Array.run@Run.items : %I32
-    %v87 = strideof I32 : I64
-    %v88 = mul 0, %v87 : I64
-    %v89 = add %v86, %v88 : %I32
-    %v90 = borrow [%v89] : 1'I32
-    %v91 = load [%v90] : I32
-    %v94 = cmp_ne %v91, 1 : Bool
-    je %v94, b45, b17
+    %v76 = load %xs@Array.length : @bits(30) U32
+    init %local3@Array.length, %v76
+    %v79 = borrow %local3 : 'Array(I32)
+    %v80 = load [%v79]@Array.length : @bits(30) U32
+    %v81 = cast 0 : USize
+    %v82 = cast %v80 : USize
+    %v83 = cmp_ge %v81, %v82 : Bool
+    call checkCondition, %v83
+    %v85 = load [%v79]@Array.run@Run.items : %I32
+    %v86 = strideof I32 : I64
+    %v87 = mul 0, %v86 : I64
+    %v88 = add %v85, %v87 : %I32
+    %v89 = borrow [%v88] : 1'I32
+    %v90 = load [%v89] : I32
+    %v93 = cmp_ne %v90, 1 : Bool
+    je %v93, b45, b17
 
   b16:
     ret -6
@@ -1591,42 +1603,41 @@ fn main() -> I32 {
     jmp b18
 
   b18:
-    %v99 = load %xs : @inline(4) @capacity(4) Array(I32)
-    %v102 = alloc : Array(I32)
-    %v103 = addressof %xs@Array.run : %I32
-    init %local4@Array.run@Run.items, %v103
+    %v98 = load %xs : @inline(4) @capacity(4) Array(I32)
+    %v101 = alloc : Array(I32)
+    %v102 = addressof %xs@Array.run : %I32
+    init %local4@Array.run@Run.items, %v102
     init %local4@Array.run@Run.capacity, 4
     init %local4@Array.run@Run.ownsHeap, 2
-    %v109 = load %xs@Array.length : @bits(30) U32
-    init %local4@Array.length, %v109
-    %v111 = borrow_mut %local4 : &Array(I32)
-    call push(I32), %v111, 3
-    %v113 = load %local4@Array.length : @bits(30) U32
-    assign %xs@Array.length, %v113
-    %v115 = load %xs : @inline(4) @capacity(4) Array(I32)
-    %v118 = alloc : Array(I32)
-    %v119 = addressof %xs@Array.run : %I32
-    init %local5@Array.run@Run.items, %v119
+    %v108 = load %xs@Array.length : @bits(30) U32
+    init %local4@Array.length, %v108
+    %v110 = borrow_mut %local4 : &Array(I32)
+    call push(I32), %v110, 3
+    %v112 = load %local4@Array.length : @bits(30) U32
+    assign %xs@Array.length, %v112
+    %v114 = load %xs : @inline(4) @capacity(4) Array(I32)
+    %v117 = alloc : Array(I32)
+    %v118 = addressof %xs@Array.run : %I32
+    init %local5@Array.run@Run.items, %v118
     init %local5@Array.run@Run.capacity, 4
     init %local5@Array.run@Run.ownsHeap, 2
-    %v125 = load %xs@Array.length : @bits(30) U32
-    init %local5@Array.length, %v125
-    %v127 = borrow_mut %local5 : &Array(I32)
-    call push(I32), %v127, 4
-    %v129 = load %local5@Array.length : @bits(30) U32
-    assign %xs@Array.length, %v129
-    %v131 = load %xs : @inline(4) @capacity(4) Array(I32)
-    %v132 = alloc : Array(I32)
-    %v133 = addressof %xs@Array.run : %I32
-    init %local6@Array.run@Run.items, %v133
+    %v124 = load %xs@Array.length : @bits(30) U32
+    init %local5@Array.length, %v124
+    %v126 = borrow_mut %local5 : &Array(I32)
+    call push(I32), %v126, 4
+    %v128 = load %local5@Array.length : @bits(30) U32
+    assign %xs@Array.length, %v128
+    %v130 = load %xs : @inline(4) @capacity(4) Array(I32)
+    %v131 = alloc : Array(I32)
+    %v132 = addressof %xs@Array.run : %I32
+    init %local6@Array.run@Run.items, %v132
     init %local6@Array.run@Run.capacity, 4
     init %local6@Array.run@Run.ownsHeap, 2
-    %v139 = load %xs@Array.length : @bits(30) U32
-    init %local6@Array.length, %v139
-    %v141 = load %local6@Array.length : @bits(30) U32
-    %v142 = cast %v141 : Size
-    %v145 = cmp_ne %v142, 4 : Bool
-    je %v145, b46, b20
+    %v138 = load %xs@Array.length : @bits(30) U32
+    init %local6@Array.length, %v138
+    %v140 = call Length(Array(a)).length(I32), %v131 : Size
+    %v143 = cmp_ne %v140, 4 : Bool
+    je %v143, b46, b20
 
   b19:
     ret -7
@@ -1635,17 +1646,17 @@ fn main() -> I32 {
     jmp b21
 
   b21:
-    %v150 = load %xs : @inline(4) @capacity(4) Array(I32)
-    %v151 = borrow %xs : '@inline(4) @capacity(4) Array(I32)
-    %v152 = alloc : ArrayView(I32)
-    %v153 = addressof [%v151]@Array.run : %I32
-    init %local7@ArrayView.items, %v153
-    %v155 = load [%v151]@Array.length : @bits(30) U32
-    %v156 = cast %v155 : Size
-    init %local7@ArrayView.length, %v156
-    %v158 = call total, %v152 : I32
-    %v161 = cmp_ne %v158, 10 : Bool
-    je %v161, b47, b23
+    %v148 = load %xs : @inline(4) @capacity(4) Array(I32)
+    %v149 = borrow %xs : '@inline(4) @capacity(4) Array(I32)
+    %v150 = alloc : ArrayView(I32)
+    %v151 = addressof [%v149]@Array.run : %I32
+    init %local7@ArrayView.items, %v151
+    %v153 = load [%v149]@Array.length : @bits(30) U32
+    %v154 = cast %v153 : Size
+    init %local7@ArrayView.length, %v154
+    %v156 = call total, %v150 : I32
+    %v159 = cmp_ne %v156, 10 : Bool
+    je %v159, b47, b23
 
   b22:
     ret -8
@@ -1654,18 +1665,17 @@ fn main() -> I32 {
     jmp b24
 
   b24:
-    %v166 = load %xs : @inline(4) @capacity(4) Array(I32)
-    %v167 = alloc : Array(I32)
-    %v168 = addressof %xs@Array.run : %I32
-    init %local8@Array.run@Run.items, %v168
+    %v164 = load %xs : @inline(4) @capacity(4) Array(I32)
+    %v165 = alloc : Array(I32)
+    %v166 = addressof %xs@Array.run : %I32
+    init %local8@Array.run@Run.items, %v166
     init %local8@Array.run@Run.capacity, 4
     init %local8@Array.run@Run.ownsHeap, 2
-    %v174 = load %xs@Array.length : @bits(30) U32
-    init %local8@Array.length, %v174
-    %v176 = load %local8@Array.length : @bits(30) U32
-    %v177 = cast %v176 : Size
-    %v180 = cmp_ne %v177, 4 : Bool
-    je %v180, b48, b26
+    %v172 = load %xs@Array.length : @bits(30) U32
+    init %local8@Array.length, %v172
+    %v174 = call Length(Array(a)).length(I32), %v165 : Size
+    %v177 = cmp_ne %v174, 4 : Bool
+    je %v177, b48, b26
 
   b25:
     ret -9
@@ -1674,27 +1684,27 @@ fn main() -> I32 {
     jmp b27
 
   b27:
-    %v185 = load %xs : @inline(4) @capacity(4) Array(I32)
-    %v186 = borrow_mut %xs : &@inline(4) @capacity(4) Array(I32)
-    %v187 = alloc : ArrayView(I32)
-    %v188 = addressof [%v186]@Array.run : %I32
-    init %local9@ArrayView.items, %v188
-    %v190 = load [%v186]@Array.length : @bits(30) U32
-    %v191 = cast %v190 : Size
-    init %local9@ArrayView.length, %v191
-    %v193 = borrow_mut %local9 : &ArrayView(I32)
-    call double, %v193
-    %v195 = load %xs : @inline(4) @capacity(4) Array(I32)
-    %v196 = borrow %xs : '@inline(4) @capacity(4) Array(I32)
-    %v197 = alloc : ArrayView(I32)
-    %v198 = addressof [%v196]@Array.run : %I32
-    init %local10@ArrayView.items, %v198
-    %v200 = load [%v196]@Array.length : @bits(30) U32
-    %v201 = cast %v200 : Size
-    init %local10@ArrayView.length, %v201
-    %v203 = call total, %v197 : I32
-    %v206 = cmp_ne %v203, 20 : Bool
-    je %v206, b49, b29
+    %v182 = load %xs : @inline(4) @capacity(4) Array(I32)
+    %v183 = borrow_mut %xs : &@inline(4) @capacity(4) Array(I32)
+    %v184 = alloc : ArrayView(I32)
+    %v185 = addressof [%v183]@Array.run : %I32
+    init %local9@ArrayView.items, %v185
+    %v187 = load [%v183]@Array.length : @bits(30) U32
+    %v188 = cast %v187 : Size
+    init %local9@ArrayView.length, %v188
+    %v190 = borrow_mut %local9 : &ArrayView(I32)
+    call double, %v190
+    %v192 = load %xs : @inline(4) @capacity(4) Array(I32)
+    %v193 = borrow %xs : '@inline(4) @capacity(4) Array(I32)
+    %v194 = alloc : ArrayView(I32)
+    %v195 = addressof [%v193]@Array.run : %I32
+    init %local10@ArrayView.items, %v195
+    %v197 = load [%v193]@Array.length : @bits(30) U32
+    %v198 = cast %v197 : Size
+    init %local10@ArrayView.length, %v198
+    %v200 = call total, %v194 : I32
+    %v203 = cmp_ne %v200, 20 : Bool
+    je %v203, b49, b29
 
   b28:
     ret -10
@@ -1703,9 +1713,9 @@ fn main() -> I32 {
     jmp b30
 
   b30:
-    %v211 = call holdHandles : I64
-    %v214 = cmp_ne %v211, 2 : Bool
-    je %v214, b50, b32
+    %v208 = call holdHandles : I64
+    %v211 = cmp_ne %v208, 2 : Bool
+    je %v211, b50, b32
 
   b31:
     ret -11
@@ -1714,9 +1724,9 @@ fn main() -> I32 {
     jmp b33
 
   b33:
-    %v219 = load liveHandles : I64
-    %v222 = cmp_ne %v219, 0 : Bool
-    je %v222, b51, b35
+    %v216 = load liveHandles : I64
+    %v219 = cmp_ne %v216, 0 : Bool
+    je %v219, b51, b35
 
   b34:
     ret -12
@@ -1725,9 +1735,9 @@ fn main() -> I32 {
     jmp b36
 
   b36:
-    %v227 = call holdInRecord : I32
-    %v230 = cmp_ne %v227, 5 : Bool
-    je %v230, b52, b38
+    %v224 = call holdInRecord : I32
+    %v227 = cmp_ne %v224, 5 : Bool
+    je %v227, b52, b38
 
   b37:
     ret -13
@@ -1736,9 +1746,9 @@ fn main() -> I32 {
     jmp b39
 
   b39:
-    %v235 = load liveHandles : I64
-    %v238 = cmp_ne %v235, 0 : Bool
-    je %v238, b53, b41
+    %v232 = load liveHandles : I64
+    %v235 = cmp_ne %v232, 0 : Bool
+    je %v235, b53, b41
 
   b40:
     ret -14
@@ -1747,17 +1757,17 @@ fn main() -> I32 {
     jmp b42
 
   b42:
-    %v243 = load %xs : @inline(4) @capacity(4) Array(I32)
-    %v244 = borrow %xs : '@inline(4) @capacity(4) Array(I32)
-    %v245 = alloc : ArrayView(I32)
-    %v246 = addressof [%v244]@Array.run : %I32
-    init %local11@ArrayView.items, %v246
-    %v248 = load [%v244]@Array.length : @bits(30) U32
-    %v249 = cast %v248 : Size
-    init %local11@ArrayView.length, %v249
-    %v251 = call total, %v245 : I32
+    %v240 = load %xs : @inline(4) @capacity(4) Array(I32)
+    %v241 = borrow %xs : '@inline(4) @capacity(4) Array(I32)
+    %v242 = alloc : ArrayView(I32)
+    %v243 = addressof [%v241]@Array.run : %I32
+    init %local11@ArrayView.items, %v243
+    %v245 = load [%v241]@Array.length : @bits(30) U32
+    %v246 = cast %v245 : Size
+    init %local11@ArrayView.length, %v246
+    %v248 = call total, %v242 : I32
     drop %xs via teardown$@inline(4) @capacity(4) Array(I32)
-    ret %v251
+    ret %v248
 
   b43:
     drop %xs via teardown$@inline(4) @capacity(4) Array(I32)

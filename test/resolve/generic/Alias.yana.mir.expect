@@ -4,7 +4,7 @@ data Two(a, b) {left: a, right: b} drop derived reclaim derived
 
 data Two(I32, I32) {left: I32, right: I32} of Two
 
-fn sum(p: Two(I32, I32) [shared call]) -> I32 {
+fn sum'2(p: Two(I32, I32) [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (p.left)
   %1: I32 = read copy.trivial (p.right)
@@ -32,7 +32,7 @@ bb0:
   %6: Two(I32, I32) = aggregate.Two take %4 take %5
   write.init borrow.unique (q) take %6
   %8: Two(I32, I32) = read copy.trivial (p)
-  %9: I32 = call sum borrow.shared %8
+  %9: I32 = call sum'2 borrow.shared %8
   %10: Two(I32, I32) = read copy.trivial (q)
   %11: I32 = call first borrow.shared %10
   %12: I32 = add inspect %9 inspect %11

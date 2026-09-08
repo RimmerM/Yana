@@ -36,12 +36,12 @@ fn partial() -> Int = maximum(slice(elements(newArray(8, (i: Size) -> truncate(i
    the library has this shape, which is why it is asserted here beside the liveness half rather than
    left to the one place it was first noticed.
 -}
-fn window(return xs: Array(Int), from: Size, to: Size) -> '[Int] = slice(elements(xs), from, to)
+fn window(xs: 'Array(Int), from: Size, to: Size) -> '[Int] = slice(elements(xs), from, to)
 
 -- And one call deeper, because what closes the chain is a walk rather than one more step: `window`
 -- is itself a call whose result is rooted in its argument, so the descriptor this slices is two
 -- frames' worth of provenance away from the array.
-fn deeper(return xs: Array(Int)) -> '[Int] = slice(window(xs, 1, 7), 1, 5)
+fn deeper(xs: 'Array(Int)) -> '[Int] = slice(window(xs, 1, 7), 1, 5)
 
 fn viaReturn() -> Int:
     let xs = newArray(8, (i: Size) -> truncate(i + 1) :: Int)

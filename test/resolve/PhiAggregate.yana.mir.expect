@@ -118,7 +118,7 @@ bb5:
   jump -> bb3(take %13)
 }
 
-fn product(n: I32 [shared call]) -> I32 {
+fn product'2(n: I32 [shared call]) -> I32 {
   local p: Point
 
 bb0:
@@ -233,13 +233,13 @@ bb0:
   %11: I32 = mul inspect %9 inspect %10
   %12: I32 = add inspect %7 inspect %11
   %13: I32 = const 50
-  %14: I32 = call product borrow.shared %13
+  %14: I32 = call product'2 borrow.shared %13
   %15: I32 = add inspect %12 inspect %14
   %16: I32 = const 5
-  %17: I32 = call product borrow.shared %16
+  %17: I32 = call product'2 borrow.shared %16
   %18: I32 = add inspect %15 inspect %17
   %19: I32 = const -1
-  %20: I32 = call product borrow.shared %19
+  %20: I32 = call product'2 borrow.shared %19
   %21: I32 = add inspect %18 inspect %20
   %22: Bool = const True
   %23: I32 = call whole borrow.shared %22

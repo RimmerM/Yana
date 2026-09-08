@@ -157,6 +157,17 @@ bool Resolver::tickContract(const WrittenSigils& sigils, Position position, Acce
     if(publishes && !roomForSlot(*slots, sigils.group, source)) return false;
 
     auto slot = slots->find(sigils.group, publishes);
+
+    /*
+     * And the elision that answers it - §4.8 rules 5 and 6, argued at `promoteLoanCandidates`.
+     *
+     * Only for the **anonymous** group. A label names one relationship out of several, and there is
+     * nothing to elide about which one it is: `-> a'Guard` in a signature that published no `a` is
+     * a signature naming a group it does not have, and promoting a parameter into `a` would be
+     * inventing the author's second relationship for them.
+     */
+    if(slot == SlotScope::kNone && sigils.group == StringId()) slot = promoteLoanCandidates(*slots);
+
     if(slot == SlotScope::kNone) {
         if(sigils.group != StringId()) {
             context.diagnostics.error("no parameter publishes the origin %@"_v, source,
@@ -304,6 +315,32 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
         contract = Contract { contract.access(), contract.origin(), form, contract.slot() };
     }
 
+    /*
+     * An **exclusive result** at a bare type variable is storage, not a window.
+     *
+     * `Index.getMut(&self: source'c, index: k) -> &source'v` is the pair that makes the rule
+     * visible, because its two variable positions want opposite answers. The *subject* takes the
+     * window: a caller holds either an owner or a window, and the window is the form both adapt to,
+     * which is what lets `sortRange(&xs: [a])` write `xs[i]`. The *result* is the element's own
+     * storage - `xs[i] = ys`, `push(xs[i], 5)` and `swap(xs[0], xs[1])` each write the whole value -
+     * and a descriptor built into a temporary would take all three writes with it. That is what
+     * `swapElements` and `mapInsertDisplaces` did, one level below the `swap` this fixes at
+     * `op.def`'s place shapes.
+     *
+     * A result at a *concrete* container already answers `Owner` two lines above (`row->spelled`),
+     * so this is the same sentence said where the type is still open rather than a new rule - and it
+     * is written for every type rather than only for a variable, so that a class member's `-> &v`
+     * and the instance's `-> &CodeUnit` are still the same signature. On a type with no view the two
+     * forms mean the same thing and are laid out the same; what differs is only what a substitution
+     * would have done. The shared result keeps the window - `xs[0]` read is a view of the element,
+     * which is what a `[T]` position expects of it - and so does every parameter.
+     */
+    if((position == Position::Result || position == Position::Handover) &&
+       contract.access() == Access::Unique && contract.form() == AccessForm::WholeValue) {
+        contract = Contract { contract.access(), contract.origin(), AccessForm::Owner,
+                              contract.slot() };
+    }
+
     // A bracket spelling at an access the type has no view for - `&s: [CodeUnit]` over a string,
     // once a string is spelled that way at all. Said as what is missing rather than laid out as a
     // view that has no record.
@@ -315,6 +352,101 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
     }
 
     into = Occurrence { logical, contract, shape };
+    return true;
+}
+
+/*
+ * Whether an unlabelled parameter refers to the caller's storage - see `promoteLoanCandidates`.
+ *
+ * The two shapes that do, and the reason the third does not: a **unique** borrow is written through
+ * to the caller's own storage, and a shared borrow whose form is a **view** is a descriptor of
+ * somebody else's elements. A plain `p: Pair` is neither - it is a borrow only because a binding
+ * position borrows by default, and a caller could equally have been asked for a copy - so a result
+ * borrowing out of one still has to say so, which is `loans/Reject.Signature.yana`.
+ */
+static bool isLoanCandidate(const Arg& arg) {
+    auto contract = arg.occurrence.contract;
+    if(contract.origin() != Origin::CallBounded) return false;
+
+    return contract.access() == Access::Unique || contract.form() == AccessForm::View;
+}
+
+// See the declaration, where the rule is argued.
+U16 Resolver::promoteLoanCandidates(SlotScope& slots) {
+    if(!elisionSubject || slots.full()) return SlotScope::kNone;
+
+    auto base = decl();
+    auto found = false;
+
+    for(auto argPointer: elisionSubject->args.contents(base)) {
+        if(isLoanCandidate(*base[argPointer])) { found = true; break; }
+    }
+
+    if(!found) return SlotScope::kNone;
+
+    auto slot = slots.find(StringId(), true);
+
+    for(auto argPointer: elisionSubject->args.contents(base)) {
+        auto& arg = *base[argPointer];
+        if(!isLoanCandidate(arg)) continue;
+
+        auto contract = arg.occurrence.contract;
+        arg.occurrence.contract = slotContract(contract.access(), slot, contract.form());
+    }
+
+    return slot;
+}
+
+/*
+ * See the declaration. Two kinds of interior position and one rule over both.
+ *
+ * A **record** with a schema - `data Formatted(s, a) {value: 'a, style: s}` - is renumbered slot for
+ * slot into this signature's scope, which is `Reader(a')`'s mapping with the argument supplied by
+ * elision rather than written. A **pointer** has one interior position and no field to name it, so
+ * the shape built here is `%source'a`'s exactly; `resolvePointee` is where the written form of it
+ * is, and the two produce the same slot on purpose.
+ *
+ * Only at an **owned** root, which is where the silence is. `originSlotAt`'s third case already
+ * answers an unbound interior position with the root's slot, so a result that borrows says
+ * something about everything inside it and there is nothing here to fill in - and filling it in
+ * anyway would put the interior in the anonymous group while the root names another.
+ */
+bool Resolver::elideResultOrigins(Occurrence& outgoing, SlotScope& slots) {
+    if(outgoing.shape || !outgoing.contract.isOwned() || !outgoing.type) return true;
+
+    auto base = decl();
+    auto pointer = base[outgoing.type]->kind == Type::Pointer;
+    auto schema = pointer ? nullptr : schemaOf(base, outgoing.type);
+    if(!schema && !pointer) return true;
+
+    // The signature's one anonymous group - published by a parameter, or promoted onto every
+    // candidate parameter by rules 5 and 6 where nothing wrote one.
+    auto group = slots.find(StringId(), false);
+    if(group == SlotScope::kNone) group = promoteLoanCandidates(slots);
+    if(group == SlotScope::kNone) return true;
+
+    SmallArray<ExternalSlot, 8> mapped;
+
+    if(pointer) {
+        ExternalSlot at {};
+        at.path.push(program.decl, PathStep::pointee());
+        at.contract = slotContract(Access::Owned, group);
+        mapped.push(at);
+    } else {
+        for(auto slotPointer: base[schema]->slots.contents(base)) {
+            auto& declared = *base[slotPointer];
+            assertTrue(declared.contract.origin() == Origin::Slot);
+
+            ExternalSlot bound;
+            for(auto step: declared.path.contents(base)) bound.path.push(program.decl, step);
+            bound.contract = slotContract(declared.contract.access(), group,
+                                          declared.contract.form());
+
+            mapped.push(bound);
+        }
+    }
+
+    outgoing.shape = program.shapes.intern(mapped.pointer(), mapped.size());
     return true;
 }
 
@@ -1408,13 +1540,17 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
     auto ownerSubject = ownerSubjectNext;
     ownerSubjectNext = false;
 
-    for(auto argument: written.args.contents(parse)) {
-        if(argument.caller) {
-            unsupported(argument.source, "a `@caller` parameter"_v);
-            ok = false;
-            continue;
-        }
+    /*
+     * The `@caller` positions, checked after the loop rather than inside it - `declareCallerFill`.
+     *
+     * `@caller(source: p)` may name a parameter written *after* it, so the check needs every
+     * position to exist; and what it writes is one field of an `Arg` this loop has already built.
+     * Collecting the indices is the whole of what the deferral costs.
+     */
+    struct CallerPosition { U32 position; ast::Arg written; };
+    SmallArray<CallerPosition, 4> callerPositions;
 
+    for(auto argument: written.args.contents(parse)) {
         /*
          * `return x: T` - the older spelling of what `'` now says.
          *
@@ -1540,7 +1676,15 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
         declared->lazy = deferred;
         declared->def = def;
 
+        if(argument.caller) callerPositions.push(CallerPosition { declared->index, argument });
+
         function.args.push(program.decl, declared - *program.decl);
+    }
+
+    // And the markers, now that every position they may name exists.
+    for(auto& marked: callerPositions) {
+        auto& declared = *decl()[function.args.get(decl(), marked.position)];
+        if(!declareCallerFill(function, declared, marked.written)) ok = false;
     }
 
     return ok;
@@ -1721,7 +1865,9 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     function->lens = lens;
     function->iterator = iterator;
     function->form = readGenForm(declaration);
-    readInlineAttribute(declaration, function->alwaysInline, function->noInline);
+    readInlineAttribute(declaration, function->alwaysInline, function->inlineHint,
+                        function->noInline, function->legacySse);
+    readConventionAttribute(declaration, *function);
 
     // `pub`. Here rather than at each caller because both of them - a plain `fn` and a class member -
     // register the name, and `Program::addFunctionName` reads this to decide which declaration a
@@ -1908,15 +2054,21 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * occurrence, because a result the caller receives is theirs and there is nothing to borrow in
      * a unit. A written one goes through the same function every parameter did, with the scope the
      * parameters filled: `-> a'T` is a relationship to the storage bound to `a` at the call, and a
-     * slot no parameter published is reported there rather than silently becoming a fresh one.
+     * *labelled* slot no parameter published is reported there rather than silently becoming a
+     * fresh one. The anonymous group is the one that elides - `promoteLoanCandidates`.
      */
     auto position = lens ? Position::Handover : Position::Result;
     auto& outgoing = lens ? function->handover : function->result;
 
+    // The one position an elided origin may be promoted for - see `elisionSubject`. Restored rather
+    // than cleared, because resolving a result type can declare another signature.
+    auto outerElision = elisionSubject;
+    elisionSubject = function;
+    auto outgoingOk = true;
+
     if(written.ret) {
-        if(!resolveOccurrence(*parse[written.ret], written.retBind, position, slots, outgoing)) {
-            return nullptr;
-        }
+        outgoingOk = resolveOccurrence(*parse[written.ret], written.retBind, position, slots,
+                                       outgoing);
     } else if(inherited) {
         /*
          * Inherited for the reason a parameter is - see `declareArgs`. An implementation that wrote
@@ -1933,6 +2085,14 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     } else {
         outgoing = owned(program.types.unit);
     }
+
+    // The interior positions the result's own type has and nobody labelled - `elideResultOrigins`,
+    // where rule 1 is argued. After every source of a result and before anything reads one, so that
+    // an inherited signature and a written one are elided by the same line.
+    outgoingOk = outgoingOk && elideResultOrigins(outgoing, slots);
+
+    elisionSubject = outerElision;
+    if(!outgoingOk) return nullptr;
 
     function->originSlots = slots.count();
 
@@ -2040,18 +2200,19 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
             /*
              * A body as well as a `Node` role, which is two implementations of one function.
              *
-             * Refused rather than resolved with one of them winning silently. The declaration says
-             * the compiler supplies this, and a body beside it is either dead code or the author's
-             * real intent - and nothing here can tell which.
+             * Refused rather than resolved with one of them winning silently, *except* where the
+             * role is one a stage may decline to expand - `roleMayWriteBody`, where the two answers
+             * are argued. For everything else the declaration says the compiler supplies this, and a
+             * body beside it is either dead code or the author's real intent, and nothing here can
+             * tell which.
              *
              * A `Flow` role is the other way round: the compiler lays the operator out where it is
              * written, and the body is what every other reach of the declaration runs - so a
              * declaration without one would be a function value with nothing behind it. A `Branch`
-             * role has neither half: its expansion makes blocks and it still has no body, which is
-             * why the question asked here is `roleWritesBody` rather than a comparison against one
-             * of the three forms. `op.def` is where all three are argued.
+             * role has neither half: its expansion makes blocks and it still has no body. `op.def`
+             * is where all three are argued.
              */
-            if(written.body && !intrinsic::roleWritesBody(form)) {
+            if(written.body && !intrinsic::roleMayWriteBody(function->intrinsic)) {
                 context.diagnostics.error(
                     "%@ is implemented by the compiler, so this declaration has no body to write"_v,
                     declaration.source, intrinsic::opDef(function->intrinsic).role);
@@ -2061,6 +2222,35 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
                 context.diagnostics.error(
                     "%@ is expanded by the compiler where it is written as an operator, and carries the body every other use of it runs - this declaration has none"_v,
                     declaration.source, intrinsic::opDef(function->intrinsic).role);
+            }
+
+            /*
+             * A parameter the row declares a **place** - `swap`'s two and `exchange`'s first - is
+             * storage of exactly this type, so its form is `Owner` and not `WholeValue`.
+             *
+             * The difference is what a substitution does to it. `WholeValue` at a type variable
+             * becomes the *view* wherever the argument has one (`substitutedContract`), which is
+             * right for a position a callee reads through and exactly wrong for one the expansion
+             * writes: at `a := Array(I32)` the argument was adapted by `elementsMut` into a
+             * descriptor in a temporary, and `swap` then exchanged two temporaries while the
+             * caller's containers stood still. Seven cases of the library's suite said "expected 8,
+             * got 3".
+             *
+             * Read off `op.def`'s own shape column rather than named here, so a row added with a
+             * place parameter needs no second edit - and set at the declaration rather than at the
+             * expansion, because by the time `expandSwap` has its operands the derivation is a node
+             * in the body.
+             */
+            auto& def = intrinsic::opDef(function->intrinsic);
+            for(U32 i = 0; i < function->args.size() && i < def.count; i++) {
+                if(!intrinsic::isPlaceShape(def.params[i])) continue;
+
+                auto& argument = *decl()[function->args.get(decl(), i)];
+                auto held = argument.occurrence.contract;
+                if(held.form() != AccessForm::WholeValue) continue;
+
+                argument.occurrence.contract = Contract { held.access(), held.origin(),
+                                                          AccessForm::Owner, held.slot() };
             }
         }
     }
@@ -2078,6 +2268,31 @@ void Resolver::declareFunction(ast::Decl& declaration) {
 
     auto pointer = function - *program.decl;
     writtenFunctions.push(pointer);
+
+    // `@test`, which adds this declaration to the suite rather than setting a flag on it - see
+    // resolve_test.cpp. Here rather than in `declareSignature`, for the reason the inferring result
+    // below is here: only a plain free function may be one, and this is the path such a declaration
+    // takes.
+    readTestAttribute(declaration, *function);
+
+    /*
+     * `fn double(x: I32) = x * 2` - the `=` form with no result type, whose body decides one.
+     *
+     * Here rather than in `declareSignature`, and that is the rule rather than a convenience: **only
+     * a plain free function infers**, and this function is the one path such a declaration takes. A
+     * class member's result is its class signature's and an instance member's is inherited from it -
+     * both reach `declareSignature` with something to take the result from - and a lens's is its
+     * continuation's, with the `=` form refused on one before this point.
+     *
+     * What the signature left behind is `{}`, which is what a body producing nothing means anyway;
+     * `Function::inferResult` is what says it is a placeholder rather than the answer.
+     */
+    auto& written = declaration.fun;
+    if(written.implicitReturn && !written.ret && written.kind == ast::FunKind::Plain) {
+        function->inferResult = true;
+        function->written = U32(inferringDecls.size());
+        inferringDecls.push(&declaration);
+    }
 
     /*
      * At most **one plain function** per `(name, arity)` - R1 in `doc/spec/overloading.md`, and the

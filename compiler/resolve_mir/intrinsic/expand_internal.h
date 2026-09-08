@@ -39,6 +39,20 @@ Node* expandPointerStore(Builder& builder, Function& callee, Node* const* argume
 Node* expandTypeTraits(Builder& builder, Function& callee, Node* const* arguments,
                        const Substitution& with, LocationId source);
 
+/*
+ * The whole-vector transfers, which are the two above at a vector type - `lib/Native/Pointer.native.yana`.
+ *
+ * Here and not in `expand_vector.cpp` because what they are is a load and a store through an address
+ * root; the vector is the *type* they transfer, not an operation they perform. Two emitters for the
+ * three roles: `vectorAt` and `vectorPast` differ by the tail-read flag alone.
+ */
+Node* expandVectorAt(Builder& builder, Function& callee, Node* const* arguments,
+                     const Substitution& with, LocationId source);
+Node* expandVectorPast(Builder& builder, Function& callee, Node* const* arguments,
+                       const Substitution& with, LocationId source);
+Node* expandSetVectorAt(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source);
+
 
 // expand_scalar.cpp - the roles that are one arithmetic node, at the widths a machine has one.
 Node* expandMulHigh(Builder& builder, Function& callee, Node* const* arguments,
@@ -54,6 +68,22 @@ Node* expandSetMemory(Builder& builder, Function& callee, Node* const* arguments
 // The one emitter with an arity, because there are seven declarations and one operation.
 Node* expandSyscall(Builder& builder, Function& callee, Node* const* arguments, Size count,
                     const Substitution& with, LocationId source);
+
+Node* expandCloneThread(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source);
+
+/*
+ * The x86 family - `lib/Native/Intrinsic/X86.yana`, one `native.def` row apiece.
+ *
+ * Three emitters for nine roles, because what differs between them is which row and how many
+ * operands: a two-operand SHA step is one function with the row passed in, `sha1rnds4` is the one
+ * that has an argument to check, and everything else is the shared two-liner. `op` at the call site
+ * rather than a switch inside is the same arrangement `expandAtomicUpdate` has.
+ */
+Node* expandX86Native(Builder& builder, Function& callee, Node* const* arguments, Size count,
+                      const Substitution& with, LocationId source, NativeOp op);
+Node* expandX86Sha1Rounds(Builder& builder, Function& callee, Node* const* arguments,
+                          const Substitution& with, LocationId source);
 
 
 // expand_atomic.cpp - `lib/Atomic/Atomic.native.yana`, Analysis-Atomics.md §3.
@@ -72,6 +102,7 @@ Node* expandAtomicUpdate(Builder& builder, AtomicOp op, Node* const* arguments, 
 
 Node* expandAtomicFence(Builder& builder, Function& callee, Node* const* arguments,
                         const Substitution& with, LocationId source);
+
 Node* expandAtomicSpinHint(Builder& builder, Function& callee, Node* const* arguments,
                            const Substitution& with, LocationId source);
 
@@ -160,6 +191,15 @@ Node* expandMaskNone(Builder& builder, Function& callee, Node* const* arguments,
                      const Substitution& with, LocationId source);
 Node* expandMaskUpTo(Builder& builder, Function& callee, Node* const* arguments,
                      const Substitution& with, LocationId source);
+
+/*
+ * expand_container.cpp - what a container asks the compiler about its own key type.
+ *
+ * One emitter and a column for the two scan-limit rows, because what differs between them is where
+ * the key is - inside an `Entry` or at the pointer itself - and not what is computed from it.
+ */
+Node* expandScanLimit(Builder& builder, Function& callee, bool unwrapEntry, Node* const* arguments,
+                      const Substitution& with, LocationId source);
 
 // expand_exchange.cpp - `swap` and `exchange`, `doc/spec/core.md`'s Exchange.
 Node* expandSwap(Builder& builder, Function& callee, Node* const* arguments,

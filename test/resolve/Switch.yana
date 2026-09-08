@@ -1,0 +1,111 @@
+-- The multi-way branch as a *branch* - D3 slice 3, and the shapes the x64 backend spends one in. Its map-shaped twin is ConstructorMap.yana; what is here is deliberately everything that is
+-- **not** a mapping, since a match whose arms are all constants never reaches this path at all.
+--
+-- Every arm calls a `@noinline` function of the tag, so no arm is a constant and `matchAsMap`
+-- declines each of these in the first thing it asks. The pivot then arrives through `opaque`, which
+-- is what keeps the dispatch in the program: with a constant selector the whole match folds and
+-- what the fixture measures is nothing.
+--
+-- The four sizes sit on both sides of what `chooseSwitchForm` decides (transform_switch.cpp):
+--
+--   4 arms, dense    the comparison chain, far below `kJumpTableMin`
+--   9 arms, dense    the chain still - a table is not worth having until sixteen
+--   9 arms, sparse   the chain again, and for the other reason: a span of thirty over nine cases
+--   20 arms, dense   the jump table, at the size the `File.yana` and `Options.yana` matches are
+--
+-- `.run.expect` is shared between the two resolve stages, and that is the point of it here: the
+-- shipping stage compiles every one of these as its own chain, so the two implementations of one
+-- language have to agree about which arm ran.
+
+data qualified Four = A0 | A1 | A2 | A3
+
+data qualified Nine = B0 | B1 | B2 | B3 | B4 | B5 | B6 | B7 | B8
+
+-- The same nine values spread over thirty, which is what makes a table mostly fill. `@value(n)` is
+-- somebody else's ABI - see ConstructorMap.Pinned.yana - so this is the shape a real one has.
+data qualified Spread =
+    @value(0) C0 | @value(3) C1 | @value(7) C2 | @value(11) C3 | @value(14) C4 |
+    @value(18) C5 | @value(22) C6 | @value(26) C7 | @value(29) C8
+
+data qualified Twenty =
+    D0 | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9 |
+    D10 | D11 | D12 | D13 | D14 | D15 | D16 | D17 | D18 | D19
+
+-- Not a constant, which is the whole reason every arm calls it: an arm this compiler can evaluate is
+-- an arm the mapping recognizer takes, and there would be no branch left to lower.
+@noinline fn weigh(n: Int) -> Int:
+    if n > 1000 then return 0
+    return n * 7 + 3
+
+@noinline fn opaqueFour(c: Four) -> Four = c
+@noinline fn opaqueNine(c: Nine) -> Nine = c
+@noinline fn opaqueSpread(c: Spread) -> Spread = c
+@noinline fn opaqueTwenty(c: Twenty) -> Twenty = c
+
+fn four(c: Four) -> Int = match c:
+    Four.A0 -> weigh(0)
+    Four.A1 -> weigh(1)
+    Four.A2 -> weigh(2)
+    Four.A3 -> weigh(3)
+
+fn nine(c: Nine) -> Int = match c:
+    Nine.B0 -> weigh(10)
+    Nine.B1 -> weigh(11)
+    Nine.B2 -> weigh(12)
+    Nine.B3 -> weigh(13)
+    Nine.B4 -> weigh(14)
+    Nine.B5 -> weigh(15)
+    Nine.B6 -> weigh(16)
+    Nine.B7 -> weigh(17)
+    Nine.B8 -> weigh(18)
+
+fn spread(c: Spread) -> Int = match c:
+    Spread.C0 -> weigh(20)
+    Spread.C1 -> weigh(21)
+    Spread.C2 -> weigh(22)
+    Spread.C3 -> weigh(23)
+    Spread.C4 -> weigh(24)
+    Spread.C5 -> weigh(25)
+    Spread.C6 -> weigh(26)
+    Spread.C7 -> weigh(27)
+    Spread.C8 -> weigh(28)
+
+fn twenty(c: Twenty) -> Int = match c:
+    Twenty.D0 -> weigh(30)
+    Twenty.D1 -> weigh(31)
+    Twenty.D2 -> weigh(32)
+    Twenty.D3 -> weigh(33)
+    Twenty.D4 -> weigh(34)
+    Twenty.D5 -> weigh(35)
+    Twenty.D6 -> weigh(36)
+    Twenty.D7 -> weigh(37)
+    Twenty.D8 -> weigh(38)
+    Twenty.D9 -> weigh(39)
+    Twenty.D10 -> weigh(40)
+    Twenty.D11 -> weigh(41)
+    Twenty.D12 -> weigh(42)
+    Twenty.D13 -> weigh(43)
+    Twenty.D14 -> weigh(44)
+    Twenty.D15 -> weigh(45)
+    Twenty.D16 -> weigh(46)
+    Twenty.D17 -> weigh(47)
+    Twenty.D18 -> weigh(48)
+    Twenty.D19 -> weigh(49)
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+fn main() -> Int =
+    check(four(opaqueFour(Four.A0)) == 3, 1) +
+    check(four(opaqueFour(Four.A3)) == 24, 2) +
+
+    check(nine(opaqueNine(Nine.B0)) == 73, 4) +
+    check(nine(opaqueNine(Nine.B4)) == 101, 8) +
+    check(nine(opaqueNine(Nine.B8)) == 129, 16) +
+
+    check(spread(opaqueSpread(Spread.C0)) == 143, 32) +
+    check(spread(opaqueSpread(Spread.C5)) == 178, 64) +
+    check(spread(opaqueSpread(Spread.C8)) == 199, 128) +
+
+    check(twenty(opaqueTwenty(Twenty.D0)) == 213, 256) +
+    check(twenty(opaqueTwenty(Twenty.D9)) == 276, 512) +
+    check(twenty(opaqueTwenty(Twenty.D19)) == 346, 1024)

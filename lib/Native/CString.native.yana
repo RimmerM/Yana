@@ -224,12 +224,21 @@ pub fn pathTooLong(path: String) -> Bool = length(path) + 1 > maxPathBytes
 {-
    The terminated copy of a path, in the caller's frame.
 
-   `values(buffer)` and `copyMemory` rather than `push` per unit: the run's slots are what a kernel
+   `valuesMut(buffer)` and `copyMemory` rather than `push` per unit: the run's slots are what a kernel
    path is, and the container's own length is not part of the answer - a C string ends at the
    terminator, which is the whole difference between the two. Writing into slots above the length and
    below the capacity is what `String.appendUnits` does one line before it bumps its own count; the
    difference here is that nothing reads the count afterwards, so there is nothing to bump. The slots
-   are the frame's, `CodeUnit` has no teardown, and the buffer dies with the lens.
+   are the frame's, `CodeUnit` has no teardown, and the buffer dies with the lens. The writing
+   accessor, because the copy writes: `values` is the shared one and hands out a `%source'a` the
+   caller may only read through, which is what the ownership resolver reports here and what the
+   shipping stage was never in a position to notice.
+
+   **`-> %yield'U8`** says whose the address is: the buffer is this lens's own frame, so the pointee
+   is bounded by the hand-over rather than published to the caller - `Origin::CallBounded`. An
+   unqualified `-> %U8` claimed nothing about the pointee, which the ownership resolver reads as
+   "may reach anything" and refuses to hand out of the frame. The shipping stage reads `yield'` as
+   the no-group it reads a plain `%U8` as, so one spelling serves both (`resolveLoanGroup`).
 
    **`pathTooLong` is the caller's obligation**, and this asserts it rather than trusting it: the
    copy would otherwise write the terminator one byte past a run that refuses to grow. `checkCondition`
@@ -258,7 +267,7 @@ pub fn pathTooLong(path: String) -> Bool = length(path) + 1 > maxPathBytes
    stands, and removing it is the way to reproduce it in one step.
 -}
 @noinline
-pub lens fn withPathCString(path: String) -> %U8:
+pub lens fn withPathCString(path: String) -> %yield'U8:
     -- `4096` written out rather than `maxPathBytes`, because a refined array's bound is a
     -- const-generic argument and a local is not one - "a count is an integer literal or a const
     -- parameter", which is the half of Implementation-Const-Generics.md §10.8 still open, and a
@@ -271,7 +280,7 @@ pub lens fn withPathCString(path: String) -> %U8:
 
     checkCondition(count + 1 > maxPathBytes)
 
-    let base = bitcast(values(buffer)) :: %U8
+    let base = bitcast(valuesMut(buffer)) :: %U8
     copyMemory(base, stringBytes(path), count)
     store(base + count, 0 :: U8)
 

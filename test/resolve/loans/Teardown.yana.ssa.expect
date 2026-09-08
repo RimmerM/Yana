@@ -51,7 +51,7 @@ bb0:
   %6: Guard owned = call guard borrow %5
   %7: Held owned = aggregate.Held borrow %4 consume %6
   store inspect %1 consume %7
-  %8: Held [shared call] guaranteed from{%1, %0} = load inspect %1
+  %8: Held [shared call] guaranteed from{%0, %1} = load inspect %1
   %9: I32 trivial = call peek borrow %8
   drop Guard inspect %0
   drop Held inspect %1
@@ -123,7 +123,7 @@ bb0:
   %10: Guard owned = call guard borrow %9
   %11: Two owned = aggregate.Two borrow %7 borrow %8 consume %10
   store inspect %2 consume %11
-  %12: Two [shared call] guaranteed from{%2, %0, %1} = load inspect %2
+  %12: Two [shared call] guaranteed from{%0, %1, %2} = load inspect %2
   %13: I32 trivial = call peekTwo borrow %12
   drop Guard inspect %0
   drop Guard inspect %1
@@ -172,7 +172,7 @@ bb0:
   %11: Pair owned = load inspect %1
   %12: Nested owned = aggregate.Nested borrow %10 consume %11
   store inspect %2 consume %12
-  %13: Nested [shared call] guaranteed from{%2, %0} = load inspect %2
+  %13: Nested [shared call] guaranteed from{%0, %2} = load inspect %2
   %14: I32 trivial = call peekNested borrow %13
   drop Guard inspect %0
   drop Nested inspect %2
@@ -219,7 +219,7 @@ bb0:
   %6: Guard owned = call guard borrow %5
   %7: Tracked owned = aggregate.Tracked borrow %4 consume %6
   store inspect %1 consume %7
-  %8: Tracked [shared call] guaranteed from{%1, %0} = load inspect %1
+  %8: Tracked [shared call] guaranteed from{%0, %1} = load inspect %1
   %9: I32 trivial = call peekTracked borrow %8
   drop Guard inspect %0
   drop Tracked inspect %1

@@ -17,28 +17,22 @@
  * allocation is dead anyway; refusing it outright is what keeps that an argument rather than a
  * coincidence the next reader has to reconstruct.
  *
- * ## The two strictnesses, and why there are two
+ * ## Asked at the call site and nowhere else
  *
- * `settled` is false for the check at the declaration and true for the expansion at a call, and the
- * one thing it changes is whether a `gencall` is admitted.
+ * There used to be a second, laxer strictness for a check at the declaration, and D12 removed the
+ * check rather than relaxing it: a body of the wrong shape is now the inliner's rather than an
+ * error, so nothing needs an answer before the types are bound.
  *
- * A generic body's class calls are `gencall`s until something binds the type arguments. `bitcast(0)`
- * in `fn null() -> %a` is one, and what it *becomes* is the whole question: at `%U8` it is one
- * `bitcast` instruction, because `Bitcast` is a class the compiler instances - and at some other
- * type it could be a call to a written body. Nothing at the declaration can tell those apart, so
- * refusing a `gencall` there would refuse every generic one-liner in the library, and accepting one
- * at a call site would graft an instruction that reads the *caller's* environment at the callee's
- * slot numbers.
- *
- * So the declaration is checked for what no substitution can fix - a branch, a `let`, an owner - and
- * the specialization is what the site actually grafts. `instantiateFunction` is what stands between
- * them, and it is why a generic `@inline(always)` callee is specialized rather than erased.
+ * What is left is the strict question, and a `gencall` is refused by it. A generic body's class
+ * calls are `gencall`s until something binds the type arguments - `bitcast(0)` in `fn null() -> %a`
+ * is one - and grafting one would copy an instruction that reads the *caller's* environment at the
+ * callee's slot numbers. So the site grafts the specialization instead, which is why a generic
+ * `@inline(always)` callee is specialized rather than erased; `instantiateFunction` stands between
+ * the two.
  */
-static bool isGraftable(Module& module, Block& block, Value& value, bool settled) {
+static bool isGraftable(Module& module, Block& block, Value& value) {
     auto local = *module.arena;
     auto flags = instructionTraits(value.kind).flags;
-
-    if(!settled && value.kind == Value::GenCall) return true;
 
     if(flags & (kInstCall | kInstGeneric | kInstAnchored | kInstTerminator)) return false;
     if(value.kind == Value::Alloc) return false;
@@ -78,10 +72,23 @@ static bool isGraftable(Module& module, Block& block, Value& value, bool settled
     return ok;
 }
 
-// The one block a graftable body has, or null. Kept apart from the walk so that the check at the
-// declaration and the expansion at the call ask one question at two strictnesses.
-static Block* graftableBlock(Module& module, Function& function, bool settled) {
+// The one block a graftable body has, or null.
+static Block* graftableBlock(Module& module, Function& function) {
     auto local = *module.arena;
+
+    /*
+     * A `@lazy` parameter is refused before the body is looked at.
+     *
+     * What a deferred position is handed is a thunk over the caller's frame, and what makes it worth
+     * having is a callee that decides whether to run it - which is a branch, and a branch is the
+     * first thing the shape below rules out. So the two features have no case in common, and saying
+     * so here is what keeps the expansion from having to carry a promise it can never force. The
+     * inliner behind this graft has no such difficulty: a thunk is an ordinary argument to it.
+     */
+    for(auto pointer: function.args.contents(local)) {
+        if(local[pointer]->isLazy()) return nullptr;
+    }
+
     if(function.blocks.size() != 1) return nullptr;
 
     auto block = local[function.blocks.get(local, 0)];
@@ -94,40 +101,62 @@ static Block* graftableBlock(Module& module, Function& function, bool settled) {
         auto& instruction = *local[pointer];
         if(isTerminator(instruction)) continue;
 
-        if(!isGraftable(module, *block, instruction, settled)) return nullptr;
+        if(!isGraftable(module, *block, instruction)) return nullptr;
     }
 
     return block;
 }
 
-void checkAlwaysInline(Module& module, Function& function) {
-    if(!function.alwaysInline) return;
+/*
+ * A body that reaches itself directly, which is the one thing neither expansion can do anything
+ * with.
+ *
+ * A `gencall` counts when it names a function rather than a class: that is the generic body calling
+ * itself, and every specialization of it calls the specialization of itself. A class dispatch is not
+ * one - what it lands on is decided by the instance, and the body is not it.
+ *
+ * Only the *direct* cycle is asked for, deliberately. A mutual pair is a fact about the call graph
+ * rather than about a body, and the call graph is not built until compiler/opt has the whole
+ * program; asking for it here would mean resolving every callee's body to check a declaration.
+ * `opt_inline.cpp` declines the pair with no diagnostic, so what a mutually recursive
+ * `@inline(always)` gets is an ordinary call - the same answer `@inline` would have given it.
+ */
+static bool callsItself(Module& module, Function& function) {
+    auto local = *module.arena;
 
-    /*
-     * A `@lazy` parameter is refused before the body is looked at.
-     *
-     * What a deferred position is handed is a thunk over the caller's frame, and what makes it worth
-     * having is a callee that decides whether to run it - which is a branch, and a branch is the
-     * first thing the shape below rules out. So the two features have no case in common, and saying
-     * so here is what keeps the expansion from having to carry a promise it can never force.
-     */
-    auto deferred = false;
-    for(auto pointer: function.args.contents(*module.arena)) {
-        deferred = deferred || (*module.arena)[pointer]->isLazy();
+    for(auto blockPointer: function.blocks.contents(local)) {
+        auto block = local[blockPointer];
+
+        for(auto pointer: block->instructions(local)) {
+            auto& instruction = *local[pointer];
+
+            if(instruction.kind == Value::Call) {
+                if(local[((InstCall&)instruction).callee] == &function) return true;
+            } else if(instruction.kind == Value::GenCall) {
+                auto& call = (InstGenCall&)instruction;
+                if(!call.typeClass && local[call.callee] == &function) return true;
+            }
+        }
     }
 
-    if(!deferred && graftableBlock(module, function, false)) return;
+    return false;
+}
+
+void checkAlwaysInline(Module& module, Function& function) {
+    if(!function.alwaysInline) return;
+    if(!callsItself(module, function)) return;
 
     /*
-     * Refused where it is written, which is what makes the attribute a directive.
+     * The one refusal left, and it is a refusal because no pass can carry the promise out: a copy of
+     * a recursive body carries the recursive call in with it, so "expanded at every call" has no
+     * fixed point to reach. `opt_inline.cpp` says the same thing from the other side and the header
+     * there argues it - unrolling is a different transformation with a cost model this one does not
+     * have.
      *
-     * The message names the rule rather than the instruction that broke it, on purpose: what a
-     * reader can act on is "this has to be one expression", and the kind that failed is a name from
-     * the IR they have no reason to know. `@inline` is offered because it is the honest version of
-     * what they asked for - a hint the optimizer weighs - and it is the attribute they want for any
-     * body with a branch in it.
+     * Everything else the graft declines - a branch, a call, storage, ownership - is now the
+     * inliner's, weighed against its ceiling alone. See inline.h.
      */
-    module.context.diagnostics.error("`@inline(always)` on %@ needs a body that is one expression - no branches, no call, and nothing that allocates or owns storage - because it is expanded where it is called rather than compiled and inlined. Use `@inline` for a body the optimizer should weigh instead"_v,
+    module.context.diagnostics.error("`@inline(always)` on %@ cannot be carried out because the body calls itself - a copy of it would contain the same call. Use `@inline` for a body the optimizer should weigh instead"_v,
                                      function.source, module.context.findName(function.name));
 
     function.alwaysInline = false;
@@ -176,8 +205,8 @@ struct Graft {
      * The other two copiers substitute here - that is what makes a specialization one - and this one
      * has nothing to substitute because the callee it grafts is already settled: a plain function,
      * or the specialization `instantiateFunction` made for the types the call decided. A generic
-     * body never reaches this, which is the same fact `isGraftable`'s `settled` states from the
-     * other side.
+     * body never reaches this, which is the same fact `isGraftable`'s refusal of a `gencall` states from
+     * the other side.
      */
     TypePtr type(TypePtr original) { return original; }
 
@@ -222,15 +251,15 @@ Maybe<ModulePtr<Value>> foldTrivialBody(ExprResolver& resolver, ModulePtr<Functi
     resolveFunctionBody(*function.module, function);
 
     /*
-     * A specialization is checked here and not at a declaration, because it has none.
+     * The shape, asked of the body this site actually has.
      *
-     * `checkAlwaysInline` ran on the generic body and passed it with its `gencall`s in place; what
-     * those turned into is decided by the specialization, and a class call that landed on a written
-     * body rather than on an instance the compiler generates is a call this cannot graft. So the
-     * site declines and the ordinary call is emitted - the attribute still held, in that the one
-     * thing it promised (no call to *this* function) is what the specialization already delivered.
+     * A class call that landed on a written body rather than on an instance the compiler generates
+     * is a call this cannot graft, and so is a branch, a local, or anything owning. The site then
+     * declines and the ordinary call is emitted - which compiler/opt's inliner takes back out, on
+     * the terms D12 set and inline.h states. That is what makes this the *first* choice rather than
+     * the only one.
      */
-    auto block = graftableBlock(module, function, true);
+    auto block = graftableBlock(module, function);
     if(!block) return Nothing();
 
     Graft graft(resolver, args);

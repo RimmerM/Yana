@@ -1,0 +1,313 @@
+module ResolveTest
+
+fn opaque(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  jump -> bb2(consume %6)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %7: I32 trivial = load inspect %4
+  jump -> bb2(consume %7)
+}
+
+fn seekBase(w: Whence [shared call]) -> I32 {
+bb0(%0: Whence [shared call] guaranteed):
+  %1: %Whence address = alloc frame Whence [shared call]
+  store inspect %1 borrow %0
+  %2: Whence trivial = load inspect %1
+  %3: U8 trivial = bitcast inspect %2
+  %4: I32 trivial = convert inspect %3
+  return consume %4
+}
+
+fn errorNumber(e: Errno [shared call]) -> I32 {
+bb0(%0: Errno [shared call] guaranteed):
+  %1: %Errno address = alloc frame Errno [shared call]
+  store inspect %1 borrow %0
+  %2: Errno trivial = load inspect %1
+  %3: U8 trivial = bitcast inspect %2
+  %4: I32 trivial = convert inspect %3
+  return consume %4
+}
+
+fn numbers() -> I32 {
+bb0:
+  %1: Whence trivial = const FromEnd
+  %2: I32 trivial = call seekBase borrow %1
+  %3: I32 trivial = const 2
+  %4: Bool trivial = eq inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %5: Bool trivial = const False
+  jump -> bb2(consume %5)
+
+bb2(%0: Bool trivial):
+  %6: I32 trivial = const 1
+  %7: I32 trivial = call check borrow %0 borrow %6
+  return consume %7
+
+bb3:
+  %8: Errno trivial = const Quota
+  %9: I32 trivial = call errorNumber borrow %8
+  %10: I32 trivial = const 122
+  %11: Bool trivial = eq inspect %9 inspect %10
+  jump -> bb2(consume %11)
+}
+
+fn whenceOf(n: I64 [shared call]) -> Maybe(Whence) {
+bb0(%0: I64 [shared call] guaranteed):
+  %1: %I64 address = alloc frame I64 [shared call]
+  store inspect %1 borrow %0
+  %2: I64 trivial = load inspect %1
+  %3: Maybe(Whence) trivial = call Whence.I32.fromValue borrow %2
+  return consume %3
+}
+
+fn errnoOf'2(n: I64 [shared call]) -> Maybe(Errno) {
+bb0(%0: I64 [shared call] guaranteed):
+  %1: %I64 address = alloc frame I64 [shared call]
+  store inspect %1 borrow %0
+  %2: I64 trivial = load inspect %1
+  %3: Maybe(Errno) trivial = call Errno.I32.fromValue borrow %2
+  return consume %3
+}
+
+fn present(m: Maybe(Whence) [shared call]) -> Bool {
+bb0(%0: Maybe(Whence) [shared call] guaranteed):
+  %1: %U8 address = field.addr .# inspect %0
+  %2: U8 trivial = load inspect %1
+  %3: Bool trivial = map [0 -> False, 1 -> True] inspect %2
+  return consume %3
+}
+
+fn presentErrno(m: Maybe(Errno) [shared call]) -> Bool {
+bb0(%0: Maybe(Errno) [shared call] guaranteed):
+  %1: %U8 address = field.addr .# inspect %0
+  %2: U8 trivial = load inspect %1
+  %3: Bool trivial = map [0 -> False, 1 -> True] inspect %2
+  return consume %3
+}
+
+fn range() -> I32 {
+bb0:
+  %0: I64 trivial = const 1
+  %1: Maybe(Whence) trivial = call whenceOf borrow %0
+  %2: Bool trivial = call present borrow %1
+  %3: I32 trivial = const 2
+  %4: I32 trivial = call check borrow %2 borrow %3
+  %5: I64 trivial = const 7
+  %6: Maybe(Whence) trivial = call whenceOf borrow %5
+  %7: Bool trivial = call present borrow %6
+  %8: Bool trivial = not inspect %7
+  %9: I32 trivial = const 4
+  %10: I32 trivial = call check borrow %8 borrow %9
+  %11: I32 trivial = add inspect %4 inspect %10
+  return consume %11
+}
+
+fn holes() -> I32 {
+bb0:
+  %0: I64 trivial = const 13
+  %1: Maybe(Errno) trivial = call errnoOf'2 borrow %0
+  %2: Bool trivial = call presentErrno borrow %1
+  %3: I32 trivial = const 8
+  %4: I32 trivial = call check borrow %2 borrow %3
+  %5: I64 trivial = const 14
+  %6: Maybe(Errno) trivial = call errnoOf'2 borrow %5
+  %7: Bool trivial = call presentErrno borrow %6
+  %8: Bool trivial = not inspect %7
+  %9: I32 trivial = const 16
+  %10: I32 trivial = call check borrow %8 borrow %9
+  %11: I32 trivial = add inspect %4 inspect %10
+  return consume %11
+}
+
+fn roundTrip() -> I32 {
+bb0:
+  %1: %Maybe(Whence) address = alloc frame Maybe(Whence)
+  %2: %Whence address = alloc frame Whence
+  %3: %I32 address = alloc frame I32
+  %4: I32 trivial = const 1
+  %5: I32 trivial = call opaque borrow %4
+  %6: I64 trivial = convert inspect %5
+  %7: Maybe(Whence) trivial = call whenceOf borrow %6
+  store inspect %1 consume %7
+  %8: %U8 address = field.addr .# inspect %1
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  %12: I32 trivial = const -1
+  jump -> bb2(consume %12)
+
+bb2(%0: I32 trivial):
+  store inspect %3 consume %0
+  %13: I32 trivial = load inspect %3
+  %14: I32 trivial = const 1
+  %15: Bool trivial = eq inspect %13 inspect %14
+  %16: I32 trivial = const 32
+  %17: I32 trivial = call check borrow %15 borrow %16
+  return consume %17
+
+bb3:
+  %18: %Whence address = field.addr .Just inspect %1
+  %19: Whence trivial = load inspect %18
+  store inspect %2 consume %19
+  %20: Whence trivial = load inspect %2
+  %21: U8 trivial = bitcast inspect %20
+  %22: I32 trivial = convert inspect %21
+  jump -> bb2(consume %22)
+}
+
+fn compares() -> I32 {
+bb0:
+  %4: Weekday trivial = const Monday
+  %5: Weekday trivial = const Monday
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: Bool trivial = const False
+  jump -> bb2(consume %7)
+
+bb2(%0: Bool trivial):
+  branch inspect %0 -> bb6 -> bb4
+
+bb3:
+  %8: Weekday trivial = const Monday
+  %9: Weekday trivial = const Tuesday
+  %10: Bool trivial = ne inspect %8 inspect %9
+  jump -> bb2(consume %10)
+
+bb4:
+  %11: Bool trivial = const False
+  jump -> bb5(consume %11)
+
+bb5(%1: Bool trivial):
+  branch inspect %1 -> bb9 -> bb7
+
+bb6:
+  %12: Weekday trivial = const Monday
+  %13: Weekday trivial = const Wednesday
+  %14: U8 trivial = bitcast inspect %13
+  %15: U8 trivial = bitcast inspect %12
+  %16: Bool trivial = lt inspect %15 inspect %14
+  jump -> bb5(consume %16)
+
+bb7:
+  %17: Bool trivial = const False
+  jump -> bb8(consume %17)
+
+bb8(%2: Bool trivial):
+  branch inspect %2 -> bb12 -> bb10
+
+bb9:
+  %18: Weekday trivial = const Wednesday
+  %19: Weekday trivial = const Tuesday
+  %20: U8 trivial = bitcast inspect %19
+  %21: U8 trivial = bitcast inspect %18
+  %22: Bool trivial = ge inspect %21 inspect %20
+  jump -> bb8(consume %22)
+
+bb10:
+  %23: Bool trivial = const False
+  jump -> bb11(consume %23)
+
+bb11(%3: Bool trivial):
+  %24: I32 trivial = const 64
+  %25: I32 trivial = call check borrow %3 borrow %24
+  return consume %25
+
+bb12:
+  %26: Weekday trivial = const Tuesday
+  %27: Weekday trivial = const Monday
+  %28: Ordering trivial = call Weekday.compare borrow %26 borrow %27
+  %29: Ordering trivial = const GT
+  %30: Bool trivial = eq inspect %28 inspect %29
+  jump -> bb11(consume %30)
+}
+
+fn anyValue(x: a [shared call]) -> w = <no body>
+
+fn generic() -> I32 {
+bb0:
+  %1: Whence trivial = const FromEnd
+  %2: I32 trivial = call anyValue(Whence, I32) borrow %1
+  %3: I32 trivial = const 2
+  %4: Bool trivial = eq inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %5: Bool trivial = const False
+  jump -> bb2(consume %5)
+
+bb2(%0: Bool trivial):
+  %6: I32 trivial = const 128
+  %7: I32 trivial = call check borrow %0 borrow %6
+  return consume %7
+
+bb3:
+  %8: Errno trivial = const Quota
+  %9: I32 trivial = call anyValue(Errno, I32) borrow %8
+  %10: I32 trivial = const 122
+  %11: Bool trivial = eq inspect %9 inspect %10
+  jump -> bb2(consume %11)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call numbers
+  %1: I32 trivial = call range
+  %2: I32 trivial = add inspect %0 inspect %1
+  %3: I32 trivial = call holes
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: I32 trivial = call roundTrip
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: I32 trivial = call compares
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: I32 trivial = call generic
+  %10: I32 trivial = add inspect %8 inspect %9
+  return consume %10
+}
+
+fn anyValue(Whence, I32)(x: Whence [shared call]) -> I32 {
+bb0(%0: Whence [shared call] guaranteed):
+  %1: %Whence address = alloc frame Whence [shared call]
+  store inspect %1 borrow %0
+  %2: Whence [shared call] guaranteed from{%1} = load inspect %1
+  %3: I32 trivial = call Whence.I32.valueOf borrow %2
+  return consume %3
+}
+
+fn anyValue(Errno, I32)(x: Errno [shared call]) -> I32 {
+bb0(%0: Errno [shared call] guaranteed):
+  %1: %Errno address = alloc frame Errno [shared call]
+  store inspect %1 borrow %0
+  %2: Errno [shared call] guaranteed from{%1} = load inspect %1
+  %3: I32 trivial = call Errno.I32.valueOf borrow %2
+  return consume %3
+}
+
+entry main

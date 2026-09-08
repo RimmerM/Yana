@@ -413,6 +413,41 @@ bool classProves(Context& context, Program& program, DeclPtr<Class> have,
  * instance table would answer differently inside a generic body than at the call that specialized
  * it, which is the one thing a generic body may not do.
  */
+/*
+ * How many function slots one class's witness table has - its own members, then its superclasses'.
+ *
+ * A witness table is **flattened**: `class (Eq(a)) Ord(a)` builds one table holding `Ord`'s members
+ * followed by `Eq`'s, so reaching a superclass's member out of a subclass's witness is an *offset*
+ * rather than a second load. The alternative - a pointer per superclass, which is what the shipping
+ * stage writes - buys a shared grandparent's table being one table and costs a load per level at
+ * every dispatch; a class hierarchy here is two or three deep and its tables are three or four
+ * cells, so the duplication is smaller than the indirection.
+ *
+ * Both ends read this: `environmentFor` fills a witness in this order and `witnessFor` writes the
+ * table in it, which is the same contract `freezeSchema`'s slot numbering has.
+ */
+U16 classWitnessCount(DeclBase base, DeclPtr<Class> klass);
+
+/*
+ * Which class and which of its members flat index `at` names, in the order above.
+ *
+ * The reader's half of the layout: the lowering has a flat index and needs the *declared* signature
+ * behind it to build a thunk, and only the walk knows which class that index fell into.
+ */
+bool classWitnessAt(DeclBase base, DeclPtr<Class> klass, U16 at, DeclPtr<Class>& into, U16& member);
+
+/*
+ * `classProves` with the **offset** the proof lands at - where `want`'s members start in `have`'s
+ * flattened table.
+ *
+ * One walk and not two, because the offset is a property of the path the proof took: two
+ * superclasses that are the same class at different arguments are two ranges of the table, and only
+ * the walk that matched the arguments knows which one it matched.
+ */
+bool classWitnessPath(Context& context, Program& program, DeclPtr<Class> have,
+                      const DeclPtr<Type>* haveArgs, Size haveCount, DeclPtr<Class> want,
+                      const DeclPtr<Type>* wantArgs, Size wantCount, U16& offset);
+
 bool satisfiesRequirement(Context& context, Program& program, DeclPtr<GenContext> gen,
                           DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count);
 

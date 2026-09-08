@@ -28,6 +28,7 @@ using namespace Tritium;
 //
 //     # frame-pointer: all
 //     # extensions: avx
+//     # switch-form: search
 //
 // Two test files with the same functions and different directives is how the settings are compared,
 // which keeps every golden an ordinary one.
@@ -50,6 +51,23 @@ static void applyDirectives(CompileSettings& settings, StringView content) {
         { "non-leaf"_v, FramePointerMode::NonLeaf },
         { "needed"_v, FramePointerMode::Needed },
     };
+
+    // Which shape a multi-way branch is spent in - see SwitchForm. Here because the thresholds
+    // never pick the binary search (§77 of test/bench/findings.md says why), so a fixture is the
+    // only thing that can hold its output to a golden.
+    static const struct { StringView name; SwitchForm form; } switchForms[] = {
+        { "chain"_v, SwitchForm::Chain },
+        { "search"_v, SwitchForm::BinarySearch },
+        { "table"_v, SwitchForm::JumpTable },
+    };
+
+    find("# switch-form: "_v, [&](const char* rest, Size left) {
+        for(auto& f: switchForms) {
+            if(f.name.length <= left && compareMem(rest, f.name.ptr, f.name.length) == 0) {
+                settings.switchForm = f.form;
+            }
+        }
+    });
 
     find("# frame-pointer: "_v, [&](const char* rest, Size left) {
         for(auto& m: modes) {
@@ -234,7 +252,8 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
     for(auto fo: module.functionOrder) {
         auto fun = base[fo];
         machine.reset();
-        transformFunction(context, base, *fun, machine);
+        // Refused by the backend and already reported - see `transformFunction`.
+        if(!transformFunction(context, base, *fun, machine)) continue;
         allocateRegisters(context, base, *fun, machine, scratch, regs);
 
         traces.push();

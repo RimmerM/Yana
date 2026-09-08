@@ -11,8 +11,13 @@
    All four are answerable from the attribute and the declaration's own form, which is why they are
    one fixture: `bindRole` reports every one of them while the declarations are being read, and
    `resolveProgram` stops there. The checks that need a *finished* signature run after that point,
-   so an intrinsic's shape is `Reject.Shape.yana` beside this and a supplied global's storage is
-   `Reject.Supplied.yana`.
+   so an intrinsic's shape is `Reject.Shape.yana` beside this.
+
+   A **supplied** global's four storage rules used to be `Reject.Supplied.yana` and no longer have a
+   fixture. `lib/` claims all seven rows of `supplied.def`, so a program's claim is refused here as
+   a duplicate before `checkSuppliedGlobal` is reached, and a golden that got past that would carry
+   the library's own line numbers in it. `prelude/` was the only library that left a supplied role
+   unclaimed, and it is gone (J21).
 -}
 
 -- A role no table has. The message lists every role the compiler knows, built from the tables rather
@@ -25,9 +30,10 @@ fn misspelled(a: I64, b: I64) -> I64
 fn notAClass(x: I32) -> I32 = x
 
 -- Two declarations claiming one role. Refused rather than taken, because there is one slot and
--- taking the last would make which one the compiler reached depend on declaration order. A role
--- the prelude leaves unfilled, since `Core` imports `Native` and its `pointerLoad` is already the
--- first claim; `mulHigh` used to stand here and the prelude declares it now.
+-- taking the last would make which one the compiler reached depend on declaration order. A **host**
+-- role, because those are the only ones `lib/` leaves unclaimed on a native build - a role the
+-- library fills is one this file cannot claim even once, and `mulHigh` used to stand here until it
+-- did.
 @builtin(hostGrow)
 fn growOne(items: %a, wide: Size) -> %a
 

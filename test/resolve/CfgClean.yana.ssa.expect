@@ -87,7 +87,7 @@ bb0(%0: I32 [shared call] guaranteed):
   store inspect %1 borrow %0
   %3: I32 trivial = const 3
   %4: I32 trivial = const 3
-  %5: I32 trivial = sub inspect %3 inspect %4
+  %5: I32 trivial = sub inspect %4 inspect %3
   %6: I32 trivial = const 0
   %7: Bool trivial = gt inspect %5 inspect %6
   branch inspect %7 -> bb3 -> bb1
@@ -245,7 +245,7 @@ bb0(%0: I32 [shared call] guaranteed):
   %4: I32 trivial = load inspect %1
   %5: I32 [unique slot 0] guaranteed = load inspect %2
   %6: nested.cont.env affine = aggregate.nested.cont.env borrow %5
-  %7: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value nested.cont borrow %6
+  %7: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value nested.cont borrow %6
   %8: I32 trivial = call steps borrow %4 borrow %7
   jump -> bb1
 
@@ -254,7 +254,7 @@ bb1:
   return consume %9
 }
 
-fn joined(a: Bool [shared call], b: Bool [shared call], c: Bool [shared call]) -> I32 {
+fn joined'2(a: Bool [shared call], b: Bool [shared call], c: Bool [shared call]) -> I32 {
 bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed, %2: Bool [shared call] guaranteed):
   %5: %Bool address = alloc frame Bool [shared call]
   %6: %Bool address = alloc frame Bool [shared call]
@@ -385,7 +385,7 @@ bb0:
   %33: Bool trivial = const True
   %34: Bool trivial = const True
   %35: Bool trivial = const True
-  %36: I32 trivial = call joined borrow %33 borrow %34 borrow %35
+  %36: I32 trivial = call joined'2 borrow %33 borrow %34 borrow %35
   %37: I32 trivial = const 11
   %38: I32 trivial = mul inspect %36 inspect %37
   %39: I32 trivial = add inspect %32 inspect %38
@@ -394,7 +394,7 @@ bb0:
   %41: Bool trivial = const True
   %42: Bool trivial = const True
   %43: Bool trivial = const False
-  %44: I32 trivial = call joined borrow %41 borrow %42 borrow %43
+  %44: I32 trivial = call joined'2 borrow %41 borrow %42 borrow %43
   %45: I32 trivial = const 13
   %46: I32 trivial = mul inspect %44 inspect %45
   %47: I32 trivial = add inspect %40 inspect %46
@@ -403,7 +403,7 @@ bb0:
   %49: Bool trivial = const True
   %50: Bool trivial = const False
   %51: Bool trivial = const True
-  %52: I32 trivial = call joined borrow %49 borrow %50 borrow %51
+  %52: I32 trivial = call joined'2 borrow %49 borrow %50 borrow %51
   %53: I32 trivial = const 17
   %54: I32 trivial = mul inspect %52 inspect %53
   %55: I32 trivial = add inspect %48 inspect %54
@@ -412,7 +412,7 @@ bb0:
   %57: Bool trivial = const True
   %58: Bool trivial = const False
   %59: Bool trivial = const False
-  %60: I32 trivial = call joined borrow %57 borrow %58 borrow %59
+  %60: I32 trivial = call joined'2 borrow %57 borrow %58 borrow %59
   %61: I32 trivial = const 19
   %62: I32 trivial = mul inspect %60 inspect %61
   %63: I32 trivial = add inspect %56 inspect %62
@@ -421,7 +421,7 @@ bb0:
   %65: Bool trivial = const False
   %66: Bool trivial = const True
   %67: Bool trivial = const True
-  %68: I32 trivial = call joined borrow %65 borrow %66 borrow %67
+  %68: I32 trivial = call joined'2 borrow %65 borrow %66 borrow %67
   %69: I32 trivial = const 23
   %70: I32 trivial = mul inspect %68 inspect %69
   %71: I32 trivial = add inspect %64 inspect %70
@@ -430,7 +430,7 @@ bb0:
   %73: Bool trivial = const False
   %74: Bool trivial = const True
   %75: Bool trivial = const False
-  %76: I32 trivial = call joined borrow %73 borrow %74 borrow %75
+  %76: I32 trivial = call joined'2 borrow %73 borrow %74 borrow %75
   %77: I32 trivial = const 29
   %78: I32 trivial = mul inspect %76 inspect %77
   %79: I32 trivial = add inspect %72 inspect %78
@@ -439,7 +439,7 @@ bb0:
   %81: Bool trivial = const False
   %82: Bool trivial = const False
   %83: Bool trivial = const True
-  %84: I32 trivial = call joined borrow %81 borrow %82 borrow %83
+  %84: I32 trivial = call joined'2 borrow %81 borrow %82 borrow %83
   %85: I32 trivial = const 31
   %86: I32 trivial = mul inspect %84 inspect %85
   %87: I32 trivial = add inspect %80 inspect %86
@@ -448,7 +448,7 @@ bb0:
   %89: Bool trivial = const False
   %90: Bool trivial = const False
   %91: Bool trivial = const False
-  %92: I32 trivial = call joined borrow %89 borrow %90 borrow %91
+  %92: I32 trivial = call joined'2 borrow %89 borrow %90 borrow %91
   %93: I32 trivial = const 37
   %94: I32 trivial = mul inspect %92 inspect %93
   %95: I32 trivial = add inspect %88 inspect %94

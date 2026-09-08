@@ -117,18 +117,18 @@ bb3:
   jump -> bb2(take %12)
 }
 
-fn entryOf(one: Guard [shared slot 0], two: Guard [shared slot 1]) -> Entry(Guard, Guard) [owned here shape3 .0=shared slot 0 .1=shared slot 1] {
+fn entryOf(one: Guard [shared slot 0], two: Guard [shared slot 1]) -> Entry(Guard, Guard) [owned here shape8 .0=shared slot 0 .1=shared slot 1] {
 bb0:
   %0: Guard [shared slot 0] = read borrow.shared (one) loan0
   %1: Guard [shared slot 1] = read borrow.shared (two) loan1
-  %2: Entry(Guard, Guard) [owned here shape3 .0=shared slot 0 .1=shared slot 1] = aggregate.Entry borrow.shared %0 borrow.shared %1 roots.0{0} roots.1{1}
+  %2: Entry(Guard, Guard) [owned here shape8 .0=shared slot 0 .1=shared slot 1] = aggregate.Entry borrow.shared %0 borrow.shared %1 roots.0{0} roots.1{1}
   return take %2
 }
 
-fn pairs() -> I32 {
+fn pairs'2() -> I32 {
   local a: Guard
   local b: Guard
-  local e: Entry(Guard, Guard) [owned here shape3 .0=shared slot 0 .1=shared slot 1]
+  local e: Entry(Guard, Guard) [owned here shape8 .0=shared slot 0 .1=shared slot 1]
 
 bb0:
   %0: I32 = const 3
@@ -139,7 +139,7 @@ bb0:
   write.init borrow.unique (b) take %4
   %6: Guard [shared slot 0] = read borrow.shared (a) loan0
   %7: Guard [shared slot 1] = read borrow.shared (b) loan1
-  %8: Entry(Guard, Guard) [owned here shape3 .0=shared slot 0 .1=shared slot 1] = call entryOf borrow.shared %6 borrow.shared %7 roots.0{0} roots.1{1}
+  %8: Entry(Guard, Guard) [owned here shape8 .0=shared slot 0 .1=shared slot 1] = call entryOf borrow.shared %6 borrow.shared %7 roots.0{0} roots.1{1}
   write.init borrow.unique (e) take %8
   %10: I32 = read copy.trivial (e.key.id)
   drop (a)
@@ -161,7 +161,7 @@ bb0:
 fn exclusive() -> I32 {
   local & g: Guard
   local local1: Maybe(Guard) [owned here shape4 .0=unique slot 0]
-  local held: Guard [shared slot 0]
+  local & held: Guard [unique slot 0]
 
 bb0:
   %0: I32 = const 5
@@ -184,8 +184,8 @@ bb2(%14: I32):
   return take %14
 
 bb3:
-  %10: Guard [shared slot 0] = read borrow.shared (local1.Just) loan1 roots{0}
-  write.init borrow.unique (held) borrow.shared %10
+  %10: Guard [unique slot 0] = read borrow.unique (local1.Just) loan1 roots{0}
+  write.init borrow.unique (held) borrow.unique %10
   %12: I32 = read copy.trivial (held.id)
   drop (g)
   jump -> bb2(take %12)
@@ -233,7 +233,7 @@ fn viaArgument(g: Guard [shared slot 0]) -> I32 {
 bb0:
   %0: Guard [shared slot 0] = read borrow.shared (g) loan0
   %1: Maybe(Guard) [owned here shape2 .0=shared slot 0] = aggregate.Just borrow.shared %0 roots.0{0}
-  %2: I32 = call count take %1
+  %2: I32 = call count'2 take %1
   return take %2
 }
 
@@ -302,13 +302,13 @@ bb6:
   jump -> bb5(take %29)
 }
 
-fn firstByte(xs: Array(U8) [shared slot 0 view]) -> Maybe(%U8) [owned here shape5 .0.*=shared slot 0] {
+fn firstByte(xs: Array(U8) [shared slot 0 view]) -> Maybe(%U8) [owned here shape9 .0.*=shared slot 0] {
 bb0:
-  %0: Maybe(%U8) [owned here shape5 .0.*=shared slot 0] = aggregate.Nothing
+  %0: Maybe(%U8) [owned here shape9 .0.*=shared slot 0] = aggregate.Nothing
   return take %0
 }
 
-fn count(m: Maybe(Guard) [owned here shape2 .0=shared slot 0]) -> I32 {
+fn count'2(m: Maybe(Guard) [owned here shape2 .0=shared slot 0]) -> I32 {
   local held: Guard [shared slot 0]
 
 bb0:
@@ -343,9 +343,9 @@ bb0:
   %4: Maybe(Guard) [owned here shape2 .0=shared slot 0] = call peek borrow.shared %3 roots.0{0}
   write.init borrow.unique (m) take %4
   %6: Maybe(Guard) [owned here shape2 .0=shared slot 0] = read copy.trivial (m) roots.0{0}
-  %7: I32 = call count take %6
+  %7: I32 = call count'2 take %6
   %8: Maybe(Guard) [owned here shape2 .0=shared slot 0] = read copy.trivial (m) roots.0{0}
-  %9: I32 = call count take %8
+  %9: I32 = call count'2 take %8
   drop (g)
   %10: I32 = add inspect %7 inspect %9
   return take %10
@@ -409,7 +409,7 @@ bb0:
   write.init borrow.unique (first) take %0
   %2: I32 = call generic
   write.init borrow.unique (second) take %2
-  %4: I32 = call pairs
+  %4: I32 = call pairs'2
   write.init borrow.unique (third) take %4
   %6: I32 = call exclusive
   write.init borrow.unique (fourth) take %6

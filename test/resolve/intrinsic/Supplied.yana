@@ -18,11 +18,11 @@
    as wide as one here - see `BuiltinShape::Word` in `intrinsic/link.cpp`, which is where the
    difference is argued.
 
-   `Core/Bits.yana` is what claims this role in a real program. It is written out here because this
-   stage has no imports yet.
+   `lib/Core/Bits.yana` is what claims the role, and it is claimed *once* - a second
+   `@builtin(wordBits)` in this file is refused, because the compiler would otherwise reach whichever
+   was read last. So what the fixture does is read the library's, which is the whole of what a
+   program ever does with a supplied global. The shape rules a claim has to satisfy have no fixture
+   any more - `Reject.Roles.yana` says why.
 -}
-
-@builtin(wordBits)
-let wordBits = 0 :: Size
 
 fn main() -> Size = wordBits

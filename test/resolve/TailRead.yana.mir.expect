@@ -1,0 +1,209 @@
+module ResolveTest
+
+let guardWidth: Size = 63
+
+fn readPast(block: %U8 [shared call], size: Size [shared call]) -> I64 {
+  local & sum: I64
+  local & i: Size
+
+bb0:
+  %0: I64 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: Size = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: Size = read copy.trivial (i)
+  %6: Size = const 63
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %26: I64 = read copy.trivial (sum)
+  return take %26
+
+bb3:
+  %9: I64 = read copy.trivial (sum)
+  %10: %U8 = read copy.trivial (block)
+  %11: Size = read copy.trivial (size)
+  %12: Size = read copy.trivial (i)
+  %13: Size = add inspect %11 inspect %12
+  %14: Size = metric stride U8
+  %15: Size = mul inspect %13 inspect %14
+  %16: %U8 [owned here shape6 .*=shared slot 0] = add inspect %10 inspect %15
+  %17: U8 = read copy.trivial ([%%16])
+  %18: I64 = convert inspect %17
+  %19: I64 = add inspect %9 inspect %18
+  write.assign borrow.unique (sum) take %19
+  %21: Size = read copy.trivial (i)
+  %22: Size = const 1
+  %23: Size = add inspect %21 inspect %22
+  write.assign borrow.unique (i) take %23
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local & request: Size
+  local & seen: I64
+  local block: %U8
+  local & last: %U8
+  local & steps: I64
+  local block: %U8
+
+bb0:
+  %0: Size = const 8
+  write.init borrow.unique (request) take %0
+  %2: I64 = const 0
+  write.init borrow.unique (seen) take %2
+  jump -> bb1
+
+bb1:
+  %5: Size = read copy.trivial (request)
+  %6: Size = const 1048576
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %36: I64 = read copy.trivial (seen)
+  %37: I64 = const 17
+  %38: Bool = ne inspect %36 inspect %37
+  branch inspect %38 -> bb12 -> bb10
+
+bb3:
+  %9: Size = read copy.trivial (request)
+  %10: %U8 = call allocateHeap borrow.shared %9
+  write.init borrow.unique (block) take %10
+  %12: %U8 = read copy.trivial (block)
+  %13: Bool = call isNull(U8) borrow.shared %12
+  branch inspect %13 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %18: %U8 = read copy.trivial (block)
+  %19: Size = read copy.trivial (request)
+  %20: I64 = call readPast borrow.shared %18 borrow.shared %19
+  %21: I64 = const 0
+  %22: Bool = lt inspect %20 inspect %21
+  branch inspect %22 -> bb9 -> bb7
+
+bb6:
+  %15: I32 = const -1
+  return take %15
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %27: I64 = read copy.trivial (seen)
+  %28: I64 = const 1
+  %29: I64 = add inspect %27 inspect %28
+  write.assign borrow.unique (seen) take %29
+  %31: Size = read copy.trivial (request)
+  %32: Size = read copy.trivial (request)
+  %33: Size = add inspect %31 inspect %32
+  write.assign borrow.unique (request) take %33
+  jump -> bb1
+
+bb9:
+  %24: I32 = const -2
+  return take %24
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %43: %U8 = call null(U8)
+  write.init borrow.unique (last) take %43
+  %45: I64 = const 0
+  write.init borrow.unique (steps) take %45
+  jump -> bb13
+
+bb12:
+  %40: I32 = const -3
+  return take %40
+
+bb13:
+  %48: %U8 = read copy.trivial (global heapNext)
+  %49: %U8 = read copy.trivial (global heapLimit)
+  %50: Size = bitcast inspect %49
+  %51: Size = bitcast inspect %48
+  %52: Size = sub inspect %50 inspect %51
+  %53: Size = metric stride U8
+  %54: Size = div inspect %52 inspect %53
+  %55: Size = const 63
+  %56: Bool = gt inspect %54 inspect %55
+  branch inspect %56 -> bb15 -> bb14
+
+bb14:
+  %81: %U8 = read copy.trivial (last)
+  %82: Bool = call isNull(U8) borrow.shared %81
+  branch inspect %82 -> bb24 -> bb22
+
+bb15:
+  %58: Size = const 8
+  %59: %U8 = call allocateHeap borrow.shared %58
+  write.init borrow.unique (block) take %59
+  %61: %U8 = read copy.trivial (block)
+  %62: Bool = call isNull(U8) borrow.shared %61
+  branch inspect %62 -> bb18 -> bb16
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %67: %U8 = read copy.trivial (block)
+  write.assign borrow.unique (last) take %67
+  %69: I64 = read copy.trivial (steps)
+  %70: I64 = const 1
+  %71: I64 = add inspect %69 inspect %70
+  write.assign borrow.unique (steps) take %71
+  %73: I64 = read copy.trivial (steps)
+  %74: I64 = const 300000
+  %75: Bool = gt inspect %73 inspect %74
+  branch inspect %75 -> bb21 -> bb19
+
+bb18:
+  %64: I32 = const -4
+  return take %64
+
+bb19:
+  jump -> bb20
+
+bb20:
+  jump -> bb13
+
+bb21:
+  %77: I32 = const -5
+  return take %77
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %87: %U8 = read copy.trivial (last)
+  %88: Size = const 8
+  %89: I64 = call readPast borrow.shared %87 borrow.shared %88
+  %90: I64 = const 0
+  %91: Bool = lt inspect %89 inspect %90
+  branch inspect %91 -> bb27 -> bb25
+
+bb24:
+  %84: I32 = const -6
+  return take %84
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %96: I32 = const 0
+  return take %96
+
+bb27:
+  %93: I32 = const -7
+  return take %93
+}
+
+entry main

@@ -325,6 +325,13 @@ fn growArray(I32)(%self: Array(I32), %wanted: Size) -> () {
     ret
 }
 
+fn Length(Array(a)).length(I32)(%self: Array(I32)) -> Size {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
 fn -=(I64)(%target: I64, %amount: I64) -> () {
   b0:
     %v2 = load %target : I64
@@ -2019,11 +2026,10 @@ fn main() -> I64 {
     %v118 = borrow_mut %plain : &Array(I32)
     call push(I32), %v118, 20
     %v120 = load %plain : Array(I32)
-    %v121 = load %plain@Array.length : @bits(30) U32
+    %v121 = call Length(Array(a)).length(I32), %v120 : Size
     drop %plain via Reclaim(Array(a)).reclaim(I32)
-    %v122 = cast %v121 : Size
-    %v125 = cmp_ne %v122, 2 : Bool
-    je %v125, b28, b29
+    %v124 = cmp_ne %v121, 2 : Bool
+    je %v124, b28, b29
 
   b28:
     ret -10

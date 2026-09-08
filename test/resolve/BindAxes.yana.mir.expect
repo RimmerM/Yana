@@ -1,0 +1,165 @@
+module ResolveTest
+
+data Held {value: Run(U8)} reclaim derived
+
+data Pair {first: Held, second: Held} reclaim derived
+
+data Box = Filled {Filled: Held} | Empty reclaim derived
+
+fn make(ok: Bool [shared call], n: Size [shared call]) -> Result(I64, Held) {
+bb0:
+  %0: Bool = read copy.trivial (ok)
+  %1: Bool = not inspect %0
+  branch inspect %1 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: Size = read copy.trivial (n)
+  %8: Run(U8) = call newRun(U8) borrow.shared %7
+  %9: Held = aggregate.Held take %8
+  %10: Result(I64, Held) = aggregate.Ok take %9
+  return take %10
+
+bb3:
+  %3: I64 = const 7
+  %4: Result(I64, Held) = aggregate.Err take %3
+  return take %4
+}
+
+fn setName(self: Held [unique call], n: Size [shared call]) -> {} {
+bb0:
+  %0: Size = read copy.trivial (n)
+  %1: Run(U8) = call newRun(U8) borrow.shared %0
+  drop (self.value)
+  write.assign borrow.unique (self.value) take %1
+  return
+}
+
+fn slotCount(self: Held [shared call]) -> Size {
+bb0:
+  %0: @bits(30) U32 = read copy.trivial (self.value.capacity)
+  %1: Size = convert inspect %0
+  return take %1
+}
+
+fn viaTry(ok: Bool [shared call], n: Size [shared call]) -> Result(I64, Size) {
+  local local2: Outcome(Held, I64) object1
+  local & opened: Held object1
+
+bb0:
+  %0: Bool = read copy.trivial (ok)
+  %1: Size = read copy.trivial (n)
+  %2: Result(I64, Held) = call make borrow.shared %0 borrow.shared %1
+  %3: Outcome(Held, I64) = call toOutcome(Result(I64, Held), Held, I64) take %2
+  write.init borrow.unique (local2) take %3
+  %5: U8 = read copy.trivial (local2.#)
+  %6: U8 = const 1
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %12: Held = read take (local2.Proceed)
+  jump -> bb2(take %12)
+
+bb2(%13: Held):
+  write.init borrow.unique (opened) take %13
+  %16: Held [unique call] = read borrow.unique (opened) loan0
+  %17: Size = read copy.trivial (n)
+  %18: Size = const 1
+  %19: Size = add inspect %17 inspect %18
+  %20: {} = call setName borrow.unique %16 borrow.shared %19
+  %21: Held [shared call] = read borrow.shared (opened) loan1
+  %22: Size = call slotCount borrow.shared %21
+  drop (opened)
+  %23: Result(I64, Size) = aggregate.Ok take %22
+  return take %23
+
+bb3:
+  %9: I64 = read copy.trivial (local2.Exit)
+  drop (local2)
+  %10: Result(I64, Size) = call fromExit(Result(I64, Size), Size, I64) take %9
+  return take %10
+}
+
+fn viaNamedPlace(b: Box, n: Size [shared call]) -> Size {
+  local held: Held object0
+  local & taken: Held [unique call]
+
+bb0:
+  %0: U8 = read copy.trivial (b.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  drop (b)
+  %14: Size = const 0
+  return take %14
+
+bb2:
+  %4: Held = read take (b.Filled)
+  write.init borrow.unique (held) take %4
+  %6: Held [unique call] = read borrow.unique (held) loan0
+  write.init borrow.unique (taken) borrow.unique %6
+  %8: Held [unique call] = read borrow.unique (taken) loan1 roots{0}
+  %9: Size = read copy.trivial (n)
+  %10: {} = call setName borrow.unique %8 borrow.shared %9
+  %11: Held [shared call] = read borrow.shared (taken) loan2 roots{0}
+  %12: Size = call slotCount borrow.shared %11
+  drop (held)
+  return take %12
+}
+
+fn fieldOfNamedLocal(n: Size [shared call]) -> Size {
+  local & p: Pair
+  local & taken: Held [unique call]
+
+bb0:
+  %0: Size = read copy.trivial (n)
+  %1: Run(U8) = call newRun(U8) borrow.shared %0
+  %2: Held = aggregate.Held take %1
+  %3: Size = read copy.trivial (n)
+  %4: Run(U8) = call newRun(U8) borrow.shared %3
+  %5: Held = aggregate.Held take %4
+  %6: Pair = aggregate.Pair take %2 take %5
+  write.init borrow.unique (p) take %6
+  %8: Held [unique call] = read borrow.unique (p.first) loan0
+  write.init borrow.unique (taken) borrow.unique %8
+  %10: Held [unique call] = read borrow.unique (taken) loan1 roots{0}
+  %11: Size = read copy.trivial (n)
+  %12: Size = const 1
+  %13: Size = add inspect %11 inspect %12
+  %14: {} = call setName borrow.unique %10 borrow.shared %13
+  %15: @bits(30) U32 = read copy.trivial (taken.value.capacity)
+  drop (p)
+  %16: Size = convert inspect %15
+  return take %16
+}
+
+fn viaPattern(b: Box, n: Size [shared call]) -> Size {
+  local & held: Held object0
+
+bb0:
+  %0: U8 = read copy.trivial (b.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  drop (b)
+  %12: Size = const 0
+  return take %12
+
+bb2:
+  %4: Held = read take (b.Filled)
+  write.init borrow.unique (held) take %4
+  %6: Held [unique call] = read borrow.unique (held) loan0
+  %7: Size = read copy.trivial (n)
+  %8: {} = call setName borrow.unique %6 borrow.shared %7
+  %9: Held [shared call] = read borrow.shared (held) loan1
+  %10: Size = call slotCount borrow.shared %9
+  drop (held)
+  return take %10
+}

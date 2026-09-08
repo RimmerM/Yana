@@ -150,6 +150,12 @@ struct Editor {
     Inst* addSelect(LocationId source, Use condition, Use whenTrue, Use whenFalse,
                     const Occurrence& result, Convention convention);
 
+    // A `match` over constants - `mir::NodeMap` carried down, with the entries copied into the SSA
+    // region for the reason `InstMap` gives.
+    Inst* addMap(LocationId source, Use selector, const mir::MapEntry* entries, Size count,
+                 const mir::Constant& fallback, bool closed, const Occurrence& result,
+                 Convention convention);
+
     Inst* addVecSplat(LocationId source, Use from, const Occurrence& result);
     Inst* addVecLane(LocationId source, Use from, U16 lane, const Occurrence& result);
     Inst* addVecWithLane(LocationId source, Use from, U16 lane, Use value,
@@ -160,6 +166,9 @@ struct Editor {
                        const Occurrence& result);
 
     Inst* addAlloc(LocationId source, const Occurrence& held, StorageClass storage);
+
+    // The release that answers one of those - `InstFree`. No result: what it returns is memory.
+    Inst* addFree(LocationId source, Use address);
     // `shape` is the *subject's* interior structure - see `InstFieldAddress::shape`, where the
     // reason it cannot be read off `base` is written out. Null for every record that owns its
     // fields.
@@ -173,7 +182,10 @@ struct Editor {
     // The same, where the subject is a type parameter: the offset is the property slot's and `held`
     // is what the requirement promised is at it.
     Inst* addPropertyAddress(LocationId source, Use base, U16 property, DeclPtr<mir::Type> held);
-    Inst* addLoad(LocationId source, Use address, const Occurrence& result, Convention convention);
+    // `overread` is `InstLoad::overread` and defaults off - one MIR read in the language sets it,
+    // and it travels from there to `LowerInstLoad::isOverread` unchanged.
+    Inst* addLoad(LocationId source, Use address, const Occurrence& result, Convention convention,
+                  bool overread = false);
     Inst* addCopy(LocationId source, Use address, const Occurrence& result, Convention convention);
     Inst* addStore(LocationId source, Use address, Use value);
 
@@ -257,6 +269,17 @@ struct Editor {
     Inst* makeBranchEdges(LocationId source, Use condition,
                           Block& whenTrue, const Use* trueArguments, Size trueCount,
                           Block& whenFalse, const Use* falseArguments, Size falseCount);
+    /*
+     * A multi-way branch, made and appended - `mir::NodeSwitch` carried down.
+     *
+     * `values` and `targets` are parallel and ascending, and `arguments` is supplied to every edge
+     * for `makeBranch`'s reason: a value live before a multi-way branch is live on every arm of it.
+     */
+    Inst* makeSwitch(LocationId source, Use selector, const I64* values, Block* const* targets,
+                     Size count, Block& fallback, const Use* arguments, Size argumentCount);
+    Inst* addSwitch(LocationId source, Use selector, const I64* values, Block* const* targets,
+                    Size count, Block& fallback, const Use* arguments, Size argumentCount);
+
     Inst* makeUnreachable(LocationId source);
 
     Value* resultOf(Inst& inst, Size index = 0);
@@ -336,13 +359,18 @@ struct Editor {
      *  - `isTracked` must agree. Replacing an owner by a trivial value drops a consumption
      *    obligation from every path that had one, and replacing a trivial value by an owner invents
      *    one; neither is a substitution, and both read as a correct rewrite afterwards.
-     *  - a **borrow is replaced only by a borrow, on the same loan or on the caller's**. The loan is
-     *    what the extent rule is checked against, so a borrow rerouted onto a different body-local
-     *    loan is one whose uses are now measured against endpoints in a different place - and a use
-     *    that was inside the old extent may be outside the new one with nothing in the IR changed to
-     *    say so. The caller's loan (an empty storage set) is admitted because it never ends inside
-     *    this body, so it is the one substitution that cannot move an endpoint past a use; it is
-     *    also the default `addResult` gives every borrow it makes.
+     *  - a **borrow is replaced only by a borrow, on the same loan or on a loan over fewer lenders**.
+     *    The loan is what the extent rule is checked against, so a borrow rerouted onto a different
+     *    body-local loan is one whose uses are now measured against endpoints in a different place -
+     *    and a use that was inside the old extent may be outside the new one with nothing in the IR
+     *    changed to say so. A loan ends when *any* of its lenders is released, so one over a subset
+     *    lasts at least as long: every use inside the wider extent is inside the narrower loan's,
+     *    and the direction is the whole rule - a superset shortens the extent and is refused.
+     *    `lendsWithin` is that test, and the caller's loan (an empty storage set, and the default
+     *    `addResult` gives every borrow it makes) is its degenerate case rather than a special one.
+     *    What needed the general form is the inliner: `rootLender` re-roots a callee's loan exactly,
+     *    so `fn firstOf(x: 'Int, y: 'Int) -> 'Int = x` comes back rooted in the first argument's
+     *    lender where the *call's* result was on the group both arguments published.
      *
      * Loans whose storage set named `from` are repointed at `to`, and that half is not optional: a
      * loan is found by its lender, so one still naming a value nothing defines is a loan whose
@@ -428,6 +456,17 @@ struct Editor {
      */
     Value* declareBlockArgument(Block& block, const Occurrence& occurrence, Convention convention);
     void addEdgeArgument(Inst& terminator, Size arm, Use value);
+
+    /*
+     * One operand an edge already carries, exchanged for another - the arm by ordinal and the
+     * position within its list.
+     *
+     * Separate from `replaceTerminator`, which keeps the arguments of an edge present on both sides
+     * *over whatever the caller supplied*: that rule is what makes folding a branch into a jump safe
+     * without knowing what the target was being handed, and this is the edit that means the
+     * opposite. `opt/cfg.cpp`'s `decideBranchConditions` is the caller.
+     */
+    void setEdgeArgument(Inst& terminator, Size arm, Size position, Use value);
 
     /*
      * One block argument removed, with the operand it was fed by dropped from every incoming edge.

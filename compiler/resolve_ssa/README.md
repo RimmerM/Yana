@@ -142,7 +142,8 @@ The load-and-store traffic that leaves behind is `opt/promote.cpp`'s to remove, 
 every other local gets - see below. A **borrowed** parameter's slot is the one it declines, and the
 reason is the store above: what it installs is a `Guaranteed` value of a borrowed occurrence, where
 the loads read back a `Trivial` one of the owned occurrence, and a substitution across either of those
-is not a substitution. A `->` parameter of a trivially copyable type is an owned occurrence at both
+is not a substitution. (That is the slot's *contents* being a borrow, which is a different thing from
+a borrow *of* the slot - see below, which the pass follows.) A `->` parameter of a trivially copyable type is an owned occurrence at both
 ends and promotes with every other local, and so does every parameter slot of an inlined body.
 
 ## A `{}` is materialized, never transferred
@@ -233,14 +234,19 @@ sees the lower one.
 
 What promotion takes is an allocation in `StorageClass::Frame` whose held occurrence owes nothing,
 all of whose uses are whole-allocation loads and stores agreeing on one `Trivial` occurrence, plus
-drops that lower to nothing. What it leaves is everything else - a borrowed slot, a record reached
-through a `field.addr`, a slot a call was handed the address of - and `promoteStackSlots` is still
-below it for the half that only matters to the machine.
+drops that lower to nothing - and, since J37, the same again through a **borrow of it**: a `load`
+whose result is `Guaranteed` and the `represent`s over it are second *names* for the storage rather
+than uses of what is in it, so the walk follows one and takes the borrow away with the slot. That is
+what a grafted `iter fn` continuation leaves behind and it is most of what the pass is worth. What it
+leaves is everything else - a record reached through a `field.addr`, a slot a call was handed the
+address of - and `promoteStackSlots` is still below it for the half that only matters to the machine.
 
-`StorageClass` states three rungs and reaches one. That is Analysis-IR.md §10.4's requirement rather
+`StorageClass` states three rungs and reaches two. That is Analysis-IR.md §10.4's requirement rather
 than an unfinished switch: the current compiler's equivalent reserves the region enumerator and
 never selects it, which left the decision shaped like a two-way choice, and stating three from the
-start means the escape analysis ranks them instead of learning a third answer.
+start means the escape analysis ranks them instead of learning a third answer. `Region` is the one
+still out of reach, and `mir::verifyBody` refuses it - there is no ambient witness for a region-placed
+object to be placed in.
 
 It is `mir::StorageClass` and is decided in MIR, **of the object rather than of the slot**. Frame,
 region and heap placement is what ownership analysis answers - whether a local escapes its frame,
@@ -287,6 +293,11 @@ A loan ends at four events, all read off the operands rather than stated by a ma
 | a consuming use of the storage itself | an owner leaving the frame takes its borrows with it |
 | a `load` out of the storage whose result is tracked | the **handover**: a destructive read empties the slot |
 | a `store` to the storage | the **replacement**: a different object where the borrowed one was |
+
+`free` is deliberately **not** a fifth row. It ends the storage as thoroughly as a `drop` does, and
+it is emitted only immediately before a terminator that ends the activation - so there is no
+instruction after it in its block for a stale borrow to be used by, and a row here would be a rule
+with nothing to catch. The day a release is placed anywhere else, this is the line to revisit.
 
 The last two were missing, and they are how nearly every handover in a converted body is actually
 written: an owner leaves by being loaded out of its slot and consumed *as a loaded value*, so the
@@ -500,7 +511,26 @@ the last one.
 The environment is `resolve_lambda.cpp`'s shape one tier down and for the same reason: a continuation
 *is* a closure over the caller's frame. One record of borrowed fields holding the addresses of the
 locals the region reads, an environment parameter in front of the ones the position declares, and a
-`fun.value` pairing the two. What differs is only that nothing in the source wrote it.
+`fun.value` pairing the two. What differs is only that nothing in the source wrote it - and that a
+continuation's environment is always the frame's, so it carries `Shapes::closure` and owes nothing.
+(`fun.value` stopped being `kSsaPure` with D17: a value whose environment is heap-placed *takes* that
+environment, so the operand's lineage ends at the instruction exactly as an aggregate's components
+do, and the flags are per kind.)
+
+**And `opt/inline.cpp` takes it back apart**, which is what keeps one lowering enough:
+`flattenContinuations` copies the iterator's body into its consumer, resolves the call through the
+pair to the declaration the pair names, and copies the continuation back in - to a fixed point, so a
+three-stage chain comes out as one loop. What that means for a reader of this section is that the
+shape described here is what the *conversion* emits and rarely what the backend receives; it survives
+a recursive consumer, a spent budget and `-inline none`, and nothing else.
+
+The lifted declaration therefore has to carry the facts a consumer reads off a `mir::Function`, and
+one of them is not free: `computeSummaries` runs over the MIR before this declaration exists and
+never runs again, so every `Fact` on `Function::summary` is `Unknown` unless the outlining fills it.
+`setSuspension` is filled from the lifter, exactly - a continuation's blocks *are* the lifter's
+blocks - and an unfilled fact reads as whatever conservative default its consumer names. That cost a
+session: the inliner's default is "may suspend", so it declined to copy a body that is the caller's
+own code.
 
 Three things about it are worth knowing before changing one:
 
@@ -558,3 +588,155 @@ nesting: laying out a record asks for each member's layout to place it, so a typ
 out everything below it at every query. The field offsets are part of what is memoized rather than a
 prefix walk beside it, because a packed field's position is not a running sum of the sizes before it
 - `packOrder` may place it anywhere in the word - so a second walk would be a second answer.
+
+## A loan of a scalar in a value position is a load, and a value at a reference position is a slot
+
+The conversion is the first tier that has a **manifestation**, and it is therefore the first tier
+that can see the two places where a MIR occurrence and the position it fills disagree about what a
+value physically is. `'I32` with a published origin manifests as an *address* (`isReferenceValue`);
+a call-bounded shared loan of the same scalar manifests as the number. MIR is right about both and
+says nothing about either, so the adaptation belongs here.
+
+`valueUseOf` is one direction. `firstOf(xs) + 1` at `fn firstOf(xs: [I32]) -> 'I32`, and `xs[a] +
+xs[b]` through an `Index` constraint, put a loan straight into an arithmetic operand - a pointer
+where the type says `I32`, which reached the machine as an `add` of a `Ptr` and an `I32`. It is
+spent at every operand of a `Binary`, a `Unary` and a `Native` op, and at a call argument whose
+declared position is not reached through an address.
+
+`referenceUseOf` is the other. `hold(9)` at `fn hold(value: 'Int)` has a number in a register and a
+position that is the address of one, so the temporary that address names has to exist. The
+*lowering* already made that slot at a call it still saw (`frameStorage` in `lower/inst.cpp`) - and
+that was enough only while every call reached the machine as a call. The inliner and `graftCall`
+**erase** the call, and what they leave behind is the callee's body reading a parameter that has
+become a register value: `test/resolve/BorrowTemporary.yana` segfaulted at every optimization level
+above none, and was correct under `-no-ir-opt`. The slot is made here, where the call is still one,
+so by the time anything splices a callee in the two sides already agree.
+
+Concrete positions of the argument's own type only, in both directions. An **erased** position takes
+an address whatever it was bound to and its declared type is a variable this body cannot allocate,
+so it stays the lowering's - which is where the descriptor that sizes it is read.
+
+**A call through a *value* is a boundary with positions too.** `yield e` is a call of the
+continuation, and `items`' `yield chunk[i]` supplies a subscript's published loan - an address - to a
+position declared `a`, which at a scalar holds the number. `verify.cpp`'s `checkValueCall` compares
+exactly those two conventions, so the conversion reads the positions off the target's own `FunType`
+where there is no declaration to read them from and spends the same two adaptations. Without it every
+`for x in items(xs)` over `lib/`'s containers stopped in the verifier.
+
+## A relocation out of a raw address is a copy
+
+A value that lives in storage *is* its address at this tier, so a `Load` of one is no instruction and
+a move out of it re-points nothing: the object stays where it is, and what the move produced is the
+right to reach it. That is exactly right for a move out of a **local**, because the move is what says
+nothing may read the source again.
+
+It is not right for a place rooted in a raw address. The storage is outside the ownership model, so a
+`store` through the same pointer afterwards is an ordinary operation and the "moved" value follows
+it. `lib/Core/Map.native.yana`'s swap-remove is the shape - `let ->doomed = *(items + at)` and then
+`store(items + at, moved)` - and read as an alias it answers the entry that was moved *into* the gap,
+which is what `Core.mapCases` reported once `Maybe(Int)` and `Entry(Int, Int)` became `TrivialCopy`
+(inventory D16). So a relocation whose place is rooted in a `Place::Address` emits the same `InstCopy`
+a `CopyTrivial` of an address-only value already emits: fresh storage with the bytes in it.
+
+At a **trivially copyable** result and no other, which is what an `InstCopy` means - a value that owes
+a teardown may not be duplicated, and a relocation of one out of a raw address is a hand-over whose
+destination write is what moves the bytes. The shipping stage has always copied here: an `InstMove`
+out of a pointer place is bytes.
+
+## A read of a type with one value is that value, at a specialization too
+
+`Resolver::readPlace` answers a `{}` place with a constant rather than a load, because a type with no
+bytes has nothing at the place to read and `makeMemoryFlags` has no encoding for a width of zero. It
+asks that of the **written** type, which is all it has; a generic body reads a payload of type `a`
+and only a specialization at `a := {}` makes it this. `toOutcome` at `Result(e, {})` - `?` on a
+function that answers nothing - is the one in the library, and what it produced was a load of zero
+bytes that `lower/inst.cpp` asserts against by name. The conversion asks the same question of the
+*substituted* occurrence, which is the first place the answer is available.
+
+## An owner reaching a view position under substitution
+
+`fn (Hash(k)) probe(->key: k) -> U32 = hashKey(key)` at `k := String` segfaulted, and `Map(String, v)`
+did not run because `insert(&self, ->key: k, ->value: v)` is that shape. The parameter's storage holds
+the **owner** - three words - and `hashKey`'s shared position of `k` is the **view** under
+`substitutedContract`, which is two words in `StringView`'s layout. `Resolver::adaptToView` derives one
+from the other wherever the type is concrete; inside the generic it cannot, because `k` is open where
+the body is resolved and a specialization has no body of its own to adapt in.
+
+So the derivation is emitted **here**, which is the one place a substitution is known:
+`Conversion::deriveView` calls the same member the resolver calls - `mir::viewMember` off the
+`ViewRow` - and never a second one, because `mir::needsViewDerivation` is the one predicate and a
+value that is already the view fails it. Every position kind goes through it: a `Read`, a call
+argument, a `return`, a block-argument edge, and a `yield`, which is a call through a value and
+therefore the argument path. A field read out of a record holding the owner is the `Read` again, one
+projection down.
+
+**A place's occurrence is not a position's**, and that is the trap this cost a round on.
+`Conversion::storageAt` is the distinction: a place's contract is the *parent's* qualification
+carried down, so a field or an element declared at a type variable reaches `substitutedContract`
+looking exactly like a borrowed position and is answered as the view - right for a parameter, wrong
+for storage. `data W(a) = W {v: a}` at `a := String` holds an owner in `v` however the record was
+reached, and `copy(Just("abc"))` aborted until the two were told apart. A **local** is left alone: a
+parameter's occurrence *is* a position.
+
+The reverse direction is not a derivation. Two words describe somebody else's storage and nothing
+reconstructs the run, the capacity and the count out of them, so `refuseViewForOwner` reports it -
+`exchangeSize(xs: Array(Int))` given `m[1]`, which is that element's window. The one exception is a
+**derivation applied to the view it makes**, which is that view: `fn (Writable(c, a)) sort(&xs: c)`
+writes `elementsMut(xs)` because at `c := [a *n]` the parameter is the storage, and at `c := Array(a)`
+it already is the window. That is folded rather than called, on `Function::derivation` - carried onto
+a specialization for the same reason `teardown` is.
+
+**Reachability is what keeps the derivation**, and this walk may not mint one - `convertProgram`
+asserts that the function list does not grow. `summary.cpp`'s `rootViewDerivations` roots
+`viewMember` for every substituted type argument of a specialization that has a view, which is
+deliberately blunter than the test above, on `opt/reach.cpp`'s terms for teardowns: which positions of
+a body need the adaptation is a walk under this substitution, and reproducing it in the MIR walk would
+be a second statement of a rule that has one.
+
+An **erased** body neither asks for a view nor could answer one: `substitutedContract` needs a
+concrete substitution to turn a position into the view at all, and a descriptor carries no per-access
+entry (Analysis-Manifestations.md §5.3). So an open type never reaches `deriveView`, and one that did
+would be refused by `viewMember` answering null rather than lowered to a derivation of something with
+no layout.
+
+## A stored borrow of a container is the descriptor, not a pointer to one
+
+`data Formatted(s, a) {value: 'a, style: s}` at `a := Array(U8)` holds a base and a length **inline**:
+`manifestNative` puts the view row above the reference-value row, so the field's own address already
+names the object. `Builder::fieldPlace` builds every non-owned field as a `Field` step followed by a
+`Deref`, which is right for a field that holds a reference and reads the first element's bytes as an
+address here - twenty cases of the library's suite segfaulted in `pushHex`. The test is made at the
+`Deref`, in `addressOf`, because a generic body is where the field is projected and `a` is open there:
+the substitution is known at this tier and nowhere above it, which is the same argument `deriveView`
+rests on.
+
+The shape's own half of that is one tier up. An occurrence carries a root contract *and* an interior
+shape, and `substituteOccurrence` moved only the first - so `fn (ShowWith(s, a)) with(value: 'a, style:
+'s)` at `a := Array(U8)` produced an instantiation whose *field* was the descriptor and whose *shape
+slot* still said whole value, and `fieldContract` prefers the shape. `substituteShape` in `gen.cpp` is
+the missing half, and it applies to a **field** step only: a slot ending at a *pointee* -
+`valuesMut(&self: source'[a]) -> %source'a` - names storage the pointer reaches, and storage of a
+container is the owner however the position that hands it out is written.
+
+## The globals the compiler fills
+
+`Lowering::declareGlobal` carries `supplied.def`'s `BuiltinKind::Written` rows across to
+`LowerModule::builtins`, which is the three `commandLine*` cells the process entry stub stores argc,
+argv and envp into - `genCommandLine` in `codegen/x64/emit.cpp`, shared with the shipping stage. The
+lowered global and not the name, for the reason the shipping stage's own lowering gives: what a
+backend needs is the global, the name it happens to have is the library's, and this is the one place
+both halves are in hand. A `BuiltinKind::Supplied` row is not one of these - its value went into the
+initializer the moment the declaration existed. Only a reachable global gets a row, which is the
+intended answer: a program that never asks about its arguments leaves them null and the stub emits
+nothing. This is what makes the library suite's `--only`, `--isolate` and `--list` work under this
+stage, and therefore what makes a failure sweep case by case possible at all.
+
+## A promoted slot may declare less than an arm hands it
+
+`opt/promote.cpp` empties the interior **shape** where a slot's loads and stores disagree about one,
+and its own note is the argument: two definitions of one slot may have been rooted differently -
+`at = at + 1` beside a global's own pointee origin - and the empty shape is what a slot whose ends
+disagree can honestly say. A shape changes no manifestation at this tier, so the block argument the
+promotion declares accepts an arm carrying one. Declaring a shape and being handed none stays an
+error: that is a promise the argument does not keep. Before the excusal, `Environment.variable`'s
+`while` loop was rejected by the verifier after `promote` and every pass after it.

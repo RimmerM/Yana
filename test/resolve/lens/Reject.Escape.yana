@@ -10,10 +10,16 @@
 
    What the message names is the **binding**, not the callee's local, and that is the boundary
    working rather than the diagnostic being vague: the callee is opaque, so where it rooted what it
-   handed over is not something this function can see. Which is also why the last case below reads
-   the same as the first two - a view of the callee's own frame and a view of this caller's storage
-   are one statement at an opaque boundary, and telling them apart is what the `a'` and `yield'`
-   qualifiers are for.
+   handed over is not something this function can see.
+
+   The last case is the one exception and it is an over-approximation rather than knowledge. An
+   unqualified hand-over is bounded by the call, so what is behind it is anything the call was lent -
+   the origin walk unions *every* argument's loans into the continuation's parameter, which is what
+   keeps `for x in items(xs)` from releasing `xs` at the top of its own loop body. So `w` is rooted
+   in `c` here whether or not `window` actually handed `c` back, and the message names the argument
+   and the spelling that would admit it. Sound in the only direction that matters - it refuses more
+   and accepts nothing new - and the qualifiers `a'` and `yield'` are still what say which storage it
+   really was.
 
    Its own file because these are the *ownership* passes' diagnostics rather than the resolver's, and
    a program whose bodies did not resolve is never handed to them. `Reject.Scoped.yana` next door is

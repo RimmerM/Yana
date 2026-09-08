@@ -2,7 +2,7 @@ module ResolveTest
 
 fn units(x: a [shared call]) -> I32 = <no body>
 
-fn capacity(b: Buf(n) [shared call]) -> I32 = <no body>
+fn capacity'2(b: Buf(n) [shared call]) -> I32 = <no body>
 
 fn free(b: Buf(n) [shared call]) -> I32 = <no body>
 
@@ -87,11 +87,11 @@ bb3:
 fn Buf(n).units(16)(x: Buf(16) [shared call]) -> I32 {
 bb0(%0: Buf(16) [shared call] guaranteed):
   %1: Buf(16) trivial = copy inspect %0
-  %2: I32 trivial = call capacity(16) borrow %1
+  %2: I32 trivial = call capacity'2(16) borrow %1
   return consume %2
 }
 
-fn capacity(16)(b: Buf(16) [shared call]) -> I32 {
+fn capacity'2(16)(b: Buf(16) [shared call]) -> I32 {
 bb0(%0: Buf(16) [shared call] guaranteed):
   %1: I32 trivial = const 16
   return consume %1
@@ -100,7 +100,7 @@ bb0(%0: Buf(16) [shared call] guaranteed):
 fn free(4)(b: Buf(4) [shared call]) -> I32 {
 bb0(%0: Buf(4) [shared call] guaranteed):
   %1: Buf(4) trivial = copy inspect %0
-  %2: I32 trivial = call capacity(4) borrow %1
+  %2: I32 trivial = call capacity'2(4) borrow %1
   %3: %I32 address = field.addr .used inspect %0
   %4: I32 trivial = load inspect %3
   %5: I32 trivial = sub inspect %2 inspect %4
@@ -110,20 +110,20 @@ bb0(%0: Buf(4) [shared call] guaranteed):
 fn free(64)(b: Buf(64) [shared call]) -> I32 {
 bb0(%0: Buf(64) [shared call] guaranteed):
   %1: Buf(64) trivial = copy inspect %0
-  %2: I32 trivial = call capacity(64) borrow %1
+  %2: I32 trivial = call capacity'2(64) borrow %1
   %3: %I32 address = field.addr .used inspect %0
   %4: I32 trivial = load inspect %3
   %5: I32 trivial = sub inspect %2 inspect %4
   return consume %5
 }
 
-fn capacity(4)(b: Buf(4) [shared call]) -> I32 {
+fn capacity'2(4)(b: Buf(4) [shared call]) -> I32 {
 bb0(%0: Buf(4) [shared call] guaranteed):
   %1: I32 trivial = const 4
   return consume %1
 }
 
-fn capacity(64)(b: Buf(64) [shared call]) -> I32 {
+fn capacity'2(64)(b: Buf(64) [shared call]) -> I32 {
 bb0(%0: Buf(64) [shared call] guaranteed):
   %1: I32 trivial = const 64
   return consume %1

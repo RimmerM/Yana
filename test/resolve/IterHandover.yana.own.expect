@@ -2,6 +2,11 @@ fn teardown$none {
   arg value readonly
 }
 
+fn Length(Array(a)).length(U8) {
+  arg self readonly
+  %self: Array(U8) borrowed droppable readonly live [0, 1)
+}
+
 fn Reclaim(Array(a)).reclaim(U8) {
   arg value unknown
   %value: Array(U8) unknown live [0, 25)
@@ -113,7 +118,7 @@ fn ResolveTest.continuation$22 {
   arg env readonly
   arg value$ readonly
   %value$: Held borrowed droppable readonly live [0, 5)
-  %local1: Outcome((), ()) readonly live [8, 11)
+  %local1: Outcome((), ()) readonly live [7, 10)
 }
 
 fn lent(()) {

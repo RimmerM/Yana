@@ -1,6 +1,6 @@
 module ResolveTest
 
-let string: [CodeUnit *3] = [97, 98, 99]
+let string'142: [CodeUnit *3] = [97, 98, 99]
 
 lens fn ticks(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
   local & $yielded: I32
@@ -10,10 +10,10 @@ lens fn ticks(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = const 0
   write.init borrow.unique ($yielded) take %0
-  %2: [CodeUnit *3] [shared slot 0] = read borrow.shared (global string) loan0
-  %3: %[CodeUnit *3] [owned here shape1 .*=shared slot 0] = address inspect %2 roots.0{0}
-  %4: %CodeUnit = bitcast inspect %3
-  %5: Size = const 3
+  %2: [CodeUnit *3] [shared slot 0] = read borrow.shared (global string'142) loan0
+  %3: %[CodeUnit *3] [owned here shape6 .*=shared slot 0] = address inspect %2 roots.0{0}
+  %4: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %3 roots.0{0}
+  %5: I32 = const 3
   %6: String = call stringLiteral borrow.shared %4 borrow.shared %5
   write.init borrow.unique (held) take %6
   flag (held) = held

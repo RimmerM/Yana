@@ -1,0 +1,608 @@
+module ResolveTest
+
+let & tokensDropped: I32 = 0
+
+fn cornerOf(c: Corner [shared call]) -> Point {
+bb0(%0: Corner [shared call] guaranteed):
+  %1: %Corner address = alloc frame Corner [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Point trivial = map [0 -> Point {x: 0, y: 0}, 1 -> Point {x: 1, y: 0}, 2 -> Point {x: 0, y: 1}, 3 -> Point {x: 1, y: 1}] inspect %3
+  return consume %4
+}
+
+fn axesOf(c: Corner [shared call]) -> {I32, Bool, F32} {
+bb0(%0: Corner [shared call] guaranteed):
+  %2: %Corner address = alloc frame Corner [shared call]
+  store inspect %2 borrow %0
+  %3: %U8 address = field.addr .# inspect %2
+  %4: U8 trivial = load inspect %3
+  switch [0, 1, 2] inspect %4 -> bb1 -> bb2 -> bb3 -> bb4
+
+bb1:
+  %5: I32 trivial = const 0
+  %6: Bool trivial = const True
+  %7: F32 trivial = const 0.5
+  %8: {I32, Bool, F32} trivial = aggregate. consume %5 consume %6 consume %7
+  jump -> bb5(consume %8)
+
+bb2:
+  %9: I32 trivial = const 1
+  %10: Bool trivial = const True
+  %11: F32 trivial = const 1.5
+  %12: {I32, Bool, F32} trivial = aggregate. consume %9 consume %10 consume %11
+  jump -> bb5(consume %12)
+
+bb3:
+  %13: I32 trivial = const 2
+  %14: Bool trivial = const False
+  %15: F32 trivial = const 2.5
+  %16: {I32, Bool, F32} trivial = aggregate. consume %13 consume %14 consume %15
+  jump -> bb5(consume %16)
+
+bb4:
+  %17: I32 trivial = const 3
+  %18: Bool trivial = const False
+  %19: F32 trivial = const 3.5
+  %20: {I32, Bool, F32} trivial = aggregate. consume %17 consume %18 consume %19
+  jump -> bb5(consume %20)
+
+bb5(%1: {I32, Bool, F32} trivial):
+  return consume %1
+}
+
+fn boxOf(c: Corner [shared call]) -> Box {
+bb0(%0: Corner [shared call] guaranteed):
+  %1: %Corner address = alloc frame Corner [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Box trivial = map [0 -> Box {origin: Point {x: 0, y: 0}, span: Point {x: 4, y: 4}}, 1 -> Box {origin: Point {x: 4, y: 0}, span: Point {x: 4, y: 4}}, 2 -> Box {origin: Point {x: 0, y: 4}, span: Point {x: 4, y: 4}}, 3 -> Box {origin: Point {x: 4, y: 4}, span: Point {x: 4, y: 4}}] inspect %3
+  return consume %4
+}
+
+fn hintOf(c: Corner [shared call]) -> Maybe(I32) {
+bb0(%0: Corner [shared call] guaranteed):
+  %1: %Corner address = alloc frame Corner [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Maybe(I32) trivial = map [0 -> Nothing, 1 -> Just(1), 2 -> Just(2), 3 -> Just(3)] inspect %3
+  return consume %4
+}
+
+fn always(c: Corner [shared call]) -> Point {
+bb0(%0: Corner [shared call] guaranteed):
+  %1: %Corner address = alloc frame Corner [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Point trivial = map [0 -> Point {x: 9, y: 9}, 1 -> Point {x: 9, y: 9}, 2 -> Point {x: 9, y: 9}, 3 -> Point {x: 9, y: 9}] inspect %3
+  return consume %4
+}
+
+fn Token.drop(value: Token) -> {} {
+bb0(%0: Token owned):
+  %1: %Token address = alloc frame Token
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr tokensDropped
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .id inspect %1
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = add inspect %3 inspect %5
+  %7: %I32 address = global.addr tokensDropped
+  store inspect %7 consume %6
+  return
+}
+
+fn tokenOf(c: Corner [shared call]) -> Token {
+bb0(%0: Corner [shared call] guaranteed):
+  %2: %Corner address = alloc frame Corner [shared call]
+  store inspect %2 borrow %0
+  %3: %U8 address = field.addr .# inspect %2
+  %4: U8 trivial = load inspect %3
+  switch [0, 1, 2] inspect %4 -> bb1 -> bb2 -> bb3 -> bb4
+
+bb1:
+  %5: I32 trivial = const 10
+  %6: Token owned = aggregate.Token consume %5
+  jump -> bb5(consume %6)
+
+bb2:
+  %7: I32 trivial = const 20
+  %8: Token owned = aggregate.Token consume %7
+  jump -> bb5(consume %8)
+
+bb3:
+  %9: I32 trivial = const 30
+  %10: Token owned = aggregate.Token consume %9
+  jump -> bb5(consume %10)
+
+bb4:
+  %11: I32 trivial = const 40
+  %12: Token owned = aggregate.Token consume %11
+  jump -> bb5(consume %12)
+
+bb5(%1: Token owned):
+  return consume %1
+}
+
+fn opaque(c: Corner [shared call]) -> Corner {
+bb0(%0: Corner [shared call] guaranteed):
+  %1: %Corner address = alloc frame Corner [shared call]
+  store inspect %1 borrow %0
+  %2: Corner trivial = load inspect %1
+  return consume %2
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  jump -> bb2(consume %6)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %7: I32 trivial = load inspect %4
+  jump -> bb2(consume %7)
+}
+
+fn independent(c: Corner [shared call]) -> I32 {
+bb0(%0: Corner [shared call] guaranteed):
+  %9: %Corner address = alloc frame Corner [shared call]
+  %10: %Point address = alloc frame Point
+  %11: %Point address = alloc frame Point
+  store inspect %9 borrow %0
+  %12: Corner trivial = load inspect %9
+  %13: Point trivial = call cornerOf borrow %12
+  store inspect %10 consume %13
+  %14: Corner trivial = load inspect %9
+  %15: Point trivial = call cornerOf borrow %14
+  store inspect %11 consume %15
+  %16: I32 trivial = const 100
+  %17: %I32 address = field.addr .x inspect %10
+  store inspect %17 consume %16
+  %18: %I32 address = field.addr .x inspect %10
+  %19: I32 trivial = load inspect %18
+  %20: I32 trivial = const 100
+  %21: Bool trivial = eq inspect %19 inspect %20
+  %22: I32 trivial = const 1
+  %23: I32 trivial = call check borrow %21 borrow %22
+  %24: %I32 address = field.addr .x inspect %11
+  %25: I32 trivial = load inspect %24
+  %26: I32 trivial = const 100
+  %27: Bool trivial = ne inspect %25 inspect %26
+  branch inspect %27 -> bb3(consume %23) -> bb1(consume %23)
+
+bb1(%1: I32 trivial):
+  %28: Corner trivial = load inspect %9
+  %29: Corner trivial = const TopRight
+  %30: Bool trivial = eq inspect %28 inspect %29
+  jump -> bb2(consume %30, consume %1)
+
+bb2(%2: Bool trivial, %3: I32 trivial):
+  branch inspect %2 -> bb6(consume %3) -> bb4(consume %3)
+
+bb3(%4: I32 trivial):
+  %31: Bool trivial = const True
+  jump -> bb2(consume %31, consume %4)
+
+bb4(%5: I32 trivial):
+  %32: Corner trivial = load inspect %9
+  %33: Corner trivial = const BottomRight
+  %34: Bool trivial = eq inspect %32 inspect %33
+  jump -> bb5(consume %34, consume %5)
+
+bb5(%6: Bool trivial, %7: I32 trivial):
+  %35: I32 trivial = const 2
+  %36: I32 trivial = call check borrow %6 borrow %35
+  %37: I32 trivial = add inspect %7 inspect %36
+  return consume %37
+
+bb6(%8: I32 trivial):
+  %38: Bool trivial = const True
+  jump -> bb5(consume %38, consume %8)
+}
+
+fn main() -> I32 {
+bb0:
+  %46: %Point address = alloc frame Point
+  %47: %Point address = alloc frame Point
+  %48: %Point address = alloc frame Point
+  %49: %Point address = alloc frame Point
+  %50: %Point address = alloc frame Point
+  %51: %Point address = alloc frame Point
+  %52: %{I32, Bool, F32} address = alloc frame {I32, Bool, F32}
+  %53: %{I32, Bool, F32} address = alloc frame {I32, Bool, F32}
+  %54: %{I32, Bool, F32} address = alloc frame {I32, Bool, F32}
+  %55: %{I32, Bool, F32} address = alloc frame {I32, Bool, F32}
+  %56: %{I32, Bool, F32} address = alloc frame {I32, Bool, F32}
+  %57: %{I32, Bool, F32} address = alloc frame {I32, Bool, F32}
+  %58: %Box address = alloc frame Box
+  %59: %Box address = alloc frame Box
+  %60: %Box address = alloc frame Box
+  %61: %Box address = alloc frame Box
+  %62: %Box address = alloc frame Box
+  %63: %Maybe(I32) address = alloc frame Maybe(I32)
+  %64: %Maybe(I32) address = alloc frame Maybe(I32)
+  %65: %Point address = alloc frame Point
+  %66: %Point address = alloc frame Point
+  %67: %Token address = alloc frame Token
+  %68: %Token address = alloc frame Token
+  %69: Corner trivial = const TopLeft
+  %70: Corner trivial = call opaque borrow %69
+  %71: Point trivial = call cornerOf borrow %70
+  store inspect %46 consume %71
+  %72: %I32 address = field.addr .x inspect %46
+  %73: I32 trivial = load inspect %72
+  %74: I32 trivial = const 0
+  %75: Bool trivial = eq inspect %73 inspect %74
+  branch inspect %75 -> bb3 -> bb1
+
+bb1:
+  %76: Bool trivial = const False
+  jump -> bb2(consume %76)
+
+bb2(%0: Bool trivial):
+  %77: I32 trivial = const 1
+  %78: I32 trivial = call check borrow %0 borrow %77
+  %79: Corner trivial = const BottomRight
+  %80: Corner trivial = call opaque borrow %79
+  %81: Point trivial = call cornerOf borrow %80
+  store inspect %48 consume %81
+  %82: %I32 address = field.addr .x inspect %48
+  %83: I32 trivial = load inspect %82
+  %84: I32 trivial = const 1
+  %85: Bool trivial = eq inspect %83 inspect %84
+  branch inspect %85 -> bb6(consume %78) -> bb4(consume %78)
+
+bb3:
+  %86: Corner trivial = const TopLeft
+  %87: Corner trivial = call opaque borrow %86
+  %88: Point trivial = call cornerOf borrow %87
+  store inspect %47 consume %88
+  %89: %I32 address = field.addr .y inspect %47
+  %90: I32 trivial = load inspect %89
+  %91: I32 trivial = const 0
+  %92: Bool trivial = eq inspect %90 inspect %91
+  jump -> bb2(consume %92)
+
+bb4(%1: I32 trivial):
+  %93: Bool trivial = const False
+  jump -> bb5(consume %93, consume %1)
+
+bb5(%2: Bool trivial, %3: I32 trivial):
+  %94: I32 trivial = const 2
+  %95: I32 trivial = call check borrow %2 borrow %94
+  %96: I32 trivial = add inspect %3 inspect %95
+  %97: Corner trivial = const TopRight
+  %98: Corner trivial = call opaque borrow %97
+  %99: Point trivial = call cornerOf borrow %98
+  store inspect %50 consume %99
+  %100: %I32 address = field.addr .x inspect %50
+  %101: I32 trivial = load inspect %100
+  %102: I32 trivial = const 1
+  %103: Bool trivial = eq inspect %101 inspect %102
+  branch inspect %103 -> bb9(consume %96) -> bb7(consume %96)
+
+bb6(%4: I32 trivial):
+  %104: Corner trivial = const BottomRight
+  %105: Corner trivial = call opaque borrow %104
+  %106: Point trivial = call cornerOf borrow %105
+  store inspect %49 consume %106
+  %107: %I32 address = field.addr .y inspect %49
+  %108: I32 trivial = load inspect %107
+  %109: I32 trivial = const 1
+  %110: Bool trivial = eq inspect %108 inspect %109
+  jump -> bb5(consume %110, consume %4)
+
+bb7(%5: I32 trivial):
+  %111: Bool trivial = const False
+  jump -> bb8(consume %111, consume %5)
+
+bb8(%6: Bool trivial, %7: I32 trivial):
+  %112: I32 trivial = const 4
+  %113: I32 trivial = call check borrow %6 borrow %112
+  %114: I32 trivial = add inspect %7 inspect %113
+  %115: Corner trivial = const TopLeft
+  %116: Corner trivial = call opaque borrow %115
+  %117: {I32, Bool, F32} trivial = call axesOf borrow %116
+  store inspect %52 consume %117
+  %118: %I32 address = field.addr . inspect %52
+  %119: I32 trivial = load inspect %118
+  %120: I32 trivial = const 0
+  %121: Bool trivial = eq inspect %119 inspect %120
+  branch inspect %121 -> bb12(consume %114) -> bb10(consume %114)
+
+bb9(%8: I32 trivial):
+  %122: Corner trivial = const BottomLeft
+  %123: Corner trivial = call opaque borrow %122
+  %124: Point trivial = call cornerOf borrow %123
+  store inspect %51 consume %124
+  %125: %I32 address = field.addr .y inspect %51
+  %126: I32 trivial = load inspect %125
+  %127: I32 trivial = const 1
+  %128: Bool trivial = eq inspect %126 inspect %127
+  jump -> bb8(consume %128, consume %8)
+
+bb10(%9: I32 trivial):
+  %129: Bool trivial = const False
+  jump -> bb11(consume %129, consume %9)
+
+bb11(%10: Bool trivial, %11: I32 trivial):
+  %130: I32 trivial = const 8
+  %131: I32 trivial = call check borrow %10 borrow %130
+  %132: I32 trivial = add inspect %11 inspect %131
+  %133: Corner trivial = const BottomRight
+  %134: Corner trivial = call opaque borrow %133
+  %135: {I32, Bool, F32} trivial = call axesOf borrow %134
+  store inspect %54 consume %135
+  %136: %I32 address = field.addr . inspect %54
+  %137: I32 trivial = load inspect %136
+  %138: I32 trivial = const 3
+  %139: Bool trivial = eq inspect %137 inspect %138
+  branch inspect %139 -> bb15(consume %132) -> bb13(consume %132)
+
+bb12(%12: I32 trivial):
+  %140: Corner trivial = const TopLeft
+  %141: Corner trivial = call opaque borrow %140
+  %142: {I32, Bool, F32} trivial = call axesOf borrow %141
+  store inspect %53 consume %142
+  %143: %Bool address = field.addr . inspect %53
+  %144: Bool trivial = load inspect %143
+  jump -> bb11(consume %144, consume %12)
+
+bb13(%13: I32 trivial):
+  %145: Bool trivial = const False
+  jump -> bb14(consume %145, consume %13)
+
+bb14(%14: Bool trivial, %15: I32 trivial):
+  %146: I32 trivial = const 16
+  %147: I32 trivial = call check borrow %14 borrow %146
+  %148: I32 trivial = add inspect %15 inspect %147
+  %149: Corner trivial = const BottomLeft
+  %150: Corner trivial = call opaque borrow %149
+  %151: {I32, Bool, F32} trivial = call axesOf borrow %150
+  store inspect %56 consume %151
+  %152: %F32 address = field.addr . inspect %56
+  %153: F32 trivial = load inspect %152
+  %154: F32 trivial = const 2.5
+  %155: Bool trivial = eq inspect %153 inspect %154
+  branch inspect %155 -> bb18(consume %148) -> bb16(consume %148)
+
+bb15(%16: I32 trivial):
+  %156: Corner trivial = const BottomRight
+  %157: Corner trivial = call opaque borrow %156
+  %158: {I32, Bool, F32} trivial = call axesOf borrow %157
+  store inspect %55 consume %158
+  %159: %Bool address = field.addr . inspect %55
+  %160: Bool trivial = load inspect %159
+  %161: Bool trivial = not inspect %160
+  jump -> bb14(consume %161, consume %16)
+
+bb16(%17: I32 trivial):
+  %162: Bool trivial = const False
+  jump -> bb17(consume %162, consume %17)
+
+bb17(%18: Bool trivial, %19: I32 trivial):
+  %163: I32 trivial = const 32
+  %164: I32 trivial = call check borrow %18 borrow %163
+  %165: I32 trivial = add inspect %19 inspect %164
+  %166: Corner trivial = const BottomRight
+  %167: Corner trivial = call opaque borrow %166
+  %168: Box trivial = call boxOf borrow %167
+  store inspect %58 consume %168
+  %169: %Point address = field.addr .origin inspect %58
+  %170: %I32 address = field.addr .x inspect %169
+  %171: I32 trivial = load inspect %170
+  %172: I32 trivial = const 4
+  %173: Bool trivial = eq inspect %171 inspect %172
+  branch inspect %173 -> bb21(consume %165) -> bb19(consume %165)
+
+bb18(%20: I32 trivial):
+  %174: Corner trivial = const TopRight
+  %175: Corner trivial = call opaque borrow %174
+  %176: {I32, Bool, F32} trivial = call axesOf borrow %175
+  store inspect %57 consume %176
+  %177: %F32 address = field.addr . inspect %57
+  %178: F32 trivial = load inspect %177
+  %179: F32 trivial = const 1.5
+  %180: Bool trivial = eq inspect %178 inspect %179
+  jump -> bb17(consume %180, consume %20)
+
+bb19(%21: I32 trivial):
+  %181: Bool trivial = const False
+  jump -> bb20(consume %181, consume %21)
+
+bb20(%22: Bool trivial, %23: I32 trivial):
+  %182: I32 trivial = const 64
+  %183: I32 trivial = call check borrow %22 borrow %182
+  %184: I32 trivial = add inspect %23 inspect %183
+  %185: Corner trivial = const TopRight
+  %186: Corner trivial = call opaque borrow %185
+  %187: Box trivial = call boxOf borrow %186
+  store inspect %60 consume %187
+  %188: %Point address = field.addr .origin inspect %60
+  %189: %I32 address = field.addr .x inspect %188
+  %190: I32 trivial = load inspect %189
+  %191: I32 trivial = const 4
+  %192: Bool trivial = eq inspect %190 inspect %191
+  branch inspect %192 -> bb24(consume %184) -> bb22(consume %184)
+
+bb21(%24: I32 trivial):
+  %193: Corner trivial = const BottomRight
+  %194: Corner trivial = call opaque borrow %193
+  %195: Box trivial = call boxOf borrow %194
+  store inspect %59 consume %195
+  %196: %Point address = field.addr .origin inspect %59
+  %197: %I32 address = field.addr .y inspect %196
+  %198: I32 trivial = load inspect %197
+  %199: I32 trivial = const 4
+  %200: Bool trivial = eq inspect %198 inspect %199
+  jump -> bb20(consume %200, consume %24)
+
+bb22(%25: I32 trivial):
+  %201: Bool trivial = const False
+  jump -> bb23(consume %201, consume %25)
+
+bb23(%26: Bool trivial, %27: I32 trivial):
+  %202: I32 trivial = const 128
+  %203: I32 trivial = call check borrow %26 borrow %202
+  %204: I32 trivial = add inspect %27 inspect %203
+  %205: Corner trivial = const TopLeft
+  %206: Corner trivial = call opaque borrow %205
+  %207: Box trivial = call boxOf borrow %206
+  store inspect %62 consume %207
+  %208: %Point address = field.addr .span inspect %62
+  %209: %I32 address = field.addr .x inspect %208
+  %210: I32 trivial = load inspect %209
+  %211: I32 trivial = const 4
+  %212: Bool trivial = eq inspect %210 inspect %211
+  %213: I32 trivial = const 256
+  %214: I32 trivial = call check borrow %212 borrow %213
+  %215: I32 trivial = add inspect %204 inspect %214
+  %216: Corner trivial = const TopLeft
+  %217: Corner trivial = call opaque borrow %216
+  %218: Maybe(I32) trivial = call hintOf borrow %217
+  store inspect %63 consume %218
+  %219: %U8 address = field.addr .# inspect %63
+  %220: U8 trivial = load inspect %219
+  %221: U8 trivial = const 0
+  %222: Bool trivial = eq inspect %220 inspect %221
+  branch inspect %222 -> bb27(consume %215) -> bb25(consume %215)
+
+bb24(%28: I32 trivial):
+  %223: Corner trivial = const TopRight
+  %224: Corner trivial = call opaque borrow %223
+  %225: Box trivial = call boxOf borrow %224
+  store inspect %61 consume %225
+  %226: %Point address = field.addr .origin inspect %61
+  %227: %I32 address = field.addr .y inspect %226
+  %228: I32 trivial = load inspect %227
+  %229: I32 trivial = const 0
+  %230: Bool trivial = eq inspect %228 inspect %229
+  jump -> bb23(consume %230, consume %28)
+
+bb25(%29: I32 trivial):
+  %231: Bool trivial = const False
+  jump -> bb26(consume %231, consume %29)
+
+bb26(%30: Bool trivial, %31: I32 trivial):
+  %232: I32 trivial = const 512
+  %233: I32 trivial = call check borrow %30 borrow %232
+  %234: I32 trivial = add inspect %31 inspect %233
+  %235: Corner trivial = const BottomLeft
+  %236: Corner trivial = call opaque borrow %235
+  %237: Maybe(I32) trivial = call hintOf borrow %236
+  store inspect %64 consume %237
+  %238: %U8 address = field.addr .# inspect %64
+  %239: U8 trivial = load inspect %238
+  %240: U8 trivial = const 1
+  %241: Bool trivial = eq inspect %239 inspect %240
+  branch inspect %241 -> bb30(consume %234) -> bb28(consume %234)
+
+bb27(%32: I32 trivial):
+  %242: Bool trivial = const True
+  jump -> bb26(consume %242, consume %32)
+
+bb28(%33: I32 trivial):
+  %243: Bool trivial = const False
+  jump -> bb29(consume %243, consume %33)
+
+bb29(%34: Bool trivial, %35: I32 trivial):
+  %244: I32 trivial = const 1024
+  %245: I32 trivial = call check borrow %34 borrow %244
+  %246: I32 trivial = add inspect %35 inspect %245
+  %247: Corner trivial = const TopLeft
+  %248: Corner trivial = call opaque borrow %247
+  %249: Point trivial = call always borrow %248
+  store inspect %65 consume %249
+  %250: %I32 address = field.addr .x inspect %65
+  %251: I32 trivial = load inspect %250
+  %252: I32 trivial = const 9
+  %253: Bool trivial = eq inspect %251 inspect %252
+  branch inspect %253 -> bb34(consume %246) -> bb32(consume %246)
+
+bb30(%36: I32 trivial):
+  %254: %I32 address = field.addr .Just inspect %64
+  %255: I32 trivial = load inspect %254
+  %256: I32 trivial = const 2
+  %257: Bool trivial = eq inspect %255 inspect %256
+  branch inspect %257 -> bb31(consume %36) -> bb28(consume %36)
+
+bb31(%37: I32 trivial):
+  %258: Bool trivial = const True
+  jump -> bb29(consume %258, consume %37)
+
+bb32(%38: I32 trivial):
+  %259: Bool trivial = const False
+  jump -> bb33(consume %259, consume %38)
+
+bb33(%39: Bool trivial, %40: I32 trivial):
+  %260: I32 trivial = const 2048
+  %261: I32 trivial = call check borrow %39 borrow %260
+  %262: I32 trivial = add inspect %40 inspect %261
+  %263: Corner trivial = const TopLeft
+  %264: Corner trivial = call opaque borrow %263
+  %265: Token owned = call tokenOf borrow %264
+  store inspect %67 consume %265
+  %266: %I32 address = field.addr .id inspect %67
+  %267: I32 trivial = load inspect %266
+  drop Token inspect %67
+  %268: I32 trivial = const 10
+  %269: Bool trivial = eq inspect %267 inspect %268
+  branch inspect %269 -> bb37(consume %262) -> bb35(consume %262)
+
+bb34(%41: I32 trivial):
+  %270: Corner trivial = const BottomRight
+  %271: Corner trivial = call opaque borrow %270
+  %272: Point trivial = call always borrow %271
+  store inspect %66 consume %272
+  %273: %I32 address = field.addr .y inspect %66
+  %274: I32 trivial = load inspect %273
+  %275: I32 trivial = const 9
+  %276: Bool trivial = eq inspect %274 inspect %275
+  jump -> bb33(consume %276, consume %41)
+
+bb35(%42: I32 trivial):
+  %277: Bool trivial = const False
+  jump -> bb36(consume %277, consume %42)
+
+bb36(%43: Bool trivial, %44: I32 trivial):
+  %278: I32 trivial = const 4096
+  %279: I32 trivial = call check borrow %43 borrow %278
+  %280: I32 trivial = add inspect %44 inspect %279
+  %281: Corner trivial = const TopLeft
+  %282: Corner trivial = call opaque borrow %281
+  %283: I32 trivial = call independent borrow %282
+  %284: I32 trivial = const 3
+  %285: Bool trivial = eq inspect %283 inspect %284
+  %286: I32 trivial = const 8192
+  %287: I32 trivial = call check borrow %285 borrow %286
+  %288: I32 trivial = add inspect %280 inspect %287
+  return consume %288
+
+bb37(%45: I32 trivial):
+  %289: Corner trivial = const BottomRight
+  %290: Corner trivial = call opaque borrow %289
+  %291: Token owned = call tokenOf borrow %290
+  store inspect %68 consume %291
+  %292: %I32 address = field.addr .id inspect %68
+  %293: I32 trivial = load inspect %292
+  drop Token inspect %68
+  %294: I32 trivial = const 40
+  %295: Bool trivial = eq inspect %293 inspect %294
+  jump -> bb36(consume %295, consume %45)
+}
+
+entry main

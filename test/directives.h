@@ -205,6 +205,30 @@ inline void applyResolverDirective(CompileSettings& settings, StringView content
 }
 
 /*
+ * `# test: yes` - `-test`, and Design-Test.md §11.2's F1.
+ *
+ * A fixture saying this has `@test` declarations and no `main`, so what runs it is the entry the
+ * compiler synthesizes out of them. It needs a `Test` module to build that entry from, which is
+ * `resolve/modules/Test.yana` - a minimal runner both resolve stages compile, so that the harness
+ * itself is a thing the shared corpus can assert rather than only the library suite.
+ *
+ * Only the one direction, like `# checks: off`: a build without `-test` is the default and a fixture
+ * saying so would be saying nothing. It is also the one directive that changes what the *entry* is,
+ * which is why a fixture carrying it has no `main` at all.
+ */
+inline void applyTestDirective(CompileSettings& settings, StringView content) {
+    auto directive = "# test: yes"_v;
+    if(content.length < directive.length) return;
+
+    for(Size i = 0; i + directive.length <= content.length; i++) {
+        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+
+        settings.test = true;
+        return;
+    }
+}
+
+/*
  * `# allocator: <name>` - `-allocator`, and Design-Allocator.md §18.3's provider selection.
  *
  * The one directive whose axis is *policy* rather than machine or compiler, and the reason a fixture
@@ -253,6 +277,7 @@ inline void applyFixtureDirectives(CompileSettings& settings, StringView content
     applyCheckLocationDirective(settings, content);
     applyInliningDirective(settings, content);
     applyResolverDirective(settings, content);
+    applyTestDirective(settings, content);
     applyAllocatorDirective(settings, content);
 }
 

@@ -1,0 +1,33 @@
+{-
+   The other half of `BorrowRefill.yana` - the hole nothing fills.
+
+   # resolver: ownership
+
+   Taking a value out of borrowed storage is a loan of two halves, and only the second one is a
+   check: the caller may look into its own storage again the moment this frame returns, so that is
+   the point at which the storage has to hold something. Each function below empties `target` and
+   then fails to put something back, in the three shapes the dataflow can tell apart.
+
+   `partly` is refused with the same message as `never`, and deliberately: a refill on one path and
+   not on another leaves the caller holding a value only a run-time bit knows about, and a drop flag
+   is not an answer here - a flag says whether to *release*, and what is missing is a value.
+
+   `Reject.BorrowAlias.yana` is the third half, split off for the reason `Reject.CopyInstance.yana`
+   is: resolution stops before the analysis runs, so a fixture holding both would only ever report
+   one of them.
+-}
+
+fn eat(->s: String) -> Int = truncate(length(s)) :: Int
+
+fn never(&target: String) -> Int:
+    return eat(target)
+
+fn partly(&target: String, flag: Bool) -> Int:
+    if flag then target = "put back" else eat(target)
+    return 0
+
+fn afterTheHole(&target: String) -> Int:
+    let first = eat(target)
+    return first + eat(target)
+
+fn main() -> Int = 0

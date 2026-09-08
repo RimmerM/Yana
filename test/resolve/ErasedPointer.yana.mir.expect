@@ -36,23 +36,23 @@ fn borrowedAddress(x: a [shared slot 0]) -> Size {
   slot #0 type a
 bb0:
   %0: a [shared slot 0] = read borrow.shared (x) loan0
-  %1: %a [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %1: %a [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
   %2: Size = call addressValue(a) borrow.shared %1
   return take %2
 }
 
 fn main() -> I32 {
   local & cell: Cell
-  local p: %Cell [owned here shape1 .*=shared slot 0]
+  local p: %Cell [owned here shape6 .*=shared slot 0]
 
 bb0:
   %0: I32 = const 7
   %1: Cell = aggregate.Cell take %0
   write.init borrow.unique (cell) take %1
   %3: Cell [shared slot 0] = read borrow.shared (cell) loan0
-  %4: %Cell [owned here shape1 .*=shared slot 0] = address inspect %3 roots.0{0}
+  %4: %Cell [owned here shape6 .*=shared slot 0] = address inspect %3 roots.0{0}
   write.init borrow.unique (p) take %4
-  %6: %Cell [owned here shape1 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %6: %Cell [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
   %7: Bool = call absent(Cell) borrow.shared %6
   branch inspect %7 -> bb3 -> bb1
 
@@ -87,7 +87,7 @@ bb7:
   jump -> bb8
 
 bb8:
-  %27: %Cell [owned here shape1 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %27: %Cell [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
   %28: Size = call addressValue(Cell) borrow.shared %27
   %29: Size = const 0
   %30: Bool = eq inspect %28 inspect %29

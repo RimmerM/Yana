@@ -29,7 +29,6 @@ target_link_libraries(YanaCore PUBLIC TritiumNet TritiumCore ${OTHER_LIBS})
 # compiler finds its library beside itself instead - see executableDirectory - so this is a
 # fallback for the tree rather than the answer a shipped compiler relies on.
 target_compile_definitions(YanaCore PRIVATE YANA_LIBRARY_DIR="${CMAKE_SOURCE_DIR}/lib")
-target_compile_definitions(YanaCore PRIVATE YANA_PRELUDE_DIR="${CMAKE_SOURCE_DIR}/prelude")
 
 set(INTRINSIC_SOURCE_FILES
     intrinsic/role.h
@@ -314,6 +313,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/specialize.cpp
     resolve_mir/analyze.h
     resolve_mir/analyze_internal.h
+    resolve_mir/analyze_escape.cpp
     resolve_mir/analyze_path.cpp
     resolve_mir/analyze_loan.cpp
     resolve_mir/analyze_live.cpp
@@ -335,6 +335,8 @@ set(RESOLVE_MIR_SOURCE_FILES
 
     resolve_mir/resolve_decl.cpp
     resolve_mir/resolve_sig.cpp
+    resolve_mir/resolve_caller.cpp
+    resolve_mir/resolve_test.cpp
     resolve_mir/convert.cpp
     resolve_mir/resolve_class.cpp
     resolve_mir/resolve_derive.cpp
@@ -362,6 +364,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/intrinsic/expand_native.cpp
     resolve_mir/intrinsic/expand_atomic.cpp
     resolve_mir/intrinsic/expand_vector.cpp
+    resolve_mir/intrinsic/expand_container.cpp
     resolve_mir/intrinsic/expand_provided.cpp
     resolve_mir/intrinsic/provide.cpp
 )
@@ -388,6 +391,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/opt/pass.h
     resolve_ssa/opt/analysis.h
     resolve_ssa/opt/analysis.cpp
+    resolve_ssa/opt/arg.cpp
     resolve_ssa/opt/promote.cpp
     resolve_ssa/opt/simplify.cpp
     resolve_ssa/opt/cse.cpp
@@ -398,7 +402,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/opt/loop.cpp
     resolve_ssa/opt/inline.cpp
     resolve_ssa/opt/reach.cpp
-
+    resolve_ssa/opt/check.cpp
     resolve_ssa/lower/repr.h
     resolve_ssa/lower/repr.cpp
     resolve_ssa/lower/repr_print.h
@@ -412,6 +416,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/lower/box.cpp
     resolve_ssa/lower/erase.cpp
     resolve_ssa/lower/fun.cpp
+    resolve_ssa/lower/map.cpp
     resolve_ssa/lower/pack.cpp
     resolve_ssa/lower/width.cpp
 )

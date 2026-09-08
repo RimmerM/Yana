@@ -1,0 +1,76 @@
+module ResolveTest
+
+fn make(x: I32 [shared slot 0], y: I32 [shared slot 0]) -> Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] {
+bb0(%0: I32 [shared slot 0] guaranteed, %1: I32 [shared slot 0] guaranteed):
+  %2: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %3: I32 [shared slot 0] guaranteed from{%1} = load inspect %1
+  %4: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] trivial = aggregate.Pair borrow %2 borrow %3
+  return consume %4
+}
+
+fn firstOf(self: Box(a) [shared slot 0]) -> a [shared slot 0] = <no body>
+
+fn viewed(self: Box(a) [shared slot 0], other: Box(a) [shared slot 0]) -> Pair(a, a) [owned here shape5 .0=shared slot 0 .1=shared slot 0] = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %Pair(I32, I32) address = alloc frame Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0]
+  %3: %Box(I32) address = alloc frame Box(I32)
+  %4: %Box(I32) address = alloc frame Box(I32)
+  %5: %Pair(I32, I32) address = alloc frame Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0]
+  %6: I32 trivial = const 3
+  store inspect %0 consume %6
+  %7: I32 trivial = const 4
+  store inspect %1 consume %7
+  %8: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %9: I32 [shared slot 0] guaranteed from{%1} = load inspect %1
+  %10: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] trivial = call make borrow %8 borrow %9
+  store inspect %2 consume %10
+  %11: I32 trivial = const 5
+  %12: Box(I32) trivial = aggregate.Box consume %11
+  store inspect %3 consume %12
+  %13: I32 trivial = const 6
+  %14: Box(I32) trivial = aggregate.Box consume %13
+  store inspect %4 consume %14
+  %15: Box(I32) [shared slot 0] guaranteed from{%3} = load inspect %3
+  %16: Box(I32) [shared slot 0] guaranteed from{%4} = load inspect %4
+  %17: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] trivial = call viewed(I32) borrow %15 borrow %16
+  store inspect %5 consume %17
+  %18: %I32 address = field.addr .first inspect %2
+  %19: %I32 address = load inspect %18
+  %20: I32 trivial = load inspect %19
+  %21: %I32 address = field.addr .second inspect %2
+  %22: %I32 address = load inspect %21
+  %23: I32 trivial = load inspect %22
+  %24: I32 trivial = add inspect %20 inspect %23
+  %25: %I32 address = field.addr .first inspect %5
+  %26: %I32 address = load inspect %25
+  %27: I32 trivial = load inspect %26
+  %28: I32 trivial = add inspect %24 inspect %27
+  %29: %I32 address = field.addr .second inspect %5
+  %30: %I32 address = load inspect %29
+  %31: I32 trivial = load inspect %30
+  %32: I32 trivial = add inspect %28 inspect %31
+  return consume %32
+}
+
+fn viewed(I32)(self: Box(I32) [shared slot 0], other: Box(I32) [shared slot 0]) -> Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] {
+bb0(%0: Box(I32) [shared slot 0] guaranteed, %1: Box(I32) [shared slot 0] guaranteed):
+  %2: Box(I32) [shared slot 0] guaranteed from{%0} = load inspect %0
+  %3: I32 [shared slot 0] guaranteed from{%0} = call firstOf(I32) borrow %2
+  %4: Box(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
+  %5: I32 [shared slot 0] guaranteed from{%1} = call firstOf(I32) borrow %4
+  %6: Pair(I32, I32) [owned here shape5 .0=shared slot 0 .1=shared slot 0] trivial = aggregate.Pair borrow %3 borrow %5
+  return consume %6
+}
+
+fn firstOf(I32)(self: Box(I32) [shared slot 0]) -> I32 [shared slot 0] {
+bb0(%0: Box(I32) [shared slot 0] guaranteed):
+  %1: %I32 address = field.addr .item inspect %0
+  %2: I32 [shared slot 0] guaranteed from{%0} = load inspect %1
+  return borrow %2
+}
+
+entry main

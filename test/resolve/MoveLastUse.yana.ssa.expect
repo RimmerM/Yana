@@ -58,35 +58,13 @@ bb0:
   %7: Array(Held) owned = call literalArray(Held) borrow %6
   store inspect %1 consume %7
   %8: Array(Held) [unique slot 0] guaranteed from{%1} = load inspect %1
-  jump -> bb1
-
-bb1:
-  %10: %Run(Held) address = field.addr .run inspect %8
-  %11: %%Held address = field.addr .items inspect %10
-  %12: %Held trivial = load inspect %11
-  %13: %@bits(30) U32 address = field.addr .length inspect %8
-  %14: @bits(30) U32 trivial = load inspect %13
-  %15: U32 trivial = convert inspect %14
-  %16: Size trivial = convert inspect %15
-  %17: ArrayView(Held) trivial = aggregate.ArrayView consume %12 consume %16
-  %18: Array(Held) [unique slot 0 view] guaranteed = represent inspect %17
-  jump -> bb2(borrow %18)
-
-bb2(%9: Array(Held) [unique slot 0 view] guaranteed from{%1}):
-  jump -> bb3
-
-bb3:
-  %20: %%Held address = field.addr .items inspect %9
-  %21: %Held trivial = load inspect %20
-  %22: %Held [owned here shape1 .*=shared slot 0] trivial = represent inspect %21
-  jump -> bb4(consume %22)
-
-bb4(%19: %Held [owned here shape1 .*=shared slot 0] trivial):
-  %23: Size trivial = const 0
-  %24: %Held address = element.addr inspect %19 inspect %23
-  store inspect %24 consume %5
-  %25: Array(Held) owned = load inspect %1
-  store inspect %2 consume %25
+  %9: Array(Held) [unique slot 0 view] guaranteed from{%1} = call Array(a).elementsMut(Held) borrow %8
+  %10: %Held [owned here shape6 .*=shared slot 0] trivial = call valuesMut(Held) borrow %9
+  %11: Size trivial = const 0
+  %12: %Held address = element.addr inspect %10 inspect %11
+  store inspect %12 consume %5
+  %13: Array(Held) owned = load inspect %1
+  store inspect %2 consume %13
   drop Array(Held) inspect %2
   return
 }

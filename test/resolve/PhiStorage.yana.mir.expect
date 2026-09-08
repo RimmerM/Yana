@@ -2,7 +2,7 @@ module ResolveTest
 
 data Colour = Red | Green | Blue
 
-fn tagOf(m: Maybe(Colour) [shared call]) -> I32 {
+fn tagOf'2(m: Maybe(Colour) [shared call]) -> I32 {
 bb0:
   %0: U8 = read copy.trivial (m.#)
   %1: U8 = const 1
@@ -65,7 +65,7 @@ fn taken() -> I32 {
 bb0:
   %0: I32 = const 1
   %1: I32 = const 1
-  %2: Bool = eq inspect %0 inspect %1
+  %2: Bool = eq inspect %1 inspect %0
   branch inspect %2 -> bb3 -> bb1
 
 bb1:
@@ -75,7 +75,7 @@ bb1:
 bb2(%7: Maybe(Colour)):
   write.init borrow.unique (m) take %7
   %11: Maybe(Colour) = read copy.trivial (m)
-  %12: I32 = call tagOf borrow.shared %11
+  %12: I32 = call tagOf'2 borrow.shared %11
   return take %12
 
 bb3:
@@ -88,9 +88,9 @@ fn skipped() -> I32 {
   local m: Maybe(Colour)
 
 bb0:
-  %0: I32 = const 1
-  %1: I32 = const 2
-  %2: Bool = eq inspect %0 inspect %1
+  %0: I32 = const 2
+  %1: I32 = const 1
+  %2: Bool = eq inspect %1 inspect %0
   branch inspect %2 -> bb3 -> bb1
 
 bb1:
@@ -100,7 +100,7 @@ bb1:
 bb2(%7: Maybe(Colour)):
   write.init borrow.unique (m) take %7
   %11: Maybe(Colour) = read copy.trivial (m)
-  %12: I32 = call tagOf borrow.shared %11
+  %12: I32 = call tagOf'2 borrow.shared %11
   return take %12
 
 bb3:
@@ -114,9 +114,9 @@ fn payload() -> I32 {
   local v: I32
 
 bb0:
-  %0: I32 = const 2
-  %1: I32 = const 1
-  %2: Bool = gt inspect %0 inspect %1
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: Bool = gt inspect %1 inspect %0
   branch inspect %2 -> bb3 -> bb1
 
 bb1:

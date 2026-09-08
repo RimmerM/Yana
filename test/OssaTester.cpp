@@ -1133,7 +1133,7 @@ static bool findBackEdge(SsaBase base, ssa::Body& body, ssa::Block*& tail, ssa::
         auto last = block->terminator(base);
         if(!last) continue;
 
-        ssa::forEachEdge(*last, [&](ssa::Edge& edge) {
+        ssa::forEachEdge(base, *last, [&](ssa::Edge& edge) {
             if(!edge.target || tail) return;
 
             auto target = base[edge.target];
@@ -1990,7 +1990,7 @@ static void testEditorRemoveBlockArgument(Compiled& compiled) {
         auto terminator = base[pointer]->terminator(base);
         if(!terminator) continue;
 
-        ssa::forEachEdge(*terminator, [&](ssa::Edge& edge) {
+        ssa::forEachEdge(base, *terminator, [&](ssa::Edge& edge) {
             if(edge.target != merge - base) return;
 
             auto used = edge.arguments.get(base, 0);
@@ -2008,7 +2008,7 @@ static void testEditorRemoveBlockArgument(Compiled& compiled) {
         auto terminator = base[pointer]->terminator(base);
         if(!terminator) continue;
 
-        ssa::forEachEdge(*terminator, [&](ssa::Edge& edge) {
+        ssa::forEachEdge(base, *terminator, [&](ssa::Edge& edge) {
             if(edge.target != merge - base) return;
             supplied += edge.arguments.size();
         });

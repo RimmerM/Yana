@@ -194,7 +194,7 @@ bb0:
   %9: Cell [unique slot 1] guaranteed from{%1} = load inspect %1
   %10: Mixed affine = aggregate.Mixed borrow %8 borrow %9
   store inspect %2 consume %10
-  %11: Mixed [unique call] guaranteed from{%2, %0, %1} = load inspect %2
+  %11: Mixed [unique call] guaranteed from{%0, %1, %2} = load inspect %2
   %12: I32 trivial = call bumpMixed borrow %11
   store inspect %3 consume %12
   %13: I32 trivial = load inspect %3
@@ -332,7 +332,7 @@ bb0:
   %5: I32 trivial = const 0
   %6: Reader trivial = aggregate.Reader borrow %4 consume %5
   store inspect %1 consume %6
-  %7: Reader [shared slot 0] guaranteed from{%1, %0} = load inspect %1
+  %7: Reader [shared slot 0] guaranteed from{%0, %1} = load inspect %1
   %8: Guard [shared slot 0] guaranteed from{%0, %1} = call heldOf borrow %7
   %9: %I32 address = field.addr .id inspect %8
   %10: I32 trivial = load inspect %9
@@ -387,7 +387,7 @@ bb0:
   return consume %22
 }
 
-fn bump(c: Cell [unique slot 0]) -> Cell [unique slot 0] {
+fn bump(c: Cell [unique slot 0]) -> Cell [unique slot 0 owner] {
 bb0(%0: Cell [unique slot 0] guaranteed):
   %1: %I32 address = field.addr .v inspect %0
   %2: I32 trivial = load inspect %1
@@ -404,7 +404,7 @@ bb0(%0: Editor [unique call] guaranteed):
   %1: %Cell address = field.addr .input inspect %0
   %2: %Cell address = load inspect %1
   %3: Cell [unique slot 0] guaranteed from{%0} = load inspect %2
-  %4: Cell [unique slot 0] guaranteed from{%0} = call bump borrow %3
+  %4: Cell [unique slot 0 owner] guaranteed from{%0} = call bump borrow %3
   %5: %I32 address = field.addr .v inspect %4
   %6: I32 trivial = load inspect %5
   return consume %6
@@ -422,7 +422,7 @@ bb0:
   %6: I32 trivial = const 0
   %7: Editor affine = aggregate.Editor borrow %5 consume %6
   store inspect %1 consume %7
-  %8: Editor [unique call] guaranteed from{%1, %0} = load inspect %1
+  %8: Editor [unique call] guaranteed from{%0, %1} = load inspect %1
   %9: I32 trivial = call viaEditor borrow %8
   store inspect %2 consume %9
   %10: I32 trivial = load inspect %2

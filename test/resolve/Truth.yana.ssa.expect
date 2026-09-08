@@ -42,7 +42,7 @@ bb3:
   jump -> bb2(consume %9)
 }
 
-fn fromInt(value: I32 [shared call]) -> I32 {
+fn fromInt'2(value: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -202,12 +202,12 @@ bb0:
   %17: I32 trivial = mul inspect %15 inspect %16
   %18: I32 trivial = add inspect %12 inspect %17
   %19: I32 trivial = const 7
-  %20: I32 trivial = call fromInt borrow %19
+  %20: I32 trivial = call fromInt'2 borrow %19
   %21: I32 trivial = const 4
   %22: I32 trivial = mul inspect %20 inspect %21
   %23: I32 trivial = add inspect %18 inspect %22
   %24: I32 trivial = const 0
-  %25: I32 trivial = call fromInt borrow %24
+  %25: I32 trivial = call fromInt'2 borrow %24
   %26: I32 trivial = const 100
   %27: I32 trivial = mul inspect %25 inspect %26
   %28: I32 trivial = add inspect %23 inspect %27

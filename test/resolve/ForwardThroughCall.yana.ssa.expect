@@ -1,0 +1,295 @@
+module ResolveTest
+
+let & tags: I32 = 0
+
+let string'142: [CodeUnit *2] = [110, 61]
+
+let string'143: [CodeUnit *1] = [33]
+
+let string'144: [CodeUnit *1] = [33]
+
+let string'145: [CodeUnit *1] = [33]
+
+fn tagged(n: I32 [shared call]) -> String {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %String address = alloc frame String
+  %3: %String address = alloc frame String
+  store inspect %1 borrow %0
+  %4: %I32 address = global.addr tags
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = const 1
+  %7: I32 trivial = add inspect %5 inspect %6
+  %8: %I32 address = global.addr tags
+  store inspect %8 consume %7
+  %9: Size trivial = const 2
+  %10: I32 trivial = load inspect %1
+  %11: Maybe(Size) trivial = call I32.showBound borrow %10
+  %12: Size trivial = call formatBound borrow %11
+  %13: Size trivial = add inspect %9 inspect %12
+  %14: String owned = call String.ofCapacity borrow %13
+  store inspect %2 consume %14
+  %15: String [unique call] guaranteed from{%2} = load inspect %2
+  %16: %[CodeUnit *2] address = global.addr string'142
+  %17: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %16
+  %18: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %17
+  %19: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %18
+  %20: I32 trivial = const 2
+  %21: String owned = call stringLiteral borrow %19 borrow %20
+  store inspect %3 consume %21
+  %22: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  %23: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %22
+  call String.push borrow %15 borrow %23
+  drop String inspect %3
+  %24: I32 trivial = load inspect %1
+  %25: String [unique call] guaranteed from{%2} = load inspect %2
+  call I32.show borrow %24 borrow %25
+  %26: String owned = load inspect %2
+  return consume %26
+}
+
+fn built(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %String address = alloc frame String
+  store inspect %1 borrow %0
+  %3: I32 trivial = load inspect %1
+  %4: String owned = call tagged borrow %3
+  store inspect %2 consume %4
+  %5: String owned = load inspect %2
+  %6: %[CodeUnit *1] address = global.addr string'143
+  %7: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %6
+  %8: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %7
+  %9: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %8
+  %10: I32 trivial = const 1
+  %11: String owned = call stringLiteral borrow %9 borrow %10
+  %12: String owned = call String.++ consume %5 consume %11
+  store inspect %2 consume %12
+  %13: String [shared call] guaranteed from{%2} = load inspect %2
+  %14: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %13
+  %15: Size trivial = call String.length borrow %14
+  drop String inspect %2
+  %16: I32 trivial = convert inspect %15
+  return consume %16
+}
+
+fn inLaterBlock(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %String address = alloc frame String
+  store inspect %1 borrow %0
+  %3: I32 trivial = load inspect %1
+  %4: String owned = call tagged borrow %3
+  store inspect %2 consume %4
+  %5: I32 trivial = load inspect %1
+  %6: I32 trivial = const 0
+  %7: Bool trivial = gt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: String [shared call] guaranteed from{%2} = load inspect %2
+  %9: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %8
+  %10: Size trivial = call String.length borrow %9
+  drop String inspect %2
+  %11: I32 trivial = convert inspect %10
+  return consume %11
+
+bb3:
+  %12: String owned = load inspect %2
+  %13: %[CodeUnit *1] address = global.addr string'144
+  %14: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %13
+  %15: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %14
+  %16: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %15
+  %17: I32 trivial = const 1
+  %18: String owned = call stringLiteral borrow %16 borrow %17
+  %19: String owned = call String.++ consume %12 consume %18
+  store inspect %2 consume %19
+  jump -> bb2
+}
+
+fn inLoop(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %String address = alloc frame String
+  store inspect %1 borrow %0
+  %5: I32 trivial = const 0
+  store inspect %2 consume %5
+  %6: I32 trivial = const 0
+  store inspect %3 consume %6
+  jump -> bb1
+
+bb1:
+  %7: I32 trivial = load inspect %3
+  %8: I32 trivial = load inspect %1
+  %9: Bool trivial = lt inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  %10: I32 trivial = load inspect %2
+  return consume %10
+
+bb3:
+  %11: I32 trivial = load inspect %3
+  %12: String owned = call tagged borrow %11
+  store inspect %4 consume %12
+  %13: String owned = load inspect %4
+  %14: %[CodeUnit *1] address = global.addr string'145
+  %15: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %14
+  %16: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %15
+  %17: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %16
+  %18: I32 trivial = const 1
+  %19: String owned = call stringLiteral borrow %17 borrow %18
+  %20: String owned = call String.++ consume %13 consume %19
+  store inspect %4 consume %20
+  %21: I32 trivial = load inspect %2
+  %22: String [shared call] guaranteed from{%4} = load inspect %4
+  %23: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %22
+  %24: Size trivial = call String.length borrow %23
+  drop String inspect %4
+  %25: I32 trivial = convert inspect %24
+  %26: I32 trivial = add inspect %21 inspect %25
+  store inspect %2 consume %26
+  %27: I32 trivial = load inspect %3
+  %28: I32 trivial = const 1
+  %29: I32 trivial = add inspect %27 inspect %28
+  store inspect %3 consume %29
+  jump -> bb1
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %%U8 address = alloc frame %U8
+  %2: I32 trivial = const 7
+  %3: I32 trivial = call built borrow %2
+  store inspect %0 consume %3
+  %4: %%U8 address = global.addr heapNext
+  %5: %U8 trivial = load inspect %4
+  store inspect %1 consume %5
+  %6: I32 trivial = const 7
+  %7: I32 trivial = call built borrow %6
+  %8: I32 trivial = load inspect %0
+  %9: Bool trivial = ne inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: %%U8 address = global.addr heapNext
+  %11: %U8 trivial = load inspect %10
+  %12: %U8 trivial = load inspect %1
+  %13: Bool trivial = eq inspect %11 inspect %12
+  %14: Bool trivial = not inspect %13
+  branch inspect %14 -> bb6 -> bb4
+
+bb3:
+  %15: I32 trivial = const -1
+  return consume %15
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %16: I32 trivial = const 7
+  %17: I32 trivial = call inLaterBlock borrow %16
+  %18: I32 trivial = const 4
+  %19: Bool trivial = ne inspect %17 inspect %18
+  branch inspect %19 -> bb9 -> bb7
+
+bb6:
+  %20: I32 trivial = const -2
+  return consume %20
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %21: I32 trivial = const 0
+  %22: I32 trivial = const 1
+  %23: I32 trivial = sub inspect %21 inspect %22
+  %24: I32 trivial = call inLaterBlock borrow %23
+  %25: I32 trivial = const 4
+  %26: Bool trivial = ne inspect %24 inspect %25
+  branch inspect %26 -> bb12 -> bb10
+
+bb9:
+  %27: I32 trivial = const -3
+  return consume %27
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %28: %%U8 address = global.addr heapNext
+  %29: %U8 trivial = load inspect %28
+  %30: %U8 trivial = load inspect %1
+  %31: Bool trivial = eq inspect %29 inspect %30
+  %32: Bool trivial = not inspect %31
+  branch inspect %32 -> bb15 -> bb13
+
+bb12:
+  %33: I32 trivial = const -4
+  return consume %33
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %34: I32 trivial = const 3
+  %35: I32 trivial = call inLoop borrow %34
+  %36: I32 trivial = const 12
+  %37: Bool trivial = ne inspect %35 inspect %36
+  branch inspect %37 -> bb18 -> bb16
+
+bb15:
+  %38: I32 trivial = const -5
+  return consume %38
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %39: %%U8 address = global.addr heapNext
+  %40: %U8 trivial = load inspect %39
+  %41: %U8 trivial = load inspect %1
+  %42: Bool trivial = eq inspect %40 inspect %41
+  %43: Bool trivial = not inspect %42
+  branch inspect %43 -> bb21 -> bb19
+
+bb18:
+  %44: I32 trivial = const -6
+  return consume %44
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %45: %I32 address = global.addr tags
+  %46: I32 trivial = load inspect %45
+  %47: I32 trivial = const 7
+  %48: Bool trivial = ne inspect %46 inspect %47
+  branch inspect %48 -> bb24 -> bb22
+
+bb21:
+  %49: I32 trivial = const -7
+  return consume %49
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %50: I32 trivial = load inspect %0
+  return consume %50
+
+bb24:
+  %51: I32 trivial = const -8
+  return consume %51
+}
+
+entry main

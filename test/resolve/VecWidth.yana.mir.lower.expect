@@ -1,0 +1,78 @@
+mut @sink = [0, 0, 0, 0, 0, 0, 0, 0]
+
+arithmetic<complex>(%a: i16x4): i16x4 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %a, 8
+    %v_2 = vsplat 4: i16x4
+    %v_3 = add %a, %v_2: i16x4
+    %v_4 = vsplat 2: i16x4
+    %v_5 = shl %a, %v_4: i16x4
+    %v_6 = and %v_3, %v_5: i16x4
+    %v_7 = shl %v_6, %v_2: i16x4
+    %v_8 = sub %v_7, %a: i16x4
+    ret %v_8
+  }
+}
+
+widths<complex>(%narrow: i8x4, %middle: i32x2): i8x4 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %narrow, 4
+    %v_2 = load %v_1, 4: i8x4
+    %v_3 = shl %v_2, %v_2: i8x4
+    %v_4 = or %v_2, %v_3: i8x4
+    ret %v_4
+  }
+}
+
+widening<complex>(%v: i16x4): i32x4 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %v, 8
+    %v_2 = cast %v: i32x4
+    ret %v_2
+  }
+}
+
+narrowing<complex>(%v: i32x4): i16x4 {
+  b_0 {
+    %v_1 = cast %v: i16x4
+    ret %v_1
+  }
+}
+
+reinterpreting<complex>(%v: i32x4): f32x4 {
+  b_0 {
+    %v_1 = bitcast %v: f32x4
+    ret %v_1
+  }
+}
+
+aliases<complex>(%v: f32x4): f32x4 {
+  b_0 {
+    ret %v
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = load @sink, 8: i16x4
+    %v_2 = call_complex arithmetic, %v_1: i16x4
+    %v_3 = call_complex widening, %v_2: i32x4
+    %v_4 = call_complex narrowing, %v_3: i16x4
+    %v_5 = call_complex reinterpreting, %v_3: f32x4
+    %v_6 = call_complex aliases, %v_5: f32x4
+    %v_7 = vsplat 1: i8x4
+    %v_8 = vsplat 2: i32x2
+    %v_9 = call_complex widths, %v_7, %v_8: i8x4
+    %v_10 = bitcast %v_6: i32x4
+    %v_11 = cast %v_10: i16x4
+    %v_12 = xor %v_4, %v_11: i16x4
+    %v_13 = cast %v_9: i16x4
+    %v_14 = xor %v_12, %v_13: i16x4
+    store @sink, %v_14, 8
+    ret 1
+  }
+}
+

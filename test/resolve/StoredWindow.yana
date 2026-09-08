@@ -1,0 +1,31 @@
+{-
+   A record field declared `'a` at `a := Array(Int)` - a **stored borrow of a container**, which is
+   that container's descriptor and not a pointer to one.
+
+   `data Formatted(s, a) {value: 'a, style: s}` in `lib/Core/Format.yana` is the shape this is cut
+   down from, and every formatter in the library reaches it: `hexBytes(digest)` in a format hole
+   stores a `[U8]` window in a field and the `Show` instance reads it back. The field's bytes are
+   the window's two words, so the field's own address already names the object - a `Deref` of it
+   reads the first element as an address, which segfaulted twenty cases of the library's suite.
+
+   Both stages compile it and both answer 60: the shipping stage has laid a stored borrow of a
+   container out this way since windows existed, so the answer is shared and the fixture is where
+   the two are held to it.
+-}
+
+data Held(a) {view: 'a, tag: Int}
+
+fn hold(xs: '[Int], tag: Int) -> Held([Int]) = Held {view: xs, tag: tag}
+
+fn sum(h: Held([Int])) -> Int:
+    let &total = 0
+    for i in 0 .. length(h.view):
+        total = total + h.view[i]
+
+    return total * h.tag
+
+fn main() -> Int:
+    let &raw = [1, 2, 3, 4] :: [Int *4]
+    let h = hold(elements(raw), 6)
+
+    return sum(h)

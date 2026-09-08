@@ -111,7 +111,7 @@ void Editor::addEdgeArgument(Inst& terminator, Size arm, Use value) {
 
     Edge* found = nullptr;
     Size at = 0;
-    forEachEdge(terminator, [&](Edge& edge) { if(at++ == arm) found = &edge; });
+    forEachEdge(base(), terminator, [&](Edge& edge) { if(at++ == arm) found = &edge; });
 
     assertTrue(found != nullptr && found->target != nullptr);
 
@@ -122,6 +122,38 @@ void Editor::addEdgeArgument(Inst& terminator, Size arm, Use value) {
     // inside - but it may never run past it: an operand more than the target has arguments is a
     // caller filling the same edge twice, which no later fill can take back.
     assertTrue(found->arguments.size() <= base()[found->target]->argumentList.size());
+
+    markValues();
+    markChanged();
+}
+
+/*
+ * One operand an edge already carries, exchanged for another - `setEdgeArgument`.
+ *
+ * The one edit `replaceTerminator` cannot express, and deliberately so: that operation preserves the
+ * arguments of an edge present on both sides, because a fold has nothing at hand that knows what the
+ * target was being handed. Changing one operand is the opposite intent, and stating it as its own
+ * operation is what keeps the preservation rule unconditional.
+ *
+ * The use lists move with it - the old operand stops counting this terminator as a reader and the new
+ * one starts - which is the whole reason it is here rather than a field write at the call site.
+ */
+void Editor::setEdgeArgument(Inst& terminator, Size arm, Size position, Use value) {
+    assertTrue(isTerminator(terminator.kind));
+    assertTrue(value.isSet());
+
+    Edge* found = nullptr;
+    Size at = 0;
+    forEachEdge(base(), terminator, [&](Edge& edge) { if(at++ == arm) found = &edge; });
+
+    assertTrue(found != nullptr && found->target != nullptr);
+    assertTrue(position < found->arguments.size());
+
+    auto previous = found->arguments.get(base(), position);
+    if(previous.isSet()) dropUse(*base()[previous.value()], terminator);
+
+    found->arguments.set(base(), position, value);
+    recordUse(terminator, value);
 
     markValues();
     markChanged();
@@ -154,22 +186,52 @@ Value* Editor::makeBlockArgument(Block& block, const Occurrence& occurrence,
 
 Loan* Editor::loanOn(LocationId source, const SsaPtr<Value>* storage, Size count,
                      Access capability) {
+    /*
+     * The set is **canonicalized** first - sorted by handle, duplicates dropped - because the
+     * interning is by the set and a list comparison is by the order.
+     *
+     * Without it `{a, b}` and `{b, a}` are two loans over one relationship, and two producers reach
+     * the same set from different directions: the conversion unions a value's origins in the order
+     * the origin analysis lists them, and `opt/inline.cpp`'s `mintLoans` re-roots a callee's loan in
+     * the order the *call's* arguments are written. The symptom is not a duplicate row - it is
+     * `replaceAllUses` refusing a substitution whose two loans are the same set spelled two ways,
+     * which is what `resolve/loans/Schemas.yana` reported the day the inliner started rooting a
+     * clone in the caller's lenders.
+     *
+     * By handle rather than by `ValueId`, which is the same order for everything a body makes -
+     * values are allocated in creation order - and is available without reading the value.
+     */
+    SmallArray<SsaPtr<Value>, 8> ordered;
+    for(Size i = 0; i < count; i++) {
+        auto at = ordered.size();
+        while(at > 0 && ordered[at - 1].offset > storage[i].offset) at--;
+
+        if(at > 0 && ordered[at - 1] == storage[i]) continue;
+
+        ordered.push(storage[i]);
+        for(auto j = ordered.size() - 1; j > at; j--) {
+            auto held = ordered[j];
+            ordered[j] = ordered[j - 1];
+            ordered[j - 1] = held;
+        }
+    }
+
     // A linear scan, because a body holds a handful of loans and a map would be a heap allocation
     // per body for a table that is read once per borrow.
     for(auto pointer: body.loans.contents(base())) {
         auto loan = base()[pointer];
-        if(loan->capability != capability || loan->storage.size() != count) continue;
+        if(loan->capability != capability || loan->storage.size() != ordered.size()) continue;
 
         auto same = true;
-        for(Size i = 0; i < count; i++) {
-            if(loan->storage.get(base(), i) != storage[i]) { same = false; break; }
+        for(Size i = 0; i < ordered.size(); i++) {
+            if(loan->storage.get(base(), i) != ordered[i]) { same = false; break; }
         }
 
         if(same) return loan;
     }
 
     auto loan = new (arena) Loan(capability, source);
-    for(Size i = 0; i < count; i++) loan->storage.push(arena, storage[i]);
+    for(auto held: ordered) loan->storage.push(arena, held);
 
     loan->id = LoanId(body.loans.push(arena, loan - base()));
     return loan;
@@ -273,7 +335,7 @@ Inst* Editor::append(Inst* inst) {
     // The use lists, updated in the same call that made the instruction - which is the whole reason
     // instructions are created through this and not with `new`.
     forEachUse(base(), *inst, [&](Use used) { recordUse(*inst, used); });
-    forEachEdge(*inst, [&](Edge& edge) {
+    forEachEdge(base(), *inst, [&](Edge& edge) {
         for(auto used: edge.arguments.contents(base())) recordUse(*inst, used);
     });
 
@@ -443,6 +505,11 @@ Inst* Editor::addDrop(LocationId source, Use address, const Occurrence& held, bo
     return append(new (arena) InstDrop(source, address, held, boxesVisible));
 }
 
+// The argument is in `inst.h`, beside `InstFree`.
+Inst* Editor::addFree(LocationId source, Use address) {
+    return append(new (arena) InstFree(source, address));
+}
+
 Inst* Editor::addStore(LocationId source, Use address, Use value) {
     return append(new (arena) InstStore(source, address, value));
 }
@@ -464,8 +531,9 @@ Inst* Editor::addUnary(LocationId source, UnaryOp op, Use value,
 }
 
 Inst* Editor::addLoad(LocationId source, Use address, const Occurrence& result,
-                      Convention convention) {
+                      Convention convention, bool overread) {
     auto inst = new (arena) InstLoad(source, address);
+    inst->overread = overread;
     append(inst);
     addResult(*inst, result, convention);
     return inst;
@@ -545,6 +613,19 @@ Inst* Editor::addFma(LocationId source, Use lhs, Use rhs, Use addend, const Occu
 Inst* Editor::addSelect(LocationId source, Use condition, Use whenTrue, Use whenFalse,
                         const Occurrence& result, Convention convention) {
     auto inst = new (arena) InstSelect(source, condition, whenTrue, whenFalse);
+    append(inst);
+    addResult(*inst, result, convention);
+    return inst;
+}
+
+Inst* Editor::addMap(LocationId source, Use selector, const mir::MapEntry* entries, Size count,
+                     const mir::Constant& fallback, bool closed, const Occurrence& result,
+                     Convention convention) {
+    auto inst = new (arena) InstMap(source, selector, closed);
+    inst->fallback = fallback;
+    inst->entries.reserve(arena, count);
+    for(Size i = 0; i < count; i++) inst->entries.push(arena, entries[i]);
+
     append(inst);
     addResult(*inst, result, convention);
     return inst;
@@ -632,6 +713,46 @@ Inst* Editor::makeBranchEdges(LocationId source, Use condition,
     return inst;
 }
 
+Inst* Editor::makeSwitch(LocationId source, Use selector, const I64* values,
+                         Block* const* targets, Size count, Block& fallback,
+                         const Use* arguments, Size argumentCount) {
+    // Below three cases it is a branch - the MIR node states the rule and the producer is what keeps
+    // it; this is where the tier below finds out that something did not.
+    assertTrue(count >= 3);
+    assertTrue(argumentCount == fallback.argumentList.size());
+
+    auto inst = new (arena) InstSwitch(source, selector);
+    inst->cases.reserve(arena, count);
+
+    for(Size i = 0; i < count; i++) {
+        assertTrue(!i || values[i] > values[i - 1]);
+        assertTrue(argumentCount == targets[i]->argumentList.size());
+
+        SwitchCase entry;
+        entry.value = values[i];
+        inst->cases.push(arena, entry);
+    }
+
+    // The edges after the list is complete: a reference into a `SmallList` is valid only until the
+    // next push, and pushing an argument allocates.
+    auto items = inst->cases.pointer(base());
+    for(Size i = 0; i < count; i++) {
+        items[i].edge.target = targets[i] - base();
+        for(Size a = 0; a < argumentCount; a++) items[i].edge.arguments.push(arena, arguments[a]);
+    }
+
+    inst->fallback.target = &fallback - base();
+    for(Size a = 0; a < argumentCount; a++) inst->fallback.arguments.push(arena, arguments[a]);
+
+    return inst;
+}
+
+Inst* Editor::addSwitch(LocationId source, Use selector, const I64* values, Block* const* targets,
+                        Size count, Block& fallback, const Use* arguments, Size argumentCount) {
+    return append(makeSwitch(source, selector, values, targets, count, fallback, arguments,
+                             argumentCount));
+}
+
 Inst* Editor::makeUnreachable(LocationId source) {
     return new (arena) InstUnreachable(source);
 }
@@ -659,7 +780,7 @@ void Editor::seal() {
         auto last = block->terminator(base());
         if(!last) continue;
 
-        forEachEdge(*last, [&](Edge& edge) {
+        forEachEdge(base(), *last, [&](Edge& edge) {
             if(!edge.target) return;
             base()[edge.target]->incomingList.push(arena, block - base());
         });
@@ -716,6 +837,19 @@ static void mapUses(SsaBase base, Inst& inst, F&& f) {
             break;
         }
 
+        case Inst::Map: one(((InstMap&)inst).selector); break;
+
+        case Inst::Switch: {
+            auto& written = (InstSwitch&)inst;
+            one(written.selector);
+
+            auto items = written.cases.pointer(base);
+            for(Size i = 0; i < written.cases.size(); i++) many(items[i].edge.arguments);
+
+            many(written.fallback.arguments);
+            break;
+        }
+
         case Inst::VecSplat: one(((InstVecSplat&)inst).from); break;
         case Inst::VecLane:  one(((InstVecLane&)inst).from); break;
 
@@ -758,6 +892,7 @@ static void mapUses(SsaBase base, Inst& inst, F&& f) {
         case Inst::Unary: one(((InstUnary&)inst).value); break;
         case Inst::Aggregate: many(((InstAggregate&)inst).components); break;
         case Inst::Drop: one(((InstDrop&)inst).address); break;
+        case Inst::Free: one(((InstFree&)inst).address); break;
 
         case Inst::FunValue: {
             auto& written = (InstFunValue&)inst;
@@ -810,7 +945,7 @@ void Editor::dropUses(Inst& inst) {
         if(used.isSet()) dropUse(*base()[used.value()], inst);
     });
 
-    forEachEdge(inst, [&](Edge& edge) {
+    forEachEdge(base(), inst, [&](Edge& edge) {
         for(auto used: edge.arguments.contents(base())) {
             if(used.isSet()) dropUse(*base()[used.value()], inst);
         }
@@ -911,7 +1046,7 @@ void Editor::eraseInst(Inst& inst) {
     // The edges before the uses, because a terminator's targets record one predecessor entry per
     // arm and this is where those end.
     auto from = base()[inst.block];
-    forEachEdge(inst, [&](Edge& edge) {
+    forEachEdge(base(), inst, [&](Edge& edge) {
         if(edge.target) dropIncoming(*base()[edge.target], *from);
     });
 
@@ -922,6 +1057,35 @@ void Editor::eraseInst(Inst& inst) {
 
     if(isTerminator(inst.kind)) markBlocks(); else markValues();
     markChanged();
+}
+
+/*
+ * Whether one loan's lenders are a subset of another's - the substitution rule of `replaceAllUses`,
+ * and the one direction that cannot move an endpoint past a use.
+ *
+ * A loan ends when **any** of its lenders is released, so a loan over fewer lenders lasts at least
+ * as long as one over more: every use inside the wider loan's extent is inside the narrower one's.
+ * The empty set - the caller's loan, which never ends inside this body - is the degenerate case
+ * rather than a special one, which is what this replaces.
+ *
+ * The direction matters and is why this is not a set comparison. Replacing a borrow rooted in `a`
+ * alone by one rooted in `a` *and* `b` shortens the extent, and a use that was inside it may now be
+ * outside with nothing in the IR changed to say so.
+ *
+ * A linear scan of a scan: these sets are the two or three lenders a signature's origin group names,
+ * and one large enough to matter is one the loan tier does not build.
+ */
+static bool lendsWithin(SsaBase base, Loan& inner, Loan& outer) {
+    for(auto member: inner.storage.contents(base)) {
+        auto present = false;
+        for(auto held: outer.storage.contents(base)) {
+            if(held == member) present = true;
+        }
+
+        if(!present) return false;
+    }
+
+    return true;
 }
 
 void Editor::replaceAllUses(Value& from, Value& to) {
@@ -936,7 +1100,8 @@ void Editor::replaceAllUses(Value& from, Value& to) {
 
     if(borrowed) {
         assertTrue(to.loan != nullptr);
-        assertTrue(to.loan == from.loan || base()[to.loan]->storage.size() == 0);
+        assertTrue(to.loan == from.loan ||
+                   lendsWithin(base(), *base()[to.loan], *base()[from.loan]));
     }
 
     auto replaced = &from - base();
@@ -1009,7 +1174,7 @@ Block* Editor::splitBlock(Block& block, Size position) {
     // The edges went with the terminator, so every successor is told they now leave from the new
     // block - one entry per edge, which is what makes `branch %c, X, X` two repointings.
     if(auto last = made->terminator(base())) {
-        forEachEdge(*last, [&](Edge& edge) {
+        forEachEdge(base(), *last, [&](Edge& edge) {
             if(!edge.target) return;
 
             dropIncoming(*base()[edge.target], block);
@@ -1051,7 +1216,7 @@ void Editor::redirectEdge(Inst& terminator, Size arm, Block& to) {
 
     Edge* found = nullptr;
     Size at = 0;
-    forEachEdge(terminator, [&](Edge& edge) { if(at++ == arm) found = &edge; });
+    forEachEdge(base(), terminator, [&](Edge& edge) { if(at++ == arm) found = &edge; });
 
     assertTrue(found != nullptr && found->target != nullptr);
 
@@ -1094,7 +1259,7 @@ void Editor::removeBlockArgument(Block& block, Size index) {
         auto terminator = base()[predecessorPointer]->terminator(base());
         if(!terminator) continue;
 
-        forEachEdge(*terminator, [&](Edge& edge) {
+        forEachEdge(base(), *terminator, [&](Edge& edge) {
             if(edge.target != target) return;
 
             auto used = edge.arguments.get(base(), index);
@@ -1114,23 +1279,25 @@ Inst* Editor::replaceTerminator(Block& block, Inst* terminator) {
     assertTrue(!block.deleted);
     assertTrue(terminator != nullptr && isTerminator(terminator->kind));
 
-    // Two arms is what the kinds have today. Asserted rather than sized from the instruction,
-    // because a kind with more owes this function a wider array rather than a silent truncation.
-    static constexpr Size kMaxEdges = 4;
-
-    Edge* before[kMaxEdges] = {};
-    Edge* after[kMaxEdges] = {};
-    bool keptOld[kMaxEdges] = {};
-    bool keptNew[kMaxEdges] = {};
-    Size old = 0;
-    Size made = 0;
+    /*
+     * Grown rather than fixed at four, which is what it was: a `switch` has one edge per case and one
+     * more, so the bound the arrays used to assert is a bound on how many arms a `match` may have.
+     * `SmallArray` keeps the two-armed case - which is almost all of them - on the stack.
+     */
+    SmallArray<Edge*, 4> before;
+    SmallArray<Edge*, 4> after;
+    SmallArray<bool, 4> keptOld;
+    SmallArray<bool, 4> keptNew;
 
     auto existing = block.terminator(base());
     if(existing) {
-        forEachEdge(*existing, [&](Edge& edge) { assertTrue(old < kMaxEdges); before[old++] = &edge; });
+        forEachEdge(base(), *existing, [&](Edge& edge) { before.push(&edge); keptOld.push(false); });
     }
 
-    forEachEdge(*terminator, [&](Edge& edge) { assertTrue(made < kMaxEdges); after[made++] = &edge; });
+    forEachEdge(base(), *terminator, [&](Edge& edge) { after.push(&edge); keptNew.push(false); });
+
+    auto old = before.size();
+    auto made = after.size();
 
     /*
      * The multiset match, greedy by ordinal - the one idea from the old stage's `setTerminator`

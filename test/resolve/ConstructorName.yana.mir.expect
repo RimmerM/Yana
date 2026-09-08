@@ -6,7 +6,7 @@ data RandomError = NoEntropySource
 
 data Reading = Exact {Exact: I32} | Approximate {Approximate: I32} | Unavailable
 
-fn valueOf(r: Renamed [shared call]) -> I32 {
+fn valueOf'2(r: Renamed [shared call]) -> I32 {
   local v: I32
 
 bb0:
@@ -70,7 +70,7 @@ fn main() -> I32 {
 bb0:
   %0: I32 = const 3
   %1: Renamed = aggregate.Other take %0
-  %2: I32 = call valueOf borrow.shared %1
+  %2: I32 = call valueOf'2 borrow.shared %1
   %3: RandomError = aggregate.NoEntropySource
   %4: I32 = call code borrow.shared %3
   %5: I32 = add inspect %2 inspect %4

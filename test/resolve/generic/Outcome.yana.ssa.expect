@@ -83,41 +83,41 @@ bb3:
 
 fn main() -> I32 {
 bb0:
-  %0: %(I32) -> Outcome(I32, I32) address = alloc frame (I32) -> Outcome(I32, I32)
+  %0: %(I32) -> Outcome(I32, I32) address = alloc frame (I32) -> Outcome(I32, I32) [owned here shape8 .0=unique call]
   %1: %I32 address = alloc frame I32
-  %2: %(I32) -> Outcome(I32, I32) address = alloc frame (I32) -> Outcome(I32, I32)
+  %2: %(I32) -> Outcome(I32, I32) address = alloc frame (I32) -> Outcome(I32, I32) [owned here shape8 .0=unique call]
   %3: %I32 address = alloc frame I32
-  %4: %(I32) -> I32 address = alloc frame (I32) -> I32
+  %4: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
   %5: %I32 address = alloc frame I32
-  %6: %(I32) -> Outcome(I32, I32) address = alloc frame (I32) -> Outcome(I32, I32)
+  %6: %(I32) -> Outcome(I32, I32) address = alloc frame (I32) -> Outcome(I32, I32) [owned here shape8 .0=unique call]
   %7: %I32 address = alloc frame I32
-  %8: (I32) -> Outcome(I32, I32) affine = fun.value tried
+  %8: (I32) -> Outcome(I32, I32) [owned here shape8 .0=unique call] affine = fun.value tried
   store inspect %0 consume %8
-  %9: (I32) -> Outcome(I32, I32) [shared call] guaranteed from{%0} = load inspect %0
+  %9: (I32) -> Outcome(I32, I32) [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
   %10: I32 trivial = const 5
   %11: Outcome(I32, I32) trivial = call run(Outcome(I32, I32)) borrow %9 borrow %10
   %12: I32 trivial = call value borrow %11
   store inspect %1 consume %12
-  %13: (I32) -> Outcome(I32, I32) affine = fun.value tried
+  %13: (I32) -> Outcome(I32, I32) [owned here shape8 .0=unique call] affine = fun.value tried
   store inspect %2 consume %13
-  %14: (I32) -> Outcome(I32, I32) [shared call] guaranteed from{%2} = load inspect %2
+  %14: (I32) -> Outcome(I32, I32) [shared call shape8 .0=unique call] guaranteed from{%2} = load inspect %2
   %15: I32 trivial = const 0
   %16: I32 trivial = const 4
   %17: I32 trivial = sub inspect %15 inspect %16
   %18: Outcome(I32, I32) trivial = call run(Outcome(I32, I32)) borrow %14 borrow %17
   %19: I32 trivial = call value borrow %18
   store inspect %3 consume %19
-  %20: (I32) -> I32 affine = fun.value main.lambda
-  store inspect %4 consume %20
-  %21: (I32) -> I32 [shared call] guaranteed from{%4} = load inspect %4
-  %22: I32 trivial = const 6
-  %23: I32 trivial = call run(I32) borrow %21 borrow %22
+  %20: I32 trivial = const 6
+  %21: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value main.lambda
+  store inspect %4 consume %21
+  %22: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%4} = load inspect %4
+  %23: I32 trivial = call run(I32) borrow %22 borrow %20
   store inspect %5 consume %23
   %24: I32 trivial = const 0
   %25: Outcome(I32, I32) trivial = aggregate.Proceed consume %24
-  %26: (I32) -> Outcome(I32, I32) affine = fun.value tried
+  %26: (I32) -> Outcome(I32, I32) [owned here shape8 .0=unique call] affine = fun.value tried
   store inspect %6 consume %26
-  %27: (I32) -> Outcome(I32, I32) [shared call] guaranteed from{%6} = load inspect %6
+  %27: (I32) -> Outcome(I32, I32) [shared call shape8 .0=unique call] guaranteed from{%6} = load inspect %6
   %28: I32 trivial = const 3
   %29: I32 trivial = call folded [Outcome(I32, I32)] borrow %25 borrow %27 borrow %28
   store inspect %7 consume %29

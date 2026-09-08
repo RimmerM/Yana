@@ -26,17 +26,27 @@ namespace mir {
  * took, `checkReturnConformance` refuses a result that carries one, and the loan checker holds a `&`
  * capture to its exclusivity for as long as the closure is live.
  *
- * A closure that must outlive its frame needs a **heap-placed** environment, and this stage has no
- * allocator. `StorageClass::Heap` is therefore a rung nothing selects - `verifyBody` refuses an
- * object on it, exactly as it refuses one in a region with no witness - and the escapes that would
- * have needed one are reported where they are written, in terms of the placement they would need.
+ * A closure that must outlive its frame needs a **heap-placed** environment - D17, built 2026-09-07.
+ * The block is allocated where the value is, its first word is the teardown that releases the
+ * captures and hands the block back, and the value's second word carries that block's address with
+ * its low bit set. So a heap closure *owns* its environment: it carries no origin, `Shapes::closure`
+ * is not on it, and every rule that refused it above stops applying rather than being exempted.
+ *
+ * **Which of the two a lambda gets is decided by the position it fills**, and that is the one
+ * decision this file makes that is not the spec's. An *owning* position - a `return`, a field, a
+ * `->` parameter, an assignment into storage that already exists - is exactly where
+ * `checkCarriedOrigins` fires, so it is where a frame environment cannot go; a borrowing one is
+ * bounded by its call, which is what passing a callback is. The alternative was to decide it from
+ * the ownership analysis, which knows more - and cannot be asked, because the *capture conventions*
+ * depend on the answer and they are settled while the body is walked.
  *
  * **The conventions come from the binding**, which is what the spec says and what this does not get
- * to choose per use site: `&` is captured by exclusive borrow, and anything else by shared borrow or
- * by an independent copy where the type is `TrivialCopy`. Deciding it from the binding rather than
- * from what the body turns out to do is what makes the answer available at the moment the field is
- * appended; the alternative is a pre-scan for writes, which is a second reading of the body that
- * would have to agree with the first about what a write is.
+ * to choose per use site: `&` is captured by exclusive borrow, and anything else by an independent
+ * copy where the type is `TrivialCopy`, by a shared borrow at a frame environment, and by a
+ * **consumed** capture at a heap one. Deciding it from the binding rather than from what the body
+ * turns out to do is what makes the answer available at the moment the field is appended; the
+ * alternative is a pre-scan for writes, which is a second reading of the body that would have to
+ * agree with the first about what a write is.
  */
 
 /*
@@ -47,13 +57,26 @@ namespace mir {
  * binding nothing may write *is* such a program, by construction, which is why the test is about the
  * binding and not about the body.
  */
-static CaptureKind captureKindOf(DeclBase base, Local& outer) {
+static CaptureKind captureKindOf(DeclBase base, Local& outer, bool heap) {
     // Written through, so a copy cannot satisfy it: "a mutable borrow's contract is writing through
     // to the same storage, which a copy cannot satisfy". `TrivialCopy` grants no exemption here, for
-    // the reason it never does at `&`.
+    // the reason it never does at `&`. It is a loan at either placement, which is what makes a
+    // heap-placed closure over a `&` binding still an escape and still refused.
     if(outer.writable) return CaptureKind::Unique;
 
     if(isTriviallyCopyable(base, outer.occurrence.type)) return CaptureKind::Copy;
+
+    /*
+     * The spec's **consumed** capture - "a closure that must outlive the frame that built it has to
+     * own what it captures", read as the statement about placement it is.
+     *
+     * Only at a heap environment, and that is the whole rule rather than a heuristic: a frame
+     * environment is storage this function still owns, so taking the binding's value into it would
+     * move a value into a place its own frame is about to release. The enclosing binding is
+     * inaccessible afterwards, which nothing here has to arrange - the read below is a relocation
+     * and the move paths say the rest.
+     */
+    if(heap) return CaptureKind::Owned;
     return CaptureKind::Shared;
 }
 
@@ -65,7 +88,9 @@ static CaptureKind captureKindOf(DeclBase base, Local& outer) {
  * sends `resolvePlace` on to the globals and then to its one "unknown name" report.
  */
 Place* Resolver::findCapture(Builder& builder, StringId name) {
-    if(!lambdaFrames.size()) return nullptr;
+    // The floor, not zero: a body built on demand inside another one - `requireResult` - must not
+    // reach a lambda frame the enclosing walk left open. See `Resolver::lambdaFloor`.
+    if(lambdaFrames.size() <= lambdaFloor) return nullptr;
 
     auto& frame = lambdaFrames[lambdaFrames.size() - 1];
     auto& environment = *(RecordType*)decl()[frame.lifted->environment];
@@ -93,16 +118,41 @@ Place* Resolver::findCapture(Builder& builder, StringId name) {
 
     if(!outer) return nullptr;
 
-    auto kind = captureKindOf(decl(), *outer);
+    auto kind = captureKindOf(decl(), *outer, frame.heap);
+
+    /*
+     * A **borrow** into a heap-placed environment, which is the one thing the placement cannot fix.
+     *
+     * The block outlives this frame and a `&` capture is a pointer into it, so a closure that left
+     * would be holding a reference to storage that is gone - and no rule downstream catches it,
+     * because the value carries no origin once the environment is its own. So it is refused here,
+     * where the binding that cannot travel has a name.
+     *
+     * `Unique` is the only kind that reaches this: a writable binding is captured by exclusive
+     * borrow at either placement (a copy cannot satisfy writing through), and everything else at a
+     * heap environment is a copy or a consumed capture.
+     */
+    if(frame.heap && kind == CaptureKind::Unique) {
+        context.diagnostics.error(
+            "a closure that leaves this frame owns what it captured, and %@ is declared `&` - writing through a capture is a borrow of storage this frame is about to lose"_v,
+            frame.lifted->source, context.findName(name));
+
+        // And on as a consumed capture, which is what makes this one message: the field is appended,
+        // so the next mention of the name finds it in the loop above instead of arriving here again
+        // and reporting a second time. Nothing is emitted from a body that reported.
+        kind = CaptureKind::Owned;
+    }
 
     RecordField field;
     field.name = name;
     field.source = outer->source;
     field.index = U16(environment.fields.size());
 
-    if(kind == CaptureKind::Copy) {
-        // A member the environment owns: a second value of a type that owes nothing and refuses no
-        // duplication, taken when the closure is built.
+    if(kind == CaptureKind::Copy || kind == CaptureKind::Owned) {
+        // A member the environment owns, and one field shape for the two ways of getting one: a
+        // second value where the type refuses no duplication, and the binding's own value where it
+        // does. Which of them the read below performs is `requestOf` at an owned position, so there
+        // is nothing here that has to know.
         field.occurrence = owned(outer->occurrence.type);
     } else {
         /*
@@ -136,6 +186,16 @@ bool Resolver::isCapture(Builder& builder, Place& place) {
 
     auto& frame = lambdaFrames[lambdaFrames.size() - 1];
     if(!frame.parameter) return false;
+
+    /*
+     * And only while the *lifted* body is what is being built.
+     *
+     * The frame stays on the stack after the walk, because `buildEnvironment` needs what it
+     * accumulated - so a failed read emitted into the *enclosing* builder gets here too, and a local
+     * of that body whose index happens to equal the environment parameter's reads as a capture. That
+     * is a message about the wrong construct, and one of the two the caller chooses between.
+     */
+    if(&builder.function != frame.lifted) return false;
 
     auto base = builder.base();
     auto root = &place;
@@ -180,12 +240,13 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
     classifyRecord(context, program, environment);
 
     /*
-     * Nothing the environment holds owes a release: a copy is trivial and a borrow is somebody
-     * else's. That is what lets a function value have no teardown at all - see `ownershipOf` - so it
-     * is checked here, where the record is finished, rather than assumed at the far end where a
-     * teardown would have had to be emitted.
+     * A **frame** environment holds copies and borrows and owes nothing, which is what lets a
+     * closure that stays here have no teardown at all - see `ownershipOfOccurrence`, where the
+     * closure shape is what says so. A **heap** one may own its captures, and what releases them is
+     * the teardown in front of the block; both are checked at the far end rather than here, because
+     * the far end is where a release would have to be emitted.
      */
-    assertTrue(!hasTeardown(decl(), pointer));
+    assertTrue(frame.heap || !hasTeardown(decl(), pointer));
 
     SmallArray<Node*, 4> components;
 
@@ -213,10 +274,11 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
     /*
      * The storage, as a **local** of this frame.
      *
-     * A place and not a value, because the closure has to refer to it and a reference needs
-     * somewhere to point. It is also where the placement decision lands: the local's object carries
-     * a `StorageClass`, `Frame` is what this stage produces, and the day a closure may outlive its
-     * frame is the day something here selects `Heap` instead.
+     * A place and not a value at either placement, because the record is built field by field and a
+     * field needs somewhere to be written. What differs is what leaves this function with it: at a
+     * frame environment the local stays here and the closure borrows it, and at a heap one the
+     * closure *takes* it - the block the lowering allocates is filled from these bytes and the local
+     * is moved out of, so this frame releases neither the captures nor the storage.
      */
     auto local = builder.addLocal(environment.name, owned(pointer), source, false);
     local->environment = true;
@@ -224,8 +286,15 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
     auto place = builder.localPlace(*local);
     builder.addWrite(source, *place, *value, Destination::Init);
 
-    // Published, so that the read is a loan rather than a copy of the two words - see `Request`. It
-    // is the loan that ties the value to the frame, and a copy would tie it to nothing.
+    /*
+     * Owned where the environment is heap-placed, published otherwise.
+     *
+     * Published means the read is a loan rather than a copy of the two words - see `Request` - and
+     * it is that loan which ties the value to this frame. A heap environment has no such tie by
+     * construction, so the read is a relocation and the value it produces is the pair's own.
+     */
+    if(frame.heap) return readPlace(builder, source, *place, bindingRequest(Access::Owned));
+
     return readPlace(builder, source, *place, Request { Access::Shared, true });
 }
 
@@ -245,6 +314,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
     LambdaFrame frame;
     frame.lifted = &lifted;
     frame.thunk = thunk;
+    frame.heap = lifted.environmentStorage != StorageClass::Frame;
     frame.outerFloor = bindingFloor;
     frame.floor = U32(bindings.size());
     frame.captureFloor = U32(captures.size());
@@ -312,9 +382,27 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
     auto open = !isConcreteType(decl(), lifted.result.type);
     auto unit = !open && decl()[lifted.result.type]->kind == Type::Unit;
 
-    if(open && !implicitReturn) {
-        unsupported(source, "a lambda with a statement body in a position that leaves the result open"_v);
-    } else if(implicitReturn) {
+    /*
+     * Whether the body **is** the value, which for a lambda is not the question `implicitReturn`
+     * answers.
+     *
+     * `(x) -> e` and `(x): e` are one grammar production apart and the parser records which was
+     * written, because for a `fn` the two mean different things - `doc/spec/functions.md`'s rule
+     * that a `:` body returns `{}`. For a *lambda* they do not, and the shipping stage says so by
+     * ignoring the flag entirely: `(): g.id` is a closure answering `g.id` over there, and refusing
+     * it here was reading a `fn`'s rule at a position that has no declaration to read it from.
+     *
+     * So the rule is `resolveArm`'s, which is the one place this stage already states it: a position
+     * that wants a value asks the body for one, and a body whose job is to **leave** - a `return`, or
+     * a block ending in one - is resolved as the statement it is and answers nothing. A `{}` result
+     * wants no value at all and takes the statement path unchanged, which is where every `:` lambda
+     * written for its effect already was.
+     */
+    auto answers = implicitReturn || (!unit && !leavesBlock(body));
+
+    if(open && !answers) {
+        unsupported(source, "a lambda whose body only returns in a position that leaves the result open"_v);
+    } else if(answers) {
         auto value = resolveValue(builder, body, (unit || open) ? nullptr : lifted.result.type,
                                   unit ? inspectRequest() : requestOf(lifted.result));
 
@@ -365,15 +453,67 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
 }
 
 /*
- * `(x) -> x * n` - the lambda, from the position that says what it is.
+ * The position a lambda that wrote its own parameter types *is* - the second half of `resolveLambda`.
  *
- * The position and nothing else says what the parameters and the result are, which is the rule a
- * named function as a value is already under and for a stronger reason: a lambda writes no result
- * type at all, so there is nowhere else for one to come from. What the author may write is a
- * parameter type and a parameter convention, and where they do it is checked against the position
- * rather than believed.
+ * `fn double(x: Int) = x * 2` states a header and lets its body decide the result, and
+ * `(x: Int) -> x * 2` is the same declaration without a name: every parameter says what it is, and
+ * the only thing left open is what the body answers. So this builds the position out of the written
+ * list and leaves the result `Types::undecided`, which is the state G7c already has a walk for -
+ * `resolveLiftedBody` reads the answer off the body and `closeFunPosition` writes it back into the
+ * shape.
+ *
+ * Null where a parameter states nothing, which is the case the diagnostic above is for and is the
+ * whole of the boundary: `(v) -> v + 1` at a `let` has no header, no position and therefore no type,
+ * and inferring one from the uses of the binding is a second inference this stage does not have.
+ *
+ * The occurrences come from `resolveOccurrence` at `Position::Parameter`, which is the same function
+ * a written `(A, B) -> C` type goes through - a lambda's header is a signature and reading it a
+ * second way here is how two readings of one grammar come to disagree. An origin published inside it
+ * is refused for that reading's reason: a slot is numbered in the scope of the declaration that
+ * wrote it, and a lambda's is a local of the frame it stands in.
  */
-Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+DeclPtr<Type> Resolver::writtenLambdaPosition(ast::FunExpr& written, LocationId source) {
+    SlotScope slots;
+    SmallArray<FunParam, 4> params;
+
+    for(auto argument: written.args.contents(parse)) {
+        if(!argument.type) return nullptr;
+
+        Occurrence occurrence;
+        if(!resolveOccurrence(*parse[argument.type], argument.bind, Position::Parameter, slots,
+                              occurrence)) {
+            return nullptr;
+        }
+
+        params.push(FunParam { occurrence });
+    }
+
+    if(slots.count()) {
+        unsupported(source, "an origin published on a lambda's own parameter"_v);
+        return nullptr;
+    }
+
+    return program.types.funType(decl(), params.pointer(), params.size(),
+                                 owned(program.types.undecided));
+}
+
+/*
+ * `(x) -> x * n` - the lambda, from the position that says what it is, or from its own header.
+ *
+ * The position says what the parameters and the result are wherever it states them, which is the
+ * rule a named function as a value is already under. What the author may write is a parameter type
+ * and a parameter convention, and where they do it is checked against the position rather than
+ * believed.
+ *
+ * Where the position states **nothing** - a `let`, a field of a function type this stage has not
+ * decided, an ascription that named no shape - a lambda that wrote every one of its parameter types
+ * is its own position: see `writtenLambdaPosition`. One rule and not a list of shapes, deliberately,
+ * because the alternative is a rule per syntactic place the lambda was found in and they would have
+ * to agree. A lambda that left a parameter open still has nowhere to take it from and is refused
+ * here, which is the message below.
+ */
+Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
+                              const Request& wanted) {
     auto& written = *parse[expr.fun];
 
     if(written.kind != ast::FunKind::Plain) {
@@ -382,10 +522,14 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     }
 
     if(!hint || decl()[hint]->kind != Type::Fun) {
-        context.diagnostics.error(
-            "a lambda takes its parameters and its result from the position it fills, and this position states neither - write the type"_v,
-            expr.source);
-        return nullptr;
+        hint = writtenLambdaPosition(written, expr.source);
+
+        if(!hint) {
+            context.diagnostics.error(
+                "a lambda takes its parameters and its result from the position it fills, and this position states neither - write the type, or write a type on every parameter"_v,
+                expr.source);
+            return nullptr;
+        }
     }
 
     auto& shape = *(FunType*)decl()[hint];
@@ -396,8 +540,13 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
         return nullptr;
     }
 
+    /*
+     * The position's own convention, which is what decides where the environment goes - see the note
+     * at the top of this file. `Access::Owned` is the receiver claiming the value is now theirs, and
+     * a receiver that outlives this frame is exactly what a heap-placed environment is for.
+     */
     return liftFunction(builder, &written.args, written.body, written.implicitReturn, hint,
-                        expr.source, LiftKind::Lambda);
+                        expr.source, LiftKind::Lambda, wanted.access == Access::Owned);
 }
 
 /*
@@ -411,7 +560,10 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
  */
 Node* Resolver::resolveThunk(Builder& builder, ast::Expr& body, DeclPtr<Type> hint,
                              LocationId source) {
-    return liftFunction(builder, nullptr, body, true, hint, source, LiftKind::Thunk);
+    // Never an owning position: `declareDeferred` rewrites a `@lazy` parameter to a shared,
+    // call-bounded `() -> T`, so a thunk's environment is a local of the caller's frame by
+    // construction and there is nothing here to rank.
+    return liftFunction(builder, nullptr, body, true, hint, source, LiftKind::Thunk, false);
 }
 
 /*
@@ -485,7 +637,7 @@ Node* Resolver::defaultThunk(Builder& builder, Function& callee, Arg& parameter,
  */
 Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* args, ast::Expr& body,
                              bool implicitReturn, DeclPtr<Type> hint, LocationId source,
-                             LiftKind kind) {
+                             LiftKind kind, bool owningPosition) {
     auto lambda = kind == LiftKind::Lambda;
     auto what = lambda ? "a lambda"_v : "a `@lazy` argument"_v;
 
@@ -542,6 +694,24 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     lifted->environment = environmentPointer;
     lifted->result = shape.result;
     lifted->summary.bodyKnown = true;
+
+    /*
+     * Where the environment goes, ranked by the one function that ranks storage - D6's split, spent
+     * here for the first time by something that is not a `@heap` attribute.
+     *
+     * `outlivesFrame` is the finding and `selectStorage` is the decision, so a region rung arriving
+     * later is a case in that function rather than a second rule here. The finding is the position's
+     * convention, which `checkCarriedOrigins`' own condition is: an owned position claims the value
+     * is the receiver's, and a value that refers to this frame may not be.
+     */
+    Placement asked;
+    asked.outlivesFrame = owningPosition;
+    lifted->environmentStorage = selectStorage(asked);
+
+    // What tells the reachability walk the allocator is needed - the same producer a heap-placed
+    // local is, and for the same reason: the block is storage the *lowering* asks for and there is
+    // no node in any body to draw an edge from.
+    if(lifted->environmentStorage != StorageClass::Frame) program.usesBoxes = true;
 
     /*
      * The environment parameter, first and **exclusive**.
@@ -628,6 +798,16 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     auto capturing = captures.size() > frame.captureFloor;
     Node* held = nullptr;
 
+    /*
+     * A lambda that captured nothing has no environment to place, whatever the position asked for.
+     *
+     * The rung was selected before the walk because `captureKindOf` needed it, and this is where it
+     * is known to have been about nothing: the record has no constructor, so asking for its layout
+     * is asking for the layout of an unfinished type. The value is a null environment word either
+     * way, which is what makes a non-capturing lambda the same value a named function is.
+     */
+    if(!capturing) lifted->environmentStorage = StorageClass::Frame;
+
     if(capturing) held = buildEnvironment(builder, frame, source);
 
     captures.resize(frame.captureFloor);
@@ -639,7 +819,8 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     // `hint` itself wherever the position was already closed, which is every lambda but a G7c one.
     auto type = closeFunPosition(context, program, hint, lifted->result.type);
 
-    return builder.addFunValue(source, DeclPtr<Function>(lifted - *program.decl), type, held);
+    return builder.addFunValue(source, DeclPtr<Function>(lifted - *program.decl), type, held,
+                               lifted->environmentStorage != StorageClass::Frame);
 }
 
 } // namespace mir

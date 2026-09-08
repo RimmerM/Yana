@@ -160,6 +160,61 @@ bool Resolver::resolveDispose(Builder& builder, ast::Expr& expr) {
  * is `Access::Owned` where the other two are `Shared` and `Unique`, and `readMode` answers all
  * three.
  */
+/*
+ * The attributes written in front of one binding - `@heap`, and nothing else today.
+ *
+ * A walk of its own rather than a case in `readAttributes`, because the position is different in the
+ * one way that matters: a declaration's attributes are read while a *declaration* is being built and
+ * these are read while a *statement* is, so what they can be about is a local rather than a function
+ * or a type. `DeclAttribute::Heap` is still the shared spelling, which is what makes `@heap fn f()`
+ * the ordinary misplacement message instead of an unknown attribute.
+ *
+ * Reporting an unknown one is the half this stage did not have at all: `VarDecl::attributes` was
+ * parsed and dropped, so `@hep let x = 0` compiled and did nothing.
+ */
+void Resolver::readBindingAttributes(const ast::VarDecl& binding, Local* local, bool placed) {
+    // Copied out first because `contents` is not const, which is the same step every other walk over
+    // a parsed list of attributes makes.
+    auto attributes = binding.attributes;
+
+    for(auto attribute: attributes.contents(parse)) {
+        auto which = findAttribute(stringView(context.findName(attribute.name)));
+
+        if(which != DeclAttribute::Heap) {
+            context.diagnostics.error("%@ is not an attribute a binding takes"_v, attribute.source,
+                                      context.findName(attribute.name));
+            continue;
+        }
+
+        if(attribute.args.size()) {
+            context.diagnostics.error("`@heap` takes no arguments"_v, attribute.source);
+            continue;
+        }
+
+        // A form this walk was not given a local for - a pattern, or an extent's binding. Neither is
+        // one object, so the message below would be describing the wrong thing.
+        if(!placed) {
+            unsupported(attribute.source, "`@heap` on a binding that is not one name"_v);
+            continue;
+        }
+
+        /*
+         * A binding that owns nothing has no object to place - a borrow names storage somebody else
+         * owns, and a name for a constant names none at all. Saying so beats minting an object so
+         * that the attribute has something to be about, which is the shape the shipping stage's own
+         * "nothing to place" message is in.
+         */
+        if(!local || !local->object.valid()) {
+            context.diagnostics.error(
+                "`@heap` has nothing to place - this binding names storage this frame does not own"_v,
+                attribute.source);
+            continue;
+        }
+
+        local->demandsHeap = true;
+    }
+}
+
 void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
     for(auto binding: expr.decl.contents(parse)) {
         /*
@@ -178,6 +233,7 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
         }
 
         if(binding.in) {
+            readBindingAttributes(binding, nullptr, false);
             resolveScoped(builder, binding, nullptr, false, inspectRequest());
             continue;
         }
@@ -196,7 +252,7 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
             if(expr.decl.size() > 1) {
                 unsupported(binding.pat.source, "a lens call written beside another binding"_v);
             } else {
-                reportEmptyExtent(parse[binding.content]->source, *callee);
+                reportEmptyExtent(parse[binding.content]->source, *callee.function);
             }
 
             continue;
@@ -217,6 +273,8 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
          * only where the pattern matched.
          */
         if(destructures(binding)) {
+            readBindingAttributes(binding, nullptr, false);
+
             auto pivot = destructuringPivot(builder, binding);
             if(!pivot) continue;
 
@@ -244,7 +302,8 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
                     : writable  ? Access::Unique
                                 : Access::Shared;
 
-        auto value = resolveValue(builder, *parse[binding.content], nullptr, bindingRequest(access));
+        auto value = resolveValue(builder, *parse[binding.content], nullptr,
+                                  bindingRequest(access, writable));
 
         if(!value) {
             // The name is in scope from here whether or not it has storage - see `Binding`. Pushed
@@ -264,8 +323,20 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
         auto local = builder.addLocal(binding.pat.var, valueOccurrence(*value),
                                       binding.pat.source, writable);
 
+        /*
+         * And the constant it was established with, where it was one - see `Local::initial`. Only
+         * for a binding nothing may assign to, which is what makes the value it holds permanent.
+         */
+        if(!writable && value->kind == Node::Const) {
+            local->initial = builder.body.constant(builder.base(), ((NodeConst*)value)->constant);
+        }
+
         auto place = builder.localPlace(*local);
         builder.addWrite(binding.pat.source, *place, *value, Destination::Init);
+
+        // After the write, because that is what unites the initializer's lineage into this local -
+        // and the attribute is about the object rather than about the name.
+        readBindingAttributes(binding, local, true);
 
         // In scope from *after* its own initializer, which is what makes `let x = x` read the outer
         // `x` rather than itself.
@@ -416,28 +487,103 @@ U32 Resolver::flatExtent(ast::ParseList<ast::Expr> statements, U32 count, U32 at
 }
 
 /*
- * The function a directly named call names, and null for everything else.
+ * The function a call names, written plainly or with a dot, and nothing for everything else.
  *
- * Only a directly named one, and that is what both callers are asking: a callee reached through a
- * class member or a binding of function type is the erased callback ABI, which is milestone 6's.
- * What a `for` and a lens call have in common is that they decide *what kind of construct they are*
- * before resolving anything, so the lookup is here rather than in `resolveCall`, which resolves
- * before asking.
+ * Only a *named* one, and that is what both callers are asking: a callee reached through a binding
+ * of function type is the erased callback ABI, which is milestone 6's. What a `for` and a lens call
+ * have in common is that they decide *what kind of construct they are* before resolving anything, so
+ * the lookup is here rather than in `resolveCall`, which resolves before asking.
+ *
+ * `x.f(...)` answers the same way with the receiver carried back rather than resolved - see
+ * `NamedCall`, and the ordering note below.
  */
-Function* Resolver::namedCallee(ast::Expr& expression) {
-    if(expression.kind != ast::Expr::App) return nullptr;
+NamedCall Resolver::namedCallee(ast::Expr& expression, NamedCallSite* site) {
+    if(expression.kind != ast::Expr::App) return NamedCall();
 
     auto& application = *parse[expression.app];
-    if(application.callee.kind != ast::Expr::Var || findLocal(application.callee.var)) {
-        return nullptr;
+
+    StringId name;
+    ast::FieldExpr* dotted = nullptr;
+    auto arity = U32(application.args.size());
+
+    if(application.callee.kind == ast::Expr::Field) {
+        /*
+         * `for x in xs.items()` - the dot form, whose name is asked **before** its receiver exists.
+         *
+         * The order is load-bearing rather than an economy. `upTo(n).twice()` names nothing, and
+         * resolving its receiver to discover that would emit the receiver and then report "upTo is
+         * an iterator, write it as the source of a `for` loop" - which is what the author did
+         * write. So the name decides whether there is a traversal here at all, and only then does
+         * `handoverCall` resolve the receiver into the caller's block.
+         */
+        dotted = parse[application.callee.field];
+        if(dotted->field.kind != ast::Expr::Var) return NamedCall();
+
+        name = dotted->field.var;
+        arity += 1;
+    } else {
+        if(application.callee.kind != ast::Expr::Var || findLocal(application.callee.var)) {
+            return NamedCall();
+        }
+
+        name = application.callee.var;
     }
+
+    // What the call site said, before any lookup - `NamedCallSite`, and `iteratorCallee`, which is
+    // the one caller that needs the question asked one step earlier than a declaration.
+    if(site) *site = NamedCallSite { name, arity, dotted };
 
     // A probe rather than a decision - the caller is asking whether this name is a lens, and the
     // ordinary call path reports if it is not. `report` is false for that reason: an ambiguity has
     // to be said once, where the call is resolved, rather than here and there.
-    auto found = mir::findFunction(context, program, here(), application.callee.var,
-                                   U32(application.args.size()), expression.source, false);
-    return found ? decl()[found] : nullptr;
+    auto found = mir::findFunction(context, program, here(), name, arity, expression.source, false);
+    if(!found) return NamedCall();
+
+    return NamedCall { decl()[found], dotted };
+}
+
+// See the declaration. R5 over the iterators of one name, and the ordinary lookup where the filter
+// leaves exactly one - a set whose only traversal is a class member is not a choice, it is an answer
+// `findFunction` could not give because a plain function of the name was standing beside it.
+NamedCall Resolver::iteratorCallee(Builder& builder, ast::Expr& expression,
+                                   const NamedCallSite& site, OverloadChoice& into) {
+    OverloadSet set;
+    mir::findOverloads(context, program, here(), site.name, site.arity, expression.source, set,
+                       false);
+
+    DeclPtr<Function> sole = nullptr;
+    U32 traversals = 0;
+
+    for(Size i = 0; i < set.size(); i++) {
+        if(!decl()[set.at(i)]->iterator) continue;
+        if(!traversals++) sole = set.at(i);
+    }
+
+    if(!traversals) return NamedCall();
+    if(traversals == 1) return NamedCall { decl()[sole], site.dotted };
+
+    /*
+     * Several, so the arguments decide - and the **dot** form is refused rather than selected.
+     *
+     * A receiver is argument zero of the mapping and is resolved before a candidate is known, so
+     * selecting one needs the receiver resolved *here* and `handoverCall` then not resolving it
+     * again. That is a second seam through the same walk for a spelling no candidate needs today;
+     * `xs.chunks()` reaches the one-iterator path above unchanged, and only a name that is several
+     * *and* written with a dot arrives here.
+     */
+    if(site.dotted) {
+        context.diagnostics.error(
+            "%@ names several iterators, and a receiver written with a dot is resolved before one of them is chosen - write it as %@(...)"_v,
+            expression.source, context.findName(site.name), context.findName(site.name));
+        return NamedCall();
+    }
+
+    if(!selectOverload(builder, *parse[expression.app], set, site.name, expression.source,
+                       expression.source, Receiver(), CandidateKind::Iterator, into)) {
+        return NamedCall();
+    }
+
+    return NamedCall { decl()[into.function], nullptr };
 }
 
 /*
@@ -448,9 +594,9 @@ Function* Resolver::namedCallee(ast::Expr& expression) {
  * question the other way round - see `resolveIteratorFor` - because a call in that position has no
  * other reading to fall through to.
  */
-Function* Resolver::lensCallee(ast::Expr& expression) {
+NamedCall Resolver::lensCallee(ast::Expr& expression) {
     auto callee = namedCallee(expression);
-    return callee && callee->lens ? callee : nullptr;
+    return callee && callee->lens ? callee : NamedCall();
 }
 
 /*
@@ -494,10 +640,21 @@ Node* Resolver::resolveStatements(Builder& builder, ast::ParseList<ast::Expr> st
 
                 if(auto callee = lensCallee(initializer)) {
                     index = resolveFlatLensCall(builder, statements, to, index, binding, initializer,
-                                                *callee, wantValue);
+                                                callee, wantValue);
                     continue;
                 }
             }
+        }
+
+        /*
+         * A bare `f(...)` - the flat form of a lens that hands nothing over, which is what a lock is
+         * written as. Asked after the `let` above so that a binding still decides the extent where
+         * there is one, and before `resolveStatement`, which has no block to split.
+         */
+        if(auto callee = lensCallee(statement)) {
+            index = resolveBareLensCall(builder, statements, to, index, statement, callee,
+                                        wantValue);
+            continue;
         }
 
         if(wantValue && index + 1 == to) return resolveValue(builder, statement, hint, wanted);
@@ -509,6 +666,280 @@ Node* Resolver::resolveStatements(Builder& builder, ast::ParseList<ast::Expr> st
 }
 
 /*
+ * See the declaration. Whether a call of this name leaves one of its arguments unevaluated.
+ *
+ * Asked before an overload has been chosen, so it is asked of the *set*: if any declaration at this
+ * arity defers a position, no call written with this name offers a hoist. Conservative in the one
+ * direction it can afford to be, because all that turns on the answer is whether the lift is
+ * offered - the ordinary spelling still reaches every eager position.
+ *
+ * `&&` and `||` are what it is for. Their right operand is a thunk the expansion runs under a
+ * branch, so a lens lifted out of one would run where the program does not, and would take the rest
+ * of the block as its extent on a path that was never going to reach it.
+ */
+bool Resolver::defersArguments(ast::Expr& callee, U32 arity) {
+    auto name = &callee;
+    while(name->kind == ast::Expr::Nested) name = parse[name->nested];
+    if(name->kind != ast::Expr::Var) return false;
+
+    OverloadSet set;
+    findOverloads(context, program, here(), name->var, arity, name->source, set, false);
+
+    for(Size i = 0; i < set.size(); i++) {
+        for(auto argPointer: decl()[set.at(i)]->args.contents(decl())) {
+            if(decl()[argPointer]->lazy) return true;
+        }
+    }
+
+    return false;
+}
+
+// See the declaration. Evaluation order, stopping at the first call a hoist would move.
+ast::Expr* Resolver::hoistableLensCall(ast::Expr& expr, bool root) {
+    if(!root && lensCallee(expr)) return &expr;
+
+    auto through = [&](ast::ParsePtr<ast::Expr> held) -> ast::Expr* {
+        return held ? hoistableLensCall(*parse[held], false) : nullptr;
+    };
+
+    auto arguments = [&](ast::ParseList<ast::TupArg> args) -> ast::Expr* {
+        auto written = args.contents(parse);
+
+        for(Size i = 0; i < written.size(); i++) {
+            if(auto found = hoistableLensCall(written.pointerAt(i)->value, false)) return found;
+        }
+
+        return nullptr;
+    };
+
+    switch(expr.kind) {
+        case ast::Expr::Nested:
+            return through(expr.nested);
+        case ast::Expr::Ret:
+            return through(expr.ret);
+        case ast::Expr::Yield:
+            return through(expr.yield);
+        case ast::Expr::App:
+        case ast::Expr::Sub: {
+            auto application = parse[expr.app];
+            if(auto found = hoistableLensCall(application->callee, false)) return found;
+            if(defersArguments(application->callee, U32(application->args.size()))) return nullptr;
+
+            return arguments(application->args);
+        }
+        /*
+         * `a + b` and `-x`, whose operands are ordinary positions - and the one thing that keeps
+         * them from being quite ordinary.
+         *
+         * The parser nests an infix chain to the right without regard for precedence and the
+         * operator walk re-associates it, so where an operand stands in the *written* chain is all
+         * this can read. That is enough, because re-association regroups the operands without
+         * reordering them: everything before the first operator that defers is evaluated whatever
+         * the grouping turns out to be, and everything after it may land inside that operator's
+         * thunk. So the walk runs left to right and stops there.
+         */
+        case ast::Expr::Infix: {
+            auto infix = parse[expr.infix];
+            if(auto found = hoistableLensCall(infix->lhs, false)) return found;
+            if(defersArguments(infix->op, 2)) return nullptr;
+
+            return hoistableLensCall(infix->rhs, false);
+        }
+        case ast::Expr::Prefix: {
+            auto prefix = parse[expr.prefix];
+            if(defersArguments(prefix->op, 1)) return nullptr;
+
+            return hoistableLensCall(prefix->on, false);
+        }
+        case ast::Expr::Con:
+            return arguments(parse[expr.con]->args);
+        case ast::Expr::Tup:
+            return arguments(expr.tup);
+        case ast::Expr::Field:
+            return hoistableLensCall(parse[expr.field]->target, false);
+        case ast::Expr::Coerce:
+            return hoistableLensCall(parse[expr.coerce]->target, false);
+        case ast::Expr::Assign:
+            return hoistableLensCall(parse[expr.assign]->value, false);
+        case ast::Expr::Is:
+            return hoistableLensCall(parse[expr.is]->value, false);
+        case ast::Expr::Array: {
+            auto items = expr.arr.contents(parse);
+
+            for(Size i = 0; i < items.size(); i++) {
+                if(auto found = hoistableLensCall(*items.pointerAt(i), false)) return found;
+            }
+
+            return nullptr;
+        }
+        case ast::Expr::Format: {
+            auto chunks = expr.format.contents(parse);
+
+            for(Size i = 0; i < chunks.size(); i++) {
+                if(auto found = through(chunks.pointerAt(i)->format)) return found;
+            }
+
+            return nullptr;
+        }
+        case ast::Expr::Decl: {
+            /*
+             * A declaration's initializer, and the exclusion that makes this terminate: the
+             * initializer that *is* the call is the flat form's own case, so hoisting it would
+             * rewrite `let x = trim(y)` into `let $l = trim(y); let x = $l` forever.
+             *
+             * Only for the shape that form accepts, which is where the two differ. A flat call has
+             * to *be* the statement - anything else falls through to an ordinary expression, and a
+             * lens call inside one of those is a subexpression like any other. A `let` that wrote an
+             * `in` is exempt wherever it stands, because the exemption is not about position: it
+             * named its extent, and lifting the call out would silently give it the rest of the
+             * enclosing block instead.
+             */
+            auto declarations = expr.decl.contents(parse);
+
+            /*
+             * A statement binding **several** names offers nothing, and that is not caution: the
+             * extent belongs to the statement, so a lens lifted out of `let a = 1, n = f(x)` would
+             * be given an extent covering the other binding's initializer as well - and the form is
+             * already refused by name, which is a better report than a rewrite that changes what the
+             * statement means. `where` blocks are this shape.
+             */
+            if(declarations.size() != 1) return nullptr;
+
+            auto declaration = declarations.pointerAt(0);
+            if(!declaration->content) return nullptr;
+
+            return hoistableLensCall(*parse[declaration->content], root || declaration->in);
+        }
+        default:
+            return nullptr;
+    }
+}
+
+void Resolver::hoistBlockLenses(ast::Expr& block) {
+    if(block.kind != ast::Expr::Multi) return;
+
+    // The size is re-read every turn: a statement inserted here is examined in its own right, which
+    // is what lifts the second lens call written in one statement.
+    for(Size i = 0; i < block.multi.size(); i++) hoistLensCall(block, i);
+}
+
+bool Resolver::hoistLensCall(ast::Expr& block, Size index) {
+    auto statements = block.multi.contents(parse);
+    if(index >= statements.size()) return false;
+
+    auto site = hoistableLensCall(*statements.pointerAt(index), true);
+    if(!site) return false;
+
+    auto& arena = context.parseRegion;
+
+    /*
+     * The call moved out, and the position it was written in left naming the binding.
+     *
+     * The node is rewritten *in place* rather than replaced, because what points at it is whatever
+     * held it - an argument list, a format hole, a field target - and none of those are reachable
+     * from here. A copy of the call goes into the declaration; the original becomes the `Var` that
+     * reads it, at the same source location, so every diagnostic about the value still points at
+     * the call the author wrote.
+     */
+    auto moved = new (arena) ast::Expr(*site);
+
+    char digits[12];
+    Size written = 0;
+
+    for(auto counter = hoistedLenses++;;) {
+        digits[written++] = char('0' + counter % 10);
+        counter /= 10;
+        if(!counter) break;
+    }
+
+    /*
+     * The bytes are the region's and not this frame's, and that is what makes the name usable after
+     * this returns: `addUnqualifiedName` interns the pointer it is handed rather than a copy, so a
+     * name built in a local buffer dangles the moment the frame goes.
+     */
+    auto length = written + 5;
+    auto text = (char*)arena.alloc(length);
+
+    text[0] = '$'; text[1] = 'l'; text[2] = 'e'; text[3] = 'n'; text[4] = 's';
+    for(Size i = 0; i < written; i++) text[5 + i] = digits[written - i - 1];
+
+    auto name = context.addUnqualifiedName(text, length);
+
+    site->kind = ast::Expr::Var;
+    site->var = name;
+
+    ast::VarDecl declaration {};
+    declaration.pat.kind = ast::Pat::Var;
+    declaration.pat.var = name;
+    declaration.pat.source = site->source;
+    declaration.content = moved - *arena;
+    declaration.bind = ast::BindType::Borrow;
+
+    ast::Expr let {};
+    let.kind = ast::Expr::Decl;
+    let.source = site->source;
+    let.decl = ast::ParseList<ast::VarDecl>();
+    let.decl.push(arena, declaration);
+
+    // `SmallList` grows at the end and has no insert, so the entry is pushed and then walked back
+    // into place - one move per following statement, once per hoisted call.
+    auto& list = block.multi;
+    auto count = list.size();
+    list.push(arena, let);
+
+    auto entries = list.contents(parse);
+    for(Size i = count; i > index; i--) *entries.pointerAt(i) = *entries.pointerAt(i - 1);
+
+    *entries.pointerAt(index) = let;
+    return true;
+}
+
+/*
+ * The bare form - see the declaration. §11.2's extent rule with nothing handed over.
+ *
+ * The extent is **the rest of the block**, and it is not a guess: `flatExtent` bounds a `let` by the
+ * last use of what was bound, and a call that binds nothing has no last use to be bounded by. What
+ * the author wrote is a lock, a directory, a signal mask - something that holds while the code below
+ * it runs - so "below it" is the whole of the statement's meaning, and a shorter extent would be a
+ * lock released at a line nothing marks.
+ *
+ * §11.3's empty extent is still an error, and it is the same error: a bare call at the *end* of its
+ * block splits nothing, so what it acquires it releases immediately.
+ *
+ * The binding handed to `resolveLensCall` is `_` and not a name, because that is exactly what this
+ * form is - `let _ = f(...)` with the `let` left out, which is the reading the two share and the
+ * reason there is one function under them.
+ */
+U32 Resolver::resolveBareLensCall(Builder& builder, ast::ParseList<ast::Expr> statements, U32 to,
+                                  U32 at, ast::Expr& call, const NamedCall& callee,
+                                  bool wantValue) {
+    if(at + 1 == to) {
+        reportEmptyExtent(call.source, *callee.function);
+        return at;
+    }
+
+    // The block's own value, produced inside the extent - `resolveFlatLensCall`'s refusal, for the
+    // same reason: what a continuation answers with is `$r`, which the resume channel fills.
+    if(wantValue) {
+        unsupported(call.source, "a lens call whose extent covers the value of its block"_v);
+        return at;
+    }
+
+    ast::VarDecl binding {};
+    binding.pat.kind = ast::Pat::Any;
+    binding.pat.source = call.source;
+    binding.bind = ast::BindType::Borrow;
+
+    Extent extent;
+    extent.statements = statements;
+    extent.from = at + 1;
+    extent.to = to;
+
+    resolveLensCall(builder, binding, call, callee, extent);
+    return to - 1;
+}
+
+/*
  * The flat form, once the callee is known - Analysis-Lens.md §11.2 and §11.3.
  *
  * Answers the index of the last statement it consumed, so that the walk carries on with the
@@ -516,13 +947,13 @@ Node* Resolver::resolveStatements(Builder& builder, ast::ParseList<ast::Expr> st
  */
 U32 Resolver::resolveFlatLensCall(Builder& builder, ast::ParseList<ast::Expr> statements, U32 to,
                                   U32 at, const ast::VarDecl& binding, ast::Expr& call,
-                                  Function& callee, bool wantValue) {
+                                  const NamedCall& callee, bool wantValue) {
     auto named = binding.pat.kind == ast::Pat::Var;
     auto last = flatExtent(statements, to, at, named ? binding.pat.var : StringId());
 
     // §11.3 - an extent that covers nothing, which `reportEmptyExtent` states the rule of.
     if(last == at) {
-        reportEmptyExtent(call.source, callee);
+        reportEmptyExtent(call.source, *callee.function);
         return at;
     }
 
@@ -576,7 +1007,7 @@ Node* Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding, Dec
             return nullptr;
         }
 
-        resolveLensCall(builder, binding, initializer, *callee, Extent { parse[binding.in] });
+        resolveLensCall(builder, binding, initializer, callee, Extent { parse[binding.in] });
         return nullptr;
     }
 
@@ -613,7 +1044,7 @@ Node* Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding, Dec
                     : writable  ? Access::Unique
                                 : Access::Shared;
 
-        auto value = resolveValue(builder, initializer, nullptr, bindingRequest(access));
+        auto value = resolveValue(builder, initializer, nullptr, bindingRequest(access, writable));
         if(!value) return nullptr;
 
         // Storage even for `_`, because an owner lives in a place: the value is evaluated and its
@@ -622,6 +1053,14 @@ Node* Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding, Dec
         auto named = binding.pat.kind == ast::Pat::Var;
         auto local = builder.addLocal(named ? binding.pat.var : StringId(), valueOccurrence(*value),
                                       binding.pat.source, writable);
+
+        /*
+         * And the constant it was established with, where it was one - see `Local::initial`. Only
+         * for a binding nothing may assign to, which is what makes the value it holds permanent.
+         */
+        if(!writable && value->kind == Node::Const) {
+            local->initial = builder.body.constant(builder.base(), ((NodeConst*)value)->constant);
+        }
 
         auto place = builder.localPlace(*local);
         builder.addWrite(binding.pat.source, *place, *value, Destination::Init);
@@ -665,7 +1104,7 @@ Node* Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding, Dec
  * `resolve_ssa/convert.cpp`'s choice, and neither form is visible here.
  */
 bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, ast::Expr& call,
-                               Function& callee, const Extent& extent) {
+                               const NamedCall& callee, const Extent& extent) {
     /*
      * `let &x = f(...)` and `let ->x = f(...)`.
      *
@@ -677,7 +1116,7 @@ bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, as
     if(binding.bind != ast::BindType::Borrow) {
         context.diagnostics.error(
             "what a lens hands over is declared on %@ with `-> &T` or `-> ->T`, not written here"_v,
-            binding.pat.source, context.findName(callee.name));
+            binding.pat.source, context.findName(callee->name));
         return false;
     }
 
@@ -685,7 +1124,7 @@ bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, as
 
     return handoverCall(builder, call, callee, Continuation::Once,
                         named ? binding.pat.var : StringId(), binding.pat.source, binding.alts,
-                        [&](ContinuationId, Block&) { resolveExtent(builder, extent); });
+                        [&](ContinuationId, Block&, Local&) { resolveExtent(builder, extent); });
 }
 
 /*
@@ -783,16 +1222,62 @@ void Resolver::resolveAlternative(Builder& builder, ast::Alt& alternative, Node&
  * `resolve_ssa/convert.cpp`'s choice, and neither form is visible here.
  */
 template<class F>
-bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
+bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& called,
                             Continuation::Multiplicity multiplicity, StringId name,
                             LocationId nameSource, ast::ParseList<ast::Alt> alternatives,
-                            F&& inside) {
+                            F&& inside, OverloadChoice* chosen) {
     auto& written = *parse[call.app];
     auto source = call.source;
+    auto& callee = *called.function;
 
-    ArgMap map;
-    if(!checkCallShape(written, callee, source, map)) return false;
+    /*
+     * The mapping, which a selection has already made where there was one to make.
+     *
+     * `checkCallShape` is what builds it, and it is exactly what `selectOverload` ran silently over
+     * every candidate - so re-running it on the winner would be the same walk twice and, at a
+     * candidate whose shape only just admitted the call, a second chance to report it.
+     */
+    ArgMap own;
+    if(!chosen && !checkCallShape(written, callee, source, own, true, called.leading(),
+                                  called.dotted ? called.dotted->target.source : kNullLocation)) {
+        return false;
+    }
+
+    const ArgMap& map = chosen ? chosen->map : own;
     if(!checkAlternatives(callee, alternatives, source)) return false;
+
+    /*
+     * `xs.items()` - the receiver, resolved here because here is where the caller's block is.
+     *
+     * After the shape check and before the arguments, which is exactly where a written first
+     * argument would have been: the receiver is argument 0 of the same mapping, so evaluation stays
+     * left to right and `resolveArguments` reads it at whatever the declared position asks for.
+     */
+    Receiver from;
+
+    if(called.dotted) {
+        from.place = projectionTarget(builder, called.dotted->target, Access::Shared);
+        if(!from.place) return false;
+
+        from.source = called.dotted->target.source;
+
+        /*
+         * The same choice `resolveDotCall` makes, asked here because the receiver only exists now:
+         * a field wins over a dot-call.
+         *
+         * Where it wins there is nothing for *this* form to be. A field holds a function value, and
+         * a value is never a traversal - reaching a lens or an iterator through one is the erased
+         * callback ABI - so the message says that rather than calling through the field and handing
+         * it a continuation it has no parameter for.
+         */
+        if(hasMemberNamed(from.place->occurrence, called.dotted->field.var)) {
+            context.diagnostics.error(
+                "%@ is a field of %@, so this calls what the field holds - and a value is never a traversal, which is what this position needs"_v,
+                called.dotted->field.source, context.findName(called.dotted->field.var),
+                typeText(context, decl(), from.place->occurrence.type));
+            return false;
+        }
+    }
 
     /*
      * The arguments, in the caller's scope and in the caller's block, before the region is opened.
@@ -804,7 +1289,25 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
      */
     SmallArray<Node*, 8> arguments;
     TypeArguments typeArguments(*this, callee.gen);
-    if(!resolveArguments(builder, written, callee, map, source, arguments, typeArguments)) return false;
+
+    if(chosen) {
+        /*
+         * Already resolved, by the selection that needed them to choose - `prepareResolvedArguments`,
+         * the same loop `finishOverloadedCall` runs. Walking them again here would evaluate the
+         * call's arguments twice, which is the whole reason the choice carries its values.
+         */
+        typeArguments.unifies = true;
+        for(U32 i = 0; i < map.count(); i++) arguments.push(nullptr);
+
+        HeldList<SmallArray<Node*, 8>> held(*this, arguments);
+        if(!prepareResolvedArguments(builder, written, callee, map, source, chosen->values,
+                                     arguments, typeArguments, from)) {
+            return false;
+        }
+    } else if(!resolveArguments(builder, written, callee, map, source, arguments, typeArguments,
+                                nullptr, from)) {
+        return false;
+    }
 
     /*
      * `$r`, the one type argument no written argument decides - `declareContinuation`.
@@ -876,6 +1379,12 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
     auto region = builder.enterRegion(Continuation::Handover, multiplicity);
     auto entry = builder.addBlock(StringId());
 
+    // Nothing the enclosing expression is holding crosses into the region - `Resolver::heldFloor`,
+    // where the reason is written. Restored below, immediately after `leaveRegion`, so that the
+    // alternative and the join carry what they always did.
+    auto outerHeld = heldFloor;
+    heldFloor = held;
+
     if(skipped) builder.body.region(builder.base(), region)->otherwise = skipped->index;
 
     // Where it rejoins, said now rather than after the body: an iterator departing inside the region
@@ -923,7 +1432,7 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
 
     auto departures = handovers;
 
-    inside(region, *join);
+    inside(region, *join, *local);
     auto fellOut = !builder.isTerminated();
 
     bindings.resize(U32(scope));
@@ -936,6 +1445,7 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
      * unreachable, which is what tells an enclosing walk that control left.
      */
     builder.leaveRegion();
+    heldFloor = outerHeld;
 
     if(fellOut) builder.addJump(source, *join, nullptr, 0);
 
@@ -1260,7 +1770,7 @@ static LocationId walkOnce(Builder& builder, SmallArray<U8, 32>& state, Event&& 
         exit(*last, bits);
 
         auto reached = bits;
-        forEachEdge(*last, [&](Edge& edge) { mark(base[edge.target]->index, reached); });
+        forEachEdge(base, *last, [&](Edge& edge) { mark(base[edge.target]->index, reached); });
     }
 
     return twice;
@@ -1447,25 +1957,77 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
      * through `get` and writes through `getMut`, and the exclusive loan the second takes has to
      * start after the first has ended. A fixed array's element is a lazy place and the order costs
      * it nothing.
+     *
+     * **A path of fields over the subscript is the same statement one projection out** -
+     * `xs[i].f = xs[i].f + n`, which is `lib/Test/Console.yana`'s tally and was the one shape of
+     * this that had to be written with a local in between. The destination decides the accessor
+     * (`getMut`) and the right-hand side reads through `get`, so the two are the same pair; what
+     * differs is only that the loan has to be taken after the whole right-hand side rather than
+     * after the container and the index. So the steps are collected here, the accessor is chosen
+     * where it is chosen for a bare subscript, and `fieldStep` applies them to what comes back -
+     * the same walk `resolvePlace` would have made.
+     *
+     * The right-hand side needs an expected type before the place exists, and `fieldPathType` is
+     * that and only that: where it cannot answer - a positional field, a pointee, a view - the
+     * target is built first exactly as it was before.
      */
     Place* place = nullptr;
     Subscript subscript;
     Node* value = nullptr;
 
-    if(written.target.kind == ast::Expr::Sub && !parse[written.target.sub]->args.isEmpty() &&
-       parse[written.target.sub]->args.get(parse, 0).value.kind != ast::Expr::Range) {
-        if(!resolveSubscriptTarget(builder, written.target, true, Access::Unique, subscript)) {
+    SmallArray<ast::Expr*, 4> steps;
+    auto under = &written.target;
+
+    while(under->kind == ast::Expr::Field) {
+        steps.push(under);
+        under = &parse[under->field]->target;
+    }
+
+    auto subscripted = under->kind == ast::Expr::Sub && !parse[under->sub]->args.isEmpty() &&
+                       parse[under->sub]->args.get(parse, 0).value.kind != ast::Expr::Range;
+
+    // The element type the right-hand side is read against, which for a bare subscript is the
+    // element's own. Null where the steps say nothing this walk can follow.
+    DeclPtr<Type> expected = nullptr;
+
+    if(subscripted) {
+        if(!resolveSubscriptTarget(builder, *under, true, Access::Unique, subscript)) {
             if(!mark.reported()) unsupported(written.target.source, "assigning to this"_v);
             return;
         }
 
-        if(!subscript.fixed) {
-            value = resolveValue(builder, written.value, subscript.element,
-                                 requestOf(ownedContract()));
+        expected = steps.isEmpty()
+            ? subscript.element
+            : fieldPathType(subscript.element, steps.pointer(), steps.size());
+
+        // A bare subscript is split whatever `expected` came to - the element type is the hint it
+        // always was, null included, and `m[k] = v` reaching `insertAt` depends on it. A path is
+        // split only where the walk answered, since there the hint is what the split is *for*.
+        if(!subscript.fixed && (steps.isEmpty() || expected)) {
+            value = resolveValue(builder, written.value, expected, requestOf(ownedContract()));
             if(!value) return;
+
+            /*
+             * `m[k] = v` **inserts** where the container has an `IndexInsert` instance -
+             * Implementation-Map.md §7's second decision, and `known.def`'s `indexInsert` row.
+             *
+             * `getMut` cannot express it: it has to answer a borrow, and an absent key has none, so
+             * an assignment written through it traps on exactly the key an author is inserting.
+             * Preferred over `getMut` rather than replacing it, so `Array`'s assignment - which has
+             * no such instance - is unchanged. A field of the element is not an insert: what is
+             * written is part of a value the container already holds.
+             */
+            if(steps.isEmpty() &&
+               resolveIndexInsert(builder, subscript, *value, written.target.source)) {
+                return;
+            }
         }
 
         place = elementAccess(builder, subscript, Access::Unique, written.target.source);
+
+        for(Size i = steps.size(); i > 0 && place; i--) {
+            place = fieldStep(builder, *place, *steps[i - 1]);
+        }
     } else {
         place = resolvePlace(builder, written.target, true, Access::Unique);
     }
@@ -1818,17 +2380,43 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
     }
 
     /*
-     * Which iterator the loop runs, by name.
+     * Which iterator the loop runs, by name - written `items(xs)` or `xs.items()`, which are one
+     * call and select one declaration.
      *
      * A `for` reaches its iterator through a written call and nothing derives one from a type: a
      * container has several traversals and naming the one meant is the point, which is why
      * `for x in xs` over a container is a message rather than a lookup. An iterator travelling as a
      * *value* - which is what an adaptor chain's inner stage is - is the erased callback ABI and is
-     * milestone 6's.
+     * milestone 6's, so `xs.filter(p).map(f)` is still blocked by its outer receiver and not by the
+     * dot.
      */
-    auto callee = namedCallee(loop.from);
+    NamedCallSite site;
+    auto callee = namedCallee(loop.from, &site);
+
+    /*
+     * A name several declarations answer - R5 for a traversal, `iteratorCallee`.
+     *
+     * `namedCallee` answers nothing where the set has several, which is R1's rule and is right for
+     * every other reader of it; a `for` is the position where "several" is a question the arguments
+     * answer. So the second attempt narrows the set to the iterators and puts it through the same
+     * R2-R5 a call goes through, and a plain `iter fn` declared beside a class member is a member of
+     * that set rather than a shadow over it.
+     *
+     * The values it resolved travel to `handoverCall`, held across everything between, because they
+     * were emitted into this block and this block is about to grow a region.
+     */
+    OverloadChoice chosen;
+    HeldList<SmallArray<Node*, 8>> held(*this, chosen.values);
+
+    auto before = context.diagnostics.errorCount();
+    if(!callee && site) callee = iteratorCallee(builder, loop.from, site, chosen);
 
     if(!callee) {
+        // Reported already where the selection failed on the arguments - "no `chunks` accepts these
+        // arguments", which names the candidates. The message below is for the other failure, where
+        // nothing the name reaches is a traversal at all.
+        if(context.diagnostics.errorCount() != before) return;
+
         context.diagnostics.error(
             "`for` runs a call of a named `iter fn`, and no rule finds one from the type of a value - name the traversal, as in `for x in items(xs)`"_v,
             loop.from.source);
@@ -1855,19 +2443,30 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
 
     // No sigil check, unlike a lens call's `let`: a `for` binding has no place to write one, so what
     // the body receives under is the declaration's and there is nothing here that could disagree.
-    if(loop.pat.kind != ast::Pat::Var && loop.pat.kind != ast::Pat::Any) {
-        unsupported(loop.pat.source, "destructuring a `for` binding"_v);
-        return;
-    }
-
     auto named = loop.pat.kind == ast::Pat::Var;
 
-    handoverCall(builder, loop.from, *callee, Continuation::Many,
+    /*
+     * `for {a, b} in pairs(m)` - a pattern over what the iterator handed across.
+     *
+     * The hand-over is storage of the continuation either way, so a pattern here is the same
+     * construct a `let` over any other place is: `bindIrrefutable` takes it apart by reading through
+     * that local, and what each name it binds takes - a shared borrow, or the owned part where the
+     * declaration hands over with `->` - is the pattern's own rule and not a second one written
+     * here. Bound inside the region rather than at the call, because the names belong to the body.
+     */
+    handoverCall(builder, loop.from, callee, Continuation::Many,
                  named ? loop.pat.var : StringId(), loop.pat.source, loop.alts,
-                 [&](ContinuationId region, Block& join) {
+                 [&](ContinuationId region, Block& join, Local& bound) {
         Loop frame(*this, nullptr, join, join, region, true);
+
+        if(!named && loop.pat.kind != ast::Pat::Any) {
+            if(!bindIrrefutable(builder, loop.pat, *builder.localPlace(bound), "a `for` binding"_v)) {
+                return;
+            }
+        }
+
         resolveStatement(builder, loop.body);
-    });
+    }, chosen ? &chosen : nullptr);
 }
 
 /*
@@ -1896,11 +2495,6 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
 void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop) {
     auto source = expr.source;
     auto ascending = !loop.reverse;
-
-    if(loop.pat.kind != ast::Pat::Var && loop.pat.kind != ast::Pat::Any) {
-        unsupported(loop.pat.source, "destructuring a `for` binding"_v);
-        return;
-    }
 
     auto& toWritten = *parse[loop.to];
 
@@ -2097,6 +2691,14 @@ void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr
 
     auto scope = bindings.size();
     if(named) bindings.push(Binding { loop.pat.var, bound });
+
+    // A pattern over the counter, on the iterator loop's own terms: an interval yields one value per
+    // step and taking it apart is the same reading through the storage a name would have named. Very
+    // nearly always a mistake at an integer, and what says so is the pattern's own space rather than
+    // a rule about counted loops.
+    if(!named && loop.pat.kind != ast::Pat::Any) {
+        bindIrrefutable(builder, loop.pat, *builder.localPlace(*bound), "a `for` binding"_v);
+    }
 
     {
         Loop frame(*this, &carry, *exit, *advance, builder.region(), false);
@@ -2417,8 +3019,20 @@ bool Resolver::checkCarriedOrigins(Node& value, const Occurrence& declared, Loca
      */
     if(Shapes::isEmpty(carried) || carried == shapeOf(decl(), declared)) return true;
 
+    /*
+     * A function value with **no** environment, which says so in the one vocabulary a value has -
+     * `Shapes::noEnvironment`, and D17's reason for there being two marks rather than one.
+     *
+     * The second word is null, so there is nothing behind it for a receiver to be surprised by, and
+     * `let f = twice` may be stored, returned and copied exactly as it could before a `Fun` owed a
+     * teardown. What still cannot is the *other* mark: a closure whose environment is a local of
+     * this frame, which is the whole of what is left of this check for closures - a lambda written
+     * directly at an owned position is heap-placed and carries no mark at all.
+     */
+    if(carried == program.shapes.noEnvironment()) return true;
+
     context.diagnostics.error(
-        "%@ refers to storage this frame owns, and %@ has no origin to say whose - a value that outlives this frame needs a heap-placed environment, which the ownership resolver does not implement yet"_v,
+        "%@ refers to storage this frame owns, and %@ has no origin to say whose - write the lambda at the position that takes it, so its environment can be placed where the value goes"_v,
         source, typeText(context, decl(), occurrence.type), what);
     return false;
 }
@@ -2428,8 +3042,9 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
 
     // The root module's top level is a program point, so an initializer that is not a constant there
     // is a **dynamic** global rather than a mistake - Analysis-Initialization.md stage B, and
-    // `resolveConstant`'s `notConstant` is how the two are told apart.
-    auto root = here() == program.root();
+    // `resolveConstant`'s `notConstant` is how the two are told apart. A `.test.yana` file's module
+    // level is a program point too, under `-test` - see `declareGlobals`, where that is argued.
+    auto startup = here() == program.root() || (context.settings.test && activeTestFile);
 
     for(auto binding: declaration.stmt.decl.contents(parse)) {
         if(next >= writtenGlobals.size()) return;
@@ -2442,7 +3057,11 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
         auto constant = resolveConstant(*parse[binding.content], nullptr, &notConstant);
 
         /*
-         * A **string**, whose value is the one thing here that cannot be settled yet.
+         * A **string**, whose value is the one thing here that cannot be settled yet - at the root
+         * or at a leaf, which is why the test is `holdsText` rather than a comparison of the kind:
+         * `let names = ["a", "b", "c"] :: [String *3]` is one global with three of them in it, and
+         * a walk that only looked at the root left `Constant::Text` in the aggregate for
+         * `materialize` to assert on.
          *
          * `Constant::Text` says what the value *is* and leaves how it is built to the library:
          * `stringLiteral` describes a run over bytes the compiler places, and what a constant needs
@@ -2455,10 +3074,10 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
          * library module therefore has a string global for the same reason it has a numeric one -
          * there is nothing to run - which is what `Core/Show.yana`'s digit table needs.
          */
-        if(constant.kind == Constant::Text) {
+        if(holdsText(decl(), constant)) {
             global->occurrence = owned(constant.type);
             pendingTextGlobals.push(PendingTextGlobal {
-                pointer, here(), constant.asText(), current->activeFile,
+                pointer, here(), constant, current->activeFile,
                 parse[binding.content]->source
             });
 
@@ -2478,7 +3097,7 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
              * an author can do about it rather than the form that was written: make it a constant,
              * or move it into the module being compiled.
              */
-            if(!root) {
+            if(!startup) {
                 context.diagnostics.error(
                     "a global's initializer must be a literal, a constructor or an aggregate of those, optionally written `constant :: Type` - there is no program point at which a declaration's own code would run"_v,
                     parse[binding.content]->source);
@@ -2518,7 +3137,7 @@ void Resolver::resolveTextGlobals() {
     for(auto& pending: pendingTextGlobals) {
         ModuleScope scope(*this, pending.module, pending.file);
 
-        auto value = textConstantValue(pending.text, pending.source);
+        auto value = textsResolved(pending.value, pending.source);
         if(!value.isSet()) continue;
 
         auto global = decl()[pending.global];
@@ -2629,23 +3248,32 @@ void Resolver::resolveTopLevelBinding(Builder& builder, const TopLevelStmt& stat
 }
 
 /*
- * The root module's top level, as one body - Analysis-Initialization.md stage B.
+ * The resolver state one synthesized entry starts from - the two entries share it because they are
+ * the same body with a different tail.
  *
- * The statements in written order and then `main`, and the call is emitted here rather than left to
- * a backend's entry wrapper because it is a fact about the **program**: a program whose top level
- * ran and then called `main` did those two things in that order on every target.
+ * A function rather than a copy in each, since what it is is "no enclosing body's state is in
+ * scope": a stale `continuationLocal` or a leftover binding would be a name the entry resolves
+ * against a frame that no longer exists.
  */
-void Resolver::resolveEntryBody(Function& function, DeclPtr<Function> main) {
-    ErrorMark mark(context);
-
-    Builder builder(context, program, function);
+void Resolver::beginEntry(Function& function) {
     currentFunction = &function;
     bindings.clear();
     continuationLocal = nullptr;
     yieldedLocal = nullptr;
     guardYields = false;
     handovers = 0;
+}
 
+/*
+ * The root module's top level, as a run of statements in the body it is given - Analysis-
+ * Initialization.md stage B.
+ *
+ * Its own function because **both** entries begin with it: the ordinary one runs it before `main`,
+ * and the synthesized test entry runs it before the first case, for the same reason - a program's
+ * startup is not a property of what comes after it. Design-Test.md §3.3's rule is about `main`, not
+ * about startup.
+ */
+void Resolver::resolveRootTopLevel(Builder& builder) {
     /*
      * Every dynamic global, uninitialized - and each one removed as its own statement runs.
      *
@@ -2678,6 +3306,22 @@ void Resolver::resolveEntryBody(Function& function, DeclPtr<Function> main) {
     // Nothing after the top level reads a global before it is initialized, because nothing after it
     // reads one before anything at all: every other body runs after the whole sequence.
     uninitialized.clear();
+}
+
+/*
+ * The ordinary entry - the top level in written order and then `main`.
+ *
+ * The call is emitted here rather than left to a backend's entry wrapper because it is a fact about
+ * the **program**: a program whose top level ran and then called `main` did those two things in that
+ * order on every target.
+ */
+void Resolver::resolveEntryBody(Function& function, DeclPtr<Function> main) {
+    ErrorMark mark(context);
+
+    Builder builder(context, program, function);
+    beginEntry(function);
+
+    resolveRootTopLevel(builder);
 
     Node* status = nullptr;
 
@@ -2729,6 +3373,11 @@ void Resolver::resolveProgramEntry() {
             main = found;
         }
     }
+
+    // `fn main() = 0` - the entry's own result is what `main` answers, and an `=` form with no
+    // result type answers what its body decided. Demanded here because the synthesized entry below
+    // copies the type, and because nothing has resolved a body yet at this point in the order.
+    if(main) requireResult(*decl()[main], decl()[main]->source);
 
     /*
      * A module whose every top-level `let` is a constant, which is every program that predates
@@ -2807,6 +3456,17 @@ static U32 countYields(ast::ParseBase parse, ast::Expr& expr) {
 void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     auto& written = declaration.fun;
 
+    /*
+     * Once, whichever walk got here first.
+     *
+     * The body walk reaches every declaration in order, and `requireResult` reaches an inferring one
+     * ahead of that walk when a caller needs its result - so a body can be asked for twice, and
+     * building it twice would be two sets of blocks in one function. `Function::bodyState` is the
+     * three-colour record of which; `Reading` in particular is what a *recursive* demand sees.
+     */
+    if(function.bodyState != Function::BodyState::Unread) return;
+    function.bodyState = Function::BodyState::Reading;
+
     // What this body reports, told apart from what the file reported before it - see `ErrorMark`.
     ErrorMark mark(context);
 
@@ -2828,16 +3488,43 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
                 declaration.source, context.findName(function.name));
         }
 
+        function.bodyState = Function::BodyState::Read;
         return;
     }
 
     Builder builder(context, program, function);
+
+    /*
+     * The walk's own state, saved rather than reset, because this body may be **inside** another.
+     *
+     * `requireResult` builds a callee's body in the middle of the caller's - which is what makes an
+     * inferred result independent of declaration order - so everything the walk carries about "where
+     * am I" belongs to a function and has to be put back. It is the same set and the same argument
+     * as `resolveLiftedBody`'s, one level up: a `break` naming a loop of another function, a
+     * temporary held by another walk, a `yield` reaching another continuation. `bindings` is
+     * truncated rather than cleared for the same reason, and `lambdaFloor` is the environments' half
+     * of the names' floor.
+     */
+    auto outerFunction = currentFunction;
+    auto outerHeld = held;
+    auto outerLoops = loops;
+    auto outerContinuation = continuationLocal;
+    auto outerYielded = yieldedLocal;
+    auto outerGuard = guardYields;
+    auto outerHandovers = handovers;
+    auto outerBindingFloor = bindingFloor;
+    auto outerLambdaFloor = lambdaFloor;
+    auto outerBindings = U32(bindings.size());
+
     currentFunction = &function;
-    bindings.clear();
+    held = nullptr;
+    loops = nullptr;
     continuationLocal = nullptr;
     yieldedLocal = nullptr;
     guardYields = false;
     handovers = 0;
+    bindingFloor = outerBindings;
+    lambdaFloor = U32(lambdaFrames.size());
 
     /*
      * The body is resolved in the signature's own context, **once**, against its own variables -
@@ -2915,13 +3602,25 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
 
         guardYields = countYields(parse, expr) > 1;
     }
-    auto unit = decl()[function.result.type]->kind == Type::Unit;
+    // `fn f(...) = expr` with no `-> T` - what the body answers is the result, so there is nothing
+    // to check it against and nothing yet to say it is unit. See `Function::inferResult`.
+    auto infer = function.inferResult;
+    auto inferred = infer;
+    auto unit = !infer && decl()[function.result.type]->kind == Type::Unit;
 
     if(written.implicitReturn) {
         // `fn f(...) = expr` answers `expr`. A unit-returning one still evaluates it, and what it
         // returns is nothing rather than the value.
-        auto value = resolveValue(builder, expr, unit ? nullptr : function.result.type,
+        auto value = resolveValue(builder, expr, (unit || infer) ? nullptr : function.result.type,
                                   unit ? inspectRequest() : requestOf(function.result));
+
+        // Settled before anything reads it, and before the `ret` below is checked against it. A
+        // second demand from inside this very body is what the cycle guard caught, so by here the
+        // answer is this body's alone.
+        if(infer) {
+            unit = inferResultType(function, value, expr.source);
+            infer = false;
+        }
 
         if(value && !builder.isTerminated()) {
             if(unit) {
@@ -2933,6 +3632,23 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
                       checkResultContract(*value, expr.source)) {
                 builder.addReturn(expr.source, *value);
             }
+        }
+
+        /*
+         * An `=` function that produces nothing is written in the wrong form.
+         *
+         * The `=` form says "this function *is* this expression", so a body with no value is a
+         * statement wearing an expression's syntax - `fn bump(&x: I32) = x = x + 1` reads as though
+         * it returned something. The block form is how that is said, and it is what this points at.
+         *
+         * Only where the unit result was **not written down**, which is what `inferResult` already
+         * says: `-> {}` is the author saying the same thing the warning would, and an instance
+         * member's result came from its class rather than from this line. A body that reported is
+         * left alone too - the missing value is a consequence of the mistake it already named.
+         */
+        if(inferred && unit && !function.resultUnknown && !mark.reported()) {
+            context.diagnostics.warning("`%@` is written with `=` but its body produces no value, so it returns `{}` - use the `:` block form for a function that runs statements rather than producing a result"_v,
+                                        declaration.source, context.findName(function.name));
         }
     } else {
         // `fn f(...): statements` answers through `return`, which is what the language says - a
@@ -2955,9 +3671,108 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     checkForced(builder, function);
 
     builder.seal();
-    currentFunction = nullptr;
-    continuationLocal = nullptr;
-    yieldedLocal = nullptr;
+
+    bindings.resize(outerBindings);
+    bindingFloor = outerBindingFloor;
+    lambdaFloor = outerLambdaFloor;
+    currentFunction = outerFunction;
+    held = outerHeld;
+    loops = outerLoops;
+    continuationLocal = outerContinuation;
+    yieldedLocal = outerYielded;
+    guardYields = outerGuard;
+    handovers = outerHandovers;
+
+    function.bodyState = Function::BodyState::Read;
+}
+
+/*
+ * What an `=` body decided its function answers - the second half of `Function::inferResult`.
+ *
+ * Answers whether the result turned out to be unit, which is what the `ret` and `finish` below need
+ * and is the one thing the caller cannot read off `result` alone: a body that reported has no value
+ * to read a type from, and leaving that as "some type" would be a second message per path.
+ *
+ * **What is inferred is an owned result, and nothing else.** A borrowing one would have to name an
+ * origin slot, and there is nothing in a body that says which - so the only thing inference could do
+ * is promote a parameter's group to satisfy it, which is exactly what §2.2 refuses at a *written*
+ * signature "rather than promoting the parameter", and for a reason that applies twice as hard here:
+ * a caller's argument would change meaning because somebody edited a body. So the body is resolved
+ * under an owning request, which is what makes `fn pass(p: Point) = p` a copy and what refuses a
+ * hand-over of something the function only borrows - at the read, where the message is about the
+ * value. The test below is the residue neither that nor `checkReturnConformance` reaches: a value
+ * whose root is a loan, or whose *interior* publishes an origin, arriving at a result that publishes
+ * none. Both are told to write the result out, where a `'` can name a group the signature has.
+ */
+bool Resolver::inferResultType(Function& function, Node* value, LocationId source) {
+    function.inferResult = false;
+
+    // The body reported, so there is no type to read and the result stays the `{}` the signature
+    // left. Nothing further is said about it - the missing value is a consequence of what was.
+    if(!value) return true;
+
+    auto answered = valueOccurrence(*value);
+    if(!answered.type) return true;
+
+    if(!answered.contract.isOwned() || answered.shape) {
+        context.diagnostics.error("%@ answers a borrow, and the `=` form cannot infer which origin it is in - write the result out, as in `-> 'T`, naming the parameter's group"_v,
+                                  source, context.findName(function.name));
+        return true;
+    }
+
+    function.result = owned(answered.type);
+    return decl()[answered.type]->kind == Type::Unit;
+}
+
+/*
+ * The result of an `=` function whose body decides it, made available to whoever needs it now.
+ *
+ * **This is the whole of the order-independence.** A call reads its callee's result, so an answer
+ * that arrived when the body walk happened to reach the declaration would depend on which function
+ * came first in the file. So the demand resolves the body at the call instead - the same shape as
+ * `aliasTarget`, and for the same reason: both are declarations whose meaning is read out of another
+ * declaration, and neither has an order that could be given to a cycle.
+ *
+ * The cycle is the one thing inference cannot do, and this is the one place that can say so: the
+ * callee's body is on the stack, so the type being asked for is the type it is about to produce, and
+ * only a written `-> T` breaks that. It is reported at the call that closed the cycle rather than
+ * once per function in it, and the callee stops being callable rather than being recorded as unit -
+ * see `Function::resultUnknown`.
+ *
+ * Asked by `checkCallable`, which every call form goes through, and by the two positions that read a
+ * signature without being a call: a function *value*, and the program's entry.
+ */
+bool Resolver::requireResult(Function& callee, LocationId source) {
+    if(callee.resultUnknown) return false;
+    if(!callee.inferResult) return true;
+
+    if(callee.bodyState == Function::BodyState::Reading) {
+        context.diagnostics.error("%@ is recursive, so the `=` form cannot infer its result type from its body - write it out, as in `-> Int`"_v,
+                                  source, context.findName(callee.name));
+        callee.inferResult = false;
+        callee.resultUnknown = true;
+        return false;
+    }
+
+    // The position the callee was written at, not the caller's: an import is scoped to the file that
+    // wrote it, so a body read on another declaration's behalf reads its own names - `scopeOf`.
+    ModuleScope scope = scopeOf(callee.module, callee.source);
+
+    /*
+     * And not the entry sequence's set of globals that have not been initialized yet.
+     *
+     * A demand can fire from inside `resolveEntryBody` - a top-level statement calling an `=`
+     * function - and the body it builds is not the sequence: every function other than the entry
+     * runs after the whole of it, which is the sentence that set is kept under. Left standing, a
+     * read of a later global would be reported or not depending on whether the entry sequence
+     * happened to be the first caller, which is the very ordering this function exists to remove.
+     */
+    Array<DeclPtr<Global>> pending(move(uninitialized));
+
+    resolveBody(callee, *inferringDecls[callee.written]);
+
+    uninitialized = move(pending);
+    return !callee.resultUnknown;
 }
 
 /*
@@ -3146,7 +3961,7 @@ bool Resolver::enteredFrom(Body& body, MirBase base, Block& block) {
         if(!isTerminator(last->kind)) continue;
 
         auto found = false;
-        forEachEdge(*last, [&](Edge& edge) { if(edge.target == target) found = true; });
+        forEachEdge(base, *last, [&](Edge& edge) { if(edge.target == target) found = true; });
         if(found) return true;
     }
 

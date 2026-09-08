@@ -44,19 +44,8 @@ fn push(I32) {
 fn Contiguous(Array(a), a).elements(I32) {
   arg self readonly return
   result arguments
-  %self: Array(I32) borrowed droppable readonly live [0, 11)
-  %self: ArrayView(I32) readonly live [3, 12)
-  %local2: ArrayView(I32) readonly live [10, 12)
-  %local3: ArrayView(I32) readonly live never
-}
-
-fn unclampedSlice(I32) {
-  arg self readonly return
-  arg from readonly
-  arg count readonly
-  result arguments
-  %self: ArrayView(I32) borrowed readonly live [0, 5)
-  %local1: ArrayView(I32) readonly live [0, 7)
+  %self: Array(I32) borrowed droppable readonly live [0, 4)
+  %local1: 2'ArrayView(I32) readonly live [0, 7)
 }
 
 fn sumVectors(ArrayView(I32), I32) {
@@ -70,7 +59,7 @@ fn sumVectors(ArrayView(I32), I32) {
   %local6: Outcome((), ()) readonly live never
 }
 
-fn Core.continuation$6(ArrayView(I32), I32) {
+fn Core.continuation$12(ArrayView(I32), I32) {
   arg env readonly
   arg value$ readonly
   %local0: Outcome((), ()) readonly live [5, 8)
@@ -88,7 +77,7 @@ fn vectors(ArrayView(I32), I32, ()) {
   %local6: Outcome((), Outcome((), ())) readonly live never
 }
 
-fn Core.continuation$7(ArrayView(I32), I32, ()) {
+fn Core.continuation$13(ArrayView(I32), I32, ()) {
   arg env readonly
   arg value$ readonly
   %value$: ArrayView(I32) borrowed readonly live [0, 20) [23, 42)
@@ -117,12 +106,11 @@ fn loadVectorTail(I32) {
 fn Chunked(Array(a), a).chunks(I32, Outcome((), ())) {
   arg self unknown
   arg body readonly
-  %self: ArrayView(I32) readonly live never
+  %self: ArrayView(I32) borrowed unknown live [0, 1)
   %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 1)
-  %local2: 2'ArrayView(I32) borrowed unknown live [0, 1)
-  %local3: Outcome((), Outcome((), ())) readonly live [0, 5)
-  %local4: Outcome((), Outcome((), ())) readonly live [5, 8)
-  %local5: Outcome((), Outcome((), ())) readonly live never
+  %local2: Outcome((), Outcome((), ())) readonly live [0, 5)
+  %local3: Outcome((), Outcome((), ())) readonly live [5, 8)
+  %local4: Outcome((), Outcome((), ())) readonly live never
 }
 
 fn Reclaim(Array(a)).reclaim(I32) {

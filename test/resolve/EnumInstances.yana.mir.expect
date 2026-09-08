@@ -1,0 +1,297 @@
+module ResolveTest
+
+data Whence = FromStart = 0 | FromCurrent = 1 | FromEnd = 2
+
+data Errno = NotFound = 2 | Access = 13 | Quota = 122
+
+data Weekday = Monday | Tuesday | Wednesday
+
+fn opaque(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  return take %0
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (condition)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = read copy.trivial (weight)
+  jump -> bb2(take %2)
+}
+
+fn seekBase(w: Whence [shared call]) -> I32 {
+bb0:
+  %0: Whence = read copy.trivial (w)
+  %1: U8 = bitcast inspect %0
+  %2: I32 = convert inspect %1
+  return take %2
+}
+
+fn errorNumber(e: Errno [shared call]) -> I32 {
+bb0:
+  %0: Errno = read copy.trivial (e)
+  %1: U8 = bitcast inspect %0
+  %2: I32 = convert inspect %1
+  return take %2
+}
+
+fn numbers() -> I32 {
+bb0:
+  %0: Whence = const FromEnd
+  %1: I32 = call seekBase borrow.shared %0
+  %2: I32 = const 2
+  %3: Bool = eq inspect %1 inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %9: Bool = const False
+  jump -> bb2(take %9)
+
+bb2(%10: Bool):
+  %13: I32 = const 1
+  %14: I32 = call check borrow.shared %10 borrow.shared %13
+  return take %14
+
+bb3:
+  %5: Errno = const Quota
+  %6: I32 = call errorNumber borrow.shared %5
+  %7: I32 = const 122
+  %8: Bool = eq inspect %6 inspect %7
+  jump -> bb2(take %8)
+}
+
+fn whenceOf(n: I64 [shared call]) -> Maybe(Whence) {
+bb0:
+  %0: I64 = read copy.trivial (n)
+  %1: Maybe(Whence) = call fromValue(Whence, I32) borrow.shared %0
+  return take %1
+}
+
+fn errnoOf'2(n: I64 [shared call]) -> Maybe(Errno) {
+bb0:
+  %0: I64 = read copy.trivial (n)
+  %1: Maybe(Errno) = call fromValue(Errno, I32) borrow.shared %0
+  return take %1
+}
+
+fn present(m: Maybe(Whence) [shared call]) -> Bool {
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: Bool = map [0 -> False, 1 -> True] inspect %0
+  return take %1
+}
+
+fn presentErrno(m: Maybe(Errno) [shared call]) -> Bool {
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: Bool = map [0 -> False, 1 -> True] inspect %0
+  return take %1
+}
+
+fn range() -> I32 {
+bb0:
+  %0: I64 = const 1
+  %1: Maybe(Whence) = call whenceOf borrow.shared %0
+  %2: Bool = call present borrow.shared %1
+  %3: I32 = const 2
+  %4: I32 = call check borrow.shared %2 borrow.shared %3
+  %5: I64 = const 7
+  %6: Maybe(Whence) = call whenceOf borrow.shared %5
+  %7: Bool = call present borrow.shared %6
+  %8: Bool = not inspect %7
+  %9: I32 = const 4
+  %10: I32 = call check borrow.shared %8 borrow.shared %9
+  %11: I32 = add inspect %4 inspect %10
+  return take %11
+}
+
+fn holes() -> I32 {
+bb0:
+  %0: I64 = const 13
+  %1: Maybe(Errno) = call errnoOf'2 borrow.shared %0
+  %2: Bool = call presentErrno borrow.shared %1
+  %3: I32 = const 8
+  %4: I32 = call check borrow.shared %2 borrow.shared %3
+  %5: I64 = const 14
+  %6: Maybe(Errno) = call errnoOf'2 borrow.shared %5
+  %7: Bool = call presentErrno borrow.shared %6
+  %8: Bool = not inspect %7
+  %9: I32 = const 16
+  %10: I32 = call check borrow.shared %8 borrow.shared %9
+  %11: I32 = add inspect %4 inspect %10
+  return take %11
+}
+
+fn roundTrip() -> I32 {
+  local taken: Maybe(Whence)
+  local w: Whence
+  local back: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = call opaque borrow.shared %0
+  %2: I64 = convert inspect %1
+  %3: Maybe(Whence) = call whenceOf borrow.shared %2
+  write.init borrow.unique (taken) take %3
+  %5: U8 = read copy.trivial (taken.#)
+  %6: U8 = const 1
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %14: I32 = const -1
+  jump -> bb2(take %14)
+
+bb2(%15: I32):
+  write.init borrow.unique (back) take %15
+  %19: I32 = read copy.trivial (back)
+  %20: I32 = const 1
+  %21: Bool = eq inspect %19 inspect %20
+  %22: I32 = const 32
+  %23: I32 = call check borrow.shared %21 borrow.shared %22
+  return take %23
+
+bb3:
+  %9: Whence = read copy.trivial (taken.Just)
+  write.init borrow.unique (w) take %9
+  %11: Whence = read copy.trivial (w)
+  %12: U8 = bitcast inspect %11
+  %13: I32 = convert inspect %12
+  jump -> bb2(take %13)
+}
+
+fn compares() -> I32 {
+bb0:
+  %0: Weekday = const Monday
+  %1: Weekday = const Monday
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: Bool = const False
+  jump -> bb2(take %7)
+
+bb2(%8: Bool):
+  branch inspect %8 -> bb6 -> bb4
+
+bb3:
+  %4: Weekday = const Monday
+  %5: Weekday = const Tuesday
+  %6: Bool = ne inspect %4 inspect %5
+  jump -> bb2(take %6)
+
+bb4:
+  %17: Bool = const False
+  jump -> bb5(take %17)
+
+bb5(%18: Bool):
+  branch inspect %18 -> bb9 -> bb7
+
+bb6:
+  %12: Weekday = const Monday
+  %13: Weekday = const Wednesday
+  %14: U8 = bitcast inspect %13
+  %15: U8 = bitcast inspect %12
+  %16: Bool = lt inspect %15 inspect %14
+  jump -> bb5(take %16)
+
+bb7:
+  %27: Bool = const False
+  jump -> bb8(take %27)
+
+bb8(%28: Bool):
+  branch inspect %28 -> bb12 -> bb10
+
+bb9:
+  %22: Weekday = const Wednesday
+  %23: Weekday = const Tuesday
+  %24: U8 = bitcast inspect %23
+  %25: U8 = bitcast inspect %22
+  %26: Bool = ge inspect %25 inspect %24
+  jump -> bb8(take %26)
+
+bb10:
+  %37: Bool = const False
+  jump -> bb11(take %37)
+
+bb11(%38: Bool):
+  %41: I32 = const 64
+  %42: I32 = call check borrow.shared %38 borrow.shared %41
+  return take %42
+
+bb12:
+  %32: Weekday = const Tuesday
+  %33: Weekday = const Monday
+  %34: Ordering = call compare(Weekday) borrow.shared %32 borrow.shared %33
+  %35: Ordering = const GT
+  %36: Bool = eq inspect %34 inspect %35
+  jump -> bb11(take %36)
+}
+
+fn anyValue(x: a [shared call]) -> w {
+  form specialized
+  slot #0 type a
+  slot #1 type w
+  slot #2 class Enum(a, w)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: w = call valueOf(a, w) borrow.shared %0
+  return take %1
+}
+
+fn generic() -> I32 {
+bb0:
+  %0: Whence = const FromEnd
+  %1: I32 = call anyValue(Whence, I32) borrow.shared %0
+  %2: I32 = const 2
+  %3: Bool = eq inspect %1 inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %9: Bool = const False
+  jump -> bb2(take %9)
+
+bb2(%10: Bool):
+  %13: I32 = const 128
+  %14: I32 = call check borrow.shared %10 borrow.shared %13
+  return take %14
+
+bb3:
+  %5: Errno = const Quota
+  %6: I32 = call anyValue(Errno, I32) borrow.shared %5
+  %7: I32 = const 122
+  %8: Bool = eq inspect %6 inspect %7
+  jump -> bb2(take %8)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call numbers
+  %1: I32 = call range
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call holes
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call roundTrip
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call compares
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call generic
+  %10: I32 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn anyValue(Whence, I32)(x: Whence [shared call]) -> I32 = <anyValue at Whence, I32>
+
+fn anyValue(Errno, I32)(x: Errno [shared call]) -> I32 = <anyValue at Errno, I32>
+
+entry main

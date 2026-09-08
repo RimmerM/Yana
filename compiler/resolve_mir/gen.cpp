@@ -70,6 +70,75 @@ bool classProves(Context& context, Program& program, DeclPtr<Class> have,
     return false;
 }
 
+// The arguments in gen.h, where the layout is stated. Recursive on the same terms `classProves` is:
+// a cycle cannot be built, so the declaration order bounds the walk.
+U16 classWitnessCount(DeclBase base, DeclPtr<Class> klass) {
+    if(!klass) return 0;
+
+    auto count = U16(base[klass]->members.size());
+    for(auto super: base[klass]->superclasses.contents(base)) {
+        count = U16(count + classWitnessCount(base, super.klass));
+    }
+
+    return count;
+}
+
+bool classWitnessAt(DeclBase base, DeclPtr<Class> klass, U16 at, DeclPtr<Class>& into, U16& member) {
+    if(!klass) return false;
+
+    auto own = U16(base[klass]->members.size());
+    if(at < own) {
+        into = klass;
+        member = at;
+        return true;
+    }
+
+    at = U16(at - own);
+    for(auto super: base[klass]->superclasses.contents(base)) {
+        auto count = classWitnessCount(base, super.klass);
+        if(at < count) return classWitnessAt(base, super.klass, at, into, member);
+        at = U16(at - count);
+    }
+
+    return false;
+}
+
+bool classWitnessPath(Context& context, Program& program, DeclPtr<Class> have,
+                      const DeclPtr<Type>* haveArgs, Size haveCount, DeclPtr<Class> want,
+                      const DeclPtr<Type>* wantArgs, Size wantCount, U16& offset) {
+    if(!have || !want) return false;
+
+    auto base = *program.decl;
+
+    if(have == want && sameArguments(haveArgs, haveCount, wantArgs, wantCount)) {
+        offset = 0;
+        return true;
+    }
+
+    // The same substitution `classProves` makes, and the same reason it is here rather than
+    // precomputed - see that function.
+    Substitution with { base[have]->gen, (DeclPtr<Type>*)haveArgs, haveCount };
+    auto at = U16(base[have]->members.size());
+
+    for(auto super: base[have]->superclasses.contents(base)) {
+        SmallArray<DeclPtr<Type>, 4> arguments;
+        for(auto argument: super.args.contents(base)) {
+            arguments.push(substituteType(context, program, argument, with));
+        }
+
+        U16 inner = 0;
+        if(classWitnessPath(context, program, super.klass, arguments.pointer(), arguments.size(),
+                            want, wantArgs, wantCount, inner)) {
+            offset = U16(at + inner);
+            return true;
+        }
+
+        at = U16(at + classWitnessCount(base, super.klass));
+    }
+
+    return false;
+}
+
 bool satisfiesRequirement(Context& context, Program& program, DeclPtr<GenContext> gen,
                           DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count) {
     if(!gen) return false;
@@ -289,6 +358,10 @@ bool mentionsContext(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> cont
             return mentionsContext(base, vector.lane, context) ||
                    (vector.count && mentionsContext(base, vector.count, context));
         }
+        // A derived count is an expression over a lane - `ConstType::lanesOf` - so it mentions
+        // whatever the lane does. A written number mentions nothing and answers through the same arm.
+        case Type::Const:
+            return mentionsContext(base, ((ConstType*)base[type])->lanesOf, context);
         case Type::Atomic:
             return mentionsContext(base, ((AtomicType*)base[type])->content, context);
         case Type::Record: {
@@ -344,6 +417,11 @@ bool isConcreteType(DeclBase base, DeclPtr<Type> type) {
             auto& vector = *(VectorType*)base[type];
             return isConcreteType(base, vector.lane) && vector.hasFixedCount();
         }
+        // A count that is still an expression is not a number, so it is no more concrete than the
+        // lane it is the count of - and once that lane is concrete the substitution has already
+        // turned it into one.
+        case Type::Const:
+            return isConcreteType(base, ((ConstType*)base[type])->lanesOf);
         case Type::Atomic:
             return isConcreteType(base, ((AtomicType*)base[type])->content);
         case Type::Record: {
@@ -537,6 +615,11 @@ void markVariables(DeclBase base, DeclPtr<GenContext> owner, DeclPtr<Type> type,
             markVariables(base, owner, vector.count, into);
             return;
         }
+        // The lane a derived count is over, for `mentionsContext`'s reason - a schema that missed it
+        // would number no slot for the variable `Vec(a)`'s count depends on.
+        case Type::Const:
+            markVariables(base, owner, ((ConstType&)written).lanesOf, into);
+            return;
         case Type::Atomic:
             markVariables(base, owner, ((AtomicType&)written).content, into);
             return;
@@ -735,6 +818,16 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
          * *conversion* at the position, which runs against the substituted parameter type and holds
          * a `Vec(F32, 2)` against the `Vec(F32)` the signature resolved to. Comparing here would be
          * the same question asked before the answer exists.
+         *
+         * **A natural-form value binds a quantified count to the expression it stands for**, which
+         * is the other direction and the one a generic body needs. `let acc = zero() :: Vec(a)`
+         * inside `fn (Num(a), Num(Vec(a))) sumVectors(...)` is handed to `fn (n: Int)
+         * horizontalSum(v: Vec(a, n))`, and `n` is not open - it is `lanes(a)`, decided by the same
+         * specialization that decides `a`. Binding the number here is impossible and refusing is
+         * wrong, so what is bound is `Types::naturalLanesType`, which substitution turns into the
+         * number. Without it every counted signature in the portable set is unreachable from the
+         * generic code an iteration protocol is made of - the eight `lib/Core` sites of
+         * `doc/progress/2026-09-06-J1-lib-crash.md`.
          */
         case Type::Vector: {
             auto& expected = (VectorType&)written;
@@ -748,12 +841,13 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
                 return actual.hasFixedCount() && expected.lanes == actual.lanes;
             }
 
-            if(!actual.hasFixedCount() || !actual.lanes) return false;
-
             auto& variable = *(VariableType*)base[expected.count];
             if(variable.owner != owner || !variable.isConst()) return false;
+            if(!actual.hasFixedCount()) return false;
 
-            auto bound = types.constType(actual.lanes, variable.constType);
+            auto bound = actual.lanes ? types.constType(actual.lanes, variable.constType)
+                                      : types.naturalLanesType(actual.lane, variable.constType);
+
             if(!into[variable.index]) into[variable.index] = bound;
             return sameType(into[variable.index], bound);
         }
@@ -847,26 +941,34 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
             return substituted == to ? type : program.types.pointerType(substituted);
         }
         case Type::Fun: {
-            // The positions substituted and the contracts carried through unchanged: what a
-            // substitution supplies is types, and a position's convention was decided where the
-            // shape was written.
+            /*
+             * Every position through `substituteOccurrence`, and that is the whole of the rule
+             * rather than "types here, conventions where they were written".
+             *
+             * A parameter of a function *type* is a position exactly as a record field is, and the
+             * one thing a substitution decides about a position's convention is `substitutedContract`
+             * - a shared `WholeValue` written at a **variable** becomes `View` where the type it was
+             * bound to has one. `iter fn items(...) -> 'a` gives its continuation the parameter
+             * `'a`; at `a := String` the value handed over is the string's view, and the caller
+             * builds a continuation that says so. Carrying the contract through unchanged left the
+             * declared type interned as a second `(String) -> I32` that printed alike and was not
+             * `sameType`, which is what stopped every `for s in items(xs)` over a `[String]`.
+             */
             auto& fun = *(FunType*)base[type];
 
             SmallArray<FunParam, 4> params;
             auto moved = false;
 
             for(auto param: fun.params.contents(base)) {
-                auto substituted = substituteType(context, program, param.occurrence.type, with);
-                moved |= substituted != param.occurrence.type;
-                params.push(FunParam { Occurrence { substituted, param.occurrence.contract,
-                                                    param.occurrence.shape } });
+                auto substituted = substituteOccurrence(context, program, param.occurrence, with);
+                moved |= substituted != param.occurrence;
+                params.push(FunParam { substituted });
             }
 
-            auto result = substituteType(context, program, fun.result.type, with);
-            if(!moved && result == fun.result.type) return type;
+            auto result = substituteOccurrence(context, program, fun.result, with);
+            if(!moved && result == fun.result) return type;
 
-            return program.types.funType(base, params.pointer(), params.size(),
-                                         Occurrence { result, fun.result.contract, fun.result.shape });
+            return program.types.funType(base, params.pointer(), params.size(), result);
         }
         case Type::Array: {
             // Both halves, and the count goes through `arrayType`'s `DeclPtr` entry point, which
@@ -900,6 +1002,29 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
 
             return makeVectorType(context, program, lane, count, vector.lanes, vector.isMask,
                                   kNullLocation);
+        }
+        /*
+         * A **derived count** - the natural lane count of a lane this body could not measure, which
+         * is the one type-level expression this stage has.
+         *
+         * Substituting the lane is exactly the moment it becomes a number, so the answer is built by
+         * making the vector it is the count *of* and reading the count back off it. That is one
+         * definition of "the natural count of `a`" rather than two: `makeVectorType` already owns
+         * the register-width division, the lane check and the two bounds, and a second arithmetic
+         * here would be the same rule written twice and diagnosed differently.
+         */
+        case Type::Const: {
+            auto& number = *(ConstType*)base[type];
+            if(!number.isDerived()) return type;
+
+            auto lane = substituteType(context, program, number.lanesOf, with);
+            if(lane == number.lanesOf) return type;
+            if(!isConcreteType(base, lane)) return program.types.naturalLanesType(lane, number.type);
+
+            auto vector = makeVectorType(context, program, lane, U64(0), false, kNullLocation);
+            if(!vector) return nullptr;
+
+            return program.types.constType(((VectorType*)base[vector])->lanes, number.type);
         }
         case Type::Atomic: {
             auto& atomic = *(AtomicType*)base[type];
@@ -962,9 +1087,102 @@ Contract substitutedContract(DeclBase base, Program& program, DeclPtr<Type> decl
                              DeclPtr<Type> substituted, Contract contract) {
     if(contract.form() != AccessForm::WholeValue || contract.isOwned()) return contract;
     if(!declared || base[declared]->kind != Type::Variable) return contract;
+
     if(!hasViewFor(base, program, substituted, contract.access())) return contract;
 
     return Contract { contract.access(), contract.origin(), AccessForm::View, contract.slot() };
+}
+
+/*
+ * The logical type one `PathStep` in, and null where the step names no type of its own.
+ *
+ * Null is not a failure: a closure's shape names the environment word of a `Fun`, which has no
+ * component type to substitute, and a step past the end of an arm's field list is what a shape
+ * written against another constructor looks like. Both answer "nothing to decide here", which is
+ * what the caller does with a null.
+ */
+static DeclPtr<Type> typeAtStep(DeclBase base, DeclPtr<Type> type, U16 step) {
+    if(!type) return nullptr;
+
+    if(PathStep::isPointee(step)) {
+        if(base[type]->kind != Type::Pointer) return nullptr;
+        return ((PointerType*)base[type])->to;
+    }
+
+    if(base[type]->kind != Type::Record) return nullptr;
+
+    auto& record = *(RecordType*)base[type];
+    auto index = PathStep::fieldIndex(step);
+    if(index >= record.fields.size()) return nullptr;
+
+    return record.field(base, index).occurrence.type;
+}
+
+/*
+ * An interior position's contract under the same substitution its root's is under.
+ *
+ * `substitutedContract` is a rule about a *position* and a shape slot is one - `Formatted(s, a)`'s
+ * `value: 'a` is a slot, and at `a := Array(U8)` the position holds the container's window exactly
+ * as a parameter spelled `'a` there does. Leaving the shape alone made the two halves of one
+ * occurrence disagree: the instantiated record's field was the descriptor and the shape said whole
+ * value, and `fieldContract` prefers the shape - so `with("a b", formStyle())` stored a window and
+ * read back a pointer.
+ *
+ * **A field step only**, which is J18's "a place's occurrence is not a position's" said about a
+ * shape. A slot whose path ends at a *pointee* - `valuesMut(&self: source'[a]) -> %source'a` - names
+ * storage the pointer reaches, and storage of a container is the owner however the position that
+ * hands it out is written; a slot that ends at a field names a stored borrow, which is the position
+ * and is the descriptor. `Conversion::storageAt` is the same distinction one tier down.
+ *
+ * The paths are valid in both types by the same construction `bindArgumentPositions` rests on:
+ * `fillInstantiation` copies the field list in order and substitutes in place, so a step means the
+ * same field on either side and the two are walked in lockstep.
+ */
+static DeclPtr<OwnershipSchema> substituteShape(Program& program, DeclPtr<Type> declared,
+                                                DeclPtr<Type> substituted,
+                                                DeclPtr<OwnershipSchema> shape) {
+    if(Shapes::isEmpty(shape)) return shape;
+
+    auto base = *program.decl;
+    SmallArray<Contract, 8> contracts;
+    auto moved = false;
+
+    for(auto slotPointer: base[shape]->slots.contents(base)) {
+        auto& slot = *base[slotPointer];
+
+        auto here = declared;
+        auto there = substituted;
+        auto storage = false;
+        for(auto step: slot.path.contents(base)) {
+            here = typeAtStep(base, here, step);
+            there = typeAtStep(base, there, step);
+            storage = PathStep::isPointee(step);
+        }
+
+        auto contract = here && there && !storage ?
+            substitutedContract(base, program, here, there, slot.contract) : slot.contract;
+
+        moved = moved || contract != slot.contract;
+        contracts.push(contract);
+    }
+
+    // Nothing built until something changed, because building one costs a path list per slot in the
+    // declaration arena and the overwhelming majority of substitutions change no interior form.
+    if(!moved) return shape;
+
+    SmallArray<ExternalSlot, 8> slots;
+    Size index = 0;
+    for(auto slotPointer: base[shape]->slots.contents(base)) {
+        auto& slot = *base[slotPointer];
+
+        ExternalSlot replaced;
+        for(auto step: slot.path.contents(base)) replaced.path.push(program.decl, step);
+        replaced.contract = contracts[index++];
+
+        slots.push(replaced);
+    }
+
+    return program.shapes.intern(slots.pointer(), slots.size());
 }
 
 Occurrence substituteOccurrence(Context& context, Program& program, const Occurrence& occurrence,
@@ -975,7 +1193,7 @@ Occurrence substituteOccurrence(Context& context, Program& program, const Occurr
     return Occurrence { substituted,
                         substitutedContract(*program.decl, program, occurrence.type, substituted,
                                             occurrence.contract),
-                        occurrence.shape };
+                        substituteShape(program, occurrence.type, substituted, occurrence.shape) };
 }
 
 /*

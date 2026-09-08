@@ -69,6 +69,33 @@ bool selectInstance(Context& context, Program& program, DeclPtr<Class> klass,
                     InstanceMatch& into);
 
 /*
+ * The same question asked from *inside* a generic body, with that body's own variables in the query.
+ *
+ * `selectInstance` is asked about types a caller settled. This is asked where a requirement's head
+ * still mentions the asking declaration's variables - `Index(Array(a), ?, ?)` inside
+ * `fn (Ord(a)) firstBelow(xs: [a], ...)` - and it differs from that one in exactly three ways, each
+ * argued in select.cpp: a deciding position that is a **bare variable** is refused rather than
+ * looked up, two heads that both apply and **answer the determined positions differently** are an
+ * ambiguity naming both, and the head's own context may be discharged by `enclosing` having
+ * promised it. `doc/progress/2026-09-06-inventory.md` D13.
+ */
+bool selectOpenInstance(Context& context, Program& program, DeclPtr<Class> klass,
+                        const DeclPtr<Type>* args, Size count, DeclPtr<GenContext> enclosing,
+                        LocationId source, bool report, InstanceMatch& into);
+
+/*
+ * Whether that is a question at all - `selectOpenInstance`'s own precondition, exported.
+ *
+ * A caller has to tell "this is not something the table may be asked" from "the table has no
+ * answer", because only the second is worth a diagnostic: `fillFromRequirements` runs during the
+ * argument walk, where a deciding position is routinely still an inference variable, and a message
+ * there would name a type the author never wrote. Every variable in a deciding position has to be
+ * one of `enclosing`'s, and the position itself may not be a bare variable.
+ */
+bool openHeadAnswerable(Program& program, DeclPtr<Class> klass, const DeclPtr<Type>* args,
+                        Size count, DeclPtr<GenContext> enclosing);
+
+/*
  * The instance whose head *names* this type for this class - the question the ownership classifier
  * asks, and deliberately not `selectInstance`.
  *
@@ -90,6 +117,12 @@ bool selectInstance(Context& context, Program& program, DeclPtr<Class> klass,
  */
 DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, DeclPtr<Class> klass,
                                       DeclPtr<Type> type, InstanceMatch* into = nullptr);
+
+// The same over a whole head, where a caller has one - a determined position may be left null and
+// the match reads it back off the head that answered.
+DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, DeclPtr<Class> klass,
+                                      const DeclPtr<Type>* args, Size count,
+                                      InstanceMatch* into = nullptr);
 
 DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, intrinsic::Known klass,
                                       DeclPtr<Type> type, InstanceMatch* into = nullptr);

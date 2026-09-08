@@ -67,11 +67,11 @@ bb1:
   jump -> bb2
 
 bb2:
-  %15: F32 trivial = const 1
-  %16: Vec(F32) trivial = load inspect %1
-  %17: I32 trivial = const 0
-  %18: F32 trivial = vec.lane #0 inspect %16
-  %19: F32 trivial = div inspect %15 inspect %18
+  %15: Vec(F32) trivial = load inspect %1
+  %16: I32 trivial = const 0
+  %17: F32 trivial = vec.lane #0 inspect %15
+  %18: F32 trivial = const 1
+  %19: F32 trivial = div inspect %18 inspect %17
   %20: F32 trivial = const 0
   %21: Bool trivial = gt inspect %19 inspect %20
   branch inspect %21 -> bb6 -> bb4

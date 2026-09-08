@@ -1,0 +1,53 @@
+{-
+   Destructuring a `for` binding - `for {a, b} in pairs(...)` and `for Pair {left, right} in ...`.
+
+   What the loop binds is the iterator's hand-over, which is storage of the continuation, so a
+   pattern here is the same construct a `let` over any other place is: it binds *parts* of that one
+   value by reading through it, and what each name takes - a shared borrow, or the owned part where
+   the iterator hands over with `->` - is written on the name rather than on the loop. There is no
+   sigil position on a `for`, which is why there is nothing here that could disagree with the
+   declaration.
+
+   An irrefutable pattern only: a `for`'s `|` is the iterator's failure channel and not the
+   pattern's, so there are no arms for a failing one to reach. `Reject.ForPattern.yana` is that half.
+-}
+
+data Pair {left: Int, right: Int}
+data Nested {head: Pair, tail: Int}
+
+iter fn steps(to: Int) -> Pair:
+    for i in 0 .. to:
+        yield Pair {left: i, right: i * 2}
+
+iter fn tuples(to: Int) -> {Int, Int}:
+    for i in 0 .. to:
+        yield {i, i + 10}
+
+iter fn labelled(to: Int) -> {first: Int, second: Int}:
+    for i in 0 .. to:
+        yield {first: i, second: i * 3}
+
+iter fn deep(to: Int) -> Nested:
+    for i in 0 .. to:
+        yield Nested {head: Pair {left: i, right: i + 1}, tail: i * 100}
+
+fn main() -> Int:
+    let &total = 0
+
+    -- A constructor pattern over a record with one constructor, binding both its fields.
+    for Pair {left, right} in steps(3):
+        total = total + left + right
+
+    -- A field list with no constructor in front of it, over an anonymous tuple.
+    for {a, b} in tuples(3):
+        total = total + a + b
+
+    -- The same over a labelled tuple, where the names are the fields'.
+    for {first, second} in labelled(3):
+        total = total + first + second
+
+    -- `_` for a part the body does not want, beside a name for one it does.
+    for Nested {head: _, tail: t} in deep(3):
+        total = total + t
+
+    return total

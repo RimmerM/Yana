@@ -100,11 +100,22 @@ void Lowering::materialize(const mir::Occurrence& occurrence, const mir::Constan
         return;
     }
 
-    // A fixed array's elements, each at its stride - the bytes of a string literal are one.
-    if(decl[constant.type]->kind == mir::Type::Array) {
-        auto& array = *(mir::ArrayType*)decl[constant.type];
+    /*
+     * A fixed array's elements, each at its stride - the bytes of a string literal are one.
+     *
+     * A **vector** is written by the same three lines, which is the whole of what a vector constant
+     * is in storage: `0 :: Vec(I32, 4)` reduces to the lane repeated, and a vector's lanes are
+     * packed at the lane's own stride with no padding between them and nothing over them. The two
+     * are one arm rather than two because they are one statement - a run of values of one type laid
+     * end to end - and a second copy is how the two would come to disagree about the stride.
+     */
+    auto run = decl[constant.type]->kind == mir::Type::Array
+        ? ((mir::ArrayType*)decl[constant.type])->element
+        : mir::laneTypeOf(decl, constant.type);
+
+    if(run) {
         auto& parts = *decl[constant.aggregate()];
-        auto element = mir::owned(array.element);
+        auto element = mir::owned(run);
         auto stride = strideOf(manifestNative(layout, element));
 
         for(U32 i = 0; i < parts.values.size(); i++) {
@@ -240,6 +251,27 @@ void Lowering::declareGlobal(DeclPtr<mir::Global> pointer) {
     globals.add(pointer.offset, handle);
     to.globals.add(source->name, handle);
     to.globalOrder.push(handle);
+
+    /*
+     * The globals the **compiler** fills - `supplied.def`'s `BuiltinKind::Written`, which is the
+     * three `commandLine*` cells the process entry stub stores argc, argv and envp into.
+     *
+     * Carried across rather than looked up by name, exactly as the shipping stage's lowering does
+     * it: what a backend needs is the lowered global, the name it happens to have is the library's,
+     * and this is the one place both halves are in hand. A `Supplied` role is not one of these - its
+     * value went into the initializer the moment the declaration existed (`bindSuppliedGlobal`), so
+     * there is nothing left for a backend to write.
+     *
+     * Only a reachable global gets here, and that is the intended answer rather than a gap: a
+     * program that never asks about its arguments leaves the roles null and the stub emits nothing.
+     */
+    for(Size role = 0; role < intrinsic::kBuiltinCount; role++) {
+        if(intrinsic::builtinDef(intrinsic::Builtin(role)).kind != intrinsic::BuiltinKind::Written) {
+            continue;
+        }
+
+        if(program.roles.suppliedGlobal(intrinsic::Builtin(role)) == pointer) to.builtins[role] = handle;
+    }
 }
 
 void Lowering::fillGlobal(DeclPtr<mir::Global> pointer) {
@@ -375,9 +407,11 @@ void Lowering::hintDeclaredRanges(Body& body) {
 
 void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
     auto& body = *ssa[source.ssa];
+    currentLowerFunction = &target;
 
     values.reset();
     blocks.reset();
+    destinations.reset();
     phiOf.reset();
     propertyAccesses.reset();
     virtualPlaces.reset();
@@ -442,11 +476,26 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
      */
     auto closure = source.environment != nullptr;
 
+    /*
+     * A **heap-placed** environment arrives tagged - `funEnvironmentBias`, and D17's one instruction.
+     *
+     * The pair carries the block's address with bit zero set, and this body reads its captures out
+     * of the record that follows the block's header. Both are constants, so what the body needs is
+     * the parameter plus their difference, added once here rather than at every capture: the backend
+     * folds a constant add into the displacement of the load that uses it.
+     */
+    auto bias = funEnvironmentBias(&source - decl);
+    auto entryLower = lower[blocks.getValue(0).unwrap()];
+
     for(U32 i = 0; i < entryBlock->argumentCount(); i++) {
         auto argument = ssa[entryBlock->argumentAt(ssa, i)];
         auto index = closure && i == 0 ? 0u : i + leading;
         auto declared = lower[target.args.get(lower, index)];
-        values.add(argument->id.index, &declared->result - lower);
+
+        auto value = &declared->result - lower;
+        if(closure && i == 0 && bias) value = offsetAddress(*entryLower, value, bias);
+
+        values.add(argument->id.index, value);
     }
 
     /*
@@ -579,6 +628,25 @@ void Lowering::run() {
             auto target = to.addFunction(function->symbol);
             target->source = function->source;
 
+            /*
+             * The two declaration-level backend facts this stage carries - `@x86_legacy_sse` and
+             * `@convention`, and `DeclAttribute::LegacySse` for why a resolver carries one at all.
+             * The x64 backend refuses a SHA-extension body without the first, so
+             * `lib/Digest/Hardware.sha.yana` does not compile at all if that line is missing.
+             *
+             * A convention left unwritten leaves `callType` at the backend's own default rather than
+             * writing one, which is what `Function::convention` being a `Maybe` is for.
+             * `foreignBoundary` is derived rather than declared: it is what a *non-executable* build
+             * of a function entered under a foreign ABI is, and nothing in source declares one yet.
+             */
+            target->legacyVectors = function->legacySse;
+
+            if(function->convention) {
+                target->callType = function->convention.unwrap();
+                target->foreignBoundary = !isExecutableMode(context.settings.mode) &&
+                                          conventionIsForeignAbi(target->callType);
+            }
+
             auto result = manifestNative(layout, function->result);
 
             /*
@@ -648,6 +716,13 @@ void Lowering::run() {
         }
     }
 
+    /*
+     * Every function the loop above declared, which is every function that has a `mir::Function`
+     * behind it - so everything appended past this point is one this stage wrote for itself, and the
+     * tail pass at the end is what it is for.
+     */
+    auto declaredCount = to.functionOrder.size();
+
     for(auto modulePointer: program.modules) {
         auto module = decl[modulePointer];
 
@@ -678,6 +753,34 @@ void Lowering::run() {
                                   place ? place.unwrap() : LowerPtr<LowerValue>(nullptr),
                                   context.settings.optimizeIr);
         }
+    }
+
+    /*
+     * And the functions this stage **wrote** - every teardown, every box release, every witness
+     * accessor and every thunk - which the loop above cannot reach because they do not exist until a
+     * body asks for one.
+     *
+     * They were the one kind of function in the module that never met `lower/lower_pipeline.h`, and
+     * what that cost is visible in one line: `teardown(Maybe(Tree))` opened with
+     * `load; sub 1; cmp_le; select 1, 0; cmp_eq 1` where `total`, reading the same niche of the same
+     * type two functions above it, opened with `cmp_neq %p, 0`. Same layout, same decoder
+     * (`decodeFolded`), and the difference was entirely that one of the two had been folded and the
+     * other had not - `narrowComparison` turns the range test into the inequality and
+     * `isBooleanValued` takes the materialization off it, and neither had ever run here.
+     * `doc/progress/2026-09-08-J33-tree-family.md` recorded this as "two decoders"; there is one, and
+     * this is what was missing under it.
+     *
+     * A tail pass rather than a call beside each `addFunction`, because a generated body may generate
+     * another - a sum's teardown asks for its fields' - and optimizing one mid-emission would be
+     * running a pipeline over a module a later emission still appends to. Every declared function
+     * was added before the first body was lowered, so `declaredCount` is exactly the boundary.
+     *
+     * No return place: a generated body returns nothing or returns a scalar, and the hidden result
+     * pointer is a fact about a *declared* signature.
+     */
+    for(Size i = declaredCount; i < to.functionOrder.size(); i++) {
+        optimizeLowerFunction(lower, to, *lower[to.functionOrder[i]], LowerPtr<LowerValue>(nullptr),
+                              context.settings.optimizeIr);
     }
 }
 

@@ -12,30 +12,24 @@
    Nothing here is a rule about closures. A closure is an owned pair with one interior position that
    refers to somebody's storage - `Shapes::closure` - so it travels through the origin environment
    exactly as a record with a borrowed field does, and what refuses it is what refuses that.
+
+   Under D17 that is one shape rather than a family. A lambda written **at** a position that owns it
+   gets a heap-placed environment and may go anywhere - `ownership/ClosureEscape.yana` - so what is
+   left here is the lambda that was written at a *borrowing* position, bound, and then sent to an
+   owning one: the environment was placed on the frame before anything asked it to leave. The `&`
+   capture below is the other half and is not about escaping at all.
 -}
 
 fn twice(f: (I32) -> I32, v: I32) -> I32 = f(v) + f(v)
 
--- Returned. The value is rooted in a loan of the environment, and a result may not be rooted in
--- this frame's own storage - which is the ordinary rule, with the message saying what a closure
--- would need instead.
-fn returned() -> (I32) -> I32:
-    let n = 7
-    return ((x: I32) -> x + n) :: (I32) -> I32
-
--- The same escape one binding later. A `let` mints its storage from the value, so the local carries
--- the closure's interior position too - and what leaves is therefore rooted in the same loan.
+-- The escape one binding too late. A `let` is a borrowing position, so the environment is a local
+-- of this frame and the value carries the loan of it; the `return` is then the ordinary refusal of
+-- a result rooted in this frame's own storage. Writing the same lambda in the `return` compiles -
+-- that is `ownership/ClosureEscape.yana`'s `returned` - which is what the message says to do.
 fn viaLocal() -> (I32) -> I32:
     let n = 7
     let f = ((x: I32) -> x + n) :: (I32) -> I32
     return f
-
--- And through a **merge**. Both arms capture, so the join is an ordinary one and the origin sets
--- union - which is what makes the answer the same whichever arm ran.
-fn viaBranch(c: Bool) -> (I32) -> I32:
-    let n = 7
-    return (if c: ((x: I32) -> x + n) :: (I32) -> I32
-            else: ((x: I32) -> x * n) :: (I32) -> I32)
 
 {-
    A `&` capture, and the frame writing what it lent.

@@ -1,0 +1,161 @@
+module ResolveTest
+
+let & log: I32 = 0
+
+lens fn logged(step: I32 [shared call], $body: (I32) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type $r
+  local $yielded: $r
+
+bb0:
+  %0: I32 = read copy.trivial (global log)
+  %1: I32 = read copy.trivial (step)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global log) take %2
+  %4: I32 = read copy.trivial (global log)
+  %5: (I32) -> $r [shared call] = read borrow.shared ($body) loan0
+  %6: $r = call inspect %5 borrow.shared %4
+  write.init borrow.unique ($yielded) take %6
+  %8: I32 = read copy.trivial (global log)
+  %9: I32 = const 100
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (global log) take %10
+  %12: $r = read take ($yielded)
+  return take %12
+}
+
+fn twice(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn add(x: I32 [shared call], y: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (y)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn hoisted() -> I32 {
+  local $lens0: I32 [shared call]
+  local seen: I32
+
+bb0:
+  %0: I32 = const 1
+  lens.call logged(I32) borrow.shared %0 -> bb1
+
+bb1(%1: I32 [shared call]) handover(I32 [shared call]):
+  write.init borrow.unique ($lens0) borrow.shared %1
+  %4: I32 = read copy.trivial ($lens0)
+  %5: I32 = call twice borrow.shared %4
+  write.init borrow.unique (seen) take %5
+  %7: I32 = read copy.trivial (seen)
+  return take %7
+}
+
+fn cleanupRan() -> I32 {
+  local seen: I32
+
+bb0:
+  %0: I32 = call hoisted
+  write.init borrow.unique (seen) take %0
+  %2: I32 = read copy.trivial (seen)
+  %3: I32 = read copy.trivial (global log)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn twoInOne() -> I32 {
+  local $lens1: I32 [shared call]
+  local $lens2: I32 [shared call]
+
+bb0:
+  %0: I32 = const 200
+  write.assign borrow.unique (global log) take %0
+  %2: I32 = const 10
+  lens.call logged(I32) borrow.shared %2 -> bb1
+
+bb1(%3: I32 [shared call]) handover(I32 [shared call]):
+  write.init borrow.unique ($lens1) borrow.shared %3
+  %6: I32 = const 10
+  lens.call logged(I32) borrow.shared %6 -> bb2
+
+bb2(%7: I32 [shared call]) handover(I32 [shared call]):
+  write.init borrow.unique ($lens2) borrow.shared %7
+  %10: I32 = read copy.trivial ($lens1)
+  %11: I32 = read copy.trivial ($lens2)
+  %12: I32 = call add borrow.shared %10 borrow.shared %11
+  return take %12
+}
+
+fn nested() -> I32 {
+  local $lens3: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.assign borrow.unique (global log) take %0
+  %2: I32 = const 1
+  lens.call logged(I32) borrow.shared %2 -> bb1
+
+bb1(%3: I32 [shared call]) handover(I32 [shared call]):
+  write.init borrow.unique ($lens3) borrow.shared %3
+  %6: I32 = read copy.trivial ($lens3)
+  %7: I32 = const 2
+  %8: I32 = call add borrow.shared %6 borrow.shared %7
+  %9: I32 = call twice borrow.shared %8
+  return take %9
+}
+
+fn inReturn() -> I32 {
+  local $lens4: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.assign borrow.unique (global log) take %0
+  %2: I32 = const 7
+  lens.call logged(I32) borrow.shared %2 -> bb1
+
+bb1(%3: I32 [shared call]) handover(I32 [shared call]):
+  write.init borrow.unique ($lens4) borrow.shared %3
+  %6: I32 = read copy.trivial ($lens4)
+  return take %6
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+  local d: I32
+
+bb0:
+  %0: I32 = call cleanupRan
+  write.init borrow.unique (a) take %0
+  %2: I32 = call twoInOne
+  write.init borrow.unique (b) take %2
+  %4: I32 = call nested
+  write.init borrow.unique (c) take %4
+  %6: I32 = call inReturn
+  write.init borrow.unique (d) take %6
+  %8: I32 = read copy.trivial (a)
+  %9: I32 = const 1000000
+  %10: I32 = mul inspect %8 inspect %9
+  %11: I32 = read copy.trivial (b)
+  %12: I32 = const 1000
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = add inspect %10 inspect %13
+  %15: I32 = read copy.trivial (c)
+  %16: I32 = const 10
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = add inspect %14 inspect %17
+  %19: I32 = read copy.trivial (d)
+  %20: I32 = add inspect %18 inspect %19
+  return take %20
+}
+
+lens fn logged(I32)(step: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <logged at I32>
+
+entry main

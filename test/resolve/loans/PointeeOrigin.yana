@@ -1,0 +1,69 @@
+{-
+   A borrow taken through a raw pointer, and the two things that carry its provenance.
+
+   # resolver: ownership
+
+   `%source'a` says the address may point into `source`'s storage - the tick goes on the pointee, and
+   `Pointee.yana` next door is the declaration side of it. This is the *body* side: an element of a
+   window is `borrow(values(xs) + i)`, and three separate steps have to keep the relationship
+   or the borrow is one no signature can say whose storage it is.
+
+   - **`values` publishes it.** A pointer read out of a field is a number with no origin, so the
+     signature is what roots it - `lib/Core/Array.native.yana` states that where the body is.
+   - **The arithmetic carries it.** `+(it: %source'a, count: Size) -> %source'a` is one origin
+     at both ends, which `Builder::addDisplace` exists to keep: the offset is applied to the pointer
+     itself rather than through an integer, so the pointee position survives. `op.def`'s
+     `pointerAdd` row now *requires* that spelling, which is what stops the two libraries drifting -
+     `lib/Native/Pointer.yana` wrote a plain `%a` at both ends until 2026-09-06 and every element
+     borrow through it was refused, three files away from the mistake.
+   - **The temporary keeps it.** `xs[i]` is a call whose result is parked in a frame slot so that a
+     projection has a place to name. The slot is this frame's; what is in it was named by the
+     producing signature as somebody else's, so a loan over it is a **reborrow** and not a borrow of
+     this function's own storage - which is what `elementTag` below returns through.
+
+   - **The inliner re-mints it.** A *field* of such a borrow -
+     `borrow((values(xs) + i)).inner`, which `lib/Core/Map`'s three accessors are - is rooted
+     in a temporary the callee made, and that temporary is itself a borrow of what the caller lent.
+     Splicing the body in therefore has to root the copy's loan in the **caller's** lenders;
+     `mintLoans` in `resolve_ssa/opt/inline.cpp` took it to the empty loan instead, which is a borrow
+     rooted nowhere and is what `Editor::replaceAllUses` refuses.
+
+   Counted rather than merely compiled: each `Guard` adds its id when released, so an element that
+   was copied out instead of borrowed would be released twice and show as a number.
+-}
+
+import Native
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+data Cell {inner: Guard, tag: I32}
+
+-- The element, borrowed through the address the window publishes. The result's origin is elided to
+-- the signature's one anonymous group, which `xs: '[Cell]` published.
+fn elementAt(xs: '[Cell], index: Size) -> 'Cell = borrow(values(xs) + index)
+
+-- And through the element the subscript parks in a temporary, which is what needs the loan over that
+-- slot to be a reborrow rather than a borrow of this frame's own storage.
+fn elementTag(xs: '[Cell], index: Size) -> 'I32 = elementAt(xs, index).tag
+
+-- A field of the element borrow itself, which is the shape whose loan the inliner has to carry back
+-- to the caller: `Guard` has a teardown, so a copy here rather than a borrow releases twice.
+fn elementField(xs: '[Cell], index: Size) -> 'Guard = borrow(values(xs) + index).inner
+
+fn main() -> I32:
+    let &cells = [Cell {inner: Guard {id: 1}, tag: 10},
+                  Cell {inner: Guard {id: 2}, tag: 20}] :: [Cell *2]
+
+    let first = elementAt(cells, 0).tag
+    let second = elementTag(cells, 1)
+    let third = elementField(cells, 0).id
+
+    -- 10 + 20 + 1, and then the two guards, released once each where `cells` was last used - which
+    -- is before this reads `trace`. A copied element would be released twice and show as a number.
+    return first + second + third + trace

@@ -1,0 +1,203 @@
+module ResolveTest
+
+fn identity(value: a) -> a = <no body>
+
+fn scale(x: a [shared call], y: a [shared call]) -> a = <no body>
+
+fn smallest(x: a, y: a, z: a) -> a = <no body>
+
+fn bothEqual(p: a [shared call], q: a [shared call], r: b [shared call], s: b [shared call]) -> Bool = <no body>
+
+fn pairUp(x: a, y: b) -> Pair(a, b) = <no body>
+
+fn tagOf'2(value: a [shared call]) -> I32 {
+bb0(%0: a [shared call] guaranteed):
+  %1: I32 trivial = const 7
+  return consume %1
+}
+
+fn double(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 2
+  %4: I32 trivial = mul inspect %2 inspect %3
+  return consume %4
+}
+
+fn doubled(value: a [shared call]) -> I32 {
+bb0(%0: a [shared call] guaranteed):
+  %1: I32 trivial = const 8
+  return consume %1
+}
+
+fn main() -> I32 {
+bb0:
+  %4: %Pair(I32, Bool) address = alloc frame Pair(I32, Bool)
+  %5: I32 trivial = const 1
+  %6: I32 trivial = call identity(I32) consume %5
+  %7: I32 trivial = const 2
+  %8: I32 trivial = const 3
+  %9: I32 trivial = call scale(I32) borrow %7 borrow %8
+  %10: I32 trivial = add inspect %6 inspect %9
+  %11: I32 trivial = const 9
+  %12: I32 trivial = const 4
+  %13: I32 trivial = const 7
+  %14: I32 trivial = call smallest(I32) consume %11 consume %12 consume %13
+  %15: I32 trivial = add inspect %10 inspect %14
+  %16: Bool trivial = const True
+  %17: Bool trivial = const True
+  %18: I32 trivial = const 1
+  %19: I32 trivial = const 1
+  %20: Bool trivial = call bothEqual(I32, Bool) borrow %18 borrow %19 borrow %16 borrow %17
+  branch inspect %20 -> bb3(consume %15) -> bb1(consume %15)
+
+bb1(%0: I32 trivial):
+  %21: I32 trivial = const 0
+  jump -> bb2(consume %21, consume %0)
+
+bb2(%1: I32 trivial, %2: I32 trivial):
+  %22: I32 trivial = add inspect %2 inspect %1
+  %23: Bool trivial = const False
+  %24: I32 trivial = const 20
+  %25: Pair(I32, Bool) trivial = call pairUp(I32, Bool) consume %24 consume %23
+  store inspect %4 consume %25
+  %26: %I32 address = field.addr .first inspect %4
+  %27: I32 trivial = load inspect %26
+  %28: I32 trivial = add inspect %22 inspect %27
+  %29: I32 trivial = const 1
+  %30: I32 trivial = const 2
+  %31: Labelled trivial = aggregate.Labelled consume %29 consume %30
+  %32: I32 trivial = call tagOf'2 [Labelled] borrow %31
+  %33: I32 trivial = add inspect %28 inspect %32
+  %34: I32 trivial = const 1
+  %35: I32 trivial = const 2
+  %36: Labelled trivial = aggregate.Labelled consume %34 consume %35
+  %37: I32 trivial = call doubled [Labelled] borrow %36
+  %38: I32 trivial = add inspect %33 inspect %37
+  return consume %38
+
+bb3(%3: I32 trivial):
+  %39: I32 trivial = const 5
+  jump -> bb2(consume %39, consume %3)
+}
+
+fn identity(I32)(value: I32) -> I32 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32
+  store inspect %1 consume %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn scale(I32)(x: I32 [shared call], y: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %5: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %6: I32 [shared call] guaranteed from{%3} = load inspect %3
+  %7: I32 trivial = call I32.* borrow %5 borrow %6
+  store inspect %4 consume %7
+  %8: I32 [shared call] guaranteed from{%4} = load inspect %4
+  %9: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %10: I32 trivial = call I32.+ borrow %8 borrow %9
+  return consume %10
+}
+
+fn smallest(I32)(x: I32, y: I32, z: I32) -> I32 {
+bb0(%0: I32 trivial, %1: I32 trivial, %2: I32 trivial):
+  %6: %I32 address = alloc frame I32
+  %7: %I32 address = alloc frame I32
+  %8: %I32 address = alloc frame I32
+  store inspect %6 consume %0
+  store inspect %7 consume %1
+  store inspect %8 consume %2
+  %9: I32 [shared call] guaranteed from{%6} = load inspect %6
+  %10: I32 [shared call] guaranteed from{%7} = load inspect %7
+  %11: Bool trivial = call I32.< borrow %9 borrow %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  %12: I32 [shared call] guaranteed from{%7} = load inspect %7
+  %13: I32 [shared call] guaranteed from{%8} = load inspect %8
+  %14: Bool trivial = call I32.< borrow %12 borrow %13
+  branch inspect %14 -> bb9 -> bb7
+
+bb2(%3: I32 trivial):
+  return consume %3
+
+bb3:
+  %15: I32 [shared call] guaranteed from{%6} = load inspect %6
+  %16: I32 [shared call] guaranteed from{%8} = load inspect %8
+  %17: Bool trivial = call I32.< borrow %15 borrow %16
+  branch inspect %17 -> bb6 -> bb4
+
+bb4:
+  %18: I32 trivial = load inspect %8
+  jump -> bb5(consume %18)
+
+bb5(%4: I32 trivial):
+  jump -> bb2(consume %4)
+
+bb6:
+  %19: I32 trivial = load inspect %6
+  jump -> bb5(consume %19)
+
+bb7:
+  %20: I32 trivial = load inspect %8
+  jump -> bb8(consume %20)
+
+bb8(%5: I32 trivial):
+  jump -> bb2(consume %5)
+
+bb9:
+  %21: I32 trivial = load inspect %7
+  jump -> bb8(consume %21)
+}
+
+fn bothEqual(I32, Bool)(p: I32 [shared call], q: I32 [shared call], r: Bool [shared call], s: Bool [shared call]) -> Bool {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: Bool [shared call] guaranteed, %3: Bool [shared call] guaranteed):
+  %5: %I32 address = alloc frame I32 [shared call]
+  %6: %I32 address = alloc frame I32 [shared call]
+  %7: %Bool address = alloc frame Bool [shared call]
+  %8: %Bool address = alloc frame Bool [shared call]
+  store inspect %5 borrow %0
+  store inspect %6 borrow %1
+  store inspect %7 borrow %2
+  store inspect %8 borrow %3
+  %9: I32 [shared call] guaranteed from{%5} = load inspect %5
+  %10: I32 [shared call] guaranteed from{%6} = load inspect %6
+  %11: Bool trivial = call I32.== borrow %9 borrow %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  %12: Bool trivial = const False
+  jump -> bb2(consume %12)
+
+bb2(%4: Bool trivial):
+  return consume %4
+
+bb3:
+  %13: Bool [shared call] guaranteed from{%7} = load inspect %7
+  %14: Bool [shared call] guaranteed from{%8} = load inspect %8
+  %15: Bool trivial = call Bool.== borrow %13 borrow %14
+  jump -> bb2(consume %15)
+}
+
+fn pairUp(I32, Bool)(x: I32, y: Bool) -> Pair(I32, Bool) {
+bb0(%0: I32 trivial, %1: Bool trivial):
+  %2: %I32 address = alloc frame I32
+  %3: %Bool address = alloc frame Bool
+  store inspect %2 consume %0
+  store inspect %3 consume %1
+  %4: I32 trivial = load inspect %2
+  %5: Bool trivial = load inspect %3
+  %6: Pair(I32, Bool) trivial = aggregate.Pair consume %4 consume %5
+  return consume %6
+}
+
+entry main

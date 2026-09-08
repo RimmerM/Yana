@@ -1,0 +1,609 @@
+module ResolveTest
+
+fn held() -> Holder {
+bb0:
+  %0: I32 trivial = const 5
+  %1: I32 trivial = const 7
+  %2: Box(I32) trivial = aggregate.Box consume %0 consume %1
+  %3: Holder trivial = aggregate.Holder consume %2
+  return consume %3
+}
+
+fn heldTag(h: Holder [shared call]) -> I32 {
+bb0(%0: Holder [shared call] guaranteed):
+  %1: %Box(I32) address = field.addr .box inspect %0
+  %2: %I32 address = field.addr .tag inspect %1
+  %3: I32 trivial = load inspect %2
+  %4: %Box(I32) address = field.addr .box inspect %0
+  %5: %I32 address = field.addr .value inspect %4
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = add inspect %3 inspect %6
+  return consume %7
+}
+
+fn none'2() -> Flags {
+bb0:
+  %0: Bool trivial = const False
+  %1: Bool trivial = const False
+  %2: Bool trivial = const False
+  %3: Flags trivial = aggregate.Flags consume %0 consume %1 consume %2
+  return consume %3
+}
+
+fn readOnly() -> Flags {
+bb0:
+  %0: Bool trivial = const True
+  %1: Bool trivial = const False
+  %2: Bool trivial = const False
+  %3: Flags trivial = aggregate.Flags consume %0 consume %1 consume %2
+  return consume %3
+}
+
+fn readWrite() -> Flags {
+bb0:
+  %0: Bool trivial = const True
+  %1: Bool trivial = const True
+  %2: Bool trivial = const False
+  %3: Flags trivial = aggregate.Flags consume %0 consume %1 consume %2
+  return consume %3
+}
+
+fn flagBits(f: Flags [shared call]) -> I32 {
+bb0(%0: Flags [shared call] guaranteed):
+  %10: %Bool address = field.addr .read inspect %0
+  %11: Bool trivial = load inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  %12: I32 trivial = const 0
+  jump -> bb2(consume %12)
+
+bb2(%1: I32 trivial):
+  %13: %Bool address = field.addr .write inspect %0
+  %14: Bool trivial = load inspect %13
+  branch inspect %14 -> bb6(consume %1) -> bb4(consume %1)
+
+bb3:
+  %15: I32 trivial = const 1
+  jump -> bb2(consume %15)
+
+bb4(%2: I32 trivial):
+  %16: I32 trivial = const 0
+  jump -> bb5(consume %16, consume %2)
+
+bb5(%3: I32 trivial, %4: I32 trivial):
+  %17: I32 trivial = add inspect %4 inspect %3
+  %18: %Bool address = field.addr .exec inspect %0
+  %19: Bool trivial = load inspect %18
+  branch inspect %19 -> bb9(consume %17) -> bb7(consume %17)
+
+bb6(%5: I32 trivial):
+  %20: I32 trivial = const 2
+  jump -> bb5(consume %20, consume %5)
+
+bb7(%6: I32 trivial):
+  %21: I32 trivial = const 0
+  jump -> bb8(consume %21, consume %6)
+
+bb8(%7: I32 trivial, %8: I32 trivial):
+  %22: I32 trivial = add inspect %8 inspect %7
+  return consume %22
+
+bb9(%9: I32 trivial):
+  %23: I32 trivial = const 4
+  jump -> bb8(consume %23, consume %9)
+}
+
+fn withExec(f: Flags [shared call]) -> Flags {
+bb0(%0: Flags [shared call] guaranteed):
+  %1: %Flags address = alloc frame Flags
+  %2: Flags trivial = copy inspect %0
+  store inspect %1 consume %2
+  %3: Bool trivial = const True
+  %4: %Bool address = field.addr .exec inspect %1
+  store inspect %4 consume %3
+  %5: Flags trivial = copy inspect %1
+  return consume %5
+}
+
+fn moveTo(it: Rect [shared call], to: Vec2 [shared call]) -> Rect {
+bb0(%0: Rect [shared call] guaranteed, %1: Vec2 [shared call] guaranteed):
+  %2: %Rect address = alloc frame Rect
+  %3: Rect trivial = copy inspect %0
+  store inspect %2 consume %3
+  %4: Vec2 trivial = copy inspect %1
+  %5: %Vec2 address = field.addr .origin inspect %2
+  store inspect %5 consume %4
+  %6: Rect trivial = copy inspect %2
+  return consume %6
+}
+
+fn translateX(it: Rect [shared call], by: I32 [shared call]) -> Rect {
+bb0(%0: Rect [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Rect address = alloc frame Rect
+  store inspect %2 borrow %1
+  %4: Rect trivial = copy inspect %0
+  store inspect %3 consume %4
+  %5: %Vec2 address = field.addr .origin inspect %0
+  %6: %I32 address = field.addr .x inspect %5
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = load inspect %2
+  %9: I32 trivial = add inspect %7 inspect %8
+  %10: %Vec2 address = field.addr .origin inspect %3
+  %11: %I32 address = field.addr .x inspect %10
+  store inspect %11 consume %9
+  %12: Rect trivial = copy inspect %3
+  return consume %12
+}
+
+fn corners(it: Rect [shared call]) -> Rect {
+bb0(%0: Rect [shared call] guaranteed):
+  %1: %Rect address = alloc frame Rect
+  %2: Rect trivial = copy inspect %0
+  store inspect %1 consume %2
+  %3: I32 trivial = const 100
+  %4: I32 trivial = const 200
+  %5: %Vec2 address = field.addr .origin inspect %1
+  %6: %I32 address = field.addr .x inspect %5
+  store inspect %6 consume %3
+  %7: %Vec2 address = field.addr .origin inspect %1
+  %8: %I32 address = field.addr .y inspect %7
+  store inspect %8 consume %4
+  %9: Rect trivial = copy inspect %1
+  return consume %9
+}
+
+fn deeper() -> Rect {
+bb0:
+  %0: %Rect address = alloc frame Rect
+  %1: Rect trivial = call makeRect
+  store inspect %0 consume %1
+  %2: I32 trivial = const 7
+  %3: I32 trivial = const 8
+  %4: %Vec2 address = field.addr .origin inspect %0
+  %5: %I32 address = field.addr .x inspect %4
+  store inspect %5 consume %2
+  %6: %Vec2 address = field.addr .size inspect %0
+  %7: %I32 address = field.addr .y inspect %6
+  store inspect %7 consume %3
+  %8: Rect trivial = copy inspect %0
+  return consume %8
+}
+
+fn makeRect() -> Rect {
+bb0:
+  %0: I32 trivial = const 1
+  %1: I32 trivial = const 2
+  %2: Vec2 trivial = aggregate.Vec2 consume %0 consume %1
+  %3: I32 trivial = const 3
+  %4: I32 trivial = const 4
+  %5: Vec2 trivial = aggregate.Vec2 consume %3 consume %4
+  %6: Rect trivial = aggregate.Rect consume %2 consume %5
+  return consume %6
+}
+
+fn withX(v: Vec2 [shared call], x: I32 [shared call]) -> Vec2 {
+bb0(%0: Vec2 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Vec2 address = alloc frame Vec2
+  store inspect %2 borrow %1
+  %4: Vec2 trivial = copy inspect %0
+  store inspect %3 consume %4
+  %5: I32 trivial = load inspect %2
+  %6: %I32 address = field.addr .x inspect %3
+  store inspect %6 consume %5
+  %7: Vec2 trivial = copy inspect %3
+  return consume %7
+}
+
+fn movedExec(f: Flags) -> Flags {
+bb0(%0: Flags trivial):
+  %1: %Flags address = alloc frame Flags
+  %2: %Flags address = alloc frame Flags
+  store inspect %1 consume %0
+  %3: Bool trivial = const True
+  %4: Flags trivial = copy inspect %1
+  store inspect %2 consume %4
+  %5: %Bool address = field.addr .exec inspect %2
+  store inspect %5 consume %3
+  %6: Flags trivial = copy inspect %2
+  return consume %6
+}
+
+fn movedTo(it: Rect, to: Vec2 [shared call]) -> Rect {
+bb0(%0: Rect trivial, %1: Vec2 [shared call] guaranteed):
+  %2: %Rect address = alloc frame Rect
+  %3: %Rect address = alloc frame Rect
+  store inspect %2 consume %0
+  %4: Vec2 trivial = copy inspect %1
+  %5: Rect trivial = copy inspect %2
+  store inspect %3 consume %5
+  %6: %Vec2 address = field.addr .origin inspect %3
+  store inspect %6 consume %4
+  %7: Rect trivial = copy inspect %3
+  return consume %7
+}
+
+fn bumpX(v: Vec2) -> Vec2 {
+bb0(%0: Vec2 trivial):
+  %1: %Vec2 address = alloc frame Vec2
+  %2: %Vec2 address = alloc frame Vec2
+  store inspect %1 consume %0
+  %3: %I32 address = field.addr .x inspect %1
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = const 1
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: Vec2 trivial = copy inspect %1
+  store inspect %2 consume %7
+  %8: %I32 address = field.addr .x inspect %2
+  store inspect %8 consume %6
+  %9: Vec2 trivial = copy inspect %2
+  return consume %9
+}
+
+fn movedCorners(it: Rect) -> Rect {
+bb0(%0: Rect trivial):
+  %1: %Rect address = alloc frame Rect
+  %2: %Rect address = alloc frame Rect
+  store inspect %1 consume %0
+  %3: %Vec2 address = field.addr .origin inspect %1
+  %4: %I32 address = field.addr .x inspect %3
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = const 10
+  %7: I32 trivial = add inspect %5 inspect %6
+  %8: I32 trivial = const 8
+  %9: Rect trivial = copy inspect %1
+  store inspect %2 consume %9
+  %10: %Vec2 address = field.addr .origin inspect %2
+  %11: %I32 address = field.addr .x inspect %10
+  store inspect %11 consume %7
+  %12: %Vec2 address = field.addr .size inspect %2
+  %13: %I32 address = field.addr .y inspect %12
+  store inspect %13 consume %8
+  %14: Rect trivial = copy inspect %2
+  return consume %14
+}
+
+fn movedTemporary() -> Rect {
+bb0:
+  %0: %Rect address = alloc frame Rect
+  %1: Rect trivial = call makeRect
+  %2: I32 trivial = const 5
+  store inspect %0 consume %1
+  %3: %Vec2 address = field.addr .origin inspect %0
+  %4: %I32 address = field.addr .y inspect %3
+  store inspect %4 consume %2
+  %5: Rect trivial = copy inspect %0
+  return consume %5
+}
+
+fn movedWithX(v: Vec2, x: I32 [shared call]) -> Vec2 {
+bb0(%0: Vec2 trivial, %1: I32 [shared call] guaranteed):
+  %2: %Vec2 address = alloc frame Vec2
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %Vec2 address = alloc frame Vec2
+  store inspect %2 consume %0
+  store inspect %3 borrow %1
+  %5: I32 trivial = load inspect %3
+  %6: Vec2 trivial = copy inspect %2
+  store inspect %4 consume %6
+  %7: %I32 address = field.addr .x inspect %4
+  store inspect %7 consume %5
+  %8: Vec2 trivial = copy inspect %4
+  return consume %8
+}
+
+fn tupleUpdate(t: {a: I32, b: I32} [shared call]) -> I32 {
+bb0(%0: {a: I32, b: I32} [shared call] guaranteed):
+  %1: %{a: I32, b: I32} address = alloc frame {a: I32, b: I32}
+  %2: %{a: I32, b: I32} address = alloc frame {a: I32, b: I32}
+  %3: {a: I32, b: I32} trivial = copy inspect %0
+  store inspect %1 consume %3
+  %4: I32 trivial = const 9
+  %5: %I32 address = field.addr .b inspect %1
+  store inspect %5 consume %4
+  %6: {a: I32, b: I32} trivial = copy inspect %1
+  store inspect %2 consume %6
+  %7: %I32 address = field.addr .a inspect %2
+  %8: I32 trivial = load inspect %7
+  %9: %I32 address = field.addr .b inspect %2
+  %10: I32 trivial = load inspect %9
+  %11: I32 trivial = add inspect %8 inspect %10
+  return consume %11
+}
+
+fn oCreat() -> OpenFlags {
+bb0:
+  %0: I32 trivial = const 64
+  %1: OpenFlags trivial = aggregate.OpenFlags consume %0
+  return consume %1
+}
+
+fn flagValue(f: OpenFlags [shared call]) -> I32 {
+bb0(%0: OpenFlags [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = field.addr .OpenFlags inspect %0
+  %4: I32 trivial = load inspect %3
+  store inspect %2 consume %4
+  %5: I32 trivial = load inspect %2
+  jump -> bb1(consume %5)
+
+bb1(%1: I32 trivial):
+  return consume %1
+}
+
+fn wrapped() -> Wrapper {
+bb0:
+  %0: I32 trivial = const 7
+  %1: Inner trivial = aggregate.Inner consume %0
+  %2: Wrapper trivial = aggregate.Wrapper consume %1
+  return consume %2
+}
+
+fn unwrapped(w: Wrapper [shared call]) -> I32 {
+bb0(%0: Wrapper [shared call] guaranteed):
+  %2: %Inner address = alloc frame Inner
+  %3: %Inner address = field.addr .Wrapper inspect %0
+  %4: Inner trivial = copy inspect %3
+  store inspect %2 consume %4
+  %5: %I32 address = field.addr .value inspect %2
+  %6: I32 trivial = load inspect %5
+  jump -> bb1(consume %6)
+
+bb1(%1: I32 trivial):
+  return consume %1
+}
+
+fn nullHandle() -> Handle {
+bb0:
+  jump -> bb1
+
+bb1:
+  %1: Size trivial = const 0
+  %2: %U8 trivial = call Size.%a.bitcast(U8) borrow %1
+  jump -> bb2(consume %2)
+
+bb2(%0: %U8 trivial):
+  %3: Handle trivial = aggregate.Handle consume %0
+  return consume %3
+}
+
+fn handleAddress(h: Handle [shared call]) -> Size {
+bb0(%0: Handle [shared call] guaranteed):
+  %2: %%U8 address = alloc frame %U8
+  %3: %%U8 address = field.addr .Handle inspect %0
+  %4: %U8 trivial = load inspect %3
+  store inspect %2 consume %4
+  %5: %U8 trivial = load inspect %2
+  %6: Size trivial = bitcast inspect %5
+  jump -> bb1(consume %6)
+
+bb1(%1: Size trivial):
+  return consume %1
+}
+
+fn boxed(p: %I64 [shared call]) -> Boxed(I64) {
+bb0(%0: %I64 [shared call] guaranteed):
+  %1: %%I64 address = alloc frame %I64 [shared call]
+  store inspect %1 borrow %0
+  %2: %I64 trivial = load inspect %1
+  %3: Boxed(I64) trivial = aggregate.Boxed consume %2
+  return consume %3
+}
+
+fn boxedValue(b: Boxed(I64) [shared call]) -> I64 {
+bb0(%0: Boxed(I64) [shared call] guaranteed):
+  %2: %%I64 address = alloc frame %I64
+  %3: %%I64 address = field.addr .Boxed inspect %0
+  %4: %I64 trivial = load inspect %3
+  store inspect %2 consume %4
+  %5: %I64 trivial = load inspect %2
+  %6: I64 trivial = load inspect %5
+  jump -> bb1(consume %6)
+
+bb1(%1: I64 trivial):
+  return consume %1
+}
+
+fn directionValue(d: Direction [shared call]) -> I32 {
+bb0(%0: Direction [shared call] guaranteed):
+  %1: %Direction address = alloc frame Direction [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 1, 1 -> 2] inspect %3
+  return consume %4
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I64 address = alloc frame I64
+  %1: %Rect address = alloc frame Rect
+  %2: %Rect address = alloc frame Rect
+  %3: %Vec2 address = alloc frame Vec2
+  %4: %Rect address = alloc frame Rect
+  %5: %Rect address = alloc frame Rect
+  %6: %Rect address = alloc frame Rect
+  %7: %Rect address = alloc frame Rect
+  %8: %Vec2 address = alloc frame Vec2
+  %9: %I32 address = alloc frame I32
+  %10: %Rect address = alloc frame Rect
+  %11: %Rect address = alloc frame Rect
+  %12: %Rect address = alloc frame Rect
+  %13: %Rect address = alloc frame Rect
+  %14: %Rect address = alloc frame Rect
+  %15: %Rect address = alloc frame Rect
+  %16: %Rect address = alloc frame Rect
+  %17: %Vec2 address = alloc frame Vec2
+  %18: %I32 address = alloc frame I32
+  %19: I64 trivial = const 11
+  store inspect %0 consume %19
+  %20: I32 trivial = const 1
+  %21: I32 trivial = const 2
+  %22: Vec2 trivial = aggregate.Vec2 consume %20 consume %21
+  %23: I32 trivial = const 3
+  %24: I32 trivial = const 4
+  %25: Vec2 trivial = aggregate.Vec2 consume %23 consume %24
+  %26: Rect trivial = aggregate.Rect consume %22 consume %25
+  store inspect %1 consume %26
+  %27: Flags trivial = call readWrite
+  %28: Flags trivial = call movedExec consume %27
+  %29: I32 trivial = call flagBits borrow %28
+  %30: Rect trivial = call makeRect
+  %31: I32 trivial = const 8
+  %32: I32 trivial = const 9
+  %33: Vec2 trivial = aggregate.Vec2 consume %31 consume %32
+  %34: Rect trivial = call movedTo consume %30 borrow %33
+  store inspect %2 consume %34
+  %35: %Vec2 address = field.addr .origin inspect %2
+  %36: %I32 address = field.addr .y inspect %35
+  %37: I32 trivial = load inspect %36
+  %38: I32 trivial = add inspect %29 inspect %37
+  %39: I32 trivial = const 41
+  %40: I32 trivial = const 0
+  %41: Vec2 trivial = aggregate.Vec2 consume %39 consume %40
+  %42: Vec2 trivial = call bumpX consume %41
+  store inspect %3 consume %42
+  %43: %I32 address = field.addr .x inspect %3
+  %44: I32 trivial = load inspect %43
+  %45: I32 trivial = add inspect %38 inspect %44
+  %46: Rect trivial = call makeRect
+  %47: Rect trivial = call movedCorners consume %46
+  store inspect %4 consume %47
+  %48: %Vec2 address = field.addr .origin inspect %4
+  %49: %I32 address = field.addr .x inspect %48
+  %50: I32 trivial = load inspect %49
+  %51: I32 trivial = add inspect %45 inspect %50
+  %52: Rect trivial = call makeRect
+  %53: Rect trivial = call movedCorners consume %52
+  store inspect %5 consume %53
+  %54: %Vec2 address = field.addr .size inspect %5
+  %55: %I32 address = field.addr .y inspect %54
+  %56: I32 trivial = load inspect %55
+  %57: I32 trivial = add inspect %51 inspect %56
+  %58: Rect trivial = call movedTemporary
+  store inspect %6 consume %58
+  %59: %Vec2 address = field.addr .origin inspect %6
+  %60: %I32 address = field.addr .y inspect %59
+  %61: I32 trivial = load inspect %60
+  %62: I32 trivial = add inspect %57 inspect %61
+  %63: Rect trivial = call movedTemporary
+  store inspect %7 consume %63
+  %64: %Vec2 address = field.addr .origin inspect %7
+  %65: %I32 address = field.addr .x inspect %64
+  %66: I32 trivial = load inspect %65
+  %67: I32 trivial = add inspect %62 inspect %66
+  %68: I32 trivial = const 0
+  %69: I32 trivial = const 0
+  %70: Vec2 trivial = aggregate.Vec2 consume %68 consume %69
+  %71: I32 trivial = const 6
+  %72: Vec2 trivial = call movedWithX consume %70 borrow %71
+  store inspect %8 consume %72
+  %73: %I32 address = field.addr .x inspect %8
+  %74: I32 trivial = load inspect %73
+  %75: I32 trivial = add inspect %67 inspect %74
+  store inspect %9 consume %75
+  %76: I32 trivial = load inspect %9
+  %77: Flags trivial = call none'2
+  %78: I32 trivial = call flagBits borrow %77
+  %79: I32 trivial = add inspect %76 inspect %78
+  %80: Flags trivial = call readOnly
+  %81: I32 trivial = call flagBits borrow %80
+  %82: I32 trivial = add inspect %79 inspect %81
+  %83: Flags trivial = call readWrite
+  %84: Flags trivial = call withExec borrow %83
+  %85: I32 trivial = call flagBits borrow %84
+  %86: I32 trivial = add inspect %82 inspect %85
+  %87: Rect trivial = copy inspect %1
+  %88: I32 trivial = const 5
+  %89: Rect trivial = call translateX borrow %87 borrow %88
+  store inspect %10 consume %89
+  %90: %Vec2 address = field.addr .origin inspect %10
+  %91: %I32 address = field.addr .x inspect %90
+  %92: I32 trivial = load inspect %91
+  %93: I32 trivial = add inspect %86 inspect %92
+  %94: Rect trivial = copy inspect %1
+  %95: I32 trivial = const 8
+  %96: I32 trivial = const 9
+  %97: Vec2 trivial = aggregate.Vec2 consume %95 consume %96
+  %98: Rect trivial = call moveTo borrow %94 borrow %97
+  store inspect %11 consume %98
+  %99: %Vec2 address = field.addr .origin inspect %11
+  %100: %I32 address = field.addr .y inspect %99
+  %101: I32 trivial = load inspect %100
+  %102: I32 trivial = add inspect %93 inspect %101
+  %103: I32 trivial = const 1
+  %104: I32 trivial = const 2
+  %105: {a: I32, b: I32} trivial = aggregate. consume %103 consume %104
+  %106: I32 trivial = call tupleUpdate borrow %105
+  %107: I32 trivial = add inspect %102 inspect %106
+  %108: Rect trivial = copy inspect %1
+  %109: Rect trivial = call corners borrow %108
+  store inspect %12 consume %109
+  %110: %Vec2 address = field.addr .origin inspect %12
+  %111: %I32 address = field.addr .x inspect %110
+  %112: I32 trivial = load inspect %111
+  %113: I32 trivial = add inspect %107 inspect %112
+  %114: Rect trivial = copy inspect %1
+  %115: Rect trivial = call corners borrow %114
+  store inspect %13 consume %115
+  %116: %Vec2 address = field.addr .origin inspect %13
+  %117: %I32 address = field.addr .y inspect %116
+  %118: I32 trivial = load inspect %117
+  %119: I32 trivial = add inspect %113 inspect %118
+  %120: Rect trivial = call deeper
+  store inspect %14 consume %120
+  %121: %Vec2 address = field.addr .origin inspect %14
+  %122: %I32 address = field.addr .x inspect %121
+  %123: I32 trivial = load inspect %122
+  %124: I32 trivial = add inspect %119 inspect %123
+  %125: Rect trivial = call deeper
+  store inspect %15 consume %125
+  %126: %Vec2 address = field.addr .size inspect %15
+  %127: %I32 address = field.addr .y inspect %126
+  %128: I32 trivial = load inspect %127
+  %129: I32 trivial = add inspect %124 inspect %128
+  %130: Rect trivial = call deeper
+  store inspect %16 consume %130
+  %131: %Vec2 address = field.addr .origin inspect %16
+  %132: %I32 address = field.addr .y inspect %131
+  %133: I32 trivial = load inspect %132
+  %134: I32 trivial = add inspect %129 inspect %133
+  %135: I32 trivial = const 0
+  %136: I32 trivial = const 0
+  %137: Vec2 trivial = aggregate.Vec2 consume %135 consume %136
+  %138: I32 trivial = const 6
+  %139: Vec2 trivial = call withX borrow %137 borrow %138
+  store inspect %17 consume %139
+  %140: %I32 address = field.addr .x inspect %17
+  %141: I32 trivial = load inspect %140
+  %142: I32 trivial = add inspect %134 inspect %141
+  %143: OpenFlags trivial = call oCreat
+  %144: I32 trivial = call flagValue borrow %143
+  %145: I32 trivial = add inspect %142 inspect %144
+  %146: Wrapper trivial = call wrapped
+  %147: I32 trivial = call unwrapped borrow %146
+  %148: I32 trivial = add inspect %145 inspect %147
+  %149: Direction trivial = const South
+  %150: I32 trivial = call directionValue borrow %149
+  %151: I32 trivial = add inspect %148 inspect %150
+  %152: Holder trivial = call held
+  %153: I32 trivial = call heldTag borrow %152
+  %154: I32 trivial = add inspect %151 inspect %153
+  store inspect %18 consume %154
+  %155: I32 trivial = load inspect %18
+  %156: Handle trivial = call nullHandle
+  %157: Size trivial = call handleAddress borrow %156
+  %158: I32 trivial = convert inspect %157
+  %159: I32 trivial = add inspect %155 inspect %158
+  %160: I64 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %161: %I64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %160
+  %162: Boxed(I64) trivial = call boxed borrow %161
+  %163: I64 trivial = call boxedValue borrow %162
+  %164: I32 trivial = convert inspect %163
+  %165: I32 trivial = add inspect %159 inspect %164
+  return consume %165
+}
+
+entry main

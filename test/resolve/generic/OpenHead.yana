@@ -1,0 +1,56 @@
+{-
+   A requirement whose head names a constructor and this body's *own* type variable - inventory D13,
+   and `compiler/resolve_mir/select.h`'s `selectOpenInstance`.
+
+   `fn (Ord(a)) firstBelow(xs: [a], i: Size, j: Size) -> Bool = xs[i] < xs[j]` is the two-line
+   reproduction this came from. `xs[i]` needs `Index(Array(a), ?, ?)`, whose key `?` and element `?`
+   are what the functional dependency promises rather than what the arguments say - so they are read
+   off the instance that answers, and the deciding position is `Array(a)` with `a` this body's. The
+   rule before D13 was that a body may consult the instance table only for a *concrete* head, so the
+   two positions stayed open and the call was refused with "no argument decides what v is". The rule
+   now is that the outermost constructor is what has to be concrete: `Array(a)` names `Array`, and a
+   head matching it with `a` free matches it at every type a specialization binds.
+
+   The bodies below say it in the fixture's own types, so that what is asserted is the rule rather
+   than the library's `Index`. The last of them is the half that is not about matching at all: the
+   answering instance carries a context of its own, and what discharges it is the *enclosing*
+   signature having promised the same thing, which no instance table could.
+
+   A bare variable head - `Peek(a, ?)` - is still refused, and `Reject.OpenHead.yana` is where that
+   and the two heads that disagree are asserted.
+-}
+
+data Box(a) {value: a}
+data Pair(a) {left: a, right: a}
+
+class Tag(a):
+    fn tag(x: a) -> I32
+
+instance Tag(I32):
+    fn tag(x: I32) -> I32 = x
+
+-- A dependency whose determined position nothing in the member's signature mentions, which is what
+-- makes it the question: only the instance can say what `v` is.
+class Peek(c -> v):
+    fn size(self: c) -> I32
+
+instance Peek(Box(a), a):
+    fn size(self: Box(a)) -> I32 = 1
+
+-- The open head, answered from the table. `Peek(Box(a), ?)` at this body's `a`.
+fn (Tag(a)) boxSize(b: Box(a)) -> I32 = size(b)
+
+-- The same question where the answering instance has a context, discharged from what this signature
+-- promised rather than from an instance: `Tag(a)` of a body's own `a` is in no table.
+class Sized(c -> e):
+    fn measure(self: c) -> I32
+
+instance (Tag(a)) Sized(Pair(a), a):
+    fn measure(self: Pair(a)) -> I32 = tag(self.left) + tag(self.right)
+
+fn (Tag(a)) measured(p: Pair(a)) -> I32 = measure(p)
+
+fn main() -> I32:
+    let b = Box {value: 7}
+    let p = Pair {left: 3, right: 4}
+    return boxSize(b) + measured(p)

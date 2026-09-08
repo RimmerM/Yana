@@ -23,6 +23,12 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
+fn values(I32)(%self: ArrayView(I32)) -> %I32 {
+  b0:
+    %v1 = load %self@ArrayView.items : %I32
+    ret %v1
+}
+
 fn Reclaim(Array(a)).reclaim(I32)(%value: Array(I32)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
@@ -168,12 +174,6 @@ fn abortProcess() -> () {
   b0:
     call exitProcess, 134
     ret
-}
-
-fn values(I32)(%self: ArrayView(I32)) -> %I32 {
-  b0:
-    %v1 = load %self@ArrayView.items : %I32
-    ret %v1
 }
 
 fn releaseRun(I32)(%self: Run(I32)) -> () {

@@ -1,0 +1,64 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define fastcc i32 @dispatch(i32 %v) {
+  br label %start
+
+start:                                            ; preds = %0
+  switch i32 %v, label %other [
+    i32 0, label %a
+    i32 1, label %b
+    i32 2, label %c
+    i32 7, label %d
+    i32 100, label %e
+  ]
+
+a:                                                ; preds = %start
+  ret i32 10
+
+b:                                                ; preds = %start
+  ret i32 20
+
+c:                                                ; preds = %start
+  ret i32 30
+
+d:                                                ; preds = %start
+  ret i32 40
+
+e:                                                ; preds = %start
+  ret i32 50
+
+other:                                            ; preds = %start
+  ret i32 0
+}
+
+define fastcc i64 @joined(i64 %v) {
+  br label %start
+
+start:                                            ; preds = %0
+  switch i64 %v, label %other [
+    i64 -1, label %a
+    i64 0, label %b
+    i64 1, label %c
+  ]
+
+a:                                                ; preds = %start
+  %xa = add i64 %v, 1
+  br label %end
+
+b:                                                ; preds = %start
+  %xb = add i64 %v, 2
+  br label %end
+
+c:                                                ; preds = %start
+  %xc = add i64 %v, 3
+  br label %end
+
+other:                                            ; preds = %start
+  %xo = add i64 %v, 4
+  br label %end
+
+end:                                              ; preds = %a, %b, %c, %other
+  %1 = phi i64 [ %xa, %a ], [ %xb, %b ], [ %xc, %c ], [ %xo, %other ]
+  ret i64 %1
+}

@@ -137,6 +137,34 @@ mapMemory<complex>(%size: I64): Ptr {
   }
 }
 
+initHeap<complex>() {
+  b_0 {
+    %result = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0: I64
+    %v_1 = cmp_ilt %result, 0: I32
+    %v_2 = bitcast 0: Ptr
+    %v_3 = bitcast %result: Ptr
+    %region = select %v_1, %v_2, %v_3: Ptr
+    %v_4 = bitcast %region: I64
+    %v_5 = cmp_eq %v_4, 0: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    setpattern %region, 256, 0
+    store @heapFree, %region, 8
+    %v_8 = add %region, 256: Ptr
+    store @heapNext, %v_8, 8
+    %v_9 = add %region, 4194304: Ptr
+    store @heapLimit, %v_9, 8
+    store @heapRegionNext, 8388608, 8
+    ret 
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
 growHeap<complex>(%needed: I64): I32 {
   b_0 {
     %v_1 = loads @heapRegionNext, 8: I64
@@ -213,119 +241,90 @@ allocateHeap<complex>(%size: I64): Ptr {
   }
 
   b_4 {
-    %result = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0: I64
-    %v_7 = cmp_ilt %result, 0: I32
-    %v_8 = bitcast 0: Ptr
-    %v_9 = bitcast %result: Ptr
-    %region = select %v_7, %v_8, %v_9: Ptr
-    %v_10 = bitcast %region: I64
-    %v_11 = cmp_eq %v_10, 0: I32
-    je %v_11, b_12, b_13
+    call_complex initHeap
+    %v_7 = load @heapFree, 8: Ptr
+    %v_8 = bitcast %v_7: I64
+    %v_9 = cmp_eq %v_8, 0: I32
+    je %v_9, b_10, b_11
   }
 
-  b_13 {
-    setpattern %region, 256, 0
-    store @heapFree, %region, 8
-    %v_14 = add %region, 256: Ptr
-    store @heapNext, %v_14, 8
-    %v_15 = add %region, 4194304: Ptr
-    store @heapLimit, %v_15, 8
-    store @heapRegionNext, 8388608, 8
-    jmp b_16
-  }
-
-  b_12 {
-    jmp b_16
-  }
-
-  b_16 {
-    %v_17 = load @heapFree, 8: Ptr
-    %v_18 = bitcast %v_17: I64
-    %v_19 = cmp_eq %v_18, 0: I32
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
+  b_11 {
     jmp b_6
   }
 
   b_6 {
-    %v_22 = add %size, 8: I64
-    jmp b_23
+    %v_12 = add %size, 8: I64
+    jmp b_13
   }
 
-  b_23 {
-    %v_24 = phi [b_6, 16], [b_25, %v_26]: I64
-    %v_27 = phi [b_6, 0], [b_25, %v_28]: I64
-    %v_29 = cmp_ilt %v_24, %v_22: I32
-    je %v_29, b_25, b_30
-  }
-
-  b_30 {
-    %v_31 = cmp_ige %v_27, 32: I32
-    je %v_31, b_32, b_33
-  }
-
-  b_33 {
-    %v_34 = load @heapFree, 8: Ptr
-    %v_35 = shl %v_27, 3: I64
-    %v_36 = add %v_34, %v_35: Ptr
-    %v_37 = load %v_36, 8: Ptr
-    %v_38 = bitcast %v_37: I64
-    %v_39 = cmp_eq %v_38, 0: I32
-    je %v_39, b_40, b_41
-  }
-
-  b_40 {
-    %v_42 = shl 16, %v_27: I64
-    %v_43 = load @heapNext, 8: Ptr
-    %v_44 = add %v_43, %v_42: Ptr
-    %v_45 = load @heapLimit, 8: Ptr
-    %v_46 = cmp_gt %v_44, %v_45: I32
-    je %v_46, b_47, b_48
-  }
-
-  b_48 {
-    jmp b_49
-  }
-
-  b_47 {
-    %v_50 = call_complex growHeap, %v_42: I32
-    je %v_50, b_51, b_32
-  }
-
-  b_51 {
-    jmp b_49
-  }
-
-  b_49 {
-    %block = load @heapNext, 8: Ptr
-    %v_52 = add %block, %v_42: Ptr
-    store @heapNext, %v_52, 8
-    store %block, %v_27, 8
-    %v_53 = add %block, 8: Ptr
-    ret %v_53
-  }
-
-  b_32 {
-    %v_54 = bitcast 0: Ptr
-    ret %v_54
-  }
-
-  b_41 {
-    %v_55 = load %v_37, 8: Ptr
-    store %v_36, %v_55, 8
-    ret %v_37
-  }
-
-  b_25 {
-    %v_26 = add %v_24, %v_24: I64
-    %v_28 = add %v_27, 1: I64
-    jmp b_23
+  b_13 {
+    %v_14 = phi [b_6, 16], [b_15, %v_16]: I64
+    %v_17 = phi [b_6, 0], [b_15, %v_18]: I64
+    %v_19 = cmp_ilt %v_14, %v_12: I32
+    je %v_19, b_15, b_20
   }
 
   b_20 {
-    ret %v_8
+    %v_21 = cmp_ige %v_17, 32: I32
+    je %v_21, b_10, b_22
+  }
+
+  b_22 {
+    %v_23 = load @heapFree, 8: Ptr
+    %v_24 = shl %v_17, 3: I64
+    %v_25 = add %v_23, %v_24: Ptr
+    %v_26 = load %v_25, 8: Ptr
+    %v_27 = bitcast %v_26: I64
+    %v_28 = cmp_eq %v_27, 0: I32
+    je %v_28, b_29, b_30
+  }
+
+  b_29 {
+    %v_31 = shl 16, %v_17: I64
+    %v_32 = load @heapNext, 8: Ptr
+    %v_33 = add %v_32, %v_31: Ptr
+    %v_34 = load @heapLimit, 8: Ptr
+    %v_35 = cmp_gt %v_33, %v_34: I32
+    je %v_35, b_36, b_37
+  }
+
+  b_37 {
+    jmp b_38
+  }
+
+  b_36 {
+    %v_39 = call_complex growHeap, %v_31: I32
+    je %v_39, b_40, b_10
+  }
+
+  b_40 {
+    jmp b_38
+  }
+
+  b_38 {
+    %block = load @heapNext, 8: Ptr
+    %v_41 = add %block, %v_31: Ptr
+    store @heapNext, %v_41, 8
+    store %block, %v_17, 8
+    %v_42 = add %block, 8: Ptr
+    ret %v_42
+  }
+
+  b_10 {
+    %v_43 = bitcast 0: Ptr
+    ret %v_43
+  }
+
+  b_30 {
+    %v_44 = load %v_26, 8: Ptr
+    store %v_25, %v_44, 8
+    ret %v_26
+  }
+
+  b_15 {
+    %v_16 = add %v_14, %v_14: I64
+    %v_18 = add %v_17, 1: I64
+    jmp b_13
   }
 }
 

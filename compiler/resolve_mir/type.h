@@ -145,6 +145,30 @@ inline bool hasMachineWidth(DeclBase base, DeclPtr<Type> type) {
 }
 
 /*
+ * Whether an integer's bytes are a set this operation can name - `ByteSwap`'s family.
+ *
+ * `hasMachineWidth` with sixteen added, and the difference between the two questions is what each is
+ * about. A count reads the *value*, so it needs a width the machine counts in; a reversal reads the
+ * value's **bytes**, and a sixteen-bit value has two of them however wide the register holding it is.
+ *
+ * What is out is out for the same reason in both: `U8` has one byte and nothing to exchange,
+ * `WideInt` is fifty-three bits and therefore not a whole number of bytes of anything, and a
+ * `CodeUnit`'s two ends are eight and sixteen - so one target would have an answer and the other
+ * would not, which is not something an instance set may depend on. The target's *word* is in, both
+ * of whose ends have the instruction.
+ */
+inline bool hasByteOrder(DeclBase base, DeclPtr<Type> type) {
+    auto canonical = canonicalInt(base, type);
+    if(!canonical || base[canonical]->kind != Type::Int) return false;
+
+    auto& integer = *(IntType*)base[canonical];
+    if(integer.target == intrinsic::TargetWidth::Word) return true;
+    if(integer.isTargetWidth()) return false;
+
+    return integer.bits == 16 || integer.bits == 32 || integer.bits == 64;
+}
+
+/*
  * A number as this integer type holds it - the low `bits` of it, sign-extended where the type is
  * signed.
  *
@@ -263,12 +287,30 @@ struct VariableType: Type {
  * The value is held as 64 bits with `type` saying how to read them, which is `Constant`'s own
  * arrangement and for its reason: the width is a property of the type and storing it twice is two
  * answers to one question.
+ *
+ * **A number, or the one expression that produces one.** `lanesOf` is the second state: the natural
+ * vector count of a lane type this stage cannot measure yet - `Vec(a)` inside a body generic in `a`,
+ * whose count is `vectorBytes / sizeOf(a)` and is therefore decided at the specialization that binds
+ * `a`. See `Types::naturalLanesType`, where the choice of an expression over a per-position default
+ * is argued.
  */
 struct ConstType: Type {
-    ConstType(U64 value, DeclPtr<Type> type): Type(Const), type(type), value(value) {}
+    ConstType(U64 value, DeclPtr<Type> type, DeclPtr<Type> lanesOf = nullptr):
+        Type(Const), type(type), lanesOf(lanesOf), value(value) {}
 
     DeclPtr<Type> type;
+
+    /*
+     * The lane type whose natural vector count this stands for, and null for a number that is
+     * already one. `value` means nothing while this is set - there is no number yet.
+     */
+    DeclPtr<Type> lanesOf = nullptr;
+
     U64 value;
+
+    // Whether this is the expression rather than the number. A walk that reads `value` has to ask,
+    // which is what makes the second state cost something to ignore rather than nothing.
+    bool isDerived() const { return lanesOf != nullptr; }
 };
 
 /*
@@ -418,6 +460,21 @@ struct RecordField {
      * `{Tree}` unboxed have different layouts, so they have to be two types or one gets the other's.
      */
     bool boxed = false;
+
+    /*
+     * `@host` - the field is not stored, and the value the record holds answers the property under
+     * this field's own name (Implementation-Containers.md §14's elision).
+     *
+     * Recorded and read by nothing here, deliberately: on a native target the field is laid out
+     * exactly as it would be without the attribute, so the fact has no representation consequence
+     * this stage could implement. It is a JS-visible *source* fact - the JS pipeline is what elides
+     * the slot - and dropping it in the resolver would leave that pipeline nothing to read.
+     *
+     * Not part of the interned identity that `boxed` is part of, and that is the difference between
+     * them said in one line: `@box` changes what a field's slot *is* on every target, and this one
+     * changes nothing on this one.
+     */
+    bool host = false;
 
     /*
      * `data Flags {read: Bool = False}` - what a construction that leaves this field out builds, and
@@ -621,9 +678,10 @@ struct RecordType: Type {
      * The record's own ownership schema - Analysis-IR.md §5.11.
      *
      * How many origin sets its fields publish, and where they sit. `originSlots` is filled by the
-     * declaration walk, because it is what the author wrote; `schema` is filled by `classifyTypes`,
+     * declaration walk, because it is what the author wrote; `schema` is filled by `foldSchemas`,
      * because a field whose type is another record contributes *that* record's slots at a deeper
-     * path and the fold has to see both declarations.
+     * path and the fold has to see both declarations. That pass runs **before** signatures, which is
+     * what lets a result's elided interior positions be read off the record it names.
      *
      * Null is the empty shape, which is every record whose fields are all owned - and that is the
      * overwhelming majority, which is why the handle is null rather than an empty list.
@@ -866,6 +924,22 @@ struct Types {
 
     DeclPtr<Type> unit;
 
+    /*
+     * The result a lambda has not decided yet - one variable, owned by nothing.
+     *
+     * A lambda that writes its own parameter types is a signature with no result (`resolveLambda`),
+     * and what says so has to be a type the *position* machinery already understands: G7c's open
+     * result is a type variable of the callee's context, `isConcreteType` answers false for one, and
+     * `closeFunPosition` is what writes the body's answer back into the shape. So this is that same
+     * state said by a lambda rather than by a callee, and it is a variable for that reason rather
+     * than a kind of its own.
+     *
+     * **Owned by nothing on purpose.** A substitution matches on the owner, so a variable no context
+     * declared is one nothing can bind - which is what keeps a placeholder that outlived a reported
+     * body from being filled in by somebody else's specialization.
+     */
+    DeclPtr<Type> undecided;
+
     // Indexed by [signed][log2(bytes)], so [1][2] is I32. Materialized in the constructor.
     DeclPtr<Type> ints[2][4];
 
@@ -926,6 +1000,23 @@ struct Types {
     // `4 :: I32` as a type argument, interned on the pair. Two spellings of one number at one type
     // are one handle, which is what keeps `Buf(4)` written in two signatures one type.
     DeclPtr<Type> constType(U64 value, DeclPtr<Type> of);
+
+    /*
+     * The natural lane count of a lane this stage cannot measure - the `ConstType` whose number is
+     * an expression over `lane` rather than a number.
+     *
+     * **An expression and not a default filled at the substitution**, and the two were weighed.
+     * `Vec(a)` inside a body generic in `a` is handed to `fn (n: Int) horizontalSum(v: Vec(a, n))`,
+     * and `n` is a *type argument of that call* - it travels in the call's argument list, is
+     * numbered by the callee's schema and is substituted at every instantiation. A default would
+     * have had to be re-derived by whatever read the slot, which is three readers (the specializer's
+     * const slot, the conversion's `GenValue`, and the erased witness) each having to know that this
+     * particular number came from a vector; an expression is decided in the one place substitution
+     * already runs and every reader below it sees a plain number.
+     *
+     * `of` is the const parameter's own declared integer type, exactly as a written number's is.
+     */
+    DeclPtr<Type> naturalLanesType(DeclPtr<Type> lane, DeclPtr<Type> of);
 
     /*
      * A record, made fresh for one declaration - deliberately *not* interned.
@@ -1151,6 +1242,10 @@ struct TagRange {
 
 TagRange tagRangeOf(DeclBase base, RecordType& record);
 
+// The width `class Enum(a -> w)` answers at - see the definition, where the rule is argued. Read off
+// `tagRangeOf` so that "which numbers this declaration has" is answered once.
+DeclPtr<Type> enumValueTypeOf(DeclBase base, Types& types, RecordType& record);
+
 // The storage a machine gives an integer of this logical width: the smallest power-of-two byte
 // count that holds it, in bits.
 inline U8 storageBitsFor(U8 bits) {
@@ -1203,6 +1298,22 @@ inline bool sameType(DeclPtr<Type> a, DeclPtr<Type> b) { return a == b; }
  * for the two being different types.
  */
 U32 laneBytes(DeclBase base, IntWidths widths, DeclPtr<Type> type);
+
+/*
+ * Whether a **natural** vector of this type exists on this target - `makeVectorType`'s four refusals
+ * asked as a question instead of applied as a rule.
+ *
+ * The one caller is the bulk operations' choice of body (`Resolver::selectBulkBody`), and it is a
+ * question rather than an attempt because the answer "no" is an ordinary one there: a container of
+ * records takes the element walk and nothing is wrong. `makeVectorType` reports every refusal, which
+ * is right where a program wrote `Vec(String)` and wrong where the compiler is deciding which of two
+ * library bodies to call.
+ *
+ * The rules are that function's, in the same order, and the two must not drift: a type this answers
+ * true for is one `Vec(a)` is then built of, so an answer it got wrong is a diagnostic at a call the
+ * author did not write.
+ */
+bool hasNaturalVector(Context& context, DeclBase base, DeclPtr<Type> type);
 
 /*
  * `Vec(a, n)` and `Mask(a, n)` - the one place the rules about them are applied.
@@ -1622,8 +1733,48 @@ inline Contract fieldContract(DeclBase base, DeclPtr<OwnershipSchema> shape,
  * takes the shared rung. Analysis-Lens.md §12.3(c)'s bare `%T` is the same sentence about a
  * pointer.
  */
+/*
+ * Whether this occurrence's environment word is **not this value's** - `Shapes::closure` and
+ * `Shapes::noEnvironment`, which are the two ways of saying it.
+ *
+ * `qualifiesInterior`'s sentence read at the one kind that is not a record: a function value's
+ * second word is a member of the pair, and either shape is a position that takes it away. A
+ * frame-placed closure owes nothing because the environment is a local of the function that built
+ * it; a plain function value owes nothing because the word is null; and a heap-placed closure
+ * carries no shape at all and owes its block.
+ *
+ * Its own function rather than an arm of `qualifiesInterior` because the two answers differ in the
+ * other half: a record whose member was replaced by a borrow is trivially copyable, and a function
+ * value never is - it may hold an exclusive loan, so its uses stay moves at every placement.
+ */
+inline bool holdsNoOwnedEnvironment(DeclBase base, const Occurrence& occurrence) {
+    if(!occurrence.shape) return false;
+    if(base[occurrence.type]->kind != Type::Fun) return false;
+
+    for(auto slotPointer: base[occurrence.shape]->slots.contents(base)) {
+        auto& slot = *base[slotPointer];
+        if(slot.path.size() != 1) continue;
+
+        auto step = slot.path.get(base, 0);
+        if(!PathStep::isPointee(step) &&
+           PathStep::fieldIndex(step) == kFunEnvironmentComponent) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 inline Ownership ownershipOfOccurrence(DeclBase base, const Occurrence& occurrence) {
     if(qualifiesInterior(base, occurrence)) return Ownership {};
+
+    // A function value whose environment word is not its own - the same statement as above, at the
+    // one kind whose interior is not a field. `trivialCopy` stays false, which is why this is not
+    // that test.
+    if(holdsNoOwnedEnvironment(base, occurrence)) {
+        return Ownership { false, true, false, TeardownKind::None, TeardownKind::None };
+    }
+
     return ownershipOf(base, occurrence.type);
 }
 

@@ -1,0 +1,70 @@
+{-
+   Two constants across one operator become one, and a comparison of a select of two constants -
+   `opt/fold.cpp`'s `reassociate` and `foldCompareOfSelect`.
+
+   Both are rules the shipping stage's folder has and this one did not, and both are asserted in
+   `.ssa.opt.expect` rather than by the answer: every function below is `@noinline` precisely so that
+   its body survives into that golden with its parameter still unknown, since a constant argument
+   would fold the whole thing at the call site and assert nothing about either rule.
+
+   `main` weighs each by a distinct prime for the reason `IfConvert.yana` states: a rewrite that
+   combined the two constants the *other* way round is invisible in a golden anybody reads quickly
+   and is a different number here.
+-}
+
+-- `(x + 3) + 4` is `x + 7`. The inner operation has one reader, so what is left afterwards is one
+-- addition and one constant where there were two of each.
+@noinline
+fn sums(x: Int) -> Int = x + 3 + 4
+
+-- The constant on the left as well - this folder writes each rule out for both operand orders
+-- rather than canonicalizing a constant onto the right first, and this is the case that says so.
+@noinline
+fn leftSums(x: Int) -> Int = 4 + (3 + x)
+
+-- The bitwise pair, where combining the two constants is a mask rather than a sum: `0xf0 & 0x3c` is
+-- `0x30`, so a value masked twice is masked once.
+@noinline
+fn masks(x: Int) -> Int = (x `and` 0xf0) `and` 0x3c
+
+-- Two shifts in one direction are one shift by the sum. Not associativity - a shift has none - but
+-- the identity a shift does have, and it holds only while every distance involved is one the
+-- language has an answer for.
+@noinline
+fn shifted(x: Int) -> Int = (x `shl` 2) `shl` 3
+
+-- At or above the width it is the machine's answer rather than the language's, so this stays two
+-- shifts. `Int` is thirty-two bits and twenty plus twenty is not.
+@noinline
+fn wide(x: Int) -> Int = (x `shl` 20) `shl` 20
+
+{-
+   A select of two constants compared against a third - the shape a widened boolean is tested in.
+
+   `widened` is the case that answers with the **condition**: the comparison is true on one arm and
+   false on the other, and true is the arm the condition selects. `decided` is the case that answers
+   with a **constant**, because both arms compare the same way. The fourth pair - true on the false
+   arm - would be `!c`, which is an instruction rather than a value and is declined; there is no
+   case for it here because there would be nothing to assert.
+-}
+@noinline
+fn widened(c: Bool) -> Int = if (if c then 1 else 0) == 1 then 5 else 6
+
+@noinline
+fn decided(c: Bool) -> Int = if (if c then 2 else 3) > 1 then 7 else 8
+
+fn main() -> Int:
+    let &total = 0
+
+    total = total + sums(10) * 2
+    total = total + leftSums(10) * 3
+    total = total + masks(0xff) * 5
+    total = total + shifted(1) * 7
+    total = total + wide(1) * 11
+
+    total = total + widened(True) * 13
+    total = total + widened(False) * 17
+    total = total + decided(True) * 19
+    total = total + decided(False) * 23
+
+    return total

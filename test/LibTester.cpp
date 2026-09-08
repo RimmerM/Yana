@@ -10,6 +10,7 @@
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
 #include "../compiler/codegen/js/gen.h"
+#include "../compiler/resolve_ssa/pipeline.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
 #include "shard.h"
@@ -231,7 +232,13 @@ struct RunOutcome {
  * The pipe carries the answer because an exit status cannot: it is eight bits, and a library
  * fixture's answer is an `I64`. The status is what says whether the answer is there to be believed.
  */
-static RunOutcome executeMainIsolated(Context& context, Program& resolved, LowerModule& module) {
+/*
+ * `unitResult` and `wide` rather than the resolved program the entry came from - the one thing this
+ * needs from above the `LowerModule` is how to read what the entry answered, and the two stages have
+ * no type in common that could carry it. Which is the same seam `compileOwnershipStage` runs along.
+ */
+static RunOutcome executeMainIsolated(Context& context, LowerModule& module, bool unitResult,
+                                      bool wide) {
     RunOutcome outcome;
 
 #if defined(__x86_64__) && (defined(__unix__) || defined(__APPLE__))
@@ -245,7 +252,9 @@ static RunOutcome executeMainIsolated(Context& context, Program& resolved, Lower
     for(auto functionPointer: module.functionOrder) {
         auto function = base[functionPointer];
         machine.reset();
-        transformFunction(context, base, *function, machine);
+        // Refused by the backend and already reported - the driver's own diagnostic count is what
+        // fails the fixture. Nothing after it may run: see `transformFunction`.
+        if(!transformFunction(context, base, *function, machine)) continue;
 
         scratch.resetRecords();
         allocateRegisters(context, base, *function, machine, scratch, registers);
@@ -256,9 +265,9 @@ static RunOutcome executeMainIsolated(Context& context, Program& resolved, Lower
     assembly.resolveRelocations(module.imageAnchor ? base[module.imageAnchor] : nullptr);
 
     // The program's start rather than `main` by name - see Program::entry. A library fixture has no
-    // top-level statements today, but the entry is still what answers, and asking for it keeps that
-    // a fact about one function rather than two.
-    if(!module.entry || !resolved.entry) return outcome;
+    // `main` at all: what runs is the synthesized suite, and asking for the entry keeps that a fact
+    // about one function rather than two.
+    if(!module.entry) return outcome;
 
     auto foundMain = module.functions.get(module.entry);
     if(!foundMain) return outcome;
@@ -281,9 +290,6 @@ static RunOutcome executeMainIsolated(Context& context, Program& resolved, Lower
         return outcome;
     }
 
-    auto returnType = (*resolved.types)[(*resolved.arena)[resolved.entry]->returnType];
-    auto unitResult = isUnit(*resolved.types, (*resolved.arena)[resolved.entry]->returnType);
-    auto wide = returnType->kind == Type::Int && ((IntType*)returnType)->width == IntType::Long;
     auto address = (Byte*)memory + offset.unwrap();
 
     int answer[2];
@@ -724,7 +730,75 @@ struct BuildOptions {
     bool generic = false;
     bool optimize = true;
     bool js = false;
+
+    /*
+     * The rewritten front half - `compiler/resolve_mir` + `compiler/resolve_ssa`, `-resolver
+     * ownership`.
+     *
+     * A row here rather than a driver of its own, because what a library fixture asserts is
+     * unchanged by which stage compiled it: the suite is the same source, the same runner and the
+     * same answer. The two stages share nothing above `compiler/lower`, so the branch in `runBuild`
+     * is the whole of the difference - two front halves producing one `LowerModule`, which is the
+     * seam the comparison is worth making at.
+     */
+    bool ownership = false;
 };
+
+/*
+ * One fixture through the rewritten stage, down to the same `LowerModule` the shipping one produces.
+ *
+ * `ssa::Pipeline` rather than the four calls open-coded, because the driver has no business knowing
+ * the order the rewrite's phases run in - which is the same reason the compiler's own driver uses it.
+ */
+static bool runOwnershipBuild(const String& path, StringView source, const BuildOptions& options,
+                              Context& context, PrintDiagnostics& diagnostics,
+                              ast::ModuleGroup& ast, TestProvider& provider, RunOutcome& outcome) {
+    ssa::Pipeline pipeline(context);
+
+    if(!pipeline.resolve(ast, &provider) || diagnostics.errorCount()) {
+        println("Fail (%@): the %@ build produced %@ diagnostics.", path, options.which,
+                diagnostics.errorCount());
+        return false;
+    }
+
+    if(!pipeline.convert()) {
+        println("Fail (%@): the %@ build did not convert to SSA.", path, options.which);
+        return false;
+    }
+
+    pipeline.releaseMir();
+
+    if(!pipeline.optimize()) {
+        println("Fail (%@): the %@ build's optimizer produced SSA the verifier rejects.", path,
+                options.which);
+        return false;
+    }
+
+    /*
+     * How to read what the entry answered, taken before the declarations go out of scope - the two
+     * facts `executeMainIsolated` needs and the only ones it takes from above the lower IR.
+     */
+    auto decl = *pipeline.program->decl;
+    auto entry = pipeline.program->entry ? decl[pipeline.program->entry] : nullptr;
+    auto resultType = entry ? decl[entry->result.type] : nullptr;
+    auto unitResult = !resultType || resultType->kind == mir::Type::Unit;
+    auto wide = resultType && resultType->kind == mir::Type::Int &&
+                ((mir::IntType*)resultType)->bits == 64;
+
+    auto lowered = pipeline.lower();
+    if(!lowered || diagnostics.errorCount()) {
+        println("Fail (%@): the %@ build did not lower.", path, options.which);
+        return false;
+    }
+
+    if(!validateLowerModule(&diagnostics, lowered.get())) {
+        println("Fail (%@): the %@ build produced invalid lower IR.", path, options.which);
+        return false;
+    }
+
+    outcome = executeMainIsolated(context, *lowered, unitResult, wide);
+    return true;
+}
 
 static bool runBuild(const String& path, StringView source, const BuildOptions& options) {
     TestProvider provider;
@@ -764,6 +838,31 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
     Lexer lexer(context, diagnostics, source, name);
     Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
+
+    /*
+     * The rewritten stage, which is a path of its own from here down - see `runOwnershipBuild`.
+     *
+     * `parseModule` answers one file; the group is what both stages take, and it is built here
+     * rather than inside the branch because the shipping one reaches it through `resolveProgram`'s
+     * single-module overload.
+     */
+    if(options.ownership) {
+        ast::ModuleGroup group { .name = name };
+        group.files.push(&ast);
+
+        RunOutcome outcome;
+        if(!runOwnershipBuild(path, source, options, context, diagnostics, group, provider,
+                              outcome)) {
+            return false;
+        }
+
+        if(outcome.kind == RunOutcome::Answered && outcome.value == 0) return true;
+
+        reportOutcome(path, options.which, outcome);
+        if(outcome.report.failures.size()) print("%@", outcome.report.failures);
+        return false;
+    }
+
     auto module = resolveProgram(context, ast, &provider,
                                  options.generic ? Program::Specialization::Generic
                                                  : Program::Specialization::Always);
@@ -799,7 +898,19 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
             return false;
         }
 
-        outcome = executeMainIsolated(context, *module, *lowered);
+        /*
+         * How to read what the entry answered - the pair `executeMainIsolated` takes instead of the
+         * resolved program, since the other stage has no `Program` to hand it one.
+         */
+        if(module->entry) {
+            auto declared = (*module->arena)[module->entry]->returnType;
+            auto returnType = (*module->types)[declared];
+            auto unitResult = isUnit(*module->types, declared);
+            auto wide = returnType->kind == Type::Int &&
+                        ((IntType*)returnType)->width == IntType::Long;
+
+            outcome = executeMainIsolated(context, *lowered, unitResult, wide);
+        }
     }
 
     if(outcome.kind == RunOutcome::Answered && outcome.value == 0) return true;
@@ -811,7 +922,26 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
     return false;
 }
 
-static bool runTest(const String& path, StringView source) {
+static bool runTest(const String& path, StringView source, bool ownership) {
+    /*
+     * The rewritten stage, and only it, where the run asked for it - `resolver:ownership`.
+     *
+     * One build rather than three, because the two switches the other three vary are the shipping
+     * optimizer's and the shipping specializer's: `-no-ir-opt` and the erased form are the rewrite's
+     * own and are asserted by `YanaResolveTest`, which runs every `.run.expect` fixture through the
+     * unoptimized pipeline as well. What this adds is the one thing that corpus cannot say - that
+     * the *library's* own suite passes when the rewrite compiled it.
+     *
+     * Instead of the shipping builds rather than beside them, so that a run says which stage it is
+     * about. `run-tests.sh` runs the shipping ones; this is asked for by hand while the rewrite is
+     * still reaching the library.
+     */
+    if(ownership) {
+        auto pass = runBuild(path, source, { "ownership"_v, false, true, false, true });
+        println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
+        return pass;
+    }
+
     /*
      * The four builds, and what each of them is for.
      *
@@ -864,10 +994,15 @@ int main(int argc, const char** argv) {
     // through, "does *this* fixture pass" has to stay answerable.
     String only;
 
+    // Which front half compiles the corpus - see `runTest`. The shipping one unless the run says
+    // otherwise, which is what keeps `run-tests.sh` meaning what it has always meant.
+    auto ownership = false;
+
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(parseShard(arg, shard, shards)) { sharded = true; continue; }
         if(parseJobs(arg, jobs)) continue;
+        if(arg == "resolver:ownership") { ownership = true; continue; }
 
         // `generate` is accepted and ignored, so that a whole-suite regenerate can pass the same
         // arguments to every driver. There is nothing here to generate, and that is the design:
@@ -945,7 +1080,7 @@ int main(int argc, const char** argv) {
         auto size = file.size();
         Ptr<char, HeapDeleter> source { (char*)hAlloc(size) };
         file.read({ (Byte*)source.get(), size });
-        pass = runTest(test, { source.get(), size }) && pass;
+        pass = runTest(test, { source.get(), size }, ownership) && pass;
     }
 
 #if defined(__unix__) || defined(__APPLE__)

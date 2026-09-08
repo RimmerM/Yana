@@ -1,0 +1,156 @@
+@image$base = []
+@environment(oneLevel(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(Vessel) = [4, 0, 0, 13, 0, 0, 0, 0]
+@witness(Middle(Vessel.shift, Vessel.tag, Vessel.scale)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@environment(twoLevels(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@witness(Top(Vessel.crown, Vessel.shift, Vessel.tag, Vessel.scale)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@environment(both(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+Vessel.tag<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    %v_2 = add %v_1, 1: I32
+    ret %v_2
+  }
+}
+
+Vessel.scale<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    %v_2 = shl %v_1, 1: I32
+    ret %v_2
+  }
+}
+
+Vessel.shift<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    %v_2 = add %v_1, 100: I32
+    ret %v_2
+  }
+}
+
+Vessel.crown<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    %v_2 = add %v_1, 1000: I32
+    ret %v_2
+  }
+}
+
+oneLevel<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = add %v_4, @image$base: Ptr
+    %v_6 = add %v_5, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    %v_9 = add %v_8, @image$base: Ptr
+    %v_10 = call_complex %v_9, 0, %x: I32
+    %v_11 = add %v_0, 4: Ptr
+    %v_12 = loads %v_11, 4: I32
+    %v_13 = sext %v_12: I64
+    %v_14 = add %v_13, @image$base: Ptr
+    %v_15 = loads %v_14, 4: I32
+    %v_16 = sext %v_15: I64
+    %v_17 = add %v_16, @image$base: Ptr
+    %v_18 = call_complex %v_17, 0, %x: I32
+    %v_19 = add %v_10, %v_18: I32
+    ret %v_19
+  }
+}
+
+twoLevels<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = add %v_4, @image$base: Ptr
+    %v_6 = add %v_5, 12: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    %v_9 = add %v_8, @image$base: Ptr
+    %v_10 = call_complex %v_9, 0, %x: I32
+    %v_11 = add %v_0, 4: Ptr
+    %v_12 = loads %v_11, 4: I32
+    %v_13 = sext %v_12: I64
+    %v_14 = add %v_13, @image$base: Ptr
+    %v_15 = loads %v_14, 4: I32
+    %v_16 = sext %v_15: I64
+    %v_17 = add %v_16, @image$base: Ptr
+    %v_18 = call_complex %v_17, 0, %x: I32
+    %v_19 = add %v_10, %v_18: I32
+    ret %v_19
+  }
+}
+
+both<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = add %v_4, @image$base: Ptr
+    %v_6 = add %v_5, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    %v_9 = add %v_8, @image$base: Ptr
+    %v_10 = call_complex %v_9, 0, %x: I32
+    ret %v_10
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = imm 5: I32
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %v_1, 4
+    %v_3 = call_complex oneLevel, @environment(oneLevel(Vessel)), %v_2: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_1, 4
+    %v_5 = call_complex twoLevels, @environment(twoLevels(Vessel)), %v_4: I32
+    %v_6 = alloca 4, 4: Ptr
+    store %v_6, %v_1, 4
+    %v_7 = call_complex both, @environment(both(Vessel)), %v_6: I32
+    %v_8 = add %v_3, %v_5: I32
+    %v_9 = add %v_8, %v_7: I32
+    %v_10 = sub %v_9, 1024: I32
+    ret %v_10
+  }
+}
+
+teardown()<complex>(%v_0: Ptr) {
+  b_1 {
+    ret 
+  }
+}
+
+thunk(Vessel.shift)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
+  b_2 {
+    %v_3 = call_complex Vessel.shift, %v_1: I32
+    ret %v_3
+  }
+}
+
+thunk(Vessel.tag)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
+  b_2 {
+    %v_3 = call_complex Vessel.tag, %v_1: I32
+    ret %v_3
+  }
+}
+
+thunk(Vessel.scale)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
+  b_2 {
+    %v_3 = call_complex Vessel.scale, %v_1: I32
+    ret %v_3
+  }
+}
+
+thunk(Vessel.crown)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
+  b_2 {
+    %v_3 = call_complex Vessel.crown, %v_1: I32
+    ret %v_3
+  }
+}
+

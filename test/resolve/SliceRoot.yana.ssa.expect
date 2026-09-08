@@ -1,0 +1,170 @@
+module ResolveTest
+
+fn viaTwoCalls() -> I32 {
+bb0:
+  %0: %(Size) -> I32 address = alloc frame (Size) -> I32 [owned here shape8 .0=unique call]
+  %1: %Array(I32) address = alloc frame Array(I32)
+  %2: Size trivial = const 8
+  %3: (Size) -> I32 [owned here shape8 .0=unique call] affine = fun.value viaTwoCalls.lambda
+  store inspect %0 consume %3
+  %4: (Size) -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %5: Array(I32) owned = call newArray(I32) borrow %2 borrow %4
+  store inspect %1 consume %5
+  %6: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
+  %7: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %6
+  %8: Size trivial = const 0
+  %9: Size trivial = const 8
+  %10: Array(I32) [shared slot 0 view] guaranteed from{%1} = call slice(I32) borrow %7 borrow %8 borrow %9
+  %11: I32 trivial = call sumVectors(Array(I32), I32) borrow %10
+  drop Array(I32) inspect %1
+  return consume %11
+}
+
+fn viaLocal() -> I32 {
+bb0:
+  %0: %(Size) -> I32 address = alloc frame (Size) -> I32 [owned here shape8 .0=unique call]
+  %1: %Array(I32) address = alloc frame Array(I32)
+  %2: Size trivial = const 8
+  %3: (Size) -> I32 [owned here shape8 .0=unique call] affine = fun.value viaLocal.lambda
+  store inspect %0 consume %3
+  %4: (Size) -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %5: Array(I32) owned = call newArray(I32) borrow %2 borrow %4
+  store inspect %1 consume %5
+  %6: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
+  %7: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %6
+  %8: Size trivial = const 0
+  %9: Size trivial = const 8
+  %10: Array(I32) [shared slot 0 view] guaranteed from{%1} = call slice(I32) borrow %7 borrow %8 borrow %9
+  %11: Array(I32) [shared slot 0 view] guaranteed from{%1, %10} = load inspect %10
+  %12: I32 trivial = call sumVectors(Array(I32), I32) borrow %11
+  drop Array(I32) inspect %1
+  return consume %12
+}
+
+fn partial() -> I32 {
+bb0:
+  %0: %(Size) -> I32 address = alloc frame (Size) -> I32 [owned here shape8 .0=unique call]
+  %1: %Array(I32) address = alloc frame Array(I32)
+  %2: Size trivial = const 8
+  %3: (Size) -> I32 [owned here shape8 .0=unique call] affine = fun.value partial.lambda
+  store inspect %0 consume %3
+  %4: (Size) -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %5: Array(I32) owned = call newArray(I32) borrow %2 borrow %4
+  store inspect %1 consume %5
+  %6: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
+  %7: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %6
+  %8: Size trivial = const 2
+  %9: Size trivial = const 5
+  %10: Array(I32) [shared slot 0 view] guaranteed from{%1} = call slice(I32) borrow %7 borrow %8 borrow %9
+  %11: I32 trivial = const 0
+  %12: I32 trivial = call maximumVectors(Array(I32), I32) borrow %10 borrow %11
+  drop Array(I32) inspect %1
+  return consume %12
+}
+
+fn window(xs: Array(I32) [shared slot 0 owner], from: Size [shared call], to: Size [shared call]) -> Array(I32) [shared slot 0 view] {
+bb0(%0: Array(I32) [shared slot 0 owner] guaranteed, %1: Size [shared call] guaranteed, %2: Size [shared call] guaranteed):
+  %3: %Size address = alloc frame Size [shared call]
+  %4: %Size address = alloc frame Size [shared call]
+  store inspect %3 borrow %1
+  store inspect %4 borrow %2
+  %5: Array(I32) [shared slot 0 owner] guaranteed from{%0} = load inspect %0
+  %6: Array(I32) [shared slot 0 view] guaranteed from{%0} = call Array(a).elements(I32) borrow %5
+  %7: Size trivial = load inspect %3
+  %8: Size trivial = load inspect %4
+  %9: Array(I32) [shared slot 0 view] guaranteed from{%0} = call slice(I32) borrow %6 borrow %7 borrow %8
+  return borrow %9
+}
+
+fn deeper(xs: Array(I32) [shared slot 0 owner]) -> Array(I32) [shared slot 0 view] {
+bb0(%0: Array(I32) [shared slot 0 owner] guaranteed):
+  %1: Array(I32) [shared slot 0 owner] guaranteed from{%0} = load inspect %0
+  %2: Size trivial = const 1
+  %3: Size trivial = const 7
+  %4: Array(I32) [shared slot 0 view] guaranteed from{%0} = call window borrow %1 borrow %2 borrow %3
+  %5: Size trivial = const 1
+  %6: Size trivial = const 5
+  %7: Array(I32) [shared slot 0 view] guaranteed from{%0} = call slice(I32) borrow %4 borrow %5 borrow %6
+  return borrow %7
+}
+
+fn viaReturn() -> I32 {
+bb0:
+  %0: %(Size) -> I32 address = alloc frame (Size) -> I32 [owned here shape8 .0=unique call]
+  %1: %Array(I32) address = alloc frame Array(I32)
+  %2: Size trivial = const 8
+  %3: (Size) -> I32 [owned here shape8 .0=unique call] affine = fun.value viaReturn.lambda
+  store inspect %0 consume %3
+  %4: (Size) -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %5: Array(I32) owned = call newArray(I32) borrow %2 borrow %4
+  store inspect %1 consume %5
+  %6: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
+  %7: Size trivial = const 0
+  %8: Size trivial = const 4
+  %9: Array(I32) [shared slot 0 view] guaranteed from{%1} = call window borrow %6 borrow %7 borrow %8
+  %10: I32 trivial = call sumVectors(Array(I32), I32) borrow %9
+  %11: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
+  %12: Array(I32) [shared slot 0 view] guaranteed from{%1} = call deeper borrow %11
+  %13: I32 trivial = call sumVectors(Array(I32), I32) borrow %12
+  drop Array(I32) inspect %1
+  %14: I32 trivial = add inspect %10 inspect %13
+  return consume %14
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call viaTwoCalls
+  %1: I32 trivial = call viaLocal
+  %2: I32 trivial = add inspect %0 inspect %1
+  %3: I32 trivial = call partial
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: I32 trivial = call viaReturn
+  %6: I32 trivial = add inspect %4 inspect %5
+  return consume %6
+}
+
+fn viaTwoCalls.lambda(viaTwoCalls.lambda.env: viaTwoCalls.lambda.env [unique call], i: Size [shared call]) -> I32 {
+bb0(%0: viaTwoCalls.lambda.env [unique call] guaranteed, %1: Size [shared call] guaranteed):
+  %2: %Size address = alloc frame Size [shared call]
+  store inspect %2 borrow %1
+  %3: Size trivial = load inspect %2
+  %4: Size trivial = const 1
+  %5: Size trivial = add inspect %3 inspect %4
+  %6: I32 trivial = convert inspect %5
+  return consume %6
+}
+
+fn viaLocal.lambda(viaLocal.lambda.env: viaLocal.lambda.env [unique call], i: Size [shared call]) -> I32 {
+bb0(%0: viaLocal.lambda.env [unique call] guaranteed, %1: Size [shared call] guaranteed):
+  %2: %Size address = alloc frame Size [shared call]
+  store inspect %2 borrow %1
+  %3: Size trivial = load inspect %2
+  %4: Size trivial = const 1
+  %5: Size trivial = add inspect %3 inspect %4
+  %6: I32 trivial = convert inspect %5
+  return consume %6
+}
+
+fn partial.lambda(partial.lambda.env: partial.lambda.env [unique call], i: Size [shared call]) -> I32 {
+bb0(%0: partial.lambda.env [unique call] guaranteed, %1: Size [shared call] guaranteed):
+  %2: %Size address = alloc frame Size [shared call]
+  store inspect %2 borrow %1
+  %3: Size trivial = load inspect %2
+  %4: Size trivial = const 1
+  %5: Size trivial = add inspect %3 inspect %4
+  %6: I32 trivial = convert inspect %5
+  return consume %6
+}
+
+fn viaReturn.lambda(viaReturn.lambda.env: viaReturn.lambda.env [unique call], i: Size [shared call]) -> I32 {
+bb0(%0: viaReturn.lambda.env [unique call] guaranteed, %1: Size [shared call] guaranteed):
+  %2: %Size address = alloc frame Size [shared call]
+  store inspect %2 borrow %1
+  %3: Size trivial = load inspect %2
+  %4: Size trivial = const 1
+  %5: Size trivial = add inspect %3 inspect %4
+  %6: I32 trivial = convert inspect %5
+  return consume %6
+}
+
+entry main

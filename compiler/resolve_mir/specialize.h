@@ -81,6 +81,21 @@ DeclPtr<Function> teardownMember(Context& context, Program& program, intrinsic::
                                  DeclPtr<Type> type, LocationId source);
 
 /*
+ * What turns an owner of this type into its view - the `ViewRow`'s derivation member, as a callable
+ * function, on `teardownMember`'s exact terms.
+ *
+ * Two readers and one answer, which is the whole reason it is a function: the reachability walk
+ * names it so a specialization's derivation is kept, and the SSA conversion names it to emit the
+ * call. Reading `row->sharedAdaptor` and looking the instance up at each end would be two lookups
+ * that agree until an instance is parametric - what derives `Array(I32)`'s window is a
+ * *specialization* of what `instance (Contiguous(a)) Contiguous(Array(a), a)` wrote.
+ *
+ * Null where the type has no view for the access, which both readers treat as nothing to derive.
+ */
+DeclPtr<Function> viewMember(Context& context, Program& program, DeclPtr<Type> type, Access access,
+                             LocationId source);
+
+/*
  * What answers one `f: (a) -> b` requirement at one argument list.
  *
  * Filled by `matchCallable`, which is the whole of the question and is asked from two ends. The

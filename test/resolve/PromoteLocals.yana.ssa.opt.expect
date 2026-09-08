@@ -299,15 +299,9 @@ bb17:
   %44: I32 trivial = const 32
   %200: I32 trivial = const 0
   %201: I32 trivial = select inspect %43 inspect %44 inspect %200
-  %51: I32 trivial = const 64
-  %58: I32 trivial = const 128
-  %235: %Packed address = alloc frame Packed
   %236: %Packed address = alloc frame Packed
   %237: @bits(4) U32 trivial = const 3
   %238: Packed trivial = aggregate.Packed consume %237
-  store inspect %235 consume %238
-  %239: %@bits(4) U32 address = field.addr .small inspect %235
-  %240: @bits(4) U32 trivial = load inspect %239
   %244: @bits(4) U32 trivial = const 10
   %245: Packed trivial = aggregate.Packed consume %244
   store inspect %236 consume %245
@@ -316,23 +310,18 @@ bb17:
   %248: U32 trivial = convert inspect %247
   %249: U32 trivial = const 10
   %250: Bool trivial = eq inspect %248 inspect %249
-  %251: I32 trivial = const 1
-  %252: I32 trivial = const 0
-  %253: I32 trivial = select inspect %250 inspect %251 inspect %252
-  %62: I32 trivial = const 1
-  %63: Bool trivial = eq inspect %253 inspect %62
   %64: I32 trivial = const 256
   %258: I32 trivial = const 0
-  %259: I32 trivial = select inspect %63 inspect %64 inspect %258
+  %259: I32 trivial = select inspect %250 inspect %64 inspect %258
   %70: I32 trivial = const 512
-  %297: I32 trivial = const 3
-  %76: I32 trivial = add inspect %297 inspect %153
+  %299: I32 trivial = const 3
+  %76: I32 trivial = add inspect %299 inspect %153
   %78: I32 trivial = add inspect %76 inspect %164
   %80: I32 trivial = add inspect %78 inspect %38
   %82: I32 trivial = add inspect %80 inspect %201
-  %84: I32 trivial = add inspect %82 inspect %51
-  %86: I32 trivial = add inspect %84 inspect %58
-  %88: I32 trivial = add inspect %86 inspect %259
+  %294: I32 trivial = const 192
+  %295: I32 trivial = add inspect %82 inspect %294
+  %88: I32 trivial = add inspect %295 inspect %259
   %90: I32 trivial = add inspect %88 inspect %70
   %91: %I32 address = global.addr live
   %92: I32 trivial = load inspect %91

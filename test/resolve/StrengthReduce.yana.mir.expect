@@ -762,101 +762,121 @@ bb1:
   branch inspect %50 -> bb3 -> bb2
 
 bb2:
-  %69: I32 = const 0
-  write.assign borrow.unique (i) take %69
+  %77: I32 = const 0
+  write.assign borrow.unique (i) take %77
   jump -> bb4
 
 bb3:
   %52: I32 = read copy.trivial (total)
   %53: I32 = read copy.trivial (i)
   %54: Size = convert inspect %53
-  %55: I64 = read copy.trivial (longs[...])
-  %56: I32 = call signedLong borrow.shared %55
-  %57: I32 = add inspect %52 inspect %56
-  %58: I32 = read copy.trivial (i)
-  %59: Size = convert inspect %58
-  %60: I64 = read copy.trivial (longs[...])
-  %61: I32 = call scaled borrow.shared %60
-  %62: I32 = add inspect %57 inspect %61
-  write.assign borrow.unique (total) take %62
-  %64: I32 = read copy.trivial (i)
-  %65: I32 = const 1
-  %66: I32 = add inspect %64 inspect %65
-  write.assign borrow.unique (i) take %66
+  %55: USize = const 12
+  %56: USize = bitcast inspect %54
+  %57: Bool = ge inspect %56 inspect %55
+  %58: {} = call checkCondition borrow.shared %57
+  %59: I64 = read copy.trivial (longs[...])
+  %60: I32 = call signedLong borrow.shared %59
+  %61: I32 = add inspect %52 inspect %60
+  %62: I32 = read copy.trivial (i)
+  %63: Size = convert inspect %62
+  %64: USize = const 12
+  %65: USize = bitcast inspect %63
+  %66: Bool = ge inspect %65 inspect %64
+  %67: {} = call checkCondition borrow.shared %66
+  %68: I64 = read copy.trivial (longs[...])
+  %69: I32 = call scaled borrow.shared %68
+  %70: I32 = add inspect %61 inspect %69
+  write.assign borrow.unique (total) take %70
+  %72: I32 = read copy.trivial (i)
+  %73: I32 = const 1
+  %74: I32 = add inspect %72 inspect %73
+  write.assign borrow.unique (i) take %74
   jump -> bb1
 
 bb4:
-  %72: I32 = read copy.trivial (i)
-  %73: I32 = const 9
-  %74: Bool = lt inspect %72 inspect %73
-  branch inspect %74 -> bb6 -> bb5
+  %80: I32 = read copy.trivial (i)
+  %81: I32 = const 9
+  %82: Bool = lt inspect %80 inspect %81
+  branch inspect %82 -> bb6 -> bb5
 
 bb5:
-  %88: I32 = const 0
-  write.assign borrow.unique (i) take %88
+  %100: I32 = const 0
+  write.assign borrow.unique (i) take %100
   jump -> bb7
 
 bb6:
-  %76: I32 = read copy.trivial (total)
-  %77: I32 = read copy.trivial (i)
-  %78: Size = convert inspect %77
-  %79: I32 = read copy.trivial (ints[...])
-  %80: I32 = call signedInt borrow.shared %79
-  %81: I32 = add inspect %76 inspect %80
-  write.assign borrow.unique (total) take %81
-  %83: I32 = read copy.trivial (i)
-  %84: I32 = const 1
-  %85: I32 = add inspect %83 inspect %84
-  write.assign borrow.unique (i) take %85
+  %84: I32 = read copy.trivial (total)
+  %85: I32 = read copy.trivial (i)
+  %86: Size = convert inspect %85
+  %87: USize = const 9
+  %88: USize = bitcast inspect %86
+  %89: Bool = ge inspect %88 inspect %87
+  %90: {} = call checkCondition borrow.shared %89
+  %91: I32 = read copy.trivial (ints[...])
+  %92: I32 = call signedInt borrow.shared %91
+  %93: I32 = add inspect %84 inspect %92
+  write.assign borrow.unique (total) take %93
+  %95: I32 = read copy.trivial (i)
+  %96: I32 = const 1
+  %97: I32 = add inspect %95 inspect %96
+  write.assign borrow.unique (i) take %97
   jump -> bb4
 
 bb7:
-  %91: I32 = read copy.trivial (i)
-  %92: I32 = const 8
-  %93: Bool = lt inspect %91 inspect %92
-  branch inspect %93 -> bb9 -> bb8
+  %103: I32 = read copy.trivial (i)
+  %104: I32 = const 8
+  %105: Bool = lt inspect %103 inspect %104
+  branch inspect %105 -> bb9 -> bb8
 
 bb8:
-  %107: I32 = const 0
-  write.assign borrow.unique (i) take %107
+  %123: I32 = const 0
+  write.assign borrow.unique (i) take %123
   jump -> bb10
 
 bb9:
-  %95: I32 = read copy.trivial (total)
-  %96: I32 = read copy.trivial (i)
-  %97: Size = convert inspect %96
-  %98: U64 = read copy.trivial (ulongs[...])
-  %99: I32 = call unsignedLong borrow.shared %98
-  %100: I32 = add inspect %95 inspect %99
-  write.assign borrow.unique (total) take %100
-  %102: I32 = read copy.trivial (i)
-  %103: I32 = const 1
-  %104: I32 = add inspect %102 inspect %103
-  write.assign borrow.unique (i) take %104
+  %107: I32 = read copy.trivial (total)
+  %108: I32 = read copy.trivial (i)
+  %109: Size = convert inspect %108
+  %110: USize = const 8
+  %111: USize = bitcast inspect %109
+  %112: Bool = ge inspect %111 inspect %110
+  %113: {} = call checkCondition borrow.shared %112
+  %114: U64 = read copy.trivial (ulongs[...])
+  %115: I32 = call unsignedLong borrow.shared %114
+  %116: I32 = add inspect %107 inspect %115
+  write.assign borrow.unique (total) take %116
+  %118: I32 = read copy.trivial (i)
+  %119: I32 = const 1
+  %120: I32 = add inspect %118 inspect %119
+  write.assign borrow.unique (i) take %120
   jump -> bb7
 
 bb10:
-  %110: I32 = read copy.trivial (i)
-  %111: I32 = const 6
-  %112: Bool = lt inspect %110 inspect %111
-  branch inspect %112 -> bb12 -> bb11
+  %126: I32 = read copy.trivial (i)
+  %127: I32 = const 6
+  %128: Bool = lt inspect %126 inspect %127
+  branch inspect %128 -> bb12 -> bb11
 
 bb11:
-  %126: I32 = read copy.trivial (total)
-  return take %126
+  %146: I32 = read copy.trivial (total)
+  return take %146
 
 bb12:
-  %114: I32 = read copy.trivial (total)
-  %115: I32 = read copy.trivial (i)
-  %116: Size = convert inspect %115
-  %117: U32 = read copy.trivial (uints[...])
-  %118: I32 = call unsignedInt borrow.shared %117
-  %119: I32 = add inspect %114 inspect %118
-  write.assign borrow.unique (total) take %119
-  %121: I32 = read copy.trivial (i)
-  %122: I32 = const 1
-  %123: I32 = add inspect %121 inspect %122
-  write.assign borrow.unique (i) take %123
+  %130: I32 = read copy.trivial (total)
+  %131: I32 = read copy.trivial (i)
+  %132: Size = convert inspect %131
+  %133: USize = const 6
+  %134: USize = bitcast inspect %132
+  %135: Bool = ge inspect %134 inspect %133
+  %136: {} = call checkCondition borrow.shared %135
+  %137: U32 = read copy.trivial (uints[...])
+  %138: I32 = call unsignedInt borrow.shared %137
+  %139: I32 = add inspect %130 inspect %138
+  write.assign borrow.unique (total) take %139
+  %141: I32 = read copy.trivial (i)
+  %142: I32 = const 1
+  %143: I32 = add inspect %141 inspect %142
+  write.assign borrow.unique (i) take %143
   jump -> bb10
 }
 

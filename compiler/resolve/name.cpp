@@ -349,7 +349,13 @@ void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModuleP
     auto found = module.program.instancesByClass.get(U32(typeClass));
     if(found.isNothing()) return;
 
-    for(auto instance: found.unwrap()) target.push(instance);
+    // A superseded one is not in the program any more: the library declared the instance the
+    // compiler was generating, and skipping it here is what "the generator stands down" means at
+    // every lookup at once. See ClassInstance::Origin.
+    for(auto instance: found.unwrap()) {
+        if((*module.arena)[instance]->origin == ClassInstance::Origin::Superseded) continue;
+        target.push(instance);
+    }
 }
 
 /*

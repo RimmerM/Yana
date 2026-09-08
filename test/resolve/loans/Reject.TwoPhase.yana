@@ -1,0 +1,31 @@
+{-
+   Where the reservation ends - the other half of `TwoPhase.yana`.
+
+   # resolver: ownership
+
+   A unique loan taken for an argument is only a reservation until something uses it, and what uses
+   it is the call. At *that* point it becomes exclusive and is checked against every loan live there,
+   which is what keeps two-phase from being a hole: a second argument that hands over a borrow of the
+   same storage is still live at the call, and the callee may write through the `&` while holding it.
+
+   A second **unique** loan is here too, because the rule only ever exempted a shared read: a
+   reservation still excludes every access that could observe or invalidate what it refers to.
+-}
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard): {}
+
+fn peek(g: 'Guard) -> 'I32 = g.id
+fn holds(&g: Guard, seen: 'I32) -> I32 = g.id + seen
+fn both(&left: Guard, &right: Guard) -> I32 = left.id + right.id
+
+-- The borrow the second argument hands over is live at the call, where the first argument's
+-- reservation becomes exclusive.
+fn liveBorrow(&g: Guard) -> I32 = holds(g, peek(g))
+
+-- A second unique loan is not a read, so the reservation excludes it where it is written.
+fn twoUnique(&g: Guard) -> I32 = both(g, g)
+
+fn main() -> I32 = 0

@@ -158,6 +158,15 @@ U64 narrowToWidth(U64 value, const IntFacts& facts);
 // The constant one value is, at its own type's width, or nothing where it is not one.
 Maybe<U64> constantValueOf(OptContext& opt, Value* value);
 
+/*
+ * The constant a value *is*, or null - the whole `mir::Constant` rather than the number.
+ *
+ * What `constantValueOf` cannot answer about: whether two values hold the same constant, which
+ * matters because this IR does not intern them. Exported for `cfg.cpp`, where a block argument every
+ * edge answers with one number is the shape two rewrites make and one spends.
+ */
+const mir::Constant* constantOf(OptContext& opt, Value* value);
+
 // The constant one value is, read as a double. An `F32` widens to one exactly, so this is the value
 // at its own width either way.
 Maybe<F64> constantFloatOf(OptContext& opt, Value* value);
@@ -182,17 +191,21 @@ inline bool isFoldableFloat(F64 value) { return value == value && value - value 
  * constructor index of an enum, which is what a `Bool` is here.
  */
 Value* makeConstant(OptContext& opt, Inst& at, DeclPtr<mir::Type> type, U64 value);
+
+// The same, for a constant that is not a number - a `map` arm's string, float or record.
+Value* makeConstantValue(OptContext& opt, Inst& at, const mir::Constant& constant);
 Value* makeFloatConstant(OptContext& opt, Inst& at, DeclPtr<mir::Type> type, F64 value);
 
 /*
  * What one instruction comes to, or null where it comes to nothing new - `opt/fold.cpp`.
  *
- * A *value*, never a rewrite in place: everything here answers with a constant it made or with an
- * operand that was already standing there, and the caller is what points the readers at it and takes
- * the instruction out. That is what lets `simplify` drive this from a worklist - the only thing that
- * changes is which values exist - and it is why the `bitsUpTo`-becomes-`and` rewrite the shipping
- * stage's folder performs is not here: it is an instruction, and `optimizeLowerFunction` makes it one
- * tier down.
+ * A *value*, never a rewrite in place: everything here answers with a constant it made, an operand
+ * that was already standing there, or - in the one reassociation rule - the result of an instruction
+ * it made in front of this one, and the caller is what points the readers at it and takes the
+ * instruction out. That is what lets `simplify` drive this from a worklist: the only thing that
+ * changes is which values exist. It is why the `bitsUpTo`-becomes-`and` rewrite the shipping stage's
+ * folder performs is not here - that one *replaces* an instruction at a different kind, which is the
+ * shape `simplify.cpp`'s own rewrites have, and `optimizeLowerFunction` makes it one tier down.
  */
 Value* foldInst(OptContext& opt, Inst& inst);
 
@@ -232,6 +245,10 @@ bool isRemovable(OptContext& opt, Inst& inst);
  * pass recompute this, or move it past a store - that deleting an unread read does not ask.
  */
 bool isRemovableIfUnread(OptContext& opt, Inst& inst);
+
+// And the weakest of the three, for an instruction nothing reads - `cse.cpp`, where the two clauses
+// it drops are argued. `simplify`'s dead-value rewrite is the one reader.
+bool isDiscardableIfUnread(OptContext& opt, Inst& inst);
 
 bool isUnifiable(Value& from, Value& to);
 bool sameComputation(OptContext& opt, Inst& a, Inst& b);
@@ -297,11 +314,26 @@ void removeTrivialArguments(OptContext& opt);
 // holding a block cursor.
 void threadBranches(OptContext& opt);
 
+/*
+ * A condition a branch decided, handed on again from inside the arm it decided - `opt/cfg.cpp`.
+ *
+ * Beside `threadBranches` because it makes the shape that pass and `removeTrivialArguments` spend:
+ * a block argument every edge answers with the same constant. It is not the branch-implied *range*
+ * facts README.md measured twice and did not keep - this relates a value to itself rather than two
+ * values to each other, and is one comparison with no lattice.
+ */
+void decideBranchConditions(OptContext& opt);
+
 // The third of `cleanCfg`'s three rewrites on its own - the blocks nothing reaches, and the edges
 // and values they owned. Exported for `dischargeChecks`, which runs where `cleanCfg` does not and
 // strands a block that holds a call; one implementation reached two ways, rather than a second
 // reachability walk to keep in agreement with this one.
 void removeUnreachableBlocks(OptContext& opt);
+
+// The edge after a call that does not come back, cut - `mir::Summary::diverges`, and the abort arm
+// of every grafted bounds check. In `opt/cfg.cpp` beside the cleanup it hands its work to, and run
+// immediately in front of `cleanCfg` for the same reason.
+void endNonReturningBlocks(OptContext& opt);
 
 // A read answered by a write above it, a second read answered by the first, and a write nothing
 // reads - one forward scan per block, carrying a table from address to contents. `opt/memory.cpp`,
@@ -344,6 +376,15 @@ void cse(OptContext& opt);
 void hoist(OptContext& opt);
 
 /*
+ * A record parameter that becomes one parameter per field - `opt/arg.cpp`.
+ *
+ * Program-wide and run once, in front of the inliner, for the reason that file's comment gives: it
+ * is a calling convention rather than an optimization, so a signature this stage is going to rewrite
+ * is rewritten once in the callee rather than once per copy the inliner makes of it.
+ */
+void flattenArguments(OptContext& opt);
+
+/*
  * A call to a small callee replaced by a copy of its body - `opt/inline.cpp`.
  *
  * Program-wide and run once, before the per-function loop, for the reason README.md's section B
@@ -361,6 +402,17 @@ void inlineCalls(OptContext& opt);
  * one round further down.
  */
 void markProgramReachable(OptContext& opt);
+
+/*
+ * And the same question about module-level globals, asked **once, below everything else** -
+ * `opt/reach.cpp`, where the two walks are separated.
+ *
+ * A global stops being reachable when the folder answers its last read, and the folder is a
+ * per-function pass, so this is the one answer in the directory that cannot be computed until the
+ * whole program has been optimized. Program-wide, and it writes `mir::Global::reachable`, which is
+ * what `Lowering::declareGlobal` reads.
+ */
+void markReachableGlobals(OptContext& opt);
 
 /*
  * The library's `checkFailed` branches removed, for `-no-checks` - `opt/check.cpp`.

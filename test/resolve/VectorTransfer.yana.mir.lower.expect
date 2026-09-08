@@ -1,0 +1,93 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 4: Ptr
+    %v_2 = alloca 16, 4: Ptr
+    store %v_1, 11, 4
+    %v_3 = add %v_1, 4: Ptr
+    store %v_3, 22, 4
+    %v_4 = add %v_1, 8: Ptr
+    store %v_4, 33, 4
+    %v_5 = add %v_1, 12: Ptr
+    store %v_5, 44, 4
+    setpattern %v_2, 16, 0
+    %v_6 = load %v_1, 16: i32x4
+    store %v_2, %v_6, 16
+    %v_7 = loads %v_2, 4: I32
+    %v_8 = add %v_2, 12: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = add %v_7, %v_9: I32
+    %v_11 = imul %v_10, 1000000: I32
+    %v_12 = alloca 16, 1: Ptr
+    store %v_12, 1, 1
+    %v_13 = add %v_12, 1: Ptr
+    store %v_13, 1, 1
+    %v_14 = add %v_12, 2: Ptr
+    store %v_14, 1, 1
+    %v_15 = add %v_12, 3: Ptr
+    store %v_15, 1, 1
+    %v_16 = add %v_12, 4: Ptr
+    store %v_16, 1, 1
+    %v_17 = add %v_12, 5: Ptr
+    store %v_17, 1, 1
+    %v_18 = add %v_12, 6: Ptr
+    store %v_18, 1, 1
+    %v_19 = add %v_12, 7: Ptr
+    store %v_19, 1, 1
+    %v_20 = add %v_12, 8: Ptr
+    store %v_20, 2, 1
+    %v_21 = add %v_12, 9: Ptr
+    store %v_21, 2, 1
+    %v_22 = add %v_12, 10: Ptr
+    store %v_22, 2, 1
+    %v_23 = add %v_12, 11: Ptr
+    store %v_23, 2, 1
+    %v_24 = add %v_12, 12: Ptr
+    store %v_24, 2, 1
+    %v_25 = add %v_12, 13: Ptr
+    store %v_25, 2, 1
+    %v_26 = add %v_12, 14: Ptr
+    store %v_26, 2, 1
+    %v_27 = add %v_12, 15: Ptr
+    store %v_27, 2, 1
+    %v_28 = load %v_12, 16: i8x16
+    %v_29 = vlane %v_28, 0: I32
+    %v_30 = imul %v_29, 10: I32
+    %v_31 = vlane %v_28, 15: I32
+    %v_32 = imul %v_31, 7: I32
+    %v_33 = add %v_30, %v_32: I32
+    %v_34 = imul %v_33, 1000: I32
+    %v_35 = add %v_11, %v_34: I32
+    %v_36 = alloca 16, 4: Ptr
+    store %v_36, 1, 4
+    %v_37 = add %v_36, 4: Ptr
+    store %v_37, 2, 4
+    %v_38 = add %v_36, 8: Ptr
+    store %v_38, 3, 4
+    %v_39 = add %v_36, 12: Ptr
+    store %v_39, 4, 4
+    %v_40 = loadx %v_37, 16: i32x4
+    %v_41 = vlane %v_40, 0: I32
+    %v_42 = vlane %v_40, 1: I32
+    %v_43 = add %v_41, %v_42: I32
+    %v_44 = vlane %v_40, 2: I32
+    %v_45 = add %v_43, %v_44: I32
+    %v_46 = imul %v_45, 10: I32
+    %v_47 = add %v_35, %v_46: I32
+    %v_48 = alloca 16, 4: Ptr
+    store %v_48, 7, 4
+    %v_49 = add %v_48, 4: Ptr
+    store %v_49, 9, 4
+    %v_50 = add %v_48, 8: Ptr
+    store %v_50, 9, 4
+    %v_51 = add %v_48, 12: Ptr
+    store %v_51, 7, 4
+    %v_52 = load %v_48, 16: i32x4
+    %v_53 = vsplat 9: i32x4
+    %v_54 = cmp_eq %v_52, %v_53: m32x4
+    %v_55 = vreduce_bits %v_54: I32
+    %v_56 = add %v_47, %v_55: I32
+    ret %v_56
+  }
+}
+

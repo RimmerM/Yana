@@ -42,7 +42,7 @@ bb0:
   return take %30
 }
 
-fn bits() -> I32 {
+fn bits'2() -> I32 {
   local a: Vec(I32)
   local b: Vec(I32)
 
@@ -75,7 +75,7 @@ bb0:
   return take %24
 }
 
-fn lanes() -> I32 {
+fn lanes'2() -> I32 {
   local v: Vec(I32)
   local changed: Vec(I32)
 
@@ -303,9 +303,9 @@ bb4:
 
 bb5:
   %16: I32 = call arithmetic
-  %17: I32 = call bits
+  %17: I32 = call bits'2
   %18: I32 = add inspect %16 inspect %17
-  %19: I32 = call lanes
+  %19: I32 = call lanes'2
   %20: I32 = add inspect %18 inspect %19
   return take %20
 

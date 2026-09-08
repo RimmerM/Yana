@@ -7,33 +7,12 @@
    call graph is walked, which only happens once every form has been chosen. Both of them are limits
    of the environment rather than mistakes in the program - each names a call that is perfectly well
    typed and that the erased ABI has no way to hand anything over for.
+
+   There was a second shape here and it is `Erased.Superclass.yana` now: a member reached through a
+   **superclass** of a declared requirement, which a flattened witness table answers.
 -}
 
 data Vessel {size: I32}
-
-class Eq(a):
-    fn same(x: a, y: a) -> I32
-
-class (Eq(a)) Ord(a):
-    fn less(x: a, y: a) -> I32
-
-instance Eq(Vessel):
-    fn same(x: Vessel, y: Vessel) -> I32 = x.size
-
-instance Ord(Vessel):
-    fn less(x: Vessel, y: Vessel) -> I32 = 0 :: I32
-
-{-
-   A member reached through a **superclass** of a declared requirement.
-
-   The promise holds - an instance of `Ord(T)` could not have been declared without one of `Eq(T)`,
-   which is what admits the call - and the environment cannot express it: the slot holds `Ord`'s
-   witness, and `Eq`'s members are not in it. What that needs is a witness table that carries the
-   ones it implies, which is what `freezeSchema` means by superclasses not being slots of their own,
-   and it is not built. So the discharge admits the call and this reports the shape.
--}
-@generic
-fn (Ord(a)) reaching(x: a, y: a) -> I32 = same(x, y)
 
 fn (a) helper(x: a) -> I32 = 2 :: I32
 
@@ -52,4 +31,4 @@ fn (a.size: I32) onward(x: a) -> I32 = helper(x) + x.size
 
 fn main() -> I32:
     let v = Vessel {size: 1 :: I32}
-    return reaching(v, v) + onward(v)
+    return onward(v)

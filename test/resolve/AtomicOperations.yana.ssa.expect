@@ -78,7 +78,7 @@ bb0:
   return consume %36
 }
 
-fn compare() -> I32 {
+fn compare'2() -> I32 {
 bb0:
   %4: %Atomic(I32) address = alloc frame Atomic(I32)
   %5: %ExchangeResult(I32) address = alloc frame ExchangeResult(I32)
@@ -267,7 +267,7 @@ bb0:
   return consume %30
 }
 
-fn lock() -> State {
+fn lock'2() -> State {
 bb0:
   %4: %Atomic(State) address = alloc frame Atomic(State)
   %5: %ExchangeResult(State) address = alloc frame ExchangeResult(State)
@@ -343,85 +343,62 @@ bb0:
 
 fn main() -> I32 {
 bb0:
-  %3: %State address = alloc frame State
+  %2: %State address = alloc frame State
+  %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
   %5: %I32 address = alloc frame I32
-  %6: %I32 address = alloc frame I32
-  %7: State trivial = call lock
-  store inspect %3 consume %7
-  %8: %U8 address = field.addr .# inspect %3
-  %9: U8 trivial = load inspect %8
-  %10: U8 trivial = const 1
-  %11: Bool trivial = eq inspect %9 inspect %10
-  branch inspect %11 -> bb4 -> bb1
+  %6: State trivial = call lock'2
+  store inspect %2 consume %6
+  %7: %U8 address = field.addr .# inspect %2
+  %8: U8 trivial = load inspect %7
+  %9: I32 trivial = map [0 -> 0, 1 -> 1, 2 -> 0] inspect %8
+  store inspect %3 consume %9
+  %10: I64 trivial = call widths
+  %11: I64 trivial = const 0
+  %12: Bool trivial = gt inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
 
 bb1:
-  %12: %U8 address = field.addr .# inspect %3
-  %13: U8 trivial = load inspect %12
-  %14: U8 trivial = const 0
-  %15: Bool trivial = eq inspect %13 inspect %14
-  branch inspect %15 -> bb5 -> bb2
+  %13: I32 trivial = const 0
+  jump -> bb2(consume %13)
 
-bb2:
-  %16: I32 trivial = const 0
-  jump -> bb3(consume %16)
-
-bb3(%0: I32 trivial):
+bb2(%0: I32 trivial):
   store inspect %4 consume %0
-  %17: I64 trivial = call widths
-  %18: I64 trivial = const 0
-  %19: Bool trivial = gt inspect %17 inspect %18
-  branch inspect %19 -> bb8 -> bb6
+  %14: I64 trivial = call narrow
+  %15: I64 trivial = const 0
+  %16: Bool trivial = gt inspect %14 inspect %15
+  branch inspect %16 -> bb6 -> bb4
+
+bb3:
+  %17: I32 trivial = const 1
+  jump -> bb2(consume %17)
 
 bb4:
-  %20: I32 trivial = const 1
-  jump -> bb3(consume %20)
+  %18: I32 trivial = const 0
+  jump -> bb5(consume %18)
 
-bb5:
-  %21: I32 trivial = const 0
-  jump -> bb3(consume %21)
+bb5(%1: I32 trivial):
+  store inspect %5 consume %1
+  %19: I32 trivial = call basics
+  %20: I32 trivial = call counters
+  %21: I32 trivial = add inspect %19 inspect %20
+  %22: I32 trivial = call compare'2
+  %23: I32 trivial = add inspect %21 inspect %22
+  %24: I32 trivial = call retry
+  %25: I32 trivial = add inspect %23 inspect %24
+  %26: I32 trivial = call ordering
+  %27: I32 trivial = add inspect %25 inspect %26
+  %28: I32 trivial = load inspect %3
+  %29: I32 trivial = add inspect %27 inspect %28
+  %30: I32 trivial = load inspect %4
+  %31: I32 trivial = add inspect %29 inspect %30
+  %32: I32 trivial = load inspect %5
+  %33: I32 trivial = add inspect %31 inspect %32
+  return consume %33
 
 bb6:
-  %22: I32 trivial = const 0
-  jump -> bb7(consume %22)
-
-bb7(%1: I32 trivial):
-  store inspect %5 consume %1
-  %23: I64 trivial = call narrow
-  %24: I64 trivial = const 0
-  %25: Bool trivial = gt inspect %23 inspect %24
-  branch inspect %25 -> bb11 -> bb9
-
-bb8:
-  %26: I32 trivial = const 1
-  jump -> bb7(consume %26)
-
-bb9:
-  %27: I32 trivial = const 0
-  jump -> bb10(consume %27)
-
-bb10(%2: I32 trivial):
-  store inspect %6 consume %2
-  %28: I32 trivial = call basics
-  %29: I32 trivial = call counters
-  %30: I32 trivial = add inspect %28 inspect %29
-  %31: I32 trivial = call compare
-  %32: I32 trivial = add inspect %30 inspect %31
-  %33: I32 trivial = call retry
-  %34: I32 trivial = add inspect %32 inspect %33
-  %35: I32 trivial = call ordering
-  %36: I32 trivial = add inspect %34 inspect %35
-  %37: I32 trivial = load inspect %4
-  %38: I32 trivial = add inspect %36 inspect %37
-  %39: I32 trivial = load inspect %5
-  %40: I32 trivial = add inspect %38 inspect %39
-  %41: I32 trivial = load inspect %6
-  %42: I32 trivial = add inspect %40 inspect %41
-  return consume %42
-
-bb11:
-  %43: I32 trivial = const 1
-  jump -> bb10(consume %43)
+  %34: I32 trivial = const 1
+  jump -> bb5(consume %34)
 }
 
 entry main

@@ -24,7 +24,17 @@ decidable before a target is chosen.
 `layoutRecord` folds out of one walk over the fields. Everything else follows from that one bit:
 
 - a local of such a type is an `alloc` and a use of it is its address;
-- an argument of such a type is passed as an address;
+- an argument of such a type is passed as an address - **except a window**, which
+  `resolve_ssa/opt/arg.cpp` splits into one parameter per field at the calling convention. That is a
+  decision made one tier up and it is made there for a reason this file states: an address-only
+  parameter's *pointee* has no root in the callee, so the length a bounds test compares against is a
+  load inside every loop and nothing below can hoist it. `Array(a)` under `AccessForm::View` is the
+  one borrowed form whose value is a record of its own - every other shared borrow of a record
+  manifests as a pointer to the caller's storage (`isReferenceValue` against `isAddressOnly`, below)
+  and already arrives in one register - so it is the one the split applies to. Since J37 the callee's
+  entry usually puts nothing back at all: where the body reads the record one leaf at a time, the
+  leaf reads *are* the new parameters, and the frame slot `promote` and `removeDeadStorage` used to
+  take away is the fallback for a body that does anything else with it;
 - a *result* of such a type comes back through storage the caller supplies, so a memory-returning
   function takes a hidden pointer as its **leading** argument. It is leading because that is what the
   shared IR's other producer does, and two producers that disagreed about the position would build
@@ -206,6 +216,16 @@ writes that preserve everything outside the field, so the bits above the run are
 held - and the niche the record publishes is made of exactly those bits. `hasPaddedWord` is the
 question and `frameStorage` is the one place it is asked.
 
+**`isNarrowReference` is a question about an *occurrence*, and one instruction restates a reference
+under another one.** `swap` and `exchange` expand to `addressOf` of their `&` argument and a
+load/store through the raw `%T` - `expand_exchange.cpp`, which is right at the MIR tier, where a
+narrow reference does not exist - and the `bitcast` that restates the reference as a pointer is
+value-preserving here: both are `LowerType::Pointer` and the shift rides along in the bits. What it
+changes is the occurrence, so the raw pointer answered "not narrow" and the load below it
+dereferenced a tagged address, which is a segfault rather than a wrong answer. `narrowPointee` looks
+through exactly that one step - `expandExchange` and `expandPointerLoad` each emit one, and a chain
+of pointer bitcasts is not a shape any expansion builds. `ScalarRecord.yana` is the fixture.
+
 ## `@box` is three operations, and the third one has to ask
 
 `box.cpp` is the whole of `@box` below the MIR - `mir::RecordField::boxed`, and the parent
@@ -217,10 +237,18 @@ field's own slot, and the value installed through the address that came back. Re
 one load, in `fieldAddress`, which is why every consumer - a read, a write, a borrow, a teardown -
 crosses the indirection without knowing it is there.
 
-Releasing one is a **call** rather than an expansion, and there are two independent reasons, either of
-which would be enough. It needs control flow that `emitTeardown` has none of; and a recursive type
-reaches its own teardown through exactly this edge, so the memo on the generated function is what
-makes `data List = Nil | Cons {tail: List}` terminate instead of inlining forever.
+Releasing one is written **in place wherever it can be**, and a call otherwise - `emitBoxTeardown`,
+where the two conditions are the two reasons the call used to be unconditional. A conditional release
+needs control flow that `emitTeardown` has none of, so `BoxRelease::Unknown` still calls; and a
+recursive type reaches its own teardown through exactly this edge, so `boxExpansion` - the stack of
+targets being expanded right now - is what makes `data Chain {next: @box Chain}` take the call
+instead of inlining forever.
+
+**Expanding is what makes one frame walk one level.** `Maybe(Tree)`'s teardown used to call
+`box(Tree)`, which called `teardown(Maybe(Tree))` twice, so a thirteen-deep tree stood twenty-six
+frames deep where the shipping stage's `reclaim$Tree` stands thirteen. Expanded, the sum's teardown
+frees the node and calls its two children's - which is a call to the function already being built, so
+`data List = Nil | Cons {tail: List}` still terminates on the memo it always did.
 
 ### Who knows where the storage came from
 
@@ -265,7 +293,21 @@ layouts differ by a suffix and by nothing else. `test/resolve/ownership/Box.Stor
 `Box.Classified.yana` are one program under each, and their goldens differ in the record's size, in a
 store at construction, and in the shape of the release.
 
-## Lowering is seven files
+**And there is a third answer, which is that the program never asks.** The bit is read at exactly one
+kind of site - a teardown reached through a borrow, a global or a raw address - so a program with no
+such site writes a word nothing looks at and pays for it in the layout of every record holding a box.
+`mir::settleBoxProvenance` is the question, asked once over the reachable bodies at the end of
+resolution and carried on `mir::Program::asksBoxProvenance`; `storesBoxProvenance` reads it beside the
+allocator's answer. It has to be about the reachable bodies rather than the declarations: every
+library holds a function that overwrites through a `&`, so the declaration-level answer is "yes" for
+every program that links one.
+
+That word is what `Maybe(Tree)` was paying twelve bytes a node for. A pointer with a provenance byte
+behind it is nine bytes at an alignment of eight, so the record's *stride* doubles and a `Tree` node
+is thirty-two bytes where the shipping stage's is twenty - the niche fold was never the thing that
+was missing.
+
+## Lowering is eight files
 
 `gen.cpp` is the shape a function has before any of its code exists - globals, signatures, block
 structure, phis, the driver - which is also everything that has to be decided before the first call
@@ -287,9 +329,84 @@ Behind both of them is `lower/lower_pipeline.h`, the run of shared lower passes 
 owe their output. This stage called one member of it - `makeDivisionTotal` - until phase 1 of
 [`../opt/README.md`](../opt/README.md).
 
-`erase.cpp` is the third, and it is the ABI a generic body compiled **once** is called across.
-`fun.cpp` is the fourth, on the same terms: the two words a **function value** is, and the thunk
-that makes a plain function callable across them.
+**And it runs over the functions this stage *writes*, which is a tail pass rather than a call beside
+each one.** Every teardown, box release, witness accessor and thunk in this directory is a
+`LowerFunction` with no `mir::Function` behind it, so the loop over declared bodies cannot reach one;
+they were the only kind of function in the module that never met the shared pipeline. What that cost
+reads in one line: `teardown(Maybe(Tree))` opened with `load; sub 1; cmp_le; select 1, 0; cmp_eq 1`
+where `total`, reading the same niche of the same type two functions above it, opened with
+`cmp_neq %p, 0`. Same layout and the same decoder - `decodeFolded` - and the difference was entirely
+that one of the two had been folded and the other had not.
+`doc/progress/2026-09-08-J33-tree-family.md` recorded that as "two decoders"; there is one, and this
+was what was missing under it. A tail pass because a generated body may generate another - a sum's
+teardown asks for its fields' - so optimizing one mid-emission would be running a pipeline over a
+module a later emission still appends to; every declared function is added before the first body is
+lowered, so the boundary in `functionOrder` is a count.
+
+`inst.cpp` hands `Inst::Switch` straight across as `LowerInst::Switch`, which is what D3 slice 3
+built the lower IR's own multi-way branch for: it used to expand here into a chain of equality tests,
+because `LowerBlock` held exactly two outgoing edges and a three-way branch had nowhere to be said.
+`outgoing` is a list now, so the choice between a chain, a binary search and a jump table is taken
+where it belongs - `codegen/x64/transform_switch.cpp` for the one backend that has to make it, and
+`IRBuilder::CreateSwitch` for the one that hands the question to LLVM.
+
+Every edge leaves the block the `match` was written in, so each target's phi takes its alternative
+from there, which is what `supplyEdge` records. The one thing this file still has to arrange is a
+target named by *two* cases: an edge is the pair of blocks it joins everywhere below here, so the
+second one goes through a block holding a jump rather than being a second alternative from one
+predecessor. See `LowerBlock::outgoing`, where that rule is stated for every terminator.
+
+`map.cpp` is the third, and it is where a `match` over constants stops being a mapping and becomes
+arithmetic. `ssa::InstMap` carries the table down opaquely (inventory D3); this file picks one of six
+shapes for it - the constant where every arm agrees, two comparisons where a `Bool` property is one
+interval, a shifted immediate where it is not, `selector * stride + bias` where the results are a
+line, the fields of one packed word where they are small, and a run of slots in read-only data
+otherwise.
+
+**The algebra is here and not in a backend**, which is the whole reason the node reaches this tier at
+all: which shape a mapping *is* is a fact about the numbers, so x64 and LLVM asking separately is two
+answers to one question. What is left below is a global and an indexed read, which both backends
+already emit. `resolve/expr_map.cpp` is the shipping stage's version of the same six, and this is
+that reasoning ported minus its memory arm - and minus its size rule, which it has to state because
+its recognizer promises an emission before it knows what it will emit.
+
+Three things about it are not the shipping file's. A **memory-typed** result stops at the slot's
+address rather than loading it, because that is what a value of one *is* - the consumer copies from
+it exactly as it copies from a placed constant, so a `String` table costs the two words the consumer
+was going to copy anyway. An **open** domain - an integer pivot with a wildcard arm - is served
+without a branch: the table gets one extra slot holding the fallback and a `select` picks it, and the
+mask form guards its shift the same way. And the table is **interned by its bytes**, because the
+inliner clones a `map` per call site and one `nameOf` opened three times was three identical runs in
+the data section.
+
+`erase.cpp` is the fourth, and it is the ABI a generic body compiled **once** is called across.
+`fun.cpp` is the fourth, on the same terms: the two words a **function value** is, the thunk that
+makes a plain function callable across them, and the heap block plus tag bit an escaping closure's
+environment is.
+
+`box.cpp` also carries the one thing in this directory that is not a representation decision:
+**`-check-locations`**. `Lowering::locatedCheck` substitutes the located pair (`checkConditionAt`,
+`checkFailedAt`) for the unlocated one at a call that names either role, and
+`checkLocationArguments` appends the module's bytes, their count, the line and the column - four
+scalars and never a `String`, which is the whole of the measurement `known.def`'s row records.
+
+**Here rather than in the resolver**, and that is the one decision the feature turns on. Every rule
+that reads a check - `dischargeChecks`, the bounds fold, `clobbers` - was written against a call with
+no arguments; emitting the located form up in MIR makes each of them a second pattern to recognize,
+which is what the shipping stage's `isCheckCall` exists to paper over. Emitted after all of them, the
+optimizer only ever sees one shape. The two costs of that are stated where they are paid: the two
+roles are rooted by both reachability walks (nothing in any body names them), and
+`worthInlining` declines to expand them under the switch, because a call the lowering never sees is a
+check with no location left to give.
+
+The **location** is `Conversion::graftCall`'s, not the call's own. `Index.get` writes its own bounds
+test and `@inline(always)` grafts it, so a `checkFailed` inside it carries `lib/Core/Array.yana`'s
+line and the site an author wants named is `xs[i]`; `Graft::site` keeps the outermost graft site and
+a call to the `checkFailed` role emitted inside a graft takes it. That is `#[track_caller]` semantics
+obtained from the graft, and a `@caller` fill is not the mechanism for two reasons: `Index.get`'s
+parameter list is the class's and cannot grow one, and a `Site` is a record - the by-address argument
+materialized at the call, ahead of the branch, on the path a check that holds takes, which is the
+34% this feature was rewritten to avoid.
 
 `width.cpp` is the fifth and is the whole of what a value narrower than its register costs.
 `pack.cpp` is the sixth and is the whole of what a component with **no address** costs - see the
@@ -346,6 +463,16 @@ was because a store discards the register above the byte, so writing the value t
 it; `BitcastNarrow.yana` is the fixture, and the shipping stage carries the same correction with the
 wrong answers it produced.
 
+**A conversion to the type it already has is emitted as nothing**, which is the same unary arm and is
+a rule about the *machine* rather than about widths. `foldFunctionConstants` removes the shape and
+nothing else did, so it only survives to here under `-no-ir-opt` - and there it is a crash rather
+than a wasted instruction: `machine_select.cpp`'s float cast asserts `from != to`, because there is
+no `cvtsd2sd`. What produces one is a `provided.def` instance at its own type, which is a real
+declaration and not a mistake - the conversion ladder has a rung between every pair and the diagonal
+is one of the pairs, so `F64.fromDecimal(value: F64) -> F64` is `cast value`. The test is on the
+*logical* types, which is what keeps a `@bits` refinement out: `IntType::canonical` makes a
+refinement a distinct type precisely so that the narrowing at the store is not mistaken for a no-op.
+
 ## A vector is a register value, and an atomic is a location
 
 Two of `resolve_mir`'s type kinds reach the manifestation table with an answer neither a record nor a
@@ -375,6 +502,17 @@ a signed comparison per lane, which `arithmeticLane` is the one place that asks 
 vectors states its result type**, because it answers a mask where a scalar comparison answers a
 `Bool`; the lower IR's validator refuses one that does not, which is how the omission was found.
 
+A **vector constant** is placed bytes: `materialize` writes it with the same three lines a fixed
+array's takes - one type laid end to end at its own stride, with nothing over it - because that is
+exactly what a vector's lanes are. The two share one arm rather than having one each, since a second
+copy is how the two would come to disagree about the stride. `let &sink = 0 :: Vec(I32, 4)` is what
+reaches it (2026-09-07).
+
+And a **pointer constant is an immediate plus a bitcast**, because the lower IR has no pointer
+immediate - `validateImm` refuses one, and the reason it does is that a target's relocations are what
+put an address in a register, so a literal one has to arrive as a number. `let nowhere = 0 :: %U8`
+is the program; the bitcast costs no instruction.
+
 ## A function value is two words, and `code` always takes the environment first
 
 `{code, env}`, sixteen bytes, address-only. A plain function referenced by name, a lambda that
@@ -403,17 +541,101 @@ that supplies the generic environment out of its own captures - so `CallThrough:
 same leading argument `CallThrough::Declaration` does for an erased callee, and the call lowering
 has one shape for four call forms.
 
-**A function value owes no teardown, and that is a statement about placement rather than about
-function values.** An environment is a local of the frame that built the closure
-(`resolve_mir/resolve_lambda.cpp`), it holds copies and borrows, and neither owes anything. The
-capture that would make one own something is the spec's **consumed** capture - and a closure that
-consumes a capture is precisely one that has to outlive its frame, which is the heap placement
-`mir::verifyBody` refuses for want of an allocator. The two therefore arrive together, and a release
-helper written before they do would read a header word nothing writes.
+It is not trivially copyable, and that is a different question from the teardown: a closure may hold
+an exclusive loan of a capture, so duplicating the bytes would be a second exclusive capability over
+one object. Its uses are moves.
 
-It is still not trivially copyable, and the two are different questions: a closure may hold an
-exclusive loan of a capture, so duplicating the bytes would be a second exclusive capability over one
-object. Its uses are moves, and nothing runs when it dies.
+### The environment word's tag bit, and the header behind it - D17
+
+The second word is one of three things and a holder of the pair may not ask which: **null**, the
+address of a **local of the frame that built the closure**, or the address of a **heap block this
+file allocates**. `resolve_mir` decides which from the position the lambda was written at (its README
+has that half); everything below is the representation.
+
+A block is `[teardown][captures]` - `closureHeaderBytes` is the offset, one pointer rounded up to
+whatever the environment record's alignment wants, so a `Vec` capture is not loaded misaligned. Its
+address is stored in the pair **with bit zero set**, and that bit is the whole of how a drop at a
+site that cannot name the lambda tells a block from a frame address. The alternative was
+`known.def`'s `isHeapAddress`, and what ruled it out is that the default allocator does not fill that
+role - `resolve_mir/README.md`'s closure section is where the argument is.
+
+Three functions, all in `fun.cpp`:
+
+- **`emitClosureBlock`** - `allocateHeap`, the header store, the zeroing rule `createBox` states
+  (this is its fourth site), a copy of the environment record the MIR relocated into this value, and
+  the `or $1`. Called from `emitFunValue` and nowhere else.
+- **`closureBlockTeardown`** - one per environment record: run `teardownHalves` over the record at
+  `closureHeaderBytes`, then `freeHeap` the block. It takes the *untagged block*, so the header skip
+  is in the file that knows the offset.
+- **`funTeardown`** - one for the whole program, and what every drop of a `Fun` calls: load the
+  word, `and $1`, branch, and on the taken edge subtract the tag, load the header and call it across
+  `kDefaultCallType` for `emitErasedTeardown`'s reason. The word is loaded twice, as an `I64` for the
+  test and as a `Ptr` inside the arm that needs an address, because this tier types a pointer and a
+  value cannot be both; the second load is on the path that is about to make an indirect call anyway.
+
+**The call pays nothing at the site.** `code` is called with `env` exactly as the pair holds it, and
+a heap-placed lambda's own entry block adds `funEnvironmentBias` - `closureHeaderBytes - 1`, a
+constant - to its environment parameter once, in `gen.cpp`. The backend folds a constant add into the
+displacement of the load that uses it: `ClosureTeardown.yana`'s `escaping.lambda` is `add %env, 7`
+and a `loads`.
+
+**A frame closure's drop is not emitted at all**, so there is nothing here to fold it away.
+`mir::ownershipOfOccurrence` answers "nothing to release" for a value carrying `Shapes::closure` or
+`Shapes::noEnvironment`, which is every closure whose lambda the compiler can see and every plain
+function named as a value. `ClosureTeardown.yana`'s `direct` and `either` have no teardown anywhere
+in them.
+
+**What is not built**: an inliner that removes the allocation when a heap-placed closure is built and
+consumed in one block. The call could be devirtualized by store forwarding, but `allocateHeap` and
+`freeHeap` are opaque calls to `opt/analysis.cpp` (J24 records the same for a heap-placed local), so
+the header and the block survive whatever happens to the call. Removing a matched pair of allocator
+calls is an optimizer question rather than this file's.
+
+## An allocation that is not the frame's
+
+`Inst::Alloc` carries a `mir::StorageClass` that `mir::selectStorage` decided, and this tier does not
+get to choose one. `Frame` is `frameStorage` - a `LowerInstAlloca` - and `Heap` is `heapStorage`, one
+call to the `allocateHeap` role. `Region` is unreachable; the MIR verifier refuses it.
+
+`Inst::Free` is the other end, one call to `freeHeap`, emitted by `Conversion::releaseSlots` before
+each terminator that ends the activation that allocated. A row of its own rather than a bit on
+`Drop`, because the two are different statements: a drop runs what a **value** owes when it dies, and
+a free hands back the **storage** it was sitting in - and a heap-placed local whose value left by a
+`->` argument owes the second and not the first.
+
+The three-way `BoxRelease` question does not arise at a `Free`. That one exists because a boxed
+field's release site may be reached through a borrow and cannot see where the caller placed the
+value; a `Free` names an `Alloc`'s own result in the frame that made it.
+
+### Where a memory value lives is decided before its producer runs
+
+`storageFor` is what every producer of a memory value asks, and `destinationFor` is the search behind
+it: a value with exactly one consumer, and a consumer that knows the address it is going to copy the
+value into, is built *there* and never gets a frame slot. The two consumers with an address are the
+`return` - the caller's hidden result pointer - and an `aggregate` component, whose address is a field
+of the record being built or the box that field is. The search recurses, so
+`Tree {left: Just(build(...))}` builds the child inside the box inside the caller's storage, and
+`build` emits fourteen lower instructions where it emitted seventy-one.
+
+The alternative is what was there: `compiler/lower`'s `forwardCopyDestinations` chasing the copies
+afterwards, at **28.2 G instructions on the library suite against the shipping stage's 0.09 G**
+(findings.md §78.6). It is 0.44 G now. That pass also cannot reach the box at all - `allocateHeap` is
+emitted below the writes into the temporary, so the destination does not dominate them and the copy
+has to stay.
+
+Four conditions, each of which is one of the reasons a slot would otherwise be right: the value lives
+in memory and its size is a number; it has exactly one use; the use is in the same block as the
+definition, so the destination's address is available where the producer writes; and the type has no
+padded word, because `frameStorage` zeroes such a slot and somebody else's storage carries whatever
+was in it. `destinations` is the record of what was placed, read by the consumer so that it installs
+nothing and makes no second box.
+
+**The zeroing rule is stated at all three allocation sites and nowhere else** - `frameStorage`,
+`heapStorage` and `createBox`. A type with a word whose spare bits nobody writes (`hasPaddedWord`)
+has its storage cleared, because a co-packed run is filled by read-modify-writes and the niche the
+record publishes is made of exactly those bits. `heapStorage` asks for the **stride** rather than the
+size, on `createBox`'s reason: a record's size stops at its last field so a container can land in its
+trailing padding, and a standalone allocation has no container to do that.
 
 ## The erased ABI lives at the bottom, in one file
 

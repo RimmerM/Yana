@@ -65,6 +65,11 @@ static void eachFamilyType(Program& program, Family family, F&& visit) {
                 if(hasMachineWidth(*program.decl, type)) visit(type);
             });
             break;
+        case Family::Swappable:
+            eachIntegerType(types, [&](DeclPtr<Type> type) {
+                if(hasByteOrder(*program.decl, type)) visit(type);
+            });
+            break;
         case Family::Floats:
             eachFloatType(types, visit);
             break;
@@ -182,6 +187,7 @@ bool providedFor(Program& program, Provided role, DeclPtr<Type> type) {
  */
 static bool providesMember(Provided role, U16 member) {
     if(role == Provided::ord) return member <= kOrdCompare;
+
     return true;
 }
 
@@ -508,6 +514,108 @@ void Resolver::provideVectorInstances() {
     }
 }
 
+/*
+ * The instances whose head is a **payload-free sum** - one `Enum`, one `Eq` and one `Ord` per `data`.
+ *
+ * A generator rather than rows of `provided.def`'s families for `provideVectorInstances`' reason at
+ * a different kind of head: "every payload-free sum in the program" is a walk over the declarations
+ * and not a set of primitives the target has. What the table rows buy is the same thing they buy
+ * there - a `Provided` role for the emitters to be indexed by.
+ *
+ * **Run after every declaration is read**, which is where this parts company with the two generators
+ * above and with the shipping stage. Those run before anything is declared, so a written instance at
+ * the same head is a duplicate found later; this runs after, so it can simply *skip* a head the table
+ * already holds. That is what keeps a program's own `instance Eq(Colour)` winning - the rule the
+ * shipping stage gets from consulting its hooks only on a failed lookup, stated here as a condition
+ * instead of as an ordering.
+ *
+ * Three classes, and the three are not the same kind of statement:
+ *
+ *  - **`Enum`** is generated for every enum unconditionally, because nobody may write one: what all
+ *    four members answer is decided by the `data` declaration, which is `lib/Core/Enum.yana`'s own
+ *    ruling and the reason the class exists.
+ *  - **`Eq` and `Ord`** are generated because the boilerplate they replace was one line per enum and
+ *    the line was always `valueOf(lhs) == valueOf(rhs)`. A **generated instance** and not a
+ *    `structuralAnswer` beside `TrivialCopy`, and the choice is forced rather than stylistic: a
+ *    structural answer names no instance, which is sound only for a class with no members, and both
+ *    of these have members a generic body dispatches through - an erased witness table needs a real
+ *    function with a real body to put in the slot.
+ *
+ * **`Bool` and `Ordering` are left out**, which is the one exception and it is not this function's
+ * ruling: they are `provided.def`'s, whose `Comparable` row gives both an `Eq` and whose `Numbers`
+ * row deliberately gives neither an `Ord` - "a `Bool` has no order the language states, and
+ * `Ordering`'s would be a statement about three words". Answering them here would overturn a
+ * decision written down one directory up.
+ *
+ * A **generic** enum's instances are its instantiations', and only the ones that exist by now: an
+ * instantiation minted later, while a body is being resolved, gets none. Nothing in the corpus or in
+ * `lib/` writes a generic payload-free sum, and the fix when one does is the same walk run again
+ * where `completeInstantiations` runs.
+ */
+void Resolver::provideEnumInstances() {
+    ModuleScope scope(*this, program.core, 0);
+
+    auto base = *program.decl;
+    auto enumeration = program.roles.klass(Known::enumeration);
+    auto boolean = program.roles.record(Known::boolean);
+    auto ordering = program.roles.record(Known::ordering);
+
+    // A head nothing has claimed yet. The table is complete by now, so this is the whole of "a
+    // declared instance wins" - see above.
+    auto unclaimed = [&](DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count) {
+        SmallArray<DeclPtr<Instance>, 4> found;
+        program.keyedInstances(base, klass, args, count, found);
+        return found.size() == 0;
+    };
+
+    auto provideAt = [&](DeclPtr<RecordType> record) {
+        auto& declared = *base[record];
+        if(declared.gen || declared.layout != RecordLayout::Enum) return;
+        if(!declared.cons.size()) return;
+
+        auto type = asBase<Type>(record);
+
+        if(enumeration) {
+            DeclPtr<Type> head[] = { type, enumValueTypeOf(base, program.types, declared) };
+            if(unclaimed(enumeration, head, 2)) {
+                provideInstance(Provided::enumeration, enumeration, head, 2);
+            }
+        }
+
+        /*
+         * Its `Show`, which is `nameOf` written out - `provided.def`'s row at the end.
+         *
+         * **Above the `Bool`/`Ordering` line**, and that is the one asymmetry here: those two are
+         * left out of `Eq` and `Ord` because `provided.def`'s own rows answer them - a `Bool` has no
+         * order the language states - and neither row says anything about text. An `Ordering` reads
+         * `Less`, `Equal`, `Greater` like any other enum, and a `Bool` has a `Show` somebody wrote,
+         * which `unclaimed` is already what defers to.
+         *
+         * Both roles asked, because the body needs both: the class to hang the instance on, and the
+         * append the body is. A library that declares neither generates nothing here, and a format hole
+         * then reports the missing role by name.
+         */
+        auto shown = program.roles.klass(Known::show);
+        if(shown && program.roles.function(Known::stringPush) && unclaimed(shown, &type, 1)) {
+            provideInstance(Provided::show, shown, &type, 1);
+        }
+
+        if(record == boolean || record == ordering) return;
+
+        auto compare = [&](Known role, Provided provided) {
+            auto klass = program.roles.klass(role);
+            if(klass && unclaimed(klass, &type, 1)) provideInstance(provided, klass, &type, 1);
+        };
+
+        compare(Known::eq, Provided::eq);
+        compare(Known::ord, Provided::ord);
+    };
+
+    for(auto modulePointer: program.modules) {
+        for(auto recordPointer: decl()[modulePointer]->records.contents(decl())) provideAt(recordPointer);
+    }
+}
+
 void Resolver::provideInstances() {
     ModuleScope scope(*this, program.core, 0);
 
@@ -625,9 +733,24 @@ void Resolver::compareBody(Builder& builder, Function& function, Local& lhs, Loc
         builder.addReturn(source, *builder.addConst(source, enumConstant(ordering, constructor)));
     };
 
+    /*
+     * At an **enum** head the operands are read as their tag first - the same conversion
+     * `expandProvided` makes for the four relational members, and for the same reason: an ordering
+     * is arithmetic and `operandTypeAllowed` admits no record to it. A payload-free sum's tag type is
+     * signed exactly where the declaration pins a negative number, so this compares at the width and
+     * the signedness the declaration gave the values.
+     */
+    auto operandOf = [&](Local& local) -> Node* {
+        auto value = readPlace(builder, source, *builder.localPlace(local), inspectRequest());
+        if(!value) return nullptr;
+
+        auto tag = tagTypeOf(decl(), program.types, local.occurrence.type);
+        return tag ? builder.addBitcast(source, *value, tag) : value;
+    };
+
     auto test = [&](BinaryOp op, Block& whenTrue, Block& whenFalse) -> bool {
-        auto left = readPlace(builder, source, *builder.localPlace(lhs), inspectRequest());
-        auto right = readPlace(builder, source, *builder.localPlace(rhs), inspectRequest());
+        auto left = operandOf(lhs);
+        auto right = operandOf(rhs);
         if(!left || !right) return false;
 
         auto condition = builder.addBinary(source, op, *left, *right);
@@ -657,11 +780,424 @@ void Resolver::compareBody(Builder& builder, Function& function, Local& lhs, Loc
 }
 
 /*
+ * The two constructors a generated member builds its answer with - found by **name** off the result
+ * type the class declared.
+ *
+ * By name, because what `Maybe` is stays the library's: the compiler is told which type the member
+ * answers by the class's own signature and reads the present and absent cases out of it, rather than
+ * holding a handle to a declaration `lib/` is free to move. A result that is not a two-case record is
+ * a library whose `Enum` has drifted, and saying so names the type it found.
+ */
+bool Resolver::maybeConstructors(DeclPtr<Type> answer, LocationId source, StringView member,
+                                 U16& just, U16& nothing) {
+    if(!answer || decl()[answer]->kind != Type::Record) {
+        context.diagnostics.error("%@ must answer a record with a present and an absent case, and this answers %@"_v,
+                                  source, member, typeText(context, decl(), answer));
+        return false;
+    }
+
+    auto& maybe = *(RecordType*)decl()[answer];
+    auto constructorNamed = [&](StringView name) -> Maybe<U16> {
+        auto wanted = context.addUnqualifiedName(name);
+        for(U16 i = 0; i < U16(maybe.cons.size()); i++) {
+            if(maybe.cons.get(decl(), i).name == wanted) return Just(i);
+        }
+
+        return Nothing();
+    };
+
+    auto present = constructorNamed("Just"_v);
+    auto absent = constructorNamed("Nothing"_v);
+    if(!present || !absent) {
+        context.diagnostics.error("%@ answers %@, which has no Just and Nothing for the compiler to build"_v,
+                                  source, member, typeText(context, decl(), answer));
+        return false;
+    }
+
+    just = present.unwrap();
+    nothing = absent.unwrap();
+    return true;
+}
+
+/*
+ * `fromValue` - the partial half of `Enum`, and the one generated body that branches.
+ *
+ *      bb0: %in = membership(number); branch %in bb1 bb2
+ *      bb1: %tag = convert number -> the tag's type; %e = bitcast %tag -> the enum
+ *           return Just(%e)
+ *      bb2: return Nothing
+ *
+ * **The membership test has two shapes and which one applies is a property of the declaration.**
+ * Values that run consecutively are a range, which is two comparisons however many constructors
+ * there are - and that is every enum that pins nothing, so the common case does not pay for the
+ * feature. A set with holes is one comparison per constructor, or-ed together: no branches, and an
+ * expression the optimizer is free to make a table of.
+ *
+ * The `Just` payload is **two** nodes and not one, which is the mistake the shipping stage made
+ * here and corrected: `cast I64 -> a payload-free sum` is a narrowing *and* a reinterpretation
+ * stacked on each other, and asking one node for both leaves a conversion whose target has no width
+ * to convert to. Split, each half is a shape that already exists - a narrowing between two integers,
+ * and a renaming between two things of one width, which is what `UnaryCategory::Raw` admits an enum
+ * for. The narrowing is to the **tag's** own type, so a wide `@value` is not truncated on the way in.
+ *
+ * The result's constructors are found by **name**, because this is emitted code with no declaration
+ * in front of it to fix an order: what the class says `fromValue` answers is read off the member's
+ * own result type, which is `Maybe(a)` today and is whatever the library writes tomorrow.
+ */
+void Resolver::enumFromValueBody(Builder& builder, Function& function, Local& number,
+                                 DeclPtr<Type> head) {
+    auto source = function.source;
+    auto& enumeration = *(RecordType*)decl()[head];
+
+    auto answer = function.result.type;
+    U16 just = 0, nothing = 0;
+    if(!maybeConstructors(answer, function.source, "Enum.fromValue"_v, just, nothing)) return;
+
+    auto read = [&]() {
+        return readPlace(builder, source, *builder.localPlace(number), inspectRequest());
+    };
+
+    auto given = read();
+    if(!given) return;
+
+    auto wide = decl()[number.occurrence.type]->kind == Type::Int ? number.occurrence.type
+                                                                  : program.types.intType(64, true);
+
+    auto constant = [&](I64 value) {
+        return builder.addConst(source, intConstant(wide, U64(value)));
+    };
+
+    auto range = tagRangeOf(decl(), enumeration);
+    auto constructors = enumeration.cons.contents(decl());
+    auto consecutive = U64(range.highest - range.lowest) + 1 == U64(constructors.size());
+
+    Node* condition = nullptr;
+    if(consecutive) {
+        auto atLeast = builder.addBinary(source, BinaryOp::Ge, *given, *constant(range.lowest));
+        auto atMost = builder.addBinary(source, BinaryOp::Le, *given, *constant(range.highest));
+        condition = builder.addBinary(source, BinaryOp::And, *atLeast, *atMost);
+    } else if(mapSpanAdmits(range.lowest, range.highest, constructors.size())) {
+        /*
+         * A set with holes, as the **mapping** it is - `True` at each pinned number and `False`
+         * everywhere else, over an open domain (D3).
+         *
+         * The or-chain this replaces is one comparison per constructor, and what it states is
+         * membership of a set the declaration wrote down - which is exactly what a `map` carries.
+         * The lowering turns it into one shifted immediate where the span fits a word, and a byte
+         * table where it does not; neither branches, so what changes is the count and not the shape.
+         */
+        auto truth = booleanType(program);
+        if(!truth) return;
+
+        SmallArray<MapEntry, 16> entries;
+
+        for(auto one: constructors) {
+            MapEntry entry;
+            entry.selector = one.value;
+            entry.value = truthConstant(program, true);
+            entries.push(entry);
+        }
+
+        for(Size i = 1; i < entries.size(); i++) {
+            for(Size j = i; j && entries[j].selector < entries[j - 1].selector; j--) {
+                auto held = entries[j];
+                entries[j] = entries[j - 1];
+                entries[j - 1] = held;
+            }
+        }
+
+        condition = builder.addMap(source, *given, entries.pointer(), entries.size(),
+                                   truthConstant(program, false), false, owned(truth));
+    } else {
+        for(auto one: constructors) {
+            auto matches = builder.addBinary(source, BinaryOp::Eq, *given, *constant(one.value));
+            condition = condition ? builder.addBinary(source, BinaryOp::Or, *condition, *matches)
+                                  : matches;
+        }
+    }
+
+    if(!condition) return;
+
+    auto present = builder.addBlock(StringId());
+    auto absent = builder.addBlock(StringId());
+    builder.addBranch(source, builder.resultOf(*condition, UseMode::Inspect), *present, *absent,
+                      nullptr, 0);
+
+    builder.setBlock(*present);
+
+    // The parameter is read afresh here, because a read is a value of the block it was made in -
+    // which is `compareBody`'s note one function down, for the same reason.
+    auto again = read();
+    if(!again) return;
+
+    auto tag = tagTypeOf(decl(), program.types, head);
+    assertTrue(tag);
+
+    auto narrowed = builder.addConvert(source, *again, tag);
+    auto built = builder.addBitcast(source, *narrowed, head);
+
+    Node* payload[] = { built };
+    auto some = builder.addAggregate(source, answer, just, payload, 1);
+    builder.addReturn(source, *some);
+
+    builder.setBlock(*absent);
+    auto none = builder.addAggregate(source, answer, nothing, nullptr, 0);
+    builder.addReturn(source, *none);
+}
+
+/*
+ * `Enum.nameOf` - the constructor's own word, chosen by the tag it is stored as.
+ *
+ * **One `map` over the declaration's own constructors** - inventory D3, which is what this
+ * function's comment used to defer to by name. The class's note asks for "a chain of comparisons
+ * picking one constant string, which folds to that string outright wherever the constructor is
+ * known", and both halves of that are what a mapping already is: the fold is `foldMap` at a known
+ * selector, and what the chain becomes when the selector is not known is the lowering's question
+ * rather than this file's. A generated `nameOf` over a dozen constructors was a dozen blocks, a
+ * dozen comparisons and a dozen inlined `stringLiteral` bodies; it is now one table read.
+ *
+ * The **chain is still here** for the one declaration a table cannot serve: `@value(n)` may pin
+ * constructors to numbers too far apart to place, and `mapSpanAdmits` is where that is decided. The
+ * two shapes answer the same thing and the fixture that pins this is `EnumInstances.yana`.
+ *
+ * `textConstantValue` builds each word the way a written literal is built - placed bytes plus the
+ * library's own `stringLiteral`, *run* rather than emitted - so a generated name and a source one
+ * are the same value and the same global.
+ */
+void Resolver::enumNameOfBody(Builder& builder, Function& function, Local& item, DeclPtr<Type> head) {
+    auto source = function.source;
+    auto& enumeration = *(RecordType*)decl()[head];
+
+    auto tag = tagTypeOf(decl(), program.types, head);
+    assertTrue(tag);
+
+    auto count = enumeration.cons.size();
+    assertTrue(count != 0);
+
+    auto range = tagRangeOf(decl(), enumeration);
+
+    auto answer = textType(source);
+
+    if(answer && mapSpanAdmits(range.lowest, range.highest, count)) {
+        /*
+         * The words as `Constant::Text`, built later - `PendingTextMap`, and the same deferral a
+         * string global is under. What a literal *is* is what the library's `stringLiteral` returns,
+         * and these bodies are written before any body has been resolved.
+         */
+        SmallArray<MapEntry, 16> entries;
+
+        for(auto one: enumeration.cons.contents(decl())) {
+            MapEntry entry;
+            entry.selector = one.value;
+            entry.value = textConstant(answer, one.name);
+            entries.push(entry);
+        }
+
+        sortMapEntries(entries.pointer(), entries.size());
+
+        auto value = readPlace(builder, source, *builder.localPlace(item), inspectRequest());
+        if(!value) return;
+
+        auto number = builder.addBitcast(source, *value, tag);
+        auto map = builder.addMap(source, *number, entries.pointer(), entries.size(), Constant(),
+                                  true, owned(answer));
+        if(!map) return;
+
+        pendingTextMaps.push(PendingTextMap {
+            (NodeMap*)map - mir(), here(), current->activeFile, source
+        });
+
+        builder.addReturn(source, *map);
+        return;
+    }
+
+    /*
+     * The comparison chain, for a declaration too sparse to place.
+     *
+     * The last constructor is the fall-through rather than a tested arm, because the tag *is* one of
+     * them: a value of an enum carries a tag the declaration named, so an arm for the last one would
+     * be a comparison whose answer is known and a block nothing reaches.
+     */
+    for(Size i = 0; i + 1 < count; i++) {
+        auto one = enumeration.cons.get(decl(), U32(i));
+
+        // Read afresh in each block, because a read is a value of the block it was made in - which
+        // is `compareBody`'s note below, for the same reason.
+        auto value = readPlace(builder, source, *builder.localPlace(item), inspectRequest());
+        if(!value) return;
+
+        auto number = builder.addBitcast(source, *value, tag);
+        auto wanted = builder.addConst(source, intConstant(tag, U64(one.value)));
+        auto matches = builder.addBinary(source, BinaryOp::Eq, *number, *wanted);
+
+        auto hit = builder.addBlock(StringId());
+        auto next = builder.addBlock(StringId());
+        builder.addBranch(source, builder.resultOf(*matches, UseMode::Inspect), *hit, *next,
+                          nullptr, 0);
+
+        builder.setBlock(*hit);
+
+        auto text = textValue(builder, one.name, source);
+        if(!text) return;
+
+        builder.addReturn(source, *text);
+        builder.setBlock(*next);
+    }
+
+    auto last = textValue(builder, enumeration.cons.get(decl(), U32(count - 1)).name, source);
+    if(!last) return;
+
+    builder.addReturn(source, *last);
+}
+
+/*
+ * `Enum.fromName` - the word read back, which is a comparison per constructor and a `Maybe`.
+ *
+ * The comparison is a **call of `Eq`'s own member** at the name's type rather than anything this
+ * file knows about strings: what comparing two strings costs and how it is done is the library's,
+ * and the one thing the compiler contributes is the list of words. So this is the same class call a
+ * program writes, selected at the instance the library declared, and a target whose string equality
+ * is a host call gets that.
+ *
+ * The class's note asks for a length test before the contents; that is `Eq(String)`'s own body and
+ * is where it belongs, since a generated chain that compared lengths itself would be a second
+ * implementation of string equality living in the compiler.
+ */
+void Resolver::enumFromNameBody(Builder& builder, Function& function, Local& name,
+                                DeclPtr<Type> head) {
+    auto source = function.source;
+    auto& enumeration = *(RecordType*)decl()[head];
+
+    auto answer = function.result.type;
+    U16 just = 0, nothing = 0;
+    if(!maybeConstructors(answer, function.source, "Enum.fromName"_v, just, nothing)) return;
+
+    auto equals = program.roles.klass(intrinsic::Known::eq);
+    if(!equals || !decl()[equals]->members.size()) {
+        reportMissingRole(intrinsic::Known::eq, "a generated fromName"_v, source);
+        return;
+    }
+
+    auto& compare = *decl()[decl()[equals]->members.get(decl(), 0)];
+
+    auto tag = tagTypeOf(decl(), program.types, head);
+    assertTrue(tag);
+
+    for(auto one: enumeration.cons.contents(decl())) {
+        auto given = readPlace(builder, source, *builder.localPlace(name), inspectRequest());
+        if(!given) return;
+
+        auto text = textValue(builder, one.name, source);
+        if(!text) return;
+
+        Node* operands[2] = { given, text };
+        auto matches = callFunction(builder, compare, operands, 2, source);
+        if(!matches) return;
+
+        auto hit = builder.addBlock(StringId());
+        auto next = builder.addBlock(StringId());
+        builder.addBranch(source, builder.resultOf(*matches, UseMode::Inspect), *hit, *next,
+                          nullptr, 0);
+
+        builder.setBlock(*hit);
+
+        auto number = builder.addConst(source, intConstant(tag, U64(one.value)));
+        auto built = builder.addBitcast(source, *number, head);
+
+        Node* payload[] = { built };
+        auto some = builder.addAggregate(source, answer, just, payload, 1);
+        builder.addReturn(source, *some);
+
+        builder.setBlock(*next);
+    }
+
+    auto none = builder.addAggregate(source, answer, nothing, nullptr, 0);
+    builder.addReturn(source, *none);
+}
+
+/*
  * One member's body - the parameters read, the member's node over them, and a return.
  *
  * The same `expandProvided` a concrete call site reaches, which is the whole of the design: what a
  * member computes is stated once, and this is the placement that gives it an address.
  */
+/*
+ * `Show.show` at a payload-free sum - the constructor's name, appended.
+ *
+ * Two calls and no graph of its own, which is the whole reason this is generated rather than
+ * written: `nameOf` already is the comparison chain that picks the word, and a `Show` that repeated
+ * it would be the same chain a second time and a second place for the two to disagree. The class
+ * member is reached by `applyMember`, exactly as a written `nameOf(x)` reaches it, so the instance
+ * this calls is the one the same walk generated a moment ago.
+ *
+ * The append is `known.def`'s `stringPush` role rather than a name, and it takes the sink *first*
+ * where `show` takes it second - the same swap `resolveFormat` writes out, and the reason both
+ * orders are spelled at each call site rather than normalized somewhere.
+ *
+ * A borrow of the sink taken here, off the parameter's own place: `&to: String` arrives as an
+ * exclusive loan and `push(&self: String)` asks for one of the same shape, so what the position
+ * declares is what the read asks for and nothing about the buffer is assumed.
+ */
+void Resolver::enumShowBody(Builder& builder, Function& function, Local& item, Local& sink) {
+    auto source = function.source;
+    auto append = program.roles.function(intrinsic::Known::stringPush);
+
+    // Checked before the instance was generated, so a null here is the role table changing under a
+    // body that was already promised - which is a compiler defect and not a library's.
+    assertTrue(append != nullptr);
+    if(!append) return;
+
+    auto value = readPlace(builder, source, *builder.localPlace(item), inspectRequest());
+    if(!value) return;
+
+    Node* one[1] = { value };
+    auto text = applyMember(builder, intrinsic::Known::enumeration, kEnumNameOf, one, 1, source);
+    if(!text) return;
+
+    auto& target = *decl()[decl()[append]->args.get(decl(), 0)];
+    auto to = readPlace(builder, source, *builder.localPlace(sink), requestOf(target.occurrence));
+    if(!to) return;
+
+    Node* arguments[2] = { to, text };
+    if(!callFunction(builder, *decl()[append], arguments, 2, source)) return;
+
+    builder.addReturnUnit(source);
+}
+
+/*
+ * `Show.showBound` at the same head - the longest constructor name, as a constant.
+ *
+ * Exact rather than generous, which is the contract `Show` states: the buffer is sized from this, so
+ * a bound larger than the truth wastes the difference and a bound smaller than the truth is the one
+ * thing an instance may not do. The longest name is both, and it is a number this stage knows
+ * outright - which is the argument for generating the member at all rather than letting the class
+ * default answer `Nothing` and making every interpolation of an enum grow its buffer.
+ *
+ * The constructors of the answer are found by **name**, for `maybeConstructors`' reason: what
+ * `showBound` answers is read off the class's own signature rather than from a handle to a
+ * declaration the library is free to move.
+ */
+void Resolver::enumShowBoundBody(Builder& builder, Function& function, DeclPtr<Type> head) {
+    auto source = function.source;
+    auto& enumeration = *(RecordType*)decl()[head];
+
+    auto answer = function.result.type;
+    U16 just = 0, nothing = 0;
+    if(!maybeConstructors(answer, source, "Show.showBound"_v, just, nothing)) return;
+
+    Size longest = 0;
+    for(auto one: enumeration.cons.contents(decl())) {
+        auto text = context.findName(one.name).size();
+        if(text > longest) longest = text;
+    }
+
+    auto width = aggregateComponent(decl(), answer, just, 0).type;
+    auto bound = builder.addConst(source, intConstant(width, U64(longest)));
+
+    Node* payload[] = { bound };
+    builder.addReturn(source, *builder.addAggregate(source, answer, just, payload, 1));
+}
+
 void Resolver::provideBody(Function& function, const DeclPtr<Type>* head, Size heads) {
     Builder builder(context, program, function);
     currentFunction = &function;
@@ -679,7 +1215,27 @@ void Resolver::provideBody(Function& function, const DeclPtr<Type>* head, Size h
     }
 
     if(!providedExpands(function.provided, function.providedMember)) {
-        compareBody(builder, function, *locals[0], *locals[1]);
+        // The members that are a graph rather than a node, each with its own writer - `compare`
+        // answers an `Ordering` out of two comparisons, and `Enum`'s three answer a `Maybe`, a
+        // string constant and a `Maybe` again.
+        if(function.provided == Provided::show) {
+            // Both members, and this arm is **first**: `Show`'s member indices are its own, so a
+            // `showBound` tested against `kEnumFromValue` first is `Enum`'s numbering read at the
+            // wrong class - which is a `fromValue` body written over an enum-typed parameter.
+            if(function.providedMember == kShowShow) {
+                enumShowBody(builder, function, *locals[0], *locals[1]);
+            } else {
+                enumShowBoundBody(builder, function, head[0]);
+            }
+        } else if(function.provided != Provided::enumeration) {
+            compareBody(builder, function, *locals[0], *locals[1]);
+        } else if(function.providedMember == kEnumFromValue) {
+            enumFromValueBody(builder, function, *locals[0], head[0]);
+        } else if(function.providedMember == kEnumNameOf) {
+            enumNameOfBody(builder, function, *locals[0], head[0]);
+        } else {
+            enumFromNameBody(builder, function, *locals[0], head[0]);
+        }
     } else {
         SmallArray<Node*, 4> arguments;
         for(auto local: locals) {

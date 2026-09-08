@@ -56,7 +56,19 @@ Constant foldLiteral(DeclBase base, DeclPtr<Type> type, U64 bits, double value) 
  * `provideBodies` is where that body is written.
  */
 bool providedExpands(Provided role, U16 member) {
-    return !(role == Provided::ord && member == kOrdCompare);
+    if(role == Provided::ord && member == kOrdCompare) return false;
+
+    // Three of `Enum`'s four, for the same reason at three shapes: `fromValue` is a membership test
+    // and a branch, `nameOf` is a comparison chain choosing one string constant, and `fromName` is
+    // the same chain over string comparisons. `valueOf` beside them is two nodes and expands like
+    // anything else. `provideBody` names the writer of each.
+    if(role == Provided::enumeration && member != kEnumValueOf) return false;
+
+    // And both of `Show`'s: `show` is `nameOf` plus an append and `showBound` is a constant inside a
+    // constructor, so neither is one node over its operands. `provideBody` names the writer of each.
+    if(role == Provided::show) return false;
+
+    return true;
 }
 
 /*
@@ -111,9 +123,27 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
     auto type = head[0];
     auto answer = head[heads - 1];
 
+    /*
+     * An **enum** operand read as its tag, where the member's operation needs a number.
+     *
+     * `Ord`'s four relational members are the whole of it: a payload-free sum's value *is* its tag,
+     * so `Eq` compares two of them as they stand - `operandTypeAllowed` admits a record to an
+     * equality and to nothing else - and an ordering is arithmetic and does not. The tag's type is
+     * signed exactly where the declaration pins a negative number, so what this compares at is the
+     * width and the signedness the `data` gave its values. One `bitcast` between two things of one
+     * width, which lowering answers with the register it was already in.
+     */
+    auto tagged = [&](Node& value) -> Node& {
+        auto tag = tagTypeOf(builder.declBase(), builder.program.types, valueType(value));
+        if(!tag || role != Provided::ord) return value;
+
+        auto read = builder.addBitcast(source, value, tag);
+        return read ? *read : value;
+    };
+
     auto binary = [&](BinaryOp op) {
         assertTrue(count == 2);
-        return builder.addBinary(source, op, *arguments[0], *arguments[1]);
+        return builder.addBinary(source, op, tagged(*arguments[0]), tagged(*arguments[1]));
     };
 
     auto unary = [&](UnaryOp op) {
@@ -317,11 +347,34 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
          * `-Wswitch` naming every row is what makes this table's completeness checkable, and a
          * `default` here would silently swallow the next row somebody adds.
          */
+        /*
+         * `Enum.valueOf` - the number a payload-free sum is, which is what the value already is.
+         *
+         * Two nodes and not one, exactly as `fromValue` builds two in the other direction: the bits
+         * are read as the tag's own integer type, and *then* the number is widened to the `w` the
+         * head determined. A single conversion would be asking one node to reinterpret and to widen
+         * at once, and the sign is what makes the order matter - a `@value(-1)` in a one-byte tag is
+         * -1 only once the bits are read as the signed type `tagRangeOf` gave them, and widening a
+         * record would have zero-extended it to 255.
+         *
+         * `fromValue` is not here: it is a branch, and `enumFromValueBody` writes it.
+         */
+        case Provided::enumeration: {
+            assertTrue(count == 1 && member == kEnumValueOf);
+            auto tag = tagTypeOf(builder.declBase(), builder.program.types, type);
+            assertTrue(tag);
+
+            auto read = builder.addBitcast(source, *arguments[0], tag);
+            return read ? builder.addConvert(source, *read, answer) : nullptr;
+        }
+
         case Provided::eq:
         case Provided::ord:
         case Provided::num:
         case Provided::bitwise:
         case Provided::integral:
+        case Provided::byteSwap:
+        case Provided::bitPermute:
         case Provided::Count:
             break;
     }

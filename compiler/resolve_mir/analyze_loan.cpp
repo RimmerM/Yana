@@ -277,8 +277,59 @@ void Analysis::unionOperandOrigins(OriginCursor& cursor, Operand operand, U64* i
     });
 }
 
+/*
+ * Which loans a **place** may reach - the storage this body names, plus what an address says it
+ * points into.
+ *
+ * The second half is here rather than at each caller, and that is the fix rather than a tidy-up.
+ * `forEachOperandOrigin` answers for a place rooted in a *local*, because a local is storage this
+ * frame has state for; a place rooted in an `Address` has none, and what it may reach is what the
+ * pointer's **type** said - `%source'a`'s one interior position, the pointer value's second. Two
+ * callers wanted that and only `reachFrom` had it, so a write through a qualified pointer reached
+ * `source`'s loan and reborrowed nothing: `store(base + count, 0)` in `withPathCString` conflicted
+ * with the very `valuesMut(buffer)` loan it was writing through, which is what a `&` binding's
+ * origins excuse one line further down.
+ *
+ * A pointer whose type names nothing says nothing about *where* it points, which is the conservative
+ * half of the same sentence and is answered by `check`'s `anywhere` instead. What it does say is
+ * what it was **reached through**, and that is the last case below.
+ */
 void Analysis::unionPlaceOrigins(OriginCursor& cursor, PlaceId place, U64* into) {
     unionOperandOrigins(cursor, Operand(SourceKind::Place, place.index, UseMode::Inspect), into);
+
+    auto root = rootOf(place);
+    if(root->kind != Place::Address) return;
+
+    auto pointer = NodeId(root->payload);
+    if(valuePositions(pointer) >= 2) {
+        BitMatrix::unionInto(into, originsOfValue(pointer, 1), loanWords);
+        return;
+    }
+
+    /*
+     * An unqualified address **read out of storage** - `n.next` on a `data Node {next: %Node}`,
+     * where a field's own type has nowhere to name an origin and the pointer therefore points
+     * wherever it was made to point.
+     *
+     * Which storage it names is unknown and stays unknown: `anywhere` is what says so, and this does
+     * not touch it. What is known is which loans the access was *made through* - the walk to this
+     * pointer went through `n`, and `n` names `first` - and that is the reborrow question §2.5 asks.
+     * An access through a pointer fetched out of `first` is an access through `first`'s loan, so it
+     * does not conflict with it, exactly as a write through a `&` binding does not conflict with the
+     * binding's own loan. Without it a linked list is unwritable: `n.next.value = ...` in
+     * `test/resolve/Pointer.yana` conflicts with the `addressOf(first)` that produced `n`, and no
+     * spelling an author could reach would say otherwise, since `Node.next` is a field.
+     *
+     * Recursive, because a chain is a chain: `a.next.next` is this case one level further out, and
+     * the walk terminates because an operand names a node earlier than its own.
+     */
+    auto node = body.node(base, pointer);
+    if(node->kind != Node::Read) return;
+
+    auto& read = (NodeRead&)*node;
+    if(read.place.source() != SourceKind::Place) return;
+
+    unionPlaceOrigins(cursor, read.place.placeId(), into);
 }
 
 /*
@@ -437,7 +488,7 @@ void Analysis::classifyStored() {
         auto count = block(index)->nodes.size();
         if(!count) continue;
 
-        forEachEdge(*base[block(index)->nodes.get(base, count - 1)], [&](Edge& edge) {
+        forEachEdge(base, *base[block(index)->nodes.get(base, count - 1)], [&](Edge& edge) {
             for(auto supplied: edge.arguments.contents(base)) {
                 if(supplied.source() == SourceKind::Result) escapes[supplied.nodeId().index] = 1;
             }
@@ -852,8 +903,6 @@ void Analysis::computeOrigins() {
 
                     for(U32 p = 0; p < positions; p++) {
                         auto slot = originSlotAt(decl, region->handover, p);
-                        if(slot == kNoOriginSlot) continue;
-
                         auto into = originsOfValue(parameter->id, p);
 
                         for(U32 i = 0; i < arguments.size(); i++) {
@@ -861,7 +910,32 @@ void Analysis::computeOrigins() {
 
                             forEachOperandOrigin(cursor, *arguments.pointerAt(i),
                                                  [&](U32 at, const U64* row) {
-                                if(originSlotAt(decl, declared.occurrence, at) != slot) return;
+                                /*
+                                 * An **unqualified** hand-over names no slot, and takes every
+                                 * argument's loans rather than none.
+                                 *
+                                 * `iter fn (Chunked(c, a)) items(self: c) -> a` is the one the
+                                 * library writes, and `-> a` is already a loan bounded by the
+                                 * continuation - Analysis-Borrows-Revised.md §3.3 - so there is no
+                                 * `'` for the matching below to key on and the slot-keyed walk
+                                 * related nothing. The container's last mention was then the
+                                 * traversal itself, and `placeDrops` released it at the top of the
+                                 * loop body: `for x in items(build())` read the first element and
+                                 * then walked a freed run.
+                                 *
+                                 * Every argument and not a guess about which, because that is what
+                                 * a continuation-bounded hand-over says: the value is the callee's
+                                 * to describe and the callee is still running, so what is behind it
+                                 * is anything the call was lent. Conservative in the only direction
+                                 * that is safe - it keeps storage alive rather than releasing it -
+                                 * and exact wherever the signature published a slot, which is the
+                                 * arm above.
+                                 */
+                                if(slot != kNoOriginSlot &&
+                                   originSlotAt(decl, declared.occurrence, at) != slot) {
+                                    return;
+                                }
+
                                 changed = BitMatrix::unionInto(into, row, loanWords) || changed;
                             });
                         }
@@ -893,7 +967,7 @@ void Analysis::computeOrigins() {
          */
         if(count) {
             auto last = base[block->nodes.get(base, count - 1)];
-            forEachEdge(*last, [&](Edge& edge) {
+            forEachEdge(base, *last, [&](Edge& edge) {
                 if(!edge.target) return;
 
                 auto target = base[edge.target];
@@ -1026,7 +1100,7 @@ void Analysis::computeLoanExtents() {
         auto count = block->nodes.size();
         if(count) {
             auto last = base[block->nodes.get(base, count - 1)];
-            forEachEdge(*last, [&](Edge& edge) {
+            forEachEdge(base, *last, [&](Edge& edge) {
                 if(!edge.target) return;
 
                 auto target = loansAt(loanIn, base[edge.target]->index.index);
@@ -1101,6 +1175,10 @@ enum class AccessKind: U8 {
     Write,
     Copy,
 };
+
+// No loan was minted by this node - see `loanOfNode`, which is indexed by node and holds a loan
+// index. `~U32(0)` rather than `LoanId()`, because the table is a plain array of indices.
+constexpr U32 kNoReservation = ~U32(0);
 
 } // namespace
 
@@ -1419,6 +1497,8 @@ bool Analysis::checkLoans() {
          */
         if(!exchangeAddressRoot(place)) into.push(place);
 
+        // The storage behind it, and what an address says it points into - both are
+        // `unionPlaceOrigins`, which is where that sentence is argued.
         BitMatrix::zero(reachedSet.pointer(), loanWords);
         unionPlaceOrigins(cursor, place, reachedSet.pointer());
 
@@ -1535,8 +1615,74 @@ bool Analysis::checkLoans() {
      * is - which `holdersInto` answers backward from the origin state, so that the loop below runs
      * over the conflicts alone rather than over every live loan.
      */
+    /*
+     * The unique loans that have been **taken and not yet used** - two-phase borrowing, and the
+     * three `lib/Core` lines that need it.
+     *
+     * `pushFill(to, value.fill, value.width - (length(to) - start))` reads `to` in an argument
+     * evaluated *after* the one that borrowed it exclusively, and the same shape is
+     * `remove(self.entries, entryCount(self) - 1)` and `indexPlace(self, at, hashAt(self, at))`.
+     * `doc/spec/expressions.md` evaluates arguments left to right and the callee runs after all of
+     * them, so nothing writes through the exclusive borrow while the later arguments are being
+     * computed: what the author wrote is safe, and the shipping stage accepts all three.
+     *
+     * So a unique loan is only a **reservation** until something uses it. Between the read that
+     * minted it and the first operand naming that read's result it excludes a write and a move -
+     * the two that would leave it pointing at something else - and it excludes **a loan only where
+     * that loan is still live where the reservation activates**. The activation point is then
+     * checked as the take itself would have been, against the loans live there, so nothing is lost
+     * by admitting the ones that end first: a loan taken and released inside a later argument is
+     * gone by the call, and one that survives is refused there.
+     *
+     * That last clause is what `f(&x, g(&x))` needed - `readColor(options, takeValue(options, ...))`
+     * in `lib/Test/Options.yana`, eight times. The nested call's own exclusive loan is dead the
+     * moment it returns, so it can no more observe the reservation than a shared read can.
+     *
+     * **The liveness is asked here rather than at the activation**, and that is what keeps the blame
+     * where an author can act on it: `twice(b, b)` and `both(g, g)` are refused at the second
+     * argument, which is the one to change, and moving them to the call would have said "these two
+     * conflict" about a line naming neither. A *shared* take is still excused outright and reported
+     * at the activation if it survives - `holds(g, peek(g))` in `Reject.TwoPhase.yana` - because a
+     * read cannot be the mistake: what is wrong there is handing the borrow on, which is the call.
+     *
+     * Per block and cleared at every entry, which is the conservative direction: a reservation that
+     * crosses a branch is treated as already active, and the argument lists this exists for are
+     * straight-line by construction.
+     */
+    Array<U32> loanOfNode;
+    for(Size i = 0; i < body.nodes.size(); i++) loanOfNode.push(kNoReservation);
+
+    for(U32 index = 0; index < blockCount; index++) {
+        auto block = this->block(index);
+        for(U32 position = 0; position < block->nodes.size(); position++) {
+            auto& node = nodeAt(index, position);
+            if(node.kind != Node::Read) continue;
+
+            auto& read = (NodeRead&)node;
+            if(read.loan.valid()) loanOfNode[node.id.index] = read.loan.index;
+        }
+    }
+
+    SmallArray<U64, 4> reserved;
+    for(U32 w = 0; w < loanWords; w++) reserved.push(0);
+
+    /*
+     * Where each reservation of the block being walked **activates**, as a position in it.
+     *
+     * The loans live before that node are what a reservation is judged against, so a take made
+     * while it is reserved has to ask the same question one node early. `kNoReservation` is a
+     * reservation nothing in this block uses, and it keeps the answer it had before two-phase:
+     * a reservation whose activation is not here is treated as already active.
+     */
+    Array<U32> activationOf;
+    for(U32 l = 0; l < loanCount; l++) activationOf.push(kNoReservation);
+
+    // The loans live after each node, and the loans live *before* it - declared here because the
+    // take-side question above reads the second of them at another node's position.
+    BitMatrix after, before;
+
     auto check = [&](OriginCursor& cursor, Node& node, PlaceId place, AccessKind kind,
-                     const U64* live, const U64* skip) {
+                     const U64* live, const U64* skip, LoanId taken = LoanId()) {
         if(kind == AccessKind::Copy) return;
         if(!BitMatrix::any(live, loanWords)) return;
 
@@ -1556,7 +1702,30 @@ bool Analysis::checkLoans() {
 
         for(auto x: reached) {
             auto root = rootOf(x);
-            if(root->kind == Place::Address || root->kind == Place::Loan) {
+
+            if(root->kind == Place::Loan) {
+                anywhere = true;
+                break;
+            }
+
+            /*
+             * An address is anywhere only where its **type** says nothing.
+             *
+             * `%source'a` says the address may point into `source`'s storage, and that is a
+             * statement about which storage - not about whether anyone else writes through it, so
+             * two pointers into one source still conflict and `doc/spec/native.md`'s "proves no
+             * exclusivity" is untouched. What the qualifier removes is the false positive with no
+             * remedy: `setVectorAt(out.units.run.items + i, ...)` writing through a buffer of this
+             * frame's own conflicted with every live borrow in the body, and no spelling an author
+             * could reach would have said otherwise.
+             *
+             * The loans it may reach were unioned into `reachedSet` by `reachFrom`, so a qualified
+             * address is checked against exactly those and an unqualified `%a` still overlaps
+             * everything.
+             */
+            if(root->kind == Place::Address) {
+                if(valuePositions(NodeId(root->payload)) >= 2) continue;
+
                 anywhere = true;
                 break;
             }
@@ -1591,16 +1760,49 @@ bool Analysis::checkLoans() {
         for(auto l: candidates) {
             if(skip && BitMatrix::test(skip, l)) continue;
 
+            /*
+             * At an **activation** - see `reserved` - a conflict with a loan the program has already
+             * been told it does not have is the same mistake read a second time.
+             *
+             * Two forms of it: the loan itself was refused (`swap(x, x)`, where the second borrow is
+             * reported where it is written and the first becoming exclusive at the call adds
+             * nothing), and the loan is a *reborrow* of one that was (`takeTwo(xs[0], xs[1])`, where
+             * each element is parked in a temporary whose own loan is rooted in the refused one).
+             * `refused` is what the take side already consults through `reachFrom`, one level down.
+             */
             auto& other = *body.loan(base, LoanId(l));
+
+            if(taken.valid()) {
+                if(BitMatrix::test(refused.pointer(), l)) continue;
+
+                BitMatrix::zero(scratch.pointer(), loanWords);
+                unionPlaceOrigins(cursor, other.place, scratch.pointer());
+                if(BitMatrix::intersects(refused.pointer(), scratch.pointer(), loanWords)) continue;
+            }
 
             // Any number of shared loans may coexist. Everything else - a unique loan meeting any
             // overlapping loan, and a write or a move meeting either - conflicts.
             if(kind == AccessKind::TakeLoan) {
-                auto taking = ((NodeRead&)node).loan;
+                auto taking = taken.valid() ? taken : ((NodeRead&)node).loan;
                 if(taking.index == l) continue;
 
                 auto capability = body.loan(base, taking)->capability;
                 if(capability == Access::Shared && other.capability == Access::Shared) continue;
+
+                /*
+                 * The reservation above. A shared read never excludes one; another loan does only
+                 * where it is still live at the activation, which is the point the exclusion
+                 * begins - see `reserved`, where both halves are argued.
+                 */
+                if(BitMatrix::test(reserved.pointer(), l)) {
+                    if(capability == Access::Shared) continue;
+
+                    auto activation = activationOf[l];
+                    if(activation != kNoReservation &&
+                       !BitMatrix::test(before.row(activation), taking.index)) {
+                        continue;
+                    }
+                }
             }
 
             /*
@@ -1610,8 +1812,9 @@ bool Analysis::checkLoans() {
              * so a swap's loan meeting an ordinary borrow of the container is refused as any
              * other pair is.
              */
-            auto half = kind == AccessKind::TakeLoan ? exchangeOnlyLoan(((NodeRead&)node).loan)
-                                                     : exchangeAccess(node);
+            auto half = kind == AccessKind::TakeLoan
+                ? exchangeOnlyLoan(taken.valid() ? taken : ((NodeRead&)node).loan)
+                : exchangeAccess(node);
             if(half && exchangeOnlyLoan(LoanId(l))) continue;
 
             auto here = placeText(context, decl, base, body, *body.place(base, place));
@@ -1632,7 +1835,8 @@ bool Analysis::checkLoans() {
                        here, there);
 
                 if(kind == AccessKind::TakeLoan) {
-                    BitMatrix::set(refused.pointer(), ((NodeRead&)node).loan.index);
+                    auto taking = taken.valid() ? taken : ((NodeRead&)node).loan;
+                    BitMatrix::set(refused.pointer(), taking.index);
                 }
             }
 
@@ -1646,7 +1850,12 @@ bool Analysis::checkLoans() {
      * trade `walkBlock` makes for the same reason: a table of blocks times positions times loans
      * would be the largest thing this analysis allocates, for an answer each position uses once.
      */
-    BitMatrix after;
+    // Two rows and not one, because the two questions are asked at different points. An access is
+    // judged against what survives it, which is what keeps a loan from conflicting with itself; an
+    // **activation** - see `reserved` - is judged against what is live where the exclusion begins,
+    // which includes the loans this very node is the last use of. `holds(g, peek(g))` is the
+    // difference: the borrow the second argument hands over dies *at* the call, and the call is
+    // where the first argument's reservation becomes exclusive.
     SmallArray<U64, 4> live;
     for(U32 w = 0; w < loanWords; w++) live.push(0);
 
@@ -1661,6 +1870,7 @@ bool Analysis::checkLoans() {
         if(!count) continue;
 
         after.reset(count, loanCount);
+        before.reset(count, loanCount);
         BitMatrix::copy(live.pointer(), loansAt(loanOut, index), loanWords);
         backward.enterAtExit(index);
 
@@ -1669,13 +1879,54 @@ bool Analysis::checkLoans() {
             BitMatrix::copy(after.row(position), live.pointer(), loanWords);
             backward.undo(position);
             stepLoansBackward(live.pointer(), backward, nodeAt(index, position));
+            BitMatrix::copy(before.row(position), live.pointer(), loanWords);
         }
 
         forward.enter(index);
+        BitMatrix::zero(reserved.pointer(), loanWords);
+
+        // And where each of this block's reservations activates - the first operand naming the
+        // read that minted it, which is the same walk the forward pass makes below.
+        for(U32 l = 0; l < loanCount; l++) activationOf[l] = kNoReservation;
+
+        for(U32 position = 0; position < count; position++) {
+            forEachOperand(base, nodeAt(index, position), [&](Operand& operand, OperandRole) {
+                if(operand.source() != SourceKind::Result) return;
+
+                auto minted = loanOfNode[operand.nodeId().index];
+                if(minted == kNoReservation) return;
+                if(activationOf[minted] == kNoReservation) activationOf[minted] = position;
+            });
+        }
 
         for(U32 position = 0; position < count; position++) {
             auto& node = nodeAt(index, position);
             auto at = after.row(position);
+
+            /*
+             * Every reservation this node **uses** - see `reserved`, where the rule is argued.
+             *
+             * Before the checks, so that a node which both activates a loan and takes another is
+             * judged with the first one active; and checked here as the take itself would have been,
+             * because that is the point at which the exclusion begins.
+             */
+            forEachOperand(base, node, [&](Operand& operand, OperandRole) {
+                if(operand.source() != SourceKind::Result) return;
+
+                auto minted = loanOfNode[operand.nodeId().index];
+                if(minted == kNoReservation) return;
+                if(!BitMatrix::test(reserved.pointer(), minted)) return;
+
+                BitMatrix::clear(reserved.pointer(), minted);
+
+                // A loan whose taking was already reported is a loan the program does not have -
+                // `refused`, and checking its activation would be the same mistake read twice.
+                if(BitMatrix::test(refused.pointer(), minted)) return;
+
+                auto& loan = *body.loan(base, LoanId(minted));
+                check(forward, node, loan.place, AccessKind::TakeLoan, before.row(position),
+                      skipOfValue(operand.nodeId()), LoanId(minted));
+            });
 
             switch(node.kind) {
                 case Node::Read: {
@@ -1687,6 +1938,14 @@ bool Analysis::checkLoans() {
                         case UseMode::BorrowUnique:
                             check(forward, node, place, AccessKind::TakeLoan, at,
                                   skipOfValue(node.id));
+
+                            // And the reservation, which is what makes the *next* read of the same
+                            // storage legal until something uses this one - see `reserved`.
+                            if(read.loan.valid() &&
+                               body.loan(base, read.loan)->capability == Access::Unique) {
+                                BitMatrix::set(reserved.pointer(), read.loan.index);
+                            }
+
                             break;
 
                         // A move out of storage is a write to it: what was there is gone, and a loan
@@ -1795,10 +2054,11 @@ void Analysis::publishOrigins() {
  * one would name a local the author never wrote - the environment is synthesized, so "this result
  * refers to `main.lambda.env`" describes the compiler rather than the program.
  *
- * The fix it names is the true one. A closure that outlives its frame has to own what it captured
- * (`doc/spec/functions.md`'s consumed capture) and its environment has to be somewhere that outlives
- * the frame, which is `StorageClass::Heap` - a rung `verifyBody` refuses for want of an allocator.
- * The two arrive together, and until they do this is where a program asks for them.
+ * The fix it names is the true one, and since D17 it is a fix the author can make. A closure that
+ * outlives its frame owns what it captured and its environment is a heap-placed block - and which of
+ * the two placements a lambda gets is decided by the **position it is written at**
+ * (`resolve_lambda.cpp`). So what reaches here is a closure written at a *borrowing* position and
+ * then sent to an owning one, which is a lambda one binding too far from the place it belongs.
  */
 bool Analysis::reportEnvironmentEscape(LocationId source, Place& root) {
     if(root.kind != Place::Local) return false;
@@ -1807,7 +2067,7 @@ bool Analysis::reportEnvironmentEscape(LocationId source, Place& root) {
     if(!local->environment) return false;
 
     report(source,
-           "this closure captures storage of this frame, so it cannot leave it - that needs a heap-placed environment, which the ownership resolver does not implement yet"_v);
+           "this closure captures storage of this frame, so it cannot leave it - write the lambda at the position that takes it, so its environment is placed where the value goes"_v);
     return true;
 }
 
@@ -1954,7 +2214,7 @@ void Analysis::checkReturnConformance(Node& node) {
 
             if(valuePositions(pointer) < 2) {
                 report(node.source,
-                       "%@ is reached through a pointer whose type names no origin, so nothing says whose storage it is - write `%%source'a`"_v,
+                       "%@ is reached through a pointer whose type names no origin, so nothing says whose storage it is - write `%source'a`"_v,
                        named);
                 return false;
             }
@@ -1975,6 +2235,32 @@ void Analysis::checkReturnConformance(Node& node) {
         }
 
         auto local = body.local(base, LocalId(root->payload));
+
+        /*
+         * A local that holds a borrow **of a published origin** is a reborrow, not this frame's
+         * storage.
+         *
+         * `hold` gives a borrowing value a frame slot so that a projection has a place to name -
+         * `xs[i]` is a call whose result is parked in one, and so is `borrow(p).key`. The slot is
+         * this frame's; what is *in* it was named by the producing signature as somebody else's, so
+         * a loan minted over it says nothing about who owns the object and everything about which
+         * name reaches it.
+         *
+         * What it is really rooted in is in the same origin set: `computeOrigins`' read rule unions
+         * the storage's origins into the value beside the loan it mints, so the lender's loan is
+         * checked by the loop below this one and a genuinely frame-owned lender is still refused
+         * there. That union is why this can skip rather than recurse the way the address case does -
+         * a local's origins are flow-sensitive and there is no point in hand here to read them at,
+         * while a pointer's pointee is a value's and there is no union to rely on.
+         *
+         * **`Origin::Slot` and not merely "borrowed"**, which is the whole of the rule's edge. A
+         * hand-over is `Origin::CallBounded` - the granting frame said nothing about whose storage
+         * it is - so a binding that holds one is exactly the escape `lens/Reject.Escape.yana`
+         * refuses, and its origin set carries no loan of the callee's frame for the loop to object
+         * to. `let x = y` over a local is call-bounded for the same reason and stays refused here.
+         */
+        if(!local->isParameter() && local->occurrence.contract.origin() == Origin::Slot) return true;
+
         if(!local->isParameter()) {
             report(node.source,
                    "%@ is this function's own storage, so a borrow of it cannot outlive the call"_v,

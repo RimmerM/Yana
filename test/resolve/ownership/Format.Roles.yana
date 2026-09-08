@@ -1,0 +1,57 @@
+{-
+   `"a{x}b"` - what a string interpolation is made of, run end to end.
+
+   # resolver: ownership
+
+   The whole of the desugaring is library calls: `Show`'s two members and the three functions
+   `known.def` names, reached through their roles rather than by spelling - `lib/Core` claims all
+   five with `@builtin`, and what the fixture asserts is that the compiler builds `showBound`,
+   `formatBound`, `String.ofCapacity`, `show` and `String.push` into the one shape the document
+   describes and nothing else.
+
+   Two things are checked in the answer rather than only in the goldens. **Each hole is evaluated
+   exactly once**, which `bumped` counts: a hole is read twice - for its bound and for its text - and
+   a value resolved twice would run its expression twice. And **the hole comes before the text of its
+   own chunk**, which is the parser's record and not the written order: a chunk holds a hole's
+   expression and the text *following* it, so appending the text first renders `"n={7}!"` as `n=!7` -
+   a wrong string of the right length, which reading the units back is what catches.
+
+   Every number below is a single digit, so what `Show(Int)` writes is one unit and a unit read back
+   names the value that produced it.
+
+   The roles used to be claimed *by this file*, because the library the new stage compiled against
+   declared none. They are `lib/Core`'s now, and a role is filled once - a second `@builtin(show)`
+   here would be refused rather than preferred.
+-}
+
+import Native
+
+let &calls = 0
+
+fn bumped(of: Int) -> Int:
+    calls = calls + 1
+    return of
+
+-- A unit read back, at the target's own word so that nothing here has to narrow.
+fn unitAt(s: String, i: Size) -> Size = (*(units(s) + i)) :: Size
+
+fn main() -> Int:
+    let x = 7
+
+    -- Four units: `n`, `=`, the hole, `!`. The hole is unit two, which is what says the hole was
+    -- appended before the text following it.
+    let text = "n={x}!"
+
+    -- A hole holding a call, and a format with no literal text at all beside one with no hole.
+    let call = "{bumped(3)}"
+    let bare = "{x}{x}"
+    let plain = "no holes"
+
+    let answer = length(text) * (1000000 :: Size) +
+                 unitAt(text, 2 :: Size) * (10000 :: Size) +
+                 unitAt(call, 0 :: Size) * (100 :: Size) +
+                 length(bare) * (10 :: Size) +
+                 length(plain) - (800 :: Size) +
+                 (calls :: Size)
+
+    return truncate(answer) :: Int

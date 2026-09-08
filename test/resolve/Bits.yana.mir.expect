@@ -34,7 +34,7 @@ fn main() -> I32 {
 bb0:
   %0: @bits(53) U64 = const 21
   write.init borrow.unique (small) take %0
-  %2: @bits(53) U64 = read copy.trivial (small)
+  %2: @bits(53) U64 = const 21
   %3: @bits(53) U64 = call double borrow.shared %2
   write.init borrow.unique (doubled) take %3
   %5: @bits(53) U64 = read copy.trivial (doubled)
@@ -60,7 +60,7 @@ bb0:
   %25: I32 = convert inspect %24
   %26: I32 = read copy.trivial (fields)
   %27: I32 = add inspect %25 inspect %26
-  %28: @bits(53) U64 = read copy.trivial (global tagged)
+  %28: @bits(53) U64 = const 3
   %29: U64 = convert inspect %28
   %30: I32 = convert inspect %29
   %31: I32 = const 1000000

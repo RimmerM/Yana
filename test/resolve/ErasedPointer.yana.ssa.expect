@@ -11,14 +11,14 @@ fn borrowedAddress(x: a [shared slot 0]) -> Size = <no body>
 fn main() -> I32 {
 bb0:
   %0: %Cell address = alloc frame Cell
-  %1: %%Cell address = alloc frame %Cell [owned here shape1 .*=shared slot 0]
+  %1: %%Cell address = alloc frame %Cell [owned here shape6 .*=shared slot 0]
   %2: I32 trivial = const 7
   %3: Cell trivial = aggregate.Cell consume %2
   store inspect %0 consume %3
   %4: Cell [shared slot 0] guaranteed from{%0} = load inspect %0
-  %5: %Cell [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %4
+  %5: %Cell [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %4
   store inspect %1 consume %5
-  %6: %Cell [owned here shape1 .*=shared slot 0] trivial = load inspect %1
+  %6: %Cell [owned here shape6 .*=shared slot 0] trivial = load inspect %1
   %7: Bool trivial = call absent(Cell) borrow %6
   branch inspect %7 -> bb3 -> bb1
 
@@ -53,7 +53,7 @@ bb7:
   jump -> bb8
 
 bb8:
-  %17: %Cell [owned here shape1 .*=shared slot 0] trivial = load inspect %1
+  %17: %Cell [owned here shape6 .*=shared slot 0] trivial = load inspect %1
   %18: Size trivial = call addressValue(Cell) borrow %17
   %19: Size trivial = const 0
   %20: Bool trivial = eq inspect %18 inspect %19
@@ -96,7 +96,7 @@ bb0:
 fn borrowedAddress(Cell)(x: Cell [shared slot 0]) -> Size {
 bb0(%0: Cell [shared slot 0] guaranteed):
   %1: Cell [shared slot 0] guaranteed from{%0} = load inspect %0
-  %2: %Cell [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %1
+  %2: %Cell [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1
   %3: Size trivial = call addressValue(Cell) borrow %2
   return consume %3
 }

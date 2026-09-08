@@ -1,32 +1,32 @@
 module ResolveTest
 
-let string: [CodeUnit *0] = []
+let string'142: [CodeUnit *0] = []
 
-let string'2: [CodeUnit *2] = [97, 98]
+let string'143: [CodeUnit *2] = [97, 98]
 
-let string'3: [CodeUnit *1] = [97]
+let string'144: [CodeUnit *1] = [97]
 
-let string'4: [CodeUnit *1] = [98]
+let string'145: [CodeUnit *1] = [98]
 
-let string'5: [CodeUnit *2] = [97, 98]
+let string'146: [CodeUnit *2] = [97, 98]
 
-let string'6: [CodeUnit *0] = []
+let string'147: [CodeUnit *0] = []
 
-let string'7: [CodeUnit *0] = []
+let string'148: [CodeUnit *0] = []
 
-let string'8: [CodeUnit *0] = []
+let string'149: [CodeUnit *0] = []
 
-let string'9: [CodeUnit *2] = [97, 98]
+let string'150: [CodeUnit *2] = [97, 98]
 
-let string'10: [CodeUnit *2] = [97, 98]
+let string'151: [CodeUnit *2] = [97, 98]
 
-let string'11: [CodeUnit *1] = [122]
+let string'152: [CodeUnit *1] = [122]
 
-let string'12: [CodeUnit *0] = []
+let string'153: [CodeUnit *0] = []
 
-let string'13: [CodeUnit *1] = [122]
+let string'154: [CodeUnit *1] = [122]
 
-let string'14: [CodeUnit *1] = [122]
+let string'155: [CodeUnit *1] = [122]
 
 fn pointOr(m: Maybe(Point) [shared call], fallback: I32 [shared call]) -> I32 {
 bb0(%0: Maybe(Point) [shared call] guaranteed, %1: I32 [shared call] guaranteed):
@@ -248,127 +248,51 @@ bb0(%0: String [shared call view] guaranteed):
   %3: %String address = alloc frame String
   %4: %String address = alloc frame String
   %5: String [shared call view] guaranteed from{%0} = load inspect %0
-  %6: %[CodeUnit *0] address = global.addr string
+  %6: %[CodeUnit *0] address = global.addr string'142
   %7: [CodeUnit *0] [shared slot 0] guaranteed = load inspect %6
-  %8: %[CodeUnit *0] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %7
-  %9: %CodeUnit trivial = bitcast inspect %8
-  %10: Size trivial = const 0
-  jump -> bb7
+  %8: %[CodeUnit *0] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %7
+  %9: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %8
+  %10: I32 trivial = const 0
+  %11: String owned = call stringLiteral borrow %9 borrow %10
+  store inspect %3 consume %11
+  %12: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  %13: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %12
+  %14: Bool trivial = call String.== borrow %5 borrow %13
+  drop String inspect %3
+  branch inspect %14 -> bb3 -> bb1
 
 bb1:
-  %41: String [shared call view] guaranteed from{%0} = load inspect %0
-  %42: %[CodeUnit *2] address = global.addr string'2
-  %43: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %42
-  %44: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %43
-  %45: %CodeUnit trivial = bitcast inspect %44
-  %46: Size trivial = const 2
-  jump -> bb11
+  %15: String [shared call view] guaranteed from{%0} = load inspect %0
+  %16: %[CodeUnit *2] address = global.addr string'143
+  %17: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %16
+  %18: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %17
+  %19: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %18
+  %20: I32 trivial = const 2
+  %21: String owned = call stringLiteral borrow %19 borrow %20
+  store inspect %4 consume %21
+  %22: String [shared slot 0] guaranteed from{%4} = load inspect %4
+  %23: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %22
+  %24: Bool trivial = call String.== borrow %15 borrow %23
+  drop String inspect %4
+  branch inspect %24 -> bb6 -> bb4
 
 bb2(%1: I32 trivial):
   return consume %1
 
 bb3:
-  %77: I32 trivial = const 1
-  jump -> bb2(consume %77)
+  %25: I32 trivial = const 1
+  jump -> bb2(consume %25)
 
 bb4:
-  %78: I32 trivial = const 3
-  jump -> bb5(consume %78)
+  %26: I32 trivial = const 3
+  jump -> bb5(consume %26)
 
 bb5(%2: I32 trivial):
   jump -> bb2(consume %2)
 
 bb6:
-  %79: I32 trivial = const 2
-  jump -> bb5(consume %79)
-
-bb7:
-  %12: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %13: %Size address = alloc frame Size [shared call]
-  store inspect %12 borrow %9
-  store inspect %13 borrow %10
-  %14: %CodeUnit trivial = load inspect %12
-  %15: Size trivial = load inspect %13
-  %16: U32 trivial = convert inspect %15
-  %17: @bits(30) U32 trivial = convert inspect %16
-  %18: %U32 address = global.addr runBorrowed
-  %19: U32 trivial = load inspect %18
-  %20: @bits(2) U32 trivial = convert inspect %19
-  %21: Run(CodeUnit) owned = aggregate.Run consume %14 consume %17 consume %20
-  %22: Size trivial = load inspect %13
-  %23: U32 trivial = convert inspect %22
-  %24: @bits(30) U32 trivial = convert inspect %23
-  %25: Array(CodeUnit) owned = aggregate.Array consume %21 consume %24
-  %26: String owned = aggregate.String consume %25
-  jump -> bb8(consume %26)
-
-bb8(%11: String owned):
-  store inspect %3 consume %11
-  %27: String [shared slot 0] guaranteed from{%3} = load inspect %3
-  jump -> bb9
-
-bb9:
-  %29: %Array(CodeUnit) address = field.addr .units inspect %27
-  %30: %Run(CodeUnit) address = field.addr .run inspect %29
-  %31: %%CodeUnit address = field.addr .items inspect %30
-  %32: %CodeUnit trivial = load inspect %31
-  %33: %Array(CodeUnit) address = field.addr .units inspect %27
-  %34: %@bits(30) U32 address = field.addr .length inspect %33
-  %35: @bits(30) U32 trivial = load inspect %34
-  %36: U32 trivial = convert inspect %35
-  %37: Size trivial = convert inspect %36
-  %38: StringView trivial = aggregate.StringView consume %32 consume %37
-  %39: String [shared slot 0 view] guaranteed = represent inspect %38
-  jump -> bb10(borrow %39)
-
-bb10(%28: String [shared slot 0 view] guaranteed from{%3}):
-  %40: Bool trivial = call String.== borrow %5 borrow %28
-  drop String inspect %3
-  branch inspect %40 -> bb3 -> bb1
-
-bb11:
-  %48: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %49: %Size address = alloc frame Size [shared call]
-  store inspect %48 borrow %45
-  store inspect %49 borrow %46
-  %50: %CodeUnit trivial = load inspect %48
-  %51: Size trivial = load inspect %49
-  %52: U32 trivial = convert inspect %51
-  %53: @bits(30) U32 trivial = convert inspect %52
-  %54: %U32 address = global.addr runBorrowed
-  %55: U32 trivial = load inspect %54
-  %56: @bits(2) U32 trivial = convert inspect %55
-  %57: Run(CodeUnit) owned = aggregate.Run consume %50 consume %53 consume %56
-  %58: Size trivial = load inspect %49
-  %59: U32 trivial = convert inspect %58
-  %60: @bits(30) U32 trivial = convert inspect %59
-  %61: Array(CodeUnit) owned = aggregate.Array consume %57 consume %60
-  %62: String owned = aggregate.String consume %61
-  jump -> bb12(consume %62)
-
-bb12(%47: String owned):
-  store inspect %4 consume %47
-  %63: String [shared slot 0] guaranteed from{%4} = load inspect %4
-  jump -> bb13
-
-bb13:
-  %65: %Array(CodeUnit) address = field.addr .units inspect %63
-  %66: %Run(CodeUnit) address = field.addr .run inspect %65
-  %67: %%CodeUnit address = field.addr .items inspect %66
-  %68: %CodeUnit trivial = load inspect %67
-  %69: %Array(CodeUnit) address = field.addr .units inspect %63
-  %70: %@bits(30) U32 address = field.addr .length inspect %69
-  %71: @bits(30) U32 trivial = load inspect %70
-  %72: U32 trivial = convert inspect %71
-  %73: Size trivial = convert inspect %72
-  %74: StringView trivial = aggregate.StringView consume %68 consume %73
-  %75: String [shared slot 0 view] guaranteed = represent inspect %74
-  jump -> bb14(borrow %75)
-
-bb14(%64: String [shared slot 0 view] guaranteed from{%4}):
-  %76: Bool trivial = call String.== borrow %41 borrow %64
-  drop String inspect %4
-  branch inspect %76 -> bb6 -> bb4
+  %27: I32 trivial = const 2
+  jump -> bb5(consume %27)
 }
 
 fn textOr(m: Maybe(String) [shared call], fallback: I32 [shared call]) -> I32 {
@@ -384,33 +308,17 @@ bb0(%0: Maybe(String) [shared call] guaranteed, %1: I32 [shared call] guaranteed
 bb1:
   %8: %String address = field.addr .Just inspect %0
   %9: String [shared call] guaranteed from{%0} = load inspect %8
-  %10: String [shared call] guaranteed from{%9, %0} = load inspect %9
-  jump -> bb4
+  %10: String [shared call] guaranteed from{%0, %9} = load inspect %9
+  %11: String [shared slot 0 view] guaranteed from{%0, %9} = call String.view borrow %10
+  %12: I32 trivial = call codeOf borrow %11
+  jump -> bb2(consume %12)
 
 bb2(%2: I32 trivial):
   return consume %2
 
 bb3:
-  %24: I32 trivial = load inspect %3
-  jump -> bb2(consume %24)
-
-bb4:
-  %12: %Array(CodeUnit) address = field.addr .units inspect %10
-  %13: %Run(CodeUnit) address = field.addr .run inspect %12
-  %14: %%CodeUnit address = field.addr .items inspect %13
-  %15: %CodeUnit trivial = load inspect %14
-  %16: %Array(CodeUnit) address = field.addr .units inspect %10
-  %17: %@bits(30) U32 address = field.addr .length inspect %16
-  %18: @bits(30) U32 trivial = load inspect %17
-  %19: U32 trivial = convert inspect %18
-  %20: Size trivial = convert inspect %19
-  %21: StringView trivial = aggregate.StringView consume %15 consume %20
-  %22: String [shared slot 0 view] guaranteed = represent inspect %21
-  jump -> bb5(borrow %22)
-
-bb5(%11: String [shared slot 0 view] guaranteed from{%0, %9}):
-  %23: I32 trivial = call codeOf borrow %11
-  jump -> bb2(consume %23)
+  %13: I32 trivial = load inspect %3
+  jump -> bb2(consume %13)
 }
 
 fn textDepth(m: Maybe(Maybe(String)) [shared call]) -> I32 {
@@ -425,7 +333,7 @@ bb1:
   %6: %Maybe(String) address = field.addr .Just inspect %0
   %7: Maybe(String) [shared call] guaranteed from{%0} = load inspect %6
   %8: I32 trivial = const 2
-  %9: Maybe(String) [shared call] guaranteed from{%7, %0} = load inspect %7
+  %9: Maybe(String) [shared call] guaranteed from{%0, %7} = load inspect %7
   %10: I32 trivial = const 0
   %11: I32 trivial = call textOr borrow %9 borrow %10
   %12: I32 trivial = add inspect %8 inspect %11
@@ -452,70 +360,26 @@ bb1:
   jump -> bb2
 
 bb2:
-  %5: %[CodeUnit *1] address = global.addr string'3
+  %5: %[CodeUnit *1] address = global.addr string'144
   %6: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %5
-  %7: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %6
-  %8: %CodeUnit trivial = bitcast inspect %7
-  %9: Size trivial = const 1
-  jump -> bb4
+  %7: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %6
+  %8: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %7
+  %9: I32 trivial = const 1
+  %10: String owned = call stringLiteral borrow %8 borrow %9
+  %11: String owned = call opaqueText consume %10
+  %12: %[CodeUnit *1] address = global.addr string'145
+  %13: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %12
+  %14: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %13
+  %15: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %14
+  %16: I32 trivial = const 1
+  %17: String owned = call stringLiteral borrow %15 borrow %16
+  %18: String owned = call String.++ consume %11 consume %17
+  %19: Maybe(String) owned = aggregate.Just consume %18
+  return consume %19
 
 bb3:
-  %50: Maybe(String) owned = aggregate.Nothing
-  return consume %50
-
-bb4:
-  %11: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %12: %Size address = alloc frame Size [shared call]
-  store inspect %11 borrow %8
-  store inspect %12 borrow %9
-  %13: %CodeUnit trivial = load inspect %11
-  %14: Size trivial = load inspect %12
-  %15: U32 trivial = convert inspect %14
-  %16: @bits(30) U32 trivial = convert inspect %15
-  %17: %U32 address = global.addr runBorrowed
-  %18: U32 trivial = load inspect %17
-  %19: @bits(2) U32 trivial = convert inspect %18
-  %20: Run(CodeUnit) owned = aggregate.Run consume %13 consume %16 consume %19
-  %21: Size trivial = load inspect %12
-  %22: U32 trivial = convert inspect %21
-  %23: @bits(30) U32 trivial = convert inspect %22
-  %24: Array(CodeUnit) owned = aggregate.Array consume %20 consume %23
-  %25: String owned = aggregate.String consume %24
-  jump -> bb5(consume %25)
-
-bb5(%10: String owned):
-  %26: String owned = call opaqueText consume %10
-  %27: %[CodeUnit *1] address = global.addr string'4
-  %28: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %27
-  %29: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %28
-  %30: %CodeUnit trivial = bitcast inspect %29
-  %31: Size trivial = const 1
-  jump -> bb6
-
-bb6:
-  %33: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %34: %Size address = alloc frame Size [shared call]
-  store inspect %33 borrow %30
-  store inspect %34 borrow %31
-  %35: %CodeUnit trivial = load inspect %33
-  %36: Size trivial = load inspect %34
-  %37: U32 trivial = convert inspect %36
-  %38: @bits(30) U32 trivial = convert inspect %37
-  %39: %U32 address = global.addr runBorrowed
-  %40: U32 trivial = load inspect %39
-  %41: @bits(2) U32 trivial = convert inspect %40
-  %42: Run(CodeUnit) owned = aggregate.Run consume %35 consume %38 consume %41
-  %43: Size trivial = load inspect %34
-  %44: U32 trivial = convert inspect %43
-  %45: @bits(30) U32 trivial = convert inspect %44
-  %46: Array(CodeUnit) owned = aggregate.Array consume %42 consume %45
-  %47: String owned = aggregate.String consume %46
-  jump -> bb7(consume %47)
-
-bb7(%32: String owned):
-  %48: String owned = call String.++ consume %26 consume %32
-  %49: Maybe(String) owned = aggregate.Just consume %48
-  return consume %49
+  %20: Maybe(String) owned = aggregate.Nothing
+  return consume %20
 }
 
 fn namedValue(p: Named [shared call]) -> I32 {
@@ -550,157 +414,91 @@ bb0:
   %9: %I32 address = alloc frame I32
   %10: %Maybe(String) address = alloc frame Maybe(String)
   %11: %I32 address = alloc frame I32
-  %12: %[CodeUnit *2] address = global.addr string'5
+  %12: %[CodeUnit *2] address = global.addr string'146
   %13: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %12
-  %14: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %13
-  %15: %CodeUnit trivial = bitcast inspect %14
-  %16: Size trivial = const 2
-  jump -> bb1
-
-bb1:
-  %18: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %19: %Size address = alloc frame Size [shared call]
-  store inspect %18 borrow %15
-  store inspect %19 borrow %16
-  %20: %CodeUnit trivial = load inspect %18
-  %21: Size trivial = load inspect %19
-  %22: U32 trivial = convert inspect %21
-  %23: @bits(30) U32 trivial = convert inspect %22
-  %24: %U32 address = global.addr runBorrowed
-  %25: U32 trivial = load inspect %24
-  %26: @bits(2) U32 trivial = convert inspect %25
-  %27: Run(CodeUnit) owned = aggregate.Run consume %20 consume %23 consume %26
-  %28: Size trivial = load inspect %19
-  %29: U32 trivial = convert inspect %28
-  %30: @bits(30) U32 trivial = convert inspect %29
-  %31: Array(CodeUnit) owned = aggregate.Array consume %27 consume %30
-  %32: String owned = aggregate.String consume %31
-  jump -> bb2(consume %32)
-
-bb2(%17: String owned):
-  %33: Maybe(String) owned = aggregate.Just consume %17
-  store inspect %0 consume %33
-  %34: Maybe(String) [shared call] guaranteed from{%0} = load inspect %0
-  %35: I32 trivial = const 9
-  %36: I32 trivial = call textOr borrow %34 borrow %35
+  %14: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %13
+  %15: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %14
+  %16: I32 trivial = const 2
+  %17: String owned = call stringLiteral borrow %15 borrow %16
+  %18: Maybe(String) owned = aggregate.Just consume %17
+  store inspect %0 consume %18
+  %19: Maybe(String) [shared call] guaranteed from{%0} = load inspect %0
+  %20: I32 trivial = const 9
+  %21: I32 trivial = call textOr borrow %19 borrow %20
   drop Maybe(String) inspect %0
-  store inspect %1 consume %36
-  %37: %[CodeUnit *0] address = global.addr string'6
-  %38: [CodeUnit *0] [shared slot 0] guaranteed = load inspect %37
-  %39: %[CodeUnit *0] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %38
-  %40: %CodeUnit trivial = bitcast inspect %39
-  %41: Size trivial = const 0
-  jump -> bb3
-
-bb3:
-  %43: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %44: %Size address = alloc frame Size [shared call]
-  store inspect %43 borrow %40
-  store inspect %44 borrow %41
-  %45: %CodeUnit trivial = load inspect %43
-  %46: Size trivial = load inspect %44
-  %47: U32 trivial = convert inspect %46
-  %48: @bits(30) U32 trivial = convert inspect %47
-  %49: %U32 address = global.addr runBorrowed
-  %50: U32 trivial = load inspect %49
-  %51: @bits(2) U32 trivial = convert inspect %50
-  %52: Run(CodeUnit) owned = aggregate.Run consume %45 consume %48 consume %51
-  %53: Size trivial = load inspect %44
-  %54: U32 trivial = convert inspect %53
-  %55: @bits(30) U32 trivial = convert inspect %54
-  %56: Array(CodeUnit) owned = aggregate.Array consume %52 consume %55
-  %57: String owned = aggregate.String consume %56
-  jump -> bb4(consume %57)
-
-bb4(%42: String owned):
-  %58: Maybe(String) owned = aggregate.Just consume %42
-  store inspect %2 consume %58
-  %59: Maybe(String) [shared call] guaranteed from{%2} = load inspect %2
-  %60: I32 trivial = const 9
-  %61: I32 trivial = call textOr borrow %59 borrow %60
+  store inspect %1 consume %21
+  %22: %[CodeUnit *0] address = global.addr string'147
+  %23: [CodeUnit *0] [shared slot 0] guaranteed = load inspect %22
+  %24: %[CodeUnit *0] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %23
+  %25: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %24
+  %26: I32 trivial = const 0
+  %27: String owned = call stringLiteral borrow %25 borrow %26
+  %28: Maybe(String) owned = aggregate.Just consume %27
+  store inspect %2 consume %28
+  %29: Maybe(String) [shared call] guaranteed from{%2} = load inspect %2
+  %30: I32 trivial = const 9
+  %31: I32 trivial = call textOr borrow %29 borrow %30
   drop Maybe(String) inspect %2
-  store inspect %3 consume %61
-  %62: %[CodeUnit *0] address = global.addr string'7
-  %63: [CodeUnit *0] [shared slot 0] guaranteed = load inspect %62
-  %64: %[CodeUnit *0] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %63
-  %65: %CodeUnit trivial = bitcast inspect %64
-  %66: Size trivial = const 0
-  jump -> bb5
-
-bb5:
-  %68: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %69: %Size address = alloc frame Size [shared call]
-  store inspect %68 borrow %65
-  store inspect %69 borrow %66
-  %70: %CodeUnit trivial = load inspect %68
-  %71: Size trivial = load inspect %69
-  %72: U32 trivial = convert inspect %71
-  %73: @bits(30) U32 trivial = convert inspect %72
-  %74: %U32 address = global.addr runBorrowed
-  %75: U32 trivial = load inspect %74
-  %76: @bits(2) U32 trivial = convert inspect %75
-  %77: Run(CodeUnit) owned = aggregate.Run consume %70 consume %73 consume %76
-  %78: Size trivial = load inspect %69
-  %79: U32 trivial = convert inspect %78
-  %80: @bits(30) U32 trivial = convert inspect %79
-  %81: Array(CodeUnit) owned = aggregate.Array consume %77 consume %80
-  %82: String owned = aggregate.String consume %81
-  jump -> bb6(consume %82)
-
-bb6(%67: String owned):
-  %83: String owned = call opaqueText consume %67
-  %84: Maybe(String) owned = aggregate.Just consume %83
-  store inspect %4 consume %84
-  %85: Maybe(String) [shared call] guaranteed from{%4} = load inspect %4
-  %86: I32 trivial = const 9
-  %87: I32 trivial = call textOr borrow %85 borrow %86
+  store inspect %3 consume %31
+  %32: %[CodeUnit *0] address = global.addr string'148
+  %33: [CodeUnit *0] [shared slot 0] guaranteed = load inspect %32
+  %34: %[CodeUnit *0] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %33
+  %35: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %34
+  %36: I32 trivial = const 0
+  %37: String owned = call stringLiteral borrow %35 borrow %36
+  %38: String owned = call opaqueText consume %37
+  %39: Maybe(String) owned = aggregate.Just consume %38
+  store inspect %4 consume %39
+  %40: Maybe(String) [shared call] guaranteed from{%4} = load inspect %4
+  %41: I32 trivial = const 9
+  %42: I32 trivial = call textOr borrow %40 borrow %41
   drop Maybe(String) inspect %4
-  store inspect %5 consume %87
-  %88: Maybe(String) owned = aggregate.Nothing
-  store inspect %6 consume %88
-  %89: Maybe(String) [shared call] guaranteed from{%6} = load inspect %6
-  %90: I32 trivial = const 9
-  %91: I32 trivial = call textOr borrow %89 borrow %90
+  store inspect %5 consume %42
+  %43: Maybe(String) owned = aggregate.Nothing
+  store inspect %6 consume %43
+  %44: Maybe(String) [shared call] guaranteed from{%6} = load inspect %6
+  %45: I32 trivial = const 9
+  %46: I32 trivial = call textOr borrow %44 borrow %45
   drop Maybe(String) inspect %6
-  store inspect %7 consume %91
-  %92: I32 trivial = const 1
-  %93: Maybe(String) owned = call ownedText borrow %92
-  store inspect %8 consume %93
-  %94: Maybe(String) [shared call] guaranteed from{%8} = load inspect %8
-  %95: I32 trivial = const 9
-  %96: I32 trivial = call textOr borrow %94 borrow %95
+  store inspect %7 consume %46
+  %47: I32 trivial = const 1
+  %48: Maybe(String) owned = call ownedText borrow %47
+  store inspect %8 consume %48
+  %49: Maybe(String) [shared call] guaranteed from{%8} = load inspect %8
+  %50: I32 trivial = const 9
+  %51: I32 trivial = call textOr borrow %49 borrow %50
   drop Maybe(String) inspect %8
-  store inspect %9 consume %96
-  %97: I32 trivial = const 0
-  %98: Maybe(String) owned = call ownedText borrow %97
-  store inspect %10 consume %98
-  %99: Maybe(String) [shared call] guaranteed from{%10} = load inspect %10
-  %100: I32 trivial = const 9
-  %101: I32 trivial = call textOr borrow %99 borrow %100
+  store inspect %9 consume %51
+  %52: I32 trivial = const 0
+  %53: Maybe(String) owned = call ownedText borrow %52
+  store inspect %10 consume %53
+  %54: Maybe(String) [shared call] guaranteed from{%10} = load inspect %10
+  %55: I32 trivial = const 9
+  %56: I32 trivial = call textOr borrow %54 borrow %55
   drop Maybe(String) inspect %10
-  store inspect %11 consume %101
-  %102: I32 trivial = load inspect %1
-  %103: I32 trivial = load inspect %3
-  %104: I32 trivial = const 10
-  %105: I32 trivial = mul inspect %103 inspect %104
-  %106: I32 trivial = add inspect %102 inspect %105
-  %107: I32 trivial = load inspect %5
-  %108: I32 trivial = const 100
-  %109: I32 trivial = mul inspect %107 inspect %108
-  %110: I32 trivial = add inspect %106 inspect %109
-  %111: I32 trivial = load inspect %7
-  %112: I32 trivial = const 1000
-  %113: I32 trivial = mul inspect %111 inspect %112
-  %114: I32 trivial = add inspect %110 inspect %113
-  %115: I32 trivial = load inspect %9
-  %116: I32 trivial = const 10000
-  %117: I32 trivial = mul inspect %115 inspect %116
-  %118: I32 trivial = add inspect %114 inspect %117
-  %119: I32 trivial = load inspect %11
-  %120: I32 trivial = const 100000
-  %121: I32 trivial = mul inspect %119 inspect %120
-  %122: I32 trivial = add inspect %118 inspect %121
-  return consume %122
+  store inspect %11 consume %56
+  %57: I32 trivial = load inspect %1
+  %58: I32 trivial = load inspect %3
+  %59: I32 trivial = const 10
+  %60: I32 trivial = mul inspect %58 inspect %59
+  %61: I32 trivial = add inspect %57 inspect %60
+  %62: I32 trivial = load inspect %5
+  %63: I32 trivial = const 100
+  %64: I32 trivial = mul inspect %62 inspect %63
+  %65: I32 trivial = add inspect %61 inspect %64
+  %66: I32 trivial = load inspect %7
+  %67: I32 trivial = const 1000
+  %68: I32 trivial = mul inspect %66 inspect %67
+  %69: I32 trivial = add inspect %65 inspect %68
+  %70: I32 trivial = load inspect %9
+  %71: I32 trivial = const 10000
+  %72: I32 trivial = mul inspect %70 inspect %71
+  %73: I32 trivial = add inspect %69 inspect %72
+  %74: I32 trivial = load inspect %11
+  %75: I32 trivial = const 100000
+  %76: I32 trivial = mul inspect %74 inspect %75
+  %77: I32 trivial = add inspect %73 inspect %76
+  return consume %77
 }
 
 fn nestedText() -> I32 {
@@ -724,104 +522,60 @@ bb0:
   %12: I32 trivial = call textDepth borrow %11
   drop Maybe(Maybe(String)) inspect %2
   store inspect %3 consume %12
-  %13: %[CodeUnit *0] address = global.addr string'8
+  %13: %[CodeUnit *0] address = global.addr string'149
   %14: [CodeUnit *0] [shared slot 0] guaranteed = load inspect %13
-  %15: %[CodeUnit *0] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %14
-  %16: %CodeUnit trivial = bitcast inspect %15
-  %17: Size trivial = const 0
-  jump -> bb1
-
-bb1:
-  %19: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %20: %Size address = alloc frame Size [shared call]
-  store inspect %19 borrow %16
-  store inspect %20 borrow %17
-  %21: %CodeUnit trivial = load inspect %19
-  %22: Size trivial = load inspect %20
-  %23: U32 trivial = convert inspect %22
-  %24: @bits(30) U32 trivial = convert inspect %23
-  %25: %U32 address = global.addr runBorrowed
-  %26: U32 trivial = load inspect %25
-  %27: @bits(2) U32 trivial = convert inspect %26
-  %28: Run(CodeUnit) owned = aggregate.Run consume %21 consume %24 consume %27
-  %29: Size trivial = load inspect %20
-  %30: U32 trivial = convert inspect %29
-  %31: @bits(30) U32 trivial = convert inspect %30
-  %32: Array(CodeUnit) owned = aggregate.Array consume %28 consume %31
-  %33: String owned = aggregate.String consume %32
-  jump -> bb2(consume %33)
-
-bb2(%18: String owned):
-  %34: Maybe(String) owned = aggregate.Just consume %18
-  %35: Maybe(Maybe(String)) owned = aggregate.Just consume %34
-  store inspect %4 consume %35
-  %36: Maybe(Maybe(String)) [shared call] guaranteed from{%4} = load inspect %4
-  %37: I32 trivial = call textDepth borrow %36
+  %15: %[CodeUnit *0] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %14
+  %16: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %15
+  %17: I32 trivial = const 0
+  %18: String owned = call stringLiteral borrow %16 borrow %17
+  %19: Maybe(String) owned = aggregate.Just consume %18
+  %20: Maybe(Maybe(String)) owned = aggregate.Just consume %19
+  store inspect %4 consume %20
+  %21: Maybe(Maybe(String)) [shared call] guaranteed from{%4} = load inspect %4
+  %22: I32 trivial = call textDepth borrow %21
   drop Maybe(Maybe(String)) inspect %4
-  store inspect %5 consume %37
-  %38: I32 trivial = load inspect %1
-  %39: I32 trivial = load inspect %3
-  %40: I32 trivial = const 10
-  %41: I32 trivial = mul inspect %39 inspect %40
-  %42: I32 trivial = add inspect %38 inspect %41
-  %43: I32 trivial = load inspect %5
-  %44: I32 trivial = const 100
-  %45: I32 trivial = mul inspect %43 inspect %44
-  %46: I32 trivial = add inspect %42 inspect %45
-  return consume %46
+  store inspect %5 consume %22
+  %23: I32 trivial = load inspect %1
+  %24: I32 trivial = load inspect %3
+  %25: I32 trivial = const 10
+  %26: I32 trivial = mul inspect %24 inspect %25
+  %27: I32 trivial = add inspect %23 inspect %26
+  %28: I32 trivial = load inspect %5
+  %29: I32 trivial = const 100
+  %30: I32 trivial = mul inspect %28 inspect %29
+  %31: I32 trivial = add inspect %27 inspect %30
+  return consume %31
 }
 
 fn namedFold() -> I32 {
 bb0:
   %0: %Named address = alloc frame Named
   %1: %Named address = alloc frame Named
-  %2: %[CodeUnit *2] address = global.addr string'9
+  %2: %[CodeUnit *2] address = global.addr string'150
   %3: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %2
-  %4: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %3
-  %5: %CodeUnit trivial = bitcast inspect %4
-  %6: Size trivial = const 2
-  jump -> bb1
-
-bb1:
-  %8: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %9: %Size address = alloc frame Size [shared call]
-  store inspect %8 borrow %5
-  store inspect %9 borrow %6
-  %10: %CodeUnit trivial = load inspect %8
-  %11: Size trivial = load inspect %9
-  %12: U32 trivial = convert inspect %11
-  %13: @bits(30) U32 trivial = convert inspect %12
-  %14: %U32 address = global.addr runBorrowed
-  %15: U32 trivial = load inspect %14
-  %16: @bits(2) U32 trivial = convert inspect %15
-  %17: Run(CodeUnit) owned = aggregate.Run consume %10 consume %13 consume %16
-  %18: Size trivial = load inspect %9
-  %19: U32 trivial = convert inspect %18
-  %20: @bits(30) U32 trivial = convert inspect %19
-  %21: Array(CodeUnit) owned = aggregate.Array consume %17 consume %20
-  %22: String owned = aggregate.String consume %21
-  jump -> bb2(consume %22)
-
-bb2(%7: String owned):
-  %23: Maybe(String) owned = aggregate.Just consume %7
-  %24: Maybe(I32) trivial = aggregate.Nothing
-  %25: Named owned = aggregate.Named consume %23 consume %24
-  store inspect %0 consume %25
-  %26: Named [shared call] guaranteed from{%0} = load inspect %0
-  %27: I32 trivial = call namedValue borrow %26
+  %4: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %3
+  %5: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %4
+  %6: I32 trivial = const 2
+  %7: String owned = call stringLiteral borrow %5 borrow %6
+  %8: Maybe(String) owned = aggregate.Just consume %7
+  %9: Maybe(I32) trivial = aggregate.Nothing
+  %10: Named owned = aggregate.Named consume %8 consume %9
+  store inspect %0 consume %10
+  %11: Named [shared call] guaranteed from{%0} = load inspect %0
+  %12: I32 trivial = call namedValue borrow %11
   drop Named inspect %0
-  %28: Maybe(String) owned = aggregate.Nothing
-  %29: I32 trivial = const 3
-  %30: Maybe(I32) trivial = aggregate.Just consume %29
-  %31: Named owned = aggregate.Named consume %28 consume %30
-  store inspect %1 consume %31
-  %32: Named [shared call] guaranteed from{%1} = load inspect %1
-  %33: I32 trivial = call namedValue borrow %32
+  %13: Maybe(String) owned = aggregate.Nothing
+  %14: I32 trivial = const 3
+  %15: Maybe(I32) trivial = aggregate.Just consume %14
+  %16: Named owned = aggregate.Named consume %13 consume %15
+  store inspect %1 consume %16
+  %17: Named [shared call] guaranteed from{%1} = load inspect %1
+  %18: I32 trivial = call namedValue borrow %17
   drop Named inspect %1
-  %34: I32 trivial = const 1000
-  %35: I32 trivial = mul inspect %33 inspect %34
-  %36: I32 trivial = add inspect %27 inspect %35
-  return consume %36
+  %19: I32 trivial = const 1000
+  %20: I32 trivial = mul inspect %18 inspect %19
+  %21: I32 trivial = add inspect %12 inspect %20
+  return consume %21
 }
 
 fn genericFold() -> I32 {
@@ -832,228 +586,70 @@ bb0:
   %3: %I32 address = alloc frame I32
   %4: %String address = alloc frame String
   %5: %I32 address = alloc frame I32
-  %6: %[CodeUnit *2] address = global.addr string'10
+  %6: %[CodeUnit *2] address = global.addr string'151
   %7: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %6
-  %8: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %7
-  %9: %CodeUnit trivial = bitcast inspect %8
-  %10: Size trivial = const 2
-  jump -> bb1
-
-bb1:
-  %12: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %13: %Size address = alloc frame Size [shared call]
-  store inspect %12 borrow %9
-  store inspect %13 borrow %10
-  %14: %CodeUnit trivial = load inspect %12
-  %15: Size trivial = load inspect %13
-  %16: U32 trivial = convert inspect %15
-  %17: @bits(30) U32 trivial = convert inspect %16
-  %18: %U32 address = global.addr runBorrowed
-  %19: U32 trivial = load inspect %18
-  %20: @bits(2) U32 trivial = convert inspect %19
-  %21: Run(CodeUnit) owned = aggregate.Run consume %14 consume %17 consume %20
-  %22: Size trivial = load inspect %13
-  %23: U32 trivial = convert inspect %22
-  %24: @bits(30) U32 trivial = convert inspect %23
-  %25: Array(CodeUnit) owned = aggregate.Array consume %21 consume %24
-  %26: String owned = aggregate.String consume %25
-  jump -> bb2(consume %26)
-
-bb2(%11: String owned):
-  %27: Maybe(String) owned = aggregate.Just consume %11
-  %28: %[CodeUnit *1] address = global.addr string'11
-  %29: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %28
-  %30: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %29
-  %31: %CodeUnit trivial = bitcast inspect %30
-  %32: Size trivial = const 1
-  jump -> bb3
-
-bb3:
-  %34: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %35: %Size address = alloc frame Size [shared call]
-  store inspect %34 borrow %31
-  store inspect %35 borrow %32
-  %36: %CodeUnit trivial = load inspect %34
-  %37: Size trivial = load inspect %35
-  %38: U32 trivial = convert inspect %37
-  %39: @bits(30) U32 trivial = convert inspect %38
-  %40: %U32 address = global.addr runBorrowed
-  %41: U32 trivial = load inspect %40
-  %42: @bits(2) U32 trivial = convert inspect %41
-  %43: Run(CodeUnit) owned = aggregate.Run consume %36 consume %39 consume %42
-  %44: Size trivial = load inspect %35
-  %45: U32 trivial = convert inspect %44
-  %46: @bits(30) U32 trivial = convert inspect %45
-  %47: Array(CodeUnit) owned = aggregate.Array consume %43 consume %46
-  %48: String owned = aggregate.String consume %47
-  jump -> bb4(consume %48)
-
-bb4(%33: String owned):
-  %49: String owned = call passThrough(String) consume %27 consume %33
-  store inspect %0 consume %49
-  %50: String [shared slot 0] guaranteed from{%0} = load inspect %0
-  jump -> bb5
-
-bb5:
-  %52: %Array(CodeUnit) address = field.addr .units inspect %50
-  %53: %Run(CodeUnit) address = field.addr .run inspect %52
-  %54: %%CodeUnit address = field.addr .items inspect %53
-  %55: %CodeUnit trivial = load inspect %54
-  %56: %Array(CodeUnit) address = field.addr .units inspect %50
-  %57: %@bits(30) U32 address = field.addr .length inspect %56
-  %58: @bits(30) U32 trivial = load inspect %57
-  %59: U32 trivial = convert inspect %58
-  %60: Size trivial = convert inspect %59
-  %61: StringView trivial = aggregate.StringView consume %55 consume %60
-  %62: String [shared slot 0 view] guaranteed = represent inspect %61
-  jump -> bb6(borrow %62)
-
-bb6(%51: String [shared slot 0 view] guaranteed from{%0}):
-  %63: I32 trivial = call codeOf borrow %51
+  %8: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %7
+  %9: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %8
+  %10: I32 trivial = const 2
+  %11: String owned = call stringLiteral borrow %9 borrow %10
+  %12: Maybe(String) owned = aggregate.Just consume %11
+  %13: %[CodeUnit *1] address = global.addr string'152
+  %14: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %13
+  %15: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %14
+  %16: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %15
+  %17: I32 trivial = const 1
+  %18: String owned = call stringLiteral borrow %16 borrow %17
+  %19: String owned = call passThrough(String) consume %12 consume %18
+  store inspect %0 consume %19
+  %20: String [shared slot 0] guaranteed from{%0} = load inspect %0
+  %21: String [shared slot 0 view] guaranteed from{%0} = call String.view borrow %20
+  %22: I32 trivial = call codeOf borrow %21
   drop String inspect %0
-  store inspect %1 consume %63
-  %64: %[CodeUnit *0] address = global.addr string'12
-  %65: [CodeUnit *0] [shared slot 0] guaranteed = load inspect %64
-  %66: %[CodeUnit *0] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %65
-  %67: %CodeUnit trivial = bitcast inspect %66
-  %68: Size trivial = const 0
-  jump -> bb7
-
-bb7:
-  %70: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %71: %Size address = alloc frame Size [shared call]
-  store inspect %70 borrow %67
-  store inspect %71 borrow %68
-  %72: %CodeUnit trivial = load inspect %70
-  %73: Size trivial = load inspect %71
-  %74: U32 trivial = convert inspect %73
-  %75: @bits(30) U32 trivial = convert inspect %74
-  %76: %U32 address = global.addr runBorrowed
-  %77: U32 trivial = load inspect %76
-  %78: @bits(2) U32 trivial = convert inspect %77
-  %79: Run(CodeUnit) owned = aggregate.Run consume %72 consume %75 consume %78
-  %80: Size trivial = load inspect %71
-  %81: U32 trivial = convert inspect %80
-  %82: @bits(30) U32 trivial = convert inspect %81
-  %83: Array(CodeUnit) owned = aggregate.Array consume %79 consume %82
-  %84: String owned = aggregate.String consume %83
-  jump -> bb8(consume %84)
-
-bb8(%69: String owned):
-  %85: Maybe(String) owned = aggregate.Just consume %69
-  %86: %[CodeUnit *1] address = global.addr string'13
-  %87: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %86
-  %88: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %87
-  %89: %CodeUnit trivial = bitcast inspect %88
-  %90: Size trivial = const 1
-  jump -> bb9
-
-bb9:
-  %92: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %93: %Size address = alloc frame Size [shared call]
-  store inspect %92 borrow %89
-  store inspect %93 borrow %90
-  %94: %CodeUnit trivial = load inspect %92
-  %95: Size trivial = load inspect %93
-  %96: U32 trivial = convert inspect %95
-  %97: @bits(30) U32 trivial = convert inspect %96
-  %98: %U32 address = global.addr runBorrowed
-  %99: U32 trivial = load inspect %98
-  %100: @bits(2) U32 trivial = convert inspect %99
-  %101: Run(CodeUnit) owned = aggregate.Run consume %94 consume %97 consume %100
-  %102: Size trivial = load inspect %93
-  %103: U32 trivial = convert inspect %102
-  %104: @bits(30) U32 trivial = convert inspect %103
-  %105: Array(CodeUnit) owned = aggregate.Array consume %101 consume %104
-  %106: String owned = aggregate.String consume %105
-  jump -> bb10(consume %106)
-
-bb10(%91: String owned):
-  %107: String owned = call passThrough(String) consume %85 consume %91
-  store inspect %2 consume %107
-  %108: String [shared slot 0] guaranteed from{%2} = load inspect %2
-  jump -> bb11
-
-bb11:
-  %110: %Array(CodeUnit) address = field.addr .units inspect %108
-  %111: %Run(CodeUnit) address = field.addr .run inspect %110
-  %112: %%CodeUnit address = field.addr .items inspect %111
-  %113: %CodeUnit trivial = load inspect %112
-  %114: %Array(CodeUnit) address = field.addr .units inspect %108
-  %115: %@bits(30) U32 address = field.addr .length inspect %114
-  %116: @bits(30) U32 trivial = load inspect %115
-  %117: U32 trivial = convert inspect %116
-  %118: Size trivial = convert inspect %117
-  %119: StringView trivial = aggregate.StringView consume %113 consume %118
-  %120: String [shared slot 0 view] guaranteed = represent inspect %119
-  jump -> bb12(borrow %120)
-
-bb12(%109: String [shared slot 0 view] guaranteed from{%2}):
-  %121: I32 trivial = call codeOf borrow %109
+  store inspect %1 consume %22
+  %23: %[CodeUnit *0] address = global.addr string'153
+  %24: [CodeUnit *0] [shared slot 0] guaranteed = load inspect %23
+  %25: %[CodeUnit *0] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %24
+  %26: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %25
+  %27: I32 trivial = const 0
+  %28: String owned = call stringLiteral borrow %26 borrow %27
+  %29: Maybe(String) owned = aggregate.Just consume %28
+  %30: %[CodeUnit *1] address = global.addr string'154
+  %31: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %30
+  %32: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %31
+  %33: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %32
+  %34: I32 trivial = const 1
+  %35: String owned = call stringLiteral borrow %33 borrow %34
+  %36: String owned = call passThrough(String) consume %29 consume %35
+  store inspect %2 consume %36
+  %37: String [shared slot 0] guaranteed from{%2} = load inspect %2
+  %38: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %37
+  %39: I32 trivial = call codeOf borrow %38
   drop String inspect %2
-  store inspect %3 consume %121
-  %122: Maybe(String) owned = aggregate.Nothing
-  %123: %[CodeUnit *1] address = global.addr string'14
-  %124: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %123
-  %125: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %124
-  %126: %CodeUnit trivial = bitcast inspect %125
-  %127: Size trivial = const 1
-  jump -> bb13
-
-bb13:
-  %129: %%CodeUnit address = alloc frame %CodeUnit [shared call]
-  %130: %Size address = alloc frame Size [shared call]
-  store inspect %129 borrow %126
-  store inspect %130 borrow %127
-  %131: %CodeUnit trivial = load inspect %129
-  %132: Size trivial = load inspect %130
-  %133: U32 trivial = convert inspect %132
-  %134: @bits(30) U32 trivial = convert inspect %133
-  %135: %U32 address = global.addr runBorrowed
-  %136: U32 trivial = load inspect %135
-  %137: @bits(2) U32 trivial = convert inspect %136
-  %138: Run(CodeUnit) owned = aggregate.Run consume %131 consume %134 consume %137
-  %139: Size trivial = load inspect %130
-  %140: U32 trivial = convert inspect %139
-  %141: @bits(30) U32 trivial = convert inspect %140
-  %142: Array(CodeUnit) owned = aggregate.Array consume %138 consume %141
-  %143: String owned = aggregate.String consume %142
-  jump -> bb14(consume %143)
-
-bb14(%128: String owned):
-  %144: String owned = call passThrough(String) consume %122 consume %128
-  store inspect %4 consume %144
-  %145: String [shared slot 0] guaranteed from{%4} = load inspect %4
-  jump -> bb15
-
-bb15:
-  %147: %Array(CodeUnit) address = field.addr .units inspect %145
-  %148: %Run(CodeUnit) address = field.addr .run inspect %147
-  %149: %%CodeUnit address = field.addr .items inspect %148
-  %150: %CodeUnit trivial = load inspect %149
-  %151: %Array(CodeUnit) address = field.addr .units inspect %145
-  %152: %@bits(30) U32 address = field.addr .length inspect %151
-  %153: @bits(30) U32 trivial = load inspect %152
-  %154: U32 trivial = convert inspect %153
-  %155: Size trivial = convert inspect %154
-  %156: StringView trivial = aggregate.StringView consume %150 consume %155
-  %157: String [shared slot 0 view] guaranteed = represent inspect %156
-  jump -> bb16(borrow %157)
-
-bb16(%146: String [shared slot 0 view] guaranteed from{%4}):
-  %158: I32 trivial = call codeOf borrow %146
+  store inspect %3 consume %39
+  %40: Maybe(String) owned = aggregate.Nothing
+  %41: %[CodeUnit *1] address = global.addr string'155
+  %42: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %41
+  %43: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %42
+  %44: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %43
+  %45: I32 trivial = const 1
+  %46: String owned = call stringLiteral borrow %44 borrow %45
+  %47: String owned = call passThrough(String) consume %40 consume %46
+  store inspect %4 consume %47
+  %48: String [shared slot 0] guaranteed from{%4} = load inspect %4
+  %49: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %48
+  %50: I32 trivial = call codeOf borrow %49
   drop String inspect %4
-  store inspect %5 consume %158
-  %159: I32 trivial = load inspect %1
-  %160: I32 trivial = load inspect %3
-  %161: I32 trivial = const 10
-  %162: I32 trivial = mul inspect %160 inspect %161
-  %163: I32 trivial = add inspect %159 inspect %162
-  %164: I32 trivial = load inspect %5
-  %165: I32 trivial = const 100
-  %166: I32 trivial = mul inspect %164 inspect %165
-  %167: I32 trivial = add inspect %163 inspect %166
-  return consume %167
+  store inspect %5 consume %50
+  %51: I32 trivial = load inspect %1
+  %52: I32 trivial = load inspect %3
+  %53: I32 trivial = const 10
+  %54: I32 trivial = mul inspect %52 inspect %53
+  %55: I32 trivial = add inspect %51 inspect %54
+  %56: I32 trivial = load inspect %5
+  %57: I32 trivial = const 100
+  %58: I32 trivial = mul inspect %56 inspect %57
+  %59: I32 trivial = add inspect %55 inspect %58
+  return consume %59
 }
 
 fn main() -> I32 {

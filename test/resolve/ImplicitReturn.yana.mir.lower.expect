@@ -1,0 +1,36 @@
+
+fact<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = phi [b_2, %n], [b_3, %v_4]: I32
+    %v_5 = phi [b_2, 1], [b_3, %v_6]: I32
+    %v_7 = cmp_ile %v_1, 1: I32
+    je %v_7, b_8, b_3
+  }
+
+  b_3 {
+    %v_4 = sub %v_1, 1: I32
+    %v_6 = imul %v_5, %v_1: I32
+    jmp b_0
+  }
+
+  b_9 {
+    ret %v_5
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_2 {
+    jmp b_0
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex fact, 4: I32
+    %v_2 = add 100, %v_1: I32
+    ret %v_2
+  }
+}
+

@@ -1,0 +1,124 @@
+let image$base: () = <none>
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn Contiguous([a *n], a).elements(4, I32)(%self: [I32 *4]) -> 2'ArrayView(I32) {
+  b0:
+    %v1 = alloc : 2'ArrayView(I32)
+    %v2 = addressof %self : %[I32 *4]
+    %v3 = bitcast %v2 : %I32
+    %v4 = countof 4 : I32
+    %v5 = cast %v4 : Size
+    aggregate %local1@ArrayView.items = %v3, %local1@ArrayView.length = %v5
+    ret %v1
+}
+
+fn numberOf(%call: Syscall) -> USize {
+  b0:
+    %v1 = cast %call : I32
+    %v2 = cast %v1 : USize
+    ret %v2
+}
+
+fn exitProcess(%status: Size) -> () {
+  b0:
+    %v2 = call numberOf, 60 : USize
+    %v3 = bitcast %status : USize
+    %v4 = syscall %v2, %v3 : Size
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn hold(%xs: ArrayView(I32), %tag: I32) -> Held(Array(I32)) {
+  b0:
+    %v2 = alloc : Held(Array(I32))
+    aggregate %local1@Held.view = %xs, %local1@Held.tag = %tag
+    ret %v2
+}
+
+fn sum(%h: Held(Array(I32))) -> I32 {
+  b0:
+    %total = alloc : I32
+    init %total, 0
+    %v6 = load %h@Held.view : ArrayView(I32)
+    %v7 = load %h@Held.view@ArrayView.length : Size
+    %v10 = alloc : Size
+    init %local2, 0
+    jmp b1
+
+  b1:
+    %i = load %local2 : Size
+    %v14 = cmp_lt %i, %v7 : Bool
+    je %v14, b2, b5
+
+  b2:
+    %v15 = load %total : I32
+    %v16 = load %h@Held.view : ArrayView(I32)
+    %v17 = borrow %h@Held.view : 'ArrayView(I32)
+    %v18 = load [%v17]@ArrayView.length : Size
+    %v19 = cast %i : USize
+    %v20 = cast %v18 : USize
+    %v21 = cmp_ge %v19, %v20 : Bool
+    call checkCondition, %v21
+    %v23 = load [%v17]@ArrayView.items : %I32
+    %v24 = strideof I32 : I64
+    %v25 = mul %i, %v24 : I64
+    %v26 = add %v23, %v25 : %I32
+    %v27 = borrow [%v26] : 1'I32
+    %v28 = load [%v27] : I32
+    %v29 = add %v15, %v28 : I32
+    assign %total, %v29
+    jmp b3
+
+  b3:
+    %v31 = load %local2 : Size
+    jmp b4
+
+  b4:
+    %v33 = add %v31, 1 : Size
+    assign %local2, %v33
+    jmp b1
+
+  b5:
+    %v38 = load %total : I32
+    %v39 = load %h@Held.tag : I32
+    %v40 = mul %v38, %v39 : I32
+    ret %v40
+}
+
+fn main() -> I32 {
+  b0:
+    %v4 = alloc : [I32 *4]
+    aggregate %raw[0] = 1, %raw[1] = 2, %raw[2] = 3, %raw[3] = 4
+    %v10 = load %raw : [I32 *4]
+    %v11 = borrow %raw : '[I32 *4]
+    %v12 = call Contiguous([a *n], a).elements(4, I32), %v11 : 2'ArrayView(I32)
+    %v14 = borrow %local1 : 'ArrayView(I32)
+    %h = call hold, %v14, 6 : Held(Array(I32))
+    %v16 = call sum, %h : I32
+    ret %v16
+}

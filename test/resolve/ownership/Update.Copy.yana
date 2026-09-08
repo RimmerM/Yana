@@ -1,0 +1,47 @@
+{-
+   The copying form of a record update over a type that does not copy for free.
+
+   # resolver: ownership
+
+   `{v | f: x}` makes a *second* value of `v`'s type, so what it needs of `v` is a duplicate. Where
+   the type is `TrivialCopy` the duplicate is the bytes and `Record.yana` is the whole of it; where
+   it is not, the language's word for a duplicate is the `Copy` class and this emits the ordinary
+   call to it. The shipping stage copies the bytes either way, which for a value that maintains an
+   invariant across its copies is the invariant broken - so this is a fixture only the ownership
+   stage compiles.
+
+   An authored `Copy` is also what *makes* `Pair` non-trivial: `doc/spec/ownership.md`'s "an authored
+   `Copy` subtracts `TrivialCopy`", which is why one instance is both the reason a copy is needed
+   here and the thing that answers it.
+
+   `Reject.Update.Copy.yana` is the other half: the same expression at a type with no `Copy` at all.
+-}
+
+let &copies = 0
+
+data Pair {left: Int, right: Int}
+
+instance Copy(Pair):
+    fn copy(from: Pair) -> Pair:
+        copies = copies + 1
+        return Pair {left: from.left + 100, right: from.right}
+
+-- One copy of `p`, then one write into it. `p` is untouched and still usable afterwards, which is
+-- what separates this form from `->`.
+fn withRight(p: Pair, r: Int) -> Pair = {p | right: r}
+
+-- The source is named once however many replacements there are, so this is still one copy.
+fn both(p: Pair) -> Pair = {p | left: 7, right: 8}
+
+-- A source in no storage of its own has nothing to duplicate: the value is already this
+-- expression's, so no `Copy` runs even though the type has one.
+fn madeHere() -> Pair = {Pair {left: 1, right: 2} | right: 5}
+
+fn main() -> Int:
+    let p = Pair {left: 1, right: 2}
+
+    let a = withRight(p, 3)
+    let b = both(p)
+
+    -- 1 * 10000 + 101 * 100 + 7 * 10 + 5 = 20175, plus the two copies `p` paid for.
+    return (p.left * 10000) + (a.left * 100) + (b.left * 10) + madeHere().right + copies

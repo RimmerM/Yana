@@ -1,0 +1,831 @@
+module ResolveTest
+
+fn budget(op: Op [shared call]) -> I32 {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 5, 1 -> 5, 2 -> 5, 3 -> 5, 4 -> 5, 5 -> 5] inspect %3
+  return consume %4
+}
+
+fn indexOf'2(op: Op [shared call]) -> I32 {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 0, 1 -> 1, 2 -> 2, 3 -> 3, 4 -> 4, 5 -> 5] inspect %3
+  return consume %4
+}
+
+fn slotOf(op: Op [shared call]) -> I32 {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 100, 1 -> 110, 2 -> 120, 3 -> 130, 4 -> 140, 5 -> 150] inspect %3
+  return consume %4
+}
+
+fn opposite(op: Op [shared call]) -> Op {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Op trivial = map [0 -> Cmp, 1 -> Neg, 2 -> Div, 3 -> Mul, 4 -> Sub, 5 -> Add] inspect %3
+  return consume %4
+}
+
+fn arity(op: Op [shared call]) -> I32 {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 2, 1 -> 2, 2 -> 2, 3 -> 2, 4 -> 1, 5 -> 2] inspect %3
+  return consume %4
+}
+
+fn code(op: Op [shared call]) -> I32 {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 5, 1 -> 0, 2 -> 7, 3 -> 0, 4 -> 0, 5 -> 0] inspect %3
+  return consume %4
+}
+
+fn isArithmetic(op: Op [shared call]) -> Bool {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Bool trivial = map [0 -> True, 1 -> True, 2 -> True, 3 -> True, 4 -> False, 5 -> False] inspect %3
+  return consume %4
+}
+
+fn isLate(op: Op [shared call]) -> Bool {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Bool trivial = map [0 -> False, 1 -> False, 2 -> False, 3 -> False, 4 -> True, 5 -> True] inspect %3
+  return consume %4
+}
+
+fn isMiddle(op: Op [shared call]) -> Bool {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Bool trivial = map [0 -> False, 1 -> True, 2 -> True, 3 -> True, 4 -> False, 5 -> False] inspect %3
+  return consume %4
+}
+
+fn isNegate(op: Op [shared call]) -> Bool {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Bool trivial = map [0 -> False, 1 -> False, 2 -> False, 3 -> False, 4 -> True, 5 -> False] inspect %3
+  return consume %4
+}
+
+fn isBinary(op: Op [shared call]) -> Bool {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Bool trivial = map [0 -> True, 1 -> True, 2 -> True, 3 -> True, 4 -> False, 5 -> True] inspect %3
+  return consume %4
+}
+
+fn isCommutative(op: Op [shared call]) -> Bool {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: Bool trivial = map [0 -> True, 1 -> False, 2 -> True, 3 -> False, 4 -> False, 5 -> True] inspect %3
+  return consume %4
+}
+
+fn opcode(op: Op [shared call]) -> I32 {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 1000, 1 -> 2000, 2 -> 3500, 3 -> 4000, 4 -> 5000, 5 -> 6000] inspect %3
+  return consume %4
+}
+
+fn weight(op: Op [shared call]) -> F64 {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: F64 trivial = map [0 -> 1.5, 1 -> 2.5, 2 -> 4, 3 -> 8.25, 4 -> 0.5, 5 -> 16] inspect %3
+  return consume %4
+}
+
+fn signedZero(op: Op [shared call]) -> F64 {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: F64 trivial = map [0 -> 0, 1 -> 0, 2 -> 0, 3 -> 0, 4 -> -0, 5 -> 0] inspect %3
+  return consume %4
+}
+
+fn bitValue(b: Bit [shared call]) -> I32 {
+bb0(%0: Bit [shared call] guaranteed):
+  %1: %Bit address = alloc frame Bit [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I32 trivial = map [0 -> 100, 1 -> 1000] inspect %3
+  return consume %4
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  jump -> bb2(consume %6)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %7: I32 trivial = load inspect %4
+  jump -> bb2(consume %7)
+}
+
+fn opaque(op: Op [shared call]) -> Op {
+bb0(%0: Op [shared call] guaranteed):
+  %1: %Op address = alloc frame Op [shared call]
+  store inspect %1 borrow %0
+  %2: Op trivial = load inspect %1
+  return consume %2
+}
+
+fn opaqueBit(b: Bit [shared call]) -> Bit {
+bb0(%0: Bit [shared call] guaranteed):
+  %1: %Bit address = alloc frame Bit [shared call]
+  store inspect %1 borrow %0
+  %2: Bit trivial = load inspect %1
+  return consume %2
+}
+
+fn folded() -> I32 {
+bb0:
+  %0: Op trivial = const Mul
+  %1: I32 trivial = call opcode borrow %0
+  %2: Op trivial = const Neg
+  %3: I32 trivial = call arity borrow %2
+  %4: I32 trivial = add inspect %1 inspect %3
+  %5: Op trivial = const Div
+  %6: I32 trivial = call slotOf borrow %5
+  %7: I32 trivial = add inspect %4 inspect %6
+  return consume %7
+}
+
+fn main() -> I32 {
+bb0:
+  %133: Op trivial = const Add
+  %134: Op trivial = call opaque borrow %133
+  %135: I32 trivial = call budget borrow %134
+  %136: I32 trivial = const 5
+  %137: Bool trivial = eq inspect %135 inspect %136
+  branch inspect %137 -> bb3 -> bb1
+
+bb1:
+  %138: Bool trivial = const False
+  jump -> bb2(consume %138)
+
+bb2(%0: Bool trivial):
+  %139: I32 trivial = const 1
+  %140: I32 trivial = call check borrow %0 borrow %139
+  %141: Op trivial = const Add
+  %142: Op trivial = call opaque borrow %141
+  %143: I32 trivial = call indexOf'2 borrow %142
+  %144: I32 trivial = const 0
+  %145: Bool trivial = eq inspect %143 inspect %144
+  branch inspect %145 -> bb6(consume %140) -> bb4(consume %140)
+
+bb3:
+  %146: Op trivial = const Cmp
+  %147: Op trivial = call opaque borrow %146
+  %148: I32 trivial = call budget borrow %147
+  %149: I32 trivial = const 5
+  %150: Bool trivial = eq inspect %148 inspect %149
+  jump -> bb2(consume %150)
+
+bb4(%1: I32 trivial):
+  %151: Bool trivial = const False
+  jump -> bb5(consume %151, consume %1)
+
+bb5(%2: Bool trivial, %3: I32 trivial):
+  branch inspect %2 -> bb9(consume %3) -> bb7(consume %3)
+
+bb6(%4: I32 trivial):
+  %152: Op trivial = const Cmp
+  %153: Op trivial = call opaque borrow %152
+  %154: I32 trivial = call indexOf'2 borrow %153
+  %155: I32 trivial = const 5
+  %156: Bool trivial = eq inspect %154 inspect %155
+  jump -> bb5(consume %156, consume %4)
+
+bb7(%5: I32 trivial):
+  %157: Bool trivial = const False
+  jump -> bb8(consume %157, consume %5)
+
+bb8(%6: Bool trivial, %7: I32 trivial):
+  %158: I32 trivial = const 2
+  %159: I32 trivial = call check borrow %6 borrow %158
+  %160: I32 trivial = add inspect %7 inspect %159
+  %161: Op trivial = const Add
+  %162: Op trivial = call opaque borrow %161
+  %163: I32 trivial = call slotOf borrow %162
+  %164: I32 trivial = const 100
+  %165: Bool trivial = eq inspect %163 inspect %164
+  branch inspect %165 -> bb12(consume %160) -> bb10(consume %160)
+
+bb9(%8: I32 trivial):
+  %166: Op trivial = const Mul
+  %167: Op trivial = call opaque borrow %166
+  %168: I32 trivial = call indexOf'2 borrow %167
+  %169: I32 trivial = const 2
+  %170: Bool trivial = eq inspect %168 inspect %169
+  jump -> bb8(consume %170, consume %8)
+
+bb10(%9: I32 trivial):
+  %171: Bool trivial = const False
+  jump -> bb11(consume %171, consume %9)
+
+bb11(%10: Bool trivial, %11: I32 trivial):
+  branch inspect %10 -> bb15(consume %11) -> bb13(consume %11)
+
+bb12(%12: I32 trivial):
+  %172: Op trivial = const Cmp
+  %173: Op trivial = call opaque borrow %172
+  %174: I32 trivial = call slotOf borrow %173
+  %175: I32 trivial = const 150
+  %176: Bool trivial = eq inspect %174 inspect %175
+  jump -> bb11(consume %176, consume %12)
+
+bb13(%13: I32 trivial):
+  %177: Bool trivial = const False
+  jump -> bb14(consume %177, consume %13)
+
+bb14(%14: Bool trivial, %15: I32 trivial):
+  %178: I32 trivial = const 4
+  %179: I32 trivial = call check borrow %14 borrow %178
+  %180: I32 trivial = add inspect %15 inspect %179
+  %181: Op trivial = const Add
+  %182: Op trivial = call opaque borrow %181
+  %183: Op trivial = call opposite borrow %182
+  %184: Op trivial = const Cmp
+  %185: Bool trivial = eq inspect %183 inspect %184
+  branch inspect %185 -> bb18(consume %180) -> bb16(consume %180)
+
+bb15(%16: I32 trivial):
+  %186: Op trivial = const Div
+  %187: Op trivial = call opaque borrow %186
+  %188: I32 trivial = call slotOf borrow %187
+  %189: I32 trivial = const 130
+  %190: Bool trivial = eq inspect %188 inspect %189
+  jump -> bb14(consume %190, consume %16)
+
+bb16(%17: I32 trivial):
+  %191: Bool trivial = const False
+  jump -> bb17(consume %191, consume %17)
+
+bb17(%18: Bool trivial, %19: I32 trivial):
+  branch inspect %18 -> bb21(consume %19) -> bb19(consume %19)
+
+bb18(%20: I32 trivial):
+  %192: Op trivial = const Neg
+  %193: Op trivial = call opaque borrow %192
+  %194: Op trivial = call opposite borrow %193
+  %195: Op trivial = const Sub
+  %196: Bool trivial = eq inspect %194 inspect %195
+  jump -> bb17(consume %196, consume %20)
+
+bb19(%21: I32 trivial):
+  %197: Bool trivial = const False
+  jump -> bb20(consume %197, consume %21)
+
+bb20(%22: Bool trivial, %23: I32 trivial):
+  %198: I32 trivial = const 8
+  %199: I32 trivial = call check borrow %22 borrow %198
+  %200: I32 trivial = add inspect %23 inspect %199
+  %201: Op trivial = const Add
+  %202: Op trivial = call opaque borrow %201
+  %203: I32 trivial = call arity borrow %202
+  %204: I32 trivial = const 2
+  %205: Bool trivial = eq inspect %203 inspect %204
+  branch inspect %205 -> bb24(consume %200) -> bb22(consume %200)
+
+bb21(%24: I32 trivial):
+  %206: Op trivial = const Mul
+  %207: Op trivial = call opaque borrow %206
+  %208: Op trivial = call opposite borrow %207
+  %209: Op trivial = const Div
+  %210: Bool trivial = eq inspect %208 inspect %209
+  jump -> bb20(consume %210, consume %24)
+
+bb22(%25: I32 trivial):
+  %211: Bool trivial = const False
+  jump -> bb23(consume %211, consume %25)
+
+bb23(%26: Bool trivial, %27: I32 trivial):
+  branch inspect %26 -> bb27(consume %27) -> bb25(consume %27)
+
+bb24(%28: I32 trivial):
+  %212: Op trivial = const Neg
+  %213: Op trivial = call opaque borrow %212
+  %214: I32 trivial = call arity borrow %213
+  %215: I32 trivial = const 1
+  %216: Bool trivial = eq inspect %214 inspect %215
+  jump -> bb23(consume %216, consume %28)
+
+bb25(%29: I32 trivial):
+  %217: Bool trivial = const False
+  jump -> bb26(consume %217, consume %29)
+
+bb26(%30: Bool trivial, %31: I32 trivial):
+  %218: I32 trivial = const 16
+  %219: I32 trivial = call check borrow %30 borrow %218
+  %220: I32 trivial = add inspect %31 inspect %219
+  %221: Op trivial = const Add
+  %222: Op trivial = call opaque borrow %221
+  %223: I32 trivial = call code borrow %222
+  %224: I32 trivial = const 5
+  %225: Bool trivial = eq inspect %223 inspect %224
+  branch inspect %225 -> bb30(consume %220) -> bb28(consume %220)
+
+bb27(%32: I32 trivial):
+  %226: Op trivial = const Cmp
+  %227: Op trivial = call opaque borrow %226
+  %228: I32 trivial = call arity borrow %227
+  %229: I32 trivial = const 2
+  %230: Bool trivial = eq inspect %228 inspect %229
+  jump -> bb26(consume %230, consume %32)
+
+bb28(%33: I32 trivial):
+  %231: Bool trivial = const False
+  jump -> bb29(consume %231, consume %33)
+
+bb29(%34: Bool trivial, %35: I32 trivial):
+  branch inspect %34 -> bb33(consume %35) -> bb31(consume %35)
+
+bb30(%36: I32 trivial):
+  %232: Op trivial = const Mul
+  %233: Op trivial = call opaque borrow %232
+  %234: I32 trivial = call code borrow %233
+  %235: I32 trivial = const 7
+  %236: Bool trivial = eq inspect %234 inspect %235
+  jump -> bb29(consume %236, consume %36)
+
+bb31(%37: I32 trivial):
+  %237: Bool trivial = const False
+  jump -> bb32(consume %237, consume %37)
+
+bb32(%38: Bool trivial, %39: I32 trivial):
+  branch inspect %38 -> bb36(consume %39) -> bb34(consume %39)
+
+bb33(%40: I32 trivial):
+  %238: Op trivial = const Sub
+  %239: Op trivial = call opaque borrow %238
+  %240: I32 trivial = call code borrow %239
+  %241: I32 trivial = const 0
+  %242: Bool trivial = eq inspect %240 inspect %241
+  jump -> bb32(consume %242, consume %40)
+
+bb34(%41: I32 trivial):
+  %243: Bool trivial = const False
+  jump -> bb35(consume %243, consume %41)
+
+bb35(%42: Bool trivial, %43: I32 trivial):
+  %244: I32 trivial = const 32
+  %245: I32 trivial = call check borrow %42 borrow %244
+  %246: I32 trivial = add inspect %43 inspect %245
+  %247: Op trivial = const Add
+  %248: Op trivial = call opaque borrow %247
+  %249: Bool trivial = call isArithmetic borrow %248
+  branch inspect %249 -> bb39(consume %246) -> bb37(consume %246)
+
+bb36(%44: I32 trivial):
+  %250: Op trivial = const Cmp
+  %251: Op trivial = call opaque borrow %250
+  %252: I32 trivial = call code borrow %251
+  %253: I32 trivial = const 0
+  %254: Bool trivial = eq inspect %252 inspect %253
+  jump -> bb35(consume %254, consume %44)
+
+bb37(%45: I32 trivial):
+  %255: Bool trivial = const False
+  jump -> bb38(consume %255, consume %45)
+
+bb38(%46: Bool trivial, %47: I32 trivial):
+  branch inspect %46 -> bb42(consume %47) -> bb40(consume %47)
+
+bb39(%48: I32 trivial):
+  %256: Op trivial = const Div
+  %257: Op trivial = call opaque borrow %256
+  %258: Bool trivial = call isArithmetic borrow %257
+  jump -> bb38(consume %258, consume %48)
+
+bb40(%49: I32 trivial):
+  %259: Bool trivial = const False
+  jump -> bb41(consume %259, consume %49)
+
+bb41(%50: Bool trivial, %51: I32 trivial):
+  branch inspect %50 -> bb45(consume %51) -> bb43(consume %51)
+
+bb42(%52: I32 trivial):
+  %260: Op trivial = const Neg
+  %261: Op trivial = call opaque borrow %260
+  %262: Bool trivial = call isArithmetic borrow %261
+  %263: Bool trivial = not inspect %262
+  jump -> bb41(consume %263, consume %52)
+
+bb43(%53: I32 trivial):
+  %264: Bool trivial = const False
+  jump -> bb44(consume %264, consume %53)
+
+bb44(%54: Bool trivial, %55: I32 trivial):
+  %265: I32 trivial = const 64
+  %266: I32 trivial = call check borrow %54 borrow %265
+  %267: I32 trivial = add inspect %55 inspect %266
+  %268: Op trivial = const Neg
+  %269: Op trivial = call opaque borrow %268
+  %270: Bool trivial = call isLate borrow %269
+  branch inspect %270 -> bb48(consume %267) -> bb46(consume %267)
+
+bb45(%56: I32 trivial):
+  %271: Op trivial = const Cmp
+  %272: Op trivial = call opaque borrow %271
+  %273: Bool trivial = call isArithmetic borrow %272
+  %274: Bool trivial = not inspect %273
+  jump -> bb44(consume %274, consume %56)
+
+bb46(%57: I32 trivial):
+  %275: Bool trivial = const False
+  jump -> bb47(consume %275, consume %57)
+
+bb47(%58: Bool trivial, %59: I32 trivial):
+  branch inspect %58 -> bb51(consume %59) -> bb49(consume %59)
+
+bb48(%60: I32 trivial):
+  %276: Op trivial = const Cmp
+  %277: Op trivial = call opaque borrow %276
+  %278: Bool trivial = call isLate borrow %277
+  jump -> bb47(consume %278, consume %60)
+
+bb49(%61: I32 trivial):
+  %279: Bool trivial = const False
+  jump -> bb50(consume %279, consume %61)
+
+bb50(%62: Bool trivial, %63: I32 trivial):
+  branch inspect %62 -> bb54(consume %63) -> bb52(consume %63)
+
+bb51(%64: I32 trivial):
+  %280: Op trivial = const Add
+  %281: Op trivial = call opaque borrow %280
+  %282: Bool trivial = call isLate borrow %281
+  %283: Bool trivial = not inspect %282
+  jump -> bb50(consume %283, consume %64)
+
+bb52(%65: I32 trivial):
+  %284: Bool trivial = const False
+  jump -> bb53(consume %284, consume %65)
+
+bb53(%66: Bool trivial, %67: I32 trivial):
+  %285: I32 trivial = const 128
+  %286: I32 trivial = call check borrow %66 borrow %285
+  %287: I32 trivial = add inspect %67 inspect %286
+  %288: Op trivial = const Sub
+  %289: Op trivial = call opaque borrow %288
+  %290: Bool trivial = call isMiddle borrow %289
+  branch inspect %290 -> bb57(consume %287) -> bb55(consume %287)
+
+bb54(%68: I32 trivial):
+  %291: Op trivial = const Div
+  %292: Op trivial = call opaque borrow %291
+  %293: Bool trivial = call isLate borrow %292
+  %294: Bool trivial = not inspect %293
+  jump -> bb53(consume %294, consume %68)
+
+bb55(%69: I32 trivial):
+  %295: Bool trivial = const False
+  jump -> bb56(consume %295, consume %69)
+
+bb56(%70: Bool trivial, %71: I32 trivial):
+  branch inspect %70 -> bb60(consume %71) -> bb58(consume %71)
+
+bb57(%72: I32 trivial):
+  %296: Op trivial = const Div
+  %297: Op trivial = call opaque borrow %296
+  %298: Bool trivial = call isMiddle borrow %297
+  jump -> bb56(consume %298, consume %72)
+
+bb58(%73: I32 trivial):
+  %299: Bool trivial = const False
+  jump -> bb59(consume %299, consume %73)
+
+bb59(%74: Bool trivial, %75: I32 trivial):
+  branch inspect %74 -> bb63(consume %75) -> bb61(consume %75)
+
+bb60(%76: I32 trivial):
+  %300: Op trivial = const Add
+  %301: Op trivial = call opaque borrow %300
+  %302: Bool trivial = call isMiddle borrow %301
+  %303: Bool trivial = not inspect %302
+  jump -> bb59(consume %303, consume %76)
+
+bb61(%77: I32 trivial):
+  %304: Bool trivial = const False
+  jump -> bb62(consume %304, consume %77)
+
+bb62(%78: Bool trivial, %79: I32 trivial):
+  %305: I32 trivial = const 256
+  %306: I32 trivial = call check borrow %78 borrow %305
+  %307: I32 trivial = add inspect %79 inspect %306
+  %308: Op trivial = const Neg
+  %309: Op trivial = call opaque borrow %308
+  %310: Bool trivial = call isNegate borrow %309
+  branch inspect %310 -> bb66(consume %307) -> bb64(consume %307)
+
+bb63(%80: I32 trivial):
+  %311: Op trivial = const Neg
+  %312: Op trivial = call opaque borrow %311
+  %313: Bool trivial = call isMiddle borrow %312
+  %314: Bool trivial = not inspect %313
+  jump -> bb62(consume %314, consume %80)
+
+bb64(%81: I32 trivial):
+  %315: Bool trivial = const False
+  jump -> bb65(consume %315, consume %81)
+
+bb65(%82: Bool trivial, %83: I32 trivial):
+  branch inspect %82 -> bb69(consume %83) -> bb67(consume %83)
+
+bb66(%84: I32 trivial):
+  %316: Op trivial = const Add
+  %317: Op trivial = call opaque borrow %316
+  %318: Bool trivial = call isNegate borrow %317
+  %319: Bool trivial = not inspect %318
+  jump -> bb65(consume %319, consume %84)
+
+bb67(%85: I32 trivial):
+  %320: Bool trivial = const False
+  jump -> bb68(consume %320, consume %85)
+
+bb68(%86: Bool trivial, %87: I32 trivial):
+  %321: I32 trivial = const 512
+  %322: I32 trivial = call check borrow %86 borrow %321
+  %323: I32 trivial = add inspect %87 inspect %322
+  %324: Op trivial = const Add
+  %325: Op trivial = call opaque borrow %324
+  %326: Bool trivial = call isBinary borrow %325
+  branch inspect %326 -> bb72(consume %323) -> bb70(consume %323)
+
+bb69(%88: I32 trivial):
+  %327: Op trivial = const Cmp
+  %328: Op trivial = call opaque borrow %327
+  %329: Bool trivial = call isNegate borrow %328
+  %330: Bool trivial = not inspect %329
+  jump -> bb68(consume %330, consume %88)
+
+bb70(%89: I32 trivial):
+  %331: Bool trivial = const False
+  jump -> bb71(consume %331, consume %89)
+
+bb71(%90: Bool trivial, %91: I32 trivial):
+  branch inspect %90 -> bb75(consume %91) -> bb73(consume %91)
+
+bb72(%92: I32 trivial):
+  %332: Op trivial = const Cmp
+  %333: Op trivial = call opaque borrow %332
+  %334: Bool trivial = call isBinary borrow %333
+  jump -> bb71(consume %334, consume %92)
+
+bb73(%93: I32 trivial):
+  %335: Bool trivial = const False
+  jump -> bb74(consume %335, consume %93)
+
+bb74(%94: Bool trivial, %95: I32 trivial):
+  %336: I32 trivial = const 1024
+  %337: I32 trivial = call check borrow %94 borrow %336
+  %338: I32 trivial = add inspect %95 inspect %337
+  %339: Op trivial = const Add
+  %340: Op trivial = call opaque borrow %339
+  %341: Bool trivial = call isCommutative borrow %340
+  branch inspect %341 -> bb78(consume %338) -> bb76(consume %338)
+
+bb75(%96: I32 trivial):
+  %342: Op trivial = const Neg
+  %343: Op trivial = call opaque borrow %342
+  %344: Bool trivial = call isBinary borrow %343
+  %345: Bool trivial = not inspect %344
+  jump -> bb74(consume %345, consume %96)
+
+bb76(%97: I32 trivial):
+  %346: Bool trivial = const False
+  jump -> bb77(consume %346, consume %97)
+
+bb77(%98: Bool trivial, %99: I32 trivial):
+  branch inspect %98 -> bb81(consume %99) -> bb79(consume %99)
+
+bb78(%100: I32 trivial):
+  %347: Op trivial = const Mul
+  %348: Op trivial = call opaque borrow %347
+  %349: Bool trivial = call isCommutative borrow %348
+  jump -> bb77(consume %349, consume %100)
+
+bb79(%101: I32 trivial):
+  %350: Bool trivial = const False
+  jump -> bb80(consume %350, consume %101)
+
+bb80(%102: Bool trivial, %103: I32 trivial):
+  branch inspect %102 -> bb84(consume %103) -> bb82(consume %103)
+
+bb81(%104: I32 trivial):
+  %351: Op trivial = const Cmp
+  %352: Op trivial = call opaque borrow %351
+  %353: Bool trivial = call isCommutative borrow %352
+  jump -> bb80(consume %353, consume %104)
+
+bb82(%105: I32 trivial):
+  %354: Bool trivial = const False
+  jump -> bb83(consume %354, consume %105)
+
+bb83(%106: Bool trivial, %107: I32 trivial):
+  %355: I32 trivial = const 2048
+  %356: I32 trivial = call check borrow %106 borrow %355
+  %357: I32 trivial = add inspect %107 inspect %356
+  %358: Op trivial = const Add
+  %359: Op trivial = call opaque borrow %358
+  %360: I32 trivial = call opcode borrow %359
+  %361: I32 trivial = const 1000
+  %362: Bool trivial = eq inspect %360 inspect %361
+  branch inspect %362 -> bb87(consume %357) -> bb85(consume %357)
+
+bb84(%108: I32 trivial):
+  %363: Op trivial = const Sub
+  %364: Op trivial = call opaque borrow %363
+  %365: Bool trivial = call isCommutative borrow %364
+  %366: Bool trivial = not inspect %365
+  jump -> bb83(consume %366, consume %108)
+
+bb85(%109: I32 trivial):
+  %367: Bool trivial = const False
+  jump -> bb86(consume %367, consume %109)
+
+bb86(%110: Bool trivial, %111: I32 trivial):
+  branch inspect %110 -> bb90(consume %111) -> bb88(consume %111)
+
+bb87(%112: I32 trivial):
+  %368: Op trivial = const Mul
+  %369: Op trivial = call opaque borrow %368
+  %370: I32 trivial = call opcode borrow %369
+  %371: I32 trivial = const 3500
+  %372: Bool trivial = eq inspect %370 inspect %371
+  jump -> bb86(consume %372, consume %112)
+
+bb88(%113: I32 trivial):
+  %373: Bool trivial = const False
+  jump -> bb89(consume %373, consume %113)
+
+bb89(%114: Bool trivial, %115: I32 trivial):
+  %374: I32 trivial = const 4096
+  %375: I32 trivial = call check borrow %114 borrow %374
+  %376: I32 trivial = add inspect %115 inspect %375
+  %377: Op trivial = const Add
+  %378: Op trivial = call opaque borrow %377
+  %379: F64 trivial = call weight borrow %378
+  %380: F64 trivial = const 1.5
+  %381: Bool trivial = eq inspect %379 inspect %380
+  branch inspect %381 -> bb93(consume %376) -> bb91(consume %376)
+
+bb90(%116: I32 trivial):
+  %382: Op trivial = const Cmp
+  %383: Op trivial = call opaque borrow %382
+  %384: I32 trivial = call opcode borrow %383
+  %385: I32 trivial = const 6000
+  %386: Bool trivial = eq inspect %384 inspect %385
+  jump -> bb89(consume %386, consume %116)
+
+bb91(%117: I32 trivial):
+  %387: Bool trivial = const False
+  jump -> bb92(consume %387, consume %117)
+
+bb92(%118: Bool trivial, %119: I32 trivial):
+  branch inspect %118 -> bb96(consume %119) -> bb94(consume %119)
+
+bb93(%120: I32 trivial):
+  %388: Op trivial = const Div
+  %389: Op trivial = call opaque borrow %388
+  %390: F64 trivial = call weight borrow %389
+  %391: F64 trivial = const 8.25
+  %392: Bool trivial = eq inspect %390 inspect %391
+  jump -> bb92(consume %392, consume %120)
+
+bb94(%121: I32 trivial):
+  %393: Bool trivial = const False
+  jump -> bb95(consume %393, consume %121)
+
+bb95(%122: Bool trivial, %123: I32 trivial):
+  %394: I32 trivial = const 8192
+  %395: I32 trivial = call check borrow %122 borrow %394
+  %396: I32 trivial = add inspect %123 inspect %395
+  %397: Op trivial = const Add
+  %398: Op trivial = call opaque borrow %397
+  %399: F64 trivial = call signedZero borrow %398
+  %400: F64 trivial = const 1
+  %401: F64 trivial = div inspect %400 inspect %399
+  %402: F64 trivial = const 0
+  %403: Bool trivial = gt inspect %401 inspect %402
+  branch inspect %403 -> bb99(consume %396) -> bb97(consume %396)
+
+bb96(%124: I32 trivial):
+  %404: Op trivial = const Cmp
+  %405: Op trivial = call opaque borrow %404
+  %406: F64 trivial = call weight borrow %405
+  %407: F64 trivial = const 16
+  %408: Bool trivial = eq inspect %406 inspect %407
+  jump -> bb95(consume %408, consume %124)
+
+bb97(%125: I32 trivial):
+  %409: Bool trivial = const False
+  jump -> bb98(consume %409, consume %125)
+
+bb98(%126: Bool trivial, %127: I32 trivial):
+  %410: I32 trivial = const 16384
+  %411: I32 trivial = call check borrow %126 borrow %410
+  %412: I32 trivial = add inspect %127 inspect %411
+  %413: Bit trivial = const Zero
+  %414: Bit trivial = call opaqueBit borrow %413
+  %415: I32 trivial = call bitValue borrow %414
+  %416: I32 trivial = const 100
+  %417: Bool trivial = eq inspect %415 inspect %416
+  branch inspect %417 -> bb102(consume %412) -> bb100(consume %412)
+
+bb99(%128: I32 trivial):
+  %418: Op trivial = const Neg
+  %419: Op trivial = call opaque borrow %418
+  %420: F64 trivial = call signedZero borrow %419
+  %421: F64 trivial = const 1
+  %422: F64 trivial = div inspect %421 inspect %420
+  %423: F64 trivial = const 0
+  %424: Bool trivial = lt inspect %422 inspect %423
+  jump -> bb98(consume %424, consume %128)
+
+bb100(%129: I32 trivial):
+  %425: Bool trivial = const False
+  jump -> bb101(consume %425, consume %129)
+
+bb101(%130: Bool trivial, %131: I32 trivial):
+  %426: I32 trivial = const 32768
+  %427: I32 trivial = call check borrow %130 borrow %426
+  %428: I32 trivial = add inspect %131 inspect %427
+  %429: I32 trivial = call folded
+  %430: I32 trivial = const 3631
+  %431: Bool trivial = eq inspect %429 inspect %430
+  %432: I32 trivial = const 65536
+  %433: I32 trivial = call check borrow %431 borrow %432
+  %434: I32 trivial = add inspect %428 inspect %433
+  return consume %434
+
+bb102(%132: I32 trivial):
+  %435: Bit trivial = const One
+  %436: Bit trivial = call opaqueBit borrow %435
+  %437: I32 trivial = call bitValue borrow %436
+  %438: I32 trivial = const 1000
+  %439: Bool trivial = eq inspect %437 inspect %438
+  jump -> bb101(consume %439, consume %132)
+}
+
+entry main

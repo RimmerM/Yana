@@ -68,7 +68,7 @@ fn taken(mark: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %taken.thunk.env address = alloc frame taken.thunk.env
-  %3: %() -> I32 address = alloc frame () -> I32 [owned here shape2 .0=shared call]
+  %3: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
   store inspect %1 borrow %0
   %4: I32 trivial = const 1
   %5: Gate trivial = aggregate.Gate consume %4
@@ -76,9 +76,9 @@ bb0(%0: I32 [shared call] guaranteed):
   %7: taken.thunk.env trivial = aggregate.taken.thunk.env consume %6
   store inspect %2 consume %7
   %8: taken.thunk.env [shared call] guaranteed from{%2} = load inspect %2
-  %9: () -> I32 [owned here shape2 .0=shared call] affine = fun.value taken.thunk inspect %8
+  %9: () -> I32 [owned here shape8 .0=shared call] affine = fun.value taken.thunk inspect %8
   store inspect %3 consume %9
-  %10: () -> I32 [shared call shape2 .0=shared call] guaranteed from{%3, %2} = load inspect %3
+  %10: () -> I32 [shared call shape8 .0=shared call] guaranteed from{%2, %3} = load inspect %3
   %11: I32 trivial = call Gate.pick borrow %5 borrow %10
   return consume %11
 }
@@ -87,7 +87,7 @@ fn skipped(mark: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %skipped.thunk.env address = alloc frame skipped.thunk.env
-  %3: %() -> I32 address = alloc frame () -> I32 [owned here shape2 .0=shared call]
+  %3: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
   store inspect %1 borrow %0
   %4: I32 trivial = const 0
   %5: Gate trivial = aggregate.Gate consume %4
@@ -95,9 +95,9 @@ bb0(%0: I32 [shared call] guaranteed):
   %7: skipped.thunk.env trivial = aggregate.skipped.thunk.env consume %6
   store inspect %2 consume %7
   %8: skipped.thunk.env [shared call] guaranteed from{%2} = load inspect %2
-  %9: () -> I32 [owned here shape2 .0=shared call] affine = fun.value skipped.thunk inspect %8
+  %9: () -> I32 [owned here shape8 .0=shared call] affine = fun.value skipped.thunk inspect %8
   store inspect %3 consume %9
-  %10: () -> I32 [shared call shape2 .0=shared call] guaranteed from{%3, %2} = load inspect %3
+  %10: () -> I32 [shared call shape8 .0=shared call] guaranteed from{%2, %3} = load inspect %3
   %11: I32 trivial = call Gate.pick borrow %5 borrow %10
   return consume %11
 }
@@ -106,7 +106,7 @@ fn shut(mark: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %shut.thunk.env address = alloc frame shut.thunk.env
-  %3: %() -> I32 address = alloc frame () -> I32 [owned here shape2 .0=shared call]
+  %3: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
   store inspect %1 borrow %0
   %4: I32 trivial = const 0
   %5: Shut trivial = aggregate.Shut consume %4
@@ -114,9 +114,9 @@ bb0(%0: I32 [shared call] guaranteed):
   %7: shut.thunk.env trivial = aggregate.shut.thunk.env consume %6
   store inspect %2 consume %7
   %8: shut.thunk.env [shared call] guaranteed from{%2} = load inspect %2
-  %9: () -> I32 [owned here shape2 .0=shared call] affine = fun.value shut.thunk inspect %8
+  %9: () -> I32 [owned here shape8 .0=shared call] affine = fun.value shut.thunk inspect %8
   store inspect %3 consume %9
-  %10: () -> I32 [shared call shape2 .0=shared call] guaranteed from{%3, %2} = load inspect %3
+  %10: () -> I32 [shared call shape8 .0=shared call] guaranteed from{%2, %3} = load inspect %3
   %11: I32 trivial = call Shut.pick borrow %5 borrow %10
   return consume %11
 }
@@ -126,7 +126,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %inherited.thunk.env address = alloc frame inherited.thunk.env
-  %5: %() -> I32 address = alloc frame () -> I32 [owned here shape2 .0=shared call]
+  %5: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
   store inspect %2 borrow %0
   store inspect %3 borrow %1
   %6: I32 trivial = load inspect %2
@@ -135,9 +135,9 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %9: inherited.thunk.env trivial = aggregate.inherited.thunk.env consume %8
   store inspect %4 consume %9
   %10: inherited.thunk.env [shared call] guaranteed from{%4} = load inspect %4
-  %11: () -> I32 [owned here shape2 .0=shared call] affine = fun.value inherited.thunk inspect %10
+  %11: () -> I32 [owned here shape8 .0=shared call] affine = fun.value inherited.thunk inspect %10
   store inspect %5 consume %11
-  %12: () -> I32 [shared call shape2 .0=shared call] guaranteed from{%5, %4} = load inspect %5
+  %12: () -> I32 [shared call shape8 .0=shared call] guaranteed from{%4, %5} = load inspect %5
   %13: I32 trivial = call orZero(Gate) borrow %7 borrow %12
   return consume %13
 }
@@ -146,7 +146,7 @@ fn replaced(mark: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %replaced.thunk.env address = alloc frame replaced.thunk.env
-  %3: %() -> I32 address = alloc frame () -> I32 [owned here shape2 .0=shared call]
+  %3: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
   store inspect %1 borrow %0
   %4: I32 trivial = const 0
   %5: Shut trivial = aggregate.Shut consume %4
@@ -154,9 +154,9 @@ bb0(%0: I32 [shared call] guaranteed):
   %7: replaced.thunk.env trivial = aggregate.replaced.thunk.env consume %6
   store inspect %2 consume %7
   %8: replaced.thunk.env [shared call] guaranteed from{%2} = load inspect %2
-  %9: () -> I32 [owned here shape2 .0=shared call] affine = fun.value replaced.thunk inspect %8
+  %9: () -> I32 [owned here shape8 .0=shared call] affine = fun.value replaced.thunk inspect %8
   store inspect %3 consume %9
-  %10: () -> I32 [shared call shape2 .0=shared call] guaranteed from{%3, %2} = load inspect %3
+  %10: () -> I32 [shared call shape8 .0=shared call] guaranteed from{%2, %3} = load inspect %3
   %11: I32 trivial = call Shut.orZero borrow %5 borrow %10
   return consume %11
 }
@@ -166,8 +166,8 @@ fn forwarded(x: a [shared call], v: () -> I32 [shared call]) -> I32 = <no body>
 fn main() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
-  %1: %() -> I32 address = alloc frame () -> I32
-  %2: %() -> I32 address = alloc frame () -> I32
+  %1: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape9 .0=unique call]
   %3: I32 trivial = const 0
   store inspect %0 consume %3
   %4: I32 trivial = const 1
@@ -252,9 +252,9 @@ bb13:
 bb14:
   %38: I32 trivial = const 1
   %39: Gate trivial = aggregate.Gate consume %38
-  %40: () -> I32 affine = fun.value main.thunk
+  %40: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk
   store inspect %1 consume %40
-  %41: () -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %41: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%1} = load inspect %1
   %42: I32 trivial = call forwarded(Gate) borrow %39 borrow %41
   %43: I32 trivial = const 32
   %44: Bool trivial = eq inspect %42 inspect %43
@@ -273,9 +273,9 @@ bb16:
 bb17:
   %48: I32 trivial = const 0
   %49: Shut trivial = aggregate.Shut consume %48
-  %50: () -> I32 affine = fun.value main.thunk'2
+  %50: () -> I32 [owned here shape9 .0=unique call] affine = fun.value main.thunk'2
   store inspect %2 consume %50
-  %51: () -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %51: () -> I32 [shared call shape9 .0=unique call] guaranteed from{%2} = load inspect %2
   %52: I32 trivial = call forwarded(Shut) borrow %49 borrow %51
   %53: I32 trivial = const 0
   %54: Bool trivial = eq inspect %52 inspect %53

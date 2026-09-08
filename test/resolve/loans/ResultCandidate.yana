@@ -1,0 +1,72 @@
+{-
+   A result that borrows out of a parameter nobody ticked - elision rules 5 and 6.
+
+   # resolver: ownership
+
+   Analysis-Borrows.md §4.8, in the form that section's own supersession block settled on. Rule 5 was
+   written as a *count* - "exactly one parameter could root this, so it is that one" - and a count is
+   a property of the whole signature that changes when something unrelated is added to it. A rule
+   that picks by a count turns that into silence: the signature keeps compiling, means something
+   else, and every caller is re-checked against a contract nobody wrote.
+
+   So nothing is picked. Every **candidate** joins the one anonymous group, which is rule 1 and is
+   what a conservative group has always been, and a label is what splits it where the coarse answer
+   rejects a program worth accepting. Rule 6 needs no clause of its own under that - `self` is a
+   candidate like any other.
+
+   A candidate is a parameter that refers to the caller's *storage* rather than to a value it could
+   equally have been handed a copy of: a unique borrow, or a shared borrow whose form is a view -
+   `xs: [T]`, `s: String`. `Reject.Signature.yana` is the other side of the same line: a plain
+   `p: Pair` is not one, so a result borrowing out of it still has to say so.
+
+   `iter fn each(xs: [String]) -> 'String` in `lib/Core/BorrowUpdate.test.native.yana` is why this
+   is built at all - it is the one signature in the library with no spelling both stages accepted,
+   because the shipping stage promotes the same candidate and refuses the explicit `source'String`.
+
+   The numbers are what says the loans are the ones intended: every borrow below is read after the
+   call that produced it, so an extent that ended at the call would be a use-after-release rather
+   than a golden diff.
+-}
+
+data Guard {id: I32}
+
+-- A window: two words describing somebody else's elements, so the result may be rooted in it.
+fn firstOf(xs: [I32]) -> 'I32 = xs[0]
+
+-- A string is its view in a binding position, which makes it the same kind of candidate.
+fn itself(s: String) -> 'String = s
+
+-- A unique borrow is written through to the caller's own storage.
+fn held(&g: Guard) -> &'Guard = g
+
+-- Two candidates are one group and not two, so nothing here has to be told apart from anything
+-- else. This is exactly the shape rule 5 would have rejected, for having no single answer to a
+-- question the coarse group never asks.
+fn leftmost(left: [I32], right: [I32]) -> 'I32 = left[0]
+
+-- And the library's case: a hand-over rooted in an untouched window parameter.
+iter fn each(xs: [String]) -> 'String:
+    for i in 0 .. length(xs):
+        yield xs[i]
+
+fn main() -> I32:
+    let numbers = [3, 5, 7]
+    let total = firstOf(numbers)
+
+    let name = "abcd"
+    let same = itself(name)
+
+    let &guard = Guard {id: 11}
+    let borrowed = held(guard)
+
+    let &joined = 0
+    for s in each(["x", "yz"]):
+        joined = joined + truncate(length(s)) :: I32
+
+    -- The two-candidate signature, bound rather than written into the sum: a borrowed scalar
+    -- result read straight into an operand position produces invalid lower IR today, which is a
+    -- defect of its own and not of this rule.
+    let least = leftmost(numbers, numbers)
+
+    -- 3 + 4 + 11 + 3 + 3.
+    return total + (truncate(length(same)) :: I32) + borrowed.id + joined + least

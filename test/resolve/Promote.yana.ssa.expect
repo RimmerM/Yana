@@ -9,7 +9,7 @@ bb0(%0: I32 [unique call] guaranteed):
   return
 }
 
-fn sum(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+fn sum'2(a: I32 [shared call], b: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
@@ -160,7 +160,7 @@ bb0:
   store inspect %0 consume %6
   %7: I32 trivial = load inspect %0
   %8: I32 trivial = load inspect %1
-  %9: I32 trivial = call sum borrow %7 borrow %8
+  %9: I32 trivial = call sum'2 borrow %7 borrow %8
   return consume %9
 }
 

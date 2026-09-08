@@ -1,0 +1,114 @@
+module ResolveTest
+
+let & dropCalls: I32 = 0
+
+fn Guard.drop(self: Guard) -> {} {
+bb0(%0: Guard owned):
+  %1: %Guard address = alloc frame Guard
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr dropCalls
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr dropCalls
+  store inspect %6 consume %5
+  return
+}
+
+fn consume(f: (I32) -> I32) -> I32 {
+bb0(%0: (I32) -> I32 owned):
+  %1: %(I32) -> I32 address = alloc frame (I32) -> I32
+  store inspect %1 consume %0
+  %2: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %3: I32 trivial = const 1
+  %4: I32 trivial = call [value #0] inspect %2 borrow %3
+  drop (I32) -> I32 inspect %1
+  return consume %4
+}
+
+fn inFrame(id: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %Guard address = alloc frame Guard
+  %3: %inFrame.lambda.env address = alloc frame inFrame.lambda.env
+  %4: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=shared call]
+  store inspect %1 borrow %0
+  %5: I32 trivial = load inspect %1
+  %6: Guard owned = aggregate.Guard consume %5
+  store inspect %2 consume %6
+  %7: Guard [shared slot 0] guaranteed from{%2} = load inspect %2
+  %8: inFrame.lambda.env trivial = aggregate.inFrame.lambda.env borrow %7
+  store inspect %3 consume %8
+  %9: inFrame.lambda.env [shared call] guaranteed from{%2, %3} = load inspect %3
+  %10: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value inFrame.lambda inspect %9
+  store inspect %4 consume %10
+  %11: (I32) -> I32 [shared call shape8 .0=shared call] guaranteed from{%2, %3, %4} = load inspect %4
+  %12: I32 trivial = const 10
+  %13: I32 trivial = call [value #0] inspect %11 borrow %12
+  drop Guard inspect %2
+  return consume %13
+}
+
+fn handedOff(id: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %Guard address = alloc frame Guard
+  %3: %handedOff.lambda.env address = alloc frame handedOff.lambda.env
+  store inspect %1 borrow %0
+  %4: I32 trivial = load inspect %1
+  %5: Guard owned = aggregate.Guard consume %4
+  store inspect %2 consume %5
+  %6: Guard owned = load inspect %2
+  %7: handedOff.lambda.env owned = aggregate.handedOff.lambda.env consume %6
+  store inspect %3 consume %7
+  %8: handedOff.lambda.env owned = load inspect %3
+  %9: (I32) -> I32 owned = fun.value handedOff.lambda consume %8
+  %10: I32 trivial = call consume consume %9
+  return consume %10
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: I32 trivial = const 3
+  %3: I32 trivial = call inFrame borrow %2
+  store inspect %0 consume %3
+  %4: I32 trivial = const 5
+  %5: I32 trivial = call handedOff borrow %4
+  store inspect %1 consume %5
+  %6: I32 trivial = load inspect %0
+  %7: I32 trivial = load inspect %1
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: %I32 address = global.addr dropCalls
+  %10: I32 trivial = load inspect %9
+  %11: I32 trivial = add inspect %8 inspect %10
+  return consume %11
+}
+
+fn inFrame.lambda(inFrame.lambda.env: inFrame.lambda.env [unique call], x: I32 [shared call]) -> I32 {
+bb0(%0: inFrame.lambda.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: %Guard address = field.addr .g inspect %0
+  %5: %Guard address = load inspect %4
+  %6: %I32 address = field.addr .id inspect %5
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = add inspect %3 inspect %7
+  return consume %8
+}
+
+fn handedOff.lambda(handedOff.lambda.env: handedOff.lambda.env [unique call], x: I32 [shared call]) -> I32 {
+bb0(%0: handedOff.lambda.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: %Guard address = field.addr .g inspect %0
+  %5: %I32 address = field.addr .id inspect %4
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = add inspect %3 inspect %6
+  return consume %7
+}
+
+entry main

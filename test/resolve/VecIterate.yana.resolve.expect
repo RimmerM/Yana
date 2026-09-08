@@ -1,24 +1,24 @@
-table closure$Core.continuation$7(ArrayView(I32), I32, ()) before Core.continuation$7(ArrayView(I32), I32, ()) {
+table closure$Core.continuation$13(ArrayView(I32), I32, ()) before Core.continuation$13(ArrayView(I32), I32, ()) {
   .0 teardown$none
 }
 
-table closure$Core.continuation$10(ArrayView(I32), I32, ()) before Core.continuation$10(ArrayView(I32), I32, ()) {
+table closure$Core.continuation$15(ArrayView(I32), I32, ()) before Core.continuation$15(ArrayView(I32), I32, ()) {
   .0 teardown$none
 }
 
-table closure$Core.continuation$7(Array(I32), I32, ()) before Core.continuation$7(Array(I32), I32, ()) {
+table closure$Core.continuation$13(Array(I32), I32, ()) before Core.continuation$13(Array(I32), I32, ()) {
   .0 teardown$none
 }
 
-table closure$Core.continuation$10(Array(I32), I32, ()) before Core.continuation$10(Array(I32), I32, ()) {
+table closure$Core.continuation$15(Array(I32), I32, ()) before Core.continuation$15(Array(I32), I32, ()) {
   .0 teardown$none
 }
 
-table closure$Core.continuation$7(Array(F32), F32, ()) before Core.continuation$7(Array(F32), F32, ()) {
+table closure$Core.continuation$13(Array(F32), F32, ()) before Core.continuation$13(Array(F32), F32, ()) {
   .0 teardown$none
 }
 
-table closure$Core.continuation$10(Array(F32), F32, ()) before Core.continuation$10(Array(F32), F32, ()) {
+table closure$Core.continuation$15(Array(F32), F32, ()) before Core.continuation$15(Array(F32), F32, ()) {
   .0 teardown$none
 }
 
@@ -74,7 +74,7 @@ fn vectors(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: Vec(I
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Core.continuation$7(ArrayView(I32), I32, ()) : %()
+    %v13 = symbol Core.continuation$13(ArrayView(I32), I32, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Chunked(Array(a), a).chunks(I32, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
@@ -92,7 +92,7 @@ fn vectors(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: Vec(I
     ret %v23
 }
 
-fn Core.continuation$7(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$13(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = load [%env].width : Size
@@ -197,7 +197,7 @@ fn loadVectorTail(I32)(%from: ArrayView(I32), %at: Size) -> Vec(I32) {
 fn Chunked(Array(a), a).chunks(I32, Outcome((), ()))(%self: ArrayView(I32), %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = calldyn %body, %self : Outcome((), Outcome((), ()))
-    %v3 = load %local3.discriminant : I32
+    %v3 = load %local2.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b1, b2
 
@@ -206,7 +206,7 @@ fn Chunked(Array(a), a).chunks(I32, Outcome((), ()))(%self: ArrayView(I32), %bod
 
   b2:
     %v8 = alloc : Outcome((), Outcome((), ()))
-    init %local4.discriminant, 0
+    init %local3.discriminant, 0
     ret %v8
 }
 
@@ -220,7 +220,7 @@ fn vectorsMasked(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$:
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))
-    %v12 = symbol Core.continuation$10(ArrayView(I32), I32, ()) : %()
+    %v12 = symbol Core.continuation$15(ArrayView(I32), I32, ()) : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = call Chunked(Array(a), a).chunks(I32, Outcome((), ())), %self, %v11 : Outcome((), Outcome((), ()))
@@ -238,7 +238,7 @@ fn vectorsMasked(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$:
     ret %v22
 }
 
-fn Core.continuation$10(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: {Vec(I32), I32}) -> Outcome((), ())}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$15(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: {Vec(I32), I32}) -> Outcome((), ())}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = load [%env].width : Size
@@ -326,7 +326,7 @@ fn vectors(Array(I32), I32, ())(%self: Array(I32), %body: (value$: Vec(I32)) -> 
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Core.continuation$7(Array(I32), I32, ()) : %()
+    %v13 = symbol Core.continuation$13(Array(I32), I32, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = borrow %self : 'Array(I32)
@@ -351,7 +351,7 @@ fn vectors(Array(I32), I32, ())(%self: Array(I32), %body: (value$: Vec(I32)) -> 
     ret %v30
 }
 
-fn Core.continuation$7(Array(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$13(Array(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = load [%env].width : Size
@@ -441,7 +441,7 @@ fn vectorsMasked(Array(I32), I32, ())(%self: Array(I32), %body: (value$: {Vec(I3
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))
-    %v12 = symbol Core.continuation$10(Array(I32), I32, ()) : %()
+    %v12 = symbol Core.continuation$15(Array(I32), I32, ()) : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = borrow %self : 'Array(I32)
@@ -466,7 +466,7 @@ fn vectorsMasked(Array(I32), I32, ())(%self: Array(I32), %body: (value$: {Vec(I3
     ret %v29
 }
 
-fn Core.continuation$10(Array(I32), I32, ())(%env: %{width: Size, body: '(value$: {Vec(I32), I32}) -> Outcome((), ())}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$15(Array(I32), I32, ())(%env: %{width: Size, body: '(value$: {Vec(I32), I32}) -> Outcome((), ())}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = load [%env].width : Size
@@ -554,7 +554,7 @@ fn vectors(Array(F32), F32, ())(%self: Array(F32), %body: (value$: Vec(F32)) -> 
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: ArrayView(F32)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Core.continuation$7(Array(F32), F32, ()) : %()
+    %v13 = symbol Core.continuation$13(Array(F32), F32, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = borrow %self : 'Array(F32)
@@ -579,7 +579,7 @@ fn vectors(Array(F32), F32, ())(%self: Array(F32), %body: (value$: Vec(F32)) -> 
     ret %v30
 }
 
-fn Core.continuation$7(Array(F32), F32, ())(%env: %{width: Size, body: '(value$: Vec(F32)) -> Outcome((), ()), empty: Vec(F32)}, %value$: ArrayView(F32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$13(Array(F32), F32, ())(%env: %{width: Size, body: '(value$: Vec(F32)) -> Outcome((), ()), empty: Vec(F32)}, %value$: ArrayView(F32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = load [%env].width : Size
@@ -685,7 +685,7 @@ fn loadVectorTail(F32)(%from: ArrayView(F32), %at: Size) -> Vec(F32) {
 fn Chunked(Array(a), a).chunks(F32, Outcome((), ()))(%self: ArrayView(F32), %body: (value$: ArrayView(F32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = calldyn %body, %self : Outcome((), Outcome((), ()))
-    %v3 = load %local3.discriminant : I32
+    %v3 = load %local2.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b1, b2
 
@@ -694,7 +694,7 @@ fn Chunked(Array(a), a).chunks(F32, Outcome((), ()))(%self: ArrayView(F32), %bod
 
   b2:
     %v8 = alloc : Outcome((), Outcome((), ()))
-    init %local4.discriminant, 0
+    init %local3.discriminant, 0
     ret %v8
 }
 
@@ -708,7 +708,7 @@ fn vectorsMasked(Array(F32), F32, ())(%self: Array(F32), %body: (value$: {Vec(F3
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: ArrayView(F32)) -> Outcome((), Outcome((), ()))
-    %v12 = symbol Core.continuation$10(Array(F32), F32, ()) : %()
+    %v12 = symbol Core.continuation$15(Array(F32), F32, ()) : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = borrow %self : 'Array(F32)
@@ -733,7 +733,7 @@ fn vectorsMasked(Array(F32), F32, ())(%self: Array(F32), %body: (value$: {Vec(F3
     ret %v29
 }
 
-fn Core.continuation$10(Array(F32), F32, ())(%env: %{width: Size, body: '(value$: {Vec(F32), I32}) -> Outcome((), ())}, %value$: ArrayView(F32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$15(Array(F32), F32, ())(%env: %{width: Size, body: '(value$: {Vec(F32), I32}) -> Outcome((), ())}, %value$: ArrayView(F32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = load [%env].width : Size

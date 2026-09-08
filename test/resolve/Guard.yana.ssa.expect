@@ -48,48 +48,25 @@ bb2:
 
 fn describe(m: Maybe(Color) [shared call]) -> I32 {
 bb0(%0: Maybe(Color) [shared call] guaranteed):
-  %2: %Color address = alloc frame Color
-  %3: %U8 address = field.addr .# inspect %0
-  %4: U8 trivial = load inspect %3
-  %5: U8 trivial = const 1
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb2 -> bb1
+  %1: %Color address = alloc frame Color
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 1
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
 
 bb1:
-  %7: I32 trivial = const 0
-  return consume %7
+  %6: I32 trivial = const 0
+  return consume %6
 
 bb2:
-  %8: %Color address = field.addr .Just inspect %0
-  %9: Color trivial = load inspect %8
-  store inspect %2 consume %9
-  %10: %U8 address = field.addr .# inspect %2
-  %11: U8 trivial = load inspect %10
-  %12: U8 trivial = const 0
-  %13: Bool trivial = eq inspect %11 inspect %12
-  branch inspect %13 -> bb6 -> bb3
-
-bb3:
-  %14: %U8 address = field.addr .# inspect %2
-  %15: U8 trivial = load inspect %14
-  %16: U8 trivial = const 1
-  %17: Bool trivial = eq inspect %15 inspect %16
-  branch inspect %17 -> bb7 -> bb4
-
-bb4:
-  %18: I32 trivial = const 3
-  jump -> bb5(consume %18)
-
-bb5(%1: I32 trivial):
-  return consume %1
-
-bb6:
-  %19: I32 trivial = const 1
-  jump -> bb5(consume %19)
-
-bb7:
-  %20: I32 trivial = const 2
-  jump -> bb5(consume %20)
+  %7: %Color address = field.addr .Just inspect %0
+  %8: Color trivial = load inspect %7
+  store inspect %1 consume %8
+  %9: %U8 address = field.addr .# inspect %1
+  %10: U8 trivial = load inspect %9
+  %11: I32 trivial = map [0 -> 1, 1 -> 2, 2 -> 3] inspect %10
+  return consume %11
 }
 
 fn onlyRed(m: Maybe(Color) [shared call]) -> I32 {

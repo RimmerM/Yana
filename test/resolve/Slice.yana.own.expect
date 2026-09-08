@@ -36,6 +36,11 @@ fn growArray(I32) {
   %wide: Size writable live [5, 22)
 }
 
+fn Length(Array(a)).length(I32) {
+  arg self readonly
+  %self: Array(I32) borrowed droppable readonly live [0, 1)
+}
+
 fn Reclaim(Array(a)).reclaim(I32) {
   arg value readonly
   %value: Array(I32) readonly live [0, 25)
@@ -140,15 +145,15 @@ fn releaseRun(I32) {
 
 fn total {
   arg xs readonly
-  %xs: ArrayView(I32) borrowed readonly live [0, 10) [12, 33)
-  %sum: I32 writable live [0, 11) [12, 33)
-  %i: I32 writable live [2, 10) [12, 33)
+  %xs: ArrayView(I32) borrowed readonly live [0, 9) [11, 31)
+  %sum: I32 writable live [0, 10) [11, 31)
+  %i: Size writable live [2, 9) [11, 31)
 }
 
 fn double {
   arg xs writable
-  %xs: ArrayView(I32) borrowed writable live [0, 9) [10, 45)
-  %i: I32 writable live [0, 9) [10, 45)
+  %xs: ArrayView(I32) borrowed writable live [0, 8) [9, 42)
+  %i: Size writable live [0, 8) [9, 42)
 }
 
 fn middle {
@@ -171,12 +176,12 @@ fn sumFrom {
 }
 
 fn main {
-  %xs: Array(I32) droppable writable resizable live [0, 19) [20, 32) [33, 55) [56, 65) [66, 78) [79, 89)
-  %local1: I32 writable addressed live [1, 19) [20, 32) [33, 55) [56, 65) [66, 78) [79, 82)
+  %xs: Array(I32) droppable writable resizable live [0, 19) [20, 32) [33, 55) [56, 64) [65, 77) [78, 88)
+  %local1: I32 writable addressed live [1, 19) [20, 32) [33, 55) [56, 64) [65, 77) [78, 81)
   %local2: ArrayView(I32) readonly live [10, 17)
   %local3: ArrayView(I32) readonly live [23, 30)
   %local4: ArrayView(I32) writable live [36, 44)
   %local5: ArrayView(I32) readonly live [46, 53)
-  %local6: ArrayView(I32) readonly live [69, 76)
-  %local7: ArrayView(I32) readonly live [82, 89)
+  %local6: ArrayView(I32) readonly live [68, 75)
+  %local7: ArrayView(I32) readonly live [81, 88)
 }

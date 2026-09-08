@@ -1,0 +1,283 @@
+module ResolveTest
+
+fn double(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 2
+  %4: I32 trivial = mul inspect %2 inspect %3
+  return consume %4
+}
+
+fn apply(f: (I32) -> I32 [shared call], x: I32 [shared call]) -> I32 {
+bb0(%0: (I32) -> I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = call [value #0] inspect %3 borrow %4
+  return consume %5
+}
+
+fn runOn(f: (&I32) -> {} [shared call], target: I32 [unique call]) -> {} {
+bb0(%0: (&I32) -> {} [shared call] guaranteed, %1: I32 [unique call] guaranteed):
+  %2: (&I32) -> {} [shared call] guaranteed from{%0} = load inspect %0
+  %3: I32 [unique call] guaranteed from{%1} = load inspect %1
+  call [value #0] inspect %2 borrow %3
+  return
+}
+
+fn twice(f: (I32) -> I32 [shared call], x: I32 [shared call]) -> I32 {
+bb0(%0: (I32) -> I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %4: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = call [value #0] inspect %4 borrow %5
+  %7: I32 trivial = call [value #0] inspect %3 borrow %6
+  return consume %7
+}
+
+fn twiceGeneric(f: (a) -> a [shared call], x: a [shared call]) -> a = <no body>
+
+fn consume(xs: Array(I32)) -> I32 {
+bb0(%0: Array(I32) owned):
+  %1: %Array(I32) address = alloc frame Array(I32)
+  store inspect %1 consume %0
+  %2: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %3: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %2
+  jump -> bb1
+
+bb1:
+  %5: %Size address = field.addr .length inspect %3
+  %6: Size trivial = load inspect %5
+  jump -> bb2(consume %6)
+
+bb2(%4: Size trivial):
+  drop Array(I32) inspect %1
+  %7: I32 trivial = convert inspect %4
+  return consume %7
+}
+
+fn run(f: (->Array(I32)) -> I32 [shared call]) -> I32 {
+bb0(%0: (->Array(I32)) -> I32 [shared call] guaranteed):
+  %1: %Array(I32) address = alloc frame Array(I32)
+  %2: (->Array(I32)) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %3: I32 trivial = const 1
+  %4: I32 trivial = const 2
+  %5: I32 trivial = const 3
+  %6: Size trivial = const 3
+  %7: Array(I32) owned = call literalArray(I32) borrow %6
+  store inspect %1 consume %7
+  %8: Array(I32) [unique slot 0] guaranteed from{%1} = load inspect %1
+  %9: Array(I32) [unique slot 0 view] guaranteed from{%1} = call Array(a).elementsMut(I32) borrow %8
+  %10: %I32 [owned here shape6 .*=shared slot 0] trivial = call valuesMut(I32) borrow %9
+  %11: Size trivial = const 0
+  %12: %I32 address = element.addr inspect %10 inspect %11
+  store inspect %12 consume %3
+  %13: Size trivial = const 1
+  %14: %I32 address = element.addr inspect %10 inspect %13
+  store inspect %14 consume %4
+  %15: Size trivial = const 2
+  %16: %I32 address = element.addr inspect %10 inspect %15
+  store inspect %16 consume %5
+  %17: Array(I32) owned = load inspect %1
+  %18: I32 trivial = call [value #0] inspect %2 consume %17
+  return consume %18
+}
+
+fn runStep(s: Step [shared call], x: I32 [shared call]) -> I32 {
+bb0(%0: Step [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: %(I32) -> I32 address = field.addr .run inspect %0
+  %4: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %3
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = call [value #0] inspect %4 borrow %5
+  %7: %I32 address = field.addr .weight inspect %0
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = mul inspect %6 inspect %8
+  return consume %9
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
+  %1: %I32 address = alloc frame I32
+  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
+  %3: %I32 address = alloc frame I32
+  %4: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
+  %5: %I32 address = alloc frame I32
+  %6: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
+  %7: %I32 address = alloc frame I32
+  %8: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
+  %9: %I32 address = alloc frame I32
+  %10: %Step address = alloc frame Step
+  %11: %I32 address = alloc frame I32
+  %12: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=unique call]
+  %13: %I32 address = alloc frame I32
+  %14: %(->Array(I32)) -> I32 address = alloc frame (->Array(I32)) -> I32 [owned here shape8 .0=unique call]
+  %15: %I32 address = alloc frame I32
+  %16: %I32 address = alloc frame I32
+  %17: %(&I32) -> {} address = alloc frame (&I32) -> {} [owned here shape8 .0=unique call]
+  %18: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value main.lambda
+  store inspect %0 consume %18
+  %19: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %20: I32 trivial = const 10
+  %21: I32 trivial = call apply borrow %19 borrow %20
+  store inspect %1 consume %21
+  %22: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value double
+  store inspect %2 consume %22
+  %23: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%2} = load inspect %2
+  %24: I32 trivial = const 20
+  %25: I32 trivial = call apply borrow %23 borrow %24
+  store inspect %3 consume %25
+  %26: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value main.lambda'2
+  store inspect %4 consume %26
+  %27: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%4} = load inspect %4
+  %28: I32 trivial = const 5
+  %29: I32 trivial = call [value #0] inspect %27 borrow %28
+  store inspect %5 consume %29
+  %30: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value main.lambda'3
+  store inspect %6 consume %30
+  %31: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%6} = load inspect %6
+  %32: I32 trivial = const 1
+  %33: I32 trivial = call twice borrow %31 borrow %32
+  store inspect %7 consume %33
+  %34: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value main.lambda'4
+  store inspect %8 consume %34
+  %35: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%8} = load inspect %8
+  %36: I32 trivial = const 4
+  %37: I32 trivial = call [value #0] inspect %35 borrow %36
+  store inspect %9 consume %37
+  %38: I32 trivial = const 2
+  %39: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value main.lambda'5
+  %40: Step owned = aggregate.Step consume %38 consume %39
+  store inspect %10 consume %40
+  %41: Step [shared call] guaranteed from{%10} = load inspect %10
+  %42: I32 trivial = const 6
+  %43: I32 trivial = call runStep borrow %41 borrow %42
+  drop Step inspect %10
+  store inspect %11 consume %43
+  %44: I32 trivial = const 1
+  %45: (I32) -> I32 [owned here shape8 .0=unique call] affine = fun.value main.lambda'6
+  store inspect %12 consume %45
+  %46: (I32) -> I32 [shared call shape8 .0=unique call] guaranteed from{%12} = load inspect %12
+  %47: I32 trivial = call twiceGeneric(I32) borrow %46 borrow %44
+  store inspect %13 consume %47
+  %48: (->Array(I32)) -> I32 [owned here shape8 .0=unique call] affine = fun.value consume
+  store inspect %14 consume %48
+  %49: (->Array(I32)) -> I32 [shared call shape8 .0=unique call] guaranteed from{%14} = load inspect %14
+  %50: I32 trivial = call run borrow %49
+  store inspect %15 consume %50
+  %51: I32 trivial = const 100
+  store inspect %16 consume %51
+  %52: (&I32) -> {} [owned here shape8 .0=unique call] affine = fun.value main.lambda'7
+  store inspect %17 consume %52
+  %53: (&I32) -> {} [shared call shape8 .0=unique call] guaranteed from{%17} = load inspect %17
+  %54: I32 [unique call] guaranteed from{%16} = load inspect %16
+  call runOn borrow %53 borrow %54
+  %55: I32 trivial = load inspect %1
+  %56: I32 trivial = load inspect %3
+  %57: I32 trivial = add inspect %55 inspect %56
+  %58: I32 trivial = load inspect %5
+  %59: I32 trivial = add inspect %57 inspect %58
+  %60: I32 trivial = load inspect %7
+  %61: I32 trivial = add inspect %59 inspect %60
+  %62: I32 trivial = load inspect %9
+  %63: I32 trivial = add inspect %61 inspect %62
+  %64: I32 trivial = load inspect %11
+  %65: I32 trivial = add inspect %63 inspect %64
+  %66: I32 trivial = load inspect %13
+  %67: I32 trivial = add inspect %65 inspect %66
+  %68: I32 trivial = load inspect %15
+  %69: I32 trivial = add inspect %67 inspect %68
+  %70: I32 trivial = load inspect %16
+  %71: I32 trivial = add inspect %69 inspect %70
+  return consume %71
+}
+
+fn main.lambda(main.lambda.env: main.lambda.env [unique call], x: I32 [shared call]) -> I32 {
+bb0(%0: main.lambda.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  return consume %5
+}
+
+fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [unique call], x: I32 [shared call]) -> I32 {
+bb0(%0: main.lambda'2.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = mul inspect %3 inspect %4
+  return consume %5
+}
+
+fn main.lambda'3(main.lambda'3.env: main.lambda'3.env [unique call], x: I32 [shared call]) -> I32 {
+bb0(%0: main.lambda'3.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 3
+  %5: I32 trivial = add inspect %3 inspect %4
+  return consume %5
+}
+
+fn main.lambda'4(main.lambda'4.env: main.lambda'4.env [unique call], x: I32 [shared call]) -> I32 {
+bb0(%0: main.lambda'4.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 3
+  %5: I32 trivial = mul inspect %3 inspect %4
+  return consume %5
+}
+
+fn main.lambda'5(main.lambda'5.env: main.lambda'5.env [unique call], x: I32 [shared call]) -> I32 {
+bb0(%0: main.lambda'5.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = sub inspect %3 inspect %4
+  return consume %5
+}
+
+fn main.lambda'6(main.lambda'6.env: main.lambda'6.env [unique call], x: I32 [shared call]) -> I32 {
+bb0(%0: main.lambda'6.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 10
+  %5: I32 trivial = add inspect %3 inspect %4
+  return consume %5
+}
+
+fn main.lambda'7(main.lambda'7.env: main.lambda'7.env [unique call], t: I32 [unique call]) -> {} {
+bb0(%0: main.lambda'7.env [unique call] guaranteed, %1: I32 [unique call] guaranteed):
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 5
+  %4: I32 trivial = add inspect %2 inspect %3
+  store inspect %1 consume %4
+  return
+}
+
+fn twiceGeneric(I32)(f: (I32) -> I32 [shared call], x: I32 [shared call]) -> I32 {
+bb0(%0: (I32) -> I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %4: (I32) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %5: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %6: I32 trivial = call [value #0] inspect %4 borrow %5
+  %7: I32 trivial = call [value #0] inspect %3 borrow %6
+  return consume %7
+}
+
+entry main

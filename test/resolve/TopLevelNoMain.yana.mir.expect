@@ -1,0 +1,106 @@
+module ResolveTest
+
+let & tally: I32 = 0
+
+let & doubled: I32
+
+let & final: I32
+
+let string'103: [CodeUnit *6] = [116, 97, 108, 108, 121, 32]
+
+let string'104: [CodeUnit *9] = [32, 100, 111, 117, 98, 108, 101, 100, 32]
+
+let string'105: [CodeUnit *7] = [32, 102, 105, 110, 97, 108, 32]
+
+fn twice(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn main$() -> {} {
+  local & local0: String object0
+  local local1: String
+  local local2: String
+  local local3: String
+  local local4: String object0
+
+bb0:
+  %0: I32 = read copy.trivial (global tally)
+  write.init borrow.unique (global doubled) take %0
+  %2: I32 = const 21
+  %3: I32 = call twice borrow.shared %2
+  write.assign borrow.unique (global tally) take %3
+  %5: I32 = read copy.trivial (global doubled)
+  %6: I32 = read copy.trivial (global tally)
+  %7: I32 = add inspect %5 inspect %6
+  write.init borrow.unique (global final) take %7
+  %9: Size = const 22
+  %10: I32 = read copy.trivial (global tally)
+  %11: Maybe(Size) = call showBound(I32) borrow.shared %10
+  %12: Size = call formatBound borrow.shared %11
+  %13: Size = add inspect %9 inspect %12
+  %14: I32 = read copy.trivial (global doubled)
+  %15: Maybe(Size) = call showBound(I32) borrow.shared %14
+  %16: Size = call formatBound borrow.shared %15
+  %17: Size = add inspect %13 inspect %16
+  %18: I32 = read copy.trivial (global final)
+  %19: Maybe(Size) = call showBound(I32) borrow.shared %18
+  %20: Size = call formatBound borrow.shared %19
+  %21: Size = add inspect %17 inspect %20
+  %22: String = call String.ofCapacity borrow.shared %21
+  write.init borrow.unique (local0) take %22
+  %24: String [unique call] = read borrow.unique (local0) loan0
+  %25: [CodeUnit *6] [shared slot 0] = read borrow.shared (global string'103) loan1
+  %26: %[CodeUnit *6] [owned here shape6 .*=shared slot 0] = address inspect %25 roots.0{1}
+  %27: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %26 roots.0{1}
+  %28: I32 = const 6
+  %29: String = call stringLiteral borrow.shared %27 borrow.shared %28
+  write.init borrow.unique (local1) take %29
+  %31: String [shared slot 0] = read borrow.shared (local1) loan2
+  %32: String [shared slot 0 view] = call.derivation view(String) borrow.shared %31 roots{2}
+  %33: {} = call String.push borrow.unique %24 borrow.shared %32
+  drop (local1)
+  %34: I32 = read copy.trivial (global tally)
+  %35: String [unique call] = read borrow.unique (local0) loan3
+  %36: {} = call show(I32) borrow.shared %34 borrow.unique %35
+  %37: String [unique call] = read borrow.unique (local0) loan4
+  %38: [CodeUnit *9] [shared slot 0] = read borrow.shared (global string'104) loan5
+  %39: %[CodeUnit *9] [owned here shape6 .*=shared slot 0] = address inspect %38 roots.0{5}
+  %40: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %39 roots.0{5}
+  %41: I32 = const 9
+  %42: String = call stringLiteral borrow.shared %40 borrow.shared %41
+  write.init borrow.unique (local2) take %42
+  %44: String [shared slot 0] = read borrow.shared (local2) loan6
+  %45: String [shared slot 0 view] = call.derivation view(String) borrow.shared %44 roots{6}
+  %46: {} = call String.push borrow.unique %37 borrow.shared %45
+  drop (local2)
+  %47: I32 = read copy.trivial (global doubled)
+  %48: String [unique call] = read borrow.unique (local0) loan7
+  %49: {} = call show(I32) borrow.shared %47 borrow.unique %48
+  %50: String [unique call] = read borrow.unique (local0) loan8
+  %51: [CodeUnit *7] [shared slot 0] = read borrow.shared (global string'105) loan9
+  %52: %[CodeUnit *7] [owned here shape6 .*=shared slot 0] = address inspect %51 roots.0{9}
+  %53: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %52 roots.0{9}
+  %54: I32 = const 7
+  %55: String = call stringLiteral borrow.shared %53 borrow.shared %54
+  write.init borrow.unique (local3) take %55
+  %57: String [shared slot 0] = read borrow.shared (local3) loan10
+  %58: String [shared slot 0 view] = call.derivation view(String) borrow.shared %57 roots{10}
+  %59: {} = call String.push borrow.unique %50 borrow.shared %58
+  drop (local3)
+  %60: I32 = read copy.trivial (global final)
+  %61: String [unique call] = read borrow.unique (local0) loan11
+  %62: {} = call show(I32) borrow.shared %60 borrow.unique %61
+  %63: String = read take (local0)
+  write.init borrow.unique (local4) take %63
+  %65: String [shared slot 0] = read borrow.shared (local4) loan12
+  %66: String [shared slot 0 view] = call.derivation view(String) borrow.shared %65 roots{12}
+  %67: {} = call print borrow.shared %66
+  drop (local4)
+  return
+}
+
+entry main$

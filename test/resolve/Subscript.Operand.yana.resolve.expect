@@ -227,42 +227,40 @@ fn total(%xs: ArrayView(I32)) -> I32 {
   b0:
     %sum = alloc : I32
     init %sum, 0
-    %i = alloc : I32
+    %i = alloc : Size
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : I32
+    %v8 = load %i : Size
     %v9 = load %xs@ArrayView.length : Size
-    %v10 = cast %v8 : Size
-    %v11 = cmp_lt %v10, %v9 : Bool
-    je %v11, b3, b2
+    %v10 = cmp_lt %v8, %v9 : Bool
+    je %v10, b3, b2
 
   b2:
-    %v36 = load %sum : I32
-    ret %v36
+    %v34 = load %sum : I32
+    ret %v34
 
   b3:
-    %v13 = load %sum : I32
-    %v14 = load %i : I32
-    %v15 = cast %v14 : Size
-    %v16 = borrow %xs : 'ArrayView(I32)
-    %v17 = load [%v16]@ArrayView.length : Size
-    %v18 = cast %v15 : USize
-    %v19 = cast %v17 : USize
-    %v20 = cmp_ge %v18, %v19 : Bool
-    call checkCondition, %v20
-    %v22 = load [%v16]@ArrayView.items : %I32
-    %v23 = strideof I32 : I64
-    %v24 = mul %v15, %v23 : I64
-    %v25 = add %v22, %v24 : %I32
-    %v26 = borrow [%v25] : 1'I32
-    %v27 = load [%v26] : I32
-    %v28 = add %v13, %v27 : I32
-    assign %sum, %v28
-    %v30 = load %i : I32
-    %v33 = add %v30, 1 : I32
-    assign %i, %v33
+    %v12 = load %sum : I32
+    %v13 = load %i : Size
+    %v14 = borrow %xs : 'ArrayView(I32)
+    %v15 = load [%v14]@ArrayView.length : Size
+    %v16 = cast %v13 : USize
+    %v17 = cast %v15 : USize
+    %v18 = cmp_ge %v16, %v17 : Bool
+    call checkCondition, %v18
+    %v20 = load [%v14]@ArrayView.items : %I32
+    %v21 = strideof I32 : I64
+    %v22 = mul %v13, %v21 : I64
+    %v23 = add %v20, %v22 : %I32
+    %v24 = borrow [%v23] : 1'I32
+    %v25 = load [%v24] : I32
+    %v26 = add %v12, %v25 : I32
+    assign %sum, %v26
+    %v28 = load %i : Size
+    %v31 = add %v28, 1 : Size
+    assign %i, %v31
     jmp b1
 }
 

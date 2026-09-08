@@ -34,25 +34,25 @@ bb0(%0: Reader [shared call] guaranteed):
   return consume %4
 }
 
-fn readerOf(g: Guard [shared slot 0]) -> Reader [owned here shape1 .0=shared slot 0] {
+fn readerOf(g: Guard [shared slot 0]) -> Reader [owned here shape2 .0=shared slot 0] {
 bb0(%0: Guard [shared slot 0] guaranteed):
   %1: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %2: I32 trivial = const 7
-  %3: Reader [owned here shape1 .0=shared slot 0] trivial = aggregate.Reader borrow %1 consume %2
+  %3: Reader [owned here shape2 .0=shared slot 0] trivial = aggregate.Reader borrow %1 consume %2
   return consume %3
 }
 
 fn returnsApplied() -> I32 {
 bb0:
   %0: %Guard address = alloc frame Guard
-  %1: %Reader address = alloc frame Reader [owned here shape1 .0=shared slot 0]
+  %1: %Reader address = alloc frame Reader [owned here shape2 .0=shared slot 0]
   %2: I32 trivial = const 1
   %3: Guard owned = call guard borrow %2
   store inspect %0 consume %3
   %4: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
-  %5: Reader [owned here shape1 .0=shared slot 0] trivial = call readerOf borrow %4
+  %5: Reader [owned here shape2 .0=shared slot 0] trivial = call readerOf borrow %4
   store inspect %1 consume %5
-  %6: Reader [owned here shape1 .0=shared slot 0] trivial = copy inspect %1
+  %6: Reader [owned here shape2 .0=shared slot 0] trivial = copy inspect %1
   %7: I32 trivial = call readerId borrow %6
   drop Guard inspect %0
   %8: I32 trivial = const 10
@@ -63,24 +63,24 @@ bb0:
   return consume %12
 }
 
-fn forward(g: Guard [shared slot 0]) -> Reader [owned here shape1 .0=shared slot 0] {
+fn forward(g: Guard [shared slot 0]) -> Reader [owned here shape2 .0=shared slot 0] {
 bb0(%0: Guard [shared slot 0] guaranteed):
   %1: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
-  %2: Reader [owned here shape1 .0=shared slot 0] trivial = call readerOf borrow %1
+  %2: Reader [owned here shape2 .0=shared slot 0] trivial = call readerOf borrow %1
   return consume %2
 }
 
 fn renamedSlot() -> I32 {
 bb0:
   %0: %Guard address = alloc frame Guard
-  %1: %Reader address = alloc frame Reader [owned here shape1 .0=shared slot 0]
+  %1: %Reader address = alloc frame Reader [owned here shape2 .0=shared slot 0]
   %2: I32 trivial = const 2
   %3: Guard owned = call guard borrow %2
   store inspect %0 consume %3
   %4: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
-  %5: Reader [owned here shape1 .0=shared slot 0] trivial = call forward borrow %4
+  %5: Reader [owned here shape2 .0=shared slot 0] trivial = call forward borrow %4
   store inspect %1 consume %5
-  %6: Reader [owned here shape1 .0=shared slot 0] trivial = copy inspect %1
+  %6: Reader [owned here shape2 .0=shared slot 0] trivial = copy inspect %1
   %7: I32 trivial = call readerId borrow %6
   drop Guard inspect %0
   %8: I32 trivial = const 10
@@ -107,11 +107,11 @@ bb0(%0: Pair [shared call] guaranteed):
   return consume %11
 }
 
-fn crossed(one: Guard [shared slot 0], two: Guard [shared slot 1]) -> Pair [owned here shape4 .0=shared slot 1 .1=shared slot 0] {
+fn crossed(one: Guard [shared slot 0], two: Guard [shared slot 1]) -> Pair [owned here shape9 .0=shared slot 1 .1=shared slot 0] {
 bb0(%0: Guard [shared slot 0] guaranteed, %1: Guard [shared slot 1] guaranteed):
   %2: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
   %3: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
-  %4: Pair [owned here shape4 .0=shared slot 1 .1=shared slot 0] trivial = aggregate.Pair borrow %2 borrow %3
+  %4: Pair [owned here shape9 .0=shared slot 1 .1=shared slot 0] trivial = aggregate.Pair borrow %2 borrow %3
   return consume %4
 }
 
@@ -119,7 +119,7 @@ fn twoSlots() -> I32 {
 bb0:
   %0: %Guard address = alloc frame Guard
   %1: %Guard address = alloc frame Guard
-  %2: %Pair address = alloc frame Pair [owned here shape4 .0=shared slot 1 .1=shared slot 0]
+  %2: %Pair address = alloc frame Pair [owned here shape9 .0=shared slot 1 .1=shared slot 0]
   %3: I32 trivial = const 3
   %4: Guard owned = call guard borrow %3
   store inspect %0 consume %4
@@ -128,9 +128,9 @@ bb0:
   store inspect %1 consume %6
   %7: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %8: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
-  %9: Pair [owned here shape4 .0=shared slot 1 .1=shared slot 0] trivial = call crossed borrow %7 borrow %8
+  %9: Pair [owned here shape9 .0=shared slot 1 .1=shared slot 0] trivial = call crossed borrow %7 borrow %8
   store inspect %2 consume %9
-  %10: Pair [owned here shape4 .0=shared slot 1 .1=shared slot 0] trivial = copy inspect %2
+  %10: Pair [owned here shape9 .0=shared slot 1 .1=shared slot 0] trivial = copy inspect %2
   %11: I32 trivial = call pairId borrow %10
   drop Guard inspect %0
   drop Guard inspect %1

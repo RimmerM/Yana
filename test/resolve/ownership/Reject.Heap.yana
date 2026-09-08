@@ -1,0 +1,43 @@
+{-
+   What `@heap` refuses - the attribute side of §10.4's placement ladder.
+
+   # resolver: ownership
+
+   `@heap` moves one binding's object off the frame and is the only thing in the language that
+   selects a rung directly, so the three ways of writing it wrongly are worth a fixture of their own.
+   The messages are this stage's; the shipping stage refuses the same programs in its own words,
+   which is why this is marked rather than shared.
+
+   A binding that names storage this frame does not own has no object to place, and saying so beats
+   minting one for the attribute to be about - which is also why `let @heap q = p` at a `TrivialCopy`
+   type is *accepted*: that binding takes a copy, and a copy is an object of its own. An attribute a
+   binding does not take is **reported** rather than dropped, which is the half this position did not
+   have at all: `VarDecl::attributes` was parsed and thrown away, so a misspelling compiled and did
+   nothing.
+
+   What is **not** here is the escape half. A value that has to outlive its frame is refused where
+   the escape is written rather than by this attribute - `generic/Reject.ClosureEscape.yana`.
+-}
+
+data Pair {left: Int, right: Int}
+
+data Guard {id: Int}
+
+instance Drop(Guard):
+    fn drop(->self: Guard):
+        {}
+
+fn borrowed(g: Guard) -> Int:
+    -- A second name for the caller's value, so there is nothing here to place.
+    let @heap q = g
+    return q.id
+
+fn arguments() -> Int:
+    let @heap(2) &p = Pair {left: 1, right: 2}
+    return p.left
+
+fn unknown() -> Int:
+    let @hep &p = Pair {left: 1, right: 2}
+    return p.left
+
+fn main() -> Int = borrowed(Guard {id: 1}) + arguments() + unknown()

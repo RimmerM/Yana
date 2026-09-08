@@ -94,7 +94,7 @@ bb0:
   return take %10
 }
 
-fn joined(flag: Bool [shared call]) -> I32 {
+fn joined'2(flag: Bool [shared call]) -> I32 {
   local g: Guard
 
 bb0:
@@ -416,10 +416,10 @@ bb8:
   write.assign borrow.unique (global trace) take %39
   %41: I32 = read copy.trivial (result)
   %42: Bool = const True
-  %43: I32 = call joined borrow.shared %42
+  %43: I32 = call joined'2 borrow.shared %42
   %44: I32 = add inspect %41 inspect %43
   %45: Bool = const False
-  %46: I32 = call joined borrow.shared %45
+  %46: I32 = call joined'2 borrow.shared %45
   %47: I32 = add inspect %44 inspect %46
   write.assign borrow.unique (result) take %47
   %49: I32 = read copy.trivial (global trace)

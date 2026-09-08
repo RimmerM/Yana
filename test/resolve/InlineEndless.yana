@@ -40,5 +40,30 @@ fn guarded(n: Int) -> Int:
 
 fn doubled(n: Int) -> Int = n * 2 + 1
 
+{-
+   And the same body written so that the *divergence fact* can see it, which is the second thing this
+   fixture is about.
+
+   `mir::Summary::diverges` is computed over MIR, where the SSA folder has not run, so the only
+   endless loop the walk can recognize is one whose header tests a literal - `endless` above tests
+   `1 < 2` and is therefore a body that walk believes returns, which is why its call site survives
+   to be the inlining refusal. `spins` writes the header as `while True`, and `endNonReturningBlocks`
+   is what then ends `reaches`' first arm at the call: the arm is `call spins` and a `return` of its
+   result, so the return becomes an `unreachable` and the arm's own edge goes with it.
+
+   `seed` is 3 at run time, so the loop is never entered and `reaches` answers 9.
+-}
+fn spins() -> Int:
+    while True:
+        seed = seed + 1
+
+    return seed
+
+fn reaches(n: Int) -> Int:
+    if n > 1000000:
+        return spins()
+
+    return n * 3
+
 fn main() -> Int:
-    return guarded(seed) * 3 + doubled(seed)
+    return guarded(seed) * 3 + doubled(seed) + reaches(seed) * 5

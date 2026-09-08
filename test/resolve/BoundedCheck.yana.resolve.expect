@@ -413,7 +413,7 @@ fn sumDown(%xs: ArrayView(I64)) -> I64 {
     jmp b1
 }
 
-fn sumStrided(%xs: ArrayView(I64), %n: I64) -> I64 {
+fn sumStrided(%xs: ArrayView(I64), %n: Size) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -423,35 +423,34 @@ fn sumStrided(%xs: ArrayView(I64), %n: I64) -> I64 {
 
   b1:
     %v9 = load %i : Size
-    %v10 = cast %v9 : I64
-    %v11 = cmp_lt %v10, %n : Bool
-    je %v11, b3, b2
+    %v10 = cmp_lt %v9, %n : Bool
+    je %v10, b3, b2
 
   b2:
-    %v38 = load %acc : I64
-    ret %v38
+    %v37 = load %acc : I64
+    ret %v37
 
   b3:
-    %v13 = load %acc : I64
-    %v14 = load %i : Size
-    %v17 = mul %v14, 2 : Size
-    %v18 = borrow %xs : 'ArrayView(I64)
-    %v19 = load [%v18]@ArrayView.length : Size
-    %v20 = cast %v17 : USize
-    %v21 = cast %v19 : USize
-    %v22 = cmp_ge %v20, %v21 : Bool
-    call checkCondition, %v22
-    %v24 = load [%v18]@ArrayView.items : %I64
-    %v25 = strideof I64 : I64
-    %v26 = mul %v17, %v25 : I64
-    %v27 = add %v24, %v26 : %I64
-    %v28 = borrow [%v27] : 1'I64
-    %v29 = load [%v28] : I64
-    %v30 = add %v13, %v29 : I64
-    assign %acc, %v30
-    %v32 = load %i : Size
-    %v35 = add %v32, 1 : Size
-    assign %i, %v35
+    %v12 = load %acc : I64
+    %v13 = load %i : Size
+    %v16 = mul %v13, 2 : Size
+    %v17 = borrow %xs : 'ArrayView(I64)
+    %v18 = load [%v17]@ArrayView.length : Size
+    %v19 = cast %v16 : USize
+    %v20 = cast %v18 : USize
+    %v21 = cmp_ge %v19, %v20 : Bool
+    call checkCondition, %v21
+    %v23 = load [%v17]@ArrayView.items : %I64
+    %v24 = strideof I64 : I64
+    %v25 = mul %v16, %v24 : I64
+    %v26 = add %v23, %v25 : %I64
+    %v27 = borrow [%v26] : 1'I64
+    %v28 = load [%v27] : I64
+    %v29 = add %v12, %v28 : I64
+    assign %acc, %v29
+    %v31 = load %i : Size
+    %v34 = add %v31, 1 : Size
+    assign %i, %v34
     jmp b1
 }
 

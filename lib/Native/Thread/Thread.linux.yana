@@ -78,7 +78,8 @@ pub fn unparkAll(word: Atomic(U32)) -> Size = futexWake(word, 0x7FFFFFFF)
 pub data Thread {region: %U8, size: Size, id: Size}
 
 {-
-   Where the kernel clears the thread's identifier, which is the first word of the control page.
+   The thread's identifier, which is the first word of the control page and is where the kernel
+   clears it - `atomicAt(self.region)`, written out at each of the three reads below.
 
    **As an atomic, and that is not decoration.** Another thread writes this word - the kernel does,
    from the exiting thread's own path - so every read of it is a read of memory this thread does not
@@ -91,8 +92,14 @@ pub data Thread {region: %U8, size: Size, id: Size}
    the type that says how it may be read, and the borrow it hands back is rooted in the pointer so
    the ordinary rules apply to it. It is also what `parkThread` next door already takes, so the
    waiting and the reading now agree about what this word is.
+
+   **Written at each site rather than through a helper.** A helper naming the `Thread` read well and
+   said the wrong thing - the borrow is rooted in the *pointer*, and `Thread` holds a plain `%U8`
+   with nowhere for a record's origin to come from - and one taking the region was `atomicAt` under a
+   second name. `atomicAt(self.region)` is the whole operation, and it says whose the view is where
+   the view is taken. The ascription is what the helper's result type used to supply: `atomicAt`
+   answers `Atomic(a)` at whatever `a` the position wants, and a receiver position wants nothing.
 -}
-fn threadIdWord(self: source'Thread) -> source'Atomic(U32) = atomicAt(self.region)
 
 {-
    `createThread(entry, argument, stackBytes)` - a running thread, or `Nothing`.
@@ -155,13 +162,16 @@ pub fn createThread(entry: (%U8) -> {}, argument: %U8, stackBytes: USize) -> May
 -}
 pub fn join(->self: Thread):
     while True:
-        let observed = threadIdWord(self).load(LoadAcquire)
+        let word = atomicAt(self.region) :: 'Atomic(U32)
+        let observed = word.load(LoadAcquire)
         if observed == 0: break
 
-        futexWaitTid(threadIdWord(self), observed)
+        futexWaitTid(word, observed)
 
     unmapMemory(self.region, self.size)
 
 -- Whether the thread has ended, without waiting. Advisory in the way every unsynchronized
 -- observation is: a `False` may be stale by the time it is read.
-pub fn hasEnded(self: Thread) -> Bool = threadIdWord(self).load(LoadAcquire) == 0
+pub fn hasEnded(self: Thread) -> Bool:
+    let word = atomicAt(self.region) :: 'Atomic(U32)
+    return word.load(LoadAcquire) == 0

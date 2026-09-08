@@ -1,0 +1,14 @@
+46:0: error: `@convention` has no meaning on a type
+51:11: error: `@host` names a property of the value the record holds, so it has to follow the one field that holds it - field zero of the record, which may not itself be `@host`
+52:11: error: `@host` names a property of the value the record holds, so it has to follow the one field that holds it - field zero of the record, which may not itself be `@host`
+56:9: error: a record with a `@host` field has exactly one stored field, and this one has more - every field after the first has to be a host property of it
+60:33: error: `@host` cannot combine with `@bits` or `@box` - a field elided onto a host property has no storage of its own, so there is nothing for a written width to narrow and nothing for an indirection to point at
+61:32: error: `@host` cannot combine with `@bits` or `@box` - a field elided onto a host property has no storage of its own, so there is nothing for a written width to narrow and nothing for an indirection to point at
+64:33: error: `@host` takes no arguments - the property is the field's own name
+23:0: error: simple is not a convention a declaration may name - `simple` and `complex` are the compiler's own choice between two internal shapes, and `system` describes what a syscall leaves alone rather than how anything is entered. Write `clobber`, `sysv` or `win64`
+26:0: error: system is not a convention a declaration may name - `simple` and `complex` are the compiler's own choice between two internal shapes, and `system` describes what a syscall leaves alone rather than how anything is entered. Write `clobber`, `sysv` or `win64`
+30:0: error: unknown calling convention fastcall - the ones a declaration may name are `clobber`, `sysv` and `win64`
+34:0: error: `@convention` takes one argument - the name of a calling convention, as in `@convention(clobber)`
+37:0: error: `@convention` takes one argument - the name of a calling convention, as in `@convention(clobber)`
+42:0: error: this declaration already names a calling convention
+67:13: error: `@host` can only be written on a field of a record or tuple - it says the host value answers this property under the field's name, not that the type is one

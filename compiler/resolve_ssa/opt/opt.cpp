@@ -140,8 +140,25 @@ void optimizeBody(OptContext& opt) {
          * behind if-conversion, because sending a predecessor past a join duplicates the decision
          * onto an edge and leaves no diamond to convert - see the note in `select.cpp`.
          */
+        /*
+         * And divergence, immediately in front of the graph cleanup that spends it: what this leaves
+         * is a block ending in `unreachable` and a join with one predecessor fewer, and both of
+         * those are `cleanCfg`'s to fold. Above it rather than below, so the fold happens in the
+         * same round the edge was cut in rather than in the next one.
+         */
+        runPass(endNonReturningBlocks);
+
         runPass(cleanCfg);
         runPass(convertSelects);
+
+        /*
+         * And the two that make block arguments constant, in that order.
+         *
+         * `decideBranchConditions` rewrites an operand and `threadBranches` moves an edge, so the
+         * first is what gives the second something to move - and `removeTrivialArguments`, which
+         * both `promote` and `cleanCfg` call, is what spends the result on the next round.
+         */
+        runPass(decideBranchConditions);
         runPass(threadBranches);
 
         // And that is the whole list. What is *not* here is `range`: phase 8 built the branch-implied
@@ -151,6 +168,30 @@ void optimizeBody(OptContext& opt) {
         // once, in front of this loop - see `optimizeProgram`.
 
         if(!opt.changed) break;
+    }
+}
+
+/*
+ * One pass over every body the backend will read - the loop `optimizeProgram` runs below, lifted so
+ * that a program-wide pass may be run once in front of the inliner without a second copy of the
+ * filter.
+ *
+ * The filter is the lowering's: a declaration with no `ssa` handle is a signature or a body the
+ * conversion declined, and an unreachable one is a body nothing emits.
+ */
+template<class F>
+static void eachOptimizedBody(OptContext& opt, mir::Program& program, F&& pass) {
+    for(auto modulePointer: program.modules) {
+        auto module = opt.decl[modulePointer];
+
+        for(auto functionPointer: module->functions.contents(opt.decl)) {
+            auto function = opt.decl[functionPointer];
+            if(!function->reachable || !function->ssa) continue;
+
+            opt.function = function;
+            opt.body = opt.base[function->ssa];
+            pass(opt);
+        }
     }
 }
 
@@ -164,7 +205,7 @@ bool optimizeProgram(Context& context, mir::Program& program, Converted& convert
      * computing a length, a comparison and a branch at every subscript and then keeping all three.
      *
      * What it removes is not a check this stage inserted - it inserts none - but the library's own,
-     * which `prelude/Core/Array.yana`'s `Index` instance writes and `@inline(always)` grafts into
+     * which `lib/Core/Array.yana`'s `Index` instance writes and `@inline(always)` grafts into
      * every caller. `opt/check.cpp` is where that shift in the switch's meaning is argued.
      */
     auto discharged = dischargeChecks(opt);
@@ -194,6 +235,43 @@ bool optimizeProgram(Context& context, mir::Program& program, Converted& convert
      * threshold reads. What the loop below then gets is a `reachable` set that says what the program
      * holds now, so a body whose last call was spliced away is neither optimized nor lowered.
      */
+    /*
+     * Divergence, once over every body, **in front of the inliner** - and the order is the whole of
+     * why it is here rather than only in the loop below.
+     *
+     * `endNonReturningBlocks` reads the *callee's* summary at a `Call`, and the inliner's whole job
+     * is to remove that call. `checkFailed` is 20 instructions once its `abortProcess` is spliced
+     * in, and what came out the other side was a bounds check whose failure arm ended in a `jump`
+     * back into the code that runs: the fact was true right up to the transformation that erased its
+     * evidence, and nothing below could infer it again - a `syscall` is not divergence, it is a
+     * number this compiler declines to know.
+     *
+     * What it cost was not the arm. A live edge out of the failure arm makes the block below every
+     * check a *join*, which ends every block-local fact in this directory: two checks of one
+     * container read its length twice, `forwardMemory` stops at each one, and the abort arms are
+     * ordinary blocks the lowering's `mergeExitBlocks` may not collapse because they have a
+     * successor.
+     *
+     * The alternative was for the splice to carry the fact - a diverging callee's join is
+     * unreachable, and the inliner could say so. It is a rule about the *caller's* block shape
+     * stated inside a rewrite that otherwise has no opinion about one; settling divergence before
+     * the pass that spends it is one statement instead, and `inlineCalls` then clones bodies whose
+     * dead arms are already dead.
+     */
+    /*
+     * The calling convention first, and above the inliner for the reason `opt/arg.cpp` gives: a
+     * signature this rewrites is rewritten once in the callee rather than once per copy of it, and
+     * what it leaves behind - a record rebuilt in the callee's entry, taken apart at the caller - is
+     * exactly what `promote`, `forwardMemory` and `removeDeadStorage` remove in the loop below.
+     */
+    flattenArguments(opt);
+
+    eachOptimizedBody(opt, program, [](OptContext& body) {
+        checkpoint(body, "after flattenArguments"_v);
+        endNonReturningBlocks(body);
+        checkpoint(body, "after endNonReturningBlocks"_v);
+    });
+
     inlineCalls(opt);
 
     for(auto modulePointer: program.modules) {
@@ -222,6 +300,18 @@ bool optimizeProgram(Context& context, mir::Program& program, Converted& convert
             optimizeBody(opt);
         }
     }
+
+    /*
+     * And the globals, once, with every body in its final shape.
+     *
+     * The folder answers an immutable global's read with the number it holds, and what was left
+     * behind was the storage: ten of `lib/`'s constants were emitted as `.data` in every program
+     * that allocated and each was referenced exactly once, by its own definition. It is below the
+     * loop rather than inside the inliner's rounds because the reads it is counting are the ones
+     * that *survived* - see `markReachableGlobals`, where the two reachability questions are
+     * separated.
+     */
+    markReachableGlobals(opt);
 
     /*
      * And one unconditional walk of the whole program on the way out, in every build.
