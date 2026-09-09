@@ -447,30 +447,41 @@ Constant Program::aggregateConstant(DeclPtr<Type> type, U16 constructor, const C
                                     Size count) {
     auto base = *decl;
 
-    for(U32 i = 0; i < aggregates.size(); i++) {
-        auto& held = *base[aggregates[i]];
-        if(held.constructor != constructor || held.values.size() != count) continue;
+    /*
+     * The **parts** and nothing else, which is what the key mixes and what `same` compares. Two
+     * aggregates of one shape at two types share an entry and are still two constants, because a
+     * `Constant` carries its own type and compares on it - `{I32, I32}` and a `data Point` of two
+     * `I32`s reduce to the same list and are not the same value. So the type is deliberately not in
+     * the key.
+     *
+     * `next()` between the values for the reason `intern.h` gives: without a separator two
+     * different groupings of the same words key alike, and a constant's three fields are words.
+     */
+    auto key = InternKey().mix(U64(constructor)).mix(U64(count));
+    for(Size i = 0; i < count; i++) {
+        key.mix(U64(values[i].type.offset)).mix(U64(values[i].kind)).mix(values[i].bits).next();
+    }
 
-        auto same = true;
-        for(Size at = 0; at < count && same; at++) {
-            same = held.values.get(base, U32(at)) == values[at];
+    auto created = false;
+    auto slot = internSlot(aggregates, key, created, [&](DeclPtr<AggregateConstant> held) {
+        auto& other = *base[held];
+        if(other.constructor != constructor || other.values.size() != count) return false;
+
+        for(Size at = 0; at < count; at++) {
+            if(!(other.values.get(base, U32(at)) == values[at])) return false;
         }
 
-        if(!same) continue;
+        return true;
+    });
 
-        // The **parts** and nothing else. Two aggregates of one shape at two types share an entry
-        // and are still two constants, because a `Constant` carries its own type and compares on
-        // it - `{I32, I32}` and a `data Point` of two `I32`s reduce to the same list and are not
-        // the same value.
-        return Constant { type, Constant::Aggregate, U64(aggregates[i].offset) };
-    }
+    if(!created) return Constant { type, Constant::Aggregate, U64(slot->offset) };
 
     auto made = new (decl) AggregateConstant();
     made->constructor = constructor;
     for(Size i = 0; i < count; i++) made->values.push(decl, values[i]);
 
     auto pointer = DeclPtr<AggregateConstant>(made - base);
-    aggregates.push(pointer);
+    *slot = pointer;
     return Constant { type, Constant::Aggregate, U64(pointer.offset) };
 }
 

@@ -462,17 +462,11 @@ bb0:
   %6: Size trivial = const 0
   %56: %Run(I32) address = alloc frame Run(I32)
   %57: Size trivial = const 0
-  %260: %I32 trivial = bitcast inspect %57
-  %59: %I32 trivial = call runSlots(I32) borrow %260 borrow %6
+  %264: %I32 trivial = bitcast inspect %57
+  %59: %I32 trivial = call runSlots(I32) borrow %264 borrow %6
   %60: @bits(2) U32 trivial = const 1
-  %261: Size trivial = bitcast inspect %59
-  %62: Size trivial = const 0
-  %63: Bool trivial = eq inspect %261 inspect %62
-  %64: Size trivial = const 0
-  %65: Size trivial = select inspect %63 inspect %64 inspect %6
-  %66: U32 trivial = convert inspect %65
-  %67: @bits(30) U32 trivial = convert inspect %66
-  %68: Run(I32) owned = aggregate.Run consume %59 consume %67 consume %60
+  %261: @bits(30) U32 trivial = const 0
+  %68: Run(I32) owned = aggregate.Run consume %59 consume %261 consume %60
   store inspect %56 consume %68
   %69: %@bits(30) U32 address = field.addr .capacity inspect %56
   %70: @bits(30) U32 trivial = load inspect %69
@@ -544,12 +538,12 @@ bb3:
   %236: Size trivial = convert inspect %235
   %237: Array(I32) [unique call owner] guaranteed from{%1} = load inspect %41
   %239: Size trivial = add inspect %236 inspect %238
-  %263: %Run(I32) address = field.addr .run inspect %237
-  %264: %@bits(30) U32 address = field.addr .capacity inspect %263
-  %265: @bits(30) U32 trivial = load inspect %264
-  %266: Size trivial = convert inspect %265
-  %267: Bool trivial = le inspect %239 inspect %266
-  branch inspect %267 -> bb30 -> bb32
+  %267: %Run(I32) address = field.addr .run inspect %237
+  %268: %@bits(30) U32 address = field.addr .capacity inspect %267
+  %269: @bits(30) U32 trivial = load inspect %268
+  %270: Size trivial = convert inspect %269
+  %271: Bool trivial = le inspect %239 inspect %270
+  branch inspect %271 -> bb30 -> bb32
 
 bb7(%97: I32 trivial, %98: I32 trivial, %99: I32 trivial):
   %136: Bool trivial = lt inspect %97 inspect %122
@@ -637,13 +631,13 @@ bb12(%100: I32 trivial, %101: I32 trivial):
   jump -> bb7(inspect %155, inspect %100, inspect %101)
 
 bb13:
-  %270: Size trivial = const 134
-  %271: Syscall trivial = const SysExit
-  %272: U16 trivial = bitcast inspect %271
-  %273: I32 trivial = convert inspect %272
-  %274: USize trivial = convert inspect %273
-  %275: USize trivial = bitcast inspect %270
-  %276: Size trivial = native syscall inspect %274 inspect %275
+  %274: Size trivial = const 134
+  %275: Syscall trivial = const SysExit
+  %276: U16 trivial = bitcast inspect %275
+  %277: I32 trivial = convert inspect %276
+  %278: USize trivial = convert inspect %277
+  %279: USize trivial = bitcast inspect %274
+  %280: Size trivial = native syscall inspect %278 inspect %279
   unreachable
 
 bb17(%165: I32 trivial, %166: I32 trivial, %167: I32 trivial):
@@ -703,20 +697,19 @@ bb22(%169: I32 trivial, %170: I32 trivial):
   jump -> bb17(inspect %233, inspect %169, inspect %170)
 
 bb23:
-  %277: Size trivial = const 134
-  %278: Syscall trivial = const SysExit
-  %279: U16 trivial = bitcast inspect %278
-  %280: I32 trivial = convert inspect %279
-  %281: USize trivial = convert inspect %280
-  %282: USize trivial = bitcast inspect %277
-  %283: Size trivial = native syscall inspect %281 inspect %282
+  %281: Size trivial = const 134
+  %282: Syscall trivial = const SysExit
+  %283: U16 trivial = bitcast inspect %282
+  %284: I32 trivial = convert inspect %283
+  %285: USize trivial = convert inspect %284
+  %286: USize trivial = bitcast inspect %281
+  %287: Size trivial = native syscall inspect %285 inspect %286
   unreachable
 
 bb27:
   %73: Run(I32) owned = load inspect %56
-  %74: U32 trivial = convert inspect %6
-  %75: @bits(30) U32 trivial = convert inspect %74
-  %76: Array(I32) owned = aggregate.Array consume %73 consume %75
+  %263: @bits(30) U32 trivial = const 0
+  %76: Array(I32) owned = aggregate.Array consume %73 consume %263
   store inspect %0 consume %76
   %8: Array(I32) [unique slot 0] guaranteed from{%0} = load inspect %0
   %77: %Run(I32) address = field.addr .run inspect %8
@@ -736,13 +729,13 @@ bb27:
   jump -> bb1(inspect %12)
 
 bb28:
-  %262: Size trivial = const 134
-  %284: Syscall trivial = const SysExit
-  %285: U16 trivial = bitcast inspect %284
-  %286: I32 trivial = convert inspect %285
-  %287: USize trivial = convert inspect %286
-  %288: USize trivial = bitcast inspect %262
-  %289: Size trivial = native syscall inspect %287 inspect %288
+  %266: Size trivial = const 134
+  %288: Syscall trivial = const SysExit
+  %289: U16 trivial = bitcast inspect %288
+  %290: I32 trivial = convert inspect %289
+  %291: USize trivial = convert inspect %290
+  %292: USize trivial = bitcast inspect %266
+  %293: Size trivial = native syscall inspect %291 inspect %292
   unreachable
 
 bb30:
@@ -754,8 +747,8 @@ bb30:
   branch inspect %244 -> bb38 -> bb37
 
 bb32:
-  %268: Array(I32) [unique call owner] guaranteed from{%1} = load inspect %237
-  call growArray(I32) borrow %268 borrow %239
+  %272: Array(I32) [unique call owner] guaranteed from{%1} = load inspect %237
+  call growArray(I32) borrow %272 borrow %239
   jump -> bb30
 
 bb37:
@@ -771,13 +764,13 @@ bb37:
   jump -> bb1(inspect %45)
 
 bb38:
-  %269: Size trivial = const 134
-  %290: Syscall trivial = const SysExit
-  %291: U16 trivial = bitcast inspect %290
-  %292: I32 trivial = convert inspect %291
-  %293: USize trivial = convert inspect %292
-  %294: USize trivial = bitcast inspect %269
-  %295: Size trivial = native syscall inspect %293 inspect %294
+  %273: Size trivial = const 134
+  %294: Syscall trivial = const SysExit
+  %295: U16 trivial = bitcast inspect %294
+  %296: I32 trivial = convert inspect %295
+  %297: USize trivial = convert inspect %296
+  %298: USize trivial = bitcast inspect %273
+  %299: Size trivial = native syscall inspect %297 inspect %298
   unreachable
 }
 

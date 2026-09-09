@@ -154,12 +154,27 @@ bool providedOperation(intrinsic::Provided role, U16 member, BinaryOp& binary, U
 }
 
 /*
- * The width a constant of this type is folded at, and whether folding it is allowed at all.
+ * The two widths a constant of this type may be computed at.
  *
- * A fixed width answers itself. A **target-answered** one answers the width the language
- * guarantees - see the header - and the caller then has to hold the answer to that width as well,
- * which `holdsAtWidth` below is.
+ * A fixed width answers itself twice, and that is what makes the rule below one rule rather than
+ * two: the whole arithmetic runs at `narrow` and again at `wide`, and a type that states its own
+ * width runs the same computation twice and agrees with itself for nothing. A **target-answered**
+ * one - `Size`, `USize`, `CodeUnit` - answers the width the language guarantees and the widest it
+ * may turn out to be, and the two runs are what says whether the target gets to matter.
  */
+struct FoldWidths {
+    U32 narrow = 0;
+    U32 wide = 0;
+
+    bool differ() const { return narrow != wide; }
+};
+
+static FoldWidths foldWidths(const IntType& type) {
+    return FoldWidths { U32(type.minBits()), U32(type.maxBits()) };
+}
+
+// The width an operand is read at when only one is wanted - the guaranteed one, which is the width
+// every value of the type holds a number at on every target.
 static U32 foldWidth(const IntType& type) { return U32(type.minBits()); }
 
 // Whether a pattern read at `bits` is a value the type holds on **every** target - the check a
@@ -175,29 +190,54 @@ static bool holdsAtWidth(const IntType& type, U64 value) {
 }
 
 /*
- * A pattern into the constant its type holds - `reducedToWidth`, plus the guarantee above.
+ * A pattern computed at `bits` into the number the type holds - the normal form, at that width.
  *
- * `pattern` is the low `foldWidth` bits of the answer, which is what `evaluateBinary` hands back;
- * putting it into the type's normal form is this function's whole job, and the **type's own**
- * signedness is what decides whether that means sign-extending it. A target-answered width has no
- * `reducedToWidth` to do it - the number is left alone there, because normalizing at the widest
- * width it might turn out to be would be normalizing at a width no target necessarily has - so this
- * extends it itself and then asks whether the number is one every target holds.
+ * `pattern` is the low `bits` of the answer, which is what `evaluateBinary` hands back; putting it
+ * into the type's normal form is this function's whole job, and the **type's own** signedness is
+ * what decides whether that means sign-extending it.
  */
-static Constant integerAnswer(const IntType& type, DeclPtr<Type> pointer, U64 pattern) {
-    auto bits = foldWidth(type);
-    auto value = type.isSigned ? U64(foldArith::signedValue(pattern, bits))
-                               : (pattern & maskOf(bits));
+static U64 normalizedAt(const IntType& type, U32 bits, U64 pattern) {
+    return type.isSigned ? U64(foldArith::signedValue(pattern, bits)) : (pattern & maskOf(bits));
+}
 
-    if(!type.isTargetWidth()) return intConstant(pointer, reducedToWidth(type, value));
-    if(!holdsAtWidth(type, value)) return Constant();
+/*
+ * The answer, from the two the arithmetic produced at the two widths the result type may have.
+ *
+ * **The two have to agree, and a target-answered width is the whole reason there are two.** The
+ * rule this replaces computed at the guaranteed width alone and then asked whether the number it
+ * got was one every target holds - which is a different question, and a weaker one. `not (0 ::
+ * USize)` is `0xffffffff` computed at thirty-two bits and is a number a `USize` holds on every
+ * target, so that rule wrote it down; on the sixty-four-bit target this compiler emits for the
+ * answer is `0xffffffffffffffff`, and the program then read a folded constant its own machine
+ * disagreed with. The same hole is under `neg` of an unsigned, a `sub` that goes below zero, and a
+ * `shl` that carries a bit past thirty-two.
+ *
+ * Agreement is the honest statement of what a constant at this tier *is*: `optimizeProgram` runs
+ * once per program and `manifestNative` is the one place a target's width is known, so a number
+ * written down here has to be the number on every target the program could be built for. Where the
+ * two disagree there is no such number and the fold declines - which costs the wraparound cases
+ * their fold and nothing else, since a value that came from source already holds at the guaranteed
+ * width (`integerHolds`) and every operation that stays inside it agrees at both.
+ */
+static Constant integerAnswer(const IntType& type, DeclPtr<Type> pointer, U64 narrow, U64 wide) {
+    auto widths = foldWidths(type);
+    auto value = normalizedAt(type, widths.narrow, narrow);
+
+    if(!widths.differ()) return intConstant(pointer, reducedToWidth(type, value));
+    if(value != normalizedAt(type, widths.wide, wide)) return Constant();
 
     return intConstant(pointer, value);
 }
 
-// The operand as the number the arithmetic reads - the low `foldWidth` bits, which is what
+// The same, where the arithmetic was width-independent and produced one pattern - a bit count of a
+// fixed width, a bitcast. Handing it to both runs is the statement that the answer is the same one.
+static Constant integerAnswer(const IntType& type, DeclPtr<Type> pointer, U64 pattern) {
+    return integerAnswer(type, pointer, pattern, pattern);
+}
+
+// The operand as the number the arithmetic reads at `bits` - the low `bits` of it, which is what
 // `evaluateBinary` documents it takes.
-static U64 patternOf(const IntType& type, U64 value) { return value & maskOf(foldWidth(type)); }
+static U64 patternAt(U32 bits, U64 value) { return value & maskOf(bits); }
 
 Constant foldConstantBinary(Program& program, BinaryOp op, const Constant& lhs, const Constant& rhs,
                             DeclPtr<Type> result) {
@@ -237,10 +277,11 @@ Constant foldConstantBinary(Program& program, BinaryOp op, const Constant& lhs, 
     if(lhs.kind != Constant::Int || rhs.kind != Constant::Int) return Constant();
 
     auto& integer = *(IntType*)base[operand];
-    auto bits = foldWidth(integer);
+    auto widths = foldWidths(integer);
 
     // Both operands have to be values of the type on every target before anything is computed with
-    // them, which for a fixed width is always true and for `Size` is the whole of the rule.
+    // them, which for a fixed width is always true and for `Size` is what makes the narrow run of
+    // the arithmetic below a run over the operands' real values rather than over truncations.
     if(!holdsAtWidth(integer, lhs.asInt()) || !holdsAtWidth(integer, rhs.asInt())) return Constant();
 
     if(base[result]->kind != Type::Int) {
@@ -251,15 +292,22 @@ Constant foldConstantBinary(Program& program, BinaryOp op, const Constant& lhs, 
     LowerInst::Kind kind;
     if(!arithKind(op, integer.isSigned, kind)) return Constant();
 
-    U64 answer;
-    if(!evaluateBinary(kind, patternOf(integer, lhs.asInt()), patternOf(integer, rhs.asInt()), bits,
-                       answer)) {
+    // Once at each width the operand type may have - see `integerAnswer`, which is where the two
+    // are compared and where the reason they have to agree is written down.
+    U64 narrow, wide;
+    if(!evaluateBinary(kind, patternAt(widths.narrow, lhs.asInt()),
+                       patternAt(widths.narrow, rhs.asInt()), widths.narrow, narrow)) {
+        return Constant();
+    }
+
+    if(!evaluateBinary(kind, patternAt(widths.wide, lhs.asInt()),
+                       patternAt(widths.wide, rhs.asInt()), widths.wide, wide)) {
         return Constant();
     }
 
     // The result's own type rather than the operands', which are the same for every operation here
     // and would stop being so the day one of them narrows.
-    return integerAnswer(*(IntType*)base[result], result, answer);
+    return integerAnswer(*(IntType*)base[result], result, narrow, wide);
 }
 
 Constant foldConstantUnary(Program& program, UnaryOp op, const Constant& value,
@@ -275,24 +323,33 @@ Constant foldConstantUnary(Program& program, UnaryOp op, const Constant& value,
     if(base[value.type]->kind != Type::Int || value.kind != Constant::Int) return Constant();
 
     auto& integer = *(IntType*)base[value.type];
-    auto bits = foldWidth(integer);
+    auto widths = foldWidths(integer);
+    auto bits = widths.narrow;
     if(!holdsAtWidth(integer, value.asInt())) return Constant();
 
-    auto pattern = patternOf(integer, value.asInt());
+    auto pattern = patternAt(widths.narrow, value.asInt());
+    auto widePattern = patternAt(widths.wide, value.asInt());
 
     switch(op) {
         /*
          * Negation and complement are the two the operator classes name, and both are stated as the
          * arithmetic rather than as C's operators on a 64-bit register: a narrow type's `not` is
          * the complement of *its* bits and nothing above them, which is what the mask is for.
+         *
+         * Both are computed at both widths, and both are the operations that made that necessary:
+         * the complement of a `USize` zero and the negation of one are the two whose answer *is*
+         * the width. See `integerAnswer`.
          */
         case UnaryOp::Neg: {
-            U64 answer;
-            if(!evaluateBinary(LowerInst::Sub, 0, pattern, bits, answer)) return Constant();
-            return integerAnswer(*(IntType*)base[result], result, answer);
+            U64 narrow, wide;
+            if(!evaluateBinary(LowerInst::Sub, 0, pattern, widths.narrow, narrow)) return Constant();
+            if(!evaluateBinary(LowerInst::Sub, 0, widePattern, widths.wide, wide)) return Constant();
+            return integerAnswer(*(IntType*)base[result], result, narrow, wide);
         }
         case UnaryOp::Not:
-            return integerAnswer(*(IntType*)base[result], result, ~pattern & maskOf(bits));
+            return integerAnswer(*(IntType*)base[result], result,
+                                 ~pattern & maskOf(widths.narrow),
+                                 ~widePattern & maskOf(widths.wide));
 
         /*
          * The bit counts, which are questions about the *declared* width - so a target-answered one

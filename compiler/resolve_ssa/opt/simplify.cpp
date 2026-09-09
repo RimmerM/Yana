@@ -159,6 +159,12 @@ struct Simplifier {
      * instruction's operand list, though, which is what makes this a peephole rather than a
      * dataflow question - the address chain is two instructions long and both ends are in hand.
      *
+     * The **discriminant** is the same statement about the same instruction: which constructor a
+     * record built here is, is written on the `Aggregate` and not in any storage, so a projection of
+     * it has a constant answer. That is what turns `match` on a `Maybe` a body just made into a
+     * decided branch, and it is the rung the sizing of a formatted string stands on - `showBound`
+     * answers `Just(20)` and the caller matches on it three instructions later.
+     *
      * **The shape that produces it is a flattened adaptor chain.** A `for` over an `iter fn` builds
      * the continuation's environment as one aggregate of borrowed fields and hands the pair to the
      * iterator (`resolve_ssa/convert.cpp`); once `flattenContinuations` has copied both bodies into
@@ -173,9 +179,12 @@ struct Simplifier {
      *    a `field.addr`, and every use of each of those is a `load`. A `fun.value` holding it, a
      *    call handed it, a `store` through it or a `drop` of it all leave, because what would then
      *    be at the field is not what the aggregate put there.
-     *  - **the component is borrowed rather than consumed.** A consuming component's ownership ends
-     *    at the aggregate, so pointing a reader below it at the same value is a second consumption.
-     *    Every field of a continuation environment is a borrow, which is why this fires there.
+     *  - **the component is borrowed, or it is consumed and owes nothing.** A consuming component's
+     *    ownership ends at the aggregate, so pointing a reader below it at the same value is a
+     *    second consumption - of a value that has an owner. A component that owes neither a teardown
+     *    nor a follow has none, and consuming one twice is consuming it zero times. Every field of a
+     *    continuation environment is a borrow, which is why this fires there; the consumed rung is
+     *    what reaches a record a body built out of numbers, which is most of them.
      *  - **the two ends are restated rather than unified.** A borrowed field is `T [slot n]` with a
      *    `Guaranteed` convention where the load of its address answers `%T address` - the same
      *    pointer, and two different statements about it (`convert.cpp` makes the pair). `represent`
@@ -205,7 +214,6 @@ struct Simplifier {
 
         auto& field = (InstFieldAddress&)*projection;
         if(field.property != InstFieldAddress::kNoProperty) return false;
-        if(field.field == InstFieldAddress::kDiscriminant) return false;
 
         auto record = opt.base[field.base.value()];
         if(!record->definer) return false;
@@ -214,14 +222,70 @@ struct Simplifier {
         if(made->kind != Inst::Aggregate) return false;
 
         auto& aggregate = (InstAggregate&)*made;
-        if(field.field >= aggregate.components.size()) return false;
-
         if(!readOnlyRecord(*record)) return false;
 
-        auto component = aggregate.components.get(opt.base, field.field);
-        if(component.kind() == UseKind::Consume) return false;
+        /*
+         * Which constructor's fields the components are, which is the same question the lowering
+         * asks of the same instruction - `Inst::Aggregate` in `lower/inst.cpp`, where the walk over
+         * the components starts at `arm.first`. The record's fields are one flat list and a
+         * constructor owns a range of it (`mir::RecordCon`), so a component's position in the
+         * instruction is its field index *minus* that range's start.
+         *
+         * The read is declined where the projected field is outside the range, and that is not a
+         * conservative guard: a field of another arm has nothing standing for it here, because the
+         * aggregate built this one. Such a projection is an impossible pattern rather than a shape
+         * with an answer this could give.
+         */
+        auto& declared = *(mir::RecordType*)opt.decl[field.record];
+        if(aggregate.constructor >= declared.cons.size()) return false;
 
+        auto arm = declared.cons.get(opt.decl, aggregate.constructor);
+        if(aggregate.components.size() != arm.count) return false;
+
+        /*
+         * The **discriminant** is answered by which constructor was built, and that number is
+         * standing on the instruction.
+         *
+         * `RecordCon::value` rather than the index, because the value is what is *stored* - a
+         * `@value(n)` pins it - and this is the same constant the lowering writes into a tag word
+         * (`Discriminant::Word` in `lower/inst.cpp`, from the same `arm.value`). Answering the index
+         * would be right on every record nothing pinned and wrong on the ones that matter.
+         *
+         * Nothing about the record's *layout* is consulted and nothing here needs to be: a folded or
+         * bit-tagged tag has no word to load, but what the load would have answered is this number
+         * either way, and which bits carry it is a question this fold removes rather than asks.
+         */
+        if(field.field == InstFieldAddress::kDiscriminant) {
+            if(result->convention != Convention::Trivial) return false;
+            if(opt.decl[result->occurrence.type]->kind != mir::Type::Int) return false;
+
+            auto tag = makeConstant(opt, inst, result->occurrence.type, U64(arm.value));
+            replaceAndErase(inst, *result, *tag);
+            return true;
+        }
+
+        if(field.field < arm.first || field.field >= U16(arm.first + arm.count)) return false;
+
+        auto component = aggregate.components.get(opt.base, U16(field.field - arm.first));
         auto held = opt.base[component.value()];
+
+        /*
+         * A **consumed** component is admitted only where the value it holds owes nothing.
+         *
+         * The rule this replaces declined every one of them, on the argument that a consuming
+         * component's ownership ends at the aggregate so a reader below it would be a second
+         * consumption. That is exactly right for a value with an owner and says nothing about one
+         * without: `hasTeardownAt` and `isLinearAt` are the two halves of owing something, and a
+         * component answering neither is a number that was written into a field. Consuming it twice
+         * is consuming it zero times.
+         *
+         * The occurrence is asked rather than the type, for `pass.h`'s reason - a borrowed field of
+         * an owning type owes nothing, and the type alone cannot say so.
+         */
+        if(component.kind() == UseKind::Consume) {
+            if(hasTeardownAt(opt, held->occurrence)) return false;
+            if(isLinearAt(opt, held->occurrence)) return false;
+        }
 
         auto editor = opt.ir();
         editor.setInsertBefore(inst);

@@ -1992,17 +1992,25 @@ struct Program {
     Array<DeclPtr<RecordType>> tuples;
 
     /*
-     * Every aggregate constant, which is the **interning index** and not how one is reached:
-     * `Constant::Aggregate` carries the handle itself, so any reader holding a `DeclBase` can
-     * follow it - which is what a printer and a manifestation walk have and a `Program` is not.
+     * Every aggregate constant, keyed by its **parts** - the interning index, and not how one is
+     * reached: `Constant::Aggregate` carries the handle itself, so any reader holding a `DeclBase`
+     * can follow it, which is what a printer and a manifestation walk have and a `Program` is not.
      *
      * One table for the whole program rather than one per region, because a `Constant` is sixteen
      * bytes wherever it is held and its payload has to outlive all of them - see
      * `AggregateConstant`. Interned structurally by `aggregateConstant`, so that `Constant`'s
      * equality stays the comparison of three words it is for every other kind and a body's constant
      * table keeps interning the way it does.
+     *
+     * A hash rather than the list it used to be - `internSlot`, on the terms `intern.h` states for
+     * the four tables already keyed that way. The list was argued on the grounds that the distinct
+     * aggregate constants of a program are the ones somebody wrote down; string literals are not,
+     * and each of them minted one aggregate per *byte list* and another for the value over it, so
+     * the scan was quadratic in the literal count. `test/bench/findings.md` §94 is the measurement
+     * that asked for this, and it is the general repair - the literal's own is to stop building
+     * aggregates for one at all.
      */
-    Array<DeclPtr<AggregateConstant>> aggregates;
+    HashMap<U64, DeclPtr<AggregateConstant>> aggregates;
 
     /*
      * Whether `classifyTypes` has run - see `classifyRecord`.

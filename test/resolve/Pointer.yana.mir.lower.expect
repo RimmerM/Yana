@@ -89,26 +89,21 @@ main<complex>(): I32 {
   }
 
   b_58 {
-    call_complex blockShort, %v_54, %v_53, 16
-    jmp join
+    jmp b_59
   }
 
   join {
-    %v_59 = loads %v_54, 8: I64
-    %v_60 = alloca 16, 8: Ptr
-    copy %v_60, %v_54, 16
+    %v_60 = loads %v_54, 8: I64
+    %v_61 = alloca 16, 8: Ptr
+    copy %v_61, %v_54, 16
     setpattern %v_54, 16, 0
-    %v_61 = imul %v_59, 10: I64
-    %v_62 = loads %v_54, 8: I64
-    %v_63 = add %v_61, %v_62: I64
-    %v_64 = add %v_52, %v_63: I64
-    %v_65 = add %v_64, 812: I64
-    %v_66 = alloca 1, 1: Ptr
-    store %v_66, 0, 1
-    jmp b_67
-  }
-
-  b_67 {
+    %v_62 = imul %v_60, 10: I64
+    %v_63 = loads %v_54, 8: I64
+    %v_64 = add %v_62, %v_63: I64
+    %v_65 = add %v_52, %v_64: I64
+    %v_66 = add %v_65, 812: I64
+    %v_67 = alloca 1, 1: Ptr
+    store %v_67, 0, 1
     jmp b_68
   }
 
@@ -117,106 +112,31 @@ main<complex>(): I32 {
   }
 
   b_69 {
-    %v_70 = bitcast %v_66: I64
-    %v_71 = cmp_eq %v_70, 0: I32
-    %v_72 = select %v_71, 0, 1: I64
-    jmp b_73
+    jmp b_70
   }
 
-  b_73 {
-    %v_74 = shl %v_72, 1: I64
-    %v_75 = add %v_65, %v_74: I64
-    %v_76 = sext %v_75: I32
-    ret %v_76
-  }
-}
-
-blockShort<complex>(%to: Ptr, %from: Ptr, %count: I64) {
-  b_0 {
-    %v_1 = cmp_ige %count, 8: I32
-    je %v_1, b_2, b_3
+  b_70 {
+    %v_71 = bitcast %v_67: I64
+    %v_72 = cmp_eq %v_71, 0: I32
+    %v_73 = select %v_72, 0, 1: I64
+    jmp b_74
   }
 
-  b_3 {
-    %v_4 = cmp_ige %count, 2: I32
-    je %v_4, b_5, b_6
+  b_74 {
+    %v_75 = shl %v_73, 1: I64
+    %v_76 = add %v_66, %v_75: I64
+    %v_77 = sext %v_76: I32
+    ret %v_77
   }
 
-  b_7 {
-    ret 
+  b_59 {
+    jmp b_78
   }
 
-  b_2 {
-    %v_8 = cmp_ige %count, 16: I32
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
-    jmp b_11
-  }
-
-  b_9 {
-    %v_12 = load %from, 16: i8x16
-    %v_13 = sub %count, 16: I64
-    %v_14 = add %from, %v_13: Ptr
-    %v_15 = load %v_14, 16: i8x16
-    store %to, %v_12, 16
-    %v_16 = add %to, %v_13: Ptr
-    store %v_16, %v_15, 16
-    jmp b_7
-  }
-
-  b_11 {
-    jmp b_17
-  }
-
-  b_17 {
-    %v_18 = load %from, 8: I64
-    %v_19 = sub %count, 8: I64
-    %v_20 = add %from, %v_19: Ptr
-    %v_21 = load %v_20, 8: I64
-    store %to, %v_18, 8
-    %v_22 = add %to, %v_19: Ptr
-    store %v_22, %v_21, 8
-    jmp b_7
-  }
-
-  b_6 {
-    %v_23 = cmp_ige %count, 1: I32
-    je %v_23, b_24, b_7
-  }
-
-  b_5 {
-    %v_25 = cmp_ige %count, 4: I32
-    je %v_25, b_26, b_27
-  }
-
-  b_27 {
-    %v_28 = load %from, 2: I32
-    %v_29 = sub %count, 2: I64
-    %v_30 = add %from, %v_29: Ptr
-    %v_31 = load %v_30, 2: I32
-    store %to, %v_28, 2
-    %v_32 = add %to, %v_29: Ptr
-    store %v_32, %v_31, 2
-    jmp b_7
-  }
-
-  b_26 {
-    %v_33 = load %from, 4: I32
-    %v_34 = sub %count, 4: I64
-    %v_35 = add %from, %v_34: Ptr
-    %v_36 = load %v_35, 4: I32
-    store %to, %v_33, 4
-    %v_37 = add %to, %v_34: Ptr
-    store %v_37, %v_36, 4
-    jmp b_7
-  }
-
-  b_24 {
-    %v_38 = load %from, 1: I32
-    store %to, %v_38, 1
-    jmp b_7
+  b_78 {
+    %v_79 = load %v_53, 16: i8x16
+    store %v_54, %v_79, 16
+    jmp join
   }
 }
 

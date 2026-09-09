@@ -139,13 +139,39 @@ struct IntFacts {
  *  - **`Bool`**, one unsigned bit. It is a declared enum in this stage rather than a type kind, and
  *    the three connectives are `Bitwise(Bool)`'s members, so the folder has to have a width for it.
  *
- * Nothing for a **target-answered** width - `Size`, `USize`, `CodeUnit`. How wide one of those is is
- * the representation layer's question and `optimizeProgram` runs once per program rather than once
- * per target, so folding one here would put a target's answer into IR that is meant not to have one.
- * What that costs is nothing: `optimizeLowerFunction` folds the same arithmetic one tier down, where
- * `narrowWidthOf` has already turned the width into a number.
+ * Nothing for a **target-answered** width - `Size`, `USize`, `CodeUnit` - because there is no single
+ * width to compute one at. `foldableIntWidths` below is what a caller that is willing to do the work
+ * asks instead; this stays the reader for everything that wants one number, and every pass outside
+ * the folder is one of those.
  */
 Maybe<IntFacts> foldableInt(OptContext& opt, DeclPtr<mir::Type> type);
+
+/*
+ * The two widths a type may be computed at, for the one caller willing to compute at both.
+ *
+ * A type that states its own width answers it twice, and that is what makes the rule one rule rather
+ * than two. A **target-answered** one - `Size`, `USize`, `CodeUnit` - answers the width the language
+ * guarantees and the widest it may turn out to be; `Folder::foldAtWidths` runs the whole fold at
+ * each and writes the answer down only where the two agree, which is the only form in which a
+ * number folded here is a number on every target.
+ *
+ * **Agreement rather than range.** The obvious weaker rule - compute at the guaranteed width and
+ * check that the answer is one the type holds - is what `resolve_mir/fold.cpp` had, and it
+ * miscompiled: `not (0 :: USize)` is `0xffffffff` at thirty-two bits, which a `USize` holds
+ * everywhere, and is `0xffffffffffffffff` on the target this compiler emits for. `neg` of an
+ * unsigned, a `sub` below zero and a `shl` that carries past the guaranteed width are the same hole.
+ * What agreement costs is those cases' fold and nothing else: a value that came from source already
+ * holds at the guaranteed width (`mir::integerHolds`), and every operation that stays inside it
+ * answers the same number at both.
+ */
+struct IntWidths {
+    IntFacts narrow;
+    U8 wide = 0;
+
+    bool differ() const { return wide != narrow.bits; }
+};
+
+Maybe<IntWidths> foldableIntWidths(OptContext& opt, DeclPtr<mir::Type> type);
 
 // The float width, 32 or 64, or nothing for anything else. No `IntFacts` equivalent, because a float
 // has none of the questions an integer has: no refinement, no register wider than the type, and the

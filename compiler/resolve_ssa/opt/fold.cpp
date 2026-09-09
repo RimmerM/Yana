@@ -85,6 +85,22 @@ Maybe<IntFacts> foldableInt(OptContext& opt, DeclPtr<mir::Type> type) {
     return Just(IntFacts { integer.bits, integer.isSigned });
 }
 
+Maybe<IntWidths> foldableIntWidths(OptContext& opt, DeclPtr<mir::Type> type) {
+    // Everything that states its own width answers it twice, which is what makes a caller of this
+    // one walk rather than two - see the declaration.
+    if(auto fixed = foldableInt(opt, type)) return Just(IntWidths { fixed.unwrap(), fixed.unwrap().bits });
+
+    if(!type || opt.decl[type]->kind != mir::Type::Int) return Nothing();
+    auto& integer = *(mir::IntType*)opt.decl[type];
+    if(!integer.isTargetWidth()) return Nothing();
+
+    auto narrow = U8(integer.minBits());
+    auto wide = U8(integer.maxBits());
+    if(narrow == 0 || wide > 64 || narrow > wide) return Nothing();
+
+    return Just(IntWidths { IntFacts { narrow, integer.isSigned }, wide });
+}
+
 Maybe<U8> foldableFloat(OptContext& opt, DeclPtr<mir::Type> type) {
     if(!type || opt.decl[type]->kind != mir::Type::Float) return Nothing();
     return Just(((mir::FloatType*)opt.decl[type])->bits);
@@ -149,8 +165,93 @@ struct Folder {
     OptContext& opt;
     Inst& inst;
 
+    /*
+     * The width every **target-answered** type is read at inside the run in progress, or zero
+     * outside one - see `foldAtWidths`, which is the only thing that sets it.
+     *
+     * A field rather than an argument because the width is asked for in more places than the rule
+     * being run is handed: a bit count and a byte reversal ask it of their *operand's* type, and a
+     * conversion asks it of the source. One of those reading `minBits` while the run computed at
+     * `maxBits` is a number that belongs to neither target, so all of them go through `factsOf`.
+     */
+    U8 targetBits = 0;
+
+    // Whether this is one of the two trial runs, which write nothing into the IR: `constant` records
+    // the number it was going to make and answers with a marker instead.
+    bool trial = false;
+    Maybe<U64> trialNumber;
+
     Value* constant(DeclPtr<mir::Type> type, U64 value) {
+        if(trial) {
+            trialNumber = Just(value);
+            return opt.base[inst.results.get(opt.base, 0)];
+        }
+
         return makeConstant(opt, inst, type, value);
+    }
+
+    /*
+     * The width to compute a type at, inside whichever run is in progress.
+     *
+     * `foldableInt` for everything that states its own width, and the run's own width for a
+     * target-answered one. Every rule in this file asks through here rather than through
+     * `foldableInt` directly, which is what makes the two runs below runs of the *same* fold.
+     */
+    Maybe<IntFacts> factsOf(DeclPtr<mir::Type> type) {
+        if(auto fixed = foldableInt(opt, type)) return fixed;
+        if(!targetBits) return Nothing();
+
+        auto widths = foldableIntWidths(opt, type);
+        if(!widths) return Nothing();
+
+        return Just(IntFacts { targetBits, widths.unwrap().narrow.isSigned });
+    }
+
+    /*
+     * One rule, run at each width its result type may have, and answered only where the two agree.
+     *
+     * A type that states its own width runs once, and every fold in this file that ever fired still
+     * fires exactly as it did. A **target-answered** one runs twice with nothing written down, and
+     * the two answers have to be the same one: the same existing value, or the same number. See
+     * `IntWidths` in `pass.h`, where what "the same" buys and what it costs are set out.
+     *
+     * The trial runs answer a *marker* where they would have made a constant - the instruction's own
+     * result, which is a value no rule can otherwise return - so that "both made a number" and "both
+     * answered the same operand" are one pointer comparison plus the numbers beside it.
+     */
+    template<class Rule> Value* foldAtWidths(Rule&& rule, DeclPtr<mir::Type> type) {
+        auto widths = foldableIntWidths(opt, type);
+        if(!widths) return nullptr;
+
+        auto narrow = widths.unwrap().narrow;
+        if(!widths.unwrap().differ()) return rule(narrow);
+
+        auto wide = IntFacts { widths.unwrap().wide, narrow.isSigned };
+
+        trial = true;
+
+        targetBits = narrow.bits;
+        trialNumber = Nothing();
+        auto first = rule(narrow);
+        auto firstNumber = trialNumber;
+
+        targetBits = wide.bits;
+        trialNumber = Nothing();
+        auto second = rule(wide);
+        auto secondNumber = trialNumber;
+
+        trial = false;
+        targetBits = 0;
+
+        if(!first || first != second) return nullptr;
+        if(bool(firstNumber) != bool(secondNumber)) return nullptr;
+        if(firstNumber && firstNumber.unwrap() != secondNumber.unwrap()) return nullptr;
+
+        targetBits = narrow.bits;
+        auto folded = rule(narrow);
+        targetBits = 0;
+
+        return folded;
     }
 
     DeclPtr<mir::Type> resultType() { return opt.base[inst.results.get(opt.base, 0)]->type(); }
@@ -330,8 +431,19 @@ struct Folder {
          * That is what makes `compare(a, b) == LT` fold, which is where every default `Ord` writes
          * ends up once its instance has been selected.
          */
-        auto facts = foldableInt(opt, operandType);
-        auto isSigned = facts && facts.unwrap().isSigned;
+        /*
+         * `foldableIntWidths` rather than `factsOf`, because what a comparison needs from the type
+         * is its **signedness** and not a width to compute at.
+         *
+         * The ordering of two constants is the same on every target: each already holds at the
+         * guaranteed width, `constantValueOf` hands both back extended to sixty-four bits by that
+         * type's own sign rule, and comparing those two patterns is comparing the two numbers. So
+         * this is one of the folds a target-answered width needs no trial run for - and asking
+         * `factsOf` outside one would have answered nothing about the sign and read a negative
+         * `Size` as a large positive one.
+         */
+        auto facts = foldableIntWidths(opt, operandType);
+        auto isSigned = facts && facts.unwrap().narrow.isSigned;
 
         // The select rule ahead of the both-constants read, because its operand is a select rather
         // than a constant and the read below would end the walk before it was reached.
@@ -727,7 +839,7 @@ struct Folder {
                 // The operand's own bits and not the register's - see above. `foldableInt` is asked of
                 // the *operand* rather than of the result, which is where the width lives: all three
                 // answer a small number that is in range of every type they are declared at.
-                auto operandFacts = foldableInt(opt, typeOf(unary.value));
+                auto operandFacts = factsOf(typeOf(unary.value));
                 if(!operandFacts) return nullptr;
 
                 auto bits = U32(operandFacts.unwrap().bits);
@@ -760,7 +872,7 @@ struct Folder {
              * requires the operand to be a constant at all.
              */
             case UnaryOp::ByteSwap: {
-                auto operandFacts = foldableInt(opt, typeOf(unary.value));
+                auto operandFacts = factsOf(typeOf(unary.value));
                 if(!operandFacts) return nullptr;
 
                 auto bits = U32(operandFacts.unwrap().bits);
@@ -783,7 +895,7 @@ struct Folder {
     // every rung of the `Bitcast` ladder answer this with the same number, which is what makes the
     // reinterpretation below a reading of bits rather than a conversion of them.
     U8 reinterpretedBits(DeclPtr<mir::Type> type) {
-        if(auto facts = foldableInt(opt, type)) return facts.unwrap().bits;
+        if(auto facts = factsOf(type)) return facts.unwrap().bits;
         if(auto width = foldableFloat(opt, type)) return width.unwrap();
 
         return 0;
@@ -886,7 +998,7 @@ struct Folder {
 
             // An integer source, read at its own width and sign - which is what decides whether the
             // bits `constantValueOf` handed back denote a negative number.
-            auto facts = foldableInt(opt, sourceType);
+            auto facts = factsOf(sourceType);
             if(!facts) return nullptr;
 
             auto source = constantValueOf(opt, operand(unary.value));
@@ -896,7 +1008,7 @@ struct Folder {
             return makeFloatConstant(opt, inst, resultType(), value);
         }
 
-        auto facts = foldableInt(opt, resultType());
+        auto facts = factsOf(resultType());
         if(!facts) return nullptr;
 
         if(!fromFloat) {
@@ -1048,10 +1160,8 @@ struct Folder {
                     }
                 }
 
-                auto facts = foldableInt(opt, resultType());
-                if(!facts) return nullptr;
-
-                return foldUnary(unary, facts.unwrap());
+                return foldAtWidths([&](const IntFacts& at) { return foldUnary(unary, at); },
+                                    resultType());
             }
 
             case Inst::Binary: {
@@ -1062,14 +1172,27 @@ struct Folder {
                 // would end the walk before the arithmetic below is reached.
                 if(foldableFloat(opt, resultType())) return foldFloatBinary(binary);
 
+                if(auto folded = foldAtWidths([&](const IntFacts& at) {
+                       return foldBinary(binary, at);
+                   }, resultType())) {
+                    return folded;
+                }
+
+                /*
+                 * Behind the table, which has first claim: an identity answers with an operand that
+                 * is already there where this makes an instruction, and `x * 1 * 4` should reach
+                 * `x * 4` by way of `x * 4` rather than by way of a second multiply.
+                 *
+                 * `foldableInt` rather than `foldAtWidths`, so a **target-answered** width is
+                 * declined here where the table above admits one. Reassociation makes an
+                 * *instruction* rather than answering a number, and the two trial runs are what the
+                 * width rule is built on - a rule that edits cannot be tried. What it costs is one
+                 * shape at a `Size`, and the arithmetic it would have folded is folded one tier
+                 * down where the width is a number.
+                 */
                 auto facts = foldableInt(opt, resultType());
                 if(!facts) return nullptr;
 
-                if(auto folded = foldBinary(binary, facts.unwrap())) return folded;
-
-                // Behind the table, which has first claim: an identity answers with an operand that
-                // is already there where this makes an instruction, and `x * 1 * 4` should reach
-                // `x * 4` by way of `x * 4` rather than by way of a second multiply.
                 return reassociate(binary, facts.unwrap());
             }
 
@@ -1102,10 +1225,18 @@ Maybe<U64> constantValueOf(OptContext& opt, Value* value) {
      * because `foldableInt` gives it a width and the connectives need it.
      */
     if(constant->kind == mir::Constant::Int) {
-        auto facts = foldableInt(opt, constant->type);
+        /*
+         * A **target-answered** width is read here where `foldableInt` declines it, and reading is
+         * not folding: a stored constant of one already holds at the guaranteed width, because a
+         * written literal has to be a value of the type on every target (`mir::integerHolds`) and a
+         * folded one was checked to be (`mir::integerAnswer`, and `Folder::foldAtWidths` at this
+         * tier). So the number is the same number on every target, and normalizing it at the
+         * guaranteed width leaves it alone rather than choosing a width for it.
+         */
+        auto facts = foldableIntWidths(opt, constant->type);
         if(!facts) return Nothing();
 
-        return Just(narrowToWidth(constant->asInt(), facts.unwrap()));
+        return Just(narrowToWidth(constant->asInt(), facts.unwrap().narrow));
     }
 
     if(constant->kind == mir::Constant::Enum) return Just(U64(constant->asConstructor()));
