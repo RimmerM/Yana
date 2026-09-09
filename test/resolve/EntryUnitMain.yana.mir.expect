@@ -1,0 +1,32 @@
+module ResolveTest
+
+let started: I32
+
+let & tally: I32 = 0
+
+fn seed() -> I32 {
+bb0:
+  %0: I32 = const 6
+  %1: I32 = const 7
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn main() -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global tally)
+  %1: I32 = read copy.trivial (global started)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global tally) take %2
+  return
+}
+
+fn main$() -> {} {
+bb0:
+  %0: I32 = call seed
+  write.init borrow.unique (global started) take %0
+  %2: {} = call main
+  return
+}
+
+entry main$

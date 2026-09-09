@@ -378,6 +378,26 @@ struct Containment {
                     if(kept.has(U32(i))) return false;
                 }
 
+                /*
+                 * And what the call handed back - J48, which is the obligation that moved here when
+                 * `escapes` stopped counting a return.
+                 *
+                 * A callee may answer with the address it was given: `valuesMut(&self)` hands back a
+                 * pointer into the storage, and a body that then stores that pointer has let this
+                 * allocation out without ever naming it again. The summary used to say so, at the
+                 * cost of every accessor in the library reporting its subject kept - which is a
+                 * price the *other* reader of the row could not pay. So the row says stores only and
+                 * the two readers follow the result themselves, which is what `opt/place.cpp` has
+                 * always done with its taint.
+                 *
+                 * `escapes` here is this same walk one level down, exactly as the `Load` arm above
+                 * uses it: a result nothing does anything with clears, and one that reaches a store
+                 * or a return refuses.
+                 */
+                for(Size i = 0; i < call.results.size(); i++) {
+                    if(escapes(*opt.base[call.results.get(opt.base, i)])) return false;
+                }
+
                 return true;
             }
 

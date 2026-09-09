@@ -8,16 +8,16 @@ main<complex>(): I32 {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 4, 8: Ptr
     %v_3 = alloca 12, 4: Ptr
-    store %v_2, 3, 4
+    %v_4 = imm 3: I64
+    store %v_2, %v_4, 4
     store %v_3, 7, 4
-    %v_4 = add %v_3, 4: Ptr
-    store %v_4, 8, 4
-    %v_5 = add %v_3, 8: Ptr
-    store %v_5, 9, 4
+    %v_5 = add %v_3, 4: Ptr
+    store %v_5, 8, 4
+    %v_6 = add %v_3, 8: Ptr
+    store %v_6, 9, 4
     store %v_1, %v_3, 8
-    %v_6 = add %v_1, 8: Ptr
-    %v_7 = load %v_2, 4: I64
-    store %v_6, %v_7, 4
+    %v_7 = add %v_1, 8: Ptr
+    store %v_7, %v_4, 4
     %v_8 = add %v_1, 12: Ptr
     store %v_8, 3, 4
     %v_9 = alloca 4, 8: Ptr
@@ -104,42 +104,36 @@ main<complex>(): I32 {
     %v_52 = phi [b_46, %v_51], [b_27, 0]: I32
     %v_53 = phi [b_46, %v_48], [b_27, 0]: I32
     %v_54 = call_complex allocateHeap, 12: Ptr
-    %v_55 = bitcast %v_54: I64
-    %v_56 = cmp_eq %v_55, 0: I32
-    je %v_56, b_26, b_57
-  }
-
-  b_57 {
-    %v_58 = alloca 4, 8: Ptr
-    %v_59 = imm 1073741827: I64
-    store %v_58, %v_59, 4
+    %v_55 = alloca 4, 8: Ptr
+    %v_56 = imm 3: I64
+    store %v_55, %v_56, 4
     store %v_54, 2, 4
-    %v_60 = add %v_54, 4: Ptr
-    store %v_60, 4, 4
-    %v_61 = add %v_54, 8: Ptr
-    store %v_61, 6, 4
+    %v_57 = add %v_54, 4: Ptr
+    store %v_57, 4, 4
+    %v_58 = add %v_54, 8: Ptr
+    store %v_58, 6, 4
     store %v_32, %v_54, 8
-    %v_62 = add %v_32, 8: Ptr
-    store %v_62, %v_59, 4
-    %v_63 = add %v_32, 12: Ptr
-    store %v_63, 3, 4
-    %v_64 = imulhi %v_53, 1431655766: I32
-    %v_65 = shr %v_64, 31: I32
-    %v_66 = add %v_64, %v_65: I32
-    %v_67 = imul %v_66, 3: I32
-    %v_68 = sub %v_53, %v_67: I32
-    %v_69 = load %v_32, 8: Ptr
-    %v_70 = sext %v_68: I64
-    %v_71 = cmp_ge %v_70, 3: I32
-    je %v_71, b_26, b_72
+    %v_59 = add %v_32, 8: Ptr
+    store %v_59, %v_56, 4
+    %v_60 = add %v_32, 12: Ptr
+    store %v_60, 3, 4
+    %v_61 = imulhi %v_53, 1431655766: I32
+    %v_62 = shr %v_61, 31: I32
+    %v_63 = add %v_61, %v_62: I32
+    %v_64 = imul %v_63, 3: I32
+    %v_65 = sub %v_53, %v_64: I32
+    %v_66 = load %v_32, 8: Ptr
+    %v_67 = sext %v_65: I64
+    %v_68 = cmp_ge %v_67, 3: I32
+    je %v_68, b_26, b_69
   }
 
-  b_72 {
-    %v_73 = shl %v_70, 2: I64
-    %v_74 = add %v_69, %v_73: Ptr
-    %v_75 = loads %v_74, 4: I32
+  b_69 {
+    %v_70 = shl %v_67, 2: I64
+    %v_71 = add %v_66, %v_70: Ptr
+    %v_72 = loads %v_71, 4: I32
     call_complex Array(a).reclaim(I32), %v_32
-    %v_51 = add %v_52, %v_75: I32
+    %v_51 = add %v_52, %v_72: I32
     %v_48 = add %v_53, 1: I32
     jmp b_46
   }

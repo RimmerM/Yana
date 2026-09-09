@@ -1,0 +1,36 @@
+module ResolveTest
+
+let started: I32
+
+let & tally: I32 = 0
+
+fn seed() -> I32 {
+bb0:
+  %0: I32 trivial = const 6
+  %1: I32 trivial = const 7
+  %2: I32 trivial = mul inspect %0 inspect %1
+  return consume %2
+}
+
+fn main() -> {} {
+bb0:
+  %0: %I32 address = global.addr tally
+  %1: I32 trivial = load inspect %0
+  %2: %I32 address = global.addr started
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = add inspect %1 inspect %3
+  %5: %I32 address = global.addr tally
+  store inspect %5 consume %4
+  return
+}
+
+fn main$() -> {} {
+bb0:
+  %0: I32 trivial = call seed
+  %1: %I32 address = global.addr started
+  store inspect %1 consume %0
+  call main
+  return
+}
+
+entry main$

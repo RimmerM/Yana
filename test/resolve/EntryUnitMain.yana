@@ -1,0 +1,22 @@
+-- A program whose top level has something to run and whose `main` answers nothing.
+--
+-- The two together are what the synthesized entry is: `main$` runs the module's statements in written
+-- order and then calls `main`, and its own result is whatever `main` answered. It answered "the call's
+-- result where there was a call", which for a `fn main():` is a value out of a function whose
+-- signature says there is none - so verifyBody refused every program of this shape, and a global
+-- written `-(21)` was how that was found rather than being what it was about.
+--
+-- Not run: what is asserted is that the entry is built and what it returns, which is .mir.expect's.
+
+import Native
+
+fn seed() -> Int = 6 * 7
+
+-- A call, so the initializer is code rather than a constant - which is the whole of what puts a
+-- top-level sequence in this program.
+let started = seed()
+
+let &tally = 0
+
+fn main():
+    tally = tally + started

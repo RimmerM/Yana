@@ -1072,13 +1072,18 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint, bool* no
          * The lexer produces the magnitude alone, so folding the sign in here is what makes
          * `I64`'s own minimum expressible: negating it after the fact is signed overflow, and
          * `resolve/const.cpp` records that having been the bug on the other side.
+         *
+         * Everything else the operator can be reaches `resolvePrefixConstant`, which is the same
+         * rule the infix and call forms follow - `-(7 * 3)` is a negation of a constant, and the
+         * only thing that made it not one was that the sign had nothing adjacent to fold into.
          */
         case ast::Expr::Prefix: {
             if(isNegation(context, parse, expr)) {
                 return resolveLiteral(parse[expr.prefix]->on, hint, true);
             }
 
-            return notOne();
+            auto folded = resolvePrefixConstant(expr, hint);
+            return folded.isSet() ? folded : notOne();
         }
         default:
             return notOne();
@@ -1387,6 +1392,41 @@ Constant Resolver::resolveCallConstant(ast::Expr& expr, DeclPtr<Type> hint) {
     }
 
     return foldConstantOperator(set, values.pointer(), values.size(), expr.source);
+}
+
+/*
+ * `-(7 * 3)`, `-limit` - a prefix operator over a constant, once the sign has failed to fold into a
+ * literal.
+ *
+ * The arm above this catches `-1`, which is a *written* negative number rather than an operation on
+ * a positive one, and it catches only that: `resolvePrefix` folds the sign into whatever is
+ * syntactically adjacent, and a parenthesis or a name is not. What was left over then reached no
+ * constant form at all - so a global written `-(21)` became a dynamic initializer while `-21` was a
+ * constant, which is a difference in the parentheses and in nothing a program can see.
+ *
+ * `resolveCallConstant`'s body at one operand and through the prefix's own spelling, on
+ * `doc/spec/overloading.md`'s "an operator is a call": the operand folds first, the name reaches its
+ * set at arity one exactly as `resolvePrefix` finds it, and `foldConstantOperator` decides whether
+ * the instance serving it there is one of the compiler's. `!` is `op.def`'s `truthNot` and has no
+ * class, so it declines there rather than needing a test here.
+ */
+Constant Resolver::resolvePrefixConstant(ast::Expr& expr, DeclPtr<Type> hint) {
+    auto& written = *parse[expr.prefix];
+    if(written.op.kind != ast::Expr::Var) return Constant();
+
+    // The hint travels down only where it is a number, which is `resolveInfixConstant`'s rule and
+    // is what settles `-(4 * 1024) :: I32`'s width at the operand rather than after it.
+    auto numeric = hint && (decl()[hint]->kind == Type::Int || decl()[hint]->kind == Type::Float);
+
+    auto notConstant = true;
+    auto value = resolveConstant(written.on, numeric ? hint : nullptr, &notConstant);
+    if(!value.isSet()) return Constant();
+
+    OverloadSet set;
+    findOverloads(context, program, here(), written.op.var, 1, written.op.source, set);
+    if(set.isEmpty()) return Constant();
+
+    return foldConstantOperator(set, &value, 1, expr.source);
 }
 
 /*

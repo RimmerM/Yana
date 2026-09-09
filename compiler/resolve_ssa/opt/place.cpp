@@ -75,18 +75,23 @@ namespace ssa {
  * loan rule is the whole of that case, and it is the one thing this pass gets from being in the
  * ownership stage rather than the shipping one, where the same question costs an 800-line dataflow.
  *
- * **And the request may not be in a loop.** One frame slot is per activation and a heap request is
- * per execution, so a literal built in a loop and kept past the iteration would be one buffer
- * behind two live descriptors. **The shipping stage does not have this rule and miscompiles for
- * it** - a loop that keeps one iteration's array in `prev` while the next is built reads the new one
- * back through the old descriptor (`test/bench/findings.md` §91.5), which is what says the rule is
- * load-bearing rather than cautious. The rules above do not catch that on their own: writing the array
- * into another frame slot is admitted, and it is admitted for good reason - moving a value between
- * two of this frame's slots is not leaving the frame. What the loop test adds is that the two
- * lifetimes are the same one. It costs the literal built inside a loop, which is the obvious next
- * relaxation and wants a liveness argument - the descriptor dies before the back edge - rather than
- * a stronger escape rule. A *dynamic* frame allocation needs that and a release point on top, since
- * one released at frame exit grows the frame per iteration; the two are not one relaxation.
+ * **And no two lifetimes of the bytes may be live at once.** One frame slot is per activation and a
+ * heap request is per execution, so a literal built in a loop and kept past the iteration would be
+ * one buffer behind two live descriptors. **The shipping stage does not have this rule and
+ * miscompiles for it** - a loop that keeps one iteration's array in `prev` while the next is built
+ * reads the new one back through the old descriptor (`test/bench/findings.md` §91.5), which is what
+ * says the rule is load-bearing rather than cautious. The rules above do not catch that on their
+ * own: writing the array into another frame slot is admitted, and it is admitted for good reason -
+ * moving a value between two of this frame's slots is not leaving the frame. What this adds is that
+ * the two lifetimes are the same one.
+ *
+ * It was "the request may not be in a loop" until J46 step 5, and it is now the liveness argument
+ * that note asked for - `oneAtATime`, which admits a request inside a loop when the previous
+ * iteration's descriptor is gone before the next one is built. What it buys is the common shape,
+ * `for x in xs: let &row = [1, 2, 3]`; what it still refuses is §91.5's, and the two are told apart
+ * by whether the slot the descriptor was written into is read before it is written on the way round.
+ * A *dynamic* frame allocation needs a release point on top wherever it is in a loop, since one
+ * released at frame exit grows the frame per iteration; that is why `sized` still asks for a number.
  *
  * ## What it is worth
  *
@@ -144,7 +149,17 @@ struct RunPlacement {
     IndexSet carries;
     IndexSet within;
 
+    // The same allocations as a list, because the loop rule walks them and a set answers only
+    // membership. Filled beside `within` and cleared with it.
+    Array<SsaPtr<Value>> holders;
+
     Array<SsaPtr<Value>> pending;
+
+    // One allocation's two events, over instruction ids - see `classifyStorage`. Rebuilt per
+    // allocation, and `live` per loop beside them.
+    IndexSet reads;
+    IndexSet kills;
+    IndexSet live;
 
     // The `Run` aggregates the buffer reached, and the one thing the walk collects rather than
     // clears - see the `Aggregate` arm.
@@ -300,6 +315,7 @@ struct RunPlacement {
 
                 if(!within[root->id.index]) {
                     within.set(root->id.index, true);
+                    holders.push(root - base());
                     reread(*root);
                 }
 
@@ -351,14 +367,17 @@ struct RunPlacement {
     }
 
     /*
-     * A call argument, and which of the two summary rows answers it.
+     * A call argument, and the one row that answers it.
      *
-     * `escapes` follows the incoming pointer of a `%T` parameter and `retains` follows what a
-     * position reaches as a value - `mir::Summary`, where the pair is kept apart and why. The
-     * buffer arrives at a call as one or the other and never as both: as itself it is a pointer,
-     * and inside a descriptor it is a value the callee would have to load out. Asking the wrong row
-     * is not conservative in either direction, which is why this is a type test rather than a
-     * single row.
+     * `escapes` is the whole answer since J48. It means "a value or an address derived from this
+     * position was stored somewhere outliving the call", which is the question this walk asks
+     * whether the buffer arrives as the pointer itself or inside a descriptor - so the type test
+     * that used to pick between two rows here is gone with the second row's reason for being.
+     *
+     * That second row was `retains`, and it was the wrong one: it counts what a call hands *back*,
+     * so every accessor in the library published its subject and the fixpoint carried that up to
+     * `String.appendUnits`. The handed-back half is this walk's own to follow, and it does, below.
+     * `findings.md` §98 is the trace.
      *
      * An unfilled row reads back as every argument, so a callee nothing analysed refuses here
      * without a special case.
@@ -372,10 +391,7 @@ struct RunPlacement {
          */
         if(call.through != mir::CallThrough::Declaration || !call.callee) return false;
 
-        auto& summary = opt.decl[call.callee]->summary;
-        auto pointer = pointeeOf(opt, value.occurrence.type) != nullptr;
-        auto positions = pointer ? summary.escapes() : summary.retains();
-        auto kept = positions.get(mir::ArgumentSet::all());
+        auto kept = opt.decl[call.callee]->summary.escapes().get(mir::ArgumentSet::all());
 
         Size index = 0;
         for(auto used: call.arguments.contents(base())) {
@@ -560,13 +576,168 @@ struct RunPlacement {
         return true;
     }
 
-    // Whether the request runs at most once per activation - the loop test, argued in the file
-    // comment. Asked of the block rather than of the instruction, since a loop holds blocks.
-    bool runsOnce(Inst& call) {
-        auto& loops = loopsOf(opt);
-        auto block = base()[call.block]->index.index;
+    /*
+     * The instructions that read what this allocation holds, and the ones that replace the whole of
+     * it - the two events the liveness below is over.
+     *
+     * Collected over the allocation's **address tree** and not over its use list, for `reread`'s
+     * reason: a body does not load a record out of a slot, it takes the address of the field it
+     * wants and loads that.
+     *
+     * Everything that is not a whole-slot store is a read, which is the direction this may not be
+     * wrong in: a write through a projection leaves the rest of the slot as the previous iteration
+     * left it, so it ends nothing, and a `Load` counts even where what it produces is a borrow used
+     * three blocks later - the load dominates every use of that borrow, so marking the load is
+     * marking a point no later than the read it stands for.
+     */
+    void classifyStorage(Value& address, Value& allocation) {
+        for(auto userPointer: address.uses(base())) {
+            auto& user = *base()[userPointer];
 
-        for(auto& loop: loops) if(loop.contains[block]) return false;
+            switch(user.kind) {
+                case Inst::FieldAddress:
+                case Inst::ElementAddress:
+                case Inst::Unary:
+                    for(Size i = 0; i < user.results.size(); i++) {
+                        classifyStorage(*base()[user.results.get(base(), i)], allocation);
+                    }
+
+                    break;
+
+                case Inst::Store:
+                    if(base()[((InstStore&)user).address.value()] == &allocation) {
+                        kills.set(user.id.index, true);
+                        break;
+                    }
+
+                    reads.set(user.id.index, true);
+                    break;
+
+                default:
+                    reads.set(user.id.index, true);
+                    break;
+            }
+        }
+    }
+
+    /*
+     * Whether what this allocation holds is still read when control comes back round to the header.
+     *
+     * A block answers for itself where it has an event: a read before a kill is live, a kill first
+     * is dead. A block with neither is whatever its successors **inside the loop** say - an exit
+     * successor contributes nothing, because the buffer is not written again once the loop is over
+     * and one descriptor over bytes nobody rewrites is not the hazard.
+     *
+     * The fixpoint only ever turns a block on, so the walk is monotone and stops.
+     */
+    bool liveAtHeader(const Loop& loop) {
+        auto count = U32(opt.body->blocks.size());
+        live.reset(count);
+
+        auto again = true;
+        while(again) {
+            again = false;
+
+            for(U32 i = 0; i < count; i++) {
+                if(!loop.contains[i] || live[i]) continue;
+
+                auto block = opt.body->block(base(), BlockId(i));
+                if(!block || block->deleted) continue;
+
+                auto answer = false;
+                auto settled = false;
+
+                for(auto pointer: block->instructions(base())) {
+                    auto id = base()[pointer]->id.index;
+                    if(reads[id]) { answer = true; settled = true; break; }
+                    if(kills[id]) { settled = true; break; }
+                }
+
+                if(!settled) {
+                    forEachSuccessor(base(), *block, [&](U32 target) {
+                        if(loop.contains[target] && live[target]) answer = true;
+                    });
+                }
+
+                if(!answer) continue;
+
+                live.set(i, true);
+                again = true;
+            }
+        }
+
+        return live[loop.header];
+    }
+
+    // Whether a value carrying the buffer travels one of this loop's back edges. A block argument at
+    // the header holds the *previous* iteration's value at the top of the next one, which is the
+    // same two-live-descriptors hazard said about a value instead of about a slot.
+    bool carriedBack(const Loop& loop) {
+        auto count = U32(opt.body->blocks.size());
+        auto carried = false;
+
+        for(U32 i = 0; i < count && !carried; i++) {
+            if(!loop.contains[i]) continue;
+
+            auto block = opt.body->block(base(), BlockId(i));
+            if(!block || block->deleted) continue;
+
+            auto last = block->terminator(base());
+            if(!last) continue;
+
+            forEachEdge(base(), *last, [&](Edge& edge) {
+                if(!edge.target || base()[edge.target]->index.index != loop.header) return;
+
+                for(auto used: edge.arguments.contents(base())) {
+                    if(used.isSet() && carries[base()[used.value()]->id.index]) carried = true;
+                }
+            });
+        }
+
+        return carried;
+    }
+
+    /*
+     * Whether at most one lifetime of these bytes is ever live at a time - the loop rule, argued in
+     * the file comment, and the relaxation J46 step 5 is.
+     *
+     * A request outside every loop runs at most once per activation and the question does not
+     * arise. A request **inside** one runs per iteration over a slot that is per activation, so what
+     * has to hold is that the previous iteration's descriptor is gone before the next one is built:
+     * nothing the walk tainted may travel the back edge as a value, and nothing it wrote into frame
+     * storage may still be read when control arrives at the header.
+     *
+     * `test/bench/findings.md` §91.5 is what says the rule is load-bearing rather than cautious -
+     * the shipping stage has no rule here and miscompiles `prev = cur` in a loop for it, reading the
+     * new iteration's array back through the old descriptor. That program fails exactly one of the
+     * two conditions: `prev`'s slot is read at the top of an iteration before anything stores to it,
+     * so it is live at the header. `for x in xs: let &row = [1, 2, 3]` passes both - the row's slot
+     * is stored before it is read and its drop runs before the back edge - and is the shape this is
+     * for.
+     *
+     * Asked of every loop containing the request rather than of the innermost one, because an outer
+     * iteration re-runs the inner loop and a read out in the outer body is one the inner walk never
+     * looks at.
+     */
+    bool oneAtATime(Inst& request) {
+        auto& loops = loopsOf(opt);
+        auto block = base()[request.block]->index.index;
+
+        for(auto& loop: loops) {
+            if(!loop.contains[block]) continue;
+            if(carriedBack(loop)) return false;
+
+            for(auto pointer: holders) {
+                reads.reset(U32(opt.body->insts.size()));
+                kills.reset(U32(opt.body->insts.size()));
+
+                auto allocation = base()[pointer];
+                classifyStorage(*allocation, *allocation);
+
+                if(liveAtHeader(loop)) return false;
+            }
+        }
+
         return true;
     }
 
@@ -662,11 +833,16 @@ struct RunPlacement {
     // every request whose bytes this frame cannot keep.
     bool consider(InstRunSlots& slots) {
         if(slots.placed || !slots.results.size() || !slots.element) return false;
-        if(!sized(slots) || !runsOnce(slots)) return false;
+        if(!sized(slots)) return false;
 
         descriptors.clear();
         refusals.clear();
+        holders.clear();
         if(!inFrame(*base()[slots.results.get(base(), 0)])) return false;
+
+        // After the walk and not before it, which is the difference J46 step 5 made: the loop rule
+        // is now about what the walk found rather than about where the request stands.
+        if(!oneAtATime(slots)) return false;
 
         auto made = soleDescriptor();
         if(!made) return false;

@@ -254,11 +254,11 @@ main<complex>(): I64 {
   b_40 {
     %v_41 = bitcast 0: Ptr
     %v_42 = alloca 4, 8: Ptr
-    store %v_42, 0, 4
+    %v_43 = imm 0: I64
+    store %v_42, %v_43, 4
     store %v_1, %v_41, 8
-    %v_43 = add %v_1, 8: Ptr
-    %v_44 = load %v_42, 4: I64
-    store %v_43, %v_44, 4
+    %v_44 = add %v_1, 8: Ptr
+    store %v_44, %v_43, 4
     %v_45 = add %v_1, 12: Ptr
     store %v_45, 0, 4
     %liveHandles = global @liveHandles: Ptr
@@ -314,15 +314,15 @@ main<complex>(): I64 {
   b_75 {
     %v_76 = bitcast 0: Ptr
     %v_77 = alloca 4, 8: Ptr
-    store %v_77, 0, 4
+    %v_78 = imm 0: I64
+    store %v_77, %v_78, 4
     store %v_3, %v_76, 8
-    %v_78 = add %v_3, 8: Ptr
-    %v_79 = load %v_77, 4: I64
-    store %v_78, %v_79, 4
+    %v_79 = add %v_3, 8: Ptr
+    store %v_79, %v_78, 4
     %v_80 = add %v_3, 12: Ptr
     store %v_80, 0, 4
     %v_81 = imm 1: I64
-    %v_82 = load %v_78, 4: I64
+    %v_82 = load %v_79, 4: I64
     %v_83 = and %v_82, 1073741823: I64
     %v_84 = cast %v_83: I32
     %v_85 = cast %v_84: I64
@@ -488,7 +488,7 @@ main<complex>(): I64 {
 
   b_88 {
     call_complex growArray(I32), %v_3, %v_81
-    %v_173 = load %v_78, 4: I64
+    %v_173 = load %v_79, 4: I64
     %v_174 = and %v_173, 1073741823: I64
     %v_175 = cast %v_174: I32
     %v_169 = cast %v_175: I64

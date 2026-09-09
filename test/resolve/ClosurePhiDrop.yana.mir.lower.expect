@@ -17,20 +17,15 @@ main<complex>(): I32 {
     %v_2 = alloca 8, 8: Ptr
     store %v_1, 3, 4
     store %v_2, %v_1, 8
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = add 10, %v_3: I32
     call_complex Guard.drop, %v_1
-    %v_5 = alloca 4, 4: Ptr
-    %v_6 = alloca 8, 8: Ptr
-    store %v_5, 5, 4
-    store %v_6, %v_5, 8
-    %v_7 = loads %v_5, 4: I32
-    %v_8 = imul 10, %v_7: I32
-    call_complex Guard.drop, %v_5
-    %v_9 = add %v_4, %v_8: I32
-    %v_10 = loads @dropCalls, 4: I32
-    %v_11 = add %v_9, %v_10: I32
-    ret %v_11
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 8, 8: Ptr
+    store %v_3, 5, 4
+    store %v_4, %v_3, 8
+    call_complex Guard.drop, %v_3
+    %v_5 = loads @dropCalls, 4: I32
+    %v_6 = add 63, %v_5: I32
+    ret %v_6
   }
 }
 

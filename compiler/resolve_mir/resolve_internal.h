@@ -1384,6 +1384,7 @@ struct Resolver {
      */
     Constant resolveInfixConstant(ast::Expr& expr, DeclPtr<Type> hint);
     Constant resolveCallConstant(ast::Expr& expr, DeclPtr<Type> hint);
+    Constant resolvePrefixConstant(ast::Expr& expr, DeclPtr<Type> hint);
     Constant climbConstant(Chain& chain, Size& operandIndex, Size& operatorIndex,
                            U8 minimumPrecedence, DeclPtr<Type> hint);
     Constant foldConstantOperator(const OverloadSet& set, const Constant* args, Size count,

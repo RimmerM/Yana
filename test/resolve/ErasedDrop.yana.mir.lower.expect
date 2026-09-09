@@ -157,23 +157,23 @@ main<complex>(): I32 {
     %v_63 = add %v_62, 1: I64
     store @live, %v_63, 8
     %v_64 = alloca 12, 4: Ptr
-    store %v_61, 3, 4
+    %v_65 = imm 3: I64
+    store %v_61, %v_65, 4
     store %v_64, 1, 4
-    %v_65 = add %v_64, 4: Ptr
-    store %v_65, 2, 4
-    %v_66 = add %v_64, 8: Ptr
-    store %v_66, 3, 4
-    %v_67 = alloca 24, 8: Ptr
-    store %v_67, %v_64, 8
-    %v_68 = add %v_67, 8: Ptr
-    %v_69 = load %v_61, 4: I64
-    store %v_68, %v_69, 4
-    %v_70 = add %v_67, 12: Ptr
+    %v_66 = add %v_64, 4: Ptr
+    store %v_66, 2, 4
+    %v_67 = add %v_64, 8: Ptr
+    store %v_67, 3, 4
+    %v_68 = alloca 24, 8: Ptr
+    store %v_68, %v_64, 8
+    %v_69 = add %v_68, 8: Ptr
+    store %v_69, %v_65, 4
+    %v_70 = add %v_68, 12: Ptr
     store %v_70, 3, 4
-    %v_71 = add %v_67, 16: Ptr
+    %v_71 = add %v_68, 16: Ptr
     store %v_71, 11, 8
-    call_complex Holder.drop, %v_67
-    call_complex Array(a).reclaim(I32), %v_67
+    call_complex Holder.drop, %v_68
+    call_complex Array(a).reclaim(I32), %v_68
     %v_72 = loads @live, 8: I64
     %v_73 = cmp_neq %v_72, 0: I32
     je %v_73, b_74, b_75

@@ -445,6 +445,31 @@ YANA_KNOWN_ROLE( freeHeap,      Entity::Function, 1,   0,      0,      false,   
 YANA_KNOWN_ROLE( isHeapAddress, Entity::Function, 1,   0,      0,      false,   Presence::Optional )
 
 /*
+ * The two block moves, by name - `lib/Native/Memory.native.yana`.
+ *
+ * `blockCopy` above is the *operation* and these are the **ladders over it**, which is why naming
+ * the op was not enough: on a native build `copyMemory` is a body that reaches `blockCopy` only for
+ * the lengths a `rep movsb` pays back, so a caller of `copyMemory` sees a plain call and the shape
+ * is a frame down. `summary.cpp` needs the shape at the *caller's* site, because what a block move
+ * does to the escape question is decided by where its **destination** points and the destination is
+ * the caller's expression: `resize` copies into storage the allocator has just answered with, and
+ * `String.appendUnits` copies into its own subject's buffer. A row that could only say "argument 1's
+ * contents went somewhere" made every caller of either report its subject kept, which is the whole
+ * of what stood between a bounded interpolation and the frame - `findings.md` §98.
+ *
+ * Two rows and not one, because the two are different promises - non-overlapping against
+ * overlapping - and a reader that conflated them would be reading `moveMemory`'s guarantee off
+ * `copyMemory`'s name. Nothing here depends on the difference yet; the second row exists so that the
+ * one which does will not have to add it.
+ *
+ * `Optional`, and the JS build is why: there `copyMemory` is not a ladder at all but the declaration
+ * that claims `blockCopy` itself, so the operation arrives as a node and the caller's site already
+ * sees the destination. A build whose library declares no ladder simply has no row.
+ */
+YANA_KNOWN_ROLE( copyMemory,    Entity::Function, 3,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( moveMemory,    Entity::Function, 3,   0,      0,      false,   Presence::Optional )
+
+/*
  * The classes an operator dispatches through - `lib/Core/Core.yana`'s `Eq`, `Ord` and `Num`, and
  * `lib/Core/Bits.yana`'s `Bitwise`, `Integral` and `Truth`.
  *

@@ -9,31 +9,31 @@ main<complex>(): I32 {
     %v_5 = alloca 16, 8: Ptr
     %v_6 = alloca 16, 8: Ptr
     %v_7 = alloca 8, 4: Ptr
-    store %v_1, 2, 4
+    %v_8 = imm 2: I64
+    store %v_1, %v_8, 4
     store %v_7, 1, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, 2, 4
-    %v_9 = alloca 8, 4: Ptr
-    store %v_2, 2, 4
-    store %v_9, 3, 4
-    %v_10 = add %v_9, 4: Ptr
-    store %v_10, 4, 4
+    %v_9 = add %v_7, 4: Ptr
+    store %v_9, 2, 4
+    %v_10 = alloca 8, 4: Ptr
+    %v_11 = imm 2: I64
+    store %v_2, %v_11, 4
+    store %v_10, 3, 4
+    %v_12 = add %v_10, 4: Ptr
+    store %v_12, 4, 4
     store %v_3, %v_7, 8
-    %v_11 = add %v_3, 8: Ptr
-    %v_12 = load %v_1, 4: I64
-    store %v_11, %v_12, 4
-    %v_13 = add %v_3, 12: Ptr
-    store %v_13, 2, 4
-    %v_14 = add %v_3, 16: Ptr
-    store %v_14, %v_9, 8
-    %v_15 = add %v_3, 24: Ptr
-    %v_16 = load %v_2, 4: I64
-    store %v_15, %v_16, 4
+    %v_13 = add %v_3, 8: Ptr
+    store %v_13, %v_8, 4
+    %v_14 = add %v_3, 12: Ptr
+    store %v_14, 2, 4
+    %v_15 = add %v_3, 16: Ptr
+    store %v_15, %v_10, 8
+    %v_16 = add %v_3, 24: Ptr
+    store %v_16, %v_11, 4
     %v_17 = add %v_3, 28: Ptr
     store %v_17, 2, 4
     %v_18 = add %v_3, 32: Ptr
     store %v_18, 2, 4
-    %v_19 = load %v_13, 4: I32
+    %v_19 = load %v_14, 4: I32
     %v_20 = cast %v_19: I64
     %v_21 = sext %v_20: I32
     jmp b_22

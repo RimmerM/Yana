@@ -106,15 +106,15 @@ main<complex>(): I32 {
     %v_40 = bitcast 0: Ptr
     %v_41 = call_complex runSlots(CodeUnit), %v_40, 0: Ptr
     %v_42 = alloca 4, 8: Ptr
-    store %v_42, 1073741824, 4
+    %v_43 = imm 1073741824: I64
+    store %v_42, %v_43, 4
     store %v_2, %v_41, 8
-    %v_43 = add %v_2, 8: Ptr
-    %v_44 = load %v_42, 4: I64
-    store %v_43, %v_44, 4
+    %v_44 = add %v_2, 8: Ptr
+    store %v_44, %v_43, 4
     %v_45 = add %v_2, 12: Ptr
     store %v_45, 0, 4
     %v_46 = imm 1: I64
-    %v_47 = load %v_43, 4: I64
+    %v_47 = load %v_44, 4: I64
     %v_48 = and %v_47, 1073741823: I64
     %v_49 = cast %v_48: I32
     %v_50 = cast %v_49: I64
@@ -295,7 +295,7 @@ main<complex>(): I32 {
 
   b_53 {
     call_complex growArray(CodeUnit), %v_2, %v_46
-    %v_161 = load %v_43, 4: I64
+    %v_161 = load %v_44, 4: I64
     %v_162 = and %v_161, 1073741823: I64
     %v_163 = cast %v_162: I32
     %v_164 = cast %v_163: I64

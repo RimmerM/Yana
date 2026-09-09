@@ -1,0 +1,47 @@
+{-
+   The two loops the placement rule tells apart - `resolve_ssa/opt/place.cpp`'s `oneAtATime`, and
+   `test/bench/findings.md` §91.5, which is where the first of them came from.
+
+   # resolver: ownership
+
+   **Only this stage compiles it**, and that is the fixture rather than an exemption. `carried` below
+   is the program §91.5 records the *shipping* stage miscompiling: it places the literal inside the
+   loop with no liveness rule at all, so `prev` and `cur` end up over one buffer and the answer comes
+   out 104 instead of 74. A shared fixture would have to name one of the two numbers and would then
+   be asserting the bug on one side of it.
+
+   The rule is that no two lifetimes of the bytes may be live at once. `carried` fails it - `prev`'s
+   slot is read at the top of an iteration before anything writes it, so the previous iteration's
+   descriptor is still live when the next request runs - and its literal stays the allocator's.
+   `fresh` passes it - the row is written, read and dropped inside one iteration - and its literal is
+   frame storage. Which of the two happened is `.ssa.opt.expect`'s to show; what the answer asserts is
+   that both of them are *right*, which is the half a placement decision can get wrong silently.
+-}
+
+-- One iteration's array kept while the next is built. 74, and 104 is the shared-buffer answer.
+fn carried() -> Int:
+    let &prev = [0, 0, 0]
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < 4:
+        let &cur = [i + 1, i + 2, i + 3]
+        total = total + prev[0] * 10 + cur[0]
+        prev = cur
+        i = i + 1
+
+    return total + prev[0]
+
+-- The same loop with nothing kept across it, which is the shape the relaxation is for.
+fn fresh() -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < 4:
+        let &row = [i + 1, i + 2, i + 3]
+        total = total + row[0] + row[2]
+        i = i + 1
+
+    return total
+
+fn main() -> Int = carried() + fresh()

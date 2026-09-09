@@ -1,0 +1,41 @@
+-- A prefix operator over a constant, in the position that accepts a constant and nothing else.
+--
+-- `-3` is a *written* negative number: the lexer produces the magnitude alone, so the sign is folded
+-- into the literal beside it and `I64`'s own minimum stays expressible. Constant.yana is where that
+-- is asserted. What this file is about is everything the sign has nothing adjacent to fold into -
+-- a parenthesis, a name, a second negation - which reached no constant form at all and made a global
+-- written `-(21)` a *dynamic* initializer while `-21` was a constant. That is a difference in the
+-- parentheses and in nothing a program can see, and the two spellings answer the same number here.
+--
+-- The scored answers say the numbers agree; that they are folded rather than computed at startup is
+-- what .mir.expect says, and is the half a run cannot see.
+--
+-- **Globals only, and that is a stage difference rather than an omission.** The same forms belong in
+-- a field default - the two positions are one evaluator in the ownership stage, which is what
+-- Constant.yana asserts of the literal forms - but the shipping stage admits only a literal, a
+-- constructor or an aggregate of those there, so a `low: Int = -(1024 / 4)` written here would be
+-- rejected by the stage this fixture is compiled by first. The ownership stage folds it; there is
+-- nowhere to say so that both stages read.
+
+import Native
+
+let limit = 400
+
+let parenthesized = -(21)
+let overAnExpression = -(7 * 3)
+let overAName = -limit
+let overAQuotient = -(limit / 8)
+let twice = -(-256)
+let ascribed = -(2 * 3) :: I64
+
+fn main() -> Int:
+    let &score = 0
+
+    if parenthesized == -21 then score = score + 1
+    if overAnExpression == -21 then score = score + 2
+    if overAName == -400 then score = score + 4
+    if overAQuotient == -50 then score = score + 8
+    if twice == 256 then score = score + 16
+    if ascribed == -6 then score = score + 32
+
+    return score

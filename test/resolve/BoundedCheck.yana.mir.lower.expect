@@ -211,41 +211,41 @@ main<complex>(): I32 {
     %v_5 = alloca 16, 8: Ptr
     %v_6 = alloca 16, 8: Ptr
     %v_7 = alloca 48, 8: Ptr
-    store %v_1, 6, 4
+    %v_8 = imm 6: I64
+    store %v_1, %v_8, 4
     store %v_7, 1, 8
-    %v_8 = add %v_7, 8: Ptr
-    store %v_8, 2, 8
-    %v_9 = add %v_7, 16: Ptr
-    store %v_9, 3, 8
-    %v_10 = add %v_7, 24: Ptr
-    store %v_10, 4, 8
-    %v_11 = add %v_7, 32: Ptr
-    store %v_11, 5, 8
-    %v_12 = add %v_7, 40: Ptr
-    store %v_12, 6, 8
+    %v_9 = add %v_7, 8: Ptr
+    store %v_9, 2, 8
+    %v_10 = add %v_7, 16: Ptr
+    store %v_10, 3, 8
+    %v_11 = add %v_7, 24: Ptr
+    store %v_11, 4, 8
+    %v_12 = add %v_7, 32: Ptr
+    store %v_12, 5, 8
+    %v_13 = add %v_7, 40: Ptr
+    store %v_13, 6, 8
     store %v_2, %v_7, 8
-    %v_13 = add %v_2, 8: Ptr
-    %v_14 = load %v_1, 4: I64
-    store %v_13, %v_14, 4
+    %v_14 = add %v_2, 8: Ptr
+    store %v_14, %v_8, 4
     %v_15 = add %v_2, 12: Ptr
     store %v_15, 6, 4
     %v_16 = alloca 48, 8: Ptr
-    store %v_3, 6, 4
+    %v_17 = imm 6: I64
+    store %v_3, %v_17, 4
     store %v_16, 2, 8
-    %v_17 = add %v_16, 8: Ptr
-    store %v_17, 2, 8
-    %v_18 = add %v_16, 16: Ptr
+    %v_18 = add %v_16, 8: Ptr
     store %v_18, 2, 8
-    %v_19 = add %v_16, 24: Ptr
+    %v_19 = add %v_16, 16: Ptr
     store %v_19, 2, 8
-    %v_20 = add %v_16, 32: Ptr
+    %v_20 = add %v_16, 24: Ptr
     store %v_20, 2, 8
-    %v_21 = add %v_16, 40: Ptr
+    %v_21 = add %v_16, 32: Ptr
     store %v_21, 2, 8
+    %v_22 = add %v_16, 40: Ptr
+    store %v_22, 2, 8
     store %v_4, %v_16, 8
-    %v_22 = add %v_4, 8: Ptr
-    %v_23 = load %v_3, 4: I64
-    store %v_22, %v_23, 4
+    %v_23 = add %v_4, 8: Ptr
+    store %v_23, %v_17, 4
     %v_24 = add %v_4, 12: Ptr
     store %v_24, 6, 4
     %v_25 = bitcast 0: Ptr
@@ -255,121 +255,120 @@ main<complex>(): I32 {
     %v_27 = add %v_5, 12: Ptr
     store %v_27, 0, 4
     %v_28 = load %v_2, 8: Ptr
-    %v_29 = load %v_15, 4: I32
-    %v_30 = cast %v_29: I64
-    %v_31 = call_complex sumWords, %v_28, %v_30: I64
-    %v_32 = cmp_eq %v_31, 21: I32
-    %v_33 = call_complex sumNarrow, %v_28, %v_30: I64
-    %v_34 = cmp_eq %v_33, 21: I32
-    %v_35 = add %v_32, 1: I32
-    %v_36 = select %v_34, %v_35, %v_32: I32
-    %v_37 = load %v_4, 8: Ptr
-    %v_38 = add %v_4, 12: Ptr
-    %v_39 = load %v_38, 4: I32
-    %v_40 = cast %v_39: I64
-    jmp b_41
+    %v_29 = imm 6: I64
+    %v_30 = call_complex sumWords, %v_28, %v_29: I64
+    %v_31 = cmp_eq %v_30, 21: I32
+    %v_32 = call_complex sumNarrow, %v_28, %v_29: I64
+    %v_33 = cmp_eq %v_32, 21: I32
+    %v_34 = add %v_31, 1: I32
+    %v_35 = select %v_33, %v_34, %v_31: I32
+    %v_36 = load %v_4, 8: Ptr
+    %v_37 = add %v_4, 12: Ptr
+    %v_38 = load %v_37, 4: I32
+    %v_39 = cast %v_38: I64
+    jmp b_40
   }
 
-  b_41 {
-    %v_42 = phi [b_0, 0], [b_43, %v_44]: I64
-    %v_45 = phi [b_0, 0], [b_43, %v_46]: I64
-    %v_47 = cmp_ilt %v_45, %v_30: I32
-    je %v_47, b_48, b_49
-  }
-
-  b_49 {
-    call_complex Array(a).reclaim(I64), %v_4
-    %v_50 = cmp_eq %v_42, 42: I32
-    %v_51 = add %v_36, 1: I32
-    %v_52 = select %v_50, %v_51, %v_36: I32
-    %v_53 = call_complex sumEven, %v_28, %v_30: I64
-    %v_54 = cmp_eq %v_53, 9: I32
-    %v_55 = add %v_52, 1: I32
-    %v_56 = select %v_54, %v_55, %v_52: I32
-    %v_57 = call_complex sumTail, %v_28, %v_30: I64
-    %v_58 = cmp_eq %v_57, 20: I32
-    %v_59 = add %v_56, 1: I32
-    %v_60 = select %v_58, %v_59, %v_56: I32
-    %v_61 = call_complex sumDown, %v_28, %v_30: I64
-    %v_62 = cmp_eq %v_61, 21: I32
-    %v_63 = add %v_60, 1: I32
-    %v_64 = select %v_62, %v_63, %v_60: I32
-    %v_65 = call_complex sumStrided, %v_28, %v_30, 3: I64
-    %v_66 = cmp_eq %v_65, 9: I32
-    %v_67 = add %v_64, 1: I32
-    %v_68 = select %v_66, %v_67, %v_64: I32
-    %v_69 = load %v_5, 8: Ptr
-    %v_70 = add %v_5, 12: Ptr
-    %v_71 = load %v_70, 4: I32
-    %v_72 = cast %v_71: I64
-    %v_73 = call_complex sumWords, %v_69, %v_72: I64
-    %v_74 = cmp_eq %v_73, 0: I32
-    %v_75 = add %v_68, 1: I32
-    %v_76 = select %v_74, %v_75, %v_68: I32
-    %v_77 = call_complex sumNarrow, %v_69, %v_72: I64
-    %v_78 = cmp_eq %v_77, 0: I32
-    %v_79 = add %v_76, 1: I32
-    %v_80 = select %v_78, %v_79, %v_76: I32
-    %v_81 = call_complex sumEven, %v_69, %v_72: I64
-    %v_82 = cmp_eq %v_81, 0: I32
-    %v_83 = add %v_80, 1: I32
-    %v_84 = select %v_82, %v_83, %v_80: I32
-    %v_85 = call_complex sumTail, %v_69, %v_72: I64
-    %v_86 = cmp_eq %v_85, 0: I32
-    %v_87 = add %v_84, 1: I32
-    %v_88 = select %v_86, %v_87, %v_84: I32
-    %v_89 = call_complex sumDown, %v_69, %v_72: I64
-    call_complex Array(a).reclaim(I64), %v_5
-    %v_90 = cmp_eq %v_89, 0: I32
-    %v_91 = add %v_88, 1: I32
-    %v_92 = select %v_90, %v_91, %v_88: I32
-    %v_93 = call_complex sumStrided, %v_28, %v_30, 0: I64
-    call_complex Array(a).reclaim(I64), %v_2
-    %v_94 = cmp_eq %v_93, 0: I32
-    %v_95 = add %v_92, 1: I32
-    %v_96 = select %v_94, %v_95, %v_92: I32
-    %v_97 = alloca 8, 8: Ptr
-    %v_98 = alloca 4, 8: Ptr
-    %v_99 = imm 1: I64
-    store %v_98, %v_99, 4
-    store %v_97, 9, 8
-    store %v_6, %v_97, 8
-    %v_100 = add %v_6, 8: Ptr
-    store %v_100, %v_99, 4
-    %v_101 = add %v_6, 12: Ptr
-    store %v_101, 1, 4
-    %v_102 = load %v_6, 8: Ptr
-    %v_103 = call_complex sumTail, %v_102, 1: I64
-    call_complex Array(a).reclaim(I64), %v_6
-    %v_104 = cmp_eq %v_103, 0: I32
-    %v_105 = add %v_96, 1: I32
-    %v_106 = select %v_104, %v_105, %v_96: I32
-    ret %v_106
+  b_40 {
+    %v_41 = phi [b_0, 0], [b_42, %v_43]: I64
+    %v_44 = phi [b_0, 0], [b_42, %v_45]: I64
+    %v_46 = cmp_ilt %v_44, %v_29: I32
+    je %v_46, b_47, b_48
   }
 
   b_48 {
-    jmp b_107
+    call_complex Array(a).reclaim(I64), %v_4
+    %v_49 = cmp_eq %v_41, 42: I32
+    %v_50 = add %v_35, 1: I32
+    %v_51 = select %v_49, %v_50, %v_35: I32
+    %v_52 = call_complex sumEven, %v_28, %v_29: I64
+    %v_53 = cmp_eq %v_52, 9: I32
+    %v_54 = add %v_51, 1: I32
+    %v_55 = select %v_53, %v_54, %v_51: I32
+    %v_56 = call_complex sumTail, %v_28, %v_29: I64
+    %v_57 = cmp_eq %v_56, 20: I32
+    %v_58 = add %v_55, 1: I32
+    %v_59 = select %v_57, %v_58, %v_55: I32
+    %v_60 = call_complex sumDown, %v_28, %v_29: I64
+    %v_61 = cmp_eq %v_60, 21: I32
+    %v_62 = add %v_59, 1: I32
+    %v_63 = select %v_61, %v_62, %v_59: I32
+    %v_64 = call_complex sumStrided, %v_28, %v_29, 3: I64
+    %v_65 = cmp_eq %v_64, 9: I32
+    %v_66 = add %v_63, 1: I32
+    %v_67 = select %v_65, %v_66, %v_63: I32
+    %v_68 = load %v_5, 8: Ptr
+    %v_69 = add %v_5, 12: Ptr
+    %v_70 = load %v_69, 4: I32
+    %v_71 = cast %v_70: I64
+    %v_72 = call_complex sumWords, %v_68, %v_71: I64
+    %v_73 = cmp_eq %v_72, 0: I32
+    %v_74 = add %v_67, 1: I32
+    %v_75 = select %v_73, %v_74, %v_67: I32
+    %v_76 = call_complex sumNarrow, %v_68, %v_71: I64
+    %v_77 = cmp_eq %v_76, 0: I32
+    %v_78 = add %v_75, 1: I32
+    %v_79 = select %v_77, %v_78, %v_75: I32
+    %v_80 = call_complex sumEven, %v_68, %v_71: I64
+    %v_81 = cmp_eq %v_80, 0: I32
+    %v_82 = add %v_79, 1: I32
+    %v_83 = select %v_81, %v_82, %v_79: I32
+    %v_84 = call_complex sumTail, %v_68, %v_71: I64
+    %v_85 = cmp_eq %v_84, 0: I32
+    %v_86 = add %v_83, 1: I32
+    %v_87 = select %v_85, %v_86, %v_83: I32
+    %v_88 = call_complex sumDown, %v_68, %v_71: I64
+    call_complex Array(a).reclaim(I64), %v_5
+    %v_89 = cmp_eq %v_88, 0: I32
+    %v_90 = add %v_87, 1: I32
+    %v_91 = select %v_89, %v_90, %v_87: I32
+    %v_92 = call_complex sumStrided, %v_28, %v_29, 0: I64
+    call_complex Array(a).reclaim(I64), %v_2
+    %v_93 = cmp_eq %v_92, 0: I32
+    %v_94 = add %v_91, 1: I32
+    %v_95 = select %v_93, %v_94, %v_91: I32
+    %v_96 = alloca 8, 8: Ptr
+    %v_97 = alloca 4, 8: Ptr
+    %v_98 = imm 1: I64
+    store %v_97, %v_98, 4
+    store %v_96, 9, 8
+    store %v_6, %v_96, 8
+    %v_99 = add %v_6, 8: Ptr
+    store %v_99, %v_98, 4
+    %v_100 = add %v_6, 12: Ptr
+    store %v_100, 1, 4
+    %v_101 = load %v_6, 8: Ptr
+    %v_102 = call_complex sumTail, %v_101, 1: I64
+    call_complex Array(a).reclaim(I64), %v_6
+    %v_103 = cmp_eq %v_102, 0: I32
+    %v_104 = add %v_95, 1: I32
+    %v_105 = select %v_103, %v_104, %v_95: I32
+    ret %v_105
   }
 
-  b_107 {
-    %v_108 = shl %v_45, 3: I64
-    %v_109 = add %v_28, %v_108: Ptr
-    %v_110 = loads %v_109, 8: I64
-    %v_111 = cmp_ge %v_45, %v_40: I32
-    je %v_111, b_112, b_43
+  b_47 {
+    jmp b_106
   }
 
-  b_43 {
-    %v_113 = add %v_37, %v_108: Ptr
-    %v_114 = loads %v_113, 8: I64
-    %v_115 = imul %v_110, %v_114: I64
-    %v_44 = add %v_42, %v_115: I64
-    %v_46 = add %v_45, 1: I64
-    jmp b_41
+  b_106 {
+    %v_107 = shl %v_44, 3: I64
+    %v_108 = add %v_28, %v_107: Ptr
+    %v_109 = loads %v_108, 8: I64
+    %v_110 = cmp_ge %v_44, %v_39: I32
+    je %v_110, b_111, b_42
   }
 
-  b_112 {
-    %v_116 = syscall 60, 134: I64
+  b_42 {
+    %v_112 = add %v_36, %v_107: Ptr
+    %v_113 = loads %v_112, 8: I64
+    %v_114 = imul %v_109, %v_113: I64
+    %v_43 = add %v_41, %v_114: I64
+    %v_45 = add %v_44, 1: I64
+    jmp b_40
+  }
+
+  b_111 {
+    %v_115 = syscall 60, 134: I64
     unreachable 
   }
 }

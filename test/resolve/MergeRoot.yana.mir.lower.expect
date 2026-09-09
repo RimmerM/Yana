@@ -10,18 +10,18 @@ chosen<complex>(%fromFrame: I32): I32 {
     %v_2 = alloca 16, 8: Ptr
     %v_3 = alloca 16, 8: Ptr
     %v_4 = alloca 16, 4: Ptr
-    store %v_1, 4, 4
+    %v_5 = imm 4: I64
+    store %v_1, %v_5, 4
     store %v_4, 10, 4
-    %v_5 = add %v_4, 4: Ptr
-    store %v_5, 20, 4
-    %v_6 = add %v_4, 8: Ptr
-    store %v_6, 30, 4
-    %v_7 = add %v_4, 12: Ptr
-    store %v_7, 40, 4
+    %v_6 = add %v_4, 4: Ptr
+    store %v_6, 20, 4
+    %v_7 = add %v_4, 8: Ptr
+    store %v_7, 30, 4
+    %v_8 = add %v_4, 12: Ptr
+    store %v_8, 40, 4
     store %v_2, %v_4, 8
-    %v_8 = add %v_2, 8: Ptr
-    %v_9 = load %v_1, 4: I64
-    store %v_8, %v_9, 4
+    %v_9 = add %v_2, 8: Ptr
+    store %v_9, %v_5, 4
     %v_10 = add %v_2, 12: Ptr
     store %v_10, 4, 4
     %v_11 = alloca 8, 8: Ptr
@@ -170,18 +170,18 @@ main<complex>(): I32 {
     %v_4 = alloca 16, 8: Ptr
     %v_5 = alloca 16, 8: Ptr
     %v_6 = alloca 16, 4: Ptr
-    store %v_3, 4, 4
+    %v_7 = imm 4: I64
+    store %v_3, %v_7, 4
     store %v_6, 10, 4
-    %v_7 = add %v_6, 4: Ptr
-    store %v_7, 20, 4
-    %v_8 = add %v_6, 8: Ptr
-    store %v_8, 30, 4
-    %v_9 = add %v_6, 12: Ptr
-    store %v_9, 40, 4
+    %v_8 = add %v_6, 4: Ptr
+    store %v_8, 20, 4
+    %v_9 = add %v_6, 8: Ptr
+    store %v_9, 30, 4
+    %v_10 = add %v_6, 12: Ptr
+    store %v_10, 40, 4
     store %v_4, %v_6, 8
-    %v_10 = add %v_4, 8: Ptr
-    %v_11 = load %v_3, 4: I64
-    store %v_10, %v_11, 4
+    %v_11 = add %v_4, 8: Ptr
+    store %v_11, %v_7, 4
     %v_12 = add %v_4, 12: Ptr
     store %v_12, 4, 4
     %v_13 = alloca 8, 8: Ptr
@@ -283,23 +283,19 @@ main<complex>(): I32 {
     %v_70 = alloca 8, 8: Ptr
     store %v_69, 7, 4
     store %v_70, %v_69, 8
-    %v_71 = loads %v_69, 4: I32
-    %v_72 = add 10, %v_71: I32
     call_complex Guard.drop, %v_69
-    %v_73 = alloca 4, 4: Ptr
-    %v_74 = alloca 8, 8: Ptr
-    store %v_73, 7, 4
-    store %v_74, %v_73, 8
-    %v_75 = loads %v_73, 4: I32
-    %v_76 = imul 10, %v_75: I32
-    call_complex Guard.drop, %v_73
-    %v_77 = add %v_1, %v_2: I32
-    %v_78 = add %v_77, %v_68: I32
-    %v_79 = add %v_78, %v_72: I32
-    %v_80 = add %v_79, %v_76: I32
-    %v_81 = loads @dropCalls, 4: I32
-    %v_82 = add %v_80, %v_81: I32
-    ret %v_82
+    %v_71 = alloca 4, 4: Ptr
+    %v_72 = alloca 8, 8: Ptr
+    store %v_71, 7, 4
+    store %v_72, %v_71, 8
+    call_complex Guard.drop, %v_71
+    %v_73 = add %v_1, %v_2: I32
+    %v_74 = add %v_73, %v_68: I32
+    %v_75 = add %v_74, 17: I32
+    %v_76 = add %v_75, 70: I32
+    %v_77 = loads @dropCalls, 4: I32
+    %v_78 = add %v_76, %v_77: I32
+    ret %v_78
   }
 }
 

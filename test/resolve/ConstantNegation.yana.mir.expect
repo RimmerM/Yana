@@ -1,0 +1,123 @@
+module ResolveTest
+
+let limit: I32 = 400
+
+let parenthesized: I32 = -21
+
+let overAnExpression: I32 = -21
+
+let overAName: I32 = -400
+
+let overAQuotient: I32 = -50
+
+let twice: I32 = 256
+
+let ascribed: I64 = -6
+
+fn main() -> I32 {
+  local & score: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: I32 = const -21
+  %3: I32 = const -21
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %12: I32 = const -21
+  %13: I32 = const -21
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb6 -> bb4
+
+bb3:
+  %6: I32 = read copy.trivial (score)
+  %7: I32 = const 1
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (score) take %8
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %22: I32 = const -400
+  %23: I32 = const -400
+  %24: Bool = eq inspect %22 inspect %23
+  branch inspect %24 -> bb9 -> bb7
+
+bb6:
+  %16: I32 = read copy.trivial (score)
+  %17: I32 = const 2
+  %18: I32 = add inspect %16 inspect %17
+  write.assign borrow.unique (score) take %18
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %32: I32 = const -50
+  %33: I32 = const -50
+  %34: Bool = eq inspect %32 inspect %33
+  branch inspect %34 -> bb12 -> bb10
+
+bb9:
+  %26: I32 = read copy.trivial (score)
+  %27: I32 = const 4
+  %28: I32 = add inspect %26 inspect %27
+  write.assign borrow.unique (score) take %28
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %42: I32 = const 256
+  %43: I32 = const 256
+  %44: Bool = eq inspect %42 inspect %43
+  branch inspect %44 -> bb15 -> bb13
+
+bb12:
+  %36: I32 = read copy.trivial (score)
+  %37: I32 = const 8
+  %38: I32 = add inspect %36 inspect %37
+  write.assign borrow.unique (score) take %38
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %52: I64 = const -6
+  %53: I64 = const -6
+  %54: Bool = eq inspect %52 inspect %53
+  branch inspect %54 -> bb18 -> bb16
+
+bb15:
+  %46: I32 = read copy.trivial (score)
+  %47: I32 = const 16
+  %48: I32 = add inspect %46 inspect %47
+  write.assign borrow.unique (score) take %48
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %62: I32 = read copy.trivial (score)
+  return take %62
+
+bb18:
+  %56: I32 = read copy.trivial (score)
+  %57: I32 = const 32
+  %58: I32 = add inspect %56 inspect %57
+  write.assign borrow.unique (score) take %58
+  jump -> bb17
+}
+
+entry main

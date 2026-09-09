@@ -1,0 +1,28 @@
+let image$base: () = <none>
+
+let started: I32 = <startup>
+
+let &tally: I32 = 0
+
+fn seed() -> I32 {
+  b0:
+    %v4 = mul 6, 7 : I32
+    ret %v4
+}
+
+fn main() -> () {
+  b0:
+    %v0 = load tally : I32
+    %v1 = load started : I32
+    %v2 = add %v0, %v1 : I32
+    assign tally, %v2
+    ret
+}
+
+fn main$() -> () {
+  b0:
+    %v0 = call seed : I32
+    init started, %v0
+    call main
+    ret %v2
+}

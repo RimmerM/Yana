@@ -653,8 +653,21 @@ struct Inliner {
      * Whether the copy is worth making - the two numbers and the exemption.
      *
      * `@inline(always)` reaching here at all means the conversion's graft declined it, which happens
-     * at eight expansions deep and nowhere else; it is weighed against the ceiling alone, because
-     * the attribute is a directive the declaration was already checked for.
+     * at eight expansions deep and nowhere else. It is **weighed against nothing** - J49, and the
+     * two reasons are that it is a directive and that the graft is the other half of the same one.
+     *
+     * The graft applies no size test whatever, so a ceiling here made the directive mean one thing
+     * for a call the conversion reached and another for a call eight deep that it did not. Worse, it
+     * made it mean *nothing at all* at `-inline none`, where the ceiling is zero and the early-out
+     * above refused every callee before the attribute was read - and `-inline none` is a supported
+     * way to build, which is the whole argument `resolve/inline.h` makes for the other stage's graft
+     * living in the resolver: a body whose cost depends on an optimization flag is the thing the
+     * directive exists to prevent.
+     *
+     * What keeps the pass finite is not this number. `clonableDeclaration` refuses a call-graph
+     * cycle and `kMaxInlineRounds` caps the cascade at three, and `checkAlwaysInline` refused a
+     * self-call where the attribute was written. So this is the cap on a *cascade* coming out from
+     * under a rule that was never a weight.
      *
      * `flattening` is the one term that is about the *site* rather than about the callee - a link of
      * an adaptor chain, weighed at `soleBudget` because what the copy buys is not the body: it is
@@ -662,8 +675,6 @@ struct Inliner {
      * where the chain's own two budgets are.
      */
     bool worthInlining(DeclPtr<mir::Function> pointer, bool flattening, bool cold) {
-        if(!limits.ceiling) return false;
-
         auto callee = decl()[pointer];
 
         // `@noinline`, which is a directive rather than a weight: declining to inline is always
@@ -688,10 +699,13 @@ struct Inliner {
             pointer == opt.program.roles.function(intrinsic::Known::checkCondition))) {
             return false;
         }
+        // And the directive on the other side, above every number for the reason the note has.
+        if(callee->alwaysInline) return true;
+
+        if(!limits.ceiling) return false;
+
         auto size = sizeOf(*callee);
         if(size > limits.ceiling) return false;
-
-        if(callee->alwaysInline) return true;
 
         /*
          * The **sole call site**, which is a move rather than a copy: the callee's last reference
@@ -2210,9 +2224,20 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
 void inlineCalls(OptContext& opt) {
     Inliner inliner { opt, budgetFor(opt.context.settings.inlining) };
 
-    // Zero only at `InlineLevel::None`, where nothing qualifies and everything below would be a
-    // whole-program walk that decided nothing.
-    if(!inliner.limits.ceiling) return;
+    /*
+     * **Not** an early-out at `InlineLevel::None` - J49.
+     *
+     * It was one, on the reading that a zero ceiling leaves nothing qualifying. That is true of
+     * everything weighed and false of the one thing that is not: `@inline(always)` is a directive,
+     * the conversion's graft applies no size test to it, and a call the graft declined - eight
+     * expansions deep, or through a value - has only this pass left to honour it. Returning here
+     * made the attribute mean nothing at `-inline none`, which is a supported way to build and is
+     * exactly the "cost depends on a flag" that `resolve/inline.h` argues a directive may not have.
+     *
+     * The price is a whole-program walk at a level that will splice very little. It is paid in a
+     * build that has already turned the optimizer's inliner off, and `worthInlining` refuses every
+     * callee below the attribute, so what the walk decides is one thing rather than nothing.
+     */
 
     findRecursion(opt, inliner.recursive);
 

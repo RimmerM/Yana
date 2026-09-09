@@ -10,77 +10,73 @@ spanned<complex>(): I32 {
     %v_3 = alloca 4, 8: Ptr
     %v_4 = alloca 16, 8: Ptr
     %v_5 = alloca 16, 4: Ptr
-    store %v_1, 4, 4
+    %v_6 = imm 4: I64
+    store %v_1, %v_6, 4
     store %v_5, 1, 4
-    %v_6 = add %v_5, 4: Ptr
-    store %v_6, 2, 4
-    %v_7 = add %v_5, 8: Ptr
-    store %v_7, 3, 4
-    %v_8 = add %v_5, 12: Ptr
-    store %v_8, 4, 4
+    %v_7 = add %v_5, 4: Ptr
+    store %v_7, 2, 4
+    %v_8 = add %v_5, 8: Ptr
+    store %v_8, 3, 4
+    %v_9 = add %v_5, 12: Ptr
+    store %v_9, 4, 4
     store %v_2, %v_5, 8
-    %v_9 = add %v_2, 8: Ptr
-    %v_10 = load %v_1, 4: I64
-    store %v_9, %v_10, 4
+    %v_10 = add %v_2, 8: Ptr
+    store %v_10, %v_6, 4
     %v_11 = add %v_2, 12: Ptr
     store %v_11, 4, 4
     %v_12 = alloca 8, 4: Ptr
-    store %v_3, 2, 4
+    %v_13 = imm 2: I64
+    store %v_3, %v_13, 4
     store %v_12, 9, 4
-    %v_13 = add %v_12, 4: Ptr
-    store %v_13, 9, 4
+    %v_14 = add %v_12, 4: Ptr
+    store %v_14, 9, 4
     store %v_4, %v_12, 8
-    %v_14 = add %v_4, 8: Ptr
-    %v_15 = load %v_3, 4: I64
-    store %v_14, %v_15, 4
+    %v_15 = add %v_4, 8: Ptr
+    store %v_15, %v_13, 4
     %v_16 = add %v_4, 12: Ptr
     store %v_16, 2, 4
     %v_17 = load %v_2, 8: Ptr
-    %v_18 = load %v_11, 4: I32
-    %v_19 = cast %v_18: I64
-    %v_20 = cmp_ge 1, %v_19: I32
-    je %v_20, b_21, b_22
+    jmp b_18
   }
 
-  b_22 {
-    %v_23 = add %v_17, 4: Ptr
-    store %v_23, 20, 4
-    %v_24 = load %v_4, 8: Ptr
-    %v_25 = load %v_16, 4: I32
-    %v_26 = cast %v_25: I64
-    %v_27 = cmp_eq %v_26, 0: I32
-    je %v_27, b_21, b_28
+  b_18 {
+    %v_19 = add %v_17, 4: Ptr
+    store %v_19, 20, 4
+    %v_20 = load %v_4, 8: Ptr
+    %v_21 = load %v_16, 4: I32
+    %v_22 = cast %v_21: I64
+    %v_23 = cmp_eq %v_22, 0: I32
+    je %v_23, b_24, b_25
   }
 
-  b_21 {
-    %v_29 = syscall 60, 134: I64
+  b_25 {
+    store %v_20, 5, 4
+    jmp b_26
+  }
+
+  b_24 {
+    %v_27 = syscall 60, 134: I64
     unreachable 
   }
 
-  b_28 {
-    store %v_24, 5, 4
-    jmp b_30
+  b_26 {
+    %v_28 = loads %v_19, 4: I32
+    jmp b_29
   }
 
-  b_30 {
-    %v_31 = loads %v_23, 4: I32
+  b_29 {
+    %v_30 = loads %v_20, 4: I32
+    call_complex Array(a).reclaim(I32), %v_4
+    %v_31 = add %v_28, %v_30: I32
     jmp b_32
   }
 
   b_32 {
-    %v_33 = loads %v_24, 4: I32
-    call_complex Array(a).reclaim(I32), %v_4
-    %v_34 = add %v_31, %v_33: I32
-    %v_35 = cmp_ge 3, %v_19: I32
-    je %v_35, b_21, b_36
-  }
-
-  b_36 {
-    %v_37 = add %v_17, 12: Ptr
-    %v_38 = loads %v_37, 4: I32
+    %v_33 = add %v_17, 12: Ptr
+    %v_34 = loads %v_33, 4: I32
     call_complex Array(a).reclaim(I32), %v_2
-    %v_39 = add %v_34, %v_38: I32
-    ret %v_39
+    %v_35 = add %v_31, %v_34: I32
+    ret %v_35
   }
 }
 

@@ -1057,8 +1057,11 @@ struct Interprocedural {
     /*
      * ------------------------------------------------------------------- the per-argument facts
      *
-     * `retains`, `mutates` and `consumes` - Analysis-Sharing.md §4's three per-position rows, and
-     * one walk that answers all three, because they are the same question about three verbs.
+     * `escapes` and `mutates` - two of Analysis-Sharing.md §4's per-position rows, and one walk
+     * that answers both, because they are the same question about two verbs. The other two rows §4
+     * names were built and are gone: `retains` never had a reader that made a decision and
+     * `consumes` restated the signature, and J48 deleted both rather than leave rows a later reader
+     * would have to find out for himself were never trusted.
      *
      * What makes them answerable here rather than by the eight hundred lines the shipping stage
      * spends is the observation `analyze_escape.cpp` opens with: **nothing in an ownership MIR
@@ -1088,7 +1091,20 @@ struct Interprocedural {
         // global or an address, which is every loan that names nothing a caller lent. A set rather
         // than an index because a loan through a raw address can name several.
         SmallArray<ArgumentSet, 8> lender;
+
+        /*
+         * Which block each `Argument` node is a parameter of, and which of them a walk is currently
+         * standing on - `joinParameters`, which is what these two are for.
+         *
+         * An argument node names no operand of its own: what it holds arrives on the predecessors'
+         * edges, and the edge lists live on the predecessors. So a walk that wants to follow one
+         * backwards needs the block it belongs to, and a node does not record one.
+         */
+        Array<U32> argumentBlock;
+        Array<U8> visiting;
     };
+
+    static constexpr U32 kNoBlock = ~U32(0);
 
     /*
      * Whether a value at this occurrence can be a way back to storage somebody else owns.
@@ -1191,6 +1207,117 @@ struct Interprocedural {
      * the top of the lattice rather than the bottom: forgetting too much costs an optimization and
      * forgetting too little is a wrong answer a caller acts on.
      */
+    /*
+     * Where each `Argument` node belongs, filled once per body.
+     *
+     * `Block::arguments` is the only record of it - a node knows its own position in a block's
+     * parameter list and not which block that is - so the map is the walk over the blocks, done
+     * once rather than at each join a query reaches.
+     */
+    void mapJoins(BodyRooting& rooting) {
+        auto count = rooting.body.nodes.size();
+
+        rooting.argumentBlock.clear();
+        rooting.visiting.clear();
+        for(Size i = 0; i < count; i++) {
+            rooting.argumentBlock.push(kNoBlock);
+            rooting.visiting.push(0);
+        }
+
+        for(U32 b = 0; b < rooting.body.blocks.size(); b++) {
+            auto block = rooting.body.block(mir, BlockId(b));
+            if(!block) continue;
+
+            for(auto pointer: block->arguments.contents(mir)) {
+                auto index = mir[pointer]->id.index;
+                if(index < rooting.argumentBlock.size()) rooting.argumentBlock[index] = b;
+            }
+        }
+    }
+
+    /*
+     * A value merged at a join, followed to what the predecessors supply for it.
+     *
+     * This used to be the top of the lattice - "a value merged at a join, which this walk cannot
+     * follow backwards without the predecessor list" - and the predecessor list is `Block::incoming`,
+     * which `sealBody` fills for exactly this kind of question. What that cost is worth measuring by:
+     * `pushUnsigned32` builds a pointer as `values(buffer) + at` where `at` is a loop-carried
+     * argument, hands it to `String.appendUnits`, and every parameter of every caller three frames up
+     * read as escaping because of it - which is what kept a bounded interpolation's buffer out of the
+     * frame (`findings.md` §96.4).
+     *
+     * **Cutting the cycle contributes nothing**, which is what makes the recursion terminate without
+     * losing an answer. This is a reachability question - which parameters are sources in the value
+     * graph behind this node - and a back edge to a node already on the walk reaches only nodes the
+     * walk is expanding anyway. Every node *on* the cycle is still visited, so every source hanging
+     * off one is still collected; what is skipped is the second lap.
+     *
+     * The refusals stay the top of the lattice: a block with no predecessors, a position no edge
+     * supplies, a predecessor with no terminator. None of them occurs in a sealed body, and each is
+     * a shape where "this walk does not know" is the only honest answer.
+     */
+    template<class F>
+    ArgumentSet joinParameters(BodyRooting& rooting, NodeId id, U32 depth, F&& follow) {
+        auto index = id.index;
+        if(index >= rooting.argumentBlock.size()) return ArgumentSet::all();
+
+        auto owner = rooting.argumentBlock[index];
+        if(owner == kNoBlock) return ArgumentSet::all();
+
+        if(rooting.visiting[index]) return ArgumentSet();
+
+        auto block = rooting.body.block(mir, BlockId(owner));
+        if(!block || !block->incoming.size()) return ArgumentSet::all();
+
+        auto position = ((NodeArgument*)rooting.body.node(mir, id))->index;
+
+        rooting.visiting[index] = 1;
+
+        ArgumentSet set;
+        auto known = true;
+
+        for(auto predecessorPointer: block->incoming.contents(mir)) {
+            auto predecessor = mir[predecessorPointer];
+            auto count = predecessor->nodes.size();
+            if(!count) { known = false; break; }
+
+            auto last = mir[predecessor->nodes.get(mir, count - 1)];
+
+            forEachEdge(mir, *last, [&](Edge& edge) {
+                if(!edge.target || mir[edge.target] != block) return;
+                if(position >= edge.arguments.size()) { known = false; return; }
+
+                set = set.join(follow(edge.arguments.get(mir, position), depth + 1));
+            });
+
+            if(!known) break;
+        }
+
+        rooting.visiting[index] = 0;
+        return known ? set : ArgumentSet::all();
+    }
+
+    /*
+     * Whether this call is the allocator answering fresh storage - `known.def`'s `allocateHeap`.
+     *
+     * The one call whose result the reach walks may stop at, and for `Node::RunSlots`' reason said
+     * of a function instead of an instruction: a block the allocator just handed out points into
+     * nothing the caller lent, so it is not a projection of any argument however the size was
+     * computed. Without this the arm below reads `allocateHeap(byteSpan(self.items, wanted))` as
+     * reaching `self` - the size argument is measured against the old slots - and `resize`'s fresh
+     * block would carry the taint of the run it is replacing.
+     *
+     * Through `specializes`, because a generic allocator reaches its callers as an instantiation.
+     */
+    bool answersFreshStorage(Node& node) {
+        if(node.kind != Node::Call || !heapRequest) return false;
+
+        auto callee = ((NodeCall&)node).callee;
+        if(!callee) return false;
+
+        return callee == heapRequest || decl[callee]->specializes == heapRequest;
+    }
+
     ArgumentSet nodeParameters(BodyRooting& rooting, NodeId id, U32 depth) {
         if(depth > kRootDepth) return ArgumentSet::all();
 
@@ -1234,16 +1361,42 @@ struct Interprocedural {
                 return set;
 
             /*
+             * And a pointer a **call** answered, which points into whatever it was handed.
+             *
+             * The same union as the four above, and it belongs with them for a reason this walk
+             * already relies on everywhere else: a callee's only way to name storage of *this*
+             * frame is to have been given it. What it can otherwise answer is fresh storage, or
+             * something read out of a global - and a global root is already "nobody's argument"
+             * three cases down, on exactly the same reading.
+             *
+             * It was the `default` until J46, and the cost of that was not marginal: `values(xs)`
+             * hands back a pointer, so `values(buffer) + at` read as every parameter of the body
+             * computing it, and every caller of that body joined the same top through the fixpoint.
+             * `pushUnsigned32` is the shape it was reaching - a frame array, a pointer out of it, an
+             * append - and it put `String`'s slot outside `ssa::Contained` three frames up.
+             */
+            case Node::Call:
+            case Node::LensCall:
+            case Node::LensTry:
+                if(answersFreshStorage(*node)) return set;
+
+                forEachOperand(mir, *node, [&](Operand& operand, OperandRole) {
+                    set = set.join(operandParameters(rooting, operand, depth + 1));
+                });
+
+                return set;
+
+            /*
              * A block argument, which is where a value crosses an edge.
              *
              * The origins above already answer it for a borrow - the loan analysis carried its sets
-             * across the edges - and what is left is a *pointer* merged at a join, which this walk
-             * cannot follow backwards without the predecessor list. The top of the lattice is the
-             * honest answer and it is bounded: a body that merges pointers at a join reports all of
-             * its own parameters, not all of everybody's.
+             * across the edges - and what is left is a *pointer* merged at a join, which is
+             * `joinParameters`' walk back through the predecessors' edge operands.
              */
             case Node::Argument:
-                return ArgumentSet::all();
+                return set.join(joinParameters(rooting, id, depth, [&](Operand operand, U32 at) {
+                    return operandParameters(rooting, operand, at);
+                }));
 
             case Node::Const:
             case Node::Metric:
@@ -1283,12 +1436,12 @@ struct Interprocedural {
      * ------------------------------------------------------------------ and the same three walks
      * for the **address** rather than for the data - the `escapes` row.
      *
-     * The two questions look alike and are not. `retains` asks whether anything *computed out of*
-     * an argument is still alive after the call, which is what a loan endpoint is about; this asks
-     * whether the **address the caller handed over** was written anywhere, which is what
-     * `ssa::Contained` is about. `growArray(&self, n)` is the body that separates them: it stores a
-     * run pointer read out of `self` back into `self`, so the value reach of the written pointer
-     * contains parameter 0 and `retains` says so - and no address of `self`'s storage went anywhere.
+     * The two walks look alike and are not. The value walk above asks whether anything *computed
+     * out of* an argument is still alive after the call; this asks whether the **address the caller
+     * handed over** was written anywhere, which is what `ssa::Contained` is about.
+     * `growArray(&self, n)` is the body that separates them: it stores a run pointer read out of
+     * `self` back into `self`, so the value reach of the written pointer contains parameter 0 - and
+     * no address of `self`'s storage went anywhere.
      *
      * What makes the narrower walk sound is `Contained`'s own premise: an allocation it admits is
      * one whose address is never stored, so no pointer the callee **loads out of memory** can be it.
@@ -1296,6 +1449,9 @@ struct Interprocedural {
      * parameter's place or of a projection of it, the incoming pointer of a `%T` parameter, and a
      * place handed on at another call's argument position - and a value read out of the parameter's
      * bytes ends it.
+     *
+     * **`escapes` is the union of the two**, taken at the `Write` arm - see `Summary::escapes`,
+     * which is where that reason lives. This walk is one half of the answer and not the answer.
      *
      * Three entry points rather than one, because the same operand means different things in
      * different positions: `Given` is a place whose *address* is handed over (a call argument, an
@@ -1412,10 +1568,35 @@ struct Interprocedural {
                 return set;
             }
 
-            // A value merged at a join, which this walk cannot follow backwards - the top of the
-            // lattice, bounded by this body's own parameters exactly as `nodeParameters` is.
+            /*
+             * An address a call answered, which is one of the addresses it was handed - `Given` and
+             * not `Carried`, because an argument position hands a *place* over and `Given` is the
+             * larger of the two everywhere they differ.
+             *
+             * The narrow walk's premise carries it: a value the callee loaded out of the caller's
+             * bytes is not an address of a contained allocation, so what a result can be is an
+             * argument's own address or something the callee made.
+             */
+            case Node::Call:
+            case Node::LensCall:
+            case Node::LensTry: {
+                ArgumentSet set;
+                if(answersFreshStorage(*node)) return set;
+
+                forEachOperand(mir, *node, [&](Operand& operand, OperandRole) {
+                    set = set.join(operandAddressGiven(rooting, operand, depth + 1));
+                });
+
+                return set;
+            }
+
+            // A value merged at a join, followed through the predecessors' edge operands as a
+            // *carried* address - the same position an aggregate component is in, and for the same
+            // reason: what arrives here is a value that may be one, not a place handed over.
             case Node::Argument:
-                return ArgumentSet::all();
+                return joinParameters(rooting, id, depth, [&](Operand operand, U32 at) {
+                    return operandAddressCarried(rooting, operand, at);
+                });
 
             case Node::Const:
             case Node::Metric:
@@ -1491,40 +1672,90 @@ struct Interprocedural {
         return written;
     }
 
-    // One body's own four rows, before anything it calls is joined in.
+    // The allocator, for `answersFreshStorage` - null in a program with no heap. A run's slots and
+    // a fresh block are the same statement to the reach walks: neither is anything a caller lent.
+    DeclPtr<Function> heapRequest = nullptr;
+
+    /*
+     * The two block-move ladders, or null - `known.def`'s `copyMemory` and `moveMemory` rows, where
+     * the reason they are named rather than inferred is written out.
+     *
+     * A call to either is answered at the *site* by `blockMoveSite` rather than by joining the
+     * callee's rows, because the fact that matters is about the destination and the destination is
+     * the caller's expression.
+     */
+    DeclPtr<Function> blockCopyLadder = nullptr;
+    DeclPtr<Function> blockMoveLadder = nullptr;
+
+    bool isBlockMove(DeclPtr<Function> callee) {
+        if(!callee) return false;
+        auto root = decl[callee]->specializes ? decl[callee]->specializes : callee;
+        return (blockCopyLadder && root == blockCopyLadder)
+            || (blockMoveLadder && root == blockMoveLadder);
+    }
+
+    /*
+     * What one block move at a call site does to the caller's own rows.
+     *
+     * The same statement the `Write` arm makes, with "the value stored" read as "whatever was at
+     * `from`": if the destination reaches a parameter or roots in a global then this frame does not
+     * own where those bytes landed, and the source's reach is what left. A destination the caller
+     * allocated - `resize`'s `fresh` - reaches nothing and the move contributes nothing at all,
+     * which is the answer a row on the callee could never give, since inside `copyMemory` the
+     * destination is a parameter on every path.
+     *
+     */
+    void blockMoveSite(BodyRooting& rooting, NodeId node, ArgumentSet& written, ArgumentSet& left) {
+        auto& body = rooting.body;
+        auto called = body.node(mir, node);
+        if(!called || called->kind != Node::Call) return;
+
+        ArgumentSet into;
+        ArgumentSet moved;
+        auto outside = false;
+        auto position = 0;
+
+        eachCallArgument(body, node, [&](U32, Operand operand) {
+            if(position == 0) {
+                // Written storage is the value question - which parameters' bytes the destination
+                // names - and is exactly what the fixpoint used to join for `mutates` at this site.
+                // The escape test is the wider one, because a destination that is a parameter's
+                // *address* is as much the caller's as one that reaches it as a value.
+                into = operandParameters(rooting, operand, 0);
+                outside = into.any()
+                    || operandAddressGiven(rooting, operand, 0).any()
+                    || (operand.source() == SourceKind::Place
+                        && rootsInGlobal(rooting, operand.placeId()));
+            } else if(position == 1) {
+                moved = operandParameters(rooting, operand, 0)
+                    .join(operandAddressGiven(rooting, operand, 0));
+            }
+
+            position++;
+        });
+
+        written = written.join(into);
+        if(outside) left = left.join(moved);
+    }
+
+    // One body's own rows, before anything it calls is joined in - one per verb.
     struct BodyFacts {
-        ArgumentSet retains;
         ArgumentSet escapes;
         ArgumentSet mutates;
-        ArgumentSet consumes;
     };
 
     /*
      * What one body does to its own parameters.
      *
-     * Four node kinds carry the whole of it. A **write** mutates what its destination reaches and
-     * retains what it stored where the destination outlives this frame; a **return** retains what it
-     * hands back; and an **atomic** or a **native** operation reaches storage through an address this
-     * tier cannot read further into, so both verbs take the union of its operands. A call is not
-     * here: it is an edge, and the fixpoint below is what walks it.
-     *
-     * `consumes` is the odd one and says so: an owned parameter of a linear type is discharged on
-     * every path *by construction*, because `checkLinear` refuses a body where it is not. So the
-     * body contributes the signature and the fixpoint contributes nothing - which is a fact about
-     * this language rather than a gap, and is why the row is published `Known` off one read of the
-     * declaration.
+     * Three node kinds carry the whole of it. A **write** mutates what its destination reaches and
+     * lets go of what it stored where the destination outlives this frame; and an **atomic** or a
+     * **native** operation reaches storage through an address this tier cannot read further into, so
+     * both verbs take the union of its operands. A **return** is here to say that it contributes
+     * nothing, which is the J48 change. A call is not here at all: it is an edge, and the fixpoint
+     * below is what walks it.
      */
     BodyFacts bodyArgumentFacts(BodyRooting& rooting) {
         BodyFacts facts;
-
-        for(auto pointer: rooting.owner.args.contents(decl)) {
-            auto arg = decl[pointer];
-            if(!arg->occurrence.contract.isOwned()) continue;
-            if(!isLinearAt(decl, arg->occurrence)) continue;
-
-            facts.consumes.add(arg->index);
-        }
-
         auto& body = rooting.body;
 
         for(U32 i = 0; i < body.nodes.size(); i++) {
@@ -1549,36 +1780,101 @@ struct Interprocedural {
 
                     facts.mutates = facts.mutates.join(target);
                     if(outside) {
-                        facts.retains = facts.retains.join(operandParameters(rooting, write.value, 0));
-                        facts.escapes =
-                            facts.escapes.join(operandAddressCarried(rooting, write.value, 0));
+                        auto stored = operandParameters(rooting, write.value, 0);
+
+                        /*
+                         * **And the value reach, not only the address reach** - J48.
+                         *
+                         * A store into storage that outlives this frame keeps whatever it stored,
+                         * and "whatever it stored" includes a pointer this body *loaded out of* a
+                         * parameter: `self.saved = r.items` puts a run's buffer somewhere the caller
+                         * cannot see it go. The address walk is written not to follow a load of the
+                         * caller's bytes - which is right for the question `ssa::Contained` asks,
+                         * since an allocation it admits never had its address stored - and wrong for
+                         * the one `opt/place.cpp` asks, because a run's buffer *is* a pointer living
+                         * inside a descriptor. One row answers both by taking the union here.
+                         *
+                         * This is the whole of the extension. It is deliberately not the `Return`
+                         * arm below: a value handed back is handed to the caller, which is walking
+                         * it already - `admitsCall` taints every result - so counting it here is
+                         * double counting - it is what made the deleted `retains` row unusable
+                         * for placement.
+                         */
+                        facts.escapes = facts.escapes
+                            .join(operandAddressCarried(rooting, write.value, 0))
+                            .join(stored);
                     }
 
                     break;
                 }
 
                 case Node::Return: {
-                    auto& returned = *(NodeReturn*)node;
-                    if(!returned.hasValue) break;
-
-                    facts.retains =
-                        facts.retains.join(operandParameters(rooting, returned.value, 0));
-
                     /*
-                     * The result decides which of the two address questions a return is. An owned
-                     * result hands back a *value*, so `valuesMut(&self) -> %a` returns the run
-                     * pointer it read out of the header and not the header's address; a borrowed
-                     * result hands back a place, and that place's address does outlive the call.
+                     * **A return contributes nothing here** - J48, and this is the change that lets
+                     * one row answer both readers.
+                     *
+                     * What a call hands back is handed to the *caller*, which is walking the value
+                     * it got: `opt/place.cpp` taints every call result and `ssa::Containment` now
+                     * follows them too. Counting the return here as well is double counting, and it
+                     * is what made this row unusable for placement - every accessor in the library
+                     * hands back something derived from its subject, so `values`, `bitcast` and
+                     * `byteSpan` all reported it kept, and the fixpoint carried that up through
+                     * `resize` to `String.appendUnits`.
+                     *
+                     * So the row is now exactly "what the callee *stores* somewhere that outlives
+                     * the call", which is the question both readers ask and neither could get.
                      */
-                    facts.escapes = facts.escapes.join(
-                        rooting.owner.result.contract.isOwned()
-                            ? operandAddressCarried(rooting, returned.value, 0)
-                            : operandAddressGiven(rooting, returned.value, 0));
                     break;
                 }
 
                 case Node::Atomic:
                 case Node::Native: {
+                    /*
+                     * **A block move is a write, and is read as one** - J48, and it is the last
+                     * thing between a bounded interpolation and the frame.
+                     *
+                     * `copy.memory(to, from, count)` and `set.memory(to, value, count)` store
+                     * neither pointer anywhere: they move bytes *through* them. What does travel is
+                     * the source's **contents** into the destination's storage, which is precisely
+                     * the `Write` arm above with "the value stored" replaced by "whatever was at
+                     * `from`". So it is answered the same way - if the destination reaches a
+                     * parameter or a global then this frame does not own where those bytes landed,
+                     * and the source's reach is what escaped.
+                     *
+                     * Taking the union of every operand instead is what made `String.appendUnits`
+                     * report its subject kept: its copy writes *into* `self`'s buffer, so `self` is
+                     * the destination and appears in `reached`, and a caller's placed buffer could
+                     * never reach it. `resize` is the same shape with the destination fresh from the
+                     * allocator, which now contributes nothing at all.
+                     *
+                     * Everything else here keeps the blanket answer. A syscall stores through an
+                     * address this tier cannot read, an atomic writes its operands into the location
+                     * it was given, and the SHA and CRC rows are register arithmetic that would
+                     * answer nothing either way.
+                     */
+                    if(node->kind == Node::Native) {
+                        auto op = ((NodeNative*)node)->op;
+                        if(op == NativeOp::CopyMemory || op == NativeOp::SetMemory) {
+                            auto items = ((NodeNative*)node)->arguments.contents(mir);
+                            if(items.size() >= 2) {
+                                auto into = operandParameters(rooting, items[0], 0)
+                                    .join(operandAddressGiven(rooting, items[0], 0));
+                                auto outside = into.any()
+                                    || (items[0].source() == SourceKind::Place
+                                        && rootsInGlobal(rooting, items[0].placeId()));
+
+                                facts.mutates = facts.mutates.join(into);
+                                if(outside) {
+                                    facts.escapes = facts.escapes
+                                        .join(operandParameters(rooting, items[1], 0))
+                                        .join(operandAddressGiven(rooting, items[1], 0));
+                                }
+
+                                break;
+                            }
+                        }
+                    }
+
                     ArgumentSet reached;
                     ArgumentSet handed;
                     forEachOperand(mir, *node, [&](Operand& operand, OperandRole) {
@@ -1587,11 +1883,17 @@ struct Interprocedural {
                     });
 
                     facts.mutates = facts.mutates.join(reached);
-                    facts.retains = facts.retains.join(reached);
 
-                    // An address handed to a system call or a block move is one this tier cannot
-                    // follow, so a place at any operand of one counts as given away.
-                    facts.escapes = facts.escapes.join(handed);
+                    /*
+                     * An address handed to a system call or a block move is one this tier cannot
+                     * follow, so a place at any operand of one counts as given away - and so is a
+                     * *value*, for the same reason the write above joins both. `copy.memory` moves
+                     * whatever bytes it is pointed at, and a run's buffer pointer inside a
+                     * descriptor is such a byte; a syscall is a store this tier cannot see at all.
+                     * Sixteen rows, four of which touch memory, so a column here saying which would
+                     * be worth having and is not what this round is about.
+                     */
+                    facts.escapes = facts.escapes.join(handed).join(reached);
                     break;
                 }
 
@@ -1618,10 +1920,15 @@ struct Interprocedural {
     Array<U32> siteArgStart;   // per site, the range of `siteArgs` holding its argument reaches
     Array<U32> siteArity;      // per site, how many of them there are
     Array<ArgumentSet> siteArgs;
+
     // The same range, in the address question's terms - which parameters' *storage* this position
     // hands over. Beside `siteArgs` rather than folded into it because the two are different sets
     // over the same positions, and resolving each once is what keeps the fixpoint set algebra.
     Array<ArgumentSet> siteAddrArgs;
+
+    // Per site, whether the callee is a block-move ladder - a site answered by `blockMoveSite` when
+    // the body was walked, and skipped by the fixpoint because it has no callee row to join.
+    Array<U8> siteBlockMove;
 
     // Both groupings, by the same counting sort `buildCallers` uses. Two rather than one because the
     // two halves of the fixpoint ask opposite questions: the base case is per *caller* body and the
@@ -1680,22 +1987,27 @@ struct Interprocedural {
         auto count = U32(reached.size());
         groupSites();
 
-        Array<ArgumentSet> retains;
+        heapRequest = program.roles.function(intrinsic::Known::allocateHeap);
+        blockCopyLadder = program.roles.function(intrinsic::Known::copyMemory);
+        blockMoveLadder = program.roles.function(intrinsic::Known::moveMemory);
+
         Array<ArgumentSet> escapes;
         Array<ArgumentSet> mutates;
-        Array<ArgumentSet> consumes;
 
         siteArgStart.clear();
         siteArity.clear();
         siteArgs.clear();
         siteAddrArgs.clear();
-        for(Size i = 0; i < callEdges.size(); i++) { siteArgStart.push(0); siteArity.push(0); }
+        siteBlockMove.clear();
+        for(Size i = 0; i < callEdges.size(); i++) {
+            siteArgStart.push(0);
+            siteArity.push(0);
+            siteBlockMove.push(0);
+        }
 
         for(U32 i = 0; i < count; i++) {
-            retains.push(ArgumentSet());
             escapes.push(ArgumentSet());
             mutates.push(ArgumentSet());
-            consumes.push(ArgumentSet());
         }
 
         // The bodies, once each: the base rows, and every site's arguments resolved in the terms of
@@ -1704,32 +2016,25 @@ struct Interprocedural {
             auto function = decl[reached[i]];
 
             /*
-             * The top of the lattice, and the two reasons for it are not the same reason.
-             *
-             * No body is every row: nothing here established anything about this declaration. An
-             * **opaque call** is only the two rows a call can be about - what the callee kept and
-             * what it wrote - because `consumes` is a statement about this function's own signature
-             * and an unattributable call it made says nothing about that.
+             * The top of the lattice: nothing here established anything about this declaration, so
+             * both rows say every argument. An **opaque call** reaches the same place by the other
+             * road - a call this pass cannot attribute could have kept or written anything.
              */
-            if(!function->summary.bodyKnown || !function->mir) {
-                retains[i] = ArgumentSet::all();
+            if((!function->summary.bodyKnown || !function->mir) || isOpaque(i)) {
                 escapes[i] = ArgumentSet::all();
                 mutates[i] = ArgumentSet::all();
-                consumes[i] = ArgumentSet::all();
                 if(!function->mir) continue;
-            } else if(isOpaque(i)) {
-                retains[i] = ArgumentSet::all();
-                escapes[i] = ArgumentSet::all();
-                mutates[i] = ArgumentSet::all();
             }
 
             auto& body = *mir[function->mir];
             BodyRooting rooting { body, *function,
                                   body.elaboration ? mir[body.elaboration] : nullptr, {} };
+            mapJoins(rooting);
 
             // The lenders first, and with the origin half switched off: a loan's own root is a
             // *place*, so the table can be built without reading the table being built.
             BodyRooting bare { body, *function, nullptr, {} };
+            mapJoins(bare);
             for(U32 l = 0; l < body.loans.size(); l++) {
                 auto loan = body.loan(mir, LoanId(l));
                 auto throughDeref = false;
@@ -1738,13 +2043,16 @@ struct Interprocedural {
             }
 
             auto facts = bodyArgumentFacts(rooting);
-            retains[i] = retains[i].join(facts.retains);
             escapes[i] = escapes[i].join(facts.escapes);
             mutates[i] = mutates[i].join(facts.mutates);
-            consumes[i] = consumes[i].join(facts.consumes);
 
             for(auto slot = madeStart[i]; slot < madeStart[i + 1]; slot++) {
                 auto s = madeOrder[slot];
+
+                if(isBlockMove(reached[callEdges[s].callee])) {
+                    blockMoveSite(rooting, callEdges[s].node, mutates[i], escapes[i]);
+                    siteBlockMove[s] = 1;
+                }
 
                 siteArgStart[s] = U32(siteArgs.size());
                 eachCallArgument(body, callEdges[s].node, [&](U32, Operand operand) {
@@ -1767,30 +2075,43 @@ struct Interprocedural {
 
             for(auto slot = siteStart[index]; slot < siteStart[index + 1]; slot++) {
                 auto s = siteOrder[slot];
+
+                // A block move was answered where the destination was visible - `blockMoveSite`,
+                // called once when the caller's body was walked. Joining the ladder's own rows on
+                // top would put back exactly the imprecision that model exists to avoid.
+                if(siteBlockMove[s]) continue;
+
                 auto caller = callEdges[s].caller;
                 auto base = siteArgStart[s];
 
-                ArgumentSet grownRetains;
                 ArgumentSet grownEscapes;
                 ArgumentSet grownMutates;
 
                 for(U32 a = 0; a < siteArity[s]; a++) {
-                    auto reachedSet = siteArgs[base + a];
-                    if(retains[index].has(a)) grownRetains = grownRetains.join(reachedSet);
-                    if(mutates[index].has(a)) grownMutates = grownMutates.join(reachedSet);
+                    if(mutates[index].has(a)) grownMutates = grownMutates.join(siteArgs[base + a]);
 
-                    // The address row propagates over the *address* each position hands over, which
-                    // is a different set than what the position reaches as a value.
-                    if(escapes[index].has(a)) grownEscapes = grownEscapes.join(siteAddrArgs[base + a]);
+                    /*
+                     * The escape row composes over **both** reaches - J48.
+                     *
+                     * It used to propagate over the address alone, which was right while the row
+                     * meant "the address was handed away": a load out of a parameter is not that
+                     * address, so it carried nothing. The row now also means "a value derived from
+                     * this position was stored", and a value derived from a parameter is exactly
+                     * what a load out of it is - so `outer(r)` calling `keep(self, r.items)`, where
+                     * `keep` stores what it was given, has to report `r`. Address-only propagation
+                     * would have said nothing there, and the buffer that leaked would be one this
+                     * frame placed.
+                     */
+                    if(escapes[index].has(a)) {
+                        grownEscapes = grownEscapes.join(siteAddrArgs[base + a])
+                                                   .join(siteArgs[base + a]);
+                    }
                 }
 
-                auto joinedRetains = retains[caller].join(grownRetains);
                 auto joinedEscapes = escapes[caller].join(grownEscapes);
                 auto joinedMutates = mutates[caller].join(grownMutates);
-                if(joinedRetains == retains[caller] && joinedEscapes == escapes[caller]
-                   && joinedMutates == mutates[caller]) continue;
+                if(joinedEscapes == escapes[caller] && joinedMutates == mutates[caller]) continue;
 
-                retains[caller] = joinedRetains;
                 escapes[caller] = joinedEscapes;
                 mutates[caller] = joinedMutates;
 
@@ -1800,21 +2121,14 @@ struct Interprocedural {
             }
         }
 
-        /*
-         * Published on `computeSuspension`'s terms: a body that is here has a settled answer, and a
-         * declaration with no body has an assumption this pass made on no evidence.
-         *
-         * `consumes` publishes `Known` for a body-known function whatever the walk found, because
-         * what it read is the *signature* - see `bodyArgumentFacts`.
-         */
+        // Published on `computeSuspension`'s terms: a body that is here has a settled answer, and a
+        // declaration with no body has an assumption this pass made on no evidence.
         for(U32 i = 0; i < count; i++) {
             auto function = decl[reached[i]];
             auto how = function->summary.bodyKnown ? Knowledge::Known : Knowledge::Assumed;
 
-            function->summary.setRetains(retains[i], how);
             function->summary.setEscapes(escapes[i], how);
             function->summary.setMutates(mutates[i], how);
-            function->summary.setConsumes(consumes[i], how);
         }
     }
 

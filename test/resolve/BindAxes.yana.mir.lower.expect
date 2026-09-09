@@ -256,32 +256,31 @@ fieldOfNamedLocal<complex>(%n: I64): I64 {
     %v_24 = add %v_1, 16: Ptr
     store %v_24, %v_14, 8
     %v_25 = add %v_1, 24: Ptr
-    %v_26 = load %v_10, 4: I64
-    store %v_25, %v_26, 4
-    %v_27 = add %n, 1: I64
-    %v_28 = bitcast 0: Ptr
-    %v_29 = call_complex runSlots(U8), %v_28, %v_27: Ptr
-    %v_30 = bitcast %v_29: I64
-    %v_31 = cmp_eq %v_30, 0: I32
-    %v_32 = select %v_31, 0, %v_27: I64
-    %v_33 = cast %v_32: I32
-    %v_34 = and %v_33, 1073741823: I32
-    %v_35 = alloca 4, 8: Ptr
-    %v_36 = cast %v_34: I64
-    %v_37 = or %v_36, 1073741824: I64
-    store %v_35, %v_37, 4
+    store %v_25, %v_21, 4
+    %v_26 = add %n, 1: I64
+    %v_27 = bitcast 0: Ptr
+    %v_28 = call_complex runSlots(U8), %v_27, %v_26: Ptr
+    %v_29 = bitcast %v_28: I64
+    %v_30 = cmp_eq %v_29, 0: I32
+    %v_31 = select %v_30, 0, %v_26: I64
+    %v_32 = cast %v_31: I32
+    %v_33 = and %v_32, 1073741823: I32
+    %v_34 = alloca 4, 8: Ptr
+    %v_35 = cast %v_33: I64
+    %v_36 = or %v_35, 1073741824: I64
+    store %v_34, %v_36, 4
     call_complex Run(a).reclaim(U8), %v_1
-    store %v_1, %v_29, 8
-    %v_38 = add %v_1, 8: Ptr
-    %v_39 = load %v_35, 4: I64
-    store %v_38, %v_39, 4
-    %v_40 = and %v_39, 1073741823: I64
-    %v_41 = cast %v_40: I32
+    store %v_1, %v_28, 8
+    %v_37 = add %v_1, 8: Ptr
+    %v_38 = load %v_34, 4: I64
+    store %v_37, %v_38, 4
+    %v_39 = and %v_38, 1073741823: I64
+    %v_40 = cast %v_39: I32
     call_complex Run(a).reclaim(U8), %v_1
-    %v_42 = add %v_1, 16: Ptr
-    call_complex Run(a).reclaim(U8), %v_42
-    %v_43 = cast %v_41: I64
-    ret %v_43
+    %v_41 = add %v_1, 16: Ptr
+    call_complex Run(a).reclaim(U8), %v_41
+    %v_42 = cast %v_40: I64
+    ret %v_42
   }
 }
 

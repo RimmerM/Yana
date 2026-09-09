@@ -32,25 +32,24 @@ main<complex>(): I32 {
     store %v_18, %v_20, 4
     store %v_1, %v_12, 8
     %v_21 = add %v_1, 8: Ptr
-    %v_22 = load %v_18, 4: I64
-    store %v_21, %v_22, 4
-    %v_23 = load %v_1, 8: Ptr
-    %v_24 = and %v_22, 1073741823: I64
-    %v_25 = cast %v_24: I32
-    %v_26 = cast %v_25: I64
-    %v_27 = sub %v_26, 1: I64
-    %v_28 = add %v_23, %v_27: Ptr
-    store %v_28, 42, 1
-    %v_29 = imul %v_26, 1000: I64
+    store %v_21, %v_20, 4
+    %v_22 = load %v_1, 8: Ptr
+    %v_23 = and %v_20, 1073741823: I64
+    %v_24 = cast %v_23: I32
+    %v_25 = cast %v_24: I64
+    %v_26 = sub %v_25, 1: I64
+    %v_27 = add %v_22, %v_26: Ptr
+    store %v_27, 42, 1
+    %v_28 = imul %v_25, 1000: I64
     call_complex Run(a).reclaim(U8), %v_1
-    %v_30 = add %v_29, 42: I64
-    %v_10 = add %v_9, %v_30: I64
+    %v_29 = add %v_28, 42: I64
+    %v_10 = add %v_9, %v_29: I64
     jmp b_4
   }
 
   b_7 {
-    %v_31 = sext %v_10: I32
-    ret %v_31
+    %v_30 = sext %v_10: I32
+    ret %v_30
   }
 }
 

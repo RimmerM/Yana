@@ -788,7 +788,7 @@ void flattenSignature(OptContext& opt, mir::Function& function, const Plan& plan
     }
 
     /*
-     * The four argument sets, kept over the positions the signature now has.
+     * The two argument sets, kept over the positions the signature now has.
      *
      * Every leaf inherits what the record's position said, which is conservative and uninteresting
      * in equal measure: a parameter only got here by being an unretained, unmutated, unconsumed
@@ -813,15 +813,11 @@ void flattenSignature(OptContext& opt, mir::Function& function, const Plan& plan
     };
 
     auto& summary = function.summary;
-    auto retained = summary.retains();
     auto kept = summary.escapes();
     auto mutated = summary.mutates();
-    auto consumed = summary.consumes();
 
-    summary.setRetains(remap(retained.value), retained.knowledge);
     summary.setEscapes(remap(kept.value), kept.knowledge);
     summary.setMutates(remap(mutated.value), mutated.knowledge);
-    summary.setConsumes(remap(consumed.value), consumed.knowledge);
 }
 
 } // namespace

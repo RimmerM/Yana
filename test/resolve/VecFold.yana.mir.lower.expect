@@ -59,14 +59,14 @@ main<complex>(): I32 {
     %v_3 = load @a, 32: i32x8
     %v_4 = load @b, 32: i32x8
     %v_5 = alloca 64, 32: Ptr
-    store %v_1, 2, 4
+    %v_6 = imm 2: I64
+    store %v_1, %v_6, 4
     store %v_5, %v_3, 32
-    %v_6 = add %v_5, 32: Ptr
-    store %v_6, %v_4, 32
+    %v_7 = add %v_5, 32: Ptr
+    store %v_7, %v_4, 32
     store %v_2, %v_5, 8
-    %v_7 = add %v_2, 8: Ptr
-    %v_8 = load %v_1, 4: I64
-    store %v_7, %v_8, 4
+    %v_8 = add %v_2, 8: Ptr
+    store %v_8, %v_6, 4
     %v_9 = add %v_2, 12: Ptr
     store %v_9, 2, 4
     %v_10 = load %v_2, 8: Ptr

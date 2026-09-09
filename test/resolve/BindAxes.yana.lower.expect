@@ -492,18 +492,17 @@ fieldOfNamedLocal<complex>(%n: I64): I64 {
     %v_12 = add %v_1, 16: Ptr
     store %v_12, %v_8, 8
     %v_13 = add %v_1, 24: Ptr
-    %v_14 = load %v_7, 4: I32
-    store %v_13, %v_14, 4
-    %v_15 = add %n, 1: I64
-    call_complex setName, %v_1, %v_15
-    %v_16 = add %v_1, 8: Ptr
-    %v_17 = load %v_16, 4: I32
-    %v_18 = and %v_17, 1073741823: I32
+    store %v_13, %v_9, 4
+    %v_14 = add %n, 1: I64
+    call_complex setName, %v_1, %v_14
+    %v_15 = add %v_1, 8: Ptr
+    %v_16 = load %v_15, 4: I32
+    %v_17 = and %v_16, 1073741823: I32
     call_complex Reclaim(Run(a)).reclaim(U8), %v_1
-    %v_19 = add %v_1, 16: Ptr
-    call_complex Reclaim(Run(a)).reclaim(U8), %v_19
-    %v_20 = cast %v_18: I64
-    ret %v_20
+    %v_18 = add %v_1, 16: Ptr
+    call_complex Reclaim(Run(a)).reclaim(U8), %v_18
+    %v_19 = cast %v_17: I64
+    ret %v_19
   }
 }
 

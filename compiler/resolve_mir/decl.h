@@ -353,10 +353,8 @@ struct Summary {
     enum class Which: U8 {
         Suspension,
         Stack,
-        Retains,
         Escapes,
         Mutates,
-        Consumes,
         Placement,
         Diverges,
         GenCost,
@@ -384,30 +382,24 @@ struct Summary {
     Fact<StackBound> stack() const { return read(stackBound, Which::Stack); }
     void setStack(StackBound value, Knowledge how) { stackBound = value; write(Which::Stack, how); }
 
-    // Which arguments outlive the call - the retention half of the escape analysis, and what decides
-    // whether a caller may hand over a frame-placed value *at that position*. Read by
-    // `ssa::Contained`, which admits a call argument at a position nothing here names.
-    Fact<ArgumentSet> retains() const { return read(retained, Which::Retains); }
-    void setRetains(ArgumentSet value, Knowledge how) { retained = value; write(Which::Retains, how); }
-
     /*
-     * Which arguments' **storage address** may still be named after the call - the second half of the
-     * retention question, and the one `ssa::Contained` asks.
+     * Which arguments the callee **stores somewhere that outlives the call** - the escape row, and
+     * since J48 the only argument row a decision is made from.
      *
-     * `retains` is a reach set over *values*: `growArray(&self, n)` stores a run pointer it read out
-     * of `self` back into `self`, so the walk joins the written value's parameter reach and argument
-     * 0 reads as retained. That is the right answer for the loan checker, which is asking whether
-     * anything the caller can still see was computed from what it lent; it is the wrong answer for
-     * containment, which is asking whether the *address the caller handed over* was written anywhere.
-     * A pointer loaded out of the storage is not that address - and it cannot be, because an
-     * allocation containment admits is one whose address was never stored, so nothing the callee
-     * loads can be it.
+     * It is a union of two reaches taken at one place, the `Write` arm of `bodyArgumentFacts`: the
+     * *address* of the storage a position named, and the *value* a position reached. Both, because
+     * a run's buffer is a pointer that lives inside a descriptor, so `self.saved = r.items` hands it
+     * away without ever naming `r`'s address - and an allocation `ssa::Contained` admits is one
+     * whose own address was never stored, so the address half alone would answer the question it
+     * asks and not the one `opt/place.cpp` asks.
      *
-     * So this row follows only chains that never pass through a load of the caller's bytes: an
-     * address taken of the parameter's place or of a projection of it, the incoming pointer of a
-     * `%T` parameter, and a place handed on at another call's argument position. It is therefore a
-     * subset of `retains` in every body the two walks agree about, and both are computed in the one
-     * walk `computeArgumentFacts` already makes.
+     * **A return contributes nothing**, deliberately. What a call hands back is handed to the
+     * caller, and both readers walk what they got: `admitsCall` taints every call result and
+     * `Containment::admits` recurses through them. Counting it here as well was double counting, and
+     * it is what made the row that used to do so - `retains`, deleted in J48 - unusable for
+     * placement. `findings.md` §98.
+     *
+     * Read by `ssa::Containment::admits` and by `opt/place.cpp`'s `admitsCall`.
      */
     Fact<ArgumentSet> escapes() const { return read(escaped, Which::Escapes); }
     void setEscapes(ArgumentSet value, Knowledge how) { escaped = value; write(Which::Escapes, how); }
@@ -417,21 +409,6 @@ struct Summary {
     // a call through a `&` parameter nothing writes stops being a barrier for a forwarded load.
     Fact<ArgumentSet> mutates() const { return read(mutated, Which::Mutates); }
     void setMutates(ArgumentSet value, Knowledge how) { mutated = value; write(Which::Mutates, how); }
-
-    /*
-     * Which arguments the callee discharges - the linear-consumption fact. An owned argument a
-     * callee consumes is one the caller may not drop, and one it does *not* consume on some path is
-     * a leak the caller cannot see; per argument for the reason the two above are.
-     *
-     * The one row here that a body cannot disagree with its signature about, and that is a fact
-     * about this language rather than a shortcut: `checkLinear` refuses a body where an owned
-     * parameter is not discharged on every path, so the owned positions *are* the answer and the
-     * call-graph join contributes nothing. Published `Known` off one read of the declaration; a
-     * function with no body publishes the top of the lattice, which is the direction that keeps a
-     * caller from dropping something twice.
-     */
-    Fact<ArgumentSet> consumes() const { return read(consumed, Which::Consumes); }
-    void setConsumes(ArgumentSet value, Knowledge how) { consumed = value; write(Which::Consumes, how); }
 
     // The strongest placement any object this activation needs - see `StorageClass`. Transitive over
     // the call graph, because that is what a caller asks: whether anything reached from here will
@@ -503,24 +480,21 @@ private:
     }
 
     /*
-     * The values, largest first, with the confidence for all six in one word behind them.
+     * The values, largest first, with the confidence for all of them in one word behind them.
      *
-     * The arrangement this replaces was six `{value, Knowledge}` pairs, and a `Knowledge` after a
-     * `U64` is a byte plus seven of padding: four such facts spent sixty-four bytes carrying
-     * thirty-two of payload and four two-bit numbers. Two bits each in a `U16` is the same six
-     * answers in one field, and it is private for the reason the accessors exist - a caller that
+     * The arrangement this replaces was a `{value, Knowledge}` pair per fact, and a `Knowledge`
+     * after a `U64` is a byte plus seven of padding: four such facts spent sixty-four bytes carrying
+     * thirty-two of payload and four two-bit numbers. Two bits each in one field is the same answers
+     * in two bytes, and the field is private for the reason the accessors exist - a caller that
      * could reach the value without the confidence is the thing `Fact` was introduced to prevent.
      *
-     * A `U32` since J37's ninth row, which is what the assertion below turned into rather than a
-     * comment claiming a limit: sixteen bits held eight facts exactly, and it costs nothing here
-     * because the two bytes come out of the padding the five single-byte values below already leave.
+     * A `U16` again after J48, and the assertion below is what says so rather than a comment
+     * claiming a limit. It was widened to a `U32` for J37's ninth row and seven rows fit once more.
      */
     StackBound stackBound;
-    ArgumentSet retained;
     ArgumentSet escaped;
     ArgumentSet mutated;
-    ArgumentSet consumed;
-    U32 states = 0;
+    U16 states = 0;
     bool suspends = false;
     bool nonReturning = false;
     StorageClass placed = StorageClass::Frame;
@@ -541,24 +515,21 @@ public:
     bool bodyKnown = false;
 };
 
-static_assert(U32(Summary::Which::Count) * 2 <= 32, "`Summary::states` holds two bits per fact");
+static_assert(U32(Summary::Which::Count) * 2 <= 16, "`Summary::states` holds two bits per fact");
 
 /*
- * Fifty-six bytes: five eight-byte lattice values, the nine confidences in four, and five single
- * bytes, the last nine of which round up to sixteen. Eighty was the size before the confidences were
- * gathered, and that difference was entirely padding - `Knowledge` is one byte and followed a `U64`
- * four times.
+ * Thirty-two bytes: three eight-byte lattice values, the seven confidences in two, and five single
+ * bytes, the last seven of which round up to eight.
  *
- * Forty until J37, and `escapes` is what the note here predicted would end it: a fact whose value is
- * a `U64` adds eight. It cost eight more than that, and the second eight is worth stating because it
- * is the shape of the next one too. Eight facts fitted `states` exactly at two bits each, so the
- * ninth took it from a `U16` to a `U32` - and the five single bytes below it were living in the
- * padding the `U16` left, so the two extra bytes of `states` push the tail from eight bytes to
- * sixteen rather than costing two. A tenth and an eleventh fact are free again at either width;
- * `GenCost` is a byte precisely so that adding it cost nothing and `Diverges` is the bool that took
- * the next byte of the same tail, and those are still the cheap shapes.
+ * It was fifty-six until J48, and how it came back down is worth keeping because it is the same
+ * arithmetic in reverse. Deleting `retains` and `consumes` took the obvious sixteen - two `U64`
+ * lattice values - and then a second eight nobody would have predicted: seven rows fit `states` at
+ * two bits each, so it went back from a `U32` to a `U16`, and the five single bytes below were
+ * already living in that field's padding, which collapsed the tail from sixteen bytes to eight.
+ *
+ * The rule that keeps falling out of this: a row costs eight, and the *ninth* row costs sixteen.
  */
-static_assert(sizeof(Summary) == 56, "the layout note above says where the fifty-six bytes go");
+static_assert(sizeof(Summary) == 32, "the layout note above says where the thirty-two bytes go");
 
 /*
  * The two constructors of the wrapper a *skipping* traversal answers with - `declareOutcome`.

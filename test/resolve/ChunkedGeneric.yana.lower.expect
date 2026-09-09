@@ -65,15 +65,15 @@ main<complex>(): I32 {
     store %v_4, 2, 4
     %v_5 = alloca 4, 8: Ptr
     %v_6 = alloca 8, 4: Ptr
-    store %v_5, 2, 4
+    %v_7 = imm 2: I32
+    store %v_5, %v_7, 4
     store %v_6, 3, 4
-    %v_7 = add %v_6, 4: Ptr
-    store %v_7, 4, 4
-    %v_8 = add %cs, 16: Ptr
-    store %v_8, %v_6, 8
-    %v_9 = add %cs, 24: Ptr
-    %v_10 = load %v_5, 4: I32
-    store %v_9, %v_10, 4
+    %v_8 = add %v_6, 4: Ptr
+    store %v_8, 4, 4
+    %v_9 = add %cs, 16: Ptr
+    store %v_9, %v_6, 8
+    %v_10 = add %cs, 24: Ptr
+    store %v_10, %v_7, 4
     %v_11 = add %cs, 28: Ptr
     store %v_11, 2, 4
     %v_12 = add %cs, 32: Ptr

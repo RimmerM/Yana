@@ -150,11 +150,13 @@ Reachable reachableOf(OptContext& opt);
  * an edge operand, a `FunValue` environment. There is no default that admits an unrecognized kind,
  * because forgetting too much costs an optimization and forgetting too little is a miscompile.
  *
- * **A call argument is admitted at a position the callee does not retain**, which is the shipping
- * stage's `callKeepsStorage` over an inferred fact instead of a declared one, and what
- * `mir::Summary::retains` was declared for. It was an outright escape until J25 filled the row, for
- * the honest reason that `Unknown` reads back as `ArgumentSet::all()` and admitting an argument on
- * that answer is admitting it on no answer at all; that is still what an unfilled row does.
+ * **A call argument is admitted at a position the callee does not `escape`**, which is the shipping
+ * stage's `callKeepsStorage` over an inferred fact instead of a declared one. It was `retains` and
+ * it was the wrong row - that one is a reach set over *values*, so a callee writing a pointer back
+ * into the storage it was lent read as keeping the address; the arm in `Containment::admits` is
+ * where that argument is written out. It was an outright escape until J25 filled the row, for the
+ * honest reason that `Unknown` reads back as `ArgumentSet::all()` and admitting an argument on that
+ * answer is admitting it on no answer at all; that is still what an unfilled row does.
  *
  * What the admission leaves behind is the other half - what the callee wrote through the address
  * while it had it - and that is deliberately **not** here. `mayWriteStorage` asks it, of the call

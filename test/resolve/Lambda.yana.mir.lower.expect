@@ -68,20 +68,20 @@ main<complex>(): I32 {
     %v_30 = call_complex %main.lambda'6, %v_29, %v_28: I32
     %v_31 = alloca 4, 8: Ptr
     %v_32 = alloca 12, 4: Ptr
-    store %v_31, 3, 4
+    %v_33 = imm 3: I64
+    store %v_31, %v_33, 4
     store %v_32, 1, 4
-    %v_33 = add %v_32, 4: Ptr
-    store %v_33, 2, 4
-    %v_34 = add %v_32, 8: Ptr
-    store %v_34, 3, 4
-    %v_35 = alloca 16, 8: Ptr
-    store %v_35, %v_32, 8
-    %v_36 = add %v_35, 8: Ptr
-    %v_37 = load %v_31, 4: I64
-    store %v_36, %v_37, 4
-    %v_38 = add %v_35, 12: Ptr
+    %v_34 = add %v_32, 4: Ptr
+    store %v_34, 2, 4
+    %v_35 = add %v_32, 8: Ptr
+    store %v_35, 3, 4
+    %v_36 = alloca 16, 8: Ptr
+    store %v_36, %v_32, 8
+    %v_37 = add %v_36, 8: Ptr
+    store %v_37, %v_33, 4
+    %v_38 = add %v_36, 12: Ptr
     store %v_38, 3, 4
-    call_complex Array(a).reclaim(I32), %v_35
+    call_complex Array(a).reclaim(I32), %v_36
     store %v_7, 100, 4
     store %v_8, 0, 8
     %v_39 = load %v_8, 8: Ptr

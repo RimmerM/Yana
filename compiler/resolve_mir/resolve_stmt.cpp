@@ -3365,11 +3365,27 @@ void Resolver::resolveEntryBody(Function& function, DeclPtr<Function> main) {
      * Whether a status of that shape can leave through a register on the way to the host's own entry
      * is the *native* entry's question and not this stage's - a logical type says nothing about how
      * a result travels. What is decided here is only that the two results are the same result.
+     *
+     * **Asked of the declared result and not of the call**, which is the bug that stood here: a
+     * `fn main():` answers `{}` and its call still produces a node, so returning "the status where
+     * there is one" handed a value back out of a function whose signature says there is none.
+     * `verifyBody` reported it as an internal error at the first top-level statement, and every
+     * program with a `main` of that shape and one dynamic global was refused for it - a global
+     * written `-(21)` being the way it was found. There is no `main` at all in the other direction,
+     * and then the entry's own result is `{}` by construction.
+     *
+     * The guard is the same one `resolveTestEntry` writes: a top level that left - a call that
+     * diverges, a `return` in it - has already terminated this block, and appending a second
+     * terminator to one is not a thing a builder does.
      */
-    if(status) builder.addReturn(function.source, *status);
-    else builder.addReturnUnit(function.source);
+    auto unit = decl()[function.result.type]->kind == Type::Unit;
 
-    finish(builder, function, !status, function.source, mark);
+    if(!builder.isTerminated()) {
+        if(status && !unit) builder.addReturn(function.source, *status);
+        else builder.addReturnUnit(function.source);
+    }
+
+    finish(builder, function, unit, function.source, mark);
     builder.seal();
     currentFunction = nullptr;
 }

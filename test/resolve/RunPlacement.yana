@@ -26,13 +26,15 @@ fn kept() -> Int:
 fn leaving() -> [Int] = [7, 8, 9]
 
 {-
-   And the literal inside a loop, which is declined.
+   And the literal inside a loop, which is **placed** - J46 step 5, and the case this fixture was
+   written to record being declined.
 
    One frame slot is per activation and a heap request is per execution, so a buffer placed here
-   would be one block behind however many descriptors the loop made. Nothing in this body keeps one
-   past its iteration - but proving that is a liveness argument rather than an escape rule, so the
-   pass asks the cheaper question and answers the safe way. This is the case the next round is
-   about.
+   would be one block behind however many descriptors the loop made - unless the descriptor is gone
+   again before the loop comes round, which is what `oneAtATime` now asks. Nothing in this body keeps
+   one past its iteration: `row`'s slot is written before it is read on every way round, and its drop
+   runs before the back edge. The shape that does keep one is `resolve/ownership/RunPlacementLoop.
+   yana`'s, which is `test/bench/findings.md` §91.5's program and is still the allocator's.
 -}
 fn repeated(times: Int) -> Int:
     let &total = 0 :: Int

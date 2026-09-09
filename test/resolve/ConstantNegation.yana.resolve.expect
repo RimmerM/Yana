@@ -1,0 +1,136 @@
+let image$base: () = <none>
+
+let limit: I32 = 400
+
+let parenthesized: I32 = <startup>
+
+let overAnExpression: I32 = <startup>
+
+let overAName: I32 = <startup>
+
+let overAQuotient: I32 = <startup>
+
+let twice: I32 = <startup>
+
+let ascribed: I64 = <startup>
+
+fn main() -> I32 {
+  b0:
+    %score = alloc : I32
+    init %score, 0
+    %v4 = load parenthesized : I32
+    %v7 = neg 21 : I32
+    %v8 = cmp_eq %v4, %v7 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v10 = load %score : I32
+    %v13 = add %v10, 1 : I32
+    assign %score, %v13
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v17 = load overAnExpression : I32
+    %v20 = neg 21 : I32
+    %v21 = cmp_eq %v17, %v20 : Bool
+    je %v21, b4, b5
+
+  b4:
+    %v23 = load %score : I32
+    %v26 = add %v23, 2 : I32
+    assign %score, %v26
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v30 = load overAName : I32
+    %v33 = neg 400 : I32
+    %v34 = cmp_eq %v30, %v33 : Bool
+    je %v34, b7, b8
+
+  b7:
+    %v36 = load %score : I32
+    %v39 = add %v36, 4 : I32
+    assign %score, %v39
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v43 = load overAQuotient : I32
+    %v46 = neg 50 : I32
+    %v47 = cmp_eq %v43, %v46 : Bool
+    je %v47, b10, b11
+
+  b10:
+    %v49 = load %score : I32
+    %v52 = add %v49, 8 : I32
+    assign %score, %v52
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v56 = load twice : I32
+    %v59 = cmp_eq %v56, 256 : Bool
+    je %v59, b13, b14
+
+  b13:
+    %v61 = load %score : I32
+    %v64 = add %v61, 16 : I32
+    assign %score, %v64
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v68 = load ascribed : I64
+    %v71 = neg 6 : I32
+    %v72 = cast %v71 : I64
+    %v73 = cmp_eq %v68, %v72 : Bool
+    je %v73, b16, b17
+
+  b16:
+    %v75 = load %score : I32
+    %v78 = add %v75, 32 : I32
+    assign %score, %v78
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v82 = load %score : I32
+    ret %v82
+}
+
+fn main$() -> I32 {
+  b0:
+    %v2 = neg 21 : I32
+    init parenthesized, %v2
+    %v8 = mul 7, 3 : I32
+    %v9 = neg %v8 : I32
+    init overAnExpression, %v9
+    %v12 = neg 400 : I32
+    init overAName, %v12
+    %v17 = div 400, 8 : I32
+    %v18 = neg %v17 : I32
+    init overAQuotient, %v18
+    %v22 = neg 256 : I32
+    %v23 = neg %v22 : I32
+    init twice, %v23
+    %v29 = mul 2, 3 : I32
+    %v30 = neg %v29 : I32
+    %v31 = cast %v30 : I64
+    init ascribed, %v31
+    %v33 = call main : I32
+    ret %v33
+}
