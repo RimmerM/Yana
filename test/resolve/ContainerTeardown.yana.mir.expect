@@ -50,8 +50,8 @@ bb0:
 }
 
 fn buildLiteral() -> I64 {
-  local & local0: Array(Handle) object2
-  local handles: Array(Handle) object2
+  local & local0: Array(Handle) object3
+  local handles: Array(Handle) object3
   local local2: Handle [shared slot 0]
   local local3: Handle [shared slot 0]
 
@@ -60,35 +60,40 @@ bb0:
   %1: Handle = call openHandle borrow.shared %0
   %2: I64 = const 2
   %3: Handle = call openHandle borrow.shared %2
-  %4: Size = const 2
-  %5: Array(Handle) = call literalArray(Handle) borrow.shared %4
-  write.init borrow.unique (local0) take %5
-  %7: Array(Handle) [unique slot 0] = read borrow.unique (local0) loan0
-  %8: Array(Handle) [unique slot 0 view] = call.derivation elementsMut(Array(Handle), Handle) borrow.unique %7 roots{0}
-  %9: %Handle [owned here shape6 .*=shared slot 0] = call valuesMut(Handle) borrow.unique %8 roots.0{0}
-  %10: Size = const 0
-  write.init borrow.unique ([%%9][0]) take %1
-  %12: Size = const 1
-  write.init borrow.unique ([%%9][1]) take %3
-  %14: Array(Handle) = read take (local0)
-  write.init borrow.unique (handles) take %14
-  %16: Size = const 0
-  %17: Array(Handle) [shared call] = read borrow.shared (handles) loan1
-  %18: Array(Handle) [shared slot 0 view] = call.derivation elements(Array(Handle), Handle) borrow.shared %17 roots{1}
-  %19: Handle [shared slot 0] = call.subscript get(Array(Handle), Size, Handle) borrow.shared %18 borrow.shared %16 roots{1}
-  write.init borrow.unique (local2) borrow.shared %19
-  %21: Handle [shared slot 0] = read borrow.shared (local2) loan2 roots{1}
-  %22: I64 = call marker borrow.shared %21
-  %23: Size = const 1
-  %24: Array(Handle) [shared call] = read borrow.shared (handles) loan3
-  %25: Array(Handle) [shared slot 0 view] = call.derivation elements(Array(Handle), Handle) borrow.shared %24 roots{3}
-  %26: Handle [shared slot 0] = call.subscript get(Array(Handle), Size, Handle) borrow.shared %25 borrow.shared %23 roots{3}
-  write.init borrow.unique (local3) borrow.shared %26
-  %28: Handle [shared slot 0] = read borrow.shared (local3) loan4 roots{3}
-  %29: I64 = call marker borrow.shared %28
+  %4: %Handle = run.slots Handle *2
+  %5: Size = bitcast inspect %4
+  %6: Size = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  %8: {} = call checkCondition borrow.shared %7
+  %9: @bits(30) U32 = const 2
+  %10: @bits(2) U32 = const 1
+  %11: Run(Handle) = aggregate.Run take %4 take %9 take %10
+  %12: @bits(30) U32 = const 2
+  %13: Array(Handle) = aggregate.Array take %11 take %12
+  write.init borrow.unique (local0) take %13
+  %15: Size = const 0
+  write.init borrow.unique ([%%4][0]) take %1
+  %17: Size = const 1
+  write.init borrow.unique ([%%4][1]) take %3
+  %19: Array(Handle) = read take (local0)
+  write.init borrow.unique (handles) take %19
+  %21: Size = const 0
+  %22: Array(Handle) [shared call] = read borrow.shared (handles) loan0
+  %23: Array(Handle) [shared slot 0 view] = call.derivation elements(Array(Handle), Handle) borrow.shared %22 roots{0}
+  %24: Handle [shared slot 0] = call.subscript get(Array(Handle), Size, Handle) borrow.shared %23 borrow.shared %21 roots{0}
+  write.init borrow.unique (local2) borrow.shared %24
+  %26: Handle [shared slot 0] = read borrow.shared (local2) loan1 roots{0}
+  %27: I64 = call marker borrow.shared %26
+  %28: Size = const 1
+  %29: Array(Handle) [shared call] = read borrow.shared (handles) loan2
+  %30: Array(Handle) [shared slot 0 view] = call.derivation elements(Array(Handle), Handle) borrow.shared %29 roots{2}
+  %31: Handle [shared slot 0] = call.subscript get(Array(Handle), Size, Handle) borrow.shared %30 borrow.shared %28 roots{2}
+  write.init borrow.unique (local3) borrow.shared %31
+  %33: Handle [shared slot 0] = read borrow.shared (local3) loan3 roots{2}
+  %34: I64 = call marker borrow.shared %33
   drop (handles)
-  %30: I64 = add inspect %22 inspect %29
-  return take %30
+  %35: I64 = add inspect %27 inspect %34
+  return take %35
 }
 
 fn buildPushed() -> I64 {

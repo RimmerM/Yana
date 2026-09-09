@@ -62,46 +62,56 @@ bb0:
   %1: I32 = const 2
   %2: I32 = const 3
   %3: I32 = const 4
-  %4: Size = const 4
-  %5: Array(I32) = call literalArray(I32) borrow.shared %4
-  write.init borrow.unique (local0) take %5
-  %7: Array(I32) [unique slot 0] = read borrow.unique (local0) loan0
-  %8: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %7 roots{0}
-  %9: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %8 roots.0{0}
-  %10: Size = const 0
-  write.init borrow.unique ([%%9][0]) take %0
-  %12: Size = const 1
-  write.init borrow.unique ([%%9][1]) take %1
-  %14: Size = const 2
-  write.init borrow.unique ([%%9][2]) take %2
-  %16: Size = const 3
-  write.init borrow.unique ([%%9][3]) take %3
-  %18: Array(I32) = read take (local0)
-  %19: () -> I32 = call makeSummer take %18
-  write.init borrow.unique (first) take %19
-  %21: I32 = const 10
-  %22: I32 = const 20
-  %23: Size = const 2
-  %24: Array(I32) = call literalArray(I32) borrow.shared %23
-  write.init borrow.unique (local2) take %24
-  %26: Array(I32) [unique slot 0] = read borrow.unique (local2) loan1
-  %27: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %26 roots{1}
-  %28: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %27 roots.0{1}
-  %29: Size = const 0
-  write.init borrow.unique ([%%28][0]) take %21
-  %31: Size = const 1
-  write.init borrow.unique ([%%28][1]) take %22
-  %33: Array(I32) = read take (local2)
-  %34: () -> I32 = call makeSummer take %33
-  write.init borrow.unique (second) take %34
-  %36: () -> I32 [shared call] = read borrow.shared (first) loan2
-  %37: I32 = call inspect %36
+  %4: %I32 = run.slots I32 *4
+  %5: Size = bitcast inspect %4
+  %6: Size = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  %8: {} = call checkCondition borrow.shared %7
+  %9: @bits(30) U32 = const 4
+  %10: @bits(2) U32 = const 1
+  %11: Run(I32) = aggregate.Run take %4 take %9 take %10
+  %12: @bits(30) U32 = const 4
+  %13: Array(I32) = aggregate.Array take %11 take %12
+  write.init borrow.unique (local0) take %13
+  %15: Size = const 0
+  write.init borrow.unique ([%%4][0]) take %0
+  %17: Size = const 1
+  write.init borrow.unique ([%%4][1]) take %1
+  %19: Size = const 2
+  write.init borrow.unique ([%%4][2]) take %2
+  %21: Size = const 3
+  write.init borrow.unique ([%%4][3]) take %3
+  %23: Array(I32) = read take (local0)
+  %24: () -> I32 = call makeSummer take %23
+  write.init borrow.unique (first) take %24
+  %26: I32 = const 10
+  %27: I32 = const 20
+  %28: %I32 = run.slots I32 *2
+  %29: Size = bitcast inspect %28
+  %30: Size = const 0
+  %31: Bool = eq inspect %29 inspect %30
+  %32: {} = call checkCondition borrow.shared %31
+  %33: @bits(30) U32 = const 2
+  %34: @bits(2) U32 = const 1
+  %35: Run(I32) = aggregate.Run take %28 take %33 take %34
+  %36: @bits(30) U32 = const 2
+  %37: Array(I32) = aggregate.Array take %35 take %36
+  write.init borrow.unique (local2) take %37
+  %39: Size = const 0
+  write.init borrow.unique ([%%28][0]) take %26
+  %41: Size = const 1
+  write.init borrow.unique ([%%28][1]) take %27
+  %43: Array(I32) = read take (local2)
+  %44: () -> I32 = call makeSummer take %43
+  write.init borrow.unique (second) take %44
+  %46: () -> I32 [shared call] = read borrow.shared (first) loan0
+  %47: I32 = call inspect %46
   drop (first)
-  %38: () -> I32 [shared call] = read borrow.shared (second) loan3
-  %39: I32 = call inspect %38
+  %48: () -> I32 [shared call] = read borrow.shared (second) loan1
+  %49: I32 = call inspect %48
   drop (second)
-  %40: I32 = add inspect %37 inspect %39
-  return take %40
+  %50: I32 = add inspect %47 inspect %49
+  return take %50
 }
 
 fn makeSummer.lambda(makeSummer.lambda.env: makeSummer.lambda.env [unique call]) -> I32 {

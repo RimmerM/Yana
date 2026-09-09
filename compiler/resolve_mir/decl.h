@@ -2046,6 +2046,18 @@ struct Program {
     bool usesBoxes = false;
 
     /*
+     * Whether any body asks for a run's slots - `NodeRunSlots`, set by the builder that makes one.
+     *
+     * A second flag beside `usesBoxes` rather than a use of it, and the two are different questions
+     * asked by different walks. This one keeps `allocateHeap` *reachable* through the MIR walk, so
+     * that it has a body to be lowered; whether it is finally **emitted** is `resolve_ssa/opt/
+     * reach.cpp`'s, which runs after `place.cpp` and asks whether any request is still the
+     * allocator's. A program whose every literal ended up in the frame therefore keeps the function
+     * through this stage and carries none of it into the image.
+     */
+    bool usesRuns = false;
+
+    /*
      * Whether any reachable release site cannot see where the value's interior boxes were placed -
      * `settleBoxProvenance`, and `ssa::storesBoxProvenance`, which is what spends it.
      *
@@ -2351,8 +2363,8 @@ struct Program {
     HashMap<U32, U32> specializationParents;
 
     /*
-     * The constants whose **teardown runs nothing** - `Resolver::teardownRunsNothing`, recorded
-     * where it was asked and read where the answer is spent.
+     * The constants whose **teardown runs nothing** - recorded where the constant is minted and
+     * read where the answer is spent.
      *
      * Here rather than as a bit on `AggregateConstant`, because the parts are interned and the type
      * is not: `aggregateConstant` matches on the constructor and the values alone, so one entry
@@ -2360,10 +2372,15 @@ struct Program {
      * different questions. The key is the pair `Constant` compares on beside its kind, which is the
      * same key `Lowering::placeConstant` interns by.
      *
-     * Here rather than answered where it is read, because it cannot be: the evaluator runs MIR
-     * bodies and the MIR region is released the moment conversion ends (§8.8), so the optimizer that
-     * spends this answer is on the far side of the release. What survives is the declaration region,
-     * and this is on `Program` with it.
+     * Here rather than answered where it is read, because the reader is on the far side of a
+     * release: the MIR region goes the moment conversion ends (§8.8), and the optimizer that spends
+     * this answer runs after it. What survives is the declaration region, and this is on `Program`
+     * with it.
+     *
+     * The one producer is `Resolver::stringConstant`, which knows the answer **by construction** - a
+     * literal's run is `runBorrowed`, so `Reclaim` is a flag test that fails. It used to be found by
+     * interpreting that reclaim over the value, which is what J46 part 3 removed along with the
+     * interpreter itself.
      */
     HashMap<U64, bool> inertConstants;
 

@@ -2253,39 +2253,38 @@ the lane's bytes repeated, and the two paths agree by construction. A vector agg
 the same three lines a fixed array's is - one type laid end to end at its own stride, with nothing
 over it - which is why `materialize` has one arm for the pair.
 
-### A string is a constant, and the library is what says what one is
+### A string is a constant, and the compiler is what spells one
 
-`Constant::Text` says what a string literal *is* - the interned text - and leaves how it is built to
-the library: `stringLiteral` takes the address of bytes the compiler places and a count, and
-describes a run that owns nothing. In a value position `textValue` calls it, and **the count is built
-at the width the role's own signature declares** - the stand-in library wrote `length: Size` and `lib/` writes
-`length: Int`, and the declaration is the only thing that says which. Building it at the target word
-instead was the single largest diagnostic in the real library (31 in the Core closure alone:
-"an argument must be I32, and this is Size" at every literal). In a **global's
-initializer** there is no call to make: the value is bytes written before anything runs, and a
-library module has no program point at which a declaration's own code would run at all. So
-`lib/Core/Show.yana`'s digit table used to be a diagnostic.
+`Constant::Text` says what a string literal *is* - the interned text - and defers how it is laid
+out. `Resolver::stringConstant` in `text.cpp` is what lays it out: the bytes as a constant global of
+`[CodeUnit *n]`, a `Run(CodeUnit)` of that address at `runBorrowed`, an `Array` over the run and a
+`String` over the array. The field lists come from `known.def`'s `string` and `run` **record** rows,
+so a library that laid a run out differently fails to build rather than miscompiling; the numbers -
+the count, the flag - are the compiler's, because they are what a *literal* means.
 
-The answer is to **run the library's function**, which is `evaluate.cpp`: a body of one block ending
-in a `return`, over constants, with reads of places, conversions, aggregates and nested calls. The
-MIR tier rather than the written form, because name resolution, overload selection, substitution and
-`expandIntrinsic` have already happened - `truncate(length) :: Count` is a `convert` by then - so
-there is nothing here to re-decide. What it will not run is refused whole rather than interpreted
-along one path; the moment a branch is followed this is a machine with a program counter, and what
-it would need next is loop bounds and a termination argument.
+**It ran the library's own `stringLiteral` until J46 part 3**, through an interpreter in
+`evaluate.cpp`: a body of one block ending in a `return`, over constants. The argument for it was
+that the compiler should hold no second description of a type the library owns - which is what
+`resolve/const.cpp` does in the shipping stage, and why that file has a "this target's string layout
+is not the one this compiler writes" diagnostic to report.
 
-The alternative was to spell the fields of `String` here, which is what `resolve/const.cpp` does in
-the shipping stage and is why that file has a "this target's string layout is not the one this
-compiler writes" diagnostic to report. Running the library's own function is the same answer with no
-second description of a type the library owns.
+What retired it is that the second description already existed. `resolve_ssa/opt/place.cpp` reads a
+`Run`'s three fields by position to move a literal's slots into the frame, and `known.def`'s `run`
+row states that field order as a dependency - so the layout was in two places whichever way the
+value was built, and only one of the two was expensive. It was expensive per *literal*: a body
+interpreted, a `Reclaim` interpreted beside it to find out that a borrowed run's teardown does
+nothing, and `n` interned byte constants for the bytes it addressed. `test/bench/findings.md` §94
+and §95 are the measurements; `-80,800` bytes of `.text` on `test/base` and a quarter off its
+compile time are the result. The teardown answer is now `markInertConstant` by construction, and
+`teardownRunsNothing` went with the interpreter that was its only reader.
 
 Two things make it fit. **`Constant::Address`** is the address of a global, which is the one leaf
 whose value is unknown until the image is placed - `materialize` writes zero and records a
 `LowerDataRelocation`, and `lowerGlobal` is split into a declare pass and a fill pass so that an
 initializer can name a global declared after it (the bytes of a literal are minted while the
-initializer that points at them is being resolved, so they always are). And **the evaluation is
-deferred**: `PendingTextGlobal` is drained after every body, because that is the first point at
-which the library's builder has one. The global is a constant either way, which is the part the
+initializer that points at them is being resolved, so they always are). And **the value is
+deferred**: `PendingTextGlobal` is drained once every declaration is in, because minting the bytes
+and reading the record rows are neither of them things an initializer may do where it is read. The global is a constant either way, which is the part the
 passes in between rely on - its type is settled where the initializer is read, it is not `dynamic`,
 and nothing puts it in the entry sequence.
 
@@ -2356,13 +2355,24 @@ a window, so `total([1, 2, 3] :: [Int])` builds the array the ascription names a
 the way it adapts any owned container reaching a window position - where passing the form down would
 make `::` build something that is not the type it wrote.
 
-**The compiler builds no container.** Two library bodies do, and `known.def` names them:
-`arrayLiteral(count)` answers an array of `count` live slots, and `elementBase(&self: '[a])` says
-where those slots start. What is left here is the part a literal actually is - `count` values, each
-written into slot `i` in the order they were written down - and none of it reads a field of `Array`
-or of its view. That is the difference from the shipping stage, where the run, the capacity and the
-placement tag are spelled out at every literal and `buildRunInto` has to be kept in step with three
-library records by hand.
+**The compiler asks for the storage and writes the two records over it.** `NodeRunSlots` is the
+request - `capacity` elements of one type, no operands, whose placement `resolve_ssa/opt/place.cpp`
+answers - and the `Run` and `Array` above it are ordinary aggregates built from the field types the
+`run` and `array` **record** roles hand back. `RunShape` is where those field indices and types are
+read, and it is the only place in this stage that reads them.
+
+That is the difference from the shipping stage, where `buildRunInto` spells the run, the capacity
+and the placement tag out at every literal in C++ with no row saying it may: a library that
+renumbered `Run`'s fields fails to build here and miscompiles there.
+
+**Three library calls stood here until J46 part 3** - `arrayLiteral(count)` for an array of `count`
+live slots, `elementBase(&self)` for where those slots start, and `arrayReserve` for `@capacity(n)`.
+The argument for them was that the compiler read no field of `Array`; what retired them is that
+`place.cpp` read three fields of `Run` anyway, so the field order was a stated dependency either way
+(see `known.def`'s note above `runSlots`). Five bodies to resolve, instantiate, summarize and inline
+at every literal in the program, to arrive at one allocation and `count` stores. `@capacity(n)` also
+stops relocating: it was a `reserve` after a run sized to what the literal wrote, and it is now the
+size the one request asks for.
 
 The elements are resolved **before** the array is made, which is the map literal's ordering and is
 here for both of its reasons: the written expressions run left to right exactly once before anything
@@ -2373,24 +2383,18 @@ raw-address root for exactly this, on the terms `analyze_path` already answers f
 reached through a pointer is never this frame's to release, so no move path is opened and no drop is
 placed.
 
-Two roles rather than one, and they are two because the pair cannot be a function: something
-answering both an owner and a pointer into it would be publishing a loan of a value it is handing
-over in the same breath, and the language has no way to say that. Both are `Presence::Optional` - a
-library that declares neither is one whose arrays do not grow, which is a smaller library rather
-than a broken one.
+The **refusal** is written out beside the request rather than left to a library body:
+`checkSlots` compares the pointer against null and hands the answer to `checkCondition`, which is
+what `literalArray` used to do. A frame placement cannot fail, so `place.cpp` discharges that
+comparison as part of the same rewrite it makes the placement in - leaving it cost a branch and an
+abort block at every placed literal.
 
-And a third role under them, which is the same principle one layer down: `runSlots` is the *request*
-for the buffer those slots live in, and `runOver` is the descriptor built over whatever came back.
-The compiler names the request so that `resolve_ssa/opt/place.cpp` can replace it with frame storage
-where the frame can keep it - passing `runBorrowed` where `newRun` passed `runFromHeap`, which is
-the one field a program never writes. It still builds no container: what it replaces is where the
-bytes came from, and the record over them is `runOver`'s, in the language, exactly as `arrayLiteral`
-leaves the array's shape to the library. J44 is the round.
-
-**`elementBase` takes a unique window**, and that is not a detail: `%source'a` says which storage it
-points into and nothing about what may be done there, so what decides whether a store through it is
-legal is the loan the window was read under. A shared one is what every element accessor takes; the
-literal fills through the other, and `lib/Core/Array.yana` declares both over one field read.
+The library's `runSlots` **call** is still named, in `place.cpp`, but for normalization rather than
+recognition: every run the library itself builds - `String.ofCapacity`, `growArray`, `resize` -
+arrives as that call, because its count is a fold rather than a number the resolver had.
+`RunPlacement::normalize` turns one whose count has folded into the same instruction, so the
+placement question, the loop test, the escape walk and the flag rewrite are each written once. J44
+is the round that named the request; J46 part 3 is the one that made it an instruction.
 
 ### A map literal is one library call and a run of inserts
 
@@ -2618,10 +2622,14 @@ IR out of it.
 
 `readContainerRefinement` reads the pair off a type and checks it exactly as the shipping stage does -
 both written, equal, and not zero, because the rows that spill need a discriminant neither stage
-builds. What it then honours is the **capacity** and not the placement: the literal is built by
-`arrayLiteral` at the number of elements it wrote and then reserved to the bound, through
-`known.def`'s `arrayReserve` (`lib/Core/Array.native.yana`'s own `reserve`). Sizing the run from the
-bound instead would make `length` the bound as well, which is not what the annotation says.
+builds. What it then honours is the **capacity** and not the placement: the request is sized to
+`max(written, bound)` and the array's `length` stays the written count, because sizing *both* from
+the bound would make the literal claim elements it never wrote.
+
+It was a `reserve` call after the fact until J46 part 3 - a run built at the written count and then
+grown - which is the same guarantee with a relocation in it. Choosing the size once is available
+because the request is an instruction this function fills in rather than a call whose argument is
+the count.
 
 `@inline(n)` asks for those slots in the **frame**, and this stage still does not give them - but the
 reason is not the placement ladder, which J24 built. It is a **layout**: the shipping stage's
@@ -4186,7 +4194,7 @@ A `Deref` whose parent is not the root ends the chain, because what it names is 
 it read pointed. What makes that sound is `Contained`'s own premise rather than an argument of its
 own: an allocation containment admits is one whose address is never stored, so no pointer the callee
 loads out of memory can be it. A `return` is read on the result's contract - an owned result hands
-back a value, so `elementBase(&self) -> %a` returns the run pointer and not the header's address,
+back a value, so `valuesMut(&self) -> %a` returns the run pointer and not the header's address,
 and a borrowed result hands back a place whose address does outlive the call.
 
 **`stack`** publishes `isBounded()` and zero bytes, which is Analysis-External-Iterators §4.5's own

@@ -254,123 +254,148 @@ fn main() -> I32 {
   local & local0: Array(I32)
   local & local1: Array(I32)
   local cs: Chunks
-  local & local3: Array(I32) object6
-  local local4: Array(I32) object6
-  local & local5: Array(I32) object9
-  local local6: Array(I32) object9
-  local & local7: Array(I32) object12
-  local local8: Array(I32) object12
+  local & local3: Array(I32) object9
+  local local4: Array(I32) object9
+  local & local5: Array(I32) object13
+  local local6: Array(I32) object13
+  local & local7: Array(I32) object17
+  local local8: Array(I32) object17
 
 bb0:
   %0: I32 = const 1
   %1: I32 = const 2
-  %2: Size = const 2
-  %3: Array(I32) = call literalArray(I32) borrow.shared %2
-  write.init borrow.unique (local0) take %3
-  %5: Array(I32) [unique slot 0] = read borrow.unique (local0) loan0
-  %6: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %5 roots{0}
-  %7: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %6 roots.0{0}
-  %8: Size = const 0
-  write.init borrow.unique ([%%7][0]) take %0
-  %10: Size = const 1
-  write.init borrow.unique ([%%7][1]) take %1
-  %12: Array(I32) = read take (local0)
-  %13: I32 = const 3
-  %14: I32 = const 4
-  %15: Size = const 2
-  %16: Array(I32) = call literalArray(I32) borrow.shared %15
-  write.init borrow.unique (local1) take %16
-  %18: Array(I32) [unique slot 0] = read borrow.unique (local1) loan1
-  %19: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %18 roots{1}
-  %20: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %19 roots.0{1}
-  %21: Size = const 0
-  write.init borrow.unique ([%%20][0]) take %13
-  %23: Size = const 1
-  write.init borrow.unique ([%%20][1]) take %14
-  %25: Array(I32) = read take (local1)
-  %26: I32 = const 2
-  %27: Chunks = aggregate.Chunks take %12 take %25 take %26
-  write.init borrow.unique (cs) take %27
-  %29: Chunks [shared call] = read borrow.shared (cs) loan2
-  %30: I32 = call countAll(Chunks, I32) borrow.shared %29
-  %31: Chunks [shared call] = read borrow.shared (cs) loan3
-  %32: I32 = const 100
-  %33: I32 = call countUntil(Chunks, I32) borrow.shared %31 borrow.shared %32
-  %34: I32 = add inspect %30 inspect %33
-  %35: Chunks [shared call] = read borrow.shared (cs) loan4
-  %36: I32 = const 100
-  %37: I32 = call countChunks(Chunks, I32) borrow.shared %35 borrow.shared %36
+  %2: %I32 = run.slots I32 *2
+  %3: Size = bitcast inspect %2
+  %4: Size = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  %6: {} = call checkCondition borrow.shared %5
+  %7: @bits(30) U32 = const 2
+  %8: @bits(2) U32 = const 1
+  %9: Run(I32) = aggregate.Run take %2 take %7 take %8
+  %10: @bits(30) U32 = const 2
+  %11: Array(I32) = aggregate.Array take %9 take %10
+  write.init borrow.unique (local0) take %11
+  %13: Size = const 0
+  write.init borrow.unique ([%%2][0]) take %0
+  %15: Size = const 1
+  write.init borrow.unique ([%%2][1]) take %1
+  %17: Array(I32) = read take (local0)
+  %18: I32 = const 3
+  %19: I32 = const 4
+  %20: %I32 = run.slots I32 *2
+  %21: Size = bitcast inspect %20
+  %22: Size = const 0
+  %23: Bool = eq inspect %21 inspect %22
+  %24: {} = call checkCondition borrow.shared %23
+  %25: @bits(30) U32 = const 2
+  %26: @bits(2) U32 = const 1
+  %27: Run(I32) = aggregate.Run take %20 take %25 take %26
+  %28: @bits(30) U32 = const 2
+  %29: Array(I32) = aggregate.Array take %27 take %28
+  write.init borrow.unique (local1) take %29
+  %31: Size = const 0
+  write.init borrow.unique ([%%20][0]) take %18
+  %33: Size = const 1
+  write.init borrow.unique ([%%20][1]) take %19
+  %35: Array(I32) = read take (local1)
+  %36: I32 = const 2
+  %37: Chunks = aggregate.Chunks take %17 take %35 take %36
+  write.init borrow.unique (cs) take %37
+  %39: Chunks [shared call] = read borrow.shared (cs) loan0
+  %40: I32 = call countAll(Chunks, I32) borrow.shared %39
+  %41: Chunks [shared call] = read borrow.shared (cs) loan1
+  %42: I32 = const 100
+  %43: I32 = call countUntil(Chunks, I32) borrow.shared %41 borrow.shared %42
+  %44: I32 = add inspect %40 inspect %43
+  %45: Chunks [shared call] = read borrow.shared (cs) loan2
+  %46: I32 = const 100
+  %47: I32 = call countChunks(Chunks, I32) borrow.shared %45 borrow.shared %46
   drop (cs)
-  %38: I32 = add inspect %34 inspect %37
-  %39: I32 = const 7
-  %40: I32 = const 8
-  %41: I32 = const 9
-  %42: Size = const 3
-  %43: Array(I32) = call literalArray(I32) borrow.shared %42
-  write.init borrow.unique (local3) take %43
-  %45: Array(I32) [unique slot 0] = read borrow.unique (local3) loan5
-  %46: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %45 roots{5}
-  %47: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %46 roots.0{5}
-  %48: Size = const 0
-  write.init borrow.unique ([%%47][0]) take %39
-  %50: Size = const 1
-  write.init borrow.unique ([%%47][1]) take %40
-  %52: Size = const 2
-  write.init borrow.unique ([%%47][2]) take %41
-  %54: Array(I32) = read take (local3)
-  write.init borrow.unique (local4) take %54
-  %56: Array(I32) [shared slot 0] = read borrow.shared (local4) loan6
-  %57: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %56 roots{6}
-  %58: I32 = call countAll(Array(I32), I32) borrow.shared %57
+  %48: I32 = add inspect %44 inspect %47
+  %49: I32 = const 7
+  %50: I32 = const 8
+  %51: I32 = const 9
+  %52: %I32 = run.slots I32 *3
+  %53: Size = bitcast inspect %52
+  %54: Size = const 0
+  %55: Bool = eq inspect %53 inspect %54
+  %56: {} = call checkCondition borrow.shared %55
+  %57: @bits(30) U32 = const 3
+  %58: @bits(2) U32 = const 1
+  %59: Run(I32) = aggregate.Run take %52 take %57 take %58
+  %60: @bits(30) U32 = const 3
+  %61: Array(I32) = aggregate.Array take %59 take %60
+  write.init borrow.unique (local3) take %61
+  %63: Size = const 0
+  write.init borrow.unique ([%%52][0]) take %49
+  %65: Size = const 1
+  write.init borrow.unique ([%%52][1]) take %50
+  %67: Size = const 2
+  write.init borrow.unique ([%%52][2]) take %51
+  %69: Array(I32) = read take (local3)
+  write.init borrow.unique (local4) take %69
+  %71: Array(I32) [shared slot 0] = read borrow.shared (local4) loan3
+  %72: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %71 roots{3}
+  %73: I32 = call countAll(Array(I32), I32) borrow.shared %72
   drop (local4)
-  %59: I32 = add inspect %38 inspect %58
-  %60: I32 = const 7
-  %61: I32 = const 8
-  %62: I32 = const 9
-  %63: Size = const 3
-  %64: Array(I32) = call literalArray(I32) borrow.shared %63
-  write.init borrow.unique (local5) take %64
-  %66: Array(I32) [unique slot 0] = read borrow.unique (local5) loan7
-  %67: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %66 roots{7}
-  %68: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %67 roots.0{7}
-  %69: Size = const 0
-  write.init borrow.unique ([%%68][0]) take %60
-  %71: Size = const 1
-  write.init borrow.unique ([%%68][1]) take %61
-  %73: Size = const 2
-  write.init borrow.unique ([%%68][2]) take %62
-  %75: Array(I32) = read take (local5)
-  write.init borrow.unique (local6) take %75
-  %77: Array(I32) [shared slot 0] = read borrow.shared (local6) loan8
-  %78: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %77 roots{8}
-  %79: I32 = const 2
-  %80: I32 = call countUntil(Array(I32), I32) borrow.shared %78 borrow.shared %79
+  %74: I32 = add inspect %48 inspect %73
+  %75: I32 = const 7
+  %76: I32 = const 8
+  %77: I32 = const 9
+  %78: %I32 = run.slots I32 *3
+  %79: Size = bitcast inspect %78
+  %80: Size = const 0
+  %81: Bool = eq inspect %79 inspect %80
+  %82: {} = call checkCondition borrow.shared %81
+  %83: @bits(30) U32 = const 3
+  %84: @bits(2) U32 = const 1
+  %85: Run(I32) = aggregate.Run take %78 take %83 take %84
+  %86: @bits(30) U32 = const 3
+  %87: Array(I32) = aggregate.Array take %85 take %86
+  write.init borrow.unique (local5) take %87
+  %89: Size = const 0
+  write.init borrow.unique ([%%78][0]) take %75
+  %91: Size = const 1
+  write.init borrow.unique ([%%78][1]) take %76
+  %93: Size = const 2
+  write.init borrow.unique ([%%78][2]) take %77
+  %95: Array(I32) = read take (local5)
+  write.init borrow.unique (local6) take %95
+  %97: Array(I32) [shared slot 0] = read borrow.shared (local6) loan4
+  %98: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %97 roots{4}
+  %99: I32 = const 2
+  %100: I32 = call countUntil(Array(I32), I32) borrow.shared %98 borrow.shared %99
   drop (local6)
-  %81: I32 = add inspect %59 inspect %80
-  %82: I32 = const 7
-  %83: I32 = const 8
-  %84: I32 = const 9
-  %85: Size = const 3
-  %86: Array(I32) = call literalArray(I32) borrow.shared %85
-  write.init borrow.unique (local7) take %86
-  %88: Array(I32) [unique slot 0] = read borrow.unique (local7) loan9
-  %89: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %88 roots{9}
-  %90: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %89 roots.0{9}
-  %91: Size = const 0
-  write.init borrow.unique ([%%90][0]) take %82
-  %93: Size = const 1
-  write.init borrow.unique ([%%90][1]) take %83
-  %95: Size = const 2
-  write.init borrow.unique ([%%90][2]) take %84
-  %97: Array(I32) = read take (local7)
-  write.init borrow.unique (local8) take %97
-  %99: Array(I32) [shared slot 0] = read borrow.shared (local8) loan10
-  %100: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %99 roots{10}
-  %101: I32 = const 100
-  %102: I32 = call countChunks(Array(I32), I32) borrow.shared %100 borrow.shared %101
+  %101: I32 = add inspect %74 inspect %100
+  %102: I32 = const 7
+  %103: I32 = const 8
+  %104: I32 = const 9
+  %105: %I32 = run.slots I32 *3
+  %106: Size = bitcast inspect %105
+  %107: Size = const 0
+  %108: Bool = eq inspect %106 inspect %107
+  %109: {} = call checkCondition borrow.shared %108
+  %110: @bits(30) U32 = const 3
+  %111: @bits(2) U32 = const 1
+  %112: Run(I32) = aggregate.Run take %105 take %110 take %111
+  %113: @bits(30) U32 = const 3
+  %114: Array(I32) = aggregate.Array take %112 take %113
+  write.init borrow.unique (local7) take %114
+  %116: Size = const 0
+  write.init borrow.unique ([%%105][0]) take %102
+  %118: Size = const 1
+  write.init borrow.unique ([%%105][1]) take %103
+  %120: Size = const 2
+  write.init borrow.unique ([%%105][2]) take %104
+  %122: Array(I32) = read take (local7)
+  write.init borrow.unique (local8) take %122
+  %124: Array(I32) [shared slot 0] = read borrow.shared (local8) loan5
+  %125: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %124 roots{5}
+  %126: I32 = const 100
+  %127: I32 = call countChunks(Array(I32), I32) borrow.shared %125 borrow.shared %126
   drop (local8)
-  %103: I32 = add inspect %81 inspect %102
-  return take %103
+  %128: I32 = add inspect %101 inspect %127
+  return take %128
 }
 
 fn countAll(Chunks, I32)(xs: Chunks [shared call]) -> I32 = <countAll at Chunks, I32>

@@ -2029,6 +2029,22 @@ Node* Resolver::resolveFormat(Builder& builder, ast::Expr& expr) {
     auto extent = coerce(builder, *total, sizeType, expr.source, "a format's size"_v);
     if(!extent) return nullptr;
 
+    /*
+     * The buffer, from the library's own allocator - and the bound is **not** a number here.
+     *
+     * Worth stating, because J46 §3.4 planned the opposite. The header's step 1 says the literal
+     * segments are counted at resolve time, which they are; what it assumed on top of that is that
+     * a hole's `formatBound(showBound(v))` is a number here too. It is not: `showBound` is a class
+     * member whose body this stage does not run - the argument is a value rather than a constant -
+     * so the sum is an expression at this point and becomes 54 in `resolve_ssa/opt/fold.cpp`, one
+     * tier down. §2.4's `%132: Size trivial = const 54` is that fold, and it is where the number
+     * first exists.
+     *
+     * So the buffer cannot be emitted here, and what asks the placement question instead is the
+     * normalization in `place.cpp`: a `runSlots` whose count has folded to a constant becomes the
+     * instruction a literal builds directly, in the frame the call was inlined into. That is the
+     * same answer arrived at one tier later, and it is the tier that has the number.
+     */
     Node* room[1] = { extent };
     auto sink = callFunction(builder, allocate, room, 1, expr.source);
     if(!sink) return nullptr;
@@ -2729,13 +2745,16 @@ Maybe<ArrayLiteralShape> Resolver::arrayLiteralShape(ast::Expr& expr, DeclPtr<Ty
 /*
  * `[1, 2, 3]` at a position that owns a **growable** array - `doc/spec/collections.md`'s `[a]`.
  *
- * The compiler builds no container here. Two library bodies do - `known.def`'s `arrayLiteral`, which
- * answers an array of `count` live slots, and `elementBase`, which says where those slots start -
- * and what is left is the part a literal actually is: `count` values, written into slot `i` in the
- * order they were written down. Nothing in this function reads a field of `Array` or of its view,
- * which is the difference from the shipping stage, where the run, the capacity and the placement tag
- * are spelled out at every literal and a library that laid a run out differently would miscompile
- * rather than fail to build.
+ * The element type and the ordering are this function's; the container is `buildGrowableArray`'s,
+ * below, which asks for the storage as one instruction and writes the two records over it. That
+ * used to be two library calls - `arrayLiteral` for an array of `count` live slots and
+ * `elementBase` for where those slots start - and `known.def`'s note above `runSlots` is where the
+ * argument for removing them is.
+ *
+ * What both arrangements have over the shipping stage is that the *field list* comes from the
+ * library's own records rather than being spelled at every literal: a library that laid a run out
+ * differently fails to build here and miscompiles there. What the roles bought over that was one
+ * fewer reader of the field order, and the read had to happen anyway - see `RunShape`.
  *
  * **The elements are resolved before the array is made**, which is the same ordering the map literal
  * has and is here for both of its reasons. The written expressions run left to right exactly once,
@@ -2748,7 +2767,8 @@ Maybe<ArrayLiteralShape> Resolver::arrayLiteralShape(ast::Expr& expr, DeclPtr<Ty
  * construction, so the frame that owned element `i` stops owing it a teardown on the path that
  * stored it, and the array's own `Reclaim` walk over `length` elements is what runs them afterwards.
  * The window in which the length promises values that are not there yet contains no program of the
- * author's - see `literalArray`, where the library states the same thing from its side.
+ * author's: `buildGrowableArray` writes every slot immediately, in index order, with nothing of the
+ * program's own running in between.
  */
 Node* Resolver::resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
                                        U64 capacity) {
@@ -2926,114 +2946,167 @@ Node* Resolver::resolveMapLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Typ
 }
 
 /*
- * The container half of the literal above, over values that are already in hand.
+ * The shapes an array literal builds, or nothing where the library declares neither record.
  *
- * Split out because it has a second caller and only one of the two has an expression: the
- * synthesized test entry builds an `[Case]` out of cases it constructed, and a suite whose array is
- * assembled by a second piece of code that spells `Array`'s fields is exactly what the library roles
- * exist to prevent. Everything about *what* a literal is - the element type, the ordering, the
- * coercion of the second element to the first's type - stays above this line, because none of it is
- * a question the entry has.
+ * Both instantiated at the element together, because a literal needs both and a stage that had one
+ * of them could not build anything: the run is what the slots are described by and the array is what
+ * the position receives.
  */
-/*
- * The room a refined array starts with - `reserve(&self, wanted)`, through the `arrayReserve` role.
- *
- * Its own function so that "what `@capacity(n)` costs" is one call in one place. What the role does
- * *not* say is where the slots live: `@inline(n)` asks for the frame and this stage places every run
- * on the heap, which is the note on the role and the one way a refined array here differs from the
- * shipping stage's.
- */
-bool Resolver::reserveCapacity(Builder& builder, Place& place, U64 capacity, LocationId source) {
-    auto found = program.roles.function(intrinsic::Known::arrayReserve);
-    if(!found) {
-        reportMissingRole(intrinsic::Known::arrayReserve, "`@inline(n) @capacity(n)`"_v, source);
-        return false;
+Maybe<RunShape> arrayShape(Resolver& self, DeclPtr<Type> element, LocationId source) {
+    auto arrayRole = self.program.roles.record(intrinsic::Known::array);
+    if(!arrayRole) {
+        self.reportMissingRole(intrinsic::Known::array, "a growable array literal"_v, source);
+        return Nothing();
     }
 
-    auto& reserve = *decl()[found];
+    auto runRole = self.program.roles.record(intrinsic::Known::run);
+    if(!runRole) {
+        self.reportMissingRole(intrinsic::Known::run, "a growable array literal"_v, source);
+        return Nothing();
+    }
 
-    auto self = readPlace(builder, source, place,
-                          requestOf(decl()[reserve.args.get(decl(), 0)]->occurrence));
-    if(!self) return false;
+    RunShape shape;
+    shape.array = instantiateRecord(self.context, self.program, arrayRole, &element, 1, source);
+    shape.run = instantiateRecord(self.context, self.program, runRole, &element, 1, source);
+    if(!shape.array || !shape.run) return Nothing();
 
-    auto wanted = builder.addConst(source, intConstant(program.types.words[1], capacity));
-    if(!wanted) return false;
+    /*
+     * The field types, checked for arity here so that the aggregates below cannot be built against a
+     * record with a different field list. A library free to declare a four-field `Run` is a library
+     * this stage declines to build a literal for, which is a diagnostic rather than a miscompile.
+     */
+    auto& runRecord = *(RecordType*)self.decl()[shape.run];
+    auto& arrayRecord = *(RecordType*)self.decl()[shape.array];
 
-    Node* arguments[2] = { self, wanted };
-    return callFunction(builder, reserve, arguments, 2, source) != nullptr;
+    if(runRecord.fields.size() != 3 || arrayRecord.fields.size() != 2) {
+        self.context.diagnostics.error(
+            "this library's `Run` and `Array` are not the two records an array literal is built out of"_v,
+            source);
+        return Nothing();
+    }
+
+    shape.capacity = runRecord.field(self.decl(), RunShape::kCapacity).occurrence.type;
+    shape.flag = runRecord.field(self.decl(), RunShape::kOwnsHeap).occurrence.type;
+    shape.length = arrayRecord.field(self.decl(), RunShape::kLength).occurrence.type;
+
+    return Just(shape);
 }
 
+/*
+ * `[1, 2, 3]` as an owned container - the run, the descriptor over it and the elements written into
+ * it, all emitted here, over values that are already in hand.
+ *
+ * Split from `resolveGrowableLiteral` above because it has a second caller and only one of the two
+ * has an expression: the synthesized test entry builds an `[Case]` out of cases it constructed, and
+ * a suite whose array is assembled by a second piece of code spelling `Array`'s fields is exactly
+ * what one builder in one place exists to prevent. Everything about *what* a literal is - the
+ * element type, the ordering, the coercion of the second element to the first's type - stays above
+ * this line, because none of it is a question the entry has.
+ *
+ * **Three library calls became one instruction**, which is J46 part 3. What this used to be was
+ * `arrayLiteral(n)` - itself `newRun` and so `runSlots` and `runOver` - then `elementBase(&self)`
+ * for somewhere to write, and `reserve` where a bound asked for more room than the literal filled.
+ * Five bodies to resolve, instantiate, summarize and inline, at every literal in the program, to
+ * arrive at an allocation and five stores. `NodeRunSlots` is the allocation, and the two aggregates
+ * below are the stores, said once.
+ *
+ * What that buys is not only the compile time (§92.4's 4.7x, and `test/bench/findings.md` §94 for
+ * the other half of the same cost). It is that `resolve_ssa/opt/place.cpp` no longer has to
+ * *recognize* the request: the instruction is the request, so `runSlots` stops needing `@noinline`
+ * to be findable and `newRun` stops needing `@inline(always)` to put the request in the right frame.
+ *
+ * **The capacity is `max(written, bound)` and the length is the written count.** `@capacity(n)`
+ * used to be a `reserve` call after the fact, which relocates: the literal built a run of `n`
+ * elements' worth and then grew it. Sizing the request once is the same guarantee with the
+ * relocation gone, and it is available here because the request is an instruction whose size this
+ * function chooses rather than a call whose argument is the written count.
+ *
+ * **The refusal is the same one the library made.** `runSlots` answers null where the allocator
+ * says no, `runOver` turns that into a capacity of zero, and `literalArray`'s `checkCondition`
+ * stops the program. Written out here it is one comparison against null, which folds to nothing
+ * wherever the placement pass puts the slots in the frame - a frame allocation does not fail.
+ */
 Node* Resolver::buildGrowableArray(Builder& builder, DeclPtr<Type> element,
                                    SmallArray<Node*, 8>& components, LocationId source,
                                    U64 capacity) {
-    auto declared = program.roles.record(intrinsic::Known::array);
-    if(!declared) {
-        reportMissingRole(intrinsic::Known::array, "a growable array literal"_v, source);
+    auto shaped = arrayShape(*this, element, source);
+    if(!shaped) return nullptr;
+
+    auto& shape = shaped.unwrap();
+    auto count = U64(components.size());
+    auto room = capacity > count ? capacity : count;
+
+    if(room > kMaxFixedArrayLength) {
+        context.diagnostics.error("this array literal asks for more elements than a run can hold"_v,
+                                  source);
         return nullptr;
     }
 
-    // The array's own type, built here rather than taken from the hint: a literal with no hint has
-    // none to take, and one with a hint has already agreed with it - `element` came out of it.
-    auto arrayType = instantiateRecord(context, program, declared, &element, 1, source);
-    if(!arrayType) return nullptr;
+    /*
+     * An empty literal asks for nothing and gets `emptyRun`'s answer written out: a null pointer and
+     * a capacity of zero.
+     *
+     * Not an allocation of no bytes, which is what a `RunSlots` of zero would have to become - the
+     * allocator would hand back a block the container then owes `freeHeap`, at every `[] :: [Int]`
+     * in the program. `runSlots` refuses a capacity of zero for the same reason and answers the same
+     * null; this is that arm, decided here because the count is known here.
+     */
+    Node* slots = nullptr;
+
+    if(room) {
+        slots = builder.addRunSlots(source, element, room);
+    } else {
+        auto zero = builder.addConst(source, intConstant(program.types.words[1], 0));
+        if(!zero) return nullptr;
+
+        slots = builder.addBitcast(source, *zero, program.types.pointerType(element));
+    }
+
+    if(!slots) return nullptr;
+
+    if(!checkSlots(builder, *slots, room, source)) return nullptr;
 
     /*
-     * The array, and then the address of its slots.
+     * `Run {items, capacity, ownsHeap}` and `Array {run, length}` - the two records, built as
+     * ordinary aggregates.
      *
-     * `arrayLiteral` names its element nowhere in its arguments, so what decides it is the result
-     * position - which is the same rule `Nothing :: Maybe(I32)` is selected by, and is why the type
-     * is built above rather than read back off the call.
+     * `runFromHeap` is what the request answered and what the descriptor therefore says, exactly as
+     * `newRun` passed it: whoever decided where the bytes are is the only thing entitled to write
+     * this field, and at this point that decision is "the allocator". `place.cpp` rewrites the
+     * field where it moves the slots, which is the same edit it has always made.
      */
-    auto count = builder.addConst(source, intConstant(program.types.words[1],
-                                                           U64(components.size())));
-    if(!count) return nullptr;
+    Node* runParts[3];
+    runParts[RunShape::kItems] = slots;
+    runParts[RunShape::kCapacity] = builder.addConst(source, intConstant(shape.capacity, room));
+    runParts[RunShape::kOwnsHeap] = builder.addConst(source,
+                                                     intConstant(shape.flag, RunShape::kFromHeap));
 
-    Node* made[1] = { count };
-    auto array = callKnown(builder, intrinsic::Known::arrayLiteral, made, 1, source, arrayType);
+    if(!runParts[RunShape::kCapacity] || !runParts[RunShape::kOwnsHeap]) return nullptr;
+
+    auto run = builder.addAggregate(source, shape.run, 0, runParts, 3);
+    if(!run) return nullptr;
+
+    Node* arrayParts[2];
+    arrayParts[RunShape::kRun] = run;
+    arrayParts[RunShape::kLength] = builder.addConst(source, intConstant(shape.length, count));
+    if(!arrayParts[RunShape::kLength]) return nullptr;
+
+    auto array = builder.addAggregate(source, shape.array, 0, arrayParts, 2);
     if(!array) return nullptr;
 
     /*
-     * Held in a local before the base is taken, because the base is a *borrow* of it: an owned value
-     * still in a node has no place for a loan to name, and the array has to outlive every write that
-     * goes through the pointer taken from it.
+     * Held in a local, because the elements are written through the slots and the array has to
+     * outlive every one of those writes.
      *
      * Writable, which `hold` cannot give it: that function reads the permission off the value's own
      * contract, and an owned array's says nothing about whether the storage holding it may be
      * written. Here it may - the local is a temporary of this frame that the literal is still
-     * building, and handing its window out for writing is the whole reason it exists.
+     * building.
      */
     auto& occurrence = valueOccurrence(*array);
     auto local = builder.addLocal(StringId(), occurrence, source, true);
     auto place = builder.localPlace(*local);
     builder.addWrite(source, *place, *array, Destination::Init);
-
-    /*
-     * `@inline(n) @capacity(n)` - the room the container starts with, asked for through the library's
-     * own `reserve` (`known.def`'s `arrayReserve`).
-     *
-     * Here rather than at the construction, because `arrayLiteral`'s count is the number of elements
-     * the literal *wrote* and a bound is a statement about the ones it did not: sizing the run from
-     * the bound would make `length` the bound as well. Before the base is taken, because reserving
-     * relocates the run - an address read first would name the storage the growth just released.
-     */
-    if(capacity > components.size() && !reserveCapacity(builder, *place, capacity, source)) {
-        return nullptr;
-    }
-
-    auto based = program.roles.function(intrinsic::Known::elementBase);
-    if(!based) {
-        reportMissingRole(intrinsic::Known::elementBase, "a growable array literal"_v, source);
-        return nullptr;
-    }
-
-    auto& baseOf = *decl()[based];
-    auto window = readPlace(builder, source, *place,
-                            requestOf(decl()[baseOf.args.get(decl(), 0)]->occurrence));
-    if(!window) return nullptr;
-
-    Node* of[1] = { window };
-    auto base = callFunction(builder, baseOf, of, 1, source);
-    if(!base) return nullptr;
 
     /*
      * Element `i` at index `i` of the run the pointer names - the same `Place::Index` a fixed
@@ -3049,22 +3122,57 @@ Node* Resolver::buildGrowableArray(Builder& builder, DeclPtr<Type> element,
      * what keeps the write out of the loan check - initializing fresh storage is not writing through
      * the borrow the address came from - and `Builder::addWrite` is where the raw-address root is
      * admitted for exactly this.
+     *
+     * Written through the request's own result rather than through the array, which is the one thing
+     * that changed here: `elementBase(&self)` read the pointer back out of the container it had just
+     * been put into, and the pointer is in hand.
      */
-    auto run = program.types.arrayType(decl(), element, U64(components.size()));
-    auto slots = builder.addressPlace(*base, Occurrence { run, ownedContract(), nullptr }, true);
+    if(count) {
+        auto storage = program.types.arrayType(decl(), element, count);
+        auto window = builder.addressPlace(*slots, Occurrence { storage, ownedContract(), nullptr },
+                                           true);
 
-    for(Size i = 0; i < components.size(); i++) {
-        auto index = builder.addConst(source, intConstant(program.types.words[1], U64(i)));
-        if(!index) return nullptr;
+        for(Size i = 0; i < components.size(); i++) {
+            auto index = builder.addConst(source, intConstant(program.types.words[1], U64(i)));
+            if(!index) return nullptr;
 
-        auto slot = builder.elementPlace(*slots, *index);
-        builder.addWrite(source, *slot, *components[i], Destination::Init);
+            auto slot = builder.elementPlace(*window, *index);
+            builder.addWrite(source, *slot, *components[i], Destination::Init);
+        }
     }
 
     // The array itself, moved out of the local it was held in. A read at an owning request, which is
     // what makes it the temporary the surrounding position receives rather than a borrow of a local
     // that is about to end.
     return readPlace(builder, source, *place, requestOf(ownedContract()));
+}
+
+/*
+ * The allocator's refusal, tested - `literalArray`'s `checkCondition` written out.
+ *
+ * `isNull(slots)`, spelled the way `lib/Native/Pointer.yana` spells it: a pointer read as a word and
+ * compared against zero. Skipped for a request of no slots at all, which is the one case where a
+ * null answer is the right one - an empty literal's run has room for nothing and points at nothing,
+ * and `emptyRun` is that value.
+ *
+ * Silent where the library declares no condition function, on `checkFixedBound`'s terms: the role is
+ * `Optional`, and a library whose allocator failures are unchecked is a decision it made.
+ */
+bool Resolver::checkSlots(Builder& builder, Node& slots, U64 room, LocationId source) {
+    if(!room) return true;
+    if(!program.roles.function(intrinsic::Known::checkCondition)) return true;
+
+    auto word = program.types.words[1];
+    auto address = builder.addBitcast(source, slots, word);
+    if(!address) return false;
+
+    auto zero = builder.addConst(source, intConstant(word, 0));
+    if(!zero) return false;
+
+    auto refused = builder.addBinary(source, BinaryOp::Eq, *address, *zero);
+    if(!refused) return false;
+
+    return callKnown(builder, intrinsic::Known::checkCondition, &refused, 1, source) != nullptr;
 }
 
 /*

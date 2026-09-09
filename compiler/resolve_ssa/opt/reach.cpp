@@ -154,6 +154,23 @@ struct Reachability {
                 }
 
                 if(inst->kind == Inst::FunValue) root(((InstFunValue&)*inst).callee);
+
+                /*
+                 * A run request the placement pass left on the heap, which is the one call this
+                 * walk cannot see: `lower/inst.cpp` expands the instruction into `allocateHeap`,
+                 * one tier below here, exactly as the located check pair is expanded below the
+                 * roots above.
+                 *
+                 * Asked per instruction rather than rooted with the allocator at the top, and that
+                 * is the whole point of asking it here: `place.cpp` has already run, so a program
+                 * whose every literal ended up in the frame names the allocator nowhere and does
+                 * not carry it. `Program::usesRuns` is set at every request because the *MIR*
+                 * reachability walk runs before the placement and has to keep the body alive to be
+                 * placed against; this is the later, narrower question.
+                 */
+                if(inst->kind == Inst::RunSlots && !((InstRunSlots&)*inst).placed) {
+                    root(opt.program.roles.function(intrinsic::Known::allocateHeap));
+                }
             }
         }
     }

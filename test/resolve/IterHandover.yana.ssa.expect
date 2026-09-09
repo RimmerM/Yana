@@ -7,27 +7,32 @@ bb0:
   %2: U8 trivial = const 2
   %3: U8 trivial = const 3
   %4: U8 trivial = const 4
-  %5: Size trivial = const 4
-  %6: Array(U8) owned = call literalArray(U8) borrow %5
-  store inspect %0 consume %6
-  %7: Array(U8) [unique slot 0] guaranteed from{%0} = load inspect %0
-  %8: Array(U8) [unique slot 0 view] guaranteed from{%0} = call Array(a).elementsMut(U8) borrow %7
-  %9: %U8 [owned here shape6 .*=shared slot 0] trivial = call valuesMut(U8) borrow %8
-  %10: Size trivial = const 0
-  %11: %U8 address = element.addr inspect %9 inspect %10
-  store inspect %11 consume %1
-  %12: Size trivial = const 1
-  %13: %U8 address = element.addr inspect %9 inspect %12
-  store inspect %13 consume %2
-  %14: Size trivial = const 2
-  %15: %U8 address = element.addr inspect %9 inspect %14
-  store inspect %15 consume %3
-  %16: Size trivial = const 3
-  %17: %U8 address = element.addr inspect %9 inspect %16
-  store inspect %17 consume %4
-  %18: Array(U8) owned = load inspect %0
-  %19: Held owned = aggregate.Held consume %18
-  return consume %19
+  %5: %U8 trivial = run.slots U8 *4 heap
+  %6: Size trivial = bitcast inspect %5
+  %7: Size trivial = const 0
+  %8: Bool trivial = eq inspect %6 inspect %7
+  call checkCondition borrow %8
+  %9: @bits(30) U32 trivial = const 4
+  %10: @bits(2) U32 trivial = const 1
+  %11: Run(U8) owned = aggregate.Run consume %5 consume %9 consume %10
+  %12: @bits(30) U32 trivial = const 4
+  %13: Array(U8) owned = aggregate.Array consume %11 consume %12
+  store inspect %0 consume %13
+  %14: Size trivial = const 0
+  %15: %U8 address = element.addr inspect %5 inspect %14
+  store inspect %15 consume %1
+  %16: Size trivial = const 1
+  %17: %U8 address = element.addr inspect %5 inspect %16
+  store inspect %17 consume %2
+  %18: Size trivial = const 2
+  %19: %U8 address = element.addr inspect %5 inspect %18
+  store inspect %19 consume %3
+  %20: Size trivial = const 3
+  %21: %U8 address = element.addr inspect %5 inspect %20
+  store inspect %21 consume %4
+  %22: Array(U8) owned = load inspect %0
+  %23: Held owned = aggregate.Held consume %22
+  return consume %23
 }
 
 fn consume(h: Held) -> Size {

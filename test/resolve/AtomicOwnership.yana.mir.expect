@@ -105,8 +105,8 @@ bb0:
 }
 
 fn twoElements() -> I32 {
-  local & local0: Array(Atomic(I32)) object0
-  local & xs: Array(Atomic(I32)) object0
+  local & local0: Array(Atomic(I32)) object1
+  local & xs: Array(Atomic(I32)) object1
   local local2: Atomic(I32) [shared slot 0]
   local local3: Atomic(I32) [shared slot 0]
   local local4: Atomic(I32) [shared slot 0]
@@ -117,47 +117,52 @@ bb0:
   %1: Atomic(I32) = atomic.new relaxed inspect %0
   %2: I32 = const 2
   %3: Atomic(I32) = atomic.new relaxed inspect %2
-  %4: Size = const 2
-  %5: Array(Atomic(I32)) = call literalArray(Atomic(I32)) borrow.shared %4
-  write.init borrow.unique (local0) take %5
-  %7: Array(Atomic(I32)) [unique slot 0] = read borrow.unique (local0) loan0
-  %8: Array(Atomic(I32)) [unique slot 0 view] = call.derivation elementsMut(Array(Atomic(I32)), Atomic(I32)) borrow.unique %7 roots{0}
-  %9: %Atomic(I32) [owned here shape6 .*=shared slot 0] = call valuesMut(Atomic(I32)) borrow.unique %8 roots.0{0}
-  %10: Size = const 0
-  write.init borrow.unique ([%%9][0]) take %1
-  %12: Size = const 1
-  write.init borrow.unique ([%%9][1]) take %3
-  %14: Array(Atomic(I32)) = read take (local0)
-  write.init borrow.unique (xs) take %14
-  %16: Size = const 0
-  %17: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan1
-  %18: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %17 roots{1}
-  %19: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %18 borrow.shared %16 roots{1}
-  write.init borrow.unique (local2) borrow.shared %19
-  %21: Atomic(I32) [shared slot 0] = read borrow.shared (local2) loan2 roots{1}
-  %22: Size = const 1
-  %23: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan3
-  %24: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %23 roots{3}
-  %25: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %24 borrow.shared %22 roots{3}
-  write.init borrow.unique (local3) borrow.shared %25
-  %27: Atomic(I32) [shared slot 0] = read borrow.shared (local3) loan4 roots{3}
-  %28: I32 = call bothArguments borrow.shared %21 borrow.shared %27
-  %29: Size = const 0
-  %30: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan5
-  %31: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %30 roots{5}
-  %32: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %31 borrow.shared %29 roots{5}
-  write.init borrow.unique (local4) borrow.shared %32
-  %34: Atomic(I32) [shared slot 0] = read borrow.shared (local4) loan6 roots{5}
-  %35: Size = const 0
-  %36: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan7
-  %37: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %36 roots{7}
-  %38: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %37 borrow.shared %35 roots{7}
-  write.init borrow.unique (local5) borrow.shared %38
-  %40: Atomic(I32) [shared slot 0] = read borrow.shared (local5) loan8 roots{7}
-  %41: I32 = call bothArguments borrow.shared %34 borrow.shared %40
+  %4: %Atomic(I32) = run.slots Atomic(I32) *2
+  %5: Size = bitcast inspect %4
+  %6: Size = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  %8: {} = call checkCondition borrow.shared %7
+  %9: @bits(30) U32 = const 2
+  %10: @bits(2) U32 = const 1
+  %11: Run(Atomic(I32)) = aggregate.Run take %4 take %9 take %10
+  %12: @bits(30) U32 = const 2
+  %13: Array(Atomic(I32)) = aggregate.Array take %11 take %12
+  write.init borrow.unique (local0) take %13
+  %15: Size = const 0
+  write.init borrow.unique ([%%4][0]) take %1
+  %17: Size = const 1
+  write.init borrow.unique ([%%4][1]) take %3
+  %19: Array(Atomic(I32)) = read take (local0)
+  write.init borrow.unique (xs) take %19
+  %21: Size = const 0
+  %22: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan0
+  %23: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %22 roots{0}
+  %24: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %23 borrow.shared %21 roots{0}
+  write.init borrow.unique (local2) borrow.shared %24
+  %26: Atomic(I32) [shared slot 0] = read borrow.shared (local2) loan1 roots{0}
+  %27: Size = const 1
+  %28: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan2
+  %29: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %28 roots{2}
+  %30: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %29 borrow.shared %27 roots{2}
+  write.init borrow.unique (local3) borrow.shared %30
+  %32: Atomic(I32) [shared slot 0] = read borrow.shared (local3) loan3 roots{2}
+  %33: I32 = call bothArguments borrow.shared %26 borrow.shared %32
+  %34: Size = const 0
+  %35: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan4
+  %36: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %35 roots{4}
+  %37: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %36 borrow.shared %34 roots{4}
+  write.init borrow.unique (local4) borrow.shared %37
+  %39: Atomic(I32) [shared slot 0] = read borrow.shared (local4) loan5 roots{4}
+  %40: Size = const 0
+  %41: Array(Atomic(I32)) [shared call] = read borrow.shared (xs) loan6
+  %42: Array(Atomic(I32)) [shared slot 0 view] = call.derivation elements(Array(Atomic(I32)), Atomic(I32)) borrow.shared %41 roots{6}
+  %43: Atomic(I32) [shared slot 0] = call.subscript get(Array(Atomic(I32)), Size, Atomic(I32)) borrow.shared %42 borrow.shared %40 roots{6}
+  write.init borrow.unique (local5) borrow.shared %43
+  %45: Atomic(I32) [shared slot 0] = read borrow.shared (local5) loan7 roots{6}
+  %46: I32 = call bothArguments borrow.shared %39 borrow.shared %45
   drop (xs)
-  %42: I32 = add inspect %28 inspect %41
-  return take %42
+  %47: I32 = add inspect %33 inspect %46
+  return take %47
 }
 
 fn produce() -> Atomic(I32) {

@@ -2272,6 +2272,23 @@ struct Conversion {
                 break;
             }
 
+            /*
+             * A run's slots - one instruction down to one instruction, which is the whole of what
+             * this node was made for.
+             *
+             * The element is substituted, because a literal in a generic body asks for slots of
+             * whatever the instantiation says `a` is; the count is a number the resolver chose and
+             * is carried through unchanged.
+             */
+            case mir::Node::RunSlots: {
+                auto& written = (mir::NodeRunSlots&)node;
+                auto inst = editor.addRunSlots(node.source, substituted(written.element),
+                                               written.capacity);
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+
             case mir::Node::FunValue: {
                 auto& written = (mir::NodeFunValue&)node;
                 auto result = substituted(mir::valueOccurrence(node));

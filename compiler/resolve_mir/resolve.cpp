@@ -1136,8 +1136,8 @@ void Resolver::checkTextDefaults() {
     if(!pendingTextDefaults.size()) return;
 
     // Asked once for the whole program rather than once per default: the answer is the same for all
-    // of them, and a library that declares no `stringLiteral` is one diagnostic and not one per
-    // position that wrote a string.
+    // of them, and a library that declares no `String` is one diagnostic and not one per position
+    // that wrote a string.
     auto text = textType(pendingTextDefaults[0].source);
     if(!text) return;
 
@@ -1230,8 +1230,8 @@ Maybe<Constant> Resolver::resolveConstructorConstant(ast::Expr& expr, DeclPtr<Ty
  * Selection first and the fold second, which is the order that keeps this from being a second
  * reading of what `*` means: a candidate is a class member, the instance is looked up the way every
  * call looks one up, and only a *generated* instance has an operation at all. A program's own
- * `instance Num(Money)` therefore does not fold here - it is a body, and a body is what
- * `evaluate.cpp` runs once one exists.
+ * `instance Num(Money)` therefore does not fold here - it is a body, and nothing in this stage
+ * runs a body at compile time. `Analysis-Initialization.md`'s stage A is where that is left open.
  *
  * Over the whole set rather than over `sole()`, because `+` is genuinely overloaded in this library:
  * `Num.+` and `lib/Native`'s pointer offset share the name, and which one this is is decided by
@@ -1869,20 +1869,25 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
 }
 
 /*
- * The type a string literal has - the result of whatever the library declared `stringLiteral`.
+ * The type a string literal has - the record `known.def`'s `string` row names.
  *
  * Read off the role rather than named here, on `type.def`'s terms: `String` is an ordinary record
  * of `lib/Core` and this stage has no row for it, so what a literal *is* is the library's answer
  * and this is the one question asked to get it.
+ *
+ * The **record** row and no longer `stringLiteral`'s result type, which is J46 §3.5's first line:
+ * asking a function what a string is meant the library's builder had to exist for the grammar to
+ * have a type at all, and the row that says which record is a string has been sitting beside it
+ * since `StringType::content` was filled from it.
  */
 DeclPtr<Type> Resolver::textType(LocationId source) {
-    auto declared = program.roles.function(intrinsic::Known::stringLiteral);
+    auto declared = program.roles.record(intrinsic::Known::string);
     if(!declared) {
-        reportMissingRole(intrinsic::Known::stringLiteral, "a string literal"_v, source);
+        reportMissingRole(intrinsic::Known::string, "a string literal"_v, source);
         return nullptr;
     }
 
-    return decl()[declared]->result.type;
+    return DeclPtr<Type>(declared.offset);
 }
 
 /*
@@ -1904,14 +1909,18 @@ DeclPtr<Global> Resolver::stringBytesGlobal(StringId written, LocationId source)
     auto unit = program.types.codeUnit;
     auto bytes = program.types.arrayType(decl(), unit, count);
 
-    Array<Constant> values;
-    values.reserve(count);
-    for(Size i = 0; i < count; i++) values.push(intConstant(unit, U8(text.text()[i])));
-
+    /*
+     * The initializer is the **text itself**, at the array type - not `count` interned constants.
+     *
+     * `Constant::Text` says what the value is and `materialize` writes it, which is one entry in
+     * the aggregate table per literal instead of `count` of them plus the list over them. What that
+     * cost while it was a list is `test/bench/findings.md` §94: interning is structural, so every
+     * literal walked every byte of every literal before it.
+     */
     auto global = new (program.decl) Global(program.uniqueSymbol(here(), context, "string"_v),
                                             owned(bytes));
     global->source = source;
-    global->initial = program.aggregateConstant(bytes, 0, values.pointer(), count);
+    global->initial = textConstant(bytes, written);
 
     auto pointer = global - *program.decl;
     decl()[here()]->globals.push(program.decl, pointer);
@@ -1919,124 +1928,26 @@ DeclPtr<Global> Resolver::stringBytesGlobal(StringId written, LocationId source)
 }
 
 /*
- * `"abc"` - a string, from bytes the compiler places.
+ * `"abc"` - the constant, in a value position.
  *
- * Two things and only two are the compiler's here. The bytes are `stringBytesGlobal`'s, reached the
- * way any global is - a borrow, whose address `addressOf` publishes as rooted in a global. The
- * **value** is whatever the library builds out of that address and a count: `stringLiteral`, the
- * function `known.def` names, whose body is where a run that owns nothing is described and whose
- * result is the `String` the role names. Nothing here spells a field of it.
+ * **One arm now, where there were two.** This used to try `stringLiteral`'s body as a constant and
+ * fall back to *emitting the call*, opened by `@inline(always)`, for a target whose string has no
+ * static form. There is no such target in this stage - `-resolver ownership` is native only - and
+ * the fallback was the expensive half of a decision that had one answer: five bodies to resolve,
+ * inline and fold at every literal in the program, to arrive at three field writes of numbers the
+ * compiler already had.
  *
- * The call is `@inline(always)` in `lib/`, so what a use of a literal costs is the stores the body
- * writes and no call.
- *
- * **The one place a text becomes a value**, which is what `Constant::Text` is for: a literal
- * written in a body and a literal written as a default reach the same expansion here, and the day
- * the answer becomes the target's - a run in static storage on one, the host's own string on
- * another - this is the function that changes rather than each site that spells a literal.
- *
- * `textConstantValue` beside it is the same two halves in a position that has no builder: it runs
- * the same library function rather than describing what it would have built.
+ * So a literal is a constant here and in a constant position alike, built by `stringConstant`
+ * out of the layout, and `Lowering::placeConstant` puts it in read-only data once per distinct
+ * literal. The day a target's string has no static form is the day this grows a second arm again,
+ * and it will be *this* function that grows it rather than each of the four sites that spell a
+ * literal.
  */
 Node* Resolver::textValue(Builder& builder, StringId written, LocationId source) {
-    auto count = U64(context.findName(written).size());
-    auto unit = program.types.codeUnit;
-    auto pointer = stringBytesGlobal(written, source);
+    auto value = stringConstant(written, source);
+    if(!value.isSet()) return nullptr;
 
-    /*
-     * **The value itself, where the library's builder is a body this compiler can run.**
-     *
-     * `stringLiteral` over a placed run and a count is a description of a value whose every leaf is
-     * a number or an address of something that outlives the program - so the value is a constant,
-     * and running the body is how this stage finds out what it is rather than spelling `String`'s
-     * fields the way `resolve/const.cpp` has to. What comes back goes into read-only data once per
-     * distinct literal (`Lowering::placeConstant`) and a use of it is a copy out of it.
-     *
-     * The alternative below - the call, opened by `@inline(always)` - is what a target whose string
-     * has no static form gets: a run in the host's own storage is built by running something, and
-     * there is nothing for `materialize` to write. So the two arms are the one question
-     * "does a literal have a static form here", asked in the one place, and not a fast path beside
-     * a slow one. `textConstantValue` asks the same of a *constant* position, where there is no
-     * second arm and a body that cannot be run is a diagnostic.
-     */
-    if(auto value = stringLiteralValue(pointer, count, source, false); value.isSet()) {
-        /*
-         * And whether the teardown of the value is anything - asked **here**, while the library's
-         * bodies still exist to be run, and recorded on the program for the optimizer to spend.
-         *
-         * A literal's run is borrowed, so `Reclaim(String)` is a flag test that fails; the slot the
-         * value goes into then owes a call that does nothing, at every literal in the program. It is
-         * asked at the one site that mints a constant of a type with a teardown, so the table holds
-         * one entry per distinct literal rather than one per use.
-         */
-        if(isLinear(decl(), value.type) &&
-           teardownRunsNothing(value.type, value, true, true, source)) {
-            program.markInertConstant(value);
-        }
-
-        return builder.addConst(source, value);
-    }
-
-    auto addressOf = program.roles.operation(intrinsic::Op::addressOf);
-    if(!addressOf) {
-        reportMissingRole(intrinsic::Op::addressOf, "a string literal"_v, source);
-        return nullptr;
-    }
-
-    /*
-     * A **published shared borrow** of the global, stated here rather than read off whatever the
-     * library declared for `addressOf`.
-     *
-     * The two spellings differ and only one of them is a string literal. Written `it: source'a` the
-     * argument is a loan and the address is the bytes' own; `lib/Native/Pointer.yana`
-     * writes `it: a`, an unpublished position that `readMode` answers with a *trivial copy* - so the
-     * global's three bytes were copied into a frame slot and the `String` handed back described that
-     * slot. `fn abcOf(i: Size) -> String = "abc"` then answered three bytes of the caller's stack,
-     * and every literal that survived its frame was garbage of the right length.
-     *
-     * The compiler placed these bytes, so what it wants of them is not negotiable by a declaration:
-     * a run in static storage has an address and the literal is a description of it. `addressOf` is
-     * still the operation - the pointer's provenance and the diagnostic both belong to it - and this
-     * is only the request the read is made at. `lib`'s spelling stays as it is, because it is what
-     * `test/resolve/Global.yana` pins for `addressOf` of a constant in the shipping stage.
-     */
-    auto& taker = *decl()[addressOf];
-    auto place = builder.globalPlace(pointer);
-    auto borrowed = readPlace(builder, source, *place,
-                              Request { Access::Shared, true, 0, AccessForm::WholeValue });
-    if(!borrowed) return nullptr;
-
-    Node* of[1] = { borrowed };
-    auto address = callFunction(builder, taker, of, 1, source);
-    if(!address) return nullptr;
-
-    auto literal = program.roles.function(intrinsic::Known::stringLiteral);
-    if(!literal) {
-        reportMissingRole(intrinsic::Known::stringLiteral, "a string literal"_v, source);
-        return nullptr;
-    }
-
-    /*
-     * The count at the width `stringLiteral` **declares**, and not at the target word.
-     *
-     * The role's signature is the one source of truth about what this call takes:
-     * `lib/Native/Text.native.yana` writes `length: Int` where the target word is `Size`, and that is
-     * a library saying what its own string builder wants. Building the constant at the target word instead
-     * made every literal in `lib/` "an argument must be I32, and this is Size" - 31 of them in the
-     * Core closure alone - for a number the compiler knows exactly and could have written at either
-     * width. `textConstantValue` in evaluate.cpp has asked the declaration all along; this is the
-     * same question on the path that emits instructions rather than runs the body.
-     */
-    auto& declared = *decl()[literal];
-    auto count_ = declared.args.size() == 2
-        ? decl()[declared.args.get(decl(), 1)]->occurrence.type
-        : program.types.words[1];
-
-    auto units = builder.addBitcast(source, *address, program.types.pointerType(unit));
-    auto length = builder.addConst(source, intConstant(count_, count));
-
-    Node* arguments[2] = { units, length };
-    return callKnown(builder, intrinsic::Known::stringLiteral, arguments, 2, source);
+    return builder.addConst(source, value);
 }
 
 /*
@@ -2320,8 +2231,8 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      */
     resolver.resolveFieldDefaults();
 
-    // The string defaults every pass above queued, now that `stringLiteral`'s own declaration is
-    // certainly in - `Resolver::PendingTextDefault`, where the ordering this closes is argued.
+    // The string defaults every pass above queued, now that `String`'s own declaration is certainly
+    // in - `Resolver::PendingTextDefault`, where the ordering this closes is argued.
     resolver.checkTextDefaults();
 
     // And the `@caller` positions that have to be that same type - `Resolver::PendingCallerText`.

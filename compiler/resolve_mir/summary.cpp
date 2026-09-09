@@ -36,6 +36,11 @@ static bool suspendsAt(Node& node) {
         case Node::Address:
         case Node::Metric:
 
+        // A request for slots. What answers it is an allocation - the frame's, or the allocator's,
+        // and neither is a Yana function that could hand control over. The library's `runSlots` is
+        // a call and this is what replaced it, which is the one difference worth noting here.
+        case Node::RunSlots:
+
         // A machine operation runs and comes back: the kernel is not a Yana function, so nothing
         // reachable through one can hand over.
         case Node::Native:
@@ -304,7 +309,8 @@ struct Interprocedural {
         };
 
         /*
-         * The allocator, where the program has a `@box` anywhere - `Program::usesBoxes`.
+         * The allocator, where the program has a `@box` anywhere - `Program::usesBoxes` - or asks
+         * for a run's slots anywhere, which is `Program::usesRuns`.
          *
          * A root and not an edge, and that is the honest shape of it: the calls these end up in are
          * emitted by the *lowering* - `box.cpp`'s construction and release - so there is no node in
@@ -319,7 +325,7 @@ struct Interprocedural {
         auto allocatorRooted = false;
 
         auto rootAllocator = [&] {
-            if(allocatorRooted || !program.usesBoxes) return;
+            if(allocatorRooted || (!program.usesBoxes && !program.usesRuns)) return;
             allocatorRooted = true;
 
             intrinsic::Known allocator[3] = { intrinsic::Known::allocateHeap,
@@ -1243,6 +1249,11 @@ struct Interprocedural {
             case Node::Metric:
             case Node::GenValue:
             case Node::FunValue:
+
+            // Fresh storage points into nothing the caller lent: whatever the allocation answered,
+            // it is not a projection of any argument. That is the whole reason a run's slots can be
+            // re-placed at all - see `resolve_ssa/opt/place.cpp`.
+            case Node::RunSlots:
                 return set;
 
             default:
@@ -1410,6 +1421,11 @@ struct Interprocedural {
             case Node::Metric:
             case Node::GenValue:
             case Node::FunValue:
+
+            // Fresh storage points into nothing the caller lent: whatever the allocation answered,
+            // it is not a projection of any argument. That is the whole reason a run's slots can be
+            // re-placed at all - see `resolve_ssa/opt/place.cpp`.
+            case Node::RunSlots:
                 return ArgumentSet();
 
             default:
@@ -1550,7 +1566,7 @@ struct Interprocedural {
 
                     /*
                      * The result decides which of the two address questions a return is. An owned
-                     * result hands back a *value*, so `elementBase(&self) -> %a` returns the run
+                     * result hands back a *value*, so `valuesMut(&self) -> %a` returns the run
                      * pointer it read out of the header and not the header's address; a borrowed
                      * result hands back a place, and that place's address does outlive the call.
                      */

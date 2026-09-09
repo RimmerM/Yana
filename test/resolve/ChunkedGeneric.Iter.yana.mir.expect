@@ -221,43 +221,53 @@ fn main() -> I32 {
 bb0:
   %0: I32 = const 1
   %1: I32 = const 2
-  %2: Size = const 2
-  %3: Array(I32) = call literalArray(I32) borrow.shared %2
-  write.init borrow.unique (local0) take %3
-  %5: Array(I32) [unique slot 0] = read borrow.unique (local0) loan0
-  %6: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %5 roots{0}
-  %7: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %6 roots.0{0}
-  %8: Size = const 0
-  write.init borrow.unique ([%%7][0]) take %0
-  %10: Size = const 1
-  write.init borrow.unique ([%%7][1]) take %1
-  %12: Array(I32) = read take (local0)
-  %13: I32 = const 3
-  %14: I32 = const 4
-  %15: Size = const 2
-  %16: Array(I32) = call literalArray(I32) borrow.shared %15
-  write.init borrow.unique (local1) take %16
-  %18: Array(I32) [unique slot 0] = read borrow.unique (local1) loan1
-  %19: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %18 roots{1}
-  %20: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %19 roots.0{1}
-  %21: Size = const 0
-  write.init borrow.unique ([%%20][0]) take %13
-  %23: Size = const 1
-  write.init borrow.unique ([%%20][1]) take %14
-  %25: Array(I32) = read take (local1)
-  %26: I32 = const 2
-  %27: Chunks = aggregate.Chunks take %12 take %25 take %26
-  write.init borrow.unique (local2) take %27
-  %29: Chunks [shared call] = read borrow.shared (local2) loan2
-  %30: I32 = call sumItems borrow.shared %29
+  %2: %I32 = run.slots I32 *2
+  %3: Size = bitcast inspect %2
+  %4: Size = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  %6: {} = call checkCondition borrow.shared %5
+  %7: @bits(30) U32 = const 2
+  %8: @bits(2) U32 = const 1
+  %9: Run(I32) = aggregate.Run take %2 take %7 take %8
+  %10: @bits(30) U32 = const 2
+  %11: Array(I32) = aggregate.Array take %9 take %10
+  write.init borrow.unique (local0) take %11
+  %13: Size = const 0
+  write.init borrow.unique ([%%2][0]) take %0
+  %15: Size = const 1
+  write.init borrow.unique ([%%2][1]) take %1
+  %17: Array(I32) = read take (local0)
+  %18: I32 = const 3
+  %19: I32 = const 4
+  %20: %I32 = run.slots I32 *2
+  %21: Size = bitcast inspect %20
+  %22: Size = const 0
+  %23: Bool = eq inspect %21 inspect %22
+  %24: {} = call checkCondition borrow.shared %23
+  %25: @bits(30) U32 = const 2
+  %26: @bits(2) U32 = const 1
+  %27: Run(I32) = aggregate.Run take %20 take %25 take %26
+  %28: @bits(30) U32 = const 2
+  %29: Array(I32) = aggregate.Array take %27 take %28
+  write.init borrow.unique (local1) take %29
+  %31: Size = const 0
+  write.init borrow.unique ([%%20][0]) take %18
+  %33: Size = const 1
+  write.init borrow.unique ([%%20][1]) take %19
+  %35: Array(I32) = read take (local1)
+  %36: I32 = const 2
+  %37: Chunks = aggregate.Chunks take %17 take %35 take %36
+  write.init borrow.unique (local2) take %37
+  %39: Chunks [shared call] = read borrow.shared (local2) loan0
+  %40: I32 = call sumItems borrow.shared %39
   drop (local2)
-  %31: I32 = const 10
-  %32: I32 = const 20
-  %33: [I32 *2] = aggregate.0 take %31 take %32
-  %34: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *2], I32) borrow.shared %33
-  %35: I32 = call sumArray borrow.shared %34
-  %36: I32 = add inspect %30 inspect %35
-  return take %36
+  %41: I32 = const 10
+  %42: I32 = const 20
+  %43: [I32 *2] = aggregate.0 take %41 take %42
+  %44: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *2], I32) borrow.shared %43
+  %45: I32 = call sumArray borrow.shared %44
+  %46: I32 = add inspect %40 inspect %45
+  return take %46
 }
 
 lens fn items'2(Chunks, I32)(self: Chunks [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <items at Chunks, I32>

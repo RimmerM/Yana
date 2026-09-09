@@ -855,6 +855,41 @@ struct ModuleScope {
     U16 savedFile;
 };
 
+/*
+ * The three fields of a `Run(a)`, and the two of an `Array(a)` - read off the record roles rather
+ * than counted here.
+ *
+ * `known.def`'s `run` row states that the compiler reads that record's fields by position, and this
+ * is the one place in this stage that does. Written as a struct rather than as three constants
+ * because the *types* are wanted as well as the indices: `capacity` is `Count` and `ownsHeap` is
+ * `HeapFlag`, both `@bits` refinements the library chose, and a constant built at the word width
+ * would be refused by `addAggregate`'s own type check.
+ *
+ * `resolve_ssa/opt/place.cpp` holds the same three indices for the same reason and is the other
+ * reader. Two readers of one arrangement is what J46 §3.5 argues should become one; until the flag
+ * rewrite moves here, this is the half that builds and that is the half that has to agree.
+ */
+struct RunShape {
+    DeclPtr<Type> run = nullptr;
+    DeclPtr<Type> array = nullptr;
+
+    DeclPtr<Type> capacity = nullptr;
+    DeclPtr<Type> flag = nullptr;
+    DeclPtr<Type> length = nullptr;
+
+    static constexpr U16 kItems = 0;
+    static constexpr U16 kCapacity = 1;
+    static constexpr U16 kOwnsHeap = 2;
+    static constexpr U16 kRun = 0;
+    static constexpr U16 kLength = 1;
+
+    // The two answers `ownsHeap` takes at a literal - `lib/Native/Run.yana`'s own numbers.
+    // `runBorrowed` is what a literal *string* gets, because its bytes are the image's; a growable
+    // literal asks the allocator and says so, until `place.cpp` decides otherwise.
+    static constexpr U64 kBorrowed = 0;
+    static constexpr U64 kFromHeap = 1;
+};
+
 struct Resolver {
     Context& context;
     Program& program;
@@ -1445,9 +1480,9 @@ struct Resolver {
      *
      * The same ordering `PendingDefault` states, for the one question a string constant asks that no
      * other does: what type it has. A number's is the position's, a constructor's is its record's,
-     * and a string's is whatever the library's `stringLiteral` hands back - a *role*, bound when the
-     * declaration carrying `@builtin(stringLiteral)` is read, which is inside the same pass that
-     * reads this default. So asking there would answer differently depending on which file came
+     * and a string's is the record `known.def`'s `string` row names - a *role*, bound when the
+     * declaration carrying `@builtin(string)` is read, which is inside the same pass that reads
+     * this default. So asking there would answer differently depending on which file came
      * first, and the answer would be "no such role" for every program whose Native module happens to
      * be declared later.
      *
@@ -1466,9 +1501,9 @@ struct Resolver {
      * written - the `@caller(source: p)` parameter itself, or the `file`/`function` field of a
      * location record.
      *
-     * `PendingTextDefault`'s ordering exactly: what `String` *is* is whatever the library's
-     * `stringLiteral` answers, and that role is bound while the declaration carrying it is read -
-     * which is inside the same pass that reads these. Asking there would answer "no such role" for
+     * `PendingTextDefault`'s ordering exactly: what `String` *is* is the record the `string` row
+     * names, and that role is bound while the declaration carrying it is read - which is inside the
+     * same pass that reads these. Asking there would answer "no such role" for
      * every program whose `Native` module happens to be declared later, which is what it did.
      *
      * Kept apart from the defaults' list rather than merged into it because the two report
@@ -1489,10 +1524,14 @@ struct Resolver {
     /*
      * A **string global**, and the text it holds - `let decimalPairs = "0001..."`.
      *
-     * A second deferral for a second ordering, and this one is about *bodies* rather than about
-     * declarations. What a string constant is is what `stringLiteral` builds, and building it means
-     * running that function - so the answer exists only once the library's bodies are resolved,
-     * which is long after a global's initializer is read. `resolveTextGlobals` is the drain.
+     * A second deferral for a second ordering. Building the value means minting the bytes as a
+     * global of their own and reading the `string` and `run` rows to spell the three records over
+     * it - `Resolver::stringConstant` - none of which a global's initializer may do where it is
+     * read. `resolveTextGlobals` is the drain, and it runs once every declaration is in.
+     *
+     * It ran after every *body* while the value was produced by interpreting the library's own
+     * `stringLiteral`, which is what J46 §3.5 removed; the drain has stayed where it was because
+     * nothing between the two points asks a string global for its value.
      *
      * Deferring the value rather than the decision is what keeps everything in between honest: the
      * global's *type* is settled where the initializer is read, so it is not `dynamic`, nothing
@@ -1513,19 +1552,18 @@ struct Resolver {
 
     Array<PendingTextGlobal> pendingTextGlobals;
 
-    // The drain - see `PendingTextGlobal`. After every body, which is the earliest the library's own
-    // string builder can be run.
+    // The drain - see `PendingTextGlobal`, where what it waits for is argued.
     void resolveTextGlobals();
 
     /*
      * A **`map` whose arms are string literals**, and where it stands - `PendingTextGlobal`'s
      * ordering, one tier down.
      *
-     * What a string constant *is* is what `stringLiteral` builds, and building it means running that
-     * function - so a mapping recognized inside `lib/Test/Harness.yana` could not have its table
-     * built while `lib/Native/Text.native.yana`'s bodies were still ahead of it in the walk. Which
-     * of the two files comes first is not something a recognition rule may depend on, and the
-     * failure was silent in the worst way: the recognizer reported the library rather than declining.
+     * A table of string arms is built out of the same three records one literal is, so a mapping
+     * recognized inside `lib/Test/Harness.yana` could not have its table built while the rows and
+     * the byte globals it needs were still ahead of it in the walk. Which of the two files comes
+     * first is not something a recognition rule may depend on, and the failure was silent in the
+     * worst way: the recognizer reported the library rather than declining.
      *
      * So the entries carry `Constant::Text` until every body is in, and this is the drain. Deferring
      * the *value* rather than the decision is what keeps everything in between honest, exactly as it
@@ -2171,10 +2209,13 @@ struct Resolver {
     Node* resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted,
                               U64 capacity = 0);
 
+    Node* resolveMapLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+
+    // The allocator's refusal, tested at a literal - see the definition beside `buildGrowableArray`.
+    bool checkSlots(Builder& builder, Node& slots, U64 room, LocationId source);
+
     // The container half of a growable literal, over values already in hand - see the definition.
     // Its second caller is the synthesized test entry, which has cases and no expression.
-    Node* resolveMapLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
-    bool reserveCapacity(Builder& builder, Place& place, U64 capacity, LocationId source);
     Node* buildGrowableArray(Builder& builder, DeclPtr<Type> element,
                              SmallArray<Node*, 8>& components, LocationId source,
                              U64 capacity = 0);
@@ -2357,28 +2398,8 @@ struct Resolver {
      */
     Node* literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool negative);
 
-    // `"abc"` - the bytes as a global and the value the library builds from them; resolve.cpp, where
-    // the reason this is one function rather than an expansion at each literal is written out.
-    /*
-     * evaluate.cpp - a function run at compile time over constant arguments, and the one caller
-     * that needs one so far. Unset is "not a constant", which the caller reports for itself.
-     */
-    Constant evaluateCall(Function& callee, const Constant* arguments, Size count);
-
-    /*
-     * The value a string literal *is*, over bytes already placed - `stringLiteral` run rather than
-     * emitted. `report` clear is the value position, which has a second answer (the call) where the
-     * library's builder is not a body this evaluator can run; set is a constant position, which has
-     * none and says so.
-     */
-    Constant stringLiteralValue(DeclPtr<Global> bytes, U64 count, LocationId source,
-                                bool report);
-
-    // Whether the teardown of one constant runs nothing - evaluate.cpp, where the rule and its one
-    // correspondence with `Lowering::emitTeardown` are written out.
-    bool teardownRunsNothing(DeclPtr<Type> type, const Constant& value, bool runDrop,
-                             bool runReclaim, LocationId source);
-    Constant textConstantValue(StringId written, LocationId source);
+    // `"abc"` as a value - the three records spelled out. See the definition, in text.cpp.
+    Constant stringConstant(StringId written, LocationId source);
 
     /*
      * The same, applied to every `Constant::Text` **inside** a value - `["a", "b"] :: [String *2]`.
@@ -2386,14 +2407,14 @@ struct Resolver {
      * A text leaf is deferred for the reason a whole one is, and an aggregate holding one is the
      * same statement about a value with the leaf further in: `let names = ["a", "b", "c"]` is three
      * byte globals and three relocations, exactly as three separate `let`s would be. Unset where a
-     * leaf could not be built, which is `textConstantValue`'s own diagnostic already reported.
+     * leaf could not be built, which is `stringConstant`'s own diagnostic already reported.
      */
     Constant textsResolved(const Constant& constant, LocationId source);
 
     DeclPtr<Global> stringBytesGlobal(StringId written, LocationId source);
     Node* textValue(Builder& builder, StringId written, LocationId source);
 
-    // The type such a value has, which is `stringLiteral`'s result and not a row of this stage.
+    // The type such a value has, which is the `string` record role and not a row of this stage.
     DeclPtr<Type> textType(LocationId source);
 
     // Any constant as a node - `Constant::Text` through `textValue`, everything else an immediate.
@@ -3573,6 +3594,15 @@ struct Resolver {
     // which is where the case it exists for is written out.
     void explainAbstractWidth(DeclPtr<Type> from, DeclPtr<Type> to, LocationId source);
 };
+
+/*
+ * The `Run(a)` and `Array(a)` a literal builds, at one element type - see the definition.
+ *
+ * A free function rather than a member because what it needs of the resolver is three things it
+ * already publishes, and because both callers - the array literal and the string constant - want
+ * the same answer at different element types.
+ */
+Maybe<RunShape> arrayShape(Resolver& self, DeclPtr<Type> element, LocationId source);
 
 /*
  * The type arguments one use site is deciding - `gen.h`.

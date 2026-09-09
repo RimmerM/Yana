@@ -13,8 +13,8 @@ bb1:
   jump -> bb2
 
 bb2:
-  %27: Maybe(Array(I32)) = aggregate.Nothing
-  return take %27
+  %32: Maybe(Array(I32)) = aggregate.Nothing
+  return take %32
 
 bb3:
   %4: I32 = read copy.trivial (n)
@@ -24,21 +24,26 @@ bb3:
   %8: I32 = read copy.trivial (n)
   %9: I32 = const 3
   %10: I32 = mul inspect %8 inspect %9
-  %11: Size = const 3
-  %12: Array(I32) = call literalArray(I32) borrow.shared %11
-  write.init borrow.unique (local1) take %12
-  %14: Array(I32) [unique slot 0] = read borrow.unique (local1) loan0
-  %15: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %14 roots{0}
-  %16: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %15 roots.0{0}
-  %17: Size = const 0
-  write.init borrow.unique ([%%16][0]) take %4
-  %19: Size = const 1
-  write.init borrow.unique ([%%16][1]) take %7
-  %21: Size = const 2
-  write.init borrow.unique ([%%16][2]) take %10
-  %23: Array(I32) = read take (local1)
-  %24: Maybe(Array(I32)) = aggregate.Just take %23
-  return take %24
+  %11: %I32 = run.slots I32 *3
+  %12: Size = bitcast inspect %11
+  %13: Size = const 0
+  %14: Bool = eq inspect %12 inspect %13
+  %15: {} = call checkCondition borrow.shared %14
+  %16: @bits(30) U32 = const 3
+  %17: @bits(2) U32 = const 1
+  %18: Run(I32) = aggregate.Run take %11 take %16 take %17
+  %19: @bits(30) U32 = const 3
+  %20: Array(I32) = aggregate.Array take %18 take %19
+  write.init borrow.unique (local1) take %20
+  %22: Size = const 0
+  write.init borrow.unique ([%%11][0]) take %4
+  %24: Size = const 1
+  write.init borrow.unique ([%%11][1]) take %7
+  %26: Size = const 2
+  write.init borrow.unique ([%%11][2]) take %10
+  %28: Array(I32) = read take (local1)
+  %29: Maybe(Array(I32)) = aggregate.Just take %28
+  return take %29
 }
 
 fn indexed(n: I32 [shared call]) -> Maybe(I32) {

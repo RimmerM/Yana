@@ -15,13 +15,13 @@ struct Global;
  * the MIR the escape analysis runs over. SSA carries the answer down to the allocation instruction;
  * it does not get to make one.
  *
- * **About an object.** A run's slots are not one: their storage is a library call
- * (`lib/Native/Run.native.yana`'s `runSlots`), there is no `Object` here for it, and the frame that
- * would keep it is not the frame the call is written in - `[1, 2, 3]` is `literalArray`'s call, and
- * `literalArray` returns the array. So `resolve_ssa/opt/place.cpp` decides that one, after inlining
- * has moved the request into the body that keeps the answer, and it decides it by replacing the call
- * rather than by rewriting anything this file placed. The shipping stage arrives at the same tier
- * from the other end and re-runs its escape analysis behind `inlineCalls`.
+ * **About an object.** A run's slots are not one: there is no `Object` here for them, and the
+ * frame that would keep them is not always the frame the request is written in - `String.ofCapacity`
+ * and `growArray` ask for storage the *caller* keeps, so nothing can be decided until the inliner
+ * has moved the request into that body. So `resolve_ssa/opt/place.cpp` decides that one, and it
+ * decides it by answering `NodeRunSlots`' placement bit rather than by rewriting anything this file
+ * placed. The shipping stage arrives at the same tier from the other end and re-runs its escape
+ * analysis behind `inlineCalls`.
  *
  * Three rungs from the start, and reachable rather than reserved. The current compiler's equivalent
  * has the region enumerator and never selects it, which left the *decision* shaped like a two-way

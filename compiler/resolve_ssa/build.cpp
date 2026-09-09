@@ -411,6 +411,24 @@ Inst* Editor::addMetric(LocationId source, mir::TypeMetric metric, DeclPtr<mir::
     return inst;
 }
 
+/*
+ * A run's slots - `InstRunSlots`, and the pointer that reaches them.
+ *
+ * `Convention::Trivial` and **not** `addAlloc`'s `Address`, which is the one thing about this result
+ * worth stating. `Address` says "this value is the address of storage this body has", and a
+ * component of an aggregate may not be one - `verifyBody` refuses it, because a record holding a
+ * body's own storage address is exactly the escape the tier is arranged to make unrepresentable.
+ * What this answers is an ordinary raw pointer, the same `%a` `runSlots` handed back, and it is a
+ * field of the descriptor built over it. Where those bytes live is `place.cpp`'s answer and is
+ * carried on the instruction rather than in the convention of its result.
+ */
+Inst* Editor::addRunSlots(LocationId source, DeclPtr<mir::Type> element, U64 capacity) {
+    auto inst = new (arena) InstRunSlots(source, element, capacity);
+    append(inst);
+    addResult(*inst, mir::owned(program.types.pointerType(element)), Convention::Trivial);
+    return inst;
+}
+
 Inst* Editor::addAlloc(LocationId source, const Occurrence& held, StorageClass storage) {
     auto inst = new (arena) InstAlloc(source, held, storage);
     append(inst);
@@ -836,6 +854,7 @@ static void mapUses(SsaBase base, Inst& inst, F&& f) {
         case Inst::GenValue:
         case Inst::Metric:
         case Inst::Alloc:
+        case Inst::RunSlots:
         case Inst::Unreachable:
             break;
 

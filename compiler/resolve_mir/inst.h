@@ -716,6 +716,31 @@ struct NodeMetric: NodeResult {
 };
 
 /*
+ * Slots for a run - inst.def's `RunSlots` row, where the request and its two answers are argued.
+ *
+ * The **element** rather than the storage's type, because the two are the same statement read at
+ * two widths and only one of them survives a placement: the request is for `capacity` of these, the
+ * frame answer is a `[a *capacity]` and the heap answer is a byte count, and each of the three is
+ * derivable from this pair. `runSlots`' `probe` parameter is the same information carried as an
+ * argument, which is what a function that cannot name a type in its signature has to do.
+ *
+ * The result is `%a` and is an ordinary owned scalar - a raw pointer, with nothing about it checked
+ * afterwards, exactly as `Address` above answers one. What keeps the storage alive is the run that
+ * describes it and the container that owns the run, which is the language's own arrangement rather
+ * than anything this node states.
+ */
+struct NodeRunSlots: NodeResult {
+    NodeRunSlots(LocationId source, DeclPtr<Type> element, U64 capacity):
+        NodeResult(RunSlots, source), element(element), capacity(capacity) {}
+
+    DeclPtr<Type> element;
+    U64 capacity;
+
+    template<class F> void eachOperand(MirBase, F&&) {}
+    template<class F> void eachEdge(MirBase, F&&) {}
+};
+
+/*
  * An operation the machine has and this IR does not - see inst.def and native.def.
  *
  * A flat operand list and a column, which is the whole structure: what these have in common is that

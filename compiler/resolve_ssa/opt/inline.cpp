@@ -839,6 +839,21 @@ struct Inliner {
                 made = editor.addGlobalAddress(at, ((InstGlobalAddress&)from).global);
                 break;
 
+            /*
+             * A run request, cloned with its placement bit **cleared** - which is what `addRunSlots`
+             * gives it and is deliberate rather than an omission.
+             *
+             * `place.cpp` runs after inlining and answers the question for the frame the request
+             * ends up in. A bit copied from the callee would be an answer about a different frame,
+             * which is precisely the confusion the pass exists to avoid: `leaving() = [7, 8, 9]`
+             * is the allocator's under its own name and the caller's frame once it is spliced in.
+             */
+            case Inst::RunSlots: {
+                auto& slots = (InstRunSlots&)from;
+                made = editor.addRunSlots(at, slots.element, slots.capacity);
+                break;
+            }
+
             case Inst::Metric: {
                 auto& written = (InstMetric&)from;
                 made = editor.addMetric(at, written.metric, written.of, occurrence().type);

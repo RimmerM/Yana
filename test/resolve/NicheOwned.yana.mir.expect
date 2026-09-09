@@ -2,19 +2,19 @@ module ResolveTest
 
 data Row {name: Maybe(String), id: I32} reclaim derived
 
-let string'142: [CodeUnit *1] = [97]
+let string'142: [CodeUnit *1] = "a"
 
-let string'143: [CodeUnit *1] = [98]
+let string'143: [CodeUnit *1] = "b"
 
-let string'144: [CodeUnit *0] = []
+let string'144: [CodeUnit *0] = ""
 
-let string'145: [CodeUnit *0] = []
+let string'145: [CodeUnit *0] = ""
 
-let string'146: [CodeUnit *1] = [97]
+let string'146: [CodeUnit *1] = "a"
 
-let string'147: [CodeUnit *2] = [97, 98]
+let string'147: [CodeUnit *2] = "ab"
 
-let string'148: [CodeUnit *2] = [122, 122]
+let string'148: [CodeUnit *2] = "zz"
 
 fn opaque(s: String) -> String {
 bb0:
@@ -219,77 +219,79 @@ bb0:
 }
 
 fn stored() -> I32 {
-  local & local0: Array(Maybe(String)) object0
-  local & rows: Array(Maybe(String)) object0
+  local & local0: Array(Maybe(String)) object1
+  local & rows: Array(Maybe(String)) object1
   local & total: I32
   local & i: I32
   local local4: Maybe(String) [shared slot 0]
 
 bb0:
   %0: Size = const 0
-  %1: Array(Maybe(String)) = call literalArray(Maybe(String)) borrow.shared %0
-  write.init borrow.unique (local0) take %1
-  %3: Array(Maybe(String)) [unique slot 0] = read borrow.unique (local0) loan0
-  %4: Array(Maybe(String)) [unique slot 0 view] = call.derivation elementsMut(Array(Maybe(String)), Maybe(String)) borrow.unique %3 roots{0}
-  %5: %Maybe(String) [owned here shape6 .*=shared slot 0] = call valuesMut(Maybe(String)) borrow.unique %4 roots.0{0}
-  %6: Array(Maybe(String)) = read take (local0)
-  write.init borrow.unique (rows) take %6
-  %8: Array(Maybe(String)) [unique call] = read borrow.unique (rows) loan1
-  %9: I32 = const 1
-  %10: String = call built borrow.shared %9
-  %11: Maybe(String) = aggregate.Just take %10
-  %12: {} = call push(Maybe(String)) borrow.unique %8 take %11
-  %13: Array(Maybe(String)) [unique call] = read borrow.unique (rows) loan2
-  %14: Maybe(String) = aggregate.Nothing
-  %15: {} = call push(Maybe(String)) borrow.unique %13 take %14
-  %16: Array(Maybe(String)) [unique call] = read borrow.unique (rows) loan3
-  %17: I32 = const 0
-  %18: String = call built borrow.shared %17
-  %19: Maybe(String) = aggregate.Just take %18
-  %20: {} = call push(Maybe(String)) borrow.unique %16 take %19
-  %21: Array(Maybe(String)) [unique call] = read borrow.unique (rows) loan4
-  %22: Maybe(String) = aggregate.Nothing
-  %23: {} = call push(Maybe(String)) borrow.unique %21 take %22
-  %24: Array(Maybe(String)) [unique call] = read borrow.unique (rows) loan5
-  %25: String = const String {units: Array {run: Run {items: &string'148, capacity: 2, ownsHeap: 0}, length: 2}}
-  %26: String = call opaque take %25
-  %27: Maybe(String) = aggregate.Just take %26
-  %28: {} = call push(Maybe(String)) borrow.unique %24 take %27
-  %29: I32 = const 0
-  write.init borrow.unique (total) take %29
+  %1: %Maybe(String) = bitcast inspect %0
+  %2: @bits(30) U32 = const 0
+  %3: @bits(2) U32 = const 1
+  %4: Run(Maybe(String)) = aggregate.Run take %1 take %2 take %3
+  %5: @bits(30) U32 = const 0
+  %6: Array(Maybe(String)) = aggregate.Array take %4 take %5
+  write.init borrow.unique (local0) take %6
+  %8: Array(Maybe(String)) = read take (local0)
+  write.init borrow.unique (rows) take %8
+  %10: Array(Maybe(String)) [unique call] = read borrow.unique (rows) loan0
+  %11: I32 = const 1
+  %12: String = call built borrow.shared %11
+  %13: Maybe(String) = aggregate.Just take %12
+  %14: {} = call push(Maybe(String)) borrow.unique %10 take %13
+  %15: Array(Maybe(String)) [unique call] = read borrow.unique (rows) loan1
+  %16: Maybe(String) = aggregate.Nothing
+  %17: {} = call push(Maybe(String)) borrow.unique %15 take %16
+  %18: Array(Maybe(String)) [unique call] = read borrow.unique (rows) loan2
+  %19: I32 = const 0
+  %20: String = call built borrow.shared %19
+  %21: Maybe(String) = aggregate.Just take %20
+  %22: {} = call push(Maybe(String)) borrow.unique %18 take %21
+  %23: Array(Maybe(String)) [unique call] = read borrow.unique (rows) loan3
+  %24: Maybe(String) = aggregate.Nothing
+  %25: {} = call push(Maybe(String)) borrow.unique %23 take %24
+  %26: Array(Maybe(String)) [unique call] = read borrow.unique (rows) loan4
+  %27: String = const String {units: Array {run: Run {items: &string'148, capacity: 2, ownsHeap: 0}, length: 2}}
+  %28: String = call opaque take %27
+  %29: Maybe(String) = aggregate.Just take %28
+  %30: {} = call push(Maybe(String)) borrow.unique %26 take %29
   %31: I32 = const 0
-  write.init borrow.unique (i) take %31
+  write.init borrow.unique (total) take %31
+  %33: I32 = const 0
+  write.init borrow.unique (i) take %33
   jump -> bb1
 
 bb1:
-  %34: I32 = read copy.trivial (i)
-  %35: I32 = const 5
-  %36: Bool = lt inspect %34 inspect %35
-  branch inspect %36 -> bb3 -> bb2
+  %36: I32 = read copy.trivial (i)
+  %37: I32 = const 5
+  %38: Bool = lt inspect %36 inspect %37
+  branch inspect %38 -> bb3 -> bb2
 
 bb2:
   drop (rows)
-  %56: I32 = read copy.trivial (total)
-  return take %56
+  %58: I32 = read copy.trivial (total)
+  return take %58
 
 bb3:
-  %38: I32 = read copy.trivial (total)
-  %39: I32 = const 10
-  %40: I32 = mul inspect %38 inspect %39
-  %41: I32 = read copy.trivial (i)
-  %42: Array(Maybe(String)) [shared call] = read borrow.shared (rows) loan6
-  %43: Array(Maybe(String)) [shared slot 0 view] = call.derivation elements(Array(Maybe(String)), Maybe(String)) borrow.shared %42 roots{6}
-  %44: Size = convert inspect %41
-  %45: Maybe(String) [shared slot 0] = call.subscript get(Array(Maybe(String)), Size, Maybe(String)) borrow.shared %43 borrow.shared %44 roots{6}
-  write.init borrow.unique (local4) borrow.shared %45
-  %47: Maybe(String) [shared slot 0] = read borrow.shared (local4) loan7 roots{6}
-  %48: I32 = call codeIn borrow.shared %47
-  %49: I32 = add inspect %40 inspect %48
-  write.assign borrow.unique (total) take %49
-  %51: I32 = read copy.trivial (i)
-  %52: I32 = const 1
-  %53: I32 = add inspect %51 inspect %52
-  write.assign borrow.unique (i) take %53
+  %40: I32 = read copy.trivial (total)
+  %41: I32 = const 10
+  %42: I32 = mul inspect %40 inspect %41
+  %43: I32 = read copy.trivial (i)
+  %44: Array(Maybe(String)) [shared call] = read borrow.shared (rows) loan5
+  %45: Array(Maybe(String)) [shared slot 0 view] = call.derivation elements(Array(Maybe(String)), Maybe(String)) borrow.shared %44 roots{5}
+  %46: Size = convert inspect %43
+  %47: Maybe(String) [shared slot 0] = call.subscript get(Array(Maybe(String)), Size, Maybe(String)) borrow.shared %45 borrow.shared %46 roots{5}
+  write.init borrow.unique (local4) borrow.shared %47
+  %49: Maybe(String) [shared slot 0] = read borrow.shared (local4) loan6 roots{5}
+  %50: I32 = call codeIn borrow.shared %49
+  %51: I32 = add inspect %42 inspect %50
+  write.assign borrow.unique (total) take %51
+  %53: I32 = read copy.trivial (i)
+  %54: I32 = const 1
+  %55: I32 = add inspect %53 inspect %54
+  write.assign borrow.unique (i) take %55
   jump -> bb1
 }
 

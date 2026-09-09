@@ -120,6 +120,29 @@ YANA_MIR_INST( Address,      NodeAddress,      "address"_v,      kMirResult )
 YANA_MIR_INST( Metric,       NodeMetric,       "metric"_v,       kMirResult )
 
 /*
+ * Storage for `capacity` elements of one type, from wherever this compiler decides to put it -
+ * `lib/Native/Run.native.yana`'s `runSlots` as an instruction rather than as a call.
+ *
+ * **The one allocation whose lifetime is not a frame's.** `Alloc` below in the SSA tier is storage
+ * that `releaseSlots` hands back at every exit, which is right for a local and wrong for this: a
+ * run's slots outlive the frame that asked for them whenever the container does, and what hands
+ * them back is the container's own `Reclaim`. So this is a request, and the two answers to it are
+ * an allocator call and a frame slot - which is exactly the pair `resolve_ssa/opt/place.cpp` has
+ * always chosen between, now stated as one instruction instead of recognized as a call chain.
+ *
+ * **No operands and a constant capacity.** A literal knows how many slots it wants, and the number
+ * is on the node rather than in an operand for the reason `Metric`'s answer is: what reads it is a
+ * placement pass asking "how big", and an operand would make that question a fold that has to have
+ * succeeded first. A run whose size is computed is still the library's `newRun`, and stays there
+ * until the dynamic rung has a release point to go with it (`place.cpp`, and J45 §2.3).
+ *
+ * `null` where the allocator refuses, which is `runSlots`' own answer and is what the check the
+ * literal emits beside this tests. A frame placement never refuses, so that check folds away with
+ * the placement.
+ */
+YANA_MIR_INST( RunSlots,     NodeRunSlots,     "run.slots"_v,    kMirResult )
+
+/*
  * An operation the machine has and this IR does not - a system call, or a block of memory moved or
  * filled. The rows are native.def's.
  *

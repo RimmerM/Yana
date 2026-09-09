@@ -641,6 +641,16 @@ struct Printer {
                 printType(writer, context, decl, metric.of);
                 break;
             }
+            case Node::RunSlots: {
+                // The element and how many of them, for `Metric`'s reason: no operands, so a dump
+                // that printed neither would show every run request as the same instruction.
+                auto& slots = (NodeRunSlots&)value;
+                writer.writeString(" "_v);
+                printType(writer, context, decl, slots.element);
+                writer.writeString(" *"_v);
+                writeUInt(writer, slots.capacity);
+                break;
+            }
             default:
                 break;
         }

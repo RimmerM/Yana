@@ -668,8 +668,8 @@ struct StorageRemover {
 
     /*
      * Whether the allocation being considered holds a constant whose **teardown runs nothing** -
-     * `Resolver::teardownRunsNothing`, asked while the library's bodies still existed and recorded
-     * on the program (`mir::Program::inertConstants`).
+     * decided where the constant was minted and recorded on the program
+     * (`mir::Program::inertConstants`).
      *
      * It is what makes a string literal disappear rather than merely shrink. A literal is a
      * duplicate of a placed constant in a slot, and once every read of it has been answered by the

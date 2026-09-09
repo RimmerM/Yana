@@ -85,7 +85,8 @@ struct Constant {
 
         /*
          * `"abc"` - the **text** of a string literal, as the name it is interned under. `bits` is a
-         * `StringId`; the type is whatever the library's `stringLiteral` role hands back.
+         * `StringId`; the type is the record `known.def`'s `string` row names, or the
+         * `[CodeUnit *n]` its bytes are laid out at.
          *
          * A kind of its own rather than the aggregate a `String` eventually is, because what the
          * bytes become is the *target's* answer and not resolve's: a native build wants a run in
@@ -95,9 +96,14 @@ struct Constant {
          * what `resolve/const.cpp` does in the shipping stage, and why it has a "this target's
          * string layout is not the one this compiler writes" diagnostic to report.
          *
-         * So this says what the value *is* and `Resolver::textValue` is the one place that says how
-         * it is built. It is what lets a string be a constant at all - a default argument, a field
-         * default - where the value path used to be the only way to spell one.
+         * So this says what the value *is*, and `Resolver::stringConstant` is the one place that
+         * says how it is built. It is what lets a string be a constant at all - a default argument,
+         * a field default - where the value path used to be the only way to spell one.
+         *
+         * It has a second job since J46 part 3: the **bytes** global's initializer is a `Text` at
+         * `[CodeUnit *n]`, written by `materialize` in one pass over the name. It was `n` interned
+         * `Constant`s and a list over them, and interning is structural - so every literal in the
+         * program walked every byte of every literal before it. `test/bench/findings.md` §94.
          */
         Text,
 
@@ -109,10 +115,10 @@ struct Constant {
          * what makes it a kind rather than an `Int`: `materialize` writes zero where it goes and
          * records a `LowerDataRelocation` beside it, and the loader fills it in.
          *
-         * It exists so that a **string** can be a constant. `stringLiteral` builds a run out of the
-         * address of the bytes and a length, so the value the library describes has a pointer in
-         * it - and a tier that could not spell one had to make every string global a startup
-         * initializer, which a library module has no point at which to run.
+         * It exists so that a **string** can be a constant. A literal's run points at bytes the
+         * compiler placed, so the value has a pointer in it - and a tier that could not spell one
+         * had to make every string global a startup initializer, which a library module has no
+         * point at which to run.
          *
          * Nothing in the source spells one. It is minted by `Resolver::stringBytesGlobal`, and the
          * day `&someGlobal` becomes a constant expression this is the kind it produces.

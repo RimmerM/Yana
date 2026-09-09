@@ -239,6 +239,15 @@ struct Builder {
     Node* addMetric(LocationId source, TypeMetric metric, DeclPtr<Type> of, DeclPtr<Type> as);
 
     /*
+     * Storage for `capacity` elements - `NodeRunSlots`, and the instruction that replaced the
+     * library's `runSlots` call at every literal.
+     *
+     * The capacity is a number and not a node, which is the whole of what makes this placeable: see
+     * inst.def's row, where the dynamic case is left where it was.
+     */
+    Node* addRunSlots(LocationId source, DeclPtr<Type> element, U64 capacity);
+
+    /*
      * An operation the machine has and this IR does not - see `NodeNative`.
      *
      * `result` is the type the declaration named, unit included, and every operand is inspected. No

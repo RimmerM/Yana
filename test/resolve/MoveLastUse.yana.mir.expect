@@ -50,24 +50,29 @@ bb0:
 
 fn intoArray() -> {} {
   local & a: Held
-  local & local1: Array(Held) object2
-  local xs: Array(Held) object2
+  local & local1: Array(Held) object3
+  local xs: Array(Held) object3
 
 bb0:
   %0: I32 = const 4
   %1: Held = aggregate.Held take %0
   write.init borrow.unique (a) take %1
   %3: Held = read take (a)
-  %4: Size = const 1
-  %5: Array(Held) = call literalArray(Held) borrow.shared %4
-  write.init borrow.unique (local1) take %5
-  %7: Array(Held) [unique slot 0] = read borrow.unique (local1) loan0
-  %8: Array(Held) [unique slot 0 view] = call.derivation elementsMut(Array(Held), Held) borrow.unique %7 roots{0}
-  %9: %Held [owned here shape6 .*=shared slot 0] = call valuesMut(Held) borrow.unique %8 roots.0{0}
-  %10: Size = const 0
-  write.init borrow.unique ([%%9][0]) take %3
-  %12: Array(Held) = read take (local1)
-  write.init borrow.unique (xs) take %12
+  %4: %Held = run.slots Held *1
+  %5: Size = bitcast inspect %4
+  %6: Size = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  %8: {} = call checkCondition borrow.shared %7
+  %9: @bits(30) U32 = const 1
+  %10: @bits(2) U32 = const 1
+  %11: Run(Held) = aggregate.Run take %4 take %9 take %10
+  %12: @bits(30) U32 = const 1
+  %13: Array(Held) = aggregate.Array take %11 take %12
+  write.init borrow.unique (local1) take %13
+  %15: Size = const 0
+  write.init borrow.unique ([%%4][0]) take %3
+  %17: Array(Held) = read take (local1)
+  write.init borrow.unique (xs) take %17
   drop (xs)
   return
 }

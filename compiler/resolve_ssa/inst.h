@@ -488,6 +488,29 @@ struct InstMetric: Inst {
 };
 
 /*
+ * Slots for a run - inst.def's `RunSlots` row, where the request and the placement bit are argued.
+ *
+ * The element and the count, which is the whole of the request: the frame answer is a `[a *n]` and
+ * the heap answer is `n` strides of bytes, and each is built from this pair at the point it is
+ * chosen. No uses at all, for `Metric`'s reason - the count is a number this tier decided at the
+ * literal rather than a value it has to fold.
+ */
+struct InstRunSlots: Inst {
+    InstRunSlots(LocationId source, DeclPtr<mir::Type> element, U64 capacity):
+        Inst(RunSlots, source), element(element), capacity(capacity) {}
+
+    DeclPtr<mir::Type> element;
+    U64 capacity;
+
+    // Whether `place.cpp` proved this frame keeps the bytes. See the row: clear is the allocator's,
+    // which is where a decision nobody made has to land.
+    bool placed = false;
+
+    template<class F> void eachUse(SsaBase, F&&) {}
+    template<class F> void eachEdge(SsaBase, F&&) {}
+};
+
+/*
  * An operation the machine has and this IR does not - see inst.def and mir's native.def.
  *
  * A flat use list and a column, which is the whole structure: what this tier can say about one is

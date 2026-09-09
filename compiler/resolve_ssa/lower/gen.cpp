@@ -94,6 +94,35 @@ void Lowering::materialize(const mir::Occurrence& occurrence, const mir::Constan
         return;
     }
 
+    /*
+     * A **text**, at the `[CodeUnit *n]` its bytes are - written as the bytes.
+     *
+     * The one constant kind whose payload is longer than a word, and the reason it is a kind rather
+     * than an aggregate of `n` numbers. Written as one it cost `n` interned `Constant`s per literal
+     * and a walk over them here, which is what `test/bench/findings.md` §94 measured; written like
+     * this the value *is* the interned name, and this loop is the whole of laying it out.
+     *
+     * Only at the byte array. A text at a `String` is the record and is built as one by the
+     * resolver - `Resolver::stringConstant`, which spells the three fields the compiler has always
+     * known - so what arrives here is either those bytes or an ordinary aggregate.
+     */
+    if(constant.kind == mir::Constant::Text) {
+        /*
+         * One byte per unit, asserted rather than assumed. A wider code unit would need a byte
+         * order and this loop states none - `IntWidths::codeUnit` answers eight on every target
+         * this stage compiles for, and the day one answers sixteen it is this arm that has to say
+         * which end the low byte is at.
+         */
+        auto element = mir::owned(program.types.codeUnit);
+        assertTrue(strideOf(manifestNative(layout, element)) == 1);
+
+        auto text = context.findName(constant.asText());
+        auto count = U32(text.size()) < manifest.size ? U32(text.size()) : manifest.size;
+
+        for(U32 i = 0; i < count; i++) into[i] = Byte(text.text()[i]);
+        return;
+    }
+
     if(constant.kind != mir::Constant::Aggregate) {
         auto bits = constantBits(decl, constant);
         for(U32 i = 0; i < manifest.size; i++) into[i] = Byte((bits >> (i * 8)) & 0xff);

@@ -2,50 +2,46 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 twoElements<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 4, 8: Ptr
+    %v_1 = alloca 4, 8: Ptr
+    %v_2 = alloca 16, 8: Ptr
     %v_3 = alloca 8, 4: Ptr
-    %v_4 = imm 2: I64
-    store %v_2, %v_4, 4
-    jmp b_5
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = add %v_9, 4: Ptr
-    %v_10 = atomic_loads %v_9, 4, relaxed: I32
-    %v_11 = atomic_loads %v_8, 4, relaxed: I32
-    %v_12 = add %v_10, %v_11: I32
-    jmp b_13
-  }
-
-  b_13 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = atomic_loads %v_9, 4, relaxed: I32
-    %v_16 = atomic_loads %v_9, 4, relaxed: I32
-    %v_17 = add %v_15, %v_16: I32
-    call_complex Array(a).reclaim(Atomic(I32)), %v_1
-    %v_18 = add %v_12, %v_17: I32
-    ret %v_18
-  }
-
-  b_5 {
+    store %v_1, 2, 4
     store %v_3, 1, 4
-    %v_19 = add %v_3, 4: Ptr
-    store %v_19, 2, 4
-    store %v_1, %v_3, 8
-    %v_20 = add %v_1, 8: Ptr
-    store %v_20, %v_4, 4
-    %v_21 = add %v_1, 12: Ptr
-    store %v_21, 2, 4
-    %v_9 = load %v_1, 8: Ptr
-    jmp b_6
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 2, 4
+    store %v_2, %v_3, 8
+    %v_5 = add %v_2, 8: Ptr
+    %v_6 = load %v_1, 4: I64
+    store %v_5, %v_6, 4
+    %v_7 = add %v_2, 12: Ptr
+    store %v_7, 2, 4
+    %v_8 = load %v_2, 8: Ptr
+    jmp b_9
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = add %v_8, 4: Ptr
+    %v_12 = atomic_loads %v_8, 4, relaxed: I32
+    %v_13 = atomic_loads %v_11, 4, relaxed: I32
+    %v_14 = add %v_12, %v_13: I32
+    jmp b_15
+  }
+
+  b_15 {
+    jmp b_16
+  }
+
+  b_16 {
+    %v_17 = atomic_loads %v_8, 4, relaxed: I32
+    %v_18 = atomic_loads %v_8, 4, relaxed: I32
+    %v_19 = add %v_17, %v_18: I32
+    call_complex Array(a).reclaim(Atomic(I32)), %v_2
+    %v_20 = add %v_14, %v_19: I32
+    ret %v_20
   }
 }
 

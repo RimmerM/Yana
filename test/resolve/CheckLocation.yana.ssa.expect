@@ -56,33 +56,38 @@ bb0:
   %2: I32 trivial = const 7
   %3: I32 trivial = const 8
   %4: I32 trivial = const 9
-  %5: Size trivial = const 3
-  %6: Array(I32) owned = call literalArray(I32) borrow %5
-  store inspect %0 consume %6
-  %7: Array(I32) [unique slot 0] guaranteed from{%0} = load inspect %0
-  %8: Array(I32) [unique slot 0 view] guaranteed from{%0} = call Array(a).elementsMut(I32) borrow %7
-  %9: %I32 [owned here shape6 .*=shared slot 0] trivial = call valuesMut(I32) borrow %8
-  %10: Size trivial = const 0
-  %11: %I32 address = element.addr inspect %9 inspect %10
-  store inspect %11 consume %2
-  %12: Size trivial = const 1
-  %13: %I32 address = element.addr inspect %9 inspect %12
-  store inspect %13 consume %3
-  %14: Size trivial = const 2
-  %15: %I32 address = element.addr inspect %9 inspect %14
-  store inspect %15 consume %4
-  %16: Array(I32) owned = load inspect %0
-  store inspect %1 consume %16
-  %17: Size trivial = const 1
-  %18: %Size address = global.addr start
-  store inspect %18 consume %17
-  %19: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
-  %20: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %19
-  %21: I32 trivial = call reachable borrow %20
+  %5: %I32 trivial = run.slots I32 *3 heap
+  %6: Size trivial = bitcast inspect %5
+  %7: Size trivial = const 0
+  %8: Bool trivial = eq inspect %6 inspect %7
+  call checkCondition borrow %8
+  %9: @bits(30) U32 trivial = const 3
+  %10: @bits(2) U32 trivial = const 1
+  %11: Run(I32) owned = aggregate.Run consume %5 consume %9 consume %10
+  %12: @bits(30) U32 trivial = const 3
+  %13: Array(I32) owned = aggregate.Array consume %11 consume %12
+  store inspect %0 consume %13
+  %14: Size trivial = const 0
+  %15: %I32 address = element.addr inspect %5 inspect %14
+  store inspect %15 consume %2
+  %16: Size trivial = const 1
+  %17: %I32 address = element.addr inspect %5 inspect %16
+  store inspect %17 consume %3
+  %18: Size trivial = const 2
+  %19: %I32 address = element.addr inspect %5 inspect %18
+  store inspect %19 consume %4
+  %20: Array(I32) owned = load inspect %0
+  store inspect %1 consume %20
+  %21: Size trivial = const 1
+  %22: %Size address = global.addr start
+  store inspect %22 consume %21
+  %23: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %24: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %23
+  %25: I32 trivial = call reachable borrow %24
   drop Array(I32) inspect %1
-  %22: I32 trivial = const 8
-  %23: I32 trivial = sub inspect %21 inspect %22
-  return consume %23
+  %26: I32 trivial = const 8
+  %27: I32 trivial = sub inspect %25 inspect %26
+  return consume %27
 }
 
 entry main

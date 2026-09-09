@@ -80,21 +80,26 @@ bb0:
   %1: I32 = const 1
   %2: I32 = const 2
   %3: I32 = const 3
-  %4: Size = const 3
-  %5: Array(I32) = call literalArray(I32) borrow.shared %4
-  write.init borrow.unique (local1) take %5
-  %7: Array(I32) [unique slot 0] = read borrow.unique (local1) loan1
-  %8: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %7 roots{1}
-  %9: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %8 roots.0{1}
-  %10: Size = const 0
-  write.init borrow.unique ([%%9][0]) take %1
-  %12: Size = const 1
-  write.init borrow.unique ([%%9][1]) take %2
-  %14: Size = const 2
-  write.init borrow.unique ([%%9][2]) take %3
-  %16: Array(I32) = read take (local1)
-  %17: I32 = call inspect %0 take %16
-  return take %17
+  %4: %I32 = run.slots I32 *3
+  %5: Size = bitcast inspect %4
+  %6: Size = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  %8: {} = call checkCondition borrow.shared %7
+  %9: @bits(30) U32 = const 3
+  %10: @bits(2) U32 = const 1
+  %11: Run(I32) = aggregate.Run take %4 take %9 take %10
+  %12: @bits(30) U32 = const 3
+  %13: Array(I32) = aggregate.Array take %11 take %12
+  write.init borrow.unique (local1) take %13
+  %15: Size = const 0
+  write.init borrow.unique ([%%4][0]) take %1
+  %17: Size = const 1
+  write.init borrow.unique ([%%4][1]) take %2
+  %19: Size = const 2
+  write.init borrow.unique ([%%4][2]) take %3
+  %21: Array(I32) = read take (local1)
+  %22: I32 = call inspect %0 take %21
+  return take %22
 }
 
 fn runStep(s: Step [shared call], x: I32 [shared call]) -> I32 {

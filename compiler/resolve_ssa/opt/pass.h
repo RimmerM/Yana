@@ -375,10 +375,11 @@ void removeDeadStorage(OptContext& opt);
 /*
  * A run of slots the frame can keep - `opt/place.cpp`, and the one placement this tier decides.
  *
- * `runSlots` with a constant count whose bytes never leave the frame becomes an `Alloc`, and the
- * descriptor built over it stops claiming the allocator's. It is here rather than in MIR because
- * the frame that keeps the answer is not the frame the request is written in: a literal's run is
- * `literalArray`'s call to `newRun`, so nothing can be asked until the inliner has moved it.
+ * A `RunSlots` whose bytes never leave the frame is marked `placed`, and the descriptor built over
+ * it stops claiming the allocator's. It is here rather than in MIR because the frame that keeps the
+ * answer is not always the frame the request is written in: `String.ofCapacity` and `growArray` ask
+ * for storage their *caller* keeps, so nothing can be asked until the inliner has moved it. Such a
+ * request also arrives as a `runSlots` call, which `normalize` makes into the instruction first.
  */
 void placeRuns(OptContext& opt);
 

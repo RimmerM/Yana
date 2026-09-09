@@ -109,6 +109,30 @@ YANA_SSA_INST( VecWithLane,   InstVecLane,        "vec.withlane"_v,  kSsaPure )
 YANA_SSA_INST( VecShuffle,    InstVecShuffle,     "vec.shuffle"_v,   kSsaPure )
 YANA_SSA_INST( VecReduce,     InstVecReduce,      "vec.reduce"_v,    kSsaPure )
 YANA_SSA_INST( Alloc,         InstAlloc,          "alloc"_v,         0 )
+
+/*
+ * Slots for a run - `mir::NodeRunSlots` carried down, and the request `resolve_ssa/opt/place.cpp`
+ * answers.
+ *
+ * **Not an `Alloc`**, and the difference is the lifetime. `Alloc` is a *slot of this frame*, heap-
+ * placed or not, and `Conversion::releaseSlots` hands a heap one back at every exit; a run's slots
+ * outlive the frame whenever the container does, and what hands them back is the container's own
+ * `Reclaim` through `freeHeap`. So the two are different questions about storage, and a row that
+ * shared them would have had a lifetime field that means one thing on half its instances.
+ *
+ * `placed` is the pass's answer and starts clear, which is the arm that allocates: a request nothing
+ * proved to be frame-keepable is the allocator's, and that is the direction a missing decision has
+ * to fail in. When it is set, `lower/inst.cpp` emits a frame slot of `[a *capacity]` and the
+ * descriptor beside it has already been rebuilt to say `runBorrowed` - the two edits are one
+ * rewrite, in `place.cpp`, because a placement whose flag was not turned off is a frame address
+ * handed to `freeHeap`.
+ *
+ * Neither pure nor consuming: it answers fresh storage, so two of them are not one instruction and
+ * it may not be duplicated or sunk across the stores that fill it, and it takes no operand that
+ * could own anything.
+ */
+YANA_SSA_INST( RunSlots,      InstRunSlots,       "run.slots"_v,     0 )
+
 /*
  * The other end of one `Alloc` that was not the frame's - §10.4's placement, released.
  *

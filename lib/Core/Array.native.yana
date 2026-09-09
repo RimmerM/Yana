@@ -90,44 +90,17 @@ pub fn values(self: source'[a]) -> %source'a = self.items
    Two functions rather than one, because the capability is on the *window* and not on the pointer:
    `%source'a` says which storage it points into and nothing about what may be done there, so what
    decides whether a store through it is legal is the loan the window was read under. A shared one is
-   what every element accessor takes; this is what a literal fills its slots through, which is what
-   `known.def`'s `elementBase` role names.
+   what every element accessor takes, and this is what a caller writing through one takes -
+   `copyMemory` into a buffer, `Core/Array.yana`'s `getMut`, `CString`'s decode.
+
+   It carried `known.def`'s `elementBase` role until J46 part 3, because it was how a literal reached
+   the slots it was about to fill. A literal now has the pointer in hand - it asked for the storage -
+   so the role is gone and the function is an ordinary accessor.
 -}
-@builtin(elementBase)
 pub fn valuesMut(&self: source'[a]) -> %source'a = self.items
 
 -- An array with room for nothing: an empty run, and the first push allocates.
 pub fn emptyArray() -> [a] = Array {run: emptyRun(), length: 0}
-
-{-
-   The array a growable literal is built into - `[1, 2, 3]`, and the other half of what `valuesMut`
-   above is the first half of. `known.def`'s `arrayLiteral` role.
-
-   `count` slots, already **live**: the length says they hold values before any of them does, which
-   is the one thing a caller may not do and the one thing the compiler must. It writes every slot
-   immediately, in index order, with nothing of the program's own running in between - so the only
-   window in which the length is a lie is one no code is in.
-
-   That is why this exists rather than being expressed as `reserve` and a run of `push`es. Those are
-   the same three field writes done `count` times over, each re-reading a length the caller already
-   knows; and the elements would be handed over one at a time to a function, where what a literal has
-   is `count` values in hand and one place to put them.
-
-   A refusal is a failed check and not a shorter array. `reserve` answers the empty run when the
-   allocator says no and the caller that needed the room tests for it - a literal has no such caller,
-   since the slots are about to be written whatever this said, so the length and the capacity have to
-   agree here or not at all.
-
-   **Native only, and so is `valuesMut`**, because the pair is one operation: the compiler fills the
-   slots through an address, and a host array has no element address to hand out - which is the same
-   sentence `slice` on `Array.js.yana` makes about `values`. A JS literal stays what it is on that
-   target, the shipping stage building the host array itself.
--}
-@builtin(arrayLiteral)
-pub fn literalArray(count: Size) -> Array(a):
-    let run = newRun(count) :: Run(a)
-    checkCondition((run.capacity :: Size) < count)
-    return Array {run: run, length: truncate(count) :: Count}
 
 -- What the container can hold before it has to grow, which is the run's own number. R1's one plain
 -- `capacity` at arity one in the whole library, which is why `Run(a)`'s is gone - see the note there.
@@ -149,7 +122,6 @@ pub fn capacity(self: Array(a)) -> Size = self.run.capacity :: Size
    the *compiler* is not: inlining the whole body carries the growth into the caller's hot loop, and
    the two cancel.
 -}
-@builtin(arrayReserve)
 pub fn reserve(&self: Array(a), wanted: Size):
     if wanted <= (self.run.capacity :: Size) then return
     growArray(self, wanted)

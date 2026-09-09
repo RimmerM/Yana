@@ -187,6 +187,9 @@ struct Editor {
 
     Inst* addAlloc(LocationId source, const Occurrence& held, StorageClass storage);
 
+    // Storage for `capacity` elements, whose placement `opt/place.cpp` decides - `InstRunSlots`.
+    Inst* addRunSlots(LocationId source, DeclPtr<mir::Type> element, U64 capacity);
+
     // The release that answers one of those - `InstFree`. No result: what it returns is memory.
     Inst* addFree(LocationId source, Use address);
     // `shape` is the *subject's* interior structure - see `InstFieldAddress::shape`, where the

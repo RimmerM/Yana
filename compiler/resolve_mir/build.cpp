@@ -904,6 +904,37 @@ Node* Builder::addMetric(LocationId source, TypeMetric metric, DeclPtr<Type> of,
     return node;
 }
 
+/*
+ * Slots for a run - inst.def's `RunSlots` row, where the request is argued.
+ *
+ * The result type is the pointer this stage builds rather than one a caller supplies, because there
+ * is exactly one answer: slots of `a` are reached through a `%a`, which is the same statement
+ * `runSlots`' own signature makes and the reason it takes a probe.
+ */
+Node* Builder::addRunSlots(LocationId source, DeclPtr<Type> element, U64 capacity) {
+    auto node = new (arena()) NodeRunSlots(source, element, capacity);
+    node->occurrence = owned(program.types.pointerType(element));
+
+    /*
+     * The allocator may be reached from here - `Program::usesRuns`, which is what keeps
+     * `allocateHeap` reachable through the MIR walk.
+     *
+     * It has to be said at all because the *call* is gone: `runSlots` used to name `allocateHeap`
+     * in its own body, so a walk over calls found it. What replaced that call is an instruction the
+     * lowering expands, which is one tier below the walk - exactly the position the located check
+     * pair is in, and rooted for the same reason.
+     *
+     * Said at every request, including the ones `place.cpp` will put in the frame, because that
+     * pass has not run yet. What keeps that from costing an unreferenced allocator in the image is
+     * that the *emission* walk asks a later and narrower question - see `resolve_ssa/opt/reach.cpp`,
+     * where an unplaced request is what roots it there.
+     */
+    program.usesRuns = true;
+
+    append(node);
+    return node;
+}
+
 // The argument is in build.h, beside the declaration.
 Node* Builder::addNative(LocationId source, NativeOp op, Node* const* arguments, Size count,
                          DeclPtr<Type> result) {

@@ -305,6 +305,17 @@ struct Printer {
                 mir::printType(writer, context, decl, metric.of);
                 break;
             }
+            case Inst::RunSlots: {
+                // The element, how many, and where the placement pass put them - the whole of the
+                // instruction, since it has no uses for a reader to tell two apart by.
+                auto& slots = (InstRunSlots&)value;
+                writer.writeString(" "_v);
+                mir::printType(writer, context, decl, slots.element);
+                writer.writeString(" *"_v);
+                uint(slots.capacity);
+                writer.writeString(slots.placed ? " frame"_v : " heap"_v);
+                break;
+            }
             case Inst::FieldAddress: {
                 auto& field = (InstFieldAddress&)value;
 

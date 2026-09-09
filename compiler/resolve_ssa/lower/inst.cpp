@@ -912,6 +912,32 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             break;
         }
         /*
+         * A run's slots - the request, answered by whichever of the two allocations `place.cpp`
+         * decided on.
+         *
+         * The **same two helpers an `Alloc` reaches**, which is what makes this row cheap: a run of
+         * `capacity` elements is a `[a *capacity]`, so the storage question is one this stage
+         * already answers and the only thing this arm supplies is the type to ask it about. What
+         * separates the two rows is not how the bytes are obtained but who hands them back -
+         * `releaseSlots` frees a heap `Alloc` at every exit, and these bytes are released by the
+         * container's own `Reclaim` if at all.
+         *
+         * A count of zero is not representable here and does not arrive: an empty literal is a null
+         * pointer and a capacity of nothing, which the resolver emits directly rather than asking
+         * for an allocation of no bytes.
+         */
+        case Inst::RunSlots: {
+            auto& written = (InstRunSlots&)inst;
+            auto result = ssa[inst.results.get(ssa, 0)];
+
+            auto slots = program.types.arrayType(decl, written.element, written.capacity);
+            auto held = mir::owned(slots);
+
+            values.add(result->id.index, written.placed ? frameStorage(block, held)
+                                                        : heapStorage(block, held, inst.source));
+            break;
+        }
+        /*
          * And the release, which is one call and no bookkeeping.
          *
          * Unconditional: `InstFree`'s address is an `Alloc`'s own result, and this stage only ever

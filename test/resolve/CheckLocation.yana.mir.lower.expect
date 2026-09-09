@@ -9,32 +9,32 @@ mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
-@checkLocation(Core.Array.native) = [67, 111, 114, 101, 46, 65, 114, 114, 97, 121, 46, 110, 97, 116, 105, 118, 101]
 @checkLocation(ResolveTest) = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
 @checkLocation(Core.Show) = [67, 111, 114, 101, 46, 83, 104, 111, 119]
 @checkLocation(Core.Check) = [67, 111, 114, 101, 46, 67, 104, 101, 99, 107]
 @checkLocation(Core.String) = [67, 111, 114, 101, 46, 83, 116, 114, 105, 110, 103]
+@checkLocation(Core.Array.native) = [67, 111, 114, 101, 46, 65, 114, 114, 97, 121, 46, 110, 97, 116, 105, 118, 101]
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 4, 8: Ptr
+    %v_1 = alloca 4, 8: Ptr
+    %v_2 = alloca 16, 8: Ptr
     %v_3 = alloca 12, 4: Ptr
-    store %v_2, 3, 4
-    call_complex checkConditionAt, 0, @checkLocation(Core.Array.native), 17, 129, 4
-    %v_4 = load %v_2, 4: I64
+    call_complex checkConditionAt, 0, @checkLocation(ResolveTest), 11, 24, 14
+    store %v_1, 3, 4
     store %v_3, 7, 4
-    %v_5 = add %v_3, 4: Ptr
-    store %v_5, 8, 4
-    %v_6 = add %v_3, 8: Ptr
-    store %v_6, 9, 4
-    store %v_1, %v_3, 8
-    %v_7 = add %v_1, 8: Ptr
-    store %v_7, %v_4, 4
-    %v_8 = add %v_1, 12: Ptr
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 8, 4
+    %v_5 = add %v_3, 8: Ptr
+    store %v_5, 9, 4
+    store %v_2, %v_3, 8
+    %v_6 = add %v_2, 8: Ptr
+    %v_7 = load %v_1, 4: I64
+    store %v_6, %v_7, 4
+    %v_8 = add %v_2, 12: Ptr
     store %v_8, 3, 4
     store @start, 1, 8
-    %v_9 = load %v_1, 8: Ptr
+    %v_9 = load %v_2, 8: Ptr
     %v_10 = load %v_8, 4: I32
     %v_11 = cast %v_10: I64
     %v_12 = loads @start, 8: I64
@@ -46,7 +46,7 @@ main<complex>(): I32 {
     %v_16 = shl %v_12, 2: I64
     %v_17 = add %v_9, %v_16: Ptr
     %v_18 = loads %v_17, 4: I32
-    call_complex Array(a).reclaim(I32), %v_1
+    call_complex Array(a).reclaim(I32), %v_2
     %v_19 = sub %v_18, 8: I32
     ret %v_19
   }
@@ -154,142 +154,98 @@ checkFailedAt<complex>(%file: Ptr, %fileLength: I32, %line: I32, %column: I32) {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 16, 8: Ptr
     %v_3 = alloca 16, 8: Ptr
-    %v_4 = alloca 16, 8: Ptr
-    %v_5 = alloca 16, 8: Ptr
-    %v_6 = alloca 16, 8: Ptr
-    %v_7 = alloca 16, 8: Ptr
-    %v_8 = load @reporting, 1: I32
-    je %v_8, b_9, b_10
+    %v_4 = load @reporting, 1: I32
+    je %v_4, b_5, b_6
   }
 
-  b_10 {
+  b_6 {
     store @reporting, 1, 1
-    %v_11 = and %fileLength, 1073741823: I32
-    %v_12 = alloca 4, 8: Ptr
-    %v_13 = cast %v_11: I64
-    store %v_12, %v_13, 4
+    %v_7 = and %fileLength, 1073741823: I32
+    %v_8 = alloca 4, 8: Ptr
+    %v_9 = cast %v_7: I64
+    store %v_8, %v_9, 4
     store %v_1, %file, 8
-    %v_14 = add %v_1, 8: Ptr
-    %v_15 = load %v_12, 4: I64
-    store %v_14, %v_15, 4
-    %v_16 = add %v_1, 12: Ptr
-    store %v_16, %v_11, 4
-    %v_17 = load %v_1, 8: Ptr
-    %v_18 = sext %v_11: I64
-    %v_19 = add 19, %v_18: I64
-    %v_20 = add %v_19, 11: I64
-    %v_21 = add %v_20, 11: I64
-    %v_22 = bitcast 0: Ptr
-    %v_23 = call_complex runSlots(CodeUnit), %v_22, %v_21: Ptr
-    %v_24 = bitcast %v_23: I64
-    %v_25 = cmp_eq %v_24, 0: I32
-    %v_26 = select %v_25, 0, %v_21: I64
-    %v_27 = cast %v_26: I32
-    %v_28 = and %v_27, 1073741823: I32
-    %v_29 = alloca 4, 8: Ptr
-    %v_30 = cast %v_28: I64
-    %v_31 = or %v_30, 1073741824: I64
-    store %v_29, %v_31, 4
-    store %v_2, %v_23, 8
-    %v_32 = add %v_2, 8: Ptr
-    %v_33 = load %v_29, 4: I64
-    store %v_32, %v_33, 4
-    %v_34 = add %v_2, 12: Ptr
-    store %v_34, 0, 4
-    %v_35 = alloca 4, 8: Ptr
-    store %v_35, 16, 4
-    store %v_3, @string'108, 8
-    %v_36 = add %v_3, 8: Ptr
-    %v_37 = load %v_35, 4: I64
-    store %v_36, %v_37, 4
-    %v_38 = add %v_3, 12: Ptr
-    store %v_38, 16, 4
-    %v_39 = load %v_3, 8: Ptr
-    call_complex String.appendUnits, %v_2, %v_39, 16
-    call_complex String.reclaim, %v_3
-    call_complex String.appendUnits, %v_2, %v_17, %v_18
+    %v_10 = add %v_1, 8: Ptr
+    %v_11 = load %v_8, 4: I64
+    store %v_10, %v_11, 4
+    %v_12 = add %v_1, 12: Ptr
+    store %v_12, %v_7, 4
+    %v_13 = load %v_1, 8: Ptr
+    %v_14 = sext %v_7: I64
+    %v_15 = add 19, %v_14: I64
+    %v_16 = add %v_15, 11: I64
+    %v_17 = add %v_16, 11: I64
+    %v_18 = bitcast 0: Ptr
+    %v_19 = call_complex runSlots(CodeUnit), %v_18, %v_17: Ptr
+    %v_20 = bitcast %v_19: I64
+    %v_21 = cmp_eq %v_20, 0: I32
+    %v_22 = select %v_21, 0, %v_17: I64
+    %v_23 = cast %v_22: I32
+    %v_24 = and %v_23, 1073741823: I32
+    %v_25 = alloca 4, 8: Ptr
+    %v_26 = cast %v_24: I64
+    %v_27 = or %v_26, 1073741824: I64
+    store %v_25, %v_27, 4
+    store %v_2, %v_19, 8
+    %v_28 = add %v_2, 8: Ptr
+    %v_29 = load %v_25, 4: I64
+    store %v_28, %v_29, 4
+    %v_30 = add %v_2, 12: Ptr
+    store %v_30, 0, 4
+    call_complex String.appendUnits, %v_2, @string'108, 16
+    call_complex String.appendUnits, %v_2, %v_13, %v_14
     call_complex String.reclaim, %v_1
-    %v_40 = alloca 4, 8: Ptr
-    store %v_40, 1, 4
-    store %v_4, @string'109, 8
-    %v_41 = add %v_4, 8: Ptr
-    %v_42 = load %v_40, 4: I64
-    store %v_41, %v_42, 4
-    %v_43 = add %v_4, 12: Ptr
-    store %v_43, 1, 4
-    %v_44 = load %v_4, 8: Ptr
-    call_complex String.appendUnits, %v_2, %v_44, 1
-    call_complex String.reclaim, %v_4
-    %v_45 = cmp_ilt %line, 0: I32
-    je %v_45, b_46, b_47
+    call_complex String.appendUnits, %v_2, @string'109, 1
+    %v_31 = cmp_ilt %line, 0: I32
+    je %v_31, b_32, b_33
   }
 
-  b_9 {
-    %v_48 = syscall 60, 134: I64
-    jmp b_10
+  b_5 {
+    %v_34 = syscall 60, 134: I64
+    jmp b_6
   }
 
-  b_47 {
+  b_33 {
     call_complex pushUnsigned32, %line, %v_2
-    jmp b_49
+    jmp b_35
   }
 
-  b_46 {
+  b_32 {
     call_complex push(CodeUnit), %v_2, 45
-    %v_50 = sub 0, %line: I32
-    call_complex pushUnsigned32, %v_50, %v_2
-    jmp b_49
+    %v_36 = sub 0, %line: I32
+    call_complex pushUnsigned32, %v_36, %v_2
+    jmp b_35
   }
 
-  b_49 {
-    %v_51 = alloca 4, 8: Ptr
-    store %v_51, 1, 4
-    store %v_5, @string'110, 8
-    %v_52 = add %v_5, 8: Ptr
-    %v_53 = load %v_51, 4: I64
-    store %v_52, %v_53, 4
-    %v_54 = add %v_5, 12: Ptr
-    store %v_54, 1, 4
-    %v_55 = load %v_5, 8: Ptr
-    call_complex String.appendUnits, %v_2, %v_55, 1
-    call_complex String.reclaim, %v_5
-    %v_56 = cmp_ilt %column, 0: I32
-    je %v_56, b_57, b_58
+  b_35 {
+    call_complex String.appendUnits, %v_2, @string'110, 1
+    %v_37 = cmp_ilt %column, 0: I32
+    je %v_37, b_38, b_39
   }
 
-  b_58 {
+  b_39 {
     call_complex pushUnsigned32, %column, %v_2
-    jmp b_59
+    jmp b_40
   }
 
-  b_57 {
+  b_38 {
     call_complex push(CodeUnit), %v_2, 45
-    %v_60 = sub 0, %column: I32
-    call_complex pushUnsigned32, %v_60, %v_2
-    jmp b_59
+    %v_41 = sub 0, %column: I32
+    call_complex pushUnsigned32, %v_41, %v_2
+    jmp b_40
   }
 
-  b_59 {
-    %v_61 = alloca 4, 8: Ptr
-    store %v_61, 1, 4
-    store %v_6, @string'111, 8
-    %v_62 = add %v_6, 8: Ptr
-    %v_63 = load %v_61, 4: I64
-    store %v_62, %v_63, 4
-    %v_64 = add %v_6, 12: Ptr
-    store %v_64, 1, 4
-    %v_65 = load %v_6, 8: Ptr
-    call_complex String.appendUnits, %v_2, %v_65, 1
-    call_complex String.reclaim, %v_6
-    copy %v_7, %v_2, 16
-    %v_66 = load %v_7, 8: Ptr
-    %v_67 = add %v_7, 12: Ptr
-    %v_68 = load %v_67, 4: I32
-    %v_69 = sext %v_68: I64
-    %v_70 = bitcast %v_66: I64
-    %v_71 = syscall 1, 1, %v_70, %v_69: I64
-    call_complex String.reclaim, %v_7
-    %v_72 = syscall 60, 134: I64
+  b_40 {
+    call_complex String.appendUnits, %v_2, @string'111, 1
+    copy %v_3, %v_2, 16
+    %v_42 = load %v_3, 8: Ptr
+    %v_43 = add %v_3, 12: Ptr
+    %v_44 = load %v_43, 4: I32
+    %v_45 = sext %v_44: I64
+    %v_46 = bitcast %v_42: I64
+    %v_47 = syscall 1, 1, %v_46, %v_45: I64
+    call_complex String.reclaim, %v_3
+    %v_48 = syscall 60, 134: I64
     ret 
   }
 }
@@ -577,7 +533,7 @@ push(CodeUnit)<complex>(%self: Ptr, %item: I32) {
   b_11 {
     %v_13 = phi [b_0, %v_9], [b_12, %v_14]: I64
     %v_15 = cmp_ige %v_3, %v_13: I32
-    call_complex checkConditionAt, %v_15, @checkLocation(Core.Array.native), 17, 210, 4
+    call_complex checkConditionAt, %v_15, @checkLocation(Core.Array.native), 17, 182, 4
     %v_16 = load %self, 8: Ptr
     %v_17 = add %v_16, %v_3: Ptr
     store %v_17, %item, 1

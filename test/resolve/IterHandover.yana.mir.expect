@@ -10,23 +10,28 @@ bb0:
   %1: U8 = const 2
   %2: U8 = const 3
   %3: U8 = const 4
-  %4: Size = const 4
-  %5: Array(U8) = call literalArray(U8) borrow.shared %4
-  write.init borrow.unique (local0) take %5
-  %7: Array(U8) [unique slot 0] = read borrow.unique (local0) loan0
-  %8: Array(U8) [unique slot 0 view] = call.derivation elementsMut(Array(U8), U8) borrow.unique %7 roots{0}
-  %9: %U8 [owned here shape6 .*=shared slot 0] = call valuesMut(U8) borrow.unique %8 roots.0{0}
-  %10: Size = const 0
-  write.init borrow.unique ([%%9][0]) take %0
-  %12: Size = const 1
-  write.init borrow.unique ([%%9][1]) take %1
-  %14: Size = const 2
-  write.init borrow.unique ([%%9][2]) take %2
-  %16: Size = const 3
-  write.init borrow.unique ([%%9][3]) take %3
-  %18: Array(U8) = read take (local0)
-  %19: Held = aggregate.Held take %18
-  return take %19
+  %4: %U8 = run.slots U8 *4
+  %5: Size = bitcast inspect %4
+  %6: Size = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  %8: {} = call checkCondition borrow.shared %7
+  %9: @bits(30) U32 = const 4
+  %10: @bits(2) U32 = const 1
+  %11: Run(U8) = aggregate.Run take %4 take %9 take %10
+  %12: @bits(30) U32 = const 4
+  %13: Array(U8) = aggregate.Array take %11 take %12
+  write.init borrow.unique (local0) take %13
+  %15: Size = const 0
+  write.init borrow.unique ([%%4][0]) take %0
+  %17: Size = const 1
+  write.init borrow.unique ([%%4][1]) take %1
+  %19: Size = const 2
+  write.init borrow.unique ([%%4][2]) take %2
+  %21: Size = const 3
+  write.init borrow.unique ([%%4][3]) take %3
+  %23: Array(U8) = read take (local0)
+  %24: Held = aggregate.Held take %23
+  return take %24
 }
 
 fn consume(h: Held) -> Size {

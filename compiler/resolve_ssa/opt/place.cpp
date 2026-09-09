@@ -121,10 +121,22 @@ DeclPtr<mir::Type> pointeeOf(OptContext& opt, DeclPtr<mir::Type> type) {
 struct RunPlacement {
     OptContext& opt;
 
-    // The generic `runSlots` and the `Run` record, from `known.def`. Both null in a library that
-    // declares neither, which is the program this pass does nothing to.
-    DeclPtr<mir::Function> request = nullptr;
+    // The `Run` record, from `known.def` - null in a library that declares none, which is the
+    // program this pass does nothing to.
     DeclPtr<mir::RecordType> descriptor = nullptr;
+
+    /*
+     * The library's `runSlots`, still named here - but for **normalization** rather than for
+     * recognition, which is the difference J46 part 3 made.
+     *
+     * A literal's request is an `InstRunSlots` from the resolver and needs no finding. What still
+     * arrives as a call is every run the *library* builds - `String.ofCapacity`, `growArray`,
+     * `resize` - and a bounded string interpolation is exactly one of those: its capacity is not a
+     * number until `fold.cpp` has run, one tier below the resolver, so the request cannot be
+     * emitted at the literal and is a call whose argument folds. `normalize` below turns such a
+     * call into the instruction, and from there the walk has one shape to reason about.
+     */
+    DeclPtr<mir::Function> request = nullptr;
 
     // Values that may carry the buffer's address, and the allocations they may have been written
     // into. Two sets rather than one because the second answers a question about *storage* - what a
@@ -138,18 +150,25 @@ struct RunPlacement {
     // clears - see the `Aggregate` arm.
     Array<SsaPtr<Inst>> descriptors;
 
+    /*
+     * The comparisons against null that ask whether the allocator refused - collected for the same
+     * reason the descriptors are, and discharged by the same rewrite.
+     *
+     * **A frame allocation does not fail**, so a placement makes this test answer a constant. It is
+     * this pass's to answer and nobody else's: the resolver emits the test because it does not yet
+     * know where the bytes will be, and no later pass knows that a `RunSlots` marked `placed`
+     * answers an address of this frame. Leaving it was a comparison, a branch and an abort block at
+     * every placed literal - which is what the first measurement of J46 part 3 found and is why
+     * this is here.
+     */
+    Array<SsaPtr<Inst>> refusals;
+
     RunPlacement(OptContext& opt): opt(opt) {
-        request = opt.program.roles.function(intrinsic::Known::runSlots);
         descriptor = opt.program.roles.record(intrinsic::Known::run);
+        request = opt.program.roles.function(intrinsic::Known::runSlots);
     }
 
     SsaBase base() { return opt.base; }
-
-    // Whether this call is `runSlots`, at whatever element type it was specialized to.
-    bool isRequest(InstCall& call) {
-        if(!request || call.through != mir::CallThrough::Declaration || !call.callee) return false;
-        return call.callee == request || opt.decl[call.callee]->specializes == request;
-    }
 
     /*
      * Whether this aggregate is the run's own descriptor, with the buffer as its slots.
@@ -174,6 +193,24 @@ struct RunPlacement {
 
         auto items = components.get(base(), kItems);
         return items.isSet() && base()[items.value()] == &value;
+    }
+
+    /*
+     * Whether this equality is the literal's "did the allocator refuse" test - the tainted value on
+     * one side and a zero on the other.
+     *
+     * Both halves asked, because an equality against a *different* constant is a comparison of the
+     * address with something and is not this question. `constantOf` rather than a kind test on the
+     * instruction, so that a zero which arrived through a copy or a block argument is still one.
+     */
+    bool isRefusalTest(InstBinary& binary, Value& value) {
+        auto lhs = base()[binary.lhs.value()];
+        auto rhs = base()[binary.rhs.value()];
+        auto other = lhs == &value ? rhs : (rhs == &value ? lhs : nullptr);
+        if(!other) return false;
+
+        auto held = constantOf(opt, other);
+        return held && held->kind == mir::Constant::Int && held->asInt() == 0;
     }
 
     void taint(Value* value) {
@@ -234,6 +271,14 @@ struct RunPlacement {
                     for(Size i = 0; i < user.results.size(); i++) {
                         taint(base()[user.results.get(base(), i)]);
                     }
+
+                    return true;
+                }
+
+                // An equality against zero is the refusal test - see `refusals`. Order comparisons
+                // and equalities against anything else are sinks like any other and say nothing.
+                if(category == mir::OpCategory::Equality && isRefusalTest(binary, value)) {
+                    refusals.push(&user - base());
                 }
 
                 return true;
@@ -340,9 +385,9 @@ struct RunPlacement {
 
         /*
          * What the call answers may have been computed from what it was handed - a `bitcast` of the
-         * pointer is a call at this tier, and so is `elementBase`. So every result carries, which
-         * costs nothing where it does not: a result nothing does anything unsafe with is a value
-         * this walk clears.
+         * pointer is a call at this tier, and so is any accessor handing back a run pointer. So
+         * every result carries, which costs nothing where it does not: a result nothing does
+         * anything unsafe with is a value this walk clears.
          */
         for(Size i = 0; i < call.results.size(); i++) taint(base()[call.results.get(base(), i)]);
         return true;
@@ -440,40 +485,79 @@ struct RunPlacement {
     }
 
     /*
-     * How many slots this request asks for, or nothing where the count is not a constant.
+     * How many slots this request asks for, and whether the frame can state it as a type.
      *
-     * A dynamic count has no frame answer at all. Frame storage of a size nothing knows is a dynamic
-     * alloca, which is released when the frame ends rather than when the run dies - so a request
-     * for one inside a loop would grow the frame per iteration. That is the shipping stage's rule
-     * at `InstAlloc::extent`, waiting on the same thing: Implementation-Containers.md §12's third
-     * strategy, which is a placement rule of its own rather than this one relaxed.
-     *
-     * The bound is `kMaxFixedArrayLength`, which is what the type this becomes can state.
+     * **The count is a field now**, which is the difference J46 part 3 made here. It used to be an
+     * argument that had to be folded - `constantOf` on operand one of a call, declining a dynamic
+     * one - and the note that stood here argued why a dynamic count has no frame answer. That is
+     * still true and is now stated one tier up: `mir::NodeRunSlots` carries a number because the
+     * resolver only builds one where it has a number, and a run whose size is computed is still the
+     * library's `newRun`. So what is left to check is the *bound*, which is what the type this
+     * becomes can hold.
      */
-    Maybe<U64> countOf(InstCall& call) {
-        if(call.arguments.size() != 2) return Nothing();
-
-        /*
-         * The constant read off the instruction rather than through `constantValueOf`, which puts
-         * every answer through `foldableInt` and declines a target-answered width - and a capacity
-         * is a `Size`, which is exactly one of those. What the width would be for is masking, and
-         * there is nothing here to mask: the range test below is against a number of *elements*,
-         * which no target makes narrower.
-         */
-        auto held = constantOf(opt, base()[call.arguments.get(base(), 1).value()]);
-        if(!held || held->kind != mir::Constant::Int) return Nothing();
-
-        auto count = held->asInt();
-        if(!count || count > mir::kMaxFixedArrayLength) return Nothing();
-
-        return Just(count);
+    bool sized(InstRunSlots& slots) {
+        return slots.capacity && slots.capacity <= mir::kMaxFixedArrayLength;
     }
 
-    // What the slots hold, from the probe the request measures against - `runSlots`, where the
-    // parameter's whole purpose is that the element type reaches it.
-    DeclPtr<mir::Type> elementOf(InstCall& call) {
-        if(!call.arguments.size()) return nullptr;
-        return pointeeOf(opt, base()[call.arguments.get(base(), 0).value()]->occurrence.type);
+    /*
+     * A `runSlots` call whose count has folded, turned into the instruction a literal builds.
+     *
+     * **One shape for the walk below**, which is the whole reason this is a rewrite rather than a
+     * second recognition path: the placement question, the loop test, the escape walk and the flag
+     * rewrite are all written once, against `InstRunSlots`, and a call that means the same thing is
+     * made into one before any of them is asked.
+     *
+     * It is also what a bounded string interpolation reaches. J46 §3.4 planned to emit that buffer
+     * at the literal and could not: a hole's `formatBound(showBound(v))` is not a number until
+     * `fold.cpp` has run, so `String.ofCapacity`'s argument is an expression in the resolver and a
+     * constant here. This is the tier that has the number, so this is where the request is made.
+     *
+     * The count is read off the instruction rather than through `constantValueOf`, which puts every
+     * answer through `foldableInt` and declines a target-answered width - and a capacity is a
+     * `Size`, which is exactly one of those. What the width would be for is masking, and there is
+     * nothing here to mask: the bound below is a number of *elements*, which no target makes
+     * narrower.
+     *
+     * The element comes from the probe the request measures against - `runSlots`' first parameter,
+     * whose whole purpose is that the element type reaches a function whose arguments would
+     * otherwise not name one.
+     */
+    bool normalize(InstCall& call) {
+        if(!request || call.through != mir::CallThrough::Declaration || !call.callee) return false;
+        if(call.callee != request && opt.decl[call.callee]->specializes != request) return false;
+        if(call.arguments.size() != 2 || !call.results.size()) return false;
+
+        auto element = pointeeOf(opt, base()[call.arguments.get(base(), 0).value()]->occurrence.type);
+        if(!element) return false;
+
+        auto held = constantOf(opt, base()[call.arguments.get(base(), 1).value()]);
+        if(!held || held->kind != mir::Constant::Int) return false;
+
+        auto count = held->asInt();
+        if(!count || count > mir::kMaxFixedArrayLength) return false;
+
+        auto editor = opt.ir();
+        auto pointer = base()[call.results.get(base(), 0)];
+
+        editor.setInsertBefore(call);
+        auto made = editor.addRunSlots(call.source, element, count);
+        auto slots = editor.resultOf(*made);
+
+        /*
+         * The same bytes under the type the call answered. `runSlots` hands back `%a` and so does
+         * this instruction, so the two usually agree - but a specialization's result carries its
+         * own occurrence and convention, and this is where the two are made one value.
+         */
+        auto bytes = slots->occurrence.type == pointer->occurrence.type &&
+                     slots->convention == pointer->convention
+            ? slots
+            : editor.resultOf(*editor.addUnary(call.source, mir::UnaryOp::Bitcast,
+                                               editor.use(*slots, UseKind::Inspect),
+                                               pointer->occurrence, pointer->convention));
+
+        editor.replaceAllUses(*pointer, *bytes);
+        editor.eraseInst(call);
+        return true;
     }
 
     // Whether the request runs at most once per activation - the loop test, argued in the file
@@ -510,29 +594,23 @@ struct RunPlacement {
      * The rewrite: the request becomes frame storage, and the descriptor over it stops claiming the
      * allocator's.
      *
-     * The aggregate is rebuilt rather than edited, because an instruction's operands are half of a
-     * two-sided statement and `Editor` is the only thing allowed to write either half - so the way
-     * to change one is to make the instruction that has it and retire the one that does not.
+     * **Two edits and one of them is a bit**, which is what the instruction bought. This used to
+     * replace the `runSlots` call with an `Alloc` of `[a *n]` and a bitcast back to `%a` - three
+     * instructions for one, because a call's result type is the pointer and an allocation's is the
+     * pointer to the whole array. `InstRunSlots` already answers `%a` and already knows the element
+     * and the count, so the placement is the answer to a question the instruction was asking, and
+     * setting it is the whole of the storage half.
+     *
+     * The descriptor is still rebuilt rather than edited, because an instruction's operands are half
+     * of a two-sided statement and `Editor` is the only thing allowed to write either half - so the
+     * way to change one is to make the instruction that has it and retire the one that does not.
+     *
+     * The two halves are one rewrite and must stay that way: a placement whose flag was not turned
+     * off is a frame address handed to `freeHeap`.
      */
-    void place(InstCall& call, Inst& made, DeclPtr<mir::Type> element, U64 count) {
+    void place(InstRunSlots& slots, Inst& made) {
         auto editor = opt.ir();
-        auto pointer = base()[call.results.get(base(), 0)];
-        auto slots = opt.program.types.arrayType(opt.decl, element, count);
-
-        editor.setInsertBefore(call);
-
-        auto storage = editor.resultOf(
-            *editor.addAlloc(call.source, mir::owned(slots), mir::StorageClass::Frame));
-
-        // The same bytes under the type the request answered. An allocation's address points at the
-        // whole `[a *n]` and a run's `items` points at the first element; the two are one address
-        // and this is the instruction that says which of the two it is being read as.
-        auto bytes = editor.resultOf(*editor.addUnary(
-            call.source, mir::UnaryOp::Bitcast, editor.use(*storage, UseKind::Inspect),
-            pointer->occurrence, pointer->convention));
-
-        editor.replaceAllUses(*pointer, *bytes);
-        editor.eraseInst(call);
+        slots.placed = true;
 
         auto& aggregate = (InstAggregate&)made;
         auto result = base()[made.results.get(base(), 0)];
@@ -554,24 +632,46 @@ struct RunPlacement {
 
         editor.replaceAllUses(*result, *editor.resultOf(*placed));
         editor.eraseInst(made);
+
+        discharge(editor);
+    }
+
+    /*
+     * The refusal tests, answered - the third part of the rewrite.
+     *
+     * `false` for an `Eq` against zero and `true` for a `Ne`, which is the same statement made from
+     * the two directions the language spells it in: this address is not null. What removes the
+     * branch and the abort block behind it is the ordinary branch folding that follows, which is why
+     * this only has to answer the comparison.
+     */
+    void discharge(Editor& editor) {
+        for(auto pointer: refusals) {
+            auto& test = (InstBinary&)*base()[pointer];
+            auto result = base()[test.results.get(base(), 0)];
+
+            editor.setInsertBefore(test);
+            auto answer = editor.addConst(
+                test.source, mir::truthConstant(opt.program, test.op != mir::BinaryOp::Eq));
+
+            editor.replaceAllUses(*result, *editor.resultOf(*answer));
+            editor.eraseInst(test);
+        }
     }
 
     // One request, from the shape test to the rewrite. False where nothing was changed, which is
     // every request whose bytes this frame cannot keep.
-    bool consider(InstCall& call) {
-        if(!isRequest(call) || !call.results.size()) return false;
-
-        auto count = countOf(call);
-        auto element = elementOf(call);
-        if(!count || !element || !runsOnce(call)) return false;
+    bool consider(InstRunSlots& slots) {
+        if(slots.placed || !slots.results.size() || !slots.element) return false;
+        if(!sized(slots) || !runsOnce(slots)) return false;
 
         descriptors.clear();
-        if(!inFrame(*base()[call.results.get(base(), 0)])) return false;
+        refusals.clear();
+        if(!inFrame(*base()[slots.results.get(base(), 0)])) return false;
 
         auto made = soleDescriptor();
         if(!made) return false;
 
-        place(call, *made, element, count.unwrap());
+        place(slots, *made);
         return true;
     }
 };
@@ -580,15 +680,16 @@ struct RunPlacement {
 
 void placeRuns(OptContext& opt) {
     RunPlacement placement { opt };
-    if(!placement.request || !placement.descriptor) return;
+    if(!placement.descriptor) return;
 
     /*
      * A pass over the blocks, restarted at the body whenever one request is placed.
      *
-     * Restarted rather than continued, because the rewrite retires two instructions and adds three
-     * - so the walk it was in the middle of is over a list that has moved. There are a handful of
-     * requests in a body that has any at all, which makes the restart cheaper than the cursor
-     * repair, and the driver's own rounds are what settle what the placement exposed.
+     * Restarted rather than continued, because the rewrite retires the descriptor and adds two
+     * instructions in its place - so the walk it was in the middle of is over a list that has
+     * moved. There are a handful of requests in a body that has any at all, which makes the restart
+     * cheaper than the cursor repair, and the driver's own rounds are what settle what the
+     * placement exposed.
      */
     auto again = true;
     while(again) {
@@ -600,8 +701,17 @@ void placeRuns(OptContext& opt) {
 
             for(auto instPointer: block->instructions(opt.base)) {
                 auto& inst = *opt.base[instPointer];
-                if(inst.kind != Inst::Call) continue;
-                if(!placement.consider((InstCall&)inst)) continue;
+
+                // The library's own request first, made into the instruction - see `normalize`.
+                if(inst.kind == Inst::Call) {
+                    if(!placement.normalize((InstCall&)inst)) continue;
+
+                    again = true;
+                    break;
+                }
+
+                if(inst.kind != Inst::RunSlots) continue;
+                if(!placement.consider((InstRunSlots&)inst)) continue;
 
                 again = true;
                 break;

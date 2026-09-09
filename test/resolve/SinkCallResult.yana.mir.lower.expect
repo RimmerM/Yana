@@ -105,236 +105,231 @@ main<complex>(): I32 {
   }
 
   b_29 {
-    %v_30 = alloca 4, 8: Ptr
-    %v_31 = bitcast 0: Ptr
-    %v_32 = call_complex runSlots(String), %v_31, 0: Ptr
-    %v_33 = imm 1073741824: I64
-    store %v_30, %v_33, 4
-    jmp b_34
+    %v_30 = bitcast 0: Ptr
+    %v_31 = alloca 4, 8: Ptr
+    %v_32 = imm 1073741824: I64
+    store %v_31, %v_32, 4
+    store %v_3, %v_30, 8
+    %v_33 = add %v_3, 8: Ptr
+    store %v_33, %v_32, 4
+    %v_34 = add %v_3, 12: Ptr
+    store %v_34, 0, 4
+    %v_35 = alloca 16, 8: Ptr
+    %v_36 = alloca 16, 8: Ptr
+    copy %v_35, @constant$5, 16
+    copy %v_36, @constant$6, 16
+    %v_37 = alloca 16, 8: Ptr
+    %v_38 = alloca 16, 8: Ptr
+    copy %v_38, %v_35, 16
+    copy %v_37, %v_36, 16
+    %v_39 = load %v_37, 8: Ptr
+    %v_40 = add %v_37, 12: Ptr
+    %v_41 = load %v_40, 4: I32
+    %v_42 = sext %v_41: I64
+    call_complex String.appendUnits, %v_38, %v_39, %v_42
+    call_complex String.reclaim, %v_37
+    %v_43 = alloca 16, 8: Ptr
+    copy %v_43, %v_38, 16
+    %v_44 = add %v_3, 12: Ptr
+    %v_45 = load %v_44, 4: I32
+    %v_46 = cast %v_45: I64
+    %v_47 = add %v_46, 1: I64
+    %v_48 = add %v_3, 8: Ptr
+    %v_49 = load %v_48, 4: I64
+    %v_50 = and %v_49, 1073741823: I64
+    %v_51 = cast %v_50: I32
+    %v_52 = cast %v_51: I64
+    %v_53 = cmp_ile %v_47, %v_52: I32
+    je %v_53, b_54, b_55
   }
 
-  b_35 {
+  b_56 {
     call_complex String.reclaim, %v_2
     ret 18446744073709551614
   }
 
-  b_36 {
-    %v_37 = cmp_ge 1, %v_38: I32
-    je %v_37, b_39, b_40
+  b_57 {
+    %v_58 = cmp_ge 1, %v_59: I32
+    je %v_58, b_60, b_61
   }
 
-  b_41 {
+  b_62 {
     call_complex String.reclaim, %v_2
     call_complex Array(a).reclaim(String), %v_3
     ret 18446744073709551613
   }
 
-  b_42 {
+  b_63 {
     call_complex String.reclaim, %v_2
-    %v_43 = sext %v_24: I32
-    jmp b_44
+    %v_64 = sext %v_24: I32
+    jmp b_65
   }
 
-  b_45 {
+  b_66 {
     call_complex String.reclaim, %v_2
     call_complex Array(a).reclaim(String), %v_3
     ret 18446744073709551612
   }
 
-  b_46 {
-    %v_47 = load %v_48, 8: Ptr
-    %v_49 = add %v_48, 12: Ptr
-    %v_50 = load %v_49, 4: I32
-    %v_51 = sext %v_50: I64
-    %v_52 = cmp_neq %v_51, 2: I32
-    je %v_52, b_53, b_54
+  b_67 {
+    %v_68 = load %v_69, 8: Ptr
+    %v_70 = add %v_69, 12: Ptr
+    %v_71 = load %v_70, 4: I32
+    %v_72 = sext %v_71: I64
+    %v_73 = cmp_neq %v_72, 2: I32
+    je %v_73, b_74, b_75
   }
 
-  b_39 {
-    %v_55 = syscall 60, 134: I64
+  b_60 {
+    %v_76 = syscall 60, 134: I64
     unreachable 
   }
 
-  b_40 {
-    %v_56 = add %v_48, 16: Ptr
-    %v_57 = load %v_56, 8: Ptr
-    %v_58 = add %v_48, 28: Ptr
-    %v_59 = load %v_58, 4: I32
-    %v_60 = sext %v_59: I64
-    %v_61 = cmp_neq %v_60, 3: I32
-    je %v_61, b_62, b_63
+  b_61 {
+    %v_77 = add %v_69, 16: Ptr
+    %v_78 = load %v_77, 8: Ptr
+    %v_79 = add %v_69, 28: Ptr
+    %v_80 = load %v_79, 4: I32
+    %v_81 = sext %v_80: I64
+    %v_82 = cmp_neq %v_81, 3: I32
+    je %v_82, b_83, b_84
   }
 
-  b_44 {
-    %v_64 = add %v_48, 28: Ptr
-    %v_65 = load %v_64, 4: I32
-    %v_66 = sext %v_65: I64
+  b_65 {
+    %v_85 = add %v_69, 28: Ptr
+    %v_86 = load %v_85, 4: I32
+    %v_87 = sext %v_86: I64
     call_complex Array(a).reclaim(String), %v_3
-    %v_67 = sext %v_66: I32
-    %v_68 = add %v_43, %v_67: I32
-    ret %v_68
+    %v_88 = sext %v_87: I32
+    %v_89 = add %v_64, %v_88: I32
+    ret %v_89
   }
 
-  b_69 {
-    %v_70 = phi [b_18, %v_71], [b_17, 0]: I32
+  b_90 {
+    %v_91 = phi [b_18, %v_92], [b_17, 0]: I32
     call_complex String.reclaim, %v_1
-    je %v_70, b_19, b_28
+    je %v_91, b_19, b_28
   }
 
   b_18 {
-    %v_72 = call_complex compareMemory(CodeUnit), %v_12, @string'144, %v_15: I32
-    %v_71 = cmp_eq %v_72, 1: I32
-    jmp b_69
+    %v_93 = call_complex compareMemory(CodeUnit), %v_12, @string'144, %v_15: I32
+    %v_92 = cmp_eq %v_93, 1: I32
+    jmp b_90
   }
 
   b_17 {
-    jmp b_69
+    jmp b_90
   }
 
-  b_73 {
-    je %v_74, b_29, b_35
+  b_94 {
+    je %v_95, b_29, b_56
   }
 
   b_27 {
-    %v_75 = call_complex compareMemory(CodeUnit), %v_21, @string'148, %v_24: I32
-    %v_74 = cmp_eq %v_75, 1: I32
-    jmp b_73
+    %v_96 = call_complex compareMemory(CodeUnit), %v_21, @string'148, %v_24: I32
+    %v_95 = cmp_eq %v_96, 1: I32
+    jmp b_94
   }
 
   b_26 {
-    jmp b_35
-  }
-
-  b_34 {
-    store %v_3, %v_32, 8
-    %v_76 = add %v_3, 8: Ptr
-    store %v_76, %v_33, 4
-    %v_77 = add %v_3, 12: Ptr
-    store %v_77, 0, 4
-    %v_78 = alloca 16, 8: Ptr
-    %v_79 = alloca 16, 8: Ptr
-    copy %v_78, @constant$5, 16
-    copy %v_79, @constant$6, 16
-    %v_80 = alloca 16, 8: Ptr
-    %v_81 = alloca 16, 8: Ptr
-    copy %v_81, %v_78, 16
-    copy %v_80, %v_79, 16
-    %v_82 = load %v_80, 8: Ptr
-    %v_83 = add %v_80, 12: Ptr
-    %v_84 = load %v_83, 4: I32
-    %v_85 = sext %v_84: I64
-    call_complex String.appendUnits, %v_81, %v_82, %v_85
-    call_complex String.reclaim, %v_80
-    %v_86 = alloca 16, 8: Ptr
-    copy %v_86, %v_81, 16
-    %v_87 = add %v_3, 12: Ptr
-    %v_88 = load %v_87, 4: I32
-    %v_89 = cast %v_88: I64
-    %v_90 = add %v_89, 1: I64
-    %v_91 = add %v_3, 8: Ptr
-    %v_92 = load %v_91, 4: I64
-    %v_93 = and %v_92, 1073741823: I64
-    %v_94 = cast %v_93: I32
-    %v_95 = cast %v_94: I64
-    %v_96 = cmp_ile %v_90, %v_95: I32
-    je %v_96, b_97, b_98
-  }
-
-  b_97 {
-    %v_99 = phi [b_34, %v_95], [b_98, %v_100]: I64
-    %v_101 = cmp_ige %v_89, %v_99: I32
-    je %v_101, b_39, b_102
-  }
-
-  b_98 {
-    call_complex growArray(String), %v_3, %v_90
-    %v_103 = load %v_91, 4: I64
-    %v_104 = and %v_103, 1073741823: I64
-    %v_105 = cast %v_104: I32
-    %v_100 = cast %v_105: I64
-    jmp b_97
-  }
-
-  b_102 {
-    %v_106 = load %v_3, 8: Ptr
-    %v_107 = shl %v_89, 4: I64
-    %v_108 = add %v_106, %v_107: Ptr
-    copy %v_108, %v_86, 16
-    %v_109 = cast %v_90: I32
-    %v_110 = and %v_109, 1073741823: I32
-    store %v_87, %v_110, 4
-    %v_111 = alloca 16, 8: Ptr
-    call_complex threeParts, %v_111, @constant$7, @constant$8, @constant$9
-    %v_112 = add %v_3, 12: Ptr
-    %v_113 = load %v_112, 4: I32
-    %v_114 = cast %v_113: I64
-    %v_115 = add %v_114, 1: I64
-    %v_116 = add %v_3, 8: Ptr
-    %v_117 = load %v_116, 4: I64
-    %v_118 = and %v_117, 1073741823: I64
-    %v_119 = cast %v_118: I32
-    %v_120 = cast %v_119: I64
-    %v_121 = cmp_ile %v_115, %v_120: I32
-    je %v_121, b_122, b_123
-  }
-
-  b_122 {
-    %v_124 = phi [b_102, %v_120], [b_123, %v_125]: I64
-    %v_126 = cmp_ige %v_114, %v_124: I32
-    je %v_126, b_39, b_127
-  }
-
-  b_123 {
-    call_complex growArray(String), %v_3, %v_115
-    %v_128 = load %v_116, 4: I64
-    %v_129 = and %v_128, 1073741823: I64
-    %v_130 = cast %v_129: I32
-    %v_125 = cast %v_130: I64
-    jmp b_122
-  }
-
-  b_127 {
-    %v_131 = load %v_3, 8: Ptr
-    %v_132 = shl %v_114, 4: I64
-    %v_133 = add %v_131, %v_132: Ptr
-    copy %v_133, %v_111, 16
-    %v_134 = cast %v_115: I32
-    %v_135 = and %v_134, 1073741823: I32
-    store %v_112, %v_135, 4
-    %v_48 = load %v_3, 8: Ptr
-    %v_136 = add %v_3, 12: Ptr
-    %v_137 = load %v_136, 4: I32
-    %v_38 = cast %v_137: I64
-    %v_138 = cmp_eq %v_38, 0: I32
-    je %v_138, b_39, b_46
-  }
-
-  b_139 {
-    je %v_140, b_36, b_41
+    jmp b_56
   }
 
   b_54 {
-    %v_141 = call_complex compareMemory(CodeUnit), %v_47, @string'154, %v_51: I32
-    %v_140 = cmp_eq %v_141, 1: I32
-    jmp b_139
+    %v_97 = phi [b_29, %v_52], [b_55, %v_98]: I64
+    %v_99 = cmp_ige %v_46, %v_97: I32
+    je %v_99, b_60, b_100
   }
 
-  b_53 {
-    jmp b_41
+  b_55 {
+    call_complex growArray(String), %v_3, %v_47
+    %v_101 = load %v_48, 4: I64
+    %v_102 = and %v_101, 1073741823: I64
+    %v_103 = cast %v_102: I32
+    %v_98 = cast %v_103: I64
+    jmp b_54
   }
 
-  b_142 {
-    je %v_143, b_42, b_45
+  b_100 {
+    %v_104 = load %v_3, 8: Ptr
+    %v_105 = shl %v_46, 4: I64
+    %v_106 = add %v_104, %v_105: Ptr
+    copy %v_106, %v_43, 16
+    %v_107 = cast %v_47: I32
+    %v_108 = and %v_107, 1073741823: I32
+    store %v_44, %v_108, 4
+    %v_109 = alloca 16, 8: Ptr
+    call_complex threeParts, %v_109, @constant$7, @constant$8, @constant$9
+    %v_110 = add %v_3, 12: Ptr
+    %v_111 = load %v_110, 4: I32
+    %v_112 = cast %v_111: I64
+    %v_113 = add %v_112, 1: I64
+    %v_114 = add %v_3, 8: Ptr
+    %v_115 = load %v_114, 4: I64
+    %v_116 = and %v_115, 1073741823: I64
+    %v_117 = cast %v_116: I32
+    %v_118 = cast %v_117: I64
+    %v_119 = cmp_ile %v_113, %v_118: I32
+    je %v_119, b_120, b_121
   }
 
-  b_63 {
-    %v_144 = call_complex compareMemory(CodeUnit), %v_57, @string'155, %v_60: I32
-    %v_143 = cmp_eq %v_144, 1: I32
-    jmp b_142
+  b_120 {
+    %v_122 = phi [b_100, %v_118], [b_121, %v_123]: I64
+    %v_124 = cmp_ige %v_112, %v_122: I32
+    je %v_124, b_60, b_125
   }
 
-  b_62 {
-    jmp b_45
+  b_121 {
+    call_complex growArray(String), %v_3, %v_113
+    %v_126 = load %v_114, 4: I64
+    %v_127 = and %v_126, 1073741823: I64
+    %v_128 = cast %v_127: I32
+    %v_123 = cast %v_128: I64
+    jmp b_120
+  }
+
+  b_125 {
+    %v_129 = load %v_3, 8: Ptr
+    %v_130 = shl %v_112, 4: I64
+    %v_131 = add %v_129, %v_130: Ptr
+    copy %v_131, %v_109, 16
+    %v_132 = cast %v_113: I32
+    %v_133 = and %v_132, 1073741823: I32
+    store %v_110, %v_133, 4
+    %v_69 = load %v_3, 8: Ptr
+    %v_134 = add %v_3, 12: Ptr
+    %v_135 = load %v_134, 4: I32
+    %v_59 = cast %v_135: I64
+    %v_136 = cmp_eq %v_59, 0: I32
+    je %v_136, b_60, b_67
+  }
+
+  b_137 {
+    je %v_138, b_57, b_62
+  }
+
+  b_75 {
+    %v_139 = call_complex compareMemory(CodeUnit), %v_68, @string'154, %v_72: I32
+    %v_138 = cmp_eq %v_139, 1: I32
+    jmp b_137
+  }
+
+  b_74 {
+    jmp b_62
+  }
+
+  b_140 {
+    je %v_141, b_63, b_66
+  }
+
+  b_84 {
+    %v_142 = call_complex compareMemory(CodeUnit), %v_78, @string'155, %v_81: I32
+    %v_141 = cmp_eq %v_142, 1: I32
+    jmp b_140
+  }
+
+  b_83 {
+    jmp b_66
   }
 }
 
@@ -1333,29 +1328,6 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: I64): I32 {
 
   b_82 {
     jmp b_88
-  }
-}
-
-runSlots(String)<complex>(%probe: Ptr, %capacity: I64): Ptr {
-  b_0 {
-    %v_1 = cmp_eq %capacity, 0: I32
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    %v_4 = cmp_igt %capacity, 1073741823: I32
-    je %v_4, b_2, b_5
-  }
-
-  b_2 {
-    %v_6 = bitcast 0: Ptr
-    ret %v_6
-  }
-
-  b_5 {
-    %v_7 = shl %capacity, 4: I64
-    %v_8 = call_complex allocateHeap, %v_7: Ptr
-    ret %v_8
   }
 }
 

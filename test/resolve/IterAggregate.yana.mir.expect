@@ -264,10 +264,10 @@ bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
 }
 
 fn main() -> I32 {
-  local & local0: Array(Point) object0
-  local & ps: Array(Point) object0
-  local & local2: Array(I32) object3
-  local & ns: Array(I32) object3
+  local & local0: Array(Point) object1
+  local & ps: Array(Point) object1
+  local & local2: Array(I32) object5
+  local & ns: Array(I32) object5
 
 bb0:
   %0: I32 = const 0
@@ -279,58 +279,68 @@ bb0:
   %6: I32 = const 3
   %7: I32 = const 5
   %8: Point = aggregate.Point take %6 take %7
-  %9: Size = const 3
-  %10: Array(Point) = call literalArray(Point) borrow.shared %9
-  write.init borrow.unique (local0) take %10
-  %12: Array(Point) [unique slot 0] = read borrow.unique (local0) loan0
-  %13: Array(Point) [unique slot 0 view] = call.derivation elementsMut(Array(Point), Point) borrow.unique %12 roots{0}
-  %14: %Point [owned here shape6 .*=shared slot 0] = call valuesMut(Point) borrow.unique %13 roots.0{0}
-  %15: Size = const 0
-  write.init borrow.unique ([%%14][0]) take %2
-  %17: Size = const 1
-  write.init borrow.unique ([%%14][1]) take %5
-  %19: Size = const 2
-  write.init borrow.unique ([%%14][2]) take %8
-  %21: Array(Point) = read take (local0)
-  write.init borrow.unique (ps) take %21
-  %23: I32 = const 1
-  %24: I32 = const 2
-  %25: I32 = const 3
-  %26: I32 = const 4
-  %27: Size = const 4
-  %28: Array(I32) = call literalArray(I32) borrow.shared %27
-  write.init borrow.unique (local2) take %28
-  %30: Array(I32) [unique slot 0] = read borrow.unique (local2) loan1
-  %31: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %30 roots{1}
-  %32: %I32 [owned here shape6 .*=shared slot 0] = call valuesMut(I32) borrow.unique %31 roots.0{1}
-  %33: Size = const 0
-  write.init borrow.unique ([%%32][0]) take %23
-  %35: Size = const 1
-  write.init borrow.unique ([%%32][1]) take %24
-  %37: Size = const 2
-  write.init borrow.unique ([%%32][2]) take %25
-  %39: Size = const 3
-  write.init borrow.unique ([%%32][3]) take %26
-  %41: Array(I32) = read take (local2)
-  write.init borrow.unique (ns) take %41
-  %43: Array(Point) [shared call] = read borrow.shared (ps) loan2
-  %44: Array(Point) [shared slot 0 view] = call.derivation elements(Array(Point), Point) borrow.shared %43 roots{2}
-  %45: I32 = call direct borrow.shared %44
-  %46: Array(Point) [shared call] = read borrow.shared (ps) loan3
-  %47: Array(Point) [shared slot 0 view] = call.derivation elements(Array(Point), Point) borrow.shared %46 roots{3}
-  %48: I32 = call oneLift borrow.shared %47
-  %49: I32 = add inspect %45 inspect %48
-  %50: Array(Point) [shared call] = read borrow.shared (ps) loan4
-  %51: Array(Point) [shared slot 0 view] = call.derivation elements(Array(Point), Point) borrow.shared %50 roots{4}
-  %52: I32 = call twoLifts borrow.shared %51
+  %9: %Point = run.slots Point *3
+  %10: Size = bitcast inspect %9
+  %11: Size = const 0
+  %12: Bool = eq inspect %10 inspect %11
+  %13: {} = call checkCondition borrow.shared %12
+  %14: @bits(30) U32 = const 3
+  %15: @bits(2) U32 = const 1
+  %16: Run(Point) = aggregate.Run take %9 take %14 take %15
+  %17: @bits(30) U32 = const 3
+  %18: Array(Point) = aggregate.Array take %16 take %17
+  write.init borrow.unique (local0) take %18
+  %20: Size = const 0
+  write.init borrow.unique ([%%9][0]) take %2
+  %22: Size = const 1
+  write.init borrow.unique ([%%9][1]) take %5
+  %24: Size = const 2
+  write.init borrow.unique ([%%9][2]) take %8
+  %26: Array(Point) = read take (local0)
+  write.init borrow.unique (ps) take %26
+  %28: I32 = const 1
+  %29: I32 = const 2
+  %30: I32 = const 3
+  %31: I32 = const 4
+  %32: %I32 = run.slots I32 *4
+  %33: Size = bitcast inspect %32
+  %34: Size = const 0
+  %35: Bool = eq inspect %33 inspect %34
+  %36: {} = call checkCondition borrow.shared %35
+  %37: @bits(30) U32 = const 4
+  %38: @bits(2) U32 = const 1
+  %39: Run(I32) = aggregate.Run take %32 take %37 take %38
+  %40: @bits(30) U32 = const 4
+  %41: Array(I32) = aggregate.Array take %39 take %40
+  write.init borrow.unique (local2) take %41
+  %43: Size = const 0
+  write.init borrow.unique ([%%32][0]) take %28
+  %45: Size = const 1
+  write.init borrow.unique ([%%32][1]) take %29
+  %47: Size = const 2
+  write.init borrow.unique ([%%32][2]) take %30
+  %49: Size = const 3
+  write.init borrow.unique ([%%32][3]) take %31
+  %51: Array(I32) = read take (local2)
+  write.init borrow.unique (ns) take %51
+  %53: Array(Point) [shared call] = read borrow.shared (ps) loan0
+  %54: Array(Point) [shared slot 0 view] = call.derivation elements(Array(Point), Point) borrow.shared %53 roots{0}
+  %55: I32 = call direct borrow.shared %54
+  %56: Array(Point) [shared call] = read borrow.shared (ps) loan1
+  %57: Array(Point) [shared slot 0 view] = call.derivation elements(Array(Point), Point) borrow.shared %56 roots{1}
+  %58: I32 = call oneLift borrow.shared %57
+  %59: I32 = add inspect %55 inspect %58
+  %60: Array(Point) [shared call] = read borrow.shared (ps) loan2
+  %61: Array(Point) [shared slot 0 view] = call.derivation elements(Array(Point), Point) borrow.shared %60 roots{2}
+  %62: I32 = call twoLifts borrow.shared %61
   drop (ps)
-  %53: I32 = add inspect %49 inspect %52
-  %54: Array(I32) [shared call] = read borrow.shared (ns) loan5
-  %55: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %54 roots{5}
-  %56: I32 = call scalar borrow.shared %55
+  %63: I32 = add inspect %59 inspect %62
+  %64: Array(I32) [shared call] = read borrow.shared (ns) loan3
+  %65: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %64 roots{3}
+  %66: I32 = call scalar borrow.shared %65
   drop (ns)
-  %57: I32 = add inspect %53 inspect %56
-  return take %57
+  %67: I32 = add inspect %63 inspect %66
+  return take %67
 }
 
 lens fn each(Point)(xs: Array(Point) [shared call view], $body: (Point) -> I32 [shared call]) -> I32 = <each at Point>

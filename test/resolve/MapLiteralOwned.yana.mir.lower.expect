@@ -24,78 +24,76 @@ Held.drop<complex>(%value: Ptr) {
 key<complex>(%v_0: Ptr, %n: I32) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
-    %v_3 = imm 16: I64
-    %v_4 = bitcast 0: Ptr
-    %v_5 = call_complex runSlots(CodeUnit), %v_4, %v_3: Ptr
-    %v_6 = bitcast %v_5: I64
-    %v_7 = cmp_eq %v_6, 0: I32
-    %v_8 = select %v_7, 0, %v_3: I64
-    %v_9 = cast %v_8: I32
-    store %v_2, %v_5, 8
-    %v_10 = add %v_2, 8: Ptr
-    %v_11 = cast %v_9: I64
-    %v_12 = or %v_11, 1073741824: I64
-    store %v_10, %v_12, 4
-    %v_13 = add %v_2, 12: Ptr
-    store %v_13, 0, 4
+    %v_3 = call_complex allocateHeap, 16: Ptr
+    %v_4 = bitcast %v_3: I64
+    %v_5 = cmp_eq %v_4, 0: I32
+    %v_6 = select %v_5, 0, 16: I64
+    %v_7 = cast %v_6: I32
+    store %v_2, %v_3, 8
+    %v_8 = add %v_2, 8: Ptr
+    %v_9 = cast %v_7: I64
+    %v_10 = or %v_9, 1073741824: I64
+    store %v_8, %v_10, 4
+    %v_11 = add %v_2, 12: Ptr
+    store %v_11, 0, 4
     call_complex String.appendUnits, %v_2, @string'142, 2
-    %v_14 = cmp_ilt %n, 0: I32
-    je %v_14, b_15, b_16
+    %v_12 = cmp_ilt %n, 0: I32
+    je %v_12, b_13, b_14
   }
 
-  b_16 {
+  b_14 {
     call_complex pushUnsigned32, %n, %v_2
-    jmp b_17
+    jmp b_15
+  }
+
+  b_13 {
+    %v_16 = add %v_2, 12: Ptr
+    %v_17 = load %v_16, 4: I32
+    %v_18 = cast %v_17: I64
+    %v_19 = add %v_18, 1: I64
+    %v_20 = add %v_2, 8: Ptr
+    %v_21 = load %v_20, 4: I64
+    %v_22 = and %v_21, 1073741823: I64
+    %v_23 = cast %v_22: I32
+    %v_24 = cast %v_23: I64
+    %v_25 = cmp_ile %v_19, %v_24: I32
+    je %v_25, b_26, b_27
   }
 
   b_15 {
-    %v_18 = add %v_2, 12: Ptr
-    %v_19 = load %v_18, 4: I32
-    %v_20 = cast %v_19: I64
-    %v_21 = add %v_20, 1: I64
-    %v_22 = add %v_2, 8: Ptr
-    %v_23 = load %v_22, 4: I64
-    %v_24 = and %v_23, 1073741823: I64
-    %v_25 = cast %v_24: I32
-    %v_26 = cast %v_25: I64
-    %v_27 = cmp_ile %v_21, %v_26: I32
-    je %v_27, b_28, b_29
-  }
-
-  b_17 {
     copy %v_0, %v_2, 16
     ret 
   }
 
-  b_29 {
-    call_complex growArray(CodeUnit), %v_2, %v_21
-    %v_30 = load %v_22, 4: I64
-    %v_31 = and %v_30, 1073741823: I64
-    %v_32 = cast %v_31: I32
-    %v_33 = cast %v_32: I64
-    jmp b_28
+  b_27 {
+    call_complex growArray(CodeUnit), %v_2, %v_19
+    %v_28 = load %v_20, 4: I64
+    %v_29 = and %v_28, 1073741823: I64
+    %v_30 = cast %v_29: I32
+    %v_31 = cast %v_30: I64
+    jmp b_26
   }
 
-  b_28 {
-    %v_34 = phi [b_15, %v_26], [b_29, %v_33]: I64
-    %v_35 = cmp_ige %v_20, %v_34: I32
-    je %v_35, b_36, b_37
+  b_26 {
+    %v_32 = phi [b_13, %v_24], [b_27, %v_31]: I64
+    %v_33 = cmp_ige %v_18, %v_32: I32
+    je %v_33, b_34, b_35
   }
 
-  b_37 {
-    %v_38 = load %v_2, 8: Ptr
-    %v_39 = add %v_38, %v_20: Ptr
-    store %v_39, 45, 1
-    %v_40 = cast %v_21: I32
-    %v_41 = and %v_40, 1073741823: I32
-    store %v_18, %v_41, 4
-    %v_42 = sub 0, %n: I32
-    call_complex pushUnsigned32, %v_42, %v_2
-    jmp b_17
+  b_35 {
+    %v_36 = load %v_2, 8: Ptr
+    %v_37 = add %v_36, %v_18: Ptr
+    store %v_37, 45, 1
+    %v_38 = cast %v_19: I32
+    %v_39 = and %v_38, 1073741823: I32
+    store %v_16, %v_39, 4
+    %v_40 = sub 0, %n: I32
+    call_complex pushUnsigned32, %v_40, %v_2
+    jmp b_15
   }
 
-  b_36 {
-    %v_43 = syscall 60, 134: I64
+  b_34 {
+    %v_41 = syscall 60, 134: I64
     unreachable 
   }
 }
@@ -2576,28 +2574,6 @@ Run(a).reclaim(CodeUnit)<complex>(%value: Ptr) {
 
   b_8 {
     ret 
-  }
-}
-
-runSlots(CodeUnit)<complex>(%probe: Ptr, %capacity: I64): Ptr {
-  b_0 {
-    %v_1 = cmp_eq %capacity, 0: I32
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    %v_4 = cmp_igt %capacity, 1073741823: I32
-    je %v_4, b_2, b_5
-  }
-
-  b_2 {
-    %v_6 = bitcast 0: Ptr
-    ret %v_6
-  }
-
-  b_5 {
-    %v_7 = call_complex allocateHeap, %capacity: Ptr
-    ret %v_7
   }
 }
 

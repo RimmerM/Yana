@@ -3090,11 +3090,11 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
          * a walk that only looked at the root left `Constant::Text` in the aggregate for
          * `materialize` to assert on.
          *
-         * `Constant::Text` says what the value *is* and leaves how it is built to the library:
-         * `stringLiteral` describes a run over bytes the compiler places, and what a constant needs
-         * is that function's answer rather than a description of it written here. So the answer is
-         * produced by *running* it - `textConstantValue` - and that can only happen once the
-         * library's bodies exist, which is after every one of them is resolved.
+         * `Constant::Text` says what the value *is* and defers how it is laid out. Building it
+         * means minting the bytes as a global of their own and spelling the three records over that
+         * address - `Resolver::stringConstant` - and neither the byte global nor the record rows it
+         * reads may be reached while an initializer is first read. `resolveTextGlobals` is the
+         * drain, and `PendingTextGlobal` is where the ordering is argued.
          *
          * The global is a constant either way, which is the part that matters at this point: its
          * type is settled here, it is not `dynamic`, and nothing puts it in the entry sequence. A

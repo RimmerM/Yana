@@ -1,6 +1,6 @@
 module ResolveTest
 
-let string'142: [CodeUnit *2] = [97, 98]
+let string'142: [CodeUnit *2] = "ab"
 
 fn one(i: Size [shared call]) -> String {
 bb0(%0: Size trivial):
@@ -18,36 +18,38 @@ bb0(%0: Size trivial):
   %4: %Size address = alloc frame Size
   store inspect %1 borrow %0
   %5: Size trivial = const 0
-  %6: Array(String) owned = call literalArray(String) borrow %5
-  store inspect %2 consume %6
-  %7: Array(String) [unique slot 0] guaranteed from{%2} = load inspect %2
-  %8: Array(String) [unique slot 0 view] guaranteed from{%2} = call Array(a).elementsMut(String) borrow %7
-  %9: %String [owned here shape6 .*=shared slot 0] trivial = call valuesMut(String) borrow %8
-  %10: Array(String) owned = load inspect %2
-  store inspect %3 consume %10
-  %11: Size trivial = const 0
-  store inspect %4 consume %11
+  %6: %String trivial = bitcast inspect %5
+  %7: @bits(30) U32 trivial = const 0
+  %8: @bits(2) U32 trivial = const 1
+  %9: Run(String) owned = aggregate.Run consume %6 consume %7 consume %8
+  %10: @bits(30) U32 trivial = const 0
+  %11: Array(String) owned = aggregate.Array consume %9 consume %10
+  store inspect %2 consume %11
+  %12: Array(String) owned = load inspect %2
+  store inspect %3 consume %12
+  %13: Size trivial = const 0
+  store inspect %4 consume %13
   jump -> bb1
 
 bb1:
-  %12: Size trivial = load inspect %4
-  %13: Size trivial = load inspect %1
-  %14: Bool trivial = lt inspect %12 inspect %13
-  branch inspect %14 -> bb3 -> bb2
+  %14: Size trivial = load inspect %4
+  %15: Size trivial = load inspect %1
+  %16: Bool trivial = lt inspect %14 inspect %15
+  branch inspect %16 -> bb3 -> bb2
 
 bb2:
-  %15: Array(String) owned = load inspect %3
-  return consume %15
+  %17: Array(String) owned = load inspect %3
+  return consume %17
 
 bb3:
-  %16: Array(String) [unique call] guaranteed from{%3} = load inspect %3
-  %17: Size trivial = load inspect %4
-  %18: String owned = call one borrow %17
-  call push(String) borrow %16 consume %18
+  %18: Array(String) [unique call] guaranteed from{%3} = load inspect %3
   %19: Size trivial = load inspect %4
-  %20: Size trivial = const 1
-  %21: Size trivial = add inspect %19 inspect %20
-  store inspect %4 consume %21
+  %20: String owned = call one borrow %19
+  call push(String) borrow %18 consume %20
+  %21: Size trivial = load inspect %4
+  %22: Size trivial = const 1
+  %23: Size trivial = add inspect %21 inspect %22
+  store inspect %4 consume %23
   jump -> bb1
 }
 
@@ -62,41 +64,45 @@ bb0(%0: Size trivial):
   %5: %Array(I32) address = alloc frame Array(I32)
   store inspect %1 borrow %0
   %6: Size trivial = const 0
-  %7: Array(Array(I32)) owned = call literalArray(Array(I32)) borrow %6
-  store inspect %2 consume %7
-  %8: Array(Array(I32)) [unique slot 0] guaranteed from{%2} = load inspect %2
-  %9: Array(Array(I32)) [unique slot 0 view] guaranteed from{%2} = call Array(a).elementsMut(Array(I32)) borrow %8
-  %10: %Array(I32) [owned here shape6 .*=shared slot 0] trivial = call valuesMut(Array(I32)) borrow %9
-  %11: Array(Array(I32)) owned = load inspect %2
-  store inspect %3 consume %11
-  %12: Size trivial = const 0
-  store inspect %4 consume %12
+  %7: %Array(I32) trivial = bitcast inspect %6
+  %8: @bits(30) U32 trivial = const 0
+  %9: @bits(2) U32 trivial = const 1
+  %10: Run(Array(I32)) owned = aggregate.Run consume %7 consume %8 consume %9
+  %11: @bits(30) U32 trivial = const 0
+  %12: Array(Array(I32)) owned = aggregate.Array consume %10 consume %11
+  store inspect %2 consume %12
+  %13: Array(Array(I32)) owned = load inspect %2
+  store inspect %3 consume %13
+  %14: Size trivial = const 0
+  store inspect %4 consume %14
   jump -> bb1
 
 bb1:
-  %13: Size trivial = load inspect %4
-  %14: Size trivial = load inspect %1
-  %15: Bool trivial = lt inspect %13 inspect %14
-  branch inspect %15 -> bb3 -> bb2
+  %15: Size trivial = load inspect %4
+  %16: Size trivial = load inspect %1
+  %17: Bool trivial = lt inspect %15 inspect %16
+  branch inspect %17 -> bb3 -> bb2
 
 bb2:
-  %16: Array(Array(I32)) owned = load inspect %3
-  return consume %16
+  %18: Array(Array(I32)) owned = load inspect %3
+  return consume %18
 
 bb3:
-  %17: Array(Array(I32)) [unique call] guaranteed from{%3} = load inspect %3
-  %18: Size trivial = const 0
-  %19: Array(I32) owned = call literalArray(I32) borrow %18
-  store inspect %5 consume %19
-  %20: Array(I32) [unique slot 0] guaranteed from{%5} = load inspect %5
-  %21: Array(I32) [unique slot 0 view] guaranteed from{%5} = call Array(a).elementsMut(I32) borrow %20
-  %22: %I32 [owned here shape6 .*=shared slot 0] trivial = call valuesMut(I32) borrow %21
-  %23: Array(I32) owned = load inspect %5
-  call push(Array(I32)) borrow %17 consume %23
-  %24: Size trivial = load inspect %4
-  %25: Size trivial = const 1
-  %26: Size trivial = add inspect %24 inspect %25
-  store inspect %4 consume %26
+  %19: Array(Array(I32)) [unique call] guaranteed from{%3} = load inspect %3
+  %20: Size trivial = const 0
+  %21: %I32 trivial = bitcast inspect %20
+  %22: @bits(30) U32 trivial = const 0
+  %23: @bits(2) U32 trivial = const 1
+  %24: Run(I32) owned = aggregate.Run consume %21 consume %22 consume %23
+  %25: @bits(30) U32 trivial = const 0
+  %26: Array(I32) owned = aggregate.Array consume %24 consume %25
+  store inspect %5 consume %26
+  %27: Array(I32) owned = load inspect %5
+  call push(Array(I32)) borrow %19 consume %27
+  %28: Size trivial = load inspect %4
+  %29: Size trivial = const 1
+  %30: Size trivial = add inspect %28 inspect %29
+  store inspect %4 consume %30
   jump -> bb1
 }
 
@@ -213,37 +219,39 @@ bb0(%0: Size trivial, %1: (Size) -> String [shared call] guaranteed):
   %5: %Size address = alloc frame Size
   store inspect %2 borrow %0
   %6: Size trivial = const 0
-  %7: Array(String) owned = call literalArray(String) borrow %6
-  store inspect %3 consume %7
-  %8: Array(String) [unique slot 0] guaranteed from{%3} = load inspect %3
-  %9: Array(String) [unique slot 0 view] guaranteed from{%3} = call Array(a).elementsMut(String) borrow %8
-  %10: %String [owned here shape6 .*=shared slot 0] trivial = call valuesMut(String) borrow %9
-  %11: Array(String) owned = load inspect %3
-  store inspect %4 consume %11
-  %12: Size trivial = const 0
-  store inspect %5 consume %12
+  %7: %String trivial = bitcast inspect %6
+  %8: @bits(30) U32 trivial = const 0
+  %9: @bits(2) U32 trivial = const 1
+  %10: Run(String) owned = aggregate.Run consume %7 consume %8 consume %9
+  %11: @bits(30) U32 trivial = const 0
+  %12: Array(String) owned = aggregate.Array consume %10 consume %11
+  store inspect %3 consume %12
+  %13: Array(String) owned = load inspect %3
+  store inspect %4 consume %13
+  %14: Size trivial = const 0
+  store inspect %5 consume %14
   jump -> bb1
 
 bb1:
-  %13: Size trivial = load inspect %5
-  %14: Size trivial = load inspect %2
-  %15: Bool trivial = lt inspect %13 inspect %14
-  branch inspect %15 -> bb3 -> bb2
+  %15: Size trivial = load inspect %5
+  %16: Size trivial = load inspect %2
+  %17: Bool trivial = lt inspect %15 inspect %16
+  branch inspect %17 -> bb3 -> bb2
 
 bb2:
-  %16: Array(String) owned = load inspect %4
-  return consume %16
+  %18: Array(String) owned = load inspect %4
+  return consume %18
 
 bb3:
-  %17: Array(String) [unique call] guaranteed from{%4} = load inspect %4
-  %18: (Size) -> String [shared call] guaranteed from{%1} = load inspect %1
-  %19: Size trivial = load inspect %5
-  %20: String owned = call [value #0] inspect %18 borrow %19
-  call push(String) borrow %17 consume %20
+  %19: Array(String) [unique call] guaranteed from{%4} = load inspect %4
+  %20: (Size) -> String [shared call] guaranteed from{%1} = load inspect %1
   %21: Size trivial = load inspect %5
-  %22: Size trivial = const 1
-  %23: Size trivial = add inspect %21 inspect %22
-  store inspect %5 consume %23
+  %22: String owned = call [value #0] inspect %20 borrow %21
+  call push(String) borrow %19 consume %22
+  %23: Size trivial = load inspect %5
+  %24: Size trivial = const 1
+  %25: Size trivial = add inspect %23 inspect %24
+  store inspect %5 consume %25
   jump -> bb1
 }
 

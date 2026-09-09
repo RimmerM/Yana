@@ -43,45 +43,50 @@ bb0:
 }
 
 fn main() -> I32 {
-  local & local0: Array(Vec(I32)) object0
-  local xs: Array(Vec(I32)) object0
+  local & local0: Array(Vec(I32)) object1
+  local xs: Array(Vec(I32)) object1
   local s: Vec(I32)
   local m: Vec(I32)
 
 bb0:
   %0: Vec(I32) = read copy.trivial (global a)
   %1: Vec(I32) = read copy.trivial (global b)
-  %2: Size = const 2
-  %3: Array(Vec(I32)) = call literalArray(Vec(I32)) borrow.shared %2
-  write.init borrow.unique (local0) take %3
-  %5: Array(Vec(I32)) [unique slot 0] = read borrow.unique (local0) loan0
-  %6: Array(Vec(I32)) [unique slot 0 view] = call.derivation elementsMut(Array(Vec(I32)), Vec(I32)) borrow.unique %5 roots{0}
-  %7: %Vec(I32) [owned here shape6 .*=shared slot 0] = call valuesMut(Vec(I32)) borrow.unique %6 roots.0{0}
-  %8: Size = const 0
-  write.init borrow.unique ([%%7][0]) take %0
-  %10: Size = const 1
-  write.init borrow.unique ([%%7][1]) take %1
-  %12: Array(Vec(I32)) = read take (local0)
-  write.init borrow.unique (xs) take %12
-  %14: Array(Vec(I32)) [shared call] = read borrow.shared (xs) loan1
-  %15: Array(Vec(I32)) [shared slot 0 view] = call.derivation elements(Array(Vec(I32)), Vec(I32)) borrow.shared %14 roots{1}
-  %16: Vec(I32) = call sum'2 borrow.shared %15
-  write.init borrow.unique (s) take %16
-  %18: Array(Vec(I32)) [shared call] = read borrow.shared (xs) loan2
-  %19: Array(Vec(I32)) [shared slot 0 view] = call.derivation elements(Array(Vec(I32)), Vec(I32)) borrow.shared %18 roots{2}
-  %20: Vec(I32) = call masked borrow.shared %19
+  %2: %Vec(I32) = run.slots Vec(I32) *2
+  %3: Size = bitcast inspect %2
+  %4: Size = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  %6: {} = call checkCondition borrow.shared %5
+  %7: @bits(30) U32 = const 2
+  %8: @bits(2) U32 = const 1
+  %9: Run(Vec(I32)) = aggregate.Run take %2 take %7 take %8
+  %10: @bits(30) U32 = const 2
+  %11: Array(Vec(I32)) = aggregate.Array take %9 take %10
+  write.init borrow.unique (local0) take %11
+  %13: Size = const 0
+  write.init borrow.unique ([%%2][0]) take %0
+  %15: Size = const 1
+  write.init borrow.unique ([%%2][1]) take %1
+  %17: Array(Vec(I32)) = read take (local0)
+  write.init borrow.unique (xs) take %17
+  %19: Array(Vec(I32)) [shared call] = read borrow.shared (xs) loan0
+  %20: Array(Vec(I32)) [shared slot 0 view] = call.derivation elements(Array(Vec(I32)), Vec(I32)) borrow.shared %19 roots{0}
+  %21: Vec(I32) = call sum'2 borrow.shared %20
+  write.init borrow.unique (s) take %21
+  %23: Array(Vec(I32)) [shared call] = read borrow.shared (xs) loan1
+  %24: Array(Vec(I32)) [shared slot 0 view] = call.derivation elements(Array(Vec(I32)), Vec(I32)) borrow.shared %23 roots{1}
+  %25: Vec(I32) = call masked borrow.shared %24
   drop (xs)
-  write.init borrow.unique (m) take %20
-  %22: Vec(I32) = read copy.trivial (s)
-  %23: I32 = const 0
-  %24: I32 = vec.lane #0 inspect %22
-  %25: I32 = const 100
-  %26: I32 = mul inspect %24 inspect %25
-  %27: Vec(I32) = read copy.trivial (m)
-  %28: I32 = const 1
-  %29: I32 = vec.lane #1 inspect %27
-  %30: I32 = add inspect %26 inspect %29
-  return take %30
+  write.init borrow.unique (m) take %25
+  %27: Vec(I32) = read copy.trivial (s)
+  %28: I32 = const 0
+  %29: I32 = vec.lane #0 inspect %27
+  %30: I32 = const 100
+  %31: I32 = mul inspect %29 inspect %30
+  %32: Vec(I32) = read copy.trivial (m)
+  %33: I32 = const 1
+  %34: I32 = vec.lane #1 inspect %32
+  %35: I32 = add inspect %31 inspect %34
+  return take %35
 }
 
 entry main

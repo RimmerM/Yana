@@ -240,120 +240,122 @@ bb0:
   %1: %Array(Cell) address = alloc frame Array(Cell)
   %2: %I32 address = alloc frame I32
   %3: Size trivial = const 0
-  %4: Array(Cell) owned = call literalArray(Cell) borrow %3
-  store inspect %0 consume %4
-  %5: Array(Cell) [unique slot 0] guaranteed from{%0} = load inspect %0
-  %6: Array(Cell) [unique slot 0 view] guaranteed from{%0} = call Array(a).elementsMut(Cell) borrow %5
-  %7: %Cell [owned here shape6 .*=shared slot 0] trivial = call valuesMut(Cell) borrow %6
-  %8: Array(Cell) owned = load inspect %0
-  store inspect %1 consume %8
-  %9: I32 trivial = const 0
-  store inspect %2 consume %9
+  %4: %Cell trivial = bitcast inspect %3
+  %5: @bits(30) U32 trivial = const 0
+  %6: @bits(2) U32 trivial = const 1
+  %7: Run(Cell) owned = aggregate.Run consume %4 consume %5 consume %6
+  %8: @bits(30) U32 trivial = const 0
+  %9: Array(Cell) owned = aggregate.Array consume %7 consume %8
+  store inspect %0 consume %9
+  %10: Array(Cell) owned = load inspect %0
+  store inspect %1 consume %10
+  %11: I32 trivial = const 0
+  store inspect %2 consume %11
   jump -> bb1
 
 bb1:
-  %10: I32 trivial = load inspect %2
-  %11: I32 trivial = const 6
-  %12: Bool trivial = lt inspect %10 inspect %11
-  branch inspect %12 -> bb3 -> bb2
+  %12: I32 trivial = load inspect %2
+  %13: I32 trivial = const 6
+  %14: Bool trivial = lt inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb2
 
 bb2:
-  %13: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
-  %14: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %13
-  %15: Size trivial = const 2
-  %16: I32 trivial = call strided borrow %14 borrow %15
-  %17: I32 trivial = const 66
-  %18: Bool trivial = ne inspect %16 inspect %17
-  branch inspect %18 -> bb6 -> bb4
+  %15: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
+  %16: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %15
+  %17: Size trivial = const 2
+  %18: I32 trivial = call strided borrow %16 borrow %17
+  %19: I32 trivial = const 66
+  %20: Bool trivial = ne inspect %18 inspect %19
+  branch inspect %20 -> bb6 -> bb4
 
 bb3:
-  %19: Array(Cell) [unique call] guaranteed from{%1} = load inspect %1
-  %20: I32 trivial = load inspect %2
-  %21: I32 trivial = const 0
-  %22: I32 trivial = const 0
+  %21: Array(Cell) [unique call] guaranteed from{%1} = load inspect %1
+  %22: I32 trivial = load inspect %2
   %23: I32 trivial = const 0
-  %24: I32 trivial = load inspect %2
-  %25: I32 trivial = const 10
-  %26: I32 trivial = mul inspect %24 inspect %25
-  %27: I32 trivial = const 0
-  %28: Cell trivial = aggregate.Cell consume %20 consume %21 consume %22 consume %23 consume %26 consume %27
-  call push(Cell) borrow %19 consume %28
-  %29: I32 trivial = load inspect %2
-  %30: I32 trivial = const 1
-  %31: I32 trivial = add inspect %29 inspect %30
-  store inspect %2 consume %31
+  %24: I32 trivial = const 0
+  %25: I32 trivial = const 0
+  %26: I32 trivial = load inspect %2
+  %27: I32 trivial = const 10
+  %28: I32 trivial = mul inspect %26 inspect %27
+  %29: I32 trivial = const 0
+  %30: Cell trivial = aggregate.Cell consume %22 consume %23 consume %24 consume %25 consume %28 consume %29
+  call push(Cell) borrow %21 consume %30
+  %31: I32 trivial = load inspect %2
+  %32: I32 trivial = const 1
+  %33: I32 trivial = add inspect %31 inspect %32
+  store inspect %2 consume %33
   jump -> bb1
 
 bb4:
   jump -> bb5
 
 bb5:
-  %32: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
-  %33: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %32
-  %34: I32 trivial = call everyOther borrow %33
-  %35: I32 trivial = const 66
-  %36: Bool trivial = ne inspect %34 inspect %35
-  branch inspect %36 -> bb9 -> bb7
+  %34: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
+  %35: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %34
+  %36: I32 trivial = call everyOther borrow %35
+  %37: I32 trivial = const 66
+  %38: Bool trivial = ne inspect %36 inspect %37
+  branch inspect %38 -> bb9 -> bb7
 
 bb6:
   drop Array(Cell) inspect %1
-  %37: I32 trivial = const -1
-  return consume %37
+  %39: I32 trivial = const -1
+  return consume %39
 
 bb7:
   jump -> bb8
 
 bb8:
-  %38: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
-  %39: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %38
-  %40: Size trivial = const 1
-  %41: I32 trivial = call strided borrow %39 borrow %40
-  %42: I32 trivial = const 165
-  %43: Bool trivial = ne inspect %41 inspect %42
-  branch inspect %43 -> bb12 -> bb10
+  %40: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
+  %41: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %40
+  %42: Size trivial = const 1
+  %43: I32 trivial = call strided borrow %41 borrow %42
+  %44: I32 trivial = const 165
+  %45: Bool trivial = ne inspect %43 inspect %44
+  branch inspect %45 -> bb12 -> bb10
 
 bb9:
   drop Array(Cell) inspect %1
-  %44: I32 trivial = const -2
-  return consume %44
+  %46: I32 trivial = const -2
+  return consume %46
 
 bb10:
   jump -> bb11
 
 bb11:
-  %45: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
-  %46: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %45
-  %47: Size trivial = const 9
-  %48: I32 trivial = call strided borrow %46 borrow %47
-  %49: I32 trivial = const 0
-  %50: Bool trivial = ne inspect %48 inspect %49
-  branch inspect %50 -> bb15 -> bb13
+  %47: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
+  %48: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %47
+  %49: Size trivial = const 9
+  %50: I32 trivial = call strided borrow %48 borrow %49
+  %51: I32 trivial = const 0
+  %52: Bool trivial = ne inspect %50 inspect %51
+  branch inspect %52 -> bb15 -> bb13
 
 bb12:
   drop Array(Cell) inspect %1
-  %51: I32 trivial = const -3
-  return consume %51
+  %53: I32 trivial = const -3
+  return consume %53
 
 bb13:
   jump -> bb14
 
 bb14:
-  %52: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
-  %53: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %52
-  %54: Size trivial = const 2
-  %55: I32 trivial = call strided borrow %53 borrow %54
-  %56: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
-  %57: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %56
-  %58: Size trivial = const 3
-  %59: I32 trivial = call strided borrow %57 borrow %58
+  %54: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
+  %55: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %54
+  %56: Size trivial = const 2
+  %57: I32 trivial = call strided borrow %55 borrow %56
+  %58: Array(Cell) [shared call] guaranteed from{%1} = load inspect %1
+  %59: Array(Cell) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Cell) borrow %58
+  %60: Size trivial = const 3
+  %61: I32 trivial = call strided borrow %59 borrow %60
   drop Array(Cell) inspect %1
-  %60: I32 trivial = add inspect %55 inspect %59
-  return consume %60
+  %62: I32 trivial = add inspect %57 inspect %61
+  return consume %62
 
 bb15:
   drop Array(Cell) inspect %1
-  %61: I32 trivial = const -4
-  return consume %61
+  %63: I32 trivial = const -4
+  return consume %63
 }
 
 entry main

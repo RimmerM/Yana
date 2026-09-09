@@ -2114,9 +2114,8 @@ Node* Resolver::matchAsMap(Builder& builder, ast::Expr& expr, Place& pivot,
      * table still holds, so the ordinary rule is that the result duplicates freely and owes nothing.
      * A **string** is the one exemption and it is the same one the shipping stage makes: a literal's
      * run is borrowed, so what a slot holds is two words describing bytes nobody owns and its
-     * teardown is the nothing a written literal's is. `stringLiteral` is where that is argued, and
-     * the constant in the slot is what that function *returns* - built by running it, not by
-     * spelling its fields here.
+     * teardown is the nothing a written literal's is. `stringConstant` is where that is argued, and
+     * the constant in the slot is what that function returns.
      */
     auto ownership = ownershipOf(decl(), resultType);
     auto text = program.roles.record(intrinsic::Known::string);
@@ -2162,8 +2161,9 @@ Node* Resolver::matchAsMap(Builder& builder, ast::Expr& expr, Place& pivot,
                                closed, owned(resultType));
     if(!node) return nullptr;
 
-    // A literal in a slot is built by *running* `stringLiteral`, and which bodies are resolved by
-    // now depends on the order the files were walked in. So the deferral - see `PendingTextMap`.
+    // A literal in a slot needs the byte globals and the record rows a string is spelled from, and
+    // which of those are in by now depends on the order the files were walked in. So the deferral -
+    // see `PendingTextMap`.
     if(holdsAnyText) {
         pendingTextMaps.push(PendingTextMap {
             (NodeMap*)node - mir(), here(), current->activeFile, expr.source
@@ -2204,7 +2204,7 @@ void Resolver::resolveTextMaps() {
                 if(texts[i] == written) return built[i];
             }
 
-            auto made = textConstantValue(written, pending.source);
+            auto made = stringConstant(written, pending.source);
             if(!made.isSet()) return made;
 
             texts.push(written);

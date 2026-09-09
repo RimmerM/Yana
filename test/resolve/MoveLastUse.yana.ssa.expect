@@ -54,17 +54,22 @@ bb0:
   %4: Held owned = aggregate.Held consume %3
   store inspect %0 consume %4
   %5: Held owned = load inspect %0
-  %6: Size trivial = const 1
-  %7: Array(Held) owned = call literalArray(Held) borrow %6
-  store inspect %1 consume %7
-  %8: Array(Held) [unique slot 0] guaranteed from{%1} = load inspect %1
-  %9: Array(Held) [unique slot 0 view] guaranteed from{%1} = call Array(a).elementsMut(Held) borrow %8
-  %10: %Held [owned here shape6 .*=shared slot 0] trivial = call valuesMut(Held) borrow %9
-  %11: Size trivial = const 0
-  %12: %Held address = element.addr inspect %10 inspect %11
-  store inspect %12 consume %5
-  %13: Array(Held) owned = load inspect %1
-  store inspect %2 consume %13
+  %6: %Held trivial = run.slots Held *1 heap
+  %7: Size trivial = bitcast inspect %6
+  %8: Size trivial = const 0
+  %9: Bool trivial = eq inspect %7 inspect %8
+  call checkCondition borrow %9
+  %10: @bits(30) U32 trivial = const 1
+  %11: @bits(2) U32 trivial = const 1
+  %12: Run(Held) owned = aggregate.Run consume %6 consume %10 consume %11
+  %13: @bits(30) U32 trivial = const 1
+  %14: Array(Held) owned = aggregate.Array consume %12 consume %13
+  store inspect %1 consume %14
+  %15: Size trivial = const 0
+  %16: %Held address = element.addr inspect %6 inspect %15
+  store inspect %16 consume %5
+  %17: Array(Held) owned = load inspect %1
+  store inspect %2 consume %17
   drop Array(Held) inspect %2
   return
 }

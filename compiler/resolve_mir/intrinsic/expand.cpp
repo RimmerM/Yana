@@ -21,8 +21,8 @@ bool opExpands(Op op) {
          * analysis (D6), so a run it built would always be a heap one - which is what the library
          * body already says, in the language, with the allocator's refusal handled. Expanding it
          * here would be the compiler spelling out a record's three fields in C++ to reach the same
-         * answer, which is exactly the arrangement `known.def`'s `arrayLiteral` note records moving
-         * away from.
+         * answer for a run whose *size is computed*, which is the one case a literal's `RunSlots`
+         * does not cover - see `known.def`'s note above `runSlots`.
          */
         case Op::newRun:
 

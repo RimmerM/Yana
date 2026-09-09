@@ -38,66 +38,62 @@ opaqueLong<complex>(%x: I64): I64 {
 
 throughMemory<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 4, 8: Ptr
+    %v_1 = alloca 4, 8: Ptr
+    %v_2 = alloca 16, 8: Ptr
     %v_3 = alloca 8, 4: Ptr
-    %v_4 = imm 2: I64
-    store %v_2, %v_4, 4
-    jmp b_5
+    store %v_1, 2, 4
+    store %v_3, 0, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 0, 4
+    store %v_2, %v_3, 8
+    %v_5 = add %v_2, 8: Ptr
+    %v_6 = load %v_1, 4: I64
+    store %v_5, %v_6, 4
+    %v_7 = add %v_2, 12: Ptr
+    store %v_7, 2, 4
+    %v_8 = call_complex opaqueU32, 305419896: I32
+    %v_9 = load %v_2, 8: Ptr
+    %v_10 = add %v_2, 12: Ptr
+    %v_11 = load %v_10, 4: I32
+    %v_12 = cast %v_11: I64
+    %v_13 = cmp_eq %v_12, 0: I32
+    je %v_13, b_14, b_15
   }
 
-  b_6 {
-    store %v_7, %v_8, 4
-    jmp b_9
+  b_15 {
+    store %v_9, %v_8, 4
+    jmp b_16
   }
 
-  b_10 {
-    %v_11 = syscall 60, 134: I64
+  b_14 {
+    %v_17 = syscall 60, 134: I64
     unreachable 
   }
 
-  b_9 {
-    %v_12 = load %v_7, 4: I32
-    %v_13 = bswap %v_12: I32
-    %v_14 = cmp_eq %v_13, 2018915346: I32
-    %v_15 = select %v_14, 512, 0: I32
-    %v_16 = call_complex opaqueU32, 305419896: I32
-    %v_17 = bswap %v_16: I32
-    %v_18 = cmp_ge 1, %v_19: I32
-    je %v_18, b_10, b_20
+  b_16 {
+    %v_18 = load %v_9, 4: I32
+    %v_19 = bswap %v_18: I32
+    %v_20 = cmp_eq %v_19, 2018915346: I32
+    %v_21 = select %v_20, 512, 0: I32
+    %v_22 = call_complex opaqueU32, 305419896: I32
+    %v_23 = bswap %v_22: I32
+    %v_24 = cmp_ge 1, %v_12: I32
+    je %v_24, b_14, b_25
   }
 
-  b_20 {
-    %v_21 = add %v_7, 4: Ptr
-    store %v_21, %v_17, 4
-    jmp b_22
+  b_25 {
+    %v_26 = add %v_9, 4: Ptr
+    store %v_26, %v_23, 4
+    jmp b_27
   }
 
-  b_22 {
-    %v_23 = load %v_21, 4: I32
-    call_complex Array(a).reclaim(U32), %v_1
-    %v_24 = cmp_eq %v_23, 2018915346: I32
-    %v_25 = select %v_24, 1024, 0: I32
-    %v_26 = add %v_15, %v_25: I32
-    ret %v_26
-  }
-
-  b_5 {
-    store %v_3, 0, 4
-    %v_27 = add %v_3, 4: Ptr
-    store %v_27, 0, 4
-    store %v_1, %v_3, 8
-    %v_28 = add %v_1, 8: Ptr
-    store %v_28, %v_4, 4
-    %v_29 = add %v_1, 12: Ptr
-    store %v_29, 2, 4
-    %v_8 = call_complex opaqueU32, 305419896: I32
-    %v_7 = load %v_1, 8: Ptr
-    %v_30 = add %v_1, 12: Ptr
-    %v_31 = load %v_30, 4: I32
-    %v_19 = cast %v_31: I64
-    %v_32 = cmp_eq %v_19, 0: I32
-    je %v_32, b_10, b_6
+  b_27 {
+    %v_28 = load %v_26, 4: I32
+    call_complex Array(a).reclaim(U32), %v_2
+    %v_29 = cmp_eq %v_28, 2018915346: I32
+    %v_30 = select %v_29, 1024, 0: I32
+    %v_31 = add %v_21, %v_30: I32
+    ret %v_31
   }
 }
 
