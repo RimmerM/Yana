@@ -1,0 +1,98 @@
+mut @failures = [0, 0, 0, 0]
+mut @given = [2, 0, 0, 0]
+
+describe<complex>(%actual: I32, %expected: I32): I32 {
+  b_0 {
+    %v_1 = imul %actual, 31: I32
+    %v_2 = add %v_1, 7: I32
+    %v_3 = imul %expected, 17: I32
+    %v_4 = add %v_3, 3: I32
+    %v_5 = imul %v_2, %v_4: I32
+    %v_6 = sub %v_2, %v_4: I32
+    %v_7 = add %v_5, %v_6: I32
+    %v_8 = imulhi %v_7, 1431655766: I32
+    %v_9 = shr %v_8, 31: I32
+    %v_10 = add %v_8, %v_9: I32
+    %v_11 = add %v_7, %v_10: I32
+    %v_12 = imulhi %v_7, 1717986919: I32
+    %v_13 = sar %v_12, 1: I32
+    %v_14 = shr %v_13, 31: I32
+    %v_15 = add %v_13, %v_14: I32
+    %v_16 = imul %v_15, 5: I32
+    %v_17 = sub %v_7, %v_16: I32
+    %v_18 = add %v_11, %v_17: I32
+    ret %v_18
+  }
+}
+
+report<complex>(%detail: I32) {
+  b_0 {
+    %v_1 = loads @failures, 4: I32
+    %v_2 = add %v_1, %detail: I32
+    store @failures, %v_2, 4
+    ret 
+  }
+}
+
+checked<complex>(%actual: I32, %expected: I32) {
+  b_0 {
+    %v_1 = cmp_eq %actual, %expected: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = call_complex describe, %actual, %expected: I32
+    call_complex report, %v_4
+    ret 
+  }
+
+  b_2 {
+    ret 
+  }
+}
+
+stepped<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = add %x, 1: I32
+    %v_2 = shl %v_1, 1: I32
+    %v_3 = sub %v_2, 3: I32
+    %v_4 = add %v_3, %v_1: I32
+    %v_5 = add %v_4, %v_2: I32
+    ret %v_5
+  }
+}
+
+checkedAgain<complex>(%actual: I32, %limit: I32) {
+  b_0 {
+    %v_1 = cmp_ilt %actual, %limit: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = call_complex describe, %actual, %limit: I32
+    call_complex report, %v_4
+    ret 
+  }
+
+  b_2 {
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = loads @given, 4: I32
+    call_complex checked, %v_1, 1
+    %v_2 = loads @given, 4: I32
+    %v_3 = loads @given, 4: I32
+    call_complex checked, %v_2, %v_3
+    %v_4 = loads @given, 4: I32
+    call_complex checkedAgain, %v_4, 9
+    %v_5 = loads @failures, 4: I32
+    %v_6 = loads @given, 4: I32
+    %v_7 = call_complex stepped, %v_6: I32
+    %v_8 = add %v_5, %v_7: I32
+    ret %v_8
+  }
+}
+

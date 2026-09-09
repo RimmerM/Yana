@@ -209,64 +209,6 @@ Value* allocationRoot(OptContext& opt, Value* address) {
     return nullptr;
 }
 
-/*
- * Whether an address this body cannot root in an allocation was **read out of storage**.
- *
- * The other half of `allocationRoot`'s null: a chain that ends at a `Load` is a pointer that was
- * sitting in memory, where one ending at a global's address, at a block argument or at an unsafe
- * cast is not. The distinction is worth making because a contained allocation's address never
- * reaches memory - see `loadedAddressMisses`.
- *
- * A `Guaranteed` load is not an end of the chain at all - `addressStep` walks through it, because it
- * names the same storage its operand does - so what stops here is a load of a pointer *out of* a
- * slot, which is exactly the value the claim is about.
- *
- * A **`Binary` add** is walked through where one side is a pointer, and that is the one step this
- * makes that `allocationRoot` does not. Pointer arithmetic stays inside the object it started in -
- * the same claim `ElementAddress` states as an instruction, restated for the spelling `lib/`'s own
- * subscript uses, where the element address is `elementBase(xs) + i * stride` written in source.
- */
-bool addressIsLoaded(OptContext& opt, Value* address) {
-    while(address) {
-        auto definer = address->definer;
-        if(!definer) return false;
-
-        auto inst = opt.base[definer];
-
-        if(inst->kind == Inst::Load) {
-            if(!inst->results.size()) return false;
-            if(opt.base[inst->results.get(opt.base, 0)]->convention != Convention::Guaranteed) {
-                return true;
-            }
-        }
-
-        if(inst->kind == Inst::Binary) {
-            auto& binary = (InstBinary&)*inst;
-            if(binary.op != mir::BinaryOp::Add) return false;
-
-            auto lhs = opt.base[binary.lhs.value()];
-            auto rhs = opt.base[binary.rhs.value()];
-            auto isPointer = [&](Value* value) {
-                return value->occurrence.type &&
-                       opt.decl[value->occurrence.type]->kind == mir::Type::Pointer;
-            };
-
-            if(isPointer(lhs) && !isPointer(rhs)) address = lhs;
-            else if(isPointer(rhs) && !isPointer(lhs)) address = rhs;
-            else return false;
-
-            continue;
-        }
-
-        auto next = addressStep(opt, address);
-        if(!next) return false;
-
-        address = next;
-    }
-
-    return false;
-}
-
 namespace {
 
 /*
@@ -470,6 +412,205 @@ void Contained::build(OptContext& opt) {
     }
 }
 
+namespace {
+
+/*
+ * Whether one instruction is the `Drop` of this allocation - the one writer `ConstantContents`
+ * admits, for the reason `analysis.h` gives.
+ */
+bool isDropOf(OptContext& opt, Inst& inst, Value& allocation) {
+    if(inst.kind != Inst::Drop) return false;
+
+    auto address = opt.base[((InstDrop&)inst).address.value()];
+    return allocationRoot(opt, address) == &allocation;
+}
+
+/*
+ * The one whole-slot `Store` of a constant into this allocation, and null where there is no such
+ * store or where the allocation is written more than once.
+ *
+ * The **direct** use list is enough for the store to be found, because a whole-slot write names the
+ * allocation itself; a write through a projection is a different instruction and is what the scan
+ * over the body catches.
+ */
+Inst* constantFill(OptContext& opt, Value& allocation) {
+    Inst* fill = nullptr;
+
+    for(auto userPointer: allocation.uses(opt.base)) {
+        auto& user = *opt.base[userPointer];
+        if(user.kind != Inst::Store) continue;
+        if(opt.base[((InstStore&)user).address.value()] != &allocation) continue;
+
+        if(fill) return nullptr;
+
+        auto stored = opt.base[((InstStore&)user).value.value()];
+        if(!stored->definer || opt.base[stored->definer]->kind != Inst::Const) return nullptr;
+
+        fill = &user;
+    }
+
+    return fill;
+}
+
+} // namespace
+
+void ConstantContents::build(OptContext& opt, const Contained& contained) {
+    auto count = opt.body->values.size();
+
+    held.clear();
+    held.reserve(count);
+    for(Size i = 0; i < count; i++) held.push(mir::Constant());
+
+    for(auto valuePointer: opt.body->values.contents(opt.base)) {
+        auto value = opt.base[valuePointer];
+        if(!value->definer || opt.base[value->definer]->kind != Inst::Alloc) continue;
+        if(!opt.base[value->definer]->block) continue;
+        if(!contained[value]) continue;
+
+        auto fill = constantFill(opt, *value);
+        if(!fill) continue;
+
+        /*
+         * Every other instruction of the body asked the one question that answers it - "may this
+         * write that storage" - rather than an allowlist of the kinds that read. A kind nobody has
+         * looked at yet is then a barrier, which is the direction this has to fail in.
+         *
+         * It is a scan of the body per candidate, and a candidate is an allocation something stored
+         * a constant into whole: a handful per function, against a body that is being walked by
+         * every pass in this directory already.
+         */
+        auto written = false;
+        for(auto blockPointer: opt.body->blocks.contents(opt.base)) {
+            auto block = opt.base[blockPointer];
+
+            for(auto instPointer: block->instructions(opt.base)) {
+                auto& inst = *opt.base[instPointer];
+                if(&inst == fill || isDropOf(opt, inst, *value)) continue;
+                if(!mayWriteStorage(opt, contained, inst, *value)) continue;
+
+                written = true;
+                break;
+            }
+
+            if(written) break;
+        }
+
+        if(written) continue;
+
+        auto stored = opt.base[((InstStore&)*fill).value.value()];
+        held[value->id.index] = ((InstConst&)*opt.base[stored->definer]).constant;
+    }
+}
+
+ConstantContents& constantContentsOf(OptContext& opt) {
+    if(!opt.constantStamp.holds(opt.function, opt.body->version, true)) {
+        opt.constantContents.build(opt, containedOf(opt));
+        opt.constantStamp.take(opt.function, opt.body->version);
+    }
+
+    return opt.constantContents;
+}
+
+/*
+ * One step of a **constant** address walk - see `constantAt`, where the two roots are argued.
+ *
+ * Deliberately not `addressStep`: that walk is about which storage an address names and steps
+ * through a `represent`, which hands back the same bytes at another type. A constant is a tree of
+ * values rather than bytes, so a step that changes the type without changing the storage has no
+ * index to follow and stops the walk.
+ */
+struct ConstantStep {
+    Value* base = nullptr;
+    U32 index = 0;
+    bool indexed = false;
+};
+
+static Maybe<ConstantStep> constantStepOf(OptContext& opt, Value& address) {
+    if(!address.definer) return Nothing();
+    auto inst = opt.base[address.definer];
+
+    if(inst->kind == Inst::FieldAddress) {
+        auto& projection = (InstFieldAddress&)*inst;
+        if(projection.property != InstFieldAddress::kNoProperty) return Nothing();
+        if(projection.field == InstFieldAddress::kDiscriminant) return Nothing();
+
+        return Just(ConstantStep { opt.base[projection.base.value()], projection.field, true });
+    }
+
+    if(inst->kind == Inst::ElementAddress) {
+        auto& element = (InstElementAddress&)*inst;
+        auto index = constantValueOf(opt, opt.base[element.index.value()]);
+        if(!index) return Nothing();
+
+        return Just(ConstantStep { opt.base[element.base.value()], U32(index.unwrap()), true });
+    }
+
+    // A borrow of the slot, which is a `Guaranteed` load here and names the same storage. Not a
+    // step into the value, so it carries no index.
+    if(inst->kind == Inst::Load) {
+        if(!inst->results.size()) return Nothing();
+        if(opt.base[inst->results.get(opt.base, 0)]->convention != Convention::Guaranteed) {
+            return Nothing();
+        }
+
+        return Just(ConstantStep { opt.base[((InstLoad*)inst)->address.value()], 0, false });
+    }
+
+    return Nothing();
+}
+
+Maybe<mir::Constant> constantAt(OptContext& opt, const ConstantContents& contents, Value* address) {
+    SmallArray<U32, 8> path;
+
+    while(address) {
+        if(auto definer = address->definer) {
+            auto inst = opt.base[definer];
+
+            if(inst->kind == Inst::Alloc) {
+                auto held = contents[*address];
+                if(!held.isSet()) return Nothing();
+
+                break;
+            }
+
+            /*
+             * A global's own initializer, where nothing writes the global.
+             *
+             * `isWritten` and not the language's `let &`: a `dynamic` global is assigned to by no
+             * expression and is still filled by the entry sequence, so its declared contents are
+             * what it holds only until the program starts.
+             */
+            if(inst->kind == Inst::GlobalAddress) {
+                if(opt.decl[((InstGlobalAddress*)inst)->global]->isWritten()) return Nothing();
+                break;
+            }
+        }
+
+        auto step = constantStepOf(opt, *address);
+        if(!step) return Nothing();
+
+        if(step.unwrap().indexed) path.push(step.unwrap().index);
+        address = step.unwrap().base;
+    }
+
+    if(!address || !address->definer) return Nothing();
+
+    auto root = opt.base[address->definer];
+    auto value = root->kind == Inst::Alloc
+        ? contents[*address]
+        : opt.decl[((InstGlobalAddress*)root)->global]->initial;
+
+    if(!value.isSet()) return Nothing();
+
+    // From the root down, which is the reverse of the order the walk pushed them in.
+    for(Size i = path.size(); i-- > 0;) {
+        value = mir::constantField(opt.decl, value, path[i]);
+        if(!value.isSet()) return Nothing();
+    }
+
+    return Just(value);
+}
+
 Contained& containedOf(OptContext& opt) {
     if(!opt.containedStamp.holds(opt.function, opt.body->version, true)) {
         opt.contained.build(opt);
@@ -482,35 +623,30 @@ Contained& containedOf(OptContext& opt) {
 namespace {
 
 /*
- * A **contained** allocation's storage cannot be named by a pointer that came out of memory.
+ * Whether an operand may name bytes inside this allocation.
  *
- * Worth stating as a claim rather than as a case, because it is the whole of the fact. `Contained`
- * says every use of the allocation's address keeps that address in this frame: it is refused as a
- * `Store` *value*, as an aggregate component, as a native operand, as a returned value, as an edge
- * operand and as a captured environment, and admitted at a call argument only where the callee's
- * `escapes` row says no address of that position's storage was written anywhere. So the address is
- * never **written anywhere** - and a `Load` therefore cannot produce it, nor a projection of it, since a projection
- * is refused wherever the address itself is.
+ * **A contained allocation is named only by projections of its own address**, and that is the whole
+ * of the rule. `Contained` says every use of the address keeps it in this frame: it is refused as a
+ * `Store` value, as an aggregate component, as a native operand, as a returned value, as an edge
+ * operand and as a captured environment, and admitted at a call argument only where the callee
+ * keeps no address of that position's storage. So no value in the body holds a pointer into it that
+ * did not come from the allocation itself - and every route that does is one `allocationRoot` walks:
+ * a field or element projection, a `Guaranteed` load (which is how a borrow is spelled here) and a
+ * `represent`, which are exactly the kinds the containment walk admits. Pointer arithmetic is not
+ * among them, so there is no fourth way in.
  *
- * What it buys is the shape every container has. `countPrimes` holds its `Array(Bool)` header in a
- * frame slot; the marking loop loads the run pointer out of that header and stores through it every
- * step. The run and the header are different storage and the run pointer was *loaded from* the
- * header, so no store through it can write the header back - which is what lets `hoist` move the
- * base and the length into the preheader instead of re-reading both every iteration.
+ * That covers three cases one predicate each used to answer separately, and the third is what a
+ * string literal needed: a pointer **loaded out of storage** roots nowhere and misses (the shape
+ * every container has - the run pointer is loaded from the header, so no store through it writes the
+ * header back); a pointer **parameter** roots nowhere and misses, for the same reason; and a call
+ * argument that is not an address at all - a length, a copied record, a second object entirely -
+ * roots nowhere and misses. Before that last one, a call with one non-address argument at a
+ * mutating position was a barrier for every slot in the frame, which is what kept a literal's own
+ * fields from being read back out of the constant that filled them.
  *
- * Deliberately a statement about the *allocation* rather than about the two addresses. Two loaded
- * pointers say nothing about each other, and neither does a loaded pointer against an allocation
- * that escapes - so containment is the premise, and the address chain only says where it came from.
+ * With no containment there is nothing to reason from: two addresses one of which has no root of
+ * this body's may name the same bytes, and the permissive answer is the only sound one.
  */
-bool loadedAddressMisses(OptContext& opt, const Contained& contained, Value* address,
-                         Value& allocation) {
-    return contained[allocation] && addressIsLoaded(opt, address);
-}
-
-// Whether an address may name bytes inside this allocation. Two addresses rooted in two different
-// allocations cannot; neither can a pointer read out of memory and an allocation whose address was
-// never written anywhere. An address that is neither may name anything, which is the permissive
-// direction and the only sound one for a pointer.
 bool addressMayReach(OptContext& opt, const Contained& contained, Use address, Value& allocation) {
     if(!address.isSet()) return true;
 
@@ -518,7 +654,7 @@ bool addressMayReach(OptContext& opt, const Contained& contained, Use address, V
     auto root = allocationRoot(opt, value);
     if(root) return root == &allocation;
 
-    return !loadedAddressMisses(opt, contained, value, allocation);
+    return !contained[allocation];
 }
 
 } // namespace

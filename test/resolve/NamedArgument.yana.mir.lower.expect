@@ -1,6 +1,8 @@
 @string'142 = [97, 98]
 @string'143 = [97, 98, 99, 100]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+@constant$0 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
+@constant$1 = [0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
@@ -24,83 +26,63 @@ main<complex>(): I32 {
   }
 
   b_12 {
-    %v_13 = add 1210, %v_14: I32
-    %v_15 = add %v_13, 27: I32
-    %v_16 = alloca 4, 4: Ptr
-    %v_17 = alloca 8, 8: Ptr
-    store %v_16, 0, 4
-    store %v_17, %v_16, 8
-    %lazyNamed.thunk = fun lazyNamed.thunk: Ptr
-    %v_18 = loads %v_16, 4: I32
-    %v_19 = add 10, %v_18: I32
-    %v_20 = add %v_15, %v_19: I32
+    %v_13 = add %v_14, 1237: I32
+    %v_15 = alloca 4, 4: Ptr
+    %v_16 = alloca 8, 8: Ptr
+    store %v_15, 0, 4
+    store %v_16, %v_15, 8
+    %v_17 = loads %v_15, 4: I32
+    %v_18 = add 10, %v_17: I32
+    %v_19 = add %v_13, %v_18: I32
+    %v_20 = alloca 8, 8: Ptr
     %v_21 = alloca 8, 8: Ptr
-    %v_22 = alloca 8, 8: Ptr
-    %funvalue(note.why.default) = fun funvalue(note.why.default): Ptr
-    %funvalue(note.why.default) = fun funvalue(note.why.default): Ptr
+    store %v_20, 0, 8
+    %v_22 = load %v_20, 8: Ptr
+    %v_23 = call_complex lazyDefault.thunk, %v_22: I32
     store %v_21, 0, 8
-    %v_23 = load %v_21, 8: Ptr
-    %v_24 = call_complex lazyDefault.thunk, %v_23: I32
-    store %v_22, 0, 8
-    %v_25 = load %v_22, 8: Ptr
-    %v_26 = call_complex lazyDefault.thunk'2, %v_25: I32
-    %v_27 = add 9, %v_24: I32
-    %v_28 = add %v_27, %v_26: I32
-    %v_29 = add %v_20, %v_28: I32
-    %funvalue(note.why.default) = fun funvalue(note.why.default): Ptr
-    %v_30 = add %v_29, 11: I32
-    %funvalue(note.why.default) = fun funvalue(note.why.default): Ptr
-    %v_31 = add %v_30, 1: I32
-    %funvalue(audited.fallback.default) = fun funvalue(audited.fallback.default): Ptr
-    %v_32 = add %v_31, 8: I32
-    %funvalue(audited.fallback.default) = fun funvalue(audited.fallback.default): Ptr
-    %funvalue(explain.why.default) = fun funvalue(explain.why.default): Ptr
-    %v_33 = add %v_32, 30: I32
-    %v_34 = bitcast 0: Ptr
-    %v_35 = call_complex main.thunk, %v_34: I32
-    %v_36 = imul 3, %v_35: I32
-    %v_37 = add %v_33, %v_36: I32
-    %v_38 = alloca 4, 8: Ptr
-    %v_39 = load %v_38, 4: I64
-    store %v_38, 2, 4
-    store %v_1, @string'142, 8
-    %v_40 = add %v_1, 8: Ptr
-    %v_41 = load %v_38, 4: I64
-    store %v_40, %v_41, 4
-    %v_42 = add %v_1, 12: Ptr
-    store %v_42, 2, 4
-    %v_43 = load %v_1, 8: Ptr
+    %v_24 = load %v_21, 8: Ptr
+    %v_25 = call_complex lazyDefault.thunk'2, %v_24: I32
+    %v_26 = add 9, %v_23: I32
+    %v_27 = add %v_26, %v_25: I32
+    %v_28 = add %v_19, %v_27: I32
+    %v_29 = add %v_28, 50: I32
+    %v_30 = bitcast 0: Ptr
+    %v_31 = call_complex main.thunk, %v_30: I32
+    %v_32 = imul 3, %v_31: I32
+    %v_33 = add %v_29, %v_32: I32
+    copy %v_1, @constant$0, 16
+    %v_34 = add %v_1, 12: Ptr
+    %v_35 = load %v_34, 4: I32
+    %v_36 = sext %v_35: I64
+    %v_37 = sext %v_36: I32
+    %v_38 = add 1, %v_37: I32
     call_complex String.reclaim, %v_1
-    %v_44 = add %v_37, 3: I32
-    %v_45 = alloca 4, 8: Ptr
-    %v_46 = load %v_45, 4: I64
-    store %v_45, 4, 4
-    store %v_2, @string'143, 8
-    %v_47 = add %v_2, 8: Ptr
-    %v_48 = load %v_45, 4: I64
-    store %v_47, %v_48, 4
-    %v_49 = add %v_2, 12: Ptr
-    store %v_49, 4, 4
-    %v_50 = load %v_2, 8: Ptr
+    %v_39 = add %v_33, %v_38: I32
+    copy %v_2, @constant$1, 16
+    %v_40 = add %v_2, 12: Ptr
+    %v_41 = load %v_40, 4: I32
+    %v_42 = sext %v_41: I64
+    %v_43 = sext %v_42: I32
+    %v_44 = add 1, %v_43: I32
     call_complex String.reclaim, %v_2
-    %v_51 = add %v_44, 5: I32
-    %v_52 = add %v_51, 19: I32
-    ret %v_52
+    %v_45 = add %v_39, %v_44: I32
+    %v_46 = add %v_45, 19: I32
+    ret %v_46
   }
 
   b_8 {
-    %v_53 = phi [b_9, %v_11], [b_7, 10]: I32
-    %v_54 = phi [b_9, %v_14], [b_7, %v_55]: I32
-    %v_14 = add %v_54, %v_53: I32
-    %v_11 = add %v_53, 1: I32
+    %v_47 = phi [b_9, %v_11], [b_7, 10]: I32
+    %v_48 = phi [b_9, %v_14], [b_7, %v_49]: I32
+    %v_14 = add %v_48, %v_47: I32
+    %v_11 = add %v_47, 1: I32
     jmp b_9
   }
 
   b_3 {
-    %v_56 = phi [b_4, %v_6], [b_0, 0]: I32
-    %v_57 = phi [b_4, %v_55], [b_0, 0]: I32
-    %v_55 = add %v_57, %v_56: I32
-    %v_6 = add %v_56, 1: I32
+    %v_50 = phi [b_4, %v_6], [b_0, 0]: I32
+    %v_51 = phi [b_4, %v_49], [b_0, 0]: I32
+    %v_49 = add %v_51, %v_50: I32
+    %v_6 = add %v_50, 1: I32
     jmp b_4
   }
 }
@@ -156,20 +138,18 @@ String.reclaim<complex>(%value: Ptr) {
     %v_1 = load %value, 8: Ptr
     %v_2 = add %value, 8: Ptr
     %v_3 = load %v_2, 4: I64
-    %v_4 = add %value, 12: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = shr %v_3, 30: I64
-    %v_7 = cast %v_6: I32
-    %v_8 = cmp_eq %v_7, 1: I32
-    je %v_8, b_9, b_10
+    %v_4 = shr %v_3, 30: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cmp_eq %v_5, 1: I32
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
+  b_7 {
     call_complex freeHeap, %v_1
-    jmp b_10
+    jmp b_8
   }
 
-  b_10 {
+  b_8 {
     ret 
   }
 }
@@ -179,20 +159,18 @@ Array(a).reclaim(CodeUnit)<complex>(%value: Ptr) {
     %v_1 = load %value, 8: Ptr
     %v_2 = add %value, 8: Ptr
     %v_3 = load %v_2, 4: I64
-    %v_4 = add %value, 12: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = shr %v_3, 30: I64
-    %v_7 = cast %v_6: I32
-    %v_8 = cmp_eq %v_7, 1: I32
-    je %v_8, b_9, b_10
+    %v_4 = shr %v_3, 30: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cmp_eq %v_5, 1: I32
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
+  b_7 {
     call_complex freeHeap, %v_1
-    jmp b_10
+    jmp b_8
   }
 
-  b_10 {
+  b_8 {
     ret 
   }
 }

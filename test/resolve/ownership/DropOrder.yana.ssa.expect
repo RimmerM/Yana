@@ -19,7 +19,7 @@ bb0(%0: Guard owned):
 }
 
 fn guard(id: I32 [shared call]) -> Guard {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -97,7 +97,7 @@ bb0:
 }
 
 fn joined'2(flag: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   %3: %Guard address = alloc frame Guard
   store inspect %2 borrow %0
@@ -123,7 +123,7 @@ bb3:
 }
 
 fn oneArm(flag: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   %2: %Guard address = alloc frame Guard
   store inspect %1 borrow %0
@@ -262,7 +262,7 @@ bb3:
 }
 
 fn handover(id: I32 [shared call]) -> Guard {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Guard address = alloc frame Guard
   store inspect %1 borrow %0
@@ -274,7 +274,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn earlyExit(flag: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   %2: %Guard address = alloc frame Guard
   store inspect %1 borrow %0

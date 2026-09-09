@@ -193,159 +193,153 @@ main<complex>(): I32 {
   }
 
   b_93 {
-    jmp b_94
+    %v_94 = alloca 8, 8: Ptr
+    copy %v_94, @read, 8
+    %v_95 = load %v_94, 8: I64
+    %v_96 = cmp_neq %v_95, 0: I32
+    je %v_96, b_97, b_98
   }
 
   b_92 {
     ret 15
   }
 
-  b_94 {
-    %v_95 = alloca 8, 8: Ptr
-    copy %v_95, @read, 8
-    %v_96 = load %v_95, 8: I64
-    %v_97 = cmp_neq %v_96, 0: I32
-    je %v_97, b_98, b_99
+  b_97 {
+    %v_99 = alloca 8, 8: Ptr
+    copy %v_99, @read, 8
+    %v_100 = load %v_99, 8: I64
+    %v_101 = cmp_neq %v_100, 0: I32
+    je %v_101, b_102, b_103
   }
 
   b_98 {
-    %v_100 = alloca 8, 8: Ptr
-    copy %v_100, @read, 8
-    %v_101 = load %v_100, 8: I64
-    %v_102 = cmp_neq %v_101, 0: I32
-    je %v_102, b_103, b_104
-  }
-
-  b_99 {
     ret 31
   }
 
-  b_103 {
-    %v_105 = alloca 8, 8: Ptr
-    copy %v_105, @empty, 8
-    %v_106 = load %v_105, 8: I64
-    %v_107 = cmp_neq %v_106, 0: I32
-    je %v_107, b_108, b_109
+  b_102 {
+    %v_104 = alloca 8, 8: Ptr
+    copy %v_104, @empty, 8
+    %v_105 = load %v_104, 8: I64
+    %v_106 = cmp_neq %v_105, 0: I32
+    je %v_106, b_107, b_108
   }
 
-  b_104 {
+  b_103 {
     ret 32
   }
 
-  b_109 {
-    %v_110 = alloca 8, 8: Ptr
-    copy %v_110, @empty, 8
-    %v_111 = load %v_110, 8: I64
-    %v_112 = cmp_neq %v_111, 0: I32
-    je %v_112, b_113, b_114
+  b_108 {
+    %v_109 = alloca 8, 8: Ptr
+    copy %v_109, @empty, 8
+    %v_110 = load %v_109, 8: I64
+    %v_111 = cmp_neq %v_110, 0: I32
+    je %v_111, b_112, b_113
   }
 
-  b_108 {
+  b_107 {
     ret 33
   }
 
-  b_114 {
+  b_113 {
+    %v_114 = alloca 8, 8: Ptr
+    copy %v_114, @read, 8
     %v_115 = alloca 8, 8: Ptr
-    copy %v_115, @read, 8
-    %v_116 = alloca 8, 8: Ptr
-    copy %v_116, @empty, 8
-    %v_117 = load %v_115, 8: I64
-    %v_118 = cmp_neq %v_117, 0: I32
-    %v_119 = load %v_116, 8: I64
-    %v_120 = cmp_neq %v_119, 0: I32
-    %v_121 = cmp_neq %v_118, %v_120: I32
-    je %v_121, b_122, b_123
+    copy %v_115, @empty, 8
+    %v_116 = load %v_114, 8: I64
+    %v_117 = cmp_neq %v_116, 0: I32
+    %v_118 = load %v_115, 8: I64
+    %v_119 = cmp_neq %v_118, 0: I32
+    %v_120 = cmp_neq %v_117, %v_119: I32
+    je %v_120, b_121, b_122
   }
 
-  b_113 {
+  b_112 {
     ret 34
   }
 
-  b_122 {
+  b_121 {
+    %v_123 = alloca 8, 8: Ptr
+    copy %v_123, @read, 8
     %v_124 = alloca 8, 8: Ptr
-    copy %v_124, @read, 8
-    %v_125 = alloca 8, 8: Ptr
-    copy %v_125, @write, 8
-    %v_126 = load %v_124, 8: I64
-    %v_127 = cmp_neq %v_126, 0: I32
-    %v_128 = load %v_125, 8: I64
-    %v_129 = cmp_neq %v_128, 0: I32
-    %v_130 = cmp_neq %v_127, %v_129: I32
-    je %v_130, b_131, b_132
+    copy %v_124, @write, 8
+    %v_125 = load %v_123, 8: I64
+    %v_126 = cmp_neq %v_125, 0: I32
+    %v_127 = load %v_124, 8: I64
+    %v_128 = cmp_neq %v_127, 0: I32
+    %v_129 = cmp_neq %v_126, %v_128: I32
+    je %v_129, b_130, b_131
   }
 
-  b_123 {
+  b_122 {
     ret 35
   }
 
-  b_132 {
-    %v_133 = load @read, 8: I64
-    %v_134 = load @write, 8: I64
-    %v_135 = or %v_133, %v_134: I64
-    store %v_1, %v_135, 8
-    %v_136 = load @read, 8: I64
-    %v_137 = and %v_135, %v_136: I64
-    %v_138 = load @read, 8: I64
-    %v_139 = cmp_eq %v_137, %v_138: I32
-    je %v_139, b_140, b_141
+  b_131 {
+    %v_132 = load @read, 8: I64
+    %v_133 = load @write, 8: I64
+    %v_134 = or %v_132, %v_133: I64
+    store %v_1, %v_134, 8
+    %v_135 = load @read, 8: I64
+    %v_136 = and %v_134, %v_135: I64
+    %v_137 = load @read, 8: I64
+    %v_138 = cmp_eq %v_136, %v_137: I32
+    je %v_138, b_139, b_140
   }
 
-  b_131 {
+  b_130 {
     ret 36
   }
 
-  b_140 {
-    %v_142 = sext %v_135: I32
-    ret %v_142
+  b_139 {
+    %v_141 = sext %v_134: I32
+    ret %v_141
   }
 
-  b_141 {
+  b_140 {
     ret 13
   }
 
   b_31 {
-    %v_143 = loads @effects, 4: I32
-    %v_144 = add %v_143, 1: I32
-    store @effects, %v_144, 4
-    %v_145 = load @read, 8: I64
-    %v_146 = cmp_neq %v_145, 0: I32
-    je %v_146, b_37, b_32
+    %v_142 = loads @effects, 4: I32
+    %v_143 = add %v_142, 1: I32
+    store @effects, %v_143, 4
+    %v_144 = load @read, 8: I64
+    %v_145 = cmp_neq %v_144, 0: I32
+    je %v_145, b_37, b_32
   }
 
   b_36 {
-    jmp b_147
+    jmp b_43
   }
 
   b_35 {
-    %v_148 = loads @effects, 4: I32
-    %v_149 = add %v_148, 1: I32
-    store @effects, %v_149, 4
-    %v_150 = load @read, 8: I64
-    %v_151 = cmp_neq %v_150, 0: I32
-    jmp b_147
+    %v_146 = loads @effects, 4: I32
+    %v_147 = add %v_146, 1: I32
+    store @effects, %v_147, 4
+    %v_148 = load @read, 8: I64
+    %v_149 = cmp_neq %v_148, 0: I32
+    jmp b_150
   }
 
-  b_147 {
-    %v_152 = phi [b_36, 0], [b_35, %v_151]: I32
-    je %v_152, b_38, b_43
+  b_150 {
+    je %v_149, b_38, b_43
   }
 
   b_42 {
-    %v_153 = loads @effects, 4: I32
-    %v_154 = add %v_153, 1: I32
-    store @effects, %v_154, 4
-    %v_155 = load @read, 8: I64
-    %v_156 = cmp_neq %v_155, 0: I32
-    jmp b_157
+    %v_151 = loads @effects, 4: I32
+    %v_152 = add %v_151, 1: I32
+    store @effects, %v_152, 4
+    %v_153 = load @read, 8: I64
+    %v_154 = cmp_neq %v_153, 0: I32
+    jmp b_155
   }
 
   b_41 {
-    jmp b_157
+    jmp b_44
   }
 
-  b_157 {
-    %v_158 = phi [b_42, %v_156], [b_41, 1]: I32
-    je %v_158, b_44, b_49
+  b_155 {
+    je %v_154, b_44, b_49
   }
 }
 

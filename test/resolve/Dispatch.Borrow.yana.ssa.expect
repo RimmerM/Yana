@@ -123,12 +123,12 @@ bb14(%52: Size trivial):
 }
 
 fn bump(Array(I32), Size, I32)(xs: Array(I32) [unique call view], at: Size [shared call]) -> I32 {
-bb0(%0: Array(I32) [unique call view] guaranteed, %1: Size [shared call] guaranteed):
+bb0(%0: Array(I32) [unique call view] guaranteed, %1: Size trivial):
   %2: %Size address = alloc frame Size [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %1
   %4: Array(I32) [unique slot 0 view] guaranteed from{%0} = load inspect %0
-  %5: Size [shared call] guaranteed from{%2} = load inspect %2
+  %5: Size trivial = load inspect %2
   jump -> bb1
 
 bb1:
@@ -144,7 +144,7 @@ bb2(%6: I32 [unique slot 0 owner] guaranteed from{%0}):
   %24: I64 trivial = const 1
   %25: I32 trivial = call I32.fromInt borrow %24
   store inspect %3 consume %25
-  %26: I32 [shared call] guaranteed from{%3} = load inspect %3
+  %26: I32 trivial = load inspect %3
   %27: I32 trivial = load inspect %23
   %28: I32 trivial = call I32.+ borrow %27 borrow %26
   store inspect %6 consume %28

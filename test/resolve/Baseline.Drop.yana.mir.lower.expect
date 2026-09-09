@@ -102,11 +102,11 @@ main<complex>(): I32 {
 
   b_50 {
     %v_51 = alloca 4, 4: Ptr
-    %v_52 = loads @live, 4: I32
-    %v_53 = add %v_52, 1: I32
-    store @live, %v_53, 4
-    store %v_51, 1, 4
-    %v_54 = loads %v_51, 4: I32
+    %v_52 = imm 1: I32
+    %v_53 = loads @live, 4: I32
+    %v_54 = add %v_53, 1: I32
+    store @live, %v_54, 4
+    store %v_51, %v_52, 4
     jmp b_55
   }
 
@@ -220,7 +220,7 @@ main<complex>(): I32 {
   b_55 {
     %v_114 = phi [b_107, %v_111], [b_50, 0]: I32
     %v_115 = phi [b_107, %v_109], [b_50, 0]: I32
-    %v_116 = add %v_114, %v_54: I32
+    %v_116 = add %v_114, %v_52: I32
     %v_117 = loads @live, 4: I32
     %v_111 = add %v_116, %v_117: I32
     %v_109 = add %v_115, 1: I32

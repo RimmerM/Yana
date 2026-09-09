@@ -211,7 +211,7 @@ bb8(%15: Size trivial):
 }
 
 fn indexOf'2(xs: Array(I32) [shared call view], needle: I32 [shared call]) -> I32 {
-bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %Vec(I32) address = alloc frame Vec(I32)
   %4: %I32 address = alloc frame I32
@@ -340,7 +340,7 @@ bb14(%16: Size trivial):
 }
 
 fn fill(xs: Array(I32) [unique call view], value: I32 [shared call]) -> {} {
-bb0(%0: Array(I32) [unique call view] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Array(I32) [unique call view] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32

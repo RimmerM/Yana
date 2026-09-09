@@ -17,7 +17,7 @@ bb0(%0: Guard owned):
 }
 
 fn opened(id: I32 [shared call], $body: (->Guard) -> I32 [shared call]) -> Outcome(I32, I32) {
-bb0(%0: I32 [shared call] guaranteed, %1: (->Guard) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (->Guard) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %0
@@ -54,7 +54,7 @@ bb3:
 }
 
 fn guarding(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, Guard) {
-bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %0
@@ -131,7 +131,7 @@ bb3:
 }
 
 fn opening(n: I32 [shared call], stop: I32 [shared call], $body: (->Guard) -> I32 [shared call]) -> Outcome(I32, Guard) {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (->Guard) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial, %2: (->Guard) -> I32 [shared call] guaranteed):
   %17: %I32 address = alloc frame I32 [shared call]
   %18: %I32 address = alloc frame I32 [shared call]
   %19: %I32 address = alloc frame I32
@@ -739,7 +739,7 @@ bb0(%0: skippedOwned.cont.env [unique call] guaranteed, %1: Guard owned):
 }
 
 fn failedOwned.cont(failedOwned.cont.env: failedOwned.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: failedOwned.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: failedOwned.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -753,7 +753,7 @@ bb0(%0: failedOwned.cont.env [unique call] guaranteed, %1: I32 [shared call] gua
 }
 
 fn ignoredOwned.cont(ignoredOwned.cont.env: ignoredOwned.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: ignoredOwned.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: ignoredOwned.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -767,7 +767,7 @@ bb0(%0: ignoredOwned.cont.env [unique call] guaranteed, %1: I32 [shared call] gu
 }
 
 fn keptOwned.cont(keptOwned.cont.env: keptOwned.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: keptOwned.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: keptOwned.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]

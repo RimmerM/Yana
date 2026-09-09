@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn idOr(m: Maybe(@bits(53) U64) [shared call], fallback: @bits(53) U64 [shared call]) -> @bits(53) U64 {
-bb0(%0: Maybe(@bits(53) U64) [shared call] guaranteed, %1: @bits(53) U64 [shared call] guaranteed):
+bb0(%0: Maybe(@bits(53) U64) [shared call] guaranteed, %1: @bits(53) U64 trivial):
   %3: %@bits(53) U64 address = alloc frame @bits(53) U64 [shared call]
   %4: %@bits(53) U64 address = alloc frame @bits(53) U64
   store inspect %3 borrow %1

@@ -210,10 +210,9 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     // and because what it removes are whole blocks rather than instructions: nothing here gains from
     // being shown one exit instead of four, and every one of them gains from having run.
     //
-    // In front of the two sweeps rather than behind them, since a block that goes takes the last
-    // reader of whatever it read with it - the `0` three copies of `ret 0` shared is dead once one
-    // of them is left.
+    // In front of the sweep rather than behind it, since a block that goes takes the last reader of
+    // whatever it read with it - the `0` three copies of `ret 0` shared is dead once one of them is
+    // left.
     mergeDuplicatedExits(base, module, fun);
     removeDeadValues(base, module.arena, fun);
-    removeDeadConstants(base, module.arena, fun);
 }

@@ -5,7 +5,7 @@ let & log: I32 = 0
 fn logged(step: I32 [shared call], $body: (I32) -> $r [shared call]) -> $r = <no body>
 
 fn twice(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -15,7 +15,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn add(x: I32 [shared call], y: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -126,7 +126,7 @@ bb0:
 }
 
 fn logged(I32)(step: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %0
@@ -152,7 +152,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed)
 }
 
 fn hoisted.cont(hoisted.cont.env: hoisted.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: hoisted.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: hoisted.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -168,7 +168,7 @@ bb0(%0: hoisted.cont.env [unique call] guaranteed, %1: I32 [shared call] guarant
 }
 
 fn twoInOne.cont(twoInOne.cont.env: twoInOne.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: twoInOne.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: twoInOne.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$lens1 inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = field.addr .$leaving inspect %0
@@ -184,7 +184,7 @@ bb0(%0: twoInOne.cont.env [unique call] guaranteed, %1: I32 [shared call] guaran
 }
 
 fn twoInOne.cont'2(twoInOne.cont'2.env: twoInOne.cont'2.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: twoInOne.cont'2.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: twoInOne.cont'2.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -200,7 +200,7 @@ bb0(%0: twoInOne.cont'2.env [unique call] guaranteed, %1: I32 [shared call] guar
 }
 
 fn nested.cont(nested.cont.env: nested.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: nested.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: nested.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -215,7 +215,7 @@ bb0(%0: nested.cont.env [unique call] guaranteed, %1: I32 [shared call] guarante
 }
 
 fn inReturn.cont(inReturn.cont.env: inReturn.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: inReturn.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: inReturn.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]

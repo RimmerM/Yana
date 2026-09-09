@@ -5,7 +5,7 @@ let & live: I32 = 0
 let & trace: I32 = 0
 
 fn check(ok: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %0
@@ -26,7 +26,7 @@ bb3:
 }
 
 fn branched(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -57,7 +57,7 @@ bb3:
 }
 
 fn counted(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
@@ -102,7 +102,7 @@ bb0(%0: I32 [unique call] guaranteed):
 }
 
 fn borrowed(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -137,7 +137,7 @@ bb0(%0: Held owned):
 }
 
 fn held(id: I32 [shared call]) -> Held {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr live
@@ -152,7 +152,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn owning(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Held address = alloc frame Held
   store inspect %1 borrow %0
@@ -167,7 +167,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn record(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Pair address = alloc frame Pair
   store inspect %1 borrow %0
@@ -192,7 +192,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn boolean(a: Bool [shared call], b: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: Bool trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %Bool address = alloc frame Bool [shared call]
   %5: %Bool address = alloc frame Bool
@@ -229,7 +229,7 @@ bb6:
 }
 
 fn packed(value: U32 [shared call]) -> Packed {
-bb0(%0: U32 [shared call] guaranteed):
+bb0(%0: U32 trivial):
   %1: %U32 address = alloc frame U32 [shared call]
   store inspect %1 borrow %0
   %2: U32 trivial = load inspect %1
@@ -239,7 +239,7 @@ bb0(%0: U32 [shared call] guaranteed):
 }
 
 fn narrow(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %Packed address = alloc frame Packed
   %4: %@bits(4) U32 address = alloc frame @bits(4) U32

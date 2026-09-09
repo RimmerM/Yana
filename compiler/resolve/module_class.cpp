@@ -1183,6 +1183,7 @@ void resolveInstance(Module& module, ast::Decl& decl) {
 
         function->ast = memberPointer;
         readInlineAttribute(module, member, *function);
+        readFrequencyAttributes(module, member, *function);
         instance->functions.set(*module.arena, index, function - *module.arena);
     }
 

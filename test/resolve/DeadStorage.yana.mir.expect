@@ -182,15 +182,11 @@ fn handed() -> I32 {
   local text: String
 
 bb0:
-  %0: [CodeUnit *6] [shared slot 0] = read borrow.shared (global string'142) loan0
-  %1: %[CodeUnit *6] [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
-  %2: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %1 roots.0{0}
-  %3: I32 = const 6
-  %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
-  write.init borrow.unique (text) take %4
-  %6: String = read take (text)
-  %7: I32 = call size take %6
-  return take %7
+  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 6, ownsHeap: 0}, length: 6}}
+  write.init borrow.unique (text) take %0
+  %2: String = read take (text)
+  %3: I32 = call size take %2
+  return take %3
 }
 
 fn main() -> I32 {

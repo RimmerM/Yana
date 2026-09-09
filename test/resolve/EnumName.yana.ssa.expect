@@ -19,7 +19,7 @@ let string'157: [CodeUnit *3] = [82, 101, 100]
 let string'158: [CodeUnit *3] = [82, 101, 100]
 
 fn nameOfColour(c: Colour [shared call]) -> String {
-bb0(%0: Colour [shared call] guaranteed):
+bb0(%0: Colour trivial):
   %1: %Colour address = alloc frame Colour [shared call]
   store inspect %1 borrow %0
   %2: Colour trivial = load inspect %1
@@ -35,7 +35,7 @@ bb0(%0: String [shared call view] guaranteed):
 }
 
 fn whenceName(w: Whence [shared call]) -> String {
-bb0(%0: Whence [shared call] guaranteed):
+bb0(%0: Whence trivial):
   %1: %Whence address = alloc frame Whence [shared call]
   store inspect %1 borrow %0
   %2: Whence trivial = load inspect %1
@@ -44,7 +44,7 @@ bb0(%0: Whence [shared call] guaranteed):
 }
 
 fn instantiatedName(p: Pair(I32) [shared call]) -> String {
-bb0(%0: Pair(I32) [shared call] guaranteed):
+bb0(%0: Pair(I32) trivial):
   %1: %Pair(I32) address = alloc frame Pair(I32) [shared call]
   store inspect %1 borrow %0
   %2: Pair(I32) trivial = load inspect %1
@@ -85,248 +85,203 @@ bb0:
   store inspect %1 consume %21
   %22: String [shared slot 0] guaranteed from{%1} = load inspect %1
   %23: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %22
-  %24: %[CodeUnit *5] address = global.addr string'150
-  %25: [CodeUnit *5] [shared slot 0] guaranteed = load inspect %24
-  %26: %[CodeUnit *5] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %25
-  %27: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %26
-  %28: I32 trivial = const 5
-  %29: String owned = call stringLiteral borrow %27 borrow %28
-  store inspect %2 consume %29
-  %30: String [shared slot 0] guaranteed from{%2} = load inspect %2
-  %31: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %30
-  %32: Bool trivial = call String.!= borrow %23 borrow %31
+  %24: String owned = const String {units: Array {run: Run {items: &string'150, capacity: 5, ownsHeap: 0}, length: 5}}
+  store inspect %2 consume %24
+  %25: String [shared slot 0] guaranteed from{%2} = load inspect %2
+  %26: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %25
+  %27: Bool trivial = call String.!= borrow %23 borrow %26
   drop String inspect %1
   drop String inspect %2
-  branch inspect %32 -> bb3 -> bb1
+  branch inspect %27 -> bb3 -> bb1
 
 bb1:
   jump -> bb2
 
 bb2:
-  %33: Whence trivial = const FromEnd
-  %34: String owned = call whenceName borrow %33
-  store inspect %3 consume %34
-  %35: String [shared slot 0] guaranteed from{%3} = load inspect %3
-  %36: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %35
-  %37: %[CodeUnit *7] address = global.addr string'151
-  %38: [CodeUnit *7] [shared slot 0] guaranteed = load inspect %37
-  %39: %[CodeUnit *7] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %38
-  %40: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %39
-  %41: I32 trivial = const 7
-  %42: String owned = call stringLiteral borrow %40 borrow %41
-  store inspect %4 consume %42
-  %43: String [shared slot 0] guaranteed from{%4} = load inspect %4
-  %44: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %43
-  %45: Bool trivial = call String.!= borrow %36 borrow %44
+  %28: Whence trivial = const FromEnd
+  %29: String owned = call whenceName borrow %28
+  store inspect %3 consume %29
+  %30: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  %31: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %30
+  %32: String owned = const String {units: Array {run: Run {items: &string'151, capacity: 7, ownsHeap: 0}, length: 7}}
+  store inspect %4 consume %32
+  %33: String [shared slot 0] guaranteed from{%4} = load inspect %4
+  %34: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %33
+  %35: Bool trivial = call String.!= borrow %31 borrow %34
   drop String inspect %3
   drop String inspect %4
-  branch inspect %45 -> bb6 -> bb4
+  branch inspect %35 -> bb6 -> bb4
 
 bb3:
-  %46: I32 trivial = const 1
-  return consume %46
+  %36: I32 trivial = const 1
+  return consume %36
 
 bb4:
   jump -> bb5
 
 bb5:
-  %47: %[CodeUnit *4] address = global.addr string'152
-  %48: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %47
-  %49: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %48
-  %50: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %49
-  %51: I32 trivial = const 4
-  %52: String owned = call stringLiteral borrow %50 borrow %51
-  store inspect %5 consume %52
-  %53: String [shared slot 0] guaranteed from{%5} = load inspect %5
-  %54: String [shared slot 0 view] guaranteed from{%5} = call String.view borrow %53
-  %55: Maybe(Colour) trivial = call colourOfName borrow %54
+  %37: String owned = const String {units: Array {run: Run {items: &string'152, capacity: 4, ownsHeap: 0}, length: 4}}
+  store inspect %5 consume %37
+  %38: String [shared slot 0] guaranteed from{%5} = load inspect %5
+  %39: String [shared slot 0 view] guaranteed from{%5} = call String.view borrow %38
+  %40: Maybe(Colour) trivial = call colourOfName borrow %39
   drop String inspect %5
-  store inspect %6 consume %55
-  %56: %U8 address = field.addr .# inspect %6
-  %57: U8 trivial = load inspect %56
-  %58: U8 trivial = const 0
-  %59: Bool trivial = eq inspect %57 inspect %58
-  branch inspect %59 -> bb9 -> bb7
+  store inspect %6 consume %40
+  %41: %U8 address = field.addr .# inspect %6
+  %42: U8 trivial = load inspect %41
+  %43: U8 trivial = const 0
+  %44: Bool trivial = eq inspect %42 inspect %43
+  branch inspect %44 -> bb9 -> bb7
 
 bb6:
-  %60: I32 trivial = const 2
-  return consume %60
+  %45: I32 trivial = const 2
+  return consume %45
 
 bb7:
   jump -> bb8
 
 bb8:
-  %61: %[CodeUnit *6] address = global.addr string'153
-  %62: [CodeUnit *6] [shared slot 0] guaranteed = load inspect %61
-  %63: %[CodeUnit *6] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %62
-  %64: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %63
-  %65: I32 trivial = const 6
-  %66: String owned = call stringLiteral borrow %64 borrow %65
-  store inspect %7 consume %66
-  %67: String [shared slot 0] guaranteed from{%7} = load inspect %7
-  %68: String [shared slot 0 view] guaranteed from{%7} = call String.view borrow %67
-  %69: Maybe(Colour) trivial = call colourOfName borrow %68
+  %46: String owned = const String {units: Array {run: Run {items: &string'153, capacity: 6, ownsHeap: 0}, length: 6}}
+  store inspect %7 consume %46
+  %47: String [shared slot 0] guaranteed from{%7} = load inspect %7
+  %48: String [shared slot 0 view] guaranteed from{%7} = call String.view borrow %47
+  %49: Maybe(Colour) trivial = call colourOfName borrow %48
   drop String inspect %7
-  store inspect %8 consume %69
-  %70: %U8 address = field.addr .# inspect %8
-  %71: U8 trivial = load inspect %70
-  %72: U8 trivial = const 1
-  %73: Bool trivial = eq inspect %71 inspect %72
-  branch inspect %73 -> bb12 -> bb10
+  store inspect %8 consume %49
+  %50: %U8 address = field.addr .# inspect %8
+  %51: U8 trivial = load inspect %50
+  %52: U8 trivial = const 1
+  %53: Bool trivial = eq inspect %51 inspect %52
+  branch inspect %53 -> bb12 -> bb10
 
 bb9:
-  %74: I32 trivial = const 3
-  return consume %74
+  %54: I32 trivial = const 3
+  return consume %54
 
 bb10:
   jump -> bb11
 
 bb11:
-  %75: %[CodeUnit *4] address = global.addr string'154
-  %76: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %75
-  %77: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %76
-  %78: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %77
-  %79: I32 trivial = const 4
-  %80: String owned = call stringLiteral borrow %78 borrow %79
-  store inspect %9 consume %80
-  %81: String [shared slot 0] guaranteed from{%9} = load inspect %9
-  %82: String [shared slot 0 view] guaranteed from{%9} = call String.view borrow %81
-  %83: Maybe(Colour) trivial = call colourOfName borrow %82
+  %55: String owned = const String {units: Array {run: Run {items: &string'154, capacity: 4, ownsHeap: 0}, length: 4}}
+  store inspect %9 consume %55
+  %56: String [shared slot 0] guaranteed from{%9} = load inspect %9
+  %57: String [shared slot 0 view] guaranteed from{%9} = call String.view borrow %56
+  %58: Maybe(Colour) trivial = call colourOfName borrow %57
   drop String inspect %9
-  store inspect %10 consume %83
-  %84: %U8 address = field.addr .# inspect %10
-  %85: U8 trivial = load inspect %84
-  %86: U8 trivial = const 1
-  %87: Bool trivial = eq inspect %85 inspect %86
-  branch inspect %87 -> bb15 -> bb13
+  store inspect %10 consume %58
+  %59: %U8 address = field.addr .# inspect %10
+  %60: U8 trivial = load inspect %59
+  %61: U8 trivial = const 1
+  %62: Bool trivial = eq inspect %60 inspect %61
+  branch inspect %62 -> bb15 -> bb13
 
 bb12:
-  %88: I32 trivial = const 4
-  return consume %88
+  %63: I32 trivial = const 4
+  return consume %63
 
 bb13:
   jump -> bb14
 
 bb14:
-  %89: Pair(I32) trivial = const Low
-  %90: String owned = call instantiatedName borrow %89
-  store inspect %11 consume %90
-  %91: String [shared slot 0] guaranteed from{%11} = load inspect %11
-  %92: String [shared slot 0 view] guaranteed from{%11} = call String.view borrow %91
-  %93: %[CodeUnit *3] address = global.addr string'155
-  %94: [CodeUnit *3] [shared slot 0] guaranteed = load inspect %93
-  %95: %[CodeUnit *3] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %94
-  %96: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %95
-  %97: I32 trivial = const 3
-  %98: String owned = call stringLiteral borrow %96 borrow %97
-  store inspect %12 consume %98
-  %99: String [shared slot 0] guaranteed from{%12} = load inspect %12
-  %100: String [shared slot 0 view] guaranteed from{%12} = call String.view borrow %99
-  %101: Bool trivial = call String.!= borrow %92 borrow %100
+  %64: Pair(I32) trivial = const Low
+  %65: String owned = call instantiatedName borrow %64
+  store inspect %11 consume %65
+  %66: String [shared slot 0] guaranteed from{%11} = load inspect %11
+  %67: String [shared slot 0 view] guaranteed from{%11} = call String.view borrow %66
+  %68: String owned = const String {units: Array {run: Run {items: &string'155, capacity: 3, ownsHeap: 0}, length: 3}}
+  store inspect %12 consume %68
+  %69: String [shared slot 0] guaranteed from{%12} = load inspect %12
+  %70: String [shared slot 0 view] guaranteed from{%12} = call String.view borrow %69
+  %71: Bool trivial = call String.!= borrow %67 borrow %70
   drop String inspect %11
   drop String inspect %12
-  branch inspect %101 -> bb18 -> bb16
+  branch inspect %71 -> bb18 -> bb16
 
 bb15:
-  %102: I32 trivial = const 5
-  return consume %102
+  %72: I32 trivial = const 5
+  return consume %72
 
 bb16:
   jump -> bb17
 
 bb17:
-  %103: %[CodeUnit *4] address = global.addr string'156
-  %104: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %103
-  %105: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %104
-  %106: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %105
-  %107: I32 trivial = const 4
-  %108: String owned = call stringLiteral borrow %106 borrow %107
-  store inspect %13 consume %108
-  %109: String [shared slot 0] guaranteed from{%13} = load inspect %13
-  %110: String [shared slot 0 view] guaranteed from{%13} = call String.view borrow %109
-  %111: Maybe(Pair(I32)) trivial = call instantiatedOfName borrow %110
+  %73: String owned = const String {units: Array {run: Run {items: &string'156, capacity: 4, ownsHeap: 0}, length: 4}}
+  store inspect %13 consume %73
+  %74: String [shared slot 0] guaranteed from{%13} = load inspect %13
+  %75: String [shared slot 0 view] guaranteed from{%13} = call String.view borrow %74
+  %76: Maybe(Pair(I32)) trivial = call instantiatedOfName borrow %75
   drop String inspect %13
-  store inspect %14 consume %111
-  %112: %U8 address = field.addr .# inspect %14
-  %113: U8 trivial = load inspect %112
-  %114: U8 trivial = const 0
-  %115: Bool trivial = eq inspect %113 inspect %114
-  branch inspect %115 -> bb21 -> bb19
+  store inspect %14 consume %76
+  %77: %U8 address = field.addr .# inspect %14
+  %78: U8 trivial = load inspect %77
+  %79: U8 trivial = const 0
+  %80: Bool trivial = eq inspect %78 inspect %79
+  branch inspect %80 -> bb21 -> bb19
 
 bb18:
-  %116: I32 trivial = const 6
-  return consume %116
+  %81: I32 trivial = const 6
+  return consume %81
 
 bb19:
   jump -> bb20
 
 bb20:
-  %117: %[CodeUnit *3] address = global.addr string'157
-  %118: [CodeUnit *3] [shared slot 0] guaranteed = load inspect %117
-  %119: %[CodeUnit *3] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %118
-  %120: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %119
-  %121: I32 trivial = const 3
-  %122: String owned = call stringLiteral borrow %120 borrow %121
-  store inspect %15 consume %122
-  %123: String [shared slot 0] guaranteed from{%15} = load inspect %15
-  %124: String [shared slot 0 view] guaranteed from{%15} = call String.view borrow %123
-  %125: Maybe(Pair(I32)) trivial = call instantiatedOfName borrow %124
+  %82: String owned = const String {units: Array {run: Run {items: &string'157, capacity: 3, ownsHeap: 0}, length: 3}}
+  store inspect %15 consume %82
+  %83: String [shared slot 0] guaranteed from{%15} = load inspect %15
+  %84: String [shared slot 0 view] guaranteed from{%15} = call String.view borrow %83
+  %85: Maybe(Pair(I32)) trivial = call instantiatedOfName borrow %84
   drop String inspect %15
-  store inspect %16 consume %125
-  %126: %U8 address = field.addr .# inspect %16
-  %127: U8 trivial = load inspect %126
-  %128: U8 trivial = const 1
-  %129: Bool trivial = eq inspect %127 inspect %128
-  branch inspect %129 -> bb24 -> bb22
+  store inspect %16 consume %85
+  %86: %U8 address = field.addr .# inspect %16
+  %87: U8 trivial = load inspect %86
+  %88: U8 trivial = const 1
+  %89: Bool trivial = eq inspect %87 inspect %88
+  branch inspect %89 -> bb24 -> bb22
 
 bb21:
-  %130: I32 trivial = const 7
-  return consume %130
+  %90: I32 trivial = const 7
+  return consume %90
 
 bb22:
   jump -> bb23
 
 bb23:
-  %131: %[CodeUnit *3] address = global.addr string'158
-  %132: [CodeUnit *3] [shared slot 0] guaranteed = load inspect %131
-  %133: %[CodeUnit *3] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %132
-  %134: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %133
-  %135: I32 trivial = const 3
-  %136: String owned = call stringLiteral borrow %134 borrow %135
-  store inspect %17 consume %136
-  %137: String [shared slot 0] guaranteed from{%17} = load inspect %17
-  %138: String [shared slot 0 view] guaranteed from{%17} = call String.view borrow %137
-  %139: Maybe(Colour) trivial = call colourOfName borrow %138
+  %91: String owned = const String {units: Array {run: Run {items: &string'158, capacity: 3, ownsHeap: 0}, length: 3}}
+  store inspect %17 consume %91
+  %92: String [shared slot 0] guaranteed from{%17} = load inspect %17
+  %93: String [shared slot 0 view] guaranteed from{%17} = call String.view borrow %92
+  %94: Maybe(Colour) trivial = call colourOfName borrow %93
   drop String inspect %17
-  store inspect %18 consume %139
-  %140: %U8 address = field.addr .# inspect %18
-  %141: U8 trivial = load inspect %140
-  %142: U8 trivial = const 1
-  %143: Bool trivial = eq inspect %141 inspect %142
-  branch inspect %143 -> bb27 -> bb25
+  store inspect %18 consume %94
+  %95: %U8 address = field.addr .# inspect %18
+  %96: U8 trivial = load inspect %95
+  %97: U8 trivial = const 1
+  %98: Bool trivial = eq inspect %96 inspect %97
+  branch inspect %98 -> bb27 -> bb25
 
 bb24:
-  %144: I32 trivial = const 8
-  return consume %144
+  %99: I32 trivial = const 8
+  return consume %99
 
 bb25:
-  %145: I32 trivial = const 9
-  jump -> bb26(consume %145)
+  %100: I32 trivial = const 9
+  jump -> bb26(consume %100)
 
 bb26(%0: I32 trivial):
   return consume %0
 
 bb27:
-  %146: %Colour address = field.addr .Just inspect %18
-  %147: Colour trivial = load inspect %146
-  store inspect %19 consume %147
-  %148: I32 trivial = const 10
-  %149: Colour trivial = load inspect %19
-  %150: U8 trivial = bitcast inspect %149
-  %151: I32 trivial = convert inspect %150
-  %152: I32 trivial = convert inspect %151
-  %153: I32 trivial = add inspect %148 inspect %152
-  jump -> bb26(consume %153)
+  %101: %Colour address = field.addr .Just inspect %18
+  %102: Colour trivial = load inspect %101
+  store inspect %19 consume %102
+  %103: I32 trivial = const 10
+  %104: Colour trivial = load inspect %19
+  %105: U8 trivial = bitcast inspect %104
+  %106: I32 trivial = convert inspect %105
+  %107: I32 trivial = convert inspect %106
+  %108: I32 trivial = add inspect %103 inspect %107
+  jump -> bb26(consume %108)
 }
 
 entry main

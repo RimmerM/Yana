@@ -327,7 +327,7 @@ block outerLatch:
   add uses=[rcx, -] creates=[rcx]  => ffc1
   cmp_ige uses=[rcx, rdi] creates=[-]  => 39f9
   je uses=[-] creates=[]  => 7cd9
-block #11:
+block #12:
   jmp uses=[] creates=[] pre=[rdx->rax]  => 8bc2
 block exit:
   ret uses=[rax] creates=[]  => c3
@@ -401,14 +401,15 @@ block #0:
 block entry:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
-  jmp uses=[] creates=[]  => 
-  align  => 6666666666660f1f840000000000
-block head:
   cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 7d06
+  je uses=[-] creates=[]  => 7d14
+  align  => 66660f1f840000000000
 block body:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  je uses=[rsi] creates=[]  => 85f674f6
+  je uses=[rsi] creates=[]  => 85f67504
+block head:
+  cmp_ige uses=[rax, rdi] creates=[-]  => 39f8
+  je uses=[-] creates=[]  => 7cf6
 block exit:
   ret uses=[rax] creates=[]  => c3

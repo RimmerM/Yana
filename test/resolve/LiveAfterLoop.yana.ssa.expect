@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn pick(a: I64 [unique slot 0], b: I64 [unique slot 0], first: Bool [shared call]) -> I64 [unique slot 0 owner] {
-bb0(%0: I64 [unique slot 0] guaranteed, %1: I64 [unique slot 0] guaranteed, %2: Bool [shared call] guaranteed):
+bb0(%0: I64 [unique slot 0] guaranteed, %1: I64 [unique slot 0] guaranteed, %2: Bool trivial):
   %4: %Bool address = alloc frame Bool [shared call]
   store inspect %4 borrow %2
   %5: Bool trivial = load inspect %4
@@ -20,7 +20,7 @@ bb3:
 }
 
 fn borrowAfterLoop(x: I64 [unique call], y: I64 [unique call], flag: Bool [shared call]) -> I64 {
-bb0(%0: I64 [unique call] guaranteed, %1: I64 [unique call] guaranteed, %2: Bool [shared call] guaranteed):
+bb0(%0: I64 [unique call] guaranteed, %1: I64 [unique call] guaranteed, %2: Bool trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I64 address = alloc frame I64
   store inspect %3 borrow %2
@@ -87,7 +87,7 @@ bb0(%0: I64 [unique call] guaranteed, %1: I64 [unique call] guaranteed):
 }
 
 fn otherArm(x: I64 [unique call], y: I64 [unique call], flag: Bool [shared call]) -> I64 {
-bb0(%0: I64 [unique call] guaranteed, %1: I64 [unique call] guaranteed, %2: Bool [shared call] guaranteed):
+bb0(%0: I64 [unique call] guaranteed, %1: I64 [unique call] guaranteed, %2: Bool trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   store inspect %3 borrow %2
   %4: Bool trivial = load inspect %3

@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn opaque(x: U64 [shared call]) -> U64 {
-bb0(%0: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial):
   %1: %U64 address = alloc frame U64 [shared call]
   store inspect %1 borrow %0
   %2: U64 trivial = load inspect %1
@@ -9,7 +9,7 @@ bb0(%0: U64 [shared call] guaranteed):
 }
 
 fn check(folded: U64 [shared call], computed: U64 [shared call], expected: U64 [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed, %2: U64 [shared call] guaranteed, %3: I32 [shared call] guaranteed):
+bb0(%0: U64 trivial, %1: U64 trivial, %2: U64 trivial, %3: I32 trivial):
   %5: %U64 address = alloc frame U64 [shared call]
   %6: %U64 address = alloc frame U64 [shared call]
   %7: %U64 address = alloc frame U64 [shared call]

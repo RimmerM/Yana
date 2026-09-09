@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn check(ok: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %0
@@ -58,7 +58,7 @@ bb3:
 }
 
 fn siblings(a: I32, b: I32, pick: Bool [shared call]) -> I32 {
-bb0(%0: I32 trivial, %1: I32 trivial, %2: Bool [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial, %2: Bool trivial):
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
   %5: %Bool address = alloc frame Bool [shared call]
@@ -91,7 +91,7 @@ bb3:
 }
 
 fn scaled(n: I32 [shared call], factor: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32
@@ -129,7 +129,7 @@ bb3:
 }
 
 fn invariantField(n: I32 [shared call], seed: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %Cell address = alloc frame Cell
@@ -172,7 +172,7 @@ bb3:
 }
 
 fn writtenField(n: I32 [shared call], seed: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %Cell address = alloc frame Cell

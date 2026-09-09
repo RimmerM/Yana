@@ -51,42 +51,37 @@ bb0(%0: Map(String, I32) [shared call] guaranteed):
   %5: I32 trivial = const 0
   store inspect %1 consume %5
   %6: Map(String, I32) [shared slot 0] guaranteed from{%0} = load inspect %0
-  %7: %[CodeUnit *1] address = global.addr string'142
-  %8: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %7
-  %9: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %8
-  %10: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %9
-  %11: I32 trivial = const 1
-  %12: String owned = call stringLiteral borrow %10 borrow %11
-  store inspect %2 consume %12
-  %13: String [shared slot 0] guaranteed from{%2} = load inspect %2
-  %14: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %13
-  %15: Maybe(I32) [owned here shape2 .0=shared slot 0] trivial = call find(String, I32) borrow %6 borrow %14
+  %7: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %2 consume %7
+  %8: String [shared slot 0] guaranteed from{%2} = load inspect %2
+  %9: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %8
+  %10: Maybe(I32) [owned here shape2 .0=shared slot 0] trivial = call find(String, I32) borrow %6 borrow %9
   drop String inspect %2
-  store inspect %3 consume %15
-  %16: %U8 address = field.addr .# inspect %3
-  %17: U8 trivial = load inspect %16
-  %18: U8 trivial = const 1
-  %19: Bool trivial = eq inspect %17 inspect %18
-  branch inspect %19 -> bb3 -> bb1
+  store inspect %3 consume %10
+  %11: %U8 address = field.addr .# inspect %3
+  %12: U8 trivial = load inspect %11
+  %13: U8 trivial = const 1
+  %14: Bool trivial = eq inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb1
 
 bb1:
-  %20: I32 trivial = const 0
-  %21: I32 trivial = const 1
-  %22: I32 trivial = sub inspect %20 inspect %21
-  store inspect %1 consume %22
+  %15: I32 trivial = const 0
+  %16: I32 trivial = const 1
+  %17: I32 trivial = sub inspect %15 inspect %16
+  store inspect %1 consume %17
   jump -> bb2
 
 bb2:
-  %23: I32 trivial = load inspect %1
-  return consume %23
+  %18: I32 trivial = load inspect %1
+  return consume %18
 
 bb3:
-  %24: %I32 address = field.addr .Just inspect %3
-  %25: %I32 address = load inspect %24
-  %26: I32 trivial = load inspect %25
-  store inspect %4 consume %26
-  %27: I32 trivial = load inspect %4
-  store inspect %1 consume %27
+  %19: %I32 address = field.addr .Just inspect %3
+  %20: %I32 address = load inspect %19
+  %21: I32 trivial = load inspect %20
+  store inspect %4 consume %21
+  %22: I32 trivial = load inspect %4
+  store inspect %1 consume %22
   jump -> bb2
 }
 
@@ -103,22 +98,17 @@ bb0:
   %7: Map(String, I32) owned = call emptyMap(String, I32)
   store inspect %1 consume %7
   %8: Map(String, I32) [unique call] guaranteed from{%1} = load inspect %1
-  %9: %[CodeUnit *1] address = global.addr string'143
-  %10: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %9
-  %11: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %10
-  %12: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %11
-  %13: I32 trivial = const 1
-  %14: String owned = call stringLiteral borrow %12 borrow %13
-  %15: I32 trivial = const 6
-  %16: Maybe(I32) trivial = call insert(String, I32) borrow %8 consume %14 consume %15
-  %17: Map(I32, I32) [shared call] guaranteed from{%0} = load inspect %0
-  %18: I32 trivial = call touchInt borrow %17
+  %9: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %10: I32 trivial = const 6
+  %11: Maybe(I32) trivial = call insert(String, I32) borrow %8 consume %9 consume %10
+  %12: Map(I32, I32) [shared call] guaranteed from{%0} = load inspect %0
+  %13: I32 trivial = call touchInt borrow %12
   drop Map(I32, I32) inspect %0
-  %19: Map(String, I32) [shared call] guaranteed from{%1} = load inspect %1
-  %20: I32 trivial = call touchString borrow %19
+  %14: Map(String, I32) [shared call] guaranteed from{%1} = load inspect %1
+  %15: I32 trivial = call touchString borrow %14
   drop Map(String, I32) inspect %1
-  %21: I32 trivial = add inspect %18 inspect %20
-  return consume %21
+  %16: I32 trivial = add inspect %13 inspect %15
+  return consume %16
 }
 
 entry main

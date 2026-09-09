@@ -90,6 +90,24 @@ void optimizeBody(OptContext& opt) {
         runPass(promote);
 
         /*
+         * Then the placement, immediately behind `promote` and in front of everything that spends
+         * it.
+         *
+         * Behind, because it asks `Contained` of every slot the buffer is written into and the
+         * store-and-load traffic the conversion leaves would have made half of them escape. In
+         * front, because what it produces is a *constant* - a descriptor whose flag says the frame
+         * placed these bytes - and the folder, the forwarder and the graph cleanup below are what
+         * turn that into a teardown that does nothing and a refusal arm that is not there. Placing
+         * it at the end of the round instead left a body one round short: the request arrives by
+         * inlining, so the round that sees it is often the last one there is.
+         *
+         * It answers nothing in round zero, where the count is still a load out of a slot, and that
+         * costs nothing: `settle` restarts this loop on a caller the moment a body is spliced into
+         * it, so the round after the arrival is the round that places.
+         */
+        runPass(placeRuns);
+
+        /*
          * Then the folds, and README.md's section B is why: everything below wants folded operands,
          * and this is the one pass that inserts no instruction into a list it is walking - its queue
          * is over instructions rather than positions, so a constant made in front of the instruction

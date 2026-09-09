@@ -135,49 +135,44 @@ bb7:
 
 bb8(%2: I32 trivial):
   store inspect %11 consume %2
-  %84: %[CodeUnit *0] address = global.addr string'142
-  %85: [CodeUnit *0] [shared slot 0] guaranteed = load inspect %84
-  %86: %[CodeUnit *0] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %85
-  %87: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %86
-  %88: I32 trivial = const 0
-  %89: String owned = call stringLiteral borrow %87 borrow %88
-  store inspect %12 consume %89
-  %90: Array(I32) [shared slot 0 view] guaranteed from{%4, %61} = load inspect %61
-  %91: String [unique call] guaranteed from{%12} = load inspect %12
-  call Array(a).show(I32) borrow %90 borrow %91
-  %92: I32 trivial = const 0
-  store inspect %13 consume %92
-  %93: Array(I32) [shared slot 0 view] guaranteed from{%4, %61} = load inspect %61
-  %94: I32 [unique slot 0] guaranteed = load inspect %13
-  %95: main.cont.env affine = aggregate.main.cont.env borrow %94
-  %96: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value main.cont borrow %95
-  %97: I32 trivial = call items(Array(I32), I32) borrow %93 borrow %96
+  %84: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 0, ownsHeap: 0}, length: 0}}
+  store inspect %12 consume %84
+  %85: Array(I32) [shared slot 0 view] guaranteed from{%4, %61} = load inspect %61
+  %86: String [unique call] guaranteed from{%12} = load inspect %12
+  call Array(a).show(I32) borrow %85 borrow %86
+  %87: I32 trivial = const 0
+  store inspect %13 consume %87
+  %88: Array(I32) [shared slot 0 view] guaranteed from{%4, %61} = load inspect %61
+  %89: I32 [unique slot 0] guaranteed = load inspect %13
+  %90: main.cont.env affine = aggregate.main.cont.env borrow %89
+  %91: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value main.cont borrow %90
+  %92: I32 trivial = call items(Array(I32), I32) borrow %88 borrow %91
   jump -> bb10
 
 bb9:
-  %98: I32 trivial = const 4
-  jump -> bb8(consume %98)
+  %93: I32 trivial = const 4
+  jump -> bb8(consume %93)
 
 bb10:
   drop Array(I32) inspect %4
-  %99: I32 trivial = load inspect %9
-  %100: I32 trivial = load inspect %10
-  %101: I32 trivial = add inspect %99 inspect %100
-  %102: I32 trivial = load inspect %11
-  %103: I32 trivial = add inspect %101 inspect %102
-  %104: String [shared call] guaranteed from{%12} = load inspect %12
-  %105: String [shared slot 0 view] guaranteed from{%12} = call String.view borrow %104
-  %106: Size trivial = call String.length borrow %105
+  %94: I32 trivial = load inspect %9
+  %95: I32 trivial = load inspect %10
+  %96: I32 trivial = add inspect %94 inspect %95
+  %97: I32 trivial = load inspect %11
+  %98: I32 trivial = add inspect %96 inspect %97
+  %99: String [shared call] guaranteed from{%12} = load inspect %12
+  %100: String [shared slot 0 view] guaranteed from{%12} = call String.view borrow %99
+  %101: Size trivial = call String.length borrow %100
   drop String inspect %12
-  %107: I32 trivial = convert inspect %106
-  %108: I32 trivial = add inspect %103 inspect %107
-  %109: I32 trivial = load inspect %13
-  %110: I32 trivial = add inspect %108 inspect %109
-  return consume %110
+  %102: I32 trivial = convert inspect %101
+  %103: I32 trivial = add inspect %98 inspect %102
+  %104: I32 trivial = load inspect %13
+  %105: I32 trivial = add inspect %103 inspect %104
+  return consume %105
 }
 
 fn main.cont(main.cont.env: main.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: main.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: main.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .total inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]

@@ -6,19 +6,15 @@ fn litLen(n: Size [shared call]) -> Size {
   local s: String
 
 bb0:
-  %0: [CodeUnit *5] [shared slot 0] = read borrow.shared (global string'142) loan0
-  %1: %[CodeUnit *5] [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
-  %2: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %1 roots.0{0}
-  %3: I32 = const 5
-  %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
-  write.init borrow.unique (s) take %4
-  %6: String [shared call] = read borrow.shared (s) loan1
-  %7: String [shared slot 0 view] = call.derivation view(String) borrow.shared %6 roots{1}
-  %8: Size = call length(String) borrow.shared %7
+  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 5, ownsHeap: 0}, length: 5}}
+  write.init borrow.unique (s) take %0
+  %2: String [shared call] = read borrow.shared (s) loan0
+  %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
+  %4: Size = call length(String) borrow.shared %3
   drop (s)
-  %9: Size = read copy.trivial (n)
-  %10: Size = add inspect %8 inspect %9
-  return take %10
+  %5: Size = read copy.trivial (n)
+  %6: Size = add inspect %4 inspect %5
+  return take %6
 }
 
 fn twice(n: Size [shared call]) -> Size {

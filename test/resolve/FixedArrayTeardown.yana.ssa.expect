@@ -5,7 +5,7 @@ let & liveHandles: I64 = 0
 let & releases: I64 = 0
 
 fn openHandle(mark: I64 [shared call]) -> Handle {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   %2: %Handle address = alloc frame Handle
   store inspect %1 borrow %0

@@ -118,11 +118,9 @@ removed<complex>(%n: I32): I32 {
   b_4 {
     %v_5 = phi [b_3, %v_6], [b_2, %v_7]: Ptr
     %v_8 = load %v_5, 1: I32
-    %v_9 = add %v_5, 1: Ptr
-    %v_10 = load %v_9, 1: I32
-    %v_11 = cmp_eq %v_8, 1: I32
-    %v_12 = select %v_11, 0, 1: I32
-    ret %v_12
+    %v_9 = cmp_eq %v_8, 1: I32
+    %v_10 = select %v_9, 0, 1: I32
+    ret %v_10
   }
 
   b_3 {
@@ -132,12 +130,12 @@ removed<complex>(%n: I32): I32 {
   }
 
   b_2 {
-    %v_13 = sub 0, %n: I32
-    %v_14 = call_complex classify, %v_13: I32
+    %v_11 = sub 0, %n: I32
+    %v_12 = call_complex classify, %v_11: I32
     %v_7 = alloca 2, 1: Ptr
     store %v_7, 0, 1
-    %v_15 = add %v_7, 1: Ptr
-    store %v_15, %v_14, 1
+    %v_13 = add %v_7, 1: Ptr
+    store %v_13, %v_12, 1
     jmp b_4
   }
 }

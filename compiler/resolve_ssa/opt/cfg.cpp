@@ -1258,17 +1258,31 @@ struct BranchThreader {
             }
         }
 
-        auto argument = opt.base[join.argumentAt(opt.base, 0)];
-        for(auto userPointer: argument->uses(opt.base)) {
-            if(opt.base[opt.base[userPointer]->block] != &join) return false;
+        for(Size i = 0; i < join.argumentCount(); i++) {
+            auto argument = opt.base[join.argumentAt(opt.base, i)];
+            for(auto userPointer: argument->uses(opt.base)) {
+                if(opt.base[opt.base[userPointer]->block] != &join) return false;
+            }
         }
 
-        // And the way out: an arm operand this block defines would name, at the predecessor a
-        // redirect moves the edge to, a value only the join has.
+        /*
+         * And the way out: an arm operand this block *computes* would name, at the predecessor a
+         * redirect moves the edge to, a value only the join has.
+         *
+         * An arm operand that is one of the join's own **arguments** is not that, and is the shape
+         * §J42 admitted: the predecessor supplied it, so the redirect hands over what it supplied.
+         * That is what carries a value across a join whose branch is decided - `findAscii`'s
+         * position beside its found flag, which is the whole of the second argument this pass used
+         * to refuse a join for having.
+         */
         auto outside = true;
         forEachEdge(opt.base, branch, [&](Edge& edge) {
             for(auto used: edge.arguments.contents(opt.base)) {
-                if(used.isSet() && definedIn(join, *opt.base[used.value()])) outside = false;
+                if(!used.isSet()) continue;
+
+                auto value = opt.base[used.value()];
+                if(argumentIndex(join, *value)) continue;
+                if(definedIn(join, *value)) outside = false;
             }
         });
 
@@ -1280,14 +1294,33 @@ struct BranchThreader {
      * predecessor at all - the one statement of "this edge is one that goes round", read twice: once
      * by the strand test below and once by the walk that performs the redirect.
      */
-    Maybe<U64> movedConstant(Block& join, Block& from) {
+    Maybe<U64> movedConstant(Block& join, Block& from, Size tested) {
         auto end = from.terminator(opt.base);
         if(!end || end->kind != Inst::Jump || from.region != join.region) return Nothing();
 
-        auto supplied = ((InstJump&)*end).to.arguments.get(opt.base, 0);
+        auto supplied = ((InstJump&)*end).to.arguments.get(opt.base, tested);
         if(!supplied.isSet()) return Nothing();
 
         return constantValueOf(opt, opt.base[supplied.value()]);
+    }
+
+    // What `from` hands the join as its argument number `index`, or null where it hands over
+    // nothing - which `movedConstant` has already refused by the time this is asked.
+    Value* suppliedTo(Block& join, Block& from, Size index) {
+        auto end = from.terminator(opt.base);
+        if(!end || end->kind != Inst::Jump) return nullptr;
+
+        auto supplied = ((InstJump&)*end).to.arguments.get(opt.base, index);
+        return supplied.isSet() ? opt.base[supplied.value()] : nullptr;
+    }
+
+    // Which of the join's arguments a value is, or nothing where it is not one of them.
+    Maybe<Size> argumentIndex(Block& join, Value& value) {
+        for(Size i = 0; i < join.argumentCount(); i++) {
+            if(opt.base[join.argumentAt(opt.base, i)] == &value) return Just(i);
+        }
+
+        return Nothing();
     }
 
     // How many of a block's `incoming` entries name one predecessor - the edges the join's own
@@ -1326,13 +1359,13 @@ struct BranchThreader {
      * `cleanCfg` deletes the arm, which is the same answer this declines to reach the wrong way
      * round.
      */
-    bool wouldStrand(Block& join, InstBranch& branch, const JoinTest& test) {
+    bool wouldStrand(Block& join, InstBranch& branch, const JoinTest& test, Size tested) {
         Size movable = 0;
         Size toTrue = 0;
         Size toFalse = 0;
 
         for(Size i = 0; i < join.predecessorCount(); i++) {
-            auto constant = movedConstant(join, *opt.base[join.predecessorAt(opt.base, i)]);
+            auto constant = movedConstant(join, *opt.base[join.predecessorAt(opt.base, i)], tested);
             if(!constant) continue;
 
             movable++;
@@ -1352,7 +1385,7 @@ struct BranchThreader {
     }
 
     bool thread(Block& join) {
-        if(join.argumentCount() != 1) return false;
+        if(!join.argumentCount()) return false;
 
         auto last = join.terminator(opt.base);
         if(!last || last->kind != Inst::Branch) return false;
@@ -1360,19 +1393,40 @@ struct BranchThreader {
         auto& branch = (InstBranch&)*last;
         if(!branch.condition.isSet()) return false;
 
+        /*
+         * Which argument the join decides by, and every other one carried across the redirect.
+         *
+         * §J42 This used to require the join to have exactly one argument, and that was a clause
+         * about the *tested* value written as a clause about the block. A second argument is not a
+         * second decision: it is a value the join hands onwards, and a predecessor going round the
+         * join hands over what it supplied for it. `findAscii`'s scan is the shape - the flag its
+         * `iter fn`'s early return leaves and the position beside it arrive at one join, so the flag
+         * was decided on both edges and the block was refused for the position's sake. Four
+         * instructions of every sixteen-byte step were that refusal.
+         *
+         * Every argument has to be untracked rather than only the tested one, since a redirect
+         * duplicates the *handover* of each of them - which is the note above's second half.
+         */
+        for(Size i = 0; i < join.argumentCount(); i++) {
+            if(isTracked(opt.base[join.argumentAt(opt.base, i)]->convention)) return false;
+        }
+
         // What the join decides its argument by: the argument itself, or one equality against a
         // constant that the join holds. A condition that is neither is a join no incoming edge
         // decides.
-        auto argument = opt.base[join.argumentAt(opt.base, 0)];
-        if(isTracked(argument->convention)) return false;
+        Size tested = 0;
+        Maybe<JoinTest> test = Nothing();
+        for(Size i = 0; i < join.argumentCount() && !test; i++) {
+            test = readTest(join, branch, *opt.base[join.argumentAt(opt.base, i)]);
+            tested = i;
+        }
 
-        auto test = readTest(join, branch, *argument);
         if(!test) return false;
         if(!isSelfContained(join, branch)) return false;
 
         if(!armIsThreadable(join, branch.whenTrue)) return false;
         if(!armIsThreadable(join, branch.whenFalse)) return false;
-        if(wouldStrand(join, branch, test.unwrap())) return false;
+        if(wouldStrand(join, branch, test.unwrap(), tested)) return false;
 
         auto editor = opt.ir();
         auto threaded = false;
@@ -1388,15 +1442,27 @@ struct BranchThreader {
         for(Size i = 0; i < join.predecessorCount();) {
             auto from = opt.base[join.predecessorAt(opt.base, i)];
 
-            auto constant = movedConstant(join, *from);
+            auto constant = movedConstant(join, *from, tested);
             if(!constant) { i++; continue; }
 
             auto end = from->terminator(opt.base);
             auto& arm = selectsTrue(test.unwrap(), constant.unwrap()) ? branch.whenTrue
                                                                       : branch.whenFalse;
 
+            // An arm operand that is one of the join's arguments becomes what this predecessor
+            // supplied for it, which is the value it would have arrived at the join holding.
             SmallArray<Use, 4> arguments;
-            for(auto used: arm.arguments.contents(opt.base)) arguments.push(used);
+            for(auto used: arm.arguments.contents(opt.base)) {
+                if(!used.isSet()) { arguments.push(used); continue; }
+
+                auto index = argumentIndex(join, *opt.base[used.value()]);
+                if(!index) { arguments.push(used); continue; }
+
+                auto supplied = suppliedTo(join, *from, index.unwrap());
+                if(!supplied) { arguments.push(used); continue; }
+
+                arguments.push(Use(SsaPtr<Value>(supplied - opt.base), used.kind()));
+            }
 
             editor.replaceTerminator(*from, editor.makeJump(end->source, *opt.base[arm.target],
                                                             arguments.pointer(), arguments.size()));

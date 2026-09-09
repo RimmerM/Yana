@@ -618,37 +618,10 @@ struct Conversion {
         return false;
     }
 
-    /*
-     * What an MIR occurrence becomes at this tier.
-     *
-     * The mapping is here and nowhere else. A borrowed occurrence is `Guaranteed` whatever its type,
-     * because the fact that has to survive is the dependency on the loan rather than anything about
-     * the representation. An owned one asks `Ownership`'s two independent questions in turn, and the
-     * order is the point:
-     *
-     *  - **linear** - something to run, or a disposal the source has to write - is `Owned`;
-     *  - otherwise **not trivially copyable** is `Affine`: nothing to run, so it may be abandoned,
-     *    and a second owner is the author's `Copy` rather than the bytes;
-     *  - otherwise `Trivial`.
-     *
-     * `mir::isLinear` and not `mir::hasTeardown`, which is what this used to ask. The two agree on
-     * every type that does not use `@explicitDrop` and disagree on the one the obligation is *for*:
-     * a linear token with nothing to run has no teardown and is linear, so keying this off the
-     * teardown made exactly the values that must be consumed exactly once into `Trivial` ones the
-     * verifier lets a pass duplicate and discard.
-     *
-     * The `Affine` rung is the same mistake made one cell over. `isLinear` alone sent an authored
-     * `Copy` type to `Trivial`, whose contract is *freely duplicable* - so the one rule the instance
-     * exists to state ("duplicating a `Counter` is not the bytes") was the one rule the tier below
-     * did not carry. `mir::isTracked` is the union of the two questions and is what decides whether
-     * MIR follows the value at all; this is the same pair read for what the value *owes*.
-     */
+    // §7.2's four rungs, in `build.h` - a free function because `Editor::addConst` asks the same
+    // question of a constant's type with no conversion in hand.
     Convention conventionFor(const mir::Occurrence& occurrence) {
-        if(!occurrence.contract.isOwned()) return Convention::Guaranteed;
-        if(mir::isLinearAt(decl(), occurrence)) return Convention::Owned;
-
-        return mir::isTriviallyCopyableAt(decl(), occurrence)
-            ? Convention::Trivial : Convention::Affine;
+        return ssa::conventionFor(decl(), occurrence);
     }
 
     // The use an MIR mode becomes. `Forward` must not reach here: liveness resolves it to `Take`
@@ -701,6 +674,45 @@ struct Conversion {
      */
     bool aliasesLender(const mir::Occurrence& held) {
         return !held.contract.isOwned() && isReferenceValue(layout(), held);
+    }
+
+    /*
+     * **`readMode`'s first clause, re-asked with the substitution and the target in hand.**
+     *
+     * `readMode` answers `CopyTrivial` for a trivially copyable place and a shared loan for
+     * everything else, and a *generic* body asks it at a type variable: `a` owes a teardown as far
+     * as the MIR builder knows, so `fn (Num(a)) g(x: a) = x + x` reads its parameter
+     * `borrow.shared` where the same function written at `Int` reads it `copy.trivial`.
+     * Substitution is where that stops being true, and this tier is the first that has both the
+     * substituted type and the layout.
+     *
+     * `specialize.h` says a specialization decides nothing, and it still does not: the instance
+     * selection, the use modes and the drop points are the generic body's and are read unchanged.
+     * What this changes is the *representation* of one occurrence, which `manifest.cpp` already
+     * states is the same either way - "a trivial value's loan and its copy are physically the same
+     * thing", which is why `isReferenceValue` is false for exactly these and why that file says it
+     * expects no such loan to have to represent. This restores an invariant the manifestation table
+     * already assumes rather than adding one, and `lower/gen.cpp` builds a signature from the
+     * *declared* occurrence, so nothing about the ABI moves.
+     *
+     * Both guards carry weight. Without triviality a copy is a second owner of something that owes
+     * a teardown; without the manifestation test a shared loan of an address-only record would
+     * become a copy of the record - correct, and a pessimization, since the loan of one of those is
+     * its address.
+     *
+     * What it is worth is the *slot*. A borrow is a second name for storage, so a parameter read
+     * through one keeps its frame slot: `promote` declines a slot whose store installs a
+     * `Guaranteed` value and whose loads read back `Trivial`, a convention change being no
+     * substitution, and the inliner's `sizeOf` then counts a store and a load per parameter that is
+     * never emitted. Before this, every specialized generic body and every borrowed scalar
+     * parameter carried both.
+     */
+    mir::Occurrence valueOccurrenceOf(const mir::Occurrence& held) {
+        if(held.contract.isOwned()) return held;
+        if(!mir::isTriviallyCopyableAt(decl(), held)) return held;
+        if(isReferenceValue(layout(), held)) return held;
+
+        return mir::owned(held.type);
     }
 
     Use addressUse(Value& value) {
@@ -2048,6 +2060,14 @@ struct Conversion {
                  * second opinion about it.
                  */
                 auto result = substituted(mir::valueOccurrence(node));
+
+                // A shared read of a register-valued trivially copyable place is that value - see
+                // `valueOccurrenceOf`, which is `readMode`'s own first clause re-asked with the
+                // substitution in hand. `attachLoan` then makes no loan for it, having none to make.
+                if(written.place.mode() == mir::UseMode::BorrowShared) {
+                    result = valueOccurrenceOf(result);
+                }
+
                 auto used = addressUse(*address);
 
                 /*
@@ -2910,8 +2930,17 @@ struct Conversion {
         if(!grafting) {
             for(auto argumentPointer: emitted.args.contents(decl())) {
                 auto& declared = *decl()[argumentPointer];
-                editor.addBlockArgument(*entry, declared.occurrence,
-                                        conventionFor(declared.occurrence));
+
+                // The same clause as the `Read` case's, at the other end of the same handover: a
+                // shared loan of a register-valued trivially copyable type *is* its copy, so what
+                // arrives is an ordinary value. Declaring it as a borrow was what put every such
+                // parameter's slot beyond `promote` - the store installed a `Guaranteed` value and
+                // the reads took `Trivial` ones back out, which is a convention change and not a
+                // substitution. The lowered signature is untouched: `lower/gen.cpp` manifests a
+                // parameter from its *declared* occurrence, and `isReferenceValue` is false here
+                // exactly because the two manifest alike.
+                editor.addBlockArgument(*entry, valueOccurrenceOf(declared.occurrence),
+                                        conventionFor(valueOccurrenceOf(declared.occurrence)));
             }
         }
 
@@ -3065,6 +3094,27 @@ struct Conversion {
 
                 continue;
             }
+
+            /*
+             * **"An owned parameter that arrived in memory already has its storage" was tried here
+             * and needs a convention change first**, which is worth the note because it looks free.
+             *
+             * `arrivesAsAddress` is the calling convention's own question and an *owned* one of
+             * those is a handover of the bytes at that address, so the second slot this walk gives
+             * the local and the store that fills it are a block copy of a record the callee already
+             * owns - `->at: Site` in `lib/Test/Check.yana` is forty bytes copied on entry to every
+             * assertion, on the path a *passing* one takes. The shipping stage does not: a parameter
+             * is a place there, and the place reached through the incoming pointer is the place.
+             *
+             * What stops it is that the incoming value is `Convention::Owned`. A tracked value must
+             * be consumed exactly once and may not be named by an `Inspect`, and using it as a slot
+             * is exactly naming it by inspecting uses - `verifyBody` answers "owned value 0 reaches
+             * return unconsumed" for every such parameter, which is the linear rule working. The
+             * value would have to *arrive* as an `Address`, and that is a change to what a call
+             * hands over rather than to what this walk does with it: the site, the inliner's
+             * argument binding and `handoverChecks` all read the owner. `aliasesLender` above works
+             * for the borrowed case only because a borrow is `Guaranteed` and untracked.
+             */
 
             /*
              * The placement is the **object's**, decided by MIR ownership analysis - `storageOf`.

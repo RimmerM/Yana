@@ -193,33 +193,32 @@ main<complex>(): I32 {
     %v_51 = alloca 12, 4: Ptr
     store %v_50, %v_51, 8
     %v_52 = add %v_50, 8: Ptr
-    %v_53 = load %v_52, 4: I32
     store %v_52, 3, 4
     store %v_51, 1, 4
-    %v_54 = add %v_51, 4: Ptr
-    store %v_54, 2, 4
-    %v_55 = add %v_51, 8: Ptr
+    %v_53 = add %v_51, 4: Ptr
+    store %v_53, 2, 4
+    %v_54 = add %v_51, 8: Ptr
+    store %v_54, 3, 4
+    %v_55 = add %v_50, 12: Ptr
     store %v_55, 3, 4
-    %v_56 = add %v_50, 12: Ptr
-    store %v_56, 3, 4
-    %v_57 = load %v_50, 8: Ptr
-    %v_58 = alloca 8, 8: Ptr
-    store %v_58, %v_50, 8
-    %v_59 = alloca 16, 8: Ptr
-    store %v_59, ResolveTest.continuation$24, 8
-    %v_60 = add %v_59, 8: Ptr
-    store %v_60, %v_58, 8
-    %v_61 = call_complex bumpOne(I32), %v_57, %v_59: I32
+    %v_56 = load %v_50, 8: Ptr
+    %v_57 = alloca 8, 8: Ptr
+    store %v_57, %v_50, 8
+    %v_58 = alloca 16, 8: Ptr
+    store %v_58, ResolveTest.continuation$24, 8
+    %v_59 = add %v_58, 8: Ptr
+    store %v_59, %v_57, 8
+    %v_60 = call_complex bumpOne(I32), %v_56, %v_58: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_50
-    %v_62 = add %v_49, %v_61: I32
-    ret %v_62
+    %v_61 = add %v_49, %v_60: I32
+    ret %v_61
   }
 
   b_26 {
-    %v_63 = shl %v_28, 2: I64
-    %v_64 = add %v_8, %v_63: Ptr
-    %v_65 = load %v_64, 16: i32x4
-    %v_27 = add %v_25, %v_65: i32x4
+    %v_62 = shl %v_28, 2: I64
+    %v_63 = add %v_8, %v_62: Ptr
+    %v_64 = load %v_63, 16: i32x4
+    %v_27 = add %v_25, %v_64: i32x4
     %v_29 = add %v_28, %v_23: I64
     jmp b_24
   }
@@ -335,12 +334,11 @@ teardown$@inline(4) @capacity(4) Array(I32)<complex>(%value: Ptr) {
     %v_1 = alloca 16, 8: Ptr
     store %v_1, %value, 8
     %v_2 = add %v_1, 8: Ptr
-    %v_3 = load %v_2, 4: I64
     store %v_2, 2147483652, 4
-    %v_4 = add %value, 16: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = add %v_1, 12: Ptr
-    store %v_6, %v_5, 4
+    %v_3 = add %value, 16: Ptr
+    %v_4 = load %v_3, 4: I32
+    %v_5 = add %v_1, 12: Ptr
+    store %v_5, %v_4, 4
     call_complex Reclaim(Array(a)).reclaim(I32), %v_1
     ret 
   }

@@ -6,6 +6,26 @@
 namespace ssa {
 
 /*
+ * **The one place an occurrence becomes a convention** - §7.2's four rungs, in the order they are
+ * asked:
+ *
+ *  - a position that is not owned is `Guaranteed`: the value is somebody else's and this body only
+ *    reads it;
+ *  - otherwise **linear** is `Owned`, which is "consumed exactly once" - `mir::isLinearAt` and not
+ *    `mir::hasTeardown`, because a linear token with nothing to run has no teardown and is still
+ *    the value the obligation exists for;
+ *  - otherwise **not trivially copyable** is `Affine`: nothing to run, so it may be abandoned, and
+ *    a second owner is the author's `Copy` rather than the bytes;
+ *  - otherwise `Trivial`.
+ *
+ * A free function rather than a member of the conversion, because it is asked in two tiers: the
+ * walk that converts MIR asks it of every position, and `Editor::addConst` asks it of a constant
+ * built by a pass that has no conversion in hand. A second copy of these four rungs is how the two
+ * would come to disagree about the one type the obligation is for.
+ */
+Convention conventionFor(DeclBase decl, const mir::Occurrence& occurrence);
+
+/*
  * The one way SSA is built and rewritten - the gatekeeper the current `IrEditor` is, kept for the
  * tier where it belongs (§8.5).
  *

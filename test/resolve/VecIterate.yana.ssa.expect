@@ -20,7 +20,7 @@ bb1:
 }
 
 fn largest(xs: Array(I32) [shared call view], floor: I32 [shared call]) -> I32 {
-bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %Vec(I32) address = alloc frame Vec(I32)
   store inspect %2 borrow %1
@@ -270,11 +270,11 @@ bb1:
 }
 
 fn biggest(Array(I32), I32)(xs: Array(I32) [shared call view], floor: I32 [shared call]) -> I32 {
-bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %Vec(I32) address = alloc frame Vec(I32)
   store inspect %2 borrow %1
-  %4: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %4: I32 trivial = load inspect %2
   %5: Vec(I32) trivial = vec.splat inspect %4
   store inspect %3 consume %5
   %6: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
@@ -310,11 +310,11 @@ bb1:
 }
 
 fn biggest(Array(F32), F32)(xs: Array(F32) [shared call view], floor: F32 [shared call]) -> F32 {
-bb0(%0: Array(F32) [shared call view] guaranteed, %1: F32 [shared call] guaranteed):
+bb0(%0: Array(F32) [shared call view] guaranteed, %1: F32 trivial):
   %2: %F32 address = alloc frame F32 [shared call]
   %3: %Vec(F32) address = alloc frame Vec(F32)
   store inspect %2 borrow %1
-  %4: F32 [shared call] guaranteed from{%2} = load inspect %2
+  %4: F32 trivial = load inspect %2
   %5: Vec(F32) trivial = vec.splat inspect %4
   store inspect %3 consume %5
   %6: Array(F32) [shared call view] guaranteed from{%0} = load inspect %0
@@ -331,7 +331,7 @@ bb1:
 }
 
 fn sumInts.cont(sumInts.cont.env: sumInts.cont.env [unique call], $handed: Vec(I32) [shared call]) -> I32 {
-bb0(%0: sumInts.cont.env [unique call] guaranteed, %1: Vec(I32) [shared call] guaranteed):
+bb0(%0: sumInts.cont.env [unique call] guaranteed, %1: Vec(I32) trivial):
   %2: %Vec(I32) address = field.addr .acc inspect %0
   %3: %Vec(I32) address = load inspect %2
   %4: %Vec(I32) address = alloc frame Vec(I32) [shared call]
@@ -380,7 +380,7 @@ bb0(%0: largest.cont.env [unique call] guaranteed, %1: {Vec(I32), I32} [shared c
 }
 
 fn total(Array(I32), I32).cont(total(Array(I32), I32).cont.env: total(Array(I32), I32).cont.env [unique call], $handed: Vec(I32) [shared call]) -> I32 {
-bb0(%0: total(Array(I32), I32).cont.env [unique call] guaranteed, %1: Vec(I32) [shared call] guaranteed):
+bb0(%0: total(Array(I32), I32).cont.env [unique call] guaranteed, %1: Vec(I32) trivial):
   %2: %Vec(I32) address = field.addr .acc inspect %0
   %3: %Vec(I32) address = load inspect %2
   %4: %Vec(I32) address = alloc frame Vec(I32) [shared call]
@@ -429,7 +429,7 @@ bb0(%0: biggest(Array(I32), I32).cont.env [unique call] guaranteed, %1: {Vec(I32
 }
 
 fn total(Array(F32), F32).cont(total(Array(F32), F32).cont.env: total(Array(F32), F32).cont.env [unique call], $handed: Vec(F32) [shared call]) -> I32 {
-bb0(%0: total(Array(F32), F32).cont.env [unique call] guaranteed, %1: Vec(F32) [shared call] guaranteed):
+bb0(%0: total(Array(F32), F32).cont.env [unique call] guaranteed, %1: Vec(F32) trivial):
   %2: %Vec(F32) address = field.addr .acc inspect %0
   %3: %Vec(F32) address = load inspect %2
   %4: %Vec(F32) address = alloc frame Vec(F32) [shared call]

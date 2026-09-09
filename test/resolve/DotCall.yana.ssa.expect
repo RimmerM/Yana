@@ -3,7 +3,7 @@ module ResolveTest
 fn describe(v: a [shared call]) -> I32 = <no body>
 
 fn scaled(p: Point [shared call], k: I32 [shared call]) -> I32 {
-bb0(%0: Point [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Point [shared call] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %1
   %3: %I32 address = field.addr .x inspect %0
@@ -17,7 +17,7 @@ bb0(%0: Point [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn bump(p: Point [unique call], by: I32 [shared call]) -> {} {
-bb0(%0: Point [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Point [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %1
   %3: %I32 address = field.addr .x inspect %0
@@ -30,7 +30,7 @@ bb0(%0: Point [unique call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn offset(p: Point [shared call], dx: I32 [shared call], dy: I32 [shared call]) -> I32 {
-bb0(%0: Point [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: Point [shared call] guaranteed, %1: I32 trivial, %2: I32 trivial):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %1
@@ -76,7 +76,7 @@ bb0(%0: Point [shared call] guaranteed):
 }
 
 fn size(v: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = const 2
@@ -84,7 +84,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn make(n: I32 [shared call]) -> Point {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -106,7 +106,7 @@ bb0(%0: Point trivial):
 }
 
 fn upTo(limit: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
@@ -148,7 +148,7 @@ bb5:
 }
 
 fn evens(limit: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %0
@@ -298,7 +298,7 @@ bb1:
 }
 
 fn main.lambda(main.lambda.env: main.lambda.env [unique call], v: I32 [shared call]) -> I32 {
-bb0(%0: main.lambda.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: main.lambda.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %1
   %3: I32 trivial = load inspect %2
@@ -308,7 +308,7 @@ bb0(%0: main.lambda.env [unique call] guaranteed, %1: I32 [shared call] guarante
 }
 
 fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [unique call], x: I32 [shared call]) -> I32 {
-bb0(%0: main.lambda'2.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: main.lambda'2.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %1
   %3: I32 trivial = load inspect %2
@@ -318,19 +318,19 @@ bb0(%0: main.lambda'2.env [unique call] guaranteed, %1: I32 [shared call] guaran
 }
 
 fn applyTwice(I32)(v: I32 [shared call], f: (I32) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   %3: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
   %4: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
-  %5: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %5: I32 trivial = load inspect %2
   %6: I32 trivial = call [value #0] inspect %4 borrow %5
   %7: I32 trivial = call [value #0] inspect %3 borrow %6
   return consume %7
 }
 
 fn evens.cont(evens.cont.env: evens.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: evens.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: evens.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %(I32) -> I32 address = field.addr .$body inspect %0
   %3: %(I32) -> I32 address = load inspect %2
   %4: %I32 address = field.addr .$yielded inspect %0
@@ -369,7 +369,7 @@ bb5:
 }
 
 fn main.cont(main.cont.env: main.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: main.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: main.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]

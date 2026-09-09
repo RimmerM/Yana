@@ -278,6 +278,16 @@ struct Budget {
 };
 
 /*
+ * What a body may weigh at a **cold** site - see `worthInlining`, where the argument is.
+ *
+ * One instruction, and it is a statement rather than a level: `sizeOf` counts a call as one, so a
+ * callee of one instruction replaces a call with a call and the program cannot grow. Not in
+ * `Budget`, because a budget is a trade between size and speed and this is the one place there is
+ * nothing to trade - the author has said the path is rare, so speed is not what the bytes buy.
+ */
+constexpr U32 kColdBudget = 1;
+
+/*
  * A **repeated-callee penalty was built here, swept and not kept** - `test/bench/findings.md` §81,
  * and it is worth the paragraph because the premise it was built on had already been removed.
  *
@@ -482,6 +492,110 @@ struct Inliner {
     }
 
     /*
+     * The caller's **cold blocks** - `@cold`'s second half, and the half `@noinline` could not state.
+     *
+     * A block is cold if it calls a `@cold` function, or if every one of its successors is: the
+     * relation is "control that arrives here reaches nothing but a cold call before it leaves", and
+     * that is a backward walk to a fixed point rather than a property of one instruction.
+     *
+     * **An assertion is the shape it is for.** `check`, `checkEqual` and every `require*` in
+     * `lib/Test/Check.yana` are a test and a failure arm, and the arm builds an interpolated message
+     * - a `String` allocation, a `push` per piece, a `show` per value - before calling `record`.
+     * Marking `record` `@noinline` says nothing about any of that: the message is built in the
+     * *caller's* block, so it is the caller's budget that pays for it, and `test/base` is 319
+     * assertion-heavy tests. This is what says it: nothing is expanded into a block whose whole
+     * purpose is to report a failure.
+     *
+     * The two ends of the rule are deliberate. A block with **no** successors is cold only if it
+     * makes a cold call itself - a `return` block is where the ordinary path ends too, and calling
+     * every leaf cold would walk backwards over the whole body. And a block with *some* cold
+     * successors is not cold: an `if` whose failure arm reports is a block that leads somewhere warm
+     * as well, and the arm is what is rare rather than the test.
+     *
+     * Recomputed per caller per round rather than cached, because a splice makes blocks - and read
+     * with a bound rather than an assertion for the same reason: a call the flattening pass reaches
+     * may stand in a block that did not exist when this ran, and the honest answer for one of those
+     * is "not known to be cold".
+     */
+    Array<bool> coldBlocks;
+
+    void findColdBlocks(Body& body) {
+        coldBlocks.clear();
+        for(U32 i = 0; i < body.blocks.size(); i++) coldBlocks.push(false);
+
+        auto callsCold = [&](Block& block) {
+            /*
+             * **"A block control cannot leave is cold" was built and measured out**, and it is
+             * written down because it is the obvious next rule.
+             *
+             * `endNonReturningBlocks` runs in front of this pass and leaves an `Unreachable` where a
+             * diverging call was, so every bounds check's failure arm, every `assert` that does not
+             * hold and every `checkFailed` would be covered with nothing in `lib/` annotated. It
+             * costs more than it buys: **+1,392 bytes over the 318 `test/resolve` executables and
+             * +156 over the thirteen against +400 on `test/base`**, at a cold budget of one, and
+             * raising that budget to eight recovers the first two and gives back 2,480 of `test/base`.
+             *
+             * The reason is the leaf. An abort helper is three to eight instructions with a caller
+             * at every check, so refusing the copy leaves the call *and* an out-of-line body in a
+             * program that has one check - where inlining it left nothing at all. So the attribute
+             * is for the *arm*, not for the leaf at the end of it, and `checkFailed` is deliberately
+             * not `@cold` for the same reason.
+             */
+            for(auto pointer: block.instructions(base())) {
+                auto inst = base()[pointer];
+                if(inst->kind != Inst::Call) continue;
+
+                auto& call = (InstCall&)*inst;
+                if(call.through != mir::CallThrough::Declaration || !call.callee) continue;
+                if(decl()[call.callee]->cold) return true;
+            }
+
+            return false;
+        };
+
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto block = body.block(base(), BlockId(i));
+            if(block->deleted) continue;
+
+            // The flag the last round left, and the evidence this one can still see. Both, because
+            // the evidence is what the pass removes: see `Block::cold`.
+            if(block->cold || callsCold(*block)) coldBlocks[i] = true;
+        }
+
+        auto changed = true;
+        while(changed) {
+            changed = false;
+
+            for(U32 i = 0; i < body.blocks.size(); i++) {
+                if(coldBlocks[i]) continue;
+
+                auto block = body.block(base(), BlockId(i));
+                if(block->deleted) continue;
+
+                auto successors = 0u;
+                auto warm = false;
+                forEachSuccessor(base(), *block, [&](U32 target) {
+                    successors++;
+                    if(target >= coldBlocks.size() || !coldBlocks[target]) warm = true;
+                });
+
+                if(successors && !warm) { coldBlocks[i] = true; changed = true; }
+            }
+        }
+
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            if(coldBlocks[i]) body.block(base(), BlockId(i))->cold = true;
+        }
+    }
+
+    bool inColdBlock(SsaPtr<Block> pointer) {
+        if(!pointer) return false;
+
+        auto index = base()[pointer]->index.index;
+        return index < coldBlocks.size() && coldBlocks[index];
+    }
+
+    /*
      * Whether the callee's shape is one this pass reproduces - the file comment's list, asked once
      * per site because every clause is about the declaration rather than about the site.
      */
@@ -547,7 +661,7 @@ struct Inliner {
      * the indirect call on the other side of it becoming a direct one. See `flattenContinuations`,
      * where the chain's own two budgets are.
      */
-    bool worthInlining(DeclPtr<mir::Function> pointer, bool flattening = false) {
+    bool worthInlining(DeclPtr<mir::Function> pointer, bool flattening, bool cold) {
         if(!limits.ceiling) return false;
 
         auto callee = decl()[pointer];
@@ -578,6 +692,45 @@ struct Inliner {
         if(size > limits.ceiling) return false;
 
         if(callee->alwaysInline) return true;
+
+        /*
+         * The **sole call site**, which is a move rather than a copy: the callee's last reference
+         * goes with the splice and `markProgramReachable` drops the body, so what the program pays
+         * afterwards is the copy instead of the body rather than as well as it.
+         *
+         * A lambda because a cold site reads it too and reads nothing else - see below. It is the
+         * one term `InlineLevel::Size` keeps for exactly this reason, and its comment is the
+         * argument.
+         */
+        auto solelyReferenced = [&] {
+            auto found = references.getValue(pointer.offset);
+            if(!found) return false;
+
+            auto counts = found.unwrap();
+            if(counts.other || counts.calls != 1) return false;
+            if(callee->teardown || pointer == opt.program.entry) return false;
+
+            return size <= limits.soleBudget;
+        };
+
+        /*
+         * **A cold site is compiled the way `-inline size` compiles everything**, which is a
+         * sentence the table already contains rather than a fourth number: `budgetFor(Size)` is
+         * `{0, 96, 96, 0}` and its note says why - "only the case that cannot grow the program".
+         * That is what an author writing `@cold` asked for, one path at a time.
+         *
+         * Two terms, and both of them are "this cannot grow the program". `kColdBudget` admits a
+         * body no larger than the call it replaces; the sole reference admits a body that is being
+         * moved rather than copied. What neither admits is the message an assertion's failure arm
+         * builds - `String.ofCapacity`, a `push` per piece, a `show` per value, each with callers
+         * elsewhere - and that is the whole of what the attribute was written for.
+         *
+         * The three terms it skips are the three that are reasons to *grow* the program: the flat
+         * budget, the `@inline`/`@hot` hint and the chain. Each of them buys time, and time on a
+         * path the author has said is rare is what there is nothing to trade for.
+         */
+        if(cold) return size <= kColdBudget || solelyReferenced();
+
         if(size <= limits.budget) return true;
 
         // A link of a chain, at `soleBudget` and for the same sentence the hint is weighed by: there
@@ -605,14 +758,12 @@ struct Inliner {
          */
         if(callee->inlineHint && limits.budget && size <= limits.soleBudget) return true;
 
-        auto found = references.getValue(pointer.offset);
-        if(!found) return false;
+        // `@hot`, at the same number and for the same sentence: it is a reason to copy a body that
+        // the body itself does not show. A hint rather than a directive, so it reads the budget and
+        // is declined at `Size` exactly as the line above it is.
+        if(callee->hot && limits.budget && size <= limits.soleBudget) return true;
 
-        auto counts = found.unwrap();
-        if(counts.other || counts.calls != 1) return false;
-        if(callee->teardown || pointer == opt.program.entry) return false;
-
-        return size <= limits.soleBudget;
+        return solelyReferenced();
     }
 
 
@@ -1727,7 +1878,10 @@ struct Inliner {
 
         auto result = call.results.size() ? base()[call.results.get(base(), 0)] : nullptr;
         if(!handoverChecks(*body, result)) return false;
-        if(!worthInlining(call.callee, flattening)) return false;
+
+        // Whether the *caller's* block is rare - see `findColdBlocks`. A fact about the site rather
+        // than about the callee, which is why it is read here and passed in.
+        if(!worthInlining(call.callee, flattening, inColdBlock(call.block))) return false;
 
         auto block = base()[call.block];
         Size position = 0;
@@ -1828,6 +1982,8 @@ struct Inliner {
 
         opt.function = &function;
         opt.body = base()[function.ssa];
+
+        findColdBlocks(*opt.body);
 
         /*
          * Every call in the body, read out before any of them is spliced.

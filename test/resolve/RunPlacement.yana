@@ -1,0 +1,50 @@
+-- Where a run's slots live - `resolve_ssa/opt/place.cpp`, with the three answers side by side.
+
+{-
+   The literal that stays.
+
+   Its buffer is three words this frame never lets out - the array is read, written and dropped
+   here - so the request becomes frame storage and the run's flag says so. What that is worth is
+   not only the allocation: `Reclaim` tests the same field it always tested, finds the frame's
+   answer, and folds to nothing.
+-}
+fn kept() -> Int:
+    let &xs = [1, 2, 3]
+    xs[1] = 10
+    return xs[0] + xs[1] + xs[2]
+
+{-
+   The literal that leaves - and the reason the decision is made where it is.
+
+   In *this* body the array is returned, so the buffer is reachable after the frame and the request
+   stays the allocator's. In `main` below it is not: the body is inlined there, the array it answers
+   is read and dropped in the caller, and the same request becomes frame storage. Which of the two
+   the golden shows is which function you are looking at, and nothing in the source of either says
+   it. That is the whole argument for asking after inlining rather than at the call the library
+   wrote.
+-}
+fn leaving() -> [Int] = [7, 8, 9]
+
+{-
+   And the literal inside a loop, which is declined.
+
+   One frame slot is per activation and a heap request is per execution, so a buffer placed here
+   would be one block behind however many descriptors the loop made. Nothing in this body keeps one
+   past its iteration - but proving that is a liveness argument rather than an escape rule, so the
+   pass asks the cheaper question and answers the safe way. This is the case the next round is
+   about.
+-}
+fn repeated(times: Int) -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < times:
+        let &row = [2, 4, 6]
+        total = total + row[i % 3]
+        i = i + 1
+
+    return total
+
+fn main() -> Int:
+    let left = leaving()
+    return kept() + left[0] + left[2] + repeated(6)

@@ -5,7 +5,7 @@ let & liveBuffers: I64 = 0
 let & counter: I64 = 5
 
 fn makeBuffer(size: Size [shared call], tag: U8 [shared call]) -> Buffer {
-bb0(%0: Size [shared call] guaranteed, %1: U8 [shared call] guaranteed):
+bb0(%0: Size trivial, %1: U8 trivial):
   %2: %Size address = alloc frame Size [shared call]
   %3: %U8 address = alloc frame U8 [shared call]
   %4: %Buffer address = alloc frame Buffer

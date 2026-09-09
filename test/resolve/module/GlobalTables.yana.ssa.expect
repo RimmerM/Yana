@@ -54,38 +54,33 @@ bb8:
   %20: %String address = global.addr decimalPairs
   %21: String [shared call] guaranteed = load inspect %20
   %22: String [shared slot 0 view] guaranteed = call String.view borrow %21
-  %23: %[CodeUnit *20] address = global.addr string'142
-  %24: [CodeUnit *20] [shared slot 0] guaranteed = load inspect %23
-  %25: %[CodeUnit *20] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %24
-  %26: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %25
-  %27: I32 trivial = const 20
-  %28: String owned = call stringLiteral borrow %26 borrow %27
-  store inspect %1 consume %28
-  %29: String [shared slot 0] guaranteed from{%1} = load inspect %1
-  %30: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %29
-  %31: Bool trivial = call String.== borrow %22 borrow %30
+  %23: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 20, ownsHeap: 0}, length: 20}}
+  store inspect %1 consume %23
+  %24: String [shared slot 0] guaranteed from{%1} = load inspect %1
+  %25: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %24
+  %26: Bool trivial = call String.== borrow %22 borrow %25
   drop String inspect %1
-  branch inspect %31 -> bb12 -> bb10
+  branch inspect %26 -> bb12 -> bb10
 
 bb9:
-  %32: I32 trivial = load inspect %0
-  %33: I32 trivial = const 4
-  %34: I32 trivial = add inspect %32 inspect %33
-  store inspect %0 consume %34
+  %27: I32 trivial = load inspect %0
+  %28: I32 trivial = const 4
+  %29: I32 trivial = add inspect %27 inspect %28
+  store inspect %0 consume %29
   jump -> bb8
 
 bb10:
   jump -> bb11
 
 bb11:
-  %35: I32 trivial = load inspect %0
-  return consume %35
+  %30: I32 trivial = load inspect %0
+  return consume %30
 
 bb12:
-  %36: I32 trivial = load inspect %0
-  %37: I32 trivial = const 8
-  %38: I32 trivial = add inspect %36 inspect %37
-  store inspect %0 consume %38
+  %31: I32 trivial = load inspect %0
+  %32: I32 trivial = const 8
+  %33: I32 trivial = add inspect %31 inspect %32
+  store inspect %0 consume %33
   jump -> bb11
 }
 module Tables
@@ -97,7 +92,7 @@ let powers: [I64 *5] = [1, 10, 100, 1000, 10000]
 let string'144: [CodeUnit *20] = [48, 48, 48, 49, 48, 50, 48, 51, 48, 52, 48, 53, 48, 54, 48, 55, 48, 56, 48, 57]
 
 fn power(index: Size [shared call]) -> I64 {
-bb0(%0: Size [shared call] guaranteed):
+bb0(%0: Size trivial):
   %1: %Size address = alloc frame Size [shared call]
   store inspect %1 borrow %0
   %2: Size trivial = load inspect %1

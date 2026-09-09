@@ -1,0 +1,62 @@
+-- `@cold` and `@hot` - how often a function runs, which is not the same statement as `@inline`.
+--
+-- The pair is argued in `resolve_mir/decl.h`. What is asserted here is the half that no inlining
+-- attribute could say: a **caller's block** whose every path reaches nothing but a cold call is
+-- itself cold, so nothing is expanded into it. `@noinline` on `report` below would keep `report`
+-- out of `checked` and say nothing at all about `describe`, which is the call that costs the bytes -
+-- it is made in `checked`'s own arm, out of `checked`'s own budget.
+--
+-- The shape is every assertion in the library: a test, an early return, and a failure arm that
+-- builds a message. `lib/Test/Report.yana`'s `record` and `recordAt` carry the attribute for this.
+
+let &failures = 0
+
+-- Ordinary, and over any cold budget: this is what must *not* land in either arm below.
+--
+-- Called from **two** cold arms, which is what makes the copy a copy: a *sole* reference is admitted
+-- at a cold site however large it is, because splicing it moves the body rather than duplicating it.
+-- With two, the body stays where it is and both arms hold a call - which is what the goldens say,
+-- and what the ownership stage did not do before `@cold` existed.
+fn describe(actual: Int, expected: Int) -> Int:
+    let a = actual * 31 + 7
+    let b = expected * 17 + 3
+    let c = a * b + (a - b)
+    return c + (c / 3) + (c % 5)
+
+@cold
+fn report(detail: Int):
+    failures = failures + detail
+
+-- The arm is cold because `report` is, and `describe` is therefore weighed at the budget that
+-- cannot grow the program rather than at the ordinary one. `@noinline` so that this body is what
+-- the goldens hold: what it asserts is what lands *inside* the arm, which is a different question
+-- from whether this function is copied into `main`.
+@noinline
+fn checked(actual: Int, expected: Int):
+    if actual == expected then return
+    report(describe(actual, expected))
+
+-- `@hot` is the other direction and is a hint on `@inline`'s exact terms - it weighs the callee
+-- against the sole-reference budget and refuses nothing structurally.
+@hot
+@noinline
+fn stepped(x: Int) -> Int:
+    let a = x + 1
+    let b = a * 2
+    let c = b - 3
+    return c + a + b
+
+let &given = 2
+
+-- A second assertion, so that neither call to `describe` is the sole one. Both sites are cold, so
+-- neither is taken and the body stays where it is - which is the whole statement.
+@noinline
+fn checkedAgain(actual: Int, limit: Int):
+    if actual < limit then return
+    report(describe(actual, limit))
+
+fn main() -> Int:
+    checked(given, 1)
+    checked(given, given)
+    checkedAgain(given, 9)
+    return failures + stepped(given)

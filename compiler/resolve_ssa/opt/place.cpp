@@ -1,0 +1,615 @@
+#include "pass.h"
+
+namespace ssa {
+
+/*
+ * Where a run's slots live - the one placement decision this tier makes, and the only one it is
+ * entitled to.
+ *
+ * ## What the decision is
+ *
+ * A run is `capacity` slots and a two-word descriptor over them, and `lib/Native/Run.native.yana`
+ * splits the two: `runSlots` asks the allocator for the bytes, `runOver` builds the descriptor over
+ * whatever came back, and the `ownsHeap` field carries the one thing the program did not write -
+ * whether these bytes are anyone's to hand back. `newRun` is those two calls and `@inline(always)`,
+ * so a body that builds a run has the *request* in its own frame rather than a heap buried three
+ * functions down.
+ *
+ * This pass reads that request. A `runSlots` whose count is a constant and whose bytes the frame
+ * can prove it never lets out is frame storage: the call becomes an `Alloc` of `[a *n]`, and the
+ * `runFromHeap` the library passed becomes `runBorrowed`. Nothing else changes. `resize` still
+ * relocates - a borrowed run's slots are not its to move, so it allocates and copies, which is
+ * what the flag has always meant - and `Reclaim` still tests the same field and now folds to
+ * nothing. That the library needs no rule about literals is the point: the shipping stage has
+ * produced frame-placed runs since it had literals, and every reader of `HeapFlag` was written for
+ * one.
+ *
+ * ## Why here and not in MIR
+ *
+ * `place.h` says SSA carries a placement down and does not make one, and that is still true of an
+ * *object*: `analyze_escape.cpp` decides where a local lives and this pass touches none of them.
+ * A run is not an object, and the reason is `analyze_escape.cpp`'s own thesis: **nothing escapes by
+ * being a value**, because a returned record is copied into storage the caller passed in and its
+ * storage stays behind. A run's buffer is the one counterexample in the language - the `Array` record
+ * really is copied, and the bytes its `items` field points at are not - so the buffer cannot be an
+ * object that walk places without the provenance dataflow that file declines by name. And the frame
+ * that keeps the answer is not the one the request is written in either way: `leaving() = [7, 8, 9]`
+ * is the allocator's under its own name and the frame's inside a caller that keeps what it returns.
+ * So the question cannot be asked until the inliner has put the request in the frame that keeps the
+ * answer, which is this tier and no earlier one. The shipping stage reaches the same conclusion from
+ * the other end and re-runs its escape analysis behind `inlineCalls` for it.
+ *
+ * That the *request* is a library call rather than an allocation the literal expansion emitted is a
+ * separate matter, and the shape this pass would rather have - see
+ * `doc/progress/2026-09-09-J45-review-and-two-answers.md` §2.3, where what it would buy is costed:
+ * the descriptor hunt below goes, the constant-count rule goes, and `runSlots` stops needing
+ * `@noinline` to be findable.
+ *
+ * ## What makes it sound
+ *
+ * The buffer's address is in the frame if no value that may carry it leaves. So: taint the pointer,
+ * follow it, and refuse at the first use that could put it somewhere this frame does not own.
+ *
+ *  - Through an `Aggregate` into the descriptor, and through a block argument, because that is the
+ *    shape `runOver`'s refusal arm leaves - two arms joining on a `Run`.
+ *  - Into memory only where the destination roots at a `Contained` `Alloc` of this body, and then
+ *    that allocation is tainted too and everything read out of it is. A store whose root is a
+ *    global, a parameter's pointer or an address loaded out of storage is an escape, which is the
+ *    only sound reading of "somewhere else".
+ *  - At a call argument, `Summary::retains` for a value and `Summary::escapes` for a raw pointer -
+ *    the two rows the summary's own note keeps apart, and the pointer row is the one that follows
+ *    "the incoming pointer of a `%T` parameter", which is exactly what the buffer is at such a
+ *    position.
+ *  - A comparison is a sink and not a carrier: `runOver` tests the pointer for null and a `Bool`
+ *    is not a way back to anything.
+ *  - `Return` is an escape, and so is every kind not named - a `FunValue` environment, a `Native`
+ *    operand, an `Atomic`. Forgetting too much costs a placement and forgetting too little is a use
+ *    after free, so the default declines.
+ *
+ * The one route the walk does **not** follow is a callee reading the pointer back out of a slot it
+ * was lent, and it does not follow it because the language does not have it: what such a callee
+ * holds is a loan, and a loan of this frame's storage that outlives the frame is a *diagnostic*
+ * here rather than a placement. `analyze_escape.cpp` says so in as many words - the escape seeds
+ * are the loan checker's three conformance failures, and until a closure environment can be heap-
+ * placed those sites refuse rather than report a placement. So containment of the slot plus the
+ * loan rule is the whole of that case, and it is the one thing this pass gets from being in the
+ * ownership stage rather than the shipping one, where the same question costs an 800-line dataflow.
+ *
+ * **And the request may not be in a loop.** One frame slot is per activation and a heap request is
+ * per execution, so a literal built in a loop and kept past the iteration would be one buffer
+ * behind two live descriptors. **The shipping stage does not have this rule and miscompiles for
+ * it** - a loop that keeps one iteration's array in `prev` while the next is built reads the new one
+ * back through the old descriptor (`test/bench/findings.md` §91.5), which is what says the rule is
+ * load-bearing rather than cautious. The rules above do not catch that on their own: writing the array
+ * into another frame slot is admitted, and it is admitted for good reason - moving a value between
+ * two of this frame's slots is not leaving the frame. What the loop test adds is that the two
+ * lifetimes are the same one. It costs the literal built inside a loop, which is the obvious next
+ * relaxation and wants a liveness argument - the descriptor dies before the back edge - rather than
+ * a stronger escape rule. A *dynamic* frame allocation needs that and a release point on top, since
+ * one released at frame exit grows the frame per iteration; the two are not one relaxation.
+ *
+ * ## What it is worth
+ *
+ * The 14 `test/resolve` fixtures where only this stage allocated, and the reclaim in the 74 where
+ * both did - `doc/progress/2026-09-09-J43-six-items.md` §4 is the census, and J44 is the round.
+ */
+
+namespace {
+
+/*
+ * The run's three fields, by position - `known.def`'s `run` row, where the dependency is stated.
+ *
+ * And the two answers `ownsHeap` takes here. `runBorrowed` is zero because it is the arm that
+ * releases nothing, which is the same number and the same argument the shipping stage's
+ * `buildRunInto` writes at every literal: a run whose flag nothing ever set is one nobody hands
+ * back, and that is the direction a missing decision has to fail in.
+ */
+constexpr U16 kFieldCount = 3;
+constexpr U16 kItems = 0;
+constexpr U16 kOwnsHeap = 2;
+
+constexpr U64 kRunBorrowed = 0;
+constexpr U64 kRunFromHeap = 1;
+
+// The pointee of a `%T`, or null where the type is not a pointer. Written here rather than asked of
+// `mir::` because the one caller wants the answer as "or not a pointer at all".
+DeclPtr<mir::Type> pointeeOf(OptContext& opt, DeclPtr<mir::Type> type) {
+    if(!type || opt.decl[type]->kind != mir::Type::Pointer) return nullptr;
+    return ((mir::PointerType*)opt.decl[type])->to;
+}
+
+struct RunPlacement {
+    OptContext& opt;
+
+    // The generic `runSlots` and the `Run` record, from `known.def`. Both null in a library that
+    // declares neither, which is the program this pass does nothing to.
+    DeclPtr<mir::Function> request = nullptr;
+    DeclPtr<mir::RecordType> descriptor = nullptr;
+
+    // Values that may carry the buffer's address, and the allocations they may have been written
+    // into. Two sets rather than one because the second answers a question about *storage* - what a
+    // load out of it produces - and the first about a value.
+    IndexSet carries;
+    IndexSet within;
+
+    Array<SsaPtr<Value>> pending;
+
+    // The `Run` aggregates the buffer reached, and the one thing the walk collects rather than
+    // clears - see the `Aggregate` arm.
+    Array<SsaPtr<Inst>> descriptors;
+
+    RunPlacement(OptContext& opt): opt(opt) {
+        request = opt.program.roles.function(intrinsic::Known::runSlots);
+        descriptor = opt.program.roles.record(intrinsic::Known::run);
+    }
+
+    SsaBase base() { return opt.base; }
+
+    // Whether this call is `runSlots`, at whatever element type it was specialized to.
+    bool isRequest(InstCall& call) {
+        if(!request || call.through != mir::CallThrough::Declaration || !call.callee) return false;
+        return call.callee == request || opt.decl[call.callee]->specializes == request;
+    }
+
+    /*
+     * Whether this aggregate is the run's own descriptor, with the buffer as its slots.
+     *
+     * Both halves are asked. The record has to be the one `known.def`'s `run` row names, because
+     * the field this pass rewrites is that record's third and a different record's third field is
+     * a different thing; and the pointer has to be at field zero, because a run that held the
+     * buffer somewhere else would be one whose `items` this pass had not accounted for.
+     */
+    bool isDescriptor(Inst& user, Value& value) {
+        if(!user.results.size()) return false;
+
+        auto& made = *base()[user.results.get(base(), 0)];
+        auto type = made.occurrence.type;
+        if(!type || opt.decl[type]->kind != mir::Type::Record) return false;
+
+        auto& record = *(mir::RecordType*)opt.decl[type];
+        if(record.instanceOf != descriptor && &record != opt.decl[descriptor]) return false;
+
+        auto& components = ((InstAggregate&)user).components;
+        if(components.size() != kFieldCount) return false;
+
+        auto items = components.get(base(), kItems);
+        return items.isSet() && base()[items.value()] == &value;
+    }
+
+    void taint(Value* value) {
+        if(!value || carries[value->id.index]) return;
+
+        carries.set(value->id.index, true);
+        pending.push(value - base());
+    }
+
+    /*
+     * One use of a tainted value, and whether the address may still be in this frame after it.
+     *
+     * The switch is total on purpose and the default declines - `Contained::admits` is the
+     * neighbour this is written like, and for its reason.
+     */
+    bool admits(Inst& user, Value& value) {
+        auto named = [&](Use used) { return used.isSet() && base()[used.value()] == &value; };
+
+        switch(user.kind) {
+            /*
+             * The descriptor, which is the one use this pass has to *find* rather than clear: the
+             * flag it carries is the answer being rewritten. Recorded here, where the walk is
+             * already standing on it, and checked once at the end - a pointer reaching two of them
+             * or none is a shape this pass does not recognise and does not touch.
+             */
+            case Inst::Aggregate:
+                if(isDescriptor(user, value)) descriptors.push(&user - base());
+                for(Size i = 0; i < user.results.size(); i++) {
+                    taint(base()[user.results.get(base(), i)]);
+                }
+
+                return true;
+
+            /*
+             * A projection, a choice between two values and a restatement of one - each keeps the
+             * address exactly as far as its own result does, which is the recursion this walk is.
+             */
+            case Inst::FieldAddress:
+            case Inst::ElementAddress:
+            case Inst::Select:
+            case Inst::Unary:
+                for(Size i = 0; i < user.results.size(); i++) {
+                    taint(base()[user.results.get(base(), i)]);
+                }
+
+                return true;
+
+            /*
+             * A comparison, which is where `runOver` asks whether the allocator refused. What comes
+             * out is a `Bool` and a `Bool` is not a way back, so this is a sink rather than a step -
+             * and it is the one arithmetic use admitted, because pointer arithmetic that is not a
+             * comparison produces another address and is caught by the projection arm above.
+             */
+            case Inst::Binary: {
+                auto& binary = (InstBinary&)user;
+                auto category = mir::binaryCategory(binary.op);
+                if(category != mir::OpCategory::Equality && category != mir::OpCategory::Order) {
+                    for(Size i = 0; i < user.results.size(); i++) {
+                        taint(base()[user.results.get(base(), i)]);
+                    }
+                }
+
+                return true;
+            }
+
+            /*
+             * Into storage. The address has to root at an allocation of this body that nothing else
+             * can name; then the allocation carries the pointer and every load out of it does too.
+             *
+             * A store *through* the tainted address is the other direction and says nothing: it is
+             * a write into the buffer, which is what the buffer is for.
+             */
+            case Inst::Store: {
+                auto& store = (InstStore&)user;
+                if(!named(store.value)) return true;
+
+                auto root = allocationRoot(opt, base()[store.address.value()]);
+                if(!root || !containedOf(opt)[root]) return false;
+
+                if(!within[root->id.index]) {
+                    within.set(root->id.index, true);
+                    reread(*root);
+                }
+
+                return true;
+            }
+
+            /*
+             * A read of what is *at* the tainted address, which is the buffer's contents and not
+             * its base. An element is what the run holds and the caller put there; carrying the
+             * taint into it would make `xs[0] + xs[1]` an escape the moment the sum was returned,
+             * which is what it did before this arm said so.
+             *
+             * The other direction - a read out of storage the buffer was written into - is not this
+             * arm at all. `within` is the set for that, and `reread` walks it, because the address
+             * a body loads the descriptor back through is a projection of the slot rather than the
+             * slot itself.
+             */
+            case Inst::Load:
+            case Inst::Copy:
+                return true;
+
+            /*
+             * A teardown of storage holding the run. It reads the flag this pass is about to
+             * rewrite and hands the bytes back or does not, which is the whole arrangement - and it
+             * takes an address rather than the value, so nothing travels.
+             */
+            case Inst::Drop:
+                return true;
+
+            /*
+             * An edge - the value arrives in the successor as a block argument, so the argument at
+             * this position carries what the operand did.
+             */
+            case Inst::Jump:
+            case Inst::Branch:
+            case Inst::Switch:
+                return followEdges(user, value);
+
+            case Inst::Call:
+                return admitsCall((InstCall&)user, value);
+
+            // Out of the frame, which is the question this pass is asking.
+            case Inst::Return:
+                return false;
+
+            default:
+                return false;
+        }
+    }
+
+    /*
+     * A call argument, and which of the two summary rows answers it.
+     *
+     * `escapes` follows the incoming pointer of a `%T` parameter and `retains` follows what a
+     * position reaches as a value - `mir::Summary`, where the pair is kept apart and why. The
+     * buffer arrives at a call as one or the other and never as both: as itself it is a pointer,
+     * and inside a descriptor it is a value the callee would have to load out. Asking the wrong row
+     * is not conservative in either direction, which is why this is a type test rather than a
+     * single row.
+     *
+     * An unfilled row reads back as every argument, so a callee nothing analysed refuses here
+     * without a special case.
+     */
+    bool admitsCall(InstCall& call, Value& value) {
+        /*
+         * A call whose callee is not a declaration answers nothing about what it keeps. For a slot
+         * dispatch or a call through a function value, `callee` is the *signature* the arguments
+         * were checked against rather than the body that runs - and a signature has no summary to
+         * read, because what runs is whatever was in the slot. So the pointer stops here.
+         */
+        if(call.through != mir::CallThrough::Declaration || !call.callee) return false;
+
+        auto& summary = opt.decl[call.callee]->summary;
+        auto pointer = pointeeOf(opt, value.occurrence.type) != nullptr;
+        auto positions = pointer ? summary.escapes() : summary.retains();
+        auto kept = positions.get(mir::ArgumentSet::all());
+
+        Size index = 0;
+        for(auto used: call.arguments.contents(base())) {
+            if(used.isSet() && base()[used.value()] == &value && kept.has(index)) return false;
+            index++;
+        }
+
+        /*
+         * What the call answers may have been computed from what it was handed - a `bitcast` of the
+         * pointer is a call at this tier, and so is `elementBase`. So every result carries, which
+         * costs nothing where it does not: a result nothing does anything unsafe with is a value
+         * this walk clears.
+         */
+        for(Size i = 0; i < call.results.size(); i++) taint(base()[call.results.get(base(), i)]);
+        return true;
+    }
+
+    // The successor argument each edge operand becomes. `forEachEdge` is the terminator's own walk,
+    // so the position within an arm is the position within the target block's argument list.
+    bool followEdges(Inst& terminator, Value& value) {
+        auto ok = true;
+
+        forEachEdge(base(), terminator, [&](Edge& edge) {
+            auto target = base()[edge.target];
+            Size position = 0;
+
+            for(auto used: edge.arguments.contents(base())) {
+                if(used.isSet() && base()[used.value()] == &value) {
+                    if(position >= target->argumentCount()) ok = false;
+                    else taint(base()[target->argumentAt(base(), position)]);
+                }
+
+                position++;
+            }
+        });
+
+        return ok;
+    }
+
+    /*
+     * Everything read back out of storage the buffer was written into.
+     *
+     * A walk of the allocation's **address tree** and not of its use list, because a body does not
+     * load a descriptor out of a slot: it takes the address of the field it wants and loads that.
+     * A use-list scan would have missed `.run.items` and answered that the pointer was in the frame
+     * because it could not see the instruction that took it out - which is the direction this walk
+     * may not fail in. It is `Contained`'s own recursion with the admission replaced by a taint.
+     */
+    void reread(Value& address) {
+        for(auto userPointer: address.uses(base())) {
+            auto& user = *base()[userPointer];
+
+            switch(user.kind) {
+                case Inst::Load:
+                case Inst::Copy:
+                    for(Size i = 0; i < user.results.size(); i++) {
+                        taint(base()[user.results.get(base(), i)]);
+                    }
+
+                    // And the borrow a `Guaranteed` load is, which names the same storage - the half
+                    // `Contained` recurses through for the same reason.
+                    for(Size i = 0; i < user.results.size(); i++) {
+                        auto result = base()[user.results.get(base(), i)];
+                        if(result->convention == Convention::Guaranteed) reread(*result);
+                    }
+
+                    break;
+
+                case Inst::FieldAddress:
+                case Inst::ElementAddress:
+                case Inst::Unary:
+                    for(Size i = 0; i < user.results.size(); i++) {
+                        reread(*base()[user.results.get(base(), i)]);
+                    }
+
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    /*
+     * Whether the bytes this request answers stay in the frame.
+     *
+     * The walk is a worklist and not the recursion `Contained` uses, because what is followed here
+     * is a *value* graph with joins in it - a block argument has as many definitions as the block
+     * has predecessors - rather than a tree of projections.
+     */
+    bool inFrame(Value& pointer) {
+        carries.reset(opt.body->values.size());
+        within.reset(opt.body->values.size());
+        pending.clear();
+
+        taint(&pointer);
+
+        while(pending.size()) {
+            auto value = base()[pending.pop().unwrap()];
+
+            for(auto userPointer: value->uses(base())) {
+                if(!admits(*base()[userPointer], *value)) return false;
+            }
+        }
+
+        return true;
+    }
+
+    /*
+     * How many slots this request asks for, or nothing where the count is not a constant.
+     *
+     * A dynamic count has no frame answer at all. Frame storage of a size nothing knows is a dynamic
+     * alloca, which is released when the frame ends rather than when the run dies - so a request
+     * for one inside a loop would grow the frame per iteration. That is the shipping stage's rule
+     * at `InstAlloc::extent`, waiting on the same thing: Implementation-Containers.md §12's third
+     * strategy, which is a placement rule of its own rather than this one relaxed.
+     *
+     * The bound is `kMaxFixedArrayLength`, which is what the type this becomes can state.
+     */
+    Maybe<U64> countOf(InstCall& call) {
+        if(call.arguments.size() != 2) return Nothing();
+
+        /*
+         * The constant read off the instruction rather than through `constantValueOf`, which puts
+         * every answer through `foldableInt` and declines a target-answered width - and a capacity
+         * is a `Size`, which is exactly one of those. What the width would be for is masking, and
+         * there is nothing here to mask: the range test below is against a number of *elements*,
+         * which no target makes narrower.
+         */
+        auto held = constantOf(opt, base()[call.arguments.get(base(), 1).value()]);
+        if(!held || held->kind != mir::Constant::Int) return Nothing();
+
+        auto count = held->asInt();
+        if(!count || count > mir::kMaxFixedArrayLength) return Nothing();
+
+        return Just(count);
+    }
+
+    // What the slots hold, from the probe the request measures against - `runSlots`, where the
+    // parameter's whole purpose is that the element type reaches it.
+    DeclPtr<mir::Type> elementOf(InstCall& call) {
+        if(!call.arguments.size()) return nullptr;
+        return pointeeOf(opt, base()[call.arguments.get(base(), 0).value()]->occurrence.type);
+    }
+
+    // Whether the request runs at most once per activation - the loop test, argued in the file
+    // comment. Asked of the block rather than of the instruction, since a loop holds blocks.
+    bool runsOnce(Inst& call) {
+        auto& loops = loopsOf(opt);
+        auto block = base()[call.block]->index.index;
+
+        for(auto& loop: loops) if(loop.contains[block]) return false;
+        return true;
+    }
+
+    /*
+     * The one descriptor the buffer reached, or null.
+     *
+     * Strict on both sides: none means the pass could not find the flag it would have to rewrite,
+     * and two means the buffer is shared by descriptors that need not agree. Either way the answer
+     * is to leave the request alone - a placement whose flag was not turned off is a frame address
+     * handed to `freeHeap`.
+     */
+    Inst* soleDescriptor() {
+        if(descriptors.size() != 1) return nullptr;
+
+        auto& made = *base()[descriptors[0]];
+        auto flag = base()[((InstAggregate&)made).components.get(base(), kOwnsHeap).value()];
+
+        auto held = constantOf(opt, flag);
+        if(!held || held->kind != mir::Constant::Int) return nullptr;
+
+        return held->asInt() == kRunFromHeap ? &made : nullptr;
+    }
+
+    /*
+     * The rewrite: the request becomes frame storage, and the descriptor over it stops claiming the
+     * allocator's.
+     *
+     * The aggregate is rebuilt rather than edited, because an instruction's operands are half of a
+     * two-sided statement and `Editor` is the only thing allowed to write either half - so the way
+     * to change one is to make the instruction that has it and retire the one that does not.
+     */
+    void place(InstCall& call, Inst& made, DeclPtr<mir::Type> element, U64 count) {
+        auto editor = opt.ir();
+        auto pointer = base()[call.results.get(base(), 0)];
+        auto slots = opt.program.types.arrayType(opt.decl, element, count);
+
+        editor.setInsertBefore(call);
+
+        auto storage = editor.resultOf(
+            *editor.addAlloc(call.source, mir::owned(slots), mir::StorageClass::Frame));
+
+        // The same bytes under the type the request answered. An allocation's address points at the
+        // whole `[a *n]` and a run's `items` points at the first element; the two are one address
+        // and this is the instruction that says which of the two it is being read as.
+        auto bytes = editor.resultOf(*editor.addUnary(
+            call.source, mir::UnaryOp::Bitcast, editor.use(*storage, UseKind::Inspect),
+            pointer->occurrence, pointer->convention));
+
+        editor.replaceAllUses(*pointer, *bytes);
+        editor.eraseInst(call);
+
+        auto& aggregate = (InstAggregate&)made;
+        auto result = base()[made.results.get(base(), 0)];
+
+        mir::Constant borrowed;
+        borrowed.type = base()[aggregate.components.get(base(), kOwnsHeap).value()]->occurrence.type;
+        borrowed.kind = mir::Constant::Int;
+        borrowed.bits = kRunBorrowed;
+
+        editor.setInsertBefore(made);
+        auto flag = editor.resultOf(*editor.addConst(made.source, borrowed));
+
+        Use components[kFieldCount];
+        for(Size i = 0; i < kFieldCount; i++) components[i] = aggregate.components.get(base(), i);
+        components[kOwnsHeap] = editor.use(*flag, UseKind::Consume);
+
+        auto placed = editor.addAggregate(made.source, aggregate.constructor, components,
+                                          kFieldCount, result->occurrence, result->convention);
+
+        editor.replaceAllUses(*result, *editor.resultOf(*placed));
+        editor.eraseInst(made);
+    }
+
+    // One request, from the shape test to the rewrite. False where nothing was changed, which is
+    // every request whose bytes this frame cannot keep.
+    bool consider(InstCall& call) {
+        if(!isRequest(call) || !call.results.size()) return false;
+
+        auto count = countOf(call);
+        auto element = elementOf(call);
+        if(!count || !element || !runsOnce(call)) return false;
+
+        descriptors.clear();
+        if(!inFrame(*base()[call.results.get(base(), 0)])) return false;
+
+        auto made = soleDescriptor();
+        if(!made) return false;
+
+        place(call, *made, element, count.unwrap());
+        return true;
+    }
+};
+
+} // namespace
+
+void placeRuns(OptContext& opt) {
+    RunPlacement placement { opt };
+    if(!placement.request || !placement.descriptor) return;
+
+    /*
+     * A pass over the blocks, restarted at the body whenever one request is placed.
+     *
+     * Restarted rather than continued, because the rewrite retires two instructions and adds three
+     * - so the walk it was in the middle of is over a list that has moved. There are a handful of
+     * requests in a body that has any at all, which makes the restart cheaper than the cursor
+     * repair, and the driver's own rounds are what settle what the placement exposed.
+     */
+    auto again = true;
+    while(again) {
+        again = false;
+
+        for(auto blockPointer: opt.body->blocks.contents(opt.base)) {
+            auto block = opt.base[blockPointer];
+            if(block->deleted) continue;
+
+            for(auto instPointer: block->instructions(opt.base)) {
+                auto& inst = *opt.base[instPointer];
+                if(inst.kind != Inst::Call) continue;
+                if(!placement.consider((InstCall&)inst)) continue;
+
+                again = true;
+                break;
+            }
+
+            if(again) break;
+        }
+    }
+}
+
+} // namespace ssa

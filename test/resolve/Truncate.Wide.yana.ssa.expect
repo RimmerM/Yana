@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn lowWord(w: U64 [shared call]) -> U32 {
-bb0(%0: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial):
   %1: %U64 address = alloc frame U64 [shared call]
   store inspect %1 borrow %0
   %2: U64 trivial = load inspect %1
@@ -10,7 +10,7 @@ bb0(%0: U64 [shared call] guaranteed):
 }
 
 fn highWord(w: U64 [shared call]) -> U32 {
-bb0(%0: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial):
   %1: %U64 address = alloc frame U64 [shared call]
   store inspect %1 borrow %0
   %2: U64 trivial = load inspect %1
@@ -21,7 +21,7 @@ bb0(%0: U64 [shared call] guaranteed):
 }
 
 fn lowByte(w: U64 [shared call]) -> U8 {
-bb0(%0: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial):
   %1: %U64 address = alloc frame U64 [shared call]
   store inspect %1 borrow %0
   %2: U64 trivial = load inspect %1
@@ -30,7 +30,7 @@ bb0(%0: U64 [shared call] guaranteed):
 }
 
 fn lowSigned(w: U64 [shared call]) -> I32 {
-bb0(%0: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial):
   %1: %U64 address = alloc frame U64 [shared call]
   store inspect %1 borrow %0
   %2: U64 trivial = load inspect %1
@@ -39,7 +39,7 @@ bb0(%0: U64 [shared call] guaranteed):
 }
 
 fn asInt(x: U32 [shared call]) -> I32 {
-bb0(%0: U32 [shared call] guaranteed):
+bb0(%0: U32 trivial):
   %1: %U32 address = alloc frame U32 [shared call]
   store inspect %1 borrow %0
   %2: U32 trivial = load inspect %1

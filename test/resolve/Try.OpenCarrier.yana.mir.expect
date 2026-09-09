@@ -77,38 +77,34 @@ fn main() -> I32 {
   local p: Problem
 
 bb0:
-  %0: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'142) loan0
-  %1: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
-  %2: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %1 roots.0{0}
-  %3: I32 = const 2
-  %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
-  write.init borrow.unique (local0) take %4
-  %6: String [shared slot 0] = read borrow.shared (local0) loan1
-  %7: String [shared slot 0 view] = call.derivation view(String) borrow.shared %6 roots{1}
-  %8: Result(Problem, I32) = call readTwice(I32) borrow.shared %7
+  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  write.init borrow.unique (local0) take %0
+  %2: String [shared slot 0] = read borrow.shared (local0) loan0
+  %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
+  %4: Result(Problem, I32) = call readTwice(I32) borrow.shared %3
   drop (local0)
-  write.init borrow.unique (outcome) take %8
-  %10: U8 = read copy.trivial (outcome.#)
-  %11: U8 = const 1
-  %12: Bool = eq inspect %10 inspect %11
-  branch inspect %12 -> bb3 -> bb1
+  write.init borrow.unique (outcome) take %4
+  %6: U8 = read copy.trivial (outcome.#)
+  %7: U8 = const 1
+  %8: Bool = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
 
 bb1:
-  %17: Problem = read copy.trivial (outcome.Err)
-  write.init borrow.unique (p) take %17
-  %19: I32 = const 0
-  %20: I32 = read copy.trivial (p.code)
-  %21: I32 = sub inspect %19 inspect %20
-  jump -> bb2(take %21)
+  %13: Problem = read copy.trivial (outcome.Err)
+  write.init borrow.unique (p) take %13
+  %15: I32 = const 0
+  %16: I32 = read copy.trivial (p.code)
+  %17: I32 = sub inspect %15 inspect %16
+  jump -> bb2(take %17)
 
-bb2(%22: I32):
-  return take %22
+bb2(%18: I32):
+  return take %18
 
 bb3:
-  %14: I32 = read copy.trivial (outcome.Ok)
-  write.init borrow.unique (v) take %14
-  %16: I32 = read copy.trivial (v)
-  jump -> bb2(take %16)
+  %10: I32 = read copy.trivial (outcome.Ok)
+  write.init borrow.unique (v) take %10
+  %12: I32 = read copy.trivial (v)
+  jump -> bb2(take %12)
 }
 
 fn readTwice(I32)(text: String [shared call view]) -> Result(Problem, I32) = <readTwice at I32>

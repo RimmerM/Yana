@@ -566,6 +566,42 @@ void declareNewtype(Module& module, ast::Decl& decl) {
  * real property, but what sits in that property may well be a `number`.
  */
 /*
+ * `@cold` and `@hot` - what a function says about how often it runs.
+ *
+ * A reader of its own for the reason `resolve_mir`'s twin gives: `readInlineAttribute` answers
+ * "expand this body" and this answers "how often is this reached", and `@noinline @cold` and
+ * `@inline @hot` are both sensible pairings - so neither belongs in the other's exclusion test.
+ * Both on one declaration is a contradiction and is reported as one, with neither taken.
+ */
+void readFrequencyAttributes(Module& module, const ast::Decl& decl, Function& function) {
+    auto attributes = decl.attributes;
+    if(attributes.isEmpty()) return;
+
+    auto& context = module.context;
+    auto coldName = context.addUnqualifiedName("cold", 4);
+    auto hotName = context.addUnqualifiedName("hot", 3);
+
+    for(auto attribute: attributes.contents(module.parse)) {
+        if(attribute.name != coldName && attribute.name != hotName) continue;
+
+        if(attribute.args.isNotEmpty()) {
+            context.diagnostics.error("`@%@` takes no arguments"_v, attribute.source,
+                                      attribute.name == coldName ? "cold"_v : "hot"_v);
+            continue;
+        }
+
+        if(attribute.name == coldName) function.cold = true; else function.hot = true;
+    }
+
+    if(function.cold && function.hot) {
+        context.diagnostics.error("`@cold` and `@hot` say opposite things about the same function"_v,
+                                  decl.source);
+        function.cold = false;
+        function.hot = false;
+    }
+}
+
+/*
  * `@inline` and `@noinline`, read off a declaration onto the function it declares.
  *
  * The two are deliberately not one attribute with a direction, because they are not the same kind of

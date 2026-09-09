@@ -34,13 +34,11 @@ main<complex>(): I32 {
     call_complex teardown(fun), %v_1
     %v_6 = alloca 4, 4: Ptr
     store %v_6, 3, 4
-    %copied.lambda = fun copied.lambda: Ptr
     %v_7 = add %v_5, 16: I32
     %v_8 = alloca 4, 4: Ptr
     %v_9 = alloca 8, 8: Ptr
     store %v_8, 9, 4
     store %v_9, %v_8, 8
-    %borrowed.lambda = fun borrowed.lambda: Ptr
     %v_10 = loads %v_8, 4: I32
     %v_11 = add 1, %v_10: I32
     call_complex Held.drop, %v_8
@@ -49,7 +47,6 @@ main<complex>(): I32 {
     %v_14 = alloca 8, 8: Ptr
     store %v_13, 0, 4
     store %v_14, %v_13, 8
-    %mutated.lambda = fun mutated.lambda: Ptr
     %v_15 = imm 5: I32
     %v_16 = loads %v_13, 4: I32
     %v_17 = add %v_16, %v_15: I32
@@ -68,7 +65,6 @@ main<complex>(): I32 {
     %v_27 = add %v_25, 8: Ptr
     store %v_27, 0, 8
     store %v_26, %v_25, 8
-    %indirect.lambda = fun indirect.lambda: Ptr
     %v_28 = load %v_25, 8: Ptr
     %v_29 = add %v_25, 8: Ptr
     %v_30 = load %v_29, 8: Ptr

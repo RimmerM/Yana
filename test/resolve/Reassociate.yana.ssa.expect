@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn sums(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -13,7 +13,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn leftSums(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = const 4
@@ -25,7 +25,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn masks(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -37,7 +37,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn shifted(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -49,7 +49,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn wide(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -61,7 +61,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn widened(c: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   store inspect %3 borrow %0
   %4: Bool trivial = load inspect %3
@@ -93,7 +93,7 @@ bb6:
 }
 
 fn decided(c: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   store inspect %3 borrow %0
   %4: Bool trivial = load inspect %3

@@ -3,46 +3,35 @@ module ResolveTest
 let & seed: I32 = 3
 
 fn endless(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
-  %1: %I32 address = alloc frame I32 [shared call]
-  store inspect %1 borrow %0
-  %3: I32 trivial = load inspect %1
+bb0(%0: I32 trivial):
   %9: I32 trivial = const 1
-  jump -> bb1(inspect %3)
+  jump -> bb1(inspect %0)
 
-bb1(%11: I32 trivial):
-  %10: I32 trivial = add inspect %11 inspect %9
+bb1(%12: I32 trivial):
+  %10: I32 trivial = add inspect %12 inspect %9
   jump -> bb1(inspect %10)
 }
 
 fn guarded(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
-  %1: %I32 address = alloc frame I32 [shared call]
-  store inspect %1 borrow %0
-  %2: I32 trivial = load inspect %1
+bb0(%0: I32 trivial):
   %3: I32 trivial = const 1000000
-  %4: Bool trivial = gt inspect %2 inspect %3
+  %4: Bool trivial = gt inspect %0 inspect %3
   branch inspect %4 -> bb3 -> bb1
 
 bb1:
-  %5: I32 trivial = load inspect %1
   %6: I32 trivial = const 2
-  %7: I32 trivial = mul inspect %5 inspect %6
+  %7: I32 trivial = mul inspect %0 inspect %6
   return consume %7
 
 bb3:
-  %8: I32 trivial = load inspect %1
-  %9: I32 trivial = call endless borrow %8
+  %9: I32 trivial = call endless borrow %0
   return consume %9
 }
 
 fn doubled(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
-  %1: %I32 address = alloc frame I32 [shared call]
-  store inspect %1 borrow %0
-  %2: I32 trivial = load inspect %1
+bb0(%0: I32 trivial):
   %3: I32 trivial = const 2
-  %4: I32 trivial = mul inspect %2 inspect %3
+  %4: I32 trivial = mul inspect %0 inspect %3
   %5: I32 trivial = const 1
   %6: I32 trivial = add inspect %4 inspect %5
   return consume %6
@@ -63,18 +52,14 @@ bb1:
 }
 
 fn reaches(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
-  %1: %I32 address = alloc frame I32 [shared call]
-  store inspect %1 borrow %0
-  %2: I32 trivial = load inspect %1
+bb0(%0: I32 trivial):
   %3: I32 trivial = const 1000000
-  %4: Bool trivial = gt inspect %2 inspect %3
+  %4: Bool trivial = gt inspect %0 inspect %3
   branch inspect %4 -> bb3 -> bb1
 
 bb1:
-  %5: I32 trivial = load inspect %1
   %6: I32 trivial = const 3
-  %7: I32 trivial = mul inspect %5 inspect %6
+  %7: I32 trivial = mul inspect %0 inspect %6
   return consume %7
 
 bb3:
@@ -86,43 +71,43 @@ fn main() -> I32 {
 bb0:
   %0: %I32 address = global.addr seed
   %1: I32 trivial = load inspect %0
-  %18: I32 trivial = const 1000000
-  %19: Bool trivial = gt inspect %1 inspect %18
-  branch inspect %19 -> bb5 -> bb4
+  %16: I32 trivial = const 1000000
+  %17: Bool trivial = gt inspect %1 inspect %16
+  branch inspect %17 -> bb5 -> bb4
 
 bb2(%15: I32 trivial):
   %3: I32 trivial = const 3
   %4: I32 trivial = mul inspect %15 inspect %3
   %5: %I32 address = global.addr seed
   %6: I32 trivial = load inspect %5
-  %27: I32 trivial = const 2
-  %28: I32 trivial = mul inspect %6 inspect %27
-  %29: I32 trivial = const 1
-  %30: I32 trivial = add inspect %28 inspect %29
-  %8: I32 trivial = add inspect %4 inspect %30
+  %21: I32 trivial = const 2
+  %22: I32 trivial = mul inspect %6 inspect %21
+  %23: I32 trivial = const 1
+  %24: I32 trivial = add inspect %22 inspect %23
+  %8: I32 trivial = add inspect %4 inspect %24
   %9: %I32 address = global.addr seed
   %10: I32 trivial = load inspect %9
-  %34: I32 trivial = const 1000000
-  %35: Bool trivial = gt inspect %10 inspect %34
-  branch inspect %35 -> bb10 -> bb9
+  %26: I32 trivial = const 1000000
+  %27: Bool trivial = gt inspect %10 inspect %26
+  branch inspect %27 -> bb10 -> bb9
 
 bb4:
-  %21: I32 trivial = const 2
-  %22: I32 trivial = mul inspect %1 inspect %21
-  jump -> bb2(consume %22)
+  %18: I32 trivial = const 2
+  %19: I32 trivial = mul inspect %1 inspect %18
+  jump -> bb2(consume %19)
 
 bb5:
-  %24: I32 trivial = call endless borrow %1
-  jump -> bb2(consume %24)
+  %20: I32 trivial = call endless borrow %1
+  jump -> bb2(consume %20)
 
 bb9:
-  %40: I32 trivial = const 15
-  %41: I32 trivial = mul inspect %10 inspect %40
-  %14: I32 trivial = add inspect %8 inspect %41
+  %31: I32 trivial = const 15
+  %32: I32 trivial = mul inspect %10 inspect %31
+  %14: I32 trivial = add inspect %8 inspect %32
   return consume %14
 
 bb10:
-  %39: I32 trivial = call spins
+  %30: I32 trivial = call spins
   unreachable
 }
 

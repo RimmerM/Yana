@@ -3,7 +3,7 @@ module ResolveTest
 let & seed: I32 = 3
 
 fn doubled(v: Vec(I32) [shared call]) -> Vec(I32) {
-bb0(%0: Vec(I32) [shared call] guaranteed):
+bb0(%0: Vec(I32) trivial):
   %1: %Vec(I32) address = alloc frame Vec(I32) [shared call]
   store inspect %1 borrow %0
   %2: Vec(I32) trivial = load inspect %1
@@ -13,7 +13,7 @@ bb0(%0: Vec(I32) [shared call] guaranteed):
 }
 
 fn scaled(v: Vec(I32) [shared call], by: I32 [shared call]) -> Vec(I32) {
-bb0(%0: Vec(I32) [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Vec(I32) trivial, %1: I32 trivial):
   %2: %Vec(I32) address = alloc frame Vec(I32) [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -26,7 +26,7 @@ bb0(%0: Vec(I32) [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn combined(a: Vec(I32) [shared call], b: Vec(I32) [shared call], c: Vec(I32) [shared call], d: Vec(I32) [shared call]) -> I32 {
-bb0(%0: Vec(I32) [shared call] guaranteed, %1: Vec(I32) [shared call] guaranteed, %2: Vec(I32) [shared call] guaranteed, %3: Vec(I32) [shared call] guaranteed):
+bb0(%0: Vec(I32) trivial, %1: Vec(I32) trivial, %2: Vec(I32) trivial, %3: Vec(I32) trivial):
   %4: %Vec(I32) address = alloc frame Vec(I32) [shared call]
   %5: %Vec(I32) address = alloc frame Vec(I32) [shared call]
   %6: %Vec(I32) address = alloc frame Vec(I32) [shared call]

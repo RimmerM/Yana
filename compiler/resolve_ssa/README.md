@@ -65,6 +65,7 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | Question | Answered in |
 | --- | --- |
 | what a MIR occurrence's convention is | `convert.cpp`, `conventionFor` |
+| whether a shared loan of it is its copy | `convert.cpp`, `valueOccurrenceOf` |
 | how a body is built, and how one is rewritten | `build.cpp`, `Editor` |
 | whether an owned value is linear | `resolve_mir/type.cpp`, `isLinear` |
 | whether a type has anything to run when it dies | `resolve_mir/type.cpp`, `hasTeardown` |
@@ -101,6 +102,26 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | where an object lives | `resolve_mir`'s `Object`, through `storageOf`, carried to `InstAlloc` |
 | what a callee receives an argument as | `resolve_mir/inst.cpp`, `argumentMode` |
 | whether a call may suspend | the callee's `Summary`, through `resolve_mir`'s `maySuspend` |
+
+`valueOccurrenceOf` is `readMode`'s first clause re-asked with the substitution and the layout in
+hand, and it is the **one decision a specialization makes for itself** - `specialize.h`'s "a
+specialization decides nothing" is about instance selection, use modes and drop points, all of which
+are still the generic body's and are read unchanged. A generic body reads its parameter
+`borrow.shared` because `a` owes a teardown as far as the MIR builder knows; at `I32` it does not,
+and `manifest.cpp` already states that a plain shared loan of a register-valued trivially copyable
+type *is* its copy - "no loan of a trivial scalar is made at all for this table to represent". So
+this restores an invariant the manifestation table assumes rather than adding one, and
+`lower/gen.cpp` builds a signature from the **declared** occurrence, so nothing about the ABI moves.
+
+What it is worth is the *slot*. A borrow is a second name for storage, so a parameter read through
+one keeps its frame slot: `promote` declines a slot whose store installs a `Guaranteed` value and
+whose loads read back `Trivial`, a convention change being no substitution, and the inliner's
+`sizeOf` then counts a store and a load per parameter that is never emitted. `fn f(n: Int) = n + n`
+was an `alloc`, a `store` and a `load` in front of the add and is now `add %0, %0`; `g(10)` at a
+generic `x + x` reached the machine as `imm 10 ; add %v,%v` and is now `20`. Over the thirteen bench
+programs it is **1.0 G instructions** (0.9615 -> 0.9512 of the shipping stage, all of it `Hash`), and
+it costs bytes rather than saving them: the bodies are honestly smaller, so the inliner buys more
+with the same budget - J43 §2.
 
 `conventionFor` asks `isLinear` and not `hasTeardown`, and the two rows above are separate for that
 reason: they are different questions with the same answer for every type that exists, and the type

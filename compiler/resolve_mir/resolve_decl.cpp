@@ -221,6 +221,12 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             case DeclAttribute::Capacity:
             case DeclAttribute::Heap:         break;
 
+            // `@cold` and `@hot` belong to a function and `readSignatureAttributes` reads them
+            // there, beside `@inline` and for its reason: the destination is a field of `Function`
+            // and this walk has none.
+            case DeclAttribute::Cold:
+            case DeclAttribute::Hot:          break;
+
             case DeclAttribute::Count:        break;
         }
 
@@ -319,6 +325,41 @@ Maybe<I64> Resolver::readValueAttribute(ast::Con& constructor) {
     }
 
     return pinned;
+}
+
+/*
+ * `@cold` and `@hot` - what a function says about how often it runs.
+ *
+ * A reader of its own rather than two more arms of `readInlineAttribute`, because the question is a
+ * different one: that walk answers "expand this body", and this one answers "how often is this
+ * reached". The two meet in the inliner and nowhere else, and a declaration may sensibly write
+ * `@noinline @cold` or `@inline @hot` - neither pairing is a contradiction, so neither belongs in
+ * the other's exclusion test.
+ *
+ * Both on one declaration is a contradiction rather than a precedence question, so it is reported
+ * and neither applies - `@inline(always) @noinline`'s rule, for its reason: a declaration that says
+ * two opposite things has stated no intent, and taking the one written first would make the answer
+ * depend on the order.
+ */
+void Resolver::readFrequencyAttributes(ast::Decl& declaration, bool& cold, bool& hot) {
+    cold = false;
+    hot = false;
+
+    for(auto attribute: declaration.attributes.contents(parse)) {
+        auto which = findAttribute(stringView(context.findName(attribute.name)));
+        if(which != DeclAttribute::Cold && which != DeclAttribute::Hot) continue;
+        if(!takesNoArguments(attribute, which)) continue;
+
+        if(which == DeclAttribute::Cold) cold = true;
+        else hot = true;
+    }
+
+    if(cold && hot) {
+        context.diagnostics.error("`@cold` and `@hot` say opposite things about the same function"_v,
+                                  declaration.source);
+        cold = false;
+        hot = false;
+    }
 }
 
 /*

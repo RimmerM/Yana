@@ -3,7 +3,7 @@ module ResolveTest
 let & liveBuffers: I64 = 0
 
 fn makeBuffer(size: Size [shared call]) -> Buffer {
-bb0(%0: Size [shared call] guaranteed):
+bb0(%0: Size trivial):
   %1: %Size address = alloc frame Size [shared call]
   %2: %Buffer address = alloc frame Buffer
   store inspect %1 borrow %0
@@ -48,7 +48,7 @@ bb0(%0: Buffer [shared call] guaranteed):
 }
 
 fn pick(a: Buffer [unique slot 0], b: Buffer [unique slot 0], first: Bool [shared call]) -> Buffer [unique slot 0 owner] {
-bb0(%0: Buffer [unique slot 0] guaranteed, %1: Buffer [unique slot 0] guaranteed, %2: Bool [shared call] guaranteed):
+bb0(%0: Buffer [unique slot 0] guaranteed, %1: Buffer [unique slot 0] guaranteed, %2: Bool trivial):
   %4: %Bool address = alloc frame Bool [shared call]
   store inspect %4 borrow %2
   %5: Bool trivial = load inspect %4

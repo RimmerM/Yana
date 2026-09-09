@@ -74,7 +74,6 @@
  * produces is exactly the shape it was already looking for.
  *
  * Like both of them it leaves its litter - the byte count of an allocation that is gone, an offset
- * nothing computes from any more - to `removeDeadValues` and `removeDeadConstants` at the end of the
- * run.
+ * nothing computes from any more - to `removeDeadValues` at the end of the run.
  */
 void splitAggregateSlots(LowerBase base, LowerFunction& fun);

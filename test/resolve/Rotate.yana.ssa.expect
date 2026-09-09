@@ -3,7 +3,7 @@ module ResolveTest
 fn opaqueInt(x: I32 [shared call]) -> I32 = <no body>
 
 fn opaqueU32(x: U32 [shared call]) -> U32 {
-bb0(%0: U32 [shared call] guaranteed):
+bb0(%0: U32 trivial):
   %1: %U32 address = alloc frame U32 [shared call]
   store inspect %1 borrow %0
   %2: U32 trivial = load inspect %1
@@ -11,7 +11,7 @@ bb0(%0: U32 [shared call] guaranteed):
 }
 
 fn opaqueU64(x: U64 [shared call]) -> U64 {
-bb0(%0: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial):
   %1: %U64 address = alloc frame U64 [shared call]
   store inspect %1 borrow %0
   %2: U64 trivial = load inspect %1
@@ -19,7 +19,7 @@ bb0(%0: U64 [shared call] guaranteed):
 }
 
 fn opaqueU8(x: U8 [shared call]) -> U8 {
-bb0(%0: U8 [shared call] guaranteed):
+bb0(%0: U8 trivial):
   %1: %U8 address = alloc frame U8 [shared call]
   store inspect %1 borrow %0
   %2: U8 trivial = load inspect %1
@@ -27,7 +27,7 @@ bb0(%0: U8 [shared call] guaranteed):
 }
 
 fn opaqueU16(x: U16 [shared call]) -> U16 {
-bb0(%0: U16 [shared call] guaranteed):
+bb0(%0: U16 trivial):
   %1: %U16 address = alloc frame U16 [shared call]
   store inspect %1 borrow %0
   %2: U16 trivial = load inspect %1
@@ -35,7 +35,7 @@ bb0(%0: U16 [shared call] guaranteed):
 }
 
 fn opaqueI16(x: I16 [shared call]) -> I16 {
-bb0(%0: I16 [shared call] guaranteed):
+bb0(%0: I16 trivial):
   %1: %I16 address = alloc frame I16 [shared call]
   store inspect %1 borrow %0
   %2: I16 trivial = load inspect %1
@@ -43,7 +43,7 @@ bb0(%0: I16 [shared call] guaranteed):
 }
 
 fn opaqueWide(x: WideInt [shared call]) -> WideInt {
-bb0(%0: WideInt [shared call] guaranteed):
+bb0(%0: WideInt trivial):
   %1: %WideInt address = alloc frame WideInt [shared call]
   store inspect %1 borrow %0
   %2: WideInt trivial = load inspect %1
@@ -51,7 +51,7 @@ bb0(%0: WideInt [shared call] guaranteed):
 }
 
 fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %0

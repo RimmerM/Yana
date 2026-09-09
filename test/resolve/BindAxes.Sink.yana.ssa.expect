@@ -16,15 +16,10 @@ bb0(%0: String owned):
   %3: String owned = load inspect %1
   store inspect %2 consume %3
   drop String inspect %2
-  %4: %[CodeUnit *3] address = global.addr string'142
-  %5: [CodeUnit *3] [shared slot 0] guaranteed = load inspect %4
-  %6: %[CodeUnit *3] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %5
-  %7: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %6
-  %8: I32 trivial = const 3
-  %9: String owned = call stringLiteral borrow %7 borrow %8
-  store inspect %2 consume %9
-  %10: String owned = load inspect %2
-  return consume %10
+  %4: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  store inspect %2 consume %4
+  %5: String owned = load inspect %2
+  return consume %5
 }
 
 fn scoped(seed: String) -> Size {
@@ -35,45 +30,30 @@ bb0(%0: String owned):
   %3: String owned = load inspect %1
   store inspect %2 consume %3
   drop String inspect %2
-  %4: %[CodeUnit *4] address = global.addr string'143
-  %5: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %4
-  %6: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %5
-  %7: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %6
-  %8: I32 trivial = const 4
-  %9: String owned = call stringLiteral borrow %7 borrow %8
-  store inspect %2 consume %9
-  %10: String [shared call] guaranteed from{%2} = load inspect %2
-  %11: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %10
-  %12: Size trivial = call String.length borrow %11
+  %4: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  store inspect %2 consume %4
+  %5: String [shared call] guaranteed from{%2} = load inspect %2
+  %6: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %5
+  %7: Size trivial = call String.length borrow %6
   drop String inspect %2
-  return consume %12
+  return consume %7
 }
 
 fn main() -> I32 {
 bb0:
   %0: %String address = alloc frame String
-  %1: %[CodeUnit *1] address = global.addr string'144
-  %2: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %1
-  %3: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %2
-  %4: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %3
-  %5: I32 trivial = const 1
-  %6: String owned = call stringLiteral borrow %4 borrow %5
-  %7: String owned = call rebuilt consume %6
-  store inspect %0 consume %7
-  %8: String [shared slot 0] guaranteed from{%0} = load inspect %0
-  %9: String [shared slot 0 view] guaranteed from{%0} = call String.view borrow %8
-  %10: Size trivial = call String.length borrow %9
+  %1: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %2: String owned = call rebuilt consume %1
+  store inspect %0 consume %2
+  %3: String [shared slot 0] guaranteed from{%0} = load inspect %0
+  %4: String [shared slot 0 view] guaranteed from{%0} = call String.view borrow %3
+  %5: Size trivial = call String.length borrow %4
   drop String inspect %0
-  %11: %[CodeUnit *1] address = global.addr string'145
-  %12: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %11
-  %13: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %12
-  %14: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %13
-  %15: I32 trivial = const 1
-  %16: String owned = call stringLiteral borrow %14 borrow %15
-  %17: Size trivial = call scoped consume %16
-  %18: Size trivial = add inspect %10 inspect %17
-  %19: I32 trivial = convert inspect %18
-  return consume %19
+  %6: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %7: Size trivial = call scoped consume %6
+  %8: Size trivial = add inspect %5 inspect %7
+  %9: I32 trivial = convert inspect %8
+  return consume %9
 }
 
 entry main

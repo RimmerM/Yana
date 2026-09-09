@@ -53,7 +53,7 @@ bb3:
 }
 
 fn classify(value: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   %3: I32 trivial = load inspect %2
@@ -119,7 +119,7 @@ bb0:
 }
 
 fn boolValue(value: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   %2: %Bool address = alloc frame Bool
   store inspect %1 borrow %0
@@ -133,7 +133,7 @@ bb0(%0: Bool [shared call] guaranteed):
 }
 
 fn directionValue(value: Direction [shared call]) -> I32 {
-bb0(%0: Direction [shared call] guaranteed):
+bb0(%0: Direction trivial):
   %1: %Direction address = alloc frame Direction [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -143,7 +143,7 @@ bb0(%0: Direction [shared call] guaranteed):
 }
 
 fn selectedPair(value: Bool [shared call]) -> Pair {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -153,7 +153,7 @@ bb0(%0: Bool [shared call] guaranteed):
 }
 
 fn <+>(lhs: I32 [shared call], rhs: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0

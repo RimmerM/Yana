@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn checkU(actual: U32 [shared call], expected: U32 [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: U32 [shared call] guaranteed, %1: U32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: U32 trivial, %1: U32 trivial, %2: I32 trivial):
   %4: %U32 address = alloc frame U32 [shared call]
   %5: %U32 address = alloc frame U32 [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -26,7 +26,7 @@ bb3:
 }
 
 fn checkW(actual: WideInt [shared call], expected: WideInt [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: WideInt trivial, %1: WideInt trivial, %2: I32 trivial):
   %4: %WideInt address = alloc frame WideInt [shared call]
   %5: %WideInt address = alloc frame WideInt [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -51,7 +51,7 @@ bb3:
 }
 
 fn checkL(actual: I64 [shared call], expected: I64 [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: I64 [shared call] guaranteed, %1: I64 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: I64 trivial, %1: I64 trivial, %2: I32 trivial):
   %4: %I64 address = alloc frame I64 [shared call]
   %5: %I64 address = alloc frame I64 [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -76,7 +76,7 @@ bb3:
 }
 
 fn checkI(actual: I32 [shared call], expected: I32 [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial, %2: I32 trivial):
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32 [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -101,7 +101,7 @@ bb3:
 }
 
 fn addSmall(x: @bits(4) U32 [shared call]) -> U32 {
-bb0(%0: @bits(4) U32 [shared call] guaranteed):
+bb0(%0: @bits(4) U32 trivial):
   %1: %@bits(4) U32 address = alloc frame @bits(4) U32 [shared call]
   store inspect %1 borrow %0
   %2: @bits(4) U32 trivial = load inspect %1
@@ -113,7 +113,7 @@ bb0(%0: @bits(4) U32 [shared call] guaranteed):
 }
 
 fn addSmallNarrow(x: @bits(4) U32 [shared call]) -> @bits(4) U32 {
-bb0(%0: @bits(4) U32 [shared call] guaranteed):
+bb0(%0: @bits(4) U32 trivial):
   %1: %@bits(4) U32 address = alloc frame @bits(4) U32 [shared call]
   store inspect %1 borrow %0
   %2: @bits(4) U32 trivial = load inspect %1
@@ -126,7 +126,7 @@ bb0(%0: @bits(4) U32 [shared call] guaranteed):
 }
 
 fn mulWide20(x: @bits(20) U32 [shared call]) -> U32 {
-bb0(%0: @bits(20) U32 [shared call] guaranteed):
+bb0(%0: @bits(20) U32 trivial):
   %1: %@bits(20) U32 address = alloc frame @bits(20) U32 [shared call]
   store inspect %1 borrow %0
   %2: @bits(20) U32 trivial = load inspect %1
@@ -138,7 +138,7 @@ bb0(%0: @bits(20) U32 [shared call] guaranteed):
 }
 
 fn shiftAfterMul(x: @bits(4) U32 [shared call]) -> U32 {
-bb0(%0: @bits(4) U32 [shared call] guaranteed):
+bb0(%0: @bits(4) U32 trivial):
   %1: %@bits(4) U32 address = alloc frame @bits(4) U32 [shared call]
   store inspect %1 borrow %0
   %2: @bits(4) U32 trivial = load inspect %1
@@ -152,7 +152,7 @@ bb0(%0: @bits(4) U32 [shared call] guaranteed):
 }
 
 fn boxed(value: U32 [shared call]) -> U32 {
-bb0(%0: U32 [shared call] guaranteed):
+bb0(%0: U32 trivial):
   %1: %U32 address = alloc frame U32 [shared call]
   %2: %Box address = alloc frame Box
   store inspect %1 borrow %0
@@ -167,7 +167,7 @@ bb0(%0: U32 [shared call] guaranteed):
 }
 
 fn mulForty(x: @bits(40) WideInt [shared call]) -> WideInt {
-bb0(%0: @bits(40) WideInt [shared call] guaranteed):
+bb0(%0: @bits(40) WideInt trivial):
   %1: %@bits(40) WideInt address = alloc frame @bits(40) WideInt [shared call]
   store inspect %1 borrow %0
   %2: @bits(40) WideInt trivial = load inspect %1
@@ -207,7 +207,7 @@ bb0:
 }
 
 fn mulLong(x: I64 [shared call]) -> I64 {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   store inspect %1 borrow %0
   %2: I64 trivial = load inspect %1
@@ -248,7 +248,7 @@ bb0:
 }
 
 fn signedField(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %SignedBox address = alloc frame SignedBox
   store inspect %1 borrow %0
@@ -263,7 +263,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn widenedUnsigned(x: I32 [shared call]) -> U64 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -273,7 +273,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn normalizedU8(x: I32 [shared call]) -> U8 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -425,7 +425,7 @@ bb9(%11: I32 trivial):
 }
 
 fn addU8(x: U8 [shared call], y: U8 [shared call]) -> U8 {
-bb0(%0: U8 [shared call] guaranteed, %1: U8 [shared call] guaranteed):
+bb0(%0: U8 trivial, %1: U8 trivial):
   %2: %U8 address = alloc frame U8 [shared call]
   %3: %U8 address = alloc frame U8 [shared call]
   store inspect %2 borrow %0

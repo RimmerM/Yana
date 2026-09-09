@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn budget(op: Op [shared call]) -> I32 {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -11,7 +11,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn indexOf'2(op: Op [shared call]) -> I32 {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -21,7 +21,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn slotOf(op: Op [shared call]) -> I32 {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -31,7 +31,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn opposite(op: Op [shared call]) -> Op {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -41,7 +41,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn arity(op: Op [shared call]) -> I32 {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -51,7 +51,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn code(op: Op [shared call]) -> I32 {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -61,7 +61,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn isArithmetic(op: Op [shared call]) -> Bool {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -71,7 +71,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn isLate(op: Op [shared call]) -> Bool {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -81,7 +81,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn isMiddle(op: Op [shared call]) -> Bool {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -91,7 +91,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn isNegate(op: Op [shared call]) -> Bool {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -101,7 +101,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn isBinary(op: Op [shared call]) -> Bool {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -111,7 +111,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn isCommutative(op: Op [shared call]) -> Bool {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -121,7 +121,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn opcode(op: Op [shared call]) -> I32 {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -131,7 +131,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn weight(op: Op [shared call]) -> F64 {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -141,7 +141,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn signedZero(op: Op [shared call]) -> F64 {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -151,7 +151,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn bitValue(b: Bit [shared call]) -> I32 {
-bb0(%0: Bit [shared call] guaranteed):
+bb0(%0: Bit trivial):
   %1: %Bit address = alloc frame Bit [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -161,7 +161,7 @@ bb0(%0: Bit [shared call] guaranteed):
 }
 
 fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %0
@@ -182,7 +182,7 @@ bb3:
 }
 
 fn opaque(op: Op [shared call]) -> Op {
-bb0(%0: Op [shared call] guaranteed):
+bb0(%0: Op trivial):
   %1: %Op address = alloc frame Op [shared call]
   store inspect %1 borrow %0
   %2: Op trivial = load inspect %1
@@ -190,7 +190,7 @@ bb0(%0: Op [shared call] guaranteed):
 }
 
 fn opaqueBit(b: Bit [shared call]) -> Bit {
-bb0(%0: Bit [shared call] guaranteed):
+bb0(%0: Bit trivial):
   %1: %Bit address = alloc frame Bit [shared call]
   store inspect %1 borrow %0
   %2: Bit trivial = load inspect %1

@@ -31,59 +31,17 @@ main<complex>(): I32 {
     %v_28 = cmp_eq %v_27, 253: I32
     %v_29 = select %v_28, 2, 0: I32
     %v_30 = add 1, %v_29: I32
-    jmp b_31
-  }
-
-  b_31 {
-    jmp b_32
-  }
-
-  b_32 {
-    jmp b_33
-  }
-
-  b_33 {
-    jmp b_34
-  }
-
-  b_34 {
-    jmp b_35
-  }
-
-  b_35 {
-    jmp b_36
-  }
-
-  b_36 {
-    %v_37 = div 1, 0: F32
-    %v_38 = cmp_gt %v_37, 0: I32
-    %v_39 = imul %v_38, 10000: I32
-    %v_40 = add 1000, %v_39: I32
-    %v_41 = imul %v_38, 100000: I32
-    %v_42 = add %v_40, %v_41: I32
-    %v_43 = cmp_eq %v_42, 111000: I32
-    %v_44 = select %v_43, 4, 0: I32
-    %v_45 = add %v_30, %v_44: I32
-    %v_46 = add %v_45, 24: I32
-    %v_47 = call_complex alignUp(I32), 13, 8: I32
-    %v_48 = call_complex alignUp(I32), 16, 8: I32
-    %v_49 = imul %v_48, 100: I32
-    %v_50 = add %v_47, %v_49: I32
-    %v_51 = cmp_eq %v_50, 1616: I32
-    %v_52 = select %v_51, 32, 0: I32
-    %v_53 = add %v_46, %v_52: I32
-    ret %v_53
-  }
-}
-
-alignUp(I32)<complex>(%value: I32, %alignment: I32): I32 {
-  b_0 {
-    %v_1 = add %value, %alignment: I32
-    %v_2 = sub %v_1, 1: I32
-    %v_3 = sub %alignment, 1: I32
-    %v_4 = not %v_3: I32
-    %v_5 = and %v_2, %v_4: I32
-    ret %v_5
+    %v_31 = div 1, 0: F32
+    %v_32 = cmp_gt %v_31, 0: I32
+    %v_33 = imul %v_32, 10000: I32
+    %v_34 = add 1000, %v_33: I32
+    %v_35 = imul %v_32, 100000: I32
+    %v_36 = add %v_34, %v_35: I32
+    %v_37 = cmp_eq %v_36, 111000: I32
+    %v_38 = select %v_37, 4, 0: I32
+    %v_39 = add %v_30, %v_38: I32
+    %v_40 = add %v_39, 56: I32
+    ret %v_40
   }
 }
 

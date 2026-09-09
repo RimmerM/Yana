@@ -86,6 +86,7 @@ ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeClass, as
     function->returnType = signature.returnType;
     function->ast = pointer;
     readInlineAttribute(module, member, *function);
+    readFrequencyAttributes(module, member, *function);
 
     for(auto argPointer: signature.args.contents(*module.arena)) {
         auto arg = (*module.arena)[argPointer];

@@ -621,38 +621,30 @@ bb0:
   %135: I32 = call explain(I32) borrow.shared %134 borrow.shared %133
   %136: I32 = add inspect %130 inspect %135
   %137: I32 = const 1
-  %138: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'142) loan4
-  %139: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] = address inspect %138 roots.0{4}
-  %140: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %139 roots.0{4}
-  %141: I32 = const 2
-  %142: String = call stringLiteral borrow.shared %140 borrow.shared %141
-  write.init borrow.unique (local18) take %142
-  %144: String [shared call] = read borrow.shared (local18) loan5
-  %145: I32 = call labelled borrow.shared %137 borrow.shared %144
+  %138: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  write.init borrow.unique (local18) take %138
+  %140: String [shared call] = read borrow.shared (local18) loan4
+  %141: I32 = call labelled borrow.shared %137 borrow.shared %140
   drop (local18)
-  %146: I32 = add inspect %136 inspect %145
-  %147: I32 = const 1
-  %148: [CodeUnit *4] [shared slot 0] = read borrow.shared (global string'143) loan6
-  %149: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] = address inspect %148 roots.0{6}
-  %150: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %149 roots.0{6}
-  %151: I32 = const 4
-  %152: String = call stringLiteral borrow.shared %150 borrow.shared %151
-  write.init borrow.unique (local19) take %152
-  %154: String [shared slot 0] = read borrow.shared (local19) loan7
-  %155: String [shared slot 0 view] = call.derivation view(String) borrow.shared %154 roots{7}
-  %156: I32 = call labelled borrow.shared %147 borrow.shared %155
+  %142: I32 = add inspect %136 inspect %141
+  %143: I32 = const 1
+  %144: String = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  write.init borrow.unique (local19) take %144
+  %146: String [shared slot 0] = read borrow.shared (local19) loan5
+  %147: String [shared slot 0 view] = call.derivation view(String) borrow.shared %146 roots{5}
+  %148: I32 = call labelled borrow.shared %143 borrow.shared %147
   drop (local19)
-  %157: I32 = add inspect %146 inspect %156
-  %158: I32 = const 1
-  %159: I32 = const 2
-  %160: I32 = const 3
-  %161: I32 = call <+> borrow.shared %158 borrow.shared %159 borrow.shared %160
-  %162: I32 = add inspect %157 inspect %161
-  %163: I32 = const 5
-  %164: I32 = const 2
-  %165: I32 = call <-> borrow.shared %163 borrow.shared %164
-  %166: I32 = add inspect %162 inspect %165
-  return take %166
+  %149: I32 = add inspect %142 inspect %148
+  %150: I32 = const 1
+  %151: I32 = const 2
+  %152: I32 = const 3
+  %153: I32 = call <+> borrow.shared %150 borrow.shared %151 borrow.shared %152
+  %154: I32 = add inspect %149 inspect %153
+  %155: I32 = const 5
+  %156: I32 = const 2
+  %157: I32 = call <-> borrow.shared %155 borrow.shared %156
+  %158: I32 = add inspect %154 inspect %157
+  return take %158
 }
 
 fn lazyNamed.thunk(lazyNamed.thunk.env: lazyNamed.thunk.env [unique call]) -> I32 {

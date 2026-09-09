@@ -251,32 +251,28 @@ reasoned<complex>(%n: I32): I32 {
   }
 
   b_6 {
-    jmp b_9
+    jmp b_10
   }
 
   b_3 {
-    jmp b_9
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_6, 2], [b_3, 1]: I32
+    jmp b_12
   }
 
   b_9 {
-    %v_10 = phi [b_7, 1], [b_6, 0], [b_3, 0]: I32
-    %v_11 = phi [b_7, %v_8], [b_6, 2], [b_3, 1]: I32
-    je %v_10, b_12, b_13
-  }
-
-  b_13 {
-    jmp b_14
+    jmp b_12
   }
 
   b_12 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = phi [b_13, 1], [b_12, 0]: I32
-    %v_16 = imul %v_11, 10: I32
-    %v_17 = select %v_15, %v_16, %v_11: I32
-    ret %v_17
+    %v_13 = phi [b_10, %v_11], [b_9, %v_8]: I32
+    %v_14 = phi [b_10, 1], [b_9, 0]: I32
+    %v_15 = imul %v_13, 10: I32
+    %v_16 = select %v_14, %v_15, %v_13: I32
+    ret %v_16
   }
 }
 
@@ -420,28 +416,22 @@ ResolveTest.continuation$27<complex>(%env: Ptr, %value$: I32): I32 {
     %v_9 = loads @log, 4: I32
     %v_10 = add %v_9, 100: I32
     store @log, %v_10, 4
-    jmp b_6
+    jmp b_11
   }
 
   b_6 {
-    %v_11 = phi [b_5, 0], [b_4, 1]: I32
-    %v_12 = phi [b_5, 0], [b_4, %v_8]: I32
-    je %v_11, b_13, b_14
+    jmp b_12
   }
 
-  b_14 {
-    jmp b_15
+  b_11 {
+    jmp b_12
   }
 
-  b_13 {
-    jmp b_15
-  }
-
-  b_15 {
-    %v_16 = phi [b_14, 0], [b_13, %v_12]: I32
-    %v_17 = phi [b_14, 1], [b_13, 0]: I32
-    %v_18 = select %v_17, 0, %v_16: I32
-    ret %v_18
+  b_12 {
+    %v_13 = phi [b_6, 0], [b_11, %v_8]: I32
+    %v_14 = phi [b_6, 1], [b_11, 0]: I32
+    %v_15 = select %v_14, 0, %v_13: I32
+    ret %v_15
   }
 }
 

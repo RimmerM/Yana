@@ -19,7 +19,7 @@ bb0(%0: Guard owned):
 }
 
 fn guard(id: I32 [shared call]) -> Guard {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -45,7 +45,7 @@ bb0(%0: Guard owned):
 }
 
 fn tagged(count: I32 [shared call], id: I32 [shared call]) -> Tagged {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -141,7 +141,7 @@ bb0:
 }
 
 fn branched(flag: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   %3: %Tagged address = alloc frame Tagged
   store inspect %2 borrow %0

@@ -171,7 +171,7 @@ bb3:
 }
 
 fn Cents.fromInt(value: I64 [shared call]) -> Cents {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   store inspect %1 borrow %0
   %2: I64 trivial = load inspect %1
@@ -437,7 +437,7 @@ bb0:
 fn Box(a).==(lhs: Box(a) [shared call], rhs: Box(a) [shared call]) -> Bool = <no body>
 
 fn boxOf(value: I32 [shared call]) -> Box(I32) {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -495,9 +495,9 @@ bb0(%0: Metres [shared call] guaranteed):
 fn Box(a).==(I32)(lhs: Box(I32) [shared call], rhs: Box(I32) [shared call]) -> Bool {
 bb0(%0: Box(I32) [shared call] guaranteed, %1: Box(I32) [shared call] guaranteed):
   %2: %I32 address = field.addr .item inspect %0
-  %3: I32 [shared call] guaranteed from{%0} = load inspect %2
+  %3: I32 trivial = load inspect %2
   %4: %I32 address = field.addr .item inspect %1
-  %5: I32 [shared call] guaranteed from{%1} = load inspect %4
+  %5: I32 trivial = load inspect %4
   %6: Bool trivial = call I32.== borrow %3 borrow %5
   return consume %6
 }

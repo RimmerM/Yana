@@ -235,6 +235,37 @@ struct Folder {
     }
 
     /*
+     * Whether this value is the address of one of this body's own frame allocations, through the
+     * bitcasts a library boundary spells an address with.
+     *
+     * Frame and not every class, which is the whole of the caution: an allocation that asked an
+     * allocator is one the allocator may have refused, and a body that tests for it is asking a real
+     * question. A frame slot has an address by construction.
+     */
+    bool isFrameAddress(Value* value) {
+        while(value && value->definer) {
+            auto definer = opt.base[value->definer];
+            if(definer->kind == Inst::Alloc) {
+                return ((InstAlloc*)definer)->storage == mir::StorageClass::Frame;
+            }
+
+            if(definer->kind != Inst::Unary) return false;
+            if(((InstUnary*)definer)->op != mir::UnaryOp::Bitcast) return false;
+
+            value = opt.base[((InstUnary*)definer)->value.value()];
+        }
+
+        return false;
+    }
+
+    // Zero at whatever width, read off the instruction because a null pointer's is the target's -
+    // see `countOf` in `opt/place.cpp`, where the same reading is argued.
+    bool isNullConstant(Value* value) {
+        auto held = constantOf(opt, value);
+        return held && held->kind == mir::Constant::Int && held->asInt() == 0;
+    }
+
+    /*
      * A comparison, whose result type is `Bool` and whose every question is about the operands.
      *
      * The reflexive answer is given ahead of any type gate, because an ordering is reflexive whatever
@@ -252,6 +283,26 @@ struct Folder {
         auto isFloat = foldableFloat(opt, operandType);
 
         if(mir::isVectorType(opt.decl, operandType)) return nullptr;
+
+        /*
+         * A frame allocation's address against null - the refusal test a library writes in front of
+         * storage it did not place itself, and the one comparison here whose operands are not both
+         * constants and whose answer is still known.
+         *
+         * `runOver` is what asks it: it takes bytes from whoever placed them and answers the empty
+         * run where there are none, so a run the compiler put in the frame arrives at a test with
+         * one possible answer. Without this the arm that cannot be taken stays, and with it the
+         * whole refusal - a branch, a second `Run` and a join - folds away.
+         */
+        if(mir::binaryCategory(binary.op) == mir::OpCategory::Equality) {
+            auto left = operand(binary.lhs);
+            auto right = operand(binary.rhs);
+
+            if((isFrameAddress(left) && isNullConstant(right)) ||
+               (isFrameAddress(right) && isNullConstant(left))) {
+                return constant(resultType(), binary.op == BinaryOp::Eq ? 0 : 1);
+            }
+        }
 
         if(!isFloat && sameOperand(binary.lhs, binary.rhs)) {
             return constant(resultType(), compareReflexive(binary.op) ? 1 : 0);

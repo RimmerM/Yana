@@ -1,15 +1,9 @@
 module ResolveTest
 
 fn check(ok: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
-  %3: %Bool address = alloc frame Bool [shared call]
-  %4: %I32 address = alloc frame I32 [shared call]
-  store inspect %3 borrow %0
-  store inspect %4 borrow %1
-  %5: Bool trivial = load inspect %3
-  %7: I32 trivial = load inspect %4
+bb0(%0: Bool trivial, %1: I32 trivial):
   %6: I32 trivial = const 0
-  %8: I32 trivial = select inspect %5 inspect %7 inspect %6
+  %8: I32 trivial = select inspect %0 inspect %1 inspect %6
   return consume %8
 }
 
@@ -52,9 +46,9 @@ bb0:
   %5: U32 trivial = const 12
   %6: Bool trivial = eq inspect %4 inspect %5
   %7: I32 trivial = const 8
-  %16: I32 trivial = const 0
-  %17: I32 trivial = select inspect %6 inspect %7 inspect %16
-  return consume %17
+  %12: I32 trivial = const 0
+  %13: I32 trivial = select inspect %6 inspect %7 inspect %12
+  return consume %13
 }
 
 fn refinedSigned() -> I32 {
@@ -67,12 +61,12 @@ bb0:
   %2: %@bits(5) I32 address = field.addr .signed inspect %0
   %3: @bits(5) I32 trivial = load inspect %2
   %4: I32 trivial = convert inspect %3
-  %20: I32 trivial = const -12
-  %8: Bool trivial = eq inspect %4 inspect %20
+  %16: I32 trivial = const -12
+  %8: Bool trivial = eq inspect %4 inspect %16
   %9: I32 trivial = const 16
-  %18: I32 trivial = const 0
-  %19: I32 trivial = select inspect %8 inspect %9 inspect %18
-  return consume %19
+  %14: I32 trivial = const 0
+  %15: I32 trivial = select inspect %8 inspect %9 inspect %14
+  return consume %15
 }
 
 fn signedCompare() -> I32 {

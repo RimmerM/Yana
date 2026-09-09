@@ -37,7 +37,7 @@ bb0:
 module Ledger
 
 fn amount(of: I32 [shared call]) -> Amount {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -56,7 +56,7 @@ bb0(%0: Amount [shared call] guaranteed):
 }
 
 fn doubled(of: I32 [shared call]) -> Amount {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -66,7 +66,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn entry(cents: I32 [shared call], label: I32 [shared call]) -> Entry {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0

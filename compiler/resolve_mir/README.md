@@ -2379,6 +2379,14 @@ over in the same breath, and the language has no way to say that. Both are `Pres
 library that declares neither is one whose arrays do not grow, which is a smaller library rather
 than a broken one.
 
+And a third role under them, which is the same principle one layer down: `runSlots` is the *request*
+for the buffer those slots live in, and `runOver` is the descriptor built over whatever came back.
+The compiler names the request so that `resolve_ssa/opt/place.cpp` can replace it with frame storage
+where the frame can keep it - passing `runBorrowed` where `newRun` passed `runFromHeap`, which is
+the one field a program never writes. It still builds no container: what it replaces is where the
+bytes came from, and the record over them is `runOver`'s, in the language, exactly as `arrayLiteral`
+leaves the array's shape to the library. J44 is the round.
+
 **`elementBase` takes a unique window**, and that is not a detail: `%source'a` says which storage it
 points into and nothing about what may be done there, so what decides whether a store through it is
 legal is the loan the window was read under. A shared one is what every element accessor takes; the

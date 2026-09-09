@@ -164,8 +164,8 @@
  * heading for, so forwarding it hands that destination to the copy above, and so on up. Taken
  * downwards, each step would only forward into the next temporary.
  *
- * Like promotion, it leaves its litter to `removeDeadConstants` in lower_fold.h - the byte count of
- * an allocation that no longer exists is an immediate nothing reads.
+ * Like promotion, it leaves its litter to `removeDeadValues` in lower_fold.h - the byte count of an
+ * allocation that no longer exists is an immediate nothing reads.
  *
  * ## The one parameter that may be a destination a call fills
  *

@@ -7,11 +7,8 @@ opaque<complex>(%n: I32): I32 {
     store @counter, %v_2, 4
     %v_3 = loads @counter, 4: I32
     %v_4 = cmp_igt %v_3, 1000: I32
-    %v_5 = imm 24: I32
-    %v_6 = shl %n, %v_5: I32
-    %v_7 = sar %v_6, %v_5: I32
-    %v_8 = select %v_4, 1, %v_7: I32
-    ret %v_8
+    %v_5 = select %v_4, 1, %n: I32
+    ret %v_5
   }
 }
 

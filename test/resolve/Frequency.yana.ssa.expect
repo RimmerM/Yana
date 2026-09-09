@@ -1,0 +1,162 @@
+module ResolveTest
+
+let & failures: I32 = 0
+
+let & given: I32 = 2
+
+fn describe(actual: I32 [shared call], expected: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %7: I32 trivial = load inspect %2
+  %8: I32 trivial = const 31
+  %9: I32 trivial = mul inspect %7 inspect %8
+  %10: I32 trivial = const 7
+  %11: I32 trivial = add inspect %9 inspect %10
+  store inspect %4 consume %11
+  %12: I32 trivial = load inspect %3
+  %13: I32 trivial = const 17
+  %14: I32 trivial = mul inspect %12 inspect %13
+  %15: I32 trivial = const 3
+  %16: I32 trivial = add inspect %14 inspect %15
+  store inspect %5 consume %16
+  %17: I32 trivial = load inspect %4
+  %18: I32 trivial = load inspect %5
+  %19: I32 trivial = mul inspect %17 inspect %18
+  %20: I32 trivial = load inspect %4
+  %21: I32 trivial = load inspect %5
+  %22: I32 trivial = sub inspect %20 inspect %21
+  %23: I32 trivial = add inspect %19 inspect %22
+  store inspect %6 consume %23
+  %24: I32 trivial = load inspect %6
+  %25: I32 trivial = load inspect %6
+  %26: I32 trivial = const 3
+  %27: I32 trivial = div inspect %25 inspect %26
+  %28: I32 trivial = add inspect %24 inspect %27
+  %29: I32 trivial = load inspect %6
+  %30: I32 trivial = const 5
+  %31: I32 trivial = rem inspect %29 inspect %30
+  %32: I32 trivial = add inspect %28 inspect %31
+  return consume %32
+}
+
+fn report(detail: I32 [shared call]) -> {} {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: %I32 address = global.addr failures
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = load inspect %1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr failures
+  store inspect %6 consume %5
+  return
+}
+
+fn checked(actual: I32 [shared call], expected: I32 [shared call]) -> {} {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 trivial = load inspect %2
+  %8: I32 trivial = load inspect %3
+  %9: I32 trivial = call describe borrow %7 borrow %8
+  call report borrow %9
+  return
+
+bb3:
+  return
+}
+
+fn stepped(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  store inspect %1 borrow %0
+  %5: I32 trivial = load inspect %1
+  %6: I32 trivial = const 1
+  %7: I32 trivial = add inspect %5 inspect %6
+  store inspect %2 consume %7
+  %8: I32 trivial = load inspect %2
+  %9: I32 trivial = const 2
+  %10: I32 trivial = mul inspect %8 inspect %9
+  store inspect %3 consume %10
+  %11: I32 trivial = load inspect %3
+  %12: I32 trivial = const 3
+  %13: I32 trivial = sub inspect %11 inspect %12
+  store inspect %4 consume %13
+  %14: I32 trivial = load inspect %4
+  %15: I32 trivial = load inspect %2
+  %16: I32 trivial = add inspect %14 inspect %15
+  %17: I32 trivial = load inspect %3
+  %18: I32 trivial = add inspect %16 inspect %17
+  return consume %18
+}
+
+fn checkedAgain(actual: I32 [shared call], limit: I32 [shared call]) -> {} {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
+  %6: Bool trivial = lt inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 trivial = load inspect %2
+  %8: I32 trivial = load inspect %3
+  %9: I32 trivial = call describe borrow %7 borrow %8
+  call report borrow %9
+  return
+
+bb3:
+  return
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = global.addr given
+  %1: I32 trivial = load inspect %0
+  %2: I32 trivial = const 1
+  call checked borrow %1 borrow %2
+  %3: %I32 address = global.addr given
+  %4: I32 trivial = load inspect %3
+  %5: %I32 address = global.addr given
+  %6: I32 trivial = load inspect %5
+  call checked borrow %4 borrow %6
+  %7: %I32 address = global.addr given
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = const 9
+  call checkedAgain borrow %8 borrow %9
+  %10: %I32 address = global.addr failures
+  %11: I32 trivial = load inspect %10
+  %12: %I32 address = global.addr given
+  %13: I32 trivial = load inspect %12
+  %14: I32 trivial = call stepped borrow %13
+  %15: I32 trivial = add inspect %11 inspect %14
+  return consume %15
+}
+
+entry main

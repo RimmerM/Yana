@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn opaque(x: F64 [shared call]) -> F64 {
-bb0(%0: F64 [shared call] guaranteed):
+bb0(%0: F64 trivial):
   %1: %F64 address = alloc frame F64 [shared call]
   store inspect %1 borrow %0
   %2: F64 trivial = load inspect %1
@@ -9,7 +9,7 @@ bb0(%0: F64 [shared call] guaranteed):
 }
 
 fn opaqueF(x: F32 [shared call]) -> F32 {
-bb0(%0: F32 [shared call] guaranteed):
+bb0(%0: F32 trivial):
   %1: %F32 address = alloc frame F32 [shared call]
   store inspect %1 borrow %0
   %2: F32 trivial = load inspect %1

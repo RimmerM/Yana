@@ -3,7 +3,7 @@ module ResolveTest
 let & tokensDropped: I32 = 0
 
 fn cornerOf(c: Corner [shared call]) -> Point {
-bb0(%0: Corner [shared call] guaranteed):
+bb0(%0: Corner trivial):
   %1: %Corner address = alloc frame Corner [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -13,7 +13,7 @@ bb0(%0: Corner [shared call] guaranteed):
 }
 
 fn axesOf(c: Corner [shared call]) -> {I32, Bool, F32} {
-bb0(%0: Corner [shared call] guaranteed):
+bb0(%0: Corner trivial):
   %2: %Corner address = alloc frame Corner [shared call]
   store inspect %2 borrow %0
   %3: %U8 address = field.addr .# inspect %2
@@ -53,7 +53,7 @@ bb5(%1: {I32, Bool, F32} trivial):
 }
 
 fn boxOf(c: Corner [shared call]) -> Box {
-bb0(%0: Corner [shared call] guaranteed):
+bb0(%0: Corner trivial):
   %1: %Corner address = alloc frame Corner [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -63,7 +63,7 @@ bb0(%0: Corner [shared call] guaranteed):
 }
 
 fn hintOf(c: Corner [shared call]) -> Maybe(I32) {
-bb0(%0: Corner [shared call] guaranteed):
+bb0(%0: Corner trivial):
   %1: %Corner address = alloc frame Corner [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -73,7 +73,7 @@ bb0(%0: Corner [shared call] guaranteed):
 }
 
 fn always(c: Corner [shared call]) -> Point {
-bb0(%0: Corner [shared call] guaranteed):
+bb0(%0: Corner trivial):
   %1: %Corner address = alloc frame Corner [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -97,7 +97,7 @@ bb0(%0: Token owned):
 }
 
 fn tokenOf(c: Corner [shared call]) -> Token {
-bb0(%0: Corner [shared call] guaranteed):
+bb0(%0: Corner trivial):
   %2: %Corner address = alloc frame Corner [shared call]
   store inspect %2 borrow %0
   %3: %U8 address = field.addr .# inspect %2
@@ -129,7 +129,7 @@ bb5(%1: Token owned):
 }
 
 fn opaque(c: Corner [shared call]) -> Corner {
-bb0(%0: Corner [shared call] guaranteed):
+bb0(%0: Corner trivial):
   %1: %Corner address = alloc frame Corner [shared call]
   store inspect %1 borrow %0
   %2: Corner trivial = load inspect %1
@@ -137,7 +137,7 @@ bb0(%0: Corner [shared call] guaranteed):
 }
 
 fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %0
@@ -158,7 +158,7 @@ bb3:
 }
 
 fn independent(c: Corner [shared call]) -> I32 {
-bb0(%0: Corner [shared call] guaranteed):
+bb0(%0: Corner trivial):
   %9: %Corner address = alloc frame Corner [shared call]
   %10: %Point address = alloc frame Point
   %11: %Point address = alloc frame Point

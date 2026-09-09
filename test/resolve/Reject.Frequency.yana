@@ -1,0 +1,23 @@
+-- The ways of writing the frequency attributes that both resolvers refuse.
+--
+-- `@cold` and `@hot` say how often a function runs. They are not inlining directives - the pair is
+-- argued in `resolve_mir/decl.h` - and what they have in common with `@inline`/`@noinline` is the
+-- two refusals below rather than the meaning.
+
+-- Neither takes an argument. There is nothing to qualify: a body either says it is rare or it does
+-- not, and a number in the parentheses would be a weight the reader would have to be told how to
+-- spend.
+@cold(1)
+fn measured(x: Int) -> Int = x + 2
+
+@hot(often)
+fn qualified(x: Int) -> Int = x + 3
+
+-- The two together are a contradiction rather than a precedence question, so neither applies: a
+-- declaration that says two opposite things has stated no intent, and taking the one written first
+-- would make the answer depend on the order. `@inline`/`@noinline`'s rule, for its reason.
+@cold
+@hot
+fn undecided(x: Int) -> Int = x + 4
+
+fn main() -> Int = measured(2) + qualified(3) + undecided(4)

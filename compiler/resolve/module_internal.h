@@ -84,6 +84,7 @@ void readKnownRecordRole(Module& module, const ast::Decl& decl, GlobalPtr<Record
 // before the name is registered, since the `string` role is the one whose name is already a type.
 bool claimsKnownRecordRole(Module& module, const ast::Decl& decl, intrinsic::Known wanted);
 void readInlineAttribute(Module& module, const ast::Decl& decl, Function& function);
+void readFrequencyAttributes(Module& module, const ast::Decl& decl, Function& function);
 
 // `@convention(name)` and `@x86_legacy_sse`, read off the same declaration and by the same rules -
 // see module_decl.cpp. Both are properties of the declaration rather than of any call site.

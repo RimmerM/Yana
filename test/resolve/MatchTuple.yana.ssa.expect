@@ -79,7 +79,7 @@ bb7:
 }
 
 fn ordered(a: Maybe(Held) [shared call], b: Maybe(Held) [shared call], c: I32 [shared call]) -> I32 {
-bb0(%0: Maybe(Held) [shared call] guaranteed, %1: Maybe(Held) [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: Maybe(Held) [shared call] guaranteed, %1: Maybe(Held) [shared call] guaranteed, %2: I32 trivial):
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32
   store inspect %4 borrow %2
@@ -148,7 +148,7 @@ bb8:
 }
 
 fn labelled(x: I32 [shared call], y: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %{first: I32, second: I32} address = alloc frame {first: I32, second: I32}

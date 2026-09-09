@@ -1673,6 +1673,9 @@ struct Resolver {
     // `@layout(c)` on a `data` - `RecordType::pin`, and `resolve_decl.cpp` for what the pin means.
     TypeLayout readLayoutAttribute(ast::Decl& declaration);
 
+    // `@cold` and `@hot` - how often a function runs, which is not a statement about inlining.
+    void readFrequencyAttributes(ast::Decl& declaration, bool& cold, bool& hot);
+
     // `@inline(always)`, or false for a bare `@inline` or none - resolve_decl.cpp.
     void readInlineAttribute(ast::Decl& declaration, bool& always, bool& hint, bool& never,
                              bool& legacySse);
@@ -2361,6 +2364,20 @@ struct Resolver {
      * that needs one so far. Unset is "not a constant", which the caller reports for itself.
      */
     Constant evaluateCall(Function& callee, const Constant* arguments, Size count);
+
+    /*
+     * The value a string literal *is*, over bytes already placed - `stringLiteral` run rather than
+     * emitted. `report` clear is the value position, which has a second answer (the call) where the
+     * library's builder is not a body this evaluator can run; set is a constant position, which has
+     * none and says so.
+     */
+    Constant stringLiteralValue(DeclPtr<Global> bytes, U64 count, LocationId source,
+                                bool report);
+
+    // Whether the teardown of one constant runs nothing - evaluate.cpp, where the rule and its one
+    // correspondence with `Lowering::emitTeardown` are written out.
+    bool teardownRunsNothing(DeclPtr<Type> type, const Constant& value, bool runDrop,
+                             bool runReclaim, LocationId source);
     Constant textConstantValue(StringId written, LocationId source);
 
     /*

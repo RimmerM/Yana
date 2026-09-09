@@ -11,7 +11,7 @@ bb0(%0: Same(U64) [shared call] guaranteed):
 }
 
 fn narrowFirst(narrow: @bits(53) U64 [shared call], plain: U64 [shared call]) -> U64 {
-bb0(%0: @bits(53) U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed):
+bb0(%0: @bits(53) U64 trivial, %1: U64 trivial):
   %2: %@bits(53) U64 address = alloc frame @bits(53) U64 [shared call]
   %3: %U64 address = alloc frame U64 [shared call]
   %4: %Same(U64) address = alloc frame Same(U64)
@@ -28,7 +28,7 @@ bb0(%0: @bits(53) U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed
 }
 
 fn plainFirst(plain: U64 [shared call], narrow: @bits(53) U64 [shared call]) -> U64 {
-bb0(%0: U64 [shared call] guaranteed, %1: @bits(53) U64 [shared call] guaranteed):
+bb0(%0: U64 trivial, %1: @bits(53) U64 trivial):
   %2: %U64 address = alloc frame U64 [shared call]
   %3: %@bits(53) U64 address = alloc frame @bits(53) U64 [shared call]
   %4: %Same(U64) address = alloc frame Same(U64)

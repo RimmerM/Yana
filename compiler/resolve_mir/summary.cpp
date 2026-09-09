@@ -225,6 +225,28 @@ struct Interprocedural {
      * finished before the global that names it exists - and the `reachable` flag is what bounds the
      * walk in any case.
      */
+    /*
+     * Every global an **operand-less** constant names, marked.
+     *
+     * A constant carried by a node is payload rather than an operand, so the place walk that finds
+     * every other global a body reaches cannot see one: a `map`'s entries and a string literal's
+     * value are both trees with an `Address` leaf in them, and neither is a place. Marking is the
+     * whole of what is needed here - `reachGlobalAddresses` runs after this drain and follows
+     * whatever the marked global's own initializer names.
+     */
+    void reachConstantAddresses(const Constant& constant) {
+        if(constant.kind == Constant::Address) {
+            decl[constant.asGlobal()]->reachable = true;
+            return;
+        }
+
+        if(constant.kind != Constant::Aggregate) return;
+
+        for(auto value: decl[constant.aggregate()]->values.contents(decl)) {
+            reachConstantAddresses(value);
+        }
+    }
+
     void reachGlobalAddresses() {
         Array<DeclPtr<Global>> pending;
 
@@ -390,34 +412,22 @@ struct Interprocedural {
                  * returns a suspending value from being a suspending body.
                  */
                 /*
-                 * The globals a **constant inside a body** names - a `map`'s string table.
-                 *
-                 * Not a place, which is what makes this its own arm: a mapping's entries are payload
-                 * rather than operands, so the place walk below - which is how every other global a
-                 * body reaches is found - cannot see them. Marking the global here is enough;
-                 * `reachGlobalAddresses` follows whatever its own initializer names.
+                 * The globals a **constant inside a body** names - a `map`'s string table, and a
+                 * string literal's own bytes. Both are `reachConstantAddresses`, above, and the
+                 * reason neither is found by the place walk below is written there.
                  */
+                if(node->kind == Node::Const) {
+                    reachConstantAddresses(body.constant(mir, ((NodeConst*)node)->constant));
+                }
+
                 if(node->kind == Node::Map) {
                     auto& map = *(NodeMap*)node;
 
-                    auto reachAddresses = [&](const Constant& constant, auto&& again) -> void {
-                        if(constant.kind == Constant::Address) {
-                            decl[constant.asGlobal()]->reachable = true;
-                            return;
-                        }
-
-                        if(constant.kind != Constant::Aggregate) return;
-
-                        for(auto value: decl[constant.aggregate()]->values.contents(decl)) {
-                            again(value, again);
-                        }
-                    };
-
                     for(auto entry: map.entries.contents(mir)) {
-                        reachAddresses(entry.value, reachAddresses);
+                        reachConstantAddresses(entry.value);
                     }
 
-                    if(map.fallback.isSet()) reachAddresses(map.fallback, reachAddresses);
+                    if(map.fallback.isSet()) reachConstantAddresses(map.fallback);
                     continue;
                 }
 

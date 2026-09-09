@@ -9,7 +9,7 @@ let string'143: [CodeUnit *1] = [33]
 let string'144: [CodeUnit *8] = [110, 111, 32, 104, 111, 108, 101, 115]
 
 fn bumped(of: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr calls
@@ -23,7 +23,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn unitAt(s: String [shared call view], i: Size [shared call]) -> Size {
-bb0(%0: String [shared call view] guaranteed, %1: Size [shared call] guaranteed):
+bb0(%0: String [shared call view] guaranteed, %1: Size trivial):
   %2: %Size address = alloc frame Size [shared call]
   store inspect %2 borrow %1
   %3: String [shared slot 0 view] guaranteed from{%0} = load inspect %0
@@ -61,118 +61,103 @@ bb0:
   %18: String owned = call String.ofCapacity borrow %17
   store inspect %1 consume %18
   %19: String [unique call] guaranteed from{%1} = load inspect %1
-  %20: %[CodeUnit *2] address = global.addr string'142
-  %21: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %20
-  %22: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %21
-  %23: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %22
-  %24: I32 trivial = const 2
-  %25: String owned = call stringLiteral borrow %23 borrow %24
-  store inspect %2 consume %25
-  %26: String [shared slot 0] guaranteed from{%2} = load inspect %2
-  %27: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %26
-  call String.push borrow %19 borrow %27
+  %20: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  store inspect %2 consume %20
+  %21: String [shared slot 0] guaranteed from{%2} = load inspect %2
+  %22: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %21
+  call String.push borrow %19 borrow %22
   drop String inspect %2
-  %28: I32 trivial = const 7
-  %29: String [unique call] guaranteed from{%1} = load inspect %1
-  call I32.show borrow %28 borrow %29
-  %30: String [unique call] guaranteed from{%1} = load inspect %1
-  %31: %[CodeUnit *1] address = global.addr string'143
-  %32: [CodeUnit *1] [shared slot 0] guaranteed = load inspect %31
-  %33: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %32
-  %34: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %33
-  %35: I32 trivial = const 1
-  %36: String owned = call stringLiteral borrow %34 borrow %35
-  store inspect %3 consume %36
-  %37: String [shared slot 0] guaranteed from{%3} = load inspect %3
-  %38: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %37
-  call String.push borrow %30 borrow %38
+  %23: I32 trivial = const 7
+  %24: String [unique call] guaranteed from{%1} = load inspect %1
+  call I32.show borrow %23 borrow %24
+  %25: String [unique call] guaranteed from{%1} = load inspect %1
+  %26: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %3 consume %26
+  %27: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  %28: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %27
+  call String.push borrow %25 borrow %28
   drop String inspect %3
-  %39: String owned = load inspect %1
-  store inspect %4 consume %39
-  %40: I32 trivial = const 3
-  %41: I32 trivial = call bumped borrow %40
-  store inspect %5 consume %41
-  %42: Size trivial = const 0
-  %43: I32 trivial = load inspect %5
-  %44: Maybe(Size) trivial = call I32.showBound borrow %43
-  %45: Size trivial = call formatBound borrow %44
-  %46: Size trivial = add inspect %42 inspect %45
-  %47: String owned = call String.ofCapacity borrow %46
-  store inspect %6 consume %47
-  %48: I32 trivial = load inspect %5
-  %49: String [unique call] guaranteed from{%6} = load inspect %6
-  call I32.show borrow %48 borrow %49
-  %50: String owned = load inspect %6
-  store inspect %7 consume %50
-  %51: Size trivial = const 0
-  %52: I32 trivial = const 7
-  %53: Maybe(Size) trivial = call I32.showBound borrow %52
-  %54: Size trivial = call formatBound borrow %53
-  %55: Size trivial = add inspect %51 inspect %54
-  %56: I32 trivial = const 7
-  %57: Maybe(Size) trivial = call I32.showBound borrow %56
-  %58: Size trivial = call formatBound borrow %57
-  %59: Size trivial = add inspect %55 inspect %58
-  %60: String owned = call String.ofCapacity borrow %59
-  store inspect %8 consume %60
-  %61: I32 trivial = const 7
-  %62: String [unique call] guaranteed from{%8} = load inspect %8
-  call I32.show borrow %61 borrow %62
-  %63: I32 trivial = const 7
-  %64: String [unique call] guaranteed from{%8} = load inspect %8
-  call I32.show borrow %63 borrow %64
-  %65: String owned = load inspect %8
-  store inspect %9 consume %65
-  %66: %[CodeUnit *8] address = global.addr string'144
-  %67: [CodeUnit *8] [shared slot 0] guaranteed = load inspect %66
-  %68: %[CodeUnit *8] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %67
-  %69: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %68
-  %70: I32 trivial = const 8
-  %71: String owned = call stringLiteral borrow %69 borrow %70
-  store inspect %10 consume %71
-  %72: String [shared call] guaranteed from{%4} = load inspect %4
-  %73: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %72
-  %74: Size trivial = call String.length borrow %73
-  %75: Size trivial = const 1000000
-  %76: Size trivial = mul inspect %74 inspect %75
-  %77: String [shared call] guaranteed from{%4} = load inspect %4
-  %78: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %77
-  %79: Size trivial = const 2
-  %80: Size trivial = call unitAt borrow %78 borrow %79
+  %29: String owned = load inspect %1
+  store inspect %4 consume %29
+  %30: I32 trivial = const 3
+  %31: I32 trivial = call bumped borrow %30
+  store inspect %5 consume %31
+  %32: Size trivial = const 0
+  %33: I32 trivial = load inspect %5
+  %34: Maybe(Size) trivial = call I32.showBound borrow %33
+  %35: Size trivial = call formatBound borrow %34
+  %36: Size trivial = add inspect %32 inspect %35
+  %37: String owned = call String.ofCapacity borrow %36
+  store inspect %6 consume %37
+  %38: I32 trivial = load inspect %5
+  %39: String [unique call] guaranteed from{%6} = load inspect %6
+  call I32.show borrow %38 borrow %39
+  %40: String owned = load inspect %6
+  store inspect %7 consume %40
+  %41: Size trivial = const 0
+  %42: I32 trivial = const 7
+  %43: Maybe(Size) trivial = call I32.showBound borrow %42
+  %44: Size trivial = call formatBound borrow %43
+  %45: Size trivial = add inspect %41 inspect %44
+  %46: I32 trivial = const 7
+  %47: Maybe(Size) trivial = call I32.showBound borrow %46
+  %48: Size trivial = call formatBound borrow %47
+  %49: Size trivial = add inspect %45 inspect %48
+  %50: String owned = call String.ofCapacity borrow %49
+  store inspect %8 consume %50
+  %51: I32 trivial = const 7
+  %52: String [unique call] guaranteed from{%8} = load inspect %8
+  call I32.show borrow %51 borrow %52
+  %53: I32 trivial = const 7
+  %54: String [unique call] guaranteed from{%8} = load inspect %8
+  call I32.show borrow %53 borrow %54
+  %55: String owned = load inspect %8
+  store inspect %9 consume %55
+  %56: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 8, ownsHeap: 0}, length: 8}}
+  store inspect %10 consume %56
+  %57: String [shared call] guaranteed from{%4} = load inspect %4
+  %58: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %57
+  %59: Size trivial = call String.length borrow %58
+  %60: Size trivial = const 1000000
+  %61: Size trivial = mul inspect %59 inspect %60
+  %62: String [shared call] guaranteed from{%4} = load inspect %4
+  %63: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %62
+  %64: Size trivial = const 2
+  %65: Size trivial = call unitAt borrow %63 borrow %64
   drop String inspect %4
-  %81: Size trivial = const 10000
-  %82: Size trivial = mul inspect %80 inspect %81
-  %83: Size trivial = add inspect %76 inspect %82
-  %84: String [shared call] guaranteed from{%7} = load inspect %7
-  %85: String [shared slot 0 view] guaranteed from{%7} = call String.view borrow %84
-  %86: Size trivial = const 0
-  %87: Size trivial = call unitAt borrow %85 borrow %86
+  %66: Size trivial = const 10000
+  %67: Size trivial = mul inspect %65 inspect %66
+  %68: Size trivial = add inspect %61 inspect %67
+  %69: String [shared call] guaranteed from{%7} = load inspect %7
+  %70: String [shared slot 0 view] guaranteed from{%7} = call String.view borrow %69
+  %71: Size trivial = const 0
+  %72: Size trivial = call unitAt borrow %70 borrow %71
   drop String inspect %7
-  %88: Size trivial = const 100
-  %89: Size trivial = mul inspect %87 inspect %88
-  %90: Size trivial = add inspect %83 inspect %89
-  %91: String [shared call] guaranteed from{%9} = load inspect %9
-  %92: String [shared slot 0 view] guaranteed from{%9} = call String.view borrow %91
-  %93: Size trivial = call String.length borrow %92
+  %73: Size trivial = const 100
+  %74: Size trivial = mul inspect %72 inspect %73
+  %75: Size trivial = add inspect %68 inspect %74
+  %76: String [shared call] guaranteed from{%9} = load inspect %9
+  %77: String [shared slot 0 view] guaranteed from{%9} = call String.view borrow %76
+  %78: Size trivial = call String.length borrow %77
   drop String inspect %9
-  %94: Size trivial = const 10
-  %95: Size trivial = mul inspect %93 inspect %94
-  %96: Size trivial = add inspect %90 inspect %95
-  %97: String [shared call] guaranteed from{%10} = load inspect %10
-  %98: String [shared slot 0 view] guaranteed from{%10} = call String.view borrow %97
-  %99: Size trivial = call String.length borrow %98
+  %79: Size trivial = const 10
+  %80: Size trivial = mul inspect %78 inspect %79
+  %81: Size trivial = add inspect %75 inspect %80
+  %82: String [shared call] guaranteed from{%10} = load inspect %10
+  %83: String [shared slot 0 view] guaranteed from{%10} = call String.view borrow %82
+  %84: Size trivial = call String.length borrow %83
   drop String inspect %10
-  %100: Size trivial = add inspect %96 inspect %99
-  %101: Size trivial = const 800
-  %102: Size trivial = sub inspect %100 inspect %101
-  %103: %I32 address = global.addr calls
-  %104: I32 trivial = load inspect %103
-  %105: Size trivial = convert inspect %104
-  %106: Size trivial = add inspect %102 inspect %105
-  store inspect %11 consume %106
-  %107: Size trivial = load inspect %11
-  %108: I32 trivial = convert inspect %107
-  return consume %108
+  %85: Size trivial = add inspect %81 inspect %84
+  %86: Size trivial = const 800
+  %87: Size trivial = sub inspect %85 inspect %86
+  %88: %I32 address = global.addr calls
+  %89: I32 trivial = load inspect %88
+  %90: Size trivial = convert inspect %89
+  %91: Size trivial = add inspect %87 inspect %90
+  store inspect %11 consume %91
+  %92: Size trivial = load inspect %11
+  %93: I32 trivial = convert inspect %92
+  return consume %93
 }
 
 entry main

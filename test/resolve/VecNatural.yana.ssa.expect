@@ -89,52 +89,52 @@ bb12:
 }
 
 fn laneCount(I32)(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
-  %2: I32 [shared call] guaranteed from{%1} = load inspect %1
+  %2: I32 trivial = load inspect %1
   %3: Vec(I32) trivial = vec.splat inspect %2
   %4: I32 trivial = const 4
   return consume %4
 }
 
 fn laneCount(I16)(x: I16 [shared call]) -> I32 {
-bb0(%0: I16 [shared call] guaranteed):
+bb0(%0: I16 trivial):
   %1: %I16 address = alloc frame I16 [shared call]
   store inspect %1 borrow %0
-  %2: I16 [shared call] guaranteed from{%1} = load inspect %1
+  %2: I16 trivial = load inspect %1
   %3: Vec(I16) trivial = vec.splat inspect %2
   %4: I32 trivial = const 8
   return consume %4
 }
 
 fn sumOfSplat(I32)(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
-  %2: I32 [shared call] guaranteed from{%1} = load inspect %1
+  %2: I32 trivial = load inspect %1
   %3: Vec(I32) trivial = vec.splat inspect %2
   %4: I32 trivial = vec.reduce add inspect %3
   return consume %4
 }
 
 fn twiceSummed(I32)(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
-  %2: I32 [shared call] guaranteed from{%1} = load inspect %1
+  %2: I32 trivial = load inspect %1
   %3: Vec(I32) trivial = call doubled(I32) borrow %2
   %4: I32 trivial = vec.reduce add inspect %3
   return consume %4
 }
 
 fn doubled(I32)(x: I32 [shared call]) -> Vec(I32) {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
-  %2: I32 [shared call] guaranteed from{%1} = load inspect %1
+  %2: I32 trivial = load inspect %1
   %3: Vec(I32) trivial = vec.splat inspect %2
-  %4: I32 [shared call] guaranteed from{%1} = load inspect %1
+  %4: I32 trivial = load inspect %1
   %5: Vec(I32) trivial = vec.splat inspect %4
   %6: Vec(I32) trivial = call Vec(a, n).+(I32, 4) borrow %3 borrow %5
   return consume %6

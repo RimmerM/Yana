@@ -326,6 +326,7 @@ fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) permutationFailure(actual: c, ori
    gets the `Err` that `?` turns into an early return. The runner knows not to say it twice, because
    it can see that the case's failure count moved.
 -}
+@cold
 fn failing(->failure: Failure) -> Test:
     record(failure)
     return Err(failure)

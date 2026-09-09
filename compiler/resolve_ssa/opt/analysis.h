@@ -181,6 +181,62 @@ struct Contained {
 Contained& containedOf(OptContext& opt);
 
 /*
+ * Per `Alloc`, the constant its storage holds - for the whole of the body, not for a block.
+ *
+ * A **string literal** is what this exists for. `Resolver::textValue` builds the value the library's
+ * `stringLiteral` describes, so a literal arrives as `const String {...}` stored into a frame slot,
+ * and every question a program asks of a literal is then a read of that slot: its length, the
+ * pointer to its bytes, and the `ownsHeap` flag its teardown tests. Block-local forwarding loses all
+ * three at the first call, because a literal is always lent to something - `==`, `length`, a
+ * formatter - on the way to the teardown that reads its flag. This is the same fact asked of the
+ * **function** instead, and it rests on nothing being able to write the storage:
+ *
+ *  - the allocation is `Contained`, so no callee was handed a way back to it that it kept;
+ *  - exactly one instruction writes it, a whole-slot `Store` of a value an `InstConst` defines;
+ *  - and every other instruction of the body is asked `mayWriteStorage` and says no - which is one
+ *    question rather than an allowlist of readers, so a kind nobody has looked at yet is a barrier
+ *    rather than an omission.
+ *
+ * **A `Drop` of the slot is admitted**, and it is the one exception. A teardown is handed the
+ * address and `mayWriteStorage` therefore says it may write - correctly - but a drop is the end of
+ * the value's life: nothing may read the storage after it without something re-filling it first,
+ * and a re-fill is a second write this rule has already excluded. So whatever a teardown writes
+ * cannot be read, and admitting it is what lets the flag its own body tests be answered by the
+ * constant that was put there. That is the shipping stage's `constantLocalContents` ruling, arriving
+ * with the containment and the mutation rows inferred rather than declared.
+ *
+ * A statement about **values**, so its stamp passes `overValues` for `Contained`'s reason.
+ */
+struct ConstantContents {
+    // Indexed by `ValueId`. Unset for every value that is not an allocation holding a constant,
+    // which is nearly all of them - the same shape `Contained` uses, with a value instead of a bit.
+    Array<mir::Constant> held;
+
+    mir::Constant operator [] (const Value& value) const {
+        return value.id.index < held.size() ? held[value.id.index] : mir::Constant();
+    }
+
+    void build(OptContext& opt, const Contained& contained);
+};
+
+ConstantContents& constantContentsOf(OptContext& opt);
+
+/*
+ * What a read of this address answers, where that is settled before the program runs - and unset
+ * where it is not.
+ *
+ * Two roots and one walk. An **immutable global** holds its own initializer, which is what makes a
+ * read out of a placed constant a number; an `Alloc` in `ConstantContents` holds what was stored
+ * into it. Between the root and the address are the field and element projections, indexed through
+ * `mir::constantField` so that "which value of the list is field `n`" has one answer at both tiers.
+ *
+ * A `Guaranteed` load is walked through, because at this tier that is how a borrow of a slot is
+ * spelled and it names the same storage. A `represent` is **not**: it hands back the same bytes at a
+ * different type, and a constant indexed past one would be read at the wrong shape.
+ */
+Maybe<mir::Constant> constantAt(OptContext& opt, const ConstantContents& contents, Value* address);
+
+/*
  * The allocation an address is rooted in, or null where this body cannot name one.
  *
  * The walk up the `FieldAddress`/`ElementAddress` chain, which is what makes "these two addresses
@@ -200,17 +256,6 @@ Value* allocationRoot(OptContext& opt, Value* address);
  * than only walking one, and a second copy of the list would be a second answer to keep in step.
  */
 Value* addressStep(OptContext& opt, Value* address);
-
-/*
- * Whether an address was read out of storage - the other half of `allocationRoot`'s null.
- *
- * A projection chain that ends at a `Load` is a pointer that was sitting in memory; one ending at a
- * global's address, at a block argument or at an unsafe cast is not. Only the first says anything,
- * and what it says is in `mayWriteStorage`: an allocation nothing wrote the address of cannot be
- * named by a pointer something read. A `Guaranteed` load result is excluded, because at this tier
- * that is how a borrow of the slot is spelled and it names the slot rather than its contents.
- */
-bool addressIsLoaded(OptContext& opt, Value* address);
 
 /*
  * Whether one instruction may write an allocation's storage, or storage reachable from it.

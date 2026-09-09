@@ -436,9 +436,9 @@ block a:
 --- codegen: farBranch ---
 block #0:
   jmp uses=[] creates=[]  => 
-block start:
+block #1:
   cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
-  je uses=[-] creates=[]  => 0f8c96000000
+  je uses=[-] creates=[]  => 0f8c9a000000
 block far:
   imm uses=[] creates=[rcx]  => b943420f00
   mul uses=[rax, rcx] creates=[rax] pre=[rdi->rax]  => 8bc7f7e1
@@ -481,7 +481,10 @@ block far:
   imm uses=[] creates=[rcx]  => b939430f00
   mul uses=[rax, rcx] creates=[rax]  => f7e1
   cmp_ilt uses=[rax, rsi] creates=[-]  => 39f0
-  je uses=[-] creates=[]  => 0f8c62ffffff
+  je uses=[-] creates=[]  => 7d08
+block start:
+  cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
+  je uses=[-] creates=[]  => 0f8d66ffffff
 block near:
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 8bc7c3
 

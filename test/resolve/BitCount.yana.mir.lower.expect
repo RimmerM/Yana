@@ -129,47 +129,146 @@ main<complex>(): I32 {
     %v_96 = select %v_95, 524288, 0: I32
     %v_97 = add %v_91, %v_96: I32
     %v_98 = call_complex opaqueInt, 1024: I32
-    %v_99 = call_complex isPowerOf2(I32), %v_98: I32
-    %v_100 = select %v_99, 1048576, 0: I32
-    %v_101 = add %v_97, %v_100: I32
-    %v_102 = call_complex opaqueInt, 1023: I32
-    %v_103 = call_complex isPowerOf2(I32), %v_102: I32
-    %v_104 = xor %v_103, 1: I32
-    %v_105 = select %v_104, 2097152, 0: I32
-    %v_106 = add %v_101, %v_105: I32
-    %v_107 = call_complex opaqueInt, 0: I32
-    %v_108 = call_complex isPowerOf2(I32), %v_107: I32
-    %v_109 = xor %v_108, 1: I32
-    %v_110 = select %v_109, 4194304, 0: I32
-    %v_111 = add %v_106, %v_110: I32
-    %v_112 = call_complex opaqueInt, 1000: I32
-    %v_113 = call_complex nextPowerOf2(I32), %v_112: I32
-    %v_114 = cmp_eq %v_113, 1024: I32
-    %v_115 = select %v_114, 8388608, 0: I32
-    %v_116 = add %v_111, %v_115: I32
-    %v_117 = call_complex opaqueInt, 1024: I32
-    %v_118 = call_complex nextPowerOf2(I32), %v_117: I32
-    %v_119 = cmp_eq %v_118, 1024: I32
-    %v_120 = select %v_119, 16777216, 0: I32
-    %v_121 = add %v_116, %v_120: I32
-    %v_122 = call_complex opaqueInt, 0: I32
-    %v_123 = call_complex nextPowerOf2(I32), %v_122: I32
-    %v_124 = cmp_eq %v_123, 1: I32
-    %v_125 = select %v_124, 33554432, 0: I32
-    %v_126 = add %v_121, %v_125: I32
-    %v_127 = add %v_86, %v_126: I32
-    %v_128 = add %v_127, 469762048: I32
-    %v_129 = call_complex opaqueU32, 4294967295: I32
-    %v_130 = call_complex countVia(U32), %v_129: I32
-    %v_131 = cmp_eq %v_130, 32: I32
-    %v_132 = select %v_131, 536870912, 0: I32
-    %v_133 = call_complex opaqueU64, 1: I64
-    %v_134 = call_complex leadingVia(U64), %v_133: I64
-    %v_135 = cmp_eq %v_134, 63: I32
-    %v_136 = select %v_135, 1073741824, 0: I32
-    %v_137 = add %v_132, %v_136: I32
-    %v_138 = add %v_128, %v_137: I32
-    ret %v_138
+    %v_99 = cmp_neq %v_98, 0: I32
+    je %v_99, b_100, b_101
+  }
+
+  b_101 {
+    jmp b_102
+  }
+
+  b_100 {
+    %v_103 = sub %v_98, 1: I32
+    %v_104 = and %v_98, %v_103: I32
+    %v_105 = cmp_eq %v_104, 0: I32
+    jmp b_102
+  }
+
+  b_102 {
+    %v_106 = phi [b_101, 0], [b_100, %v_105]: I32
+    %v_107 = select %v_106, 1048576, 0: I32
+    %v_108 = add %v_97, %v_107: I32
+    %v_109 = call_complex opaqueInt, 1023: I32
+    %v_110 = cmp_neq %v_109, 0: I32
+    je %v_110, b_111, b_112
+  }
+
+  b_112 {
+    jmp b_113
+  }
+
+  b_111 {
+    %v_114 = sub %v_109, 1: I32
+    %v_115 = and %v_109, %v_114: I32
+    %v_116 = cmp_eq %v_115, 0: I32
+    jmp b_113
+  }
+
+  b_113 {
+    %v_117 = phi [b_112, 0], [b_111, %v_116]: I32
+    %v_118 = xor %v_117, 1: I32
+    %v_119 = select %v_118, 2097152, 0: I32
+    %v_120 = add %v_108, %v_119: I32
+    %v_121 = call_complex opaqueInt, 0: I32
+    %v_122 = cmp_neq %v_121, 0: I32
+    je %v_122, b_123, b_124
+  }
+
+  b_124 {
+    jmp b_125
+  }
+
+  b_123 {
+    %v_126 = sub %v_121, 1: I32
+    %v_127 = and %v_121, %v_126: I32
+    %v_128 = cmp_eq %v_127, 0: I32
+    jmp b_125
+  }
+
+  b_125 {
+    %v_129 = phi [b_124, 0], [b_123, %v_128]: I32
+    %v_130 = xor %v_129, 1: I32
+    %v_131 = select %v_130, 4194304, 0: I32
+    %v_132 = add %v_120, %v_131: I32
+    %v_133 = call_complex opaqueInt, 1000: I32
+    %v_134 = cmp_ile %v_133, 1: I32
+    je %v_134, b_135, b_136
+  }
+
+  b_136 {
+    %v_137 = sub %v_133, 1: I32
+    %v_138 = clz_width %v_137: I32
+    %v_139 = sub 32, %v_138: I32
+    %v_140 = shl 1, %v_139: I32
+    jmp b_141
+  }
+
+  b_135 {
+    jmp b_141
+  }
+
+  b_141 {
+    %v_142 = phi [b_136, %v_140], [b_135, 1]: I32
+    %v_143 = cmp_eq %v_142, 1024: I32
+    %v_144 = select %v_143, 8388608, 0: I32
+    %v_145 = add %v_132, %v_144: I32
+    %v_146 = call_complex opaqueInt, 1024: I32
+    %v_147 = cmp_ile %v_146, 1: I32
+    je %v_147, b_148, b_149
+  }
+
+  b_149 {
+    %v_150 = sub %v_146, 1: I32
+    %v_151 = clz_width %v_150: I32
+    %v_152 = sub 32, %v_151: I32
+    %v_153 = shl 1, %v_152: I32
+    jmp b_154
+  }
+
+  b_148 {
+    jmp b_154
+  }
+
+  b_154 {
+    %v_155 = phi [b_149, %v_153], [b_148, 1]: I32
+    %v_156 = cmp_eq %v_155, 1024: I32
+    %v_157 = select %v_156, 16777216, 0: I32
+    %v_158 = add %v_145, %v_157: I32
+    %v_159 = call_complex opaqueInt, 0: I32
+    %v_160 = cmp_ile %v_159, 1: I32
+    je %v_160, b_161, b_162
+  }
+
+  b_162 {
+    %v_163 = sub %v_159, 1: I32
+    %v_164 = clz_width %v_163: I32
+    %v_165 = sub 32, %v_164: I32
+    %v_166 = shl 1, %v_165: I32
+    jmp b_167
+  }
+
+  b_161 {
+    jmp b_167
+  }
+
+  b_167 {
+    %v_168 = phi [b_162, %v_166], [b_161, 1]: I32
+    %v_169 = cmp_eq %v_168, 1: I32
+    %v_170 = select %v_169, 33554432, 0: I32
+    %v_171 = add %v_158, %v_170: I32
+    %v_172 = add %v_86, %v_171: I32
+    %v_173 = add %v_172, 469762048: I32
+    %v_174 = call_complex opaqueU32, 4294967295: I32
+    %v_175 = call_complex countVia(U32), %v_174: I32
+    %v_176 = cmp_eq %v_175, 32: I32
+    %v_177 = select %v_176, 536870912, 0: I32
+    %v_178 = call_complex opaqueU64, 1: I64
+    %v_179 = call_complex leadingVia(U64), %v_178: I64
+    %v_180 = cmp_eq %v_179, 63: I32
+    %v_181 = select %v_180, 1073741824, 0: I32
+    %v_182 = add %v_177, %v_181: I32
+    %v_183 = add %v_173, %v_182: I32
+    ret %v_183
   }
 }
 
@@ -184,53 +283,6 @@ leadingVia(U64)<complex>(%value: I64): I64 {
   b_0 {
     %v_1 = clz_width %value: I64
     ret %v_1
-  }
-}
-
-isPowerOf2(I32)<complex>(%value: I32): I32 {
-  b_0 {
-    %v_1 = cmp_neq %value, 0: I32
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_3, 0], [b_2, %v_6]: I32
-    ret %v_5
-  }
-
-  b_2 {
-    %v_7 = sub %value, 1: I32
-    %v_8 = and %value, %v_7: I32
-    %v_6 = cmp_eq %v_8, 0: I32
-    jmp b_4
-  }
-}
-
-nextPowerOf2(I32)<complex>(%value: I32): I32 {
-  b_0 {
-    %v_1 = cmp_ile %value, 1: I32
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    %v_4 = sub %value, 1: I32
-    %v_5 = clz_width %v_4: I32
-    %v_6 = sub 32, %v_5: I32
-    %v_7 = shl 1, %v_6: I32
-    jmp b_8
-  }
-
-  b_8 {
-    %v_9 = phi [b_3, %v_7], [b_2, 1]: I32
-    ret %v_9
-  }
-
-  b_2 {
-    jmp b_8
   }
 }
 

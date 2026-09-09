@@ -20,53 +20,45 @@ bb0:
   %0: Bool = const True
   write.init borrow.unique (flag) take %0
   %2: Bool = const True
-  %3: [CodeUnit *4] [shared slot 0] = read borrow.shared (global string'142) loan0
-  %4: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] = address inspect %3 roots.0{0}
-  %5: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %4 roots.0{0}
-  %6: I32 = const 4
-  %7: String = call stringLiteral borrow.shared %5 borrow.shared %6
-  write.init borrow.unique (local1) take %7
-  %9: String [shared slot 0] = read borrow.shared (local1) loan1
-  %10: String [shared slot 0 view] = call.derivation view(String) borrow.shared %9 roots{1}
-  %11: Size = call widthOfSelf borrow.shared %2 borrow.shared %10
+  %3: String = const String {units: Array {run: Run {items: &string'142, capacity: 4, ownsHeap: 0}, length: 4}}
+  write.init borrow.unique (local1) take %3
+  %5: String [shared slot 0] = read borrow.shared (local1) loan0
+  %6: String [shared slot 0 view] = call.derivation view(String) borrow.shared %5 roots{0}
+  %7: Size = call widthOfSelf borrow.shared %2 borrow.shared %6
   drop (local1)
-  %12: Size = const 4
-  %13: Bool = ne inspect %11 inspect %12
-  branch inspect %13 -> bb3 -> bb1
+  %8: Size = const 4
+  %9: Bool = ne inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
 
 bb1:
   jump -> bb2
 
 bb2:
-  %18: Bool = const True
-  %19: [CodeUnit *4] [shared slot 0] = read borrow.shared (global string'143) loan2
-  %20: %[CodeUnit *4] [owned here shape6 .*=shared slot 0] = address inspect %19 roots.0{2}
-  %21: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %20 roots.0{2}
-  %22: I32 = const 4
-  %23: String = call stringLiteral borrow.shared %21 borrow.shared %22
-  write.init borrow.unique (local2) take %23
-  %25: String [shared slot 0] = read borrow.shared (local2) loan3
-  %26: String [shared slot 0 view] = call.derivation view(String) borrow.shared %25 roots{3}
-  %27: Size = call widthOfSelf borrow.shared %18 borrow.shared %26
+  %14: Bool = const True
+  %15: String = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  write.init borrow.unique (local2) take %15
+  %17: String [shared slot 0] = read borrow.shared (local2) loan1
+  %18: String [shared slot 0 view] = call.derivation view(String) borrow.shared %17 roots{1}
+  %19: Size = call widthOfSelf borrow.shared %14 borrow.shared %18
   drop (local2)
-  %28: Size = const 4
-  %29: Bool = ne inspect %27 inspect %28
-  branch inspect %29 -> bb6 -> bb4
+  %20: Size = const 4
+  %21: Bool = ne inspect %19 inspect %20
+  branch inspect %21 -> bb6 -> bb4
 
 bb3:
-  %15: I32 = const 1
-  return take %15
+  %11: I32 = const 1
+  return take %11
 
 bb4:
   jump -> bb5
 
 bb5:
-  %34: I32 = const 0
-  return take %34
+  %26: I32 = const 0
+  return take %26
 
 bb6:
-  %31: I32 = const 2
-  return take %31
+  %23: I32 = const 2
+  return take %23
 }
 
 entry main

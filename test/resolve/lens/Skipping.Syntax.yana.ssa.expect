@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn opening(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
-bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %0
@@ -31,7 +31,7 @@ bb3:
 }
 
 fn upTo(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial, %2: (I32) -> I32 [shared call] guaranteed):
   %17: %I32 address = alloc frame I32 [shared call]
   %18: %I32 address = alloc frame I32 [shared call]
   %19: %I32 address = alloc frame I32
@@ -96,7 +96,7 @@ bb9:
 }
 
 fn inlineArm(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
@@ -140,7 +140,7 @@ bb4:
 }
 
 fn trailingArm(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
@@ -184,7 +184,7 @@ bb4:
 }
 
 fn trailingLoop(n: I32 [shared call], stop: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32
@@ -233,7 +233,7 @@ bb4:
 }
 
 fn inlineLoop(n: I32 [shared call], stop: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32
@@ -282,7 +282,7 @@ bb4:
 }
 
 fn flatArm(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
@@ -326,7 +326,7 @@ bb4:
 }
 
 fn keptSpellings(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32
   %5: %I32 address = alloc frame I32
@@ -455,7 +455,7 @@ bb0:
 }
 
 fn inlineArm.cont(inlineArm.cont.env: inlineArm.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: inlineArm.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: inlineArm.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -469,7 +469,7 @@ bb0(%0: inlineArm.cont.env [unique call] guaranteed, %1: I32 [shared call] guara
 }
 
 fn trailingArm.cont(trailingArm.cont.env: trailingArm.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: trailingArm.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: trailingArm.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -483,7 +483,7 @@ bb0(%0: trailingArm.cont.env [unique call] guaranteed, %1: I32 [shared call] gua
 }
 
 fn trailingLoop.cont(trailingLoop.cont.env: trailingLoop.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: trailingLoop.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: trailingLoop.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -497,7 +497,7 @@ bb0(%0: trailingLoop.cont.env [unique call] guaranteed, %1: I32 [shared call] gu
 }
 
 fn inlineLoop.cont(inlineLoop.cont.env: inlineLoop.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: inlineLoop.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: inlineLoop.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -511,7 +511,7 @@ bb0(%0: inlineLoop.cont.env [unique call] guaranteed, %1: I32 [shared call] guar
 }
 
 fn flatArm.cont(flatArm.cont.env: flatArm.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: flatArm.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: flatArm.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -525,7 +525,7 @@ bb0(%0: flatArm.cont.env [unique call] guaranteed, %1: I32 [shared call] guarant
 }
 
 fn keptSpellings.cont(keptSpellings.cont.env: keptSpellings.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: keptSpellings.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: keptSpellings.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -539,7 +539,7 @@ bb0(%0: keptSpellings.cont.env [unique call] guaranteed, %1: I32 [shared call] g
 }
 
 fn keptSpellings.cont'2(keptSpellings.cont'2.env: keptSpellings.cont'2.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: keptSpellings.cont'2.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: keptSpellings.cont'2.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]

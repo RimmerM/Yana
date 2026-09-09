@@ -50,7 +50,7 @@ bb2(%5: Size trivial):
 }
 
 fn lent(times: I64 [shared call], $body: (Held) -> I32 [shared call]) -> I32 {
-bb0(%0: I64 [shared call] guaranteed, %1: (Held) -> I32 [shared call] guaranteed):
+bb0(%0: I64 trivial, %1: (Held) -> I32 [shared call] guaranteed):
   %2: %I64 address = alloc frame I64 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I64 address = alloc frame I64
@@ -96,7 +96,7 @@ bb5:
 }
 
 fn handed(times: I64 [shared call], $body: (->Held) -> I32 [shared call]) -> I32 {
-bb0(%0: I64 [shared call] guaranteed, %1: (->Held) -> I32 [shared call] guaranteed):
+bb0(%0: I64 trivial, %1: (->Held) -> I32 [shared call] guaranteed):
   %2: %I64 address = alloc frame I64 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I64 address = alloc frame I64
@@ -138,7 +138,7 @@ bb5:
 }
 
 fn results(times: I64 [shared call], $body: (->Result(I64, Held)) -> I32 [shared call]) -> I32 {
-bb0(%0: I64 [shared call] guaranteed, %1: (->Result(I64, Held)) -> I32 [shared call] guaranteed):
+bb0(%0: I64 trivial, %1: (->Result(I64, Held)) -> I32 [shared call] guaranteed):
   %2: %I64 address = alloc frame I64 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I64 address = alloc frame I64
@@ -207,7 +207,7 @@ bb10:
 }
 
 fn borrows(times: I64 [shared call]) -> Size {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   %2: %Size address = alloc frame Size
   store inspect %1 borrow %0
@@ -226,7 +226,7 @@ bb1:
 }
 
 fn owns(times: I64 [shared call]) -> Size {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   %2: %Size address = alloc frame Size
   store inspect %1 borrow %0
@@ -247,7 +247,7 @@ bb1:
 fn viaTry(times: I64 [shared call]) -> Result(I64, Size) = <no body>
 
 fn ignores(times: I64 [shared call]) -> Size {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   %2: %Size address = alloc frame Size
   store inspect %1 borrow %0

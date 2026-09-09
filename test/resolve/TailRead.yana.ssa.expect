@@ -3,7 +3,7 @@ module ResolveTest
 let guardWidth: Size = 63
 
 fn readPast(block: %U8 [shared call], size: Size [shared call]) -> I64 {
-bb0(%0: %U8 [shared call] guaranteed, %1: Size [shared call] guaranteed):
+bb0(%0: %U8 trivial, %1: Size trivial):
   %2: %%U8 address = alloc frame %U8 [shared call]
   %3: %Size address = alloc frame Size [shared call]
   %4: %I64 address = alloc frame I64

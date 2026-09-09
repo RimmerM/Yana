@@ -57,26 +57,24 @@ main<complex>(): I32 {
     %v_1 = alloca 12, 4: Ptr
     store %xs, %v_1, 8
     %v_2 = add %xs, 8: Ptr
-    %v_3 = load %v_2, 4: I32
     store %v_2, 3, 4
     store %v_1, 1, 4
-    %v_4 = add %v_1, 4: Ptr
-    store %v_4, 2, 4
-    %v_5 = add %v_1, 8: Ptr
+    %v_3 = add %v_1, 4: Ptr
+    store %v_3, 2, 4
+    %v_4 = add %v_1, 8: Ptr
+    store %v_4, 3, 4
+    %v_5 = add %xs, 12: Ptr
     store %v_5, 3, 4
-    %v_6 = add %xs, 12: Ptr
-    store %v_6, 3, 4
     %ys = alloca 16, 8: Ptr
-    %v_7 = alloca 8, 4: Ptr
-    store %ys, %v_7, 8
-    %v_8 = add %ys, 8: Ptr
-    %v_9 = load %v_8, 4: I32
-    store %v_8, 2, 4
-    store %v_7, 4, 4
-    %v_10 = add %v_7, 4: Ptr
-    store %v_10, 5, 4
-    %v_11 = add %ys, 12: Ptr
-    store %v_11, 2, 4
+    %v_6 = alloca 8, 4: Ptr
+    store %ys, %v_6, 8
+    %v_7 = add %ys, 8: Ptr
+    store %v_7, 2, 4
+    store %v_6, 4, 4
+    %v_8 = add %v_6, 4: Ptr
+    store %v_8, 5, 4
+    %v_9 = add %ys, 12: Ptr
+    store %v_9, 2, 4
     call_complex Reclaim(Array(a)).reclaim(I32), %xs
     call_complex Reclaim(Array(a)).reclaim(I32), %ys
     ret 57

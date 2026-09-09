@@ -1867,6 +1867,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     function->form = readGenForm(declaration);
     readInlineAttribute(declaration, function->alwaysInline, function->inlineHint,
                         function->noInline, function->legacySse);
+    readFrequencyAttributes(declaration, function->cold, function->hot);
     readConventionAttribute(declaration, *function);
 
     // `pub`. Here rather than at each caller because both of them - a plain `fn` and a class member -

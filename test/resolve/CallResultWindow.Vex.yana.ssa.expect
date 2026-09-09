@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn opaque(x: F64 [shared call]) -> F64 {
-bb0(%0: F64 [shared call] guaranteed):
+bb0(%0: F64 trivial):
   %1: %F64 address = alloc frame F64 [shared call]
   store inspect %1 borrow %0
   %2: F64 trivial = load inspect %1
@@ -9,7 +9,7 @@ bb0(%0: F64 [shared call] guaranteed):
 }
 
 fn barrier(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -17,7 +17,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %0

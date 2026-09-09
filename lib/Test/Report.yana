@@ -87,6 +87,7 @@ pub fn reportMuted() -> Bool = muted
    §4.3's "every assertion in the library has this shape" means in practice. The `check…` family
    below is nothing but a condition and a call to this.
 -}
+@cold
 pub fn record(failure: Failure):
     recordAt(failure.site, failure.claim, failure.detail)
 
@@ -97,6 +98,7 @@ pub fn record(failure: Failure):
    `Case`, and building a `Failure` out of them would mean *owning* copies of two strings that are
    already there. Nothing about a report line needs the record - it needs four fields to read.
 -}
+@cold
 pub fn recordAt(site: Site, claim: String, detail: String):
     caseFailures = caseFailures + 1
     totalFailures = totalFailures + 1

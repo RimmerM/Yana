@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn scaled(v: I32 [shared call], by: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -15,7 +15,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn makePoint(x: I32 [shared call], y: I32 [shared call]) -> Point {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -36,7 +36,7 @@ bb0(%0: I32 [unique call] guaranteed):
 }
 
 fn onlyCaller(a: I32 [shared call], b: I32 [shared call], c: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial, %2: I32 trivial):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32 [shared call]
@@ -74,7 +74,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 
 }
 
 fn clamped(v: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -95,7 +95,7 @@ bb3:
 }
 
 fn graded(score: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   %3: I32 trivial = load inspect %2
@@ -126,7 +126,7 @@ bb5:
 }
 
 fn stepsTo(limit: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
@@ -160,7 +160,7 @@ bb3:
 }
 
 fn onceBranching(a: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -185,7 +185,7 @@ bb3:
 }
 
 fn countDown(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -211,7 +211,7 @@ bb3:
 }
 
 fn evenLength(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -235,7 +235,7 @@ bb3:
 }
 
 fn oddLength(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -271,7 +271,7 @@ bb0:
 }
 
 fn unknowns(a: I32 [shared call], b: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -287,7 +287,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn constructed(a: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Point address = alloc frame Point
   store inspect %1 borrow %0
@@ -306,7 +306,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn mutated(seed: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -321,7 +321,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn measured(v: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -331,7 +331,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn worthIt(a: I32 [shared call], b: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -365,7 +365,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn branching(a: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -426,7 +426,7 @@ bb0:
 }
 
 fn requested(a: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1

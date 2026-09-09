@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn buffers(count: Size [shared call], unit: Size [shared call], $body: (->Size) -> I32 [shared call]) -> I32 {
-bb0(%0: Size [shared call] guaranteed, %1: Size [shared call] guaranteed, %2: (->Size) -> I32 [shared call] guaranteed):
+bb0(%0: Size trivial, %1: Size trivial, %2: (->Size) -> I32 [shared call] guaranteed):
   %3: %Size address = alloc frame Size [shared call]
   %4: %Size address = alloc frame Size [shared call]
   %5: %I32 address = alloc frame I32
@@ -33,51 +33,114 @@ bb3:
   %18: Size trivial = const 1
   %19: Size trivial = add inspect %17 inspect %18
   %20: Size trivial = mul inspect %16 inspect %19
-  %21: Run(U8) owned = call newRun(U8) borrow %20
-  store inspect %7 consume %21
-  %22: Run(U8) [shared slot 0] guaranteed from{%7} = load inspect %7
-  %23: %U8 [owned here shape6 .*=shared slot 0] trivial = call slots(U8) borrow %22
-  store inspect %8 consume %23
-  %24: %@bits(30) U32 address = field.addr .capacity inspect %7
-  %25: @bits(30) U32 trivial = load inspect %24
-  %26: Size trivial = convert inspect %25
-  %27: Size trivial = const 1
-  %28: Size trivial = sub inspect %26 inspect %27
-  store inspect %9 consume %28
-  %29: %U8 [owned here shape6 .*=shared slot 0] trivial = load inspect %8
-  %30: Size trivial = load inspect %9
-  %31: U8 trivial = const 42
-  call writeByte borrow %29 borrow %30 borrow %31
-  %32: %@bits(30) U32 address = field.addr .capacity inspect %7
-  %33: @bits(30) U32 trivial = load inspect %32
-  %34: Size trivial = convert inspect %33
-  %35: Size trivial = const 1000
-  %36: Size trivial = mul inspect %34 inspect %35
-  %37: %U8 [owned here shape6 .*=shared slot 0] trivial = load inspect %8
-  %38: Size trivial = load inspect %9
-  %39: Size trivial = call readByte borrow %37 borrow %38
-  drop Run(U8) inspect %7
-  %40: Size trivial = add inspect %36 inspect %39
-  %41: (->Size) -> I32 [shared call] guaranteed from{%2} = load inspect %2
-  %42: I32 trivial = call [value #0] inspect %41 consume %40
-  %43: I32 trivial = const 0
-  %44: Bool trivial = eq inspect %42 inspect %43
-  store inspect %5 consume %42
-  branch inspect %44 -> bb4 -> bb5
+  jump -> bb6
 
 bb4:
-  %45: Size trivial = load inspect %6
-  %46: Size trivial = const 1
-  %47: Size trivial = add inspect %45 inspect %46
-  store inspect %6 consume %47
+  %74: Size trivial = load inspect %6
+  %75: Size trivial = const 1
+  %76: Size trivial = add inspect %74 inspect %75
+  store inspect %6 consume %76
   jump -> bb1
 
 bb5:
   jump -> bb2
+
+bb6:
+  %22: %Size address = alloc frame Size [shared call]
+  store inspect %22 borrow %20
+  %23: Size trivial = load inspect %22
+  jump -> bb8
+
+bb7(%21: Run(U8) owned):
+  store inspect %7 consume %21
+  %51: Run(U8) [shared slot 0] guaranteed from{%7} = load inspect %7
+  %52: %U8 [owned here shape6 .*=shared slot 0] trivial = call slots(U8) borrow %51
+  store inspect %8 consume %52
+  %53: %@bits(30) U32 address = field.addr .capacity inspect %7
+  %54: @bits(30) U32 trivial = load inspect %53
+  %55: Size trivial = convert inspect %54
+  %56: Size trivial = const 1
+  %57: Size trivial = sub inspect %55 inspect %56
+  store inspect %9 consume %57
+  %58: %U8 [owned here shape6 .*=shared slot 0] trivial = load inspect %8
+  %59: Size trivial = load inspect %9
+  %60: U8 trivial = const 42
+  call writeByte borrow %58 borrow %59 borrow %60
+  %61: %@bits(30) U32 address = field.addr .capacity inspect %7
+  %62: @bits(30) U32 trivial = load inspect %61
+  %63: Size trivial = convert inspect %62
+  %64: Size trivial = const 1000
+  %65: Size trivial = mul inspect %63 inspect %64
+  %66: %U8 [owned here shape6 .*=shared slot 0] trivial = load inspect %8
+  %67: Size trivial = load inspect %9
+  %68: Size trivial = call readByte borrow %66 borrow %67
+  drop Run(U8) inspect %7
+  %69: Size trivial = add inspect %65 inspect %68
+  %70: (->Size) -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %71: I32 trivial = call [value #0] inspect %70 consume %69
+  %72: I32 trivial = const 0
+  %73: Bool trivial = eq inspect %71 inspect %72
+  store inspect %5 consume %71
+  branch inspect %73 -> bb4 -> bb5
+
+bb8:
+  %25: Size trivial = const 0
+  %26: %U8 trivial = call Size.%a.bitcast(U8) borrow %25
+  jump -> bb9(consume %26)
+
+bb9(%24: %U8 trivial):
+  %27: Size trivial = load inspect %22
+  %28: %U8 trivial = call runSlots(U8) borrow %24 borrow %27
+  %29: @bits(2) U32 trivial = const 1
+  jump -> bb10
+
+bb10:
+  %32: %Size address = alloc frame Size [shared call]
+  %33: %%U8 address = alloc frame %U8 [shared call]
+  %34: %@bits(2) U32 address = alloc frame @bits(2) U32 [shared call]
+  %35: %Size address = alloc frame Size
+  store inspect %32 borrow %23
+  store inspect %33 borrow %28
+  store inspect %34 borrow %29
+  %36: %U8 trivial = load inspect %33
+  jump -> bb15
+
+bb11(%30: Run(U8) owned):
+  jump -> bb7(consume %30)
+
+bb12:
+  %43: Size trivial = load inspect %32
+  jump -> bb13(consume %43)
+
+bb13(%31: Size trivial):
+  store inspect %35 consume %31
+  %44: %U8 trivial = load inspect %33
+  %45: Size trivial = load inspect %35
+  %46: U32 trivial = convert inspect %45
+  %47: @bits(30) U32 trivial = convert inspect %46
+  %48: @bits(2) U32 trivial = load inspect %34
+  %49: Run(U8) owned = aggregate.Run consume %44 consume %47 consume %48
+  jump -> bb11(consume %49)
+
+bb14:
+  %50: Size trivial = const 0
+  jump -> bb13(consume %50)
+
+bb15:
+  %38: %%U8 address = alloc frame %U8 [shared call]
+  store inspect %38 borrow %36
+  %39: %U8 trivial = load inspect %38
+  %40: Size trivial = call %a.Size.bitcast(U8) borrow %39
+  %41: Size trivial = const 0
+  %42: Bool trivial = eq inspect %40 inspect %41
+  jump -> bb16(consume %42)
+
+bb16(%37: Bool trivial):
+  branch inspect %37 -> bb14 -> bb12
 }
 
 fn writeByte(base: %U8 [shared call], at: Size [shared call], value: U8 [shared call]) -> {} {
-bb0(%0: %U8 [shared call] guaranteed, %1: Size [shared call] guaranteed, %2: U8 [shared call] guaranteed):
+bb0(%0: %U8 trivial, %1: Size trivial, %2: U8 trivial):
   %3: %%U8 address = alloc frame %U8 [shared call]
   %4: %Size address = alloc frame Size [shared call]
   %5: %U8 address = alloc frame U8 [shared call]
@@ -98,7 +161,7 @@ bb0(%0: %U8 [shared call] guaranteed, %1: Size [shared call] guaranteed, %2: U8 
 }
 
 fn readByte(base: %U8 [shared call], at: Size [shared call]) -> Size {
-bb0(%0: %U8 [shared call] guaranteed, %1: Size [shared call] guaranteed):
+bb0(%0: %U8 trivial, %1: Size trivial):
   %2: %%U8 address = alloc frame %U8 [shared call]
   %3: %Size address = alloc frame Size [shared call]
   %4: %%U8 address = alloc frame %U8 [owned here shape6 .*=shared slot 0]

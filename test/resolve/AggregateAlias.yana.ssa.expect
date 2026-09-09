@@ -57,7 +57,7 @@ bb0(%0: Buf [shared call] guaranteed):
 }
 
 fn fromEither(flag: Bool [shared call], w: Wrap [shared slot 0]) -> Buf {
-bb0(%0: Bool [shared call] guaranteed, %1: Wrap [shared slot 0] guaranteed):
+bb0(%0: Bool trivial, %1: Wrap [shared slot 0] guaranteed):
   %3: %Bool address = alloc frame Bool [shared call]
   store inspect %3 borrow %0
   %4: Bool trivial = load inspect %3

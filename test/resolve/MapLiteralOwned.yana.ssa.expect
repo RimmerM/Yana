@@ -18,7 +18,7 @@ bb0(%0: Held owned):
 }
 
 fn hold(n: I32 [shared call]) -> Held {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr live
@@ -33,7 +33,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn key(n: I32 [shared call]) -> String {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %String address = alloc frame String
   %3: %String address = alloc frame String
@@ -42,22 +42,17 @@ bb0(%0: I32 [shared call] guaranteed):
   %5: String owned = call String.ofCapacity borrow %4
   store inspect %2 consume %5
   %6: String [unique call] guaranteed from{%2} = load inspect %2
-  %7: %[CodeUnit *2] address = global.addr string'142
-  %8: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %7
-  %9: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %8
-  %10: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %9
-  %11: I32 trivial = const 2
-  %12: String owned = call stringLiteral borrow %10 borrow %11
-  store inspect %3 consume %12
-  %13: String [shared slot 0] guaranteed from{%3} = load inspect %3
-  %14: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %13
-  call String.push borrow %6 borrow %14
+  %7: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  store inspect %3 consume %7
+  %8: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  %9: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %8
+  call String.push borrow %6 borrow %9
   drop String inspect %3
-  %15: I32 trivial = load inspect %1
-  %16: String [unique call] guaranteed from{%2} = load inspect %2
-  call I32.show borrow %15 borrow %16
-  %17: String owned = load inspect %2
-  return consume %17
+  %10: I32 trivial = load inspect %1
+  %11: String [unique call] guaranteed from{%2} = load inspect %2
+  call I32.show borrow %10 borrow %11
+  %12: String owned = load inspect %2
+  return consume %12
 }
 
 fn take(m: Map(String, Held) [shared call]) -> I32 {

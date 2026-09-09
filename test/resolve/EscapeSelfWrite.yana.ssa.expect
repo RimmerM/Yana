@@ -3,7 +3,7 @@ module ResolveTest
 fn advance(p: %a [shared call shape4 .*=shared slot 0]) -> %a [owned here shape4 .*=shared slot 0] = <no body>
 
 fn I32.advance(p: %I32 [shared call shape4 .*=shared slot 0]) -> %I32 [owned here shape4 .*=shared slot 0] {
-bb0(%0: %I32 [shared call shape4 .*=shared slot 0] guaranteed):
+bb0(%0: %I32 trivial):
   %1: %%I32 address = alloc frame %I32 [shared call shape4 .*=shared slot 0]
   store inspect %1 borrow %0
   %2: %I32 [owned here shape4 .*=shared slot 0] trivial = load inspect %1

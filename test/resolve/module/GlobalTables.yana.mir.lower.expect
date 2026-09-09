@@ -1,74 +1,39 @@
 @string'142 = [48, 48, 48, 49, 48, 50, 48, 51, 48, 52, 48, 53, 48, 54, 48, 55, 48, 56, 48, 57]
-@decimalPairs = [0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 20, 0, 0, 0]
 @powers = [1, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0, 16, 39, 0, 0, 0, 0, 0, 0]
 @string'144 = [48, 48, 48, 49, 48, 50, 48, 51, 48, 52, 48, 53, 48, 54, 48, 55, 48, 56, 48, 57]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %decimalPairs = global @decimalPairs: Ptr
-    %v_2 = load %decimalPairs, 8: Ptr
-    %v_3 = add %decimalPairs, 12: Ptr
-    %v_4 = load %v_3, 4: I32
-    %v_5 = sext %v_4: I64
-    %v_6 = sar %v_5, 63: I64
-    %v_7 = shr %v_6, 63: I64
-    %v_8 = add %v_5, %v_7: I64
-    %v_9 = sar %v_8, 1: I64
-    %v_10 = cmp_eq %v_9, 10: I32
-    jmp b_11
+    jmp b_1
+  }
+
+  b_2 {
+    %v_3 = add %v_4, 8: I32
+    %v_5 = select %v_6, %v_3, %v_4: I32
+    ret %v_5
+  }
+
+  b_7 {
+    %v_8 = call_complex compareMemory(CodeUnit), @string'144, @string'142, 20: I32
+    %v_6 = cmp_eq %v_8, 1: I32
+    jmp b_2
+  }
+
+  b_1 {
+    %v_9 = loads @powers, 8: I64
+    %v_10 = cmp_eq %v_9, 1: I32
+    %v_11 = select %v_10, 3, 1: I32
+    jmp b_12
   }
 
   b_12 {
-    %v_13 = phi [b_14, %v_15], [b_16, 0]: I32
-    call_complex String.reclaim, %v_1
-    %v_17 = add %v_18, 8: I32
-    %v_19 = select %v_13, %v_17, %v_18: I32
-    ret %v_19
-  }
-
-  b_14 {
-    %v_20 = call_complex compareMemory(CodeUnit), %v_21, %v_22, %v_23: I32
-    %v_15 = cmp_eq %v_20, 1: I32
-    jmp b_12
-  }
-
-  b_16 {
-    jmp b_12
-  }
-
-  b_11 {
-    %v_24 = loads @powers, 8: I64
-    %v_25 = cmp_eq %v_24, 1: I32
-    %v_26 = add %v_10, 2: I32
-    %v_27 = select %v_25, %v_26, %v_10: I32
-    jmp b_28
-  }
-
-  b_28 {
-    %v_29 = add @powers, 32: Ptr
-    %v_30 = loads %v_29, 8: I64
-    %v_31 = cmp_eq %v_30, 10000: I32
-    %v_32 = add %v_27, 4: I32
-    %v_18 = select %v_31, %v_32, %v_27: I32
-    %decimalPairs = global @decimalPairs: Ptr
-    %v_21 = load %decimalPairs, 8: Ptr
-    %v_33 = add %decimalPairs, 12: Ptr
-    %v_34 = load %v_33, 4: I32
-    %v_23 = sext %v_34: I64
-    %v_35 = alloca 4, 8: Ptr
-    %v_36 = load %v_35, 4: I64
-    store %v_35, 20, 4
-    store %v_1, @string'142, 8
-    %v_37 = add %v_1, 8: Ptr
-    %v_38 = load %v_35, 4: I64
-    store %v_37, %v_38, 4
-    %v_39 = add %v_1, 12: Ptr
-    store %v_39, 20, 4
-    %v_22 = load %v_1, 8: Ptr
-    %v_40 = cmp_neq %v_23, 20: I32
-    je %v_40, b_16, b_14
+    %v_13 = add @powers, 32: Ptr
+    %v_14 = loads %v_13, 8: I64
+    %v_15 = cmp_eq %v_14, 10000: I32
+    %v_16 = add %v_11, 4: I32
+    %v_4 = select %v_15, %v_16, %v_11: I32
+    jmp b_7
   }
 }
 
@@ -77,20 +42,18 @@ String.reclaim<complex>(%value: Ptr) {
     %v_1 = load %value, 8: Ptr
     %v_2 = add %value, 8: Ptr
     %v_3 = load %v_2, 4: I64
-    %v_4 = add %value, 12: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = shr %v_3, 30: I64
-    %v_7 = cast %v_6: I32
-    %v_8 = cmp_eq %v_7, 1: I32
-    je %v_8, b_9, b_10
+    %v_4 = shr %v_3, 30: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cmp_eq %v_5, 1: I32
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
+  b_7 {
     call_complex freeHeap, %v_1
-    jmp b_10
+    jmp b_8
   }
 
-  b_10 {
+  b_8 {
     ret 
   }
 }
@@ -100,20 +63,18 @@ Array(a).reclaim(CodeUnit)<complex>(%value: Ptr) {
     %v_1 = load %value, 8: Ptr
     %v_2 = add %value, 8: Ptr
     %v_3 = load %v_2, 4: I64
-    %v_4 = add %value, 12: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = shr %v_3, 30: I64
-    %v_7 = cast %v_6: I32
-    %v_8 = cmp_eq %v_7, 1: I32
-    je %v_8, b_9, b_10
+    %v_4 = shr %v_3, 30: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cmp_eq %v_5, 1: I32
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
+  b_7 {
     call_complex freeHeap, %v_1
-    jmp b_10
+    jmp b_8
   }
 
-  b_10 {
+  b_8 {
     ret 
   }
 }

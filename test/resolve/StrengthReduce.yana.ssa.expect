@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn magL(v: I64 [shared call]) -> I64 {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %2: %I64 address = alloc frame I64 [shared call]
   store inspect %2 borrow %0
   %3: I64 trivial = load inspect %2
@@ -24,7 +24,7 @@ bb3:
 }
 
 fn magI(v: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   %3: I32 trivial = load inspect %2
@@ -47,7 +47,7 @@ bb3:
 }
 
 fn okL(x: I64 [shared call], d: I64 [shared call], q: I64 [shared call], r: I64 [shared call]) -> I32 {
-bb0(%0: I64 [shared call] guaranteed, %1: I64 [shared call] guaranteed, %2: I64 [shared call] guaranteed, %3: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial, %1: I64 trivial, %2: I64 trivial, %3: I64 trivial):
   %8: %I64 address = alloc frame I64 [shared call]
   %9: %I64 address = alloc frame I64 [shared call]
   %10: %I64 address = alloc frame I64 [shared call]
@@ -131,7 +131,7 @@ bb14:
 }
 
 fn okI(x: I32 [shared call], d: I32 [shared call], q: I32 [shared call], r: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed, %3: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial, %2: I32 trivial, %3: I32 trivial):
   %8: %I32 address = alloc frame I32 [shared call]
   %9: %I32 address = alloc frame I32 [shared call]
   %10: %I32 address = alloc frame I32 [shared call]
@@ -215,7 +215,7 @@ bb14:
 }
 
 fn okU(x: U64 [shared call], d: U64 [shared call], q: U64 [shared call], r: U64 [shared call]) -> I32 {
-bb0(%0: U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed, %2: U64 [shared call] guaranteed, %3: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial, %1: U64 trivial, %2: U64 trivial, %3: U64 trivial):
   %5: %U64 address = alloc frame U64 [shared call]
   %6: %U64 address = alloc frame U64 [shared call]
   %7: %U64 address = alloc frame U64 [shared call]
@@ -252,7 +252,7 @@ bb4:
 }
 
 fn okW(x: U32 [shared call], d: U32 [shared call], q: U32 [shared call], r: U32 [shared call]) -> I32 {
-bb0(%0: U32 [shared call] guaranteed, %1: U32 [shared call] guaranteed, %2: U32 [shared call] guaranteed, %3: U32 [shared call] guaranteed):
+bb0(%0: U32 trivial, %1: U32 trivial, %2: U32 trivial, %3: U32 trivial):
   %5: %U32 address = alloc frame U32 [shared call]
   %6: %U32 address = alloc frame U32 [shared call]
   %7: %U32 address = alloc frame U32 [shared call]
@@ -289,7 +289,7 @@ bb4:
 }
 
 fn signedLong(x: I64 [shared call]) -> I32 {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -456,7 +456,7 @@ bb0(%0: I64 [shared call] guaranteed):
 }
 
 fn signedInt(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -563,7 +563,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn unsignedLong(x: U64 [shared call]) -> I32 {
-bb0(%0: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial):
   %1: %U64 address = alloc frame U64 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -646,7 +646,7 @@ bb0(%0: U64 [shared call] guaranteed):
 }
 
 fn unsignedInt(x: U32 [shared call]) -> I32 {
-bb0(%0: U32 [shared call] guaranteed):
+bb0(%0: U32 trivial):
   %1: %U32 address = alloc frame U32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -705,7 +705,7 @@ bb0(%0: U32 [shared call] guaranteed):
 }
 
 fn scaled(x: I64 [shared call]) -> I32 {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %2: %I64 address = alloc frame I64 [shared call]
   store inspect %2 borrow %0
   %3: I64 trivial = load inspect %2

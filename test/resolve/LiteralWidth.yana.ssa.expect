@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn checkW(actual: WideInt [shared call], expected: WideInt [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: WideInt trivial, %1: WideInt trivial, %2: I32 trivial):
   %4: %WideInt address = alloc frame WideInt [shared call]
   %5: %WideInt address = alloc frame WideInt [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -26,7 +26,7 @@ bb3:
 }
 
 fn checkL(actual: I64 [shared call], expected: I64 [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: I64 [shared call] guaranteed, %1: I64 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: I64 trivial, %1: I64 trivial, %2: I32 trivial):
   %4: %I64 address = alloc frame I64 [shared call]
   %5: %I64 address = alloc frame I64 [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -138,7 +138,7 @@ bb0:
 }
 
 fn adoptIf(flag: Bool [shared call]) -> WideInt {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   store inspect %2 borrow %0
   %3: Bool trivial = load inspect %2
@@ -159,7 +159,7 @@ bb3:
 }
 
 fn concreteWins(x: I32 [shared call]) -> I64 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -170,7 +170,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn concreteMul(x: I32 [shared call]) -> WideInt {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -197,7 +197,7 @@ bb0:
 }
 
 fn castIf(c: Bool [shared call]) -> WideInt {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   store inspect %2 borrow %0
   %3: Bool trivial = load inspect %2
@@ -218,7 +218,7 @@ bb3:
 }
 
 fn castMatch(c: Bool [shared call]) -> WideInt {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -228,7 +228,7 @@ bb0(%0: Bool [shared call] guaranteed):
 }
 
 fn narrowParen(x: I64 [shared call]) -> I32 {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   store inspect %1 borrow %0
   %2: I64 trivial = load inspect %1
@@ -237,7 +237,7 @@ bb0(%0: I64 [shared call] guaranteed):
 }
 
 fn narrowIf(c: Bool [shared call], x: I64 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I64 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I64 trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I64 address = alloc frame I64 [shared call]
   store inspect %3 borrow %0

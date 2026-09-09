@@ -8,32 +8,30 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 Buffer.reclaim<complex>(%value: Ptr) {
   b_0 {
     %v_1 = load %value, 8: Ptr
-    %v_2 = add %value, 8: Ptr
-    %v_3 = load %v_2, 4: I32
-    %v_4 = loads @released, 4: I32
-    %v_5 = add %v_4, 1: I32
-    store @released, %v_5, 4
-    %v_6 = bitcast %v_1: I64
-    %v_7 = cmp_eq %v_6, 0: I32
-    je %v_7, b_8, b_9
+    %v_2 = loads @released, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store @released, %v_3, 4
+    %v_4 = bitcast %v_1: I64
+    %v_5 = cmp_eq %v_4, 0: I32
+    je %v_5, b_6, b_7
   }
 
-  b_8 {
+  b_6 {
     ret 
   }
 
-  b_9 {
-    %v_10 = sub %v_1, 8: Ptr
-    %v_11 = loads %v_10, 8: I64
-    %v_12 = load @heapFree, 8: Ptr
-    %v_13 = shl %v_11, 3: I64
-    %v_14 = add %v_12, %v_13: Ptr
-    %v_15 = load %v_14, 8: Ptr
-    store %v_1, %v_15, 8
-    %v_16 = load @heapFree, 8: Ptr
-    %v_17 = add %v_16, %v_13: Ptr
-    store %v_17, %v_1, 8
-    jmp b_8
+  b_7 {
+    %v_8 = sub %v_1, 8: Ptr
+    %v_9 = loads %v_8, 8: I64
+    %v_10 = load @heapFree, 8: Ptr
+    %v_11 = shl %v_9, 3: I64
+    %v_12 = add %v_10, %v_11: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    store %v_1, %v_13, 8
+    %v_14 = load @heapFree, 8: Ptr
+    %v_15 = add %v_14, %v_11: Ptr
+    store %v_15, %v_1, 8
+    jmp b_6
   }
 }
 

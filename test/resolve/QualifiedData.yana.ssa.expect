@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn detailOf(d: Detail [shared call]) -> I32 {
-bb0(%0: Detail [shared call] guaranteed):
+bb0(%0: Detail trivial):
   %1: %Detail address = alloc frame Detail [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -11,7 +11,7 @@ bb0(%0: Detail [shared call] guaranteed):
 }
 
 fn unitOf(u: Unit [shared call]) -> I32 {
-bb0(%0: Unit [shared call] guaranteed):
+bb0(%0: Unit trivial):
   %1: %Unit address = alloc frame Unit [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1

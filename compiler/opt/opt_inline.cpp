@@ -2052,6 +2052,26 @@ struct Inliner {
 
         if(candidate.callee->inlineHint) limit += policy.requested;
 
+        // `@hot`, at the same term and for the same sentence: a reason to copy this body that the
+        // body itself does not show. See `Function::hot`.
+        if(candidate.callee->hot) limit += policy.requested;
+
+        /*
+         * `@cold`, which is the one term that only ever subtracts and is therefore written as a
+         * refusal rather than as a number.
+         *
+         * A body the author says runs rarely is one there is nothing to buy by copying, so what is
+         * left is the case that cannot grow the program: `movesIntoSite` - the sole call site and
+         * the lifted lambda - where the body *moves* rather than being duplicated. Every bonus above
+         * is a reason to grow, so the refusal is placed under all of them rather than as a smaller
+         * limit they could add back.
+         *
+         * The caller half of the attribute - a block whose every path reaches nothing but a cold
+         * call is itself cold - is `resolve_ssa/opt/inline.cpp`'s, and is where the size it buys
+         * was measured. This stage's inliner already declines the shape that motivated it.
+         */
+        if(candidate.callee->cold && !moves) return false;
+
         /*
          * What the graft costs, which the straight-line case does not pay because it performs none -
          * and neither does one whose every branch this call site has already decided.

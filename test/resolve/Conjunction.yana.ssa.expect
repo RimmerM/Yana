@@ -3,7 +3,7 @@ module ResolveTest
 let & trace: I32 = 0
 
 fn find'2(n: I32 [shared call]) -> Maybe {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   %3: I32 trivial = load inspect %2
@@ -25,7 +25,7 @@ bb3:
 }
 
 fn mark(bit: I32 [shared call]) -> Bool {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr trace
@@ -39,7 +39,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn guarded(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Maybe address = alloc frame Maybe
   %3: %I32 address = alloc frame I32
@@ -77,7 +77,7 @@ bb4:
 }
 
 fn twoGuards(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Maybe address = alloc frame Maybe
   %3: %I32 address = alloc frame I32
@@ -121,7 +121,7 @@ bb5:
 }
 
 fn afterAPlainTest(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Maybe address = alloc frame Maybe
   %3: %I32 address = alloc frame I32
@@ -165,7 +165,7 @@ bb5:
 }
 
 fn twoPatterns(a: I32 [shared call], b: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %Maybe address = alloc frame Maybe
@@ -256,7 +256,7 @@ bb5:
 }
 
 fn drain(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
@@ -305,7 +305,7 @@ bb4:
 }
 
 fn disjunction(a: I32 [shared call], b: I32 [shared call]) -> Bool {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32 [shared call]
   store inspect %4 borrow %0
@@ -353,7 +353,7 @@ bb9:
 }
 
 fn shortCircuits(flag: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   store inspect %1 borrow %0
   %2: Bool trivial = load inspect %1
@@ -377,7 +377,7 @@ bb4:
 }
 
 fn asValue(flag: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   store inspect %2 borrow %0
   %3: Bool trivial = load inspect %2

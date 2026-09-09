@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn widen'2(value: I32 [shared call]) -> I64 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -20,7 +20,7 @@ fn floatProduct(a: F32 [shared call], b: F32 [shared call]) -> F32 = <no body>
 fn doubleSum(a: F64 [shared call], b: F64 [shared call]) -> F64 = <no body>
 
 fn both(a: Bool [shared call], b: Bool [shared call]) -> Bool {
-bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: Bool trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %Bool address = alloc frame Bool [shared call]
   store inspect %3 borrow %0

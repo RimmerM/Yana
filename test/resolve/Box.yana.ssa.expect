@@ -161,7 +161,7 @@ bb0(%0: Config [shared call] guaranteed, %1: (I32) -> I32 [shared call] guarante
 }
 
 fn throughLens.cont(throughLens.cont.env: throughLens.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: throughLens.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: throughLens.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %Config address = field.addr .c inspect %0
   %3: %Config address = load inspect %2
   %4: %I32 address = field.addr .$leaving inspect %0

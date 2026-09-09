@@ -5,7 +5,7 @@ let string'142: [CodeUnit *2] = [57, 57]
 let string'143: [CodeUnit *2] = [49, 57]
 
 fn withAnd(text: String [shared call view], keep: I32 [shared call], out: String [unique call]) -> I32 {
-bb0(%0: String [shared call view] guaranteed, %1: I32 [shared call] guaranteed, %2: String [unique call] guaranteed):
+bb0(%0: String [shared call view] guaranteed, %1: I32 trivial, %2: String [unique call] guaranteed):
   %7: %I32 address = alloc frame I32 [shared call]
   %8: %String address = alloc frame String
   %9: %I32 address = alloc frame I32
@@ -158,7 +158,7 @@ bb19:
 }
 
 fn countUp(start: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -191,7 +191,7 @@ bb4:
 }
 
 fn countDown(start: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %0
@@ -242,62 +242,52 @@ bb0:
   %6: String owned = call String.ofCapacity borrow %5
   store inspect %1 consume %6
   %7: I32 trivial = load inspect %0
-  %8: %[CodeUnit *2] address = global.addr string'142
-  %9: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %8
-  %10: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %9
-  %11: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %10
-  %12: I32 trivial = const 2
-  %13: String owned = call stringLiteral borrow %11 borrow %12
-  store inspect %2 consume %13
-  %14: String [shared slot 0] guaranteed from{%2} = load inspect %2
-  %15: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %14
-  %16: I32 trivial = const 2
-  %17: String [unique call] guaranteed from{%1} = load inspect %1
-  %18: I32 trivial = call withAnd borrow %15 borrow %16 borrow %17
+  %8: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  store inspect %2 consume %8
+  %9: String [shared slot 0] guaranteed from{%2} = load inspect %2
+  %10: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %9
+  %11: I32 trivial = const 2
+  %12: String [unique call] guaranteed from{%1} = load inspect %1
+  %13: I32 trivial = call withAnd borrow %10 borrow %11 borrow %12
   drop String inspect %2
-  %19: I32 trivial = add inspect %7 inspect %18
-  store inspect %0 consume %19
-  %20: I32 trivial = load inspect %0
-  %21: %[CodeUnit *2] address = global.addr string'143
-  %22: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %21
-  %23: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %22
-  %24: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %23
-  %25: I32 trivial = const 2
-  %26: String owned = call stringLiteral borrow %24 borrow %25
-  store inspect %3 consume %26
-  %27: String [shared slot 0] guaranteed from{%3} = load inspect %3
-  %28: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %27
-  %29: I32 trivial = const 2
-  %30: String [unique call] guaranteed from{%1} = load inspect %1
-  %31: I32 trivial = call withAnd borrow %28 borrow %29 borrow %30
+  %14: I32 trivial = add inspect %7 inspect %13
+  store inspect %0 consume %14
+  %15: I32 trivial = load inspect %0
+  %16: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  store inspect %3 consume %16
+  %17: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  %18: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %17
+  %19: I32 trivial = const 2
+  %20: String [unique call] guaranteed from{%1} = load inspect %1
+  %21: I32 trivial = call withAnd borrow %18 borrow %19 borrow %20
   drop String inspect %3
-  %32: I32 trivial = add inspect %20 inspect %31
+  %22: I32 trivial = add inspect %15 inspect %21
+  store inspect %0 consume %22
+  %23: I32 trivial = load inspect %0
+  %24: String [shared call] guaranteed from{%1} = load inspect %1
+  %25: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %24
+  %26: Size trivial = call String.length borrow %25
+  drop String inspect %1
+  %27: I32 trivial = convert inspect %26
+  %28: I32 trivial = add inspect %23 inspect %27
+  store inspect %0 consume %28
+  %29: I32 trivial = load inspect %0
+  %30: I32 trivial = const 12
+  %31: I32 trivial = call countUp borrow %30
+  %32: I32 trivial = add inspect %29 inspect %31
   store inspect %0 consume %32
   %33: I32 trivial = load inspect %0
-  %34: String [shared call] guaranteed from{%1} = load inspect %1
-  %35: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %34
-  %36: Size trivial = call String.length borrow %35
-  drop String inspect %1
-  %37: I32 trivial = convert inspect %36
-  %38: I32 trivial = add inspect %33 inspect %37
-  store inspect %0 consume %38
-  %39: I32 trivial = load inspect %0
-  %40: I32 trivial = const 12
-  %41: I32 trivial = call countUp borrow %40
-  %42: I32 trivial = add inspect %39 inspect %41
-  store inspect %0 consume %42
-  %43: I32 trivial = load inspect %0
-  %44: I32 trivial = const 0
-  %45: I32 trivial = call countUp borrow %44
-  %46: I32 trivial = add inspect %43 inspect %45
-  store inspect %0 consume %46
-  %47: I32 trivial = load inspect %0
-  %48: I32 trivial = const 15
-  %49: I32 trivial = call countDown borrow %48
-  %50: I32 trivial = add inspect %47 inspect %49
-  store inspect %0 consume %50
-  %51: I32 trivial = load inspect %0
-  return consume %51
+  %34: I32 trivial = const 0
+  %35: I32 trivial = call countUp borrow %34
+  %36: I32 trivial = add inspect %33 inspect %35
+  store inspect %0 consume %36
+  %37: I32 trivial = load inspect %0
+  %38: I32 trivial = const 15
+  %39: I32 trivial = call countDown borrow %38
+  %40: I32 trivial = add inspect %37 inspect %39
+  store inspect %0 consume %40
+  %41: I32 trivial = load inspect %0
+  return consume %41
 }
 
 entry main

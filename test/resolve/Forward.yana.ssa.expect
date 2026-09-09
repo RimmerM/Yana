@@ -12,7 +12,7 @@ bb0(%0: Point [unique call] guaranteed):
 }
 
 fn branched(a: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Point address = alloc frame Point
   store inspect %1 borrow %0
@@ -45,7 +45,7 @@ bb3:
 }
 
 fn partial(a: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Point address = alloc frame Point
   store inspect %1 borrow %0
@@ -77,7 +77,7 @@ bb3:
 }
 
 fn merged(a: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Point address = alloc frame Point
   store inspect %1 borrow %0
@@ -124,7 +124,7 @@ bb6:
 }
 
 fn invariant(count: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Point address = alloc frame Point
   %3: %I32 address = alloc frame I32
@@ -167,7 +167,7 @@ bb3:
 }
 
 fn carried(count: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Point address = alloc frame Point
   %3: %I32 address = alloc frame I32
@@ -207,7 +207,7 @@ bb3:
 }
 
 fn nested(a: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Outer address = alloc frame Outer
   store inspect %1 borrow %0
@@ -247,7 +247,7 @@ bb3:
 }
 
 fn escaped(a: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Point address = alloc frame Point
   store inspect %1 borrow %0

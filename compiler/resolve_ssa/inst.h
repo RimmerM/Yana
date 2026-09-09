@@ -1230,6 +1230,26 @@ struct Block {
      */
     bool deleted = false;
 
+    /*
+     * Whether control that arrives here reaches nothing but a `@cold` call before it leaves -
+     * `resolve_ssa/opt/inline.cpp`'s `findColdBlocks`, which is what writes it.
+     *
+     * On the block rather than derived per round, because the fact **outlives its own evidence**: a
+     * block is first known to be cold because it calls a `@cold` function, and the first thing the
+     * inliner may do is copy that callee's one-instruction body in and erase the call. A flag
+     * recomputed from scratch each round would answer "cold" once and "warm" ever after, and the
+     * round that lost it is the round that expands a message-building chain into a failure arm.
+     *
+     * Never cleared. Nothing this stage does makes a rare path common: a block whose successors are
+     * all cold is cold, an arm that reports a failure stays one, and a pass that thought otherwise
+     * would be undoing a statement the source made rather than a derivation of its own.
+     *
+     * Not a `deleted`-style structural fact, so no invariant of the verifier's turns on it: read as
+     * false everywhere it has not been computed, which is what a fresh body and a cloned block both
+     * are until the inliner has looked at them.
+     */
+    bool cold = false;
+
 private:
     friend struct Editor;
     friend struct Mutation;

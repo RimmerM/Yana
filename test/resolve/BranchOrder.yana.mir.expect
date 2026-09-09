@@ -240,60 +240,52 @@ bb0:
   %3: String = call String.ofCapacity borrow.shared %2
   write.init borrow.unique (out) take %3
   %5: I32 = read copy.trivial (total)
-  %6: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'142) loan0
-  %7: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] = address inspect %6 roots.0{0}
-  %8: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %7 roots.0{0}
-  %9: I32 = const 2
-  %10: String = call stringLiteral borrow.shared %8 borrow.shared %9
-  write.init borrow.unique (local2) take %10
-  %12: String [shared slot 0] = read borrow.shared (local2) loan1
-  %13: String [shared slot 0 view] = call.derivation view(String) borrow.shared %12 roots{1}
-  %14: I32 = const 2
-  %15: String [unique call] = read borrow.unique (out) loan2
-  %16: I32 = call withAnd borrow.shared %13 borrow.shared %14 borrow.unique %15
+  %6: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  write.init borrow.unique (local2) take %6
+  %8: String [shared slot 0] = read borrow.shared (local2) loan0
+  %9: String [shared slot 0 view] = call.derivation view(String) borrow.shared %8 roots{0}
+  %10: I32 = const 2
+  %11: String [unique call] = read borrow.unique (out) loan1
+  %12: I32 = call withAnd borrow.shared %9 borrow.shared %10 borrow.unique %11
   drop (local2)
-  %17: I32 = add inspect %5 inspect %16
-  write.assign borrow.unique (total) take %17
-  %19: I32 = read copy.trivial (total)
-  %20: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'143) loan3
-  %21: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] = address inspect %20 roots.0{3}
-  %22: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %21 roots.0{3}
-  %23: I32 = const 2
-  %24: String = call stringLiteral borrow.shared %22 borrow.shared %23
-  write.init borrow.unique (local3) take %24
-  %26: String [shared slot 0] = read borrow.shared (local3) loan4
-  %27: String [shared slot 0 view] = call.derivation view(String) borrow.shared %26 roots{4}
-  %28: I32 = const 2
-  %29: String [unique call] = read borrow.unique (out) loan5
-  %30: I32 = call withAnd borrow.shared %27 borrow.shared %28 borrow.unique %29
+  %13: I32 = add inspect %5 inspect %12
+  write.assign borrow.unique (total) take %13
+  %15: I32 = read copy.trivial (total)
+  %16: String = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  write.init borrow.unique (local3) take %16
+  %18: String [shared slot 0] = read borrow.shared (local3) loan2
+  %19: String [shared slot 0 view] = call.derivation view(String) borrow.shared %18 roots{2}
+  %20: I32 = const 2
+  %21: String [unique call] = read borrow.unique (out) loan3
+  %22: I32 = call withAnd borrow.shared %19 borrow.shared %20 borrow.unique %21
   drop (local3)
-  %31: I32 = add inspect %19 inspect %30
-  write.assign borrow.unique (total) take %31
-  %33: I32 = read copy.trivial (total)
-  %34: String [shared call] = read borrow.shared (out) loan6
-  %35: String [shared slot 0 view] = call.derivation view(String) borrow.shared %34 roots{6}
-  %36: Size = call length(String) borrow.shared %35
+  %23: I32 = add inspect %15 inspect %22
+  write.assign borrow.unique (total) take %23
+  %25: I32 = read copy.trivial (total)
+  %26: String [shared call] = read borrow.shared (out) loan4
+  %27: String [shared slot 0 view] = call.derivation view(String) borrow.shared %26 roots{4}
+  %28: Size = call length(String) borrow.shared %27
   drop (out)
-  %37: I32 = convert inspect %36
-  %38: I32 = add inspect %33 inspect %37
-  write.assign borrow.unique (total) take %38
-  %40: I32 = read copy.trivial (total)
-  %41: I32 = const 12
-  %42: I32 = call countUp borrow.shared %41
-  %43: I32 = add inspect %40 inspect %42
-  write.assign borrow.unique (total) take %43
-  %45: I32 = read copy.trivial (total)
-  %46: I32 = const 0
-  %47: I32 = call countUp borrow.shared %46
-  %48: I32 = add inspect %45 inspect %47
-  write.assign borrow.unique (total) take %48
-  %50: I32 = read copy.trivial (total)
-  %51: I32 = const 15
-  %52: I32 = call countDown borrow.shared %51
-  %53: I32 = add inspect %50 inspect %52
-  write.assign borrow.unique (total) take %53
-  %55: I32 = read copy.trivial (total)
-  return take %55
+  %29: I32 = convert inspect %28
+  %30: I32 = add inspect %25 inspect %29
+  write.assign borrow.unique (total) take %30
+  %32: I32 = read copy.trivial (total)
+  %33: I32 = const 12
+  %34: I32 = call countUp borrow.shared %33
+  %35: I32 = add inspect %32 inspect %34
+  write.assign borrow.unique (total) take %35
+  %37: I32 = read copy.trivial (total)
+  %38: I32 = const 0
+  %39: I32 = call countUp borrow.shared %38
+  %40: I32 = add inspect %37 inspect %39
+  write.assign borrow.unique (total) take %40
+  %42: I32 = read copy.trivial (total)
+  %43: I32 = const 15
+  %44: I32 = call countDown borrow.shared %43
+  %45: I32 = add inspect %42 inspect %44
+  write.assign borrow.unique (total) take %45
+  %47: I32 = read copy.trivial (total)
+  return take %47
 }
 
 entry main

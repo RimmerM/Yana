@@ -203,45 +203,6 @@ uremQuadBy7<complex>(%v: i64x2): i64x2 {
   }
 }
 
-check<complex>(%v: i32x4, %a: I32, %b: I32, %c: I32, %d: I32): I32 {
-  b_0 {
-    %v_1 = vlane %v, 0: I32
-    %v_2 = cmp_eq %v_1, %a: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_4, 0], [b_7, 1]: I32
-    ret %v_6
-  }
-
-  b_3 {
-    %v_8 = vlane %v, 1: I32
-    %v_9 = cmp_eq %v_8, %b: I32
-    je %v_9, b_10, b_4
-  }
-
-  b_10 {
-    %v_11 = vlane %v, 2: I32
-    %v_12 = cmp_eq %v_11, %c: I32
-    je %v_12, b_13, b_4
-  }
-
-  b_13 {
-    %v_14 = vlane %v, 3: I32
-    %v_15 = cmp_eq %v_14, %d: I32
-    je %v_15, b_7, b_4
-  }
-
-  b_7 {
-    jmp b_5
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
@@ -257,147 +218,403 @@ main<complex>(): I32 {
     %v_11 = vsplat 71: i32x4
     %v_12 = add %v_11, %v_6: i32x4
     %v_13 = imul %v_12, %v_10: i32x4
-    %v_14 = call_complex check, %v_13, 71, 18446744073709551345, 471, 18446744073709550945: I32
-    %v_15 = call_complex divBy3, %v_13: i32x4
-    %v_16 = call_complex check, %v_15, 23, 18446744073709551526, 157, 18446744073709551393: I32
-    %v_17 = add %v_14, %v_16: I32
-    %v_18 = call_complex remBy3, %v_13: i32x4
-    %v_19 = call_complex check, %v_18, 2, 18446744073709551615, 0, 18446744073709551614: I32
-    %v_20 = add %v_17, %v_19: I32
-    %v_21 = call_complex divBy7, %v_13: i32x4
-    %v_22 = call_complex check, %v_21, 10, 18446744073709551578, 67, 18446744073709551521: I32
-    %v_23 = add %v_20, %v_22: I32
-    %v_24 = call_complex divByMinus3, %v_13: i32x4
-    %v_25 = call_complex check, %v_24, 18446744073709551593, 90, 18446744073709551459, 223: I32
-    %v_26 = add %v_23, %v_25: I32
-    %v_27 = call_complex divBy4, %v_13: i32x4
-    %v_28 = call_complex check, %v_27, 17, 18446744073709551549, 117, 18446744073709551449: I32
-    %v_29 = add %v_26, %v_28: I32
-    %v_30 = call_complex remBy4, %v_13: i32x4
-    %v_31 = call_complex check, %v_30, 3, 18446744073709551613, 3, 18446744073709551613: I32
-    %v_32 = add %v_29, %v_31: I32
-    %v_33 = call_complex divByMinus8, %v_13: i32x4
-    %v_34 = call_complex check, %v_33, 18446744073709551608, 33, 18446744073709551558, 83: I32
-    %v_35 = add %v_32, %v_34: I32
-    %v_36 = call_complex udivBy3, %v_13: i32x4
-    %v_37 = call_complex udivBy7, %v_13: i32x4
-    %v_38 = vlane %v_36, 0: I32
-    %v_39 = cmp_eq %v_38, 23: I32
-    %v_40 = add %v_35, %v_39: I32
-    %v_41 = vlane %v_36, 1: I32
-    %v_42 = cmp_eq %v_41, 1431655675: I32
-    %v_43 = add %v_40, %v_42: I32
-    %v_44 = vlane %v_37, 3: I32
-    %v_45 = cmp_eq %v_44, 613566660: I32
-    %v_46 = add %v_43, %v_45: I32
-    %v_47 = call_complex divBy3, %v_13: i32x4
-    %v_48 = vsplat 3: i32x4
-    %v_49 = imul %v_47, %v_48: i32x4
-    %v_50 = call_complex remBy3, %v_13: i32x4
-    %v_51 = add %v_49, %v_50: i32x4
-    %v_52 = cmp_eq %v_51, %v_13: m32x4
-    %v_53 = vreduce_add %v_52: I32
-    %v_54 = cmp_eq %v_13, %v_13: m32x4
-    %v_55 = vreduce_add %v_54: I32
-    %v_56 = cmp_eq %v_53, %v_55: I32
-    %v_57 = add %v_46, %v_56: I32
-    %v_58 = call_complex divBy4, %v_13: i32x4
-    %v_59 = vsplat 2: i32x4
-    %v_60 = shl %v_58, %v_59: i32x4
-    %v_61 = call_complex remBy4, %v_13: i32x4
-    %v_62 = add %v_60, %v_61: i32x4
-    %v_63 = cmp_eq %v_62, %v_13: m32x4
-    %v_64 = vreduce_add %v_63: I32
-    %v_65 = vreduce_add %v_54: I32
-    %v_66 = cmp_eq %v_64, %v_65: I32
-    %v_67 = add %v_57, %v_66: I32
-    %v_68 = call_complex udivBy7, %v_13: i32x4
-    %v_69 = vsplat 7: i32x4
-    %v_70 = mul %v_68, %v_69: i32x4
-    %v_71 = call_complex uremBy7, %v_13: i32x4
-    %v_72 = add %v_70, %v_71: i32x4
-    %v_73 = cmp_eq %v_72, %v_13: m32x4
-    %v_74 = vreduce_add %v_73: I32
-    %v_75 = cmp_eq %v_13, %v_13: m32x4
-    %v_76 = vreduce_add %v_75: I32
-    %v_77 = cmp_eq %v_74, %v_76: I32
-    %v_78 = add %v_67, %v_77: I32
-    %v_79 = vsplat 0: i64x2
-    %v_80 = vwithlane %v_79, 1, 1: i64x2
-    %v_81 = vsplat 1000000000007: i64x2
-    %v_82 = imul %v_80, %v_81: i64x2
-    %v_83 = vsplat 1: i64x2
-    %v_84 = and %v_80, %v_83: i64x2
-    %v_85 = shl %v_84, %v_83: i64x2
-    %v_86 = sub %v_83, %v_85: i64x2
-    %v_87 = vsplat 123456789012345: i64x2
-    %v_88 = add %v_87, %v_82: i64x2
-    %v_89 = imul %v_88, %v_86: i64x2
-    %v_90 = vlane %v_89, 0: I64
-    %v_91 = cmp_eq %v_90, 123456789012345: I32
-    je %v_91, b_92, b_93
+    %v_14 = vlane %v_13, 0: I32
+    %v_15 = cmp_eq %v_14, 71: I32
+    je %v_15, b_16, b_17
   }
 
-  b_93 {
-    jmp b_94
+  b_18 {
+    jmp b_19
+  }
+
+  b_19 {
+    %v_20 = phi [b_18, 0], [b_21, 1]: I32
+    %v_22 = add %v_23, %v_20: I32
+    %v_24 = call_complex divQuadBy3, %v_25: i64x2
+    %v_26 = vlane %v_24, 0: I64
+    %v_27 = cmp_eq %v_26, 41152263004115: I32
+    %v_28 = add %v_22, %v_27: I32
+    %v_29 = call_complex divQuadBy3, %v_25: i64x2
+    %v_30 = vlane %v_29, 1: I64
+    %v_31 = cmp_eq %v_30, 18446702588113214166: I32
+    %v_32 = add %v_28, %v_31: I32
+    %v_33 = call_complex divQuadByMinus7, %v_25: i64x2
+    %v_34 = vlane %v_33, 1: I64
+    %v_35 = cmp_eq %v_34, 17779541287478: I32
+    %v_36 = add %v_32, %v_35: I32
+    %v_37 = call_complex udivQuadBy7, %v_25: i64x2
+    %v_38 = vlane %v_37, 0: I64
+    %v_39 = cmp_eq %v_38, 17636684144620: I32
+    %v_40 = add %v_36, %v_39: I32
+    %v_41 = call_complex udivQuadBy7, %v_25: i64x2
+    %v_42 = vlane %v_41, 1: I64
+    %v_43 = cmp_eq %v_42, 2635231373845791323: I32
+    %v_44 = add %v_40, %v_43: I32
+    %v_45 = call_complex divQuadBy3, %v_25: i64x2
+    %v_46 = vsplat 3: i64x2
+    %v_47 = imul %v_45, %v_46: i64x2
+    %v_48 = call_complex remQuadBy3, %v_25: i64x2
+    %v_49 = add %v_47, %v_48: i64x2
+    %v_50 = cmp_eq %v_49, %v_25: m64x2
+    %v_51 = vreduce_add %v_50: I32
+    %v_52 = cmp_eq %v_25, %v_25: m64x2
+    %v_53 = vreduce_add %v_52: I32
+    %v_54 = cmp_eq %v_51, %v_53: I32
+    %v_55 = add %v_44, %v_54: I32
+    %v_56 = call_complex udivQuadBy7, %v_25: i64x2
+    %v_57 = vsplat 7: i64x2
+    %v_58 = mul %v_56, %v_57: i64x2
+    %v_59 = call_complex uremQuadBy7, %v_25: i64x2
+    %v_60 = add %v_58, %v_59: i64x2
+    %v_61 = cmp_eq %v_60, %v_25: m64x2
+    %v_62 = vreduce_add %v_61: I32
+    %v_63 = cmp_eq %v_25, %v_25: m64x2
+    %v_64 = vreduce_add %v_63: I32
+    %v_65 = cmp_eq %v_62, %v_64: I32
+    %v_66 = add %v_55, %v_65: I32
+    ret %v_66
+  }
+
+  b_67 {
+    %v_68 = vlane %v_25, 1: I64
+    %v_69 = cmp_eq %v_68, 18446619616920539264: I32
+    je %v_69, b_21, b_18
+  }
+
+  b_21 {
+    jmp b_19
+  }
+
+  b_16 {
+    %v_70 = vlane %v_13, 1: I32
+    %v_71 = cmp_eq %v_70, 18446744073709551345: I32
+    je %v_71, b_72, b_17
+  }
+
+  b_72 {
+    %v_73 = vlane %v_13, 2: I32
+    %v_74 = cmp_eq %v_73, 471: I32
+    je %v_74, b_75, b_17
+  }
+
+  b_75 {
+    %v_76 = vlane %v_13, 3: I32
+    %v_77 = cmp_eq %v_76, 18446744073709550945: I32
+    je %v_77, b_78, b_17
+  }
+
+  b_17 {
+    jmp b_79
+  }
+
+  b_78 {
+    jmp b_79
+  }
+
+  b_79 {
+    %v_80 = phi [b_17, 0], [b_78, 1]: I32
+    %v_81 = call_complex divBy3, %v_13: i32x4
+    %v_82 = vlane %v_81, 0: I32
+    %v_83 = cmp_eq %v_82, 23: I32
+    je %v_83, b_84, b_85
+  }
+
+  b_84 {
+    %v_86 = vlane %v_81, 1: I32
+    %v_87 = cmp_eq %v_86, 18446744073709551526: I32
+    je %v_87, b_88, b_85
+  }
+
+  b_88 {
+    %v_89 = vlane %v_81, 2: I32
+    %v_90 = cmp_eq %v_89, 157: I32
+    je %v_90, b_91, b_85
+  }
+
+  b_91 {
+    %v_92 = vlane %v_81, 3: I32
+    %v_93 = cmp_eq %v_92, 18446744073709551393: I32
+    je %v_93, b_94, b_85
+  }
+
+  b_85 {
+    jmp b_95
   }
 
   b_94 {
-    %v_95 = phi [b_93, 0], [b_96, 1]: I32
-    %v_97 = add %v_78, %v_95: I32
-    %v_98 = call_complex divQuadBy3, %v_89: i64x2
-    %v_99 = vlane %v_98, 0: I64
-    %v_100 = cmp_eq %v_99, 41152263004115: I32
-    %v_101 = add %v_97, %v_100: I32
-    %v_102 = call_complex divQuadBy3, %v_89: i64x2
-    %v_103 = vlane %v_102, 1: I64
-    %v_104 = cmp_eq %v_103, 18446702588113214166: I32
-    %v_105 = add %v_101, %v_104: I32
-    %v_106 = call_complex divQuadByMinus7, %v_89: i64x2
-    %v_107 = vlane %v_106, 1: I64
-    %v_108 = cmp_eq %v_107, 17779541287478: I32
-    %v_109 = add %v_105, %v_108: I32
-    %v_110 = call_complex udivQuadBy7, %v_89: i64x2
-    %v_111 = vlane %v_110, 0: I64
-    %v_112 = cmp_eq %v_111, 17636684144620: I32
-    %v_113 = add %v_109, %v_112: I32
-    %v_114 = call_complex udivQuadBy7, %v_89: i64x2
-    %v_115 = vlane %v_114, 1: I64
-    %v_116 = cmp_eq %v_115, 2635231373845791323: I32
-    %v_117 = add %v_113, %v_116: I32
-    %v_118 = call_complex divQuadBy3, %v_89: i64x2
-    %v_119 = vsplat 3: i64x2
-    %v_120 = imul %v_118, %v_119: i64x2
-    %v_121 = call_complex remQuadBy3, %v_89: i64x2
-    %v_122 = add %v_120, %v_121: i64x2
-    %v_123 = cmp_eq %v_122, %v_89: m64x2
-    %v_124 = vreduce_add %v_123: I32
-    %v_125 = cmp_eq %v_89, %v_89: m64x2
-    %v_126 = vreduce_add %v_125: I32
-    %v_127 = cmp_eq %v_124, %v_126: I32
-    %v_128 = add %v_117, %v_127: I32
-    %v_129 = call_complex udivQuadBy7, %v_89: i64x2
-    %v_130 = vsplat 7: i64x2
-    %v_131 = mul %v_129, %v_130: i64x2
-    %v_132 = call_complex uremQuadBy7, %v_89: i64x2
-    %v_133 = add %v_131, %v_132: i64x2
-    %v_134 = cmp_eq %v_133, %v_89: m64x2
-    %v_135 = vreduce_add %v_134: I32
-    %v_136 = cmp_eq %v_89, %v_89: m64x2
-    %v_137 = vreduce_add %v_136: I32
-    %v_138 = cmp_eq %v_135, %v_137: I32
-    %v_139 = add %v_128, %v_138: I32
-    ret %v_139
+    jmp b_95
   }
 
-  b_92 {
-    %v_140 = vlane %v_89, 1: I64
-    %v_141 = cmp_eq %v_140, 18446619616920539264: I32
-    je %v_141, b_96, b_93
+  b_95 {
+    %v_96 = phi [b_85, 0], [b_94, 1]: I32
+    %v_97 = add %v_80, %v_96: I32
+    %v_98 = call_complex remBy3, %v_13: i32x4
+    %v_99 = vlane %v_98, 0: I32
+    %v_100 = cmp_eq %v_99, 2: I32
+    je %v_100, b_101, b_102
   }
 
-  b_96 {
-    jmp b_94
+  b_101 {
+    %v_103 = vlane %v_98, 1: I32
+    %v_104 = cmp_eq %v_103, 18446744073709551615: I32
+    je %v_104, b_105, b_102
+  }
+
+  b_105 {
+    %v_106 = vlane %v_98, 2: I32
+    %v_107 = cmp_eq %v_106, 0: I32
+    je %v_107, b_108, b_102
+  }
+
+  b_108 {
+    %v_109 = vlane %v_98, 3: I32
+    %v_110 = cmp_eq %v_109, 18446744073709551614: I32
+    je %v_110, b_111, b_102
+  }
+
+  b_102 {
+    jmp b_112
+  }
+
+  b_111 {
+    jmp b_112
+  }
+
+  b_112 {
+    %v_113 = phi [b_102, 0], [b_111, 1]: I32
+    %v_114 = add %v_97, %v_113: I32
+    %v_115 = call_complex divBy7, %v_13: i32x4
+    %v_116 = vlane %v_115, 0: I32
+    %v_117 = cmp_eq %v_116, 10: I32
+    je %v_117, b_118, b_119
+  }
+
+  b_118 {
+    %v_120 = vlane %v_115, 1: I32
+    %v_121 = cmp_eq %v_120, 18446744073709551578: I32
+    je %v_121, b_122, b_119
+  }
+
+  b_122 {
+    %v_123 = vlane %v_115, 2: I32
+    %v_124 = cmp_eq %v_123, 67: I32
+    je %v_124, b_125, b_119
+  }
+
+  b_125 {
+    %v_126 = vlane %v_115, 3: I32
+    %v_127 = cmp_eq %v_126, 18446744073709551521: I32
+    je %v_127, b_128, b_119
+  }
+
+  b_119 {
+    jmp b_129
+  }
+
+  b_128 {
+    jmp b_129
+  }
+
+  b_129 {
+    %v_130 = phi [b_119, 0], [b_128, 1]: I32
+    %v_131 = add %v_114, %v_130: I32
+    %v_132 = call_complex divByMinus3, %v_13: i32x4
+    %v_133 = vlane %v_132, 0: I32
+    %v_134 = cmp_eq %v_133, 18446744073709551593: I32
+    je %v_134, b_135, b_136
+  }
+
+  b_135 {
+    %v_137 = vlane %v_132, 1: I32
+    %v_138 = cmp_eq %v_137, 90: I32
+    je %v_138, b_139, b_136
+  }
+
+  b_139 {
+    %v_140 = vlane %v_132, 2: I32
+    %v_141 = cmp_eq %v_140, 18446744073709551459: I32
+    je %v_141, b_142, b_136
+  }
+
+  b_142 {
+    %v_143 = vlane %v_132, 3: I32
+    %v_144 = cmp_eq %v_143, 223: I32
+    je %v_144, b_145, b_136
+  }
+
+  b_136 {
+    jmp b_146
+  }
+
+  b_145 {
+    jmp b_146
+  }
+
+  b_146 {
+    %v_147 = phi [b_136, 0], [b_145, 1]: I32
+    %v_148 = add %v_131, %v_147: I32
+    %v_149 = call_complex divBy4, %v_13: i32x4
+    %v_150 = vlane %v_149, 0: I32
+    %v_151 = cmp_eq %v_150, 17: I32
+    je %v_151, b_152, b_153
+  }
+
+  b_152 {
+    %v_154 = vlane %v_149, 1: I32
+    %v_155 = cmp_eq %v_154, 18446744073709551549: I32
+    je %v_155, b_156, b_153
+  }
+
+  b_156 {
+    %v_157 = vlane %v_149, 2: I32
+    %v_158 = cmp_eq %v_157, 117: I32
+    je %v_158, b_159, b_153
+  }
+
+  b_159 {
+    %v_160 = vlane %v_149, 3: I32
+    %v_161 = cmp_eq %v_160, 18446744073709551449: I32
+    je %v_161, b_162, b_153
+  }
+
+  b_153 {
+    jmp b_163
+  }
+
+  b_162 {
+    jmp b_163
+  }
+
+  b_163 {
+    %v_164 = phi [b_153, 0], [b_162, 1]: I32
+    %v_165 = add %v_148, %v_164: I32
+    %v_166 = call_complex remBy4, %v_13: i32x4
+    %v_167 = vlane %v_166, 0: I32
+    %v_168 = cmp_eq %v_167, 3: I32
+    je %v_168, b_169, b_170
+  }
+
+  b_169 {
+    %v_171 = vlane %v_166, 1: I32
+    %v_172 = cmp_eq %v_171, 18446744073709551613: I32
+    je %v_172, b_173, b_170
+  }
+
+  b_173 {
+    %v_174 = vlane %v_166, 2: I32
+    %v_175 = cmp_eq %v_174, 3: I32
+    je %v_175, b_176, b_170
+  }
+
+  b_176 {
+    %v_177 = vlane %v_166, 3: I32
+    %v_178 = cmp_eq %v_177, 18446744073709551613: I32
+    je %v_178, b_179, b_170
+  }
+
+  b_170 {
+    jmp b_180
+  }
+
+  b_179 {
+    jmp b_180
+  }
+
+  b_180 {
+    %v_181 = phi [b_170, 0], [b_179, 1]: I32
+    %v_182 = add %v_165, %v_181: I32
+    %v_183 = call_complex divByMinus8, %v_13: i32x4
+    %v_184 = vlane %v_183, 0: I32
+    %v_185 = cmp_eq %v_184, 18446744073709551608: I32
+    je %v_185, b_186, b_187
+  }
+
+  b_186 {
+    %v_188 = vlane %v_183, 1: I32
+    %v_189 = cmp_eq %v_188, 33: I32
+    je %v_189, b_190, b_187
+  }
+
+  b_190 {
+    %v_191 = vlane %v_183, 2: I32
+    %v_192 = cmp_eq %v_191, 18446744073709551558: I32
+    je %v_192, b_193, b_187
+  }
+
+  b_193 {
+    %v_194 = vlane %v_183, 3: I32
+    %v_195 = cmp_eq %v_194, 83: I32
+    je %v_195, b_196, b_187
+  }
+
+  b_187 {
+    jmp b_197
+  }
+
+  b_196 {
+    jmp b_197
+  }
+
+  b_197 {
+    %v_198 = phi [b_187, 0], [b_196, 1]: I32
+    %v_199 = add %v_182, %v_198: I32
+    %v_200 = call_complex udivBy3, %v_13: i32x4
+    %v_201 = call_complex udivBy7, %v_13: i32x4
+    %v_202 = vlane %v_200, 0: I32
+    %v_203 = cmp_eq %v_202, 23: I32
+    %v_204 = add %v_199, %v_203: I32
+    %v_205 = vlane %v_200, 1: I32
+    %v_206 = cmp_eq %v_205, 1431655675: I32
+    %v_207 = add %v_204, %v_206: I32
+    %v_208 = vlane %v_201, 3: I32
+    %v_209 = cmp_eq %v_208, 613566660: I32
+    %v_210 = add %v_207, %v_209: I32
+    %v_211 = call_complex divBy3, %v_13: i32x4
+    %v_212 = vsplat 3: i32x4
+    %v_213 = imul %v_211, %v_212: i32x4
+    %v_214 = call_complex remBy3, %v_13: i32x4
+    %v_215 = add %v_213, %v_214: i32x4
+    %v_216 = cmp_eq %v_215, %v_13: m32x4
+    %v_217 = vreduce_add %v_216: I32
+    %v_218 = cmp_eq %v_13, %v_13: m32x4
+    %v_219 = vreduce_add %v_218: I32
+    %v_220 = cmp_eq %v_217, %v_219: I32
+    %v_221 = add %v_210, %v_220: I32
+    %v_222 = call_complex divBy4, %v_13: i32x4
+    %v_223 = vsplat 2: i32x4
+    %v_224 = shl %v_222, %v_223: i32x4
+    %v_225 = call_complex remBy4, %v_13: i32x4
+    %v_226 = add %v_224, %v_225: i32x4
+    %v_227 = cmp_eq %v_226, %v_13: m32x4
+    %v_228 = vreduce_add %v_227: I32
+    %v_229 = vreduce_add %v_218: I32
+    %v_230 = cmp_eq %v_228, %v_229: I32
+    %v_231 = add %v_221, %v_230: I32
+    %v_232 = call_complex udivBy7, %v_13: i32x4
+    %v_233 = vsplat 7: i32x4
+    %v_234 = mul %v_232, %v_233: i32x4
+    %v_235 = call_complex uremBy7, %v_13: i32x4
+    %v_236 = add %v_234, %v_235: i32x4
+    %v_237 = cmp_eq %v_236, %v_13: m32x4
+    %v_238 = vreduce_add %v_237: I32
+    %v_239 = cmp_eq %v_13, %v_13: m32x4
+    %v_240 = vreduce_add %v_239: I32
+    %v_241 = cmp_eq %v_238, %v_240: I32
+    %v_23 = add %v_231, %v_241: I32
+    %v_242 = vsplat 0: i64x2
+    %v_243 = vwithlane %v_242, 1, 1: i64x2
+    %v_244 = vsplat 1000000000007: i64x2
+    %v_245 = imul %v_243, %v_244: i64x2
+    %v_246 = vsplat 1: i64x2
+    %v_247 = and %v_243, %v_246: i64x2
+    %v_248 = shl %v_247, %v_246: i64x2
+    %v_249 = sub %v_246, %v_248: i64x2
+    %v_250 = vsplat 123456789012345: i64x2
+    %v_251 = add %v_250, %v_245: i64x2
+    %v_25 = imul %v_251, %v_249: i64x2
+    %v_252 = vlane %v_25, 0: I64
+    %v_253 = cmp_eq %v_252, 123456789012345: I32
+    je %v_253, b_67, b_18
   }
 }
 

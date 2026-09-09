@@ -58,26 +58,26 @@ main<complex>(): I64 {
 
   b_33 {
     %v_34 = cmp_ilt %v_35, %v_6: I32
-    je %v_34, b_7, b_30
+    je %v_34, b_36, b_30
+  }
+
+  b_36 {
+    %v_37 = cmp_ge %v_35, %v_6: I32
+    je %v_37, b_38, b_7
   }
 
   b_7 {
-    %v_36 = phi [b_33, %v_35], [b_0, 0]: I64
-    %v_37 = phi [b_33, %v_32], [b_0, 0]: I32
-    %v_38 = cmp_ge %v_36, %v_6: I32
-    je %v_38, b_39, b_40
-  }
-
-  b_40 {
-    %v_41 = shl %v_36, 2: I64
+    %v_39 = phi [b_36, %v_35], [b_0, 0]: I64
+    %v_40 = phi [b_36, %v_32], [b_0, 0]: I32
+    %v_41 = shl %v_39, 2: I64
     %v_42 = add %v_5, %v_41: Ptr
     %v_43 = loads %v_42, 4: I32
-    %v_32 = add %v_37, %v_43: I32
-    %v_35 = add %v_36, 1: I64
+    %v_32 = add %v_40, %v_43: I32
+    %v_35 = add %v_39, 1: I64
     jmp b_33
   }
 
-  b_39 {
+  b_38 {
     %v_44 = syscall 60, 134: I64
     unreachable 
   }

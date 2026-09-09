@@ -175,12 +175,16 @@ bb7:
 }
 
 fn retry(m: Maybe(I32) [shared call], c: Color [shared call]) -> I32 {
-bb0(%0: Maybe(I32) [shared call] guaranteed, %1: Color [shared call] guaranteed):
+bb0(%0: Maybe(I32) [shared call] guaranteed, %1: Color trivial):
   %2: %Color address = alloc frame Color [shared call]
   store inspect %2 borrow %1
   %8: U8 trivial = const 1
+  %10: %U8 address = field.addr .# inspect %2
+  %11: U8 trivial = load inspect %10
   %12: U8 trivial = const 0
+  %13: Bool trivial = eq inspect %11 inspect %12
   %21: U8 trivial = const 1
+  %22: Bool trivial = eq inspect %11 inspect %21
   jump -> bb1
 
 bb1:
@@ -190,9 +194,6 @@ bb1:
   branch inspect %9 -> bb5 -> bb4
 
 bb4:
-  %10: %U8 address = field.addr .# inspect %2
-  %11: U8 trivial = load inspect %10
-  %13: Bool trivial = eq inspect %11 inspect %12
   branch inspect %13 -> bb8 -> bb6
 
 bb5:
@@ -203,7 +204,6 @@ bb5:
   return consume %18
 
 bb6:
-  %22: Bool trivial = eq inspect %11 inspect %21
   branch inspect %22 -> bb9 -> bb1
 
 bb8:
@@ -216,7 +216,7 @@ bb9:
 }
 
 fn scan(c: Color [shared call]) -> I32 {
-bb0(%0: Color [shared call] guaranteed):
+bb0(%0: Color trivial):
   %1: %Color address = alloc frame Color [shared call]
   store inspect %1 borrow %0
   %4: %U8 address = field.addr .# inspect %1
@@ -753,8 +753,12 @@ bb107(%324: I32 trivial):
   %339: %Color address = alloc frame Color [shared call]
   store inspect %339 borrow %62
   %340: U8 trivial = const 1
-  %341: U8 trivial = const 0
-  %342: U8 trivial = const 1
+  %341: %U8 address = field.addr .# inspect %339
+  %342: U8 trivial = load inspect %341
+  %343: U8 trivial = const 0
+  %344: Bool trivial = eq inspect %342 inspect %343
+  %345: U8 trivial = const 1
+  %346: Bool trivial = eq inspect %342 inspect %345
   jump -> bb116
 
 bb109:
@@ -785,25 +789,25 @@ bb114(%338: I32 trivial):
   %357: %Color address = alloc frame Color [shared call]
   store inspect %357 borrow %66
   %358: U8 trivial = const 1
-  %359: U8 trivial = const 0
-  %360: U8 trivial = const 1
+  %359: %U8 address = field.addr .# inspect %357
+  %360: U8 trivial = load inspect %359
+  %361: U8 trivial = const 0
+  %362: Bool trivial = eq inspect %360 inspect %361
+  %363: U8 trivial = const 1
+  %364: Bool trivial = eq inspect %360 inspect %363
   jump -> bb125
 
 bb116:
-  %343: %U8 address = field.addr .# inspect %61
-  %344: U8 trivial = load inspect %343
-  %345: Bool trivial = eq inspect %344 inspect %340
-  branch inspect %345 -> bb121 -> bb117
+  %347: %U8 address = field.addr .# inspect %61
+  %348: U8 trivial = load inspect %347
+  %349: Bool trivial = eq inspect %348 inspect %340
+  branch inspect %349 -> bb121 -> bb117
 
 bb117:
-  %346: %U8 address = field.addr .# inspect %339
-  %347: U8 trivial = load inspect %346
-  %348: Bool trivial = eq inspect %347 inspect %341
-  branch inspect %348 -> bb120 -> bb118
+  branch inspect %344 -> bb120 -> bb118
 
 bb118:
-  %349: Bool trivial = eq inspect %347 inspect %342
-  branch inspect %349 -> bb119 -> bb116
+  branch inspect %346 -> bb119 -> bb116
 
 bb119:
   %350: I32 trivial = const 100
@@ -827,25 +831,25 @@ bb123(%356: I32 trivial):
   %375: %Color address = alloc frame Color [shared call]
   store inspect %375 borrow %70
   %376: U8 trivial = const 1
-  %377: U8 trivial = const 0
-  %378: U8 trivial = const 1
+  %377: %U8 address = field.addr .# inspect %375
+  %378: U8 trivial = load inspect %377
+  %379: U8 trivial = const 0
+  %380: Bool trivial = eq inspect %378 inspect %379
+  %381: U8 trivial = const 1
+  %382: Bool trivial = eq inspect %378 inspect %381
   jump -> bb134
 
 bb125:
-  %361: %U8 address = field.addr .# inspect %65
-  %362: U8 trivial = load inspect %361
-  %363: Bool trivial = eq inspect %362 inspect %358
-  branch inspect %363 -> bb130 -> bb126
+  %365: %U8 address = field.addr .# inspect %65
+  %366: U8 trivial = load inspect %365
+  %367: Bool trivial = eq inspect %366 inspect %358
+  branch inspect %367 -> bb130 -> bb126
 
 bb126:
-  %364: %U8 address = field.addr .# inspect %357
-  %365: U8 trivial = load inspect %364
-  %366: Bool trivial = eq inspect %365 inspect %359
-  branch inspect %366 -> bb129 -> bb127
+  branch inspect %362 -> bb129 -> bb127
 
 bb127:
-  %367: Bool trivial = eq inspect %365 inspect %360
-  branch inspect %367 -> bb128 -> bb125
+  branch inspect %364 -> bb128 -> bb125
 
 bb128:
   %368: I32 trivial = const 100
@@ -874,20 +878,16 @@ bb132(%374: I32 trivial):
   branch inspect %397 -> bb144 -> bb143
 
 bb134:
-  %379: %U8 address = field.addr .# inspect %69
-  %380: U8 trivial = load inspect %379
-  %381: Bool trivial = eq inspect %380 inspect %376
-  branch inspect %381 -> bb139 -> bb135
+  %383: %U8 address = field.addr .# inspect %69
+  %384: U8 trivial = load inspect %383
+  %385: Bool trivial = eq inspect %384 inspect %376
+  branch inspect %385 -> bb139 -> bb135
 
 bb135:
-  %382: %U8 address = field.addr .# inspect %375
-  %383: U8 trivial = load inspect %382
-  %384: Bool trivial = eq inspect %383 inspect %377
-  branch inspect %384 -> bb138 -> bb136
+  branch inspect %380 -> bb138 -> bb136
 
 bb136:
-  %385: Bool trivial = eq inspect %383 inspect %378
-  branch inspect %385 -> bb137 -> bb134
+  branch inspect %382 -> bb137 -> bb134
 
 bb137:
   %386: I32 trivial = const 100

@@ -803,6 +803,33 @@ LowerPtr<LowerValue> Lowering::emitConstant(LowerBlock& block, const mir::Consta
         return &((LowerInstSingle*)address)->result - lower;
     }
 
+    /*
+     * The address of a global **in a register** - a `lea`, not an immediate.
+     *
+     * The one constant leaf whose value is not known until the image is placed, which is why
+     * `constantBits` asserts on it rather than answering a number: what puts an address in a
+     * register is a relocation, and the instruction that carries one is `LowerInstGlobal`. In
+     * *storage* the same leaf is `materialize`'s `LowerDataRelocation`; this is the register half of
+     * that one decision.
+     *
+     * A string literal is what reaches it. The value the library builds holds the address of the
+     * bytes, and the optimizer answering a read of that field with the constant it found in the slot
+     * is a pointer arriving where, before, only a number could.
+     */
+    if(constant.kind == mir::Constant::Address) {
+        auto found = globals.getValue(constant.asGlobal().offset);
+        if(!found) {
+            context.diagnostics.error("internal: a global was reached before it was lowered"_v,
+                                      LocationId());
+            return LowerPtr<LowerValue>();
+        }
+
+        auto address = block.addInst(lower, new (to.arena) LowerInstGlobal(
+            lower[found.unwrap()]->name, found.unwrap()));
+
+        return &((LowerInstSingle*)address)->result - lower;
+    }
+
     LowerInst* value;
     if(constant.kind == mir::Constant::Float) {
         value = block.addInst(lower, new (to.arena) LowerImm(

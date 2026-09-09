@@ -4,12 +4,8 @@ let string'142: [CodeUnit *2] = [97, 98]
 
 fn one(i: Size [shared call]) -> String {
 bb0:
-  %0: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'142) loan0
-  %1: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
-  %2: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %1 roots.0{0}
-  %3: I32 = const 2
-  %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
-  return take %4
+  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  return take %0
 }
 
 fn direct(count: Size [shared call]) -> Array(String) {

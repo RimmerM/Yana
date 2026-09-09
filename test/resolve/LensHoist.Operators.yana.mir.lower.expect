@@ -1,36 +1,5 @@
 mut @log = [0, 0, 0, 0]
 
-beforeShortCircuit<complex>(%b: I32): I32 {
-  b_0 {
-    store @log, 0, 4
-    %v_1 = loads @log, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @log, %v_2, 4
-    %v_3 = loads @log, 4: I32
-    %v_4 = cmp_igt %v_3, 0: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_5 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = phi [b_6, 0], [b_5, %b]: I32
-    %v_9 = select %v_8, 1, 2: I32
-    %v_10 = loads @log, 4: I32
-    %v_11 = add %v_9, %v_10: I32
-    %v_12 = loads @log, 4: I32
-    %v_13 = add %v_12, 100: I32
-    store @log, %v_13, 4
-    ret %v_11
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     store @log, 0, 4
@@ -69,17 +38,36 @@ main<complex>(): I32 {
     %v_26 = loads @log, 4: I32
     %v_27 = add %v_26, 100: I32
     store @log, %v_27, 4
-    %v_28 = call_complex beforeShortCircuit, 1: I32
-    %v_29 = call_complex beforeShortCircuit, 0: I32
-    %v_30 = imul %v_6, 10000: I32
-    %v_31 = imul %v_15, 1000: I32
-    %v_32 = add %v_30, %v_31: I32
-    %v_33 = imul %v_25, 100: I32
+    store @log, 0, 4
+    %v_28 = loads @log, 4: I32
+    %v_29 = add %v_28, 1: I32
+    store @log, %v_29, 4
+    %v_30 = loads @log, 4: I32
+    %v_31 = cmp_igt %v_30, 0: I32
+    %v_32 = select %v_31, 1, 2: I32
+    %v_33 = loads @log, 4: I32
     %v_34 = add %v_32, %v_33: I32
-    %v_35 = imul %v_28, 10: I32
-    %v_36 = add %v_34, %v_35: I32
-    %v_37 = add %v_36, %v_29: I32
-    ret %v_37
+    %v_35 = loads @log, 4: I32
+    %v_36 = add %v_35, 100: I32
+    store @log, %v_36, 4
+    store @log, 0, 4
+    %v_37 = loads @log, 4: I32
+    %v_38 = add %v_37, 1: I32
+    store @log, %v_38, 4
+    %v_39 = loads @log, 4: I32
+    %v_40 = add 2, %v_39: I32
+    %v_41 = loads @log, 4: I32
+    %v_42 = add %v_41, 100: I32
+    store @log, %v_42, 4
+    %v_43 = imul %v_6, 10000: I32
+    %v_44 = imul %v_15, 1000: I32
+    %v_45 = add %v_43, %v_44: I32
+    %v_46 = imul %v_25, 100: I32
+    %v_47 = add %v_45, %v_46: I32
+    %v_48 = imul %v_34, 10: I32
+    %v_49 = add %v_47, %v_48: I32
+    %v_50 = add %v_49, %v_40: I32
+    ret %v_50
   }
 }
 

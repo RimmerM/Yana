@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn weigh(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -26,7 +26,7 @@ bb3:
 }
 
 fn opaqueFour(c: Four [shared call]) -> Four {
-bb0(%0: Four [shared call] guaranteed):
+bb0(%0: Four trivial):
   %1: %Four address = alloc frame Four [shared call]
   store inspect %1 borrow %0
   %2: Four trivial = load inspect %1
@@ -34,7 +34,7 @@ bb0(%0: Four [shared call] guaranteed):
 }
 
 fn opaqueNine(c: Nine [shared call]) -> Nine {
-bb0(%0: Nine [shared call] guaranteed):
+bb0(%0: Nine trivial):
   %1: %Nine address = alloc frame Nine [shared call]
   store inspect %1 borrow %0
   %2: Nine trivial = load inspect %1
@@ -42,7 +42,7 @@ bb0(%0: Nine [shared call] guaranteed):
 }
 
 fn opaqueSpread(c: Spread [shared call]) -> Spread {
-bb0(%0: Spread [shared call] guaranteed):
+bb0(%0: Spread trivial):
   %1: %Spread address = alloc frame Spread [shared call]
   store inspect %1 borrow %0
   %2: Spread trivial = load inspect %1
@@ -50,7 +50,7 @@ bb0(%0: Spread [shared call] guaranteed):
 }
 
 fn opaqueTwenty(c: Twenty [shared call]) -> Twenty {
-bb0(%0: Twenty [shared call] guaranteed):
+bb0(%0: Twenty trivial):
   %1: %Twenty address = alloc frame Twenty [shared call]
   store inspect %1 borrow %0
   %2: Twenty trivial = load inspect %1
@@ -58,7 +58,7 @@ bb0(%0: Twenty [shared call] guaranteed):
 }
 
 fn four(c: Four [shared call]) -> I32 {
-bb0(%0: Four [shared call] guaranteed):
+bb0(%0: Four trivial):
   %2: %Four address = alloc frame Four [shared call]
   store inspect %2 borrow %0
   %3: %U8 address = field.addr .# inspect %2
@@ -90,7 +90,7 @@ bb5(%1: I32 trivial):
 }
 
 fn nine(c: Nine [shared call]) -> I32 {
-bb0(%0: Nine [shared call] guaranteed):
+bb0(%0: Nine trivial):
   %2: %Nine address = alloc frame Nine [shared call]
   store inspect %2 borrow %0
   %3: %U8 address = field.addr .# inspect %2
@@ -147,7 +147,7 @@ bb10(%1: I32 trivial):
 }
 
 fn spread(c: Spread [shared call]) -> I32 {
-bb0(%0: Spread [shared call] guaranteed):
+bb0(%0: Spread trivial):
   %2: %Spread address = alloc frame Spread [shared call]
   store inspect %2 borrow %0
   %3: %U8 address = field.addr .# inspect %2
@@ -204,7 +204,7 @@ bb10(%1: I32 trivial):
 }
 
 fn twenty(c: Twenty [shared call]) -> I32 {
-bb0(%0: Twenty [shared call] guaranteed):
+bb0(%0: Twenty trivial):
   %2: %Twenty address = alloc frame Twenty [shared call]
   store inspect %2 borrow %0
   %3: %U8 address = field.addr .# inspect %2
@@ -316,7 +316,7 @@ bb21(%1: I32 trivial):
 }
 
 fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %0

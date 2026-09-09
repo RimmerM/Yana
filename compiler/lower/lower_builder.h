@@ -249,7 +249,7 @@ inline LowerInst* unary(LowerBase base, LowerModule& module, LowerBlock& block, 
 
 template<bool signedSource, bool signedResult>
 inline LowerInst* cast(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* arg, LowerType type, StringId name) {
-    if(auto folded = foldCast(base, module, block, arg, type, signedSource, name)) return folded;
+    if(auto folded = foldCast(base, module, block, arg, type, signedSource, signedResult, name)) return folded;
     return block.addInst(base, new (module.arena) LowerInstCast(name, type, arg - base, signedSource, signedResult));
 }
 

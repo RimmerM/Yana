@@ -641,21 +641,12 @@ bool readOnlyInsideLoop(LowerBase base, const LoopInfo& loops, const ReducibleLo
     return true;
 }
 
-// Whether an instruction that nothing reads may simply go, which is `kLowerPure` and one operand of
-// the definition of it: an instruction with two results is one where nothing reading *this* value
-// says nothing about the other. The list this used to be was narrower than the property by a dozen
-// kinds - every rounding, every vector operation and every comparison among them - each of which was
-// simply left in the function with no reader.
-bool isRemovableArithmetic(LowerInst* inst) {
-    return isPure(inst) && inst->createdCount == 1;
-}
-
 /*
  * The instructions this pass orphaned, taken back out.
  *
- * `removeDeadConstants` sweeps immediates and nothing else, and nothing below this stage removes an
+ * `removeDeadValues` runs at the end of the pipeline and nothing between here and there removes an
  * arithmetic instruction that has stopped being read - so a replaced address, and the shift that fed
- * it, would otherwise reach the backend with no reader at all. Collected as a set and swept per
+ * it, would otherwise be carried through every pass below this one. Collected as a set and swept per
  * block, because that is the one shape a rewrite of a LowerList takes here: rebuild the list from a
  * local array rather than removing from it in place.
  */
@@ -679,7 +670,11 @@ struct DeadSweep {
 
         for(auto operand: operands) {
             auto producer = operand->inst();
-            if(!producer->block || !isRemovableArithmetic(producer)) continue;
+            // `isRemovableWhenUnused` is the whole question, and it lives in lower_inst.h beside
+            // the traits it reads: this pass used to ask it as a list of kinds, then as `isPure`
+            // and one operand of the definition, while `removeDeadValues` asked a third version of
+            // it that was narrower still. One predicate, and a load is in it.
+            if(!producer->block || !isRemovableWhenUnused(producer)) continue;
             if(operand->uses.isNotEmpty()) continue;
 
             kill(producer);
@@ -1244,11 +1239,23 @@ bool boundWithinLength(LowerBase base, LowerValue* bound, LowerValue* length) {
     auto truncate = narrow->inst();
     if(truncate->kind != LowerInst::Cast) return false;
 
-    // A truncation and nothing else. `isSignedSource` would make it a sign-preserving narrowing,
-    // which is a different value for exactly the patterns this is about.
+    /*
+     * A **narrowing**, whatever its sign flags say.
+     *
+     * The flags used to be required clear here, on the reading that `isSignedSource` makes a
+     * narrowing sign-preserving and therefore a different value. It does not: `foldCastValue` is the
+     * one statement of what a cast computes, and it sign-extends the source to the register and then
+     * masks to the *result's* width - so at a result narrower than the source the mask is the whole
+     * of the answer and both flags fall out of it. The requirement below, that the source really is
+     * wider, is what makes that true and is therefore the only clause this rule needs.
+     *
+     * What the strict form cost is one bounds check per subscript in every loop the **ownership**
+     * resolver writes: `truncate(length(xs)) :: Int` reaches this tier as `sext` to `I32` there and
+     * as an unsigned `cast` in the shipping stage, so the identical program had the identical proof
+     * available on one side and refused on the other (`Pipeline`, J39 §6.2). Both stages read this
+     * pass, and the fact is about the bits rather than about which front end wrote them.
+     */
     auto cut = (LowerInstCast*)truncate;
-    if(cut->isSignedSource() || cut->isSignedResult()) return false;
-
     auto source = throughBitcasts(base, base[cut->from]);
     if(widthOf(source->type) <= widthOf(narrow->type)) return false;
 

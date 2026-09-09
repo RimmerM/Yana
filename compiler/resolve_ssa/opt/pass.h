@@ -46,10 +46,12 @@ struct OptContext {
     Dominators dominators;
     Loops loops;
     Contained contained;
+    ConstantContents constantContents;
 
     AnalysisStamp dominanceStamp;
     AnalysisStamp loopStamp;
     AnalysisStamp containedStamp;
+    AnalysisStamp constantStamp;
 
     // Set by any rewrite, through the editor. The driver runs the passes to a fixed point over one
     // body, because folding exposes identities and identities leave values unread.
@@ -343,6 +345,16 @@ void forwardMemory(OptContext& opt);
 // An allocation nothing reads, with the writes into it - `opt/memory.cpp`, beside the forwarder
 // because it is what makes an allocation's reads go away in the first place.
 void removeDeadStorage(OptContext& opt);
+
+/*
+ * A run of slots the frame can keep - `opt/place.cpp`, and the one placement this tier decides.
+ *
+ * `runSlots` with a constant count whose bytes never leave the frame becomes an `Alloc`, and the
+ * descriptor built over it stops claiming the allocator's. It is here rather than in MIR because
+ * the frame that keeps the answer is not the frame the request is written in: a literal's run is
+ * `literalArray`'s call to `newRun`, so nothing can be asked until the inliner has moved it.
+ */
+void placeRuns(OptContext& opt);
 
 // If-conversion: a branch whose arms only compute a value becomes one `select` per value the join
 // declares - `opt/select.cpp`. Both arms are evaluated afterwards, which is the whole of what it has

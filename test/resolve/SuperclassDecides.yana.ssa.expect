@@ -7,7 +7,7 @@ fn pick(mask: m [shared call], ifTrue: v [shared call], ifFalse: v [shared call]
 fn rating(x: a [shared call]) -> a = <no body>
 
 fn I32.cmp(lhs: I32 [shared call], rhs: I32 [shared call]) -> Bool {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -19,7 +19,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn I32.pick(mask: Bool [shared call], ifTrue: I32 [shared call], ifFalse: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial, %2: I32 trivial):
   %4: %Bool address = alloc frame Bool [shared call]
   %5: %I32 address = alloc frame I32 [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -42,7 +42,7 @@ bb3:
 }
 
 fn I32.rating(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -109,53 +109,53 @@ bb9:
 }
 
 fn smaller(I32, Bool)(x: I32 [shared call], y: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %Bool address = alloc frame Bool
   store inspect %2 borrow %0
   store inspect %3 borrow %1
-  %5: I32 [shared call] guaranteed from{%2} = load inspect %2
-  %6: I32 [shared call] guaranteed from{%3} = load inspect %3
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = load inspect %3
   %7: Bool trivial = call I32.cmp borrow %5 borrow %6
   store inspect %4 consume %7
-  %8: Bool [shared call] guaranteed from{%4} = load inspect %4
-  %9: I32 [shared call] guaranteed from{%2} = load inspect %2
-  %10: I32 [shared call] guaranteed from{%3} = load inspect %3
+  %8: Bool trivial = load inspect %4
+  %9: I32 trivial = load inspect %2
+  %10: I32 trivial = load inspect %3
   %11: I32 trivial = call I32.pick borrow %8 borrow %9 borrow %10
   return consume %11
 }
 
 fn larger(I32, Bool)(x: I32 [shared call], y: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %Bool address = alloc frame Bool
   store inspect %2 borrow %0
   store inspect %3 borrow %1
-  %5: I32 [shared call] guaranteed from{%2} = load inspect %2
-  %6: I32 [shared call] guaranteed from{%3} = load inspect %3
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = load inspect %3
   %7: Bool trivial = call I32.cmp borrow %5 borrow %6
   store inspect %4 consume %7
-  %8: Bool [shared call] guaranteed from{%4} = load inspect %4
-  %9: I32 [shared call] guaranteed from{%3} = load inspect %3
-  %10: I32 [shared call] guaranteed from{%2} = load inspect %2
+  %8: Bool trivial = load inspect %4
+  %9: I32 trivial = load inspect %3
+  %10: I32 trivial = load inspect %2
   %11: I32 trivial = call I32.pick borrow %8 borrow %9 borrow %10
   return consume %11
 }
 
 fn ratedSmaller(I32, Bool)(x: I32 [shared call], y: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32
   store inspect %2 borrow %0
   store inspect %3 borrow %1
-  %5: I32 [shared call] guaranteed from{%2} = load inspect %2
-  %6: I32 [shared call] guaranteed from{%3} = load inspect %3
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = load inspect %3
   %7: I32 trivial = call smaller(I32, Bool) borrow %5 borrow %6
   store inspect %4 consume %7
-  %8: I32 [shared call] guaranteed from{%4} = load inspect %4
+  %8: I32 trivial = load inspect %4
   %9: I32 trivial = call I32.rating borrow %8
   return consume %9
 }

@@ -9,25 +9,14 @@ bb0(%0: Counter owned):
   %2: %I32 address = global.addr released
   %3: I32 [unique call] guaranteed = load inspect %2
   %4: I32 trivial = const 1
-  %5: %I32 address = alloc frame I32 [shared call]
-  store inspect %5 borrow %4
-  %6: I32 [shared call] guaranteed = load inspect %3
-  %7: I32 [shared call] guaranteed from{%5} = load inspect %5
-  %9: %I32 address = alloc frame I32 [shared call]
-  %10: %I32 address = alloc frame I32 [shared call]
-  store inspect %9 borrow %6
-  store inspect %10 borrow %7
-  %11: I32 trivial = load inspect %9
-  %12: I32 trivial = load inspect %10
-  %13: I32 trivial = add inspect %11 inspect %12
-  store inspect %3 consume %13
+  %5: I32 trivial = load inspect %3
+  %7: I32 trivial = add inspect %5 inspect %4
+  store inspect %3 consume %7
   return
 }
 
 fn unwrapOr(value: Maybe(I32) [shared call], fallback: I32 [shared call]) -> I32 {
-bb0(%0: Maybe(I32) [shared call] guaranteed, %1: I32 [shared call] guaranteed):
-  %3: %I32 address = alloc frame I32 [shared call]
-  store inspect %3 borrow %1
+bb0(%0: Maybe(I32) [shared call] guaranteed, %1: I32 trivial):
   %5: %U8 address = field.addr .# inspect %0
   %6: U8 trivial = load inspect %5
   %7: U8 trivial = const 1
@@ -35,8 +24,7 @@ bb0(%0: Maybe(I32) [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   branch inspect %8 -> bb3 -> bb1
 
 bb1:
-  %9: I32 trivial = load inspect %3
-  jump -> bb2(consume %9)
+  jump -> bb2(consume %1)
 
 bb2(%2: I32 trivial):
   return consume %2
@@ -51,19 +39,19 @@ fn bump(value: Maybe(I32) [shared call]) -> I32 {
 bb0(%0: Maybe(I32) [shared call] guaranteed):
   %1: Maybe(I32) trivial = copy inspect %0
   %2: I32 trivial = const 0
-  %9: %U8 address = field.addr .# inspect %1
-  %10: U8 trivial = load inspect %9
-  %11: U8 trivial = const 1
-  %12: Bool trivial = eq inspect %10 inspect %11
-  branch inspect %12 -> bb5 -> bb4
+  %8: %U8 address = field.addr .# inspect %1
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb5 -> bb4
 
 bb4:
   jump -> bb6(consume %2)
 
 bb5:
-  %14: %I32 address = field.addr .Just inspect %1
-  %15: I32 trivial = load inspect %14
-  jump -> bb6(consume %15)
+  %12: %I32 address = field.addr .Just inspect %1
+  %13: I32 trivial = load inspect %12
+  jump -> bb6(consume %13)
 
 bb6(%7: I32 trivial):
   %4: I32 trivial = const 1
@@ -89,19 +77,19 @@ bb0:
   %5: %Maybe(I32) address = field.addr .held inspect %0
   %6: Maybe(I32) trivial = copy inspect %5
   %7: I32 trivial = const 0
-  %12: %U8 address = field.addr .# inspect %6
-  %13: U8 trivial = load inspect %12
-  %14: U8 trivial = const 1
-  %15: Bool trivial = eq inspect %13 inspect %14
-  branch inspect %15 -> bb5 -> bb4
+  %11: %U8 address = field.addr .# inspect %6
+  %12: U8 trivial = load inspect %11
+  %13: U8 trivial = const 1
+  %14: Bool trivial = eq inspect %12 inspect %13
+  branch inspect %14 -> bb5 -> bb4
 
 bb4:
   jump -> bb6(consume %7)
 
 bb5:
-  %17: %I32 address = field.addr .Just inspect %6
-  %18: I32 trivial = load inspect %17
-  jump -> bb6(consume %18)
+  %15: %I32 address = field.addr .Just inspect %6
+  %16: I32 trivial = load inspect %15
+  jump -> bb6(consume %16)
 
 bb6(%10: I32 trivial):
   return consume %10
@@ -121,19 +109,19 @@ bb0:
   store inspect %7 consume %6
   %9: Maybe(I32) trivial = copy inspect %7
   %10: I32 trivial = const 0
-  %15: %U8 address = field.addr .# inspect %9
-  %16: U8 trivial = load inspect %15
-  %17: U8 trivial = const 1
-  %18: Bool trivial = eq inspect %16 inspect %17
-  branch inspect %18 -> bb5 -> bb4
+  %14: %U8 address = field.addr .# inspect %9
+  %15: U8 trivial = load inspect %14
+  %16: U8 trivial = const 1
+  %17: Bool trivial = eq inspect %15 inspect %16
+  branch inspect %17 -> bb5 -> bb4
 
 bb4:
   jump -> bb6(consume %10)
 
 bb5:
-  %20: %I32 address = field.addr .Just inspect %9
-  %21: I32 trivial = load inspect %20
-  jump -> bb6(consume %21)
+  %18: %I32 address = field.addr .Just inspect %9
+  %19: I32 trivial = load inspect %18
+  jump -> bb6(consume %19)
 
 bb6(%13: I32 trivial):
   return consume %13
@@ -186,19 +174,19 @@ bb5:
 bb6(%12: I32 trivial):
   %21: I32 trivial = const 1
   %22: I32 trivial = add inspect %12 inspect %21
-  %26: %U8 address = field.addr .# inspect %6
-  %27: U8 trivial = load inspect %26
-  %28: U8 trivial = const 1
-  %29: Bool trivial = eq inspect %27 inspect %28
-  branch inspect %29 -> bb11 -> bb10
+  %25: %U8 address = field.addr .# inspect %6
+  %26: U8 trivial = load inspect %25
+  %27: U8 trivial = const 1
+  %28: Bool trivial = eq inspect %26 inspect %27
+  branch inspect %28 -> bb11 -> bb10
 
 bb10:
   jump -> bb12(consume %22)
 
 bb11:
-  %31: %I32 address = field.addr .Just inspect %6
-  %32: I32 trivial = load inspect %31
-  jump -> bb12(consume %32)
+  %29: %I32 address = field.addr .Just inspect %6
+  %30: I32 trivial = load inspect %29
+  jump -> bb12(consume %30)
 
 bb12(%24: I32 trivial):
   return consume %24

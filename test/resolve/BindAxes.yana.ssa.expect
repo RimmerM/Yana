@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn make(ok: Bool [shared call], n: Size [shared call]) -> Result(I64, Held) {
-bb0(%0: Bool [shared call] guaranteed, %1: Size [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: Size trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   %3: %Size address = alloc frame Size [shared call]
   store inspect %2 borrow %0
@@ -15,28 +15,154 @@ bb1:
 
 bb2:
   %6: Size trivial = load inspect %3
-  %7: Run(U8) owned = call newRun(U8) borrow %6
-  %8: Held owned = aggregate.Held consume %7
-  %9: Result(I64, Held) owned = aggregate.Ok consume %8
-  return consume %9
+  jump -> bb4
 
 bb3:
-  %10: I64 trivial = const 7
-  %11: Result(I64, Held) owned = aggregate.Err consume %10
-  return consume %11
+  %39: I64 trivial = const 7
+  %40: Result(I64, Held) owned = aggregate.Err consume %39
+  return consume %40
+
+bb4:
+  %8: %Size address = alloc frame Size [shared call]
+  store inspect %8 borrow %6
+  %9: Size trivial = load inspect %8
+  jump -> bb6
+
+bb5(%7: Run(U8) owned):
+  %37: Held owned = aggregate.Held consume %7
+  %38: Result(I64, Held) owned = aggregate.Ok consume %37
+  return consume %38
+
+bb6:
+  %11: Size trivial = const 0
+  %12: %U8 trivial = call Size.%a.bitcast(U8) borrow %11
+  jump -> bb7(consume %12)
+
+bb7(%10: %U8 trivial):
+  %13: Size trivial = load inspect %8
+  %14: %U8 trivial = call runSlots(U8) borrow %10 borrow %13
+  %15: @bits(2) U32 trivial = const 1
+  jump -> bb8
+
+bb8:
+  %18: %Size address = alloc frame Size [shared call]
+  %19: %%U8 address = alloc frame %U8 [shared call]
+  %20: %@bits(2) U32 address = alloc frame @bits(2) U32 [shared call]
+  %21: %Size address = alloc frame Size
+  store inspect %18 borrow %9
+  store inspect %19 borrow %14
+  store inspect %20 borrow %15
+  %22: %U8 trivial = load inspect %19
+  jump -> bb13
+
+bb9(%16: Run(U8) owned):
+  jump -> bb5(consume %16)
+
+bb10:
+  %29: Size trivial = load inspect %18
+  jump -> bb11(consume %29)
+
+bb11(%17: Size trivial):
+  store inspect %21 consume %17
+  %30: %U8 trivial = load inspect %19
+  %31: Size trivial = load inspect %21
+  %32: U32 trivial = convert inspect %31
+  %33: @bits(30) U32 trivial = convert inspect %32
+  %34: @bits(2) U32 trivial = load inspect %20
+  %35: Run(U8) owned = aggregate.Run consume %30 consume %33 consume %34
+  jump -> bb9(consume %35)
+
+bb12:
+  %36: Size trivial = const 0
+  jump -> bb11(consume %36)
+
+bb13:
+  %24: %%U8 address = alloc frame %U8 [shared call]
+  store inspect %24 borrow %22
+  %25: %U8 trivial = load inspect %24
+  %26: Size trivial = call %a.Size.bitcast(U8) borrow %25
+  %27: Size trivial = const 0
+  %28: Bool trivial = eq inspect %26 inspect %27
+  jump -> bb14(consume %28)
+
+bb14(%23: Bool trivial):
+  branch inspect %23 -> bb12 -> bb10
 }
 
 fn setName(self: Held [unique call], n: Size [shared call]) -> {} {
-bb0(%0: Held [unique call] guaranteed, %1: Size [shared call] guaranteed):
+bb0(%0: Held [unique call] guaranteed, %1: Size trivial):
   %2: %Size address = alloc frame Size [shared call]
   store inspect %2 borrow %1
   %3: Size trivial = load inspect %2
-  %4: Run(U8) owned = call newRun(U8) borrow %3
-  %5: %Run(U8) address = field.addr .value inspect %0
-  drop Run(U8) [unique call] boxes borrowed inspect %5
-  %6: %Run(U8) address = field.addr .value inspect %0
-  store inspect %6 consume %4
+  jump -> bb1
+
+bb1:
+  %5: %Size address = alloc frame Size [shared call]
+  store inspect %5 borrow %3
+  %6: Size trivial = load inspect %5
+  jump -> bb3
+
+bb2(%4: Run(U8) owned):
+  %34: %Run(U8) address = field.addr .value inspect %0
+  drop Run(U8) [unique call] boxes borrowed inspect %34
+  %35: %Run(U8) address = field.addr .value inspect %0
+  store inspect %35 consume %4
   return
+
+bb3:
+  %8: Size trivial = const 0
+  %9: %U8 trivial = call Size.%a.bitcast(U8) borrow %8
+  jump -> bb4(consume %9)
+
+bb4(%7: %U8 trivial):
+  %10: Size trivial = load inspect %5
+  %11: %U8 trivial = call runSlots(U8) borrow %7 borrow %10
+  %12: @bits(2) U32 trivial = const 1
+  jump -> bb5
+
+bb5:
+  %15: %Size address = alloc frame Size [shared call]
+  %16: %%U8 address = alloc frame %U8 [shared call]
+  %17: %@bits(2) U32 address = alloc frame @bits(2) U32 [shared call]
+  %18: %Size address = alloc frame Size
+  store inspect %15 borrow %6
+  store inspect %16 borrow %11
+  store inspect %17 borrow %12
+  %19: %U8 trivial = load inspect %16
+  jump -> bb10
+
+bb6(%13: Run(U8) owned):
+  jump -> bb2(consume %13)
+
+bb7:
+  %26: Size trivial = load inspect %15
+  jump -> bb8(consume %26)
+
+bb8(%14: Size trivial):
+  store inspect %18 consume %14
+  %27: %U8 trivial = load inspect %16
+  %28: Size trivial = load inspect %18
+  %29: U32 trivial = convert inspect %28
+  %30: @bits(30) U32 trivial = convert inspect %29
+  %31: @bits(2) U32 trivial = load inspect %17
+  %32: Run(U8) owned = aggregate.Run consume %27 consume %30 consume %31
+  jump -> bb6(consume %32)
+
+bb9:
+  %33: Size trivial = const 0
+  jump -> bb8(consume %33)
+
+bb10:
+  %21: %%U8 address = alloc frame %U8 [shared call]
+  store inspect %21 borrow %19
+  %22: %U8 trivial = load inspect %21
+  %23: Size trivial = call %a.Size.bitcast(U8) borrow %22
+  %24: Size trivial = const 0
+  %25: Bool trivial = eq inspect %23 inspect %24
+  jump -> bb11(consume %25)
+
+bb11(%20: Bool trivial):
+  branch inspect %20 -> bb9 -> bb7
 }
 
 fn slotCount(self: Held [shared call]) -> Size {
@@ -49,7 +175,7 @@ bb0(%0: Held [shared call] guaranteed):
 }
 
 fn viaTry(ok: Bool [shared call], n: Size [shared call]) -> Result(I64, Size) {
-bb0(%0: Bool [shared call] guaranteed, %1: Size [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: Size trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %Size address = alloc frame Size [shared call]
   %5: %Outcome(Held, I64) address = alloc frame Outcome(Held, I64)
@@ -94,7 +220,7 @@ bb3:
 }
 
 fn viaNamedPlace(b: Box, n: Size [shared call]) -> Size {
-bb0(%0: Box owned, %1: Size [shared call] guaranteed):
+bb0(%0: Box owned, %1: Size trivial):
   %2: %Box address = alloc frame Box
   %3: %Size address = alloc frame Size [shared call]
   %4: %Held address = alloc frame Held
@@ -126,35 +252,161 @@ bb2:
 }
 
 fn fieldOfNamedLocal(n: Size [shared call]) -> Size {
-bb0(%0: Size [shared call] guaranteed):
+bb0(%0: Size trivial):
   %1: %Size address = alloc frame Size [shared call]
   %2: %Pair address = alloc frame Pair
   store inspect %1 borrow %0
   %3: Size trivial = load inspect %1
-  %4: Run(U8) owned = call newRun(U8) borrow %3
-  %5: Held owned = aggregate.Held consume %4
-  %6: Size trivial = load inspect %1
-  %7: Run(U8) owned = call newRun(U8) borrow %6
-  %8: Held owned = aggregate.Held consume %7
-  %9: Pair owned = aggregate.Pair consume %5 consume %8
-  store inspect %2 consume %9
-  %10: %Held address = field.addr .first inspect %2
-  %11: Held [unique call] guaranteed from{%2} = load inspect %10
-  %12: Held [unique call] guaranteed from{%2, %11} = load inspect %11
-  %13: Size trivial = load inspect %1
-  %14: Size trivial = const 1
-  %15: Size trivial = add inspect %13 inspect %14
-  call setName borrow %12 borrow %15
-  %16: %Run(U8) address = field.addr .value inspect %11
-  %17: %@bits(30) U32 address = field.addr .capacity inspect %16
-  %18: @bits(30) U32 trivial = load inspect %17
+  jump -> bb1
+
+bb1:
+  %5: %Size address = alloc frame Size [shared call]
+  store inspect %5 borrow %3
+  %6: Size trivial = load inspect %5
+  jump -> bb3
+
+bb2(%4: Run(U8) owned):
+  %34: Held owned = aggregate.Held consume %4
+  %35: Size trivial = load inspect %1
+  jump -> bb12
+
+bb3:
+  %8: Size trivial = const 0
+  %9: %U8 trivial = call Size.%a.bitcast(U8) borrow %8
+  jump -> bb4(consume %9)
+
+bb4(%7: %U8 trivial):
+  %10: Size trivial = load inspect %5
+  %11: %U8 trivial = call runSlots(U8) borrow %7 borrow %10
+  %12: @bits(2) U32 trivial = const 1
+  jump -> bb5
+
+bb5:
+  %15: %Size address = alloc frame Size [shared call]
+  %16: %%U8 address = alloc frame %U8 [shared call]
+  %17: %@bits(2) U32 address = alloc frame @bits(2) U32 [shared call]
+  %18: %Size address = alloc frame Size
+  store inspect %15 borrow %6
+  store inspect %16 borrow %11
+  store inspect %17 borrow %12
+  %19: %U8 trivial = load inspect %16
+  jump -> bb10
+
+bb6(%13: Run(U8) owned):
+  jump -> bb2(consume %13)
+
+bb7:
+  %26: Size trivial = load inspect %15
+  jump -> bb8(consume %26)
+
+bb8(%14: Size trivial):
+  store inspect %18 consume %14
+  %27: %U8 trivial = load inspect %16
+  %28: Size trivial = load inspect %18
+  %29: U32 trivial = convert inspect %28
+  %30: @bits(30) U32 trivial = convert inspect %29
+  %31: @bits(2) U32 trivial = load inspect %17
+  %32: Run(U8) owned = aggregate.Run consume %27 consume %30 consume %31
+  jump -> bb6(consume %32)
+
+bb9:
+  %33: Size trivial = const 0
+  jump -> bb8(consume %33)
+
+bb10:
+  %21: %%U8 address = alloc frame %U8 [shared call]
+  store inspect %21 borrow %19
+  %22: %U8 trivial = load inspect %21
+  %23: Size trivial = call %a.Size.bitcast(U8) borrow %22
+  %24: Size trivial = const 0
+  %25: Bool trivial = eq inspect %23 inspect %24
+  jump -> bb11(consume %25)
+
+bb11(%20: Bool trivial):
+  branch inspect %20 -> bb9 -> bb7
+
+bb12:
+  %37: %Size address = alloc frame Size [shared call]
+  store inspect %37 borrow %35
+  %38: Size trivial = load inspect %37
+  jump -> bb14
+
+bb13(%36: Run(U8) owned):
+  %66: Held owned = aggregate.Held consume %36
+  %67: Pair owned = aggregate.Pair consume %34 consume %66
+  store inspect %2 consume %67
+  %68: %Held address = field.addr .first inspect %2
+  %69: Held [unique call] guaranteed from{%2} = load inspect %68
+  %70: Held [unique call] guaranteed from{%2, %69} = load inspect %69
+  %71: Size trivial = load inspect %1
+  %72: Size trivial = const 1
+  %73: Size trivial = add inspect %71 inspect %72
+  call setName borrow %70 borrow %73
+  %74: %Run(U8) address = field.addr .value inspect %69
+  %75: %@bits(30) U32 address = field.addr .capacity inspect %74
+  %76: @bits(30) U32 trivial = load inspect %75
   drop Pair inspect %2
-  %19: Size trivial = convert inspect %18
-  return consume %19
+  %77: Size trivial = convert inspect %76
+  return consume %77
+
+bb14:
+  %40: Size trivial = const 0
+  %41: %U8 trivial = call Size.%a.bitcast(U8) borrow %40
+  jump -> bb15(consume %41)
+
+bb15(%39: %U8 trivial):
+  %42: Size trivial = load inspect %37
+  %43: %U8 trivial = call runSlots(U8) borrow %39 borrow %42
+  %44: @bits(2) U32 trivial = const 1
+  jump -> bb16
+
+bb16:
+  %47: %Size address = alloc frame Size [shared call]
+  %48: %%U8 address = alloc frame %U8 [shared call]
+  %49: %@bits(2) U32 address = alloc frame @bits(2) U32 [shared call]
+  %50: %Size address = alloc frame Size
+  store inspect %47 borrow %38
+  store inspect %48 borrow %43
+  store inspect %49 borrow %44
+  %51: %U8 trivial = load inspect %48
+  jump -> bb21
+
+bb17(%45: Run(U8) owned):
+  jump -> bb13(consume %45)
+
+bb18:
+  %58: Size trivial = load inspect %47
+  jump -> bb19(consume %58)
+
+bb19(%46: Size trivial):
+  store inspect %50 consume %46
+  %59: %U8 trivial = load inspect %48
+  %60: Size trivial = load inspect %50
+  %61: U32 trivial = convert inspect %60
+  %62: @bits(30) U32 trivial = convert inspect %61
+  %63: @bits(2) U32 trivial = load inspect %49
+  %64: Run(U8) owned = aggregate.Run consume %59 consume %62 consume %63
+  jump -> bb17(consume %64)
+
+bb20:
+  %65: Size trivial = const 0
+  jump -> bb19(consume %65)
+
+bb21:
+  %53: %%U8 address = alloc frame %U8 [shared call]
+  store inspect %53 borrow %51
+  %54: %U8 trivial = load inspect %53
+  %55: Size trivial = call %a.Size.bitcast(U8) borrow %54
+  %56: Size trivial = const 0
+  %57: Bool trivial = eq inspect %55 inspect %56
+  jump -> bb22(consume %57)
+
+bb22(%52: Bool trivial):
+  branch inspect %52 -> bb20 -> bb18
 }
 
 fn viaPattern(b: Box, n: Size [shared call]) -> Size {
-bb0(%0: Box owned, %1: Size [shared call] guaranteed):
+bb0(%0: Box owned, %1: Size trivial):
   %2: %Box address = alloc frame Box
   %3: %Size address = alloc frame Size [shared call]
   %4: %Held address = alloc frame Held

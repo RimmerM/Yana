@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn divide(a: U64 [shared call], b: U64 [shared call]) -> U64 {
-bb0(%0: U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial, %1: U64 trivial):
   %2: %U64 address = alloc frame U64 [shared call]
   %3: %U64 address = alloc frame U64 [shared call]
   store inspect %2 borrow %0
@@ -13,7 +13,7 @@ bb0(%0: U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed):
 }
 
 fn remainder(a: U64 [shared call], b: U64 [shared call]) -> U64 {
-bb0(%0: U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial, %1: U64 trivial):
   %2: %U64 address = alloc frame U64 [shared call]
   %3: %U64 address = alloc frame U64 [shared call]
   store inspect %2 borrow %0
@@ -25,7 +25,7 @@ bb0(%0: U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed):
 }
 
 fn signedDivide(a: I64 [shared call], b: I64 [shared call]) -> I64 {
-bb0(%0: I64 [shared call] guaranteed, %1: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial, %1: I64 trivial):
   %2: %I64 address = alloc frame I64 [shared call]
   %3: %I64 address = alloc frame I64 [shared call]
   store inspect %2 borrow %0

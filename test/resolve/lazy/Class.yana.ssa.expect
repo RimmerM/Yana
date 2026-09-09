@@ -9,7 +9,7 @@ fn pick(self: a [shared call], v: () -> I32 [shared call]) -> I32 = <no body>
 fn orZero(self: a [shared call], v: () -> I32 [shared call]) -> I32 = <no body>
 
 fn bump(mark: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr effects
@@ -65,7 +65,7 @@ bb0(%0: Shut [shared call] guaranteed, %1: () -> I32 [shared call] guaranteed):
 }
 
 fn taken(mark: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %taken.thunk.env address = alloc frame taken.thunk.env
   %3: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
@@ -84,7 +84,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn skipped(mark: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %skipped.thunk.env address = alloc frame skipped.thunk.env
   %3: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
@@ -103,7 +103,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn shut(mark: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %shut.thunk.env address = alloc frame shut.thunk.env
   %3: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]
@@ -122,7 +122,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn inherited(depth: I32 [shared call], mark: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %inherited.thunk.env address = alloc frame inherited.thunk.env
@@ -143,7 +143,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn replaced(mark: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %replaced.thunk.env address = alloc frame replaced.thunk.env
   %3: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=shared call]

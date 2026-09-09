@@ -252,13 +252,13 @@ bb4:
 
 bb5:
   %18: %I32 address = field.addr .Some inspect %0
-  %19: I32 [shared call] guaranteed from{%0} = load inspect %18
+  %19: I32 trivial = load inspect %18
   store inspect %3 borrow %19
   %20: %I32 address = field.addr .Some inspect %1
-  %21: I32 [shared call] guaranteed from{%1} = load inspect %20
+  %21: I32 trivial = load inspect %20
   store inspect %4 borrow %21
-  %22: I32 [shared call] guaranteed from{%0, %3} = load inspect %3
-  %23: I32 [shared call] guaranteed from{%1, %4} = load inspect %4
+  %22: I32 trivial = load inspect %3
+  %23: I32 trivial = load inspect %4
   %24: Bool trivial = call I32.== borrow %22 borrow %23
   jump -> bb3(consume %24)
 
@@ -298,8 +298,8 @@ bb0(%0: %I64 trivial, %1: %I64 trivial):
   %4: %%I64 address = alloc frame %I64
   store inspect %3 consume %0
   store inspect %4 consume %1
-  %5: %I64 [shared call] guaranteed from{%3} = load inspect %3
-  %6: %I64 [shared call] guaranteed from{%4} = load inspect %4
+  %5: %I64 trivial = load inspect %3
+  %6: %I64 trivial = load inspect %4
   %7: Bool trivial = call %a.<(I64) borrow %5 borrow %6
   branch inspect %7 -> bb3 -> bb1
 
@@ -348,13 +348,13 @@ bb4:
 
 bb5:
   %18: %%I64 address = field.addr .Some inspect %0
-  %19: %I64 [shared call] guaranteed from{%0} = load inspect %18
+  %19: %I64 trivial = load inspect %18
   store inspect %3 borrow %19
   %20: %%I64 address = field.addr .Some inspect %1
-  %21: %I64 [shared call] guaranteed from{%1} = load inspect %20
+  %21: %I64 trivial = load inspect %20
   store inspect %4 borrow %21
-  %22: %I64 [shared call] guaranteed from{%0, %3} = load inspect %3
-  %23: %I64 [shared call] guaranteed from{%1, %4} = load inspect %4
+  %22: %I64 trivial = load inspect %3
+  %23: %I64 trivial = load inspect %4
   %24: Bool trivial = call %a.==(I64) borrow %22 borrow %23
   jump -> bb3(consume %24)
 
@@ -403,13 +403,13 @@ bb4:
 
 bb5:
   %18: %Bool address = field.addr .Some inspect %0
-  %19: Bool [shared call] guaranteed from{%0} = load inspect %18
+  %19: Bool trivial = load inspect %18
   store inspect %3 borrow %19
   %20: %Bool address = field.addr .Some inspect %1
-  %21: Bool [shared call] guaranteed from{%1} = load inspect %20
+  %21: Bool trivial = load inspect %20
   store inspect %4 borrow %21
-  %22: Bool [shared call] guaranteed from{%0, %3} = load inspect %3
-  %23: Bool [shared call] guaranteed from{%1, %4} = load inspect %4
+  %22: Bool trivial = load inspect %3
+  %23: Bool trivial = load inspect %4
   %24: Bool trivial = call Bool.== borrow %22 borrow %23
   jump -> bb3(consume %24)
 

@@ -477,35 +477,31 @@ bb43:
 
 bb44:
   %189: Point = const Point {x: 2, y: 3}
-  %190: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'142) loan2
-  %191: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] = address inspect %190 roots.0{2}
-  %192: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %191 roots.0{2}
-  %193: I32 = const 2
-  %194: String = call stringLiteral borrow.shared %192 borrow.shared %193
-  %195: Shape = const Rect {w: 2, h: 5}
-  %196: Maybe(I32) = const Just(4)
-  %197: Settings = aggregate.Settings take %189 take %194 take %195 take %196
-  write.init borrow.unique (s) take %197
-  %199: Point = read copy.trivial (s.home)
-  %200: I32 = call sum'2 borrow.shared %199
-  %201: String [shared call] = read borrow.shared (s.label) loan3
-  %202: String [shared slot 0 view] = call.derivation view(String) borrow.shared %201 roots{3}
-  %203: Size = call length(String) borrow.shared %202
-  %204: I32 = convert inspect %203
-  %205: I32 = add inspect %200 inspect %204
-  %206: Shape = read copy.trivial (s.mode)
-  %207: I32 = call area borrow.shared %206
-  %208: I32 = add inspect %205 inspect %207
-  %209: Maybe(I32) = read copy.trivial (s.limit)
+  %190: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %191: Shape = const Rect {w: 2, h: 5}
+  %192: Maybe(I32) = const Just(4)
+  %193: Settings = aggregate.Settings take %189 take %190 take %191 take %192
+  write.init borrow.unique (s) take %193
+  %195: Point = read copy.trivial (s.home)
+  %196: I32 = call sum'2 borrow.shared %195
+  %197: String [shared call] = read borrow.shared (s.label) loan2
+  %198: String [shared slot 0 view] = call.derivation view(String) borrow.shared %197 roots{2}
+  %199: Size = call length(String) borrow.shared %198
+  %200: I32 = convert inspect %199
+  %201: I32 = add inspect %196 inspect %200
+  %202: Shape = read copy.trivial (s.mode)
+  %203: I32 = call area borrow.shared %202
+  %204: I32 = add inspect %201 inspect %203
+  %205: Maybe(I32) = read copy.trivial (s.limit)
   drop (s)
-  %210: I32 = const 0
-  %211: I32 = call unwrapOr borrow.shared %209 borrow.shared %210
-  %212: I32 = add inspect %208 inspect %211
-  write.init borrow.unique (defaults) take %212
-  %214: I32 = read copy.trivial (defaults)
-  %215: I32 = const 21
-  %216: Bool = eq inspect %214 inspect %215
-  branch inspect %216 -> bb48 -> bb46
+  %206: I32 = const 0
+  %207: I32 = call unwrapOr borrow.shared %205 borrow.shared %206
+  %208: I32 = add inspect %204 inspect %207
+  write.init borrow.unique (defaults) take %208
+  %210: I32 = read copy.trivial (defaults)
+  %211: I32 = const 21
+  %212: Bool = eq inspect %210 inspect %211
+  branch inspect %212 -> bb48 -> bb46
 
 bb45:
   %183: I32 = read copy.trivial (score)
@@ -518,32 +514,32 @@ bb46:
   jump -> bb47
 
 bb47:
-  %224: I32 = const 2
-  %225: Point = const Point {x: 6, y: 7}
-  %226: I32 = call scaled borrow.shared %224 borrow.shared %225
-  %227: I32 = const 26
-  %228: Bool = eq inspect %226 inspect %227
-  branch inspect %228 -> bb51 -> bb49
+  %220: I32 = const 2
+  %221: Point = const Point {x: 6, y: 7}
+  %222: I32 = call scaled borrow.shared %220 borrow.shared %221
+  %223: I32 = const 26
+  %224: Bool = eq inspect %222 inspect %223
+  branch inspect %224 -> bb51 -> bb49
 
 bb48:
-  %218: I32 = read copy.trivial (score)
-  %219: I32 = const 16384
-  %220: I32 = add inspect %218 inspect %219
-  write.assign borrow.unique (score) take %220
+  %214: I32 = read copy.trivial (score)
+  %215: I32 = const 16384
+  %216: I32 = add inspect %214 inspect %215
+  write.assign borrow.unique (score) take %216
   jump -> bb47
 
 bb49:
   jump -> bb50
 
 bb50:
-  %236: I32 = read copy.trivial (score)
-  return take %236
+  %232: I32 = read copy.trivial (score)
+  return take %232
 
 bb51:
-  %230: I32 = read copy.trivial (score)
-  %231: I32 = const 32768
-  %232: I32 = add inspect %230 inspect %231
-  write.assign borrow.unique (score) take %232
+  %226: I32 = read copy.trivial (score)
+  %227: I32 = const 32768
+  %228: I32 = add inspect %226 inspect %227
+  write.assign borrow.unique (score) take %228
   jump -> bb50
 }
 

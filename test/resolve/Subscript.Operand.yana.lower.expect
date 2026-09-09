@@ -155,122 +155,120 @@ main<complex>(): I32 {
     %v_2 = alloca 20, 4: Ptr
     store %v_1, %v_2, 8
     %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: I32
     store %v_3, 5, 4
     store %v_2, 1, 4
-    %v_5 = add %v_2, 4: Ptr
-    store %v_5, 2, 4
-    %v_6 = add %v_2, 8: Ptr
-    store %v_6, 3, 4
-    %v_7 = add %v_2, 12: Ptr
-    store %v_7, 4, 4
-    %v_8 = add %v_2, 16: Ptr
+    %v_4 = add %v_2, 4: Ptr
+    store %v_4, 2, 4
+    %v_5 = add %v_2, 8: Ptr
+    store %v_5, 3, 4
+    %v_6 = add %v_2, 12: Ptr
+    store %v_6, 4, 4
+    %v_7 = add %v_2, 16: Ptr
+    store %v_7, 5, 4
+    %v_8 = add %v_1, 12: Ptr
     store %v_8, 5, 4
-    %v_9 = add %v_1, 12: Ptr
-    store %v_9, 5, 4
-    %v_10 = alloca 16, 8: Ptr
-    %v_11 = alloca 12, 4: Ptr
-    store %v_10, %v_11, 8
-    %v_12 = add %v_10, 8: Ptr
-    %v_13 = load %v_12, 4: I32
-    store %v_12, 3, 4
-    store %v_11, 2, 4
-    %v_14 = add %v_11, 4: Ptr
-    store %v_14, 0, 4
-    %v_15 = add %v_11, 8: Ptr
-    store %v_15, 1, 4
-    %v_16 = add %v_10, 12: Ptr
-    store %v_16, 3, 4
-    %v_17 = loads %v_2, 4: I32
-    %v_18 = alloca 16, 8: Ptr
-    call_complex slice(I32), %v_18, %v_2, 5, 1, 3
-    %xs$items = load %v_18, 8: Ptr
-    %v_19 = add %v_18, 8: Ptr
-    %xs$length = loads %v_19, 8: I64
-    %v_20 = call_complex total, %xs$items, %xs$length: I32
-    %v_21 = add %v_17, %v_20: I32
-    %v_22 = cmp_neq %v_21, 6: I32
-    %v_23 = imm 5: I64
-    je %v_22, b_24, b_25
+    %v_9 = alloca 16, 8: Ptr
+    %v_10 = alloca 12, 4: Ptr
+    store %v_9, %v_10, 8
+    %v_11 = add %v_9, 8: Ptr
+    store %v_11, 3, 4
+    store %v_10, 2, 4
+    %v_12 = add %v_10, 4: Ptr
+    store %v_12, 0, 4
+    %v_13 = add %v_10, 8: Ptr
+    store %v_13, 1, 4
+    %v_14 = add %v_9, 12: Ptr
+    store %v_14, 3, 4
+    %v_15 = loads %v_2, 4: I32
+    %v_16 = alloca 16, 8: Ptr
+    call_complex slice(I32), %v_16, %v_2, 5, 1, 3
+    %xs$items = load %v_16, 8: Ptr
+    %v_17 = add %v_16, 8: Ptr
+    %xs$length = loads %v_17, 8: I64
+    %v_18 = call_complex total, %xs$items, %xs$length: I32
+    %v_19 = add %v_15, %v_18: I32
+    %v_20 = cmp_neq %v_19, 6: I32
+    %v_21 = imm 5: I64
+    je %v_20, b_22, b_23
   }
 
-  b_25 {
-    %v_26 = add %v_2, 8: Ptr
-    %v_27 = loads %v_26, 4: I32
-    %v_28 = add %v_27, %v_27: I32
-    %v_29 = cmp_neq %v_28, 6: I32
-    je %v_29, b_24, b_30
+  b_23 {
+    %v_24 = add %v_2, 8: Ptr
+    %v_25 = loads %v_24, 4: I32
+    %v_26 = add %v_25, %v_25: I32
+    %v_27 = cmp_neq %v_26, 6: I32
+    je %v_27, b_22, b_28
   }
 
-  b_30 {
-    %v_31 = load %v_10, 8: Ptr
-    %v_32 = add %v_10, 12: Ptr
-    %v_33 = load %v_32, 4: I32
-    %v_34 = cast %v_33: I64
-    %v_35 = cmp_eq %v_34, 0: I32
-    je %v_35, b_36, b_37
+  b_28 {
+    %v_29 = load %v_9, 8: Ptr
+    %v_30 = add %v_9, 12: Ptr
+    %v_31 = load %v_30, 4: I32
+    %v_32 = cast %v_31: I64
+    %v_33 = cmp_eq %v_32, 0: I32
+    je %v_33, b_34, b_35
   }
 
-  b_37 {
-    %v_38 = loads %v_31, 4: I32
-    %v_39 = sext %v_38: I64
-    %v_40 = cmp_ge %v_39, 5: I32
-    je %v_40, b_36, b_41
+  b_35 {
+    %v_36 = loads %v_29, 4: I32
+    %v_37 = sext %v_36: I64
+    %v_38 = cmp_ge %v_37, 5: I32
+    je %v_38, b_34, b_39
   }
 
-  b_41 {
-    %v_42 = shl %v_39, 2: I64
-    %v_43 = add %v_2, %v_42: Ptr
-    %v_44 = loads %v_43, 4: I32
-    call_complex Reclaim(Array(a)).reclaim(I32), %v_10
-    %v_45 = cmp_neq %v_44, 3: I32
-    je %v_45, b_46, b_47
+  b_39 {
+    %v_40 = shl %v_37, 2: I64
+    %v_41 = add %v_2, %v_40: Ptr
+    %v_42 = loads %v_41, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_9
+    %v_43 = cmp_neq %v_42, 3: I32
+    je %v_43, b_44, b_45
   }
 
-  b_47 {
-    %v_48 = call_complex total, %v_2, %v_23: I32
-    %v_49 = cmp_neq %v_48, 15: I32
-    je %v_49, b_46, b_50
+  b_45 {
+    %v_46 = call_complex total, %v_2, %v_21: I32
+    %v_47 = cmp_neq %v_46, 15: I32
+    je %v_47, b_44, b_48
   }
 
-  b_50 {
-    %v_51 = alloca 16, 8: Ptr
-    call_complex slice(I32), %v_51, %v_2, %v_23, 0, 5
-    %xs$items = load %v_51, 8: Ptr
-    %v_52 = add %v_51, 8: Ptr
-    %xs$length = loads %v_52, 8: I64
-    %v_53 = call_complex total, %xs$items, %xs$length: I32
-    %v_54 = cmp_neq %v_53, 15: I32
-    je %v_54, b_46, b_55
+  b_48 {
+    %v_49 = alloca 16, 8: Ptr
+    call_complex slice(I32), %v_49, %v_2, %v_21, 0, 5
+    %xs$items = load %v_49, 8: Ptr
+    %v_50 = add %v_49, 8: Ptr
+    %xs$length = loads %v_50, 8: I64
+    %v_51 = call_complex total, %xs$items, %xs$length: I32
+    %v_52 = cmp_neq %v_51, 15: I32
+    je %v_52, b_44, b_53
   }
 
-  b_55 {
+  b_53 {
     store %v_2, 10, 4
-    %v_56 = load %v_1, 8: Ptr
-    %v_57 = add %v_1, 12: Ptr
-    %v_58 = load %v_57, 4: I32
-    %v_59 = cast %v_58: I64
-    %v_60 = call_complex total, %v_56, %v_59: I32
+    %v_54 = load %v_1, 8: Ptr
+    %v_55 = add %v_1, 12: Ptr
+    %v_56 = load %v_55, 4: I32
+    %v_57 = cast %v_56: I64
+    %v_58 = call_complex total, %v_54, %v_57: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_1
-    ret %v_60
+    ret %v_58
   }
 
-  b_46 {
-    %v_61 = phi [b_50, 18446744073709551611], [b_47, 18446744073709551612], [b_41, 18446744073709551613]: I32
+  b_44 {
+    %v_59 = phi [b_48, 18446744073709551611], [b_45, 18446744073709551612], [b_39, 18446744073709551613]: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_1
-    ret %v_61
+    ret %v_59
   }
 
-  b_36 {
-    %v_62 = syscall 60, 134: I64
+  b_34 {
+    %v_60 = syscall 60, 134: I64
     unreachable 
   }
 
-  b_24 {
-    %v_63 = phi [b_25, 18446744073709551614], [b_0, 18446744073709551615]: I32
+  b_22 {
+    %v_61 = phi [b_23, 18446744073709551614], [b_0, 18446744073709551615]: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_1
-    call_complex Reclaim(Array(a)).reclaim(I32), %v_10
-    ret %v_63
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_9
+    ret %v_61
   }
 }
 

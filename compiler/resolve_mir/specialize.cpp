@@ -208,6 +208,11 @@ DeclPtr<Function> specializeFunction(Context& context, Program& program, DeclPtr
     function->lens = written.lens;
     function->alwaysInline = written.alwaysInline;
     function->inlineHint = written.inlineHint;
+
+    // The frequency the generic declared, which substitution does not change: how often a body runs
+    // is a statement about the call sites and not about the types they are at.
+    function->cold = written.cold;
+    function->hot = written.hot;
     function->noInline = written.noInline;
     function->teardown = written.teardown;
 

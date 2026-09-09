@@ -1056,6 +1056,8 @@ StringView attributeName(DeclAttribute attribute) {
         case DeclAttribute::Convention:   return "convention"_v;
         case DeclAttribute::Host:         return "host"_v;
         case DeclAttribute::Heap:         return "heap"_v;
+        case DeclAttribute::Cold:         return "cold"_v;
+        case DeclAttribute::Hot:          return "hot"_v;
         case DeclAttribute::Count:        break;
     }
 

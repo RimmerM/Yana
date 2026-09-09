@@ -49,8 +49,14 @@ Node* expandIntrinsic(Builder& builder, Context& context, intrinsic::Op op, Func
  * and the shipping stage takes that entitlement where it has something to say that the language
  * cannot: `newRun` is placed by an escape analysis this stage has not got, so what the shipping
  * stage expands into an allocation with a count, this stage reaches as the ordinary library body
- * beside the declaration - which allocates from the heap and says so in the tag. The day this stage
- * places allocations, the row moves and the body becomes dead in both.
+ * beside the declaration - which allocates from the heap and says so in the tag.
+ *
+ * That is still the arrangement, and this stage now says the second half somewhere else. J44 split
+ * the declaration: `runSlots` asks for the bytes, `runOver` builds the descriptor over them and
+ * takes the tag as an argument, and `resolve_ssa/opt/place.cpp` replaces the *request* where the
+ * frame can keep it. So the placement did not move up to a role - it moved down to a tier that can
+ * see the caller, which is where the question was answerable all along. The body stays what a call
+ * that is not replaced reaches, and stays dead in the shipping stage.
  *
  * Asked here rather than by a `null` out of `expandIntrinsic`, because the two answers are
  * different: an emitter returning null failed and has reported, and this is a call that has not

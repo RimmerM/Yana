@@ -243,11 +243,11 @@ bb15:
 }
 
 fn measure(U16)(it: U16 [shared call]) -> Size {
-bb0(%0: U16 [shared call] guaranteed):
+bb0(%0: U16 trivial):
   %1: %U16 address = alloc frame U16 [shared call]
   %2: %TypeTraits(U16) address = alloc frame TypeTraits(U16)
   store inspect %1 borrow %0
-  %3: U16 [shared call] guaranteed from{%1} = load inspect %1
+  %3: U16 trivial = load inspect %1
   %4: TypeTraits(U16) trivial = call traitsOf(U16) borrow %3
   store inspect %2 consume %4
   %5: %Size address = field.addr .size inspect %2

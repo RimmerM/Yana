@@ -1754,6 +1754,11 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> pointe
     specialized->noInline = generic->noInline;
     specialized->alwaysInline = generic->alwaysInline;
 
+    // And the frequency, for the same sentence: how often a body runs is a statement about its call
+    // sites and not about the types they are at.
+    specialized->cold = generic->cold;
+    specialized->hot = generic->hot;
+
     /*
      * Used, unless the caller is about to spend it.
      *

@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn check(actual: U32 [shared call], expected: U32 [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: U32 [shared call] guaranteed, %1: U32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: U32 trivial, %1: U32 trivial, %2: I32 trivial):
   %4: %U32 address = alloc frame U32 [shared call]
   %5: %U32 address = alloc frame U32 [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -26,7 +26,7 @@ bb3:
 }
 
 fn checkI(actual: I32 [shared call], expected: I32 [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial, %2: I32 trivial):
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32 [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -51,7 +51,7 @@ bb3:
 }
 
 fn checkW(actual: WideInt [shared call], expected: WideInt [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: WideInt trivial, %1: WideInt trivial, %2: I32 trivial):
   %4: %WideInt address = alloc frame WideInt [shared call]
   %5: %WideInt address = alloc frame WideInt [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -178,7 +178,7 @@ bb0:
 }
 
 fn stored(x: WideInt [shared call]) -> Tagged {
-bb0(%0: WideInt [shared call] guaranteed):
+bb0(%0: WideInt trivial):
   %1: %WideInt address = alloc frame WideInt [shared call]
   %2: %Tagged address = alloc frame Tagged
   store inspect %1 borrow %0

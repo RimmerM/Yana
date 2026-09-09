@@ -1943,6 +1943,40 @@ Node* Resolver::textValue(Builder& builder, StringId written, LocationId source)
     auto unit = program.types.codeUnit;
     auto pointer = stringBytesGlobal(written, source);
 
+    /*
+     * **The value itself, where the library's builder is a body this compiler can run.**
+     *
+     * `stringLiteral` over a placed run and a count is a description of a value whose every leaf is
+     * a number or an address of something that outlives the program - so the value is a constant,
+     * and running the body is how this stage finds out what it is rather than spelling `String`'s
+     * fields the way `resolve/const.cpp` has to. What comes back goes into read-only data once per
+     * distinct literal (`Lowering::placeConstant`) and a use of it is a copy out of it.
+     *
+     * The alternative below - the call, opened by `@inline(always)` - is what a target whose string
+     * has no static form gets: a run in the host's own storage is built by running something, and
+     * there is nothing for `materialize` to write. So the two arms are the one question
+     * "does a literal have a static form here", asked in the one place, and not a fast path beside
+     * a slow one. `textConstantValue` asks the same of a *constant* position, where there is no
+     * second arm and a body that cannot be run is a diagnostic.
+     */
+    if(auto value = stringLiteralValue(pointer, count, source, false); value.isSet()) {
+        /*
+         * And whether the teardown of the value is anything - asked **here**, while the library's
+         * bodies still exist to be run, and recorded on the program for the optimizer to spend.
+         *
+         * A literal's run is borrowed, so `Reclaim(String)` is a flag test that fails; the slot the
+         * value goes into then owes a call that does nothing, at every literal in the program. It is
+         * asked at the one site that mints a constant of a type with a teardown, so the table holds
+         * one entry per distinct literal rather than one per use.
+         */
+        if(isLinear(decl(), value.type) &&
+           teardownRunsNothing(value.type, value, true, true, source)) {
+            program.markInertConstant(value);
+        }
+
+        return builder.addConst(source, value);
+    }
+
     auto addressOf = program.roles.operation(intrinsic::Op::addressOf);
     if(!addressOf) {
         reportMissingRole(intrinsic::Op::addressOf, "a string literal"_v, source);

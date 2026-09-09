@@ -40,7 +40,7 @@ bb0(%0: Box(I64) trivial):
 fn mixedDepth(x: a [shared call], y: Box(a)) -> I32 = <no body>
 
 fn refined(p: @bits(20) U32 [shared call], q: Box(U32)) -> I32 {
-bb0(%0: @bits(20) U32 [shared call] guaranteed, %1: Box(U32) trivial):
+bb0(%0: @bits(20) U32 trivial, %1: Box(U32) trivial):
   %2: %@bits(20) U32 address = alloc frame @bits(20) U32 [shared call]
   %3: %Box(U32) address = alloc frame Box(U32)
   store inspect %2 borrow %0
@@ -78,7 +78,7 @@ bb0:
 }
 
 fn wrap(I64)(v: I64, tag: I32 [shared call]) -> Box(I64) {
-bb0(%0: I64 trivial, %1: I32 [shared call] guaranteed):
+bb0(%0: I64 trivial, %1: I32 trivial):
   %2: %I64 address = alloc frame I64
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 consume %0
@@ -99,7 +99,7 @@ bb0(%0: Box(I64) trivial):
 }
 
 fn literalFirst(I64)(x: I64 [shared call], ys: Box(I64)) -> I32 {
-bb0(%0: I64 [shared call] guaranteed, %1: Box(I64) trivial):
+bb0(%0: I64 trivial, %1: Box(I64) trivial):
   %2: %I64 address = alloc frame I64 [shared call]
   %3: %Box(I64) address = alloc frame Box(I64)
   store inspect %2 borrow %0
@@ -110,7 +110,7 @@ bb0(%0: I64 [shared call] guaranteed, %1: Box(I64) trivial):
 }
 
 fn literalLast(I64)(ys: Box(I64), x: I64 [shared call]) -> I32 {
-bb0(%0: Box(I64) trivial, %1: I64 [shared call] guaranteed):
+bb0(%0: Box(I64) trivial, %1: I64 trivial):
   %2: %Box(I64) address = alloc frame Box(I64)
   %3: %I64 address = alloc frame I64 [shared call]
   store inspect %2 consume %0
@@ -121,7 +121,7 @@ bb0(%0: Box(I64) trivial, %1: I64 [shared call] guaranteed):
 }
 
 fn mixedDepth(U32)(x: U32 [shared call], y: Box(U32)) -> I32 {
-bb0(%0: U32 [shared call] guaranteed, %1: Box(U32) trivial):
+bb0(%0: U32 trivial, %1: Box(U32) trivial):
   %2: %U32 address = alloc frame U32 [shared call]
   %3: %Box(U32) address = alloc frame Box(U32)
   store inspect %2 borrow %0

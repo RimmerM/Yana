@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn firstOver(limit: I32 [shared call], count: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32
@@ -45,7 +45,7 @@ bb6:
 }
 
 fn firstPair(target: I32 [shared call], rows: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32
@@ -114,7 +114,7 @@ bb9:
 }
 
 fn sumTo(count: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
@@ -180,7 +180,7 @@ bb3:
 }
 
 fn joined'2(flag: Bool [shared call], a: I32 [shared call], b: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial, %2: I32 trivial):
   %4: %Bool address = alloc frame Bool [shared call]
   %5: %I32 address = alloc frame I32 [shared call]
   %6: %I32 address = alloc frame I32 [shared call]

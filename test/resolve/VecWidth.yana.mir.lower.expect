@@ -2,36 +2,29 @@ mut @sink = [0, 0, 0, 0, 0, 0, 0, 0]
 
 arithmetic<complex>(%a: i16x4): i16x4 {
   b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, %a, 8
-    %v_2 = vsplat 4: i16x4
-    %v_3 = add %a, %v_2: i16x4
-    %v_4 = vsplat 2: i16x4
-    %v_5 = shl %a, %v_4: i16x4
-    %v_6 = and %v_3, %v_5: i16x4
-    %v_7 = shl %v_6, %v_2: i16x4
-    %v_8 = sub %v_7, %a: i16x4
-    ret %v_8
+    %v_1 = vsplat 4: i16x4
+    %v_2 = add %a, %v_1: i16x4
+    %v_3 = vsplat 2: i16x4
+    %v_4 = shl %a, %v_3: i16x4
+    %v_5 = and %v_2, %v_4: i16x4
+    %v_6 = shl %v_5, %v_1: i16x4
+    %v_7 = sub %v_6, %a: i16x4
+    ret %v_7
   }
 }
 
 widths<complex>(%narrow: i8x4, %middle: i32x2): i8x4 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %narrow, 4
-    %v_2 = load %v_1, 4: i8x4
-    %v_3 = shl %v_2, %v_2: i8x4
-    %v_4 = or %v_2, %v_3: i8x4
-    ret %v_4
+    %v_1 = shl %narrow, %narrow: i8x4
+    %v_2 = or %narrow, %v_1: i8x4
+    ret %v_2
   }
 }
 
 widening<complex>(%v: i16x4): i32x4 {
   b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, %v, 8
-    %v_2 = cast %v: i32x4
-    ret %v_2
+    %v_1 = cast %v: i32x4
+    ret %v_1
   }
 }
 

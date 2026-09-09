@@ -160,7 +160,7 @@ bb5:
 }
 
 fn describe(s: Shape [shared call], flag: Bool [shared call]) -> I32 {
-bb0(%0: Shape [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Shape [shared call] guaranteed, %1: Bool trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32
   store inspect %3 borrow %1
@@ -254,7 +254,7 @@ bb6:
 }
 
 fn viaCall(value: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %Maybe(I32) address = alloc frame Maybe(I32)
   %4: %I32 address = alloc frame I32
@@ -284,7 +284,7 @@ bb3:
 }
 
 fn wrap(value: I32 [shared call]) -> Maybe(I32) {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   %3: I32 trivial = load inspect %2

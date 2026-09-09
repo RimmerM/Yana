@@ -27,6 +27,39 @@ bool lowerConstantOf(LowerBase base, LowerValue* value, U64& into) {
     return true;
 }
 
+/*
+ * The same question for a float, and the rounding is the whole of what makes it a different one.
+ *
+ * `LowerImm` keeps every float constant as a `double` whatever the type says, and `emitFloatImm`
+ * rounds a single-precision one to what it will actually be at the point its bits are taken. A fold
+ * that read the stored double and wrote the stored double would therefore compute a *chain* at
+ * double precision and round once at the end, which is not what the machine does - so the value is
+ * put through the type's own precision on the way in as well as on the way out. `1.1f + 2.2f` is
+ * the shape that tells the two apart.
+ */
+F64 narrowFloat(F64 value, LowerType type) {
+    return type == LowerType::Float32 ? F64(float(value)) : value;
+}
+
+bool lowerFloatConstantOf(LowerBase base, LowerValue* value, F64& into) {
+    auto inst = value->inst();
+    if(inst->kind != LowerInst::Imm || !isFloat(value->type)) return false;
+
+    into = narrowFloat(((LowerImm*)inst)->f, value->type);
+    return true;
+}
+
+/*
+ * Whether a float is one this may hand back as a constant, which is finiteness and nothing else.
+ *
+ * A NaN and an infinity are values the arithmetic reaches - dividing by zero is the way - and there
+ * is no immediate to write either as: `LowerImm` would carry the pattern happily, but the folder
+ * answering one would have decided that `0.0/0.0` is *a particular* NaN, and IEEE 754 does not say
+ * which. Declined on both the operands and the result, so no rule below has to think about it.
+ * `resolve_ssa/opt/pass.h`'s `isFoldableFloat` is the same predicate a tier up.
+ */
+bool isFoldableFloat(F64 value) { return value == value && value - value == 0.0; }
+
 // How many bits a constant needs to survive being written out at that width and read back
 // sign-extended, which is what every immediate field of every encoding does with one. The unit the
 // choice below is made in: two constants that are the same operation on this operand are ranked by
@@ -49,15 +82,23 @@ U32 immediateWidthOf(U64 value, U32 bits) {
  * put it exactly where the instruction it replaces was. Nothing below allocates or touches a block.
  */
 struct Folded {
-    enum Kind: U8 { None, Constant, Operand };
+    enum Kind: U8 { None, Constant, Real, Operand };
 
     Kind kind = None;
     U64 constant = 0;
+    F64 real = 0;
     LowerValue* operand = nullptr;
 
     static Folded nothing() { return Folded {}; }
-    static Folded value(U64 c) { return Folded { Constant, c, nullptr }; }
-    static Folded forward(LowerValue* v) { return Folded { Operand, 0, v }; }
+    static Folded value(U64 c) { return Folded { Constant, c, 0, nullptr }; }
+    static Folded forward(LowerValue* v) { return Folded { Operand, 0, 0, v }; }
+
+    // The float answer, declined where it is not one a literal can be written for - so every rule
+    // below states its arithmetic and none of them states the NaN case.
+    static Folded number(F64 f, LowerType type) {
+        auto rounded = narrowFloat(f, type);
+        return isFoldableFloat(rounded) ? Folded { Real, 0, rounded, nullptr } : nothing();
+    }
 };
 
 /*
@@ -113,6 +154,22 @@ Folded foldUnaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* arg, Low
         }
     }
 
+    /*
+     * The one float unary that is arithmetic rather than a library call.
+     *
+     * `Neg` flips the sign bit and that is exactly specified for every value, so nothing about
+     * rounding or about which NaN enters into it - `Folded::number` declines a non-finite operand
+     * anyway, since it has no way to write one back. `Sqrt` and the four roundings are declined for
+     * the reason `resolve_ssa/opt/fold.cpp` gives: each is one machine instruction where it stands,
+     * so folding it would buy a constant and cost this file the host's math library.
+     */
+    if(isFloat(type) && kind == LowerInst::Neg) {
+        F64 real;
+        if(!lowerFloatConstantOf(base, arg, real)) return Folded::nothing();
+
+        return Folded::number(-real, type);
+    }
+
     if(!isInt(type) || !isInt(arg->type)) return Folded::nothing();
 
     U64 value;
@@ -137,7 +194,8 @@ Folded foldUnaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* arg, Low
 // Widening carries the sign bit up only for a source that has one and narrowing truncates either
 // way, which is `CreateIntCast` and what the x64 selector's constant move does. Float conversions
 // are left alone: `lowerConstantOf` declines a float immediate, so both directions fall through.
-Folded foldCastValue(LowerBase base, LowerValue* arg, LowerType type, bool signedSource) {
+Folded foldCastValue(LowerBase base, LowerValue* arg, LowerType type, bool signedSource,
+                     bool signedResult) {
     /*
      * A conversion between two types that are one type, which converts nothing.
      *
@@ -161,13 +219,183 @@ Folded foldCastValue(LowerBase base, LowerValue* arg, LowerType type, bool signe
      */
     if(arg->type == type) return Folded::forward(arg);
 
-    if(!isInt(type) || !isInt(arg->type)) return Folded::nothing();
+    /*
+     * The value crossing between the two number lines, at whichever pair of ends this cast has.
+     *
+     * `nameForCast` in lower_print.cpp says which pair a cast is by asking the same two questions in
+     * the same order, so `itof` and `ftoi` here are the instructions that print under those names.
+     *
+     * **Float to integer is the one that is bounded.** The machine truncates toward zero and answers
+     * a value the integer cannot hold with whatever `cvttsd2si` produces, and this tier makes no
+     * ruling that says otherwise - the shipping resolver's saturation is decided a tier above, where
+     * `saturationRange` is. So the fold is offered only inside the range the result holds, and out
+     * of it the conversion stays and the machine answers it, which is what the two stages already
+     * agree about in `FoldFloat.yana`.
+     */
+    if(isFloat(type)) {
+        if(isFloat(arg->type)) {
+            F64 source;
+            if(!lowerFloatConstantOf(base, arg, source)) return Folded::nothing();
+
+            return Folded::number(source, type);
+        }
+
+        if(!isInt(arg->type)) return Folded::nothing();
+
+        U64 source;
+        if(!lowerConstantOf(base, arg, source)) return Folded::nothing();
+
+        // At the source's own width and sign, which is what decides whether the bits `lowerConstantOf`
+        // handed back denote a negative number at all.
+        auto bits = widthOf(arg->type);
+        return Folded::number(signedSource ? F64(signedValue(source, bits)) : F64(source), type);
+    }
+
+    if(!isInt(type)) return Folded::nothing();
+
+    if(isFloat(arg->type)) {
+        F64 source;
+        if(!lowerFloatConstantOf(base, arg, source)) return Folded::nothing();
+        if(!isFoldableFloat(source)) return Folded::nothing();
+
+        /*
+         * The bounds as doubles, which is exact for every width this reaches: the largest `Int64` is
+         * not a double, so the signed limit is `2^63` itself and the value one below it is the one
+         * produced. Compared with `>=` and `<` rather than by rounding the ends, so a value that
+         * truncates into range from just outside it is declined rather than folded to the boundary.
+         */
+        auto bits = widthOf(type);
+        auto lowest = signedResult ? -F64(U64(1) << (bits - 1)) : 0.0;
+        auto limit = signedResult ? F64(U64(1) << (bits - 1))
+                     : bits >= 64 ? 18446744073709551616.0 : F64(U64(1) << bits);
+
+        if(!(source >= lowest && source < limit)) return Folded::nothing();
+
+        // Through the result's own signedness, which is what makes the host conversion defined: the
+        // unsigned range above admits values no `I64` holds.
+        auto truncated = signedResult ? U64(I64(source)) : U64(source);
+        return Folded::value(truncated & maskOf(bits));
+    }
+
+    if(!isInt(arg->type)) return Folded::nothing();
 
     U64 value;
     if(!lowerConstantOf(base, arg, value)) return Folded::nothing();
 
     auto extended = signedSource ? U64(signedValue(value, widthOf(arg->type))) : value;
     return Folded::value(extended & maskOf(widthOf(type)));
+}
+
+/*
+ * The value under whatever bitcasts stand over it.
+ *
+ * A `Bitcast` is the lower IR's "these are the same bits at another type", which is what pointer
+ * arithmetic written in the language costs: `difference(from, to)` casts both ends to `%U8` and
+ * subtracts, so the two values a rule wants to compare arrive wearing one cast each. Following them
+ * is identity-preserving by the instruction's own definition.
+ */
+LowerValue* underBitcasts(LowerBase base, LowerValue* value) {
+    while(true) {
+        auto inst = value->inst();
+        if(inst->kind != LowerInst::Bitcast) return value;
+
+        auto from = base[((LowerInstUnary*)inst)->from];
+        if(widthOf(from->type) != widthOf(value->type)) return value;
+
+        value = from;
+    }
+}
+
+/*
+ * `(p + n) - p` is `n`, at any width and over any base - the distance between a pointer and one
+ * offset from it.
+ *
+ * True in two's complement whatever either side does: both operations wrap at the same width, so
+ * the base cancels exactly and nothing is required of `p` at all. Stated over `Add` only, because
+ * `(p - n) - p` is `-n` and answering that would be a new instruction rather than one already
+ * standing there - which `Folded` may not do.
+ *
+ * **What produces it** is `byteSpan` in `lib/Native/Run.yana`, which measures a type by moving a
+ * pointer and subtracting: `difference(bitcast(from), bitcast(from + count))`. That is the language
+ * spelling of `sizeOf`, so it is at every container that asks how many bytes `n` elements occupy -
+ * 647 sites in `test/base` on one stage and 29 over the thirteen bench programs on both. Each one
+ * came out as a `shl`, an `lea` and a `sub` where the `shl` alone is the answer.
+ *
+ * Here rather than in either resolver for the reason `reassociateOffset` is here: both native
+ * backends read this IR, and the rule is about the arithmetic rather than about what wrote it.
+ */
+Folded pointerDistance(LowerBase base, LowerValue* lhs, LowerValue* rhs, LowerType type) {
+    auto from = underBitcasts(base, rhs);
+    auto sum = underBitcasts(base, lhs)->inst();
+    if(sum->kind != LowerInst::Add) return Folded::nothing();
+
+    auto binary = (LowerInstBinary*)sum;
+    auto left = base[binary->lhs];
+    auto right = base[binary->rhs];
+
+    auto offset = underBitcasts(base, left) == from ? right
+                : underBitcasts(base, right) == from ? left
+                : nullptr;
+
+    // The offset at the distance's own type, which is what `forward` requires everywhere in this
+    // file: a value of another width standing in for this one would be a different number.
+    if(!offset || offset->type != type) return Folded::nothing();
+
+    return Folded::forward(offset);
+}
+
+/*
+ * Floating arithmetic, which is the same four operations and a different set of identities.
+ *
+ * IEEE 754 specifies add, subtract, multiply and divide exactly and both native backends use the
+ * hardware's, so the host's own `double` computes what the target computes - at `F32` once
+ * `narrowFloat` has put each end and the result back through single precision. This is the tier
+ * below `resolve_ssa/opt/fold.cpp`'s `foldFloatBinary` and states the same rules; it exists because
+ * an *inlined* body's arithmetic only becomes two constants here, after `promoteStackSlots` has
+ * turned the caller's argument and the callee's parameter slot into one value. A generic `x + x`
+ * called at `10` was already folded by this file through its integer half; called at `1.5` it
+ * reached the machine as `imm 1.5 ; add %v,%v` for want of this one.
+ *
+ * **`x * 1` and `x / 1` are the whole list of identities**, and every rule an integer reader would
+ * write next is wrong: `x + 0` is not `x` because `-0 + 0` is `+0`, `x * 0` is not `0` because
+ * `NaN * 0` is `NaN`, and `x - x` is not `0` because an infinity minus itself is a NaN. Which is
+ * also why the zero-identity block above is written over `lowerConstantOf`, that being the integer
+ * reader: a float immediate is not a constant to it and none of those rules can reach a float.
+ */
+Folded foldFloatBinary(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, LowerValue* rhs,
+                       LowerType type) {
+    F64 a = 0, b = 0;
+    auto knownLhs = lowerFloatConstantOf(base, lhs, a);
+    auto knownRhs = lowerFloatConstantOf(base, rhs, b);
+
+    // The identity, and at the result's own type for the reason `forward` states above: an operand
+    // of another precision standing in for this one would be a different number.
+    auto forward = [&](LowerValue* value) {
+        return value->type == type ? Folded::forward(value) : Folded::nothing();
+    };
+
+    if(!knownLhs || !knownRhs) {
+        if(knownRhs && b == 1.0 && (kind == LowerInst::Mul || kind == LowerInst::Div)) {
+            return forward(lhs);
+        }
+
+        if(knownLhs && a == 1.0 && kind == LowerInst::Mul) return forward(rhs);
+        return Folded::nothing();
+    }
+
+    if(!isFoldableFloat(a) || !isFoldableFloat(b)) return Folded::nothing();
+
+    switch(kind) {
+        case LowerInst::Add: return Folded::number(a + b, type);
+        case LowerInst::Sub: return Folded::number(a - b, type);
+        case LowerInst::Mul: return Folded::number(a * b, type);
+
+        // A zero divisor answers an infinity or a NaN, which `Folded::number` would decline anyway;
+        // written out because dividing by it in the compiler is not a thing to leave to that.
+        case LowerInst::Div: return b == 0.0 ? Folded::nothing() : Folded::number(a / b, type);
+
+        default: return Folded::nothing();
+    }
 }
 
 /*
@@ -180,6 +408,17 @@ Folded foldCastValue(LowerBase base, LowerValue* arg, LowerType type, bool signe
  */
 Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, LowerValue* rhs,
                        LowerType type) {
+    // Before the constant readings below, because it is the one rule here that needs neither side to
+    // be one - see `pointerDistance`.
+    if(kind == LowerInst::Sub) {
+        auto distance = pointerDistance(base, lhs, rhs, type);
+        if(distance.kind != Folded::None) return distance;
+    }
+
+    // Ahead of the integer readings rather than beside them, since those begin by declining a pair
+    // that has no integer constant in it and a float pair is exactly that.
+    if(isFloat(type)) return foldFloatBinary(base, kind, lhs, rhs, type);
+
     U64 a = 0, b = 0;
     auto knownLhs = lowerConstantOf(base, lhs, a);
     auto knownRhs = lowerConstantOf(base, rhs, b);
@@ -243,6 +482,32 @@ Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, Lo
         case LowerInst::MulHi:
         case LowerInst::IMulHi:
             if((knownRhs && b == 0) || (knownLhs && a == 0)) return Folded::value(0);
+            break;
+
+        /*
+         * A divisor of one, which all four answer without a machine division: the quotient is the
+         * dividend and the remainder is zero, on both signednesses and at every value the type
+         * holds, the lowest included.
+         *
+         * `lower_strength.cpp` declines `1` in each of its four cases by name and says the fold
+         * behind it takes them - this is that fold, and until now it was not here, so a `div %v, 1`
+         * reached the machine as a `cqto` and an `idiv`: 647 of them in `test/base` and 29 over the
+         * bench corpus, most from `byteSpan`, where a distance in bytes is divided by a stride the
+         * specializer has already made one.
+         *
+         * Nothing else about a division is an identity worth writing here. A zero divisor is the
+         * case `makeDivisionTotal` guards, and a zero *dividend* cannot be folded to zero without
+         * proving the divisor non-zero first - which is a fact about the other operand, and this
+         * pass only knows the one it can read.
+         */
+        case LowerInst::Div:
+        case LowerInst::IDiv:
+            if(knownRhs && b == 1) return forward(lhs);
+            break;
+
+        case LowerInst::Rem:
+        case LowerInst::IRem:
+            if(knownRhs && b == 1) return Folded::value(0);
             break;
 
         // A mask keeping every bit its operand can have set, which is the identity - the literal
@@ -414,9 +679,45 @@ Folded foldConstantCompare(LowerBase base, LowerInst* inst) {
     auto lhs = base[compare->lhs];
     auto rhs = base[compare->rhs];
 
-    // Scalar integers of one type. A float's bits do not order the way the relation asks, and
-    // `isInt` answers false for a vector, whose comparison produces a mask rather than a number.
-    if(!isInt(lhs->type) || lhs->type != rhs->type) return Folded::nothing();
+    // One type either way, and `isInt`/`isFloat` both answer false for a vector - whose comparison
+    // produces a mask rather than a number, so "the answer is 1" is not a statement about one.
+    if(lhs->type != rhs->type) return Folded::nothing();
+
+    /*
+     * The float six, which are the *plain* six rather than the signed four: a float's bits do not
+     * order the way the unsigned relations read them, so the resolvers spell every float comparison
+     * with `eq`, `neq`, `gt`, `ge`, `lt` and `le` and the machine picks an ordered condition code.
+     *
+     * `uno` and `ord` are decided by the operands rather than by the relation, and are decided here
+     * only because `lowerFloatConstantOf` has already declined a NaN - so both ends are numbers and
+     * the pair answers false and true. A comparison whose operand is *not* foldable stays, which is
+     * what leaves the one question this cannot answer to the machine.
+     */
+    if(isFloat(lhs->type)) {
+        F64 x, y;
+        if(!lowerFloatConstantOf(base, lhs, x) || !lowerFloatConstantOf(base, rhs, y)) {
+            return Folded::nothing();
+        }
+
+        if(!isFoldableFloat(x) || !isFoldableFloat(y)) return Folded::nothing();
+
+        bool ordered;
+        switch(compare->getCmp()) {
+            case LowerCmp::eq:  ordered = x == y; break;
+            case LowerCmp::neq: ordered = x != y; break;
+            case LowerCmp::gt:  ordered = x > y; break;
+            case LowerCmp::ge:  ordered = x >= y; break;
+            case LowerCmp::lt:  ordered = x < y; break;
+            case LowerCmp::le:  ordered = x <= y; break;
+            case LowerCmp::uno: ordered = false; break;
+            case LowerCmp::ord: ordered = true; break;
+            default: return Folded::nothing();
+        }
+
+        return Folded::value(ordered ? 1 : 0);
+    }
+
+    if(!isInt(lhs->type)) return Folded::nothing();
 
     U64 a, b;
     if(!lowerConstantOf(base, lhs, a)) return Folded::nothing();
@@ -895,7 +1196,8 @@ Folded foldInstruction(LowerBase base, LowerInst* inst) {
         }
 
         auto cast = (LowerInstCast*)inst;
-        return foldCastValue(base, base[cast->from], cast->result.type, cast->isSignedSource());
+        return foldCastValue(base, base[cast->from], cast->result.type, cast->isSignedSource(),
+                             cast->isSignedResult());
     }
 
     if(isUnaryArith(inst)) {
@@ -925,6 +1227,13 @@ LowerInst* materialize(LowerBase base, LowerModule& module, LowerBlock& block, F
                        LowerType type, StringId name) {
     if(folded.kind == Folded::Constant) {
         return block.addInst(base, new (module.arena) LowerImm(name, type, folded.constant));
+    }
+
+    // The float overload of the same constructor - `LowerImm` holds one union and which member was
+    // written is the whole difference, so the two are named apart here rather than being one call
+    // with a converted argument.
+    if(folded.kind == Folded::Real) {
+        return block.addInst(base, new (module.arena) LowerImm(name, type, folded.real));
     }
 
     if(folded.kind == Folded::Operand) {
@@ -1269,8 +1578,9 @@ LowerInst* foldUnaryArith(LowerBase base, LowerModule& module, LowerBlock& block
 }
 
 LowerInst* foldCast(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* arg,
-                    LowerType type, bool signedSource, StringId name) {
-    return materialize(base, module, block, foldCastValue(base, arg, type, signedSource), type, name);
+                    LowerType type, bool signedSource, bool signedResult, StringId name) {
+    return materialize(base, module, block, foldCastValue(base, arg, type, signedSource, signedResult),
+                       type, name);
 }
 
 LowerInst* foldBinary(LowerBase base, LowerModule& module, LowerBlock& block, LowerInst::Kind kind,
@@ -1321,7 +1631,7 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
                  * the same one, so every reader of it stays pointed at the right thing.
                  *
                  * The immediate it now reads is a new one placed immediately above it; the one it
-                 * stopped reading is left to `removeDeadConstants` at the end of the pipeline, which
+                 * stopped reading is left to `removeDeadValues` at the end of the pipeline, which
                  * is where every other rewrite here leaves its orphaned literals too.
                  *
                  * The addition or subtraction the second rewrite takes the comparison off is what
@@ -1430,8 +1740,11 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
                  * and the list is being rebuilt - so it is attached to the block by hand; an
                  * immediate reads nothing, so there is no use list for that to skip.
                  */
-                if(folded.kind == Folded::Constant) {
-                    auto imm = new (module.arena) LowerImm(result->name, result->type, folded.constant);
+                if(folded.kind == Folded::Constant || folded.kind == Folded::Real) {
+                    auto imm = folded.kind == Folded::Real
+                        ? new (module.arena) LowerImm(result->name, result->type, folded.real)
+                        : new (module.arena) LowerImm(result->name, result->type, folded.constant);
+
                     imm->block = blockPtr;
                     imm->source = inst->source;
                     kept.push(imm - base);
@@ -1528,7 +1841,8 @@ bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction&
             for(auto instPtr: block->instructions.contents(base)) {
                 auto inst = base[instPtr];
 
-                if(isRepeatable(inst) && ((LowerInstSingle*)inst)->created().ptr->uses.isEmpty()) {
+                if(isRemovableWhenUnused(inst) &&
+                   ((LowerInstSingle*)inst)->created().ptr->uses.isEmpty()) {
                     detach(base, inst);
                     rewrote = true;
                     continue;
@@ -1549,36 +1863,3 @@ bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction&
     return dropped;
 }
 
-void removeDeadConstants(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun) {
-    auto changed = true;
-
-    while(changed) {
-        changed = false;
-
-        for(auto blockPtr: fun.blocks.contents(base)) {
-            auto block = base[blockPtr];
-
-            // Inline: one of these per block per round of a loop that runs until nothing changes,
-            // holding the instructions of one block.
-            SmallArray<LowerPtr<LowerInst>, 32> kept;
-            auto dropped = false;
-
-            for(auto instPtr: block->instructions.contents(base)) {
-                auto inst = base[instPtr];
-
-                if(inst->kind == LowerInst::Imm && inst->created().ptr->uses.isEmpty()) {
-                    dropped = true;
-                    continue;
-                }
-
-                kept.push(instPtr);
-            }
-
-            if(!dropped) continue;
-
-            block->instructions.clear();
-            for(auto instPtr: kept) block->instructions.push(arena, instPtr);
-            changed = true;
-        }
-    }
-}

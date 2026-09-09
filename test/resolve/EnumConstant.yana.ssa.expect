@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn flagValue(f: Flag [shared call]) -> I32 {
-bb0(%0: Flag [shared call] guaranteed):
+bb0(%0: Flag trivial):
   %1: %Flag address = alloc frame Flag [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -11,7 +11,7 @@ bb0(%0: Flag [shared call] guaranteed):
 }
 
 fn levelValue(l: Level [shared call]) -> I32 {
-bb0(%0: Level [shared call] guaranteed):
+bb0(%0: Level trivial):
   %1: %Level address = alloc frame Level [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -21,7 +21,7 @@ bb0(%0: Level [shared call] guaranteed):
 }
 
 fn truthValue(b: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -31,7 +31,7 @@ bb0(%0: Bool [shared call] guaranteed):
 }
 
 fn negate(b: Bool [shared call]) -> Bool {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   store inspect %1 borrow %0
   %2: Bool trivial = load inspect %1
@@ -40,7 +40,7 @@ bb0(%0: Bool [shared call] guaranteed):
 }
 
 fn both(a: Bool [shared call], b: Bool [shared call]) -> Bool {
-bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: Bool trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %Bool address = alloc frame Bool [shared call]
   store inspect %3 borrow %0
@@ -123,7 +123,7 @@ bb0:
 }
 
 fn takesFloat(v: F32 [shared call]) -> I32 {
-bb0(%0: F32 [shared call] guaranteed):
+bb0(%0: F32 trivial):
   %1: %F32 address = alloc frame F32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = const 7
@@ -131,7 +131,7 @@ bb0(%0: F32 [shared call] guaranteed):
 }
 
 fn takesDouble(v: F64 [shared call]) -> I32 {
-bb0(%0: F64 [shared call] guaranteed):
+bb0(%0: F64 trivial):
   %1: %F64 address = alloc frame F64 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = const 9

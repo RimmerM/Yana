@@ -1,6 +1,4 @@
-@origin = [3, 0, 0, 0, 4, 0, 0, 0]
 @corner = [5, 0, 0, 0, 6, 0, 0, 0]
-@diagonal = [1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 5, 0, 0, 0]
 mut @cursor = [10, 0, 0, 0, 20, 0, 0, 0]
 mut @pair = [0, 0, 0, 0, 0, 0, 0, 0]
 @some = [1, 0, 0, 0, 9, 0, 0, 0]
@@ -9,8 +7,6 @@ mut @pair = [0, 0, 0, 0, 0, 0, 0, 0]
 @roundShape = [0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0]
 @table = [12, 0, 0, 0, 13, 0, 0, 0, 14, 0, 0, 0]
 @corners = [1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0]
-@greeting = [0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0]
-@labelled = [0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0, 15, 0, 0, 0]
 @flags = [149, 1]
 @packed = [0, 0, 0, 0, 99, 0, 0, 0]
 @wrapped = [1, 0, 0, 0, 40, 0, 0, 0]
@@ -19,58 +15,70 @@ mut @pair = [0, 0, 0, 0, 0, 0, 0, 0]
 @string'145 = [119, 111, 114, 108, 100, 33]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 @constant$0 = [2, 0, 0, 0, 3, 0, 0, 0]
-@constant$1 = [1, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0]
-@constant$2 = [1, 0, 0, 0, 4, 0, 0, 0]
-@constant$3 = [6, 0, 0, 0, 7, 0, 0, 0]
+@constant$1 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
+@constant$2 = [1, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0]
+@constant$3 = [1, 0, 0, 0, 4, 0, 0, 0]
+@constant$4 = [6, 0, 0, 0, 7, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 44, 8: Ptr
-    %v_2 = loads @origin, 4: I32
-    %v_3 = add @origin, 4: Ptr
-    %v_4 = loads %v_3, 4: I32
-    %v_5 = add %v_2, %v_4: I32
-    %v_6 = cmp_eq %v_5, 7: I32
     %corner = global @corner: Ptr
-    %v_7 = load %corner, 4: I32
-    %v_8 = add %corner, 4: Ptr
-    %v_9 = load %v_8, 4: I32
-    %v_10 = add %v_7, %v_9: I32
-    %v_11 = cmp_eq %v_10, 11: I32
-    %v_12 = add %v_6, 2: I32
-    %v_13 = select %v_11, %v_12, %v_6: I32
-    %v_14 = loads @cursor, 4: I32
-    %v_15 = add %v_14, 1: I32
-    store @cursor, %v_15, 4
+    %v_2 = load %corner, 4: I32
+    %v_3 = add %corner, 4: Ptr
+    %v_4 = load %v_3, 4: I32
+    %v_5 = add %v_2, %v_4: I32
+    %v_6 = cmp_eq %v_5, 11: I32
+    %v_7 = select %v_6, 3, 1: I32
+    %v_8 = loads @cursor, 4: I32
+    %v_9 = add %v_8, 1: I32
+    store @cursor, %v_9, 4
     %cursor = global @cursor: Ptr
-    %v_16 = load %cursor, 4: I32
-    %v_17 = add %cursor, 4: Ptr
-    %v_18 = load %v_17, 4: I32
-    %v_19 = add %v_16, %v_18: I32
-    %v_20 = cmp_eq %v_19, 31: I32
-    %v_21 = add %v_13, 4: I32
-    %v_22 = select %v_20, %v_21, %v_13: I32
-    %v_23 = add @diagonal, 4: Ptr
-    %v_24 = loads %v_23, 4: I32
-    %v_25 = add @diagonal, 8: Ptr
-    %v_26 = loads %v_25, 4: I32
-    %v_27 = add %v_24, %v_26: I32
-    %v_28 = cmp_eq %v_27, 5: I32
-    %v_29 = add %v_22, 8: I32
-    %v_30 = select %v_28, %v_29, %v_22: I32
-    %v_31 = loads @pair, 4: I32
-    %v_32 = add @pair, 4: Ptr
-    %v_33 = loads %v_32, 4: I32
-    %v_34 = add %v_31, %v_33: I32
-    %v_35 = cmp_eq %v_34, 15: I32
-    %v_36 = add %v_30, 16: I32
-    %v_37 = select %v_35, %v_36, %v_30: I32
+    %v_10 = load %cursor, 4: I32
+    %v_11 = add %cursor, 4: Ptr
+    %v_12 = load %v_11, 4: I32
+    %v_13 = add %v_10, %v_12: I32
+    %v_14 = cmp_eq %v_13, 31: I32
+    %v_15 = add %v_7, 4: I32
+    %v_16 = select %v_14, %v_15, %v_7: I32
+    %v_17 = add %v_16, 8: I32
+    %v_18 = loads @pair, 4: I32
+    %v_19 = add @pair, 4: Ptr
+    %v_20 = loads %v_19, 4: I32
+    %v_21 = add %v_18, %v_20: I32
+    %v_22 = cmp_eq %v_21, 15: I32
+    %v_23 = add %v_16, 24: I32
+    %v_24 = select %v_22, %v_23, %v_17: I32
     %some = global @some: Ptr
+    %v_25 = alloca 3, 4: Ptr
+    %v_26 = load %some, 1: I32
+    %v_27 = add %some, 1: Ptr
+    copy %v_25, %v_27, 3
+    %v_28 = add %some, 4: Ptr
+    %v_29 = load %v_28, 4: I32
+    %v_30 = cmp_eq %v_26, 1: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_31 {
+    jmp b_33
+  }
+
+  b_33 {
+    %v_34 = phi [b_32, 0], [b_31, %v_29]: I32
+    %v_35 = cmp_eq %v_34, 9: I32
+    %v_36 = add %v_24, 32: I32
+    %v_37 = select %v_35, %v_36, %v_24: I32
+    %none = global @none: Ptr
     %v_38 = alloca 3, 4: Ptr
-    %v_39 = load %some, 1: I32
-    %v_40 = add %some, 1: Ptr
+    %v_39 = load %none, 1: I32
+    %v_40 = add %none, 1: Ptr
     copy %v_38, %v_40, 3
-    %v_41 = add %some, 4: Ptr
+    %v_41 = add %none, 4: Ptr
     %v_42 = load %v_41, 4: I32
     %v_43 = cmp_eq %v_39, 1: I32
     je %v_43, b_44, b_45
@@ -85,304 +93,255 @@ main<complex>(): I32 {
   }
 
   b_46 {
-    %v_47 = phi [b_45, 0], [b_44, %v_42]: I32
-    %v_48 = cmp_eq %v_47, 9: I32
-    %v_49 = add %v_37, 32: I32
+    %v_47 = phi [b_45, 100], [b_44, %v_42]: I32
+    %v_48 = cmp_eq %v_47, 100: I32
+    %v_49 = add %v_37, 64: I32
     %v_50 = select %v_48, %v_49, %v_37: I32
-    %none = global @none: Ptr
+    %boxShape = global @boxShape: Ptr
     %v_51 = alloca 3, 4: Ptr
-    %v_52 = load %none, 1: I32
-    %v_53 = add %none, 1: Ptr
+    %v_52 = load %boxShape, 1: I32
+    %v_53 = add %boxShape, 1: Ptr
     copy %v_51, %v_53, 3
-    %v_54 = add %none, 4: Ptr
+    %v_54 = add %boxShape, 4: Ptr
     %v_55 = load %v_54, 4: I32
-    %v_56 = cmp_eq %v_52, 1: I32
-    je %v_56, b_57, b_58
+    %v_56 = add %boxShape, 8: Ptr
+    %v_57 = load %v_56, 4: I32
+    %v_58 = cmp_eq %v_52, 0: I32
+    je %v_58, b_59, b_60
   }
 
-  b_58 {
-    jmp b_59
-  }
-
-  b_57 {
-    jmp b_59
+  b_60 {
+    %v_61 = imul %v_55, %v_57: I32
+    jmp b_62
   }
 
   b_59 {
-    %v_60 = phi [b_58, 100], [b_57, %v_55]: I32
-    %v_61 = cmp_eq %v_60, 100: I32
-    %v_62 = add %v_50, 64: I32
-    %v_63 = select %v_61, %v_62, %v_50: I32
-    %boxShape = global @boxShape: Ptr
-    %v_64 = alloca 3, 4: Ptr
-    %v_65 = load %boxShape, 1: I32
-    %v_66 = add %boxShape, 1: Ptr
-    copy %v_64, %v_66, 3
-    %v_67 = add %boxShape, 4: Ptr
-    %v_68 = load %v_67, 4: I32
-    %v_69 = add %boxShape, 8: Ptr
-    %v_70 = load %v_69, 4: I32
-    %v_71 = cmp_eq %v_65, 0: I32
-    je %v_71, b_72, b_73
+    jmp b_62
   }
 
-  b_73 {
-    %v_74 = imul %v_68, %v_70: I32
-    jmp b_75
+  b_62 {
+    %v_63 = phi [b_60, %v_61], [b_59, %v_55]: I32
+    %v_64 = cmp_eq %v_63, 24: I32
+    %v_65 = add %v_50, 128: I32
+    %v_66 = select %v_64, %v_65, %v_50: I32
+    %roundShape = global @roundShape: Ptr
+    %v_67 = alloca 3, 4: Ptr
+    %v_68 = load %roundShape, 1: I32
+    %v_69 = add %roundShape, 1: Ptr
+    copy %v_67, %v_69, 3
+    %v_70 = add %roundShape, 4: Ptr
+    %v_71 = load %v_70, 4: I32
+    %v_72 = add %roundShape, 8: Ptr
+    %v_73 = load %v_72, 4: I32
+    %v_74 = cmp_eq %v_68, 0: I32
+    je %v_74, b_75, b_76
   }
 
-  b_72 {
-    jmp b_75
+  b_76 {
+    %v_77 = imul %v_71, %v_73: I32
+    jmp b_78
   }
 
   b_75 {
-    %v_76 = phi [b_73, %v_74], [b_72, %v_68]: I32
-    %v_77 = cmp_eq %v_76, 24: I32
-    %v_78 = add %v_63, 128: I32
-    %v_79 = select %v_77, %v_78, %v_63: I32
-    %roundShape = global @roundShape: Ptr
-    %v_80 = alloca 3, 4: Ptr
-    %v_81 = load %roundShape, 1: I32
-    %v_82 = add %roundShape, 1: Ptr
-    copy %v_80, %v_82, 3
-    %v_83 = add %roundShape, 4: Ptr
-    %v_84 = load %v_83, 4: I32
-    %v_85 = add %roundShape, 8: Ptr
-    %v_86 = load %v_85, 4: I32
-    %v_87 = cmp_eq %v_81, 0: I32
-    je %v_87, b_88, b_89
+    jmp b_78
   }
 
-  b_89 {
-    %v_90 = imul %v_84, %v_86: I32
-    jmp b_91
-  }
-
-  b_88 {
-    jmp b_91
-  }
-
-  b_91 {
-    %v_92 = phi [b_89, %v_90], [b_88, %v_84]: I32
-    %v_93 = cmp_eq %v_92, 11: I32
-    %v_94 = add %v_79, 256: I32
-    %v_95 = select %v_93, %v_94, %v_79: I32
-    %v_96 = loads @table, 4: I32
-    %v_97 = add @table, 8: Ptr
-    %v_98 = loads %v_97, 4: I32
-    %v_99 = add %v_96, %v_98: I32
-    %v_100 = cmp_eq %v_99, 26: I32
-    %v_101 = add %v_95, 512: I32
-    %v_102 = select %v_100, %v_101, %v_95: I32
+  b_78 {
+    %v_79 = phi [b_76, %v_77], [b_75, %v_71]: I32
+    %v_80 = cmp_eq %v_79, 11: I32
+    %v_81 = add %v_66, 256: I32
+    %v_82 = select %v_80, %v_81, %v_66: I32
+    %v_83 = loads @table, 4: I32
+    %v_84 = add @table, 8: Ptr
+    %v_85 = loads %v_84, 4: I32
+    %v_86 = add %v_83, %v_85: I32
+    %v_87 = cmp_eq %v_86, 26: I32
+    %v_88 = add %v_82, 512: I32
+    %v_89 = select %v_87, %v_88, %v_82: I32
     %corners = global @corners: Ptr
-    %v_103 = add %corners, 8: Ptr
-    %v_104 = load %v_103, 4: I32
-    %v_105 = add %corners, 12: Ptr
-    %v_106 = load %v_105, 4: I32
-    %v_107 = add %v_104, %v_106: I32
-    %v_108 = cmp_eq %v_107, 6: I32
-    %v_109 = add %v_102, 1024: I32
-    %v_110 = select %v_108, %v_109, %v_102: I32
-    %greeting = global @greeting: Ptr
-    %v_111 = load %greeting, 8: Ptr
-    %v_112 = add %greeting, 12: Ptr
-    %v_113 = load %v_112, 4: I32
-    %v_114 = sext %v_113: I64
-    %v_115 = sext %v_114: I32
-    %v_116 = cmp_eq %v_115, 5: I32
-    %v_117 = add %v_110, 2048: I32
-    %v_118 = select %v_116, %v_117, %v_110: I32
-    %labelled = global @labelled: Ptr
-    %v_119 = load %labelled, 8: Ptr
-    %v_120 = add %labelled, 12: Ptr
-    %v_121 = load %v_120, 4: I32
-    %v_122 = sext %v_121: I64
-    %v_123 = sext %v_122: I32
-    %v_124 = add @labelled, 16: Ptr
-    %v_125 = loads %v_124, 4: I32
-    %v_126 = add %v_123, %v_125: I32
-    %v_127 = cmp_eq %v_126, 21: I32
-    %v_128 = add %v_118, 4096: I32
-    %v_129 = select %v_127, %v_128, %v_118: I32
-    %v_130 = load @flags, 2: I64
-    %v_131 = and %v_130, 15: I64
+    %v_90 = add %corners, 8: Ptr
+    %v_91 = load %v_90, 4: I32
+    %v_92 = add %corners, 12: Ptr
+    %v_93 = load %v_92, 4: I32
+    %v_94 = add %v_91, %v_93: I32
+    %v_95 = cmp_eq %v_94, 6: I32
+    %v_96 = add %v_89, 1024: I32
+    %v_97 = select %v_95, %v_96, %v_89: I32
+    %v_98 = add %v_97, 2048: I32
+    %v_99 = add %v_98, 4096: I32
+    %v_100 = load @flags, 2: I64
+    %v_101 = and %v_100, 15: I64
+    %v_102 = cast %v_101: I32
+    %v_103 = shr %v_100, 4: I64
+    %v_104 = and %v_103, 15: I64
+    %v_105 = cast %v_104: I32
+    %v_106 = shl %v_105, 4: I32
+    %v_107 = add %v_102, %v_106: I32
+    %v_108 = shr %v_100, 8: I64
+    %v_109 = and %v_108, 1: I64
+    %v_110 = cast %v_109: I32
+    %v_111 = add %v_107, 256: I32
+    %v_112 = select %v_110, %v_111, %v_107: I32
+    %v_113 = cmp_eq %v_112, 405: I32
+    %v_114 = add %v_99, 8192: I32
+    %v_115 = select %v_113, %v_114, %v_99: I32
+    %v_116 = alloca 8, 4: Ptr
+    copy %v_116, @packed, 8
+    %v_117 = load %v_116, 1: I32
+    %v_118 = cmp_eq %v_117, 0: I32
+    je %v_118, b_119, b_120
+  }
+
+  b_120 {
+    %v_121 = cmp_eq %v_117, 1: I32
+    je %v_121, b_122, b_123
+  }
+
+  b_123 {
+    jmp b_124
+  }
+
+  b_122 {
+    %v_125 = add %v_116, 4: Ptr
+    %v_126 = loads %v_125, 4: I32
+    jmp b_124
+  }
+
+  b_119 {
+    %v_127 = add %v_116, 4: Ptr
+    %v_128 = load %v_127, 1: I64
+    %v_129 = and %v_128, 15: I64
+    %v_130 = cast %v_129: I32
+    %v_131 = shr %v_128, 4: I64
     %v_132 = cast %v_131: I32
-    %v_133 = shr %v_130, 4: I64
-    %v_134 = and %v_133, 15: I64
-    %v_135 = cast %v_134: I32
-    %v_136 = shl %v_135, 4: I32
-    %v_137 = add %v_132, %v_136: I32
-    %v_138 = shr %v_130, 8: I64
-    %v_139 = and %v_138, 1: I64
-    %v_140 = cast %v_139: I32
-    %v_141 = add %v_137, 256: I32
-    %v_142 = select %v_140, %v_141, %v_137: I32
-    %v_143 = cmp_eq %v_142, 405: I32
-    %v_144 = add %v_129, 8192: I32
-    %v_145 = select %v_143, %v_144, %v_129: I32
-    %v_146 = alloca 8, 4: Ptr
-    copy %v_146, @packed, 8
-    %v_147 = load %v_146, 1: I32
-    %v_148 = cmp_eq %v_147, 0: I32
-    je %v_148, b_149, b_150
+    %v_133 = shl %v_132, 4: I32
+    %v_134 = add %v_130, %v_133: I32
+    jmp b_124
   }
 
-  b_150 {
-    %v_151 = cmp_eq %v_147, 1: I32
-    je %v_151, b_152, b_153
+  b_124 {
+    %v_135 = phi [b_123, 0], [b_122, %v_126], [b_119, %v_134]: I32
+    %v_136 = alloca 8, 4: Ptr
+    copy %v_136, @wrapped, 8
+    %v_137 = load %v_136, 1: I32
+    %v_138 = cmp_eq %v_137, 0: I32
+    je %v_138, b_139, b_140
   }
 
-  b_153 {
-    jmp b_154
+  b_140 {
+    %v_141 = cmp_eq %v_137, 1: I32
+    je %v_141, b_142, b_143
   }
 
-  b_152 {
-    %v_155 = add %v_146, 4: Ptr
-    %v_156 = loads %v_155, 4: I32
-    jmp b_154
+  b_143 {
+    jmp b_144
   }
 
-  b_149 {
-    %v_157 = add %v_146, 4: Ptr
-    %v_158 = load %v_157, 1: I64
-    %v_159 = and %v_158, 15: I64
-    %v_160 = cast %v_159: I32
-    %v_161 = shr %v_158, 4: I64
-    %v_162 = cast %v_161: I32
-    %v_163 = shl %v_162, 4: I32
-    %v_164 = add %v_160, %v_163: I32
-    jmp b_154
+  b_142 {
+    %v_145 = add %v_136, 4: Ptr
+    %v_146 = loads %v_145, 4: I32
+    jmp b_144
   }
 
-  b_154 {
-    %v_165 = phi [b_153, 0], [b_152, %v_156], [b_149, %v_164]: I32
-    %v_166 = alloca 8, 4: Ptr
-    copy %v_166, @wrapped, 8
-    %v_167 = load %v_166, 1: I32
-    %v_168 = cmp_eq %v_167, 0: I32
-    je %v_168, b_169, b_170
+  b_139 {
+    %v_147 = add %v_136, 4: Ptr
+    %v_148 = load %v_147, 1: I64
+    %v_149 = and %v_148, 15: I64
+    %v_150 = cast %v_149: I32
+    %v_151 = shr %v_148, 4: I64
+    %v_152 = cast %v_151: I32
+    %v_153 = shl %v_152, 4: I32
+    %v_154 = add %v_150, %v_153: I32
+    jmp b_144
   }
 
-  b_170 {
-    %v_171 = cmp_eq %v_167, 1: I32
-    je %v_171, b_172, b_173
+  b_144 {
+    %v_155 = phi [b_143, 0], [b_142, %v_146], [b_139, %v_154]: I32
+    %v_156 = add %v_135, %v_155: I32
+    %v_157 = cmp_eq %v_156, 139: I32
+    %v_158 = add %v_115, 65536: I32
+    %v_159 = select %v_157, %v_158, %v_115: I32
+    %v_160 = alloca 16, 16: Ptr
+    %v_161 = alloca 12, 16: Ptr
+    %v_162 = load @constant$0, 8: I64
+    copy %v_160, @constant$1, 16
+    copy %v_161, @constant$2, 12
+    %v_163 = load @constant$3, 8: I64
+    copy %v_1, %v_160, 16
+    %v_164 = add %v_1, 16: Ptr
+    copy %v_164, %v_161, 12
+    %v_165 = add %v_1, 28: Ptr
+    store %v_165, %v_162, 8
+    %v_166 = add %v_1, 36: Ptr
+    store %v_166, %v_163, 8
+    %v_167 = load %v_165, 4: I32
+    %v_168 = add %v_1, 32: Ptr
+    %v_169 = load %v_168, 4: I32
+    %v_170 = add %v_167, %v_169: I32
+    %v_171 = add %v_1, 12: Ptr
+    %v_172 = load %v_171, 4: I32
+    %v_173 = sext %v_172: I64
+    %v_174 = sext %v_173: I32
+    %v_175 = add %v_170, %v_174: I32
+    %v_176 = alloca 3, 4: Ptr
+    %v_177 = load %v_164, 1: I32
+    %v_178 = add %v_1, 17: Ptr
+    copy %v_176, %v_178, 3
+    %v_179 = add %v_1, 20: Ptr
+    %v_180 = load %v_179, 4: I32
+    %v_181 = add %v_1, 24: Ptr
+    %v_182 = load %v_181, 4: I32
+    %v_183 = cmp_eq %v_177, 0: I32
+    je %v_183, b_184, b_185
   }
 
-  b_173 {
-    jmp b_174
+  b_185 {
+    %v_186 = imul %v_180, %v_182: I32
+    jmp b_187
   }
 
-  b_172 {
-    %v_175 = add %v_166, 4: Ptr
-    %v_176 = loads %v_175, 4: I32
-    jmp b_174
+  b_184 {
+    jmp b_187
   }
 
-  b_169 {
-    %v_177 = add %v_166, 4: Ptr
-    %v_178 = load %v_177, 1: I64
-    %v_179 = and %v_178, 15: I64
-    %v_180 = cast %v_179: I32
-    %v_181 = shr %v_178, 4: I64
-    %v_182 = cast %v_181: I32
-    %v_183 = shl %v_182, 4: I32
-    %v_184 = add %v_180, %v_183: I32
-    jmp b_174
-  }
-
-  b_174 {
-    %v_185 = phi [b_173, 0], [b_172, %v_176], [b_169, %v_184]: I32
-    %v_186 = add %v_165, %v_185: I32
-    %v_187 = cmp_eq %v_186, 139: I32
-    %v_188 = add %v_145, 65536: I32
-    %v_189 = select %v_187, %v_188, %v_145: I32
-    %v_190 = alloca 4, 8: Ptr
-    %v_191 = alloca 12, 16: Ptr
-    %v_192 = load %v_190, 4: I64
-    store %v_190, 2, 4
-    %v_193 = load @constant$0, 8: I64
-    copy %v_191, @constant$1, 12
-    %v_194 = load @constant$2, 8: I64
-    store %v_1, @string'142, 8
-    %v_195 = add %v_1, 8: Ptr
-    %v_196 = load %v_190, 4: I64
-    store %v_195, %v_196, 4
-    %v_197 = add %v_1, 12: Ptr
-    store %v_197, 2, 4
-    %v_198 = add %v_1, 16: Ptr
-    copy %v_198, %v_191, 12
-    %v_199 = add %v_1, 28: Ptr
-    store %v_199, %v_193, 8
-    %v_200 = add %v_1, 36: Ptr
-    store %v_200, %v_194, 8
-    %v_201 = load %v_199, 4: I32
-    %v_202 = add %v_1, 32: Ptr
-    %v_203 = load %v_202, 4: I32
-    %v_204 = add %v_201, %v_203: I32
-    %v_205 = load %v_1, 8: Ptr
-    %v_206 = load %v_197, 4: I32
-    %v_207 = sext %v_206: I64
-    %v_208 = sext %v_207: I32
-    %v_209 = add %v_204, %v_208: I32
-    %v_210 = alloca 3, 4: Ptr
-    %v_211 = load %v_198, 1: I32
-    %v_212 = add %v_1, 17: Ptr
-    copy %v_210, %v_212, 3
-    %v_213 = add %v_1, 20: Ptr
-    %v_214 = load %v_213, 4: I32
-    %v_215 = add %v_1, 24: Ptr
-    %v_216 = load %v_215, 4: I32
-    %v_217 = cmp_eq %v_211, 0: I32
-    je %v_217, b_218, b_219
-  }
-
-  b_219 {
-    %v_220 = imul %v_214, %v_216: I32
-    jmp b_221
-  }
-
-  b_218 {
-    jmp b_221
-  }
-
-  b_221 {
-    %v_222 = phi [b_219, %v_220], [b_218, %v_214]: I32
-    %v_223 = add %v_209, %v_222: I32
-    %v_224 = alloca 3, 4: Ptr
-    %v_225 = load %v_200, 1: I32
-    %v_226 = add %v_1, 37: Ptr
-    copy %v_224, %v_226, 3
-    %v_227 = add %v_1, 40: Ptr
-    %v_228 = load %v_227, 4: I32
+  b_187 {
+    %v_188 = phi [b_185, %v_186], [b_184, %v_180]: I32
+    %v_189 = add %v_175, %v_188: I32
+    %v_190 = alloca 3, 4: Ptr
+    %v_191 = load %v_166, 1: I32
+    %v_192 = add %v_1, 37: Ptr
+    copy %v_190, %v_192, 3
+    %v_193 = add %v_1, 40: Ptr
+    %v_194 = load %v_193, 4: I32
     call_complex String.reclaim, %v_1
-    %v_229 = cmp_eq %v_225, 1: I32
-    je %v_229, b_230, b_231
+    %v_195 = cmp_eq %v_191, 1: I32
+    je %v_195, b_196, b_197
   }
 
-  b_231 {
-    jmp b_232
+  b_197 {
+    jmp b_198
   }
 
-  b_230 {
-    jmp b_232
+  b_196 {
+    jmp b_198
   }
 
-  b_232 {
-    %v_233 = phi [b_231, 0], [b_230, %v_228]: I32
-    %v_234 = add %v_223, %v_233: I32
-    %v_235 = cmp_eq %v_234, 21: I32
-    %v_236 = add %v_189, 16384: I32
-    %v_237 = select %v_235, %v_236, %v_189: I32
-    %constant$3 = global @constant$3: Ptr
-    %v_238 = loads %constant$3, 4: I32
-    %v_239 = add %constant$3, 4: Ptr
-    %v_240 = loads %v_239, 4: I32
-    %v_241 = add %v_238, %v_240: I32
-    %v_242 = shl %v_241, 1: I32
-    %v_243 = cmp_eq %v_242, 26: I32
-    %v_244 = add %v_237, 32768: I32
-    %v_245 = select %v_243, %v_244, %v_237: I32
-    ret %v_245
+  b_198 {
+    %v_199 = phi [b_197, 0], [b_196, %v_194]: I32
+    %v_200 = add %v_189, %v_199: I32
+    %v_201 = cmp_eq %v_200, 21: I32
+    %v_202 = add %v_159, 16384: I32
+    %v_203 = select %v_201, %v_202, %v_159: I32
+    %constant$4 = global @constant$4: Ptr
+    %v_204 = loads %constant$4, 4: I32
+    %v_205 = add %constant$4, 4: Ptr
+    %v_206 = loads %v_205, 4: I32
+    %v_207 = add %v_204, %v_206: I32
+    %v_208 = shl %v_207, 1: I32
+    %v_209 = cmp_eq %v_208, 26: I32
+    %v_210 = add %v_203, 32768: I32
+    %v_211 = select %v_209, %v_210, %v_203: I32
+    ret %v_211
   }
 }
 
@@ -402,20 +361,18 @@ String.reclaim<complex>(%value: Ptr) {
     %v_1 = load %value, 8: Ptr
     %v_2 = add %value, 8: Ptr
     %v_3 = load %v_2, 4: I64
-    %v_4 = add %value, 12: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = shr %v_3, 30: I64
-    %v_7 = cast %v_6: I32
-    %v_8 = cmp_eq %v_7, 1: I32
-    je %v_8, b_9, b_10
+    %v_4 = shr %v_3, 30: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cmp_eq %v_5, 1: I32
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
+  b_7 {
     call_complex freeHeap, %v_1
-    jmp b_10
+    jmp b_8
   }
 
-  b_10 {
+  b_8 {
     ret 
   }
 }
@@ -425,20 +382,18 @@ Array(a).reclaim(CodeUnit)<complex>(%value: Ptr) {
     %v_1 = load %value, 8: Ptr
     %v_2 = add %value, 8: Ptr
     %v_3 = load %v_2, 4: I64
-    %v_4 = add %value, 12: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = shr %v_3, 30: I64
-    %v_7 = cast %v_6: I32
-    %v_8 = cmp_eq %v_7, 1: I32
-    je %v_8, b_9, b_10
+    %v_4 = shr %v_3, 30: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cmp_eq %v_5, 1: I32
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
+  b_7 {
     call_complex freeHeap, %v_1
-    jmp b_10
+    jmp b_8
   }
 
-  b_10 {
+  b_8 {
     ret 
   }
 }

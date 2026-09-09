@@ -3,7 +3,7 @@ module ResolveTest
 let & log: I32 = 0
 
 fn inner(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial, %2: (I32) -> I32 [shared call] guaranteed):
   %17: %I32 address = alloc frame I32 [shared call]
   %18: %I32 address = alloc frame I32 [shared call]
   %19: %I32 address = alloc frame I32
@@ -68,7 +68,7 @@ bb9:
 }
 
 fn wrap(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
-bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %0
@@ -96,7 +96,7 @@ bb3:
 }
 
 fn defaulting(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial, %2: (I32) -> I32 [shared call] guaranteed):
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32 [shared call]
   %6: %I32 address = alloc frame I32
@@ -156,7 +156,7 @@ bb7:
 }
 
 fn nested(a: I32 [shared call], b: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32
@@ -202,7 +202,7 @@ bb4:
 }
 
 fn adapted(n: I32 [shared call], stop: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -271,7 +271,7 @@ bb0:
 }
 
 fn defaulting.cont(defaulting.cont.env: defaulting.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: defaulting.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: defaulting.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$yielded inspect %0
   %3: %I32 address = load inspect %2
   %4: %(I32) -> I32 address = field.addr .$body inspect %0
@@ -307,7 +307,7 @@ bb4:
 }
 
 fn nested.cont(nested.cont.env: nested.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: nested.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: nested.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .x inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -325,7 +325,7 @@ bb0(%0: nested.cont.env [unique call] guaranteed, %1: I32 [shared call] guarante
 }
 
 fn nested.cont'2(nested.cont'2.env: nested.cont'2.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: nested.cont'2.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: nested.cont'2.env [unique call] guaranteed, %1: I32 trivial):
   %3: %I32 address = field.addr .b inspect %0
   %4: %I32 address = load inspect %3
   %5: %I32 address = alloc frame I32 [shared call]
@@ -370,7 +370,7 @@ bb4:
 }
 
 fn adapted.cont(adapted.cont.env: adapted.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: adapted.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: adapted.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %1
   %3: %I32 address = global.addr log

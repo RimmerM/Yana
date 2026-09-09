@@ -290,6 +290,38 @@ YANA_KNOWN_ROLE( elementBase,  Entity::Function, 1,   0,      0,      false,   P
 YANA_KNOWN_ROLE( arrayReserve, Entity::Function, 2,   0,      0,      false,   Presence::Optional )
 
 /*
+ * The two halves of a run - `lib/Native/Run.native.yana`, and the one placement decision this
+ * compiler makes that the library does not spell out.
+ *
+ * `runSlots(probe: %a, capacity: Size) -> %a` is the **request**: storage for `capacity` elements,
+ * from the allocator, or null where it cannot be had. `run` is the descriptor that goes over it,
+ * whose three fields the compiler reads by position exactly as it reads a constructor's - the
+ * pointer, the capacity, and the one field a program never writes: whether these bytes are anyone's
+ * to hand back. `runOver` builds it, takes that field as an argument, and is nobody's role, because
+ * nothing in the compiler builds a run - what a stage replaces is the *request*, and the descriptor
+ * over the answer is the library's own.
+ *
+ * That split is the whole point of naming the request. Storage a body cannot let out of its frame
+ * does not need the allocator, and a pass that can prove it wants to say so in one place: swap the
+ * call for frame storage and pass `runBorrowed` where `newRun` passed `runFromHeap`. Neither the
+ * descriptor, the growth, nor `Reclaim` learns anything - the flag they already test is what
+ * carries the answer, which is why it is a field rather than a placement class (see `HeapFlag`).
+ * `resolve_ssa/opt/place.cpp` is the pass; the shipping stage reads neither row, because it expands
+ * `newRun` into an allocation with a count and places that the way it places every other one.
+ *
+ * The field order is a dependency and is stated here: **items, capacity, ownsHeap**. It is the same
+ * dependency `array`'s two fields are under and the same one the shipping stage's `buildRunInto`
+ * has by hand; what this row buys over that is that a library which renumbers them says so at
+ * `checkRoles` rather than at a segfault.
+ *
+ * `Optional` on the allocator rows' terms - a library that declares neither has arrays that do not
+ * grow, and a compiler that finds neither places nothing and is correct.
+ */
+//              role      entity            arity members payload teardown presence
+YANA_KNOWN_ROLE( runSlots, Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( run,      Entity::Record,   1,   0,      0,      false,   Presence::Optional )
+
+/*
  * `["a": 1, "b": 2]` and `[:]` - Implementation-Map.md §7, as three rows instead of a record layout.
  *
  * The same division the two array-literal rows are under, applied to the one container whose

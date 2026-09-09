@@ -27,21 +27,17 @@ bb0:
   %9: String = call String.ofCapacity borrow.shared %8
   write.init borrow.unique (local1) take %9
   %11: String [unique call] = read borrow.unique (local1) loan0
-  %12: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'142) loan1
-  %13: %[CodeUnit *2] [owned here shape6 .*=shared slot 0] = address inspect %12 roots.0{1}
-  %14: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %13 roots.0{1}
-  %15: I32 = const 2
-  %16: String = call stringLiteral borrow.shared %14 borrow.shared %15
-  write.init borrow.unique (local2) take %16
-  %18: String [shared slot 0] = read borrow.shared (local2) loan2
-  %19: String [shared slot 0 view] = call.derivation view(String) borrow.shared %18 roots{2}
-  %20: {} = call String.push borrow.unique %11 borrow.shared %19
+  %12: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  write.init borrow.unique (local2) take %12
+  %14: String [shared slot 0] = read borrow.shared (local2) loan1
+  %15: String [shared slot 0 view] = call.derivation view(String) borrow.shared %14 roots{1}
+  %16: {} = call String.push borrow.unique %11 borrow.shared %15
   drop (local2)
-  %21: I32 = read copy.trivial (n)
-  %22: String [unique call] = read borrow.unique (local1) loan3
-  %23: {} = call show(I32) borrow.shared %21 borrow.unique %22
-  %24: String = read take (local1)
-  return take %24
+  %17: I32 = read copy.trivial (n)
+  %18: String [unique call] = read borrow.unique (local1) loan2
+  %19: {} = call show(I32) borrow.shared %17 borrow.unique %18
+  %20: String = read take (local1)
+  return take %20
 }
 
 fn built(n: I32 [shared call]) -> I32 {
@@ -52,19 +48,15 @@ bb0:
   %1: String = call tagged borrow.shared %0
   write.init borrow.unique (text) take %1
   %3: String = read take (text)
-  %4: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'143) loan0
-  %5: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
-  %6: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %5 roots.0{0}
-  %7: I32 = const 1
-  %8: String = call stringLiteral borrow.shared %6 borrow.shared %7
-  %9: String = call ++(String) take %3 take %8
-  write.reinit borrow.unique (text) take %9
-  %11: String [shared call] = read borrow.shared (text) loan1
-  %12: String [shared slot 0 view] = call.derivation view(String) borrow.shared %11 roots{1}
-  %13: Size = call length(String) borrow.shared %12
+  %4: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %5: String = call ++(String) take %3 take %4
+  write.reinit borrow.unique (text) take %5
+  %7: String [shared call] = read borrow.shared (text) loan0
+  %8: String [shared slot 0 view] = call.derivation view(String) borrow.shared %7 roots{0}
+  %9: Size = call length(String) borrow.shared %8
   drop (text)
-  %14: I32 = convert inspect %13
-  return take %14
+  %10: I32 = convert inspect %9
+  return take %10
 }
 
 fn inLaterBlock(n: I32 [shared call]) -> I32 {
@@ -83,22 +75,18 @@ bb1:
   jump -> bb2
 
 bb2:
-  %17: String [shared call] = read borrow.shared (text) loan1
-  %18: String [shared slot 0 view] = call.derivation view(String) borrow.shared %17 roots{1}
-  %19: Size = call length(String) borrow.shared %18
+  %13: String [shared call] = read borrow.shared (text) loan0
+  %14: String [shared slot 0 view] = call.derivation view(String) borrow.shared %13 roots{0}
+  %15: Size = call length(String) borrow.shared %14
   drop (text)
-  %20: I32 = convert inspect %19
-  return take %20
+  %16: I32 = convert inspect %15
+  return take %16
 
 bb3:
   %7: String = read take (text)
-  %8: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'144) loan0
-  %9: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] = address inspect %8 roots.0{0}
-  %10: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %9 roots.0{0}
-  %11: I32 = const 1
-  %12: String = call stringLiteral borrow.shared %10 borrow.shared %11
-  %13: String = call ++(String) take %7 take %12
-  write.reinit borrow.unique (text) take %13
+  %8: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %9: String = call ++(String) take %7 take %8
+  write.reinit borrow.unique (text) take %9
   jump -> bb2
 }
 
@@ -121,33 +109,29 @@ bb1:
   branch inspect %7 -> bb3 -> bb2
 
 bb2:
-  %32: I32 = read copy.trivial (total)
-  return take %32
+  %28: I32 = read copy.trivial (total)
+  return take %28
 
 bb3:
   %9: I32 = read copy.trivial (i)
   %10: String = call tagged borrow.shared %9
   write.init borrow.unique (text) take %10
   %12: String = read take (text)
-  %13: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'145) loan0
-  %14: %[CodeUnit *1] [owned here shape6 .*=shared slot 0] = address inspect %13 roots.0{0}
-  %15: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %14 roots.0{0}
-  %16: I32 = const 1
-  %17: String = call stringLiteral borrow.shared %15 borrow.shared %16
-  %18: String = call ++(String) take %12 take %17
-  write.reinit borrow.unique (text) take %18
-  %20: I32 = read copy.trivial (total)
-  %21: String [shared call] = read borrow.shared (text) loan1
-  %22: String [shared slot 0 view] = call.derivation view(String) borrow.shared %21 roots{1}
-  %23: Size = call length(String) borrow.shared %22
+  %13: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %14: String = call ++(String) take %12 take %13
+  write.reinit borrow.unique (text) take %14
+  %16: I32 = read copy.trivial (total)
+  %17: String [shared call] = read borrow.shared (text) loan0
+  %18: String [shared slot 0 view] = call.derivation view(String) borrow.shared %17 roots{0}
+  %19: Size = call length(String) borrow.shared %18
   drop (text)
-  %24: I32 = convert inspect %23
-  %25: I32 = add inspect %20 inspect %24
-  write.assign borrow.unique (total) take %25
-  %27: I32 = read copy.trivial (i)
-  %28: I32 = const 1
-  %29: I32 = add inspect %27 inspect %28
-  write.assign borrow.unique (i) take %29
+  %20: I32 = convert inspect %19
+  %21: I32 = add inspect %16 inspect %20
+  write.assign borrow.unique (total) take %21
+  %23: I32 = read copy.trivial (i)
+  %24: I32 = const 1
+  %25: I32 = add inspect %23 inspect %24
+  write.assign borrow.unique (i) take %25
   jump -> bb1
 }
 

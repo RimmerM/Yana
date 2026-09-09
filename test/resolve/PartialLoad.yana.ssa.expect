@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn opaque(box: Box [unique call], to: I32 [shared call]) -> {} {
-bb0(%0: Box [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Box [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %1
   %3: I32 trivial = load inspect %2
@@ -11,7 +11,7 @@ bb0(%0: Box [unique call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn recovered(box: Box [unique call], grow: Bool [shared call]) -> I32 {
-bb0(%0: Box [unique call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Box [unique call] guaranteed, %1: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %1
@@ -50,7 +50,7 @@ bb4:
 }
 
 fn bothArmsWrite(box: Box [unique call], which: Bool [shared call]) -> I32 {
-bb0(%0: Box [unique call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Box [unique call] guaranteed, %1: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   store inspect %2 borrow %1
   %3: %I32 address = field.addr .value inspect %0
@@ -88,7 +88,7 @@ bb4:
 }
 
 fn neitherArmWrites(box: Box [unique call], which: Bool [shared call]) -> I32 {
-bb0(%0: Box [unique call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Box [unique call] guaranteed, %1: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %1
@@ -123,7 +123,7 @@ bb4:
 }
 
 fn chained(box: Box [unique call], grow: Bool [shared call]) -> I32 {
-bb0(%0: Box [unique call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Box [unique call] guaranteed, %1: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   store inspect %2 borrow %1
   %3: %I32 address = field.addr .value inspect %0

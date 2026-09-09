@@ -19,7 +19,7 @@ bb0(%0: Guard owned):
 }
 
 fn guard(id: I32 [shared call]) -> Guard {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -56,7 +56,7 @@ bb0(%0: Pair [shared slot 0] guaranteed):
 }
 
 fn choose(flag: Bool [shared call], l: Guard [shared slot 0], r: Guard [shared slot 0]) -> Guard [shared slot 0] {
-bb0(%0: Bool [shared call] guaranteed, %1: Guard [shared slot 0] guaranteed, %2: Guard [shared slot 0] guaranteed):
+bb0(%0: Bool trivial, %1: Guard [shared slot 0] guaranteed, %2: Guard [shared slot 0] guaranteed):
   %3: %Bool address = alloc frame Bool [shared call]
   store inspect %3 borrow %0
   %4: Bool trivial = load inspect %3
@@ -75,7 +75,7 @@ bb3:
 }
 
 fn merged(flag: Bool [shared call], l: Guard [shared slot 0], r: Guard [shared slot 0]) -> Guard [shared slot 0] {
-bb0(%0: Bool [shared call] guaranteed, %1: Guard [shared slot 0] guaranteed, %2: Guard [shared slot 0] guaranteed):
+bb0(%0: Bool trivial, %1: Guard [shared slot 0] guaranteed, %2: Guard [shared slot 0] guaranteed):
   %4: %Bool address = alloc frame Bool [shared call]
   store inspect %4 borrow %0
   %5: Bool trivial = load inspect %4
@@ -176,7 +176,7 @@ bb0:
 }
 
 fn useChoose(flag: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   %2: %Guard address = alloc frame Guard
   %3: %Guard address = alloc frame Guard
@@ -198,7 +198,7 @@ bb0(%0: Bool [shared call] guaranteed):
 }
 
 fn useMerged(flag: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   %2: %Guard address = alloc frame Guard
   %3: %Guard address = alloc frame Guard

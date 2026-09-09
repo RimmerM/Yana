@@ -1,15 +1,9 @@
 module ResolveTest
 
 fn check(ok: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
-  %3: %Bool address = alloc frame Bool [shared call]
-  %4: %I32 address = alloc frame I32 [shared call]
-  store inspect %3 borrow %0
-  store inspect %4 borrow %1
-  %5: Bool trivial = load inspect %3
-  %7: I32 trivial = load inspect %4
+bb0(%0: Bool trivial, %1: I32 trivial):
   %6: I32 trivial = const 0
-  %8: I32 trivial = select inspect %5 inspect %7 inspect %6
+  %8: I32 trivial = select inspect %0 inspect %1 inspect %6
   return consume %8
 }
 
@@ -26,11 +20,8 @@ bb0(%0: I32 trivial, %1: I32 trivial):
 }
 
 fn siblings(a: I32, b: I32, pick: Bool [shared call]) -> I32 {
-bb0(%0: I32 trivial, %1: I32 trivial, %2: Bool [shared call] guaranteed):
-  %5: %Bool address = alloc frame Bool [shared call]
-  store inspect %5 borrow %2
-  %6: Bool trivial = load inspect %5
-  branch inspect %6 -> bb3 -> bb1
+bb0(%0: I32 trivial, %1: I32 trivial, %2: Bool trivial):
+  branch inspect %2 -> bb3 -> bb1
 
 bb1:
   %9: I32 trivial = mul inspect %0 inspect %1
@@ -48,91 +39,73 @@ bb3:
 }
 
 fn scaled(n: I32 [shared call], factor: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
-  %2: %I32 address = alloc frame I32 [shared call]
-  %3: %I32 address = alloc frame I32 [shared call]
-  store inspect %2 borrow %0
-  store inspect %3 borrow %1
+bb0(%0: I32 trivial, %1: I32 trivial):
   %6: I32 trivial = const 0
   %7: I32 trivial = const 0
-  %9: I32 trivial = load inspect %2
-  %13: I32 trivial = load inspect %3
   %14: I32 trivial = const 7
-  %15: I32 trivial = mul inspect %13 inspect %14
+  %15: I32 trivial = mul inspect %1 inspect %14
   %18: I32 trivial = const 1
   jump -> bb1(inspect %6, inspect %7)
 
-bb1(%20: I32 trivial, %21: I32 trivial):
-  %10: Bool trivial = lt inspect %21 inspect %9
+bb1(%22: I32 trivial, %23: I32 trivial):
+  %10: Bool trivial = lt inspect %23 inspect %0
   branch inspect %10 -> bb3 -> bb2
 
 bb2:
-  return consume %20
+  return consume %22
 
 bb3:
-  %16: I32 trivial = add inspect %20 inspect %15
-  %19: I32 trivial = add inspect %21 inspect %18
+  %16: I32 trivial = add inspect %22 inspect %15
+  %19: I32 trivial = add inspect %23 inspect %18
   jump -> bb1(inspect %16, inspect %19)
 }
 
 fn invariantField(n: I32 [shared call], seed: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
-  %2: %I32 address = alloc frame I32 [shared call]
-  %3: %I32 address = alloc frame I32 [shared call]
+bb0(%0: I32 trivial, %1: I32 trivial):
   %4: %Cell address = alloc frame Cell
-  store inspect %2 borrow %0
-  store inspect %3 borrow %1
-  %7: I32 trivial = load inspect %3
   %8: I32 trivial = const 7
-  %9: Cell trivial = aggregate.Cell consume %7 consume %8
+  %9: Cell trivial = aggregate.Cell consume %1 consume %8
   store inspect %4 consume %9
   %10: %I32 address = field.addr .other inspect %4
   %11: I32 trivial = load inspect %10
   %12: I32 trivial = const 0
-  %14: I32 trivial = load inspect %2
   %22: I32 trivial = const 1
   jump -> bb1(inspect %11, inspect %12)
 
-bb1(%24: I32 trivial, %25: I32 trivial):
-  %15: Bool trivial = lt inspect %25 inspect %14
+bb1(%26: I32 trivial, %27: I32 trivial):
+  %15: Bool trivial = lt inspect %27 inspect %0
   branch inspect %15 -> bb3 -> bb2
 
 bb2:
-  return consume %24
+  return consume %26
 
 bb3:
-  %20: I32 trivial = add inspect %24 inspect %11
-  %23: I32 trivial = add inspect %25 inspect %22
+  %20: I32 trivial = add inspect %26 inspect %11
+  %23: I32 trivial = add inspect %27 inspect %22
   jump -> bb1(inspect %20, inspect %23)
 }
 
 fn writtenField(n: I32 [shared call], seed: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
-  %2: %I32 address = alloc frame I32 [shared call]
-  %3: %I32 address = alloc frame I32 [shared call]
+bb0(%0: I32 trivial, %1: I32 trivial):
   %4: %Cell address = alloc frame Cell
-  store inspect %2 borrow %0
-  store inspect %3 borrow %1
-  %7: I32 trivial = load inspect %3
   %8: I32 trivial = const 7
-  %9: Cell trivial = aggregate.Cell consume %7 consume %8
+  %9: Cell trivial = aggregate.Cell consume %1 consume %8
   store inspect %4 consume %9
   %10: %I32 address = field.addr .other inspect %4
   %11: I32 trivial = load inspect %10
   %12: I32 trivial = const 0
-  %14: I32 trivial = load inspect %2
   %22: I32 trivial = const 1
   %30: I32 trivial = const 1
   jump -> bb1(inspect %11, inspect %12)
 
-bb1(%32: I32 trivial, %33: I32 trivial):
-  %15: Bool trivial = lt inspect %33 inspect %14
+bb1(%34: I32 trivial, %35: I32 trivial):
+  %15: Bool trivial = lt inspect %35 inspect %0
   branch inspect %15 -> bb3 -> bb2
 
 bb2:
   %17: %I32 address = field.addr .value inspect %4
   %18: I32 trivial = load inspect %17
-  %19: I32 trivial = add inspect %32 inspect %18
+  %19: I32 trivial = add inspect %34 inspect %18
   return consume %19
 
 bb3:
@@ -141,8 +114,8 @@ bb3:
   %23: I32 trivial = add inspect %21 inspect %22
   store inspect %20 consume %23
   %27: I32 trivial = load inspect %10
-  %28: I32 trivial = add inspect %32 inspect %27
-  %31: I32 trivial = add inspect %33 inspect %30
+  %28: I32 trivial = add inspect %34 inspect %27
+  %31: I32 trivial = add inspect %35 inspect %30
   jump -> bb1(inspect %28, inspect %31)
 }
 
@@ -154,16 +127,16 @@ bb0:
   %10: I32 trivial = const 54
   %11: Bool trivial = eq inspect %9 inspect %10
   %12: I32 trivial = const 1
-  %75: I32 trivial = const 0
-  %76: I32 trivial = select inspect %11 inspect %12 inspect %75
+  %71: I32 trivial = const 0
+  %72: I32 trivial = select inspect %11 inspect %12 inspect %71
   %14: I32 trivial = const 1
   %15: I32 trivial = const 2
   %16: I32 trivial = call dominating consume %14 consume %15
   %17: I32 trivial = const 5
   %18: Bool trivial = eq inspect %16 inspect %17
   %19: I32 trivial = const 2
-  %81: I32 trivial = const 0
-  %82: I32 trivial = select inspect %18 inspect %19 inspect %81
+  %73: I32 trivial = const 0
+  %74: I32 trivial = select inspect %18 inspect %19 inspect %73
   %21: I32 trivial = const 3
   %22: I32 trivial = const 4
   %23: Bool trivial = const True
@@ -171,8 +144,8 @@ bb0:
   %25: I32 trivial = const 17
   %26: Bool trivial = eq inspect %24 inspect %25
   %27: I32 trivial = const 4
-  %87: I32 trivial = const 0
-  %88: I32 trivial = select inspect %26 inspect %27 inspect %87
+  %75: I32 trivial = const 0
+  %76: I32 trivial = select inspect %26 inspect %27 inspect %75
   %29: I32 trivial = const 3
   %30: I32 trivial = const 4
   %31: Bool trivial = const False
@@ -180,38 +153,38 @@ bb0:
   %33: I32 trivial = const 34
   %34: Bool trivial = eq inspect %32 inspect %33
   %35: I32 trivial = const 8
-  %93: I32 trivial = const 0
-  %94: I32 trivial = select inspect %34 inspect %35 inspect %93
+  %77: I32 trivial = const 0
+  %78: I32 trivial = select inspect %34 inspect %35 inspect %77
   %37: I32 trivial = const 3
   %38: I32 trivial = const 5
   %39: I32 trivial = call scaled borrow %37 borrow %38
   %40: I32 trivial = const 105
   %41: Bool trivial = eq inspect %39 inspect %40
   %42: I32 trivial = const 16
-  %99: I32 trivial = const 0
-  %100: I32 trivial = select inspect %41 inspect %42 inspect %99
+  %79: I32 trivial = const 0
+  %80: I32 trivial = select inspect %41 inspect %42 inspect %79
   %44: I32 trivial = const 4
   %45: I32 trivial = const 2
   %46: I32 trivial = call invariantField borrow %44 borrow %45
   %47: I32 trivial = const 35
   %48: Bool trivial = eq inspect %46 inspect %47
   %49: I32 trivial = const 32
-  %105: I32 trivial = const 0
-  %106: I32 trivial = select inspect %48 inspect %49 inspect %105
+  %81: I32 trivial = const 0
+  %82: I32 trivial = select inspect %48 inspect %49 inspect %81
   %51: I32 trivial = const 3
   %52: I32 trivial = const 10
   %53: I32 trivial = call writtenField borrow %51 borrow %52
   %54: I32 trivial = const 41
   %55: Bool trivial = eq inspect %53 inspect %54
   %56: I32 trivial = const 64
-  %111: I32 trivial = const 0
-  %112: I32 trivial = select inspect %55 inspect %56 inspect %111
-  %60: I32 trivial = add inspect %76 inspect %82
-  %62: I32 trivial = add inspect %60 inspect %88
-  %64: I32 trivial = add inspect %62 inspect %94
-  %66: I32 trivial = add inspect %64 inspect %100
-  %68: I32 trivial = add inspect %66 inspect %106
-  %70: I32 trivial = add inspect %68 inspect %112
+  %83: I32 trivial = const 0
+  %84: I32 trivial = select inspect %55 inspect %56 inspect %83
+  %60: I32 trivial = add inspect %72 inspect %74
+  %62: I32 trivial = add inspect %60 inspect %76
+  %64: I32 trivial = add inspect %62 inspect %78
+  %66: I32 trivial = add inspect %64 inspect %80
+  %68: I32 trivial = add inspect %66 inspect %82
+  %70: I32 trivial = add inspect %68 inspect %84
   return consume %70
 }
 

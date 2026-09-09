@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn checkBytes(v: Vec(I8) [shared call], expected: I32 [shared call]) -> I32 {
-bb0(%0: Vec(I8) [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Vec(I8) trivial, %1: I32 trivial):
   %3: %Vec(I8) address = alloc frame Vec(I8) [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %0
@@ -27,7 +27,7 @@ bb3:
 }
 
 fn checkQuad(v: Vec(I64) [shared call], expected: I64 [shared call]) -> I32 {
-bb0(%0: Vec(I64) [shared call] guaranteed, %1: I64 [shared call] guaranteed):
+bb0(%0: Vec(I64) trivial, %1: I64 trivial):
   %3: %Vec(I64) address = alloc frame Vec(I64) [shared call]
   %4: %I64 address = alloc frame I64 [shared call]
   store inspect %3 borrow %0

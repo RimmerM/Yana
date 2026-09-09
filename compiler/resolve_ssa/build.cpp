@@ -342,15 +342,33 @@ Inst* Editor::append(Inst* inst) {
     return inst;
 }
 
+// The declaration is in build.h, where the four rungs are argued.
+Convention conventionFor(DeclBase decl, const mir::Occurrence& occurrence) {
+    if(!occurrence.contract.isOwned()) return Convention::Guaranteed;
+    if(mir::isLinearAt(decl, occurrence)) return Convention::Owned;
+
+    return mir::isTriviallyCopyableAt(decl, occurrence) ? Convention::Trivial : Convention::Affine;
+}
+
+/*
+ * A constant, at whatever the *type* says its value owes.
+ *
+ * A number owes nothing and is `Trivial`, which is every constant this instruction carried for a
+ * long time. A **string literal** is the one that is not: `Resolver::textValue` builds the value the
+ * library's `stringLiteral` describes, and what comes out is a `String` - a type with a teardown,
+ * whose owner has to be consumed exactly once like any other. The contents are static and the
+ * teardown is a test that fails, but neither of those is this tier's to assume: an owner is an
+ * owner, and the fold that makes its teardown nothing is a pass with the constant in hand.
+ *
+ * `conventionFor` and not a rule of its own, so that the answer here is the same answer the
+ * conversion gives every other position of that type.
+ */
 Inst* Editor::addConst(LocationId source, const mir::Constant& constant) {
     auto inst = new (arena) InstConst(source, constant);
     append(inst);
 
-    // A constant is trivial by construction: it is a value with static contents and no teardown.
-    // A constant whose *type* is not trivial - a string owner - is a different instruction, because
-    // what it produces is an owner and the difference has to be in the IR rather than in a comment.
-    assertTrue(!mir::isLinear(declBase(), constant.type));
-    addResult(*inst, mir::owned(constant.type), Convention::Trivial);
+    auto occurrence = mir::owned(constant.type);
+    addResult(*inst, occurrence, conventionFor(declBase(), occurrence));
     return inst;
 }
 

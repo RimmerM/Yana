@@ -399,6 +399,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/opt/cfg.cpp
     resolve_ssa/opt/select.cpp
     resolve_ssa/opt/memory.cpp
+    resolve_ssa/opt/place.cpp
     resolve_ssa/opt/loop.cpp
     resolve_ssa/opt/inline.cpp
     resolve_ssa/opt/reach.cpp

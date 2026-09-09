@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn double(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -45,7 +45,7 @@ bb0:
 }
 
 fn annotated(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -55,7 +55,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn fact(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   %3: I32 trivial = load inspect %2
@@ -116,37 +116,37 @@ bb0:
 }
 
 fn sum'2(I32)(lhs: I32 [shared call], rhs: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   store inspect %3 borrow %1
-  %4: I32 [shared call] guaranteed from{%2} = load inspect %2
-  %5: I32 [shared call] guaranteed from{%3} = load inspect %3
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
   %6: I32 trivial = call I32.+ borrow %4 borrow %5
   return consume %6
 }
 
 fn added(I32)(lhs: I32 [shared call], rhs: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   store inspect %3 borrow %1
-  %4: I32 [shared call] guaranteed from{%2} = load inspect %2
-  %5: I32 [shared call] guaranteed from{%3} = load inspect %3
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
   %6: I32 trivial = call I32.+ borrow %4 borrow %5
   return consume %6
 }
 
 fn plussed(I32)(lhs: I32 [shared call], rhs: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   store inspect %3 borrow %1
-  %4: I32 [shared call] guaranteed from{%2} = load inspect %2
-  %5: I32 [shared call] guaranteed from{%3} = load inspect %3
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
   %6: I32 trivial = call I32.+ borrow %4 borrow %5
   return consume %6
 }

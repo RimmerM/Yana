@@ -29,7 +29,7 @@ bb0(%0: Held owned):
 }
 
 fn held(id: I32 [shared call]) -> Held {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr live
@@ -44,7 +44,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn scaled(v: I32 [shared call], by: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -58,7 +58,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn scales(a: I32 [shared call], b: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
@@ -76,7 +76,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn consumes(id: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Held address = alloc frame Held
   store inspect %1 borrow %0
@@ -101,7 +101,7 @@ bb0(%0: I32 [unique call] guaranteed):
 }
 
 fn borrows(start: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
@@ -132,7 +132,7 @@ bb0(%0: Held [shared call] guaranteed):
 }
 
 fn inspected(id: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Held address = alloc frame Held
   store inspect %1 borrow %0
@@ -148,7 +148,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn produced(id: I32 [shared call]) -> Held {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Held address = alloc frame Held
   store inspect %1 borrow %0
@@ -160,7 +160,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn discards(id: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Held address = alloc frame Held
   store inspect %1 borrow %0
@@ -176,7 +176,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn clamped(v: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -197,7 +197,7 @@ bb3:
 }
 
 fn stepped(i: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -216,7 +216,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn loops(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
@@ -251,7 +251,7 @@ bb3:
 }
 
 fn wideChain(a: I32 [shared call], b: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32
@@ -363,7 +363,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn onceOnly(a: I32 [shared call], b: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32
@@ -475,7 +475,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
 }
 
 fn countDown(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1

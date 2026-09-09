@@ -47,9 +47,8 @@ main<complex>(): I32 {
   }
 
   b_7 {
-    %v_24 = load %v_5, 4: I32
-    %v_25 = add %v_5, 4: Ptr
-    %v_19 = load %v_25, 4: I32
+    %v_24 = add %v_5, 4: Ptr
+    %v_19 = load %v_24, 4: I32
     call_complex freeHeap, %v_5
     jmp b_17
   }
@@ -59,24 +58,24 @@ main<complex>(): I32 {
     jmp b_17
   }
 
-  b_26 {
-    %v_27 = phi [b_14, %v_28], [b_15, 18446744073709551615]: I32
-    %v_29 = add %v_18, %v_27: I32
-    ret %v_29
+  b_25 {
+    %v_26 = phi [b_14, %v_27], [b_15, 18446744073709551615]: I32
+    %v_28 = add %v_18, %v_26: I32
+    ret %v_28
   }
 
   b_14 {
-    %v_30 = loads %v_10, 4: I32
-    %v_31 = imul %v_30, 10: I32
-    %v_32 = loads %v_11, 4: I32
+    %v_29 = loads %v_10, 4: I32
+    %v_30 = imul %v_29, 10: I32
+    %v_31 = loads %v_11, 4: I32
     call_complex freeHeap, %v_10
-    %v_28 = add %v_31, %v_32: I32
-    jmp b_26
+    %v_27 = add %v_30, %v_31: I32
+    jmp b_25
   }
 
   b_15 {
     call_complex freeHeap, %v_10
-    jmp b_26
+    jmp b_25
   }
 }
 

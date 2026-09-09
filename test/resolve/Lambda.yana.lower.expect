@@ -295,30 +295,29 @@ main<complex>(): I32 {
     %v_20 = call_complex allocateHeap, 12: Ptr
     store %v_19, %v_20, 8
     %v_21 = add %v_19, 8: Ptr
-    %v_22 = load %v_21, 4: I32
     store %v_21, 1073741827, 4
     store %v_20, 1, 4
-    %v_23 = add %v_20, 4: Ptr
-    store %v_23, 2, 4
-    %v_24 = add %v_20, 8: Ptr
+    %v_22 = add %v_20, 4: Ptr
+    store %v_22, 2, 4
+    %v_23 = add %v_20, 8: Ptr
+    store %v_23, 3, 4
+    %v_24 = add %v_19, 12: Ptr
     store %v_24, 3, 4
-    %v_25 = add %v_19, 12: Ptr
-    store %v_25, 3, 4
-    %v_26 = call_complex funvalue$consume, %v_18, %v_19: I32
+    %v_25 = call_complex funvalue$consume, %v_18, %v_19: I32
     %counter = alloca 4, 4: Ptr
     store %counter, 100, 4
-    %v_27 = bitcast 0: Ptr
-    call_complex ResolveTest.lambda$28, %v_27, %counter
-    %v_28 = add %v_2, %v_4: I32
-    %v_29 = add %v_28, %c: I32
-    %v_30 = add %v_29, %v_9: I32
-    %v_31 = add %v_30, %e: I32
-    %v_32 = add %v_31, %v_13: I32
-    %v_33 = add %v_32, %v_17: I32
-    %v_34 = add %v_33, %v_26: I32
-    %v_35 = loads %counter, 4: I32
-    %v_36 = add %v_34, %v_35: I32
-    ret %v_36
+    %v_26 = bitcast 0: Ptr
+    call_complex ResolveTest.lambda$28, %v_26, %counter
+    %v_27 = add %v_2, %v_4: I32
+    %v_28 = add %v_27, %c: I32
+    %v_29 = add %v_28, %v_9: I32
+    %v_30 = add %v_29, %e: I32
+    %v_31 = add %v_30, %v_13: I32
+    %v_32 = add %v_31, %v_17: I32
+    %v_33 = add %v_32, %v_25: I32
+    %v_34 = loads %counter, 4: I32
+    %v_35 = add %v_33, %v_34: I32
+    ret %v_35
   }
 }
 

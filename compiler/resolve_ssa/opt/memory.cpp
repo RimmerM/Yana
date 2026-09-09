@@ -115,6 +115,17 @@ struct Forwarder {
      */
     const Contained& contained;
 
+    /*
+     * What is settled before the program runs, read on the same terms and held for the same reason.
+     *
+     * The block table below is what one write above a read establishes; this is what a *slot* holds
+     * for the whole of its life, which is the fact a call in between destroys and the one a string
+     * literal's teardown needs. Two tables rather than one because they are two facts with two
+     * lifetimes - one is emptied at every barrier and the other cannot be - and one rule reads them
+     * in order (`tryForward`).
+     */
+    const ConstantContents& constants;
+
     // One block's worth. Inline, because a block holds a handful of distinct pieces of storage and
     // this is emptied at every block boundary and at every barrier.
     SmallArray<Known, 16> known;
@@ -456,6 +467,40 @@ struct Forwarder {
      * stays removable - which is what makes a read-modify-write chain collapse rather than merely
      * shorten.
      */
+    /*
+     * A read whose answer was settled before the program ran - a literal's length, the pointer to
+     * its bytes, the flag its teardown tests, a number read out of a placed constant.
+     *
+     * The second half of `tryForward` and tried after the block table, which is the cheaper and the
+     * more specific of the two: a store standing above the read answers it exactly, and this answers
+     * the reads that store no longer reaches - the ones behind a call, and the ones in another
+     * block.
+     *
+     * **`Trivial` only, and the type has to agree.** A leaf of a constant is a number or an address;
+     * a read that hands back a *record* is answered by the storage it names rather than by a value,
+     * and substituting a constant for one would be handing the reader a different representation -
+     * which is `isForwardable`'s clause, asked here of a value that does not exist yet.
+     */
+    bool tryConstantForward(Inst& inst) {
+        auto& load = (InstLoad&)inst;
+        if(!inst.results.size()) return false;
+
+        auto result = opt.base[inst.results.get(opt.base, 0)];
+        if(result->convention != Convention::Trivial) return false;
+
+        auto held = constantAt(opt, constants, opt.base[load.address.value()]);
+        if(!held) return false;
+        if(held.unwrap().type != result->occurrence.type) return false;
+
+        auto value = makeConstantValue(opt, inst, held.unwrap());
+        if(!value) return false;
+
+        auto editor = opt.ir();
+        editor.replaceAllUses(*result, *value);
+        editor.eraseInst(inst);
+        return true;
+    }
+
     bool tryForward(Inst& inst) {
         auto& load = (InstLoad&)inst;
         if(!inst.results.size()) return false;
@@ -464,7 +509,9 @@ struct Forwarder {
         auto address = opt.base[load.address.value()];
 
         auto entry = entryFor(address);
-        if(!entry || !entry->value || !isForwardable(*result, *entry->value)) return false;
+        if(!entry || !entry->value || !isForwardable(*result, *entry->value)) {
+            return tryConstantForward(inst);
+        }
 
         /*
          * The condition the held `Contained` reading rests on, asserted where it is relied upon -
@@ -617,6 +664,25 @@ struct Forwarder {
 struct StorageRemover {
     OptContext& opt;
     const Contained& contained;
+    const ConstantContents& constants;
+
+    /*
+     * Whether the allocation being considered holds a constant whose **teardown runs nothing** -
+     * `Resolver::teardownRunsNothing`, asked while the library's bodies still existed and recorded
+     * on the program (`mir::Program::inertConstants`).
+     *
+     * It is what makes a string literal disappear rather than merely shrink. A literal is a
+     * duplicate of a placed constant in a slot, and once every read of it has been answered by the
+     * constant itself, the slot's remaining users are the write that filled it and the `Drop` at the
+     * end - and the drop is a call to a reclaim that tests a flag the constant sets to "borrowed".
+     * A teardown that runs nothing is a teardown whose removal changes nothing, so the three go
+     * together: the drop, the duplicate, and the storage.
+     *
+     * Set per allocation in `remove` and read by `writesOnly`, because it is the same fact answering
+     * two of that walk's questions - the drop is admitted by it, and so is the tracked value the
+     * store consumes.
+     */
+    bool inert = false;
 
     // The writes into this allocation and the chains they are written through, in the order they
     // have to be erased in: an address chain cannot go before the accesses through it, and the
@@ -653,17 +719,46 @@ struct StorageRemover {
                     writes.push(&user);
                     break;
 
+                /*
+                 * A store, and the one tracked value one may carry.
+                 *
+                 * Erasing a store of a tracked value leaves that value unconsumed, which the
+                 * verifier reports at this pass's checkpoint - unless the value goes with it. A
+                 * `const` whose teardown runs nothing is the case where it can: it is the only
+                 * definition of an owner that owes nothing to run, this store is its only reader,
+                 * and the constant it names is still standing in the data section for anybody else
+                 * who wants it. So the pair is erased as a pair.
+                 */
                 case Inst::Store: {
                     auto value = opt.base[((InstStore&)user).value.value()];
-                    if(isTracked(value->convention)) return false;
+                    if(isTracked(value->convention)) {
+                        if(!inert || !value->definer) return false;
+                        if(opt.base[value->definer]->kind != Inst::Const) return false;
+                        if(value->uses(opt.base).size() != 1) return false;
+
+                        chains.push(opt.base[value->definer]);
+                    }
 
                     writes.push(&user);
                     break;
                 }
 
+                /*
+                 * A `Drop`, admitted where it lowers to nothing - and `inert` is the second way that
+                 * is true.
+                 *
+                 * `hasTeardownAt` is the **type's** answer: `Lowering::emitTeardown` returns
+                 * immediately for an occurrence whose `Ownership` names neither a drop nor a
+                 * reclaim, and `isLinearAt` beside it is the other half - a type may owe no teardown
+                 * and still owe a disposal the author has to write. `inert` is the same question
+                 * asked of the **value**, which is what a constant makes answerable: the type owes a
+                 * reclaim and this value's reclaim was run at compile time and did nothing.
+                 */
                 case Inst::Drop:
-                    if(hasTeardownAt(opt, ((InstDrop&)user).held)) return false;
-                    if(isLinearAt(opt, ((InstDrop&)user).held)) return false;
+                    if(!inert) {
+                        if(hasTeardownAt(opt, ((InstDrop&)user).held)) return false;
+                        if(isLinearAt(opt, ((InstDrop&)user).held)) return false;
+                    }
 
                     writes.push(&user);
                     break;
@@ -688,9 +783,14 @@ struct StorageRemover {
     bool remove(Value& allocation) {
         auto& alloc = (InstAlloc&)*opt.base[allocation.definer];
 
+        // The contents, where they are settled and their teardown was shown to run nothing - see
+        // `inert`, where the whole of what it admits is argued.
+        auto held = constants[allocation];
+        inert = held.isSet() && opt.program.teardownIsNothing(held);
+
         // The occurrence rather than the type: a slot holding a borrowed occurrence of a type that
         // owes a teardown owes nothing, and one holding an owner of the same type owes everything.
-        if(hasTeardownAt(opt, alloc.held) || isLinearAt(opt, alloc.held)) return false;
+        if(!inert && (hasTeardownAt(opt, alloc.held) || isLinearAt(opt, alloc.held))) return false;
         if(!contained[allocation]) return false;
 
         /*
@@ -740,7 +840,7 @@ struct StorageRemover {
 } // namespace
 
 void forwardMemory(OptContext& opt) {
-    Forwarder forwarder { opt, containedOf(opt) };
+    Forwarder forwarder { opt, containedOf(opt), constantContentsOf(opt) };
 
     for(auto blockPointer: opt.body->blocks.contents(opt.base)) {
         auto block = opt.base[blockPointer];
@@ -778,7 +878,7 @@ void removeDeadStorage(OptContext& opt) {
     for(auto allocation: allocations) {
         if(!allocation->definer || !opt.base[allocation->definer]->block) continue;
 
-        StorageRemover remover { opt, contained };
+        StorageRemover remover { opt, contained, constantContentsOf(opt) };
         remover.remove(*allocation);
     }
 }

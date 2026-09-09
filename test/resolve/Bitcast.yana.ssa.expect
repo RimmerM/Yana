@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn floatBits(x: F32 [shared call]) -> I32 {
-bb0(%0: F32 [shared call] guaranteed):
+bb0(%0: F32 trivial):
   %1: %F32 address = alloc frame F32 [shared call]
   store inspect %1 borrow %0
   %2: F32 trivial = load inspect %1
@@ -10,7 +10,7 @@ bb0(%0: F32 [shared call] guaranteed):
 }
 
 fn bitsFloat(x: I32 [shared call]) -> F32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -19,7 +19,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn roundTrip(x: F32 [shared call]) -> F32 {
-bb0(%0: F32 [shared call] guaranteed):
+bb0(%0: F32 trivial):
   %1: %F32 address = alloc frame F32 [shared call]
   store inspect %1 borrow %0
   %2: F32 trivial = load inspect %1
@@ -29,7 +29,7 @@ bb0(%0: F32 [shared call] guaranteed):
 }
 
 fn unsignedRead(x: I32 [shared call]) -> U32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -47,7 +47,7 @@ bb0:
 }
 
 fn opaqueFloat(x: F32 [shared call]) -> F32 {
-bb0(%0: F32 [shared call] guaranteed):
+bb0(%0: F32 trivial):
   %1: %F32 address = alloc frame F32 [shared call]
   store inspect %1 borrow %0
   %2: F32 trivial = load inspect %1
@@ -55,7 +55,7 @@ bb0(%0: F32 [shared call] guaranteed):
 }
 
 fn opaqueInt(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -63,7 +63,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn opaqueDouble(x: F64 [shared call]) -> F64 {
-bb0(%0: F64 [shared call] guaranteed):
+bb0(%0: F64 trivial):
   %1: %F64 address = alloc frame F64 [shared call]
   store inspect %1 borrow %0
   %2: F64 trivial = load inspect %1

@@ -492,6 +492,21 @@ struct Function {
     bool noInline = false;
 
     /*
+     * `@cold` and `@hot` - how often this function runs, as the declaration states it. See
+     * `readFrequencyAttributes`, and `resolve_mir/decl.h`, where the pair is argued at length.
+     *
+     * **Frequency, not an inlining directive.** What this stage's inliner spends is the callee half:
+     * `@hot` raises the budget on `@inline`'s exact terms, and `@cold` holds the callee to what
+     * cannot grow the program. The *caller* half - a block whose every path reaches nothing but a
+     * cold call is itself cold, so nothing is expanded into it - is `resolve_ssa/opt/inline.cpp`'s
+     * `findColdBlocks`, and it is there rather than here because that is the stage whose inliner
+     * measured as costing bytes on assertion code (J43 §3). Written on both so that the attribute
+     * means the same thing whichever stage reads it, and so that a program can say it.
+     */
+    bool cold = false;
+    bool hot = false;
+
+    /*
      * `@inline(always)` - the third of them, and the one that is neither of the two above.
      *
      * A *directive*, carried out by whichever of the two passes can: the resolver grafts a body that

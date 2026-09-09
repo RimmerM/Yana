@@ -76,7 +76,7 @@ bb12:
 }
 
 fn absent(Cell)(it: %Cell [shared call]) -> Bool {
-bb0(%0: %Cell [shared call] guaranteed):
+bb0(%0: %Cell trivial):
   %1: %%Cell address = alloc frame %Cell [shared call]
   store inspect %1 borrow %0
   %2: %Cell trivial = load inspect %1
@@ -102,7 +102,7 @@ bb0(%0: Cell [shared slot 0] guaranteed):
 }
 
 fn addressValue(Cell)(p: %Cell [shared call]) -> Size {
-bb0(%0: %Cell [shared call] guaranteed):
+bb0(%0: %Cell trivial):
   %1: %%Cell address = alloc frame %Cell [shared call]
   store inspect %1 borrow %0
   %2: %Cell trivial = load inspect %1

@@ -792,6 +792,27 @@ enum class DeclAttribute: U8 {
      */
     Heap,
 
+    /*
+     * `@cold` and `@hot` on a function - `Function::cold` and `Function::hot`.
+     *
+     * **Frequency, not an inlining directive**, and the distinction is the whole reason these are
+     * not two more spellings of `@inline`. `@inline` answers "expand this at its call sites";
+     * `@cold` answers "this runs rarely", which is a fact several passes want and only one of them
+     * is the inliner: what it buys there is that a *caller's* block that reaches nothing but a cold
+     * call is itself cold, and code in one is not worth expanding at any budget. Nothing else could
+     * say that - `@noinline` on `record` says nothing about the string the caller builds to hand it.
+     *
+     * `@hot` is the same axis in the other direction and is a hint rather than a directive, on
+     * `@inline`'s terms: it weighs the callee against the sole-reference budget, and a callee the
+     * pass declines structurally is still declined.
+     *
+     * Both are read by `readSignatureAttributes` into fields of `Function`, beside `@inline`,
+     * because that is where the destination is; here they fall to the placement message. Writing
+     * both on one declaration is a contradiction and is reported as one.
+     */
+    Cold,
+    Hot,
+
     Count,
 };
 
@@ -1481,6 +1502,24 @@ struct Function {
     // `@x86_legacy_sse` - see the attribute's row, where the reason a resolver carries a backend
     // fact at all is written. Carried to `LowerFunction::legacyVectors` and read nowhere else here.
     bool legacySse = false;
+
+    /*
+     * `@cold` and `@hot` - how often this function runs, as the declaration states it.
+     *
+     * **Frequency rather than an inlining directive**, which is why they are a pair of their own and
+     * not two more spellings of `@inline`. What `@cold` says is not "do not expand me": it is that
+     * the *caller's* code on the path to this call is rare too, and `resolve_ssa/opt/inline.cpp`
+     * spends it in both directions - the callee is not copied, and a block of the caller whose every
+     * path reaches nothing but a cold call is itself cold, so nothing is expanded into it either.
+     * That second half is what `@noinline` on the callee could never say, and it is the whole of
+     * what an assertion costs: `check(x)`'s failure arm builds a message its caller pays for.
+     *
+     * `@hot` is the same axis reversed and is a hint on `@inline`'s exact terms - it weighs a callee
+     * against the sole-reference budget and refuses nothing structurally. Written on one declaration
+     * together they are a contradiction, and `readFrequencyAttributes` reports it and takes neither.
+     */
+    bool cold = false;
+    bool hot = false;
 
     /*
      * `@convention(clobber)` - see the attribute's row.
@@ -2302,6 +2341,38 @@ struct Program {
      */
     DeclPtr<Function> discoveringFrom = nullptr;
     HashMap<U32, U32> specializationParents;
+
+    /*
+     * The constants whose **teardown runs nothing** - `Resolver::teardownRunsNothing`, recorded
+     * where it was asked and read where the answer is spent.
+     *
+     * Here rather than as a bit on `AggregateConstant`, because the parts are interned and the type
+     * is not: `aggregateConstant` matches on the constructor and the values alone, so one entry
+     * stands for `{I32, I32}` and a `data Point` of two of them - two constants whose teardowns are
+     * different questions. The key is the pair `Constant` compares on beside its kind, which is the
+     * same key `Lowering::placeConstant` interns by.
+     *
+     * Here rather than answered where it is read, because it cannot be: the evaluator runs MIR
+     * bodies and the MIR region is released the moment conversion ends (§8.8), so the optimizer that
+     * spends this answer is on the far side of the release. What survives is the declaration region,
+     * and this is on `Program` with it.
+     */
+    HashMap<U64, bool> inertConstants;
+
+    static U64 constantKey(const Constant& constant) {
+        return (U64(constant.type.offset) << 32) | U64(U32(constant.bits));
+    }
+
+    void markInertConstant(const Constant& constant) {
+        *inertConstants.add(constantKey(constant)).value = true;
+    }
+
+    // Whether this constant is one of them. False for everything nobody asked about, which is the
+    // answer a reader wants: a teardown nothing has proved to be nothing is a teardown that runs.
+    bool teardownIsNothing(const Constant& constant) const {
+        auto found = ((HashMap<U64, bool>&)inertConstants).getValue(constantKey(constant));
+        return found.isJust() && found.unwrap();
+    }
 
 private:
     static U64 nameKey(DeclPtr<Module> module, StringId name);

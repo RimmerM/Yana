@@ -419,9 +419,16 @@ static bool terminalExit(LowerBase base, const LoopInfo& loops, U32 headerIndex,
     return !readsLoopValue(base, loops, headerIndex, base[block->terminator]);
 }
 
-static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops,
-                                          LowerBlock* header, RotationRegions& regions)
-{
+/*
+ * Everything about the shape that is decided by the CFG and the header's own instructions, which is
+ * every condition below except the two that need the exit block to be a dedicated one: that it has a
+ * single predecessor, and where each reader of a header phi takes its value.
+ *
+ * Split out because `splitJoiningLoopExits` asks exactly this question one pass earlier - a loop
+ * whose only refusal is the joining exit is the one worth putting a block on the edge for, and every
+ * other refusal is one no block would repair.
+ */
+static Maybe<RotatableLoop> loopShape(LowerBase base, const LoopInfo& loops, LowerBlock* header) {
     if(base[header->terminator]->kind != LowerInst::Je) return Nothing();
 
     auto index = header->index;
@@ -452,39 +459,95 @@ static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, co
 
     /*
      * The preheader has to be a block whose whole purpose is to enter the loop, since its jump is
-     * what becomes the guard; and the two blocks that gain the preheader as a predecessor have to
-     * have had only the header, or a phi in either would need alternatives this cannot supply.
+     * what becomes the guard; and the body, which gains the preheader as a predecessor, has to have
+     * had only the header, or a phi in it would need an alternative this cannot supply.
      *
-     * **Counted, the three are one refusal** - §44 of test/bench/findings.md. Over the 233
-     * `test/resolve` programs 149 loops rotate, and of the three conditions here the first two refuse
-     * *nothing at all*: no loop in the corpus or the suite has a preheader that is not a plain jump,
-     * and none has a body reached by more than one edge. The third refuses 37, and 5 over the
-     * benchmark corpus.
+     * **Counted, both refuse nothing** - §44 of test/bench/findings.md. Over the 233 `test/resolve`
+     * programs 149 loops rotate, and no loop in the corpus or the suite has a preheader that is not
+     * a plain jump or a body reached by more than one edge.
      *
-     * **And generalizing the third was built and measured out.** Twenty of those 37 are the case that
-     * can be answered - every extra edge into the exit leaves the *loop*, so the value a header phi
-     * had on it is the iteration's own and the merge can take the body's phi for it - and one of the
-     * five is. Built, it is +19 bytes over the 184 executables for no measurable time, which is the
-     * verdict §29 reached for three other relaxations of this same pass: the rotation trades a jump
-     * per iteration for a copy of the header test in the preheader, and a loop that reaches this
-     * condition is one where that trade has already stopped paying. The other 17 cannot be answered
-     * at all - an edge into the exit from *outside* the loop means the header does not dominate it,
-     * and there is no value for the merge to carry.
-     *
-     * **§58.4 asked it of what the merge is for instead, and measured that out too.** What an extra
-     * predecessor actually breaks is one thing: the merge built in the exit block is a two-source
-     * phi carrying the guard's zero-iteration answer and the last iteration's, and a block with
-     * three ways in cannot hold one - so where nothing reads a header phi on the exit's side there
-     * is no such phi to build and the count stops mattering. That is not the twenty above; it is the
-     * *abort arm*, whose predecessors are one per bounds check in the function once
-     * `mergeIdenticalExits` has made the copies one block. Built, together with the reader relaxation
-     * below it, it is **+158 bytes over the 186 `test/resolve` executables and no measurable time on
-     * the corpus**, and it changes not one byte of the sixteen benchmark programs on its own. Third
-     * relaxation of this condition to be built and taken back out; the condition is where it is
-     * because the loops it refuses are the ones whose trade has already stopped paying.
+     * The third condition that used to stand here - that the *exit* have one predecessor too -
+     * refused 37 of them, and is now `splitJoiningLoopExits`' subject rather than a refusal. See
+     * `rotatableLoop`, which still asks it, and that function for why the answer is a block on the
+     * edge rather than a rule about the merge.
      */
     if(base[loop.pre->terminator]->kind != LowerInst::Jmp) return Nothing();
     if(loop.body->incoming.size() != 1) return Nothing();
+
+    if(header->instructions.size() > kMaxRotatedHeader) return Nothing();
+
+    // Every instruction in the header has to be one a second copy of is the same answer, since the
+    // preheader gets one. Where its result is *read* is `rotatableLoop`'s question, the regions
+    // being what answers it.
+    for(auto i: header->instructions.contents(base)) {
+        if(!isRotatableHeaderInst(base[i])) return Nothing();
+    }
+
+    return Just(loop);
+}
+
+/*
+ * Whether every read of a value the header defines lands where one of the rotation's three answers
+ * reaches it - the header's own copy, the body's merge or the exit's.
+ *
+ * For a phi the read happens on the edge it names rather than in the block it sits in, which is what
+ * lets a merge below the loop take the body's answer on one alternative and the exit's on another. A
+ * read in neither region is one the rotation has nothing to point at, and refuses the loop:
+ * `Iter.firstOverOrCount` is the shape, two early exits converging on a block that the header's exit
+ * arm also falls into, so the value is read where neither merge dominates.
+ */
+static bool readsAreReachable(LowerBase base, const RotationRegions& regions, LowerBlock* header,
+                              LowerValue* value)
+{
+    for(auto u: value->uses.contents(base)) {
+        auto user = base[u];
+        auto used = user->used();
+
+        for(Size slot = 0; slot < used.size(); slot++) {
+            if(base[used[slot]] != value) continue;
+
+            auto from = user->kind == LowerInst::Phi
+                ? base[((LowerInstPhi*)user)->sources()[slot]]
+                : base[user->block];
+
+            if(rotatedRead(regions, header, from) == RotatedRead::Nowhere) return false;
+        }
+    }
+
+    return true;
+}
+
+static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, const LoopInfo& loops,
+                                          LowerBlock* header, RotationRegions& regions)
+{
+    auto shape = loopShape(base, loops, header);
+    if(!shape) return Nothing();
+
+    auto loop = shape.unwrap();
+    auto index = header->index;
+
+    /*
+     * The exit has to be the loop's own, reached from the header and from nothing else.
+     *
+     * What an extra predecessor breaks is the merge: the rotation gives the exit the preheader as a
+     * second way in and builds a two-source phi there for the guard's zero-iteration answer and the
+     * last iteration's, and a block with a third way in has no alternative to offer it. A phi the
+     * exit block *already* has is the same problem from the other end - it would need an alternative
+     * on the preheader's new edge, and the preheader has nothing to put there.
+     *
+     * **Three relaxations of this condition were built and measured out**, and all three tried to
+     * rotate without a block to put the merge in: §44 admitted an extra predecessor that leaves the
+     * loop (+19 bytes over 184 executables, no time), §58.4 admitted one where no header phi is read
+     * on the exit's side (+158 bytes over 186, no time), and §29 has a third. Each buys a jump per
+     * iteration and pays for it in the preheader's copy of the test, which is the trade the loops
+     * reaching this condition have already lost.
+     *
+     * `splitJoiningLoopExits` is the fourth answer and it is a different one: it **makes** the block,
+     * one pass earlier, so the merge has somewhere to go and no claim about the extra predecessors is
+     * needed at all. What is left here is the check that it worked - a loop it declined to split, or
+     * one whose exit is still shared for a reason a block cannot repair, is refused exactly as
+     * before.
+     */
     if(loop.exit->incoming.size() != 1) return Nothing();
 
     /*
@@ -503,41 +566,22 @@ static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, co
     buildRotationRegions(base, fun, loops, index, loop.exit, regions);
 
     for(auto p: header->phis.contents(base)) {
-        auto phi = base[p];
-
-        for(auto u: phi->result.uses.contents(base)) {
-            auto user = base[u];
-            auto used = user->used();
-
-            for(Size slot = 0; slot < used.size(); slot++) {
-                if(base[used[slot]] != &phi->result) continue;
-
-                // For a phi the read happens on the edge it names rather than in the block it sits
-                // in, which is what lets a merge below the loop take the body's answer on one
-                // alternative and the exit's on another.
-                auto from = user->kind == LowerInst::Phi
-                    ? base[((LowerInstPhi*)user)->sources()[slot]]
-                    : base[user->block];
-
-                if(rotatedRead(regions, header, from) == RotatedRead::Nowhere) return Nothing();
-            }
-        }
+        if(!readsAreReachable(base, regions, header, &base[p]->result)) return Nothing();
     }
 
-    if(header->instructions.size() > kMaxRotatedHeader) return Nothing();
-
     /*
-     * Read only where it is computed. A phi reader is refused whatever block it sits in, since what
-     * it reads the value on is an edge - including the latch edge, which leaves the header by a
-     * route the block of the reader does not show.
+     * A header *instruction* is read only where it is computed. A phi reader is refused whatever
+     * block it sits in, since what it reads the value on is an edge - including the latch edge,
+     * which leaves the header by a route the block of the reader does not show.
      *
-     * **§58.4 relaxed this and measured it out, and the refusal is a measurement now rather than a
-     * caution.** A bounds check makes the header's question and the body's work one instruction -
-     * the `sext` that widens the index to compare it against the length is the `sext` the body
-     * addresses with - so admitting a body-side reader is what lets a checked scan rotate. The
-     * repair is real and was built: the reader takes a merge of the preheader's copy and the
-     * header's, which is `RotatedPhi` with an instruction in the phi's place. `Sort`'s two partition
-     * scans then rotate, and `Sort` measures **217.3 -> 223.4 ms** for it, layout controlled.
+     * **Relaxed and measured out twice.** The repair exists and is the one the phis above get: the
+     * reader takes a merge of the preheader's copy and the header's, which is a `RotatedPhi` with an
+     * instruction where the header phi would be, the two being the same value in the same three
+     * positions. §58.4 built it and measured `Sort` **217.3 -> 223.4 ms**, layout controlled; §J42
+     * built it again, on top of `splitJoiningLoopExits` and with the edge asked about rather than
+     * the block, and measured `Sort` **217.8 -> 221.2 ms** on the shipping stage against `Float`
+     * 245.2 -> 241.5 the other way - **+83 bytes over the thirteen and no change in the sum**,
+     * 597.2 ms against 597.1.
      *
      * The reason is the trade rather than the repair. A rotation buys one jump per *iteration* and
      * pays a copy of the header's test per *entry*, and a scan of the form `while xs[i] < pivot: i =
@@ -546,12 +590,13 @@ static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, co
      * trade breaks even. Nothing here knows a trip count, and the loops this rule refuses are
      * precisely the ones whose headers do enough work to be worth duplicating - which is the same
      * verdict §29 and §44 reached about three other relaxations of this pass.
+     *
+     * §J42 also settles what J39 §6.1 named it for: `Sieve`'s *outer* loop is what this refuses, and
+     * admitting it is worth **0.2 M instructions of the 206 M** that section measured. The 70 M that
+     * are left there are a register copy in the fill loop, not a rotation.
      */
     for(auto i: header->instructions.contents(base)) {
-        auto inst = base[i];
-        if(!isRotatableHeaderInst(inst)) return Nothing();
-
-        for(auto u: inst->created().ptr->uses.contents(base)) {
+        for(auto u: base[i]->created().ptr->uses.contents(base)) {
             auto user = base[u];
             if(user->kind == LowerInst::Phi || base[user->block] != header) return Nothing();
         }
@@ -902,10 +947,81 @@ static bool foldIntoPredecessor(LowerBase base, LowerFunction& fun, LowerBlock* 
     return true;
 }
 
+/*
+ * §J42 A dedicated exit block, made rather than found.
+ *
+ * A loop written `while c: ...` whose exit falls into a block something else also reaches - the next
+ * statement after an `if`, or the latch of the loop containing it - has a *critical* exit edge, and
+ * the rotation needs an insertion point on it: the merge of the guard's zero-iteration answer with
+ * the last iteration's has to live somewhere only that edge reaches. `rotatableLoop` used to refuse
+ * such a loop, and three attempts to answer it without a block are recorded there.
+ *
+ * The block costs nothing, and that is the whole of the argument for making one. A critical edge out
+ * of a conditional header into a joining block is precisely what `splitPhiEdges` splits, so this is
+ * the same block that pass would create thirty passes further down - made early enough for the
+ * rotation to use it. §3.2.3 emits no byte and no label for a block whose whole content is a jump, so
+ * a loop that goes on to decline the rotation is left exactly where it was.
+ *
+ * **Only where the split is the one refusal.** `loopShape` is every other condition, asked first, so
+ * a loop that would be declined for its preheader, its body, its header's size or what its header's
+ * instructions are read by does not get an edge split on its behalf. The exception `Sieve` is: its
+ * marking loop leaves into the outer loop's latch, which the SSA stage's `simplify` had already
+ * folded the shipping stage's empty forwarding block out of - so the shape the rotation wants is one
+ * the front end used to hand it by accident.
+ */
+static void rotateLoops(LowerBase base, LowerFunction& fun, const LoopInfo& loops);
+
+struct LoopExitEdge {
+    LowerPtr<LowerBlock> header;
+    Size edge;
+};
+
+static bool splitJoiningLoopExits(LowerBase base, LowerFunction& fun, const LoopInfo& loops) {
+    /*
+     * Decided over the whole function before anything is split, because splitting appends a block
+     * and `loops` has no entry for one: `loopShape` asks `contains` about a header's successors, and
+     * a successor created by an earlier split is an index past the end of the answer.
+     */
+    SmallArray<LoopExitEdge, 8> splits;
+    for(auto o: fun.blocks.contents(base)) {
+        auto header = base[o];
+        if(!loops.isHeader(header->index)) continue;
+
+        auto shape = loopShape(base, loops, header);
+        if(!shape) continue;
+
+        // A phi already in the exit is the same refusal as a second predecessor and takes the same
+        // repair - the preheader's new edge would need an alternative in it. A block on the edge has
+        // neither, being reached from the header alone.
+        auto exit = shape.unwrap().exit;
+        if(exit->incoming.size() == 1 && exit->phis.isEmpty()) continue;
+
+        splits.push(LoopExitEdge { o, header->successor(base, 0) == exit ? Size(0) : Size(1) });
+    }
+
+    for(auto& s: splits) splitEdge(base, fun, base[s.header], s.edge);
+    return !splits.isEmpty();
+}
+
 void rotateFunctionLoops(LowerBase base, LowerFunction& fun) {
     insertEntryPreheader(base, fun);
 
-    auto loops = fun.buildLoops(base);
+    /*
+     * Two walks where one would do, and only for a function that needs the second. `buildLoops` is
+     * indexed by block index, so a block created after it is one it has no answer for - which is
+     * `insertEntryPreheader`'s reason for running above it and this one's for running below it and
+     * then discarding what it read.
+     */
+    {
+        LoopInfo probe = fun.buildLoops(base);
+        if(!splitJoiningLoopExits(base, fun, probe)) return rotateLoops(base, fun, probe);
+    }
+
+    LoopInfo loops = fun.buildLoops(base);
+    rotateLoops(base, fun, loops);
+}
+
+static void rotateLoops(LowerBase base, LowerFunction& fun, const LoopInfo& loops) {
 
     // Snapshotted, because rotating one loop is what stops its header from being one. Which blocks a
     // loop *contains* is what everything below asks, and that is what rotation leaves alone: no

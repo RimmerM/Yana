@@ -10,12 +10,11 @@ seed<complex>(): I32 {
 eat<complex>(%b: Ptr): I32 {
   b_0 {
     %v_1 = alloca 16, 16: Ptr
-    %v_2 = load %b, 4: I32
-    %v_3 = add %b, 4: Ptr
-    copy %v_1, %v_3, 16
-    %v_4 = call_complex seed: I32
-    %v_5 = add %v_4, 6: I32
-    ret %v_5
+    %v_2 = add %b, 4: Ptr
+    copy %v_1, %v_2, 16
+    %v_3 = call_complex seed: I32
+    %v_4 = add %v_3, 6: I32
+    ret %v_4
   }
 }
 
@@ -44,44 +43,46 @@ innerBytes<complex>(%v_0: Ptr) {
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 12, 16: Ptr
-    %zeros = global @zeros: Ptr
     %v_2 = call_complex seed: I32
-    %v_3 = load %zeros, 4: I32
-    %v_4 = add %zeros, 4: Ptr
-    copy %v_1, %v_4, 12
+    %v_3 = add @zeros, 4: Ptr
+    copy %v_1, %v_3, 12
+    %v_4 = alloca 12, 16: Ptr
+    copy %v_4, %v_1, 12
     %v_5 = alloca 12, 16: Ptr
-    copy %v_5, %v_1, 12
-    %v_6 = alloca 12, 16: Ptr
     %zeros = global @zeros: Ptr
-    %v_7 = call_complex seed: I32
-    %v_8 = load %zeros, 4: I32
-    %v_9 = add %zeros, 4: Ptr
-    copy %v_6, %v_9, 12
-    %v_10 = alloca 12, 16: Ptr
-    copy %v_10, %v_6, 12
-    %v_11 = call_complex seed: I32
-    %v_12 = add %v_11, 1: I32
-    %v_13 = cmp_neq %v_12, 1: I32
-    je %v_13, b_14, b_15
+    %v_6 = call_complex seed: I32
+    %v_7 = load %zeros, 4: I32
+    %v_8 = add %zeros, 4: Ptr
+    copy %v_5, %v_8, 12
+    %v_9 = alloca 12, 16: Ptr
+    copy %v_9, %v_5, 12
+    %v_10 = call_complex seed: I32
+    %v_11 = add %v_10, 1: I32
+    %v_12 = cmp_neq %v_11, 1: I32
+    je %v_12, b_13, b_14
   }
 
-  b_15 {
-    %v_16 = cmp_neq %v_8, 0: I32
-    je %v_16, b_17, b_18
+  b_14 {
+    %v_15 = cmp_neq %v_7, 0: I32
+    je %v_15, b_16, b_17
   }
 
-  b_18 {
-    %v_19 = loads @zeros, 4: I32
-    %v_20 = cmp_neq %v_19, 0: I32
-    je %v_20, b_21, b_22
+  b_17 {
+    %v_18 = loads @zeros, 4: I32
+    %v_19 = cmp_neq %v_18, 0: I32
+    je %v_19, b_20, b_21
   }
 
-  b_22 {
+  b_21 {
+    %v_22 = call_complex seed: I32
     %v_23 = call_complex seed: I32
-    %v_24 = call_complex seed: I32
-    %v_25 = add %v_24, 2: I32
-    %v_26 = cmp_neq %v_25, 2: I32
-    je %v_26, b_27, b_28
+    %v_24 = add %v_23, 2: I32
+    %v_25 = cmp_neq %v_24, 2: I32
+    je %v_25, b_26, b_27
+  }
+
+  b_27 {
+    jmp b_28
   }
 
   b_28 {
@@ -89,252 +90,237 @@ main<complex>(): I32 {
   }
 
   b_29 {
-    jmp b_30
-  }
-
-  b_30 {
-    %v_31 = alloca 24, 4: Ptr
+    %v_30 = alloca 24, 4: Ptr
+    %v_31 = call_complex seed: I32
     %v_32 = call_complex seed: I32
-    %v_33 = call_complex seed: I32
-    store %v_31, 0, 4
-    %v_34 = add %v_31, 4: Ptr
-    store %v_34, 0, 4
-    %v_35 = add %v_31, 8: Ptr
-    store %v_35, 7, 4
-    %v_36 = add %v_31, 12: Ptr
-    store %v_36, 0, 4
-    %v_37 = add %v_31, 16: Ptr
+    store %v_30, 0, 4
+    %v_33 = add %v_30, 4: Ptr
+    store %v_33, 0, 4
+    %v_34 = add %v_30, 8: Ptr
+    store %v_34, 7, 4
+    %v_35 = add %v_30, 12: Ptr
+    store %v_35, 0, 4
+    %v_36 = add %v_30, 16: Ptr
+    store %v_36, %v_31, 4
+    %v_37 = add %v_30, 20: Ptr
     store %v_37, %v_32, 4
-    %v_38 = add %v_31, 20: Ptr
-    store %v_38, %v_33, 4
-    %v_39 = call_complex seed: I32
-    %v_40 = load %v_31, 4: I32
-    %v_41 = add %v_31, 4: Ptr
-    %v_42 = load %v_41, 4: I32
-    %v_43 = add %v_31, 8: Ptr
-    %v_44 = load %v_43, 4: I32
-    %v_45 = add %v_31, 12: Ptr
-    %v_46 = load %v_45, 4: I32
-    %v_47 = call_complex seed: I32
-    %v_48 = add %v_47, 3: I32
-    %v_49 = cmp_neq %v_48, 3: I32
-    je %v_49, b_50, b_51
+    %v_38 = call_complex seed: I32
+    %v_39 = add %v_30, 8: Ptr
+    %v_40 = load %v_39, 4: I32
+    %v_41 = call_complex seed: I32
+    %v_42 = add %v_41, 3: I32
+    %v_43 = cmp_neq %v_42, 3: I32
+    je %v_43, b_44, b_45
   }
 
-  b_51 {
-    %v_52 = cmp_neq %v_44, 7: I32
-    je %v_52, b_53, b_54
+  b_45 {
+    %v_46 = cmp_neq %v_40, 7: I32
+    je %v_46, b_47, b_48
   }
 
-  b_54 {
-    %v_55 = loads %v_31, 4: I32
-    %v_56 = cmp_neq %v_55, 0: I32
-    je %v_56, b_57, b_58
+  b_48 {
+    %v_49 = loads %v_30, 4: I32
+    %v_50 = cmp_neq %v_49, 0: I32
+    je %v_50, b_51, b_52
   }
 
-  b_58 {
-    %zeros = global @zeros: Ptr
-    %v_59 = alloca 12, 16: Ptr
-    %v_60 = load %zeros, 4: I32
-    %v_61 = add %zeros, 4: Ptr
-    copy %v_59, %v_61, 12
-    %v_62 = call_complex seed: I32
-    %v_63 = add %v_62, 4: I32
-    %v_64 = cmp_neq %v_63, 4: I32
-    je %v_64, b_65, b_66
+  b_52 {
+    %v_53 = alloca 12, 16: Ptr
+    %v_54 = add @zeros, 4: Ptr
+    copy %v_53, %v_54, 12
+    %v_55 = call_complex seed: I32
+    %v_56 = add %v_55, 4: I32
+    %v_57 = cmp_neq %v_56, 4: I32
+    je %v_57, b_58, b_59
   }
 
-  b_66 {
-    %v_67 = loads @zeros, 4: I32
-    %v_68 = cmp_neq %v_67, 0: I32
+  b_59 {
+    %v_60 = loads @zeros, 4: I32
+    %v_61 = cmp_neq %v_60, 0: I32
+    je %v_61, b_62, b_63
+  }
+
+  b_63 {
+    %v_64 = alloca 12, 16: Ptr
+    %v_65 = add %v_30, 4: Ptr
+    copy %v_64, %v_65, 12
+    %v_66 = call_complex seed: I32
+    %v_67 = add %v_66, 5: I32
+    %v_68 = cmp_neq %v_67, 5: I32
     je %v_68, b_69, b_70
   }
 
   b_70 {
-    %v_71 = alloca 12, 16: Ptr
-    %v_72 = load %v_31, 4: I32
-    %v_73 = add %v_31, 4: Ptr
-    copy %v_71, %v_73, 12
-    %v_74 = call_complex seed: I32
-    %v_75 = add %v_74, 5: I32
-    %v_76 = cmp_neq %v_75, 5: I32
+    %v_71 = loads %v_30, 4: I32
+    %v_72 = cmp_neq %v_71, 0: I32
+    je %v_72, b_73, b_74
+  }
+
+  b_74 {
+    %v_75 = call_complex eat, %v_30: I32
+    %v_76 = cmp_neq %v_75, 6: I32
     je %v_76, b_77, b_78
   }
 
   b_78 {
-    %v_79 = loads %v_31, 4: I32
+    %v_79 = loads %v_30, 4: I32
     %v_80 = cmp_neq %v_79, 0: I32
     je %v_80, b_81, b_82
   }
 
   b_82 {
-    %v_83 = call_complex eat, %v_31: I32
-    %v_84 = cmp_neq %v_83, 6: I32
-    je %v_84, b_85, b_86
-  }
-
-  b_86 {
-    %v_87 = loads %v_31, 4: I32
-    %v_88 = cmp_neq %v_87, 0: I32
-    je %v_88, b_89, b_90
-  }
-
-  b_90 {
-    %v_91 = alloca 12, 16: Ptr
-    %zeros = global @zeros: Ptr
+    %v_83 = alloca 12, 16: Ptr
+    %v_84 = call_complex seed: I32
+    %v_85 = add @zeros, 4: Ptr
+    copy %v_83, %v_85, 12
+    %v_86 = alloca 12, 16: Ptr
+    copy %v_86, %v_83, 12
+    %v_87 = call_complex seed: I32
+    %v_88 = add %v_30, 4: Ptr
+    %v_89 = alloca 12, 16: Ptr
+    copy %v_89, %v_88, 12
+    %v_90 = call_complex seed: I32
+    %v_91 = add %v_90, 7: I32
     %v_92 = call_complex seed: I32
-    %v_93 = load %zeros, 4: I32
-    %v_94 = add %zeros, 4: Ptr
-    copy %v_91, %v_94, 12
-    %v_95 = alloca 12, 16: Ptr
-    copy %v_95, %v_91, 12
-    %v_96 = call_complex seed: I32
-    %v_97 = load %v_31, 4: I32
-    %v_98 = add %v_31, 4: Ptr
-    %v_99 = alloca 12, 16: Ptr
-    copy %v_99, %v_98, 12
-    %v_100 = call_complex seed: I32
-    %v_101 = add %v_100, 7: I32
-    %v_102 = call_complex seed: I32
-    %v_103 = cmp_neq %v_101, 7: I32
-    je %v_103, b_104, b_105
+    %v_93 = cmp_neq %v_91, 7: I32
+    je %v_93, b_94, b_95
   }
 
-  b_105 {
-    %v_106 = cmp_neq %v_102, 0: I32
-    je %v_106, b_107, b_108
+  b_95 {
+    %v_96 = cmp_neq %v_92, 0: I32
+    je %v_96, b_97, b_98
   }
 
-  b_108 {
-    %v_109 = loads @zeros, 4: I32
-    %v_110 = cmp_neq %v_109, 0: I32
-    je %v_110, b_111, b_112
+  b_98 {
+    %v_99 = loads @zeros, 4: I32
+    %v_100 = cmp_neq %v_99, 0: I32
+    je %v_100, b_101, b_102
   }
 
-  b_112 {
-    %v_113 = loads %v_31, 4: I32
-    %v_114 = cmp_neq %v_113, 0: I32
-    je %v_114, b_115, b_116
+  b_102 {
+    %v_103 = loads %v_30, 4: I32
+    %v_104 = cmp_neq %v_103, 0: I32
+    je %v_104, b_105, b_106
   }
 
-  b_116 {
+  b_106 {
     %eight = alloca 16, 4: Ptr
-    call_complex bytesKept, %eight, %v_31
-    %v_117 = call_complex seed: I32
-    %v_118 = add %v_117, 8: I32
-    store %eight, %v_118, 4
-    %v_119 = cmp_neq %v_118, 8: I32
-    je %v_119, b_120, b_121
-  }
-
-  b_121 {
-    %v_122 = loads %v_31, 4: I32
-    %v_123 = cmp_neq %v_122, 0: I32
-    je %v_123, b_124, b_125
-  }
-
-  b_125 {
-    %nine = alloca 16, 4: Ptr
-    call_complex innerBytes, %nine
-    %v_126 = add %nine, 12: Ptr
-    %v_127 = loads %v_126, 4: I32
-    %v_128 = cmp_neq %v_127, 9: I32
-    je %v_128, b_129, b_130
-  }
-
-  b_130 {
-    %v_131 = add %v_12, %v_25: I32
-    %v_132 = add %v_131, %v_48: I32
-    %v_133 = add %v_132, %v_63: I32
-    %v_134 = add %v_133, %v_75: I32
-    %v_135 = call_complex eat, %v_31: I32
-    %v_136 = add %v_134, %v_135: I32
-    %v_137 = add %v_136, %v_101: I32
-    %v_138 = loads %eight, 4: I32
-    %v_139 = add %v_137, %v_138: I32
-    %v_140 = add %nine, 12: Ptr
-    %v_141 = loads %v_140, 4: I32
-    %v_142 = add %v_139, %v_141: I32
-    ret %v_142
-  }
-
-  b_129 {
-    ret 18446744073709551607
-  }
-
-  b_124 {
-    ret 18446744073709551508
-  }
-
-  b_120 {
-    ret 18446744073709551608
-  }
-
-  b_115 {
-    ret 18446744073709551309
+    call_complex bytesKept, %eight, %v_30
+    %v_107 = call_complex seed: I32
+    %v_108 = add %v_107, 8: I32
+    store %eight, %v_108, 4
+    %v_109 = cmp_neq %v_108, 8: I32
+    je %v_109, b_110, b_111
   }
 
   b_111 {
+    %v_112 = loads %v_30, 4: I32
+    %v_113 = cmp_neq %v_112, 0: I32
+    je %v_113, b_114, b_115
+  }
+
+  b_115 {
+    %nine = alloca 16, 4: Ptr
+    call_complex innerBytes, %nine
+    %v_116 = add %nine, 12: Ptr
+    %v_117 = loads %v_116, 4: I32
+    %v_118 = cmp_neq %v_117, 9: I32
+    je %v_118, b_119, b_120
+  }
+
+  b_120 {
+    %v_121 = add %v_11, %v_24: I32
+    %v_122 = add %v_121, %v_42: I32
+    %v_123 = add %v_122, %v_56: I32
+    %v_124 = add %v_123, %v_67: I32
+    %v_125 = call_complex eat, %v_30: I32
+    %v_126 = add %v_124, %v_125: I32
+    %v_127 = add %v_126, %v_91: I32
+    %v_128 = loads %eight, 4: I32
+    %v_129 = add %v_127, %v_128: I32
+    %v_130 = add %nine, 12: Ptr
+    %v_131 = loads %v_130, 4: I32
+    %v_132 = add %v_129, %v_131: I32
+    ret %v_132
+  }
+
+  b_119 {
+    ret 18446744073709551607
+  }
+
+  b_114 {
+    ret 18446744073709551508
+  }
+
+  b_110 {
+    ret 18446744073709551608
+  }
+
+  b_105 {
+    ret 18446744073709551309
+  }
+
+  b_101 {
     ret 18446744073709551509
   }
 
-  b_107 {
+  b_97 {
     ret 18446744073709551409
   }
 
-  b_104 {
+  b_94 {
     ret 18446744073709551609
   }
 
-  b_89 {
+  b_81 {
     ret 18446744073709551510
   }
 
-  b_85 {
+  b_77 {
     ret 18446744073709551610
   }
 
-  b_81 {
+  b_73 {
     ret 18446744073709551511
   }
 
-  b_77 {
+  b_69 {
     ret 18446744073709551611
   }
 
-  b_69 {
+  b_62 {
     ret 18446744073709551512
   }
 
-  b_65 {
+  b_58 {
     ret 18446744073709551612
   }
 
-  b_57 {
+  b_51 {
     ret 18446744073709551513
   }
 
-  b_53 {
+  b_47 {
     ret 18446744073709551313
   }
 
-  b_50 {
+  b_44 {
     ret 18446744073709551613
   }
 
-  b_27 {
+  b_26 {
     ret 18446744073709551614
   }
 
-  b_21 {
+  b_20 {
     ret 18446744073709551415
   }
 
-  b_17 {
+  b_16 {
     ret 18446744073709551515
   }
 
-  b_14 {
+  b_13 {
     ret 18446744073709551615
   }
 }

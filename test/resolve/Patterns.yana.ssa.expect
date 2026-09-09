@@ -97,7 +97,7 @@ bb4:
 }
 
 fn classify(value: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %0
   %3: I32 trivial = load inspect %2
@@ -160,7 +160,7 @@ bb11:
 }
 
 fn signed(value: I64 [shared call]) -> I32 {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %2: %I64 address = alloc frame I64 [shared call]
   store inspect %2 borrow %0
   %3: I64 trivial = load inspect %2
@@ -201,7 +201,7 @@ bb7:
 }
 
 fn scaled(value: F64 [shared call]) -> I32 {
-bb0(%0: F64 [shared call] guaranteed):
+bb0(%0: F64 trivial):
   %2: %F64 address = alloc frame F64 [shared call]
   store inspect %2 borrow %0
   %3: F64 trivial = load inspect %2
@@ -246,7 +246,7 @@ bb0(%0: Guard owned):
 }
 
 fn guard(id: I32 [shared call]) -> Guard {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -513,7 +513,7 @@ bb5:
 }
 
 fn unwrapOr(m: Held [shared call], fallback: I32 [shared call]) -> I32 {
-bb0(%0: Held [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Held [shared call] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %Colour address = alloc frame Colour
   store inspect %2 borrow %1
@@ -561,7 +561,7 @@ bb7:
 }
 
 fn countDown(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %Step address = alloc frame Step
   %4: %I32 address = alloc frame I32

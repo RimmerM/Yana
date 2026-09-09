@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn steps(to: I32 [shared call], $body: (Pair) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: (Pair) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (Pair) -> I32 [shared call] guaranteed):
   %10: %I32 address = alloc frame I32 [shared call]
   %11: %I32 address = alloc frame I32
   %12: %I32 address = alloc frame I32
@@ -53,7 +53,7 @@ bb6:
 }
 
 fn tuples(to: I32 [shared call], $body: ({I32, I32}) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: ({I32, I32}) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: ({I32, I32}) -> I32 [shared call] guaranteed):
   %10: %I32 address = alloc frame I32 [shared call]
   %11: %I32 address = alloc frame I32
   %12: %I32 address = alloc frame I32
@@ -105,7 +105,7 @@ bb6:
 }
 
 fn labelled(to: I32 [shared call], $body: ({first: I32, second: I32}) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: ({first: I32, second: I32}) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: ({first: I32, second: I32}) -> I32 [shared call] guaranteed):
   %10: %I32 address = alloc frame I32 [shared call]
   %11: %I32 address = alloc frame I32
   %12: %I32 address = alloc frame I32
@@ -157,7 +157,7 @@ bb6:
 }
 
 fn deep(to: I32 [shared call], $body: (Nested) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: (Nested) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (Nested) -> I32 [shared call] guaranteed):
   %10: %I32 address = alloc frame I32 [shared call]
   %11: %I32 address = alloc frame I32
   %12: %I32 address = alloc frame I32

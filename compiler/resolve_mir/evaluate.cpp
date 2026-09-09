@@ -66,7 +66,17 @@ struct ConstantRun {
         Array<Constant> locals;
     };
 
+    /*
+     * How many blocks one run may enter, against a body whose control flow it follows.
+     *
+     * A cap rather than a visited set, because the shape being refused is a *loop*: a body whose
+     * back edge is taken on a constant condition would run forever, and one that terminates does so
+     * in a bounded number of steps this number is generous about. A teardown is two or three.
+     */
+    static constexpr U32 kBlockLimit = 32;
+
     Constant run(Function& callee, const Constant* arguments, Size count);
+    mir::Block* takeEdge(Frame& frame, Edge& edge);
     Constant evaluate(Frame& frame, Node& node);
     Constant valueOf(Frame& frame, Operand operand);
     Constant readPlace(Frame& frame, PlaceId id);
@@ -92,35 +102,10 @@ Constant ConstantRun::valueOf(Frame& frame, Operand operand) {
     return Constant();
 }
 
-/*
- * A field of an aggregate constant, by its index in the **record**.
- *
- * `AggregateConstant::values` fills one constructor's field range in order, so the index a place
- * carries is the record's and has to have the arm's first field taken off it. A fixed array's
- * elements are indexed directly, which is the one case where the two numbers coincide.
- */
+// A field of an aggregate constant - `mir::constantField`, beside the kind, because the same walk
+// answers a read of a slot the optimizer found filled by one.
 Constant ConstantRun::fieldOf(const Constant& parent, U32 index) {
-    if(parent.kind != Constant::Aggregate) return Constant();
-
-    auto& parts = *decl[parent.aggregate()];
-
-    if(decl[parent.type]->kind == Type::Array) {
-        if(index >= parts.values.size()) return Constant();
-        return parts.values.get(decl, index);
-    }
-
-    if(decl[parent.type]->kind != Type::Record) return Constant();
-
-    auto& record = *(RecordType*)decl[parent.type];
-    if(parts.constructor >= record.cons.size()) return Constant();
-
-    auto arm = record.cons.get(decl, parts.constructor);
-    if(index < arm.first || index >= U32(arm.first) + arm.count) return Constant();
-
-    auto at = index - arm.first;
-    if(at >= parts.values.size()) return Constant();
-
-    return parts.values.get(decl, at);
+    return constantField(decl, parent, index);
 }
 
 /*
@@ -250,19 +235,58 @@ Constant ConstantRun::evaluate(Frame& frame, Node& node) {
 }
 
 /*
+ * One edge taken - the target block, with its arguments bound.
+ *
+ * Every operand is read *before* any of them is written, which is what a jump means: the arguments
+ * are the predecessor's values, and a block that passes one of its own parameters along would
+ * otherwise read the value it had just been given.
+ */
+mir::Block* ConstantRun::takeEdge(Frame& frame, Edge& edge) {
+    if(!edge.target) return nullptr;
+
+    SmallArray<Constant, 8> values;
+    for(auto operand: edge.arguments.contents(mir)) {
+        auto value = valueOf(frame, operand);
+        if(!value.isSet()) return nullptr;
+
+        values.push(value);
+    }
+
+    auto target = mir[edge.target];
+    if(values.size() != target->arguments.size()) return nullptr;
+
+    for(U32 i = 0; i < values.size(); i++) {
+        auto argument = mir[target->arguments.get(mir, i)];
+        frame.nodes[((NodeResult*)argument)->id.index] = values[i];
+    }
+
+    return target;
+}
+
+/*
  * One body, run.
  *
- * A single block ending in a `return` with a value, which is what an expression body is. A body
- * with control flow is refused whole rather than interpreted along one path: the moment a branch is
- * followed this is a machine with a program counter, and what it would then need is the loop
- * bounds, the store semantics and the termination argument that make a constant evaluator a
- * language feature rather than a fold.
+ * A straight line through the block graph, following the one edge each terminator names - and a
+ * `branch` names one because its condition has to have **reduced to a constant** like everything
+ * else here. That is the whole of what control flow costs this evaluator: no path is explored that
+ * the arguments do not decide, so there is no merge to widen and no fixed point to reach, and a
+ * body whose condition depends on something this cannot compute stops exactly where every other
+ * unreducible node stops it.
+ *
+ * It was one block for a long time, and the sentence that used to be here - "the moment a branch is
+ * followed this is a machine with a program counter" - was about a machine that *chooses*. This one
+ * does not: it is constant folding with the fold applied to the terminator as well, which is the
+ * same rewrite `cleanCfg` makes one tier down over IR rather than over values. What it buys is the
+ * question `teardownRunsNothing` asks, where the whole of the body is a flag test.
+ *
+ * A body that returns **no value** answers `{}` rather than nothing, so that "it ran" and "it
+ * produced a value" are two answers. Every caller that wants a value asks for one at a type.
  */
 Constant ConstantRun::run(Function& callee, const Constant* arguments, Size count) {
     if(!callee.mir || depth >= kDepthLimit) return Constant();
 
     auto& body = *mir[callee.mir];
-    if(body.blocks.size() != 1) return Constant();
+    if(!body.blocks.size()) return Constant();
 
     Frame frame { body, {}, {} };
     frame.nodes.reserve(body.nodes.size());
@@ -288,22 +312,59 @@ Constant ConstantRun::run(Function& callee, const Constant* arguments, Size coun
 
     depth++;
     auto answer = Constant();
+    auto block = body.block(mir, BlockId(0));
+    auto steps = U32(0);
 
-    for(auto pointer: body.block(mir, BlockId(0))->nodes.contents(mir)) {
-        auto& node = *mir[pointer];
+    while(block) {
+        if(++steps > kBlockLimit) return depth--, Constant();
 
-        if(node.kind == Node::Return) {
-            auto& written = (NodeReturn&)node;
-            if(written.hasValue) answer = valueOf(frame, written.value);
-            break;
+        mir::Block* next = nullptr;
+
+        for(auto pointer: block->nodes.contents(mir)) {
+            auto& node = *mir[pointer];
+
+            if(node.kind == Node::Return) {
+                auto& written = (NodeReturn&)node;
+                answer = written.hasValue ? valueOf(frame, written.value)
+                                          : unitConstant(resolver.program.types.unit);
+                break;
+            }
+
+            if(node.kind == Node::Jump || node.kind == Node::Break) {
+                next = takeEdge(frame, ((NodeJump&)node).to);
+                if(!next) return depth--, Constant();
+                break;
+            }
+
+            if(node.kind == Node::Branch) {
+                auto& written = (NodeBranch&)node;
+                auto condition = valueOf(frame, written.condition);
+                if(!condition.isSet()) return depth--, Constant();
+
+                // The **stored** number is not what a condition is compared against here: a `Bool`
+                // reduces to `Constant::Enum` naming its constructor, and `False` is index zero by
+                // the declaration `known.def` binds. `Int` is admitted beside it because a
+                // refinement may have folded the test to a number already.
+                auto held = condition.kind == Constant::Enum ? U64(condition.asConstructor())
+                          : condition.kind == Constant::Int ? condition.asInt()
+                          : ~U64(0);
+                if(held == ~U64(0)) return depth--, Constant();
+
+                next = takeEdge(frame, held ? written.whenTrue : written.whenFalse);
+                if(!next) return depth--, Constant();
+                break;
+            }
+
+            if(!hasResult(node.kind)) return depth--, Constant();
+
+            auto value = evaluate(frame, node);
+            if(!value.isSet()) return depth--, Constant();
+
+            frame.nodes[((NodeResult&)node).id.index] = value;
         }
 
-        if(!hasResult(node.kind)) return depth--, Constant();
-
-        auto value = evaluate(frame, node);
-        if(!value.isSet()) return depth--, Constant();
-
-        frame.nodes[((NodeResult&)node).id.index] = value;
+        if(answer.isSet()) break;
+        block = next;
     }
 
     depth--;
@@ -316,6 +377,125 @@ Constant Resolver::evaluateCall(Function& callee, const Constant* arguments, Siz
 }
 
 /*
+ * Whether the teardown of **this value** runs nothing - `Analysis-IR.md`'s "the literal's teardown
+ * does not fold", answered here instead of by inlining and folding it at every site.
+ *
+ * A type that owes a teardown owes it for every value of that type: `String` has a `Reclaim`, and
+ * whether that reclaim does anything is a *flag inside the value*. A string literal's run is
+ * borrowed, so its reclaim is a test that fails and a branch that is not taken - which is exactly
+ * what the evaluator above can now see, because it follows a branch whose condition reduced.
+ *
+ * **What makes "it ran here" mean "it does nothing there" is what the evaluator will run.** Every
+ * node kind it accepts is pure - a constant, a read of a place holding one, a conversion, an
+ * aggregate, and a call of a function this same rule accepts. A store, an allocation, a machine
+ * operation and a call it cannot reduce all stop it. So a teardown that reduces is a teardown with
+ * no effect, and one that does not reduce is kept whatever the reason - which is the direction this
+ * has to fail in.
+ *
+ * The walk mirrors `Lowering::emitTeardown`: the authored half of each class is a call, a derived
+ * half recurses into the members, and the two halves travel separately because an author's instance
+ * replaces the walk for its own half only. It is the same shape asked of a *value* rather than
+ * emitted over an address, and it is the one thing about a teardown this stage decides twice - the
+ * comment there and this one are the pair.
+ */
+bool Resolver::teardownRunsNothing(DeclPtr<Type> type, const Constant& value, bool runDrop,
+                                   bool runReclaim, LocationId source) {
+    auto ownership = ownershipOf(decl(), type);
+
+    auto authored = [&](intrinsic::Known klass, TeardownKind kind, bool run) {
+        if(!run || kind != TeardownKind::Authored) return true;
+
+        auto member = teardownMember(context, program, klass, type, source);
+        if(!member) return true;
+
+        return evaluateCall(*decl()[member], &value, 1).isSet();
+    };
+
+    if(!authored(intrinsic::Known::drop, ownership.drop, runDrop)) return false;
+    if(!authored(intrinsic::Known::reclaim, ownership.reclaim, runReclaim)) return false;
+
+    auto childDrop = runDrop && ownership.drop == TeardownKind::Derived;
+    auto childReclaim = runReclaim && ownership.reclaim == TeardownKind::Derived;
+    if(!childDrop && !childReclaim) return true;
+
+    /*
+     * The derived halves, into the members. A fixed array's elements are the same statement with the
+     * index in place of the field, and anything else with a derived half is a shape this declines
+     * rather than guesses at - a box is an allocation, and an allocation is the effect this exists
+     * to find.
+     */
+    if(decl()[type]->kind == Type::Array) {
+        auto& array = *(ArrayType*)decl()[type];
+        if(!array.hasFixedLength()) return false;
+        if(!hasTeardown(decl(), array.element)) return true;
+
+        for(U64 i = 0; i < array.length; i++) {
+            auto element = constantField(decl(), value, U32(i));
+            if(!element.isSet()) return false;
+            if(!teardownRunsNothing(array.element, element, childDrop, childReclaim, source)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    if(decl()[type]->kind != Type::Record) return false;
+    if(value.kind != Constant::Aggregate) return false;
+
+    auto& record = *(RecordType*)decl()[type];
+    auto arm = record.cons.get(decl(), decl()[value.aggregate()]->constructor);
+
+    for(U16 i = 0; i < arm.count; i++) {
+        auto index = U16(arm.first + i);
+        auto field = record.field(decl(), index);
+
+        // A field the record only reaches through an origin slot owes nothing: what is there is
+        // somebody else's, which is the same reading `ownershipOfOccurrence` makes of a contract.
+        if(!field.occurrence.contract.isOwned()) continue;
+        if(field.boxed) return false;
+        if(!hasTeardown(decl(), field.occurrence.type)) continue;
+
+        auto held = constantField(decl(), value, index);
+        if(!held.isSet()) return false;
+        if(!teardownRunsNothing(field.occurrence.type, held, childDrop, childReclaim, source)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+Constant Resolver::stringLiteralValue(DeclPtr<Global> bytes, U64 count, LocationId source,
+                                      bool report) {
+    auto declared = program.roles.function(intrinsic::Known::stringLiteral);
+    if(!declared) {
+        if(report) reportMissingRole(intrinsic::Known::stringLiteral, "a string literal"_v, source);
+        return Constant();
+    }
+
+    auto& builder = *decl()[declared];
+    if(builder.args.size() != 2) return Constant();
+
+    auto units = decl()[builder.args.get(decl(), 0)]->occurrence.type;
+    auto length = decl()[builder.args.get(decl(), 1)]->occurrence.type;
+
+    Constant arguments[2] = {
+        addressConstant(units, bytes),
+        intConstant(length, count),
+    };
+
+    auto value = evaluateCall(builder, arguments, 2);
+    if(value.isSet() || !report) return value;
+
+    context.diagnostics.error(
+        "this string has to be built before the program starts, and %@ - the library's own string builder - is not a body this compiler can run at compile time"_v,
+        source, context.findName(builder.name));
+
+    return Constant();
+}
+
+/*
  * `"abc"` in a **constant** position - the value the library's `stringLiteral` builds, built here.
  *
  * `textValue`'s two halves with the call run rather than emitted: the bytes are the same global and
@@ -325,35 +505,13 @@ Constant Resolver::evaluateCall(Function& callee, const Constant* arguments, Siz
  *
  * It is deliberately not conditional on the library being the one in this repository. If
  * `stringLiteral`'s body is something this evaluator cannot run, the answer is the diagnostic
- * below - which names the function rather than the literal, because that is where the reason is.
+ * `stringLiteralValue` reports under `report` - which names the function rather than the literal,
+ * because that is where the reason is. A *value* position asks the same function with `report`
+ * clear, since it has a second answer: the call, opened by `@inline(always)`.
  */
 Constant Resolver::textConstantValue(StringId written, LocationId source) {
-    auto declared = program.roles.function(intrinsic::Known::stringLiteral);
-    if(!declared) {
-        reportMissingRole(intrinsic::Known::stringLiteral, "a string literal"_v, source);
-        return Constant();
-    }
-
-    auto& builder = *decl()[declared];
-    if(builder.args.size() != 2) return Constant();
-
-    auto pointer = stringBytesGlobal(written, source);
-    auto units = decl()[builder.args.get(decl(), 0)]->occurrence.type;
-    auto length = decl()[builder.args.get(decl(), 1)]->occurrence.type;
-
-    Constant arguments[2] = {
-        addressConstant(units, pointer),
-        intConstant(length, U64(context.findName(written).size())),
-    };
-
-    auto value = evaluateCall(builder, arguments, 2);
-    if(value.isSet()) return value;
-
-    context.diagnostics.error(
-        "this string has to be built before the program starts, and %@ - the library's own string builder - is not a body this compiler can run at compile time"_v,
-        source, context.findName(builder.name));
-
-    return Constant();
+    auto count = U64(context.findName(written).size());
+    return stringLiteralValue(stringBytesGlobal(written, source), count, source, true);
 }
 
 /*

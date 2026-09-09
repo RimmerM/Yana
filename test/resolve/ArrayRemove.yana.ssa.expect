@@ -3,7 +3,7 @@ module ResolveTest
 let & liveBuffers: I64 = 0
 
 fn makeBuffer(mark: I64 [shared call]) -> Buffer {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   %2: %Buffer address = alloc frame Buffer
   store inspect %1 borrow %0

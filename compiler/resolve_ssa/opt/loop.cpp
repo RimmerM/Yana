@@ -633,31 +633,122 @@ struct Hoister {
      * alone, which is the shipping stage's answer at the same question - the fault a program can
      * take through an address it computed is the program's to take.
      *
-     * **Whole rather than projected**, and that is measured rather than argued: admitting a
-     * projected read whose address is computed outside the loop changes not one line of any golden,
-     * because `cse` one pass earlier has already answered every one of them from the read above the
-     * loop. `Contained` is also a statement about the allocation rather than about a field of it, so
-     * the whole load is the shape the fact is in.
+     * **A projection is admitted**, and that is J41's correction. It used to be whole loads only,
+     * measured as "admitting a projected read whose address is computed outside the loop changes not
+     * one line of any golden" - true, and about a shape that is not the one this misses. Every read
+     * of a container's header has its projections computed *inside* the loop beside the read, so
+     * they never reached that test at all; `hoistableChain` below is what carries them out with it.
+     * `Contained` is a statement about the allocation, and a field of one is inside the bytes the
+     * frame reserved, so the speculation covers a projection exactly as it covers the whole record.
      */
-    bool invariantRead(Loop& loop, Inst& inst) {
+    /*
+     * The projection chain a read is reached through, where the whole of it may leave the loop with
+     * the read - and empty where the address already stands outside.
+     *
+     * This is what makes the rule reach a **field**. Every read of a container's header is
+     * `field.addr .run`, `field.addr .items`, `load`, and the two projections are computed inside
+     * the loop beside the read: a `Matrix` inner loop re-loaded `out.run.items` and `out.length` on
+     * every iteration for that reason alone, eighteen instructions against the shipping stage's
+     * sixteen, with no fact missing but this one.
+     *
+     * It is a narrower motion than the trade `movable` refuses, and the difference is what makes an
+     * address movable here and not there. Over there an address is a *candidate of its own*, with
+     * its readers left inside: `lower_licm.cpp`'s `worthHoisting` measured that at `Matrix` 1.4 ms
+     * and `Sort` 5.2 ms, because a displacement in an addressing mode becomes a register live
+     * across every iteration. Here a step moves only because a read of it is moving, so what leaves
+     * the loop is a chain ending in a value; the steps a *second* read still holds are the same
+     * chain, and the next round carries that read out on top of them.
+     *
+     * An element's **index** has to be outside too, which a field's constant offset is by
+     * construction. Nothing else is admitted: a step this walk does not recognize means the address
+     * is not a projection of one allocation and the speculation below has nothing to rest on.
+     */
+    bool hoistableChain(Loop& loop, Value* address, SmallArray<Inst*, 4>& chain) {
+        while(address && definedInside(loop, *address)) {
+            if(!address->definer) return false;
+
+            auto inst = opt.base[address->definer];
+            Value* base = nullptr;
+
+            if(inst->kind == Inst::FieldAddress) {
+                base = valueOf(((InstFieldAddress&)*inst).base);
+            } else if(inst->kind == Inst::ElementAddress) {
+                auto& element = (InstElementAddress&)*inst;
+                base = valueOf(element.base);
+
+                auto index = valueOf(element.index);
+                if(!index || definedInside(loop, *index)) return false;
+            } else if(inst->kind == Inst::Load && soleResult(opt, *inst) &&
+                      soleResult(opt, *inst)->convention == Convention::Guaranteed) {
+                /*
+                 * The **borrow** of the slot, which is how a container's own reads reach it: there
+                 * is no `Borrow` instruction at this tier, so `&out` is a `load` whose result is
+                 * `Guaranteed` and names the same storage. It is a step of the chain like a
+                 * projection, and it moves with the rest.
+                 *
+                 * Lengthening a loan's extent is the direction an extent rule is not safe in, and
+                 * what makes it safe here is the condition the read already owes: **nothing in the
+                 * loop writes the allocation**, so no endpoint of the loan is crossed by the motion.
+                 * A loan ends at a write to the storage or a destructive read of it, and
+                 * `loopWrites` has refused both of those for every block of the loop before this
+                 * chain is ever built.
+                 */
+                base = valueOf(((InstLoad&)*inst).address);
+            } else {
+                return false;
+            }
+
+            // And in the region the motion is confined to. `run` refuses a *block* of another
+            // region for the file comment's reason - nothing leaves a cleanup arm or a continuation
+            // frame - and a step of the chain leaves one exactly as the read would.
+            if(opt.base[inst->block]->region != region) return false;
+
+            chain.push(inst);
+            address = base;
+        }
+
+        return address != nullptr;
+    }
+
+    bool invariantRead(Loop& loop, Inst& inst, SmallArray<Inst*, 4>& chain) {
         if(inst.kind != Inst::Load) return false;
 
         auto result = soleResult(opt, inst);
         if(!result || result->convention != Convention::Trivial) return false;
 
         auto address = valueOf(((InstLoad&)inst).address);
-        if(!address || definedInside(loop, *address)) return false;
+        if(!address || !hoistableChain(loop, address, chain)) return false;
 
-        auto root = allocationRoot(opt, address);
-        if(!root || root != address || !contained[root]) return false;
+        // Whichever value the chain ended at, which is outside the loop by construction. A
+        // projection of a contained allocation is inside the bytes the frame reserved, so the
+        // speculation argument above covers a field exactly as it covers the whole record.
+        auto root = allocationRoot(opt, chain.size() ? valueOf(lastBaseOf(*chain[chain.size() - 1]))
+                                                     : address);
+        if(!root || !contained[root]) return false;
 
         return !loopWrites(loop, *root);
     }
+
+    // The base operand of the outermost projection of a chain - the value the walk stopped at.
+    Use lastBaseOf(Inst& inst) {
+        if(inst.kind == Inst::FieldAddress) return ((InstFieldAddress&)inst).base;
+        if(inst.kind == Inst::ElementAddress) return ((InstElementAddress&)inst).base;
+        return ((InstLoad&)inst).address;
+    }
+
+    // The projections the read being considered has to take with it, filled by `invariantRead` and
+    // spent by `run`. A member rather than an out-parameter through `movable`, because it is the
+    // same answer read one line later at the one call site.
+    SmallArray<Inst*, 4> chain;
+
+    // The preheader's region, which the whole motion stays inside - set by `run` before it scans.
+    ContinuationId region;
 
     // What may move: a pure computation, or the read above. Both owe the ownership rule and neither
     // may be a terminator, which `isPure` already refuses for three of the four kinds and
     // `isTerminator` for the fourth.
     bool movable(Loop& loop, Inst& inst) {
+        chain.clear();
         if(isTerminator(inst.kind)) return false;
 
         auto result = soleResult(opt, inst);
@@ -687,7 +778,7 @@ struct Hoister {
             if(!value || used.kind() == UseKind::Consume || isTracked(value->convention)) ok = false;
         });
 
-        return ok && invariantRead(loop, inst);
+        return ok && invariantRead(loop, inst, chain);
     }
 
     void run(Loop& loop) {
@@ -697,6 +788,8 @@ struct Hoister {
         auto preheader = opt.body->block(opt.base, BlockId(loop.preheader));
         if(preheader->deleted || preheader->region != header->region) return;
         if(!preheader->terminator(opt.base)) return;
+
+        region = preheader->region;
 
         // The loop's blocks in dominator preorder, so that two candidates with a dependency between
         // them arrive at the preheader in that order: a use is dominated by its definition, so the
@@ -721,7 +814,29 @@ struct Hoister {
                 auto& inst = *opt.base[block->instructionAt(opt.base, i)];
                 if(!movable(loop, inst)) { i++; continue; }
 
-                opt.ir().moveInst(inst, *preheader, preheader->instructionCount() - 1);
+                /*
+                 * The chain outermost first, which is the reverse of the order it was walked in: a
+                 * projection has to arrive behind the base it is taken of.
+                 *
+                 * A step of it standing in *this* block stands above the read - a use is dominated
+                 * by its definition - so each one taken out of here moves the rest of the list down
+                 * one, and the cursor has to come back by as many. Left at `i` the walk steps over
+                 * that many instructions, which the driver's fixpoint recovers on the next round:
+                 * measured over `test/resolve`, what the repair changes is the *order* two candidates
+                 * of one block reach the preheader in and not which of them get there. It is here
+                 * because a cursor into a list that moved is a bug whether or not this pass happens
+                 * to be run again, and one round is cheaper than two.
+                 */
+                auto editor = opt.ir();
+                Size removed = 1;
+
+                for(Size step = chain.size(); step-- > 0;) {
+                    if(opt.base[chain[step]->block] == block) removed++;
+                    editor.moveInst(*chain[step], *preheader, preheader->instructionCount() - 1);
+                }
+
+                editor.moveInst(inst, *preheader, preheader->instructionCount() - 1);
+                i -= removed - 1;
             }
         }
     }

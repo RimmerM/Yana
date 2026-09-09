@@ -4,7 +4,6 @@ main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     store %v_1, 1, 4
-    %taken.thunk = fun taken.thunk: Ptr
     jmp b_2
   }
 
@@ -20,7 +19,6 @@ main<complex>(): I32 {
     %v_7 = cmp_eq %v_3, 1: I32
     %v_8 = alloca 4, 4: Ptr
     store %v_8, 2, 4
-    %skipped.thunk = fun skipped.thunk: Ptr
     jmp b_9
   }
 
@@ -32,11 +30,9 @@ main<complex>(): I32 {
     %v_11 = add %v_7, 2: I32
     %v_12 = alloca 4, 4: Ptr
     store %v_12, 4, 4
-    %shut.thunk = fun shut.thunk: Ptr
     %v_13 = add %v_11, 4: I32
     %v_14 = alloca 4, 4: Ptr
     store %v_14, 8, 4
-    %inherited.thunk = fun inherited.thunk: Ptr
     jmp b_15
   }
 
@@ -54,7 +50,6 @@ main<complex>(): I32 {
     %v_22 = select %v_20, %v_21, %v_13: I32
     %v_23 = alloca 4, 4: Ptr
     store %v_23, 16, 4
-    %inherited.thunk = fun inherited.thunk: Ptr
     jmp b_24
   }
 
@@ -72,10 +67,8 @@ main<complex>(): I32 {
     %v_30 = cmp_eq %v_31, 32: I32
     %v_32 = add %v_26, 32: I32
     %v_33 = select %v_30, %v_32, %v_26: I32
-    %main.thunk'2 = fun main.thunk'2: Ptr
     %v_34 = alloca 4, 4: Ptr
     store %v_34, 128, 4
-    %replaced.thunk = fun replaced.thunk: Ptr
     %v_35 = add %v_33, 192: I32
     %v_36 = loads @effects, 4: I32
     %v_37 = cmp_eq %v_36, 41: I32

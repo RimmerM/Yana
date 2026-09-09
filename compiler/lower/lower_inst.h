@@ -498,6 +498,42 @@ inline bool isRepeatable(LowerInst* inst) {
     return hasLowerTrait(inst, kLowerRepeatable);
 }
 
+/*
+ * Whether an instance nothing reads may simply go, which is a wider question than either bit above
+ * answers on its own and was being asked with the wrong one in two places.
+ *
+ * `kLowerPure` is most of it - an instruction that produces its results and nothing else is dead
+ * when nothing reads them. What it leaves out is the **load**, which is pure in exactly this sense
+ * and is deliberately not marked so: purity here is also read as "may be moved", and a load's
+ * position is not free while something else may be writing what it reads. The two claims are
+ * different and only the first one is being made here, so the load is admitted by name: it reads,
+ * it writes nothing, and it establishes no ordering another thread can observe.
+ *
+ * The distinction is not academic. `removeDeadValues` used to ask `isRepeatable`, which a load is
+ * not, so every load left with no reader stayed in the function to the machine - 11,524 of them in
+ * `test/base` against the shipping stage's 152, at three or four bytes each. They come from
+ * `Lowering::encodePacked`, which reads the word a bitfield sits in, clears the field's bits and
+ * merges the new ones: where the field *fills* the word the mask is zero, the fold collapses the
+ * merge to the placed value, and the read that fed it has nobody left. Emitting the general form
+ * and letting the folder collapse it is the right shape - the alternative is a width test at every
+ * site that writes a field - but it only works if the sweep behind it can take the load.
+ *
+ * `createdCount == 1` is the other half, and it is part of the property rather than a caller's
+ * extra care: nothing reading *this* result says nothing about a second one. It also makes the
+ * single-result cast every caller does correct by construction, and it is what keeps a prefetch -
+ * a read with no result at all - out of this.
+ *
+ * The ordering bit is what excludes the six atomics, an atomic load included: what an acquire load
+ * acquires is the right to see writes another thread published, so removing one removes a
+ * synchronization edge rather than a value. See kLowerOrdered.
+ */
+inline bool isRemovableWhenUnused(LowerInst* inst) {
+    if(inst->createdCount != 1) return false;
+    if(isPure(inst)) return true;
+
+    return hasLowerTrait(inst, kLowerReads) && !hasLowerTrait(inst, kLowerWrites | kLowerOrdered);
+}
+
 // Commutative in the sense every pass here needs: the operands may be compared, or exchanged, as a
 // pair rather than in order. A comparison is not one of these - swapping its operands is a different
 // comparison unless the relation is swapped with them, and there is nothing here to swap it against.

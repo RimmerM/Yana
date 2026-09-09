@@ -194,6 +194,23 @@ inline Constant addressConstant(DeclPtr<Type> type, DeclPtr<Global> global) {
  */
 bool holdsText(DeclBase base, const Constant& constant);
 
+/*
+ * One component of an aggregate constant, by its index **in the record** - and unset where there is
+ * no such component.
+ *
+ * `AggregateConstant::values` fills one constructor's field range in order, so a record's index has
+ * that arm's first field taken off it and a fixed array's is the position itself, which is the one
+ * case where the two numbers coincide. Unset covers all three ways there is nothing to hand back:
+ * the parent is not an aggregate, the index names a field of a *different* constructor than the one
+ * the value was built at, or it is out of range.
+ *
+ * One function rather than a walk at each of the two tiers that indexes a constant - the evaluator
+ * running the library's own bodies, and the optimizer answering a read of a slot filled by one -
+ * because a second copy would be a second answer to "which value of the list is field `n`", and the
+ * way that fails is a wrong number rather than a crash.
+ */
+Constant constantField(DeclBase base, const Constant& parent, U32 index);
+
 inline Constant floatConstant(DeclPtr<Type> type, double value) {
     U64 bits;
     copy((const Byte*)&value, (Byte*)&bits, 8);

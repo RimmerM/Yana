@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn defaultAction(s: Signal [shared call]) -> I32 {
-bb0(%0: Signal [shared call] guaranteed):
+bb0(%0: Signal trivial):
   %1: %Signal address = alloc frame Signal [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -11,7 +11,7 @@ bb0(%0: Signal [shared call] guaranteed):
 }
 
 fn isLate(s: Signal [shared call]) -> Bool {
-bb0(%0: Signal [shared call] guaranteed):
+bb0(%0: Signal trivial):
   %1: %Signal address = alloc frame Signal [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -21,7 +21,7 @@ bb0(%0: Signal [shared call] guaranteed):
 }
 
 fn isEven(s: Signal [shared call]) -> Bool {
-bb0(%0: Signal [shared call] guaranteed):
+bb0(%0: Signal trivial):
   %1: %Signal address = alloc frame Signal [shared call]
   store inspect %1 borrow %0
   %2: %U8 address = field.addr .# inspect %1
@@ -31,7 +31,7 @@ bb0(%0: Signal [shared call] guaranteed):
 }
 
 fn errorClass(e: Errno [shared call]) -> I32 {
-bb0(%0: Errno [shared call] guaranteed):
+bb0(%0: Errno trivial):
   %2: %Errno address = alloc frame Errno [shared call]
   store inspect %2 borrow %0
   %3: %U8 address = field.addr .# inspect %2
@@ -64,7 +64,7 @@ bb5:
 }
 
 fn isDenied(e: Errno [shared call]) -> Bool {
-bb0(%0: Errno [shared call] guaranteed):
+bb0(%0: Errno trivial):
   %2: %Errno address = alloc frame Errno [shared call]
   store inspect %2 borrow %0
   %3: %U8 address = field.addr .# inspect %2
@@ -97,7 +97,7 @@ bb5:
 }
 
 fn severity(l: Level [shared call]) -> I32 {
-bb0(%0: Level [shared call] guaranteed):
+bb0(%0: Level trivial):
   %1: %Level address = alloc frame Level [shared call]
   store inspect %1 borrow %0
   %2: %I8 address = field.addr .# inspect %1
@@ -107,7 +107,7 @@ bb0(%0: Level [shared call] guaranteed):
 }
 
 fn isProblem(l: Level [shared call]) -> Bool {
-bb0(%0: Level [shared call] guaranteed):
+bb0(%0: Level trivial):
   %1: %Level address = alloc frame Level [shared call]
   store inspect %1 borrow %0
   %2: %I8 address = field.addr .# inspect %1
@@ -117,7 +117,7 @@ bb0(%0: Level [shared call] guaranteed):
 }
 
 fn tagOf'2(l: Level [shared call]) -> I32 {
-bb0(%0: Level [shared call] guaranteed):
+bb0(%0: Level trivial):
   %1: %Level address = alloc frame Level [shared call]
   store inspect %1 borrow %0
   %2: %I8 address = field.addr .# inspect %1
@@ -127,7 +127,7 @@ bb0(%0: Level [shared call] guaranteed):
 }
 
 fn wideIndex(w: Wide [shared call]) -> I32 {
-bb0(%0: Wide [shared call] guaranteed):
+bb0(%0: Wide trivial):
   %1: %Wide address = alloc frame Wide [shared call]
   store inspect %1 borrow %0
   %2: %U64 address = field.addr .# inspect %1
@@ -137,7 +137,7 @@ bb0(%0: Wide [shared call] guaranteed):
 }
 
 fn isFirst(w: Wide [shared call]) -> Bool {
-bb0(%0: Wide [shared call] guaranteed):
+bb0(%0: Wide trivial):
   %1: %Wide address = alloc frame Wide [shared call]
   store inspect %1 borrow %0
   %2: %U64 address = field.addr .# inspect %1
@@ -147,7 +147,7 @@ bb0(%0: Wide [shared call] guaranteed):
 }
 
 fn opaqueSignal(s: Signal [shared call]) -> Signal {
-bb0(%0: Signal [shared call] guaranteed):
+bb0(%0: Signal trivial):
   %1: %Signal address = alloc frame Signal [shared call]
   store inspect %1 borrow %0
   %2: Signal trivial = load inspect %1
@@ -155,7 +155,7 @@ bb0(%0: Signal [shared call] guaranteed):
 }
 
 fn opaqueErrno(e: Errno [shared call]) -> Errno {
-bb0(%0: Errno [shared call] guaranteed):
+bb0(%0: Errno trivial):
   %1: %Errno address = alloc frame Errno [shared call]
   store inspect %1 borrow %0
   %2: Errno trivial = load inspect %1
@@ -163,7 +163,7 @@ bb0(%0: Errno [shared call] guaranteed):
 }
 
 fn opaqueLevel(l: Level [shared call]) -> Level {
-bb0(%0: Level [shared call] guaranteed):
+bb0(%0: Level trivial):
   %1: %Level address = alloc frame Level [shared call]
   store inspect %1 borrow %0
   %2: Level trivial = load inspect %1
@@ -171,7 +171,7 @@ bb0(%0: Level [shared call] guaranteed):
 }
 
 fn opaqueWide(w: Wide [shared call]) -> Wide {
-bb0(%0: Wide [shared call] guaranteed):
+bb0(%0: Wide trivial):
   %1: %Wide address = alloc frame Wide [shared call]
   store inspect %1 borrow %0
   %2: Wide trivial = load inspect %1
@@ -179,7 +179,7 @@ bb0(%0: Wide [shared call] guaranteed):
 }
 
 fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %0

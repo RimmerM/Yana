@@ -19,7 +19,7 @@
 // branch, it is not: the moves would run on the way to *both* successors, writing phi registers on
 // a path where they hold something else. Splitting gives the edge a block whose only successor is
 // `succ`, which restores that guarantee.
-static void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size edge) {
+void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size edge) {
     auto& arena = fun.arena;
     auto succ = pred->successor(base, edge);
     auto predOffset = pred - base;

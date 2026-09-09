@@ -295,7 +295,7 @@ bb0(%0: readOnly.cont.env [unique call] guaranteed, %1: Array(I32) [shared call 
 }
 
 fn subscriptArgument.cont(subscriptArgument.cont.env: subscriptArgument.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: subscriptArgument.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: subscriptArgument.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %Array(I32) address = field.addr .xs inspect %0
   %3: %Array(I32) address = load inspect %2
   %4: %I32 address = field.addr .$leaving inspect %0

@@ -3,24 +3,6 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, @string'142, 8
-    %v_2 = add %v_1, 8: Ptr
-    %v_3 = load %v_2, 4: I64
-    store %v_2, 5, 4
-    %v_4 = add %v_1, 12: Ptr
-    store %v_4, 5, 4
-    %v_5 = load %v_1, 8: Ptr
-    call_complex String.reclaim, %v_1
-    %v_6 = alloca 16, 8: Ptr
-    store %v_6, @string'142, 8
-    %v_7 = add %v_6, 8: Ptr
-    %v_8 = load %v_7, 4: I64
-    store %v_7, 5, 4
-    %v_9 = add %v_6, 12: Ptr
-    store %v_9, 5, 4
-    %v_10 = load %v_6, 8: Ptr
-    call_complex String.reclaim, %v_6
     ret 17
   }
 }
@@ -30,20 +12,18 @@ String.reclaim<complex>(%value: Ptr) {
     %v_1 = load %value, 8: Ptr
     %v_2 = add %value, 8: Ptr
     %v_3 = load %v_2, 4: I64
-    %v_4 = add %value, 12: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = shr %v_3, 30: I64
-    %v_7 = cast %v_6: I32
-    %v_8 = cmp_eq %v_7, 1: I32
-    je %v_8, b_9, b_10
+    %v_4 = shr %v_3, 30: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cmp_eq %v_5, 1: I32
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
+  b_7 {
     call_complex freeHeap, %v_1
-    jmp b_10
+    jmp b_8
   }
 
-  b_10 {
+  b_8 {
     ret 
   }
 }
@@ -53,20 +33,18 @@ Array(a).reclaim(CodeUnit)<complex>(%value: Ptr) {
     %v_1 = load %value, 8: Ptr
     %v_2 = add %value, 8: Ptr
     %v_3 = load %v_2, 4: I64
-    %v_4 = add %value, 12: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = shr %v_3, 30: I64
-    %v_7 = cast %v_6: I32
-    %v_8 = cmp_eq %v_7, 1: I32
-    je %v_8, b_9, b_10
+    %v_4 = shr %v_3, 30: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cmp_eq %v_5, 1: I32
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
+  b_7 {
     call_complex freeHeap, %v_1
-    jmp b_10
+    jmp b_8
   }
 
-  b_10 {
+  b_8 {
     ret 
   }
 }

@@ -3,7 +3,7 @@ module ResolveTest
 let & effects: I32 = 0
 
 fn bump(mark: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr effects
@@ -17,7 +17,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn bumpTrue(mark: I32 [shared call]) -> Bool {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr effects
@@ -31,7 +31,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn markPoint(mark: I32 [shared call]) -> Point {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr effects
@@ -47,7 +47,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn inner(flag: Bool [shared call], v: () -> I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: () -> I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: () -> I32 [shared call] guaranteed):
   %3: %Bool address = alloc frame Bool [shared call]
   store inspect %3 borrow %0
   %4: Bool trivial = load inspect %3
@@ -67,7 +67,7 @@ bb3:
 }
 
 fn outer(flag: Bool [shared call], v: () -> I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: () -> I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: () -> I32 [shared call] guaranteed):
   %2: %Bool address = alloc frame Bool [shared call]
   store inspect %2 borrow %0
   %3: Bool trivial = load inspect %2
@@ -77,7 +77,7 @@ bb0(%0: Bool [shared call] guaranteed, %1: () -> I32 [shared call] guaranteed):
 }
 
 fn pick(which: I32 [shared call], a: () -> I32 [shared call], b: () -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: () -> I32 [shared call] guaranteed, %2: () -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: () -> I32 [shared call] guaranteed, %2: () -> I32 [shared call] guaranteed):
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %4 borrow %0
   %5: I32 trivial = load inspect %4
@@ -100,7 +100,7 @@ bb3:
 }
 
 fn pointOr(flag: Bool [shared call], p: () -> Point [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: () -> Point [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: () -> Point [shared call] guaranteed):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %Point address = alloc frame Point
   store inspect %3 borrow %0
@@ -126,7 +126,7 @@ bb3:
 fn orRun(flag: Bool [shared call], v: () -> a [shared call]) -> a = <no body>
 
 fn shortAnd(lhs: Bool [shared call], rhs: () -> Bool [shared call]) -> Bool {
-bb0(%0: Bool [shared call] guaranteed, %1: () -> Bool [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: () -> Bool [shared call] guaranteed):
   %3: %Bool address = alloc frame Bool [shared call]
   store inspect %3 borrow %0
   %4: Bool trivial = load inspect %3
@@ -146,7 +146,7 @@ bb3:
 }
 
 fn shortOr(lhs: Bool [shared call], rhs: () -> Bool [shared call]) -> Bool {
-bb0(%0: Bool [shared call] guaranteed, %1: () -> Bool [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: () -> Bool [shared call] guaranteed):
   %3: %Bool address = alloc frame Bool [shared call]
   store inspect %3 borrow %0
   %4: Bool trivial = load inspect %3
@@ -166,7 +166,7 @@ bb3:
 }
 
 fn beforeLoop(count: I32 [shared call], v: () -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: () -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: () -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
@@ -730,7 +730,7 @@ bb0(%0: main.thunk'15.env [unique call] guaranteed):
 }
 
 fn orRun(I32)(flag: Bool [shared call], v: () -> I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: () -> I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: () -> I32 [shared call] guaranteed):
   %2: %Bool address = alloc frame Bool [shared call]
   store inspect %2 borrow %0
   %3: () -> I32 [shared call] guaranteed from{%1} = load inspect %1
@@ -739,7 +739,7 @@ bb0(%0: Bool [shared call] guaranteed, %1: () -> I32 [shared call] guaranteed):
 }
 
 fn orRun(Bool)(flag: Bool [shared call], v: () -> Bool [shared call]) -> Bool {
-bb0(%0: Bool [shared call] guaranteed, %1: () -> Bool [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: () -> Bool [shared call] guaranteed):
   %2: %Bool address = alloc frame Bool [shared call]
   store inspect %2 borrow %0
   %3: () -> Bool [shared call] guaranteed from{%1} = load inspect %1

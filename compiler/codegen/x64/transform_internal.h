@@ -89,6 +89,11 @@ LowerBlock* constantHome(LowerBase base, LowerFunction& fun);
 
 // Gives every phi transfer a block it can safely be emitted in, by splitting each critical edge.
 void splitPhiEdges(LowerBase base, LowerFunction& fun);
+
+// Puts an empty block on `pred`'s outgoing edge number `edge`, so that the edge has an insertion
+// point of its own. `splitPhiEdges` is this over every critical edge; the loop rotation asks for one
+// edge ahead of that pass, since what it needs a dedicated block for is decided before the pass runs.
+void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size edge);
 // The sequence replacing one conversion, built in front of it so that every value it produces is
 // available wherever the conversion's own result was.
 //

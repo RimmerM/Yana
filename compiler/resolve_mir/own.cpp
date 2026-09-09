@@ -729,6 +729,31 @@ struct Classifier {
 
 } // namespace
 
+// The declaration is in constant.h, where the rule is argued.
+Constant constantField(DeclBase base, const Constant& parent, U32 index) {
+    if(parent.kind != Constant::Aggregate) return Constant();
+
+    auto& parts = *base[parent.aggregate()];
+
+    if(base[parent.type]->kind == Type::Array) {
+        if(index >= parts.values.size()) return Constant();
+        return parts.values.get(base, index);
+    }
+
+    if(base[parent.type]->kind != Type::Record) return Constant();
+
+    auto& record = *(RecordType*)base[parent.type];
+    if(parts.constructor >= record.cons.size()) return Constant();
+
+    auto arm = record.cons.get(base, parts.constructor);
+    if(index < arm.first || index >= U32(arm.first) + arm.count) return Constant();
+
+    auto at = index - arm.first;
+    if(at >= parts.values.size()) return Constant();
+
+    return parts.values.get(base, at);
+}
+
 // The argument is in constant.h, beside the kind.
 bool holdsText(DeclBase base, const Constant& constant) {
     if(constant.kind == Constant::Text) return true;

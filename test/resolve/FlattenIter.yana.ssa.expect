@@ -140,7 +140,7 @@ bb1:
 }
 
 fn upTo(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
@@ -182,7 +182,7 @@ bb5:
 }
 
 fn chain(xs: Array(I32) [shared call view], scale: I32 [shared call]) -> I32 {
-bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %chain.lambda.env address = alloc frame chain.lambda.env
@@ -210,7 +210,7 @@ bb1:
 }
 
 fn chainBreak(xs: Array(I32) [shared call view], scale: I32 [shared call], stop: I32 [shared call]) -> I32 {
-bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial, %2: I32 trivial):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32
@@ -241,7 +241,7 @@ bb1:
 }
 
 fn nested(depth: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -330,7 +330,7 @@ bb3:
 }
 
 fn chain.lambda(chain.lambda.env: chain.lambda.env [unique call], v: I32 [shared call]) -> I32 {
-bb0(%0: chain.lambda.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: chain.lambda.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %1
   %3: I32 trivial = load inspect %2
@@ -343,7 +343,7 @@ bb0(%0: chain.lambda.env [unique call] guaranteed, %1: I32 [shared call] guarant
 }
 
 fn chainBreak.lambda(chainBreak.lambda.env: chainBreak.lambda.env [unique call], v: I32 [shared call]) -> I32 {
-bb0(%0: chainBreak.lambda.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: chainBreak.lambda.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   store inspect %2 borrow %1
   %3: I32 trivial = load inspect %2
@@ -356,7 +356,7 @@ bb0(%0: chainBreak.lambda.env [unique call] guaranteed, %1: I32 [shared call] gu
 }
 
 fn doubled.cont(doubled.cont.env: doubled.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: doubled.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: doubled.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %(I32) -> I32 address = field.addr .by inspect %0
   %3: %(I32) -> I32 address = load inspect %2
   %4: %(I32) -> I32 address = field.addr .$body inspect %0
@@ -385,7 +385,7 @@ bb2:
 }
 
 fn keptOdd.cont(keptOdd.cont.env: keptOdd.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: keptOdd.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: keptOdd.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %(I32) -> I32 address = field.addr .$body inspect %0
   %3: %(I32) -> I32 address = load inspect %2
   %4: %I32 address = field.addr .$yielded inspect %0
@@ -424,7 +424,7 @@ bb5:
 }
 
 fn chain.cont(chain.cont.env: chain.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: chain.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: chain.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .total inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -438,7 +438,7 @@ bb0(%0: chain.cont.env [unique call] guaranteed, %1: I32 [shared call] guarantee
 }
 
 fn chainBreak.cont(chainBreak.cont.env: chainBreak.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: chainBreak.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: chainBreak.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .total inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = field.addr .stop inspect %0
@@ -467,7 +467,7 @@ bb3:
 }
 
 fn nested.cont(nested.cont.env: nested.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: nested.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: nested.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .depth inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = field.addr .total inspect %0

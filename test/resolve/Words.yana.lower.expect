@@ -102,83 +102,80 @@ main<complex>(): I32 {
     %v_29 = alloca 8, 1: Ptr
     store %v_28, %v_29, 8
     %v_30 = add %v_28, 8: Ptr
-    %v_31 = load %v_30, 4: I32
     store %v_30, 8, 4
     setpattern %v_29, 8, 0
-    %v_32 = add %v_28, 12: Ptr
-    store %v_32, 8, 4
+    %v_31 = add %v_28, 12: Ptr
+    store %v_31, 8, 4
     store %v_29, 13330, 2
-    %v_33 = add %v_29, 2: Ptr
-    store %v_33, 4660, 2
-    %v_34 = load %v_29, 2: I32
-    %v_35 = imm 8: I32
-    %v_36 = shl %v_34, %v_35: I32
-    %v_37 = shr %v_34, %v_35: I32
-    %v_38 = or %v_36, %v_37: I32
-    %v_39 = and %v_38, 65535: I32
-    %v_40 = cmp_eq %v_39, 4660: I32
-    %v_41 = select %v_40, 128, 0: I32
-    %v_42 = add %v_41, 256: I32
-    %v_43 = cmp_eq %v_34, 13330: I32
-    %v_44 = select %v_43, 512, 0: I32
-    %shorts = add %v_42, %v_44: I32
+    %v_32 = add %v_29, 2: Ptr
+    store %v_32, 4660, 2
+    %v_33 = load %v_29, 2: I32
+    %v_34 = imm 8: I32
+    %v_35 = shl %v_33, %v_34: I32
+    %v_36 = shr %v_33, %v_34: I32
+    %v_37 = or %v_35, %v_36: I32
+    %v_38 = and %v_37, 65535: I32
+    %v_39 = cmp_eq %v_38, 4660: I32
+    %v_40 = select %v_39, 128, 0: I32
+    %v_41 = add %v_40, 256: I32
+    %v_42 = cmp_eq %v_33, 13330: I32
+    %v_43 = select %v_42, 512, 0: I32
+    %shorts = add %v_41, %v_43: I32
     store %v_29, 17356517385562371090, 8
     call_complex Reclaim(Array(a)).reclaim(U8), %v_28
-    %v_45 = add %shorts, 1024: I32
-    %v_46 = add %v_27, %v_45: I32
-    %v_47 = alloca 16, 8: Ptr
-    %v_48 = alloca 8, 1: Ptr
-    store %v_47, %v_48, 8
-    %v_49 = add %v_47, 8: Ptr
-    %v_50 = load %v_49, 4: I32
+    %v_44 = add %shorts, 1024: I32
+    %v_45 = add %v_27, %v_44: I32
+    %v_46 = alloca 16, 8: Ptr
+    %v_47 = alloca 8, 1: Ptr
+    store %v_46, %v_47, 8
+    %v_48 = add %v_46, 8: Ptr
+    store %v_48, 8, 4
+    setpattern %v_47, 8, 0
+    %v_49 = add %v_46, 12: Ptr
     store %v_49, 8, 4
-    setpattern %v_48, 8, 0
-    %v_51 = add %v_47, 12: Ptr
-    store %v_51, 8, 4
-    store %v_48, 2018915346, 4
-    %v_52 = add %v_48, 4: Ptr
-    store %v_52, 305419896, 4
-    %v_53 = load %v_48, 1: I32
-    %v_54 = cmp_eq %v_53, 18: I32
-    %v_55 = select %v_54, 2048, 0: I32
-    %v_56 = add %v_48, 3: Ptr
-    %v_57 = load %v_56, 1: I32
-    %v_58 = cmp_eq %v_57, 120: I32
-    %v_59 = select %v_58, 4096, 0: I32
-    %v_60 = add %v_55, %v_59: I32
-    %v_61 = load %v_52, 1: I32
-    %v_62 = cmp_eq %v_61, 120: I32
-    %v_63 = select %v_62, 8192, 0: I32
-    %v_64 = add %v_60, %v_63: I32
-    %v_65 = add %v_48, 7: Ptr
-    %v_66 = load %v_65, 1: I32
-    %v_67 = cmp_eq %v_66, 18: I32
-    %v_68 = select %v_67, 16384, 0: I32
-    %ends = add %v_64, %v_68: I32
-    %v_69 = load %v_48, 4: I32
-    call_complex Reclaim(Array(a)).reclaim(U8), %v_47
-    %v_70 = cmp_eq %v_69, 2018915346: I32
-    %v_71 = select %v_70, 32768, 0: I32
-    %v_72 = add %ends, %v_71: I32
-    %v_73 = add %v_46, %v_72: I32
-    %v_74 = alloca 16, 8: Ptr
-    %v_75 = alloca 8, 1: Ptr
-    store %v_74, %v_75, 8
-    %v_76 = add %v_74, 8: Ptr
-    %v_77 = load %v_76, 4: I32
-    store %v_76, 8, 4
-    setpattern %v_75, 8, 0
-    %v_78 = add %v_74, 12: Ptr
-    store %v_78, 8, 4
-    %v_79 = add %v_75, 1: Ptr
-    store %v_79, 2035692562, 4
-    %v_80 = load %v_75, 1: I32
-    call_complex Reclaim(Array(a)).reclaim(U8), %v_74
-    %v_81 = cmp_eq %v_80, 0: I32
-    %v_82 = select %v_81, 131072, 0: I32
-    %v_83 = add %v_82, 65536: I32
-    %v_84 = add %v_73, %v_83: I32
-    ret %v_84
+    store %v_47, 2018915346, 4
+    %v_50 = add %v_47, 4: Ptr
+    store %v_50, 305419896, 4
+    %v_51 = load %v_47, 1: I32
+    %v_52 = cmp_eq %v_51, 18: I32
+    %v_53 = select %v_52, 2048, 0: I32
+    %v_54 = add %v_47, 3: Ptr
+    %v_55 = load %v_54, 1: I32
+    %v_56 = cmp_eq %v_55, 120: I32
+    %v_57 = select %v_56, 4096, 0: I32
+    %v_58 = add %v_53, %v_57: I32
+    %v_59 = load %v_50, 1: I32
+    %v_60 = cmp_eq %v_59, 120: I32
+    %v_61 = select %v_60, 8192, 0: I32
+    %v_62 = add %v_58, %v_61: I32
+    %v_63 = add %v_47, 7: Ptr
+    %v_64 = load %v_63, 1: I32
+    %v_65 = cmp_eq %v_64, 18: I32
+    %v_66 = select %v_65, 16384, 0: I32
+    %ends = add %v_62, %v_66: I32
+    %v_67 = load %v_47, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(U8), %v_46
+    %v_68 = cmp_eq %v_67, 2018915346: I32
+    %v_69 = select %v_68, 32768, 0: I32
+    %v_70 = add %ends, %v_69: I32
+    %v_71 = add %v_45, %v_70: I32
+    %v_72 = alloca 16, 8: Ptr
+    %v_73 = alloca 8, 1: Ptr
+    store %v_72, %v_73, 8
+    %v_74 = add %v_72, 8: Ptr
+    store %v_74, 8, 4
+    setpattern %v_73, 8, 0
+    %v_75 = add %v_72, 12: Ptr
+    store %v_75, 8, 4
+    %v_76 = add %v_73, 1: Ptr
+    store %v_76, 2035692562, 4
+    %v_77 = load %v_73, 1: I32
+    call_complex Reclaim(Array(a)).reclaim(U8), %v_72
+    %v_78 = cmp_eq %v_77, 0: I32
+    %v_79 = select %v_78, 131072, 0: I32
+    %v_80 = add %v_79, 65536: I32
+    %v_81 = add %v_71, %v_80: I32
+    ret %v_81
   }
 }
 

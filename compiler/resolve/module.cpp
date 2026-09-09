@@ -530,6 +530,7 @@ static void passFunctionSignatures(Module& module, ast::Module& ast) {
         function->ast = pointer;
         function->exported = decl.exported;
         readInlineAttribute(module, decl, *function);
+        readFrequencyAttributes(module, decl, *function);
 
         // Plain declarations only, and not the class-member calls to readInlineAttribute in
         // module_class.cpp and module_default.cpp. Both of these describe how a function is

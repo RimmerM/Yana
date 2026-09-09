@@ -19,7 +19,7 @@ fn Box(a).name(x: Box(a) [shared call]) -> I32 = <no body>
 fn I32.name(x: I32 [shared call]) -> I32 = <no body>
 
 fn Bool.name(x: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   store inspect %2 borrow %0
   %3: Bool trivial = load inspect %2
@@ -75,7 +75,7 @@ fn Box(a).name(Bool)(x: Box(Bool) [shared call]) -> I32 {
 bb0(%0: Box(Bool) [shared call] guaranteed):
   %1: I32 trivial = const 3
   %2: %Bool address = field.addr .value inspect %0
-  %3: Bool [shared call] guaranteed from{%0} = load inspect %2
+  %3: Bool trivial = load inspect %2
   %4: I32 trivial = call Bool.name borrow %3
   %5: I32 trivial = add inspect %1 inspect %4
   return consume %5

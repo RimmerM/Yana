@@ -3,67 +3,66 @@
 floats<complex>(): I32 {
   b_0 {
     %f = vsplat 1.5: f32x4
-    %v_1 = neg 0: F32
-    %g = vwithlane %f, %v_1, 0: f32x4
-    %v_2 = vlane %g, 1: F32
-    %v_3 = cmp_neq %v_2, 1.5: I32
-    je %v_3, b_4, b_5
+    %g = vwithlane %f, -0, 0: f32x4
+    %v_1 = vlane %g, 1: F32
+    %v_2 = cmp_neq %v_1, 1.5: I32
+    je %v_2, b_3, b_4
   }
 
-  b_4 {
+  b_3 {
     ret 18446744073709551615
   }
 
+  b_4 {
+    jmp b_5
+  }
+
   b_5 {
-    jmp b_6
+    %v_6 = vlane %g, 0: F32
+    %v_7 = div 1, %v_6: F32
+    %v_8 = cmp_gt %v_7, 0: I32
+    je %v_8, b_9, b_10
   }
 
-  b_6 {
-    %v_7 = vlane %g, 0: F32
-    %v_8 = div 1, %v_7: F32
-    %v_9 = cmp_gt %v_8, 0: I32
-    je %v_9, b_10, b_11
-  }
-
-  b_10 {
+  b_9 {
     ret 18446744073709551614
   }
 
-  b_11 {
-    jmp b_12
+  b_10 {
+    jmp b_11
   }
 
-  b_12 {
+  b_11 {
     %d = vsplat 1.5: f64x2
     %e = vwithlane %d, 4.25, 1: f64x2
-    %v_13 = vlane %e, 0: F64
-    %v_14 = cmp_neq %v_13, 1.5: I32
-    je %v_14, b_15, b_16
+    %v_12 = vlane %e, 0: F64
+    %v_13 = cmp_neq %v_12, 1.5: I32
+    je %v_13, b_14, b_15
   }
 
-  b_15 {
+  b_14 {
     ret 18446744073709551613
   }
 
+  b_15 {
+    jmp b_16
+  }
+
   b_16 {
-    jmp b_17
+    %v_17 = vlane %e, 1: F64
+    %v_18 = cmp_neq %v_17, 4.25: I32
+    je %v_18, b_19, b_20
   }
 
-  b_17 {
-    %v_18 = vlane %e, 1: F64
-    %v_19 = cmp_neq %v_18, 4.25: I32
-    je %v_19, b_20, b_21
-  }
-
-  b_20 {
+  b_19 {
     ret 18446744073709551612
   }
 
-  b_21 {
-    jmp b_22
+  b_20 {
+    jmp b_21
   }
 
-  b_22 {
+  b_21 {
     ret 0
   }
 }

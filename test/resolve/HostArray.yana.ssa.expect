@@ -5,7 +5,7 @@ let & live: I32 = 0
 let & closed: I32 = 0
 
 fn openHandle(id: I32 [shared call]) -> Handle {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr live

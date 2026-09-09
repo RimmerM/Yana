@@ -18,34 +18,90 @@
 -}
 
 {-
+   The bytes `capacity` slots need, from the allocator - and null where they cannot be had.
+
+   **The half a compiler can place, alone in a function of its own.** What a run needs is storage of
+   a size, and the only thing about it that the allocator has to decide is *where*: everything else
+   about a run - what the descriptor holds, when it grows, who hands it back - is the two functions
+   below and is the same wherever the bytes came from. Splitting the request out that way is what
+   lets a stage with something better than the general heap to offer replace this one call and leave
+   the rest of the run alone. `resolve_ssa/opt/place.cpp` is the stage that does, and
+   `known.def`'s `runSlots` row is how it finds this.
+
+   `probe` is never read. It is how the element type reaches a function whose arguments would
+   otherwise not name one - `byteSpan` measures against it - and it is why a run's slots can be
+   asked for without the caller computing a byte count of its own.
+
+   It answers `%a` and not the allocator's `%U8` for the same reason it takes the probe: what was
+   asked for is slots of a type, so what comes back is a pointer to one. The cast is a line of this
+   body rather than a line of every caller, which is the difference between a boundary crossed once
+   and one crossed at every literal - and a cast at the caller is a *call* until the lowering, which
+   is one more thing between a placement and the pointer it is about.
+
+   `@noinline` on purpose, and `newRun` below is the opposite on purpose: the guards and the
+   allocator are what a *refusal* costs, and a refusal is the rare arm, so inlining them at every
+   literal would put three blocks and a call in front of code that wants three field writes. It is
+   a directive rather than a preference for a second reason - a compiler that replaces this call
+   has to still be able to *find* it, and a body spliced into its caller is not a call any more.
+-}
+@builtin(runSlots)
+@noinline
+pub fn runSlots(probe: %a, capacity: Size) -> %a:
+    if capacity == 0 then return null()
+    if capacity > maxCount then return null()
+
+    return bitcast(allocateHeap(byteSpan(probe, capacity))) :: %a
+
+{-
+   The descriptor over slots somebody else placed - the other half, and the one that is compiler
+   magic in no stage at all.
+
+   `owns` is the placement's answer and arrives as an argument for exactly that reason: whoever
+   decided where the bytes are is the only thing that knows whether this run is anyone's to hand
+   back, and a constant written here would be a second opinion. `newRun` passes `runFromHeap`
+   because it asked the allocator; a stage that put the slots in the frame passes `runBorrowed`, and
+   `Reclaim` below then folds to nothing with no rule of its own about literals.
+
+   A null pointer is the refusal, and it answers a run with **no room** - whose capacity says
+   exactly what it has, so the caller that needed the room tests for it. See `push`.
+
+   The refusal is a capacity of zero rather than an arm of its own, and that is worth saying because
+   this body is inlined at every run in the program. Written as `if isNull then emptyRun()` it is a
+   branch, a second construction and a join at each of them; written this way it is one choice
+   between two numbers, which the optimizer answers outright wherever the placement is known. What
+   makes the shorter form correct is that a null pointer with no capacity is unreachable rather than
+   unsafe - nothing may index past zero - and that `freeHeap` answers a null pointer by returning,
+   so the flag beside it says the truth either way.
+-}
+@inline(always)
+pub fn runOver(capacity: Size, slots: %a, owns: HeapFlag) -> Run(a):
+    let room = if isNull(slots) then 0 :: Size else capacity
+    return Run {items: slots, capacity: truncate(room) :: Count, ownsHeap: owns}
+
+{-
    A run of `capacity` slots, placed by the compiler - and the body a stage that cannot place one
    reaches instead.
 
    **A role and a body on one declaration**, which is not a contradiction: the hook is what a call
    site expands to and the body is what a call that cannot be expanded reaches. The shipping stage
    always expands - an allocation with a count, placed by the escape analysis that places every
-   other one - so this body is dead there. The ownership resolver has no placement analysis, so
-   every run it builds would be a heap run whatever it expanded to, and a heap run is exactly what
-   is written below, in the language, with the allocator's refusal handled.
+   other one - so this body is dead there. The ownership resolver expands nothing here and reaches
+   this body at every run it builds; what places the run for it is `runSlots` above being one call
+   in an inlined body rather than a heap buried three functions deep.
 
    It is here rather than in `Run.yana` because a heap is what it asks for: `allocateHeap` is
    `Heap.native.yana`'s, and a target with no addresses has neither it nor a run to grow.
    `Run.js.yana` carries the same role with no body, which is the arrangement `blockCopy` uses.
 
-   A refusal - the allocator saying no, or a count past what `Count` holds - answers the empty run,
-   whose capacity says exactly what it has. The caller that needed the room tests for it; see `push`.
+   `@inline(always)` and two calls, which is the whole body: what a caller gets from this is the
+   *allocation* in its own frame, where a pass can see the count it asked for and where the pointer
+   goes. Sized at what it reads as - the guards, the allocator and the refusal arm - it was over
+   every budget there is, and a literal's buffer was a call whose storage nothing above could name.
 -}
 @builtin(newRun)
-pub fn newRun(capacity: Size) -> Run(a):
-    if capacity == 0 then return emptyRun()
-    if capacity > maxCount then return emptyRun()
-
-    let probe = null() :: %a
-    let bytes = allocateHeap(byteSpan(probe, capacity))
-    if isNull(bytes) then return emptyRun()
-
-    return Run {items: bitcast(bytes) :: %a, capacity: truncate(capacity) :: Count,
-                ownsHeap: runFromHeap}
+@inline(always)
+pub fn newRun(capacity: Size) -> Run(a) =
+    runOver(capacity, runSlots(null() :: %a, capacity), runFromHeap)
 
 {-
    Room for `wanted` slots, relocating if there is not.

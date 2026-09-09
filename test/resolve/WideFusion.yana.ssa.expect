@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn check(actual: WideInt [shared call], expected: WideInt [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+bb0(%0: WideInt trivial, %1: WideInt trivial, %2: I32 trivial):
   %4: %WideInt address = alloc frame WideInt [shared call]
   %5: %WideInt address = alloc frame WideInt [shared call]
   %6: %I32 address = alloc frame I32 [shared call]
@@ -26,7 +26,7 @@ bb3:
 }
 
 fn andLow(x: WideInt [shared call]) -> WideInt {
-bb0(%0: WideInt [shared call] guaranteed):
+bb0(%0: WideInt trivial):
   %1: %WideInt address = alloc frame WideInt [shared call]
   store inspect %1 borrow %0
   %2: WideInt trivial = load inspect %1
@@ -36,7 +36,7 @@ bb0(%0: WideInt [shared call] guaranteed):
 }
 
 fn andHigh(x: WideInt [shared call]) -> WideInt {
-bb0(%0: WideInt [shared call] guaranteed):
+bb0(%0: WideInt trivial):
   %1: %WideInt address = alloc frame WideInt [shared call]
   store inspect %1 borrow %0
   %2: WideInt trivial = load inspect %1
@@ -46,7 +46,7 @@ bb0(%0: WideInt [shared call] guaranteed):
 }
 
 fn mix(a: WideInt [shared call], b: WideInt [shared call], c: WideInt [shared call]) -> WideInt {
-bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed, %2: WideInt [shared call] guaranteed):
+bb0(%0: WideInt trivial, %1: WideInt trivial, %2: WideInt trivial):
   %3: %WideInt address = alloc frame WideInt [shared call]
   %4: %WideInt address = alloc frame WideInt [shared call]
   %5: %WideInt address = alloc frame WideInt [shared call]
@@ -64,7 +64,7 @@ bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed, 
 }
 
 fn flags(a: WideInt [shared call], b: WideInt [shared call]) -> WideInt {
-bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed):
+bb0(%0: WideInt trivial, %1: WideInt trivial):
   %2: %WideInt address = alloc frame WideInt [shared call]
   %3: %WideInt address = alloc frame WideInt [shared call]
   store inspect %2 borrow %0
@@ -81,7 +81,7 @@ bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed):
 }
 
 fn complement(x: WideInt [shared call]) -> WideInt {
-bb0(%0: WideInt [shared call] guaranteed):
+bb0(%0: WideInt trivial):
   %1: %WideInt address = alloc frame WideInt [shared call]
   store inspect %1 borrow %0
   %2: WideInt trivial = load inspect %1
@@ -90,7 +90,7 @@ bb0(%0: WideInt [shared call] guaranteed):
 }
 
 fn clearTop(x: WideInt [shared call]) -> WideInt {
-bb0(%0: WideInt [shared call] guaranteed):
+bb0(%0: WideInt trivial):
   %1: %WideInt address = alloc frame WideInt [shared call]
   store inspect %1 borrow %0
   %2: WideInt trivial = load inspect %1
@@ -100,7 +100,7 @@ bb0(%0: WideInt [shared call] guaranteed):
 }
 
 fn keepNegative(x: WideInt [shared call]) -> WideInt {
-bb0(%0: WideInt [shared call] guaranteed):
+bb0(%0: WideInt trivial):
   %1: %WideInt address = alloc frame WideInt [shared call]
   store inspect %1 borrow %0
   %2: WideInt trivial = load inspect %1
@@ -117,7 +117,7 @@ bb0:
 }
 
 fn andCall(x: WideInt [shared call]) -> WideInt {
-bb0(%0: WideInt [shared call] guaranteed):
+bb0(%0: WideInt trivial):
   %1: %WideInt address = alloc frame WideInt [shared call]
   store inspect %1 borrow %0
   %2: WideInt trivial = load inspect %1

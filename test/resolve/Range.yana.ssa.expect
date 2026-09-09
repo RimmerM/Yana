@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn sum'2(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %9: %I32 address = alloc frame I32 [shared call]
   %10: %I32 address = alloc frame I32
   %11: %I32 address = alloc frame I32
@@ -41,7 +41,7 @@ bb4(%7: I32 trivial, %8: I32 trivial):
 }
 
 fn sumInclusive(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %11: %I32 address = alloc frame I32 [shared call]
   %12: %I32 address = alloc frame I32
   %13: %I32 address = alloc frame I32
@@ -238,7 +238,7 @@ bb20(%38: I32 trivial, %39: I32 trivial):
 }
 
 fn ascending(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %9: %I32 address = alloc frame I32 [shared call]
   %10: %I32 address = alloc frame I32
   %11: %I32 address = alloc frame I32
@@ -280,7 +280,7 @@ bb4(%7: I32 trivial, %8: I32 trivial):
 }
 
 fn descending(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %15: %I32 address = alloc frame I32 [shared call]
   %16: %I32 address = alloc frame I32
   %17: %I32 address = alloc frame I32
@@ -342,7 +342,7 @@ bb7(%13: I32 trivial, %14: I32 trivial):
 }
 
 fn strideUp(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %11: %I32 address = alloc frame I32 [shared call]
   %12: %I32 address = alloc frame I32
   %13: %I32 address = alloc frame I32
@@ -390,7 +390,7 @@ bb5(%9: I32 trivial, %10: I32 trivial):
 }
 
 fn strideDown(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %15: %I32 address = alloc frame I32 [shared call]
   %16: %I32 address = alloc frame I32
   %17: %I32 address = alloc frame I32
@@ -581,7 +581,7 @@ bb4(%6: U8 trivial, %7: U8 trivial):
 }
 
 fn broken(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %15: %I32 address = alloc frame I32 [shared call]
   %16: %I32 address = alloc frame I32
   %17: %I32 address = alloc frame I32
@@ -633,7 +633,7 @@ bb7(%13: I32 trivial, %14: I32 trivial):
 }
 
 fn skipped(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %15: %I32 address = alloc frame I32 [shared call]
   %16: %I32 address = alloc frame I32
   %17: %I32 address = alloc frame I32
@@ -687,7 +687,7 @@ bb7(%13: I32 trivial, %14: I32 trivial):
 }
 
 fn everySkipped(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %9: %I32 address = alloc frame I32 [shared call]
   %10: %I32 address = alloc frame I32
   %11: %I32 address = alloc frame I32
@@ -727,7 +727,7 @@ bb4(%7: I32 trivial, %8: I32 trivial):
 }
 
 fn firstOver(n: I32 [shared call], bound: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: I32 trivial):
   %16: %I32 address = alloc frame I32 [shared call]
   %17: %I32 address = alloc frame I32 [shared call]
   %18: %I32 address = alloc frame I32

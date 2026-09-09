@@ -430,7 +430,7 @@ bb0(%0: oneLift.cont.env [unique call] guaranteed, %1: Point [shared call] guara
 }
 
 fn twoLifts.cont(twoLifts.cont.env: twoLifts.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: twoLifts.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: twoLifts.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -444,7 +444,7 @@ bb0(%0: twoLifts.cont.env [unique call] guaranteed, %1: I32 [shared call] guaran
 }
 
 fn scalar.cont(scalar.cont.env: scalar.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: scalar.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: scalar.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -507,7 +507,7 @@ bb0(%0: mapFiltered(Point, I32).cont.env [unique call] guaranteed, %1: Point [sh
   %10: Point trivial = copy inspect %1
   %11: I32 trivial = call [value #0] inspect %9 borrow %10
   store inspect %8 consume %11
-  %12: I32 [shared call] guaranteed from{%8} = load inspect %8
+  %12: I32 trivial = load inspect %8
   %13: (I32) -> I32 [shared call] guaranteed from{%5} = load inspect %5
   %14: I32 trivial = call [value #0] inspect %13 borrow %12
   %15: I32 trivial = const 0

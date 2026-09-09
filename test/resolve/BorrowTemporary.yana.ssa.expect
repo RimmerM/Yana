@@ -38,7 +38,7 @@ bb0:
 }
 
 fn ofParameter(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 [shared slot 0] guaranteed from{%1} = load inspect %1
@@ -79,7 +79,7 @@ bb0:
 }
 
 fn direct(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -89,7 +89,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn wrapped(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 [shared slot 0] guaranteed from{%1} = load inspect %1

@@ -24,35 +24,19 @@ doubled<complex>(%v_0: Ptr, %value: Ptr): I32 {
 
 main<complex>(): I32 {
   b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    jmp b_2
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 2, 4
+    %v_3 = call_complex tagOf'2, @environment(tagOf'2(Labelled)), %v_1: I32
+    %v_4 = add 38, %v_3: I32
     %v_5 = alloca 8, 4: Ptr
     store %v_5, 1, 4
     %v_6 = add %v_5, 4: Ptr
     store %v_6, 2, 4
-    %v_7 = call_complex tagOf'2, @environment(tagOf'2(Labelled)), %v_5: I32
-    %v_8 = add 38, %v_7: I32
-    %v_9 = alloca 8, 4: Ptr
-    store %v_9, 1, 4
-    %v_10 = add %v_9, 4: Ptr
-    store %v_10, 2, 4
-    %v_11 = call_complex doubled, @environment(doubled(Labelled)), %v_9: I32
-    %v_12 = add %v_8, %v_11: I32
-    ret %v_12
+    %v_7 = call_complex doubled, @environment(doubled(Labelled)), %v_5: I32
+    %v_8 = add %v_4, %v_7: I32
+    ret %v_8
   }
 }
 

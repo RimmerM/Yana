@@ -26,6 +26,23 @@
  * agree with whatever the target does, and neither target says. A shift by a distance at or above the
  * type's width is masked by x86 and poison in LLVM; a division by zero traps. Leaving those alone
  * means the folded and unfolded programs cannot disagree about them.
+ *
+ * **Floats are folded here too, and were not until J43.** The four arithmetic operations, `neg`, the
+ * conversions in all four directions and the six ordered comparisons - `foldFloatBinary`, and the
+ * float arms of `foldUnaryValue`, `foldCastValue` and `foldConstantCompare`. Three rules make it the
+ * same answer the machine gives rather than a nearby one: every end and every result goes through
+ * the type's own precision (`narrowFloat`, since `LowerImm` keeps a `double` whatever the type
+ * says), a non-finite operand or result is declined for want of a literal to write it as
+ * (`isFoldableFloat`), and the only identities stated are `x * 1` and `x / 1` - `x + 0`, `x * 0` and
+ * `x - x` are identities over the reals and none of them is one over IEEE 754. A float-to-integer
+ * conversion is folded only inside the range the integer holds, which is the bound
+ * `resolve_ssa/opt/fold.cpp` states for the same conversion one tier up.
+ *
+ * The site is an *inlined* body's arithmetic, which only becomes two constants here - after
+ * `promoteStackSlots` has turned the caller's argument and the callee's parameter slot into one
+ * value. A generic `x + x` called at `10` was already folded through the integer half; called at
+ * `1.5` it reached the machine as `imm 1.5 ; add %v,%v` and its `ftoi` as the whole total-conversion
+ * sequence. Both stages read this file, so both gained it.
  */
 
 /*
@@ -41,7 +58,7 @@ LowerInst* foldUnaryArith(LowerBase base, LowerModule& module, LowerBlock& block
                           LowerInst::Kind kind, LowerValue* arg, LowerType type, StringId name);
 
 LowerInst* foldCast(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* arg,
-                    LowerType type, bool signedSource, StringId name);
+                    LowerType type, bool signedSource, bool signedResult, StringId name);
 
 LowerInst* foldBinary(LowerBase base, LowerModule& module, LowerBlock& block, LowerInst::Kind kind,
                       LowerValue* lhs, LowerValue* rhs, LowerType type, StringId name);
@@ -71,28 +88,21 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
  * the comparison narrowing in `foldFunctionConstants` takes a reader off an addition without removing
  * the addition, which is the same situation arrived at from the other side.
  *
- * Only the kinds above, plus the phis, so that this stays a sweep behind a rewrite rather than a
- * dead-code pass with an opinion about calls, loads and stores. A phi is one of the kinds above in
- * everything but where it is stored - it computes a value out of its alternatives and does nothing
- * else - and it is the one this list used to be missing, so a value read only by a join that nobody
- * reads survived every sweep in the pipeline. Iterated, because dropping one value is what makes its
- * operands dead in turn.
+ * `isRemovableWhenUnused` is the whole of what qualifies, and it is one predicate in lower_inst.h
+ * rather than a list here: everything pure, the phis, and the load. A phi computes a value out of
+ * its alternatives and does nothing else, and it is the one this used to be missing, so a value read
+ * only by a join that nobody reads survived every sweep in the pipeline. Iterated, because dropping
+ * one value is what makes its operands dead in turn.
+ *
+ * **The immediates are in it too**, which is what a separate `removeDeadConstants` used to be for. A
+ * fold never removes the operands it consumed and cannot: the immediate a caller built may be about
+ * to be used a second time by an instruction that has not been created yet - `encodeNarrowRef`
+ * builds one mask and both trims and complements it - so "no uses yet" is not "no uses". That is a
+ * statement about *when* the sweep may run rather than about what it may take, and running it at the
+ * end of the pipeline is what answers it; a second pass that only knew about `Imm` was answering it
+ * twice.
  */
 bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun);
-
-/*
- * The immediates nothing reads any more, dropped.
- *
- * A fold never removes the operands it consumed, and cannot: the immediate a caller built may be
- * about to be used a second time by an instruction that has not been created yet - `encodeNarrowRef`
- * builds one mask and both trims and complements it - so "no uses yet" is not "no uses". They are
- * swept once the function is finished instead, where the count is final.
- *
- * Only immediates, so that this stays a cleanup after folding rather than a dead-code eliminator with
- * an opinion about calls and loads. Iterated, because dropping one immediate can be what makes the
- * next one dead.
- */
-void removeDeadConstants(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun);
 
 /*
  * The bits of a value that are certainly zero.

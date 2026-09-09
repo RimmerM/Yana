@@ -7,7 +7,7 @@ fn scope($body: (->{}) -> $r [shared call]) -> $r = <no body>
 fn handing(x: I32 [shared call], $body: (I32) -> $r [shared call]) -> $r = <no body>
 
 fn alwaysLeaves(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -21,7 +21,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn sometimesLeaves(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -35,7 +35,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn insideArm(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -70,7 +70,7 @@ bb5:
 }
 
 fn leavesWithValue(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -93,7 +93,7 @@ bb2:
 }
 
 fn twoDeep(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %I32 address = alloc frame I32
   store inspect %1 borrow %0
@@ -188,7 +188,7 @@ bb0(%0: (->{}) -> I32 [shared call] guaranteed):
 }
 
 fn handing(I32)(x: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+bb0(%0: I32 trivial, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   store inspect %2 borrow %0
@@ -292,7 +292,7 @@ bb3:
 }
 
 fn leavesWithValue.cont(leavesWithValue.cont.env: leavesWithValue.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: leavesWithValue.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: leavesWithValue.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]

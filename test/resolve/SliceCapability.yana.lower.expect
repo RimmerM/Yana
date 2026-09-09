@@ -57,15 +57,14 @@ main<complex>(): I64 {
     %v_2 = alloca 12, 4: Ptr
     store %v_1, %v_2, 8
     %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: I32
     store %v_3, 3, 4
     store %v_2, 100, 4
-    %v_5 = add %v_2, 4: Ptr
+    %v_4 = add %v_2, 4: Ptr
+    store %v_4, 2, 4
+    %v_5 = add %v_2, 8: Ptr
     store %v_5, 2, 4
-    %v_6 = add %v_2, 8: Ptr
-    store %v_6, 2, 4
-    %v_7 = add %v_1, 12: Ptr
-    store %v_7, 3, 4
+    %v_6 = add %v_1, 12: Ptr
+    store %v_6, 3, 4
     call_complex Reclaim(Array(a)).reclaim(I32), %v_1
     ret 4
   }

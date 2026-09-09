@@ -54,17 +54,13 @@ bb7:
 bb8:
   %34: String [shared call] = read borrow.shared (global decimalPairs) loan0
   %35: String [shared slot 0 view] = call.derivation view(String) borrow.shared %34 roots{0}
-  %36: [CodeUnit *20] [shared slot 0] = read borrow.shared (global string'142) loan1
-  %37: %[CodeUnit *20] [owned here shape6 .*=shared slot 0] = address inspect %36 roots.0{1}
-  %38: %CodeUnit [owned here shape6 .*=shared slot 0] = bitcast inspect %37 roots.0{1}
-  %39: I32 = const 20
-  %40: String = call stringLiteral borrow.shared %38 borrow.shared %39
-  write.init borrow.unique (local1) take %40
-  %42: String [shared slot 0] = read borrow.shared (local1) loan2
-  %43: String [shared slot 0 view] = call.derivation view(String) borrow.shared %42 roots{2}
-  %44: Bool = call ==(String) borrow.shared %35 borrow.shared %43
+  %36: String = const String {units: Array {run: Run {items: &string'142, capacity: 20, ownsHeap: 0}, length: 20}}
+  write.init borrow.unique (local1) take %36
+  %38: String [shared slot 0] = read borrow.shared (local1) loan1
+  %39: String [shared slot 0 view] = call.derivation view(String) borrow.shared %38 roots{1}
+  %40: Bool = call ==(String) borrow.shared %35 borrow.shared %39
   drop (local1)
-  branch inspect %44 -> bb12 -> bb10
+  branch inspect %40 -> bb12 -> bb10
 
 bb9:
   %28: I32 = read copy.trivial (score)
@@ -77,14 +73,14 @@ bb10:
   jump -> bb11
 
 bb11:
-  %52: I32 = read copy.trivial (score)
-  return take %52
+  %48: I32 = read copy.trivial (score)
+  return take %48
 
 bb12:
-  %46: I32 = read copy.trivial (score)
-  %47: I32 = const 8
-  %48: I32 = add inspect %46 inspect %47
-  write.assign borrow.unique (score) take %48
+  %42: I32 = read copy.trivial (score)
+  %43: I32 = const 8
+  %44: I32 = add inspect %42 inspect %43
+  write.assign borrow.unique (score) take %44
   jump -> bb11
 }
 module Tables

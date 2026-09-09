@@ -24,7 +24,7 @@ bb0(%0: Guard owned):
 }
 
 fn guard(id: I32 [shared call]) -> Guard {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr live
@@ -49,7 +49,7 @@ bb0(%0: Guard owned):
 }
 
 fn replaced(c: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   %2: %I32 address = alloc frame I32
   %3: %Guard address = alloc frame Guard
@@ -87,7 +87,7 @@ bb3:
 }
 
 fn maybeReplaced(c: Bool [shared call], d: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32
@@ -137,7 +137,7 @@ bb6:
 }
 
 fn nested(c: Bool [shared call], d: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32
@@ -188,7 +188,7 @@ bb6:
 }
 
 fn pair(c: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial):
   %1: %Bool address = alloc frame Bool [shared call]
   %2: %I32 address = alloc frame I32
   %3: %Guard address = alloc frame Guard
@@ -239,7 +239,7 @@ bb3:
 }
 
 fn heaped(c: Bool [shared call], d: Bool [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32

@@ -3,7 +3,7 @@ module ResolveTest
 let & log: I32 = 0
 
 fn opaque(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: %I32 address = global.addr log
@@ -31,7 +31,7 @@ bb3:
 }
 
 fn computed(seed: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Pair address = alloc frame Pair
   store inspect %1 borrow %0
@@ -82,7 +82,7 @@ bb0:
 }
 
 fn both(seed: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Pair address = alloc frame Pair
   %3: %Held address = alloc frame Held
@@ -117,7 +117,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn derived(seed: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %Held address = alloc frame Held
   store inspect %1 borrow %0

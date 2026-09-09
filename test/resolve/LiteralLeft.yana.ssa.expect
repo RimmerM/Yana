@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn reciprocalIsNegative(value: F64 [shared call]) -> Bool {
-bb0(%0: F64 [shared call] guaranteed):
+bb0(%0: F64 trivial):
   %1: %F64 address = alloc frame F64 [shared call]
   store inspect %1 borrow %0
   %2: F64 trivial = load inspect %1
@@ -15,7 +15,7 @@ bb0(%0: F64 [shared call] guaranteed):
 fn scaledDown(v: a [shared call]) -> a = <no body>
 
 fn widened(n: I64 [shared call]) -> Bool {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   store inspect %1 borrow %0
   %2: I64 trivial = load inspect %1
@@ -79,15 +79,15 @@ bb9:
 }
 
 fn scaledDown(I64)(v: I64 [shared call]) -> I64 {
-bb0(%0: I64 [shared call] guaranteed):
+bb0(%0: I64 trivial):
   %1: %I64 address = alloc frame I64 [shared call]
   %2: %I64 address = alloc frame I64
   store inspect %1 borrow %0
   %3: I64 trivial = const 4
   %4: I64 trivial = call I64.fromInt borrow %3
   store inspect %2 consume %4
-  %5: I64 [shared call] guaranteed from{%2} = load inspect %2
-  %6: I64 [shared call] guaranteed from{%1} = load inspect %1
+  %5: I64 trivial = load inspect %2
+  %6: I64 trivial = load inspect %1
   %7: I64 trivial = call I64.* borrow %5 borrow %6
   return consume %7
 }

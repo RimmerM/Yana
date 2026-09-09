@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn opaqueU32(x: U32 [shared call]) -> U32 {
-bb0(%0: U32 [shared call] guaranteed):
+bb0(%0: U32 trivial):
   %1: %U32 address = alloc frame U32 [shared call]
   store inspect %1 borrow %0
   %2: U32 trivial = load inspect %1
@@ -9,7 +9,7 @@ bb0(%0: U32 [shared call] guaranteed):
 }
 
 fn opaqueI32(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -17,7 +17,7 @@ bb0(%0: I32 [shared call] guaranteed):
 }
 
 fn opaqueU64(x: U64 [shared call]) -> U64 {
-bb0(%0: U64 [shared call] guaranteed):
+bb0(%0: U64 trivial):
   %1: %U64 address = alloc frame U64 [shared call]
   store inspect %1 borrow %0
   %2: U64 trivial = load inspect %1
@@ -27,7 +27,7 @@ bb0(%0: U64 [shared call] guaranteed):
 fn opaqueInt(x: I32 [shared call]) -> I32 = <no body>
 
 fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
-bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: Bool trivial, %1: I32 trivial):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   store inspect %3 borrow %0
@@ -470,7 +470,7 @@ bb3:
 }
 
 fn morton(x: U32 [shared call], y: U32 [shared call]) -> U32 {
-bb0(%0: U32 [shared call] guaranteed, %1: U32 [shared call] guaranteed):
+bb0(%0: U32 trivial, %1: U32 trivial):
   %2: %U32 address = alloc frame U32 [shared call]
   %3: %U32 address = alloc frame U32 [shared call]
   store inspect %2 borrow %0
@@ -576,25 +576,25 @@ bb0:
 }
 
 fn lowVia(U32)(value: U32 [shared call], count: U32 [shared call]) -> U32 {
-bb0(%0: U32 [shared call] guaranteed, %1: U32 [shared call] guaranteed):
+bb0(%0: U32 trivial, %1: U32 trivial):
   %2: %U32 address = alloc frame U32 [shared call]
   %3: %U32 address = alloc frame U32 [shared call]
   store inspect %2 borrow %0
   store inspect %3 borrow %1
-  %4: U32 [shared call] guaranteed from{%2} = load inspect %2
-  %5: U32 [shared call] guaranteed from{%3} = load inspect %3
+  %4: U32 trivial = load inspect %2
+  %5: U32 trivial = load inspect %3
   %6: U32 trivial = call U32.bitsUpTo borrow %4 borrow %5
   return consume %6
 }
 
 fn gatherVia(U32)(value: U32 [shared call], mask: U32 [shared call]) -> U32 {
-bb0(%0: U32 [shared call] guaranteed, %1: U32 [shared call] guaranteed):
+bb0(%0: U32 trivial, %1: U32 trivial):
   %2: %U32 address = alloc frame U32 [shared call]
   %3: %U32 address = alloc frame U32 [shared call]
   store inspect %2 borrow %0
   store inspect %3 borrow %1
-  %4: U32 [shared call] guaranteed from{%2} = load inspect %2
-  %5: U32 [shared call] guaranteed from{%3} = load inspect %3
+  %4: U32 trivial = load inspect %2
+  %5: U32 trivial = load inspect %3
   %6: U32 trivial = call U32.gatherBits borrow %4 borrow %5
   return consume %6
 }

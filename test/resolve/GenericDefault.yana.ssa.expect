@@ -53,7 +53,7 @@ bb0:
 fn tagOf'2(t: Tagged(n) [shared call]) -> I32 = <no body>
 
 fn I32.counted(x: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -118,7 +118,7 @@ bb0(%0: Buffer(I32, 8) [shared call] guaranteed):
 }
 
 fn tagged(4)(value: I32 [shared call]) -> Tagged(4) {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
@@ -133,7 +133,7 @@ bb0(%0: Tagged(4) [shared call] guaranteed):
 }
 
 fn tagged(8)(value: I32 [shared call]) -> Tagged(8) {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1

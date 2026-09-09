@@ -3,7 +3,7 @@ module ResolveTest
 let & sink: I32 = 0
 
 fn reversed(v: Vec(I32) [shared call]) -> Vec(I32) {
-bb0(%0: Vec(I32) [shared call] guaranteed):
+bb0(%0: Vec(I32) trivial):
   %1: %Vec(I32) address = alloc frame Vec(I32) [shared call]
   store inspect %1 borrow %0
   %2: Vec(I32) trivial = load inspect %1
@@ -12,7 +12,7 @@ bb0(%0: Vec(I32) [shared call] guaranteed):
 }
 
 fn rotated(v: Vec(I32) [shared call]) -> Vec(I32) {
-bb0(%0: Vec(I32) [shared call] guaranteed):
+bb0(%0: Vec(I32) trivial):
   %1: %Vec(I32) address = alloc frame Vec(I32) [shared call]
   store inspect %1 borrow %0
   %2: Vec(I32) trivial = load inspect %1

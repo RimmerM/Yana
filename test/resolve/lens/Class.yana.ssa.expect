@@ -180,7 +180,7 @@ bb1:
 }
 
 fn opening(n: I32 [shared call]) -> I32 {
-bb0(%0: I32 [shared call] guaranteed):
+bb0(%0: I32 trivial):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
@@ -395,7 +395,7 @@ bb5:
 }
 
 fn concrete.cont(concrete.cont.env: concrete.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: concrete.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: concrete.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -409,7 +409,7 @@ bb0(%0: concrete.cont.env [unique call] guaranteed, %1: I32 [shared call] guaran
 }
 
 fn unitHandover.cont(unitHandover.cont.env: unitHandover.cont.env [unique call], $handed: {} [shared call]) -> I32 {
-bb0(%0: unitHandover.cont.env [unique call] guaranteed, %1: {} [shared call] guaranteed):
+bb0(%0: unitHandover.cont.env [unique call] guaranteed, %1: {} trivial):
   %2: %I32 address = field.addr .n inspect %0
   %3: %I32 address = load inspect %2
   %4: %Gate address = field.addr .g inspect %0
@@ -425,7 +425,7 @@ bb0(%0: unitHandover.cont.env [unique call] guaranteed, %1: {} [shared call] gua
 }
 
 fn deferred.cont(deferred.cont.env: deferred.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: deferred.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: deferred.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -439,7 +439,7 @@ bb0(%0: deferred.cont.env [unique call] guaranteed, %1: I32 [shared call] guaran
 }
 
 fn inheritedDefault.cont(inheritedDefault.cont.env: inheritedDefault.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: inheritedDefault.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: inheritedDefault.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -451,7 +451,7 @@ bb0(%0: inheritedDefault.cont.env [unique call] guaranteed, %1: I32 [shared call
 }
 
 fn deferredDefault.cont(deferredDefault.cont.env: deferredDefault.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: deferredDefault.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: deferredDefault.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -465,7 +465,7 @@ bb0(%0: deferredDefault.cont.env [unique call] guaranteed, %1: I32 [shared call]
 }
 
 fn iterated.cont(iterated.cont.env: iterated.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: iterated.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: iterated.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .t inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -479,7 +479,7 @@ bb0(%0: iterated.cont.env [unique call] guaranteed, %1: I32 [shared call] guaran
 }
 
 fn deferredIter.cont(deferredIter.cont.env: deferredIter.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: deferredIter.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: deferredIter.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .t inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -495,7 +495,7 @@ bb0(%0: deferredIter.cont.env [unique call] guaranteed, %1: I32 [shared call] gu
 }
 
 fn opening.cont(opening.cont.env: opening.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: opening.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: opening.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .r inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -509,7 +509,7 @@ bb0(%0: opening.cont.env [unique call] guaranteed, %1: I32 [shared call] guarant
 }
 
 fn deferredSkip.cont(deferredSkip.cont.env: deferredSkip.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: deferredSkip.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: deferredSkip.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .r inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -523,7 +523,7 @@ bb0(%0: deferredSkip.cont.env [unique call] guaranteed, %1: I32 [shared call] gu
 }
 
 fn erasedLens.cont(erasedLens.cont.env: erasedLens.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: erasedLens.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: erasedLens.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
@@ -537,7 +537,7 @@ bb0(%0: erasedLens.cont.env [unique call] guaranteed, %1: I32 [shared call] guar
 }
 
 fn erasedIter.cont(erasedIter.cont.env: erasedIter.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: erasedIter.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+bb0(%0: erasedIter.cont.env [unique call] guaranteed, %1: I32 trivial):
   %2: %I32 address = field.addr .t inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = alloc frame I32 [shared call]
