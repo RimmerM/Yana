@@ -571,47 +571,44 @@ growArray(CodeUnit)<complex>(%self: Ptr, %wanted: I64) {
   }
 
   b_19 {
-    %v_20 = load %self, 8: Ptr
-    %v_21 = call_complex byteSpan(CodeUnit), %v_20, %v_10: I64
-    %v_22 = call_complex allocateHeap, %v_21: Ptr
-    %v_23 = bitcast %v_22: I64
-    %v_24 = cmp_eq %v_23, 0: I32
-    je %v_24, b_12, b_25
+    %v_20 = call_complex allocateHeap, %v_10: Ptr
+    %v_21 = bitcast %v_20: I64
+    %v_22 = cmp_eq %v_21, 0: I32
+    je %v_22, b_12, b_23
+  }
+
+  b_23 {
+    %v_24 = cmp_igt %v_5, 0: I32
+    je %v_24, b_25, b_26
   }
 
   b_25 {
-    %v_26 = cmp_igt %v_5, 0: I32
-    je %v_26, b_27, b_28
+    %v_27 = load %self, 8: Ptr
+    call_complex copyMemory, %v_20, %v_27, %v_5
+    jmp b_26
   }
 
-  b_27 {
-    %v_29 = load %self, 8: Ptr
-    %v_30 = call_complex byteSpan(CodeUnit), %v_29, %v_5: I64
-    call_complex copyMemory, %v_22, %v_29, %v_30
-    jmp b_28
+  b_26 {
+    %v_28 = load %v_1, 4: I64
+    %v_29 = shr %v_28, 30: I64
+    %v_30 = cast %v_29: I32
+    %v_31 = cmp_eq %v_30, 1: I32
+    je %v_31, b_32, b_33
   }
 
-  b_28 {
-    %v_31 = load %v_1, 4: I64
-    %v_32 = shr %v_31, 30: I64
-    %v_33 = cast %v_32: I32
-    %v_34 = cmp_eq %v_33, 1: I32
-    je %v_34, b_35, b_36
+  b_32 {
+    %v_34 = load %self, 8: Ptr
+    call_complex freeHeap, %v_34
+    jmp b_33
   }
 
-  b_35 {
-    %v_37 = load %self, 8: Ptr
-    call_complex freeHeap, %v_37
-    jmp b_36
-  }
-
-  b_36 {
-    store %self, %v_22, 8
-    %v_38 = cast %v_10: I32
-    %v_39 = and %v_38, 1073741823: I32
-    %v_40 = cast %v_39: I64
-    %v_41 = or %v_40, 1073741824: I64
-    store %v_1, %v_41, 4
+  b_33 {
+    store %self, %v_20, 8
+    %v_35 = cast %v_10: I32
+    %v_36 = and %v_35, 1073741823: I32
+    %v_37 = cast %v_36: I64
+    %v_38 = or %v_37, 1073741824: I64
+    store %v_1, %v_38, 4
     jmp b_12
   }
 }
@@ -1062,12 +1059,6 @@ runSlots(CodeUnit)<complex>(%probe: Ptr, %capacity: I64): Ptr {
   b_5 {
     %v_7 = call_complex allocateHeap, %capacity: Ptr
     ret %v_7
-  }
-}
-
-byteSpan(CodeUnit)<complex>(%from: Ptr, %count: I64): I64 {
-  b_0 {
-    ret %count
   }
 }
 

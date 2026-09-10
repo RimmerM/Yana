@@ -25,15 +25,6 @@ describe<complex>(%actual: I32, %expected: I32): I32 {
   }
 }
 
-report<complex>(%detail: I32) {
-  b_0 {
-    %v_1 = loads @failures, 4: I32
-    %v_2 = add %v_1, %detail: I32
-    store @failures, %v_2, 4
-    ret 
-  }
-}
-
 checked<complex>(%actual: I32, %expected: I32) {
   b_0 {
     %v_1 = cmp_eq %actual, %expected: I32
@@ -42,7 +33,9 @@ checked<complex>(%actual: I32, %expected: I32) {
 
   b_3 {
     %v_4 = call_complex describe, %actual, %expected: I32
-    call_complex report, %v_4
+    %v_5 = loads @failures, 4: I32
+    %v_6 = add %v_5, %v_4: I32
+    store @failures, %v_6, 4
     ret 
   }
 
@@ -70,7 +63,9 @@ checkedAgain<complex>(%actual: I32, %limit: I32) {
 
   b_3 {
     %v_4 = call_complex describe, %actual, %limit: I32
-    call_complex report, %v_4
+    %v_5 = loads @failures, 4: I32
+    %v_6 = add %v_5, %v_4: I32
+    store @failures, %v_6, 4
     ret 
   }
 

@@ -309,15 +309,71 @@ struct Budget {
  * and `test/bench/programs` reads 23,137 at 1, 3 and 6 and 23,521 at 10. Three is where it stops
  * paying and ten is where it starts costing; the plateau between them is what a call weighs.
  *
- * **What this does not fix is the weighing.** `sizeOf` is asked *before* the per-body optimizer
- * runs - `inlineCalls` is in front of that loop on purpose - so a callee is weighed unfolded.
- * `byteSpan(I32)` is `difference(bitcast(from), bitcast(from + count))`, which lowers to one `shl`
- * and weighs **ten**: two `Metric` reads of a stride that is a constant at a concrete type, five
- * arithmetic instructions that fold into one, two conversions, and two calls into `Bitcast`. No
- * cold budget that admits it is worth its cost elsewhere - ten is +672 bytes over the corpus - so
- * the honest fix is to weigh a folded body, and that is not built.
+ * **What this number cannot fix is the weighing, and J59 is why no number could.** `byteSpan(I32)`
+ * is `difference(bitcast(from), bitcast(from + count))`. It lowers to one `shl` and weighs **ten**
+ * here, and the ten is not a body waiting to be folded: `settleCallee` runs the whole per-body
+ * optimizer over a callee before any site is weighed against it, so this *is* the settled form.
+ * What stands in it is
+ *
+ *     %8  = metric stride I32        %17 = bitcast %from
+ *     %9  = mul %count %8            %18 = bitcast %10
+ *     %10 = add %from %9             ...
+ *     %15 = metric stride U8         %16 = div %14 %15
+ *
+ * - two `Metric` reads and the pointer arithmetic over them, and `fold.cpp` declines a `Metric` by
+ * ruling: what a type measures is the representation layer's answer and this stage runs once per
+ * program rather than once per target. `lower/inst.cpp` turns one into an immediate where the
+ * target is in hand and `optimizeLowerFunction` folds the eight instructions around it away, which
+ * is a tier below anything this pass can ask. So "fold it earlier" is not a fix that exists - the
+ * folder already ran, and running it again answers the same ten - and no cold budget that admits a
+ * body of ten is worth its cost elsewhere, which J58 measured at +672 bytes.
+ *
+ * What *is* true of such a body is a fact about its references rather than about its weight, and
+ * that is `kColdCallCost` below.
  */
 constexpr U32 kColdBudget = 3;
+
+/*
+ * What a **call** costs where the callee is about to stop existing - `coldOnlyCallee`'s second term,
+ * and the one number in this file that prices the site rather than the body.
+ *
+ * `sizeOf` counts a call as one instruction, which is what it is and not what it costs. The site
+ * also moves an argument per parameter into the places the convention names, and the body on the
+ * other side opens with a prologue and ends with a `ret` that no caller counted - the same thing
+ * `budgetFor(Size)`'s note found from the other side, and the same thing that made `kColdBudget = 1`
+ * wrong. Here it is not a correction to a threshold but the whole of the second term, so it is
+ * written as its own number.
+ *
+ * Swept with the rest of the term held fixed. `.text` bytes over the **392 programs** of
+ * `test/resolve` this stage compiles, built the way `-mode exe` builds them:
+ *
+ *     0 -> 306,536    3 -> 306,504    4 -> 306,504    5 -> 303,400    6 -> 303,448
+ *     8 -> 306,760   10 -> 306,760   12 -> 307,192   20 -> 308,856
+ *
+ * Zero is the term switched off - at one site the inequality holds whatever this number is, and
+ * that case is the sole-reference rule which was already there - and it reads the same 306,536 as
+ * a build with no term at all, which is the control that says so.
+ *
+ * **Five, and it is a cliff on both sides rather than a plateau.** Four admits nothing that three
+ * did not: `byteSpan` stands at two sites and weighs ten, so it wants five exactly. Eight starts
+ * admitting bodies at three and four sites whose copies pay for nothing, and every value above it
+ * is worse again. -3,136 bytes at five is **-1.0%** of the corpus. The lowered IR moves with it -
+ * 42,236 instructions over the `.mir.lower.expect` goldens to 42,076, and 2,153 emitted function
+ * definitions to **2,081**.
+ *
+ * `kColdBudget` was re-swept underneath this and did not move: 1 and 2 read 303,560, 3 reads
+ * 303,400, and 4 and 5 are worse again. The two numbers are not two spellings of one thing -
+ * raising the flat budget to 6 or 8 now buys exactly nothing, where J58 measured it buying the
+ * wrong bodies for +672.
+ *
+ * **The population matters and is part of the number.** These 392 are every program this stage
+ * compiles; findings.md §104.5's `test/resolve` rows are over the *shared* corpus, the fixtures both
+ * stages compile, which is smaller. On that corpus the same change reads 297,818 -> 294,682 - the
+ * identical -3,136 - and the gap against the shipping stage goes +6.9% to +5.8%. The two totals are
+ * not comparable and §105.5 is why: the shipping column, which no part of this round touches, does
+ * not reproduce either.
+ */
+constexpr U32 kColdCallCost = 5;
 
 /*
  * A **repeated-callee penalty was built here, swept and not kept** - `test/bench/findings.md` §81,
@@ -404,6 +460,19 @@ Budget budgetFor(InlineLevel level) {
 struct References {
     U32 calls = 0;
     U32 other = 0;
+
+    /*
+     * How many of `calls` stand in a **cold** block - `findColdBlocks`, asked of every caller rather
+     * than of the one being walked.
+     *
+     * A second split for a second rule, and it is the sole-call-site argument counted rather than
+     * capped at one: what makes that rule admissible is that the body *moves* instead of being
+     * copied, and a body every one of whose callers is a cold block moves too - to more than one
+     * destination. `coldOnlyCallee` is where the trade that follows from that is, and the two
+     * numbers are separate because a callee with one warm caller is a body that stays whatever this
+     * pass does to the cold ones.
+     */
+    U32 coldCalls = 0;
 };
 
 /*
@@ -600,6 +669,16 @@ struct Inliner {
          * Seeded rather than tested at each site, so that the fixed point below and `inColdBlock`
          * read one answer: a body that is cold by declaration and a block that is cold by what it
          * reaches are the same fact to everything downstream.
+         *
+         * **What the seeding costs, and where that is paid back - J59.** Every call in the body is
+         * now weighed at a cold site, which is the point, and the answer for a callee too large to
+         * copy is that the *call* stays. For a callee whose callers are all cold bodies, that leaves
+         * an out-of-line function as well: `growArray` is `@cold`, `byteSpan` is called only from
+         * `growArray`, and six one-instruction `byteSpan` bodies stood in the corpus because of it -
+         * the same "refusing the copy leaves the call **and** a body" the note below gives for why
+         * `checkFailed` is deliberately not `@cold`. The seeding is right and the answer is not to
+         * weaken it; `worthInlining`'s `coldOnlyCallee` is where the case is met, by asking of the
+         * callee what this asks of the block.
          */
         if(opt.function->cold) {
             for(U32 i = 0; i < body.blocks.size(); i++) coldBlocks[i] = true;
@@ -810,22 +889,75 @@ struct Inliner {
         };
 
         /*
+         * The **cold-only callee** - the sole-reference rule with the one at the end of it counted
+         * rather than required, and the term J59 added.
+         *
+         * What makes `solelyReferenced` admissible is not that there is one call. It is that the
+         * body *moves*: the last reference goes with the splice and `markProgramReachable` drops the
+         * original, so the program pays the copy instead of the body rather than as well as it. A
+         * callee every one of whose references is a call from a cold block moves too - to `n`
+         * destinations instead of one - and the trade that follows is arithmetic rather than a
+         * judgement:
+         *
+         *     inlined     n * size
+         *     left alone  size + n * kColdCallCost
+         *
+         * The second term is what the call sites cost that the copy does not: the argument moves at
+         * each site, and the callee's prologue and `ret` amortized over them. So the copy is worth
+         * making when `(n - 1) * size <= n * kColdCallCost`, which at `n == 1` is `0 <= cost` - the
+         * sole-reference rule, recovered rather than restated.
+         *
+         * **This is what `@cold` regressed**, and `byteSpan` is the case. It is
+         * `difference(bitcast(from), bitcast(from + count))`, which lowers to one `shl` and weighs
+         * **ten** at this tier: two `Metric` reads that `fold.cpp` declines by ruling - a
+         * measurement is the representation layer's answer and this stage runs once per program -
+         * and eight instructions of pointer arithmetic that fold only once those are immediates.
+         * Ten is above `kColdBudget` and will stay above it however early the folder is run, because
+         * the folder is not what is missing. What *is* true of the body is the thing this term reads
+         * instead: `growArray` is its only caller, `growArray` is `@cold`, and refusing the copy
+         * left the call **and** a one-instruction function - the same "leaf" the note in
+         * `findColdBlocks` gives for why `checkFailed` is deliberately not `@cold`.
+         *
+         * `size <= limits.soleBudget` bounds it at the number the sole-reference rule already uses,
+         * and the inequality above is what stops that number meaning anything at a callee with many
+         * sites: at `soleBudget` of 96 a body of 96 is admitted at one site and at no other.
+         */
+        auto coldOnlyCallee = [&] {
+            auto found = references.getValue(pointer.offset);
+            if(!found) return false;
+
+            auto counts = found.unwrap();
+
+            // Every reference a call, and every call cold. A function value, a witness slot or a
+            // teardown is a reference the lowering follows and this pass cannot see removed, so one
+            // of those is a body that stays whatever happens to the calls - exactly as above.
+            if(counts.other || !counts.calls || counts.coldCalls != counts.calls) return false;
+            if(callee->teardown || pointer == opt.program.entry) return false;
+
+            if(size > limits.soleBudget) return false;
+
+            return (counts.calls - 1) * size <= counts.calls * kColdCallCost;
+        };
+
+        /*
          * **A cold site is compiled the way `-inline size` compiles everything**, which is a
          * sentence the table already contains rather than a fourth number: `budgetFor(Size)` is
          * `{0, 96, 96, 0}` and its note says why - "only the case that cannot grow the program".
          * That is what an author writing `@cold` asked for, one path at a time.
          *
-         * Two terms, and both of them are "this cannot grow the program". `kColdBudget` admits a
+         * Three terms, and all of them are "this cannot grow the program". `kColdBudget` admits a
          * body no larger than the call it replaces; the sole reference admits a body that is being
-         * moved rather than copied. What neither admits is the message an assertion's failure arm
-         * builds - `String.ofCapacity`, a `push` per piece, a `show` per value, each with callers
-         * elsewhere - and that is the whole of what the attribute was written for.
+         * moved rather than copied; the cold-only callee is that same move to more than one
+         * destination. What none of them admits is the message an assertion's failure arm builds -
+         * `String.ofCapacity`, a `push` per piece, a `show` per value, each with callers elsewhere -
+         * and that is the whole of what the attribute was written for. The third term is the reason
+         * that sentence is now load-bearing rather than incidental: *elsewhere* is what it tests.
          *
          * The three terms it skips are the three that are reasons to *grow* the program: the flat
          * budget, the `@inline`/`@hot` hint and the chain. Each of them buys time, and time on a
          * path the author has said is rare is what there is nothing to trade for.
          */
-        if(cold) return size <= kColdBudget || solelyReferenced();
+        if(cold) return size <= kColdBudget || solelyReferenced() || coldOnlyCallee();
 
         if(size <= limits.budget) return true;
 
@@ -2057,16 +2189,26 @@ struct Inliner {
     void countReferences() {
         references.clear();
 
-        auto count = [&](DeclPtr<mir::Function> callee, bool isCall) {
+        auto count = [&](DeclPtr<mir::Function> callee, bool isCall, bool cold = false) {
             if(!callee) return;
 
             auto entry = references.add(callee.offset);
             if(!entry.existed) *entry.value = References();
 
-            if(isCall) entry.value->calls++; else entry.value->other++;
+            if(!isCall) { entry.value->other++; return; }
+
+            entry.value->calls++;
+            if(cold) entry.value->coldCalls++;
         };
 
         Array<U32> order;
+
+        // The caller this walk is currently inside, so that `findColdBlocks` reads the declaration
+        // whose body it is being asked about - the `@cold` seeding is a fact about that declaration
+        // rather than about the graph. Restored on the way out for the same reason `settle` restores
+        // it: the position is the driver's, not this walk's.
+        auto caller = opt.function;
+        auto callerBody = opt.body;
 
         for(auto modulePointer: opt.program.modules) {
             auto module = decl()[modulePointer];
@@ -2076,17 +2218,32 @@ struct Inliner {
                 if(!function->reachable || !function->ssa) continue;
 
                 auto body = base()[function->ssa];
+
+                /*
+                 * Which of this caller's blocks are cold, before its calls are counted.
+                 *
+                 * The same answer `runFunction` asks for the caller it is about to walk, asked here
+                 * of *every* caller instead - which is what a rule about a callee's whole reference
+                 * set needs and what a per-caller answer cannot give. It is recomputed there rather
+                 * than reused, because a splice makes blocks and this count is the round's opening
+                 * position; see `coldBlocks`.
+                 */
+                opt.function = function;
+                opt.body = body;
+                findColdBlocks(*body);
+
                 reversePostorder(base(), *body, order);
 
                 for(auto index: order) {
                     auto block = body->block(base(), BlockId(index));
+                    auto cold = index < coldBlocks.size() && coldBlocks[index];
 
                     for(auto instPointer: block->instructions(base())) {
                         auto inst = base()[instPointer];
 
                         if(inst->kind == Inst::Call) {
                             auto& call = (InstCall&)*inst;
-                            count(call.callee, call.through == mir::CallThrough::Declaration);
+                            count(call.callee, call.through == mir::CallThrough::Declaration, cold);
 
                             if(call.environment) {
                                 for(auto witness: decl()[call.environment]->slots.contents(decl())) {
@@ -2104,6 +2261,9 @@ struct Inliner {
                 }
             }
         }
+
+        opt.function = caller;
+        opt.body = callerBody;
     }
 
     bool runFunction(DeclPtr<mir::Function> pointer) {
