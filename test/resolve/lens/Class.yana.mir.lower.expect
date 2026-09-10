@@ -141,29 +141,29 @@ main<complex>(): I32 {
 
   b_16 {
     %v_17 = add %v_13, 5: I32
-    %v_18 = alloca 3, 4: Ptr
-    jmp b_19
+    jmp b_18
   }
 
-  b_20 {
-    %v_21 = shl %v_22, 1: I32
+  b_19 {
+    %v_20 = loads %v_21, 4: I32
+    %v_22 = shl %v_20, 1: I32
     jmp b_23
   }
 
   b_23 {
-    %v_24 = phi [b_25, 43], [b_20, %v_21]: I32
+    %v_24 = phi [b_25, 43], [b_19, %v_22]: I32
     %v_26 = add %v_17, %v_24: I32
-    %v_27 = alloca 3, 4: Ptr
-    jmp b_28
+    jmp b_27
   }
 
-  b_29 {
-    %v_30 = shl %v_31, 1: I32
+  b_28 {
+    %v_29 = loads %v_30, 4: I32
+    %v_31 = shl %v_29, 1: I32
     jmp b_32
   }
 
   b_32 {
-    %v_33 = phi [b_34, 0], [b_29, %v_30]: I32
+    %v_33 = phi [b_34, 0], [b_28, %v_31]: I32
     %v_35 = add %v_26, %v_33: I32
     %v_36 = alloca 4, 4: Ptr
     store %v_36, %v_1, 4
@@ -197,35 +197,29 @@ main<complex>(): I32 {
 
   b_25 {
     %v_50 = load %v_51, 1: I32
-    %v_52 = add %v_51, 1: Ptr
-    copy %v_18, %v_52, 3
-    %v_22 = load %v_53, 4: I32
-    %v_54 = cmp_eq %v_50, 1: I32
-    je %v_54, b_20, b_23
+    %v_52 = cmp_eq %v_50, 1: I32
+    je %v_52, b_19, b_23
   }
 
-  b_19 {
+  b_18 {
     %v_51 = alloca 8, 4: Ptr
     store %v_51, 0, 1
-    %v_53 = add %v_51, 4: Ptr
-    store %v_53, 0, 4
+    %v_21 = add %v_51, 4: Ptr
+    store %v_21, 0, 4
     jmp b_25
   }
 
   b_34 {
-    %v_55 = load %v_56, 1: I32
-    %v_57 = add %v_56, 1: Ptr
-    copy %v_27, %v_57, 3
-    %v_31 = load %v_58, 4: I32
-    %v_59 = cmp_eq %v_55, 1: I32
-    je %v_59, b_29, b_32
+    %v_53 = load %v_54, 1: I32
+    %v_55 = cmp_eq %v_53, 1: I32
+    je %v_55, b_28, b_32
   }
 
-  b_28 {
-    %v_56 = alloca 8, 4: Ptr
-    store %v_56, 1, 1
-    %v_58 = add %v_56, 4: Ptr
-    store %v_58, 5, 4
+  b_27 {
+    %v_54 = alloca 8, 4: Ptr
+    store %v_54, 1, 1
+    %v_30 = add %v_54, 4: Ptr
+    store %v_30, 5, 4
     jmp b_34
   }
 }

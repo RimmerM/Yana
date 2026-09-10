@@ -69,14 +69,13 @@ slotCount<complex>(%self: Ptr): I64 {
 
 viaTry<complex>(%v_0: Ptr, %ok: I32, %n: I64) {
   b_1 {
-    %v_2 = alloca 20, 8: Ptr
-    %v_3 = alloca 12, 8: Ptr
-    je %ok, b_4, b_5
+    %v_2 = alloca 12, 8: Ptr
+    je %ok, b_3, b_4
   }
 
-  b_6 {
-    %v_7 = add %v_2, 8: Ptr
-    copy %v_3, %v_7, 12
+  b_5 {
+    %v_6 = add %v_7, 8: Ptr
+    copy %v_2, %v_6, 12
     %v_8 = add %n, 1: I64
     %v_9 = bitcast 0: Ptr
     %v_10 = call_complex runSlots(U8), %v_9, %v_8: Ptr
@@ -89,13 +88,13 @@ viaTry<complex>(%v_0: Ptr, %ok: I32, %n: I64) {
     %v_17 = cast %v_15: I64
     %v_18 = or %v_17, 1073741824: I64
     store %v_16, %v_18, 4
-    call_complex Run(a).reclaim(U8), %v_3
-    store %v_3, %v_10, 8
-    %v_19 = add %v_3, 8: Ptr
+    call_complex Run(a).reclaim(U8), %v_2
+    store %v_2, %v_10, 8
+    %v_19 = add %v_2, 8: Ptr
     %v_20 = load %v_16, 4: I64
     store %v_19, %v_20, 4
     %v_21 = cast %v_15: I64
-    call_complex Run(a).reclaim(U8), %v_3
+    call_complex Run(a).reclaim(U8), %v_2
     store %v_0, 1, 1
     %v_22 = add %v_0, 8: Ptr
     store %v_22, %v_21, 8
@@ -103,9 +102,9 @@ viaTry<complex>(%v_0: Ptr, %ok: I32, %n: I64) {
   }
 
   b_23 {
-    %v_24 = add %v_2, 8: Ptr
+    %v_24 = add %v_7, 8: Ptr
     %v_25 = loads %v_24, 8: I64
-    call_complex teardown(Outcome(Held, I64)), %v_2
+    call_complex teardown(Outcome(Held, I64)), %v_7
     store %v_0, 0, 1
     %v_26 = add %v_0, 8: Ptr
     store %v_26, %v_25, 8
@@ -113,70 +112,65 @@ viaTry<complex>(%v_0: Ptr, %ok: I32, %n: I64) {
   }
 
   b_27 {
-    %v_28 = phi [b_4, %v_29], [b_5, %v_30]: Ptr
-    %v_31 = alloca 7, 8: Ptr
+    %v_28 = phi [b_3, %v_29], [b_4, %v_30]: Ptr
+    %v_31 = alloca 12, 8: Ptr
     %v_32 = load %v_28, 1: I32
-    %v_33 = add %v_28, 1: Ptr
-    copy %v_31, %v_33, 7
-    %v_34 = add %v_28, 8: Ptr
-    %v_35 = load %v_34, 8: I64
-    %v_36 = add %v_28, 16: Ptr
-    %v_37 = load %v_36, 4: I32
-    %v_38 = cmp_eq %v_32, 1: I32
-    je %v_38, b_39, b_40
+    %v_33 = cmp_eq %v_32, 1: I32
+    je %v_33, b_34, b_35
   }
 
-  b_4 {
-    %v_41 = bitcast 0: Ptr
-    %v_42 = call_complex runSlots(U8), %v_41, %n: Ptr
-    %v_43 = bitcast %v_42: I64
-    %v_44 = cmp_eq %v_43, 0: I32
-    %v_45 = select %v_44, 0, %n: I64
-    %v_46 = cast %v_45: I32
-    %v_47 = and %v_46, 1073741823: I32
+  b_3 {
+    %v_36 = bitcast 0: Ptr
+    %v_37 = call_complex runSlots(U8), %v_36, %n: Ptr
+    %v_38 = bitcast %v_37: I64
+    %v_39 = cmp_eq %v_38, 0: I32
+    %v_40 = select %v_39, 0, %n: I64
+    %v_41 = cast %v_40: I32
+    %v_42 = and %v_41, 1073741823: I32
     %v_29 = alloca 20, 8: Ptr
-    %v_48 = add %v_29, 8: Ptr
-    store %v_48, %v_42, 8
-    %v_49 = add %v_29, 16: Ptr
-    %v_50 = cast %v_47: I64
-    %v_51 = or %v_50, 1073741824: I64
-    store %v_49, %v_51, 4
+    %v_43 = add %v_29, 8: Ptr
+    store %v_43, %v_37, 8
+    %v_44 = add %v_29, 16: Ptr
+    %v_45 = cast %v_42: I64
+    %v_46 = or %v_45, 1073741824: I64
+    store %v_44, %v_46, 4
     store %v_29, 1, 1
     jmp b_27
   }
 
-  b_5 {
+  b_4 {
     %v_30 = alloca 20, 8: Ptr
     store %v_30, 0, 1
-    %v_52 = add %v_30, 8: Ptr
-    store %v_52, 7, 8
+    %v_47 = add %v_30, 8: Ptr
+    store %v_47, 7, 8
     jmp b_27
   }
 
-  b_40 {
-    %v_53 = alloca 20, 8: Ptr
-    store %v_53, 1, 1
-    %v_54 = add %v_53, 8: Ptr
-    store %v_54, %v_35, 8
-    jmp b_55
+  b_35 {
+    %v_48 = add %v_28, 8: Ptr
+    %v_49 = loads %v_48, 8: I64
+    %v_50 = alloca 20, 8: Ptr
+    store %v_50, 1, 1
+    %v_51 = add %v_50, 8: Ptr
+    store %v_51, %v_49, 8
+    jmp b_52
   }
 
-  b_39 {
-    %v_56 = alloca 20, 8: Ptr
-    store %v_56, 0, 1
-    %v_57 = add %v_56, 8: Ptr
-    store %v_57, %v_35, 8
-    %v_58 = add %v_56, 16: Ptr
-    store %v_58, %v_37, 4
-    jmp b_55
+  b_34 {
+    %v_53 = add %v_28, 8: Ptr
+    copy %v_31, %v_53, 12
+    %v_54 = alloca 20, 8: Ptr
+    store %v_54, 0, 1
+    %v_55 = add %v_54, 8: Ptr
+    copy %v_55, %v_31, 12
+    jmp b_52
   }
 
-  b_55 {
-    %v_59 = phi [b_40, %v_53], [b_39, %v_56]: Ptr
-    copy %v_2, %v_59, 20
-    %v_60 = load %v_2, 1: I32
-    %v_61 = cmp_eq %v_60, 1: I32
-    je %v_61, b_23, b_6
+  b_52 {
+    %v_7 = phi [b_35, %v_50], [b_34, %v_54]: Ptr
+    %v_56 = load %v_7, 1: I32
+    %v_57 = cmp_eq %v_56, 1: I32
+    je %v_57, b_23, b_5
   }
 }
 

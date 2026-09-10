@@ -98,7 +98,6 @@ grown<complex>(%n: I32): I32 {
     copy %v_1, @constant$0, 16
     %v_2 = alloca 16, 8: Ptr
     copy %v_2, %v_1, 16
-    %string'148 = global @string'148: Ptr
     jmp b_3
   }
 
@@ -151,41 +150,16 @@ grown<complex>(%n: I32): I32 {
   b_35 {
     %v_36 = load %v_2, 8: Ptr
     %v_37 = add %v_36, %v_29: Ptr
-    jmp b_38
-  }
-
-  b_38 {
-    jmp b_39
-  }
-
-  b_40 {
-    %v_41 = cast %v_30: I32
-    %v_42 = and %v_41, 1073741823: I32
-    store %v_32, %v_42, 4
+    call_complex copyMemory, %v_37, @string'148, 3
+    %v_38 = cast %v_30: I32
+    %v_39 = and %v_38, 1073741823: I32
+    store %v_32, %v_39, 4
     jmp b_4
   }
 
   b_34 {
-    %v_43 = syscall 60, 134: I64
+    %v_40 = syscall 60, 134: I64
     unreachable 
-  }
-
-  b_39 {
-    jmp b_44
-  }
-
-  b_44 {
-    jmp b_45
-  }
-
-  b_45 {
-    %v_46 = load %string'148, 2: I32
-    %v_47 = add %string'148, 1: Ptr
-    %v_48 = load %v_47, 2: I32
-    store %v_37, %v_46, 2
-    %v_49 = add %v_37, 1: Ptr
-    store %v_49, %v_48, 2
-    jmp b_40
   }
 }
 

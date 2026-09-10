@@ -255,37 +255,16 @@ textFold<complex>(): I32 {
   b_95 {
     %v_96 = load %v_43, 8: Ptr
     %v_97 = add %v_96, %v_89: Ptr
-    jmp b_98
-  }
-
-  b_98 {
-    jmp b_99
-  }
-
-  b_100 {
-    %v_101 = cast %v_90: I32
-    %v_102 = and %v_101, 1073741823: I32
-    store %v_92, %v_102, 4
+    call_complex copyMemory, %v_97, @string'145, 1
+    %v_98 = cast %v_90: I32
+    %v_99 = and %v_98, 1073741823: I32
+    store %v_92, %v_99, 4
     jmp b_67
   }
 
   b_94 {
-    %v_103 = syscall 60, 134: I64
+    %v_100 = syscall 60, 134: I64
     unreachable 
-  }
-
-  b_99 {
-    jmp b_104
-  }
-
-  b_104 {
-    jmp b_105
-  }
-
-  b_105 {
-    %v_106 = load @string'145, 1: I32
-    store %v_97, %v_106, 1
-    jmp b_100
   }
 }
 

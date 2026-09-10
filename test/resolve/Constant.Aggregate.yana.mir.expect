@@ -22,7 +22,7 @@ let diagonal: Line = Line {from: Point {x: 1, y: 2}, to: Point {x: 3, y: 5}}
 
 let & cursor: Point = Point {x: 10, y: 20}
 
-let pair: {left: I32, right: I32}
+let pair: {left: I32, right: I32} =  {left: 7, right: 8}
 
 let some: Maybe(I32) = Just(9)
 
@@ -543,14 +543,4 @@ bb51:
   jump -> bb50
 }
 
-fn main$() -> I32 {
-bb0:
-  %0: I32 = const 7
-  %1: I32 = const 8
-  %2: {left: I32, right: I32} = aggregate. take %0 take %1
-  write.init borrow.unique (global pair) take %2
-  %4: I32 = call main
-  return take %4
-}
-
-entry main$
+entry main

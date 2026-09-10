@@ -22,38 +22,8 @@ bb0:
 fn axesOf(c: Corner [shared call]) -> {I32, Bool, F32} {
 bb0:
   %0: U8 = read copy.trivial (c.#)
-  switch [0, 1, 2] inspect %0 -> bb1 -> bb2 -> bb3 -> bb4
-
-bb1:
-  %2: I32 = const 0
-  %3: Bool = const True
-  %4: F32 = const 0.5
-  %5: {I32, Bool, F32} = aggregate. take %2 take %3 take %4
-  jump -> bb5(take %5)
-
-bb2:
-  %6: I32 = const 1
-  %7: Bool = const True
-  %8: F32 = const 1.5
-  %9: {I32, Bool, F32} = aggregate. take %6 take %7 take %8
-  jump -> bb5(take %9)
-
-bb3:
-  %10: I32 = const 2
-  %11: Bool = const False
-  %12: F32 = const 2.5
-  %13: {I32, Bool, F32} = aggregate. take %10 take %11 take %12
-  jump -> bb5(take %13)
-
-bb4:
-  %14: I32 = const 3
-  %15: Bool = const False
-  %16: F32 = const 3.5
-  %17: {I32, Bool, F32} = aggregate. take %14 take %15 take %16
-  jump -> bb5(take %17)
-
-bb5(%18: {I32, Bool, F32}):
-  return take %18
+  %1: {I32, Bool, F32} = map [0 ->  {0, True, 0.5}, 1 ->  {1, True, 1.5}, 2 ->  {2, False, 2.5}, 3 ->  {3, False, 3.5}] inspect %0
+  return take %1
 }
 
 fn boxOf(c: Corner [shared call]) -> Box {

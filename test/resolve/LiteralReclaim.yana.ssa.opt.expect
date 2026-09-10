@@ -242,15 +242,15 @@ bb0(%0: I32 trivial):
   %4: String owned = load inspect %2
   %18: %String address = alloc frame String
   store inspect %18 consume %4
-  %116: %CodeUnit trivial = const &string'148
-  %118: I32 trivial = const 3
-  %49: Size trivial = convert inspect %118
-  %50: StringView trivial = aggregate.StringView consume %116 consume %49
+  %110: %CodeUnit trivial = const &string'148
+  %112: I32 trivial = const 3
+  %49: Size trivial = convert inspect %112
+  %50: StringView trivial = aggregate.StringView consume %110 consume %49
   %51: String [shared slot 0 view] guaranteed = represent inspect %50
   %24: %Size address = field.addr .length inspect %51
   %25: Size trivial = load inspect %24
   %27: String [unique call] guaranteed from{%18} = load inspect %18
-  %60: StringView trivial = aggregate.StringView consume %116 consume %49
+  %60: StringView trivial = aggregate.StringView consume %110 consume %49
   %61: String [shared slot 0 view] guaranteed = represent inspect %60
   %62: %%CodeUnit address = field.addr .units inspect %61
   %63: %CodeUnit trivial = load inspect %62
@@ -311,7 +311,7 @@ bb6:
   %87: @bits(30) U32 trivial = load inspect %86
   %88: Size trivial = convert inspect %87
   %89: Bool trivial = lt inspect %88 inspect %84
-  branch inspect %89 -> bb15 -> bb7
+  branch inspect %89 -> bb8 -> bb7
 
 bb7:
   %90: %%CodeUnit address = field.addr .items inspect %85
@@ -324,198 +324,27 @@ bb7:
   %98: Size trivial = metric stride CodeUnit
   %99: Size trivial = mul inspect %25 inspect %98
   %100: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %64 inspect %99
-  %120: %U8 trivial = bitcast inspect %100
-  %102: Size trivial = bitcast inspect %120
+  %114: %U8 trivial = bitcast inspect %100
+  %102: Size trivial = bitcast inspect %114
   %103: Size trivial = bitcast inspect %96
   %104: Size trivial = sub inspect %102 inspect %103
   %105: Size trivial = metric stride U8
   %106: Size trivial = div inspect %104 inspect %105
-  %107: Size trivial = const 32
-  %108: Bool trivial = ge inspect %106 inspect %107
-  branch inspect %108 -> bb9 -> bb8
-
-bb8:
-  %121: Size trivial = const 8
-  %122: Bool trivial = ge inspect %106 inspect %121
-  branch inspect %122 -> bb26 -> bb20
-
-bb9:
-  %109: Size trivial = const 64
-  %110: Bool trivial = lt inspect %106 inspect %109
-  branch inspect %110 -> bb13 -> bb10
-
-bb10:
-  %111: Size trivial = const 768
-  %112: Bool trivial = ge inspect %106 inspect %111
-  branch inspect %112 -> bb12 -> bb11
-
-bb11:
-  call blockAscending borrow %95 borrow %96 borrow %106
-  jump -> bb14
-
-bb12:
-  native copy.memory inspect %95 inspect %96 inspect %106
-  jump -> bb14
-
-bb13:
-  %188: %Vec(U8) trivial = bitcast inspect %96
-  %189: Vec(U8) trivial = load inspect %188
-  %190: Size trivial = const 16
-  %191: Size trivial = metric stride U8
-  %192: Size trivial = mul inspect %190 inspect %191
-  %193: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %96 inspect %192
-  %194: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %193
-  %195: Vec(U8) trivial = load inspect %194
-  %196: Size trivial = const 16
-  %197: Size trivial = sub inspect %106 inspect %196
-  %198: Size trivial = const 16
-  %199: Size trivial = sub inspect %197 inspect %198
-  %200: Size trivial = metric stride U8
-  %201: Size trivial = mul inspect %199 inspect %200
-  %202: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %96 inspect %201
-  %203: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %202
-  %204: Vec(U8) trivial = load inspect %203
-  %205: Size trivial = metric stride U8
-  %206: Size trivial = mul inspect %197 inspect %205
-  %207: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %96 inspect %206
-  %208: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %207
-  %209: Vec(U8) trivial = load inspect %208
-  %210: %Vec(U8) trivial = bitcast inspect %95
-  store inspect %210 consume %189
-  %211: Size trivial = const 16
-  %212: Size trivial = metric stride U8
-  %213: Size trivial = mul inspect %211 inspect %212
-  %214: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %95 inspect %213
-  %215: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %214
-  store inspect %215 consume %195
-  %216: Size trivial = metric stride U8
-  %217: Size trivial = mul inspect %199 inspect %216
-  %218: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %95 inspect %217
-  %219: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %218
-  store inspect %219 consume %204
-  %220: Size trivial = metric stride U8
-  %221: Size trivial = mul inspect %197 inspect %220
-  %222: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %95 inspect %221
-  %223: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %222
-  store inspect %223 consume %209
-  jump -> bb14
-
-bb14:
-  %113: U32 trivial = convert inspect %84
-  %114: @bits(30) U32 trivial = convert inspect %113
-  store inspect %81 consume %114
+  call copyMemory borrow %95 borrow %96 borrow %106
+  %107: U32 trivial = convert inspect %84
+  %108: @bits(30) U32 trivial = convert inspect %107
+  store inspect %81 consume %108
   jump -> bb2
 
-bb15:
-  %115: Size trivial = const 134
-  %224: Syscall trivial = const SysExit
-  %225: U16 trivial = bitcast inspect %224
-  %226: I32 trivial = convert inspect %225
-  %227: USize trivial = convert inspect %226
-  %228: USize trivial = bitcast inspect %115
-  %229: Size trivial = native syscall inspect %227 inspect %228
+bb8:
+  %109: Size trivial = const 134
+  %115: Syscall trivial = const SysExit
+  %116: U16 trivial = bitcast inspect %115
+  %117: I32 trivial = convert inspect %116
+  %118: USize trivial = convert inspect %117
+  %119: USize trivial = bitcast inspect %109
+  %120: Size trivial = native syscall inspect %118 inspect %119
   unreachable
-
-bb20:
-  %123: Size trivial = const 2
-  %124: Bool trivial = ge inspect %106 inspect %123
-  branch inspect %124 -> bb23 -> bb21
-
-bb21:
-  %125: Size trivial = const 1
-  %126: Bool trivial = ge inspect %106 inspect %125
-  branch inspect %126 -> bb22 -> bb14
-
-bb22:
-  %127: U8 trivial = load inspect %96
-  store inspect %95 consume %127
-  jump -> bb14
-
-bb23:
-  %128: Size trivial = const 4
-  %129: Bool trivial = ge inspect %106 inspect %128
-  branch inspect %129 -> bb25 -> bb24
-
-bb24:
-  %130: %U16 trivial = bitcast inspect %96
-  %131: U16 trivial = load inspect %130
-  %132: Size trivial = const 2
-  %133: Size trivial = sub inspect %106 inspect %132
-  %134: Size trivial = metric stride U8
-  %135: Size trivial = mul inspect %133 inspect %134
-  %136: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %96 inspect %135
-  %137: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %136
-  %138: U16 trivial = load inspect %137
-  %139: %U16 trivial = bitcast inspect %95
-  store inspect %139 consume %131
-  %140: Size trivial = metric stride U8
-  %141: Size trivial = mul inspect %133 inspect %140
-  %142: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %95 inspect %141
-  %143: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %142
-  store inspect %143 consume %138
-  jump -> bb14
-
-bb25:
-  %144: %U32 trivial = bitcast inspect %96
-  %145: U32 trivial = load inspect %144
-  %146: Size trivial = const 4
-  %147: Size trivial = sub inspect %106 inspect %146
-  %148: Size trivial = metric stride U8
-  %149: Size trivial = mul inspect %147 inspect %148
-  %150: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %96 inspect %149
-  %151: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %150
-  %152: U32 trivial = load inspect %151
-  %153: %U32 trivial = bitcast inspect %95
-  store inspect %153 consume %145
-  %154: Size trivial = metric stride U8
-  %155: Size trivial = mul inspect %147 inspect %154
-  %156: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %95 inspect %155
-  %157: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %156
-  store inspect %157 consume %152
-  jump -> bb14
-
-bb26:
-  %158: Size trivial = const 16
-  %159: Bool trivial = ge inspect %106 inspect %158
-  branch inspect %159 -> bb28 -> bb27
-
-bb27:
-  %160: %U64 trivial = bitcast inspect %96
-  %161: U64 trivial = load inspect %160
-  %162: Size trivial = const 8
-  %163: Size trivial = sub inspect %106 inspect %162
-  %164: Size trivial = metric stride U8
-  %165: Size trivial = mul inspect %163 inspect %164
-  %166: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %96 inspect %165
-  %167: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %166
-  %168: U64 trivial = load inspect %167
-  %169: %U64 trivial = bitcast inspect %95
-  store inspect %169 consume %161
-  %170: Size trivial = metric stride U8
-  %171: Size trivial = mul inspect %163 inspect %170
-  %172: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %95 inspect %171
-  %173: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %172
-  store inspect %173 consume %168
-  jump -> bb14
-
-bb28:
-  %174: %Vec(U8) trivial = bitcast inspect %96
-  %175: Vec(U8) trivial = load inspect %174
-  %176: Size trivial = const 16
-  %177: Size trivial = sub inspect %106 inspect %176
-  %178: Size trivial = metric stride U8
-  %179: Size trivial = mul inspect %177 inspect %178
-  %180: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %96 inspect %179
-  %181: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %180
-  %182: Vec(U8) trivial = load inspect %181
-  %183: %Vec(U8) trivial = bitcast inspect %95
-  store inspect %183 consume %175
-  %184: Size trivial = metric stride U8
-  %185: Size trivial = mul inspect %177 inspect %184
-  %186: %U8 [owned here shape6 .*=shared slot 0] trivial = add inspect %95 inspect %185
-  %187: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %186
-  store inspect %187 consume %182
-  jump -> bb14
 }
 
 fn opaque(n: I32 [shared call]) -> I32 {

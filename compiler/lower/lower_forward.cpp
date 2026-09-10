@@ -337,6 +337,202 @@ void eraseInst(LowerBase base, LowerInst* inst) {
 }
 
 /*
+ * Every use of a slot inside the block that hands it over, so that the edge is the last thing that
+ * reads it.
+ *
+ * A walk over the names an address has, on `walkAddress`'s recursion and with its refusal: an
+ * address this cannot follow is one whose readers it cannot enumerate. Two differences, and both are
+ * about what is being proved. The phi is allowed, because handing the slot over is the whole point
+ * of the shape; and the *position* of a use is not looked at, only its block, because what has to
+ * hold is that no execution reads the slot after the edge and every use inside the predecessor is
+ * above the terminator by construction.
+ */
+bool tiedToBlock(LowerBase base, LowerValue* address, LowerInst* phi, LowerPtr<LowerBlock> block,
+                 Size depth) {
+    // The chains this asks about are a constant offset or two off a record header; a bound rather
+    // than a limit, and past it the rewrite is declined.
+    if(depth > 8) return false;
+
+    for(auto userPtr: address->uses.contents(base)) {
+        auto user = base[userPtr];
+        if(user == phi) continue;
+        if(user->block != block) return false;
+
+        if(user->kind == LowerInst::Add) {
+            if(!tiedToBlock(base, ((LowerInstBinary*)user)->created().ptr, phi, block, depth + 1)) {
+                return false;
+            }
+
+            continue;
+        }
+
+        // Everything else has to be an access *of this address*, on `walkAddress`'s rule: an
+        // instruction naming the pointer anywhere but an address operand is the address reaching
+        // somewhere this walk cannot follow it, and a call is one of those.
+        auto used = user->used();
+        auto self = address - base;
+
+        LowerAccess accesses[kMaxAccesses];
+        auto count = lowerInstAccesses(user, accesses);
+        auto named = Size(0);
+
+        for(Size which = 0; which < count; which++) {
+            if(*accesses[which].address == self) named++;
+        }
+
+        auto positions = Size(0);
+        for(Size i = 0; i < used.length; i++) {
+            if(used.ptr[i] == self) positions++;
+        }
+
+        if(named == 0 || named != positions) return false;
+    }
+
+    return true;
+}
+
+/*
+ * The other end of the same waste: a copy *out of* a phi, into a slot with nothing else in it.
+ *
+ * `tryForward` below moves a value's writes forward into the storage it was going to be copied to.
+ * That rewrite needs the writes and the copy in one block, and an aggregate that arrives through a
+ * **block argument** never has them there:
+ *
+ *      b_21 { %22 = alloca 20; ..writes..; jmp b_19 }
+ *      b_7  { %23 = alloca 20; ..writes..; jmp b_19 }
+ *      b_19 { %20 = phi [b_21, %22], [b_7, %23]; %24 = alloca 20; copy %24, %20, 20; ..reads.. }
+ *
+ * Two slots is what the shape is *for* - each arm builds its own value and the edge picks one - and
+ * `%24` is a third holding a copy of whichever arrived. Nothing needs it: the phi is already an
+ * address, the bytes behind it are already the bytes `%24` would hold, and the readers below can
+ * read them where they are. So the rewrite is the plain one - every use of `%24` becomes a use of
+ * `%20`, and the copy and the slot go away - and it is worth twenty bytes moved and a frame object
+ * per site.
+ *
+ * The shape is `Try(Maybe(a), a, ()).toOutcome` inlined, and every `?`, `?.` and `match` arm that
+ * produces an aggregate: `test/bench/findings.md` §106.4 is where it was counted, at 71 of the 406
+ * whole-slot copies over `test/resolve`.
+ *
+ * ## What it has to prove
+ *
+ * Four things, and none of them is `tryForward`'s aliasing question - because nothing moves. The
+ * writes stay exactly where they are; what changes is which address the *readers* use, and they read
+ * the same bytes either way.
+ *
+ *  - **the copy moves the whole of both slots.** The count is the destination's own byte count and
+ *    every incoming allocation's, so what the readers find is everything the copy would have put
+ *    there. A partial copy leaves the rest of the destination to be found.
+ *  - **the phi answers this copy and nothing else.** A second reader of it would keep reading the
+ *    predecessor's slot while the readers of `%24` now write through it, and the two would be one
+ *    piece of storage with two owners.
+ *  - **each incoming slot is dead below its edge** - `tiedToBlock`. Every access to it is inside the
+ *    block that hands it over, so nothing reads it afterwards and nothing writes it again. This is
+ *    what makes the destination's later writes - a teardown call, a tag store - land in storage
+ *    nobody else is looking at.
+ *  - **and the copy's block cannot reach any of those blocks.** A loop would fill an incoming slot a
+ *    second time, below the readers now reading it: the deadness above is a statement about one trip
+ *    through the edge, and this is what makes one trip all there is.
+ *
+ * The destination's own uses are asked one thing, and it is the same statement from its side:
+ * nothing may read it *before* the copy, since before the copy it holds whatever the last value in
+ * that frame object left. A use above the copy in its own block, or in any block that can reach it,
+ * is one of those.
+ */
+bool tryAdoptPhi(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U32, U32>& position,
+                 HashMap<U32, U32>& reaching, const DominatorTree& dominators, LowerInstCopy& copy) {
+    auto source = base[copy.from];
+    auto destination = base[copy.to];
+    if(source == destination) return false;
+
+    auto phi = source->inst();
+    if(phi->kind != LowerInst::Phi || phi->block != &block - base) return false;
+    if(source->uses.size() != 1) return false;
+
+    auto slot = destination->inst();
+    if(slot->kind != LowerInst::Alloca) return false;
+
+    auto size = constantOf(base, ((LowerInstAlloca*)slot)->byteCount);
+    auto count = constantOf(base, copy.count);
+    if(size.isNothing() || count.isNothing()) return false;
+    if(size.unwrap() == 0 || size.unwrap() != count.unwrap()) return false;
+
+    auto here = position.getValue(U32((LowerInst*)&copy - base));
+    if(!here) return false;
+
+    /*
+     * Every reader of the destination, asked two things.
+     *
+     * **The phi has to reach it**, which is the plain SSA obligation and the one this rewrite would
+     * otherwise break: the destination is a frame object and is therefore readable from anywhere,
+     * while the phi is a value defined at the top of one block. A reader in a sibling arm is
+     * dominated by neither, and pointing it at the phi is a use of something that is not live there.
+     * `LowerValue::dominates` is the question; the same-block case is asked as a position instead,
+     * because a phi dominates its own block's instructions including the ones above the copy - and
+     * one of *those* is a read of the slot before anything filled it.
+     *
+     * **And it must not run again before the copy does.** A reader whose block can reach this one is
+     * one that does, on the second trip round; the deadness proved of each arm below is a statement
+     * about one trip through the edge, and this is the same statement from the destination's side.
+     */
+    blocksReaching(base, block, reaching);
+
+    for(auto userPtr: destination->uses.contents(base)) {
+        auto user = base[userPtr];
+        if(user == (LowerInst*)&copy || user == slot) continue;
+
+        if(reaching.getValue(U32(user->block))) return false;
+
+        if(user->block == &block - base) {
+            auto at = position.getValue(U32(user - base));
+            if(!at || at.unwrap() <= here.unwrap()) return false;
+            continue;
+        }
+
+        if(!source->dominates(base, user, dominators)) return false;
+    }
+
+    // Every arm's slot, held so that the alignment is raised only once the whole shape has been
+    // proved - a refusal below must leave the function exactly as it found it.
+    SmallArray<LowerInstAlloca*, 4> arms;
+    auto used = phi->used();
+    auto sources = ((LowerInstPhi*)phi)->sources();
+
+    if(used.length == 0 || used.length != sources.length) return false;
+
+    for(Size i = 0; i < used.length; i++) {
+        auto incoming = base[used.ptr[i]];
+        auto definition = incoming->inst();
+        if(definition->kind != LowerInst::Alloca) return false;
+
+        auto held = constantOf(base, ((LowerInstAlloca*)definition)->byteCount);
+        if(held.isNothing() || held.unwrap() != size.unwrap()) return false;
+
+        if(!tiedToBlock(base, incoming, phi, sources.ptr[i], 0)) return false;
+
+        // And the edge is taken once. `blocksReaching` is asked of the arm rather than of this
+        // block, which is the direction it walks, so the map is rebuilt once per arm.
+        blocksReaching(base, *base[sources.ptr[i]], reaching);
+        if(reaching.getValue(U32(&block - base))) return false;
+
+        arms.push((LowerInstAlloca*)definition);
+    }
+
+    /*
+     * The rewrite. The readers move to the phi, and the slot they were reading has nothing left in
+     * it - which is the same two lines `tryForward` ends with, in the other direction.
+     */
+    // Each arm now holds what the destination held, so it has to be aligned as the destination was.
+    for(auto arm: arms) arm->alignment = max(arm->alignment, ((LowerInstAlloca*)slot)->alignment);
+
+    detach(base, (LowerInst*)&copy);
+    block.instructions.remove(base, Size(here.unwrap()));
+
+    replaceUses(base, fun.module->arena, copy.to, copy.from);
+    eraseInst(base, slot);
+    return true;
+}
+
+/*
  * One copy, and whether the value it moves could have been built where it was going.
  *
  * Everything the header lists is checked here, in the order that makes the cheap refusals cheap: the
@@ -612,9 +808,10 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
     return true;
 }
 
-}
-
-void forwardCopyDestinations(LowerBase base, LowerFunction& fun, LowerPtr<LowerValue> returnPlace) {
+// The two rewrites over one function, with the dominator tree `tryAdoptPhi` reads already built or
+// already known to be unnecessary - see `forwardCopyDestinations`, which is the split's whole reason.
+void forwardCopies(LowerBase base, LowerFunction& fun, LowerPtr<LowerValue> returnPlace,
+                   const DominatorTree& dominators) {
     HashMap<U32, U32> position;
     HashMap<U32, U32> reaching;
 
@@ -640,11 +837,52 @@ void forwardCopyDestinations(LowerBase base, LowerFunction& fun, LowerPtr<LowerV
                 auto inst = base[block->instructions.get(base, i)];
                 if(inst->kind != LowerInst::Copy) continue;
 
-                if(tryForward(base, fun, *block, position, reaching, returnPlace, *(LowerInstCopy*)inst)) {
+                auto& moved = *(LowerInstCopy*)inst;
+
+                // The phi case first, because it is the cheaper question and the two are disjoint:
+                // `tryForward` needs the copy's source to be an allocation this block writes, and
+                // this one needs it to be a block argument.
+                if(tryAdoptPhi(base, fun, *block, position, reaching, dominators, moved) ||
+                   tryForward(base, fun, *block, position, reaching, returnPlace, moved)) {
                     changed = true;
                     break;
                 }
             }
         }
     }
+}
+
+}
+
+/*
+ * The dominator tree is built only for a function that has a copy out of a block argument in it,
+ * which is what the scan below decides - `tryAdoptPhi` is its only reader, and the shape is a
+ * handful of sites in a program. Two calls rather than an assignment because a `DominatorTree` holds
+ * `SmallArray`s and is therefore built where it is named; neither rewrite touches an edge, so one
+ * build lasts the whole run.
+ */
+void forwardCopyDestinations(LowerBase base, LowerFunction& fun, LowerPtr<LowerValue> returnPlace) {
+    auto wanted = false;
+
+    for(auto blockPtr: fun.blocks.contents(base)) {
+        for(auto instPtr: base[blockPtr]->instructions.contents(base)) {
+            auto inst = base[instPtr];
+            if(inst->kind != LowerInst::Copy) continue;
+            if(!isPhi(base[((LowerInstCopy*)inst)->from]->inst())) continue;
+
+            wanted = true;
+            break;
+        }
+
+        if(wanted) break;
+    }
+
+    if(!wanted) {
+        DominatorTree none;
+        forwardCopies(base, fun, returnPlace, none);
+        return;
+    }
+
+    auto dominators = fun.buildDominatorTree(base);
+    forwardCopies(base, fun, returnPlace, dominators);
 }

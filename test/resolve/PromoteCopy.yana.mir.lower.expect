@@ -147,7 +147,7 @@ scored<complex>(%n: I32): I32 {
   }
 
   b_4 {
-    %v_5 = cast %v_6: I32
+    %v_5 = load %v_6, 1: I32
     %v_7 = call_complex weight, %v_5: I32
     jmp b_8
   }
@@ -162,24 +162,24 @@ scored<complex>(%n: I32): I32 {
   }
 
   b_11 {
-    %v_12 = phi [b_3, %v_13], [b_2, %v_14]: Ptr
-    %v_6 = load %v_12, 1: I64
-    %v_15 = cmp_le %v_6, 3: I32
+    %v_6 = phi [b_3, %v_12], [b_2, %v_13]: Ptr
+    %v_14 = load %v_6, 1: I64
+    %v_15 = cmp_le %v_14, 3: I32
     %v_16 = select %v_15, 0, 1: I32
     je %v_16, b_10, b_4
   }
 
   b_3 {
-    %v_13 = alloca 1, 1: Ptr
-    store %v_13, 4, 1
+    %v_12 = alloca 1, 1: Ptr
+    store %v_12, 4, 1
     jmp b_11
   }
 
   b_2 {
     %v_17 = sub 0, %n: I32
     %v_18 = call_complex classify, %v_17: I32
-    %v_14 = alloca 1, 1: Ptr
-    store %v_14, %v_18, 1
+    %v_13 = alloca 1, 1: Ptr
+    store %v_13, %v_18, 1
     jmp b_11
   }
 }

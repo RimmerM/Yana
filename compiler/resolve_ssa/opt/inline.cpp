@@ -811,6 +811,25 @@ struct Inliner {
     }
 
     /*
+     * Whether this callee is one of the two block-move ladders - `known.def`'s `copyMemory` and
+     * `moveMemory` rows, which name them for exactly the reason this reads them: what they are is
+     * not visible in the body.
+     *
+     * Through `specializes`, as `summary.cpp` does, so that a specialization of one answers as the
+     * generic it runs. Neither is generic today; the test costs a load and stops the rule being
+     * wrong the day one is.
+     */
+    bool isBlockMoveLadder(DeclPtr<mir::Function> pointer) {
+        if(!pointer) return false;
+
+        auto callee = decl()[pointer];
+        auto root = callee->specializes ? callee->specializes : pointer;
+
+        return root == opt.program.roles.function(intrinsic::Known::copyMemory)
+            || root == opt.program.roles.function(intrinsic::Known::moveMemory);
+    }
+
+    /*
      * Whether the copy is worth making - the two numbers and the exemption.
      *
      * `@inline(always)` reaching here at all means the conversion's graft declined it, which happens
@@ -835,13 +854,49 @@ struct Inliner {
      * the indirect call on the other side of it becoming a direct one. See `flattenContinuations`,
      * where the chain's own two budgets are.
      */
-    bool worthInlining(DeclPtr<mir::Function> pointer, bool flattening, bool cold) {
+    bool worthInlining(InstCall& call, bool flattening, bool cold) {
+        auto pointer = call.callee;
         auto callee = decl()[pointer];
 
         // `@noinline`, which is a directive rather than a weight: declining to inline is always
         // possible, so this is the one thing a declaration says here that is never traded against a
         // size. Asked before the numbers for that reason, and not after them.
         if(callee->noInline) return false;
+
+        /*
+         * **The block-move ladders, which are a dispatch and not a copy.** J60.
+         *
+         * `copyMemory` and `moveMemory` in `lib/Native/Memory.native.yana` are the size dispatch
+         * over a block move written for a count nobody knows: a vector pair under `width * 4`,
+         * `blockShort`, the ascending and descending loops, and `rep movsb` past the length where
+         * its flat rate overtakes them. Nine blocks and sixty-two lowered instructions, and `sizeOf`
+         * weighs that at a number `balanced` clears - so every site was getting its own copy of the
+         * whole ladder.
+         *
+         * **What a copy of it buys is a `call` and a `ret`.** Not one comparison of the dispatch is
+         * removed: the count is what selects the arm, the count is not known here, and the arms are
+         * separate functions the copy does not bring with it. That is the entire trade, and it is
+         * two hundred bytes against ten.
+         *
+         * So the rule is about the *count*, not the declaration - where the site does pass a
+         * constant every threshold folds and what is left is the one arm the length selects, which
+         * is worth having and is why this is not `@noinline` in the library. Two further reasons it
+         * is not: the attribute would bind the JS build, where `copyMemory` claims `blockCopy`
+         * itself and is one node rather than a ladder, and it would bind the shipping stage, which
+         * already declines the same body on its ceiling and is the control this was measured
+         * against.
+         *
+         * A count that is `sizeOf(T)` does **not** read as constant here, and correctly so: it is a
+         * `Metric`, `fold.cpp` declines those by ruling (J59), and until the lower tier folds it
+         * nothing in the spliced ladder would fold either. So this admits the source literal and
+         * refuses the rest, which is what the tier can honestly tell apart.
+         */
+        if(isBlockMoveLadder(pointer)) {
+            auto count = call.arguments.size() == 3
+                ? opt.base[call.arguments.get(base(), 2).value()] : nullptr;
+
+            if(!constantValueOf(opt, count)) return false;
+        }
 
         /*
          * And the two check roles under `-check-locations`, which is the same shape of rule.
@@ -2142,7 +2197,7 @@ struct Inliner {
 
         // Whether the *caller's* block is rare - see `findColdBlocks`. A fact about the site rather
         // than about the callee, which is why it is read here and passed in.
-        if(!worthInlining(call.callee, flattening, inColdBlock(call.block))) return false;
+        if(!worthInlining(call, flattening, inColdBlock(call.block))) return false;
 
         auto block = base()[call.block];
         Size position = 0;

@@ -1392,6 +1392,7 @@ struct Resolver {
     bool constantOperation(const OverloadSet& set, DeclPtr<Type> operand, LocationId source,
                            BinaryOp& binary, UnaryOp& unary, bool& isBinary);
     Maybe<Constant> resolveAggregateConstant(ast::Expr& expr, DeclPtr<Type> hint);
+    Maybe<Constant> resolveTupleConstant(ast::Expr& expr, DeclPtr<Type> hint);
 
     // What an unadorned literal is, from the library declaration that says so - see the definition.
     DeclPtr<Type> literalDefault(intrinsic::Known role, LocationId source);

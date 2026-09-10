@@ -328,6 +328,23 @@ bool optimizeProgram(Context& context, mir::Program& program, Converted& convert
     }
 
     /*
+     * And the reachability question asked once more, now that every body is in its final shape.
+     *
+     * The same argument `markReachableGlobals` below is here for, one edge kind earlier. The
+     * inliner's own rounds answer this for a call *it* spliced, which is the answer its threshold
+     * needs; what they cannot answer is the call the loop above folded away - a drop the ownership
+     * passes proved unnecessary, an arm `threadBranches` stranded, a whole `main` that reduced to
+     * its constant. `test/resolve/LiteralFold.yana` is the shape at its smallest: `main` becomes
+     * `mov $0x11, %eax; ret` and the program still carried `String.reclaim`, two `reclaim`s under it
+     * and `freeHeap`, none of which anything could arrive at.
+     *
+     * Above the globals rather than below them, because the two walks compose in one direction: a
+     * global read only by a body that stops being reachable here is one the walk below must not
+     * find, and a function is never reached *from* a global.
+     */
+    markProgramReachable(opt);
+
+    /*
      * And the globals, once, with every body in its final shape.
      *
      * The folder answers an immutable global's read with the number it holds, and what was left

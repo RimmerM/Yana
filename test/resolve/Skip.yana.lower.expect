@@ -200,35 +200,35 @@ mixed<complex>(%n: I32): I32 {
 
   b_29 {
     %v_33 = phi [b_26, %v_30], [b_27, %v_28]: Ptr
-    %v_34 = load %v_33, 4: I32
-    %v_35 = add %v_33, 4: Ptr
-    %v_36 = load %v_35, 4: I32
-    %v_37 = add %v_33, 8: Ptr
-    %v_38 = load %v_37, 4: I32
-    %v_39 = cmp_eq %v_34, 1: I32
-    je %v_39, b_40, b_41
+    %v_34 = loads %v_33, 4: I32
+    %v_35 = cmp_eq %v_34, 1: I32
+    je %v_35, b_36, b_37
   }
 
-  b_41 {
-    %v_42 = cmp_eq %v_36, 1: I32
-    je %v_42, b_43, b_44
+  b_37 {
+    %v_38 = add %v_33, 4: Ptr
+    %v_39 = loads %v_38, 4: I32
+    %v_40 = cmp_eq %v_39, 1: I32
+    je %v_40, b_41, b_42
   }
 
-  b_44 {
+  b_42 {
     jmp b_5
   }
 
   b_5 {
-    %v_45 = phi [b_4, %v_1], [b_44, %v_22]: I32
-    %v_46 = add %v_45, 1: I32
+    %v_43 = phi [b_4, %v_1], [b_42, %v_22]: I32
+    %v_44 = add %v_43, 1: I32
+    ret %v_44
+  }
+
+  b_41 {
+    %v_45 = add %v_33, 8: Ptr
+    %v_46 = loads %v_45, 4: I32
     ret %v_46
   }
 
-  b_43 {
-    ret %v_38
-  }
-
-  b_40 {
+  b_36 {
     ret 5
   }
 }

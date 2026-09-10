@@ -14,42 +14,12 @@ bb0(%0: Corner trivial):
 
 fn axesOf(c: Corner [shared call]) -> {I32, Bool, F32} {
 bb0(%0: Corner trivial):
-  %2: %Corner address = alloc frame Corner [shared call]
-  store inspect %2 borrow %0
-  %3: %U8 address = field.addr .# inspect %2
-  %4: U8 trivial = load inspect %3
-  switch [0, 1, 2] inspect %4 -> bb1 -> bb2 -> bb3 -> bb4
-
-bb1:
-  %5: I32 trivial = const 0
-  %6: Bool trivial = const True
-  %7: F32 trivial = const 0.5
-  %8: {I32, Bool, F32} trivial = aggregate. consume %5 consume %6 consume %7
-  jump -> bb5(consume %8)
-
-bb2:
-  %9: I32 trivial = const 1
-  %10: Bool trivial = const True
-  %11: F32 trivial = const 1.5
-  %12: {I32, Bool, F32} trivial = aggregate. consume %9 consume %10 consume %11
-  jump -> bb5(consume %12)
-
-bb3:
-  %13: I32 trivial = const 2
-  %14: Bool trivial = const False
-  %15: F32 trivial = const 2.5
-  %16: {I32, Bool, F32} trivial = aggregate. consume %13 consume %14 consume %15
-  jump -> bb5(consume %16)
-
-bb4:
-  %17: I32 trivial = const 3
-  %18: Bool trivial = const False
-  %19: F32 trivial = const 3.5
-  %20: {I32, Bool, F32} trivial = aggregate. consume %17 consume %18 consume %19
-  jump -> bb5(consume %20)
-
-bb5(%1: {I32, Bool, F32} trivial):
-  return consume %1
+  %1: %Corner address = alloc frame Corner [shared call]
+  store inspect %1 borrow %0
+  %2: %U8 address = field.addr .# inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: {I32, Bool, F32} trivial = map [0 ->  {0, True, 0.5}, 1 ->  {1, True, 1.5}, 2 ->  {2, False, 2.5}, 3 ->  {3, False, 3.5}] inspect %3
+  return consume %4
 }
 
 fn boxOf(c: Corner [shared call]) -> Box {

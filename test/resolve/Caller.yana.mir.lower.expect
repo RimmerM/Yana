@@ -405,135 +405,16 @@ String.appendUnits<complex>(%self: Ptr, %from: Ptr, %count: I64) {
   b_29 {
     %v_30 = load %self, 8: Ptr
     %v_31 = add %v_30, %v_23: Ptr
-    %v_32 = cmp_ige %count, 32: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_28 {
-    %v_35 = syscall 60, 134: I64
-    unreachable 
-  }
-
-  b_36 {
-    %v_37 = cast %v_24: I32
-    %v_38 = and %v_37, 1073741823: I32
-    store %v_26, %v_38, 4
+    call_complex copyMemory, %v_31, %from, %count
+    %v_32 = cast %v_24: I32
+    %v_33 = and %v_32, 1073741823: I32
+    store %v_26, %v_33, 4
     ret 
   }
 
-  b_34 {
-    %v_39 = cmp_ige %count, 8: I32
-    je %v_39, b_40, b_41
-  }
-
-  b_33 {
-    %v_42 = cmp_ilt %count, 64: I32
-    je %v_42, b_43, b_44
-  }
-
-  b_44 {
-    %v_45 = cmp_ige %count, 768: I32
-    je %v_45, b_46, b_47
-  }
-
-  b_47 {
-    call_complex blockAscending, %v_31, %from, %count
-    jmp b_36
-  }
-
-  b_46 {
-    copy %v_31, %from, %count
-    jmp b_36
-  }
-
-  b_43 {
-    %v_48 = load %from, 16: i8x16
-    %v_49 = add %from, 16: Ptr
-    %v_50 = load %v_49, 16: i8x16
-    %v_51 = sub %count, 16: I64
-    %v_52 = sub %v_51, 16: I64
-    %v_53 = add %from, %v_52: Ptr
-    %v_54 = load %v_53, 16: i8x16
-    %v_55 = add %from, %v_51: Ptr
-    %v_56 = load %v_55, 16: i8x16
-    store %v_31, %v_48, 16
-    %v_57 = add %v_31, 16: Ptr
-    store %v_57, %v_50, 16
-    %v_58 = add %v_31, %v_52: Ptr
-    store %v_58, %v_54, 16
-    %v_59 = add %v_31, %v_51: Ptr
-    store %v_59, %v_56, 16
-    jmp b_36
-  }
-
-  b_41 {
-    %v_60 = cmp_ige %count, 2: I32
-    je %v_60, b_61, b_62
-  }
-
-  b_62 {
-    %v_63 = cmp_ige %count, 1: I32
-    je %v_63, b_64, b_36
-  }
-
-  b_64 {
-    %v_65 = load %from, 1: I32
-    store %v_31, %v_65, 1
-    jmp b_36
-  }
-
-  b_61 {
-    %v_66 = cmp_ige %count, 4: I32
-    je %v_66, b_67, b_68
-  }
-
-  b_68 {
-    %v_69 = load %from, 2: I32
-    %v_70 = sub %count, 2: I64
-    %v_71 = add %from, %v_70: Ptr
-    %v_72 = load %v_71, 2: I32
-    store %v_31, %v_69, 2
-    %v_73 = add %v_31, %v_70: Ptr
-    store %v_73, %v_72, 2
-    jmp b_36
-  }
-
-  b_67 {
-    %v_74 = load %from, 4: I32
-    %v_75 = sub %count, 4: I64
-    %v_76 = add %from, %v_75: Ptr
-    %v_77 = load %v_76, 4: I32
-    store %v_31, %v_74, 4
-    %v_78 = add %v_31, %v_75: Ptr
-    store %v_78, %v_77, 4
-    jmp b_36
-  }
-
-  b_40 {
-    %v_79 = cmp_ige %count, 16: I32
-    je %v_79, b_80, b_81
-  }
-
-  b_81 {
-    %v_82 = load %from, 8: I64
-    %v_83 = sub %count, 8: I64
-    %v_84 = add %from, %v_83: Ptr
-    %v_85 = load %v_84, 8: I64
-    store %v_31, %v_82, 8
-    %v_86 = add %v_31, %v_83: Ptr
-    store %v_86, %v_85, 8
-    jmp b_36
-  }
-
-  b_80 {
-    %v_87 = load %from, 16: i8x16
-    %v_88 = sub %count, 16: I64
-    %v_89 = add %from, %v_88: Ptr
-    %v_90 = load %v_89, 16: i8x16
-    store %v_31, %v_87, 16
-    %v_91 = add %v_31, %v_88: Ptr
-    store %v_91, %v_90, 16
-    jmp b_36
+  b_28 {
+    %v_34 = syscall 60, 134: I64
+    unreachable 
   }
 }
 

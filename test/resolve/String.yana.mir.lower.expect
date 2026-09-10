@@ -67,8 +67,9 @@ main<complex>(): I32 {
   }
 
   b_23 {
-    %v_24 = load %v_25, 4: I32
-    %v_26 = sext %v_24: I64
+    %v_24 = add %v_3, 12: Ptr
+    %v_25 = load %v_24, 4: I32
+    %v_26 = sext %v_25: I64
     call_complex String.reclaim, %v_3
     %v_27 = sext %v_26: I32
     %v_12 = add %v_2, %v_27: I32
@@ -105,45 +106,24 @@ main<complex>(): I32 {
     %v_47 = phi [b_4, %v_30], [b_39, %v_41]: I64
     %v_48 = phi [b_4, %v_31], [b_39, %v_42]: I64
     %v_49 = phi [b_4, %v_36], [b_39, %v_46]: I64
-    %v_25 = add %v_3, 12: Ptr
-    %v_50 = cmp_ilt %v_49, %v_48: I32
-    je %v_50, b_51, b_52
+    %v_50 = add %v_3, 12: Ptr
+    %v_51 = cmp_ilt %v_49, %v_48: I32
+    je %v_51, b_52, b_53
   }
 
-  b_52 {
-    %v_53 = load %v_3, 8: Ptr
-    %v_54 = add %v_53, %v_47: Ptr
-    jmp b_55
-  }
-
-  b_55 {
-    jmp b_56
-  }
-
-  b_57 {
-    %v_58 = cast %v_48: I32
-    %v_59 = and %v_58, 1073741823: I32
-    store %v_25, %v_59, 4
+  b_53 {
+    %v_54 = load %v_3, 8: Ptr
+    %v_55 = add %v_54, %v_47: Ptr
+    call_complex copyMemory, %v_55, @string'146, 4
+    %v_56 = cast %v_48: I32
+    %v_57 = and %v_56, 1073741823: I32
+    store %v_50, %v_57, 4
     jmp b_23
   }
 
-  b_51 {
-    %v_60 = syscall 60, 134: I64
+  b_52 {
+    %v_58 = syscall 60, 134: I64
     unreachable 
-  }
-
-  b_56 {
-    jmp b_61
-  }
-
-  b_61 {
-    jmp b_62
-  }
-
-  b_62 {
-    %v_63 = load @string'146, 4: I32
-    store %v_54, %v_63, 4
-    jmp b_57
   }
 }
 

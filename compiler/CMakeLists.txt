@@ -349,7 +349,8 @@ set(RESOLVE_MIR_SOURCE_FILES
 
     resolve_mir/fold.h
     resolve_mir/fold.cpp
-    resolve_mir/evaluate.cpp
+
+    resolve_mir/text.cpp
     resolve_mir/resolve_intrinsic.cpp
 
     resolve_mir/intrinsic/roles.h

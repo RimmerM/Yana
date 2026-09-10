@@ -1054,6 +1054,14 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint, bool* no
             return array.unwrap();
         }
 
+        // `{4, 5}` - the anonymous record, whose type is its elements'. See `resolveTupleConstant`.
+        case ast::Expr::Tup: {
+            auto tuple = resolveTupleConstant(expr, hint);
+            if(!tuple) return notOne();
+
+            return tuple.unwrap();
+        }
+
         case ast::Expr::Con: {
             // A constructor whose value is a tag, which fits the eight bytes a `Constant` holds;
             // and then one whose value is its fields. Two forms rather than one because a value
@@ -1499,6 +1507,94 @@ Maybe<Constant> Resolver::resolveArrayConstant(ast::Expr& expr, DeclPtr<Type> hi
     while(values.size() < shaped.unwrap().length) values.push(values[0]);
 
     return Just(program.aggregateConstant(hint, 0, values.pointer(), values.size()));
+}
+
+/*
+ * `{0, True, 0.5}` - the anonymous record as a constant. J61.
+ *
+ * `resolveTupleLiteral` with `resolveConstant` where it has `resolveValue`, which is the same
+ * difference between a construction that runs and one that reduces that `resolveAggregateConstant`
+ * is on the other side of. What made it a separate function rather than a case of that one is the
+ * thing that makes a tuple a tuple: **there is no declaration**. A `data` is what a construction is
+ * checked against, and an anonymous record's type is interned from what its elements turned out to
+ * be - so the fields are built here after the walk rather than read from an arm before it.
+ *
+ * The hint decides the elements, on `resolveTupleLiteral`'s rule and with its test: the arity **and
+ * the labels** are the type's identity, so a hint differing in either is a hint about another type
+ * and pushing its field types down would be filling positions that are not these.
+ *
+ * A field whose constant comes out at another type is **not this form** rather than a mistake, and
+ * that is `resolveAggregateConstant`'s ordering restated where it has no declaration to compare
+ * against: the value path widens a field this one only reads, so `{n, 2 :: I8}` at a `{I32, I32}`
+ * position is a construction that runs and not a constant that is wrong.
+ *
+ * Why it was missing: `resolveConstant` had no `Tup` arm at all, so every tuple was "not a constant
+ * expression" - which cost a global initialized with one, a field or parameter default that is one,
+ * and, because `matchAsMap` evaluates its arms through here, **every constructor map whose result is
+ * a tuple**. `axesOf` in `test/resolve/ConstructorMap.Records.yana` is the fixture that had been
+ * asserting the branch chain; findings.md §106.5 is where it was counted.
+ */
+Maybe<Constant> Resolver::resolveTupleConstant(ast::Expr& expr, DeclPtr<Type> hint) {
+    auto written = expr.tup;
+    auto count = U32(written.size());
+
+    // `{}` is the unit rather than a record of nothing - see the `Tup` arm of `resolveExpression`,
+    // where the same split is made for the same reason.
+    if(!count) return Just(unitConstant(program.types.unit));
+
+    auto expected = (RecordType*)nullptr;
+
+    if(hint && decl()[hint]->kind == Type::Record) {
+        auto record = (RecordType*)decl()[hint];
+
+        if(record->tuple && record->fields.size() == count) {
+            expected = record;
+
+            auto index = U16(0);
+            for(auto argument: written.contents(parse)) {
+                if(record->field(decl(), index++).name != argument.name) expected = nullptr;
+            }
+        }
+    }
+
+    SmallArray<Constant, 8> values;
+    auto index = U32(0);
+
+    for(auto argument: written.contents(parse)) {
+        auto declared = expected ? expected->field(decl(), U16(index)).occurrence.type : nullptr;
+        index++;
+
+        auto dynamic = false;
+        auto value = resolveConstant(argument.value, declared, &dynamic);
+
+        if(dynamic) return Nothing();
+        if(!value.isSet()) return Just(Constant());
+        if(declared && !sameType(value.type, declared)) return Nothing();
+
+        values.push(value);
+    }
+
+    // The type is the values', which is the whole of what an anonymous record's identity is - the
+    // written labels carried through beside the types the elements came out at.
+    SmallArray<RecordField, 4> fields;
+    index = 0;
+
+    for(auto argument: written.contents(parse)) {
+        RecordField row;
+        row.name = argument.name;
+        row.occurrence = owned(values[index++].type);
+        row.source = argument.value.source;
+        fields.push(row);
+    }
+
+    // The same rule the written form is under, asked in the same words - `uniqueTupleLabels`.
+    if(!uniqueTupleLabels(fields.pointer(), fields.size())) return Just(Constant());
+
+    auto type = tupleType(context, program, fields.pointer(), fields.size(), expr.source);
+    if(!type) return Just(Constant());
+
+    // The one constructor an anonymous record has - see `tupleType`, where it is made.
+    return Just(program.aggregateConstant(type, 0, values.pointer(), values.size()));
 }
 
 /*
