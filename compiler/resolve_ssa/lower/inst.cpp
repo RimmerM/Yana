@@ -188,18 +188,105 @@ LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurr
      */
     if(!manifest.inMemory || !hasPaddedWord(layout, occurrence.type)) return storage;
 
+    zeroStorage(block, storage, manifest.size);
+    return storage;
+}
+
+/*
+ * `size` bytes of storage written to zero, widest word first.
+ *
+ * Two callers, and they are the two places a value with a padded word comes to occupy storage:
+ * `frameStorage` above, where the storage is fresh, and `destinationFor`'s `Store` arm, where it is
+ * a slot the value is about to be written into anyway. One function because the rule they are
+ * serving is one rule - see `hasPaddedWord` - and two spellings of it is how one of them comes to
+ * stop at four bytes.
+ */
+void Lowering::zeroStorage(LowerBlock& block, LowerPtr<LowerValue> storage, U32 size) {
     U32 at = 0;
-    while(at < manifest.size) {
-        auto width = manifest.size - at >= 8 ? 8u : manifest.size - at >= 4 ? 4u
-                   : manifest.size - at >= 2 ? 2u : 1u;
+    while(at < size) {
+        auto width = size - at >= 8 ? 8u : size - at >= 4 ? 4u
+                   : size - at >= 2 ? 2u : 1u;
 
         block.addInst(lower, new (to.arena) LowerInstStore(
             offsetAddress(block, storage, at), immediate(block, LowerType::Int64, 0), width));
 
         at += width;
     }
+}
 
-    return storage;
+/*
+ * How many projections deep `allocationRoot` follows before answering "somewhere else".
+ *
+ * A bound rather than a limit: the chains this asks about are a field of a field of a container
+ * header, three steps at the outside, and a walk with no bound would be one whose cost a body could
+ * choose. Beyond it the answer is the conservative one, which is what every caller wants anyway.
+ */
+constexpr U32 kRootDepth = 8;
+
+/*
+ * The allocation an address is a projection of, and null where the walk leaves this frame.
+ *
+ * Only what `destinationFor` needs it for, which is a **separation** test and not a general one:
+ * two addresses with two different roots cannot name one piece of storage, and an address with no
+ * root here names storage this frame cannot bound. So the null answer is the conservative one at
+ * every caller, and the walk stops rather than guessing at the first step it does not recognize.
+ *
+ * A `Load` is a step, and it is the only one that is not arithmetic: a `Guaranteed` result is a
+ * borrow of what is at the address, so its storage is that address's storage - which is exactly what
+ * `install` relies on when it copies out of one. A tracked load is a handover and is not followed.
+ */
+static SsaPtr<Value> allocationRoot(SsaBase ssa, SsaPtr<Value> pointer) {
+    for(U32 step = 0; step < kRootDepth; step++) {
+        if(!pointer) return nullptr;
+
+        auto value = ssa[pointer];
+        if(!value->definer) return nullptr;
+
+        auto definer = ssa[value->definer];
+        switch(definer->kind) {
+            case Inst::Alloc:
+                return pointer;
+
+            case Inst::FieldAddress:
+                pointer = ((InstFieldAddress*)definer)->base.value();
+                break;
+
+            case Inst::ElementAddress:
+                pointer = ((InstElementAddress*)definer)->base.value();
+                break;
+
+            case Inst::Load:
+                if(value->convention != Convention::Guaranteed) return nullptr;
+                pointer = ((InstLoad*)definer)->address.value();
+                break;
+
+            default:
+                return nullptr;
+        }
+    }
+
+    return nullptr;
+}
+
+/*
+ * Whether `consumer` is the instruction directly after `definer`, both being in `block`.
+ *
+ * A scan, because an `InstId` is a body-wide identity and says nothing about position - see
+ * `Body::insts`. It runs only for a value whose one consumer is a `store`, and it stops at the
+ * producer, so what it costs is bounded by the distance between the two instructions it is asking
+ * about rather than by the block.
+ */
+static bool directlyFollows(SsaBase ssa, Block& block, SsaPtr<Inst> definer,
+                            SsaPtr<Inst> consumer) {
+    auto count = block.instructionCount();
+
+    for(Size i = 0; i + 1 < count; i++) {
+        if(block.instructionAt(ssa, i) == definer) {
+            return block.instructionAt(ssa, i + 1) == consumer;
+        }
+    }
+
+    return false;
 }
 
 /*
@@ -223,8 +310,8 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
     auto manifest = manifestOf(value);
     if(!manifest.inMemory || manifest.dynamic) return nullptr;
     if(value.useCount() != 1 || !value.definer) return nullptr;
-    if(hasPaddedWord(layout, value.occurrence.type)) return nullptr;
 
+    auto padded = hasPaddedWord(layout, value.occurrence.type);
     auto consumer = ssa[value.useAt(ssa, 0)];
     if(consumer->block != ssa[value.definer]->block) return nullptr;
 
@@ -236,7 +323,7 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
          */
         case Inst::Return: {
             auto& written = (InstReturn&)*consumer;
-            if(!currentReturnPlace || written.values.size() != 1) return nullptr;
+            if(padded || !currentReturnPlace || written.values.size() != 1) return nullptr;
             return currentReturnPlace;
         }
 
@@ -247,7 +334,7 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
          */
         case Inst::Aggregate: {
             auto& written = (InstAggregate&)*consumer;
-            if(!consumer->results.size()) return nullptr;
+            if(padded || !consumer->results.size()) return nullptr;
 
             auto result = ssa[consumer->results.get(ssa, 0)];
             if(!manifestOf(*result).inMemory) return nullptr;
@@ -289,6 +376,82 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
             if(held.isPacked()) return nullptr;
 
             return offsetAddress(block, storage, held.offset);
+        }
+
+        /*
+         * The storage a `store` is about to copy this value into - **move elision**, and the third
+         * destination beside the caller's result pointer and a field of a record being built.
+         *
+         * `let tree = build(depth, round)` is a call with an address-only result followed by a store
+         * into the local's slot, and without this it is two frame slots and the value copied between
+         * them - `test/bench/findings.md` §102.3, where it is the whole of `Tree` being 3.3% smaller
+         * and 9.2% *slower* than the shipping stage, which places it.
+         *
+         * Three conditions beyond the four above, and each is about what stands between the producer
+         * and the store:
+         *
+         *  - the value is what the store **writes**, not the address it writes through;
+         *  - the store is the instruction **directly after** the producer. The producer now fills
+         *    the destination early, so anything in between that read the old contents would read the
+         *    new ones and anything that wrote them would have its write overwritten. Adjacency is
+         *    the cheap statement of "nothing in between", and it is the shape the elaboration emits:
+         *    a call and the store of its result are made together;
+         *  - and the producer does not itself **name** the destination. A callee handed that storage
+         *    as an argument, or a component read out of it, would see the write land while it is
+         *    still reading - so no operand of the producing instruction may be rooted in the
+         *    destination's allocation. A destination with no allocation root of this frame is
+         *    declined outright, because then there is nothing to separate it from.
+         *
+         * The destination has to be **lowered already**, which is `mapped` answering: an address
+         * computed between the producer and the store is one the producer cannot write through, and
+         * declining it is the same dominance question the same-block rule above asks of the consumer.
+         *
+         * And a **narrow place** is not a destination. A co-packed field has no address of its own,
+         * so what a store into one performs is a read-modify-write of the word it shares (`pack.cpp`)
+         * - there is nothing for the producer to write through. Both halves of `narrowPlace` are
+         * asked here as the pure lookups they are, before it would emit anything.
+         */
+        case Inst::Store: {
+            auto& written = (InstStore&)*consumer;
+            auto self = SsaPtr<Value>(&value - ssa);
+            if(written.value.value() != self) return nullptr;
+
+            auto& target = *ssa[written.address.value()];
+            if(virtualPlaces.getValue(target.id.index)) return nullptr;
+            if(narrowPointee(target)) return nullptr;
+
+            if(!directlyFollows(ssa, *ssa[consumer->block], value.definer,
+                                value.useAt(ssa, 0))) {
+                return nullptr;
+            }
+
+            auto root = allocationRoot(ssa, written.address.value());
+            if(!root) return nullptr;
+
+            auto shared = false;
+            forEachUse(ssa, *ssa[value.definer], [&](Use used) {
+                if(used.isSet() && allocationRoot(ssa, used.value()) == root) shared = true;
+            });
+
+            if(shared) return nullptr;
+
+            auto place = mapped(written.address.value());
+            if(!place) return nullptr;
+
+            /*
+             * And a **padded word** is zeroed here rather than declining the placement, which is the
+             * one difference from the two destinations above.
+             *
+             * They decline because their storage is not this rewrite's to prepare: a `return` writes
+             * the caller's slot, which the caller zeroed when it made it, and an aggregate component
+             * writes into a record whose own storage `storageFor` has already zeroed as a whole. A
+             * `store`'s destination is neither - it is a slot that has held other values, so the
+             * bits above a co-packed run hold whatever the last one left there. The store this
+             * replaces wrote every byte, padding included; zeroing first is what keeps that true,
+             * and it is strictly cheaper than the copy, which wrote those bytes *and* read them.
+             */
+            if(padded) zeroStorage(block, place - lower, manifest.size);
+            return place - lower;
         }
 
         default:
@@ -480,8 +643,9 @@ void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& v
         address, source - lower, sizeValue(block, value.occurrence)));
 }
 
-void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, DeclPtr<mir::Type> type,
-                            bool runDrop, bool runReclaim, LocationId source, BoxRelease boxes) {
+LowerBlock* Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address,
+                                  DeclPtr<mir::Type> type, bool runDrop, bool runReclaim,
+                                  LocationId source, BoxRelease boxes, LowerFunction* home) {
     auto ownership = mir::ownershipOf(decl, type);
 
     auto authored = [&](intrinsic::Known klass, mir::TeardownKind kind, bool run) {
@@ -528,7 +692,7 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
      */
     auto childDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
     auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
-    if(!childDrop && !childReclaim) return;
+    if(!childDrop && !childReclaim) return &block;
 
     /*
      * A **function value**, whose release is a call to the one function that tests the tag - D17,
@@ -568,7 +732,7 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
             built->used()[1] = address;
         });
 
-        return;
+        return &block;
     }
 
     /*
@@ -587,19 +751,20 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
      */
     if(decl[type]->kind == mir::Type::Array) {
         auto& array = *(mir::ArrayType*)decl[type];
-        if(!array.hasFixedLength() || !mir::hasTeardown(decl, array.element)) return;
+        if(!array.hasFixedLength() || !mir::hasTeardown(decl, array.element)) return &block;
 
         auto stride = elementStrideNative(layout, array.element);
+        auto current = &block;
 
         for(U64 i = 0; i < array.length; i++) {
-            emitTeardown(block, offsetAddress(block, address, U32(stride * i)), array.element,
-                         childDrop, childReclaim, source, boxes);
+            current = emitTeardown(*current, offsetAddress(*current, address, U32(stride * i)),
+                                   array.element, childDrop, childReclaim, source, boxes, home);
         }
 
-        return;
+        return current;
     }
 
-    if(decl[type]->kind != mir::Type::Record) return;
+    if(decl[type]->kind != mir::Type::Record) return &block;
 
     auto record = (mir::RecordType*)decl[type];
 
@@ -612,18 +777,56 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
      * here for the same reason: `emitTeardown` emits into a block its caller is in the middle of,
      * and splitting that block at every drop of a sum would put control flow into a walk that has
      * none. The branch is inside the callee, where there are blocks to put it in.
+     *
+     * **Unless the caller handed over a function to put blocks in**, and then the constructor test
+     * is made here as well - `home`, and it is the whole of J58's answer to `Tree`.
+     *
+     * The callee begins by deciding the same tag and returning where nothing is owed, so a sum whose
+     * value owes nothing costs a call and a `ret` to find that out. That is most of a teardown: a
+     * `Maybe(Tree)` at the bottom of the tree is `Nothing` for every leaf's two children, so a
+     * thirteen-deep tree made **32,767** calls where the shipping stage's site-side test makes
+     * 16,383 - one per node that exists rather than one per edge that might. `test/bench/findings.md`
+     * §103.4 is where that was measured as the whole of the program's remaining 9.6%.
+     *
+     * The guard is one comparison, so it is emitted only where one comparison decides it -
+     * `soleOwingConstructor`. What it costs where it fires is a test the callee then repeats, on the
+     * path where there was something to do anyway.
      */
     if(record->layout != mir::RecordLayout::Single) {
         auto callee = teardownHalves(type, childDrop, childReclaim, false, source, boxes);
+        auto owing = home ? soleOwingConstructor(type) : Maybe<U64>(Nothing());
 
-        auto name = block.addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
-        call(lower, to, block, 0, 2, lower[callee]->callType, [&](LowerInstCall* built) {
+        auto owed = &block;
+        LowerBlock* rest = &block;
+
+        if(owing) {
+            auto tagLower = LowerType::Int32;
+            auto tag = discriminantOf(block, address, type, tagLower);
+
+            auto number = block.addInst(lower, new (to.arena) LowerImm(
+                StringId(), tagLower, owing.unwrap()));
+
+            auto equal = block.addInst(lower, new (to.arena) LowerInstCmp(
+                StringId(), tag, ((LowerInstSingle*)number)->created().ptr - lower, LowerCmp::eq));
+
+            owed = home->addBlock(lower, StringId());
+            rest = home->addBlock(lower, StringId());
+
+            block.addInst(lower, new (to.arena) LowerInstJe(
+                ((LowerInstSingle*)equal)->created().ptr - lower, owed - lower, rest - lower));
+        }
+
+        auto name = owed->addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
+        call(lower, to, *owed, 0, 2, lower[callee]->callType, [&](LowerInstCall* built) {
             built->used()[0] = ((LowerInstSingle*)name)->created().ptr - lower;
             built->used()[1] = address;
         });
 
-        return;
+        if(owed != rest) owed->addInst(lower, new (to.arena) LowerInstJmp(rest - lower));
+        return rest;
     }
+
+    auto current = &block;
 
     for(auto field: record->fields.contents(decl)) {
         // `tearsDownField` and not `hasTeardown` on the type: a field in an origin slot is storage
@@ -641,14 +844,80 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
          * So a walk emitting the drop half alone passes `Foreign` and frees nothing.
          */
         if(mir::indirectField(decl, field)) {
-            emitBoxTeardown(block, address, type, field.index, nullptr, childDrop, childReclaim,
-                            childReclaim ? boxes : BoxRelease::Foreign, source);
+            current = emitBoxTeardown(*current, address, type, field.index, nullptr, childDrop,
+                                      childReclaim, childReclaim ? boxes : BoxRelease::Foreign,
+                                      source, home);
             continue;
         }
 
-        emitTeardown(block, fieldAddress(block, address, type, field.index), field.occurrence.type,
-                     childDrop, childReclaim, source, boxes);
+        current = emitTeardown(*current, fieldAddress(*current, address, type, field.index),
+                               field.occurrence.type, childDrop, childReclaim, source, boxes, home);
     }
+
+    return current;
+}
+
+/*
+ * Which constructor is in there, however this record spells that - a load of the tag word, or the
+ * range test a folded one decodes to. Asked of the layout rather than assumed, on the same terms
+ * every other reader of a discriminant asks it.
+ *
+ * Two readers: `emitSumTeardown`, which branches to one arm per constructor that owes anything, and
+ * the guard `emitTeardown` puts in front of a call to it. `tagLower` is answered as well as read,
+ * since the width the decode produces is the width its readers have to compare against.
+ */
+LowerPtr<LowerValue> Lowering::discriminantOf(LowerBlock& block, LowerPtr<LowerValue> address,
+                                              DeclPtr<mir::Type> type, LowerType& tagLower) {
+    auto& record = *(mir::RecordType*)decl[type];
+    auto repr = reprOf(layout, type);
+
+    tagLower = mir::tagBitsOf(decl, record) > 32 ? LowerType::Int64 : LowerType::Int32;
+
+    if(repr.isFolded()) {
+        VirtualPlace place;
+        place.kind = VirtualPlace::Folded;
+        place.word = address;
+        place.record = type;
+
+        return decodeFolded(block, place, tagLower);
+    }
+
+    if(repr.isBitTagged()) {
+        return decodePacked(block, discriminantPlace(block, address, repr), tagLower);
+    }
+
+    return wordAt(block, address, repr.discriminantOffset, tagLower, repr.discriminantBytes);
+}
+
+/*
+ * The one constructor of this sum that owes anything, and nothing where none or several do.
+ *
+ * What it is for is the guard below: a call whose callee will find nothing to do is worth skipping
+ * only if the site can decide that in one comparison, and one owing constructor is exactly when it
+ * can. `Maybe(T)` is the shape - `Nothing` owes nothing at all - and it is most of the corpus's
+ * sums, since an optional owner is what a recursive type is built out of.
+ */
+Maybe<U64> Lowering::soleOwingConstructor(DeclPtr<mir::Type> type) {
+    if(decl[type]->kind != mir::Type::Record) return Nothing();
+
+    auto& record = *(mir::RecordType*)decl[type];
+    if(record.layout == mir::RecordLayout::Single) return Nothing();
+
+    Maybe<U64> owing = Nothing();
+
+    for(auto constructor: record.cons.contents(decl)) {
+        auto owes = false;
+        for(U16 i = constructor.first; i < U16(constructor.first + constructor.count); i++) {
+            if(mir::tearsDownField(decl, record.fields.get(decl, i))) owes = true;
+        }
+
+        if(!owes) continue;
+        if(owing) return Nothing();
+
+        owing = Just(U64(constructor.value));
+    }
+
+    return owing;
 }
 
 /*
@@ -668,29 +937,8 @@ LowerBlock* Lowering::emitSumTeardown(LowerFunction& function, LowerBlock& entry
                                       bool runDrop, bool runReclaim, LocationId source,
                                       BoxRelease boxes) {
     auto& record = *(mir::RecordType*)decl[type];
-    auto tagBits = mir::tagBitsOf(decl, record);
-    auto tagLower = tagBits > 32 ? LowerType::Int64 : LowerType::Int32;
-    auto repr = reprOf(layout, type);
-
-    /*
-     * Which constructor is in there, however this record spells that - a load of the tag word, or
-     * the range test a folded one decodes to. Asked of the layout rather than assumed, on the same
-     * terms every other reader of a discriminant asks it.
-     */
-    LowerPtr<LowerValue> tag = nullptr;
-
-    if(repr.isFolded()) {
-        VirtualPlace place;
-        place.kind = VirtualPlace::Folded;
-        place.word = address;
-        place.record = type;
-
-        tag = decodeFolded(entry, place, tagLower);
-    } else if(repr.isBitTagged()) {
-        tag = decodePacked(entry, discriminantPlace(entry, address, repr), tagLower);
-    } else {
-        tag = wordAt(entry, address, repr.discriminantOffset, tagLower, repr.discriminantBytes);
-    }
+    auto tagLower = LowerType::Int32;
+    auto tag = discriminantOf(entry, address, type, tagLower);
 
     auto done = function.addBlock(lower, StringId());
     auto current = &entry;
@@ -720,13 +968,14 @@ LowerBlock* Lowering::emitSumTeardown(LowerFunction& function, LowerBlock& entry
             if(!mir::tearsDownField(decl, field)) continue;
 
             if(mir::indirectField(decl, field)) {
-                emitBoxTeardown(*arm, address, type, field.index, nullptr, runDrop, runReclaim,
-                                runReclaim ? boxes : BoxRelease::Foreign, source);
+                arm = emitBoxTeardown(*arm, address, type, field.index, nullptr, runDrop, runReclaim,
+                                      runReclaim ? boxes : BoxRelease::Foreign, source, &function);
                 continue;
             }
 
-            emitTeardown(*arm, fieldAddress(*arm, address, type, field.index),
-                         field.occurrence.type, runDrop, runReclaim, source, boxes);
+            arm = emitTeardown(*arm, fieldAddress(*arm, address, type, field.index),
+                               field.occurrence.type, runDrop, runReclaim, source, boxes,
+                               &function);
         }
 
         arm->addInst(lower, new (to.arena) LowerInstJmp(done - lower));
@@ -1206,6 +1455,15 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto& written = (InstStore&)inst;
             auto address = mapped(written.address.value());
             if(!address) return;
+
+            /*
+             * Nothing to write where the producer wrote straight into this place - `storageFor`,
+             * which is what handed it this address. The recorded destination is compared rather than
+             * merely looked up, because a value placed at a destination has exactly one use and this
+             * store is it: the two can only differ if that reasoning is wrong somewhere else.
+             */
+            auto placed = destinations.getValue(ssa[written.value.value()]->id.index);
+            if(placed && placed.unwrap() == address - lower) break;
 
             /*
              * A component with no address of its own - a co-packed field, whose write is a

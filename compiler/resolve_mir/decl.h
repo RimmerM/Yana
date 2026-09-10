@@ -2017,6 +2017,24 @@ struct Program {
     bool usesBoxes = false;
 
     /*
+     * Whether anything was **placed off the frame** - an object ownership analysis sent to the heap
+     * or a region, or a lambda whose environment outlives the frame it was built in.
+     *
+     * Split from `usesBoxes` in J51, and the split is what makes the second question askable. A
+     * boxed *field* is invisible to every later walk - the lowering builds and releases one from the
+     * record's shape, and no instruction names it - so `usesBoxes` has to stay the declaration-level
+     * answer it is documented above as being. A placement is the opposite: it *is* an instruction,
+     * an `alloc` in a storage class or a `fun.value` of a lambda whose environment left, and
+     * `resolve_ssa/opt/reach.cpp` reads those off the optimized SSA one at a time - so a program
+     * whose every placement was optimized away carries no allocator, which is `usesRuns`' rule
+     * arriving for the other half of the same question.
+     *
+     * The MIR walk still roots on it, because that walk runs before the optimizer and has to keep
+     * the bodies alive to be optimized against.
+     */
+    bool usesHeapPlacement = false;
+
+    /*
      * Whether any body asks for a run's slots - `NodeRunSlots`, set by the builder that makes one.
      *
      * A second flag beside `usesBoxes` rather than a use of it, and the two are different questions

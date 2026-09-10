@@ -54,31 +54,27 @@ masked<complex>(%xs$items: Ptr, %xs$length: I64): i32x8 {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 8: Ptr
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = load @a, 32: i32x8
-    %v_4 = load @b, 32: i32x8
-    %v_5 = alloca 64, 32: Ptr
-    %v_6 = imm 2: I64
-    store %v_1, %v_6, 4
-    store %v_5, %v_3, 32
-    %v_7 = add %v_5, 32: Ptr
-    store %v_7, %v_4, 32
-    store %v_2, %v_5, 8
-    %v_8 = add %v_2, 8: Ptr
-    store %v_8, %v_6, 4
-    %v_9 = add %v_2, 12: Ptr
-    store %v_9, 2, 4
-    %v_10 = load %v_2, 8: Ptr
-    %v_11 = imm 2: I64
-    %v_12 = call_complex sum'2, %v_10, %v_11: i32x8
-    %v_13 = call_complex masked, %v_10, %v_11: i32x8
-    call_complex Array(a).reclaim(Vec(I32)), %v_2
-    %v_14 = vlane %v_12, 0: I32
-    %v_15 = imul %v_14, 100: I32
-    %v_16 = vlane %v_13, 1: I32
-    %v_17 = add %v_15, %v_16: I32
-    ret %v_17
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = load @a, 32: i32x8
+    %v_3 = load @b, 32: i32x8
+    %v_4 = alloca 64, 32: Ptr
+    store %v_1, %v_4, 8
+    %v_5 = add %v_1, 8: Ptr
+    store %v_5, 2, 4
+    %v_6 = add %v_1, 12: Ptr
+    store %v_6, 2, 4
+    store %v_4, %v_2, 32
+    %v_7 = add %v_4, 32: Ptr
+    store %v_7, %v_3, 32
+    %v_8 = imm 2: I64
+    %v_9 = call_complex sum'2, %v_4, %v_8: i32x8
+    %v_10 = call_complex masked, %v_4, %v_8: i32x8
+    call_complex Array(a).reclaim(Vec(I32)), %v_1
+    %v_11 = vlane %v_9, 0: I32
+    %v_12 = imul %v_11, 100: I32
+    %v_13 = vlane %v_10, 1: I32
+    %v_14 = add %v_12, %v_13: I32
+    ret %v_14
   }
 }
 

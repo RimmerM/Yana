@@ -373,6 +373,16 @@ void forwardMemory(OptContext& opt);
 void removeDeadStorage(OptContext& opt);
 
 /*
+ * Two frame slots that hold one value one after the other, made into one - `opt/memory.cpp`, where
+ * the coalescing condition is written out.
+ *
+ * The handover half of destination passing: `lower/inst.cpp`'s `destinationFor` places a value the
+ * producer is about to write, and this removes the slot a value has already left. Behind the two
+ * storage passes because what makes a slot's uses few enough to compare is the forwarding above.
+ */
+void elideMoves(OptContext& opt);
+
+/*
  * A run of slots the frame can keep - `opt/place.cpp`, and the one placement this tier decides.
  *
  * A `RunSlots` whose bytes never leave the frame is marked `placed`, and the descriptor built over

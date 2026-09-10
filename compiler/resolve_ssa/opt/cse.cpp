@@ -212,10 +212,21 @@ bool isRemovableIfUnread(OptContext& opt, Inst& inst) {
  * `{code, env}` pair over it, which owe no teardown ([[yana-function-values]]) and are `Affine`
  * precisely so that they may be abandoned. The consuming case is refused by the operand walk above,
  * so naming the kinds here costs nothing the rule does not already check.
+ *
+ * **`Copy` is admitted for the reason `Load` is**, and its contract is what says so: `InstCopy` is
+ * `copy.trivial` and nothing else - "an authored `copy` is a call and stays a call" - so it runs no
+ * user code and its result owes whatever the convention says and no more. A copy nothing reads is
+ * bytes moved for nobody. The `mustConsume` test below is what keeps an `Owned` one, which is a
+ * second owner somebody still has to discharge.
+ *
+ * It is what a folded read of a global leaves: `constantStepOf` walks through a `copy` to the
+ * global's initializer, every reader of the copy is then answered by a constant, and without this
+ * the copy itself stayed - `test/resolve/TruthOperators.yana` kept twenty of them, each with the
+ * `global.addr` under it, after every branch they fed had folded away.
  */
 bool isDiscardableIfUnread(OptContext& opt, Inst& inst) {
     if(!isPure(inst.kind) && inst.kind != Inst::Load && inst.kind != Inst::Aggregate &&
-       inst.kind != Inst::FunValue) {
+       inst.kind != Inst::FunValue && inst.kind != Inst::Copy) {
         return false;
     }
 

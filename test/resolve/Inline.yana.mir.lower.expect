@@ -66,37 +66,36 @@ measured<complex>(%v: I32): I32 {
 main<complex>(): I32 {
   b_0 {
     %v_1 = call_complex countDown, 4: I32
-    %v_2 = add 247, %v_1: I32
-    %v_3 = add %v_2, 13: I32
-    %v_4 = call_complex measured, 1: I32
-    %v_5 = call_complex measured, 2: I32
-    %v_6 = add %v_4, %v_5: I32
-    %v_7 = add %v_3, %v_6: I32
-    %v_8 = add %v_7, 219: I32
-    jmp b_9
-  }
-
-  b_10 {
-    %v_11 = cmp_ilt %v_12, 20: I32
-    je %v_11, b_9, b_13
-  }
-
-  b_13 {
-    %v_14 = add %v_8, %v_15: I32
-    %v_16 = add %v_14, 18: I32
-    %v_17 = call_complex evenLength, 6: I32
-    %v_18 = call_complex oddLength, 6: I32
-    %v_19 = add %v_17, %v_18: I32
-    %v_20 = add %v_16, %v_19: I32
-    ret %v_20
+    %v_2 = add %v_1, 260: I32
+    %v_3 = call_complex measured, 1: I32
+    %v_4 = call_complex measured, 2: I32
+    %v_5 = add %v_3, %v_4: I32
+    %v_6 = add %v_2, %v_5: I32
+    %v_7 = add %v_6, 219: I32
+    jmp b_8
   }
 
   b_9 {
-    %v_21 = phi [b_10, %v_12], [b_0, 1]: I32
-    %v_22 = phi [b_10, %v_15], [b_0, 0]: I32
-    %v_12 = add %v_21, %v_21: I32
-    %v_15 = add %v_22, 1: I32
-    jmp b_10
+    %v_10 = cmp_ilt %v_11, 20: I32
+    je %v_10, b_8, b_12
+  }
+
+  b_12 {
+    %v_13 = add %v_7, %v_14: I32
+    %v_15 = add %v_13, 18: I32
+    %v_16 = call_complex evenLength, 6: I32
+    %v_17 = call_complex oddLength, 6: I32
+    %v_18 = add %v_16, %v_17: I32
+    %v_19 = add %v_15, %v_18: I32
+    ret %v_19
+  }
+
+  b_8 {
+    %v_20 = phi [b_9, %v_11], [b_0, 1]: I32
+    %v_21 = phi [b_9, %v_14], [b_0, 0]: I32
+    %v_11 = add %v_20, %v_20: I32
+    %v_14 = add %v_21, 1: I32
+    jmp b_9
   }
 }
 

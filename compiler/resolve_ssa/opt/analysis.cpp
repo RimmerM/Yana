@@ -221,16 +221,39 @@ namespace {
 struct Containment {
     OptContext& opt;
 
-    // Recursive rather than a worklist with a visited set, and the shape of the thing walked is
-    // why: an address chain is a tree of pure projections rooted at one allocation, so a cycle in
-    // it would be a value defined below its own operand - which is what `checkUse` reports.
+    /*
+     * The names whose use lists are open on the stack - see `escapes`.
+     *
+     * An address chain used to be a tree of pure projections rooted at one allocation, so a cycle in
+     * it would have been a value defined below its own operand, which is what `checkUse` reports.
+     * The edge arm below made it a graph: a block argument is a name whose operand can be that same
+     * name round a back edge, and a `while` that keeps a borrow across its latch is exactly one.
+     */
+    IndexSet visiting;
+
+    /*
+     * Whether anything done with this name lets the address out of the frame.
+     *
+     * A name already on the stack answers **no**, and that is sound rather than optimistic: escape
+     * is a union over every use reachable from the allocation, the frame that marked the name is
+     * still walking that name's own use list, and a refusal it finds there returns through this
+     * frame to the root. So every use is examined exactly once and no refusal is lost - what the set
+     * removes is the second examination, not the answer.
+     */
     bool escapes(Value& address) {
+        auto index = address.id.index;
+        if(index < visiting.size() && visiting[index]) return false;
+
+        if(index < visiting.size()) visiting.set(index, true);
+
+        auto out = false;
         for(auto userPointer: address.uses(opt.base)) {
             auto& user = *opt.base[userPointer];
-            if(!admits(user, address)) return true;
+            if(!admits(user, address)) { out = true; break; }
         }
 
-        return false;
+        if(index < visiting.size()) visiting.set(index, false);
+        return out;
     }
 
     bool admits(Inst& user, Value& address) {
@@ -401,10 +424,59 @@ struct Containment {
                 return true;
             }
 
+            /*
+             * A name **handed over an edge**, which is a second name for the same storage at the
+             * other end of it and not a way out of the frame - J50.
+             *
+             * A block argument is what a borrow that crosses a join or a back edge is spelled as at
+             * this tier, and there is nothing else it can be: the operand is a value of this body
+             * and the argument is filled from it. So the address is contained exactly as far as that
+             * argument is, which is this same walk one level down - the recursion the `Load` and
+             * `Unary` arms above already make, with the block argument standing where a result
+             * would.
+             *
+             * Refusing it read as an escape and cost the **allocation**, not the edge: `pick` in
+             * `test/resolve/LiveAfterLoop.yana` is inlined into a join, so `main`'s `a` was borrowed
+             * into a block argument and therefore uncontained, and every reader of `Contained` -
+             * `forwardMemory`, `promote`, `place` - then had to leave it in memory for the whole
+             * body. The counterpart in `opt/promote.cpp` is what turns the answer into instructions.
+             *
+             * Every position the address fills is asked, on every edge, because a terminator can
+             * hand the same value to two arms and a `branch %c, X, X` is two edges into one block.
+             */
+            case Inst::Jump:
+            case Inst::Branch:
+            case Inst::Switch: {
+                auto held = true;
+
+                forEachEdge(opt.base, user, [&](Edge& edge) {
+                    if(!held) return;
+                    if(!edge.target) { held = false; return; }
+
+                    auto target = opt.base[edge.target];
+                    Size position = 0;
+
+                    for(auto used: edge.arguments.contents(opt.base)) {
+                        auto at = position++;
+                        if(!used.isSet() || opt.base[used.value()] != &address) continue;
+
+                        // An edge longer than its target declares is what `checkEdge` reports; there
+                        // is no argument to ask about, so there is nothing this may admit.
+                        if(at >= target->argumentCount()) { held = false; return; }
+                        if(escapes(*opt.base[target->argumentAt(opt.base, at)])) {
+                            held = false;
+                            return;
+                        }
+                    }
+                });
+
+                return held;
+            }
+
             // And no default that admits. An aggregate component, a native operand, a returned
-            // value, an edge operand and a captured environment are each a way for the address to
-            // outlive the instruction naming it, and a kind nobody has looked at is one whose effect
-            // on the address has not been checked.
+            // value and a captured environment are each a way for the address to outlive the
+            // instruction naming it, and a kind nobody has looked at is one whose effect on the
+            // address has not been checked.
             default:
                 return false;
         }
@@ -418,6 +490,7 @@ void Contained::build(OptContext& opt) {
     inside.reset(count);
 
     Containment walk { opt };
+    walk.visiting.reset(count);
 
     for(auto valuePointer: opt.body->values.contents(opt.base)) {
         auto value = opt.base[valuePointer];
@@ -563,6 +636,27 @@ static Maybe<ConstantStep> constantStepOf(OptContext& opt, Value& address) {
         if(!index) return Nothing();
 
         return Just(ConstantStep { opt.base[element.base.value()], U32(index.unwrap()), true });
+    }
+
+    /*
+     * A **copy** of what is at an address - the same contents read out rather than a second name for
+     * the storage, so a projection of the copy is a projection of the same constant. No index, for
+     * the reason the borrow below carries none: the step changes what the value *is* held in and not
+     * which part of the constant is being named.
+     *
+     * This is how a `let` of a record type is read. `alias qualified Flags = I64` in
+     * `test/resolve/TruthOperators.yana` gives `copy (global.addr empty)` followed by
+     * `field.addr .Flags` and a `load` of that, and without this arm the walk stopped at the copy -
+     * so a comparison against a global constant stayed a comparison, `main` kept every arm of a
+     * fixture the shipping stage folds to one constant, and the difference was a thousand bytes in
+     * one body.
+     *
+     * Sound on exactly the terms the two roots are: `constantAt` concludes nothing unless it reaches
+     * a global `isWritten` says nothing writes, or an allocation `ConstantContents` says holds one
+     * value throughout. Against either of those a snapshot and a name are the same answer.
+     */
+    if(inst->kind == Inst::Copy) {
+        return Just(ConstantStep { opt.base[((InstCopy*)inst)->address.value()], 0, false });
     }
 
     // A borrow of the slot, which is a `Guaranteed` load here and names the same storage. Not a

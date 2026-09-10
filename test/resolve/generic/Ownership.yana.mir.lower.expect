@@ -25,62 +25,60 @@ Guard.drop<complex>(%value: Ptr) {
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 1, 4
-    call_complex Conn.drop, %v_3
-    %v_4 = loads @trace, 4: I32
-    %v_5 = cmp_neq %v_4, 1: I32
-    je %v_5, b_6, b_7
+    store %v_1, 1, 4
+    call_complex Conn.drop, %v_1
+    %v_2 = loads @trace, 4: I32
+    %v_3 = cmp_neq %v_2, 1: I32
+    je %v_3, b_4, b_5
   }
 
-  b_7 {
-    store %v_1, 2, 4
-    copy %v_2, %v_1, 4
-    call_complex Conn.drop, %v_2
-    %v_8 = loads @trace, 4: I32
-    %v_9 = cmp_neq %v_8, 12: I32
-    je %v_9, b_10, b_11
+  b_5 {
+    %v_6 = alloca 4, 4: Ptr
+    store %v_6, 2, 4
+    call_complex Conn.drop, %v_6
+    %v_7 = loads @trace, 4: I32
+    %v_8 = cmp_neq %v_7, 12: I32
+    je %v_8, b_9, b_10
   }
 
-  b_6 {
+  b_4 {
     ret 18446744073709551615
   }
 
-  b_11 {
-    %v_12 = alloca 4, 4: Ptr
-    store %v_12, 3, 4
-    call_complex Guard.drop, %v_12
-    %v_13 = loads @trace, 4: I32
-    %v_14 = cmp_neq %v_13, 123: I32
-    je %v_14, b_15, b_16
+  b_10 {
+    %v_11 = alloca 4, 4: Ptr
+    store %v_11, 3, 4
+    call_complex Guard.drop, %v_11
+    %v_12 = loads @trace, 4: I32
+    %v_13 = cmp_neq %v_12, 123: I32
+    je %v_13, b_14, b_15
   }
 
-  b_10 {
+  b_9 {
     ret 18446744073709551614
   }
 
-  b_16 {
-    %v_17 = alloca 4, 4: Ptr
-    store %v_17, 4, 4
-    call_complex Conn.drop, %v_17
-    %v_18 = loads @trace, 4: I32
-    %v_19 = cmp_neq %v_18, 1234: I32
-    je %v_19, b_20, b_21
+  b_15 {
+    %v_16 = alloca 4, 4: Ptr
+    store %v_16, 4, 4
+    call_complex Conn.drop, %v_16
+    %v_17 = loads @trace, 4: I32
+    %v_18 = cmp_neq %v_17, 1234: I32
+    je %v_18, b_19, b_20
   }
 
-  b_15 {
+  b_14 {
     ret 18446744073709551613
   }
 
-  b_21 {
-    %v_22 = loads @trace, 4: I32
-    %v_23 = cmp_neq %v_22, 1234: I32
-    %v_24 = select %v_23, 18446744073709551610, 4244: I32
-    ret %v_24
+  b_20 {
+    %v_21 = loads @trace, 4: I32
+    %v_22 = cmp_neq %v_21, 1234: I32
+    %v_23 = select %v_22, 18446744073709551610, 4244: I32
+    ret %v_23
   }
 
-  b_20 {
+  b_19 {
     ret 18446744073709551611
   }
 }

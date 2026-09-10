@@ -597,27 +597,27 @@ main<complex>(): I32 {
     jmp b_133
   }
 
-  b_299 {
-    %v_300 = phi [b_191, %v_301], [b_190, 0]: I32
-    call_complex String.reclaim, %v_177
-    call_complex String.reclaim, %v_178
-    %v_302 = cmp_eq %v_184, %v_188: I32
-    %v_303 = select %v_302, 2, 0: I32
-    %v_304 = add %v_300, %v_303: I32
-    %v_305 = cmp_eq %v_304, 3: I32
-    %v_306 = select %v_305, 4096, 0: I32
-    %v_307 = add %v_176, %v_306: I32
-    ret %v_307
-  }
-
   b_191 {
-    %v_308 = call_complex compareMemory(CodeUnit), %v_181, %v_185, %v_184: I32
-    %v_301 = cmp_eq %v_308, 1: I32
-    jmp b_299
+    %v_299 = call_complex compareMemory(CodeUnit), %v_181, %v_185, %v_184: I32
+    %v_300 = cmp_eq %v_299, 1: I32
+    jmp b_301
   }
 
   b_190 {
-    jmp b_299
+    jmp b_301
+  }
+
+  b_301 {
+    %v_302 = phi [b_191, %v_300], [b_190, 0]: I32
+    call_complex String.reclaim, %v_177
+    call_complex String.reclaim, %v_178
+    %v_303 = cmp_eq %v_184, %v_188: I32
+    %v_304 = select %v_303, 2, 0: I32
+    %v_305 = add %v_302, %v_304: I32
+    %v_306 = cmp_eq %v_305, 3: I32
+    %v_307 = select %v_306, 4096, 0: I32
+    %v_308 = add %v_176, %v_307: I32
+    ret %v_308
   }
 }
 

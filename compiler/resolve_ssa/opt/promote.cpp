@@ -66,6 +66,14 @@
  * the borrow, the restatements and the storage all go together, and the loan that named the
  * allocation goes with the instruction that made it rather than being left without a lender.
  *
+ * **A name handed over an edge is one of these too, and since J50 the walk follows that** - the
+ * block argument at the other end is the same storage under a third name, and it is what a borrow
+ * that crosses a join is spelled as here. It cost the whole allocation rather than the edge:
+ * `pick` in `test/resolve/LiveAfterLoop.yana` is inlined into a join, so `main`'s counter was
+ * borrowed into a block argument, `Contained` read that as an escape, and the loop below it then
+ * ran out of memory - `mov (%rax),%rdx; inc %rdx; mov %rdx,(%rax)` where the shipping stage has
+ * `inc %rax`. `opt/analysis.cpp`'s arm is the containment half; `argumentsAgree` is this one.
+ *
  * **This is the shape a grafted continuation leaves and it is most of what this pass is worth.** An
  * `iter fn`'s `for` keeps its outcome signal, its accumulator and its result in slots the
  * continuation was handed a borrow of; the inliner puts the body back but leaves the borrow, so
@@ -154,10 +162,10 @@ struct Slot {
     Occurrence occurrence;
     U32 column = 0;
 
-    // The instructions that give this storage a second name - a `Guaranteed` load and the
-    // `represent`s over it. In discovery order, so erasing them backwards erases each one after
-    // everything that read it. Empty for the ordinary slot, which is most of them.
-    Array<Inst*> aliases;
+    // The values that give this storage a second name - a `Guaranteed` load, the `represent`s over
+    // it, and the block arguments those are handed to. In no order: `run` takes each of them away
+    // at the point nothing reads it any more. Empty for the ordinary slot, which is most of them.
+    Array<Value*> names;
 
     // Per block, indexed by `BlockId`: what the slot holds on the way in, and on the way out.
     Array<Value*> entry;
@@ -252,7 +260,10 @@ struct Promoter {
         Occurrence agreed;
         bool typed = false;
         bool read = false;
-        Array<Inst*> aliases;
+
+        // Every name for this storage, the allocation itself first. Both the worklist the scan runs
+        // over while it grows and, minus that first entry, what the slot keeps.
+        Array<Value*> names;
     };
 
     /*
@@ -291,19 +302,42 @@ struct Promoter {
         return true;
     }
 
-    // How far a chain of second names is followed. A borrow restated three times over is past
-    // anything the inliner builds, and the bound is what makes this terminate on IR the verifier has
-    // not seen yet rather than on an invariant.
-    static constexpr U32 kAliasDepth = 4;
+    /*
+     * How many second names one allocation may have.
+     *
+     * A work cap and not what makes the walk terminate - `survey.names` is a set, so every name is
+     * queued once and the walk ends whether or not this is ever reached. What it bounds is a body
+     * where a borrow is restated into a great many places, which would otherwise be a use-list scan
+     * per name for a slot the rewrite is unlikely to want.
+     */
+    static constexpr Size kMaxNames = 32;
+
+    static bool isName(Survey& survey, Value* value) {
+        for(auto name: survey.names) {
+            if(name == value) return true;
+        }
+
+        return false;
+    }
+
+    // A second name found below another, queued once. A linear scan rather than a bit set: an
+    // allocation has two or three names and the cap above is what the worst case is measured
+    // against.
+    static bool note(Survey& survey, Value& value) {
+        if(isName(survey, &value)) return true;
+        if(survey.names.size() >= kMaxNames) return false;
+
+        survey.names.push(&value);
+        return true;
+    }
 
     /*
      * Whether the whole use list of one **name** for this storage is loads, stores and teardown-free
-     * drops of the whole of it - the eligibility rule, recursing into every second name it finds.
-     * The file comment is the argument for each clause.
+     * drops of the whole of it - the eligibility rule, one name at a time. Every second name it
+     * finds is queued rather than descended into, and `scan` is the walk over that queue. The file
+     * comment is the argument for each clause.
      */
-    bool scan(Survey& survey, Value& named, U32 depth) {
-        if(depth > kAliasDepth) return false;
-
+    bool scanUses(Survey& survey, Value& named) {
         for(auto userPointer: named.uses(opt.base)) {
             auto& user = *opt.base[userPointer];
             auto names = [&](Use used) { return addressOf(used) == &named; };
@@ -321,8 +355,7 @@ struct Promoter {
                      * followed rather than declined, and what follows it is the same question.
                      */
                     if(result->convention == Convention::Guaranteed) {
-                        survey.aliases.push(&user);
-                        if(!scan(survey, *result, depth + 1)) return false;
+                        if(!note(survey, *result)) return false;
                         break;
                     }
 
@@ -353,11 +386,54 @@ struct Promoter {
                     if(unary.op != mir::UnaryOp::Represent || !names(unary.value)) return false;
                     if(user.results.size() != 1) return false;
 
-                    survey.aliases.push(&user);
-                    if(!scan(survey, *opt.base[user.results.get(opt.base, 0)], depth + 1)) {
-                        return false;
-                    }
+                    if(!note(survey, *opt.base[user.results.get(opt.base, 0)])) return false;
+                    break;
+                }
 
+                /*
+                 * A name **handed over an edge** - J50, and the counterpart of `Containment`'s own
+                 * arm for it. The block argument at the other end is a second name for this storage
+                 * exactly as a `represent` is, and it is what a borrow that crosses a join or a loop
+                 * is spelled as here.
+                 *
+                 * Two conditions, and `argumentsAgree` below is where the second one is checked.
+                 * The argument has to be a **borrow**, because a name for storage is what this
+                 * follows and an operand of any other convention fills an argument that is a value;
+                 * and every edge into that block has to fill it with a name of *this* storage, or
+                 * the argument is this slot on some paths and something else on the rest.
+                 *
+                 * Every position is asked on every edge, because a terminator may hand the same
+                 * value to two arms and `branch %c, X, X` is two edges into one block.
+                 */
+                case Inst::Jump:
+                case Inst::Branch:
+                case Inst::Switch: {
+                    auto held = true;
+
+                    forEachEdge(opt.base, user, [&](Edge& edge) {
+                        if(!held) return;
+                        if(!edge.target) { held = false; return; }
+
+                        auto target = opt.base[edge.target];
+                        Size position = 0;
+
+                        for(auto used: edge.arguments.contents(opt.base)) {
+                            auto at = position++;
+                            if(!used.isSet() || opt.base[used.value()] != &named) continue;
+
+                            if(at >= target->argumentCount()) { held = false; return; }
+
+                            auto argument = opt.base[target->argumentAt(opt.base, at)];
+                            if(argument->convention != Convention::Guaranteed) {
+                                held = false;
+                                return;
+                            }
+
+                            if(!note(survey, *argument)) { held = false; return; }
+                        }
+                    });
+
+                    if(!held) return false;
                     break;
                 }
 
@@ -388,6 +464,80 @@ struct Promoter {
         return true;
     }
 
+    /*
+     * Every name that is a **block argument**, checked against the edges that fill it.
+     *
+     * Two things are asked, and each is a way the argument would not be this storage:
+     *
+     *  - **every edge into its block fills it with a name of this allocation.** The scan reaches an
+     *    argument from one edge; the others may hand over a borrow of something else entirely, and a
+     *    name that is this slot on one path is not a name for it. A block with no way in is the
+     *    entry block, whose arguments are the function's parameters - refused here without a case of
+     *    its own, since a parameter is filled by no edge at all.
+     *  - **the value each edge hands over is an instruction**, never another block argument. That is
+     *    a restriction rather than a rule about storage, and `run` is where it is spent: a name is
+     *    taken away when nothing reads it, and the reader of a block argument's operand is the edge,
+     *    so a pair of arguments filling each other round a loop would be two names neither of which
+     *    can ever go first. What it costs is a borrow carried across a back edge *as an argument*,
+     *    which the corpus does not hold - a loop that borrows re-takes the borrow each turn.
+     */
+    bool argumentsAgree(Survey& survey) {
+        for(auto name: survey.names) {
+            if(name->definer) continue;
+
+            // A value that is neither defined by an instruction nor declared by a block is one this
+            // pass has no account of, and there is no argument list to check it against.
+            if(!name->block) return false;
+
+            auto block = opt.base[name->block];
+            auto index = Size(0);
+            auto found = false;
+
+            for(Size i = 0; i < block->argumentCount(); i++) {
+                if(opt.base[block->argumentAt(opt.base, i)] != name) continue;
+
+                index = i;
+                found = true;
+                break;
+            }
+
+            if(!found || !block->predecessorCount()) return false;
+
+            auto filled = true;
+
+            for(Size i = 0; i < block->predecessorCount(); i++) {
+                auto end = opt.base[block->predecessorAt(opt.base, i)]->terminator(opt.base);
+                if(!end) return false;
+
+                forEachEdge(opt.base, *end, [&](Edge& edge) {
+                    if(!filled || !edge.target || opt.base[edge.target] != block) return;
+                    if(index >= edge.arguments.size()) { filled = false; return; }
+
+                    auto used = edge.arguments.get(opt.base, index);
+                    if(!used.isSet()) { filled = false; return; }
+
+                    auto supplied = opt.base[used.value()];
+                    if(!supplied->definer || !isName(survey, supplied)) filled = false;
+                });
+            }
+
+            if(!filled) return false;
+        }
+
+        return true;
+    }
+
+    // The walk: the allocation, then every name found below one, until the list stops growing.
+    bool scan(Survey& survey, Value& allocation) {
+        survey.names.push(&allocation);
+
+        for(Size at = 0; at < survey.names.size(); at++) {
+            if(!scanUses(survey, *survey.names[at])) return false;
+        }
+
+        return argumentsAgree(survey);
+    }
+
     bool eligible(Value& allocation, Survey& survey) {
         auto& alloc = (InstAlloc&)*opt.base[allocation.definer];
 
@@ -399,7 +549,7 @@ struct Promoter {
         if(hasTeardownAt(opt, alloc.held) || isLinearAt(opt, alloc.held)) return false;
         if(!contained[allocation]) return false;
 
-        if(!scan(survey, allocation, 0)) return false;
+        if(!scan(survey, allocation)) return false;
 
         // No reads, no promotion: an allocation nothing reads is `removeDeadStorage`'s, and placing
         // arguments for a value nothing names would be work only to take it back.
@@ -425,11 +575,13 @@ struct Promoter {
             slot.alloc = definer;
             slot.occurrence = survey.agreed;
             slot.column = U32(slots.size());
-            slot.aliases = ::move(survey.aliases);
+
+            // Every name but the allocation, which is `survey.names`' first entry and is `slot.
+            // allocation` already.
+            for(Size i = 1; i < survey.names.size(); i++) slot.names.push(survey.names[i]);
 
             name(*value, U32(slots.size()));
-            for(auto alias: slot.aliases) name(*opt.base[alias->results.get(opt.base, 0)],
-                                                U32(slots.size()));
+            for(auto held: slot.names) name(*held, U32(slots.size()));
 
             slots.push(::move(slot));
         }
@@ -554,7 +706,7 @@ struct Promoter {
         for(Size i = 0; i < slotOf.size(); i++) slotOf[i] = kNoSlot;
         for(Size i = 0; i < slots.size(); i++) {
             name(*slots[i].allocation, U32(i));
-            for(auto alias: slots[i].aliases) name(*opt.base[alias->results.get(opt.base, 0)], U32(i));
+            for(auto held: slots[i].names) name(*held, U32(i));
 
             for(U32 b = 0; b < blockCount; b++) {
                 slots[i].entry.push(nullptr);
@@ -704,6 +856,21 @@ struct Promoter {
         }
     }
 
+    // One block argument taken back out, found by identity: `removeBlockArgument` takes the operand
+    // filling it off every edge in, which is what makes the sweep above terminate.
+    void removeArgument(Editor& editor, Value& argument) {
+        auto block = opt.base[argument.block];
+
+        for(Size i = 0; i < block->argumentCount(); i++) {
+            if(opt.base[block->argumentAt(opt.base, i)] != &argument) continue;
+
+            editor.removeBlockArgument(*block, i);
+            return;
+        }
+
+        assertTrue(false && "a name that is a block argument of no block");
+    }
+
     void run() {
         blockCount = U32(opt.body->blocks.size());
 
@@ -733,13 +900,34 @@ struct Promoter {
         for(auto index: dominators.order) enter(editor, *opt.body->block(opt.base, BlockId(index)));
 
         /*
-         * The second names go first, deepest first, and then nothing may still be reading storage
-         * that is about to go. The order is the discovery order reversed: a `represent` was found
-         * below the borrow it restates, so erasing backwards erases each name after everything that
-         * read it - and the loan the borrow minted goes with the instruction that made it.
+         * The second names go first, and then nothing may still be reading storage that is about to
+         * go. Each of them is taken away at the point **nothing reads it**, which is a sweep to a
+         * fixpoint rather than the discovery order reversed: since J50 a name can be a block
+         * argument, whose reader is the edge that fills it and whose removal is therefore what takes
+         * that reader away, so the order is no longer the order they were found in.
+         *
+         * The loan a borrow minted goes with the instruction that made it, as before.
          */
         for(auto& slot: slots) {
-            for(Size i = slot.aliases.size(); i-- > 0;) editor.eraseInst(*slot.aliases[i]);
+            for(auto changed = true; changed;) {
+                changed = false;
+
+                for(Size i = slot.names.size(); i-- > 0;) {
+                    auto held = slot.names[i];
+                    if(held->useCount()) continue;
+
+                    if(held->definer) editor.eraseInst(*opt.base[held->definer]);
+                    else removeArgument(editor, *held);
+
+                    slot.names.remove(i);
+                    changed = true;
+                }
+            }
+
+            // There is always one that can go next, and `argumentsAgree` is why: a block argument
+            // is filled only from names that are instructions, so "is read by" over one slot's
+            // names is a forest and never a cycle.
+            assertTrue(slot.names.isEmpty());
         }
 
         // Asserted here rather than left to `eraseInst`, because this is where the answer names

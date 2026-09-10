@@ -119,6 +119,27 @@ struct Reachability {
     }
 
     /*
+     * The three allocator roles, rooted together and at most once.
+     *
+     * Together, because a build whose provider answers `isHeapAddress` releases boxes through it and
+     * one whose provider does not has an unfilled role and roots nothing - `mir::summary.cpp` states
+     * the same rule at the same three names. At most once because the walk asks per instruction now
+     * and a program has many.
+     */
+    bool allocatorRooted = false;
+
+    void rootAllocator() {
+        if(allocatorRooted) return;
+        allocatorRooted = true;
+
+        intrinsic::Known allocator[3] = { intrinsic::Known::allocateHeap,
+                                          intrinsic::Known::freeHeap,
+                                          intrinsic::Known::isHeapAddress };
+
+        for(auto role: allocator) root(opt.program.roles.function(role));
+    }
+
+    /*
      * Every function a witness table names - `erase.cpp`'s `witnessFor` and its `GenSlotKind::
      * Function` neighbour, read from the same list they build their thunks out of.
      *
@@ -153,7 +174,38 @@ struct Reachability {
                     continue;
                 }
 
-                if(inst->kind == Inst::FunValue) root(((InstFunValue&)*inst).callee);
+                if(inst->kind == Inst::FunValue) {
+                    auto callee = ((InstFunValue&)*inst).callee;
+                    root(callee);
+
+                    /*
+                     * And the block a closure that leaves its frame carries -
+                     * `Lowering::emitClosureBlock`, which asks exactly this of exactly this
+                     * declaration and then calls `allocateHeap`. The same shape as the run below.
+                     */
+                    if(callee && opt.decl[callee]->environmentStorage != mir::StorageClass::Frame) {
+                        rootAllocator();
+                    }
+                }
+
+                /*
+                 * A placement ownership analysis sent off the frame, which `lower/inst.cpp`'s
+                 * `heapStorage` turns into `allocateHeap` and whose `free` turns into `freeHeap` -
+                 * the third of the three sites, and the second this walk can see one at a time.
+                 *
+                 * `Program::usesHeapPlacement` is what the MIR walk roots on, at every request,
+                 * because it runs before this optimizer and has to keep the bodies alive to be
+                 * optimized against. This is the later, narrower question, and it is worth asking:
+                 * a binary that carries the allocator carries `allocateHeap` and `initHeap` and
+                 * `growHeap` behind it, and over `test/resolve` asking it here rather than there was
+                 * **-1,776 bytes**.
+                 */
+                if(inst->kind == Inst::Alloc &&
+                   ((InstAlloc&)*inst).storage != mir::StorageClass::Frame) {
+                    rootAllocator();
+                }
+
+                if(inst->kind == Inst::Free) rootAllocator();
 
                 /*
                  * A run request the placement pass left on the heap, which is the one call this
@@ -168,9 +220,7 @@ struct Reachability {
                  * reachability walk runs before the placement and has to keep the body alive to be
                  * placed against; this is the later, narrower question.
                  */
-                if(inst->kind == Inst::RunSlots && !((InstRunSlots&)*inst).placed) {
-                    root(opt.program.roles.function(intrinsic::Known::allocateHeap));
-                }
+                if(inst->kind == Inst::RunSlots && !((InstRunSlots&)*inst).placed) rootAllocator();
             }
         }
     }
@@ -182,16 +232,13 @@ struct Reachability {
          * The roots that are not reached from anywhere, in the order `markReachable` takes them.
          *
          * The allocator first, because it is the one that does not depend on which kind of
-         * compilation this is: a program with a `@box` anywhere releases one through these three
-         * whether it has an entry or is a library.
+         * compilation this is: a program with a **boxed field** anywhere builds and releases one
+         * through these three whether it has an entry or is a library, and no instruction names it -
+         * the lowering builds the call out of the record's shape. That is the half `Program::
+         * usesBoxes` still answers, and `decl.h` is where the split is argued; the other half is a
+         * placement, which `walk` above roots one instruction at a time.
          */
-        if(program.usesBoxes) {
-            intrinsic::Known allocator[3] = { intrinsic::Known::allocateHeap,
-                                              intrinsic::Known::freeHeap,
-                                              intrinsic::Known::isHeapAddress };
-
-            for(auto role: allocator) root(program.roles.function(role));
-        }
+        if(program.usesBoxes) rootAllocator();
 
         /*
          * And the located check pair under `-check-locations`, for exactly the allocator's reason:

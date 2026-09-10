@@ -62,15 +62,11 @@ bb3:
 
 fn invariantField(n: I32 [shared call], seed: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial, %1: I32 trivial):
-  %4: %Cell address = alloc frame Cell
   %8: I32 trivial = const 7
   %9: Cell trivial = aggregate.Cell consume %1 consume %8
-  store inspect %4 consume %9
-  %10: %I32 address = field.addr .other inspect %4
-  %11: I32 trivial = load inspect %10
   %12: I32 trivial = const 0
   %22: I32 trivial = const 1
-  jump -> bb1(inspect %11, inspect %12)
+  jump -> bb1(inspect %8, inspect %12)
 
 bb1(%26: I32 trivial, %27: I32 trivial):
   %15: Bool trivial = lt inspect %27 inspect %0
@@ -80,7 +76,7 @@ bb2:
   return consume %26
 
 bb3:
-  %20: I32 trivial = add inspect %26 inspect %11
+  %20: I32 trivial = add inspect %26 inspect %8
   %23: I32 trivial = add inspect %27 inspect %22
   jump -> bb1(inspect %20, inspect %23)
 }
@@ -92,11 +88,10 @@ bb0(%0: I32 trivial, %1: I32 trivial):
   %9: Cell trivial = aggregate.Cell consume %1 consume %8
   store inspect %4 consume %9
   %10: %I32 address = field.addr .other inspect %4
-  %11: I32 trivial = load inspect %10
   %12: I32 trivial = const 0
   %22: I32 trivial = const 1
   %30: I32 trivial = const 1
-  jump -> bb1(inspect %11, inspect %12)
+  jump -> bb1(inspect %8, inspect %12)
 
 bb1(%34: I32 trivial, %35: I32 trivial):
   %15: Bool trivial = lt inspect %35 inspect %0

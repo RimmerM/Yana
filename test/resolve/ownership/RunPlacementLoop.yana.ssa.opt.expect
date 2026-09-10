@@ -3,7 +3,6 @@ module ResolveTest
 fn carried() -> I32 {
 bb0:
   %0: %Array(I32) address = alloc frame Array(I32)
-  %1: %Array(I32) address = alloc frame Array(I32)
   %4: %Array(I32) address = alloc frame Array(I32)
   %5: %Array(I32) address = alloc frame Array(I32)
   %6: I32 trivial = const 0
@@ -25,8 +24,6 @@ bb0:
   %22: Size trivial = const 2
   %23: %I32 address = element.addr inspect %9 inspect %22
   store inspect %23 consume %8
-  %24: Array(I32) owned = load inspect %0
-  store inspect %1 consume %24
   %25: I32 trivial = const 0
   %26: I32 trivial = const 0
   %28: I32 trivial = const 4
@@ -55,7 +52,7 @@ bb1(%162: I32 trivial, %163: I32 trivial):
 
 bb2:
   %31: Size trivial = const 0
-  %32: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %32: Array(I32) [shared call] guaranteed from{%0} = load inspect %0
   %129: %Run(I32) address = field.addr .run inspect %32
   %130: %%I32 address = field.addr .items inspect %129
   %131: %I32 trivial = load inspect %130
@@ -90,7 +87,7 @@ bb6:
   %49: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %147 inspect %167
   %50: I32 [shared slot 0] guaranteed = load inspect %49
   %51: I32 trivial = load inspect %50
-  drop Array(I32) inspect %1
+  drop Array(I32) inspect %0
   %52: I32 trivial = add inspect %162 inspect %51
   return consume %52
 
@@ -112,7 +109,7 @@ bb13:
   %97: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %158 inspect %168
   %98: I32 [shared slot 0] guaranteed = load inspect %97
   %99: I32 trivial = load inspect %98
-  drop Array(I32) inspect %1
+  drop Array(I32) inspect %0
   %101: I32 trivial = mul inspect %99 inspect %100
   %102: I32 trivial = add inspect %162 inspect %101
   %104: Array(I32) [shared call] guaranteed from{%5} = load inspect %5
@@ -151,7 +148,7 @@ bb20:
   %123: I32 trivial = load inspect %122
   %124: I32 trivial = add inspect %102 inspect %123
   %125: Array(I32) owned = load inspect %5
-  store inspect %1 consume %125
+  store inspect %0 consume %125
   jump -> bb1(inspect %124, inspect %55)
 
 bb22:
@@ -176,7 +173,7 @@ bb33:
   store inspect %76 consume %61
   %77: Array(I32) owned = load inspect %4
   store inspect %5 consume %77
-  %80: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %80: Array(I32) [shared call] guaranteed from{%0} = load inspect %0
   %137: %Run(I32) address = field.addr .run inspect %80
   %138: %%I32 address = field.addr .items inspect %137
   %139: %I32 trivial = load inspect %138
@@ -344,7 +341,7 @@ bb6:
   %28: I32 trivial = add inspect %5 inspect %11
   %29: I32 trivial = add inspect %5 inspect %12
   %30: I32 trivial = add inspect %5 inspect %13
-  %31: %I32 trivial = run.slots I32 *3 heap
+  %31: %I32 trivial = run.slots I32 *3 frame
   %32: Run(I32) owned = aggregate.Run consume %31 consume %14 consume %15
   %33: Array(I32) owned = aggregate.Array consume %32 consume %16
   store inspect %6 consume %33

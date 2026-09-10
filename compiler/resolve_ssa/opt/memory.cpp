@@ -99,6 +99,19 @@ struct Known {
     Value* address = nullptr;
     Value* value = nullptr;
     Inst* pending = nullptr;
+
+    /*
+     * Which first-level fields of an `Aggregate` value here have been **written since**, one bit per
+     * field index - see `Forwarder::narrowWritten`.
+     *
+     * A whole-record fact survives a write to one of its fields, minus that field. Without it a
+     * record filled by a literal and then updated in place answered no field read at all: the write
+     * to `.left` prefix-aliases the record, so the fact went, and the read of `.right` two
+     * instructions later had nothing behind it. Zero for every entry that is not an aggregate, which
+     * is nearly all of them, and a field past the width of this mask keeps the old behaviour of
+     * dropping the entry outright.
+     */
+    U32 stale = 0;
 };
 
 struct Forwarder {
@@ -310,6 +323,17 @@ struct Forwarder {
      */
     bool sameAddress(Value* left, Value* right) {
         while(left && right) {
+            /*
+             * The second names taken off first - `throughNames`, and the same pair `allocationRoot`
+             * walks. A borrow of a slot and the slot are one piece of storage, so a fact recorded
+             * under one of them answers a read through the other; without this every write through a
+             * `&` parameter established a fact nothing could find again, because the write named the
+             * borrow and the read named the slot.
+             */
+            left = throughNames(left);
+            right = throughNames(right);
+            if(!left || !right) return false;
+
             if(left == right) return true;
 
             Value* leftBase = nullptr;
@@ -432,6 +456,19 @@ struct Forwarder {
 
             if(!root || mayWriteStorage(opt, contained, inst, *root)) {
                 if(!root || !written || mayAlias(known[i].address, written)) {
+                    U32 field = 0;
+
+                    /*
+                     * One field of a record whose literal is still in hand, marked rather than
+                     * forgotten - and the store that filled the record is no longer removable, since
+                     * part of what it wrote is now what the program wants.
+                     */
+                    if(root && written && narrowWritten(known[i], written, field)) {
+                        known[i].stale |= U32(1) << field;
+                        known[i].pending = nullptr;
+                        continue;
+                    }
+
                     known.remove(i);
                     continue;
                 }
@@ -441,6 +478,44 @@ struct Forwarder {
         }
     }
 
+    /*
+     * Whether a write that reaches one entry's record touches only **one field** of it, and which -
+     * the narrowing `Known::stale` exists for.
+     *
+     * The entry has to hold an `Aggregate`, because that is the only value whose fields this pass can
+     * still name one at a time; and the write has to be a field address taken directly of the entry's
+     * own storage, so a nested projection or an element is not this and drops the entry as before.
+     * The single-constructor rule is `separateFields`', arriving here for its own reason: two indices
+     * of a sum may be one piece of payload storage, so writing one says nothing about the other.
+     */
+    bool narrowWritten(Known& entry, Value* written, U32& field) {
+        if(!entry.value || !entry.value->definer) return false;
+        if(opt.base[entry.value->definer]->kind != Inst::Aggregate) return false;
+        if(!written) return false;
+
+        Value* base = nullptr;
+        auto step = stepOf(*written, base);
+        if(!step || !base) return false;
+
+        auto projection = step.unwrap();
+        if(projection.kind != Inst::FieldAddress) return false;
+        if(projection.property != InstFieldAddress::kNoProperty) return false;
+        if(projection.field == InstFieldAddress::kDiscriminant) return false;
+        if(projection.field >= 32) return false;
+        if(!projection.of || projection.of != entry.value->occurrence.type) return false;
+
+        auto declared = opt.decl[projection.of];
+        if(declared->kind != mir::Type::Record) return false;
+        if(((mir::RecordType*)declared)->layout != mir::RecordLayout::Single) return false;
+
+        // `sameAddress` takes the second names off both sides itself, so the write may name a
+        // borrow of the storage the entry was recorded under.
+        if(!sameAddress(base, entry.address)) return false;
+
+        field = projection.field;
+        return true;
+    }
+
     // One entry per piece of storage, so that "what is here" and "which store put it there" are one
     // answer rather than the most recent of several.
     void remember(Value* address, Value* value, Inst* pending) {
@@ -448,7 +523,7 @@ struct Forwarder {
             if(sameAddress(known[i].address, address)) known.remove(i);
         }
 
-        known.push(Known { address, value, pending });
+        known.push(Known { address, value, pending, 0 });
     }
 
     Known* entryFor(Value* address) {
@@ -501,6 +576,136 @@ struct Forwarder {
         return true;
     }
 
+    /*
+     * How far a field read is chased back through nested records. A component of a component of a
+     * component is past what a literal in the corpus builds, and the bound is what keeps this a
+     * constant-cost lookup rather than a walk of an arbitrary address chain.
+     */
+    static constexpr U32 kAggregateDepth = 4;
+
+    /*
+     * An address with its **second names peeled off** - a `Guaranteed` load of a slot is how a borrow
+     * is spelled here and a `represent` restates one at another occurrence, and a field taken of
+     * either names the same field of the same storage. `allocationRoot` walks exactly this pair; what
+     * this does not walk is a projection, because a projection is the step the caller is asking
+     * about.
+     *
+     * It is what makes the rewrite reach anything at all: a record is nearly always read through a
+     * borrow of the slot rather than through the slot, so `field.addr .run (load %xs)` was a base the
+     * block table had no entry for.
+     */
+    Value* throughNames(Value* address) {
+        for(U32 i = 0; address && address->definer && i < kAggregateDepth; i++) {
+            auto inst = opt.base[address->definer];
+
+            if(inst->kind == Inst::Load) {
+                if(!inst->results.size()) break;
+                if(opt.base[inst->results.get(opt.base, 0)]->convention != Convention::Guaranteed) {
+                    break;
+                }
+
+                address = opt.base[((InstLoad*)inst)->address.value()];
+                continue;
+            }
+
+            if(inst->kind == Inst::Unary && ((InstUnary*)inst)->op == mir::UnaryOp::Represent) {
+                address = opt.base[((InstUnary*)inst)->value.value()];
+                continue;
+            }
+
+            break;
+        }
+
+        return address;
+    }
+
+    /*
+     * The component of an **`Aggregate` still in hand** that a field address names - the third
+     * answer a read can have, beside the block table and the constant one.
+     *
+     * `store %slot, (aggregate.Pair %a %b)` establishes what is at `%slot`, and the block table
+     * already holds it; what it does not answer is `load (field.addr .left %slot)`, because that is a
+     * *different* address and `entryFor` compares addresses. The record is right there in the
+     * instruction that built it, so the field is the operand at that index - which is the rewrite the
+     * file comment's "a whole-record store kills every field of it" leaves undone. That refusal is
+     * about the **kill** and stays exactly as it was: an entry this reads has survived every write
+     * that may alias any part of the record, prefix included, so nothing has touched the field since
+     * the aggregate was stored.
+     *
+     * Three restrictions, and each is a rule already stated in this file:
+     *
+     *  - **a single-constructor record only**, which is `separateFields`' condition and has its
+     *    reason: a sum keeps one flat field list with a range per constructor and may fold its tag
+     *    into a niche of the payload, so which storage a field occupies is `lower/repr.cpp`'s answer
+     *    and a **target's**. A `property` address and a discriminant are refused there and here;
+     *  - **`isForwardable`**, at the call site - `Trivial` at both ends with agreeing occurrences,
+     *    which is what makes handing the component to the reader a renaming rather than a second
+     *    owner or a different representation;
+     *  - and the base is resolved by the block table *or* by one more step of this same walk, which
+     *    is what reads a field of a nested record - `field.addr .items (field.addr .run %xs)`, the
+     *    shape every container header has.
+     */
+    Value* aggregateComponent(Value* address, U32 depth) {
+        if(depth > kAggregateDepth || !address) return nullptr;
+
+        Value* base = nullptr;
+        auto step = stepOf(*address, base);
+        if(!step || !base) return nullptr;
+
+        auto projection = step.unwrap();
+        if(projection.kind != Inst::FieldAddress) return nullptr;
+        if(projection.property != InstFieldAddress::kNoProperty) return nullptr;
+        if(projection.field == InstFieldAddress::kDiscriminant) return nullptr;
+        if(!projection.of) return nullptr;
+
+        auto declared = opt.decl[projection.of];
+        if(declared->kind != mir::Type::Record) return nullptr;
+        if(((mir::RecordType*)declared)->layout != mir::RecordLayout::Single) return nullptr;
+
+        base = throughNames(base);
+
+        auto entry = entryFor(base);
+        if(entry && entry->stale & (U32(1) << (projection.field & 31))) return nullptr;
+        if(entry && projection.field >= 32 && entry->stale) return nullptr;
+
+        auto held = entry ? entry->value : aggregateComponent(base, depth + 1);
+        if(!held || !held->definer) return nullptr;
+
+        auto definer = opt.base[held->definer];
+        if(definer->kind != Inst::Aggregate) return nullptr;
+
+        /*
+         * And the record the field is *of* is the record in hand. A field index means nothing on its
+         * own - it is an index into one declaration's list - so a `represent` that restated the
+         * storage at another type, or a slot holding a record of a type this projection does not
+         * name, is a component this may not pick.
+         */
+        if(projection.of != held->occurrence.type) return nullptr;
+
+        auto& built = (InstAggregate&)*definer;
+        if(built.constructor != 0) return nullptr;
+        if(projection.field >= built.components.size()) return nullptr;
+
+        auto used = built.components.get(opt.base, projection.field);
+        if(!used.isSet()) return nullptr;
+
+        return opt.base[used.value()];
+    }
+
+    bool tryAggregateForward(Inst& inst) {
+        auto& load = (InstLoad&)inst;
+        if(!inst.results.size()) return false;
+
+        auto result = opt.base[inst.results.get(opt.base, 0)];
+        auto component = aggregateComponent(opt.base[load.address.value()], 0);
+        if(!component || !isForwardable(*result, *component)) return false;
+
+        auto editor = opt.ir();
+        editor.replaceAllUses(*result, *component);
+        editor.eraseInst(inst);
+        return true;
+    }
+
     bool tryForward(Inst& inst) {
         auto& load = (InstLoad&)inst;
         if(!inst.results.size()) return false;
@@ -510,6 +715,7 @@ struct Forwarder {
 
         auto entry = entryFor(address);
         if(!entry || !entry->value || !isForwardable(*result, *entry->value)) {
+            if(tryAggregateForward(inst)) return true;
             return tryConstantForward(inst);
         }
 
@@ -881,6 +1087,279 @@ void removeDeadStorage(OptContext& opt) {
         StorageRemover remover { opt, contained, constantContentsOf(opt) };
         remover.remove(*allocation);
     }
+}
+
+namespace {
+
+/*
+ * Move elision: two frame slots that hold one value, one after the other, made into one slot.
+ *
+ * `let m2 = insert(m1, k, v)` lowers to a slot for `m1`, a slot for `m2`, and forty bytes copied
+ * between them - and the copy is all there is between the two, because a **handover** takes the
+ * value out of the first slot and puts it in the second. The shape is exactly:
+ *
+ *     %v = load %a         ; a tracked result, so this empties `%a`
+ *     store %b, consume %v ; and this is the only thing that reads it
+ *
+ * `test/bench/findings.md` §102.3 is where this was measured as the last of the new stage's size
+ * gap that buys nothing: 468 such copies over `test/resolve`, and `Tree` in the benchmark corpus
+ * running 9.2% slower than the shipping stage on four instructions per iteration doing one of them.
+ * `destinationFor`'s `Store` arm in `lower/inst.cpp` is the other half - it covers the case where
+ * the value is *produced* into the second slot, and this covers the case where it comes out of the
+ * first.
+ *
+ * ## What makes it sound
+ *
+ * The two slots are merged, so what has to hold is that their **live ranges do not overlap** - which
+ * is the register allocator's coalescing condition, asked of storage. Two dominance tests state it,
+ * and neither is an approximation of the other:
+ *
+ *  - **every use of `%b` other than the store is dominated by the store.** So nothing touches the
+ *    second slot before it holds the moved value. This is the condition a conditional teardown makes
+ *    necessary rather than a formality: MIR emits a `Drop` of `%b` on a path the store may not have
+ *    run on, and merging without this would release a value `%a` still owns.
+ *  - **no use of `%a` other than the load is reachable from the store.** So nothing touches the
+ *    first slot after the value has left it. A *refill* is a use like any other and is what this
+ *    catches: `%a` written again below would otherwise write over `%b`.
+ *
+ * `%a`'s allocation dominating every use of `%b` falls out of the two rather than being asked: it
+ * dominates the store, because the load reads it there, and the store dominates all of them.
+ *
+ * Three structural conditions in front of those, each of which is about what a slot *is*:
+ *
+ *  - both are `Alloc` of the same `StorageClass`, so what is merged is two pieces of storage of the
+ *    same kind. A heap or region allocation is somebody's to free, and two of them are two.
+ *  - the two `held` occurrences are **equal**, not merely the same type. The occurrence is what the
+ *    manifestation is asked of - `Occurrence::sameManifestation` - so an owned `String` and a shared
+ *    window into one are two slots of different sizes with one type between them.
+ *  - the load's result is **tracked** and has this store as its only use. A `Guaranteed` result is a
+ *    borrow rather than a handover: the value stays where it is, and there is nothing to move.
+ *
+ * ## Why it is here and not in `forwardMemory`
+ *
+ * The file comment above declines a tracked load, and gives three reasons for it. This is not that
+ * rewrite: it does not point the load's readers at the stored value, it removes the *storage*, and
+ * the pair of dominance tests is exactly the guard that comment says a forward would need and does
+ * not have ("what the rewrite needs is that nothing in between reads it either"). Asked over a whole
+ * body rather than inside one block, which is the other half of why it could not live there.
+ */
+/*
+ * How many distinct names for one allocation `eachTouch` will walk before giving up.
+ *
+ * A bound rather than a limit, on `kRootDepth`'s terms one file over: the chains this asks about are
+ * a handful of projections off a container header, and a walk with no bound is one whose cost a body
+ * chooses. Past it the merge is declined.
+ */
+constexpr Size kNameLimit = 64;
+
+struct MoveElider {
+    OptContext& opt;
+    const Dominators& dominators;
+
+    // The candidates, collected before anything is rewritten - the removals below edit the use lists
+    // this walk reads, which is `removeDeadStorage`'s arrangement one file down for the same reason.
+    SmallArray<Inst*, 16> stores;
+
+    // Whether `use` comes after `at` in the block they share.
+    bool after(Block& block, SsaPtr<Inst> at, SsaPtr<Inst> use) {
+        auto count = block.instructionCount();
+        for(Size i = 0; i < count; i++) {
+            if(block.instructionAt(opt.base, i) == use) return false;
+            if(block.instructionAt(opt.base, i) == at) return true;
+        }
+
+        return false;
+    }
+
+    // Whether the store dominates this use of the second slot - the block relation, and the position
+    // inside the block they share.
+    bool afterStore(Inst& store, Inst& use) {
+        if(use.block == store.block) {
+            return after(*opt.base[store.block], SsaPtr<Inst>(&store - opt.base),
+                         SsaPtr<Inst>(&use - opt.base));
+        }
+
+        return dominators.dominates(opt.base[store.block]->index.index,
+                                    opt.base[use.block]->index.index);
+    }
+
+    /*
+     * Whether control can get from the store to any of the marked blocks.
+     *
+     * A forward walk from the store's *successors*, so the store's own block counts only when a path
+     * comes back to it - which is what a loop does, and is the case that makes the walk necessary
+     * rather than a position comparison. A use inside the store's block and below it is not this
+     * walk's to find: `afterStore` above is asked of every use first, and this is asked of what is
+     * left.
+     */
+    bool reachesMarked(Inst& store, const IndexSet& marked) {
+        ScratchSet seen(opt.sets, opt.body->blocks.size());
+        SmallArray<U32, 32> queue;
+
+        forEachSuccessor(opt.base, *opt.base[store.block], [&](U32 target) {
+            if(seen->operator [] (target)) return;
+            seen->set(target, true);
+            queue.push(target);
+        });
+
+        while(queue.size()) {
+            auto index = queue.pop().unwrap();
+
+            if(marked[index]) return true;
+
+            auto block = opt.body->block(opt.base, BlockId(index));
+            if(block->deleted) continue;
+
+            forEachSuccessor(opt.base, *block, [&](U32 target) {
+                if(seen->operator [] (target)) return;
+                seen->set(target, true);
+                queue.push(target);
+            });
+        }
+
+        return false;
+    }
+
+    /*
+     * Every instruction that touches an allocation's storage, through **any** name it has.
+     *
+     * The use list of the `Alloc` is not that set, and the difference is the whole of what a
+     * direct-use test gets wrong: `field.addr .entries %m` and the `load` of a borrow off it are two
+     * more names for the same bytes, and an instruction reading one of *those* below the store is an
+     * instruction that would see the merged slot's contents instead of the moved-from slot's. The
+     * recursion is `Containment::admits`' - a projection and a `Guaranteed` load are steps, and
+     * everything else is a use rather than a name - asked for the set instead of for a verdict.
+     *
+     * `false` where the walk runs past its bound, which every caller reads as "decline".
+     */
+    template<class F> bool eachTouch(Value& allocation, F&& visit) {
+        SmallArray<Value*, 16> names;
+        names.push(&allocation);
+
+        for(Size at = 0; at < names.size(); at++) {
+            if(names.size() > kNameLimit) return false;
+
+            for(auto used: names[at]->uses(opt.base)) {
+                auto use = opt.base[used];
+                visit(*use, used);
+
+                if(!use->results.size()) continue;
+
+                auto result = opt.base[use->results.get(opt.base, 0)];
+                auto isName = use->kind == Inst::FieldAddress || use->kind == Inst::ElementAddress ||
+                              (use->kind == Inst::Load &&
+                               result->convention == Convention::Guaranteed);
+
+                if(isName) names.push(result);
+            }
+        }
+
+        return true;
+    }
+
+    // The `Alloc` that defines this address, and null for everything else - the two ends of a merge
+    // are two allocations, and nothing looser is one.
+    Value* allocationOf(SsaPtr<Value> pointer) {
+        if(!pointer) return nullptr;
+
+        auto value = opt.base[pointer];
+        if(!value->definer) return nullptr;
+
+        auto definer = opt.base[value->definer];
+        if(definer->kind != Inst::Alloc || !definer->block) return nullptr;
+
+        return value;
+    }
+
+    bool tryElide(Inst& store) {
+        auto& written = (InstStore&)store;
+        auto moved = opt.base[written.value.value()];
+
+        if(!isTracked(moved->convention) || moved->useCount() != 1) return false;
+        if(!moved->definer) return false;
+
+        auto load = opt.base[moved->definer];
+        if(load->kind != Inst::Load || !load->block) return false;
+
+        auto from = allocationOf(((InstLoad*)load)->address.value());
+        auto into = allocationOf(written.address.value());
+        if(!from || !into || from == into) return false;
+
+        auto& source = (InstAlloc&)*opt.base[from->definer];
+        auto& target = (InstAlloc&)*opt.base[into->definer];
+        if(source.storage != target.storage) return false;
+        if(!source.held.sameManifestation(target.held)) return false;
+
+        // Every touch of the second slot but this store is below it. One in an unreachable block
+        // fails the dominance test and declines the merge, which is the conservative direction.
+        auto below = true;
+        if(!eachTouch(*into, [&](Inst& use, SsaPtr<Inst>) {
+            if(&use == &store) return;
+            if(!use.block || !afterStore(store, use)) below = false;
+        })) {
+            return false;
+        }
+
+        if(!below) return false;
+
+        /*
+         * And no touch of the first slot is reachable from the store. The load is not one of them -
+         * it is above the store by construction, being what produced its operand - and one below the
+         * store inside the store's own block is refused here rather than by the walk.
+         */
+        ScratchSet marked(opt.sets, opt.body->blocks.size());
+        auto any = false;
+        auto reached = false;
+
+        if(!eachTouch(*from, [&](Inst& use, SsaPtr<Inst> pointer) {
+            if(&use == load || &use == &store) return;
+            if(!use.block) { reached = true; return; }
+
+            if(use.block == store.block &&
+               after(*opt.base[store.block], SsaPtr<Inst>(&store - opt.base), pointer)) {
+                reached = true;
+                return;
+            }
+
+            marked->set(opt.base[use.block]->index.index, true);
+            any = true;
+        })) {
+            return false;
+        }
+
+        if(reached) return false;
+        if(any && reachesMarked(store, *marked)) return false;
+
+        auto editor = opt.ir();
+        editor.replaceAllUses(*into, *from);
+        editor.eraseInst(store);
+        editor.eraseInst(*load);
+        editor.eraseInst(*opt.base[into->definer]);
+        return true;
+    }
+
+    void run() {
+        for(auto blockPointer: opt.body->blocks.contents(opt.base)) {
+            auto block = opt.base[blockPointer];
+            if(block->deleted) continue;
+
+            for(auto instPointer: block->instructions(opt.base)) {
+                auto inst = opt.base[instPointer];
+                if(inst->kind == Inst::Store) stores.push(inst);
+            }
+        }
+
+        for(auto store: stores) {
+            if(store->block) tryElide(*store);
+        }
+    }
+};
+
+} // namespace
+
+void elideMoves(OptContext& opt) {
+    MoveElider elider { opt, dominatorsOf(opt) };
+    elider.run();
 }
 
 } // namespace ssa

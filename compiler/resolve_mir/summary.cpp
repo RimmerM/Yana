@@ -325,7 +325,8 @@ struct Interprocedural {
         auto allocatorRooted = false;
 
         auto rootAllocator = [&] {
-            if(allocatorRooted || (!program.usesBoxes && !program.usesRuns)) return;
+            if(allocatorRooted) return;
+            if(!program.usesBoxes && !program.usesRuns && !program.usesHeapPlacement) return;
             allocatorRooted = true;
 
             intrinsic::Known allocator[3] = { intrinsic::Known::allocateHeap,

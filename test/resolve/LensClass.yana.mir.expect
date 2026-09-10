@@ -168,7 +168,7 @@ bb1(%6: {} [shared call]) handover({} [shared call]):
 }
 
 fn deferred(x: a [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 type a
   slot #1 class Guard(a)
   local d: I32 [shared call]
@@ -186,7 +186,7 @@ bb1(%1: I32 [shared call]) handover(I32 [shared call]):
 }
 
 fn deferredDot(x: a [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 type a
   slot #1 class Guard(a)
   local d: I32 [shared call]
@@ -204,7 +204,7 @@ bb1(%1: I32 [shared call]) handover(I32 [shared call]):
 }
 
 fn deferredUnit(x: a [shared call], bump: I32 [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 type a
   slot #1 class Guard(a)
   local & n: I32
@@ -227,7 +227,7 @@ bb1(%3: {} [shared call]) handover({} [shared call]):
 }
 
 fn deferredExit(x: a [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 type a
   slot #1 class Guard(a)
   local d: I32 [shared call]
@@ -273,7 +273,7 @@ bb1(%4: I32 [shared call]) handover(I32 [shared call]):
 }
 
 fn deferredDefault(x: a [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 type a
   slot #1 class Guard(a)
   local d: I32 [shared call]
@@ -318,7 +318,7 @@ bb2(%6: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
 }
 
 fn deferredIter(x: a [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 type a
   slot #1 class Guard(a)
   local & t: I32
@@ -382,6 +382,18 @@ bb0:
   %30: I32 = add inspect %27 inspect %29
   return take %30
 }
+
+fn deferred(Gate)(x: Gate [shared call]) -> I32 = <deferred at Gate>
+
+fn deferredDot(Gate)(x: Gate [shared call]) -> I32 = <deferredDot at Gate>
+
+fn deferredUnit(Gate)(x: Gate [shared call], bump: I32 [shared call]) -> I32 = <deferredUnit at Gate>
+
+fn deferredExit(Gate)(x: Gate [shared call]) -> I32 = <deferredExit at Gate>
+
+fn deferredDefault(Gate)(x: Gate [shared call]) -> I32 = <deferredDefault at Gate>
+
+fn deferredIter(Gate)(x: Gate [shared call]) -> I32 = <deferredIter at Gate>
 
 lens fn twiceDeep(Gate)(self: Gate [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <twiceDeep at Gate>
 

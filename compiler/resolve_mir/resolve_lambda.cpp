@@ -708,10 +708,10 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     asked.outlivesFrame = owningPosition;
     lifted->environmentStorage = selectStorage(asked);
 
-    // What tells the reachability walk the allocator is needed - the same producer a heap-placed
-    // local is, and for the same reason: the block is storage the *lowering* asks for and there is
-    // no node in any body to draw an edge from.
-    if(lifted->environmentStorage != StorageClass::Frame) program.usesBoxes = true;
+    // What tells the *MIR* reachability walk the allocator is needed - `usesHeapPlacement`, the
+    // same producer a heap-placed local is and for the same reason: the environment is an object
+    // whose placement left the frame, and `resolve_ssa/opt/reach.cpp` asks again per `fun.value`.
+    if(lifted->environmentStorage != StorageClass::Frame) program.usesHeapPlacement = true;
 
     /*
      * The environment parameter, first and **exclusive**.

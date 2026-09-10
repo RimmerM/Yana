@@ -130,7 +130,7 @@ fn forAccumulates(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %13: I32 trivial = const 0
   %15: I32 trivial = const 0
-  %16: I32 trivial = const 1
+  %29: I32 trivial = const 1
   jump -> bb1(inspect %13, inspect %15)
 
 bb1(%27: I32 trivial, %28: I32 trivial):
@@ -142,7 +142,7 @@ bb3:
 
 bb4:
   %25: I32 trivial = add inspect %27 inspect %28
-  %20: I32 trivial = add inspect %28 inspect %16
+  %20: I32 trivial = add inspect %28 inspect %29
   jump -> bb1(inspect %25, inspect %20)
 }
 
@@ -150,7 +150,7 @@ fn forBreaks(n: I32 [shared call], stop: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial, %1: I32 trivial):
   %21: I32 trivial = const 0
   %23: I32 trivial = const 0
-  %24: I32 trivial = const 1
+  %40: I32 trivial = const 1
   jump -> bb1(inspect %23)
 
 bb1(%38: I32 trivial):
@@ -165,7 +165,7 @@ bb4:
   branch inspect %33 -> bb7 -> bb5
 
 bb5:
-  %28: I32 trivial = add inspect %38 inspect %24
+  %28: I32 trivial = add inspect %38 inspect %40
   jump -> bb1(inspect %28)
 
 bb7:

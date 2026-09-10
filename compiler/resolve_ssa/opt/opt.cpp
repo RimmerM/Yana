@@ -142,6 +142,14 @@ void optimizeBody(OptContext& opt) {
         runPass(removeDeadStorage);
 
         /*
+         * And the third of the storage rewrites, behind both: what it compares is the *uses* of two
+         * allocations, so it wants the loads the forwarder has already answered gone and the slots
+         * the remover has already taken away not to be there at all. Two dominance tests rather than
+         * a block-local scan, which is why it is a pass of its own and not an arm of the forwarder.
+         */
+        runPass(elideMoves);
+
+        /*
          * Then the loops, immediately in front of the CFG cleanup, because what `deadLoops`
          * produces is a constant exit test and nothing else: it deletes no block, and the pass that
          * owns the region rule is the one below it.

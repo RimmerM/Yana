@@ -1427,9 +1427,185 @@ static bool selectedMember(DeclBase base, Program& program, DeclPtr<Function> po
     return false;
 }
 
+/*
+ * How many **distinct concrete argument lists** name each generic, counted before the walk that
+ * would discover them - the one term `kErasureShare`'s note says this decision cannot have.
+ *
+ * It cannot have the exact number, and this is not it. What the specializing walk answers is how
+ * many lists the *reachable* program calls at, and that walk runs after every form is settled. What
+ * this answers is a **syntactic upper-bounded lower bound**: every call node in every body, whether
+ * the code around it is reachable or not, with anything the count cannot read written down as
+ * `many`. So a generic this says is reached at one list is reached at one list or at none, and a
+ * generic it says nothing about is left to the measurement alone.
+ *
+ * That one direction is the whole of what it is for. Erasure trades an indirect ABI and a body full
+ * of descriptor work against **the copies it saves**, and at one argument list it saves none: the
+ * specialized body is the same body with its types filled in, it replaces the erased one entirely,
+ * and it is a body the SSA inliner may clone - `opt/inline.cpp`'s `clonableDeclaration` refuses an
+ * erased generic outright, because a copy of one would read a slot of an environment the copy cannot
+ * bring with it. `test/resolve/WideCall.yana` is the shape: `wide` binds two variables, uses neither
+ * for anything but passing, is called twice at `[Bool, {}]` and nowhere else, and cost the caller a
+ * thirty-four argument call the shipping stage folds to a constant.
+ *
+ * Four things are `many` rather than a list, and each is a way a body is reached that names no
+ * arguments here:
+ *
+ *  - a **function value** of the generic, which names the declaration and hands it to whoever calls
+ *    the pair. There is no list at the site and the callee is whatever the value points at;
+ *  - a call the **requirement** typed - `NodeCall::genCallable` - which `callableTarget` resolves
+ *    against the environment the enclosing body was handed rather than against an argument list;
+ *  - a call whose written arguments are **not concrete**, which is every call inside another
+ *    generic's body that passes its own variables along. The list such a call reaches is one the
+ *    enclosing substitution decides, and there is one per specialization of the enclosing body;
+ *  - a **second, different** list, which is the case the count is looking for the absence of.
+ *
+ * A generic reached at **no** list at all is left alone rather than specialized, and the reason is
+ * that "no call names it here" is not "nothing calls it": a `pub` generic in a `-mode lib` build is
+ * called by a compilation that has not happened yet, and the erased form is the one a caller outside
+ * this program can reach. `exported` is checked for the same reason one step earlier.
+ */
+struct GenericReach {
+    /*
+     * The one list seen so far, held **inline and by value**: a written argument list is short, and
+     * the arena pointers are interned, so `DeclPtr<Type>` equality is the identity test -
+     * `internSpecialization` re-checks a hashed key against exactly these offsets.
+     *
+     * A fixed row rather than an array, because this lives in a `HashMap` whose slots are raw
+     * storage the caller fills; a member that owns a buffer would be one nothing here destroys. A
+     * context binding more variables than this holds is `many`, which is the answer the count gives
+     * to everything it cannot read.
+     */
+    static constexpr Size kMaxVariables = 8;
+
+    DeclPtr<Type> arguments[kMaxVariables] = {};
+    U32 count = 0;
+
+    bool seen = false;
+    bool many = false;
+};
+
+/*
+ * One call's contribution, and the only thing that reads a node here.
+ *
+ * The arguments are taken **as written** and never substituted. A concrete type is its own image
+ * under every substitution, so a list this accepts is the list the call reaches whichever body it is
+ * read inside; and a list holding a variable is refused rather than resolved, which is the third
+ * `many` above. That is what keeps this a walk over nodes rather than a second specializer.
+ */
+// The row for one generic, made on first sight. `HashMap::add` hands back raw storage, so a fresh
+// slot is filled here rather than left holding whatever the bucket did - `internSpecialization` says
+// the same thing about its own.
+static GenericReach& reachFor(HashMap<U32, GenericReach>& lists, DeclPtr<Function> callee) {
+    auto entry = lists.add(callee.offset);
+    if(!entry.existed) *entry.value = GenericReach {};
+
+    return *entry.value;
+}
+
+static void noteArgumentList(DeclBase base, HashMap<U32, GenericReach>& lists,
+                             DeclPtr<Function> callee, MirList<DeclPtr<Type>>* arguments,
+                             MirBase mir) {
+    auto& reach = reachFor(lists, callee);
+    if(reach.many) return;
+
+    if(!arguments || !arguments->size() ||
+       arguments->size() > GenericReach::kMaxVariables) {
+        reach.many = true;
+        return;
+    }
+
+    auto written = arguments->contents(mir);
+
+    for(auto type: written) {
+        if(!isConcreteType(base, type)) { reach.many = true; return; }
+    }
+
+    if(!reach.seen) {
+        reach.seen = true;
+        reach.count = U32(written.size());
+        for(Size i = 0; i < written.size(); i++) reach.arguments[i] = written[i];
+        return;
+    }
+
+    if(reach.count != written.size()) { reach.many = true; return; }
+
+    for(Size i = 0; i < written.size(); i++) {
+        if(reach.arguments[i] != written[i]) { reach.many = true; return; }
+    }
+}
+
+static void markMany(HashMap<U32, GenericReach>& lists, DeclPtr<Function> callee) {
+    reachFor(lists, callee).many = true;
+}
+
+// Every body in the program, once. `module->functions` is the whole list - `verifyProgram` walks the
+// same one and it is what a specialization is later filed into - and at this point it holds only
+// what was written, since nothing has specialized anything yet.
+static void countArgumentLists(Program& program, HashMap<U32, GenericReach>& lists) {
+    auto base = *program.decl;
+    auto mir = *program.mir;
+
+    for(auto modulePointer: program.modules) {
+        for(auto functionPointer: base[modulePointer]->functions.contents(base)) {
+            auto& function = *base[functionPointer];
+            if(!function.mir) continue;
+
+            auto& body = *mir[function.mir];
+
+            for(U32 i = 0; i < body.nodes.size(); i++) {
+                auto node = body.node(mir, NodeId(i));
+
+                if(node->kind == Node::FunValue) {
+                    auto callee = ((NodeFunValue*)node)->callee;
+                    if(callee && isGeneric(base, base[callee]->gen)) markMany(lists, callee);
+                    continue;
+                }
+
+                CallRequest request;
+                if(node->kind == Node::Call) request = callRequestOf(*(NodeCall*)node);
+                else if(isLensCall(node->kind)) request = callRequestOf(*(NodeLensCall*)node);
+                else continue;
+
+                // A call through a value names no declaration at all, so there is nothing here to
+                // count against - what it runs was reached by whoever built the pair, above.
+                if(request.callsValue || !request.callee) continue;
+                if(!isGeneric(base, base[request.callee]->gen)) continue;
+
+                if(request.genCallable != NodeCall::kNoCallable) {
+                    markMany(lists, request.callee);
+                    continue;
+                }
+
+                noteArgumentList(base, lists, request.callee, request.typeArguments, mir);
+            }
+        }
+    }
+}
+
+/*
+ * Whether erasure would still be **saving** anything - the count above, read at the one decision.
+ *
+ * True is "leave the measurement alone", so everything this does not know about answers true: a
+ * generic with no entry is one no call node named, which is the library case the struct's note
+ * argues, and `many` is the ordinary generic erasure exists for.
+ */
+static bool erasureSavesCopies(HashMap<U32, GenericReach>& lists, DeclPtr<Function> pointer) {
+    auto reach = lists.get(pointer.offset);
+    if(reach.isNothing()) return true;
+
+    auto& counted = reach.unwrap();
+    return counted.many || !counted.seen;
+}
+
 void selectGenForms(Context& context, Program& program) {
     auto decl = *program.decl;
     auto mir = *program.mir;
+
+    // Counted first and read below, because the answer is about the *program* and the decision is
+    // made one declaration at a time - the same reason this pass exists rather than the form being
+    // derived where it is wanted.
+    HashMap<U32, GenericReach> argumentLists;
+    countArgumentLists(program, argumentLists);
 
     for(auto modulePointer: program.modules) {
         for(auto functionPointer: decl[modulePointer]->functions.contents(decl)) {
@@ -1502,9 +1678,25 @@ void selectGenForms(Context& context, Program& program) {
 
             auto written = function.form != GenForm::Auto;
 
+            /*
+             * The measured answer, and the second term J52 gave it - see `GenericReach`.
+             *
+             * Both have to say yes. `erasureFits` is about what the erased body would *cost*, and
+             * `erasureSavesCopies` is about what it would *save*: a generic this compilation reaches
+             * at exactly one argument list is compiled once either way, so erasing it buys nothing
+             * and gives up a concrete ABI, a body the folder can see through and a body the inliner
+             * may clone.
+             *
+             * `exported` is left erased whatever the count says, for the reason the struct's note
+             * gives: a caller outside this compilation names no argument list here, and the form a
+             * `pub` generic is compiled in is the one that caller has to be able to reach.
+             */
             if(!written) {
-                function.form = erasureFits(function.summary.genCost().value)
-                    ? GenForm::Erased : GenForm::Specialized;
+                auto fits = erasureFits(function.summary.genCost().value);
+                auto saves = function.exported ||
+                             erasureSavesCopies(argumentLists, functionPointer);
+
+                function.form = fits && saves ? GenForm::Erased : GenForm::Specialized;
             }
 
             /*

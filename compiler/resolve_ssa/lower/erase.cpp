@@ -507,13 +507,14 @@ LowerPtr<LowerFunction> Lowering::teardownHalves(DeclPtr<mir::Type> type, bool r
     auto derivedReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
 
     if(mir::isSumRecord(decl, type) && (derivedDrop || derivedReclaim)) {
-        emitTeardown(*block, &argument->result - lower, type, runDrop && !derivedDrop,
-                     runReclaim && !derivedReclaim, source, boxes);
+        block = emitTeardown(*block, &argument->result - lower, type, runDrop && !derivedDrop,
+                             runReclaim && !derivedReclaim, source, boxes, function);
 
         block = emitSumTeardown(*function, *block, &argument->result - lower, type, derivedDrop,
                                 derivedReclaim, source, boxes);
     } else {
-        emitTeardown(*block, &argument->result - lower, type, runDrop, runReclaim, source, boxes);
+        block = emitTeardown(*block, &argument->result - lower, type, runDrop, runReclaim, source,
+                             boxes, function);
     }
 
     /*
@@ -935,7 +936,8 @@ LowerPtr<LowerGlobal> Lowering::propertyWitnessFor(DeclPtr<mir::Type> subject, U
         auto place = cellAddress(*block, owner, offset);
 
         if(mir::tearsDownField(decl, declared)) {
-            emitTeardown(*block, place, declared.occurrence.type, true, true, source);
+            block = emitTeardown(*block, place, declared.occurrence.type, true, true, source,
+                                 BoxRelease::Owned, writer);
         }
 
         auto size = block->addInst(lower, new (to.arena) LowerImm(

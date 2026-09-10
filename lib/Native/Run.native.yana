@@ -119,7 +119,15 @@ pub fn newRun(capacity: Size) -> Run(a) =
    an allocator that said no gets and for a better reason: storing it would leave a run whose
    capacity field disagreed with the storage behind it, and every later `resize` would read the
    masked number back and believe it.
+
+   `@cold`, and it is a statement about what this *is* rather than about one of its callers: a
+   relocating growth is the amortized arm of every container that has one - `growArray` and
+   `indexRebuild` are both of them here - and a run that already has the room returns on the first
+   line. What the attribute buys is the copy *in*: `allocateHeap` and `moveMemory` are each worth
+   expanding into a body nothing weighs as rare, and expanding them here puts a bump-pointer path
+   and a four-register block move into code that runs once per doubling.
 -}
+@cold
 pub fn resize(&self: Run(a), wanted: Size) -> Bool:
     let room = self.capacity :: Size
     if wanted <= room then return True

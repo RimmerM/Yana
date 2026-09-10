@@ -87,8 +87,11 @@ pub let &heapRegionNext = 0 :: Size
    path it is a detour from. Both have a single caller, which is exactly the term that would
    otherwise take them - a body with one caller is one the inliner moves rather than copies, and
    moving is free of code size and not free of anything else.
+
+   `@cold` for the same fact read the other way: a body that runs once in the life of a program is
+   one nothing is worth expanding *into*, whatever the expansion would buy.
 -}
-@noinline
+@noinline @cold
 fn initHeap():
     let region = mapMemory(heapRegionSize + pageBytes)
     if isNull(region) then return
@@ -128,8 +131,12 @@ fn initHeap():
    with one caller is one the inliner *moves* rather than copies, which costs no bytes and is still
    the wrong answer. Saying it here rather than in a cost model is deliberate - what makes this cold
    is that it runs once per region, which is a fact about the program and not one the body shows.
+
+   `@cold` says that same fact to the inliner's *other* end: nothing is expanded into this body
+   either, because a syscall path that runs once per region is not one worth spending code on. The
+   two are not a repetition - `@noinline` is about the copy out and `@cold` about every copy in.
 -}
-@noinline
+@noinline @cold
 fn growHeap(needed: Size) -> Bool:
     let &size = heapRegionNext :: Size
     if size < needed then size = needed

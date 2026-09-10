@@ -366,6 +366,9 @@ fn (Copy(k), Copy(v)) copyEntriesFrom(&self: Map(k, v), from: Map(k, v)):
         let ->entry = copy(from.entries[at])
         push(self.entries, entry)
 
+-- `@cold` for `resize`'s sentence: a rehash is the amortized arm of insertion, so the body it
+-- reaches - a `resize`, a reset and a walk of every entry - is not code worth expanding into.
+@cold
 fn (Hash(k)) indexRebuild(&self: Map(k, v), slots: Size):
     -- Held in a local rather than written inside the check, because an argument in `&` position is
     -- resolved as an ordinary expression when the call it is in is itself an argument - see the note

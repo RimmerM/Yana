@@ -1,42 +1,127 @@
-@environment(tagOf'2(Labelled)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(Labelled) = [8, 0, 0, 13, 0, 0, 0, 0]
 @image$base = []
-@environment(doubled(Labelled)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(scale(I32)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(I32) = [4, 0, 0, 13, 0, 0, 0, 0]
+@witness(Num(I32.+, I32.-, I32.*, I32./, I32.-'2, I32.fromInt)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-tagOf'2<complex>(%v_0: Ptr, %value: Ptr): I32 {
-  b_1 {
-    ret 7
-  }
-}
-
-double<complex>(%n: I32): I32 {
-  b_0 {
-    %v_1 = shl %n, 1: I32
-    ret %v_1
-  }
-}
-
-doubled<complex>(%v_0: Ptr, %value: Ptr): I32 {
-  b_1 {
-    ret 8
+scale<complex>(%v_0: Ptr, %v_1: Ptr, %x: Ptr, %y: Ptr) {
+  b_2 {
+    %v_3 = loads %v_0, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = add %v_4, @image$base: Ptr
+    %v_6 = load %v_5, 4: I64
+    %v_7 = and %v_6, 16777215: I64
+    %v_8 = alloca %v_7, 16: Ptr
+    %v_9 = add %v_0, 4: Ptr
+    %v_10 = loads %v_9, 4: I32
+    %v_11 = sext %v_10: I64
+    %v_12 = add %v_11, @image$base: Ptr
+    %v_13 = add %v_12, 8: Ptr
+    %v_14 = loads %v_13, 4: I32
+    %v_15 = sext %v_14: I64
+    %v_16 = add %v_15, @image$base: Ptr
+    %v_17 = add %v_4, @image$base: Ptr
+    %v_18 = load %v_17, 4: I64
+    %v_19 = and %v_18, 16777215: I64
+    %v_20 = alloca %v_19, 16: Ptr
+    call_complex %v_16, 0, %v_20, %x, %y
+    %v_21 = loads %v_0, 4: I32
+    %v_22 = sext %v_21: I64
+    %v_23 = add %v_22, @image$base: Ptr
+    %v_24 = load %v_23, 4: I64
+    %v_25 = and %v_24, 16777215: I64
+    copy %v_8, %v_20, %v_25
+    %v_26 = add %v_0, 4: Ptr
+    %v_27 = loads %v_26, 4: I32
+    %v_28 = sext %v_27: I64
+    %v_29 = add %v_28, @image$base: Ptr
+    %v_30 = loads %v_29, 4: I32
+    %v_31 = sext %v_30: I64
+    %v_32 = add %v_31, @image$base: Ptr
+    %v_33 = loads %v_0, 4: I32
+    %v_34 = sext %v_33: I64
+    %v_35 = add %v_34, @image$base: Ptr
+    %v_36 = load %v_35, 4: I64
+    %v_37 = and %v_36, 16777215: I64
+    %v_38 = alloca %v_37, 16: Ptr
+    call_complex %v_32, 0, %v_38, %v_8, %x
+    %v_39 = loads %v_0, 4: I32
+    %v_40 = sext %v_39: I64
+    %v_41 = add %v_40, @image$base: Ptr
+    %v_42 = add %v_41, 4: Ptr
+    %v_43 = loads %v_42, 4: I32
+    %v_44 = sext %v_43: I64
+    %v_45 = add %v_44, @image$base: Ptr
+    call_complex %v_45, %v_8
+    %v_46 = loads %v_0, 4: I32
+    %v_47 = sext %v_46: I64
+    %v_48 = add %v_47, @image$base: Ptr
+    %v_49 = load %v_48, 4: I64
+    %v_50 = and %v_49, 16777215: I64
+    copy %v_1, %v_38, %v_50
+    ret 
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 1, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 2, 4
-    %v_3 = call_complex tagOf'2, @environment(tagOf'2(Labelled)), %v_1: I32
-    %v_4 = add 38, %v_3: I32
-    %v_5 = alloca 8, 4: Ptr
-    store %v_5, 1, 4
-    %v_6 = add %v_5, 4: Ptr
-    store %v_6, 2, 4
-    %v_7 = call_complex doubled, @environment(doubled(Labelled)), %v_5: I32
-    %v_8 = add %v_4, %v_7: I32
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 2, 4
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 3, 4
+    %v_3 = alloca 4, 4: Ptr
+    call_complex scale, @environment(scale(I32)), %v_3, %v_1, %v_2
+    %v_4 = loads %v_3, 4: I32
+    %v_5 = add %v_4, 45: I32
+    ret %v_5
+  }
+}
+
+I32.fromInt<complex>(%value: I64): I32 {
+  b_0 {
+    %v_1 = sext %value: I32
+    ret %v_1
+  }
+}
+
+I32.+<complex>(%lhs: I32, %rhs: I32): I32 {
+  b_0 {
+    %v_1 = add %lhs, %rhs: I32
+    ret %v_1
+  }
+}
+
+I32.-<complex>(%lhs: I32, %rhs: I32): I32 {
+  b_0 {
+    %v_1 = sub %lhs, %rhs: I32
+    ret %v_1
+  }
+}
+
+I32.*<complex>(%lhs: I32, %rhs: I32): I32 {
+  b_0 {
+    %v_1 = imul %lhs, %rhs: I32
+    ret %v_1
+  }
+}
+
+I32./<complex>(%lhs: I32, %rhs: I32): I32 {
+  b_0 {
+    %v_1 = cmp_eq %rhs, 0: I32
+    %v_2 = cmp_eq %rhs, 4294967295: I32
+    %v_3 = or %v_1, %v_2: I32
+    %v_4 = select %v_3, 1, %rhs: I32
+    %v_5 = idiv %lhs, %v_4: I32
+    %v_6 = neg %lhs: I32
+    %v_7 = select %v_2, %v_6, %v_5: I32
+    %v_8 = select %v_1, 0, %v_7: I32
     ret %v_8
+  }
+}
+
+I32.-'2<complex>(%value: I32): I32 {
+  b_0 {
+    %v_1 = neg %value: I32
+    ret %v_1
   }
 }
 
@@ -46,10 +131,60 @@ teardown()<complex>(%v_0: Ptr) {
   }
 }
 
-thunk(double)<complex>(%v_0: Ptr, %v_1: I32): I32 {
-  b_2 {
-    %v_3 = call_complex double, %v_1: I32
-    ret %v_3
+thunk(I32.+)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr, %v_3: Ptr) {
+  b_4 {
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = loads %v_3, 4: I32
+    %v_7 = call_complex I32.+, %v_5, %v_6: I32
+    store %v_1, %v_7, 4
+    ret 
+  }
+}
+
+thunk(I32.-)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr, %v_3: Ptr) {
+  b_4 {
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = loads %v_3, 4: I32
+    %v_7 = call_complex I32.-, %v_5, %v_6: I32
+    store %v_1, %v_7, 4
+    ret 
+  }
+}
+
+thunk(I32.*)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr, %v_3: Ptr) {
+  b_4 {
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = loads %v_3, 4: I32
+    %v_7 = call_complex I32.*, %v_5, %v_6: I32
+    store %v_1, %v_7, 4
+    ret 
+  }
+}
+
+thunk(I32./)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr, %v_3: Ptr) {
+  b_4 {
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = loads %v_3, 4: I32
+    %v_7 = call_complex I32./, %v_5, %v_6: I32
+    store %v_1, %v_7, 4
+    ret 
+  }
+}
+
+thunk(I32.-'2)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr) {
+  b_3 {
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = call_complex I32.-'2, %v_4: I32
+    store %v_1, %v_5, 4
+    ret 
+  }
+}
+
+thunk(I32.fromInt)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: I64) {
+  b_3 {
+    %v_4 = call_complex I32.fromInt, %v_2: I32
+    store %v_1, %v_4, 4
+    ret 
   }
 }
 

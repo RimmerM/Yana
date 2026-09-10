@@ -14,7 +14,13 @@ fn identity(->value: a) -> a = value
 -- Declared variables keep the order the signature introduced them in, and a requirement the body
 -- inferred lands in the same list as one the signature declared - they are the same entry by the
 -- time anything reads the numbering.
-fn (Num(a)) scale(x: a, y: a) -> a = x * y + x
+--
+-- `@generic` pins this one **erased**, and it is the declaration that makes the fixture assert what
+-- its heading claims. Every body here is called at one argument list, so since J52 `selectGenForms`
+-- would compile all seven per list - a numbering nothing loads by. Written on the body with both a
+-- variable slot and a class slot, so the emitted form shows a caller writing each and a callee
+-- reading them.
+@generic fn (Num(a)) scale(x: a, y: a) -> a = x * y + x
 
 -- A second class over the same variable, declared after the variable it constrains: it is appended
 -- to the requirement list rather than renumbering anything before it.

@@ -51,218 +51,145 @@ main<complex>(): I32 {
     %v_7 = alloca 40, 8: Ptr
     %v_8 = alloca 40, 8: Ptr
     %v_9 = alloca 40, 8: Ptr
-    %v_10 = alloca 16, 16: Ptr
-    %v_11 = alloca 16, 16: Ptr
-    copy %v_10, @constant$0, 16
-    copy %v_11, @constant$1, 16
-    copy %v_1, %v_10, 16
+    copy %v_1, @constant$0, 16
+    %v_10 = add %v_1, 32: Ptr
+    store %v_10, 50, 4
+    %v_11 = add %v_1, 36: Ptr
+    store %v_11, 16, 4
     %v_12 = add %v_1, 16: Ptr
-    copy %v_12, %v_11, 16
-    %v_13 = add %v_1, 32: Ptr
-    store %v_13, 50, 4
-    %v_14 = add %v_1, 36: Ptr
-    store %v_14, 16, 4
-    %v_15 = loads %v_13, 4: I32
+    copy %v_12, @constant$1, 16
     call_complex String.reclaim, %v_1
-    %v_16 = add %v_1, 16: Ptr
-    call_complex String.reclaim, %v_16
-    %v_17 = alloca 16, 16: Ptr
-    %v_18 = alloca 16, 16: Ptr
-    copy %v_17, @constant$2, 16
-    copy %v_18, @constant$3, 16
-    copy %v_2, %v_17, 16
-    %v_19 = add %v_2, 16: Ptr
-    copy %v_19, %v_18, 16
-    %v_20 = add %v_2, 32: Ptr
-    store %v_20, 51, 4
-    %v_21 = add %v_2, 36: Ptr
-    store %v_21, 17, 4
-    %v_22 = loads %v_20, 4: I32
+    %v_13 = add %v_1, 16: Ptr
+    call_complex String.reclaim, %v_13
+    copy %v_2, @constant$2, 16
+    %v_14 = add %v_2, 32: Ptr
+    store %v_14, 51, 4
+    %v_15 = add %v_2, 36: Ptr
+    store %v_15, 17, 4
+    %v_16 = add %v_2, 16: Ptr
+    copy %v_16, @constant$3, 16
     call_complex String.reclaim, %v_2
-    %v_23 = add %v_2, 16: Ptr
-    call_complex String.reclaim, %v_23
-    %v_24 = sub %v_22, %v_15: I32
-    %v_25 = cmp_neq %v_24, 1: I32
-    je %v_25, b_26, b_27
-  }
-
-  b_27 {
-    %v_28 = alloca 16, 16: Ptr
-    %v_29 = alloca 16, 16: Ptr
-    copy %v_28, @constant$4, 16
-    copy %v_29, @constant$5, 16
-    copy %v_3, %v_28, 16
-    %v_30 = add %v_3, 16: Ptr
-    copy %v_30, %v_29, 16
-    %v_31 = add %v_3, 32: Ptr
-    store %v_31, 56, 4
-    %v_32 = add %v_3, 36: Ptr
-    store %v_32, 7, 4
+    %v_17 = add %v_2, 16: Ptr
+    call_complex String.reclaim, %v_17
+    copy %v_3, @constant$4, 16
+    %v_18 = add %v_3, 32: Ptr
+    store %v_18, 56, 4
+    %v_19 = add %v_3, 36: Ptr
+    store %v_19, 7, 4
+    %v_20 = add %v_3, 16: Ptr
+    copy %v_20, @constant$5, 16
     call_complex String.reclaim, %v_3
-    %v_33 = add %v_3, 16: Ptr
-    call_complex String.reclaim, %v_33
-    %v_34 = alloca 16, 16: Ptr
-    %v_35 = alloca 16, 16: Ptr
-    copy %v_34, @constant$6, 16
-    copy %v_35, @constant$7, 16
-    copy %v_4, %v_34, 16
-    %v_36 = add %v_4, 16: Ptr
-    copy %v_36, %v_35, 16
-    %v_37 = add %v_4, 32: Ptr
-    store %v_37, 56, 4
-    %v_38 = add %v_4, 36: Ptr
-    store %v_38, 20, 4
+    %v_21 = add %v_3, 16: Ptr
+    call_complex String.reclaim, %v_21
+    copy %v_4, @constant$6, 16
+    %v_22 = add %v_4, 32: Ptr
+    store %v_22, 56, 4
+    %v_23 = add %v_4, 36: Ptr
+    store %v_23, 20, 4
+    %v_24 = add %v_4, 16: Ptr
+    copy %v_24, @constant$7, 16
     call_complex String.reclaim, %v_4
-    %v_39 = add %v_4, 16: Ptr
-    call_complex String.reclaim, %v_39
-    jmp b_40
+    %v_25 = add %v_4, 16: Ptr
+    call_complex String.reclaim, %v_25
+    copy %v_5, @constant$8, 16
+    %v_26 = add %v_5, 32: Ptr
+    store %v_26, 58, 4
+    %v_27 = add %v_5, 36: Ptr
+    store %v_27, 8, 4
+    %v_28 = add %v_5, 16: Ptr
+    copy %v_28, @constant$9, 16
+    %v_29 = load %v_28, 8: Ptr
+    %v_30 = add %v_5, 28: Ptr
+    %v_31 = load %v_30, 4: I32
+    %v_32 = sext %v_31: I64
+    %v_33 = cmp_neq %v_32, 4: I32
+    je %v_33, b_34, b_35
   }
 
-  b_26 {
-    ret 1
-  }
-
-  b_40 {
-    %v_41 = alloca 16, 16: Ptr
-    %v_42 = alloca 16, 16: Ptr
-    copy %v_41, @constant$8, 16
-    copy %v_42, @constant$9, 16
-    copy %v_5, %v_41, 16
-    %v_43 = add %v_5, 16: Ptr
-    copy %v_43, %v_42, 16
-    %v_44 = add %v_5, 32: Ptr
-    store %v_44, 58, 4
-    %v_45 = add %v_5, 36: Ptr
-    store %v_45, 8, 4
-    %v_46 = load %v_43, 8: Ptr
-    %v_47 = add %v_5, 28: Ptr
-    %v_48 = load %v_47, 4: I32
-    %v_49 = sext %v_48: I64
-    %v_50 = cmp_neq %v_49, 4: I32
-    je %v_50, b_51, b_52
-  }
-
-  b_53 {
-    %v_54 = alloca 16, 16: Ptr
-    %v_55 = alloca 16, 16: Ptr
-    copy %v_54, @constant$10, 16
-    copy %v_55, @constant$11, 16
-    copy %v_6, %v_54, 16
-    %v_56 = add %v_6, 16: Ptr
-    copy %v_56, %v_55, 16
-    %v_57 = add %v_6, 32: Ptr
-    store %v_57, 62, 4
-    %v_58 = add %v_6, 36: Ptr
-    store %v_58, 7, 4
-    %v_59 = add %v_6, 12: Ptr
-    %v_60 = load %v_59, 4: I32
-    %v_61 = sext %v_60: I64
+  b_36 {
+    copy %v_6, @constant$10, 16
+    %v_37 = add %v_6, 32: Ptr
+    store %v_37, 62, 4
+    %v_38 = add %v_6, 36: Ptr
+    store %v_38, 7, 4
+    %v_39 = add %v_6, 16: Ptr
+    copy %v_39, @constant$11, 16
+    %v_40 = add %v_6, 12: Ptr
+    %v_41 = load %v_40, 4: I32
+    %v_42 = sext %v_41: I64
     call_complex String.reclaim, %v_6
-    %v_62 = add %v_6, 16: Ptr
-    call_complex String.reclaim, %v_62
-    %v_63 = cmp_eq %v_61, 0: I32
-    je %v_63, b_64, b_65
+    %v_43 = add %v_6, 16: Ptr
+    call_complex String.reclaim, %v_43
+    %v_44 = cmp_eq %v_42, 0: I32
+    je %v_44, b_45, b_46
   }
 
-  b_66 {
+  b_47 {
     ret 3
   }
 
-  b_65 {
-    %v_67 = alloca 16, 16: Ptr
-    %v_68 = alloca 16, 16: Ptr
-    copy %v_67, @constant$12, 16
-    copy %v_68, @constant$13, 16
-    copy %v_7, %v_67, 16
-    %v_69 = add %v_7, 16: Ptr
-    copy %v_69, %v_68, 16
-    %v_70 = add %v_7, 32: Ptr
-    store %v_70, 64, 4
-    %v_71 = add %v_7, 36: Ptr
-    store %v_71, 22, 4
-    %v_72 = loads %v_70, 4: I32
+  b_46 {
+    copy %v_7, @constant$12, 16
+    %v_48 = add %v_7, 32: Ptr
+    store %v_48, 64, 4
+    %v_49 = add %v_7, 36: Ptr
+    store %v_49, 22, 4
+    %v_50 = add %v_7, 16: Ptr
+    copy %v_50, @constant$13, 16
     call_complex String.reclaim, %v_7
-    %v_73 = add %v_7, 16: Ptr
-    call_complex String.reclaim, %v_73
-    %v_74 = cmp_neq 64, %v_72: I32
-    je %v_74, b_75, b_76
+    %v_51 = add %v_7, 16: Ptr
+    call_complex String.reclaim, %v_51
+    jmp b_52
   }
 
-  b_64 {
+  b_45 {
     ret 4
   }
 
-  b_76 {
-    jmp b_77
+  b_52 {
+    jmp b_53
   }
 
-  b_75 {
-    ret 5
-  }
-
-  b_77 {
-    jmp b_78
-  }
-
-  b_78 {
-    %v_79 = alloca 16, 16: Ptr
-    %v_80 = alloca 16, 16: Ptr
-    copy %v_79, @constant$14, 16
-    copy %v_80, @constant$15, 16
-    copy %v_8, %v_79, 16
-    %v_81 = add %v_8, 16: Ptr
-    copy %v_81, %v_80, 16
-    %v_82 = add %v_8, 32: Ptr
-    store %v_82, 74, 4
-    %v_83 = add %v_8, 36: Ptr
-    store %v_83, 7, 4
-    %v_84 = loads %v_82, 4: I32
+  b_53 {
+    copy %v_8, @constant$14, 16
+    %v_54 = add %v_8, 32: Ptr
+    store %v_54, 74, 4
+    %v_55 = add %v_8, 36: Ptr
+    store %v_55, 7, 4
+    %v_56 = add %v_8, 16: Ptr
+    copy %v_56, @constant$15, 16
     call_complex String.reclaim, %v_8
-    %v_85 = add %v_8, 16: Ptr
-    call_complex String.reclaim, %v_85
-    %v_86 = alloca 16, 16: Ptr
-    %v_87 = alloca 16, 16: Ptr
-    copy %v_86, @constant$16, 16
-    copy %v_87, @constant$17, 16
-    copy %v_9, %v_86, 16
-    %v_88 = add %v_9, 16: Ptr
-    copy %v_88, %v_87, 16
-    %v_89 = add %v_9, 32: Ptr
-    store %v_89, 74, 4
-    %v_90 = add %v_9, 36: Ptr
-    store %v_90, 22, 4
-    %v_91 = loads %v_89, 4: I32
+    %v_57 = add %v_8, 16: Ptr
+    call_complex String.reclaim, %v_57
+    copy %v_9, @constant$16, 16
+    %v_58 = add %v_9, 32: Ptr
+    store %v_58, 74, 4
+    %v_59 = add %v_9, 36: Ptr
+    store %v_59, 22, 4
+    %v_60 = add %v_9, 16: Ptr
+    copy %v_60, @constant$17, 16
     call_complex String.reclaim, %v_9
-    %v_92 = add %v_9, 16: Ptr
-    call_complex String.reclaim, %v_92
-    %v_93 = cmp_neq %v_84, %v_91: I32
-    je %v_93, b_94, b_95
-  }
-
-  b_95 {
+    %v_61 = add %v_9, 16: Ptr
+    call_complex String.reclaim, %v_61
     ret 0
   }
 
-  b_94 {
-    ret 8
+  b_35 {
+    %v_62 = call_complex compareMemory(CodeUnit), %v_29, @string'151, %v_32: I32
+    %v_63 = cmp_eq %v_62, 1: I32
+    jmp b_64
   }
 
-  b_52 {
-    %v_96 = call_complex compareMemory(CodeUnit), %v_46, @string'151, %v_49: I32
-    %v_97 = cmp_eq %v_96, 1: I32
-    jmp b_98
+  b_34 {
+    jmp b_64
   }
 
-  b_51 {
-    jmp b_98
-  }
-
-  b_98 {
-    %v_99 = phi [b_52, %v_97], [b_51, 0]: I32
+  b_64 {
+    %v_65 = phi [b_35, %v_63], [b_34, 0]: I32
     call_complex String.reclaim, %v_5
-    %v_100 = add %v_5, 16: Ptr
-    call_complex String.reclaim, %v_100
-    je %v_99, b_53, b_66
+    %v_66 = add %v_5, 16: Ptr
+    call_complex String.reclaim, %v_66
+    je %v_65, b_36, b_47
   }
 }
 

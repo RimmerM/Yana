@@ -13,39 +13,33 @@ Handle.drop<complex>(%value: Ptr) {
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
-    %v_2 = alloca 12, 4: Ptr
-    %v_3 = alloca 8, 4: Ptr
     store %v_1, 1, 4
-    %v_4 = add %v_1, 4: Ptr
-    store %v_4, 0, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 0, 4
     call_complex Handle.drop, %v_1
     store %v_1, 2, 4
-    store %v_2, 100, 4
-    %v_5 = add %v_2, 4: Ptr
-    store %v_5, 0, 4
-    %v_6 = add %v_2, 8: Ptr
-    store %v_6, 3, 4
-    call_complex Handle.drop, %v_2
-    store %v_2, 8, 4
-    store %v_3, 1000, 4
-    %v_7 = add %v_3, 4: Ptr
+    %v_3 = alloca 12, 4: Ptr
+    store %v_3, 100, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 0, 4
+    %v_5 = add %v_3, 8: Ptr
+    store %v_5, 3, 4
+    call_complex Handle.drop, %v_3
+    store %v_3, 8, 4
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 1000, 4
+    %v_7 = add %v_6, 4: Ptr
     store %v_7, 5, 4
     %v_8 = loads @closed, 4: I32
-    %v_9 = loads %v_1, 4: I32
     call_complex Handle.drop, %v_1
-    %v_10 = loads %v_2, 4: I32
-    %v_11 = add %v_9, %v_10: I32
-    %v_12 = add %v_2, 8: Ptr
-    %v_13 = loads %v_12, 4: I32
-    call_complex Handle.drop, %v_2
-    %v_14 = add %v_11, %v_13: I32
-    %v_15 = add %v_3, 4: Ptr
-    %v_16 = loads %v_15, 4: I32
+    %v_9 = add %v_3, 8: Ptr
+    %v_10 = loads %v_9, 4: I32
     call_complex Handle.drop, %v_3
-    %v_17 = add %v_14, %v_16: I32
-    %v_18 = imul %v_17, 10000: I32
-    %v_19 = add %v_18, %v_8: I32
-    ret %v_19
+    call_complex Handle.drop, %v_6
+    %v_11 = add %v_10, 15: I32
+    %v_12 = imul %v_11, 10000: I32
+    %v_13 = add %v_12, %v_8: I32
+    ret %v_13
   }
 }
 

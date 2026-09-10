@@ -2,22 +2,19 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 8: Ptr
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 12, 4: Ptr
-    %v_4 = imm 3: I64
-    store %v_1, %v_4, 4
-    store %v_3, 10, 4
-    %v_5 = add %v_3, 4: Ptr
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 4: Ptr
+    store %v_1, %v_2, 8
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 3, 4
+    %v_4 = add %v_1, 12: Ptr
+    store %v_4, 3, 4
+    store %v_2, 10, 4
+    %v_5 = add %v_2, 4: Ptr
     store %v_5, 20, 4
-    %v_6 = add %v_3, 8: Ptr
+    %v_6 = add %v_2, 8: Ptr
     store %v_6, 30, 4
-    store %v_2, %v_3, 8
-    %v_7 = add %v_2, 8: Ptr
-    store %v_7, %v_4, 4
-    %v_8 = add %v_2, 12: Ptr
-    store %v_8, 3, 4
-    call_complex Array(a).reclaim(I32), %v_2
+    call_complex Array(a).reclaim(I32), %v_1
     ret 18
   }
 }

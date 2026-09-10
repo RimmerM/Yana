@@ -19,21 +19,13 @@ bb0:
   store inspect %2 consume %9
   %10: Flags trivial = copy inspect %2
   %11: I32 trivial = call score borrow %10
-  %12: %Bool address = field.addr .read inspect %2
-  %13: Bool trivial = load inspect %12
   %19: I32 trivial = const 1
-  %14: I32 trivial = const 2
-  %29: I32 trivial = select inspect %13 inspect %19 inspect %14
   %15: Flags trivial = copy inspect %2
   %16: I32 trivial = call score borrow %15
-  %17: %Bool address = field.addr .write inspect %2
-  %18: Bool trivial = load inspect %17
-  %28: I32 trivial = const 4
   %20: I32 trivial = const 8
-  %30: I32 trivial = select inspect %18 inspect %28 inspect %20
-  %23: I32 trivial = add inspect %11 inspect %29
+  %23: I32 trivial = add inspect %11 inspect %19
   %25: I32 trivial = add inspect %23 inspect %16
-  %27: I32 trivial = add inspect %25 inspect %30
+  %27: I32 trivial = add inspect %25 inspect %20
   return consume %27
 }
 
@@ -46,12 +38,9 @@ bb0:
   store inspect %0 consume %4
   %5: Flags trivial = copy inspect %0
   %6: I32 trivial = call score borrow %5
-  %7: %Bool address = field.addr .write inspect %0
-  %8: Bool trivial = load inspect %7
   %11: I32 trivial = const 100
   %12: I32 trivial = add inspect %6 inspect %11
-  %13: I32 trivial = select inspect %8 inspect %12 inspect %6
-  return consume %13
+  return consume %12
 }
 
 fn mutate(f: Flags [unique call]) -> I32 {
@@ -90,48 +79,37 @@ bb0:
   store inspect %5 consume %8
   %9: Flags trivial = copy inspect %5
   %10: I32 trivial = call score borrow %9
-  %11: %Bool address = field.addr .read inspect %5
-  %12: Bool trivial = load inspect %11
-  %13: I32 trivial = const 1
-  %14: I32 trivial = const 2
-  %15: I32 trivial = select inspect %12 inspect %13 inspect %14
-  %16: Flags trivial = copy inspect %5
-  %17: I32 trivial = call score borrow %16
-  %18: %Bool address = field.addr .write inspect %5
-  %19: Bool trivial = load inspect %18
-  %20: I32 trivial = const 4
-  %21: I32 trivial = const 8
-  %22: I32 trivial = select inspect %19 inspect %20 inspect %21
-  %23: I32 trivial = add inspect %10 inspect %15
-  %24: I32 trivial = add inspect %23 inspect %17
-  %25: I32 trivial = add inspect %24 inspect %22
+  %11: I32 trivial = const 1
+  %12: Flags trivial = copy inspect %5
+  %13: I32 trivial = call score borrow %12
+  %14: I32 trivial = const 8
+  %15: I32 trivial = add inspect %10 inspect %11
+  %16: I32 trivial = add inspect %15 inspect %13
+  %17: I32 trivial = add inspect %16 inspect %14
+  %18: %Flags address = alloc frame Flags
+  %19: Bool trivial = const False
+  %20: Bool trivial = const True
+  %21: Flags trivial = aggregate.Flags consume %19 consume %20
+  store inspect %18 consume %21
+  %22: Flags trivial = copy inspect %18
+  %23: I32 trivial = call score borrow %22
+  %24: I32 trivial = const 100
+  %25: I32 trivial = add inspect %23 inspect %24
+  %2: I32 trivial = add inspect %17 inspect %25
   %26: %Flags address = alloc frame Flags
   %27: Bool trivial = const False
-  %28: Bool trivial = const True
+  %28: Bool trivial = const False
   %29: Flags trivial = aggregate.Flags consume %27 consume %28
   store inspect %26 consume %29
-  %30: Flags trivial = copy inspect %26
-  %31: I32 trivial = call score borrow %30
-  %32: %Bool address = field.addr .write inspect %26
+  %30: Flags [unique call] guaranteed from{%26} = load inspect %26
+  %31: I32 trivial = call mutate borrow %30
+  %32: %Bool address = field.addr .read inspect %26
   %33: Bool trivial = load inspect %32
-  %34: I32 trivial = const 100
-  %35: I32 trivial = add inspect %31 inspect %34
-  %36: I32 trivial = select inspect %33 inspect %35 inspect %31
-  %2: I32 trivial = add inspect %25 inspect %36
-  %37: %Flags address = alloc frame Flags
-  %38: Bool trivial = const False
-  %39: Bool trivial = const False
-  %40: Flags trivial = aggregate.Flags consume %38 consume %39
-  store inspect %37 consume %40
-  %41: Flags [unique call] guaranteed from{%37} = load inspect %37
-  %42: I32 trivial = call mutate borrow %41
-  %43: %Bool address = field.addr .read inspect %37
-  %44: Bool trivial = load inspect %43
-  %45: I32 trivial = const 1000
-  %46: I32 trivial = const 2000
-  %47: I32 trivial = select inspect %44 inspect %45 inspect %46
-  %48: I32 trivial = add inspect %47 inspect %42
-  %4: I32 trivial = add inspect %2 inspect %48
+  %34: I32 trivial = const 1000
+  %35: I32 trivial = const 2000
+  %36: I32 trivial = select inspect %33 inspect %34 inspect %35
+  %37: I32 trivial = add inspect %36 inspect %31
+  %4: I32 trivial = add inspect %2 inspect %37
   return consume %4
 }
 

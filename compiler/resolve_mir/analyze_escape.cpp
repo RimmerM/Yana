@@ -120,10 +120,11 @@ void Analysis::selectPlacements() {
         auto root = body.objectRoot(base, ObjectId(i));
         object->storage = selectStorage(asked[root.index]);
 
-        // What tells the reachability walk that the allocator is needed - `Program::usesBoxes`,
-        // whose other producer is a boxed field. There is no node in any body to draw an edge from
-        // in either case: both are storage the *lowering* asks for.
-        if(object->storage != StorageClass::Frame) program.usesBoxes = true;
+        // What tells the *MIR* reachability walk that the allocator is needed. `Program::
+        // usesHeapPlacement` and not `usesBoxes`, which J51 split them for: a boxed field is
+        // invisible to every later walk, while this is an `alloc` in a storage class that
+        // `resolve_ssa/opt/reach.cpp` reads off the optimized SSA one at a time.
+        if(object->storage != StorageClass::Frame) program.usesHeapPlacement = true;
     }
 }
 

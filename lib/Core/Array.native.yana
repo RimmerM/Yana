@@ -142,8 +142,14 @@ pub fn reserve(&self: Array(a), wanted: Size):
    this with one caller, and a body with one caller is one the inliner moves rather than copies. That
    is a size win and a speed loss - what it moves is a doubling and a `resize` call, into the loop the
    push sits in - so the attribute says which of the two this function is for.
+
+   `@cold` beside it, and it is the other direction rather than a second spelling. `@noinline` keeps
+   this body out of `push`; what it says nothing about is what gets copied *into* here - and `resize`,
+   `moveMemory` and `allocateHeap` were each worth copying into a body nothing weighed as rare, which
+   is 45 bytes of doubling becoming 374. Every one of them is on a path that runs once per doubling,
+   so there is no time being bought with the bytes.
 -}
-@noinline fn growArray(&self: Array(a), wanted: Size):
+@noinline @cold fn growArray(&self: Array(a), wanted: Size):
     let room = self.run.capacity :: Size
     let &wide = room + room :: Size
     if wide < wanted then wide = wanted

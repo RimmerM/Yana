@@ -48,7 +48,7 @@ bb0:
 }
 
 fn sumOf(xs: [I32 *n] [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 const n
   local & total: I32
   local & i: I32
@@ -105,5 +105,7 @@ bb0:
   %9: I32 = add inspect %6 inspect %8
   return take %9
 }
+
+fn sumOf(4)(xs: [I32 *4] [shared call]) -> I32 = <sumOf at 4>
 
 entry main

@@ -2,7 +2,6 @@ mut @live = [0, 0, 0, 0]
 mut @trace = [0, 0, 0, 0]
 @string'142 = [97, 98, 99, 100, 101, 102]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
-@constant$0 = [0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0]
 
 Held.drop<complex>(%self: Ptr) {
   b_0 {
@@ -39,25 +38,15 @@ main<complex>(): I32 {
     store %v_4, 7, 4
     call_complex bump, %v_4
     %v_5 = loads %v_4, 4: I32
-    %v_6 = alloca 16, 8: Ptr
-    copy %v_6, @constant$0, 16
-    %v_7 = alloca 16, 8: Ptr
-    copy %v_7, %v_6, 16
-    %v_8 = add %v_7, 12: Ptr
-    %v_9 = load %v_8, 4: I32
-    %v_10 = sext %v_9: I64
-    call_complex String.reclaim, %v_7
-    %v_11 = sext %v_10: I32
-    %v_12 = add %v_5, 44: I32
-    %v_13 = add %v_12, 106: I32
-    %v_14 = add %v_13, %v_11: I32
-    %v_15 = add %v_14, 8: I32
-    %v_16 = loads @live, 4: I32
-    %v_17 = imul %v_16, 1000: I32
-    %v_18 = add %v_15, %v_17: I32
-    %v_19 = loads @trace, 4: I32
-    %v_20 = add %v_18, %v_19: I32
-    ret %v_20
+    %v_6 = add %v_5, 150: I32
+    %v_7 = add %v_6, 6: I32
+    %v_8 = add %v_7, 8: I32
+    %v_9 = loads @live, 4: I32
+    %v_10 = imul %v_9, 1000: I32
+    %v_11 = add %v_8, %v_10: I32
+    %v_12 = loads @trace, 4: I32
+    %v_13 = add %v_11, %v_12: I32
+    ret %v_13
   }
 }
 

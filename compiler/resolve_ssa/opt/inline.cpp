@@ -271,21 +271,53 @@ struct Budget {
      * express: they price one copy, and a chain is a product - every link copied brings its own call
      * sites with it, so a per-callee number bounds each of eight levels and nothing bounds the eight.
      *
-     * Zero at `Size` for that level's one sentence, and it is the same zero `budget` carries: a
-     * chain flattened is a program grown.
+     * Not zero at `Size`, and that is J57's correction: a chain left standing is a closure, a witness
+     * slot and an indirect call per link, and over `test/resolve` flattening is worth **5,488 bytes**
+     * at that level. What grows a program is copying a body twice; a link of a chain is copied once
+     * and takes an indirection with it.
      */
     U32 chain = 0;
+
+    /*
+     * Whether `@inline` and `@hot` are read at all.
+     *
+     * A flag rather than a fourth number, because what they say is not a size: both are "there is a
+     * reason to copy this that the body does not show", and a level that will not spend bytes for
+     * time has nothing to weigh that against. It used to be `limits.budget` being zero that said
+     * this, which stopped being true the moment `Size` got a budget - so the sentence is written
+     * down instead of being inferred from a number that now means something else.
+     */
+    bool hints = false;
 };
 
 /*
  * What a body may weigh at a **cold** site - see `worthInlining`, where the argument is.
  *
- * One instruction, and it is a statement rather than a level: `sizeOf` counts a call as one, so a
- * callee of one instruction replaces a call with a call and the program cannot grow. Not in
- * `Budget`, because a budget is a trade between size and speed and this is the one place there is
- * nothing to trade - the author has said the path is rare, so speed is not what the bytes buy.
+ * Not in `Budget`, because a budget is a trade between size and speed and this is the one place
+ * there is nothing to trade: the author has said the path is rare, so speed is not what the bytes
+ * buy. What is left is the one question a cold site may still ask - *is the copy smaller than the
+ * call it removes* - and that is a number rather than an argument.
+ *
+ * **Three, measured J58, and it was one.** The one came from "`sizeOf` counts a call as one, so a
+ * callee of one instruction replaces a call with a call": true of the callee and silent about the
+ * site, which also pays the argument moves, and about the callee's own prologue and `ret` and the
+ * body left standing. It is the same thing `budgetFor(Size)`'s note found - at this tier a call is
+ * not free of size - arriving one constant later. Swept over `test/resolve` at `balanced`:
+ *
+ *     1 -> 283,310    3 -> 283,102    6 -> 283,102    10 -> 283,774    16 -> 283,758
+ *
+ * and `test/bench/programs` reads 23,137 at 1, 3 and 6 and 23,521 at 10. Three is where it stops
+ * paying and ten is where it starts costing; the plateau between them is what a call weighs.
+ *
+ * **What this does not fix is the weighing.** `sizeOf` is asked *before* the per-body optimizer
+ * runs - `inlineCalls` is in front of that loop on purpose - so a callee is weighed unfolded.
+ * `byteSpan(I32)` is `difference(bitcast(from), bitcast(from + count))`, which lowers to one `shl`
+ * and weighs **ten**: two `Metric` reads of a stride that is a constant at a concrete type, five
+ * arithmetic instructions that fold into one, two conversions, and two calls into `Bitcast`. No
+ * cold budget that admits it is worth its cost elsewhere - ten is +672 bytes over the corpus - so
+ * the honest fix is to weigh a folded body, and that is not built.
  */
-constexpr U32 kColdBudget = 1;
+constexpr U32 kColdBudget = 3;
 
 /*
  * A **repeated-callee penalty was built here, swept and not kept** - `test/bench/findings.md` §81,
@@ -313,18 +345,48 @@ constexpr U32 kColdBudget = 1;
 Budget budgetFor(InlineLevel level) {
     switch(level) {
         case InlineLevel::None:
-            return Budget { 0, 0, 0, 0 };
+            return Budget { 0, 0, 0, 0, false };
 
-        // Only the case that cannot grow the program, which is why the budget is zero: a callee
-        // qualifies here through the sole call site and through nothing else.
+        /*
+         * **Measured, J57, and the numbers it replaces were an argument rather than a measurement.**
+         *
+         * `{0, 96, 96, 0}` was "only the case that cannot grow the program": no flat budget, no
+         * chain, a callee admitted through the sole call site and nothing else. Each step of that is
+         * true on its own and the total was **381,710 bytes over `test/resolve` against 283,422 at
+         * `Balanced`** - `-inline size` produced a *third more code* than the level that trades size
+         * for speed, and was slower as well, so there was no reason to ask for it.
+         *
+         * What the argument missed is that at this tier a call is not free of size. A body left
+         * out of line keeps its prologue, its argument moves and its `ret`, the caller keeps the
+         * call, and every pass below the inliner stops at the boundary: a constant does not reach
+         * the callee, a bounds check inside it is not discharged by a length the caller knows, and
+         * `promote` cannot see a slot whose address crossed. Refusing a copy of twelve instructions
+         * buys the twelve back and pays for all of that. The sweep is monotone in exactly that
+         * direction until the budget passes twenty, and then turns:
+         *
+         *     budget    0 -> 381,710      chain 0    -> 288,046
+         *     budget    8 -> 293,070      chain 240  -> 281,518
+         *     budget   16 -> 281,518      hints on   -> 281,726
+         *     budget   20 -> 282,862      hints off  -> 281,518
+         *     budget   30 -> 296,478
+         *
+         * So: **sixteen**, which is `Balanced`'s twenty minus the four that were only ever bought
+         * with time; the sole call site at ninety-six, because a *move* costs no bytes at all and
+         * this is the level that should take every one of them; the chain, because a link left
+         * standing is a closure, a witness slot and an indirect call and flattening it is worth
+         * 6,528 bytes here; and **no hints**, because `@inline` and `@hot` are the one thing in this
+         * table that asks for bytes in exchange for time, which is the trade this level declines.
+         *
+         * It is now 1,904 bytes *under* `Balanced`, which is the relation the two names promise.
+         */
         case InlineLevel::Size:
-            return Budget { 0, 96, 96, 0 };
+            return Budget { 16, 96, 96, 240, false };
 
         case InlineLevel::Balanced:
-            return Budget { 20, 76, 96, 240 };
+            return Budget { 20, 76, 96, 240, true };
 
         case InlineLevel::Speed:
-            return Budget { 40, 120, 160, 480 };
+            return Budget { 40, 120, 160, 480, true };
     }
 
     return Budget();
@@ -522,6 +584,26 @@ struct Inliner {
     void findColdBlocks(Body& body) {
         coldBlocks.clear();
         for(U32 i = 0; i < body.blocks.size(); i++) coldBlocks.push(false);
+
+        /*
+         * A `@cold` body is cold **all the way through**, which is the third half of the attribute
+         * and the one the two above could not state.
+         *
+         * `@noinline` keeps the body where it is and the caller-block rule keeps other bodies out of
+         * the *caller*; neither says anything about what is expanded **into** the rare body itself.
+         * `growArray` is where that shows: it is `@noinline`, it is one doubling per amortized push,
+         * and it was 45 bytes in the shipping stage and **374** here, because `resize`,
+         * `moveMemory` and `allocateHeap` were each worth copying into a body nothing weighed as
+         * rare. Every byte of that is on a path the author has already said is not worth spending
+         * time on, so there is nothing to trade it against.
+         *
+         * Seeded rather than tested at each site, so that the fixed point below and `inColdBlock`
+         * read one answer: a body that is cold by declaration and a block that is cold by what it
+         * reaches are the same fact to everything downstream.
+         */
+        if(opt.function->cold) {
+            for(U32 i = 0; i < body.blocks.size(); i++) coldBlocks[i] = true;
+        }
 
         auto callsCold = [&](Block& block) {
             /*
@@ -748,8 +830,9 @@ struct Inliner {
         if(size <= limits.budget) return true;
 
         // A link of a chain, at `soleBudget` and for the same sentence the hint is weighed by: there
-        // is a reason to copy this body that the body itself does not show.
-        if(flattening && limits.budget && size <= limits.soleBudget) return true;
+        // is a reason to copy this body that the body itself does not show. Gated on the chain's own
+        // budget rather than on the flat one, which is what lets `Size` flatten and not copy.
+        if(flattening && limits.chain && size <= limits.soleBudget) return true;
 
         /*
          * The bare `@inline` hint, weighed at `soleBudget` - one number, and it is the one already
@@ -770,12 +853,12 @@ struct Inliner {
          * statement is that nothing grows the program, and a hint is a request to grow it. The two
          * sentences are one test because they are one number.
          */
-        if(callee->inlineHint && limits.budget && size <= limits.soleBudget) return true;
+        if(callee->inlineHint && limits.hints && size <= limits.soleBudget) return true;
 
         // `@hot`, at the same number and for the same sentence: it is a reason to copy a body that
         // the body itself does not show. A hint rather than a directive, so it reads the budget and
         // is declined at `Size` exactly as the line above it is.
-        if(callee->hot && limits.budget && size <= limits.soleBudget) return true;
+        if(callee->hot && limits.hints && size <= limits.soleBudget) return true;
 
         return solelyReferenced();
     }
@@ -854,17 +937,34 @@ struct Inliner {
                 break;
 
             /*
-             * A run request, cloned with its placement bit **cleared** - which is what `addRunSlots`
-             * gives it and is deliberate rather than an omission.
+             * A run request, cloned **with its placement bit** - and clearing it was a defect rather
+             * than a decision, which is what J51 found.
              *
-             * `place.cpp` runs after inlining and answers the question for the frame the request
-             * ends up in. A bit copied from the callee would be an answer about a different frame,
-             * which is precisely the confusion the pass exists to avoid: `leaving() = [7, 8, 9]`
-             * is the allocator's under its own name and the caller's frame once it is spliced in.
+             * The bit and the descriptor's `ownsHeap` field are **one statement made twice**, and
+             * `place.cpp` writes both in the same rewrite for exactly that reason: a request marked
+             * placed is frame storage and its descriptor says `runBorrowed`, so nothing hands it
+             * back. The clone copied the descriptor - it is an ordinary `Aggregate` over an ordinary
+             * `const` - and reset the request, which left the pair saying two different things: the
+             * lowering expands an unplaced request into `allocateHeap`, and `Reclaim` reads
+             * `runBorrowed` and frees nothing. **Thirty allocations over fifteen `test/resolve`
+             * fixtures leaked that way**, and `place.cpp` then declined to repair any of them, since
+             * `soleDescriptor` asks for a flag that still claims the allocator.
+             *
+             * What the note here used to argue for is still true and still happens: a request the
+             * callee left **unplaced** arrives unplaced, and `place.cpp` runs after inlining and
+             * answers it for the frame it ended up in - `leaving() = [7, 8, 9]` is the allocator's
+             * under its own name and the caller's frame once it is spliced in. What changes is only
+             * the other direction, and it needs no second proof: a run the callee placed is one
+             * `inFrame` showed reaches no return, no store of its address and no call that keeps it,
+             * so the cloned uses are the same uses and the caller's frame outlives the callee's by
+             * construction.
              */
             case Inst::RunSlots: {
                 auto& slots = (InstRunSlots&)from;
-                made = editor.addRunSlots(at, slots.element, slots.capacity);
+                auto request = (InstRunSlots*)editor.addRunSlots(at, slots.element, slots.capacity);
+
+                request->placed = slots.placed;
+                made = request;
                 break;
             }
 

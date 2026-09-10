@@ -14,23 +14,16 @@ main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     %v_2 = alloca 8, 4: Ptr
-    %v_3 = imm 6: I32
-    store %v_1, %v_3, 4
+    store %v_1, 6, 4
     store %v_2, 5, 4
-    %v_4 = imm 1: I32
-    %v_5 = add %v_2, 4: Ptr
-    store %v_5, %v_4, 4
-    %v_6 = loads %v_2, 4: I32
-    %v_7 = add %v_6, %v_4: I32
-    %v_8 = add %v_6, %v_7: I32
-    store %v_2, %v_8, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 1, 4
+    store %v_2, 11, 4
     call_complex Guard.drop, %v_1
-    %v_9 = loads %v_2, 4: I32
     call_complex Guard.drop, %v_2
-    %v_10 = add %v_3, %v_9: I32
-    %v_11 = loads @trace, 4: I32
-    %v_12 = add %v_10, %v_11: I32
-    ret %v_12
+    %v_4 = loads @trace, 4: I32
+    %v_5 = add 17, %v_4: I32
+    ret %v_5
   }
 }
 

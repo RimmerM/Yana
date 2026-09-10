@@ -349,7 +349,7 @@ LowerPtr<LowerFunction> Lowering::boxTeardownFor(DeclPtr<mir::Type> target, bool
      * `Unknown` each of them asks its own question - of the bit in *this* target's record, or of the
      * allocator - and under `Foreign` none of them is freed at all.
      */
-    emitTeardown(*block, address, target, runDrop, runReclaim, source, release);
+    block = emitTeardown(*block, address, target, runDrop, runReclaim, source, release, function);
 
     if(release == BoxRelease::Foreign) {
         emitReturn(*block, nullptr, 0);
@@ -402,10 +402,11 @@ LowerPtr<LowerFunction> Lowering::boxTeardownFor(DeclPtr<mir::Type> target, bool
 }
 
 // The argument is in internal.h, beside the declaration.
-void Lowering::emitBoxTeardown(LowerBlock& block, LowerPtr<LowerValue> owner,
-                               DeclPtr<mir::Type> record, U16 field,
-                               DeclPtr<mir::OwnershipSchema> shape, bool runDrop, bool runReclaim,
-                               BoxRelease release, LocationId source) {
+LowerBlock* Lowering::emitBoxTeardown(LowerBlock& block, LowerPtr<LowerValue> owner,
+                                      DeclPtr<mir::Type> record, U16 field,
+                                      DeclPtr<mir::OwnershipSchema> shape, bool runDrop,
+                                      bool runReclaim, BoxRelease release, LocationId source,
+                                      LowerFunction* home) {
     auto repr = reprOf(layout, record, shape);
     auto held = repr.fields.get(decl, field);
 
@@ -466,11 +467,11 @@ void Lowering::emitBoxTeardown(LowerBlock& block, LowerPtr<LowerValue> owner,
 
     if(expanding) {
         boxExpansion.push(target);
-        emitTeardown(block, address, target, runDrop, runReclaim, source, release);
+        auto rest = emitTeardown(block, address, target, runDrop, runReclaim, source, release, home);
         boxExpansion.pop();
 
-        if(release == BoxRelease::Owned) emitFreeHeap(block, address, source);
-        return;
+        if(release == BoxRelease::Owned) emitFreeHeap(*rest, address, source);
+        return rest;
     }
 
     auto callee = boxTeardownFor(target, runDrop, runReclaim, release, source);
@@ -481,6 +482,8 @@ void Lowering::emitBoxTeardown(LowerBlock& block, LowerPtr<LowerValue> owner,
         built->used()[1] = address;
         if(owns) built->used()[2] = owns;
     });
+
+    return &block;
 }
 
 } // namespace ssa

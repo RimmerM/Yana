@@ -11,30 +11,24 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 16, 8: Ptr
-    copy %v_2, @constant$0, 16
-    copy %v_3, %v_2, 16
-    call_complex String.reclaim, %v_3
-    copy %v_3, @constant$1, 16
-    copy %v_1, %v_3, 16
-    %v_4 = add %v_1, 12: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = sext %v_5: I64
+    copy %v_1, @constant$0, 16
     call_complex String.reclaim, %v_1
-    %v_7 = alloca 16, 8: Ptr
-    %v_8 = alloca 16, 8: Ptr
-    copy %v_7, @constant$2, 16
-    copy %v_8, %v_7, 16
-    call_complex String.reclaim, %v_8
-    copy %v_8, @constant$3, 16
-    %v_9 = add %v_8, 12: Ptr
-    %v_10 = load %v_9, 4: I32
-    %v_11 = sext %v_10: I64
-    call_complex String.reclaim, %v_8
-    %v_12 = add %v_6, %v_11: I64
-    %v_13 = sext %v_12: I32
-    ret %v_13
+    copy %v_1, @constant$1, 16
+    %v_2 = add %v_1, 12: Ptr
+    %v_3 = load %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    call_complex String.reclaim, %v_1
+    %v_5 = alloca 16, 8: Ptr
+    copy %v_5, @constant$2, 16
+    call_complex String.reclaim, %v_5
+    copy %v_5, @constant$3, 16
+    %v_6 = add %v_5, 12: Ptr
+    %v_7 = load %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    call_complex String.reclaim, %v_5
+    %v_9 = add %v_4, %v_8: I64
+    %v_10 = sext %v_9: I32
+    ret %v_10
   }
 }
 

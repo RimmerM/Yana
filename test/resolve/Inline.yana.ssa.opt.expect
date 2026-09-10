@@ -25,22 +25,10 @@ bb0(%0: I32 [unique call] guaranteed):
 
 fn onlyCaller(a: I32 [shared call], b: I32 [shared call], c: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial, %1: I32 trivial, %2: I32 trivial):
-  %6: %Point address = alloc frame Point
-  %7: %Point address = alloc frame Point
   %31: Point trivial = aggregate.Point consume %0 consume %1
-  store inspect %6 consume %31
   %32: Point trivial = aggregate.Point consume %1 consume %2
-  store inspect %7 consume %32
-  %14: %I32 address = field.addr .x inspect %6
-  %15: I32 trivial = load inspect %14
-  %16: %I32 address = field.addr .y inspect %7
-  %17: I32 trivial = load inspect %16
-  %18: I32 trivial = mul inspect %15 inspect %17
-  %19: %I32 address = field.addr .y inspect %6
-  %20: I32 trivial = load inspect %19
-  %21: %I32 address = field.addr .x inspect %7
-  %22: I32 trivial = load inspect %21
-  %23: I32 trivial = mul inspect %20 inspect %22
+  %18: I32 trivial = mul inspect %0 inspect %2
+  %23: I32 trivial = mul inspect %1 inspect %1
   %24: I32 trivial = add inspect %18 inspect %23
   %26: I32 trivial = add inspect %24 inspect %0
   %28: I32 trivial = add inspect %26 inspect %1
@@ -183,16 +171,10 @@ bb0(%0: I32 trivial, %1: I32 trivial):
 
 fn constructed(a: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
-  %2: %Point address = alloc frame Point
   %5: I32 trivial = const 1
   %6: I32 trivial = add inspect %0 inspect %5
   %13: Point trivial = aggregate.Point consume %0 consume %6
-  store inspect %2 consume %13
-  %8: %I32 address = field.addr .x inspect %2
-  %9: I32 trivial = load inspect %8
-  %10: %I32 address = field.addr .y inspect %2
-  %11: I32 trivial = load inspect %10
-  %12: I32 trivial = add inspect %9 inspect %11
+  %12: I32 trivial = add inspect %0 inspect %6
   return consume %12
 }
 
@@ -351,77 +333,51 @@ bb0:
 fn main() -> I32 {
 bb0:
   %5: I32 trivial = const 5
-  %42: %Point address = alloc frame Point
-  %147: I32 trivial = const 6
-  %45: Point trivial = aggregate.Point consume %5 consume %147
-  store inspect %42 consume %45
-  %46: %I32 address = field.addr .x inspect %42
-  %47: I32 trivial = load inspect %46
-  %48: %I32 address = field.addr .y inspect %42
-  %49: I32 trivial = load inspect %48
-  %50: I32 trivial = add inspect %47 inspect %49
-  %155: I32 trivial = const 236
-  %156: I32 trivial = add inspect %50 inspect %155
-  %64: I32 trivial = const 4
-  %65: I32 trivial = call countDown borrow %64
-  %15: I32 trivial = add inspect %156 inspect %65
+  %132: I32 trivial = const 6
+  %44: Point trivial = aggregate.Point consume %5 consume %132
+  %59: I32 trivial = const 4
+  %60: I32 trivial = call countDown borrow %59
   %16: I32 trivial = const 1
   %17: I32 trivial = const 2
   %18: I32 trivial = const 3
-  %66: %Point address = alloc frame Point
-  %67: %Point address = alloc frame Point
-  %68: Point trivial = aggregate.Point consume %16 consume %17
-  store inspect %66 consume %68
-  %69: Point trivial = aggregate.Point consume %17 consume %18
-  store inspect %67 consume %69
-  %70: %I32 address = field.addr .x inspect %66
-  %71: I32 trivial = load inspect %70
-  %72: %I32 address = field.addr .y inspect %67
-  %73: I32 trivial = load inspect %72
-  %74: I32 trivial = mul inspect %71 inspect %73
-  %75: %I32 address = field.addr .y inspect %66
-  %76: I32 trivial = load inspect %75
-  %77: %I32 address = field.addr .x inspect %67
-  %78: I32 trivial = load inspect %77
-  %79: I32 trivial = mul inspect %76 inspect %78
-  %80: I32 trivial = add inspect %74 inspect %79
-  %159: I32 trivial = const 6
-  %160: I32 trivial = add inspect %80 inspect %159
-  %20: I32 trivial = add inspect %15 inspect %160
-  %84: I32 trivial = const 1
-  %85: I32 trivial = call measured borrow %84
-  %86: I32 trivial = const 2
-  %87: I32 trivial = call measured borrow %86
-  %88: I32 trivial = add inspect %85 inspect %87
-  %22: I32 trivial = add inspect %20 inspect %88
-  %184: I32 trivial = const 219
-  %185: I32 trivial = add inspect %22 inspect %184
-  %128: I32 trivial = const 20
-  %129: I32 trivial = const 1
-  %130: I32 trivial = const 0
-  %131: I32 trivial = const 1
-  jump -> bb4(inspect %129, inspect %130)
+  %61: Point trivial = aggregate.Point consume %16 consume %17
+  %62: Point trivial = aggregate.Point consume %17 consume %18
+  %148: I32 trivial = const 260
+  %149: I32 trivial = add inspect %60 inspect %148
+  %69: I32 trivial = const 1
+  %70: I32 trivial = call measured borrow %69
+  %71: I32 trivial = const 2
+  %72: I32 trivial = call measured borrow %71
+  %73: I32 trivial = add inspect %70 inspect %72
+  %22: I32 trivial = add inspect %149 inspect %73
+  %173: I32 trivial = const 219
+  %174: I32 trivial = add inspect %22 inspect %173
+  %113: I32 trivial = const 20
+  %114: I32 trivial = const 1
+  %115: I32 trivial = const 0
+  %116: I32 trivial = const 1
+  jump -> bb4(inspect %114, inspect %115)
 
-bb4(%126: I32 trivial, %127: I32 trivial):
-  %132: Bool trivial = lt inspect %126 inspect %128
-  branch inspect %132 -> bb6 -> bb5
+bb4(%111: I32 trivial, %112: I32 trivial):
+  %117: Bool trivial = lt inspect %111 inspect %113
+  branch inspect %117 -> bb6 -> bb5
 
 bb5:
-  %29: I32 trivial = add inspect %185 inspect %127
-  %135: I32 trivial = const 18
-  %31: I32 trivial = add inspect %29 inspect %135
-  %136: I32 trivial = const 6
-  %137: I32 trivial = call evenLength borrow %136
-  %138: I32 trivial = const 6
-  %139: I32 trivial = call oddLength borrow %138
-  %140: I32 trivial = add inspect %137 inspect %139
-  %33: I32 trivial = add inspect %31 inspect %140
+  %29: I32 trivial = add inspect %174 inspect %112
+  %120: I32 trivial = const 18
+  %31: I32 trivial = add inspect %29 inspect %120
+  %121: I32 trivial = const 6
+  %122: I32 trivial = call evenLength borrow %121
+  %123: I32 trivial = const 6
+  %124: I32 trivial = call oddLength borrow %123
+  %125: I32 trivial = add inspect %122 inspect %124
+  %33: I32 trivial = add inspect %31 inspect %125
   return consume %33
 
 bb6:
-  %133: I32 trivial = add inspect %126 inspect %126
-  %134: I32 trivial = add inspect %127 inspect %131
-  jump -> bb4(inspect %133, inspect %134)
+  %118: I32 trivial = add inspect %111 inspect %111
+  %119: I32 trivial = add inspect %112 inspect %116
+  jump -> bb4(inspect %118, inspect %119)
 }
 
 entry main

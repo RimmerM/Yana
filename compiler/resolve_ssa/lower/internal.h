@@ -253,9 +253,22 @@ struct Lowering {
      * authored `Drop` still has its members reclaimed, and running the whole walk for both halves
      * would release every member twice.
      */
-    void emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, DeclPtr<mir::Type> type,
-                      bool runDrop, bool runReclaim, LocationId source,
-                      BoxRelease boxes = BoxRelease::Owned);
+    /*
+     * Answers the block to carry on in, which is `&block` wherever nothing split. A sum's teardown
+     * is a *call* and the guard in front of it is a branch, so a walk that emits one ends somewhere
+     * else - and `home` is where the two blocks that takes go. A caller with no function to hand
+     * over (a `Drop` in the middle of a body) passes none and gets the walk exactly as it was.
+     */
+    LowerBlock* emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address,
+                             DeclPtr<mir::Type> type, bool runDrop, bool runReclaim,
+                             LocationId source, BoxRelease boxes = BoxRelease::Owned,
+                             LowerFunction* home = nullptr);
+
+    // The tag of a sum at an address, and the one constructor of it that owes anything - the pair
+    // the guard above is built from. See the definitions in inst.cpp.
+    LowerPtr<LowerValue> discriminantOf(LowerBlock& block, LowerPtr<LowerValue> address,
+                                        DeclPtr<mir::Type> type, LowerType& tagLower);
+    Maybe<U64> soleOwingConstructor(DeclPtr<mir::Type> type);
 
     // A sum's derived teardown, which branches on the discriminant and therefore ends in a block of
     // its own - see the definition, and `emitTeardown`, which reaches it through a call.
@@ -303,6 +316,7 @@ struct Lowering {
                                      LocationId source);
 
     LowerPtr<LowerValue> frameStorage(LowerBlock& block, const mir::Occurrence& occurrence);
+    void zeroStorage(LowerBlock& block, LowerPtr<LowerValue> storage, U32 size);
 
     /*
      * Where a memory-resident value is **going**, decided before its producer runs - §5.6's
@@ -435,9 +449,11 @@ struct Lowering {
      * generated function is what makes `data List = Nil | Cons {tail: List}` terminate instead of
      * inlining forever.
      */
-    void emitBoxTeardown(LowerBlock& block, LowerPtr<LowerValue> owner, DeclPtr<mir::Type> record,
-                         U16 field, DeclPtr<mir::OwnershipSchema> shape, bool runDrop,
-                         bool runReclaim, BoxRelease release, LocationId source);
+    LowerBlock* emitBoxTeardown(LowerBlock& block, LowerPtr<LowerValue> owner,
+                                DeclPtr<mir::Type> record, U16 field,
+                                DeclPtr<mir::OwnershipSchema> shape, bool runDrop, bool runReclaim,
+                                BoxRelease release, LocationId source,
+                                LowerFunction* home = nullptr);
 
     // The generated function `emitBoxTeardown` calls, interned on everything that distinguishes one
     // - see the definition, where the four-part key is written out.

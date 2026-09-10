@@ -278,6 +278,7 @@ struct ArgumentCleaner {
 
             if(sameConstant(only, value)) { byConstant = true; continue; }
             if(choosesBetween(value, argument, only, 0)) continue;
+            if(carriesConstant(value, argument, only)) { byConstant = true; continue; }
 
             return nullptr;
         }
@@ -346,6 +347,93 @@ struct ArgumentCleaner {
         }
 
         return true;
+    }
+
+    // How many block arguments deep the carry below follows a cycle. A signal handed round two
+    // loops nested inside each other is four, and the bound is the same kind of bound
+    // `kChoiceDepth` is: past it the answer is the conservative one.
+    static constexpr U32 kCarryDepth = 8;
+
+    /*
+     * Whether a **block argument** carries nothing but this answer - `choosesBetween`'s induction
+     * written over the other representation a carried value has.
+     *
+     * `choosesBetween` covers the shape if-conversion leaves, where the choice is a `select` and one
+     * value goes round the loop. What it cannot see is the same signal still spelled as *control*:
+     *
+     *     bb20(%183: I32):              ; the signal, entering as `const 0`
+     *       branch %c -> bb24 -> bb23
+     *     bb23: jump bb25(%183)         ; not taken, carried unchanged
+     *     bb24: jump bb25(%213)         ; taken, written - and `%213` is `const 0` as well
+     *     bb25(%185: I32): jump bb20(%185)
+     *
+     * Neither argument is answered alike by its own edges - `%183` is handed `%185` and `%185` is
+     * handed `%183` - so the rule one function up declines both and the pair goes round the loop for
+     * ever. It is `filteredChain` in `test/bench/programs/Pipeline.yana` and it is an `iter fn`'s
+     * outcome signal on a `for` whose body is guarded: two dead `mov $0x0` per iteration, one of
+     * them in the loop.
+     *
+     * The induction is the one written above and needs nothing new: **assume** every argument the
+     * walk is inside answers `only`, and check that assumption against every edge. A set that
+     * survives its own round trip is a set whose members are `only` on every iteration, because the
+     * values entering it from outside are `only` and nothing inside it produces anything else.
+     *
+     * **A constant answer only**, which is not the induction's limit but the substitution's: a
+     * cycle's members are read in blocks the answer's own definition need not dominate - an edge
+     * supplying it may be the *second* way into the cycle - and `byConstant` is what puts a fresh
+     * one at the top of the block that reads it. Every caller sets that flag, so the restriction and
+     * the repair are one decision.
+     */
+    bool carriesConstant(Value* value, Value& argument, Value* only) {
+        // The two cheap refusals in front of the set, which is `reset` over every value in the body:
+        // only a block argument continues this walk, and only a constant may end it.
+        if(!value || value->definer || !value->block) return false;
+        if(!constantOf(opt, only)) return false;
+
+        ScratchSet assumed(opt.sets, opt.body->values.size());
+        if(argument.id.index < assumed->size()) assumed->set(argument.id.index, true);
+
+        return carriesOnly(value, only, *assumed, 0);
+    }
+
+    bool carriesOnly(Value* value, Value* only, IndexSet& assumed, U32 depth) {
+        if(!value || value == only) return true;
+        if(sameConstant(only, value)) return true;
+        if(depth > kCarryDepth) return false;
+
+        // A block argument and nothing else continues the walk - the value with a block and no
+        // definer, which is `seedOperands`' test one screen down.
+        if(value->definer || !value->block) return false;
+
+        auto index = Size(value->id.index);
+        if(index >= assumed.size()) return false;
+        if(assumed[index]) return true;
+
+        auto block = opt.base[value->block];
+        if(block->deleted || block == opt.base[opt.body->entry]) return false;
+
+        auto position = indexOf(*block, *value);
+        if(position == ~Size(0)) return false;
+
+        assumed.set(index, true);
+        auto carries = true;
+
+        for(auto pointer: block->incoming(opt.base)) {
+            auto end = opt.base[pointer]->terminator(opt.base);
+            if(!end) return false;
+
+            forEachEdge(opt.base, *end, [&](Edge& edge) {
+                if(!edge.target || opt.base[edge.target] != block) return;
+
+                auto used = edge.arguments.get(opt.base, position);
+                if(!used.isSet()) { carries = false; return; }
+                if(!carriesOnly(opt.base[used.value()], only, assumed, depth + 1)) carries = false;
+            });
+
+            if(!carries) break;
+        }
+
+        return carries;
     }
 
     /*

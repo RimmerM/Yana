@@ -58,8 +58,11 @@
    `@noinline` on `Heap.native.yana`'s `initHeap` reasoning exactly: this runs once and
    `allocateHeap` runs at every allocation, and a body with one caller is one the inliner moves
    rather than copies - which costs no bytes and still puts a syscall in front of the bump pointer.
+
+   `@cold` beside it says the same thing about every copy in the other direction - see `initHeap`,
+   which carries the pair for the same reason.
 -}
-@allocator(window) @noinline
+@allocator(window) @noinline @cold
 fn openWindow():
     -- One page beyond the limit, for the tail-read guarantee the bootstrap heap states: a vector
     -- loop's last iteration reads a whole register where only part of it is wanted, and storage the

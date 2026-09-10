@@ -416,27 +416,80 @@ struct SelectConverter {
      * accumulator in a register and made the arm pure enough to convert. The branch it would replace
      * is the loop's own and is taken three times in four, which is the case a predictor is for.
      *
-     * The test is that the join **is a latch** - it leaves to a block that dominates it - which is
-     * where a merged value is on the loop-carried path by construction. A conversion further inside
-     * the loop is left alone: what it merges is used and dropped inside one iteration.
+     * There are two tests and they are the same sentence read from either end, because one of them
+     * alone leaves half the shape standing.
+     *
+     * The first is that the join **is a latch** - it leaves to a block that dominates it - which is
+     * where a merged value is on the loop-carried path by construction.
+     *
+     * The second is that an operand handed to the join **is the loop's own carried value**: a block
+     * argument of a header that dominates the join and that some block it dominates jumps back to.
+     * That is the arm that did *not* update reading the value the header holds this iteration, which
+     * is `if p then total = total + x` however far the join is from the latch. `direct` in
+     * `Pipeline.yana` is why it is here: its two conditions are written one after the other, so the
+     * first merges at a block that computes the second's subscript and is nothing like a latch - the
+     * latch test declined its sibling in `chained` and admitted this one, and the two are the same
+     * line of source. The select and the copies the allocator then could not coalesce were **three
+     * instructions of a fourteen-instruction loop**, and taking them out moved the program from
+     * 8.6% slower than the shipping stage to **14.5% faster** - the largest single number J58
+     * measured.
      */
-    bool carriesRoundALoop(Block& join) {
-        auto last = join.terminator(opt.base);
-        if(!last) return false;
-
+    bool carriesRoundALoop(Diamond& diamond) {
+        auto& join = *diamond.join;
         auto& dominators = dominatorsOf(opt);
         if(!dominators.isReachable(join.index.index)) return false;
 
-        auto carried = false;
-        forEachEdge(opt.base, *last, [&](Edge& edge) {
-            if(!edge.target) return;
+        auto last = join.terminator(opt.base);
+        if(last) {
+            auto carried = false;
+            forEachEdge(opt.base, *last, [&](Edge& edge) {
+                if(!edge.target) return;
 
-            auto target = opt.base[edge.target];
-            if(!dominators.isReachable(target->index.index)) return;
-            if(dominators.dominates(target->index.index, join.index.index)) carried = true;
-        });
+                auto target = opt.base[edge.target];
+                if(!dominators.isReachable(target->index.index)) return;
+                if(dominators.dominates(target->index.index, join.index.index)) carried = true;
+            });
 
-        return carried;
+            if(carried) return true;
+        }
+
+        for(auto edge: { diamond.whenTrue, diamond.whenFalse }) {
+            if(!edge) continue;
+
+            for(Size i = 0; i < edge->arguments.size(); i++) {
+                auto used = edge->arguments.get(opt.base, i);
+                if(!used.isSet()) continue;
+                if(isHeaderArgument(*opt.base[used.value()], join)) return true;
+            }
+        }
+
+        return false;
+    }
+
+    /*
+     * Whether a value is a block argument of a loop header the join sits inside - the second test
+     * above, and the whole of what "the loop's own carried value" means here.
+     *
+     * A header is a block with a **back edge**: a predecessor it dominates. That is the standard
+     * definition and it is the one thing this needs, because a value declared there and handed
+     * across a back edge is by construction live all the way round.
+     */
+    bool isHeaderArgument(Value& value, Block& join) {
+        if(value.definer || !value.block) return false;
+
+        auto& dominators = dominatorsOf(opt);
+        auto header = opt.base[value.block];
+        if(header == &join) return true;
+        if(!dominators.isReachable(header->index.index)) return false;
+        if(!dominators.dominates(header->index.index, join.index.index)) return false;
+
+        for(auto pointer: header->incoming(opt.base)) {
+            auto predecessor = opt.base[pointer];
+            if(!dominators.isReachable(predecessor->index.index)) continue;
+            if(dominators.dominates(header->index.index, predecessor->index.index)) return true;
+        }
+
+        return false;
     }
 
     /*
@@ -496,7 +549,7 @@ struct SelectConverter {
 
         Diamond diamond;
         if(!findDiamond(head, branch, diamond)) return false;
-        if(carriesRoundALoop(*diamond.join)) return false;
+        if(carriesRoundALoop(diamond)) return false;
 
         Size cost = 0;
         for(auto arm: diamond.arms) {

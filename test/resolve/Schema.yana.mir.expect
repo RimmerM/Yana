@@ -15,7 +15,7 @@ bb0:
 }
 
 fn scale(x: a [shared call], y: a [shared call]) -> a {
-  form specialized
+  form erased
   slot #0 type a
   slot #1 class Num(a)
   local local2: a
@@ -124,7 +124,7 @@ bb0:
 }
 
 fn tagOf'2(value: a [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 type a
   slot #1 property a.tag
 bb0:
@@ -141,7 +141,7 @@ bb0:
 }
 
 fn doubled(value: a [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 type a
   slot #1 function double: (I32) -> I32
 bb0:
@@ -202,12 +202,14 @@ bb3(%17: I32):
 
 fn identity(I32)(value: I32) -> I32 = <identity at I32>
 
-fn scale(I32)(x: I32 [shared call], y: I32 [shared call]) -> I32 = <scale at I32>
-
 fn smallest(I32)(x: I32, y: I32, z: I32) -> I32 = <smallest at I32>
 
 fn bothEqual(I32, Bool)(p: I32 [shared call], q: I32 [shared call], r: Bool [shared call], s: Bool [shared call]) -> Bool = <bothEqual at I32, Bool>
 
 fn pairUp(I32, Bool)(x: I32, y: Bool) -> Pair(I32, Bool) = <pairUp at I32, Bool>
+
+fn tagOf'2(Labelled)(value: Labelled [shared call]) -> I32 = <tagOf at Labelled>
+
+fn doubled(Labelled)(value: Labelled [shared call]) -> I32 = <doubled at Labelled>
 
 entry main

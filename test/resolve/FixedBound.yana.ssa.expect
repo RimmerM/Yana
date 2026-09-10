@@ -52,8 +52,26 @@ bb0:
   return consume %31
 }
 
-fn sumOf(xs: [I32 *n] [shared call]) -> I32 {
-bb0(%0: [I32 *n] [shared call] guaranteed):
+fn sumOf(xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %[I32 *4] address = alloc frame [I32 *4]
+  %1: I32 trivial = const 1
+  %2: I32 trivial = const 2
+  %3: I32 trivial = const 3
+  %4: I32 trivial = const 4
+  %5: [I32 *4] trivial = aggregate.0 consume %1 consume %2 consume %3 consume %4
+  store inspect %0 consume %5
+  %6: I32 trivial = call writtenCount
+  %7: [I32 *4] trivial = copy inspect %0
+  %8: I32 trivial = call sumOf(4) borrow %7
+  %9: I32 trivial = add inspect %6 inspect %8
+  return consume %9
+}
+
+fn sumOf(4)(xs: [I32 *4] [shared call]) -> I32 {
+bb0(%0: [I32 *4] [shared call] guaranteed):
   %1: %I32 address = alloc frame I32
   %2: %I32 address = alloc frame I32
   %3: I32 trivial = const 0
@@ -64,7 +82,7 @@ bb0(%0: [I32 *n] [shared call] guaranteed):
 
 bb1:
   %5: I32 trivial = load inspect %2
-  %6: I32 trivial = gen.value n
+  %6: I32 trivial = const 4
   %7: Bool trivial = lt inspect %5 inspect %6
   branch inspect %7 -> bb3 -> bb2
 
@@ -76,7 +94,7 @@ bb3:
   %9: I32 trivial = load inspect %1
   %10: I32 trivial = load inspect %2
   %11: Size trivial = convert inspect %10
-  %12: I32 trivial = gen.value n
+  %12: I32 trivial = const 4
   %13: USize trivial = convert inspect %12
   %14: USize trivial = bitcast inspect %11
   %15: Bool trivial = ge inspect %14 inspect %13
@@ -90,22 +108,6 @@ bb3:
   %21: I32 trivial = add inspect %19 inspect %20
   store inspect %2 consume %21
   jump -> bb1
-}
-
-fn main() -> I32 {
-bb0:
-  %0: %[I32 *4] address = alloc frame [I32 *4]
-  %1: I32 trivial = const 1
-  %2: I32 trivial = const 2
-  %3: I32 trivial = const 3
-  %4: I32 trivial = const 4
-  %5: [I32 *4] trivial = aggregate.0 consume %1 consume %2 consume %3 consume %4
-  store inspect %0 consume %5
-  %6: I32 trivial = call writtenCount
-  %7: [I32 *4] trivial = copy inspect %0
-  %8: I32 trivial = call sumOf [4] borrow %7
-  %9: I32 trivial = add inspect %6 inspect %8
-  return consume %9
 }
 
 entry main

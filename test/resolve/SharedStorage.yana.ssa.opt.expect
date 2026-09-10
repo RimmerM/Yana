@@ -135,12 +135,8 @@ bb0:
   %3: Counter owned = aggregate.Counter consume %2
   %4: Owning owned = aggregate.Owning consume %1 consume %3
   store inspect %0 consume %4
-  %5: %Counter address = field.addr .held inspect %0
-  %6: Counter [shared call] guaranteed from{%0} = load inspect %5
-  %8: %I32 address = field.addr .value inspect %6
-  %9: I32 trivial = load inspect %8
   drop Owning inspect %0
-  return consume %9
+  return consume %2
 }
 
 fn guarded() -> I32 {
@@ -252,57 +248,53 @@ bb12(%27: I32 trivial):
   %47: Counter owned = aggregate.Counter consume %46
   %48: Owning owned = aggregate.Owning consume %45 consume %47
   store inspect %44 consume %48
-  %49: %Counter address = field.addr .held inspect %44
-  %50: Counter [shared call] guaranteed from{%44} = load inspect %49
-  %51: %I32 address = field.addr .value inspect %50
-  %52: I32 trivial = load inspect %51
   drop Owning inspect %44
-  %4: I32 trivial = add inspect %2 inspect %52
-  %56: %Boxed address = alloc frame Boxed
-  %57: I32 trivial = const 7
-  %58: I32 trivial = const 35
-  %59: Maybe(I32) trivial = aggregate.Just consume %58
-  %60: Boxed trivial = aggregate.Boxed consume %57 consume %59
-  store inspect %56 consume %60
-  %61: %Maybe(I32) address = field.addr .held inspect %56
-  %62: Maybe(I32) trivial = copy inspect %61
-  %63: I32 trivial = const 1
-  %64: Maybe(I32) trivial = aggregate.Just consume %63
-  %65: Maybe(I32) trivial = copy inspect %64
-  %66: I32 trivial = const 0
-  %67: %U8 address = field.addr .# inspect %65
-  %68: U8 trivial = load inspect %67
-  %69: U8 trivial = const 1
-  %70: Bool trivial = eq inspect %68 inspect %69
-  branch inspect %70 -> bb17 -> bb16
+  %4: I32 trivial = add inspect %2 inspect %46
+  %52: %Boxed address = alloc frame Boxed
+  %53: I32 trivial = const 7
+  %54: I32 trivial = const 35
+  %55: Maybe(I32) trivial = aggregate.Just consume %54
+  %56: Boxed trivial = aggregate.Boxed consume %53 consume %55
+  store inspect %52 consume %56
+  %57: %Maybe(I32) address = field.addr .held inspect %52
+  %58: Maybe(I32) trivial = copy inspect %57
+  %59: I32 trivial = const 1
+  %60: Maybe(I32) trivial = aggregate.Just consume %59
+  %61: Maybe(I32) trivial = copy inspect %60
+  %62: I32 trivial = const 0
+  %63: %U8 address = field.addr .# inspect %61
+  %64: U8 trivial = load inspect %63
+  %65: U8 trivial = const 1
+  %66: Bool trivial = eq inspect %64 inspect %65
+  branch inspect %66 -> bb17 -> bb16
 
 bb16:
-  jump -> bb18(consume %66)
+  jump -> bb18(consume %62)
 
 bb17:
-  %71: %I32 address = field.addr .Just inspect %65
-  %72: I32 trivial = load inspect %71
-  jump -> bb18(consume %72)
+  %67: %I32 address = field.addr .Just inspect %61
+  %68: I32 trivial = load inspect %67
+  jump -> bb18(consume %68)
 
-bb18(%54: I32 trivial):
-  %73: I32 trivial = const 1
-  %74: I32 trivial = add inspect %54 inspect %73
-  %75: %U8 address = field.addr .# inspect %62
-  %76: U8 trivial = load inspect %75
-  %77: U8 trivial = const 1
-  %78: Bool trivial = eq inspect %76 inspect %77
-  branch inspect %78 -> bb20 -> bb19
+bb18(%50: I32 trivial):
+  %69: I32 trivial = const 1
+  %70: I32 trivial = add inspect %50 inspect %69
+  %71: %U8 address = field.addr .# inspect %58
+  %72: U8 trivial = load inspect %71
+  %73: U8 trivial = const 1
+  %74: Bool trivial = eq inspect %72 inspect %73
+  branch inspect %74 -> bb20 -> bb19
 
 bb19:
-  jump -> bb21(consume %74)
+  jump -> bb21(consume %70)
 
 bb20:
-  %79: %I32 address = field.addr .Just inspect %62
-  %80: I32 trivial = load inspect %79
-  jump -> bb21(consume %80)
+  %75: %I32 address = field.addr .Just inspect %58
+  %76: I32 trivial = load inspect %75
+  jump -> bb21(consume %76)
 
-bb21(%55: I32 trivial):
-  %6: I32 trivial = add inspect %4 inspect %55
+bb21(%51: I32 trivial):
+  %6: I32 trivial = add inspect %4 inspect %51
   %7: %I32 address = global.addr released
   %8: I32 trivial = load inspect %7
   %9: I32 trivial = add inspect %6 inspect %8

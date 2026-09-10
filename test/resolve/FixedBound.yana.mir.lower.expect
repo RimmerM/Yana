@@ -1,47 +1,7 @@
-@environment(sumOf(4)) = [4, 0, 0, 0]
 
 at<complex>(%i: I64): I64 {
   b_0 {
     ret %i
-  }
-}
-
-sumOf<complex>(%v_0: Ptr, %xs: Ptr): I32 {
-  b_1 {
-    %v_2 = load %v_0, 4: I32
-    %v_3 = cast %v_2: I64
-    %v_4 = sext %v_2: I64
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_1, 0], [b_7, %v_8]: I32
-    %v_9 = phi [b_1, 0], [b_7, %v_10]: I64
-    %v_11 = cmp_ilt %v_9, %v_4: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_13 {
-    ret %v_6
-  }
-
-  b_12 {
-    %v_14 = cmp_ge %v_9, %v_3: I32
-    je %v_14, b_15, b_7
-  }
-
-  b_7 {
-    %v_16 = shl %v_9, 2: I64
-    %v_17 = add %xs, %v_16: Ptr
-    %v_18 = loads %v_17, 4: I32
-    %v_8 = add %v_6, %v_18: I32
-    %v_10 = add %v_9, 1: I64
-    jmp b_5
-  }
-
-  b_15 {
-    %v_19 = syscall 60, 134: I64
-    unreachable 
   }
 }
 
@@ -94,14 +54,39 @@ main<complex>(): I32 {
     store %v_28, 3, 4
     %v_29 = add %v_26, 12: Ptr
     store %v_29, 4, 4
-    %v_30 = call_complex sumOf, @environment(sumOf(4)), %v_26: I32
-    %v_31 = add %v_25, %v_30: I32
-    ret %v_31
+    jmp b_30
   }
 
   b_4 {
-    %v_32 = syscall 60, 134: I64
+    %v_31 = syscall 60, 134: I64
     unreachable 
+  }
+
+  b_32 {
+    %v_33 = cmp_ilt %v_34, 4: I32
+    je %v_33, b_30, b_35
+  }
+
+  b_35 {
+    %v_36 = add %v_25, %v_37: I32
+    ret %v_36
+  }
+
+  b_30 {
+    %v_38 = phi [b_32, %v_37], [b_21, 0]: I32
+    %v_39 = phi [b_32, %v_34], [b_21, 0]: I32
+    %v_40 = sext %v_39: I64
+    %v_41 = cmp_ge %v_40, 4: I32
+    je %v_41, b_4, b_42
+  }
+
+  b_42 {
+    %v_43 = shl %v_40, 2: I64
+    %v_44 = add %v_26, %v_43: Ptr
+    %v_45 = loads %v_44, 4: I32
+    %v_37 = add %v_38, %v_45: I32
+    %v_34 = add %v_39, 1: I32
+    jmp b_32
   }
 }
 

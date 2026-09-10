@@ -40,19 +40,22 @@ main<complex>(): I32 {
     %v_27 = imul %v_26, 5: I32
     %v_28 = sub %v_2, %v_27: I32
     %v_29 = cmp_eq %v_28, 0: I32
-    jmp b_30
+    je %v_29, b_21, b_30
   }
 
   b_30 {
-    %v_31 = phi [b_22, %v_29], [b_21, 1]: I32
-    %v_32 = add %v_5, %v_2: I32
-    %v_6 = select %v_31, %v_32, %v_5: I32
+    jmp b_31
+  }
+
+  b_31 {
+    %v_6 = phi [b_30, %v_5], [b_21, %v_32]: I32
     %v_33 = cmp_igt %v_6, 60: I32
     je %v_33, b_34, b_35
   }
 
   b_21 {
-    jmp b_30
+    %v_32 = add %v_5, %v_2: I32
+    jmp b_31
   }
 
   b_35 {

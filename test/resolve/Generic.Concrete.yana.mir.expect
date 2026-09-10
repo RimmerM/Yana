@@ -1,7 +1,7 @@
 module ResolveTest
 
 fn genericWidth(value: a [shared call], width: U64 [shared call]) -> U64 {
-  form erased
+  form specialized
   slot #0 type a
 bb0:
   %0: U64 = read copy.trivial (width)
@@ -15,7 +15,7 @@ bb0:
 }
 
 fn genericBump(value: a [shared call], counter: I32 [unique call]) -> {} {
-  form erased
+  form specialized
   slot #0 type a
 bb0:
   %0: I32 = read copy.trivial (counter)
@@ -35,7 +35,7 @@ bb0:
 }
 
 fn genericWiden(value: a [shared call], total: I64 [shared call]) -> I64 {
-  form erased
+  form specialized
   slot #0 type a
 bb0:
   %0: I64 = read copy.trivial (total)
@@ -84,5 +84,11 @@ bb0:
   %32: I32 = add inspect %26 inspect %31
   return take %32
 }
+
+fn genericBump(I32)(value: I32 [shared call], counter: I32 [unique call]) -> {} = <genericBump at I32>
+
+fn genericWidth(I32)(value: I32 [shared call], width: U64 [shared call]) -> U64 = <genericWidth at I32>
+
+fn genericWiden(I32)(value: I32 [shared call], total: I64 [shared call]) -> I64 = <genericWiden at I32>
 
 entry main

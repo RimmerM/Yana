@@ -80,59 +80,55 @@ main<complex>(): I32 {
     store %v_51, 0, 8
     %v_53 = add %v_51, 8: Ptr
     store %v_53, %v_4, 8
-    %v_54 = alloca 16, 8: Ptr
-    copy %v_54, %v_50, 16
+    jmp b_54
+  }
+
+  b_54 {
     jmp b_55
   }
 
-  b_55 {
-    jmp b_56
+  join {
+    %v_56 = loads %v_51, 8: I64
+    setpattern %v_51, 16, 0
+    %v_57 = imul %v_56, 10: I64
+    %v_58 = loads %v_51, 8: I64
+    %v_59 = add %v_57, %v_58: I64
+    %v_60 = add %v_49, %v_59: I64
+    %v_61 = add %v_60, 812: I64
+    %v_62 = alloca 1, 1: Ptr
+    store %v_62, 0, 1
+    jmp b_63
   }
 
-  join {
-    %v_57 = loads %v_51, 8: I64
-    %v_58 = alloca 16, 8: Ptr
-    copy %v_58, %v_51, 16
-    setpattern %v_51, 16, 0
-    %v_59 = imul %v_57, 10: I64
-    %v_60 = loads %v_51, 8: I64
-    %v_61 = add %v_59, %v_60: I64
-    %v_62 = add %v_49, %v_61: I64
-    %v_63 = add %v_62, 812: I64
-    %v_64 = alloca 1, 1: Ptr
-    store %v_64, 0, 1
+  b_63 {
+    jmp b_64
+  }
+
+  b_64 {
     jmp b_65
   }
 
   b_65 {
-    jmp b_66
+    %v_66 = bitcast %v_62: I64
+    %v_67 = cmp_eq %v_66, 0: I32
+    %v_68 = select %v_67, 0, 1: I64
+    jmp b_69
   }
 
-  b_66 {
-    jmp b_67
+  b_69 {
+    %v_70 = shl %v_68, 1: I64
+    %v_71 = add %v_61, %v_70: I64
+    %v_72 = sext %v_71: I32
+    ret %v_72
   }
 
-  b_67 {
-    %v_68 = bitcast %v_64: I64
-    %v_69 = cmp_eq %v_68, 0: I32
-    %v_70 = select %v_69, 0, 1: I64
-    jmp b_71
+  b_55 {
+    jmp b_73
   }
 
-  b_71 {
-    %v_72 = shl %v_70, 1: I64
-    %v_73 = add %v_63, %v_72: I64
-    %v_74 = sext %v_73: I32
-    ret %v_74
-  }
-
-  b_56 {
-    jmp b_75
-  }
-
-  b_75 {
-    %v_76 = load %v_50, 16: i8x16
-    store %v_51, %v_76, 16
+  b_73 {
+    %v_74 = load %v_50, 16: i8x16
+    store %v_51, %v_74, 16
     jmp join
   }
 }
