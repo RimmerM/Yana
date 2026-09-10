@@ -375,6 +375,8 @@ StringView nameForCall(LowerCallType type) {
             return "call_clobber"_v;
         case LowerCallType::Syscall:
             return "syscall"_v;
+        case LowerCallType::StackSwitch:
+            return "stackswitch"_v;
     }
 
     assertTrue(false);

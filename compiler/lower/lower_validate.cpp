@@ -512,9 +512,10 @@ static bool validateCall(Diagnostics* diagnostics, LowerBase base, LowerInstCall
     auto target = base[used.ptr[0]];
 
     // A syscall has no callee to check: operand zero is the call number rather than an address,
-    // and the kernel's signature is not something the IR knows. Asked of the call's own
-    // convention rather than of the operand's type, so that a number of either width is one.
-    if(inst->getCallType() == LowerCallType::Syscall) {
+    // and the kernel's signature is not something the IR knows. A stack switch is the same - what
+    // runs next is whatever the target stack's top word holds. Asked of the call's own convention
+    // rather than of the operand's type, so that a number of either width is one.
+    if(!callTypeHasCallee(inst->getCallType())) {
         return true;
     } else if(target->inst()->kind == LowerInst::Fun) {
         // Static call.

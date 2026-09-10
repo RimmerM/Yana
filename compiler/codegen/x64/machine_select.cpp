@@ -1041,6 +1041,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::Call: {
             auto call = (LowerInstCall*)inst;
             if(call->getCallType() == LowerCallType::Syscall) return FormSyscall;
+            if(call->getCallType() == LowerCallType::StackSwitch) return FormStackSwitch;
 
             // A statically known callee is a rel32 call that never reads the address out of a
             // register; anything else goes through one.

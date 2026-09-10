@@ -730,6 +730,11 @@ void MachineFormBuilder::registerMemoryAndControlForms() {
     call(FormCallIndirect, "call r/m"_v, PseudoKind::CallIndirect);
     call(FormSyscall, "syscall"_v, PseudoKind::Syscall);
 
+    // The stack switch is a call in this table for the one reason it is a call anywhere: its
+    // register effect is a convention's rather than a form's, and a convention's clobbers land
+    // behind its operands. Nothing else about it is call-shaped - see PseudoKind::StackSwitch.
+    call(FormStackSwitch, "stack switch"_v, PseudoKind::StackSwitch);
+
     // The argument area is addressed through rsp, at the offset the convention assigned - an address
     // the legalizer resolves like any other, so this is an ordinary store.
     {

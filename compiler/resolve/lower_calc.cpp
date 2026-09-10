@@ -200,6 +200,41 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     break;
                 }
 
+                /*
+                 * Preparing a stack, which is `CloneThread` above with one operand fewer - see
+                 * LowerIntrinsic::StackInit.
+                 */
+                case NativeOp::StackInit: {
+                    auto type = lowerType(lower, instruction.type);
+                    auto inst = (LowerInstIntrinsic*)lower.to.arena.alloc(
+                        sizeof(LowerInstIntrinsic) + sizeof(LowerValue) +
+                        sizeof(LowerPtr<LowerValue>) * args.size());
+
+                    new (inst) LowerInstIntrinsic(LowerIntrinsic::StackInit, 1, args.size());
+                    for(Size i = 0; i < args.size(); i++) inst->used().ptr[i] = args[i];
+                    new (inst->created().ptr) LowerValue(inst, type, instruction.name);
+
+                    result = block.addInst(lower.lower, (LowerInst*)inst);
+                    break;
+                }
+
+                /*
+                 * The switch itself, which becomes a **call** rather than an intrinsic - the other
+                 * context runs at that point, so what it has to say about registers is a
+                 * convention's rather than a form's. See LowerCallType::StackSwitch, and there is no
+                 * callee operand there for the reason a system call has none.
+                 */
+                case NativeOp::StackSwitch: {
+                    auto type = lowerType(lower, instruction.type);
+                    result = call(lower.lower, lower.to, block, 1, args.size(),
+                                  LowerCallType::StackSwitch, [&](LowerInstCall* built) {
+                        new (built->created().ptr) LowerValue(built, type, instruction.name);
+                        for(Size i = 0; i < args.size(); i++) built->used()[i] = args[i];
+                    });
+
+                    break;
+                }
+
                 case NativeOp::HostCall:
                 case NativeOp::HostField:
                 case NativeOp::HostArray:

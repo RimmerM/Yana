@@ -66,9 +66,10 @@ static void insertStackArgs(LowerBase base, LowerFunction& fun, const Constraint
             auto& convention = constraints.getConvention(callType);
             auto used = inst->used();
 
-            // A syscall's first operand is its number, which the convention places like any other
-            // argument; every other call names its target there, and that is not an argument.
-            Size argStart = callType == LowerCallType::Syscall ? 0 : 1;
+            // A syscall's first operand is its number and a stack switch's is the stack it is
+            // switching to, and the convention places both like any other argument; every other
+            // call names its target there, and that is not an argument.
+            Size argStart = callTypeHasCallee(callType) ? 1 : 0;
 
             ArgLocationList locations;
             classifyArgs(convention, used.size() - argStart, [&](Size a) {

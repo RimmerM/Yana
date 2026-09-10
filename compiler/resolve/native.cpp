@@ -389,6 +389,29 @@ static ModulePtr<Value> emitCloneThread(ExprResolver& resolver, Buffer<ModulePtr
     return resolver.ref(instruction);
 }
 
+/*
+ * `stackInit(stackTop, argument, entry)` - `emitCloneThread` above with two arguments fewer, and the
+ * same entry pair split for the same reason: a Yana function value is a code pointer and an
+ * environment, and a prepared stack has to carry both so that a fiber may run a closure.
+ */
+static ModulePtr<Value> emitStackInit(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                      LocationId source, StringId name) {
+    auto entry = resolver.materialize(args[2], source);
+    auto code = resolver.load(resolver.project(entry, ProjectionKind::Field, FunValueLayout::kCode), source);
+    auto env = resolver.load(resolver.project(entry, ProjectionKind::Field, FunValueLayout::kEnv), source);
+
+    auto instruction = resolver.create<InstNative>(source, name, type, NativeOp::StackInit);
+    auto& arena = resolver.module.arena;
+
+    instruction->args.push(arena, args[0]);   // the top of the new stack
+    instruction->args.push(arena, code);
+    instruction->args.push(arena, env);
+    instruction->args.push(arena, args[1]);   // the argument the entry is given
+
+    resolver.append(instruction);
+    return resolver.ref(instruction);
+}
+
 template<NativeOp op>
 static ModulePtr<Value> emitNativeOp(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId name) {
@@ -555,6 +578,11 @@ static void attachPointerIntrinsics(Module& module) {
     // look for it, `Native/Clone.linux.x64.yana`. A mac or arm64 build reads no such file, claims
     // the role with nothing, and this lands on nothing.
     attachIntrinsic(module, Op::cloneThread, emitCloneThread);
+
+    // The two halves of a stack context. `stackSwitch` is the plain shape - three operands in, one
+    // out, in the order the declaration writes them - and `stackInit` splits its entry's pair.
+    attachIntrinsic(module, Op::stackInit, emitStackInit);
+    attachIntrinsic(module, Op::stackSwitch, emitNativeOp<NativeOp::StackSwitch>);
 }
 
 /*

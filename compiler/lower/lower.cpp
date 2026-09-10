@@ -74,6 +74,12 @@ static constexpr LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
     // where the kernel is to clear the thread id - and the identifier, or a negated errno, back.
     // See the registry.
     [Size(LowerIntrinsic::CloneThread)] = { "clonethread"_v, 1, 6, kLowerReads | kLowerWrites | kLowerOrdered },
+
+    // The top of the stack being prepared, the two words of the entry function and its argument -
+    // and the saved stack pointer the first switch to it reads. `kLowerOrdered` beside the memory
+    // bits because what it writes is not memory this function otherwise names: a pass that moved it
+    // past the switch that reads it would be moving it past its only reader.
+    [Size(LowerIntrinsic::StackInit)] = { "stackinit"_v, 1, 4, kLowerReads | kLowerWrites | kLowerOrdered },
 };
 
 /*

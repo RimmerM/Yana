@@ -1204,6 +1204,11 @@ struct Verifier {
 
             case NativeOp::CloneThread:    return 5;
 
+            // `(stackTop, entry, argument)` and `(target, save, transfer)` - the entry counted once,
+            // because the pair it is made of is split in the lowering and not here.
+            case NativeOp::StackInit:
+            case NativeOp::StackSwitch:    return 3;
+
             // The number is operand zero and the rest are the call's, which is a declaration's
             // arity rather than the operation's - see native.def's `Syscall` row.
             case NativeOp::Syscall:        return kAnyArity;

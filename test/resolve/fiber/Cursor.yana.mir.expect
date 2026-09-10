@@ -1,0 +1,404 @@
+module ResolveTest
+
+let string'145: [CodeUnit *1] = "w"
+
+let string'146: [CodeUnit *0] = ""
+
+let string'147: [CodeUnit *1] = "."
+
+fn squares(self: %Cursor(Size) [shared call]) -> {} {
+  local & local1: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 5
+  %2: I32 = const 1
+  write.init borrow.unique (local1) take %0
+  jump -> bb1(take %1, take %2)
+
+bb1(%3: I32, %4: I32):
+  %11: I32 = read copy.trivial (local1)
+  %12: Bool = le inspect %11 inspect %3
+  branch inspect %12 -> bb4(take %3, take %4) -> bb3(take %3, take %4)
+
+bb2(%5: I32, %6: I32):
+  %25: I32 = read copy.trivial (local1)
+  %26: I32 = sub inspect %5 inspect %25
+  %27: Bool = ge inspect %26 inspect %6
+  branch inspect %27 -> bb5(take %5, take %6) -> bb3(take %5, take %6)
+
+bb3(%7: I32, %8: I32):
+  %35: %Cursor(Size) = read copy.trivial (self)
+  %36: {} = call finishCursor(Size) borrow.shared %35
+  return
+
+bb4(%13: I32, %14: I32):
+  %16: I32 = read copy.trivial (local1)
+  write.init borrow.unique (i) take %16
+  %18: %Cursor(Size) = read copy.trivial (self)
+  %19: I32 = read copy.trivial (i)
+  %20: I32 = read copy.trivial (i)
+  %21: I32 = mul inspect %19 inspect %20
+  %22: Size = convert inspect %21
+  %23: {} = call emit(Size) borrow.shared %18 take %22
+  jump -> bb2(take %13, take %14)
+
+bb5(%28: I32, %29: I32):
+  %31: I32 = read copy.trivial (local1)
+  %32: I32 = add inspect %31 inspect %29
+  write.assign borrow.unique (local1) take %32
+  jump -> bb1(take %28, take %29)
+}
+
+fn evens(self: %Cursor(Size) [shared call]) -> {} {
+  local & local1: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 4
+  %2: I32 = const 1
+  write.init borrow.unique (local1) take %0
+  jump -> bb1(take %1, take %2)
+
+bb1(%3: I32, %4: I32):
+  %11: I32 = read copy.trivial (local1)
+  %12: Bool = lt inspect %11 inspect %3
+  branch inspect %12 -> bb4(take %3, take %4) -> bb3(take %3, take %4)
+
+bb2(%5: I32, %6: I32):
+  %25: I32 = read copy.trivial (local1)
+  %26: I32 = add inspect %25 inspect %6
+  write.assign borrow.unique (local1) take %26
+  jump -> bb1(take %5, take %6)
+
+bb3(%7: I32, %8: I32):
+  %29: %Cursor(Size) = read copy.trivial (self)
+  %30: {} = call finishCursor(Size) borrow.shared %29
+  return
+
+bb4(%13: I32, %14: I32):
+  %16: I32 = read copy.trivial (local1)
+  write.init borrow.unique (i) take %16
+  %18: %Cursor(Size) = read copy.trivial (self)
+  %19: I32 = read copy.trivial (i)
+  %20: I32 = const 2
+  %21: I32 = mul inspect %19 inspect %20
+  %22: Size = convert inspect %21
+  %23: {} = call emit(Size) borrow.shared %18 take %22
+  jump -> bb2(take %13, take %14)
+}
+
+fn odds(self: %Cursor(Size) [shared call]) -> {} {
+  local & local1: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 4
+  %2: I32 = const 1
+  write.init borrow.unique (local1) take %0
+  jump -> bb1(take %1, take %2)
+
+bb1(%3: I32, %4: I32):
+  %11: I32 = read copy.trivial (local1)
+  %12: Bool = lt inspect %11 inspect %3
+  branch inspect %12 -> bb4(take %3, take %4) -> bb3(take %3, take %4)
+
+bb2(%5: I32, %6: I32):
+  %27: I32 = read copy.trivial (local1)
+  %28: I32 = add inspect %27 inspect %6
+  write.assign borrow.unique (local1) take %28
+  jump -> bb1(take %5, take %6)
+
+bb3(%7: I32, %8: I32):
+  %31: %Cursor(Size) = read copy.trivial (self)
+  %32: {} = call finishCursor(Size) borrow.shared %31
+  return
+
+bb4(%13: I32, %14: I32):
+  %16: I32 = read copy.trivial (local1)
+  write.init borrow.unique (i) take %16
+  %18: %Cursor(Size) = read copy.trivial (self)
+  %19: I32 = read copy.trivial (i)
+  %20: I32 = const 2
+  %21: I32 = mul inspect %19 inspect %20
+  %22: I32 = const 1
+  %23: I32 = add inspect %21 inspect %22
+  %24: Size = convert inspect %23
+  %25: {} = call emit(Size) borrow.shared %18 take %24
+  jump -> bb2(take %13, take %14)
+}
+
+fn words'2(self: %Cursor(String) [shared call]) -> {} {
+  local & local1: I32
+  local i: I32
+  local & local3: String
+  local local4: String
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 3
+  %2: I32 = const 1
+  write.init borrow.unique (local1) take %0
+  jump -> bb1(take %1, take %2)
+
+bb1(%3: I32, %4: I32):
+  %11: I32 = read copy.trivial (local1)
+  %12: Bool = le inspect %11 inspect %3
+  branch inspect %12 -> bb4(take %3, take %4) -> bb3(take %3, take %4)
+
+bb2(%5: I32, %6: I32):
+  %38: I32 = read copy.trivial (local1)
+  %39: I32 = sub inspect %5 inspect %38
+  %40: Bool = ge inspect %39 inspect %6
+  branch inspect %40 -> bb5(take %5, take %6) -> bb3(take %5, take %6)
+
+bb3(%7: I32, %8: I32):
+  %48: %Cursor(String) = read copy.trivial (self)
+  %49: {} = call finishCursor(String) borrow.shared %48
+  return
+
+bb4(%13: I32, %14: I32):
+  %16: I32 = read copy.trivial (local1)
+  write.init borrow.unique (i) take %16
+  %18: %Cursor(String) = read copy.trivial (self)
+  %19: Size = const 1
+  %20: I32 = read copy.trivial (i)
+  %21: Maybe(Size) = call showBound(I32) borrow.shared %20
+  %22: Size = call formatBound borrow.shared %21
+  %23: Size = add inspect %19 inspect %22
+  %24: String = call String.ofCapacity borrow.shared %23
+  write.init borrow.unique (local3) take %24
+  %26: String [unique call] = read borrow.unique (local3) loan0
+  %27: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (local4) take %27
+  %29: String [shared slot 0] = read borrow.shared (local4) loan1
+  %30: String [shared slot 0 view] = call.derivation view(String) borrow.shared %29 roots{1}
+  %31: {} = call String.push borrow.unique %26 borrow.shared %30
+  drop (local4)
+  %32: I32 = read copy.trivial (i)
+  %33: String [unique call] = read borrow.unique (local3) loan2
+  %34: {} = call show(I32) borrow.shared %32 borrow.unique %33
+  %35: String = read take (local3)
+  %36: {} = call emit(String) borrow.shared %18 take %35
+  jump -> bb2(take %13, take %14)
+
+bb5(%41: I32, %42: I32):
+  %44: I32 = read copy.trivial (local1)
+  %45: I32 = add inspect %44 inspect %42
+  write.assign borrow.unique (local1) take %45
+  jump -> bb1(take %41, take %42)
+}
+
+fn main() -> Size {
+  local bytes: Size
+  local & cursor: Cursor(Size)
+  local local2: (%Cursor(Size)) -> {} [owned here shape8 .0=unique call]
+  local & sum: Size
+  local local4: Maybe(Size)
+  local v: Size
+  local & left: Cursor(Size)
+  local & right: Cursor(Size)
+  local local8: (%Cursor(Size)) -> {} [owned here shape8 .0=unique call]
+  local local9: (%Cursor(Size)) -> {} [owned here shape8 .0=unique call]
+  local & pairs: Size
+  local a: Maybe(Size)
+  local b: Maybe(Size)
+  local x: Size
+  local y: Size
+  local & text: Cursor(String)
+  local local16: (%Cursor(String)) -> {} [owned here shape8 .0=unique call]
+  local & joined: String
+  local local18: Maybe(String)
+  local w: String [shared call]
+
+bb0:
+  %0: Size = const 65536
+  write.init borrow.unique (bytes) take %0
+  %2: Cursor(Size) = call newCursor(Size)
+  write.init borrow.unique (cursor) take %2
+  %4: Cursor(Size) [unique call] = read borrow.unique (cursor) loan0
+  %5: Size = const 65536
+  %6: (%Cursor(Size)) -> {} [owned here shape8 .0=unique call] = fun.value squares
+  write.init borrow.unique (local2) take %6
+  %8: (%Cursor(Size)) -> {} [shared call shape8 .0=unique call] = read borrow.shared (local2) loan1
+  %9: Bool = call open(Size) borrow.unique %4 borrow.shared %5 borrow.shared %8
+  %10: Size = const 0
+  write.init borrow.unique (sum) take %10
+  jump -> bb1
+
+bb1:
+  %13: Cursor(Size) [unique call] = read borrow.unique (cursor) loan2
+  %14: Maybe(Size) = call next(Size) borrow.unique %13
+  write.init borrow.unique (local4) take %14
+  %16: U8 = read copy.trivial (local4.#)
+  %17: U8 = const 1
+  %18: Bool = eq inspect %16 inspect %17
+  branch inspect %18 -> bb3 -> bb2
+
+bb2:
+  %26: Cursor(Size) [unique call] = read borrow.unique (cursor) loan4
+  %27: {} = call close(Size) borrow.unique %26
+  %28: Cursor(Size) = call newCursor(Size)
+  write.init borrow.unique (left) take %28
+  %30: Cursor(Size) = call newCursor(Size)
+  write.init borrow.unique (right) take %30
+  %32: Cursor(Size) [unique call] = read borrow.unique (left) loan5
+  %33: Size = const 65536
+  %34: (%Cursor(Size)) -> {} [owned here shape8 .0=unique call] = fun.value evens
+  write.init borrow.unique (local8) take %34
+  %36: (%Cursor(Size)) -> {} [shared call shape8 .0=unique call] = read borrow.shared (local8) loan6
+  %37: Bool = call open(Size) borrow.unique %32 borrow.shared %33 borrow.shared %36
+  %38: Cursor(Size) [unique call] = read borrow.unique (right) loan7
+  %39: Size = const 65536
+  %40: (%Cursor(Size)) -> {} [owned here shape8 .0=unique call] = fun.value odds
+  write.init borrow.unique (local9) take %40
+  %42: (%Cursor(Size)) -> {} [shared call shape8 .0=unique call] = read borrow.shared (local9) loan8
+  %43: Bool = call open(Size) borrow.unique %38 borrow.shared %39 borrow.shared %42
+  %44: Size = const 0
+  write.init borrow.unique (pairs) take %44
+  jump -> bb4
+
+bb3:
+  %20: Size = read copy.trivial (local4.Just)
+  write.init borrow.unique (v) take %20
+  %22: Size [unique call] = read borrow.unique (sum) loan3
+  %23: Size = read copy.trivial (v)
+  %24: {} = call +=(Size) borrow.unique %22 borrow.shared %23
+  jump -> bb1
+
+bb4:
+  %47: Bool = const True
+  branch inspect %47 -> bb6 -> bb5
+
+bb5:
+  %91: Cursor(Size) [unique call] = read borrow.unique (left) loan12
+  %92: {} = call close(Size) borrow.unique %91
+  %93: Cursor(Size) [unique call] = read borrow.unique (right) loan13
+  %94: {} = call close(Size) borrow.unique %93
+  %95: Cursor(String) = call newCursor(String)
+  write.init borrow.unique (text) take %95
+  %97: Cursor(String) [unique call] = read borrow.unique (text) loan14
+  %98: Size = const 65536
+  %99: (%Cursor(String)) -> {} [owned here shape8 .0=unique call] = fun.value words'2
+  write.init borrow.unique (local16) take %99
+  %101: (%Cursor(String)) -> {} [shared call shape8 .0=unique call] = read borrow.shared (local16) loan15
+  %102: Bool = call open(String) borrow.unique %97 borrow.shared %98 borrow.shared %101
+  %103: String = const String {units: Array {run: Run {items: &string'146, capacity: 0, ownsHeap: 0}, length: 0}}
+  write.init borrow.unique (joined) take %103
+  jump -> bb19
+
+bb6:
+  %49: Cursor(Size) [unique call] = read borrow.unique (left) loan9
+  %50: Maybe(Size) = call next(Size) borrow.unique %49
+  write.init borrow.unique (a) take %50
+  %52: U8 = read copy.trivial (a.#)
+  %53: U8 = const 0
+  %54: Bool = eq inspect %52 inspect %53
+  branch inspect %54 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %58: Cursor(Size) [unique call] = read borrow.unique (right) loan10
+  %59: Maybe(Size) = call next(Size) borrow.unique %58
+  write.init borrow.unique (b) take %59
+  %61: U8 = read copy.trivial (b.#)
+  %62: U8 = const 0
+  %63: Bool = eq inspect %61 inspect %62
+  branch inspect %63 -> bb12 -> bb10
+
+bb9:
+  jump -> bb5
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %67: U8 = read copy.trivial (a.#)
+  %68: U8 = const 1
+  %69: Bool = eq inspect %67 inspect %68
+  branch inspect %69 -> bb15 -> bb13
+
+bb12:
+  jump -> bb5
+
+bb13:
+  jump -> bb14
+
+bb14:
+  jump -> bb4
+
+bb15:
+  %71: Size = read copy.trivial (a.Just)
+  write.init borrow.unique (x) take %71
+  %73: U8 = read copy.trivial (b.#)
+  %74: U8 = const 1
+  %75: Bool = eq inspect %73 inspect %74
+  branch inspect %75 -> bb18 -> bb16
+
+bb16:
+  jump -> bb17
+
+bb17:
+  jump -> bb14
+
+bb18:
+  %77: Size = read copy.trivial (b.Just)
+  write.init borrow.unique (y) take %77
+  %79: Size [unique call] = read borrow.unique (pairs) loan11
+  %80: Size = read copy.trivial (x)
+  %81: Size = const 10
+  %82: Size = mul inspect %80 inspect %81
+  %83: Size = read copy.trivial (y)
+  %84: Size = add inspect %82 inspect %83
+  %85: {} = call +=(Size) borrow.unique %79 borrow.shared %84
+  jump -> bb17
+
+bb19:
+  %106: Cursor(String) [unique call] = read borrow.unique (text) loan16
+  %107: Maybe(String) = call next(String) borrow.unique %106
+  write.init borrow.unique (local18) take %107
+  %109: U8 = read copy.trivial (local18.#)
+  %110: U8 = const 1
+  %111: Bool = eq inspect %109 inspect %110
+  branch inspect %111 -> bb21 -> bb20
+
+bb20:
+  drop (local18)
+  %124: Cursor(String) [unique call] = read borrow.unique (text) loan19
+  %125: {} = call close(String) borrow.unique %124
+  drop (text)
+  %126: Size = read copy.trivial (sum)
+  %127: Size = const 100000
+  %128: Size = mul inspect %126 inspect %127
+  %129: Size = read copy.trivial (pairs)
+  %130: Size = const 100
+  %131: Size = mul inspect %129 inspect %130
+  %132: Size = add inspect %128 inspect %131
+  %133: String [shared call] = read borrow.shared (joined) loan20
+  %134: String [shared slot 0 view] = call.derivation view(String) borrow.shared %133 roots{20}
+  %135: Size = call length(String) borrow.shared %134
+  drop (joined)
+  %136: Size = add inspect %132 inspect %135
+  return take %136
+
+bb21:
+  %113: String [shared call] = read borrow.shared (local18.Just) loan17
+  write.init borrow.unique (w) borrow.shared %113
+  %115: String = read take (joined)
+  %116: String [shared call] = read borrow.shared (w) loan18 roots{17}
+  %117: String [shared slot 0 view] = call.derivation view(String) borrow.shared %116 roots{17, 18}
+  %118: String = call copy(String) borrow.shared %117
+  drop (local18)
+  %119: String = call ++(String) take %115 take %118
+  %120: String = const String {units: Array {run: Run {items: &string'147, capacity: 1, ownsHeap: 0}, length: 1}}
+  %121: String = call ++(String) take %119 take %120
+  write.reinit borrow.unique (joined) take %121
+  jump -> bb19
+}
+
+entry main

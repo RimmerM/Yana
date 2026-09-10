@@ -51,6 +51,27 @@ YANA_MIR_NATIVE( Syscall,    "syscall"_v     )
 YANA_MIR_NATIVE( CloneThread, "clone.thread"_v )
 
 /*
+ * The two halves of a stack context - `stackInit(stackTop, argument, entry)` and
+ * `stackSwitch(target, save, transfer)`, Analysis-External-Iterators.md §4.1.
+ *
+ * `StackInit` is `CloneThread`'s shape twice over: it becomes `LowerIntrinsic::StackInit`, a backend
+ * pseudo whose encoder writes four words and an entry stub, and the entry stays **one operand**
+ * here for the reason the thread's does - what the author wrote is a function of the language, and
+ * the one place that knows a function value is two words at two offsets is the lowering.
+ *
+ * `StackSwitch` is the row that is *not* an intrinsic below here. It becomes a **call** - a
+ * `LowerInstCall` under `LowerCallType::StackSwitch` - because what it has to say about registers is
+ * a convention's rather than a form's: the other context runs at that point, so nothing the
+ * allocator handed out survives, and a form's clobbers land in front of its operands where a call's
+ * land behind them. See the convention's own note in `compiler/lower/convention.h`.
+ *
+ * A `Native` row all the same, and the same shape as every other one here: a fixed operation over a
+ * flat argument list whose meaning belongs to the backend.
+ */
+YANA_MIR_NATIVE( StackInit,   "stack.init"_v   )
+YANA_MIR_NATIVE( StackSwitch, "stack.switch"_v )
+
+/*
  * The x86 instructions a program reaches by name - `lib/Native/Intrinsic/X86.yana`, and the one
  * group here that is a *target's* rather than a machine's in general.
  *

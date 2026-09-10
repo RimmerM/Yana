@@ -72,6 +72,12 @@ Node* expandSyscall(Builder& builder, Function& callee, Node* const* arguments, 
 Node* expandCloneThread(Builder& builder, Function& callee, Node* const* arguments,
                         const Substitution& with, LocationId source);
 
+// The two halves of a stack context - `native.def`'s `StackInit` and `StackSwitch` rows.
+Node* expandStackInit(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandStackSwitch(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source);
+
 /*
  * The x86 family - `lib/Native/Intrinsic/X86.yana`, one `native.def` row apiece.
  *

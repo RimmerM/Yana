@@ -140,6 +140,11 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::cloneThread:
             return expandCloneThread(builder, callee, arguments, with, source);
 
+        case Op::stackInit:
+            return expandStackInit(builder, callee, arguments, with, source);
+        case Op::stackSwitch:
+            return expandStackSwitch(builder, callee, arguments, with, source);
+
         /*
          * The x86 family - `lib/Native/Intrinsic/X86.yana`, a `native.def` row each.
          *

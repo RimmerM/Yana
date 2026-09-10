@@ -2232,6 +2232,77 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 }
 
                 /*
+                 * Preparing a stack - `LowerIntrinsic::StackInit`, and `CloneThread` above with one
+                 * operand fewer.
+                 *
+                 * The entry's `{code, env}` pair is split here for that arm's reason: the
+                 * declaration takes an ordinary function of the language, so a closure is admitted
+                 * and both words have to reach the prepared stack, and this file is where a function
+                 * value is known to be two words at two offsets. The operand order is the backend's -
+                 * `(stackTop, code, environment, argument)`.
+                 */
+                case mir::NativeOp::StackInit: {
+                    auto code = wordAt(block, args[2], layout.target.funCodeOffset(),
+                                       LowerType::Pointer, layout.target.pointerSize);
+                    auto environment = wordAt(block, args[2], layout.target.funEnvOffset(),
+                                              LowerType::Pointer, layout.target.pointerSize);
+
+                    LowerPtr<LowerValue> operands[] = { args[0], code, environment, args[1] };
+                    auto count = Size(4);
+
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto built = (LowerInstIntrinsic*)to.arena.alloc(
+                        sizeof(LowerInstIntrinsic) + sizeof(LowerValue) +
+                        sizeof(LowerPtr<LowerValue>) * count);
+
+                    new (built) LowerInstIntrinsic(LowerIntrinsic::StackInit, 1, count);
+                    for(Size i = 0; i < count; i++) built->used().ptr[i] = operands[i];
+                    new (built->created().ptr) LowerValue(built, manifestOf(*result).type,
+                                                          StringId());
+
+                    auto value = block.addInst(lower, (LowerInst*)built);
+                    values.add(result->id.index, ((LowerInstIntrinsic*)value)->created().ptr - lower);
+                    break;
+                }
+
+                /*
+                 * The switch itself - a **call**, and the one `Native` row that becomes one.
+                 *
+                 * Not an intrinsic, and the reason is the register effect rather than the
+                 * instruction: the other context runs at this point, so nothing the allocator handed
+                 * out survives it, and that is a statement a convention makes and a form cannot -
+                 * a form's clobbers land in front of its operands, where a call's land behind them.
+                 * `LowerCallType::StackSwitch` is the convention and its note is the argument.
+                 *
+                 * There is no callee operand, exactly as a system call has none: what runs next is
+                 * whatever the target stack's top word holds, which is not an address this IR names.
+                 * The three operands are `(target, save, transfer)` and the result is the transfer
+                 * word whichever context switches back supplies.
+                 */
+                case mir::NativeOp::StackSwitch: {
+                    auto created = U32(inst.results.size());
+
+                    auto value = call(lower, to, block, created, args.size(),
+                                      LowerCallType::StackSwitch, [&](LowerInstCall* built) {
+                        for(Size i = 0; i < created; i++) {
+                            auto result = ssa[inst.results.get(ssa, i)];
+                            new (built->created().ptr + i) LowerValue(built,
+                                                                       manifestOf(*result).type,
+                                                                       StringId());
+                        }
+
+                        for(Size i = 0; i < args.size(); i++) built->used()[i] = args[i];
+                    });
+
+                    for(Size i = 0; i < created; i++) {
+                        values.add(ssa[inst.results.get(ssa, i)]->id.index,
+                                   value->created().ptr + i - lower);
+                    }
+
+                    break;
+                }
+
+                /*
                  * The x86 family - native.def's twelve rows, and a mapping and nothing else.
                  *
                  * Each is an instruction the lower IR already has, so there is no expansion here

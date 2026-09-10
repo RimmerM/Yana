@@ -62,6 +62,29 @@ Node* expandCloneThread(Builder& builder, Function& callee, Node* const* argumen
 }
 
 /*
+ * `stackInit(stackTop, argument, entry)` and `stackSwitch(target, save, transfer)` - the two lines
+ * again, and the entry pair kept whole for `expandCloneThread`'s reason directly above.
+ *
+ * What is worth saying here is what these do *not* do, because both are suspension points and
+ * neither says so at this tier. `maySuspend` in `inst.cpp` answers a **call** from its callee's
+ * published summary, and a call to one of these is exactly that: the declaration in `lib/Native` is
+ * bodyless, so `summary.bodyKnown` is false, so `suspension()` has no answer, so `get(true)` is what
+ * the caller reads - the conservative direction, arrived at by the rule that already covers every
+ * foreign declaration rather than by a bit written here. A `Native` node the expansion leaves behind
+ * is not itself a suspension point and does not need to be: what the across-suspend rule has to see
+ * is the *call*, and the call is what the loan checker walks.
+ */
+Node* expandStackInit(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source) {
+    return nativeOperation(builder, callee, arguments, 3, with, source, NativeOp::StackInit);
+}
+
+Node* expandStackSwitch(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source) {
+    return nativeOperation(builder, callee, arguments, 3, with, source, NativeOp::StackSwitch);
+}
+
+/*
  * The x86 instructions a program reaches by name - native.def's twelve rows.
  *
  * The same two lines every emitter in this file is, with the row passed in: what an

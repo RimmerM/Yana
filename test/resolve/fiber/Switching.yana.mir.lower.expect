@@ -1,0 +1,167 @@
+@environment(newFiber(Counter)) = [0, 0, 0, 0]
+@descriptor(Counter) = [40, 0, 0, 29, 0, 0, 0, 0]
+@image$base = []
+
+count'2<complex>(%self: Ptr) {
+  b_0 {
+    %v_1 = add %self, 24: Ptr
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = imm 1: I64
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_0, 1], [b_6, %v_7]: I64
+    %v_8 = cmp_ile %v_5, %v_2: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_10 {
+    call_complex finishOn, %self, 0
+    unreachable 
+  }
+
+  b_9 {
+    %v_11 = add %self, 8: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    %v_13 = stackswitch %v_12, %self, %v_5: I64
+    %v_14 = add %self, 32: Ptr
+    %v_15 = loads %v_14, 8: I64
+    %v_16 = add %v_15, %v_13: I64
+    store %v_14, %v_16, 8
+    %v_17 = sub %v_2, %v_5: I64
+    %v_18 = cmp_ige %v_17, %v_3: I32
+    je %v_18, b_6, b_10
+  }
+
+  b_6 {
+    %v_7 = add %v_5, %v_3: I64
+    jmp b_4
+  }
+}
+
+main<complex>(): I64 {
+  b_0 {
+    %v_1 = alloca 40, 8: Ptr
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = syscall 9, 0, 65536, 3, 34, 18446744073709551615, 0: I64
+    %v_4 = cmp_ilt %v_3, 0: I32
+    %v_5 = bitcast 0: Ptr
+    %v_6 = bitcast %v_3: Ptr
+    %v_7 = select %v_4, %v_5, %v_6: Ptr
+    store %v_1, %v_5, 8
+    %v_8 = add %v_1, 8: Ptr
+    store %v_8, %v_5, 8
+    %v_9 = add %v_1, 16: Ptr
+    store %v_9, 0, 1
+    %v_10 = add %v_1, 24: Ptr
+    store %v_10, 5, 8
+    %v_11 = add %v_1, 32: Ptr
+    store %v_11, 0, 8
+    store %v_2, funvalue(count'2), 8
+    %v_12 = add %v_2, 8: Ptr
+    store %v_12, 0, 8
+    %v_13 = alloca 17, 8: Ptr
+    call_complex newFiber, @environment(newFiber(Counter)), %v_13, %v_7, 65536, %v_1, %v_2
+    copy %v_1, %v_13, 17
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_0, 0], [b_16, %v_17]: I64
+    %v_18 = phi [b_0, 0], [b_16, %v_19]: I64
+    %v_20 = alloca 16, 16: Ptr
+    copy %v_20, %v_1, 16
+    %v_21 = add %v_1, 16: Ptr
+    %v_22 = load %v_21, 1: I32
+    %v_23 = cmp_eq %v_22, 2: I32
+    je %v_23, b_24, b_25
+  }
+
+  b_24 {
+    %v_26 = bitcast %v_7: I64
+    %v_27 = syscall 11, %v_26, 65536: I64
+    %v_28 = imul %v_15, 10000: I64
+    %v_29 = imul %v_18, 100: I64
+    %v_30 = add %v_28, %v_29: I64
+    %v_31 = add %v_1, 32: Ptr
+    %v_32 = loads %v_31, 8: I64
+    %v_33 = add %v_30, %v_32: I64
+    ret %v_33
+  }
+
+  b_25 {
+    %v_19 = add %v_18, 1: I64
+    %v_34 = add %v_1, 16: Ptr
+    %v_35 = load %v_34, 1: I32
+    %v_36 = cmp_eq %v_35, 2: I32
+    je %v_36, b_37, b_38
+  }
+
+  b_16 {
+    %v_39 = phi [b_38, %v_40], [b_37, 0]: I64
+    %v_17 = add %v_15, %v_39: I64
+    jmp b_14
+  }
+
+  b_38 {
+    store %v_34, 1, 1
+    %v_41 = load %v_1, 8: Ptr
+    %v_42 = add %v_1, 8: Ptr
+    %v_40 = stackswitch %v_41, %v_42, %v_19: I64
+    jmp b_16
+  }
+
+  b_37 {
+    jmp b_16
+  }
+}
+
+newFiber<complex>(%v_0: Ptr, %v_1: Ptr, %stack: Ptr, %stackBytes: I64, %context: Ptr, %entry: Ptr) {
+  b_2 {
+    %v_3 = add %stack, %stackBytes: Ptr
+    %v_4 = bitcast %v_3: I64
+    %v_5 = and %v_4, 18446744073709551600: I64
+    %v_6 = bitcast %v_5: Ptr
+    %v_7 = load %entry, 8: Ptr
+    %v_8 = add %entry, 8: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    %v_10 = stackinit %v_6, %v_7, %v_9, %context: Ptr
+    %v_11 = bitcast 0: Ptr
+    store %v_1, %v_10, 8
+    %v_12 = add %v_1, 8: Ptr
+    store %v_12, %v_11, 8
+    %v_13 = add %v_1, 16: Ptr
+    store %v_13, 0, 1
+    ret 
+  }
+}
+
+finishOn<complex>(%self: Ptr, %value: I64) {
+  b_0 {
+    %v_1 = add %self, 16: Ptr
+    store %v_1, 2, 1
+    jmp b_2
+  }
+
+  b_2 {
+    %v_3 = add %self, 8: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    %v_5 = stackswitch %v_4, %self, %value: I64
+    jmp b_2
+  }
+}
+
+funvalue(count'2)<complex>(%v_0: Ptr, %v_1: Ptr) {
+  b_2 {
+    call_complex count'2, %v_1
+    ret 
+  }
+}
+
+teardown()<complex>(%v_0: Ptr) {
+  b_1 {
+    ret 
+  }
+}
+

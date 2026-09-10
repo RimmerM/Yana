@@ -1310,6 +1310,23 @@ enum class NativeOp: U8 {
     CloneThread,
 
     /*
+     * stackInit(stackTop, argument, entry) and stackSwitch(target, save, transfer) - the two halves
+     * of a stack context, Analysis-External-Iterators.md §4.1.
+     *
+     * Here for `CloneThread`'s reason above: a fixed operation, a flat argument list, and a meaning
+     * nothing else in the IR shares. `StackInit`'s entry is split into the two words a function
+     * value is before it arrives, exactly as the thread's is.
+     *
+     * **This stage carries them, and the constructs built on them belong to the other one.** The
+     * declarations are in `lib/Native`, which every program that imports `Native` resolves, so a
+     * role this stage had no emitter for would be a bodyless function it refuses by name - and the
+     * rest of the library would go with it. The primitives themselves are the same two operations
+     * either way, so implementing them here costs two emitters and a mapping and keeps one library.
+     */
+    StackInit,
+    StackSwitch,
+
+    /*
      * The host - Implementation-Containers.md §14.1.
      *
      * The back half of an FFI without its front half: an operation whose meaning belongs to the

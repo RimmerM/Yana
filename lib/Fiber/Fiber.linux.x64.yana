@@ -1,0 +1,142 @@
+{-
+   Fibers, and the materialized iterators built on them.
+
+   Module `Fiber`. Under its own name rather than under `Native` because what is here is written in
+   the language: the two machine operations it stands on are `Native.stackInit` and
+   `Native.stackSwitch`, and everything else - who owns the stack, what a transfer word means, when a
+   context is finished - is ordinary Yana over them.
+
+   § What a fiber is here
+
+   A `Fiber` is two saved stack pointers and a status. One of them names the context while the
+   consumer is running and the other names the consumer while the context is running, and exactly one
+   of the two is live at any moment. That is the whole runtime shape - there is no scheduler, no
+   queue and no thread. `doc/inflight/Design-Memory-Revised.md` §17 is the reason it stops there:
+   an internal `iter fn`, a materialized iterator and a task fiber share this substrate and differ in
+   contract, and a substrate that had picked one of the three would not serve the other two.
+
+   § What is not checked
+
+   Everything the compiler would have to see the two stacks at once to check. In particular:
+
+    - **A context must be finished before its `Fiber` dies.** `finishOn` is what ends one, and it
+      does not return. A `Fiber` dropped while its context is suspended leaks whatever that context
+      owned, and reusing its stack afterwards runs a live frame's storage as fresh bytes.
+
+    - **A suspended context's locals are not visible to the ownership passes.** They are on a stack
+      the compiler was never told about, so a value moved into a context is out of its reach until
+      the context hands it back.
+
+    - **The stack is not bounded.** Nothing here measures how much a context can use and nothing
+      guards the low end of the mapping. `doc/inflight/Analysis-External-Iterators.md` §4.4 and §4.5
+      are the plan: the resolver already publishes whether a call graph is finite
+      (`Summary::stack`), and the byte count is the backend's half and is not built. Until it is, a
+      stack size is a number the author picks and is the same promise Tritium's `LocalStack` asks
+      for.
+
+   Those are the reasons `iter(...)` in a result type - the source form §2.1 proposes, with its
+   handle rooted in the creating frame and its loans checked - is a language feature and this is not
+   it. This is what that feature will be built out of, usable now.
+-}
+
+import Native
+
+{-
+   Where a context is, from outside it.
+
+   Three states and not five: `Running` is not one of them, because a `Fiber` is only ever *read* by
+   a side that is running, and the side that is running is the one that is not suspended. A field
+   saying which would be a fact each side could only ever read about the other.
+-}
+pub data qualified FiberStatus = Ready | Suspended | Finished
+
+pub data Fiber {
+    -- Where the context is suspended. Written by the context itself, every time it hands control
+    -- back, and read by `resume`.
+    child: %U8,
+
+    -- And where this side is suspended while the context runs. The mirror of the field above: this
+    -- side writes it on the way out and the context reads it on the way back.
+    parent: %U8,
+
+    status: FiberStatus
+}
+
+{-
+   `newFiber(stack, stackBytes, context, entry)` - a context prepared, not yet run.
+
+   `stack` is the low address of the bytes the context is to run on and `stackBytes` how many; the
+   top is rounded down to the sixteen-byte boundary `stackInit` requires, so a page-aligned mapping
+   needs no arithmetic from the caller. Nothing here owns those bytes: they must outlive the context
+   and giving them back is the caller's, which is what `Native.Thread` asks for one level down.
+
+   `entry` is handed `context` when the first `resume` arrives, and **must not return** - see
+   `finishOn`. A closure is admitted, so the record a context needs may be captured rather than
+   pointed at; `context` is a pointer because the usual thing to hand a context is the record holding
+   its own `Fiber`, and that record has to be at an address both sides agree on.
+-}
+pub fn (a) newFiber(stack: %U8, stackBytes: Size, context: %a, entry: (%a) -> {}) -> Fiber:
+    -- Down to sixteen rather than up: rounding up would put the first words of the context above
+    -- the storage the caller owns.
+    let raw = bitcast(stack + stackBytes) :: Size
+    let top = bitcast(raw `and` not(15 :: Size)) :: %U8
+
+    return Fiber {
+        child: stackInit(top, context, entry),
+        parent: null(),
+        status: FiberStatus.Ready
+    }
+
+{-
+   `resume(fiber, value)` - control, given to the context.
+
+   Answers the word the context sends back, which is whatever it passed to `suspend` or to `finish`.
+   Returns immediately with zero if the context has already finished, so a driver loop may ask
+   without checking first.
+
+   The two reads either side of the switch are what the operation *is*: `self.child` is where the
+   context is, and `addressOf(self.parent)` is where it is to find this side when it wants to come
+   back. The compiler places both in registers before the stack pointer moves, which is why this is
+   an ordinary expression rather than something that has to be written in assembly.
+-}
+pub fn resume(&self: Fiber, value: Size) -> Size:
+    if self.status == FiberStatus.Finished then return 0
+
+    self.status = FiberStatus.Suspended
+    return stackSwitch(self.child, addressOf(self.parent), value)
+
+{-
+   `suspendOn(fiber, value)` - control, given back, from inside the context.
+
+   The mirror of `resume`, and the same two fields the other way round. Answers the word the next
+   `resume` supplies.
+
+   **Through a pointer rather than a borrow, unlike `resume` beside it**, and the asymmetry is
+   deliberate: the consumer holds the `Fiber` as ordinary storage of its own, while the context
+   reaches it through the address `stackInit` handed over, and a context's body is where that address
+   arrives. So the borrow is taken here rather than asked of the caller, and the caller writes
+   `suspendOn(self, ...)` with the pointer it was given.
+-}
+pub fn suspendOn(self: %Fiber, value: Size) -> Size:
+    let &me = borrowMut(self)
+    return stackSwitch(me.parent, addressOf(me.child), value)
+
+{-
+   `finishOn(fiber, value)` - the last hand-over, which does not come back.
+
+   A context ends by switching away rather than by returning, because there is no frame under its
+   entry to return into: `stackInit` prepares a stack whose bottom is a trap. So the shape of every
+   fiber body is work, hand-overs, and this - and the loop below is what "does not come back" is
+   spelled as in a language with no bottom type. A second `resume` of a finished context answers zero
+   without switching, so the loop runs at most once more than the program asks for.
+-}
+pub fn finishOn(self: %Fiber, value: Size):
+    let &me = borrowMut(self)
+    me.status = FiberStatus.Finished
+
+    while True:
+        stackSwitch(me.parent, addressOf(me.child), value)
+
+-- Whether the context has run to its end. A `Fiber` that answers `True` owns nothing and its stack
+-- may be given back.
+pub fn hasFinished(self: Fiber) -> Bool = self.status == FiberStatus.Finished

@@ -7,7 +7,7 @@
  *
  * Split out of `lower.h` so that the *resolver* can hold one: `@convention(clobber)` is read off a
  * declaration long before there is a lower IR, and `resolve/module.h` including the whole lower IR
- * to name a six-valued enum would be a dependency out of all proportion to the fact.
+ * to name a seven-valued enum would be a dependency out of all proportion to the fact.
  *
  * There is one name table and every reader shares it, which is the point of the split rather than a
  * tidiness argument. The names appear in three places that have to agree: the `@convention`
@@ -35,8 +35,31 @@ enum class LowerCallType {
     // Calling convention for system calls.
     Syscall,
 
+    /*
+     * The stack switch - Analysis-External-Iterators.md §4.1's `stack.switch`, and the one
+     * "convention" here whose callee is not code at all.
+     *
+     * It is a convention rather than an instruction's own operand table because of what it has to
+     * say about registers, which is exactly what a convention says and nothing a form can: **the
+     * other context runs here**, so everything the allocator could have handed out is gone across
+     * it. A form states that as `clobbers`, and a form's clobbers land *in front of* its operands -
+     * an operand read out of its own register has to dodge all of them, which for a set this size
+     * leaves nowhere to read one from. A call's clobbers land behind its operands, because the
+     * callee has not run when they are read, and that is the shape a switch has.
+     *
+     * That is also the whole of the efficiency argument against porting Tritium's helper. A
+     * `Tritium_suspendFiber` saves seven callee-saved registers and restores seven on every switch
+     * whether or not anything was in them; this tells the allocator that nothing survives and lets
+     * it spill exactly what is live, which in a small producer loop is one or two words.
+     *
+     * The arguments and the result are `Complex`'s tables - `(target, save, transfer)` in the first
+     * three argument registers, the incoming transfer word in the first result register - so a
+     * switch written in the library lands its operands where the sequence already wants them.
+     */
+    StackSwitch,
+
     // Must always be last.
-    LastType = Syscall,
+    LastType = StackSwitch,
 };
 
 static constexpr LowerCallType kDefaultCallType = LowerCallType::Complex;
@@ -45,12 +68,13 @@ static constexpr LowerCallType kDefaultCallType = LowerCallType::Complex;
 // emits. `system` rather than `syscall` because that is the spelling the fixtures already use.
 inline StringView nameForCallType(LowerCallType type) {
     switch(type) {
-        case LowerCallType::Sysv:    return "sysv"_v;
-        case LowerCallType::Win64:   return "win64"_v;
-        case LowerCallType::Simple:  return "simple"_v;
-        case LowerCallType::Complex: return "complex"_v;
-        case LowerCallType::Clobber: return "clobber"_v;
-        case LowerCallType::Syscall: return "system"_v;
+        case LowerCallType::Sysv:        return "sysv"_v;
+        case LowerCallType::Win64:       return "win64"_v;
+        case LowerCallType::Simple:      return "simple"_v;
+        case LowerCallType::Complex:     return "complex"_v;
+        case LowerCallType::Clobber:     return "clobber"_v;
+        case LowerCallType::Syscall:     return "system"_v;
+        case LowerCallType::StackSwitch: return "stackswitch"_v;
     }
 
     return ""_v;
@@ -87,6 +111,21 @@ inline StringView nameForLegacySse() { return "x86_legacy_sse"_v; }
 // on the field. Not an attribute a program writes: nothing in Yana source declares a boundary yet,
 // so the only writers are `lowerProgram` and a fixture.
 inline StringView nameForForeignBoundary() { return "foreign"_v; }
+
+/*
+ * Whether operand zero of a call under this convention is the thing being called.
+ *
+ * Two conventions answer no and they answer it for the same reason: there is no address in the
+ * operand list to call. A system call names the kernel by a number, and a stack switch names a
+ * saved stack pointer - what runs next is whatever that stack's top word says, which is not a
+ * callee any tier of this compiler has a name for.
+ *
+ * A predicate rather than the `== Syscall` test that was written at each of the four sites, because
+ * the second convention with the property is what turns a comparison into a category.
+ */
+inline bool callTypeHasCallee(LowerCallType type) {
+    return type != LowerCallType::Syscall && type != LowerCallType::StackSwitch;
+}
 
 /*
  * Whether this convention names an ABI defined outside this compiler.

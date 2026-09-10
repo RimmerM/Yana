@@ -1,0 +1,182 @@
+module ResolveTest
+
+fn fiberOf(self: %Counter [shared call shape6 .*=shared slot 0]) -> %Fiber [owned here shape6 .*=shared slot 0] {
+bb0(%0: %Counter trivial):
+  %1: %%Counter address = alloc frame %Counter [shared call shape6 .*=shared slot 0]
+  store inspect %1 borrow %0
+  %2: %Counter [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %3: Counter [unique slot 0 owner] guaranteed = load inspect %2
+  %4: %Fiber address = field.addr .fiber inspect %3
+  %5: Fiber [shared slot 0 owner] guaranteed from{%3} = load inspect %4
+  %6: %Fiber [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %5
+  return consume %6
+}
+
+fn limitOf(self: %Counter [shared call]) -> Size {
+bb0(%0: %Counter trivial):
+  %1: %%Counter address = alloc frame %Counter [shared call]
+  store inspect %1 borrow %0
+  %2: %Counter trivial = load inspect %1
+  %3: Counter [unique slot 0 owner] guaranteed = load inspect %2
+  %4: %Size address = field.addr .limit inspect %3
+  %5: Size trivial = load inspect %4
+  return consume %5
+}
+
+fn recordSeen(self: %Counter [shared call], value: Size [shared call]) -> {} {
+bb0(%0: %Counter trivial, %1: Size trivial):
+  %2: %%Counter address = alloc frame %Counter [shared call]
+  %3: %Size address = alloc frame Size [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: %Counter trivial = load inspect %2
+  %5: Counter [unique slot 0 owner] guaranteed = load inspect %4
+  %6: %Size address = field.addr .seen inspect %5
+  %7: Size [unique slot 0 owner] guaranteed from{%5} = load inspect %6
+  %8: Size trivial = load inspect %3
+  call +=(Size) borrow %7 borrow %8
+  return
+}
+
+fn count'2(self: %Counter [shared call]) -> {} {
+bb0(%0: %Counter trivial):
+  %11: %%Counter address = alloc frame %Counter [shared call]
+  %12: %Size address = alloc frame Size
+  %13: %%Fiber address = alloc frame %Fiber [owned here shape6 .*=shared slot 0]
+  %14: %Size address = alloc frame Size
+  %15: %Size address = alloc frame Size
+  store inspect %11 borrow %0
+  %16: %Counter trivial = load inspect %11
+  %17: Size trivial = call limitOf borrow %16
+  store inspect %12 consume %17
+  %18: %Counter trivial = load inspect %11
+  %19: %Fiber [owned here shape6 .*=shared slot 0] trivial = call fiberOf borrow %18
+  store inspect %13 consume %19
+  %20: Size trivial = load inspect %12
+  %21: Size trivial = const 1
+  %22: Size trivial = const 1
+  store inspect %14 consume %21
+  jump -> bb1(consume %20, consume %22)
+
+bb1(%1: Size trivial, %2: Size trivial):
+  %23: Size trivial = load inspect %14
+  %24: Bool trivial = le inspect %23 inspect %1
+  branch inspect %24 -> bb4(consume %1, consume %2) -> bb3(consume %1, consume %2)
+
+bb2(%3: Size trivial, %4: Size trivial):
+  %25: Size trivial = load inspect %14
+  %26: Size trivial = sub inspect %3 inspect %25
+  %27: Bool trivial = ge inspect %26 inspect %4
+  branch inspect %27 -> bb5(consume %3, consume %4) -> bb3(consume %3, consume %4)
+
+bb3(%5: Size trivial, %6: Size trivial):
+  %28: %Fiber [owned here shape6 .*=shared slot 0] trivial = load inspect %13
+  %29: Size trivial = const 0
+  call finishOn borrow %28 borrow %29
+  return
+
+bb4(%7: Size trivial, %8: Size trivial):
+  %30: Size trivial = load inspect %14
+  store inspect %15 consume %30
+  %31: %Counter trivial = load inspect %11
+  %32: %Fiber [owned here shape6 .*=shared slot 0] trivial = load inspect %13
+  %33: Size trivial = load inspect %15
+  %34: Size trivial = call suspendOn borrow %32 borrow %33
+  call recordSeen borrow %31 borrow %34
+  jump -> bb2(consume %7, consume %8)
+
+bb5(%9: Size trivial, %10: Size trivial):
+  %35: Size trivial = load inspect %14
+  %36: Size trivial = add inspect %35 inspect %10
+  store inspect %14 consume %36
+  jump -> bb1(consume %9, consume %10)
+}
+
+fn main() -> Size {
+bb0:
+  %0: %Size address = alloc frame Size
+  %1: %%U8 address = alloc frame %U8
+  %2: %Counter address = alloc frame Counter
+  %3: %(%Counter) -> {} address = alloc frame (%Counter) -> {} [owned here shape8 .0=unique call]
+  %4: %Size address = alloc frame Size
+  %5: %Size address = alloc frame Size
+  %6: Size trivial = const 65536
+  store inspect %0 consume %6
+  %7: Size trivial = const 65536
+  %8: %U8 trivial = call mapMemory borrow %7
+  store inspect %1 consume %8
+  jump -> bb4
+
+bb1:
+  %30: %Fiber address = field.addr .fiber inspect %2
+  %31: Fiber trivial = copy inspect %30
+  %32: Bool trivial = call hasFinished borrow %31
+  %33: Bool trivial = not inspect %32
+  branch inspect %33 -> bb3 -> bb2
+
+bb2:
+  %34: %U8 trivial = load inspect %1
+  %35: Size trivial = const 65536
+  %36: Size trivial = call unmapMemory borrow %34 borrow %35
+  %37: Size trivial = load inspect %4
+  %38: Size trivial = const 10000
+  %39: Size trivial = mul inspect %37 inspect %38
+  %40: Size trivial = load inspect %5
+  %41: Size trivial = const 100
+  %42: Size trivial = mul inspect %40 inspect %41
+  %43: Size trivial = add inspect %39 inspect %42
+  %44: %Size address = field.addr .seen inspect %2
+  %45: Size trivial = load inspect %44
+  %46: Size trivial = add inspect %43 inspect %45
+  return consume %46
+
+bb3:
+  %47: Size [unique call] guaranteed from{%5} = load inspect %5
+  %48: Size trivial = const 1
+  call +=(Size) borrow %47 borrow %48
+  %49: Size [unique call] guaranteed from{%4} = load inspect %4
+  %50: %Fiber address = field.addr .fiber inspect %2
+  %51: Fiber [unique call] guaranteed from{%2} = load inspect %50
+  %52: Size trivial = load inspect %5
+  %53: Size trivial = call resume borrow %51 borrow %52
+  call +=(Size) borrow %49 borrow %53
+  jump -> bb1
+
+bb4:
+  %10: Size trivial = const 0
+  %11: %U8 trivial = call Size.%a.bitcast(U8) borrow %10
+  jump -> bb5(consume %11)
+
+bb5(%9: %U8 trivial):
+  jump -> bb6
+
+bb6:
+  %13: Size trivial = const 0
+  %14: %U8 trivial = call Size.%a.bitcast(U8) borrow %13
+  jump -> bb7(consume %14)
+
+bb7(%12: %U8 trivial):
+  %15: FiberStatus trivial = const Ready
+  %16: Fiber trivial = aggregate.Fiber consume %9 consume %12 consume %15
+  %17: Size trivial = const 5
+  %18: Size trivial = const 0
+  %19: Counter trivial = aggregate.Counter consume %16 consume %17 consume %18
+  store inspect %2 consume %19
+  %20: %U8 trivial = load inspect %1
+  %21: Size trivial = const 65536
+  %22: Counter [shared slot 0] guaranteed from{%2} = load inspect %2
+  %23: %Counter [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %22
+  %24: (%Counter) -> {} [owned here shape8 .0=unique call] affine = fun.value count'2
+  store inspect %3 consume %24
+  %25: (%Counter) -> {} [shared call shape8 .0=unique call] guaranteed from{%3} = load inspect %3
+  %26: Fiber trivial = call newFiber [Counter] borrow %20 borrow %21 borrow %23 borrow %25
+  %27: %Fiber address = field.addr .fiber inspect %2
+  store inspect %27 consume %26
+  %28: Size trivial = const 0
+  store inspect %4 consume %28
+  %29: Size trivial = const 0
+  store inspect %5 consume %29
+  jump -> bb1
+}
+
+entry main

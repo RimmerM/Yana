@@ -1264,6 +1264,22 @@ static void genCall(FunGen& f, LowerInstCall& inst) {
         return;
     }
 
+    /*
+     * The stack switch, which this backend does not have yet.
+     *
+     * Reported rather than approximated. Analysis-External-Iterators.md §4.1 is explicit about what
+     * the LLVM path owes the operation - an out-of-line shim called with full memory side effects -
+     * because the alternative, an asm block that moves `rsp`, is invisible to every LLVM pass that
+     * would need to know: the frame it is spilling into is not the frame the next instruction runs
+     * on. The x64 backend states the same operation as a convention and an encoder, which is why it
+     * can have it first.
+     */
+    if(inst.getCallType() == LowerCallType::StackSwitch) {
+        f.context.diagnostics.error("llvm: a stack switch needs the -backend local code generator"_v,
+                                    inst.source);
+        return;
+    }
+
     auto used = inst.used();
     auto created = inst.created();
 

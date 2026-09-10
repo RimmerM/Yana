@@ -820,6 +820,37 @@ enum class PseudoKind: U8 {
      */
     CloneThread,
 
+    /*
+     * `stack.switch` - Analysis-External-Iterators.md §4.1, and the second pseudo here that is a
+     * sequence rather than an instruction.
+     *
+     * Twenty-four bytes and no call: the resume address is materialized with a `lea`, pushed with
+     * the frame pointer beside it, the current rsp is written where the operand says, the target's
+     * rsp is loaded, and the two words the *target* pushed the last time it switched away are popped
+     * back off it. What returns here is therefore not this instruction at all but the corresponding
+     * `jmp` in whichever context switches back, which is why the incoming transfer word is the
+     * result: the sequence's last act before leaving is to put its own transfer word in the register
+     * this form declares its result in, so the other end reads it there.
+     *
+     * rbp is the one register the sequence carries across, and it has to: no convention may clobber
+     * the frame pointer (see `finish` in constraint.cpp), so a value the allocator put in rbp has
+     * nothing to move it out of the way. The push and the pop are on this context's own stack, so
+     * the register is restored by whoever switches back rather than by the instruction that left.
+     */
+    StackSwitch,
+
+    /*
+     * `stack.init` - the other half of §4.1, and the one pseudo that emits code nothing here ever
+     * falls into.
+     *
+     * Four words onto the top of a fresh stack and a `lea` of the address below them, followed by
+     * the entry stub the first switch jumps to, branched over. The stub is inline for the reason
+     * `CloneThread`'s child sequence is: it runs on a stack no frame of this function describes, out
+     * of registers the sequence itself loaded, so there is nothing for a block the layout knows
+     * about to be right about.
+     */
+    StackInit,
+
     // `vzeroupper` - three fixed bytes and no operands, which is `Nop`'s shape. A pseudo rather than
     // an `EncodingFamily::Opcode` row because that family writes a legacy prefix, a REX and an
     // escape, and this instruction's prefix is a VEX one - and because the bytes are already written

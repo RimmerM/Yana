@@ -363,6 +363,24 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
             defineResults(f, inst, result);
             return true;
         }
+
+        /*
+         * Preparing a stack, which this backend does not have - and would gain nothing by having
+         * on its own.
+         *
+         * The four stores and the entry stub could be written here exactly as the thread's child
+         * sequence above them is: the parent path never enters the stub, so an asm block that
+         * carries it is opaque in the way that arm relies on. What cannot be written that way is its
+         * only consumer. `stack.switch` moves `rsp`, so the frame the block was spilling into is not
+         * the frame the instruction after it runs on, and Analysis-External-Iterators.md §4.1 is
+         * explicit that this backend owes that operation an out-of-line shim rather than an
+         * unmodelled `rsp` mutation inside inline assembly. An initializer with no switch to feed
+         * would be half a feature, so the pair arrives together or not at all.
+         */
+        case LowerIntrinsic::StackInit:
+            f.context.diagnostics.error(
+                "llvm: preparing a stack needs the -backend local code generator"_v, inst.source);
+            return false;
     }
 
     f.context.diagnostics.error("llvm: unknown intrinsic"_v, inst.source);

@@ -267,6 +267,41 @@ Constraints::Constraints() {
         syscall.clobber.add(gpr(IntRegister::r11));
         finish(syscall);
     }
+
+    /*
+     * The stack switch - `stack.switch`, and the convention that says what a switch costs.
+     *
+     * The clobber set is `Clobber`'s and for a stronger reason than that one has: the other context
+     * *runs here*, on its own stack, and every register it touched is one this one had a value in.
+     * So nothing survives except what the sequence itself carries across - rbp, which it pushes and
+     * pops on its own stack, because no convention may clobber the frame pointer and a value the
+     * allocator put there has nothing to move it out of the way (see `finish` above).
+     *
+     * That is the whole efficiency argument for building this rather than calling Tritium's helper.
+     * `Tritium_suspendFiber` saves seven callee-saved registers and restores seven, every switch,
+     * whether or not anything was in them; this says "nothing survives" to the allocator and lets it
+     * spill exactly what is live across the switch - which in a producer loop that yields one value
+     * per iteration is one or two words rather than seven.
+     *
+     * The tables are `Complex`'s, which is a decision rather than reuse: the three operands are
+     * `(target, save, transfer)` and the result is the *incoming* transfer word, so borrowing the
+     * internal convention's first three argument registers and its first result register means a
+     * switch written in the library lands its operands where the encoder already wants them, with no
+     * copy at all in the common case.
+     *
+     * `stackAlignment` stays at eight. A switch restores exactly the rsp it saved, so it demands no
+     * boundary of the frame it stands in; the child stack's sixteen is `stack.init`'s business and
+     * is derived from the top address the library hands it.
+     */
+    {
+        auto& switching = convention[(Size)LowerCallType::StackSwitch];
+        addGenRegs(switching.args[BankGpr], kComplexArgs);
+        addGenRegs(switching.results[BankGpr], kComplexResults);
+
+        switching.clobber = allocatableRegs();
+        switching.clobber.remove(framePointerReg());
+        finish(switching);
+    }
 }
 
 const Constraints& targetConstraints() {
@@ -324,9 +359,9 @@ void shapeOf(LowerBase base, const MachineFunction& machine, const Constraints& 
         shape.isCall = true;
 
         // A syscall has no callee to resolve: its used()[0] is the syscall number, which the
-        // convention places like any other argument. Every other call names its target first, and
-        // that operand is not an argument at all.
-        Size argStart = callType == LowerCallType::Syscall ? 0 : 1;
+        // convention places like any other argument, and a stack switch is the same shape. Every
+        // other call names its target first, and that operand is not an argument at all.
+        Size argStart = callTypeHasCallee(callType) ? 1 : 0;
         for(Size i = 0; i < argStart; i++) shape.uses.push(ArgLocation {});
 
         classifyArgs(*shape.convention, used.size() - argStart, [&](Size i) {

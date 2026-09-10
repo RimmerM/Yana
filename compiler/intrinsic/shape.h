@@ -225,6 +225,23 @@ constexpr PositionShape pointerAt() {
     return PositionShape { ShapeTerm::Pointer, 0, ShapeAccess::Shared, ShapeOrigin::CallBounded };
 }
 
+/*
+ * A pointer the operation **computed**, belonging to nobody.
+ *
+ * The one pointer shape with neither an access nor an origin on it, and `stackInit`'s saved stack
+ * pointer is why it exists: what the address names is a *stack*, which is storage the caller
+ * supplied as raw bytes and which this compiler tracks nothing about. There is no argument for its
+ * pointee to be derived from and no origin for the signature to publish, so `pointerAt`'s "read and
+ * not kept, bounded by the call" would be two claims about the result that are not merely unneeded
+ * but untrue - the whole point of the value is that it is kept and used after the call.
+ *
+ * Distinct from `rootedPointerAt` for exactly that reason. That one says the pointee is rooted
+ * somewhere a signature named; this one says there is nowhere.
+ */
+constexpr PositionShape addressAt() {
+    return PositionShape { ShapeTerm::Pointer, 0 };
+}
+
 // The same, whose *pointee* names an origin the signature published - `%source'a`. What every
 // operation that hands the storage on depends on: a borrow taken through an unqualified `%a` is
 // rooted in nothing and cannot be returned by anybody.

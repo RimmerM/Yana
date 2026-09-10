@@ -1,0 +1,74 @@
+{-
+   A fiber, switched to and from - `lib/Fiber`, over `Native.stackInit` and `Native.stackSwitch`.
+
+   The two machine operations `doc/inflight/Analysis-External-Iterators.md` §4.1 asks for, exercised
+   at the level a program reaches them: a context prepared on bytes the caller owns, five hand-overs
+   with a value crossing in each direction, and one that does not come back.
+
+   What makes this a fixture rather than a demonstration is `count`'s body. It is an ordinary `for`
+   loop with an ordinary local in it, and it survives five stack switches - which is the whole claim
+   of a stackful context, and is the thing an internal `iter fn` gets by not leaving its caller's
+   stack at all. The register allocator is what makes it true here: a switch keeps nothing, so `i`
+   is in the frame across it and back in a register either side.
+-}
+
+import Native
+import Fiber
+
+data Counter {
+    fiber: Fiber,
+    limit: Size,
+    seen: Size
+}
+
+-- The two accessors a context body needs, each a borrow of the record it was handed and nothing
+-- else. See the note on `borrowMut` in `lib/Fiber`: a loan rooted in a raw address overlaps every
+-- place, so a body that held one across its own loop counter would be refused.
+fn fiberOf(self: %source'Counter) -> %(source'Fiber):
+    let &me = borrowMut(self)
+    return addressOf(me.fiber)
+
+fn limitOf(self: %Counter) -> Size:
+    let &me = borrowMut(self)
+    return me.limit
+
+fn recordSeen(self: %Counter, value: Size):
+    let &me = borrowMut(self)
+    me.seen += value
+
+fn count(self: %Counter):
+    let limit = limitOf(self)
+    let fiber = fiberOf(self)
+
+    for i in 1..=limit:
+        -- The word the consumer sends back on the way in, added to the running total the consumer
+        -- can read afterwards: both directions of the transfer word in one line.
+        recordSeen(self, suspendOn(fiber, i))
+
+    finishOn(fiber, 0)
+
+fn main() -> Size:
+    let bytes = 65536 :: Size
+    let stack = mapMemory(bytes)
+
+    let &state = Counter {
+        fiber: Fiber {child: null(), parent: null(), status: FiberStatus.Ready},
+        limit: 5,
+        seen: 0
+    }
+
+    state.fiber = newFiber(stack, bytes, addressOf(state), count)
+
+    let &sum = 0 :: Size
+    let &steps = 0 :: Size
+
+    while !hasFinished(state.fiber):
+        steps += 1
+        sum += resume(state.fiber, steps)
+
+    unmapMemory(stack, bytes)
+
+    -- The three numbers as one, so that the fixture's answer is the assertion: the values the
+    -- producer handed over (1+2+3+4+5), the hand-overs the consumer made (five and the last one),
+    -- and the words that crossed the other way (2+3+4+5+6).
+    return sum * 10000 + steps * 100 + state.seen

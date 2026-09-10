@@ -1,0 +1,254 @@
+let image$base: () = <none>
+
+fn +=(Size)(%target: Size, %amount: Size) -> () {
+  b0:
+    %v2 = load %target : Size
+    %v3 = add %v2, %amount : Size
+    assign %target, %v3
+    ret
+}
+
+fn numberOf(%call: Syscall) -> USize {
+  b0:
+    %v1 = cast %call : I32
+    %v2 = cast %v1 : USize
+    ret %v2
+}
+
+fn mapMemory(%size: Size) -> %U8 {
+  b0:
+    %anonymous = bitcast -1 : USize
+    %v4 = call numberOf, SysMunmap : USize
+    %v6 = bitcast %size : USize
+    %result = syscall %v4, 0, %v6, 3, 34, %anonymous, 0 : Size
+    %v13 = cmp_lt %result, 0 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v16 = bitcast 0 : %U8
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = bitcast %result : %U8
+    ret %v19
+}
+
+fn unmapMemory(%from: %U8, %size: Size) -> Size {
+  b0:
+    %v3 = call numberOf, SysReadAt : USize
+    %v4 = bitcast %from : USize
+    %v5 = bitcast %size : USize
+    %v6 = syscall %v3, %v4, %v5 : Size
+    ret %v6
+}
+
+fn fiberOf(%self: %Counter) -> %Fiber {
+  b0:
+    %v1 = borrow_mut [%self] : &1'Counter
+    %v2 = load [%v1] : Counter
+    %v3 = load [%v1]@Counter.fiber : Fiber
+    %v4 = addressof [%v1]@Counter.fiber : %Fiber
+    ret %v4
+}
+
+fn limitOf(%self: %Counter) -> Size {
+  b0:
+    %v1 = borrow_mut [%self] : &1'Counter
+    %v2 = load [%v1] : Counter
+    %v3 = load [%v1]@Counter.limit : Size
+    ret %v3
+}
+
+fn recordSeen(%self: %Counter, %value: Size) -> () {
+  b0:
+    %v2 = borrow_mut [%self] : &1'Counter
+    %v3 = load [%v2] : Counter
+    %v4 = load [%v2]@Counter.seen : Size
+    %v5 = borrow_mut [%v2]@Counter.seen : &Size
+    call +=(Size), %v5, %value
+    ret
+}
+
+fn count(%self: %Counter) -> () {
+  b0:
+    %limit = call limitOf, %self : Size
+    %fiber = call fiberOf, %self : %Fiber
+    %v6 = alloc : Size
+    init %local0, 1
+    jmp b1
+
+  b1:
+    %i = load %local0 : Size
+    %v10 = cmp_le %i, %limit : Bool
+    je %v10, b2, b5
+
+  b2:
+    %v11 = call suspendOn, %fiber, %i : Size
+    call recordSeen, %self, %v11
+    jmp b3
+
+  b3:
+    %v13 = load %local0 : Size
+    %v14 = sub %limit, %v13 : Size
+    %v15 = cmp_lt %v14, 1 : Bool
+    je %v15, b5, b4
+
+  b4:
+    %v17 = add %v13, 1 : Size
+    assign %local0, %v17
+    jmp b1
+
+  b5:
+    call finishOn, %fiber, 0
+    ret
+}
+
+fn main() -> Size {
+  b0:
+    %stack = call mapMemory, %bytes : %U8
+    %v2 = alloc : Counter
+    %v3 = alloc : Fiber
+    %v5 = bitcast 0 : %U8
+    %v7 = bitcast 0 : %U8
+    aggregate %local1@Fiber.child = %v5, %local1@Fiber.parent = %v7, %local1@Fiber.status = Ready
+    aggregate %state@Counter.fiber = %v3, %state@Counter.limit = 5, %state@Counter.seen = 0
+    %v13 = load %state : Counter
+    %v14 = addressof %state : %Counter
+    %v15 = alloc : (self: %Counter) -> ()
+    %v16 = symbol funvalue$count : %()
+    init %local2.code, %v16
+    %v19 = cast 0 : %()
+    init %local2.env, %v19
+    %v21 = call newFiber(Counter), %stack, %bytes, %v14, %v15 : Fiber
+    assign %state@Counter.fiber, %v21
+    %sum = alloc : Size
+    init %sum, 0
+    %steps = alloc : Size
+    init %steps, 0
+    jmp b1
+
+  b1:
+    %v30 = load %state : Counter
+    %v31 = load %state@Counter.fiber : Fiber
+    %v32 = call hasFinished, %v31 : Bool
+    %v34 = xor %v32, True : Bool
+    je %v34, b3, b2
+
+  b2:
+    %v50 = call unmapMemory, %stack, %bytes : Size
+    %v51 = load %sum : Size
+    %v54 = mul %v51, 10000 : Size
+    %v55 = load %steps : Size
+    %v58 = mul %v55, 100 : Size
+    %v59 = add %v54, %v58 : Size
+    %v60 = load %state : Counter
+    %v61 = load %state@Counter.seen : Size
+    %v62 = add %v59, %v61 : Size
+    ret %v62
+
+  b3:
+    %v36 = load %steps : Size
+    %v39 = borrow_mut %steps : &Size
+    call +=(Size), %v39, 1
+    %v41 = load %sum : Size
+    %v42 = load %state : Counter
+    %v43 = load %state@Counter.fiber : Fiber
+    %v44 = load %steps : Size
+    %v45 = borrow_mut %state@Counter.fiber : &Fiber
+    %v46 = call resume, %v45, %v44 : Size
+    %v47 = borrow_mut %sum : &Size
+    call +=(Size), %v47, %v46
+    jmp b1
+}
+
+fn funvalue$count(%env: %(), %self: %Counter) -> () {
+  b0:
+    call count, %self
+    ret
+}
+
+fn resume(%self: Fiber, %value: Size) -> Size {
+  b0:
+    %v2 = load %self : Fiber
+    %v3 = load %self@Fiber.status : FiberStatus
+    %v5 = cmp_eq %v3, Finished : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    assign %self@Fiber.status, Suspended
+    %v12 = load %self : Fiber
+    %v13 = load %self@Fiber.child : %U8
+    %v14 = load %self : Fiber
+    %v15 = load %self@Fiber.parent : %U8
+    %v16 = addressof %self@Fiber.parent : %%U8
+    %v17 = native %v13, %v16, %value : Size
+    ret %v17
+}
+
+fn suspendOn(%self: %Fiber, %value: Size) -> Size {
+  b0:
+    %v2 = borrow_mut [%self] : &1'Fiber
+    %v3 = load [%v2] : Fiber
+    %v4 = load [%v2]@Fiber.parent : %U8
+    %v5 = load [%v2] : Fiber
+    %v6 = load [%v2]@Fiber.child : %U8
+    %v7 = addressof [%v2]@Fiber.child : %%U8
+    %v8 = native %v4, %v7, %value : Size
+    ret %v8
+}
+
+fn finishOn(%self: %Fiber, %value: Size) -> () {
+  b0:
+    %v2 = borrow_mut [%self] : &1'Fiber
+    assign [%v2]@Fiber.status, Finished
+    jmp b1
+
+  b1:
+    je True, b3, b2
+
+  b2:
+    ret
+
+  b3:
+    %v8 = load [%v2] : Fiber
+    %v9 = load [%v2]@Fiber.parent : %U8
+    %v10 = load [%v2] : Fiber
+    %v11 = load [%v2]@Fiber.child : %U8
+    %v12 = addressof [%v2]@Fiber.child : %%U8
+    %v13 = native %v9, %v12, %value : Size
+    jmp b1
+}
+
+fn hasFinished(%self: Fiber) -> Bool {
+  b0:
+    %v1 = load %self@Fiber.status : FiberStatus
+    %v3 = cmp_eq %v1, Finished : Bool
+    ret %v3
+}
+
+fn newFiber(Counter)(%stack: %U8, %stackBytes: Size, %context: %Counter, %entry: (self: %Counter) -> ()) -> Fiber {
+  b0:
+    %v4 = strideof U8 : Size
+    %v5 = mul %stackBytes, %v4 : Size
+    %v6 = add %stack, %v5 : %U8
+    %raw = bitcast %v6 : Size
+    %v9 = not 15 : Size
+    %v10 = and %raw, %v9 : Size
+    %top = bitcast %v10 : %U8
+    %v12 = alloc : Fiber
+    %v13 = load %entry.code : %()
+    %v14 = load %entry.env : %()
+    %v15 = native %top, %v13, %v14, %context : %U8
+    %v17 = bitcast 0 : %U8
+    aggregate %local1@Fiber.child = %v15, %local1@Fiber.parent = %v17, %local1@Fiber.status = Ready
+    ret %v12
+}

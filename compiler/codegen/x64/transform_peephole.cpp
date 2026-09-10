@@ -128,7 +128,7 @@ bool tryElideDirectCallee(LowerBase base, LowerInstFun* fun) {
     for(auto offset: fun->result.uses.contents(base)) {
         auto use = base[offset];
         if(use->kind != LowerInst::Call) return false;
-        if(((LowerInstCall*)use)->getCallType() == LowerCallType::Syscall) return false;
+        if(!callTypeHasCallee(((LowerInstCall*)use)->getCallType())) return false;
 
         // used()[0] is the callee; anywhere else it is an ordinary argument and needs a register.
         auto used = use->used();

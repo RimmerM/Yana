@@ -593,6 +593,7 @@ enum: MachineFormId {
     FormCallDirect,
     FormCallIndirect,
     FormSyscall,
+    FormStackSwitch,
     FormPushArgReg,
     FormPushArgF32,
     FormPushArgF64,

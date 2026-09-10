@@ -2908,6 +2908,105 @@ struct Emitter {
                 break;
             }
 
+            /*
+             * Preparing a stack for its first switch - see PseudoKind::StackInit.
+             *
+             *     lea  rax, [rip + stub]
+             *     mov  [rdi - 8],  rsi       the code word of the entry function
+             *     mov  [rdi - 16], rcx       its argument
+             *     mov  [rdi - 24], rdx       its environment
+             *     mov  [rdi - 32], rax       the resume address the first switch jumps to
+             *     mov  qword [rdi - 40], 0   and the frame pointer beside it
+             *     lea  rax, [rdi - 40]       which together are the saved stack pointer
+             *     jmp  end
+             *   stub:                        entered by an ordinary switch, rsp at rdi - 24
+             *     pop  rdi                   the environment
+             *     pop  rsi                   the argument
+             *     pop  r11                   the code
+             *     call r11
+             *     ud2                        a fiber body ends by switching away, not by returning
+             *   end:
+             *
+             * The two words at `rdi - 32` and `rdi - 40` are exactly what the switch sequence pushes
+             * when it leaves a stack, in the same order, which is what makes a stack's *first*
+             * resume indistinguishable from every later one. The zero is the frame pointer: a stack
+             * walk that reaches the bottom of a fiber stack stops there instead of following a word
+             * belonging to another context.
+             *
+             * Three pops leave rsp on the sixteen-byte boundary `rdi` was aligned to and the `call`
+             * then pushes eight, which is System V's state at a function's first instruction. As
+             * with `CloneThread`, the branch needs no label and no relaxation - the stub is nine
+             * bytes of straight line that never falls out of the bottom.
+             */
+            case PseudoKind::StackInit: {
+                auto& out = to.buffer;
+
+                out.writeByte(0x48); out.writeByte(0x8d); out.writeByte(0x05);
+                out.writeByte(30); out.writeByte(0); out.writeByte(0); out.writeByte(0);
+
+                out.writeByte(0x48); out.writeByte(0x89); out.writeByte(0x77); out.writeByte(0xf8);
+                out.writeByte(0x48); out.writeByte(0x89); out.writeByte(0x4f); out.writeByte(0xf0);
+                out.writeByte(0x48); out.writeByte(0x89); out.writeByte(0x57); out.writeByte(0xe8);
+                out.writeByte(0x48); out.writeByte(0x89); out.writeByte(0x47); out.writeByte(0xe0);
+
+                out.writeByte(0x48); out.writeByte(0xc7); out.writeByte(0x47); out.writeByte(0xd8);
+                out.writeByte(0); out.writeByte(0); out.writeByte(0); out.writeByte(0);
+
+                out.writeByte(0x48); out.writeByte(0x8d); out.writeByte(0x47); out.writeByte(0xd8);
+                out.writeByte(0xeb); out.writeByte(9);
+
+                out.writeByte(0x5f);
+                out.writeByte(0x5e);
+                out.writeByte(0x41); out.writeByte(0x5b);
+                out.writeByte(0x41); out.writeByte(0xff); out.writeByte(0xd3);
+                out.writeByte(0x0f); out.writeByte(0x0b);
+                break;
+            }
+
+            /*
+             * The stack switch - see PseudoKind::StackSwitch.
+             *
+             *     lea  rax, [rip + resume]   where this context carries on when something switches back
+             *     push rax
+             *     push rbp                   the one register the sequence carries across itself
+             *     mov  [rsi], rsp            the saved stack pointer, where the operand says
+             *     mov  rsp, rdi              the target's
+             *     mov  rax, rdx              the transfer word, in the register the far end reads it in
+             *     pop  rbp                   the target's frame pointer, pushed when it left
+             *     pop  r11                   and the address it left from
+             *     jmp  r11
+             *   resume:
+             *
+             * The two pops are the mirror of the two pushes above them, which is what makes one
+             * saved stack pointer readable by every switch in the program: a saved rsp always points
+             * at a saved rbp with a resume address above it, whether it was written by this sequence
+             * or laid out by `stack.init`.
+             *
+             * **The order of the last four instructions is load-bearing.** rdx is read after rsp has
+             * already moved, which is safe because nothing between them touches it, and rax is
+             * written before the pops so that the far end sees the transfer word in the register its
+             * own form declared its result in. Reversing either would hand the resumed context the
+             * value the *target* stack happened to have.
+             *
+             * No label and no relaxation: every displacement here is a fixed distance inside one
+             * sequence, so `resume` is 17 bytes past the end of the `lea` that names it.
+             */
+            case PseudoKind::StackSwitch: {
+                auto& out = to.buffer;
+
+                out.writeByte(0x48); out.writeByte(0x8d); out.writeByte(0x05);
+                out.writeByte(17); out.writeByte(0); out.writeByte(0); out.writeByte(0);
+                out.writeByte(0x50);
+                out.writeByte(0x55);
+                out.writeByte(0x48); out.writeByte(0x89); out.writeByte(0x26);
+                out.writeByte(0x48); out.writeByte(0x89); out.writeByte(0xfc);
+                out.writeByte(0x48); out.writeByte(0x89); out.writeByte(0xd0);
+                out.writeByte(0x5d);
+                out.writeByte(0x41); out.writeByte(0x5b);
+                out.writeByte(0x41); out.writeByte(0xff); out.writeByte(0xe3);
+                break;
+            }
+
             case PseudoKind::Return:
                 // After the terminator's own moves, which have already placed the return values in
                 // the registers the convention returns them in. Those and the saved registers are

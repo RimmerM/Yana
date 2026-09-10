@@ -1,0 +1,164 @@
+module ResolveTest
+
+data Counter {fiber: Fiber, limit: Size, seen: Size}
+
+fn fiberOf(self: %Counter [shared call shape6 .*=shared slot 0]) -> %Fiber [owned here shape6 .*=shared slot 0] {
+  local & me: Counter [unique slot 0 owner]
+
+bb0:
+  %0: %Counter [owned here shape6 .*=shared slot 0] = read copy.trivial (self)
+  %1: Counter [unique slot 0 owner] = read borrow.unique ([%%0]) loan0
+  write.init borrow.unique (me) borrow.unique %1
+  %3: Fiber [shared slot 0 owner] = read borrow.shared (me.fiber) loan1 roots{0}
+  %4: %Fiber [owned here shape6 .*=shared slot 0] = address inspect %3 roots.0{0, 1}
+  return take %4
+}
+
+fn limitOf(self: %Counter [shared call]) -> Size {
+  local & me: Counter [unique slot 0 owner]
+
+bb0:
+  %0: %Counter = read copy.trivial (self)
+  %1: Counter [unique slot 0 owner] = read borrow.unique ([%%0]) loan0
+  write.init borrow.unique (me) borrow.unique %1
+  %3: Size = read copy.trivial (me.limit)
+  return take %3
+}
+
+fn recordSeen(self: %Counter [shared call], value: Size [shared call]) -> {} {
+  local & me: Counter [unique slot 0 owner]
+
+bb0:
+  %0: %Counter = read copy.trivial (self)
+  %1: Counter [unique slot 0 owner] = read borrow.unique ([%%0]) loan0
+  write.init borrow.unique (me) borrow.unique %1
+  %3: Size [unique slot 0 owner] = read borrow.unique (me.seen) loan1 roots{0}
+  %4: Size = read copy.trivial (value)
+  %5: {} = call +=(Size) borrow.unique %3 borrow.shared %4
+  return
+}
+
+fn count'2(self: %Counter [shared call]) -> {} {
+  local limit: Size
+  local fiber: %Fiber [owned here shape6 .*=shared slot 0]
+  local & local3: Size
+  local i: Size
+
+bb0:
+  %0: %Counter = read copy.trivial (self)
+  %1: Size = call limitOf borrow.shared %0
+  write.init borrow.unique (limit) take %1
+  %3: %Counter = read copy.trivial (self)
+  %4: %Fiber [owned here shape6 .*=shared slot 0] = call fiberOf borrow.shared %3
+  write.init borrow.unique (fiber) take %4
+  %6: Size = read copy.trivial (limit)
+  %7: Size = const 1
+  %8: Size = const 1
+  write.init borrow.unique (local3) take %7
+  jump -> bb1(take %6, take %8)
+
+bb1(%9: Size, %10: Size):
+  %17: Size = read copy.trivial (local3)
+  %18: Bool = le inspect %17 inspect %9
+  branch inspect %18 -> bb4(take %9, take %10) -> bb3(take %9, take %10)
+
+bb2(%11: Size, %12: Size):
+  %30: Size = read copy.trivial (local3)
+  %31: Size = sub inspect %11 inspect %30
+  %32: Bool = ge inspect %31 inspect %12
+  branch inspect %32 -> bb5(take %11, take %12) -> bb3(take %11, take %12)
+
+bb3(%13: Size, %14: Size):
+  %40: %Fiber [owned here shape6 .*=shared slot 0] = read copy.trivial (fiber)
+  %41: Size = const 0
+  %42: {} = call finishOn borrow.shared %40 borrow.shared %41
+  return
+
+bb4(%19: Size, %20: Size):
+  %22: Size = read copy.trivial (local3)
+  write.init borrow.unique (i) take %22
+  %24: %Counter = read copy.trivial (self)
+  %25: %Fiber [owned here shape6 .*=shared slot 0] = read copy.trivial (fiber)
+  %26: Size = read copy.trivial (i)
+  %27: Size = call suspendOn borrow.shared %25 borrow.shared %26
+  %28: {} = call recordSeen borrow.shared %24 borrow.shared %27
+  jump -> bb2(take %19, take %20)
+
+bb5(%33: Size, %34: Size):
+  %36: Size = read copy.trivial (local3)
+  %37: Size = add inspect %36 inspect %34
+  write.assign borrow.unique (local3) take %37
+  jump -> bb1(take %33, take %34)
+}
+
+fn main() -> Size {
+  local bytes: Size
+  local stack: %U8
+  local & state: Counter
+  local local3: (%Counter) -> {} [owned here shape8 .0=unique call]
+  local & sum: Size
+  local & steps: Size
+
+bb0:
+  %0: Size = const 65536
+  write.init borrow.unique (bytes) take %0
+  %2: Size = const 65536
+  %3: %U8 = call mapMemory borrow.shared %2
+  write.init borrow.unique (stack) take %3
+  %5: %U8 = call null(U8)
+  %6: %U8 = call null(U8)
+  %7: FiberStatus = const Ready
+  %8: Fiber = aggregate.Fiber take %5 take %6 take %7
+  %9: Size = const 5
+  %10: Size = const 0
+  %11: Counter = aggregate.Counter take %8 take %9 take %10
+  write.init borrow.unique (state) take %11
+  %13: %U8 = read copy.trivial (stack)
+  %14: Size = const 65536
+  %15: Counter [shared slot 0] = read borrow.shared (state) loan0
+  %16: %Counter [owned here shape6 .*=shared slot 0] = address inspect %15 roots.0{0}
+  %17: (%Counter) -> {} [owned here shape8 .0=unique call] = fun.value count'2
+  write.init borrow.unique (local3) take %17
+  %19: (%Counter) -> {} [shared call shape8 .0=unique call] = read borrow.shared (local3) loan1
+  %20: Fiber = call newFiber(Counter) borrow.shared %13 borrow.shared %14 borrow.shared %16 borrow.shared %19
+  write.assign borrow.unique (state.fiber) take %20
+  %22: Size = const 0
+  write.init borrow.unique (sum) take %22
+  %24: Size = const 0
+  write.init borrow.unique (steps) take %24
+  jump -> bb1
+
+bb1:
+  %27: Fiber = read copy.trivial (state.fiber)
+  %28: Bool = call hasFinished borrow.shared %27
+  %29: Bool = not inspect %28
+  branch inspect %29 -> bb3 -> bb2
+
+bb2:
+  %40: %U8 = read copy.trivial (stack)
+  %41: Size = const 65536
+  %42: Size = call unmapMemory borrow.shared %40 borrow.shared %41
+  %43: Size = read copy.trivial (sum)
+  %44: Size = const 10000
+  %45: Size = mul inspect %43 inspect %44
+  %46: Size = read copy.trivial (steps)
+  %47: Size = const 100
+  %48: Size = mul inspect %46 inspect %47
+  %49: Size = add inspect %45 inspect %48
+  %50: Size = read copy.trivial (state.seen)
+  %51: Size = add inspect %49 inspect %50
+  return take %51
+
+bb3:
+  %31: Size [unique call] = read borrow.unique (steps) loan2
+  %32: Size = const 1
+  %33: {} = call +=(Size) borrow.unique %31 borrow.shared %32
+  %34: Size [unique call] = read borrow.unique (sum) loan3
+  %35: Fiber [unique call] = read borrow.unique (state.fiber) loan4
+  %36: Size = read copy.trivial (steps)
+  %37: Size = call resume borrow.unique %35 borrow.shared %36
+  %38: {} = call +=(Size) borrow.unique %34 borrow.shared %37
+  jump -> bb1
+}
+
+entry main

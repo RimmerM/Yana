@@ -451,6 +451,57 @@ void addIntrinsics(MachineTarget& target) {
     }
 
     /*
+     * Preparing a stack for its first switch - `stack.init`, and the other half of the pair
+     * `LowerCallType::StackSwitch` is one of.
+     *
+     * Four words below the top of a fresh stack, laid out so that the *ordinary* switch sequence
+     * enters it. That is the whole design: a saved stack pointer always names a saved frame pointer
+     * with a resume address above it, so there is nothing about a stack's first resume that the
+     * switch has to know. What this writes is that same pair, with the resume address pointing at an
+     * entry stub and the frame pointer zeroed - a stack walk that reaches the bottom of a fiber
+     * stack stops there rather than following a word from another context.
+     *
+     * The stub is inline and branched over, for `CloneThread`'s reason one line down: it runs on a
+     * stack no frame of this function describes, out of registers it pops for itself, so there is
+     * nothing for a block the layout knows about to be right about. Three pops leave rsp on the
+     * sixteen-byte boundary the top address was aligned to and the `call` then pushes eight, which
+     * is System V's own state at a function's first instruction.
+     *
+     * The two register arguments the entry is called with are the **internal** convention's first
+     * two, which is what a function value's code word takes: the environment and then the declared
+     * argument. `CloneThread` above hands its child the same pair for the same reason, and a
+     * top-level function reaches both through the thunk that gives it an environment.
+     *
+     * `ud2` after the call is the contract, stated where it can be enforced: a fiber body ends by
+     * switching away for the last time, so control returning out of that call means the stack it was
+     * running on is about to be reused with a live frame still in it. Trapping there names the
+     * mistake; fabricating a return address would hide it.
+     */
+    {
+        auto b = add(LowerIntrinsic::StackInit, "stack init"_v, kFeatureBaseline);
+        b.form.uses.push(fixedReg(IntRegister::rdi));   // one past the highest byte of the new stack
+        b.form.uses.push(fixedReg(IntRegister::rsi));   // the code word of the entry function
+        b.form.uses.push(fixedReg(IntRegister::rdx));   // its environment word
+        b.form.uses.push(fixedReg(IntRegister::rcx));   // the argument it is given
+        b.form.defs.push(fixedDef(IntRegister::rax));
+
+        // r11 is the stub's scratch for the code pointer it calls. Nothing the parent path writes
+        // is unnamed - the four operands and the result are the whole of it - but the register is
+        // written by bytes this instruction emits, and a clobber is where that is said.
+        b.form.clobbers.add(gpr(IntRegister::r11));
+        b.form.flagsEffect = FlagsEffect::Clobber;
+
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::StackInit,
+        };
+
+        // Words, on `CloneThread`'s terms: an address here is a value the sequence writes down
+        // rather than one an encoding reads through.
+        for(Size i = 0; i < 4; i++) b.desc.operands.push(integer64Rule());
+        b.desc.results.push(integer64Rule());
+    }
+
+    /*
      * Cache and translation control.
      *
      * Each of these takes the address it operates on and nothing else, which makes them the first

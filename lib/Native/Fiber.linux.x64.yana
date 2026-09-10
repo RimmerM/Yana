@@ -1,0 +1,95 @@
+{-
+   Stack contexts, at the level where a stack is a machine object.
+
+   Two operations, and between them the whole of what a fiber and a materialized iterator are made
+   of: a stack prepared so that control can be given to it, and control given to it. Everything else
+   those constructs need - who owns the bytes, what a yield carries, when the context is finished,
+   what happens on cancellation - is written in the language above this, which is what
+   `doc/inflight/Design-Memory-Revised.md` §17 means by three contracts over one substrate.
+
+   Beside `Clone.linux.x64.yana` in spirit and in a file of its own for the same reason: like
+   `cloneThread`, neither of these returns the way a call returns. `stackSwitch` returns on a stack
+   that is not the one it left, at a point some *other* context chose, and the code between the two
+   is not this function's own. That is not something a system call and a branch can be written as,
+   and it is why every fiber library in every language has an assembly file in it.
+
+   What this one does *not* have is that file's cost. `Tritium_suspendFiber` saves seven
+   callee-saved registers and restores seven on every switch, because a C++ helper cannot know what
+   its caller was holding. The compiler does know: `stackSwitch` is a call under a convention that
+   keeps nothing (`LowerCallType::StackSwitch`), so the register allocator spills exactly the values
+   that are live across the switch and nothing else - one or two words in a producer loop, against
+   fourteen memory accesses per switch either way in the ported version.
+
+   **Linux and x86-64 only, and native only.** The sequences are twenty-four and forty-six bytes of
+   one architecture's instructions; the JavaScript answer to the same problem is a generator, and
+   Analysis-External-Iterators.md §5 is where that lives.
+-}
+
+{-
+   `stackInit(stackTop, argument, entry)` - a stack that has not run yet, ready for its first switch.
+
+   What the caller owes it:
+
+    - **`stackTop` is one past the highest byte of the new stack, and is sixteen-byte aligned.** The
+      context grows downwards from there, and System V's alignment at a function's first instruction
+      is derived from that address; an odd one gives a context whose every spill is misaligned. The
+      five words directly below it hold the hand-over and are not the context's to keep.
+
+    - **The storage lives at least as long as the context does**, and no longer than the frame that
+      may still switch to it. Nothing here owns it, nothing frees it, and this returns before any of
+      it has been used.
+
+    - **The stack is large enough for everything `entry` can reach.** There is no guard page under a
+      buffer, and nothing here checks. Analysis-External-Iterators.md §4.4 and §4.5 are the plan for
+      having the compiler answer this: the resolver already publishes whether a call graph is
+      bounded (`Summary::stack`), and the byte count is the backend's half and is not built.
+
+    - **`entry` is an ordinary function of the language**, taking one pointer and returning nothing,
+      and a closure is admitted as readily as a top-level one - both of its words cross to the new
+      stack. It is called with `argument` when the first switch arrives.
+
+      The pointee is generic and `argument` is written *before* `entry` for that reason: what a
+      context is handed is its own record, and inference is local, so the position that decides what
+      `%a` is has to come before the one that mentions it. Written the other way round the entry is
+      a function value at a position with no arity yet, which the resolver reports.
+
+    - **`entry` must not return.** A context ends by switching away for the last time, because there
+      is no frame under it to return into: the word a `ret` would read is not one this prepared. A
+      body that falls off its end traps at a `ud2` rather than continuing into whatever the stack
+      held.
+
+   The result is the saved stack pointer to hand `stackSwitch` as its target. It has the same shape
+   every later saved stack pointer has - a saved frame pointer with a resume address above it - which
+   is what makes a context's first resume indistinguishable from all its others.
+-}
+@builtin(stackInit)
+pub fn (a) stackInit(stackTop: %U8, argument: %a, entry: (%a) -> {}) -> %U8
+
+{-
+   `stackSwitch(target, save, transfer)` - control, given away and later given back.
+
+   Writes the current stack pointer through `save`, resumes `target`, and answers the transfer word
+   supplied by whichever context switches back here. The value written through `save` is what that
+   context is to switch to in order to return control, so the usual shape is a pair of words in one
+   handle: the parent switches with `(handle.child, addressOf(handle.parent), v)` and the child
+   switches back with `(handle.parent, addressOf(handle.child), w)`.
+
+   The transfer word is one machine word and its meaning is the caller's. A protocol needing more
+   than a word passes the address of a mailbox both sides can reach - which for a materialized
+   iterator is the handle itself, since the child already holds it.
+
+   What the caller owes it:
+
+    - **`target` is a saved stack pointer that is not currently running**, from `stackInit` or from
+      a `stackSwitch` that has not yet been resumed. Switching to a context that is already on some
+      stack gives two stacks with one frame chain.
+
+    - **`save` names storage that outlives the switch**, since it is read by whoever switches back.
+
+    - **Nothing in scope depends on registers.** This is a promise the compiler keeps rather than the
+      caller: the convention says nothing survives, so anything live across the switch is in the
+      frame. It is written down because it is the reason a switch may not be sunk, hoisted or
+      duplicated, and `costsARegister` in the lower-IR CSE is where that is said.
+-}
+@builtin(stackSwitch)
+pub fn stackSwitch(target: %U8, save: %(%U8), transfer: Size) -> Size

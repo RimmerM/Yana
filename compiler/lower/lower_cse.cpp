@@ -322,6 +322,10 @@ bool answerableAcrossBlocks(LowerInst* inst) {
  * keeping its argument registers is the whole of that item - so a value live across one competes for
  * far less, and declining there would cost the bounds-checked loops this pass exists for: an abort
  * arm is a syscall, and it sits between every check and the one after it.
+ *
+ * A **stack switch** is at the other end of that scale and needs no arm of its own: it is not a
+ * syscall, so it answers yes, which is the right answer for the one call in the IR that keeps no
+ * register at all.
  */
 bool costsARegister(LowerInst* inst) {
     if(inst->kind != LowerInst::Call) return false;

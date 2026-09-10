@@ -1,0 +1,94 @@
+{-
+   A materialized iterator - `lib/Fiber`'s `Cursor(a)`, and what
+   `doc/inflight/Analysis-External-Iterators.md` §1.2 promises a consumer-driven producer does.
+
+   Three claims, and the third is the one an internal `iter fn` cannot make:
+
+    - a producer's ordinary locals survive a hand-over. `squares` counts in a `for` loop across five
+      stack switches;
+    - a yielded value may be **owned**. `words` hands over a `String` it built, and the consumer is
+      what drops it;
+    - **two producers can be stepped alternately.** `evens` and `odds` are both suspended at once and
+      the consumer chooses which advances next, which is §1.4's whole distinction: an internal
+      traversal can nest but the inner one has to finish before the outer continues.
+
+   Written without `is` in a conjunction so that both resolve stages compile it - see AGENTS.md on
+   the one place the rewritten stage is ahead. What is asserted is the one number `main` answers, so
+   the two stages are held to the same result.
+-}
+
+import Native
+import Fiber
+
+fn squares(self: %Cursor(Size)):
+    for i in 1..=5:
+        emit(self, i * i)
+
+    finishCursor(self)
+
+fn evens(self: %Cursor(Size)):
+    for i in 0..4:
+        emit(self, i * 2)
+
+    finishCursor(self)
+
+fn odds(self: %Cursor(Size)):
+    for i in 0..4:
+        emit(self, i * 2 + 1)
+
+    finishCursor(self)
+
+fn words(self: %Cursor(String)):
+    for i in 1..=3:
+        emit(self, "w{i}")
+
+    finishCursor(self)
+
+fn main() -> Size:
+    let bytes = 65536 :: Size
+
+    -- One producer, run out.
+    let &cursor = newCursor() :: Cursor(Size)
+    open(cursor, bytes, squares)
+
+    let &sum = 0 :: Size
+    while next(cursor) is Just(v):
+        sum += v
+
+    close(cursor)
+
+    -- Two, alternately.
+    let &left = newCursor() :: Cursor(Size)
+    let &right = newCursor() :: Cursor(Size)
+
+    open(left, bytes, evens)
+    open(right, bytes, odds)
+
+    let &pairs = 0 :: Size
+    while True:
+        let a = next(left)
+        if a is Nothing then break
+
+        let b = next(right)
+        if b is Nothing then break
+
+        if a is Just(x):
+            if b is Just(y):
+                pairs += x * 10 + y
+
+    close(left)
+    close(right)
+
+    -- And an owned hand-over.
+    let &text = newCursor() :: Cursor(String)
+    open(text, bytes, words)
+
+    let &joined = "" :: String
+    while next(text) is Just(w):
+        joined = joined ++ copy(w) ++ "."
+
+    close(text)
+
+    -- One number for the three claims: the squares, the interleaved pairs, and the length of the
+    -- string the owned hand-overs built.
+    return sum * 100000 + pairs * 100 + length(joined)

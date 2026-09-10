@@ -233,6 +233,43 @@ YANA_INTRINSIC_OP( cloneThread, OpForm::Node, integerAt(), integerAt(), pointerA
                                               pointerAt(), pointerAt() )
 
 /*
+ * The two halves of a stack context - `lib/Native/Fiber.linux.x64.yana`, and
+ * Analysis-External-Iterators.md §4.1's `stack.init` and `stack.switch`.
+ *
+ * These are what a fiber and a materialized iterator are both made of, which is the reason they are
+ * one pair rather than one primitive per construct: §17 of Design-Memory-Revised.md gives the three
+ * continuation contracts different lifetimes, different transfer and different ownership, and
+ * exactly one thing in common - a stack that is not the one the caller is on. Ownership,
+ * scheduling and the overflow policy live above these; what is here is the switch itself.
+ *
+ * `stackInit(stackTop, argument, entry) -> savedSp` prepares a stack so that the first switch to
+ * `savedSp` enters `entry` with `argument`, and `stackSwitch(target, save, transfer) -> transfer`
+ * writes the current stack pointer where `save` says, resumes `target`, and answers the transfer
+ * word whichever context switches back supplies.
+ *
+ * `functionAt()` on the entry is `cloneThread`'s term above and is here for its reason: a Yana
+ * function value is a code pointer and an environment, both of which the prepared stack carries, so
+ * a fiber may run a closure. A declaration writing a raw address there would have the lowering read
+ * a pointer's own bytes as a pair.
+ *
+ * **The argument comes before the entry**, which is the one place the operand order here is not the
+ * reading order. The declaration is generic in the pointee - `argument: %a, entry: (%a) -> {}` -
+ * because what a fiber is handed is its own context record and a `%U8` would put a `bitcast` in
+ * every caller and, worse, leave `a` with nothing to be inferred from where the entry is named as a
+ * value. Inference is local and does not backtrack, so the position that *determines* `a` has to
+ * come first: written the other way round, `stackInit(top, run, context)` reports `run` as a
+ * function whose arity no position states.
+ *
+ * **Neither is `handoverOf` anything, and that is the honest statement rather than a gap.** Nothing
+ * here owns the stack bytes, the argument or what the argument points at; a switch is a raw
+ * transfer of control between two stacks and the promises around it are the library's - which is
+ * the same line `Native.Thread` is written on, one level above `cloneThread`.
+ */
+//                 role         form          result       parameters
+YANA_INTRINSIC_OP( stackInit,   OpForm::Node, addressAt(), pointerAt(), pointerAt(), functionAt() )
+YANA_INTRINSIC_OP( stackSwitch, OpForm::Node, integerAt(), pointerAt(), pointerAt(), integerAt() )
+
+/*
  * `newRun(n)` - Implementation-Containers.md §2, and the only compiler magic in a run.
  *
  * What it expands to is an allocation with a count, and the language has no spelling for one. Every

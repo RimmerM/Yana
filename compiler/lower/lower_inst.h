@@ -1879,7 +1879,24 @@ enum class LowerIntrinsic: U16 {
      */
     CloneThread,
 
-    LastIntrinsic = CloneThread,
+    /*
+     * Preparing a stack for its first switch - Analysis-External-Iterators.md §4.1's `stack.init`,
+     * and the second intrinsic here that is a sequence rather than an instruction.
+     *
+     * `(stackTop, code, environment, argument) -> savedSp`. It writes four words below the top of a
+     * fresh stack and answers the address below them, so that the first `stack.switch` to that
+     * address lands in an entry stub which pops the environment, the argument and the code and calls
+     * the entry with them. The stub is part of the sequence and is branched over, exactly as
+     * `CloneThread`'s child half is and for the same reason: it runs on a stack no frame of the
+     * enclosing function describes.
+     *
+     * **The entry must not return.** A fiber body ends by switching away for the last time; the
+     * stub has nowhere to go if control comes back out of the call, so what stands after it is a
+     * `ud2` rather than a fabricated return address. See PseudoKind::StackInit.
+     */
+    StackInit,
+
+    LastIntrinsic = StackInit,
 };
 
 static constexpr Size kLowerIntrinsicCount = Size(LowerIntrinsic::LastIntrinsic) + 1;

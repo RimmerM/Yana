@@ -108,6 +108,13 @@ llvm::CallingConv::ID conventionOf(LowerCallType type) {
         case LowerCallType::Syscall:
             // Never reaches a call instruction - genSyscall emits inline assembly instead.
             return llvm::CallingConv::C;
+        case LowerCallType::StackSwitch:
+            // Never reaches a call instruction either, and for a stronger reason than a syscall's:
+            // there is no callee, and the sequence moves rsp. Analysis-External-Iterators.md §4.1
+            // says what this backend owes it - an out-of-line shim called with full memory side
+            // effects, rather than an unmodelled `rsp` mutation inside an asm block - and until
+            // that exists `genCall` reports the instruction rather than emitting one.
+            return llvm::CallingConv::C;
     }
 
     assertTrue("unknown calling convention" == nullptr);
