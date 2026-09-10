@@ -1180,10 +1180,21 @@ static void genLoadConstant(AsmModule& to, MachineLocation dest, RegisterClassId
  * Under VEX the 128-bit encoding is written even for a 256-bit value, which is not a shortcut: a VEX
  * instruction writing an xmm destination zeroes the upper half of the register, so `vpxor xmm, xmm,
  * xmm` clears the whole ymm and is one byte shorter than the wide spelling.
+ *
+ * **And a 256-bit destination is VEX whatever `vectorClassNeedsVex` answers**, which is the one line
+ * here that is not the paragraph above. That function's own note states the contract - "those are
+ * all ClassXmm128 at the narrow width and ClassYmm256 at the wide one, and the wide one is VEX
+ * whatever this answers" - and this is the single place a `ClassYmm256` is put to it, because a
+ * recipe carries the value's real class rather than a form's. Its first line answers `false` for
+ * that class, so what came out was a **legacy** `pxor`, and a legacy SSE instruction *preserves* the
+ * upper half of the register it writes: the accumulator's lanes 0-3 were cleared and lanes 4-7 kept
+ * whatever the last vector in that register had left there. `test/bench/programs/VecInt.yana` is
+ * where it showed - see findings.md §108, and `test/resolve/VecZeroRemat.yana`, which is the
+ * fixture.
  */
 static void genVectorZero(AsmModule& to, MachineLocation dest, RegisterClassId regClass) {
     auto at = reg(dest, regClass);
-    auto vex = vectorClassNeedsVex(regClass);
+    auto vex = regClass == ClassYmm256 || vectorClassNeedsVex(regClass);
 
     auto prefix = InstPrefix {
         .kind = vex ? PrefixEncoding::Vex : PrefixEncoding::Legacy,

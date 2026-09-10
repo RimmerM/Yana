@@ -1,0 +1,71 @@
+{-
+   # extensions: v3
+
+   **A zero vector accumulator recreated where it is read, and the upper lanes it left behind.**
+
+   `zero() :: Vec(Int)` is the one vector constant the backend builds out of nothing rather than
+   pooling, so a live range that would cross a call is rematerialized instead of spilled - a 32-byte
+   frame slot raises the frame's alignment past what the convention promises, which is a realigning
+   prologue for a value that is three bytes to recreate. `place.cpp`'s `recipeFor` is where that is
+   decided and `genVectorZero` is what writes it.
+
+   It wrote **`pxor xmm, xmm`** for a 256-bit destination. A legacy SSE instruction *preserves* the
+   upper half of the register it writes, so the accumulator started with lanes 0-3 cleared and lanes
+   4-7 holding whatever the last vector in that register had left there - and the answer was wrong by
+   however much that was. `vectorClassNeedsVex` answers `false` for `ClassYmm256` by construction and
+   says so; the recipe was the one caller that put a wide class to it. findings.md §108.
+
+   **The two attributes are the fixture**, and without them it asserts nothing. Three things have to
+   hold at once: the accumulator's live range crosses a call, so that the allocator takes the recipe
+   rather than a spill; a second vector loop runs first, so that the register it lands in is dirty;
+   and the accumulator's loop is *in the same body* as the call. `@inline(always)` on `mix` and
+   `@noinline` on `folds` state exactly that, and a version relying on the inliner's ordinary
+   judgement was written first and answered the same number either way - the recipe was never taken.
+
+   `# extensions: v3` is the other half: below it there is no 256-bit register for a 128-bit `pxor`
+   to half-clear, so at the corpus's default v2 this fixture cannot fail.
+
+   The count alone does not say which lane was wrong. Dump the assembly and look at how the
+   accumulator is zeroed: `vpxor` clears the register and `pxor` clears half of it. Verified by
+   putting the old line back: 7360 against 32254.
+-}
+
+-- The call the accumulator is live across, and the vector work that dirties the register in front of
+-- it. Both bulk operations, so neither says `Vec` and both get one.
+@noinline
+fn folds(xs: [Int], salt: Int) -> Int:
+    let total = sum(xs)
+    let high = maximum(xs, 0)
+    let hits = occurrences(xs, salt `and` 255)
+    return total + high * 3 + hits * 7
+
+fn build(count: Int) -> [Int]:
+    let &xs = [] :: [Int]
+    let &i = 0 :: Int
+
+    while i < count:
+        push(xs, (i * 2654435761 + 7) `shr` 8 `and` 1023)
+        i = i + 1
+
+    return xs
+
+fn main() -> Int:
+    let xs = build(27)
+
+    let &total = 0 :: Int
+    let &round = 0 :: Int
+
+    while round < 3:
+        let &acc = zero() :: Vec(Int)
+        let k = splat((round + 1) * 2654435761)
+
+        for v in vectors(xs):
+            let t = (v * k) `xor` (v `shr` 7)
+            acc = acc + (t `xor` (t `shl` 3))
+
+        -- `acc` is read *after* the call, so its live range crosses one - which is the whole of what
+        -- makes the allocator take the recipe rather than a frame slot.
+        total = total + folds(xs, round) + horizontalSum(acc)
+        round = round + 1
+
+    return total `and` 65535
