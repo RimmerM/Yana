@@ -334,7 +334,7 @@ fn numberOf(%call: Syscall) -> USize {
 fn mapMemory(%size: Size) -> %U8 {
   b0:
     %anonymous = bitcast -1 : USize
-    %v4 = call numberOf, SysMunmap : USize
+    %v4 = call numberOf, SysMprotect : USize
     %v6 = bitcast %size : USize
     %result = syscall %v4, 0, %v6, 3, 34, %anonymous, 0 : Size
     %v13 = cmp_lt %result, 0 : Bool

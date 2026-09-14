@@ -1,8 +1,8 @@
 module ResolveTest
 
-let string'142: [CodeUnit *2] = "bc"
+let string'143: [CodeUnit *2] = "bc"
 
-let string'143: [CodeUnit *5] = "hello"
+let string'144: [CodeUnit *5] = "hello"
 
 fn total(xs: Array(I32) [shared call view]) -> I32 {
   local & sum: I32
@@ -111,13 +111,13 @@ bb0:
   %42: I32 = const 65
   %43: {} = call String.pushUnit borrow.unique %41 borrow.shared %42
   %44: String [unique call] = read borrow.unique (s) loan9
-  %45: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %45: String = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
   write.init borrow.unique (local5) take %45
   %47: String [shared slot 0] = read borrow.shared (local5) loan10
   %48: String [shared slot 0 view] = call.derivation view(String) borrow.shared %47 roots{10}
   %49: {} = call String.push borrow.unique %44 borrow.shared %48
   drop (local5)
-  %50: String = const String {units: Array {run: Run {items: &string'143, capacity: 5, ownsHeap: 0}, length: 5}}
+  %50: String = const String {units: Array {run: Run {items: &string'144, capacity: 5, ownsHeap: 0}, length: 5}}
   write.init borrow.unique (hello) take %50
   %52: Array(I32) [shared call] = read borrow.shared (xs) loan11
   %53: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %52 roots{11}

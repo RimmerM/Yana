@@ -2791,9 +2791,6 @@ struct Conversion {
                     break;
                 }
 
-                Use used;
-                if(!useOf(written.value, node.source, used)) return;
-
                 /*
                  * The result is a position, and under substitution it can be the view where the
                  * body answers with the owner - `deriveView`. The *enclosing* function's result and
@@ -2802,6 +2799,22 @@ struct Conversion {
                  */
                 auto position = grafting && grafting->result
                     ? grafting->result->occurrence : substituted(function.result);
+
+                /*
+                 * A result that is `{}` only under substitution - `fn (a) f() -> a` at `a = {}`.
+                 *
+                 * The body wrote `return v`, but a value of no bytes is absent rather than present
+                 * (see the call cases, which produce nothing for one), so there is no operand to
+                 * hand over and a leave with no value is what a declared `{}` would have been.
+                 * Reading the operand anyway reports a node that produced nothing.
+                 */
+                if(decl()[position.type]->kind == mir::Type::Unit) {
+                    emitLeave(node.source, nullptr);
+                    break;
+                }
+
+                Use used;
+                if(!useOf(written.value, node.source, used)) return;
 
                 if(!adaptUseToView(used, position, node.source)) return;
 

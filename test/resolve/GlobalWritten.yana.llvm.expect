@@ -9,7 +9,7 @@ module asm "\09.set \22image$base\22, 0"
 @"ResolveTest.string$0" = constant [2 x i8] c"ab", align 8
 @greeting = constant <{ ptr, [8 x i8] }> <{ ptr @"ResolveTest.string$0", [8 x i8] c"\02\00\00\00\02\00\00\00" }>, align 8
 
-define fastcc i32 @countdown(i32 %k) {
+define fastcc i32 @countdown(i32 %k) #0 {
   br label %1
 
 1:                                                ; preds = %8, %0
@@ -30,7 +30,7 @@ define fastcc i32 @countdown(i32 %k) {
   br label %1
 }
 
-define fastcc i32 @"main$"() {
+define fastcc i32 @"main$"() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -73,3 +73,5 @@ define fastcc i32 @"main$"() {
   %24 = phi i32 [ %17, %15 ], [ %22, %21 ]
   ret i32 %24
 }
+
+attributes #0 = { "probe-stack"="inline-asm" }

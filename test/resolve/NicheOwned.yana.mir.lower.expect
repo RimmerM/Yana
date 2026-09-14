@@ -1,10 +1,10 @@
-@string'142 = [97]
-@string'143 = [98]
-@string'144 = []
+@string'143 = [97]
+@string'144 = [98]
 @string'145 = []
-@string'146 = [97]
-@string'147 = [97, 98]
-@string'148 = [122, 122]
+@string'146 = []
+@string'147 = [97]
+@string'148 = [97, 98]
+@string'149 = [122, 122]
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -49,7 +49,7 @@ codeIn<complex>(%m: Ptr): I32 {
   }
 
   b_11 {
-    %v_16 = call_complex compareMemory(CodeUnit), %v_6, @string'145, %v_8: I32
+    %v_16 = call_complex compareMemory(CodeUnit), %v_6, @string'146, %v_8: I32
     %v_17 = cmp_eq %v_16, 1: I32
     je %v_17, b_18, b_10
   }
@@ -64,7 +64,7 @@ codeIn<complex>(%m: Ptr): I32 {
   }
 
   b_21 {
-    %v_22 = call_complex compareMemory(CodeUnit), %v_6, @string'146, %v_8: I32
+    %v_22 = call_complex compareMemory(CodeUnit), %v_6, @string'147, %v_8: I32
     %v_23 = cmp_eq %v_22, 1: I32
     je %v_23, b_24, b_20
   }
@@ -79,7 +79,7 @@ codeIn<complex>(%m: Ptr): I32 {
   }
 
   b_28 {
-    %v_29 = call_complex compareMemory(CodeUnit), %v_6, @string'147, %v_8: I32
+    %v_29 = call_complex compareMemory(CodeUnit), %v_6, @string'148, %v_8: I32
     %v_30 = cmp_eq %v_29, 1: I32
     jmp b_31
   }
@@ -116,7 +116,7 @@ stored<complex>(): I32 {
     store %v_4, 0, 4
     %v_5 = alloca 16, 8: Ptr
     call_complex opaque, %v_5, @constant$0
-    call_complex String.appendUnits, %v_5, @string'143, 1
+    call_complex String.appendUnits, %v_5, @string'144, 1
     %v_6 = add %v_1, 12: Ptr
     jmp b_7
   }
@@ -205,7 +205,7 @@ stored<complex>(): I32 {
     store %v_36, 2, 4
     %v_54 = alloca 16, 8: Ptr
     call_complex opaque, %v_54, @constant$0
-    call_complex String.appendUnits, %v_54, @string'144, 0
+    call_complex String.appendUnits, %v_54, @string'145, 0
     %v_55 = add %v_1, 12: Ptr
     %v_56 = imm 3: I64
     %v_57 = add %v_1, 8: Ptr
@@ -314,13 +314,13 @@ main<complex>(): I32 {
     call_complex teardown(Maybe(String)), %v_1
     %v_4 = alloca 16, 8: Ptr
     call_complex opaque, %v_4, @constant$0
-    call_complex String.appendUnits, %v_4, @string'143, 1
+    call_complex String.appendUnits, %v_4, @string'144, 1
     copy %v_1, %v_4, 16
     %v_5 = call_complex codeIn, %v_1: I32
     call_complex teardown(Maybe(String)), %v_1
     %v_6 = alloca 16, 8: Ptr
     call_complex opaque, %v_6, @constant$0
-    call_complex String.appendUnits, %v_6, @string'144, 0
+    call_complex String.appendUnits, %v_6, @string'145, 0
     copy %v_1, %v_6, 16
     %v_7 = call_complex codeIn, %v_1: I32
     call_complex teardown(Maybe(String)), %v_1
@@ -337,7 +337,7 @@ main<complex>(): I32 {
     %v_16 = alloca 20, 8: Ptr
     %v_17 = alloca 16, 8: Ptr
     call_complex opaque, %v_16, @constant$0
-    call_complex String.appendUnits, %v_16, @string'143, 1
+    call_complex String.appendUnits, %v_16, @string'144, 1
     %v_18 = add %v_16, 16: Ptr
     store %v_18, 2, 4
     copy %v_17, %v_16, 16

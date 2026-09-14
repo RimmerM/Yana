@@ -22,72 +22,72 @@ import Fiber
 
 fn squares(self: %Cursor(Size)):
     for i in 1..=5:
-        emit(self, i * i)
+        Cursor.emit(self, i * i)
 
-    finishCursor(self)
+    Cursor.finish(self)
 
 fn evens(self: %Cursor(Size)):
     for i in 0..4:
-        emit(self, i * 2)
+        Cursor.emit(self, i * 2)
 
-    finishCursor(self)
+    Cursor.finish(self)
 
 fn odds(self: %Cursor(Size)):
     for i in 0..4:
-        emit(self, i * 2 + 1)
+        Cursor.emit(self, i * 2 + 1)
 
-    finishCursor(self)
+    Cursor.finish(self)
 
 fn words(self: %Cursor(String)):
     for i in 1..=3:
-        emit(self, "w{i}")
+        Cursor.emit(self, "w{i}")
 
-    finishCursor(self)
+    Cursor.finish(self)
 
 fn main() -> Size:
     let bytes = 65536 :: Size
 
     -- One producer, run out.
-    let &cursor = newCursor() :: Cursor(Size)
-    open(cursor, bytes, squares)
+    let &cursor = Cursor.new() :: Cursor(Size)
+    cursor.open(bytes, squares)
 
     let &sum = 0 :: Size
-    while next(cursor) is Just(v):
+    while cursor.next() is Just(v):
         sum += v
 
-    close(cursor)
+    cursor.close()
 
     -- Two, alternately.
-    let &left = newCursor() :: Cursor(Size)
-    let &right = newCursor() :: Cursor(Size)
+    let &left = Cursor.new() :: Cursor(Size)
+    let &right = Cursor.new() :: Cursor(Size)
 
-    open(left, bytes, evens)
-    open(right, bytes, odds)
+    left.open(bytes, evens)
+    right.open(bytes, odds)
 
     let &pairs = 0 :: Size
     while True:
-        let a = next(left)
+        let a = left.next()
         if a is Nothing then break
 
-        let b = next(right)
+        let b = right.next()
         if b is Nothing then break
 
         if a is Just(x):
             if b is Just(y):
                 pairs += x * 10 + y
 
-    close(left)
-    close(right)
+    left.close()
+    right.close()
 
     -- And an owned hand-over.
-    let &text = newCursor() :: Cursor(String)
-    open(text, bytes, words)
+    let &text = Cursor.new() :: Cursor(String)
+    text.open(bytes, words)
 
     let &joined = "" :: String
-    while next(text) is Just(w):
+    while text.next() is Just(w):
         joined = joined ++ copy(w) ++ "."
 
-    close(text)
+    text.close()
 
     -- One number for the three claims: the squares, the interleaved pairs, and the length of the
     -- string the owned hand-overs built.

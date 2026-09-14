@@ -22,7 +22,9 @@
 
    **Linux and x86-64 only, and native only.** The sequences are twenty-four and forty-six bytes of
    one architecture's instructions; the JavaScript answer to the same problem is a generator, and
-   Analysis-External-Iterators.md §5 is where that lives.
+   Analysis-External-Iterators.md §5 is where that lives. Both native backends have them: the LLVM
+   one states the switch as a call under `preserve_none`, the convention that keeps nothing, so the
+   bargain above holds there too.
 -}
 
 {-
@@ -39,10 +41,12 @@
       may still switch to it. Nothing here owns it, nothing frees it, and this returns before any of
       it has been used.
 
-    - **The stack is large enough for everything `entry` can reach.** There is no guard page under a
-      buffer, and nothing here checks. Analysis-External-Iterators.md §4.4 and §4.5 are the plan for
-      having the compiler answer this: the resolver already publishes whether a call graph is
-      bounded (`Summary::stack`), and the byte count is the backend's half and is not built.
+    - **The stack is large enough for everything `entry` can reach, or ends in a guard.** Nothing
+      here checks either. A buffer with no inaccessible page under it is overrun silently;
+      `Fiber.guardedStack` makes one that faults, which is sound because both backends probe every
+      frame in steps under a page. Analysis-External-Iterators.md §4.4 and §4.5 are the plan for
+      having the compiler answer the size itself: the resolver already publishes whether a call
+      graph is bounded (`Summary::stack`), and the byte count is the backend's half and is not built.
 
     - **`entry` is an ordinary function of the language**, taking one pointer and returning nothing,
       and a closure is admitted as readily as a top-level one - both of its words cross to the new

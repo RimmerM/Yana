@@ -27,12 +27,11 @@
       the compiler was never told about, so a value moved into a context is out of its reach until
       the context hands it back.
 
-    - **The stack is not bounded.** Nothing here measures how much a context can use and nothing
-      guards the low end of the mapping. `doc/inflight/Analysis-External-Iterators.md` §4.4 and §4.5
-      are the plan: the resolver already publishes whether a call graph is finite
-      (`Summary::stack`), and the byte count is the backend's half and is not built. Until it is, a
-      stack size is a number the author picks and is the same promise Tritium's `LocalStack` asks
-      for.
+    - **The stack is not bounded, only guarded.** Nothing here measures how much a context can use,
+      so a stack size is a number the author picks. What `guardedStack` adds is that running out of
+      it is a fault rather than a write into the next mapping. `doc/inflight/Analysis-External-Iterators.md`
+      §4.4 and §4.5 are the plan for a proven size: the resolver already publishes whether a call
+      graph is finite (`Summary::stack`), and the byte count is the backend's half and is not built.
 
    Those are the reasons `iter(...)` in a result type - the source form §2.1 proposes, with its
    handle rooted in the creating frame and its loans checked - is a language feature and this is not
@@ -86,6 +85,37 @@ pub fn (a) newFiber(stack: %U8, stackBytes: Size, context: %a, entry: (%a) -> {}
         parent: null(),
         status: FiberStatus.Ready
     }
+
+{-
+   `guardedStack(mappedBytes)` - a mapping for a context to run on, with its lowest page taken away.
+
+   A stack grows down, so what a context that runs out of stack reaches first is the bottom of its
+   mapping - and below that is whatever the kernel mapped next, another fiber's stack or a heap
+   region, which a write would change without anything noticing. With the bottom page inaccessible
+   the overrun is a fault at the first word past the end instead. Null where the mapping or the
+   protection could not be had.
+
+   **What makes one page enough is the compiler rather than this.** A frame larger than a page could
+   reserve past the guard and write below it; both native backends probe every frame and dynamic
+   allocation in steps under a page, so no run of a context can reach below the guard without
+   touching it first.
+
+   The usable bytes are the `mappedBytes - stackGuardBytes()` above the guard; the whole mapping is
+   what `unmapMemory` gives back.
+-}
+pub fn guardedStack(mappedBytes: Size) -> %U8:
+    let region = mapMemory(mappedBytes)
+    if isNull(region) then return null()
+
+    if protectNone(region, stackGuardBytes()) != 0:
+        unmapMemory(region, mappedBytes)
+        return null()
+
+    return region
+
+-- The guard under a `guardedStack` mapping - one page, the one the kernel is using rather than the
+-- one the compiler states, since that is the unit `mprotect` works in.
+pub fn stackGuardBytes() -> Size = systemPageBytes()
 
 {-
    `resume(fiber, value)` - control, given to the context.

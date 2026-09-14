@@ -1123,6 +1123,42 @@ struct Resolver {
     Local* yieldedLocal = nullptr;
 
     /*
+     * The entries synthesized for external iterators so far - `iterEntry`.
+     *
+     * One per producer, per tuple of what the call captured, per instantiation, because each of the
+     * three changes the body: which parameters arrive by address, and at which types. `arguments` is
+     * the instantiation interned as a tuple, so that the whole key is three handles compared by
+     * identity. A flat list because a program has a handful of them.
+     */
+    struct IterEntry {
+        DeclPtr<Function> callee = nullptr;
+        DeclPtr<Type> captured = nullptr;
+        DeclPtr<Type> arguments = nullptr;
+        DeclPtr<Function> entry = nullptr;
+
+        // The call site's half - `iterConstructor`, built on first use for the same key and the same
+        // `carried`: what the arguments refer to inside them, as one interned shape over the tuple.
+        // Two calls of one entry can differ there - a closure and a plain function at one position -
+        // and a constructor publishes exactly what its call carries, so each gets its own row.
+        DeclPtr<Function> constructor = nullptr;
+        DeclPtr<OwnershipSchema> carried = nullptr;
+    };
+
+    // How one argument travels into a producer's captured tuple - `constructIter`.
+    enum class IterCapture : U8 {
+        Value,      // owned, or a copy made for the call
+        View,       // a view, as its view record
+        Address,    // any other loan, as the address of what it borrows
+    };
+
+    Array<IterEntry> iterEntries;
+
+    // Whether the argument being prepared fills an external iterator's position - see
+    // `prepareArgument`, where an owned value then stays owned. Set by `resolveArguments` around one
+    // preparation at a time.
+    bool producerArguments = false;
+
+    /*
      * Whether an iterator's `yield` has to ask whether the consumer already left - `resolveYield`.
      *
      * A departure resumes after the *outermost* loop the `yield` was in, so the only `yield` a
@@ -2000,6 +2036,25 @@ struct Resolver {
     bool declareContinuation(Function& function, Function* inherited,
                              const Substitution& inheritedWith, LocationId source);
     DeclPtr<RecordType> declareOutcome(Function& function, DeclPtr<Type> failure, LocationId source);
+
+    /*
+     * `fn f(...) -> iter(T)` - Analysis-External-Iterators.md §2.1, in resolve_iter.cpp.
+     *
+     * The declaration's one appended parameter; the handle a call builds instead of calling; the
+     * function a producer's stack starts at; and the two statements that mean something different
+     * inside and around one - `for` over a handle, and `yield` in a producer.
+     */
+    bool declareIterHandle(Function& function, LocationId source);
+    Node* constructIter(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                        TypeArguments& typeArguments, LocationId source);
+    DeclPtr<Function> iterEntry(Function& callee, const Substitution& with, DeclPtr<Type> captured,
+                                LocationId source);
+    DeclPtr<Function> iterConstructor(Function& callee, const Substitution& with, DeclPtr<Type> captured,
+                                      DeclPtr<Function> entry, const SmallArray<IterCapture, 8>& kinds,
+                                      const SmallArray<DeclPtr<OwnershipSchema>, 8>& shapes,
+                                      LocationId source);
+    bool resolveExternalFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop);
+    void resolveExternalYield(Builder& builder, ast::Expr& expr, Function& function);
 
     /*
      * One signature - a `fn`, a class member, an instance member.

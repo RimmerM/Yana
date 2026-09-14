@@ -4,6 +4,8 @@ let decimalPairs: String = "0001020304050607080910111213141516171819202122232425
 
 let image$base: () = <none>
 
+let &commandLineEnvironment: %%U8 = 0
+
 let &heapNext: %U8 = 0
 
 let &heapLimit: %U8 = 0
@@ -618,7 +620,7 @@ fn numberOf(%call: Syscall) -> USize {
 fn mapMemory(%size: Size) -> %U8 {
   b0:
     %anonymous = bitcast -1 : USize
-    %v4 = call numberOf, SysMunmap : USize
+    %v4 = call numberOf, SysMprotect : USize
     %v6 = bitcast %size : USize
     %result = syscall %v4, 0, %v6, 3, 34, %anonymous, 0 : Size
     %v13 = cmp_lt %result, 0 : Bool
@@ -638,11 +640,20 @@ fn mapMemory(%size: Size) -> %U8 {
 
 fn unmapMemory(%from: %U8, %size: Size) -> Size {
   b0:
-    %v3 = call numberOf, SysReadAt : USize
+    %v3 = call numberOf, SysIoctl : USize
     %v4 = bitcast %from : USize
     %v5 = bitcast %size : USize
     %v6 = syscall %v3, %v4, %v5 : Size
     ret %v6
+}
+
+fn protectNone(%from: %U8, %size: Size) -> Size {
+  b0:
+    %v3 = call numberOf, SysMunmap : USize
+    %v4 = bitcast %from : USize
+    %v5 = bitcast %size : USize
+    %v7 = syscall %v3, %v4, %v5, 0 : Size
+    ret %v7
 }
 
 fn exitProcess(%status: Size) -> () {
@@ -651,6 +662,111 @@ fn exitProcess(%status: Size) -> () {
     %v3 = bitcast %status : USize
     %v4 = syscall %v2, %v3 : Size
     ret
+}
+
+fn auxiliaryValue(%kind: USize) -> Maybe(USize) {
+  b0:
+    %v1 = load commandLineEnvironment : %%U8
+    %at = alloc : %%U8
+    init %at, %v1
+    %v4 = load %at : %%U8
+    %v5 = bitcast %v4 : Size
+    %v7 = cmp_eq %v5, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v9 = alloc : Maybe(USize)
+    init %local1.discriminant, 0
+    ret %v9
+
+  b2:
+    jmp b3
+
+  b3:
+    jmp b4
+
+  b4:
+    %v15 = load %at : %%U8
+    %v16 = load [%v15] : %U8
+    %v17 = bitcast %v16 : USize
+    %v20 = cmp_ne %v17, 0 : Bool
+    je %v20, b6, b5
+
+  b5:
+    %v30 = load %at : %%U8
+    %v33 = strideof %U8 : Size
+    %v34 = mul 1, %v33 : Size
+    %v35 = add %v30, %v34 : %%U8
+    %v36 = bitcast %v35 : %USize
+    %entry = alloc : %USize
+    init %entry, %v36
+    jmp b7
+
+  b6:
+    %v22 = load %at : %%U8
+    %v25 = strideof %U8 : Size
+    %v26 = mul 1, %v25 : Size
+    %v27 = add %v22, %v26 : %%U8
+    assign %at, %v27
+    jmp b4
+
+  b7:
+    %v40 = load %entry : %USize
+    %v41 = load [%v40] : USize
+    %v43 = cmp_ne %v41, 0 : Bool
+    je %v43, b9, b8
+
+  b8:
+    %v69 = alloc : Maybe(USize)
+    init %local4.discriminant, 0
+    ret %v69
+
+  b9:
+    %v45 = load %entry : %USize
+    %v46 = load [%v45] : USize
+    %v47 = cmp_eq %v46, %kind : Bool
+    je %v47, b10, b11
+
+  b10:
+    %v49 = alloc : Maybe(USize)
+    %v51 = load %entry : %USize
+    %v54 = strideof USize : Size
+    %v55 = mul 1, %v54 : Size
+    %v56 = add %v51, %v55 : %USize
+    %v57 = load [%v56] : USize
+    aggregate %local3.discriminant = 1, %local3@Just = %v57
+    ret %v49
+
+  b11:
+    jmp b12
+
+  b12:
+    %v61 = load %entry : %USize
+    %v64 = strideof USize : Size
+    %v65 = mul 2, %v64 : Size
+    %v66 = add %v61, %v65 : %USize
+    assign %entry, %v66
+    jmp b7
+}
+
+fn systemPageBytes() -> Size {
+  b0:
+    %v1 = call auxiliaryValue, 6 : Maybe(USize)
+    %v2 = load %local0.discriminant : I32
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %page = load %local0@Just : USize
+    %v7 = bitcast %page : Size
+    jmp b3
+
+  b3:
+    %v11 = phi [b2, %v7], [b1, 4096] : Size
+    ret %v11
 }
 
 fn initHeap() -> () {
@@ -1588,7 +1704,7 @@ fn squares(%self: %Cursor(Size)) -> () {
   b2:
     %v11 = mul %i, %i : I32
     %v12 = cast %v11 : Size
-    call emit(Size), %self, %v12
+    call Cursor.emit(Size), %self, %v12
     jmp b3
 
   b3:
@@ -1603,7 +1719,7 @@ fn squares(%self: %Cursor(Size)) -> () {
     jmp b1
 
   b5:
-    call finishCursor(Size), %self
+    call Cursor.finish(Size), %self
     ret
 }
 
@@ -1621,7 +1737,7 @@ fn evens(%self: %Cursor(Size)) -> () {
   b2:
     %v13 = mul %i, 2 : I32
     %v14 = cast %v13 : Size
-    call emit(Size), %self, %v14
+    call Cursor.emit(Size), %self, %v14
     jmp b3
 
   b3:
@@ -1634,7 +1750,7 @@ fn evens(%self: %Cursor(Size)) -> () {
     jmp b1
 
   b5:
-    call finishCursor(Size), %self
+    call Cursor.finish(Size), %self
     ret
 }
 
@@ -1653,7 +1769,7 @@ fn odds(%self: %Cursor(Size)) -> () {
     %v13 = mul %i, 2 : I32
     %v16 = add %v13, 1 : I32
     %v17 = cast %v16 : Size
-    call emit(Size), %self, %v17
+    call Cursor.emit(Size), %self, %v17
     jmp b3
 
   b3:
@@ -1666,7 +1782,7 @@ fn odds(%self: %Cursor(Size)) -> () {
     jmp b1
 
   b5:
-    call finishCursor(Size), %self
+    call Cursor.finish(Size), %self
     ret
 }
 
@@ -1696,7 +1812,7 @@ fn words(%self: %Cursor(String)) -> () {
     call Show(I32).show, %i, %v21
     %v23 = load %local3 : String
     %v24 = move %local3 : String
-    call emit(String), %self, %v24
+    call Cursor.emit(String), %self, %v24
     jmp b3
 
   b3:
@@ -1711,13 +1827,13 @@ fn words(%self: %Cursor(String)) -> () {
     jmp b1
 
   b5:
-    call finishCursor(String), %self
+    call Cursor.finish(String), %self
     ret
 }
 
 fn main() -> Size {
   b0:
-    %v1 = call newCursor(Size) : Cursor(Size)
+    %v1 = call Cursor.new(Size) : Cursor(Size)
     %cursor = alloc : Cursor(Size)
     init %cursor, %v1
     %v4 = load %cursor : Cursor(Size)
@@ -1727,7 +1843,7 @@ fn main() -> Size {
     %v9 = cast 0 : %()
     init %local2.env, %v9
     %v11 = borrow_mut %cursor : &Cursor(Size)
-    %v12 = call open(Size), %v11, %bytes, %v5 : Bool
+    %v12 = call Cursor.open(Size), %v11, %bytes, %v5 : Bool
     %sum = alloc : Size
     init %sum, 0
     jmp b1
@@ -1735,7 +1851,7 @@ fn main() -> Size {
   b1:
     %v17 = load %cursor : Cursor(Size)
     %v18 = borrow_mut %cursor : &Cursor(Size)
-    %v19 = call next(Size), %v18 : Maybe(Size)
+    %v19 = call Cursor.next(Size), %v18 : Maybe(Size)
     %v20 = load %local4.discriminant : I32
     %v22 = cmp_eq %v20, 1 : Bool
     je %v22, b3, b2
@@ -1743,11 +1859,11 @@ fn main() -> Size {
   b2:
     %v29 = load %cursor : Cursor(Size)
     %v30 = borrow_mut %cursor : &Cursor(Size)
-    call close(Size), %v30
-    %v32 = call newCursor(Size) : Cursor(Size)
+    call Cursor.close(Size), %v30
+    %v32 = call Cursor.new(Size) : Cursor(Size)
     %left = alloc : Cursor(Size)
     init %left, %v32
-    %v35 = call newCursor(Size) : Cursor(Size)
+    %v35 = call Cursor.new(Size) : Cursor(Size)
     %right = alloc : Cursor(Size)
     init %right, %v35
     %v38 = load %left : Cursor(Size)
@@ -1757,7 +1873,7 @@ fn main() -> Size {
     %v43 = cast 0 : %()
     init %local9.env, %v43
     %v45 = borrow_mut %left : &Cursor(Size)
-    %v46 = call open(Size), %v45, %bytes, %v39 : Bool
+    %v46 = call Cursor.open(Size), %v45, %bytes, %v39 : Bool
     %v47 = load %right : Cursor(Size)
     %v48 = alloc : (self: %Cursor(Size)) -> ()
     %v49 = symbol funvalue$odds : %()
@@ -1765,7 +1881,7 @@ fn main() -> Size {
     %v52 = cast 0 : %()
     init %local10.env, %v52
     %v54 = borrow_mut %right : &Cursor(Size)
-    %v55 = call open(Size), %v54, %bytes, %v48 : Bool
+    %v55 = call Cursor.open(Size), %v54, %bytes, %v48 : Bool
     %pairs = alloc : Size
     init %pairs, 0
     jmp b4
@@ -1783,11 +1899,11 @@ fn main() -> Size {
   b5:
     %v102 = load %left : Cursor(Size)
     %v103 = borrow_mut %left : &Cursor(Size)
-    call close(Size), %v103
+    call Cursor.close(Size), %v103
     %v105 = load %right : Cursor(Size)
     %v106 = borrow_mut %right : &Cursor(Size)
-    call close(Size), %v106
-    %v108 = call newCursor(String) : Cursor(String)
+    call Cursor.close(Size), %v106
+    %v108 = call Cursor.new(String) : Cursor(String)
     %text = alloc : Cursor(String)
     init %text, %v108
     %v111 = load %text : Cursor(String)
@@ -1797,7 +1913,7 @@ fn main() -> Size {
     %v116 = cast 0 : %()
     init %local16.env, %v116
     %v118 = borrow_mut %text : &Cursor(String)
-    %v119 = call open(String), %v118, %bytes, %v112 : Bool
+    %v119 = call Cursor.open(String), %v118, %bytes, %v112 : Bool
     %v120 = copy ResolveTest.literal$3 : String
     %joined = alloc : String
     init %joined, %v120
@@ -1806,7 +1922,7 @@ fn main() -> Size {
   b6:
     %v62 = load %left : Cursor(Size)
     %v63 = borrow_mut %left : &Cursor(Size)
-    %a = call next(Size), %v63 : Maybe(Size)
+    %a = call Cursor.next(Size), %v63 : Maybe(Size)
     %v65 = load %local12.discriminant : I32
     %v67 = cmp_eq %v65, 0 : Bool
     je %v67, b8, b7
@@ -1820,7 +1936,7 @@ fn main() -> Size {
   b9:
     %v71 = load %right : Cursor(Size)
     %v72 = borrow_mut %right : &Cursor(Size)
-    %b = call next(Size), %v72 : Maybe(Size)
+    %b = call Cursor.next(Size), %v72 : Maybe(Size)
     %v74 = load %local13.discriminant : I32
     %v76 = cmp_eq %v74, 0 : Bool
     je %v76, b11, b10
@@ -1866,7 +1982,7 @@ fn main() -> Size {
   b19:
     %v124 = load %text : Cursor(String)
     %v125 = borrow_mut %text : &Cursor(String)
-    %v126 = call next(String), %v125 : Maybe(String)
+    %v126 = call Cursor.next(String), %v125 : Maybe(String)
     %v127 = load %local19.discriminant : I32
     %v129 = cmp_eq %v127, 1 : Bool
     je %v129, b21, b22
@@ -1874,7 +1990,7 @@ fn main() -> Size {
   b20:
     %v143 = load %text : Cursor(String)
     %v144 = borrow_mut %text : &Cursor(String)
-    call close(String), %v144
+    call Cursor.close(String), %v144
     drop_derived %text via reclaim$Cursor(String)
     %v146 = load %sum : Size
     %v149 = mul %v146, 100000 : Size
@@ -1954,6 +2070,44 @@ fn reclaim$Maybe(String)(%value: Maybe(String)) -> () {
     jmp b1
 }
 
+fn guardedStack(%mappedBytes: Size) -> %U8 {
+  b0:
+    %region = call mapMemory, %mappedBytes : %U8
+    %v2 = bitcast %region : Size
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v7 = bitcast 0 : %U8
+    ret %v7
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = call stackGuardBytes : Size
+    %v11 = call protectNone, %region, %v10 : Size
+    %v14 = cmp_ne %v11, 0 : Bool
+    je %v14, b4, b5
+
+  b4:
+    %v16 = call unmapMemory, %region, %mappedBytes : Size
+    %v18 = bitcast 0 : %U8
+    ret %v18
+
+  b5:
+    jmp b6
+
+  b6:
+    ret %region
+}
+
+fn stackGuardBytes() -> Size {
+  b0:
+    %v0 = call systemPageBytes : Size
+    ret %v0
+}
+
 fn resume(%self: Fiber, %value: Size) -> Size {
   b0:
     %v2 = load %self : Fiber
@@ -2019,7 +2173,7 @@ fn hasFinished(%self: Fiber) -> Bool {
     ret %v3
 }
 
-fn emit(Size)(%self: %Cursor(Size), %value: Size) -> () {
+fn Cursor.emit(Size)(%self: %Cursor(Size), %value: Size) -> () {
   b0:
     %v2 = borrow_mut [%self] : &1'Cursor(Size)
     %v3 = alloc : Maybe(Size)
@@ -2032,7 +2186,7 @@ fn emit(Size)(%self: %Cursor(Size), %value: Size) -> () {
     ret
 }
 
-fn finishCursor(Size)(%self: %Cursor(Size)) -> () {
+fn Cursor.finish(Size)(%self: %Cursor(Size)) -> () {
   b0:
     %v1 = borrow_mut [%self] : &1'Cursor(Size)
     %v2 = load [%v1] : Cursor(Size)
@@ -2042,7 +2196,7 @@ fn finishCursor(Size)(%self: %Cursor(Size)) -> () {
     ret
 }
 
-fn emit(String)(%self: %Cursor(String), %value: String) -> () {
+fn Cursor.emit(String)(%self: %Cursor(String), %value: String) -> () {
   b0:
     %v2 = borrow_mut [%self] : &1'Cursor(String)
     %v3 = alloc : Maybe(String)
@@ -2056,7 +2210,7 @@ fn emit(String)(%self: %Cursor(String), %value: String) -> () {
     ret
 }
 
-fn finishCursor(String)(%self: %Cursor(String)) -> () {
+fn Cursor.finish(String)(%self: %Cursor(String)) -> () {
   b0:
     %v1 = borrow_mut [%self] : &1'Cursor(String)
     %v2 = load [%v1] : Cursor(String)
@@ -2066,7 +2220,7 @@ fn finishCursor(String)(%self: %Cursor(String)) -> () {
     ret
 }
 
-fn newCursor(Size)() -> Cursor(Size) {
+fn Cursor.new(Size)() -> Cursor(Size) {
   b0:
     %v0 = alloc : Cursor(Size)
     %v1 = alloc : Fiber
@@ -2080,12 +2234,14 @@ fn newCursor(Size)() -> Cursor(Size) {
     ret %v0
 }
 
-fn open(Size)(%self: Cursor(Size), %stackBytes: Size, %body: (self: %Cursor(Size)) -> ()) -> Bool {
+fn Cursor.open(Size)(%self: Cursor(Size), %stackBytes: Size, %body: (self: %Cursor(Size)) -> ()) -> Bool {
   b0:
-    %stack = call mapMemory, %stackBytes : %U8
-    %v4 = bitcast %stack : Size
-    %v6 = cmp_eq %v4, 0 : Bool
-    je %v6, b1, b2
+    %guard = call stackGuardBytes : Size
+    %v4 = add %stackBytes, %guard : Size
+    %stack = call guardedStack, %v4 : %U8
+    %v6 = bitcast %stack : Size
+    %v8 = cmp_eq %v6, 0 : Bool
+    je %v8, b1, b2
 
   b1:
     ret False
@@ -2095,10 +2251,14 @@ fn open(Size)(%self: Cursor(Size), %stackBytes: Size, %body: (self: %Cursor(Size
 
   b3:
     assign %self@Cursor.stack, %stack
-    assign %self@Cursor.stackBytes, %stackBytes
-    %v13 = load %self : Cursor(Size)
-    %v14 = addressof %self : %Cursor(Size)
-    %prepared = call newFiber(Cursor(Size)), %stack, %stackBytes, %v14, %body : Fiber
+    %v14 = add %stackBytes, %guard : Size
+    assign %self@Cursor.stackBytes, %v14
+    %v16 = strideof U8 : Size
+    %v17 = mul %guard, %v16 : Size
+    %v18 = add %stack, %v17 : %U8
+    %v19 = load %self : Cursor(Size)
+    %v20 = addressof %self : %Cursor(Size)
+    %prepared = call newFiber(Cursor(Size)), %v18, %stackBytes, %v20, %body : Fiber
     assign %self@Cursor.fiber, %prepared
     ret True
 }
@@ -2121,7 +2281,7 @@ fn newFiber(Cursor(Size))(%stack: %U8, %stackBytes: Size, %context: %Cursor(Size
     ret %v12
 }
 
-fn next(Size)(%self: Cursor(Size)) -> Maybe(Size) {
+fn Cursor.next(Size)(%self: Cursor(Size)) -> Maybe(Size) {
   b0:
     %v1 = load %self : Cursor(Size)
     %v2 = load %self@Cursor.fiber : Fiber
@@ -2163,7 +2323,7 @@ fn next(Size)(%self: Cursor(Size)) -> Maybe(Size) {
     ret %v30
 }
 
-fn close(Size)(%self: Cursor(Size)) -> () {
+fn Cursor.close(Size)(%self: Cursor(Size)) -> () {
   b0:
     %v1 = load %self : Cursor(Size)
     %v2 = load %self@Cursor.stack : %U8
@@ -2190,7 +2350,7 @@ fn close(Size)(%self: Cursor(Size)) -> () {
     ret
 }
 
-fn newCursor(String)() -> Cursor(String) {
+fn Cursor.new(String)() -> Cursor(String) {
   b0:
     %v0 = alloc : Cursor(String)
     %v1 = alloc : Fiber
@@ -2204,12 +2364,14 @@ fn newCursor(String)() -> Cursor(String) {
     ret %v0
 }
 
-fn open(String)(%self: Cursor(String), %stackBytes: Size, %body: (self: %Cursor(String)) -> ()) -> Bool {
+fn Cursor.open(String)(%self: Cursor(String), %stackBytes: Size, %body: (self: %Cursor(String)) -> ()) -> Bool {
   b0:
-    %stack = call mapMemory, %stackBytes : %U8
-    %v4 = bitcast %stack : Size
-    %v6 = cmp_eq %v4, 0 : Bool
-    je %v6, b1, b2
+    %guard = call stackGuardBytes : Size
+    %v4 = add %stackBytes, %guard : Size
+    %stack = call guardedStack, %v4 : %U8
+    %v6 = bitcast %stack : Size
+    %v8 = cmp_eq %v6, 0 : Bool
+    je %v8, b1, b2
 
   b1:
     ret False
@@ -2219,10 +2381,14 @@ fn open(String)(%self: Cursor(String), %stackBytes: Size, %body: (self: %Cursor(
 
   b3:
     assign %self@Cursor.stack, %stack
-    assign %self@Cursor.stackBytes, %stackBytes
-    %v13 = load %self : Cursor(String)
-    %v14 = addressof %self : %Cursor(String)
-    %prepared = call newFiber(Cursor(String)), %stack, %stackBytes, %v14, %body : Fiber
+    %v14 = add %stackBytes, %guard : Size
+    assign %self@Cursor.stackBytes, %v14
+    %v16 = strideof U8 : Size
+    %v17 = mul %guard, %v16 : Size
+    %v18 = add %stack, %v17 : %U8
+    %v19 = load %self : Cursor(String)
+    %v20 = addressof %self : %Cursor(String)
+    %prepared = call newFiber(Cursor(String)), %v18, %stackBytes, %v20, %body : Fiber
     assign %self@Cursor.fiber, %prepared
     ret True
 }
@@ -2245,7 +2411,7 @@ fn newFiber(Cursor(String))(%stack: %U8, %stackBytes: Size, %context: %Cursor(St
     ret %v12
 }
 
-fn next(String)(%self: Cursor(String)) -> Maybe(String) {
+fn Cursor.next(String)(%self: Cursor(String)) -> Maybe(String) {
   b0:
     %v1 = load %self : Cursor(String)
     %v2 = load %self@Cursor.fiber : Fiber
@@ -2287,7 +2453,7 @@ fn next(String)(%self: Cursor(String)) -> Maybe(String) {
     ret %v30
 }
 
-fn close(String)(%self: Cursor(String)) -> () {
+fn Cursor.close(String)(%self: Cursor(String)) -> () {
   b0:
     %v1 = load %self : Cursor(String)
     %v2 = load %self@Cursor.stack : %U8

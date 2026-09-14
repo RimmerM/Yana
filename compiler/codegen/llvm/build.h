@@ -31,6 +31,11 @@ struct Gen {
     HashMap<U32, llvm::Function*> functions;
     HashMap<U32, llvm::GlobalVariable*> globals;
 
+    // The two assembly routines a stack switch is built from, declared - and their text appended to
+    // the module - the first time a function needs either. See `stackRuntimeOf` in intrinsic.cpp.
+    llvm::Function* stackSwitch = nullptr;
+    llvm::Function* stackEntry = nullptr;
+
     llvm::Function* functionOf(LowerPtr<LowerFunction> fun) {
         auto found = functions.getValue(fun.offset);
         return found ? found.unwrap() : nullptr;
@@ -137,5 +142,9 @@ bool genIntrinsic(FunGen& fun, LowerInstIntrinsic& inst);
 // A Linux system call, which is inline assembly here for the same reason it is a fixed-register
 // form in the x64 backend: the callee is the kernel, and its convention is not one LLVM knows.
 llvm::Value* genSyscall(FunGen& fun, LowerInstCall& inst);
+
+// The stack switch, as a call to a six-instruction routine under `preserve_none` - the convention
+// that keeps nothing, which is what `LowerCallType::StackSwitch` says. See intrinsic.cpp.
+llvm::Value* genStackSwitch(FunGen& fun, LowerInstCall& inst);
 
 } // namespace llvmgen

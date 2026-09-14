@@ -6,7 +6,7 @@ module asm "\09.set \22image$base\22, 0"
 @"image$base" = external constant [0 x i8], align 8
 @sink = global [8 x i8] zeroinitializer, align 8
 
-define fastcc <4 x i16> @arithmetic(<4 x i16> %a) {
+define fastcc <4 x i16> @arithmetic(<4 x i16> %a) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -18,7 +18,7 @@ define fastcc <4 x i16> @arithmetic(<4 x i16> %a) {
   ret <4 x i16> %2
 }
 
-define fastcc <4 x i8> @widths(<4 x i8> %narrow, <2 x i32> %middle) {
+define fastcc <4 x i8> @widths(<4 x i8> %narrow, <2 x i32> %middle) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -27,7 +27,7 @@ define fastcc <4 x i8> @widths(<4 x i8> %narrow, <2 x i32> %middle) {
   ret <4 x i8> %3
 }
 
-define fastcc <4 x i32> @widening(<4 x i16> %v) {
+define fastcc <4 x i32> @widening(<4 x i16> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -35,7 +35,7 @@ define fastcc <4 x i32> @widening(<4 x i16> %v) {
   ret <4 x i32> %2
 }
 
-define fastcc <4 x i16> @narrowing(<4 x i32> %v) {
+define fastcc <4 x i16> @narrowing(<4 x i32> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -43,7 +43,7 @@ define fastcc <4 x i16> @narrowing(<4 x i32> %v) {
   ret <4 x i16> %2
 }
 
-define fastcc <4 x float> @reinterpreting(<4 x i32> %v) {
+define fastcc <4 x float> @reinterpreting(<4 x i32> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -51,14 +51,14 @@ define fastcc <4 x float> @reinterpreting(<4 x i32> %v) {
   ret <4 x float> %2
 }
 
-define fastcc <4 x float> @aliases(<4 x float> %v) {
+define fastcc <4 x float> @aliases(<4 x float> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
   ret <4 x float> %v
 }
 
-define fastcc i32 @"main$"() {
+define fastcc i32 @"main$"() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -77,3 +77,5 @@ define fastcc i32 @"main$"() {
   store <4 x i16> %7, ptr @sink, align 1
   ret i32 1
 }
+
+attributes #0 = { "probe-stack"="inline-asm" }

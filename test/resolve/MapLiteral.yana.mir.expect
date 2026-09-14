@@ -4,13 +4,13 @@ data Table {rows: Map(I32, I32)} reclaim derived
 
 let & shared: Map(I32, I32)
 
-let string'142: [CodeUnit *1] = "x"
+let string'143: [CodeUnit *1] = "x"
 
-let string'143: [CodeUnit *1] = "y"
+let string'144: [CodeUnit *1] = "y"
 
-let string'144: [CodeUnit *1] = "x"
+let string'145: [CodeUnit *1] = "x"
 
-let string'145: [CodeUnit *1] = "y"
+let string'146: [CodeUnit *1] = "y"
 
 fn total(m: Map(I32, I32) [shared call]) -> I32 {
   local & sum: I32
@@ -752,8 +752,8 @@ bb64:
   %456: I32 = const 10
   %457: Map(I32, I32) = call single(I32, I32) take %455 take %456
   write.init borrow.unique (one) take %457
-  %459: String = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
-  %460: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %459: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %460: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
   %461: I32 = const 1
   %462: I32 = const 2
   %463: Map(String, I32) = call pair(String, I32) take %459 take %461 take %460 take %462
@@ -766,7 +766,7 @@ bb64:
   write.init borrow.unique (local38) borrow.shared %469
   %471: I32 = read copy.trivial (local38)
   drop (one)
-  %472: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %472: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
   %473: Map(String, I32) [shared call] = read borrow.shared (two) loan55
   write.init borrow.unique (local39) take %472
   %475: String [shared slot 0] = read borrow.shared (local39) loan56
@@ -776,7 +776,7 @@ bb64:
   write.init borrow.unique (local40) borrow.shared %477
   %479: I32 = read copy.trivial (local40)
   %480: I32 = add inspect %471 inspect %479
-  %481: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %481: String = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
   %482: Map(String, I32) [shared call] = read borrow.shared (two) loan57
   write.init borrow.unique (local41) take %481
   %484: String [shared slot 0] = read borrow.shared (local41) loan58

@@ -925,6 +925,22 @@ struct Decl {
             ParsePtr<Expr> body; // nullable.
             bool implicitReturn;
             FunKind kind;
+
+            /*
+             * `-> iter(...)` - Analysis-External-Iterators.md §2.1's external iterator.
+             *
+             * A flag beside `kind` rather than a fourth `FunKind`, and the document is what says so:
+             * an external constructor is an ordinary function whose *result* is an iterator, so what
+             * is different about it is the result and not the way it is called. `kind` stays `Plain`
+             * and every rule about a traversal - the continuation parameter, the `yield` that is a
+             * call of it, the call site that splits its own block - goes on asking `kind` and goes on
+             * getting the same answer it always did.
+             *
+             * `ret`, `retBind` and `protocol` say the rest: what is handed over, under which
+             * convention, what a `yield` evaluates to and how the traversal ends. They are read the
+             * same way for both spellings, which is the whole reason one grammar reads both.
+             */
+            bool external;
         } fun;
     };
 

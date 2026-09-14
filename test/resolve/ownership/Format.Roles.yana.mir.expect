@@ -2,11 +2,11 @@ module ResolveTest
 
 let & calls: I32 = 0
 
-let string'142: [CodeUnit *2] = "n="
+let string'143: [CodeUnit *2] = "n="
 
-let string'143: [CodeUnit *1] = "!"
+let string'144: [CodeUnit *1] = "!"
 
-let string'144: [CodeUnit *8] = "no holes"
+let string'145: [CodeUnit *8] = "no holes"
 
 fn bumped(of: I32 [shared call]) -> I32 {
 bb0:
@@ -56,7 +56,7 @@ bb0:
   %7: String = call String.ofCapacity borrow.shared %6
   write.init borrow.unique (local1) take %7
   %9: String [unique call] = read borrow.unique (local1) loan0
-  %10: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %10: String = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
   write.init borrow.unique (local2) take %10
   %12: String [shared slot 0] = read borrow.shared (local2) loan1
   %13: String [shared slot 0 view] = call.derivation view(String) borrow.shared %12 roots{1}
@@ -66,7 +66,7 @@ bb0:
   %16: String [unique call] = read borrow.unique (local1) loan2
   %17: {} = call show(I32) borrow.shared %15 borrow.unique %16
   %18: String [unique call] = read borrow.unique (local1) loan3
-  %19: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %19: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
   write.init borrow.unique (local3) take %19
   %21: String [shared slot 0] = read borrow.shared (local3) loan4
   %22: String [shared slot 0 view] = call.derivation view(String) borrow.shared %21 roots{4}
@@ -108,7 +108,7 @@ bb0:
   %57: {} = call show(I32) borrow.shared %55 borrow.unique %56
   %58: String = read take (local8)
   write.init borrow.unique (bare) take %58
-  %60: String = const String {units: Array {run: Run {items: &string'144, capacity: 8, ownsHeap: 0}, length: 8}}
+  %60: String = const String {units: Array {run: Run {items: &string'145, capacity: 8, ownsHeap: 0}, length: 8}}
   write.init borrow.unique (plain) take %60
   %62: String [shared call] = read borrow.shared (text) loan8
   %63: String [shared slot 0 view] = call.derivation view(String) borrow.shared %62 roots{8}

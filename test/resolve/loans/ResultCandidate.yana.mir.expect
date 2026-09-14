@@ -2,11 +2,11 @@ module ResolveTest
 
 data Guard {id: I32}
 
-let string'142: [CodeUnit *4] = "abcd"
+let string'143: [CodeUnit *4] = "abcd"
 
-let string'143: [CodeUnit *1] = "x"
+let string'144: [CodeUnit *1] = "x"
 
-let string'144: [CodeUnit *2] = "yz"
+let string'145: [CodeUnit *2] = "yz"
 
 fn firstOf(xs: Array(I32) [shared slot 0 view]) -> I32 [shared slot 0] {
   local local1: I32 [shared slot 0]
@@ -137,7 +137,7 @@ bb0:
   %23: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %22 roots{0}
   %24: I32 [shared slot 0] = call firstOf borrow.shared %23 roots{0}
   write.init borrow.unique (total) borrow.shared %24
-  %26: String = const String {units: Array {run: Run {items: &string'142, capacity: 4, ownsHeap: 0}, length: 4}}
+  %26: String = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
   write.init borrow.unique (name) take %26
   %28: String [shared slot 0] = read borrow.shared (name) loan1
   %29: String [shared slot 0 view] = call.derivation view(String) borrow.shared %28 roots{1}
@@ -151,8 +151,8 @@ bb0:
   write.init borrow.unique (borrowed) borrow.unique %36
   %38: I32 = const 0
   write.init borrow.unique (joined) take %38
-  %40: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
-  %41: String = const String {units: Array {run: Run {items: &string'144, capacity: 2, ownsHeap: 0}, length: 2}}
+  %40: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %41: String = const String {units: Array {run: Run {items: &string'145, capacity: 2, ownsHeap: 0}, length: 2}}
   %42: [String *2] = aggregate.0 take %40 take %41
   write.init borrow.unique (local8) take %42
   %44: [String *2] [shared slot 0] = read borrow.shared (local8) loan3

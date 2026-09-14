@@ -1,0 +1,303 @@
+module ResolveTest
+
+let & trace: Size = 0
+
+let string'146: [CodeUnit *2] = "ab"
+
+let string'147: [CodeUnit *1] = "x"
+
+fn Guard.drop(value: Guard) -> {} {
+bb0(%0: Guard owned):
+  %1: %Guard address = alloc frame Guard
+  store inspect %1 consume %0
+  %2: %Size address = global.addr trace
+  %3: Size trivial = load inspect %2
+  %4: %Size address = field.addr .id inspect %1
+  %5: Size trivial = load inspect %4
+  %6: Size trivial = add inspect %3 inspect %5
+  %7: %Size address = global.addr trace
+  store inspect %7 consume %6
+  return
+}
+
+fn words'2(prefix: String [shared call view], $iter: %IterBlock(String, {}) [shared call]) -> {} {
+bb0(%0: String [shared call view] guaranteed, %1: %IterBlock(String, {}) trivial):
+  %12: %%IterBlock(String, {}) address = alloc frame %IterBlock(String, {}) [shared call]
+  %13: %I32 address = alloc frame I32
+  %14: %I32 address = alloc frame I32
+  %15: %String address = alloc frame String
+  %16: %String address = alloc frame String
+  store inspect %12 borrow %1
+  %17: I32 trivial = const 1
+  %18: I32 trivial = const 3
+  %19: I32 trivial = const 1
+  store inspect %13 consume %17
+  jump -> bb1(consume %18, consume %19)
+
+bb1(%2: I32 trivial, %3: I32 trivial):
+  %20: I32 trivial = load inspect %13
+  %21: Bool trivial = le inspect %20 inspect %2
+  branch inspect %21 -> bb4(consume %2, consume %3) -> bb3(consume %2, consume %3)
+
+bb2(%4: I32 trivial, %5: I32 trivial):
+  %22: I32 trivial = load inspect %13
+  %23: I32 trivial = sub inspect %4 inspect %22
+  %24: Bool trivial = ge inspect %23 inspect %5
+  branch inspect %24 -> bb7(consume %4, consume %5) -> bb3(consume %4, consume %5)
+
+bb3(%6: I32 trivial, %7: I32 trivial):
+  return
+
+bb4(%8: I32 trivial, %9: I32 trivial):
+  %25: I32 trivial = load inspect %13
+  store inspect %14 consume %25
+  %26: Size trivial = const 0
+  %27: String [shared call view] guaranteed from{%0} = load inspect %0
+  %28: Maybe(Size) trivial = call String.showBound borrow %27
+  %29: Size trivial = call formatBound borrow %28
+  %30: Size trivial = add inspect %26 inspect %29
+  %31: I32 trivial = load inspect %14
+  %32: Maybe(Size) trivial = call I32.showBound borrow %31
+  %33: Size trivial = call formatBound borrow %32
+  %34: Size trivial = add inspect %30 inspect %33
+  %35: String owned = call String.ofCapacity borrow %34
+  store inspect %15 consume %35
+  %36: String [shared call view] guaranteed from{%0} = load inspect %0
+  %37: String [unique call] guaranteed from{%15} = load inspect %15
+  call String.show borrow %36 borrow %37
+  %38: I32 trivial = load inspect %14
+  %39: String [unique call] guaranteed from{%15} = load inspect %15
+  call I32.show borrow %38 borrow %39
+  %40: String owned = load inspect %15
+  store inspect %16 consume %40
+  %41: String [shared call] guaranteed from{%16} = load inspect %16
+  %42: %String trivial = bitcast inspect %41
+  drop String inspect %16
+  %43: %IterBlock(String, {}) trivial = load inspect %12
+  %44: Bool trivial = call IterBlock.lend(String) borrow %43 borrow %42
+  branch inspect %44 -> bb5 -> bb6
+
+bb5:
+  return
+
+bb6:
+  jump -> bb2(consume %8, consume %9)
+
+bb7(%10: I32 trivial, %11: I32 trivial):
+  %45: I32 trivial = load inspect %13
+  %46: I32 trivial = add inspect %45 inspect %11
+  store inspect %13 consume %46
+  jump -> bb1(consume %10, consume %11)
+}
+
+fn guards($iter: %IterBlock(Guard, {}) [shared call]) -> {} {
+bb0(%0: %IterBlock(Guard, {}) trivial):
+  %1: %%IterBlock(Guard, {}) address = alloc frame %IterBlock(Guard, {}) [shared call]
+  %2: %Guard address = alloc frame Guard
+  store inspect %1 borrow %0
+  %3: Size trivial = const 5
+  %4: Guard owned = aggregate.Guard consume %3
+  store inspect %2 consume %4
+  %5: Guard [shared call] guaranteed from{%2} = load inspect %2
+  %6: %Guard trivial = bitcast inspect %5
+  %7: %IterBlock(Guard, {}) trivial = load inspect %1
+  %8: Bool trivial = call IterBlock.lend(Guard) borrow %7 borrow %6
+  branch inspect %8 -> bb1 -> bb2
+
+bb1:
+  drop Guard inspect %2
+  return
+
+bb2:
+  %9: Guard [shared call] guaranteed from{%2} = load inspect %2
+  %10: %Guard trivial = bitcast inspect %9
+  drop Guard inspect %2
+  %11: %IterBlock(Guard, {}) trivial = load inspect %1
+  %12: Bool trivial = call IterBlock.lend(Guard) borrow %11 borrow %10
+  branch inspect %12 -> bb3 -> bb4
+
+bb3:
+  return
+
+bb4:
+  return
+}
+
+fn main() -> Size {
+bb0:
+  %0: %Size address = alloc frame Size
+  %1: %LentIter(String, {String}) address = alloc frame LentIter(String, {String})
+  %2: %LentIter(Guard, {}) address = alloc frame LentIter(Guard, {})
+  %3: %Size address = alloc frame Size
+  %4: %LentIter(String, {String}) address = alloc frame LentIter(String, {String})
+  %5: %Maybe(String) address = alloc frame Maybe(String) [owned here shape1 .0=shared slot 0 view]
+  %6: %Bool address = alloc frame Bool
+  %7: Bool trivial = const False
+  store inspect %6 consume %7
+  %8: Size trivial = const 0
+  store inspect %0 consume %8
+  %9: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 2, ownsHeap: 0}, length: 2}}
+  %10: LentIter(String, {String}) owned = call words'2$new consume %9
+  store inspect %1 consume %10
+  jump -> bb1
+
+bb1:
+  %11: LentIter(String, {String}) [unique call] guaranteed from{%1} = load inspect %1
+  %12: Bool trivial = call LentIter.advance(String, {String}) borrow %11
+  branch inspect %12 -> bb3 -> bb2
+
+bb2:
+  drop LentIter(String, {String}) inspect %1
+  %13: LentIter(Guard, {}) owned = call guards$new
+  store inspect %2 consume %13
+  %14: Size trivial = const 0
+  store inspect %3 consume %14
+  jump -> bb4
+
+bb3:
+  %15: LentIter(String, {String}) [shared call] guaranteed from{%1} = load inspect %1
+  %16: String [shared slot 0 view] guaranteed from{%1} = call LentIter.current(String, {String}) borrow %15
+  %17: Size [unique call] guaranteed from{%0} = load inspect %0
+  %18: String [shared slot 0 view] guaranteed from{%1, %16} = load inspect %16
+  %19: Size trivial = call String.length borrow %18
+  call +=(Size) borrow %17 borrow %19
+  jump -> bb1
+
+bb4:
+  %20: LentIter(Guard, {}) [unique call] guaranteed from{%2} = load inspect %2
+  %21: Bool trivial = call LentIter.advance(Guard, {}) borrow %20
+  branch inspect %21 -> bb6 -> bb5
+
+bb5:
+  drop LentIter(Guard, {}) inspect %2
+  %22: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 1, ownsHeap: 0}, length: 1}}
+  %23: LentIter(String, {String}) owned = call words'2$new consume %22
+  %24: Bool trivial = const True
+  store inspect %6 consume %24
+  store inspect %4 consume %23
+  jump -> bb7
+
+bb6:
+  %25: LentIter(Guard, {}) [shared call] guaranteed from{%2} = load inspect %2
+  %26: Guard [shared slot 0] guaranteed from{%2} = call LentIter.current(Guard, {}) borrow %25
+  %27: Size [unique call] guaranteed from{%3} = load inspect %3
+  %28: %Size address = field.addr .id inspect %26
+  %29: Size trivial = load inspect %28
+  call +=(Size) borrow %27 borrow %29
+  jump -> bb4
+
+bb7:
+  %30: Bool trivial = const True
+  branch inspect %30 -> bb9 -> bb8
+
+bb8:
+  %31: Bool trivial = load inspect %6
+  branch inspect %31 -> bb13 -> bb14
+
+bb9:
+  %43: LentIter(String, {String}) [unique slot 0] guaranteed from{%4} = load inspect %4
+  %44: Maybe(String) [owned here shape1 .0=shared slot 0 view] trivial = call LentIter.next(String, {String}) borrow %43
+  store inspect %5 consume %44
+  %45: %U8 address = field.addr .# inspect %5
+  %46: U8 trivial = load inspect %45
+  %47: U8 trivial = const 1
+  %48: Bool trivial = eq inspect %46 inspect %47
+  branch inspect %48 -> bb12 -> bb10
+
+bb10:
+  drop LentIter(String, {String}) inspect %4
+  %49: Bool trivial = const False
+  store inspect %6 consume %49
+  jump -> bb8
+
+bb11:
+  jump -> bb7
+
+bb12:
+  %50: %String address = field.addr .Just inspect %5
+  %51: String [shared slot 0 view] guaranteed from{%4, %5} = load inspect %50
+  %52: Size [unique call] guaranteed from{%0} = load inspect %0
+  %53: String [shared slot 0 view] guaranteed from{%4, %5, %51} = load inspect %51
+  %54: Size trivial = call String.length borrow %53
+  call +=(Size) borrow %52 borrow %54
+  jump -> bb11
+
+bb13 cleanup:
+  drop LentIter(String, {String}) inspect %4
+  jump -> bb14
+
+bb14:
+  %32: Bool trivial = const False
+  store inspect %6 consume %32
+  %33: %Size address = global.addr trace
+  %34: Size trivial = load inspect %33
+  %35: Size trivial = const 100
+  %36: Size trivial = mul inspect %34 inspect %35
+  %37: Size trivial = load inspect %3
+  %38: Size trivial = add inspect %36 inspect %37
+  %39: Size trivial = const 100
+  %40: Size trivial = mul inspect %38 inspect %39
+  %41: Size trivial = load inspect %0
+  %42: Size trivial = add inspect %40 inspect %41
+  return consume %42
+}
+
+fn words'2$entry($block: %IterBlock(String, {}) [shared call]) -> {} {
+bb0(%0: %IterBlock(String, {}) trivial):
+  %1: %%IterBlock(String, {}) address = alloc frame %IterBlock(String, {}) [shared call]
+  %2: %{String} address = alloc frame {String}
+  store inspect %1 borrow %0
+  %3: %IterBlock(String, {}) trivial = load inspect %1
+  %4: {String} owned = call IterBlock.begin(String, {String}) borrow %3
+  store inspect %2 consume %4
+  %5: %String address = field.addr . inspect %2
+  %6: String [shared call] guaranteed from{%2} = load inspect %5
+  %7: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %6
+  %8: %IterBlock(String, {}) trivial = load inspect %1
+  call words'2 borrow %7 borrow %8
+  drop {String} inspect %2
+  %9: %IterBlock(String, {}) trivial = load inspect %1
+  call IterBlock.finish(String) borrow %9
+  return
+}
+
+fn words'2$new(prefix: String) -> LentIter(String, {String}) {
+bb0(%0: String owned):
+  %1: %String address = alloc frame String
+  %2: %(%IterBlock(String, {})) -> {} address = alloc frame (%IterBlock(String, {})) -> {} [owned here shape8 .0=unique call]
+  store inspect %1 consume %0
+  %3: String owned = load inspect %1
+  %4: {String} owned = aggregate. consume %3
+  %5: (%IterBlock(String, {})) -> {} [owned here shape8 .0=unique call] affine = fun.value words'2$entry
+  store inspect %2 consume %5
+  %6: (%IterBlock(String, {})) -> {} [shared call shape8 .0=unique call] guaranteed from{%2} = load inspect %2
+  %7: LentIter(String, {String}) owned = call LentIter.new(String, {String}) consume %4 borrow %6
+  return consume %7
+}
+
+fn guards$entry($block: %IterBlock(Guard, {}) [shared call]) -> {} {
+bb0(%0: %IterBlock(Guard, {}) trivial):
+  %1: %%IterBlock(Guard, {}) address = alloc frame %IterBlock(Guard, {}) [shared call]
+  %2: %{} address = alloc frame {}
+  store inspect %1 borrow %0
+  %3: %IterBlock(Guard, {}) trivial = load inspect %1
+  call IterBlock.begin(Guard, {}) borrow %3
+  %4: %IterBlock(Guard, {}) trivial = load inspect %1
+  call guards borrow %4
+  %5: %IterBlock(Guard, {}) trivial = load inspect %1
+  call IterBlock.finish(Guard) borrow %5
+  return
+}
+
+fn guards$new() -> LentIter(Guard, {}) {
+bb0:
+  %0: %(%IterBlock(Guard, {})) -> {} address = alloc frame (%IterBlock(Guard, {})) -> {} [owned here shape8 .0=unique call]
+  %1: (%IterBlock(Guard, {})) -> {} [owned here shape8 .0=unique call] affine = fun.value guards$entry
+  store inspect %0 consume %1
+  %2: (%IterBlock(Guard, {})) -> {} [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %3: {} trivial = const {}
+  %4: LentIter(Guard, {}) owned = call LentIter.new(Guard, {}) consume %3 borrow %2
+  return consume %4
+}
+
+entry main

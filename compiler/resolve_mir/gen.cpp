@@ -480,12 +480,17 @@ DeclPtr<Type> closeFunPosition(Context& context, Program& program, DeclPtr<Type>
  * A **lens** is refused along with a generic, and for a related reason: a lens has no standalone
  * body to point at - `Function::lens` says its body is resolved into its caller - so there is no
  * code word for a value of it to hold. Milestone 7's CPS lowering is what gives it one.
+ *
+ * An **external iterator** is refused for the opposite reason: it has a body, and calling that body
+ * is not what calling the declaration means. A call builds a handle (`constructIter`), and a value
+ * whose calls ran the producer on the caller's stack would be the ABI confusion §1.2 is written
+ * against.
  */
 DeclPtr<Type> funTypeOf(Context& context, Program& program, DeclPtr<Function> function) {
     auto base = *program.decl;
     auto& declared = *base[function];
 
-    if(isGeneric(base, declared.gen) || declared.lens) return nullptr;
+    if(isGeneric(base, declared.gen) || declared.lens || declared.externalIterator) return nullptr;
 
     /*
      * A lifted lambda's **environment** is argument zero and is not one of the type's positions.

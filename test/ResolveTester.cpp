@@ -1229,6 +1229,13 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
         pass = compareText(lowerPath, lowerWriter.getBuffered()) && pass;
     }
 
+    // This stage's lowering, handed to LLVM - `runLlvmPass`, on its terms: opted into by the file,
+    // and never created by `generate`, since most fixtures say nothing new about the translation.
+    auto llvmPath = path + String(".mir.llvm.expect");
+    if(fileExists(llvmPath)) {
+        pass = runLlvmPass(path, llvmPath, context, diagnostics, *lowered, generate) && pass;
+    }
+
     if(auto expected = expectedRun) {
         auto actual = executeModule(context, *lowered, unitResult, wideResult);
         if(!actual || actual.unwrap() != expected.unwrap()) {

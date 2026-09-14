@@ -6,7 +6,7 @@ module asm "\09.set \22image$base\22, 0"
 @"image$base" = external constant [0 x i8], align 8
 @sink = global [8 x i8] zeroinitializer, align 8
 
-define fastcc i32 @quadWidth(<4 x i16> %v) {
+define fastcc i32 @quadWidth(<4 x i16> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -14,7 +14,7 @@ define fastcc i32 @quadWidth(<4 x i16> %v) {
   ret i32 %2
 }
 
-define fastcc i32 @"main$"() {
+define fastcc i32 @"main$"() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -39,14 +39,14 @@ define fastcc i32 @"main$"() {
   ret i32 %15
 }
 
-define fastcc i32 @"widthOf(4)"(<4 x i16> %v) {
+define fastcc i32 @"widthOf(4)"(<4 x i16> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
   ret i32 4
 }
 
-define fastcc <4 x i16> @"doubled(4)"(<4 x i16> %v) {
+define fastcc <4 x i16> @"doubled(4)"(<4 x i16> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -56,7 +56,7 @@ define fastcc <4 x i16> @"doubled(4)"(<4 x i16> %v) {
   ret <4 x i16> %4
 }
 
-define fastcc <4 x i16> @"twice(4)"(<4 x i16> %v) {
+define fastcc <4 x i16> @"twice(4)"(<4 x i16> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -64,7 +64,7 @@ define fastcc <4 x i16> @"twice(4)"(<4 x i16> %v) {
   ret <4 x i16> %2
 }
 
-define fastcc <4 x i16> @"sameCount(4)"(<4 x i16> %v, <4 x i16> %w) {
+define fastcc <4 x i16> @"sameCount(4)"(<4 x i16> %v, <4 x i16> %w) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -72,7 +72,7 @@ define fastcc <4 x i16> @"sameCount(4)"(<4 x i16> %v, <4 x i16> %w) {
   ret <4 x i16> %2
 }
 
-define fastcc i32 @"secondLane(4)"(<4 x i16> %v) {
+define fastcc i32 @"secondLane(4)"(<4 x i16> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -82,3 +82,5 @@ define fastcc i32 @"secondLane(4)"(<4 x i16> %v) {
   %5 = ashr i32 %4, 16
   ret i32 %5
 }
+
+attributes #0 = { "probe-stack"="inline-asm" }

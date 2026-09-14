@@ -2,13 +2,13 @@ module ResolveTest
 
 let & shared: Map(I32, I32)
 
-let string'142: [CodeUnit *1] = "x"
+let string'143: [CodeUnit *1] = "x"
 
-let string'143: [CodeUnit *1] = "y"
+let string'144: [CodeUnit *1] = "y"
 
-let string'144: [CodeUnit *1] = "x"
+let string'145: [CodeUnit *1] = "x"
 
-let string'145: [CodeUnit *1] = "y"
+let string'146: [CodeUnit *1] = "y"
 
 fn total(m: Map(I32, I32) [shared call]) -> I32 {
 bb0(%0: Map(I32, I32) [shared call] guaranteed):
@@ -656,8 +656,8 @@ bb63:
   %357: I32 trivial = const 10
   %358: Map(I32, I32) owned = call single(I32, I32) consume %356 consume %357
   store inspect %21 consume %358
-  %359: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
-  %360: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %359: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %360: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
   %361: I32 trivial = const 1
   %362: I32 trivial = const 2
   %363: Map(String, I32) owned = call pair(String, I32) consume %359 consume %361 consume %360 consume %362
@@ -669,7 +669,7 @@ bb63:
   %367: I32 [shared slot 0] guaranteed from{%21} = call Map(k, v).get(I32, I32) borrow %366 borrow %365
   %368: I32 trivial = load inspect %367
   drop Map(I32, I32) inspect %21
-  %369: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %369: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
   %370: Map(String, I32) [shared call] guaranteed from{%22} = load inspect %22
   store inspect %24 consume %369
   %371: String [shared slot 0] guaranteed from{%24} = load inspect %24
@@ -678,7 +678,7 @@ bb63:
   drop String inspect %24
   %374: I32 trivial = load inspect %373
   %375: I32 trivial = add inspect %368 inspect %374
-  %376: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %376: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
   %377: Map(String, I32) [shared call] guaranteed from{%22} = load inspect %22
   store inspect %25 consume %376
   %378: String [shared slot 0] guaranteed from{%25} = load inspect %25

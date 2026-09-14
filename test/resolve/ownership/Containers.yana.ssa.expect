@@ -1,8 +1,8 @@
 module ResolveTest
 
-let string'142: [CodeUnit *2] = "bc"
+let string'143: [CodeUnit *2] = "bc"
 
-let string'143: [CodeUnit *5] = "hello"
+let string'144: [CodeUnit *5] = "hello"
 
 fn total(xs: Array(I32) [shared call view]) -> I32 {
 bb0(%0: Array(I32) [shared call view] guaranteed):
@@ -194,13 +194,13 @@ bb9(%48: I32 [unique slot 0 owner] guaranteed from{%0}):
   %74: I32 trivial = const 65
   call String.pushUnit borrow %73 borrow %74
   %75: String [unique call] guaranteed from{%2} = load inspect %2
-  %76: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %76: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %3 consume %76
   %77: String [shared slot 0] guaranteed from{%3} = load inspect %3
   %78: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %77
   call String.push borrow %75 borrow %78
   drop String inspect %3
-  %79: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 5, ownsHeap: 0}, length: 5}}
+  %79: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 5, ownsHeap: 0}, length: 5}}
   store inspect %4 consume %79
   %80: Array(I32) [shared call] guaranteed from{%0} = load inspect %0
   %81: Array(I32) [shared slot 0 view] guaranteed from{%0} = call Array(a).elements(I32) borrow %80

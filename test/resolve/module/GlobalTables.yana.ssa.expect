@@ -1,6 +1,6 @@
 module ResolveTest
 
-let string'142: [CodeUnit *20] = "00010203040506070809"
+let string'143: [CodeUnit *20] = "00010203040506070809"
 
 fn main() -> I32 {
 bb0:
@@ -54,7 +54,7 @@ bb8:
   %20: %String address = global.addr decimalPairs
   %21: String [shared call] guaranteed = load inspect %20
   %22: String [shared slot 0 view] guaranteed = call String.view borrow %21
-  %23: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 20, ownsHeap: 0}, length: 20}}
+  %23: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 20, ownsHeap: 0}, length: 20}}
   store inspect %1 consume %23
   %24: String [shared slot 0] guaranteed from{%1} = load inspect %1
   %25: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %24
@@ -85,11 +85,11 @@ bb12:
 }
 module Tables
 
-let decimalPairs: String = String {units: Array {run: Run {items: &string'144, capacity: 20, ownsHeap: 0}, length: 20}}
+let decimalPairs: String = String {units: Array {run: Run {items: &string'145, capacity: 20, ownsHeap: 0}, length: 20}}
 
 let powers: [I64 *5] = [1, 10, 100, 1000, 10000]
 
-let string'144: [CodeUnit *20] = "00010203040506070809"
+let string'145: [CodeUnit *20] = "00010203040506070809"
 
 fn power(index: Size [shared call]) -> I64 {
 bb0(%0: Size trivial):

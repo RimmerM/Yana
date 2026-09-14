@@ -328,6 +328,65 @@ YANA_KNOWN_ROLE( mapLiteral,  Entity::Function, 1,   0,      0,      false,   Pr
 YANA_KNOWN_ROLE( indexInsert, Entity::Class,    3,   1,      0,      false,   Presence::Optional )
 
 /*
+ * `fn f(...) -> iter(T)` - Analysis-External-Iterators.md §2.1's external iterator, as rows instead
+ * of a runtime - these eight, and the lending form's five below.
+ *
+ * The whole of what the resolver knows about one is the *shape*: a call site hands the arguments
+ * and an entry to `iterNew`, a `for` asks `iterNext` and takes the value with `iterTake`, a `yield`
+ * is `iterYield`, and the entry the resolver synthesizes per instantiation opens with `iterBegin`
+ * and ends with `iterFinish`. What a handle *is* - a mapped stack, a fiber, a slot for the value in
+ * flight - is `lib/Fiber`'s, and every function below is an ordinary one there. That is the division
+ * `runSlots` is under, and it is load-bearing here for a further reason: the stack switch is native
+ * and Linux-only today, so a library that cannot provide these is a target where `iter(...)` reports
+ * a missing role rather than a compiler that has to be built without the feature.
+ *
+ * **Two records rather than one**, because the handle moves and the producer does not. `iterState`
+ * is what a consumer holds and may relocate like any other value; `iterBlock` is the storage at the
+ * top of the mapping, above the stack and clear of the guard page an overrun reaches, at an address
+ * both stacks agree on for as long as the stack exists. That
+ * is what spares the handle §3.1's pinning rule - nothing points at the handle.
+ *
+ * **`iterBlock`'s last field is a dependency.** A producer is compiled against `%IterBlock(y, {})`
+ * whatever it captured, because its signature is settled before any call decides how each argument
+ * travels (by value, as a view record or by address - see `constructIter`). So every field a producer
+ * reads must come before the one whose layout depends on `a`, and `checkRoles` has no way to say so:
+ * this comment and the library's `@layout(c)` are the contract.
+ *
+ * `arity` is the parameter count for a function and the type parameter count for a record - two for
+ * both records, `(y, a)`: the yielded type and the tuple the call captured.
+ *
+ * `Optional`, on the map rows' terms.
+ */
+//              role         entity            arity members payload teardown presence
+YANA_KNOWN_ROLE( iterState,   Entity::Record,   2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterBlock,   Entity::Record,   2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterNew,     Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterNext,    Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterTake,    Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterBegin,   Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterYield,   Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterFinish,  Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+
+/*
+ * The **lending** form - Analysis-External-Iterators.md §3.3, a producer whose `yield` lends a value
+ * with a teardown rather than handing one over.
+ *
+ * A handle record of its own, because whether a consumer takes or borrows is a question its *type*
+ * has to answer: `for x in h` over a local has nothing else to read. What differs is exactly the
+ * rows below - making the handle, stepping it, borrowing the value and lending it - and the block,
+ * the entry's two rows and the teardown are shared with the owned form.
+ *
+ * `iterCurrent`'s signature is the whole of the soundness argument: `(self: 'LentIter(y, a)) -> 'y`
+ * roots the value in the handle's loan, so nothing that needs the handle whole - stepping it or
+ * dropping it - can happen while the value is live.
+ */
+YANA_KNOWN_ROLE( iterLentState, Entity::Record, 2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterLentNew, Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterLentNext, Entity::Function, 1,  0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterCurrent, Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( iterLend,    Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+
+/*
  * Where a check that did not hold stops the program - `lib/Core/Check.yana`'s `checkFailed`.
  *
  * The role neither stage calls *directly*. The shipping stage emits `checkCondition(index >=

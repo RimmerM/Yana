@@ -5,7 +5,7 @@ module asm "\09.set \22image$base\22, 0"
 
 @"image$base" = external constant [0 x i8], align 8
 
-define fastcc i32 @scalars() {
+define fastcc i32 @scalars() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -70,7 +70,7 @@ define fastcc i32 @scalars() {
   ret i32 0
 }
 
-define fastcc i32 @lanes() {
+define fastcc i32 @lanes() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -138,7 +138,7 @@ define fastcc i32 @lanes() {
   ret i32 0
 }
 
-define fastcc i32 @main() {
+define fastcc i32 @main() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -173,16 +173,17 @@ define fastcc i32 @main() {
 }
 
 ; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
-declare double @llvm.sqrt.f64(double) #0
+declare double @llvm.sqrt.f64(double) #1
 
 ; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
-declare float @llvm.sqrt.f32(float) #0
+declare float @llvm.sqrt.f32(float) #1
 
 ; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
-declare <4 x float> @llvm.sqrt.v4f32(<4 x float>) #0
+declare <4 x float> @llvm.sqrt.v4f32(<4 x float>) #1
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare float @llvm.vector.reduce.fmin.v4f32(<4 x float>) #1
+declare float @llvm.vector.reduce.fmin.v4f32(<4 x float>) #2
 
-attributes #0 = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }
-attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #0 = { "probe-stack"="inline-asm" }
+attributes #1 = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #2 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }

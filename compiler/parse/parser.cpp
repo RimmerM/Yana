@@ -383,9 +383,12 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
     ast::ParsePtr<ast::Type> ret = nullptr;
     auto retBind = ast::BindType::Borrow;
     auto protocol = ast::noProtocol();
+    auto external = false;
 
     if(maybe(Token::opArrowR)) {
-        if(auto yielded = parseIterProtocol(funKind, retBind, protocol)) {
+        if(auto yielded = parseExternalIter(funKind, external, retBind, protocol)) {
+            ret = heap(yielded.unwrap());
+        } else if(auto yielded = parseIterProtocol(funKind, retBind, protocol)) {
             ret = heap(yielded.unwrap());
         } else {
             retBind = parseResultBind();
@@ -471,6 +474,7 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
             .body = body,
             .implicitReturn = implicitReturn,
             .kind = funKind,
+            .external = external,
         },
         .attributes = ::move(attributes),
         .source = source,
@@ -1813,7 +1817,41 @@ Maybe<ast::Type> Parser::parseIterProtocol(ast::FunKind kind, ast::BindType& bin
     if(!hasProtocolSeparator()) return Nothing();
 
     eat();
+    return Just(parseProtocolBody(bind, protocol));
+}
 
+/*
+ * `-> iter([conv] Y <- [conv] R | E)` - the **external** iterator, §2.1's third row.
+ *
+ * The same three channels inside the same brackets, under a word that says the result is a value
+ * rather than a traversal. `iter` is a hard keyword and one may not stand at the head of a type, so
+ * there is nothing here to look ahead for: a result position beginning with it is this and can be
+ * nothing else, which is the difference from the bracket form above.
+ *
+ * Answers nothing having consumed nothing where the result is an ordinary type, and refuses the word
+ * on a declaration that is already a traversal - `iter fn f() -> iter(T)` is two answers to the
+ * question of who drives the loop, and the author has to pick one.
+ */
+Maybe<ast::Type> Parser::parseExternalIter(ast::FunKind kind, bool& external, ast::BindType& bind,
+                                           ast::IterProtocol& protocol) {
+    if(token.type != Token::kwIter) return Nothing();
+
+    eat();
+
+    if(kind != ast::FunKind::Plain) {
+        error("a traversal already hands its values to a loop body, so its result is what it hands over - write `iter fn f() -> T` or `fn f() -> iter(T)`, not both"_v);
+    }
+
+    expect(Token::ParenL, "expected '(' after `iter` in a result type"_v);
+    external = true;
+
+    return Just(parseProtocolBody(bind, protocol));
+}
+
+// The three channels between the brackets, shared by the two spellings above: the hand-over, what a
+// `yield` evaluates to, and how the traversal ends. The opening bracket is the caller's, because
+// what stands in front of it is the whole of what separates them.
+ast::Type Parser::parseProtocolBody(ast::BindType& bind, ast::IterProtocol& protocol) {
     bind = parseResultBind();
     auto yielded = parseType();
 
@@ -1829,7 +1867,7 @@ Maybe<ast::Type> Parser::parseIterProtocol(ast::FunKind kind, ast::BindType& bin
     }
 
     expectClose(Token::ParenR, "expected ')' after the iterator protocol"_v);
-    return Just(yielded);
+    return yielded;
 }
 
 /*

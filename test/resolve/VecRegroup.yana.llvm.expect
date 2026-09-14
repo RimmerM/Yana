@@ -6,7 +6,7 @@ module asm "\09.set \22image$base\22, 0"
 @"image$base" = external constant [0 x i8], align 8
 @sink = global [16 x i8] zeroinitializer, align 8
 
-define fastcc <8 x i16> @regrouping(<4 x i32> %v) {
+define fastcc <8 x i16> @regrouping(<4 x i32> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -14,7 +14,7 @@ define fastcc <8 x i16> @regrouping(<4 x i32> %v) {
   ret <8 x i16> %2
 }
 
-define fastcc <16 x i8> @bytes(<8 x i16> %v) {
+define fastcc <16 x i8> @bytes(<8 x i16> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -22,7 +22,7 @@ define fastcc <16 x i8> @bytes(<8 x i16> %v) {
   ret <16 x i8> %2
 }
 
-define fastcc <4 x i32> @back(<16 x i8> %v) {
+define fastcc <4 x i32> @back(<16 x i8> %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -30,7 +30,7 @@ define fastcc <4 x i32> @back(<16 x i8> %v) {
   ret <4 x i32> %2
 }
 
-define fastcc i32 @"main$"() {
+define fastcc i32 @"main$"() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -41,3 +41,5 @@ define fastcc i32 @"main$"() {
   store <4 x i32> %4, ptr @sink, align 1
   ret i32 1
 }
+
+attributes #0 = { "probe-stack"="inline-asm" }

@@ -1,5 +1,6 @@
 #include "build.h"
 
+#include <llvm/Config/llvm-config.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/IntrinsicsX86.h>
@@ -57,6 +58,122 @@ static llvm::Value* asInt32(FunGen& f, llvm::Value* value) {
 
 static llvm::Value* asInt16(FunGen& f, llvm::Value* value) {
     return f.builder.CreateZExtOrTrunc(value, llvm::Type::getInt16Ty(f.gen.llvm));
+}
+
+/*
+ * The two routines a stack switch is made of - Analysis-External-Iterators.md §4.1.
+ *
+ * **Out of line rather than inline assembly**, which is the one place this backend has to state the
+ * operation differently from the x64 one. The x64 sequence moves `rsp` in the middle of a function,
+ * and that backend can afford to because its allocator is told what the move costs through the
+ * convention. An asm block that did the same here would be invisible to every LLVM pass that needs
+ * to know: the frame the caller spills into is not the frame the next instruction runs on. A call is
+ * the shape LLVM already understands for "control leaves and comes back with the registers gone",
+ * so the switch is one, to a routine that takes nothing from the caller's frame.
+ *
+ *     __yana_stack_switch:           entered by a call, rsp at the return address
+ *       push rbp                     the one register the convention keeps
+ *       mov  [r13], rsp              the saved stack pointer, where the operand says
+ *       mov  rsp, r12                the target's
+ *       mov  rax, r14                the transfer word, in the result register
+ *       pop  rbp                     the target's frame pointer
+ *       ret                          and the address it left from
+ *
+ * **`preserve_none` is what makes it correct, not merely fast.** It is the one LLVM convention
+ * whose callee keeps nothing but `rsp` and `rbp`, which is exactly what `LowerCallType::StackSwitch`
+ * says: the other context runs inside this call, so a register the caller expected back would come
+ * back holding the other context's value. Its arguments are r12, r13 and r14 in that order, which
+ * is why the routine reads them there rather than from the System V registers. So LLVM spills what
+ * is live across the switch, and nothing else - the same bargain the x64 allocator makes, where
+ * `Tritium_suspendFiber` saves and restores all seven callee-saved registers on every switch.
+ *
+ * A saved stack pointer names a saved frame pointer with a resume address above it, which is the
+ * same shape the x64 sequence leaves - there the address is pushed, and here the call pushed it.
+ * That is what lets `StackInit` lay out a fresh stack the ordinary `ret` enters: its resume address
+ * is the entry routine, which pops what the layout put there and calls it.
+ *
+ *     __yana_stack_entry:            rsp at top - 24
+ *       pop  rdi                     the environment
+ *       pop  rsi                     the argument
+ *       pop  r11                     the code
+ *       call r11                     rsp was at top, so System V's alignment holds at the entry
+ *       ud2                          a fiber body ends by switching away, not by returning
+ *
+ * The entry is called under the internal convention, whose first two arguments `fastcc` places in
+ * rdi and rsi - the same assumption `CloneThread`'s child sequence above makes.
+ *
+ * **`ret` rather than `pop r11; jmp r11`**, the x64 sequence's ending. The x64 sequence pushes its
+ * resume address without a call, so it never touches the return-address predictor. Here the call
+ * pushes an entry on that predictor and a `jmp` would never pop it, so every switch would leave a
+ * stale entry for the next genuine return to mispredict against. A `ret` keeps the predictor's depth
+ * right and mispredicts only the switch itself, which the indirect `jmp` would have done anyway.
+ *
+ * Module assembly rather than a naked function, because the routine's arguments are registers and
+ * nothing else: a definition LLVM could see is one whose unused arguments dead-argument elimination
+ * and interprocedural propagation would be entitled to rewrite. Local symbols, so a program linked
+ * from one module has no second definition to collide with.
+ */
+static bool stackRuntimeOf(Gen& gen, LocationId source) {
+    if(gen.stackSwitch) return true;
+
+    if(gen.context.settings.arch != TargetArch::X64) {
+        gen.context.diagnostics.error("llvm: stack switching is implemented for x86-64 only"_v, source);
+        return false;
+    }
+
+#if LLVM_VERSION_MAJOR < 19
+    gen.context.diagnostics.error("llvm: stack switching needs the preserve_none convention of LLVM 19 or later"_v,
+                                  source);
+    return false;
+#else
+    auto word = llvm::Type::getInt64Ty(gen.llvm);
+    auto pointer = llvm::PointerType::get(gen.llvm, 0);
+
+    gen.stackSwitch = llvm::Function::Create(
+        llvm::FunctionType::get(word, { pointer, pointer, word }, false),
+        llvm::Function::ExternalLinkage, "__yana_stack_switch", gen.module);
+    gen.stackSwitch->setCallingConv(llvm::CallingConv::PreserveNone);
+
+    gen.stackEntry = llvm::Function::Create(
+        llvm::FunctionType::get(llvm::Type::getVoidTy(gen.llvm), false),
+        llvm::Function::ExternalLinkage, "__yana_stack_entry", gen.module);
+
+    // The symbols as the assembler sees them: Mach-O prefixes an underscore, and the data layout is
+    // what says so. `.type` and `.size` only mean something to ELF.
+    auto prefix = gen.module.getDataLayout().getGlobalPrefix();
+    auto elf = gen.context.settings.format == ExecutableFormat::ELF;
+
+    auto routine = [&](const char* name, const char* body) {
+        std::string symbol;
+        if(prefix) symbol += prefix;
+        symbol += name;
+
+        std::string text = "\t.text\n\t.p2align 4\n";
+        if(elf) text += "\t.type " + symbol + ", @function\n";
+        text += symbol + ":\n";
+        text += body;
+        if(elf) text += "\t.size " + symbol + ", . - " + symbol + "\n";
+
+        gen.module.appendModuleInlineAsm(text);
+    };
+
+    routine("__yana_stack_switch",
+            "\tpushq %rbp\n"
+            "\tmovq %rsp, (%r13)\n"
+            "\tmovq %r12, %rsp\n"
+            "\tmovq %r14, %rax\n"
+            "\tpopq %rbp\n"
+            "\tretq\n");
+
+    routine("__yana_stack_entry",
+            "\tpopq %rdi\n"
+            "\tpopq %rsi\n"
+            "\tpopq %r11\n"
+            "\tcallq *%r11\n"
+            "\tud2\n");
+
+    return true;
+#endif
 }
 
 // An operation with one operand and no result: an address to act on, or a value to write.
@@ -371,22 +488,56 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
         }
 
         /*
-         * Preparing a stack, which this backend does not have - and would gain nothing by having
-         * on its own.
+         * Preparing a stack for its first switch - see PseudoKind::StackInit for the layout, which
+         * is the same one here word for word.
          *
-         * The four stores and the entry stub could be written here exactly as the thread's child
-         * sequence above them is: the parent path never enters the stub, so an asm block that
-         * carries it is opaque in the way that arm relies on. What cannot be written that way is its
-         * only consumer. `stack.switch` moves `rsp`, so the frame the block was spilling into is not
-         * the frame the instruction after it runs on, and Analysis-External-Iterators.md §4.1 is
-         * explicit that this backend owes that operation an out-of-line shim rather than an
-         * unmodelled `rsp` mutation inside inline assembly. An initializer with no switch to feed
-         * would be half a feature, so the pair arrives together or not at all.
+         * Five stores and an address rather than inline assembly, which is the one way this differs
+         * from the x64 sequence. What the x64 backend has to branch over inline is the entry stub,
+         * and here the stub is a routine of its own beside the switch (`stackRuntimeOf`), so what
+         * is left is only writes through a pointer - which LLVM can see, and has no reason to think
+         * are dead: the address they are below is the result, and it goes on to be a switch target.
+         *
+         * The word at `top - 32` is the stub's address and the one at `top - 40` a zero frame
+         * pointer, exactly what the switch routine leaves when it saves a stack: its `ret` takes the
+         * first as a resume address, so a context's first resume is an ordinary one here as well.
          */
-        case LowerIntrinsic::StackInit:
-            f.context.diagnostics.error(
-                "llvm: preparing a stack needs the -backend local code generator"_v, inst.source);
-            return false;
+        case LowerIntrinsic::StackInit: {
+            if(!stackRuntimeOf(f.gen, inst.source)) return false;
+
+            auto word = llvm::Type::getInt64Ty(f.gen.llvm);
+            auto pointer = llvm::PointerType::get(f.gen.llvm, 0);
+
+            auto asAddress = [&](llvm::Value* value) -> llvm::Value* {
+                return value->getType()->isPointerTy() ? value : f.builder.CreateIntToPtr(value, pointer);
+            };
+
+            // A word is written whole whatever the operand's width, so that nothing above a
+            // narrower value is left holding what the mapping held before.
+            auto asWord = [&](llvm::Value* value) -> llvm::Value* {
+                return value->getType()->isPointerTy() ? value : f.builder.CreateZExtOrTrunc(value, word);
+            };
+
+            auto top = asAddress(argOf(f, inst, 0));
+            auto below = [&](I64 bytes) {
+                return f.builder.CreateGEP(f.builder.getInt8Ty(), top, llvm::ConstantInt::getSigned(word, -bytes));
+            };
+
+            // `(stackTop, code, environment, argument)`, laid out as the stub pops them: the
+            // environment first, then the argument, then the code.
+            f.builder.CreateAlignedStore(asWord(argOf(f, inst, 1)), below(8), llvm::Align(8));
+            f.builder.CreateAlignedStore(asWord(argOf(f, inst, 3)), below(16), llvm::Align(8));
+            f.builder.CreateAlignedStore(asWord(argOf(f, inst, 2)), below(24), llvm::Align(8));
+            f.builder.CreateAlignedStore(f.gen.stackEntry, below(32), llvm::Align(8));
+            f.builder.CreateAlignedStore(llvm::ConstantInt::get(word, 0), below(40), llvm::Align(8));
+
+            llvm::Value* saved = below(40);
+            if(created.length == 1 && !isPtr(created[0].type)) {
+                saved = f.builder.CreatePtrToInt(saved, typeOf(f.gen, created[0].type));
+            }
+
+            defineResults(f, inst, saved);
+            return true;
+        }
     }
 
     f.context.diagnostics.error("llvm: unknown intrinsic"_v, inst.source);
@@ -458,6 +609,58 @@ llvm::Value* genSyscall(FunGen& f, LowerInstCall& inst) {
         result = isPtr(created[0].type)
             ? f.builder.CreateIntToPtr(result, typeOf(f.gen, created[0].type))
             : f.builder.CreateIntCast(result, typeOf(f.gen, created[0].type), true);
+    }
+
+    return result;
+}
+
+/*
+ * The stack switch - `(target, save, transfer) -> transfer`, a call to the routine `stackRuntimeOf`
+ * describes. The operands are coerced to the routine's three words, since the IR may state an
+ * address as an integer where the library did arithmetic on it.
+ */
+llvm::Value* genStackSwitch(FunGen& f, LowerInstCall& inst) {
+    auto used = inst.used();
+    auto created = inst.created();
+    auto word = llvm::Type::getInt64Ty(f.gen.llvm);
+    auto pointer = llvm::PointerType::get(f.gen.llvm, 0);
+
+    if(used.length != 3) {
+        f.context.diagnostics.error("llvm: a stack switch takes a target, a save slot and a transfer word"_v,
+                                    inst.source);
+        return llvm::PoisonValue::get(word);
+    }
+
+    if(!stackRuntimeOf(f.gen, inst.source)) return llvm::PoisonValue::get(word);
+
+    llvm::Value* args[3];
+    for(Size i = 0; i < 3; i++) {
+        auto value = f.use(used[i]);
+        if(!value) {
+            f.context.diagnostics.error("llvm: a stack switch uses a value that was never defined"_v, inst.source);
+            return llvm::PoisonValue::get(word);
+        }
+
+        auto wanted = i < 2 ? (llvm::Type*)pointer : word;
+        if(value->getType() == wanted) {
+            args[i] = value;
+        } else if(value->getType()->isPointerTy()) {
+            args[i] = f.builder.CreatePtrToInt(value, word);
+        } else if(wanted->isPointerTy()) {
+            args[i] = f.builder.CreateIntToPtr(value, pointer);
+        } else {
+            args[i] = f.builder.CreateZExtOrTrunc(value, word);
+        }
+    }
+
+    auto call = f.builder.CreateCall(f.gen.stackSwitch, args);
+    call->setCallingConv(llvm::CallingConv::PreserveNone);
+
+    llvm::Value* result = call;
+    if(created.length == 1 && created[0].type != LowerType::Int64) {
+        result = isPtr(created[0].type)
+            ? f.builder.CreateIntToPtr(result, typeOf(f.gen, created[0].type))
+            : f.builder.CreateIntCast(result, typeOf(f.gen, created[0].type), false);
     }
 
     return result;

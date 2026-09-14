@@ -824,6 +824,23 @@ Node* Builder::addRepresent(LocationId source, Node& record, Occurrence view) {
     return append(node);
 }
 
+/*
+ * A view, as the owned view record it is laid out as - `addRepresent` read backwards.
+ *
+ * For a view that has to be *stored* where no loan can be stated: an external iterator's captured
+ * tuple, whose type is a field of `IterBlock` and so may not refer to storage it does not name.
+ * The two words are copied as a value, and the loan the view held is not carried with them; whoever
+ * stores the record has to state that loan elsewhere, which `iterConstructor`'s signature does.
+ */
+Node* Builder::addViewRecord(LocationId source, Node& view) {
+    auto record = viewRecordOf(context, program, valueOccurrence(view));
+    assertTrue(record != nullptr);
+
+    auto node = new (arena()) NodeUnary(source, UnaryOp::Represent, resultOf(view, UseMode::Inspect));
+    node->occurrence = owned(record);
+    return append(node);
+}
+
 Node* Builder::addConvert(LocationId source, Node& value, DeclPtr<Type> to) {
     return addRetype(source, UnaryOp::Convert, value, to);
 }

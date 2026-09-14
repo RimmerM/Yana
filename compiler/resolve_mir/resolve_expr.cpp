@@ -2547,9 +2547,12 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
 
     auto type = funTypeOf(context, program, found);
     if(!type) {
-        // A generic function and a lens are the two `funTypeOf` declines, and they decline for one
-        // reason: neither names a single body a value could point at.
-        unsupported(source, callee.lens ? "a value of a lens"_v : "a value of a generic function"_v);
+        // A generic function and a lens are two of what `funTypeOf` declines, and they decline for
+        // one reason: neither names a single body a value could point at. An external iterator is
+        // the third, and names a body whose calls are not what calling it means.
+        unsupported(source, callee.lens               ? "a value of a lens"_v :
+                            callee.externalIterator   ? "a value of an external iterator"_v
+                                                      : "a value of a generic function"_v);
         return nullptr;
     }
 
@@ -3674,6 +3677,18 @@ Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
                                  parameter.occurrence.shape };
     auto wanted = requestOf(position);
 
+    /*
+     * An **owned** value at a lent position of an external iterator stays owned - `constructIter`.
+     *
+     * Lending a temporary means holding it until the end of the statement, and a producer runs long
+     * after that. So the value is given to the handle instead, and the entry lends it to the
+     * producer from there: what a normal call would have borrowed for its duration, the handle keeps
+     * for its own. A named local still arrives as a loan, because `resolveValue` was asked for one.
+     */
+    if(producerArguments && !position.contract.isOwned() && valueOccurrence(value).contract.isOwned()) {
+        return coerce(builder, value, expected, source, "an argument"_v, Access::Owned);
+    }
+
     // A container reaching a view position - the one implicit adaptation, and it happens before
     // the type check because what it produces is what the position asked for.
     auto adapted = adaptToView(builder, value, position, source);
@@ -3696,6 +3711,18 @@ Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
 
 Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
                            TypeArguments& typeArguments, DeclPtr<Type> hint, LocationId source) {
+    /*
+     * `f(...)` where `f` answers `iter(T)` - a handle built, and no call of `f` at all.
+     *
+     * Here, after the arguments were prepared against the declared parameters, because that is the
+     * whole of what the two kinds of call share: what the arguments are and how each one arrived.
+     * What happens to them is `constructIter`'s, and it is first so that the result hint below is
+     * never matched against the producer's own `{}`.
+     */
+    if(callee.externalIterator) {
+        return constructIter(builder, callee, arguments, typeArguments, source);
+    }
+
     /*
      * What the *result position* decides, where the arguments left something open.
      *
@@ -5066,8 +5093,15 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
 
         if(!value) return false;
 
+        // Set around the preparation only, and not around `resolveValue` above: a call nested in
+        // the argument is prepared for its own callee.
+        auto outerProducer = producerArguments;
+        producerArguments = callee.externalIterator;
+
         into[position] = prepareArgument(builder, *value, parameter, typeArguments,
                                          argument.value.source);
+
+        producerArguments = outerProducer;
         return into[position] != nullptr;
     };
 

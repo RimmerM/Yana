@@ -547,6 +547,54 @@ static void genAndImm(AsmModule& to, U8 dest, I32 mask) {
     genGroup1Imm(to, dest, mask, 4);
 }
 
+// OR QWORD [rsp], 0 - a write that changes nothing, which is what a stack probe is: its only effect
+// is to fault if the page under rsp is not there.
+static void genProbeRsp(AsmModule& to) {
+    genMemory(to, MachineAddress::atOffset(U8(IntRegister::rsp), 0), 1, MemForm {
+        .opCode = 0x83, .is64 = true, .trailing = 1,
+    });
+    to.buffer.writeByte(0);
+}
+
+/*
+ * How far rsp may move between two accesses of the stack: under one page, so that no step can land
+ * beyond a guard page without touching it.
+ *
+ * That is the whole of what a guard page needs from generated code. A fiber's stack is a mapping
+ * with one inaccessible page at its low end (`Fiber.guardedStack`), and a frame larger than that page
+ * would otherwise reserve past it and write into whatever is mapped below - no fault, only somebody
+ * else's memory. Every other decrement already touches as it goes: a call and a push write the word
+ * they reserve. A step of at most this, sixteen-aligned, is followed by one of those - eight bytes
+ * further - or by a probe, before the next.
+ */
+static constexpr I32 kStackProbeStep = 4096 - 16;
+
+/*
+ * `sub rsp, bytes`, in steps that each touch the page they reach. A frame under a page is the one
+ * `sub` it always was.
+ *
+ * `dropped` is what rsp has already moved since the last access without touching - a realignment's
+ * mask, which can take up to the alignment less one - and the first step is shortened by it.
+ */
+static void genStackReserve(AsmModule& to, I32 bytes, I32 dropped) {
+    auto rsp = U8(IntRegister::rsp);
+    auto step = kStackProbeStep - dropped;
+
+    // No type is aligned to a page, so a mask never moves rsp that far on its own - and one that did
+    // would already have stepped past a guard before anything here could probe.
+    assertTrue(step > 0);
+
+    while(bytes > step) {
+        auto taken = step & ~15;
+        genAddImm(to, rsp, taken, true);
+        genProbeRsp(to);
+        bytes -= taken;
+        step = kStackProbeStep;
+    }
+
+    genAddImm(to, rsp, bytes, true);
+}
+
 // LEA r64, [base + disp] - used by the epilogue to put rsp back where the saved registers are
 // without having to know how far it has wandered, and by an alloca to take a frame object's address.
 static void genLeaFrame(AsmModule& to, U8 dest, U8 baseReg, I32 displacement) {
@@ -1001,7 +1049,7 @@ static void genPrologue(AsmModule& to, const FrameLayout& frame) {
     // arguments stay where rbp can still reach them.
     if(frame.realignsStack) genAndImm(to, rsp, -I32(frame.dynamicAlignment));
 
-    genAddImm(to, rsp, I32(frame.fixedSize), true);
+    genStackReserve(to, I32(frame.fixedSize), frame.realignsStack ? I32(frame.dynamicAlignment) - 1 : 0);
 
     // After the reservation, since the region they land in is part of it. A vector register cannot
     // be pushed, so preserving one is a store into the frame like any other - through the same
@@ -1786,7 +1834,50 @@ struct Emitter {
 
         genAddImm(to, dest, slack + stackAlignment - 1, false);
         genAndImm(to, dest, -stackAlignment);
-        genRegReg(to, true, rsp, dest, 0x29);  // sub rsp, dest
+
+        /*
+         * `sub rsp, dest`, probed - the run-time form of `genStackReserve`, since a size known only
+         * now could be larger than the guard page under a fiber's stack.
+         *
+         *          or   [rsp], 0         ; rsp is where the last step ended, touched or not
+         *          neg  dest
+         *          add  dest, rsp        ; dest = where rsp is going
+         *   step:  sub  rsp, 4080
+         *          cmp  rsp, dest
+         *          jbe  done             ; past it - the last step is the move below
+         *          or   [rsp], 0
+         *          jmp  step
+         *   done:  mov  rsp, dest
+         *
+         * The first probe is what makes the loop's steps measured from an access: the prologue's
+         * last step may have left up to a page untouched. The flags are already this instruction's
+         * to clobber, since the `sub` it replaces clobbered them too.
+         */
+        genProbeRsp(to);
+
+        to.buffer.writeByte(makeRex(true, dest, 0, 0));
+        to.buffer.writeByte(0xf7);
+        to.buffer.writeByte(makeMod(3, dest, 3));      // neg dest
+        genRegReg(to, true, dest, rsp, 0x01);           // add dest, rsp
+
+        auto step = to.buffer.offset();
+        genAddImm(to, rsp, kStackProbeStep, true);
+        genRegReg(to, true, rsp, dest, 0x39);           // cmp rsp, dest
+
+        to.buffer.writeByte(0x76);                      // jbe rel8, patched below
+        to.buffer.writeByte(0);
+        auto afterJump = to.buffer.offset();
+
+        genProbeRsp(to);
+        to.buffer.writeByte(0xeb);                      // jmp rel8, back to `step`
+        to.buffer.writeByte(U8(I8(I64(step) - I64(to.buffer.offset() + 1))));
+
+        auto done = to.buffer.offset();
+        to.buffer.offset(afterJump - 1);
+        to.buffer.writeByte(U8(done - afterJump));
+        to.buffer.offset(done);
+
+        genRegReg(to, true, dest, rsp, 0x8b);           // mov rsp, dest
 
         // The allocation sits above the outgoing argument area, which stays at the bottom of the
         // stack so that the next call still finds its arguments where the callee looks for them. A

@@ -110,12 +110,10 @@ llvm::CallingConv::ID conventionOf(LowerCallType type) {
             // Never reaches a call instruction - genSyscall emits inline assembly instead.
             return llvm::CallingConv::C;
         case LowerCallType::StackSwitch:
-            // Never reaches a call instruction either, and for a stronger reason than a syscall's:
-            // there is no callee, and the sequence moves rsp. Analysis-External-Iterators.md §4.1
-            // says what this backend owes it - an out-of-line shim called with full memory side
-            // effects, rather than an unmodelled `rsp` mutation inside an asm block - and until
-            // that exists `genCall` reports the instruction rather than emitting one.
-            return llvm::CallingConv::C;
+            // The convention that keeps nothing but the frame pointer, which is the one register the
+            // switch routine carries itself - see genStackSwitch. The lower IR has no callee operand
+            // for a switch, so the call is to that routine rather than to anything the IR names.
+            return llvm::CallingConv::PreserveNone;
     }
 
     assertTrue("unknown calling convention" == nullptr);
@@ -358,6 +356,11 @@ static llvm::Function* declareFunction(Gen& gen, LowerFunction& fun) {
     );
 
     target->setCallingConv(conventionOf(fun.callType));
+
+    // Probed, as the x64 backend's prologue and dynamic allocation are: a frame larger than a page
+    // could otherwise step over the guard page under a fiber's stack and write into whatever is
+    // mapped below it. See `genStackReserve` in `codegen/x64/gen.cpp`.
+    target->addFnAttr("probe-stack", "inline-asm");
 
     U32 index = 0;
     for(auto a: fun.args.contents(gen.base)) {

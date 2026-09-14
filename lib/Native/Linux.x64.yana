@@ -42,6 +42,7 @@ pub data Syscall
   | @value(6)   SysLinkStat
   | @value(8)   SysSeek
   | @value(9)   SysMmap
+  | @value(10)  SysMprotect
   | @value(11)  SysMunmap
   | @value(16)  SysIoctl
   | @value(17)  SysReadAt
@@ -104,6 +105,17 @@ pub fn mapMemory(size: Size) -> %U8:
 
 pub fn unmapMemory(from: %U8, size: Size) -> Size =
     syscall2(numberOf(SysMunmap), bitcast(from) :: USize, bitcast(size) :: USize)
+
+{-
+   Takes every access away from `size` bytes at `from`, which must be page-aligned - a guard: the
+   first read or write of it stops the program with a fault rather than touching whatever it
+   covered. Answers the kernel's number, zero where it worked.
+
+   What a stack mapping puts at its low end, so that running off the bottom of a stack is a fault
+   and not a write into the neighbouring mapping - see `Fiber.guardedStack`.
+-}
+pub fn protectNone(from: %U8, size: Size) -> Size =
+    syscall3(numberOf(SysMprotect), bitcast(from) :: USize, bitcast(size) :: USize, 0)
 
 {-
    The file calls, and what they all have in common - Analysis-Library.md §2.9.

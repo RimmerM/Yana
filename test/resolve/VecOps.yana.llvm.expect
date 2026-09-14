@@ -5,7 +5,7 @@ module asm "\09.set \22image$base\22, 0"
 
 @"image$base" = external constant [0 x i8], align 8
 
-define fastcc i32 @reductions() {
+define fastcc i32 @reductions() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -85,7 +85,7 @@ define fastcc i32 @reductions() {
   ret i32 0
 }
 
-define fastcc i32 @floats() {
+define fastcc i32 @floats() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -119,7 +119,7 @@ define fastcc i32 @floats() {
   ret i32 0
 }
 
-define fastcc i32 @main() {
+define fastcc i32 @main() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -154,15 +154,16 @@ define fastcc i32 @main() {
 }
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>) #0
+declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>) #1
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i32 @llvm.vector.reduce.mul.v4i32(<4 x i32>) #0
+declare i32 @llvm.vector.reduce.mul.v4i32(<4 x i32>) #1
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i32 @llvm.vector.reduce.smin.v4i32(<4 x i32>) #0
+declare i32 @llvm.vector.reduce.smin.v4i32(<4 x i32>) #1
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i32 @llvm.vector.reduce.smax.v4i32(<4 x i32>) #0
+declare i32 @llvm.vector.reduce.smax.v4i32(<4 x i32>) #1
 
-attributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #0 = { "probe-stack"="inline-asm" }
+attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }

@@ -1528,6 +1528,23 @@ struct Function {
     bool iterator = false;
 
     /*
+     * `fn f(...) -> iter(T)` - Analysis-External-Iterators.md §2.1's external iterator.
+     *
+     * Deliberately **not** `lens`, and that is the whole difference between the two kinds: an
+     * internal traversal runs the consumer's body from inside itself and the continuation is a
+     * parameter, while this one runs on a stack of its own and hands values back across a switch. So
+     * none of the `yield`-form desugaring applies - there is no continuation, no step signal and no
+     * departure - and the flag is what every rule about a lens goes on not matching.
+     *
+     * What it shares with a lens is the *shape* of the declaration: `handover` is what the body
+     * hands over, and `continuationArg` names the parameter the desugaring appended - the pointer to
+     * the producer's `IterBlock`, here, rather than the loop body. Sharing that field is what keeps
+     * `writtenArity`, every arity check and every call site from having to learn about a second
+     * hidden parameter. `resolve_iter.cpp` is the rest.
+     */
+    bool externalIterator = false;
+
+    /*
      * Which form this generic body is compiled in - `GenForm`, decided by `selectGenForms`.
      *
      * Written by `@specialize` or `@generic` and otherwise measured. Meaningless on a function that

@@ -2,8 +2,8 @@
    Materialized iterators - a producer that runs on its own stack and is stepped by its consumer.
 
    This is `doc/inflight/Analysis-External-Iterators.md` §1.2 as a library type rather than as a
-   result type: calling `open` prepares a producer without running it, `next` advances it until it
-   hands over a value, and a later `next` continues at the statement after the hand-over with every
+   result type: calling `Cursor.open` prepares a producer without running it, `Cursor.next` advances it until
+   it hands over a value, and a later `next` continues at the statement after the hand-over with every
    ordinary local intact. The difference from an `iter fn` is the one §1.1 names - an internal
    traversal runs the consumer's loop body from inside itself, so two of them cannot be stepped
    alternately, and two `Cursor`s can.
@@ -28,6 +28,9 @@
    entirely served by what is here.
 
    § Its shape
+
+   Every operation is under the type's namespace - `Cursor.open`, `cursor.next()` - because `open`,
+   `next` and `close` are names far too generic for a module that programs import whole.
 
    Four fields and no state machine. The transfer word carries the whole protocol - one for "there is
    a value in the slot", zero for "finished" - because a stack switch already passes a word in each
@@ -61,7 +64,7 @@ pub data Cursor(a) {
    `Finished` rather than `Ready`, so that `next` on one that was never opened answers `Nothing`
    instead of switching to a stack that does not exist.
 -}
-pub fn (a) newCursor() -> Cursor(a) = Cursor {
+pub fn (a) Cursor.new() -> Cursor(a) = Cursor {
     fiber: Fiber {child: null(), parent: null(), status: FiberStatus.Finished},
     slot: Nothing,
     stack: null(),
@@ -69,9 +72,9 @@ pub fn (a) newCursor() -> Cursor(a) = Cursor {
 }
 
 {-
-   `open(cursor, stackBytes, body)` - a producer prepared, not yet run.
+   `Cursor.open(cursor, stackBytes, body)` - a producer prepared, not yet run.
 
-   `body` is handed the cursor's own address and **must end with `finishCursor`**, which is the rule
+   `body` is handed the cursor's own address and **must end with `Cursor.finish`**, which is the rule
    `Native.stackInit` states one level down: a context ends by switching away rather than by
    returning. It is an ordinary function of the language, so a closure may be one.
 
@@ -82,62 +85,65 @@ pub fn (a) newCursor() -> Cursor(a) = Cursor {
    through it, so a cursor is bound with `let &` and stays where it was bound. That is §3.1's
    pinning rule, kept by hand here because the type cannot yet state it.
 -}
-pub fn (a) open(&self: Cursor(a), stackBytes: Size, body: (%Cursor(a)) -> {}) -> Bool:
-    let stack = mapMemory(stackBytes)
+pub fn (a) Cursor.open(&self: Cursor(a), stackBytes: Size, body: (%Cursor(a)) -> {}) -> Bool:
+    -- The guard goes under the bytes asked for rather than out of them, so a cursor opened with 64
+    -- KiB still has 64 KiB to run in.
+    let guard = stackGuardBytes()
+    let stack = guardedStack(stackBytes + guard)
     if isNull(stack) then return False
 
     self.stack = stack
-    self.stackBytes = stackBytes
+    self.stackBytes = stackBytes + guard
 
-    let prepared = newFiber(stack, stackBytes, addressOf(self), body)
+    let prepared = newFiber(stack + guard, stackBytes, addressOf(self), body)
     self.fiber = prepared
 
     return True
 
 {-
-   `next(cursor)` - the producer, advanced by one hand-over.
+   `Cursor.next(cursor)` - the producer, advanced by one hand-over.
 
    `Nothing` where it finished, this time or earlier. The value is taken *out* of the slot rather
    than copied from it, which is what makes an owned yield work at all: the producer relocated it
    into the slot on its way out and the frame it came from is no longer entitled to it.
 -}
-pub fn (a) next(&self: Cursor(a)) -> Maybe(a):
+pub fn (a) Cursor.next(&self: Cursor(a)) -> Maybe(a):
     if hasFinished(self.fiber) then return Nothing
     if resume(self.fiber, 0) == kFinished then return Nothing
 
     return exchange(self.slot, Nothing :: Maybe(a))
 
 {-
-   `emit(cursor, value)` - one hand-over, from inside the producer.
+   `Cursor.emit(cursor, value)` - one hand-over, from inside the producer.
 
    The value is *relocated* into the slot and not copied: `->value` says the producer is giving it
    up, and the consumer takes it out of the slot with the `exchange` in `next`.
 -}
-pub fn (a) emit(self: %Cursor(a), ->value: a):
+pub fn (a) Cursor.emit(self: %Cursor(a), ->value: a):
     let &me = borrowMut(self)
     me.slot = Just(value)
 
     suspendOn(addressOf(me.fiber), kYielded)
 
 {-
-   `finishCursor(cursor)` - the last hand-over, which does not come back.
+   `Cursor.finish(cursor)` - the last hand-over, which does not come back.
 
    Every producer ends with this. What it answers the consumer is `kFinished`, which is what turns
    the `next` that resumed it into `Nothing`.
 -}
-pub fn (a) finishCursor(self: %Cursor(a)):
+pub fn (a) Cursor.finish(self: %Cursor(a)):
     let &me = borrowMut(self)
     finishOn(addressOf(me.fiber), kFinished)
 
 {-
-   `close(cursor)` - the stack, given back.
+   `Cursor.close(cursor)` - the stack, given back.
 
    **It does not cancel a suspended producer.** A cursor closed before its producer finished loses
    whatever that producer still owned, and nothing here can do better: unwinding it needs a teardown
    path at every hand-over site, which is the compiler's to emit and is §3.5's work. Closing a
    finished cursor is the case with no cost, and is what a consumer that runs its producer out does.
 -}
-pub fn (a) close(&self: Cursor(a)):
+pub fn (a) Cursor.close(&self: Cursor(a)):
     if isNull(self.stack) then return
 
     unmapMemory(self.stack, self.stackBytes)

@@ -1539,6 +1539,13 @@ void Resolver::resolveExtent(Builder& builder, const Extent& extent) {
 void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
     auto function = currentFunction;
 
+    // A producer's `yield` is a hand-over across a stack switch rather than a call of anything this
+    // frame holds - resolve_iter.cpp.
+    if(function && function->externalIterator && continuationLocal) {
+        resolveExternalYield(builder, expr, *function);
+        return;
+    }
+
     if(!function || !function->lens || !continuationLocal) {
         context.diagnostics.error(
             "`yield` hands a value to a lens's continuation, and this is not inside a `lens fn` or an `iter fn`"_v,
@@ -2399,6 +2406,10 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
             parse[loop.step]->source);
         return;
     }
+
+    // `for x in f(...)` where `f` answers `iter(T)`, and `for x in handle` - a loop the consumer
+    // drives, which shares nothing below. resolve_iter.cpp; false where the source is neither.
+    if(resolveExternalFor(builder, expr, loop)) return;
 
     /*
      * Which iterator the loop runs, by name - written `items(xs)` or `xs.items()`, which are one

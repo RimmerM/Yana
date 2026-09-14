@@ -1469,6 +1469,96 @@ bool Analysis::checkLoans() {
         else loansByRoot[rootKey(root->kind, root->payload)].push(l);
     }
 
+    /*
+     * And which storage those loans may actually be pointing at - every place but this frame's own
+     * private locals.
+     *
+     * "May be anywhere" is a statement about the storage a *pointer* can name, and there is one
+     * kind of storage no pointer in this body can name: a local of this frame whose address was
+     * never taken. Its bytes came into existence when the frame did, and `Address` is the only
+     * producer of a pointer this stage has - so what a pointer here can be pointing at is what some
+     * `addressOf` in this body reached, and a local no `addressOf` reached was never pointed at by
+     * anybody, a recursive call of this very function included.
+     *
+     * **Reached**, not written at. `addressOf` reshapes a *borrow* and the borrow may be a reborrow,
+     * so the storage an address names is every loan the value handed to it is rooted in:
+     * `addressOf(me.slot)` under `let &me = borrowMut(p)` names `me`'s storage and what `p` points
+     * at alike, and the origin environment already relates the two. `originsOfValue` is that answer,
+     * which is why this needs no walk of its own beyond finding the `addressOf`es.
+     *
+     * A borrow handed to a *call* is deliberately not an address, however the callee receives it: a
+     * borrowed occurrence is call-bounded, so a callee may read through it and may not keep it, and
+     * a pointer this frame was handed before the borrow existed cannot be pointing at it either.
+     * What escapes a frame is what `addressOf` made, which is the one thing carrying no lifetime.
+     *
+     * A **borrowed parameter** is addressable whether or not this body took its address, because
+     * the storage behind one is the caller's: `&self: Fiber` names a place the caller already holds,
+     * and a pointer the caller handed over beside it may be pointing straight at it. An **owned**
+     * parameter is this frame's like any other local - the caller gave the value up, and a call that
+     * both moved a value out of storage and lent a pointer to that same storage is one this check
+     * refuses at the call site.
+     *
+     * Without this, a live borrow through a raw pointer made every writable local in the body
+     * unwritable - a `for` loop's induction variable included, since `anyRootLoans` is added to
+     * every access's conflict set:
+     *
+     *     fn bump(self: %Counter):
+     *         let &me = borrowMut(self)
+     *         for i in 0..me.limit:      -- `i` is not storage `self` could be pointing at
+     *             me.other += i
+     *
+     * which is `doc/inflight/Analysis-External-Iterators.md`'s substrate written twice over, since
+     * every operation a fiber context performs is a borrow through the address it was handed. The
+     * shipping stage accepts all of it.
+     */
+    Array<bool> addressable;
+    for(U32 i = 0; i < body.locals.size(); i++) {
+        auto local = body.local(base, LocalId(i));
+        addressable.push(local->isParameter() && !local->occurrence.contract.isOwned());
+    }
+
+    SmallArray<U64, 4> addressed;
+    for(U32 w = 0; w < loanWords; w++) addressed.push(0);
+
+    for(U32 index = 0; index < blockCount; index++) {
+        auto block = this->block(index);
+
+        for(U32 at = 0; at < block->nodes.size(); at++) {
+            auto& node = nodeAt(index, at);
+            if(node.kind != Node::Address) continue;
+
+            auto& taken = (NodeAddress&)node;
+
+            // A place handed straight over - no borrow was minted, so the root is the whole answer.
+            if(taken.of.source() == SourceKind::Place) {
+                auto root = rootOf(taken.of.placeId());
+                if(root->kind == Place::Local) addressable[root->payload] = true;
+                continue;
+            }
+
+            if(taken.of.source() != SourceKind::Result) continue;
+
+            auto value = taken.of.nodeId();
+            auto positions = valuePositions(value);
+
+            for(U32 p = 0; p < positions; p++) {
+                BitMatrix::unionInto(addressed.pointer(), originsOfValue(value, p), loanWords);
+            }
+        }
+    }
+
+    BitMatrix::forEach(addressed.pointer(), loanWords, [&](Size m) {
+        auto root = rootOf(body.loan(base, LoanId(m))->place);
+        if(root->kind == Place::Local) addressable[root->payload] = true;
+    });
+
+    // Whether a raw address may be pointing into the storage this place is rooted in - the question
+    // above, asked of a root rather than of a local, since a global's address is anybody's to take.
+    auto rootIsAddressable = [&](Place* root) {
+        if(root->kind != Place::Local) return true;
+        return addressable[root->payload];
+    };
+
     // Which local each origin position belongs to - `localRow` inverted, for the backward walk.
     Array<U32> positionLocal;
     for(U32 local = 0; local + 1 < localRow.size(); local++) {
@@ -1739,9 +1829,13 @@ bool Analysis::checkLoans() {
             }
         }
 
-        // And the loans whose own root may be anywhere overlap whatever the access reaches.
-        if(reached.size()) {
+        // And the loans whose own root may be anywhere overlap whatever the access reaches - as
+        // far as an address reaches it at all, which is `rootIsAddressable`.
+        for(auto x: reached) {
+            if(!rootIsAddressable(rootOf(x))) continue;
+
             for(auto l: anyRootLoans) BitMatrix::set(overlapping.pointer(), l);
+            break;
         }
 
         // A live loan conflicts where it overlaps directly or reaches a loan that does - the

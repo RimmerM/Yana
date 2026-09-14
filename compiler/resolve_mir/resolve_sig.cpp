@@ -1860,10 +1860,30 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
         return nullptr;
     }
 
+    /*
+     * `-> iter(T)` - an ordinary function whose result is a handle, and two shapes it cannot take.
+     *
+     * A **class member** would need a witness table entry for an entry function that is synthesized
+     * per call site and per instantiation - §4.7's erased form, which is not here. An **`=` body**
+     * is refused in the lens's words, because a producer hands over with `yield` too.
+     */
+    if(written.external && (classContext || inherited)) {
+        unsupported(declaration.source, "an external iterator as a class member"_v);
+        return nullptr;
+    }
+
+    if(written.external && written.implicitReturn) {
+        context.diagnostics.error(
+            "an external iterator hands over with `yield`, so its body is a block rather than one expression"_v,
+            declaration.source);
+        return nullptr;
+    }
+
     auto function = new (program.decl) Function(name, here());
     function->source = declaration.source;
     function->lens = lens;
     function->iterator = iterator;
+    function->externalIterator = written.external;
     function->form = readGenForm(declaration);
     readInlineAttribute(declaration, function->alwaysInline, function->inlineHint,
                         function->noInline, function->legacySse);
@@ -2043,7 +2063,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * and is refused rather than silently dropped - which would be right today and wrong the moment
      * the two spellings differ, with nothing to say when.
      */
-    if(!lens && written.retBind != ast::BindType::Borrow) {
+    if(!lens && !written.external && written.retBind != ast::BindType::Borrow) {
         unsupported(declaration.source, "a written result convention"_v);
         return nullptr;
     }
@@ -2058,8 +2078,9 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * *labelled* slot no parameter published is reported there rather than silently becoming a
      * fresh one. The anonymous group is the one that elides - `promoteLoanCandidates`.
      */
-    auto position = lens ? Position::Handover : Position::Result;
-    auto& outgoing = lens ? function->handover : function->result;
+    auto handsOver = lens || written.external;
+    auto position = handsOver ? Position::Handover : Position::Result;
+    auto& outgoing = handsOver ? function->handover : function->result;
 
     // The one position an elided origin may be promoted for - see `elisionSubject`. Restored rather
     // than cleared, because resolving a result type can declare another signature.
@@ -2120,6 +2141,21 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * `lens`/`iter` - so what is checked is the case a written function *type* can produce.
      */
     if(written.protocol.failure) {
+        /*
+         * `-> iter(T | E)` - §2.2's terminal failure, parsed and not implemented.
+         *
+         * It is phase 1 of §8's plan and this is phase 2: the channel is useful to an internal
+         * traversal on its own, and building it here would be a second `Outcome` wrapper travelling
+         * across a stack switch rather than the one an `iter fn` already has. Refused by name, for
+         * the reason a `<- R` is - a failure channel silently dropped is an iterator that ends
+         * successfully when it did not.
+         */
+        if(written.external) {
+            unsupported(parse[written.protocol.failure]->source,
+                        "an external iterator's `| E` failure channel"_v);
+            return nullptr;
+        }
+
         if(!lens) {
             context.diagnostics.error(
                 "only a `lens fn` or an `iter fn` can fail with `| E` - a plain function says so in its result type"_v,
@@ -2157,6 +2193,10 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     if(lens && !declareContinuation(*function, inherited, inheritedWith, declaration.source)) {
         return nullptr;
     }
+
+    // And the external form's, which is the same sentence about the other iterator kind: one
+    // appended parameter, and nothing below this line knows there was a protocol in the result.
+    if(written.external && !declareIterHandle(*function, declaration.source)) return nullptr;
 
     /*
      * The signature is what binds the variables, so nothing after it may introduce one.

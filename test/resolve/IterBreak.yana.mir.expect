@@ -1,6 +1,6 @@
 module ResolveTest
 
-let string'142: [CodeUnit *3] = "abc"
+let string'143: [CodeUnit *3] = "abc"
 
 lens fn ticks(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
   local & $yielded: I32
@@ -10,7 +10,7 @@ lens fn ticks(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = const 0
   write.init borrow.unique ($yielded) take %0
-  %2: String = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  %2: String = const String {units: Array {run: Run {items: &string'143, capacity: 3, ownsHeap: 0}, length: 3}}
   write.init borrow.unique (held) take %2
   flag (held) = held
   jump -> bb1

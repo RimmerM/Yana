@@ -398,6 +398,9 @@ struct Builder {
     // A view record restated as the view occurrence it manifests - the argument is in build.cpp.
     Node* addRepresent(LocationId source, Node& record, Occurrence view);
 
+    // And the other way: a view occurrence as the owned record it is laid out as.
+    Node* addViewRecord(LocationId source, Node& view);
+
     // The same bits at another type - `Bitcast`'s rungs, whose set is `intrinsic::reinterpretable`.
     // A producer of its own for `addConvert`'s reason: the result type is stated here, not derived.
     Node* addBitcast(LocationId source, Node& value, DeclPtr<Type> to);

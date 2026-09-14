@@ -1,7 +1,7 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-define fastcc void @loadStore(ptr %p, i32 %v, i64 %w) {
+define fastcc void @loadStore(ptr %p, i32 %v, i64 %w) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -19,7 +19,7 @@ define fastcc void @loadStore(ptr %p, i32 %v, i64 %w) {
   ret void
 }
 
-define fastcc ptr @pointerExchange(ptr %p, ptr %q) {
+define fastcc ptr @pointerExchange(ptr %p, ptr %q) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -27,7 +27,7 @@ define fastcc ptr @pointerExchange(ptr %p, ptr %q) {
   ret ptr %old
 }
 
-define fastcc i32 @update(ptr %p, i32 %v, i64 %w) {
+define fastcc i32 @update(ptr %p, i32 %v, i64 %w) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -44,7 +44,7 @@ define fastcc i32 @update(ptr %p, i32 %v, i64 %w) {
   ret i32 %a
 }
 
-define fastcc i32 @compare(ptr %p, i32 %e, i32 %d) {
+define fastcc i32 @compare(ptr %p, i32 %e, i32 %d) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -63,7 +63,7 @@ define fastcc i32 @compare(ptr %p, i32 %e, i32 %d) {
   ret i32 %c1
 }
 
-define fastcc void @fences() {
+define fastcc void @fences() #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -76,6 +76,7 @@ define fastcc void @fences() {
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.x86.sse2.pause() #0
+declare void @llvm.x86.sse2.pause() #1
 
-attributes #0 = { nounwind }
+attributes #0 = { "probe-stack"="inline-asm" }
+attributes #1 = { nounwind }

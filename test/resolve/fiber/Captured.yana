@@ -1,0 +1,42 @@
+{-
+   An external iterator argument that refers to storage of its own - a function value, a closure.
+
+   # resolver: ownership
+
+   The handle keeps what such an argument keeps: `iterConstructor` publishes the argument's interior
+   positions at the handle's slot, so a closure's captures stay borrowed for as long as the handle
+   exists. Three claims, packed into the one number `main` answers:
+
+    - a plain function value travels into the producer and is called there (`twice`);
+    - a closure capturing a local by reading it does too (`add`);
+    - a closure that **writes** a local it captured runs on the producer's stack, and the write is
+      seen by the frame that owns the local once the handle is gone (`hits`).
+
+   `Reject.External.yana` holds what the handle's loan on a captured local refuses.
+-}
+
+import Native
+import Fiber
+
+fn twice(n: Size) -> Size = n * 2
+
+fn mapped(f: (Size) -> Size, n: Size) -> iter(Size):
+    for i in 1..=n:
+        yield f(i)
+
+fn main() -> Size:
+    let &n = 0 :: Size
+    for v in mapped(twice, 3):
+        n += v
+
+    let base = 10 :: Size
+    let add = (i: Size): base + i
+    for v in mapped(add, 2):
+        n += v
+
+    let &hits = 0 :: Size
+    for v in mapped((i: Size): hits = hits + 1; i, 2):
+        n += v
+
+    -- (2 + 4 + 6) + (11 + 12) + (1 + 2) = 38, and two hits.
+    return n * 10 + hits

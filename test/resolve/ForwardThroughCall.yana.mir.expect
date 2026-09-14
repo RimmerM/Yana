@@ -2,13 +2,13 @@ module ResolveTest
 
 let & tags: I32 = 0
 
-let string'142: [CodeUnit *2] = "n="
-
-let string'143: [CodeUnit *1] = "!"
+let string'143: [CodeUnit *2] = "n="
 
 let string'144: [CodeUnit *1] = "!"
 
 let string'145: [CodeUnit *1] = "!"
+
+let string'146: [CodeUnit *1] = "!"
 
 fn tagged(n: I32 [shared call]) -> String {
   local & local1: String
@@ -27,7 +27,7 @@ bb0:
   %9: String = call String.ofCapacity borrow.shared %8
   write.init borrow.unique (local1) take %9
   %11: String [unique call] = read borrow.unique (local1) loan0
-  %12: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  %12: String = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
   write.init borrow.unique (local2) take %12
   %14: String [shared slot 0] = read borrow.shared (local2) loan1
   %15: String [shared slot 0 view] = call.derivation view(String) borrow.shared %14 roots{1}
@@ -48,7 +48,7 @@ bb0:
   %1: String = call tagged borrow.shared %0
   write.init borrow.unique (text) take %1
   %3: String = read take (text)
-  %4: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %4: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
   %5: String = call ++(String) take %3 take %4
   write.reinit borrow.unique (text) take %5
   %7: String [shared call] = read borrow.shared (text) loan0
@@ -84,7 +84,7 @@ bb2:
 
 bb3:
   %7: String = read take (text)
-  %8: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %8: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
   %9: String = call ++(String) take %7 take %8
   write.reinit borrow.unique (text) take %9
   jump -> bb2
@@ -117,7 +117,7 @@ bb3:
   %10: String = call tagged borrow.shared %9
   write.init borrow.unique (text) take %10
   %12: String = read take (text)
-  %13: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %13: String = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
   %14: String = call ++(String) take %12 take %13
   write.reinit borrow.unique (text) take %14
   %16: I32 = read copy.trivial (total)

@@ -1,7 +1,7 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-define fastcc i32 @low(i32 %v, i32 %n) {
+define fastcc i32 @low(i32 %v, i32 %n) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -14,7 +14,7 @@ define fastcc i32 @low(i32 %v, i32 %n) {
   ret i32 %r
 }
 
-define fastcc i64 @low64(i64 %v, i64 %n) {
+define fastcc i64 @low64(i64 %v, i64 %n) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -27,7 +27,7 @@ define fastcc i64 @low64(i64 %v, i64 %n) {
   ret i64 %r
 }
 
-define fastcc i32 @lowConstant(i32 %v) {
+define fastcc i32 @lowConstant(i32 %v) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -36,7 +36,7 @@ define fastcc i32 @lowConstant(i32 %v) {
   ret i32 %r
 }
 
-define fastcc i32 @gather(i32 %v, i32 %m) {
+define fastcc i32 @gather(i32 %v, i32 %m) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -44,7 +44,7 @@ define fastcc i32 @gather(i32 %v, i32 %m) {
   ret i32 %r
 }
 
-define fastcc i32 @scatter(i32 %v, i32 %m) {
+define fastcc i32 @scatter(i32 %v, i32 %m) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -52,7 +52,7 @@ define fastcc i32 @scatter(i32 %v, i32 %m) {
   ret i32 %r
 }
 
-define fastcc i64 @gather64(i64 %v, i64 %m) {
+define fastcc i64 @gather64(i64 %v, i64 %m) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -60,7 +60,7 @@ define fastcc i64 @gather64(i64 %v, i64 %m) {
   ret i64 %r
 }
 
-define fastcc i64 @scatter64(i64 %v, i64 %m) {
+define fastcc i64 @scatter64(i64 %v, i64 %m) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -68,7 +68,7 @@ define fastcc i64 @scatter64(i64 %v, i64 %m) {
   ret i64 %r
 }
 
-define fastcc i32 @twice(i32 %v, i32 %m) {
+define fastcc i32 @twice(i32 %v, i32 %m) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -78,7 +78,7 @@ define fastcc i32 @twice(i32 %v, i32 %m) {
 }
 
 ; Function Attrs: nounwind willreturn
-define internal i32 @__yana_pext32(i32 %0, i32 %1) #0 {
+define internal i32 @__yana_pext32(i32 %0, i32 %1) #1 {
 entry:
   br label %loop
 
@@ -105,7 +105,7 @@ done:                                             ; preds = %loop
 }
 
 ; Function Attrs: nounwind willreturn
-define internal i32 @__yana_pdep32(i32 %0, i32 %1) #0 {
+define internal i32 @__yana_pdep32(i32 %0, i32 %1) #1 {
 entry:
   br label %loop
 
@@ -132,7 +132,7 @@ done:                                             ; preds = %loop
 }
 
 ; Function Attrs: nounwind willreturn
-define internal i64 @__yana_pext64(i64 %0, i64 %1) #0 {
+define internal i64 @__yana_pext64(i64 %0, i64 %1) #1 {
 entry:
   br label %loop
 
@@ -159,7 +159,7 @@ done:                                             ; preds = %loop
 }
 
 ; Function Attrs: nounwind willreturn
-define internal i64 @__yana_pdep64(i64 %0, i64 %1) #0 {
+define internal i64 @__yana_pdep64(i64 %0, i64 %1) #1 {
 entry:
   br label %loop
 
@@ -185,4 +185,5 @@ done:                                             ; preds = %loop
   ret i64 %4
 }
 
-attributes #0 = { nounwind willreturn }
+attributes #0 = { "probe-stack"="inline-asm" }
+attributes #1 = { nounwind willreturn }

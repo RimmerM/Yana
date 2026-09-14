@@ -6,7 +6,7 @@ module asm "\09.set \22image$base\22, 0"
 @"image$base" = external constant [0 x i8], align 8
 @heapFree = global [8 x i8] zeroinitializer, align 8
 
-define fastcc void @"Reclaim(Array(a)).reclaim(F32)"(ptr %value) {
+define fastcc void @"Reclaim(Array(a)).reclaim(F32)"(ptr %value) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -26,7 +26,7 @@ define fastcc void @"Reclaim(Array(a)).reclaim(F32)"(ptr %value) {
   ret void
 }
 
-define fastcc void @"Reclaim(Array(a)).reclaim(I32)"(ptr %value) {
+define fastcc void @"Reclaim(Array(a)).reclaim(I32)"(ptr %value) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -46,7 +46,7 @@ define fastcc void @"Reclaim(Array(a)).reclaim(I32)"(ptr %value) {
   ret void
 }
 
-define fastcc void @freeHeap(ptr %allocation) {
+define fastcc void @freeHeap(ptr %allocation) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -75,7 +75,7 @@ define fastcc void @freeHeap(ptr %allocation) {
   ret void
 }
 
-define fastcc i32 @sumInts(ptr %"xs$items", i64 %"xs$length") {
+define fastcc i32 @sumInts(ptr %"xs$items", i64 %"xs$length") #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -126,7 +126,7 @@ define fastcc i32 @sumInts(ptr %"xs$items", i64 %"xs$length") {
   ret i32 %29
 }
 
-define fastcc i32 @indexOf(ptr %"xs$items", i64 %"xs$length", i32 %needle) {
+define fastcc i32 @indexOf(ptr %"xs$items", i64 %"xs$length", i32 %needle) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -201,7 +201,7 @@ define fastcc i32 @indexOf(ptr %"xs$items", i64 %"xs$length", i32 %needle) {
   ret i32 -1
 }
 
-define fastcc i32 @main() {
+define fastcc i32 @main() #0 {
   %1 = alloca i8, i64 12, align 4
   %2 = alloca i8, i64 16, align 8
   %3 = alloca i8, i64 28, align 4
@@ -424,16 +424,17 @@ define fastcc i32 @main() {
 }
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>) #0
+declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>) #1
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i1 @llvm.vector.reduce.or.v4i1(<4 x i1>) #0
+declare i1 @llvm.vector.reduce.or.v4i1(<4 x i1>) #1
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i32 @llvm.cttz.i32(i32, i1 immarg) #0
+declare i32 @llvm.cttz.i32(i32, i1 immarg) #1
 
 ; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: write)
-declare void @llvm.memset.p0.i64(ptr writeonly captures(none), i8, i64, i1 immarg) #1
+declare void @llvm.memset.p0.i64(ptr writeonly captures(none), i8, i64, i1 immarg) #2
 
-attributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
-attributes #1 = { nocallback nofree nounwind willreturn memory(argmem: write) }
+attributes #0 = { "probe-stack"="inline-asm" }
+attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #2 = { nocallback nofree nounwind willreturn memory(argmem: write) }

@@ -138,6 +138,11 @@ struct Parser: BasicParser<Lexer, Token> {
     // `-> ->T` on a result - see the definition, and Analysis-Language.md §3a.
     ast::BindType parseResultBind();
     bool hasProtocolSeparator();
+
+    // `-> iter(...)` and the three channels the two protocol spellings share - see the definitions.
+    Maybe<ast::Type> parseExternalIter(ast::FunKind kind, bool& external, ast::BindType& bind,
+                                       ast::IterProtocol& protocol);
+    ast::Type parseProtocolBody(ast::BindType& bind, ast::IterProtocol& protocol);
     Maybe<ast::Type> parseIterProtocol(ast::FunKind kind, ast::BindType& bind,
                                        ast::IterProtocol& protocol);
     bool parseReturnRoot();

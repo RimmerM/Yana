@@ -1,0 +1,52 @@
+{-
+   What a lent value refuses - `doc/inflight/Analysis-External-Iterators.md` §3.3's "the consumer
+   cannot advance the iterator while that borrow is live".
+
+   # resolver: ownership
+
+   Nothing here is a rule of its own. `LentIter.current` answers a loan of the handle, so a lent
+   value keeps the handle borrowed for as long as it is used, and every refusal below is the loan
+   checker's ordinary one.
+-}
+
+import Native
+import Fiber
+
+fn words() -> iter(String):
+    yield "one"
+    yield "two"
+
+-- Stepping the handle again while the first value is still to be read.
+fn advanceWhileLent() -> Size:
+    let &h = words()
+    let first = h.next()
+    let second = h.next()
+
+    if first is Just(a):
+        return length(a)
+
+    return 0
+
+-- Giving the handle up, which would cancel the producer and release what the value points into.
+fn moveWhileLent() -> Size:
+    let &h = words()
+    let first = h.next()
+    let moved = h
+
+    if first is Just(a):
+        return length(a)
+
+    return 0
+
+-- Borrowing the handle exclusively inside the loop whose variable borrows it.
+fn stepInsideLoop() -> Size:
+    let &kept = 0 :: Size
+    let &h = words()
+
+    for w in h:
+        let &other = h
+        kept += length(w)
+
+    return kept
+
+fn main() -> Size = advanceWhileLent() + moveWhileLent() + stepInsideLoop()

@@ -1,7 +1,7 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-define fastcc i32 @swap(i32 %a, i64 %b) {
+define fastcc i32 @swap(i32 %a, i64 %b) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -10,7 +10,7 @@ define fastcc i32 @swap(i32 %a, i64 %b) {
   ret i32 %s
 }
 
-define fastcc i64 @swapLoad(ptr %p) {
+define fastcc i64 @swapLoad(ptr %p) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -20,9 +20,10 @@ define fastcc i64 @swapLoad(ptr %p) {
 }
 
 ; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
-declare i32 @llvm.bswap.i32(i32) #0
+declare i32 @llvm.bswap.i32(i32) #1
 
 ; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
-declare i64 @llvm.bswap.i64(i64) #0
+declare i64 @llvm.bswap.i64(i64) #1
 
-attributes #0 = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #0 = { "probe-stack"="inline-asm" }
+attributes #1 = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }

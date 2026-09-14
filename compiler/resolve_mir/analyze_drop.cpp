@@ -261,6 +261,37 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
                 }
                 pending[j] = held;
             }
+
+            /*
+             * **A value that borrows and has a teardown goes first** - moved to the end, which is
+             * where the pops start, keeping the order among such values and among the rest.
+             *
+             * A lender cannot become due *before* the value that borrows from it, because every use of
+             * the borrower keeps the lender live through its loans. It can become due at the *same*
+             * position, and then index order would release the lender while the borrower's teardown
+             * is still to run. For an external iterator's handle that teardown is not nothing: it
+             * resumes the producer to cancel it, and the producer's own teardown may reach what the
+             * handle lent it. A frame closure also borrows, and owes no teardown, so it keeps its place.
+             */
+            auto borrowsWithTeardown = [&](MovePathId id) {
+                if(path(id).parent.valid()) return false;
+
+                auto& root = rootPlace(base, *body.place(base, path(id).place));
+                if(root.kind != Place::Local) return false;
+
+                auto& occurrence = body.local(base, LocalId(root.payload))->occurrence;
+                return occurrence.shape && hasTeardownAt(decl, occurrence);
+            };
+
+            Size kept = 0;
+            SmallArray<MovePathId, 16> first;
+
+            for(Size i = 0; i < pending.size(); i++) {
+                if(borrowsWithTeardown(pending[i])) first.push(pending[i]);
+                else pending[kept++] = pending[i];
+            }
+
+            for(Size i = 0; i < first.size(); i++) pending[kept + i] = first[i];
         }
 
         auto descend = [&](MovePathId id) {

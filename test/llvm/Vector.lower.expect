@@ -1,7 +1,7 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-define fastcc <8 x float> @arith(<8 x float> %a, <8 x float> %b, <4 x i32> %i, <4 x i32> %j) {
+define fastcc <8 x float> @arith(<8 x float> %a, <8 x float> %b, <4 x i32> %i, <4 x i32> %j) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -20,7 +20,7 @@ define fastcc <8 x float> @arith(<8 x float> %a, <8 x float> %b, <4 x i32> %i, <
   ret <8 x float> %add
 }
 
-define fastcc <8 x float> @masks(<8 x float> %a, <8 x float> %b) {
+define fastcc <8 x float> @masks(<8 x float> %a, <8 x float> %b) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -38,7 +38,7 @@ define fastcc <8 x float> @masks(<8 x float> %a, <8 x float> %b) {
   ret <8 x float> %sel
 }
 
-define fastcc float @lanes(float %x, <8 x float> %v, <8 x float> %w) {
+define fastcc float @lanes(float %x, <8 x float> %v, <8 x float> %w) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -69,7 +69,7 @@ define fastcc float @lanes(float %x, <8 x float> %v, <8 x float> %w) {
   ret float %sum
 }
 
-define fastcc <32 x i8> @narrow(ptr %p, i32 %n) {
+define fastcc <32 x i8> @narrow(ptr %p, i32 %n) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -92,7 +92,7 @@ define fastcc <32 x i8> @narrow(ptr %p, i32 %n) {
   ret <32 x i8> %total
 }
 
-define fastcc <4 x double> @convert(<4 x float> %f, <4 x i32> %i) {
+define fastcc <4 x double> @convert(<4 x float> %f, <4 x i32> %i) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -105,7 +105,7 @@ define fastcc <4 x double> @convert(<4 x float> %f, <4 x i32> %i) {
   ret <4 x double> %wide
 }
 
-define fastcc <8 x float> @loop(<8 x float> %v, i32 %n) {
+define fastcc <8 x float> @loop(<8 x float> %v, i32 %n) #0 {
   br label %start
 
 start:                                            ; preds = %0
@@ -128,22 +128,23 @@ exit:                                             ; preds = %head
 }
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i1 @llvm.vector.reduce.or.v8i1(<8 x i1>) #0
+declare i1 @llvm.vector.reduce.or.v8i1(<8 x i1>) #1
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i1 @llvm.vector.reduce.and.v8i1(<8 x i1>) #0
+declare i1 @llvm.vector.reduce.and.v8i1(<8 x i1>) #1
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i32 @llvm.vector.reduce.add.v8i32(<8 x i32>) #0
+declare i32 @llvm.vector.reduce.add.v8i32(<8 x i32>) #1
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare float @llvm.vector.reduce.fmax.v8f32(<8 x float>) #0
+declare float @llvm.vector.reduce.fmax.v8f32(<8 x float>) #1
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i8 @llvm.vector.reduce.add.v32i8(<32 x i8>) #0
+declare i8 @llvm.vector.reduce.add.v32i8(<32 x i8>) #1
 
 ; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
-declare <4 x i32> @llvm.fptosi.sat.v4i32.v4f32(<4 x float>) #1
+declare <4 x i32> @llvm.fptosi.sat.v4i32.v4f32(<4 x float>) #2
 
-attributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
-attributes #1 = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #0 = { "probe-stack"="inline-asm" }
+attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #2 = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }

@@ -347,6 +347,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/resolve_lambda.cpp
     resolve_mir/resolve_match.cpp
 
+    resolve_mir/resolve_iter.cpp
     resolve_mir/fold.h
     resolve_mir/fold.cpp
 
