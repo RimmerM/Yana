@@ -438,25 +438,63 @@ static void mapFile(ModuleMap& map, U32 rootIndex, const String& file) {
     map.entries[map.entries.size() - 1].test = isTest;
 }
 
+/*
+ * A directory's files and subdirectories, mapped **in name order**.
+ *
+ * `listDirectory` answers in whatever order the filesystem keeps, and that order leaks: the files
+ * of one module are resolved in map order, so the order of everything recorded while resolving -
+ * the semantic index's references, which `test/lsp/semantic` prints - changed between machines.
+ * Sorted by bytes, which is what makes the answer the same on every filesystem.
+ */
+struct DirectoryItem {
+    String name;
+    bool isDirectory;
+};
+
+static bool nameBefore(const String& a, const String& b) {
+    auto count = a.size() < b.size() ? a.size() : b.size();
+
+    for(Size i = 0; i < count; i++) {
+        auto x = U8(a.text()[i]);
+        auto y = U8(b.text()[i]);
+        if(x != y) return x < y;
+    }
+
+    return a.size() < b.size();
+}
+
 static Result<void, String> mapDirectory(ModuleMap& map, U32 rootIndex, const String& dir) {
-    Result<void, String> error = Ok();
+    Array<DirectoryItem> items;
 
     auto result = listDirectory(dir, [&](const String& name, bool isDirectory) {
-        char pathBuffer[4000];
-        String path(pathBuffer, format(toBuffer(pathBuffer), "%@/%@", dir, name));
-
-        if(isDirectory) {
-            if(name != "." && name != "..") {
-                auto result = mapDirectory(map, rootIndex, path);
-                if(!result) error = Err(result.moveUnwrapErr());
-            }
-        } else {
-            mapFile(map, rootIndex, path);
-        }
+        if(isDirectory && (name == "." || name == "..")) return;
+        items.push(DirectoryItem { ownedString(name.text(), name.size()), isDirectory });
     });
 
     if(!result) {
         return Err(formatError("Cannot list source directory %@"_v, dir));
+    }
+
+    for(U32 i = 1; i < items.size(); i++) {
+        auto j = i;
+        while(j > 0 && nameBefore(items[j].name, items[j - 1].name)) {
+            swap(items[j], items[j - 1]);
+            j--;
+        }
+    }
+
+    Result<void, String> error = Ok();
+
+    for(auto& item: items) {
+        char pathBuffer[4000];
+        String path(pathBuffer, format(toBuffer(pathBuffer), "%@/%@", dir, item.name));
+
+        if(item.isDirectory) {
+            auto mapped = mapDirectory(map, rootIndex, path);
+            if(!mapped) error = Err(mapped.moveUnwrapErr());
+        } else {
+            mapFile(map, rootIndex, path);
+        }
     }
 
     return move(error);
