@@ -11,10 +11,10 @@ define fastcc i32 @main() {
 
 1:                                                ; preds = %0
   %2 = load i32, ptr @seed, align 1
-  %.splatinsert = insertelement <4 x i32> poison, i32 %2, i32 0
+  %.splatinsert = insertelement <4 x i32> poison, i32 %2, i64 0
   %base = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
   %3 = add <4 x i32> %base, %base
-  %4 = shl <4 x i32> %base, <i32 1, i32 1, i32 1, i32 1>
+  %4 = shl <4 x i32> %base, splat (i32 1)
   %5 = extractelement <4 x i32> %3, i32 0
   %6 = icmp ne i32 %5, 6
   %7 = zext i1 %6 to i32
@@ -103,7 +103,7 @@ define fastcc i32 @main() {
   br label %49
 
 49:                                               ; preds = %48
-  %lanes = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> <i32 1, i32 1, i32 1, i32 1>)
+  %lanes = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> splat (i32 1))
   %50 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %39)
   %51 = mul i32 %lanes, 15
   %52 = icmp ne i32 %50, %51
@@ -126,13 +126,13 @@ define fastcc i32 @main() {
   ret i32 %62
 }
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.smax.v4i32(<4 x i32>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.smin.v4i32(<4 x i32>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>) #0
 
-attributes #0 = { nocallback nofree nosync nounwind readnone willreturn }
+attributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }

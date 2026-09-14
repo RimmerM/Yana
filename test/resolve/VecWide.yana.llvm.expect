@@ -11,10 +11,10 @@ define fastcc i32 @main() {
 
 1:                                                ; preds = %0
   %2 = load i32, ptr @seed, align 1
-  %.splatinsert = insertelement <8 x i32> poison, i32 %2, i32 0
+  %.splatinsert = insertelement <8 x i32> poison, i32 %2, i64 0
   %base = shufflevector <8 x i32> %.splatinsert, <8 x i32> poison, <8 x i32> zeroinitializer
   %3 = add <8 x i32> %base, %base
-  %4 = shl <8 x i32> %base, <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>
+  %4 = shl <8 x i32> %base, splat (i32 1)
   %5 = extractelement <8 x i32> %3, i32 0
   %6 = icmp ne i32 %5, 6
   %7 = zext i1 %6 to i32
@@ -39,7 +39,7 @@ define fastcc i32 @main() {
   br label %16
 
 16:                                               ; preds = %15
-  %lanes = call i32 @llvm.vector.reduce.add.v8i32(<8 x i32> <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>)
+  %lanes = call i32 @llvm.vector.reduce.add.v8i32(<8 x i32> splat (i32 1))
   %mixed = insertelement <8 x i32> %base, i32 10, i32 0
   %17 = call i32 @llvm.vector.reduce.smax.v8i32(<8 x i32> %mixed)
   %18 = icmp ne i32 %17, 10
@@ -169,7 +169,7 @@ define fastcc i32 @main() {
   br label %83
 
 83:                                               ; preds = %82
-  %picked = select <8 x i1> %above, <8 x i32> <i32 7, i32 7, i32 7, i32 7, i32 7, i32 7, i32 7, i32 7>, <8 x i32> <i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2>
+  %picked = select <8 x i1> %above, <8 x i32> splat (i32 7), <8 x i32> splat (i32 2)
   %84 = extractelement <8 x i32> %picked, i32 0
   %85 = icmp ne i32 %84, 7
   %86 = zext i1 %85 to i32
@@ -252,23 +252,22 @@ define fastcc i32 @main() {
   ret i32 %132
 }
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.add.v8i32(<8 x i32>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.smax.v8i32(<8 x i32>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.smin.v8i32(<8 x i32>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i1 @llvm.vector.reduce.or.v8i1(<8 x i1>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i1 @llvm.vector.reduce.and.v8i1(<8 x i1>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
-declare i32 @llvm.cttz.i32(i32, i1 immarg) #1
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare i32 @llvm.cttz.i32(i32, i1 immarg) #0
 
-attributes #0 = { nocallback nofree nosync nounwind readnone willreturn }
-attributes #1 = { nocallback nofree nosync nounwind readnone speculatable willreturn }
+attributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }

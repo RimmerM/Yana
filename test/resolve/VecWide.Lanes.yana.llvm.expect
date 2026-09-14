@@ -11,7 +11,7 @@ define fastcc i32 @main() {
 
 1:                                                ; preds = %0
   %2 = load i32, ptr @seed, align 1
-  %.splatinsert = insertelement <8 x i32> poison, i32 %2, i32 0
+  %.splatinsert = insertelement <8 x i32> poison, i32 %2, i64 0
   %base = shufflevector <8 x i32> %.splatinsert, <8 x i32> poison, <8 x i32> zeroinitializer
   %high = insertelement <8 x i32> %base, i32 40, i32 5
   %3 = extractelement <8 x i32> %high, i32 5
@@ -140,13 +140,13 @@ define fastcc i32 @main() {
   ret i32 %64
 }
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.smax.v8i32(<8 x i32>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.smin.v8i32(<8 x i32>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.add.v8i32(<8 x i32>) #0
 
-attributes #0 = { nocallback nofree nosync nounwind readnone willreturn }
+attributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }

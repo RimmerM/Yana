@@ -10,10 +10,10 @@ define fastcc <4 x i16> @arithmetic(<4 x i16> %a) {
   br label %1
 
 1:                                                ; preds = %0
-  %sum = add <4 x i16> %a, <i16 4, i16 4, i16 4, i16 4>
-  %product = shl <4 x i16> %a, <i16 2, i16 2, i16 2, i16 2>
+  %sum = add <4 x i16> %a, splat (i16 4)
+  %product = shl <4 x i16> %a, splat (i16 2)
   %masked = and <4 x i16> %sum, %product
-  %shifted = shl <4 x i16> %masked, <i16 4, i16 4, i16 4, i16 4>
+  %shifted = shl <4 x i16> %masked, splat (i16 4)
   %2 = sub <4 x i16> %shifted, %a
   ret <4 x i16> %2
 }
@@ -68,7 +68,7 @@ define fastcc i32 @"main$"() {
   %back = call fastcc <4 x i16> @narrowing(<4 x i32> %widened)
   %2 = call fastcc <4 x float> @reinterpreting(<4 x i32> %widened)
   %bits = call fastcc <4 x float> @aliases(<4 x float> %2)
-  %narrow = call fastcc <4 x i8> @widths(<4 x i8> <i8 1, i8 1, i8 1, i8 1>, <2 x i32> <i32 2, i32 2>)
+  %narrow = call fastcc <4 x i8> @widths(<4 x i8> splat (i8 1), <2 x i32> splat (i32 2))
   %3 = bitcast <4 x float> %bits to <4 x i32>
   %4 = trunc <4 x i32> %3 to <4 x i16>
   %5 = xor <4 x i16> %back, %4

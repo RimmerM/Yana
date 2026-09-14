@@ -126,7 +126,7 @@ define fastcc i32 @floats() {
   br label %1
 
 1:                                                ; preds = %0
-  %2 = call <4 x float> @llvm.fabs.v4f32(<4 x float> <float -1.500000e+00, float -1.500000e+00, float -1.500000e+00, float -1.500000e+00>)
+  %2 = call <4 x float> @llvm.fabs.v4f32(<4 x float> splat (float -1.500000e+00))
   %3 = extractelement <4 x float> %2, i32 0
   %4 = fcmp une float %3, 1.500000e+00
   %5 = zext i1 %4 to i32
@@ -305,7 +305,7 @@ define fastcc i32 @main() {
 
 1:                                                ; preds = %0
   %2 = load i32, ptr @seed, align 1
-  %.splatinsert = insertelement <4 x i32> poison, i32 %2, i32 0
+  %.splatinsert = insertelement <4 x i32> poison, i32 %2, i64 0
   %v = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
   %3 = call fastcc i32 @construction()
   %4 = icmp ne i32 %3, 0
@@ -363,7 +363,7 @@ define fastcc i32 @main() {
 
 33:                                               ; preds = %32
   %34 = load i32, ptr @seed, align 1
-  %.splatinsert1 = insertelement <4 x i32> poison, i32 %34, i32 0
+  %.splatinsert1 = insertelement <4 x i32> poison, i32 %34, i64 0
   %.splat = shufflevector <4 x i32> %.splatinsert1, <4 x i32> poison, <4 x i32> zeroinitializer
   %35 = call fastcc i32 @regrouping(<4 x i32> %.splat)
   %36 = icmp ne i32 %35, 0
@@ -372,7 +372,7 @@ define fastcc i32 @main() {
 
 38:                                               ; preds = %33
   %39 = load i32, ptr @seed, align 1
-  %.splatinsert2 = insertelement <4 x i32> poison, i32 %39, i32 0
+  %.splatinsert2 = insertelement <4 x i32> poison, i32 %39, i64 0
   %.splat3 = shufflevector <4 x i32> %.splatinsert2, <4 x i32> poison, <4 x i32> zeroinitializer
   %40 = call fastcc i32 @regrouping(<4 x i32> %.splat3)
   %41 = mul i32 %40, 10000
@@ -385,14 +385,14 @@ define fastcc i32 @main() {
   ret i32 271
 }
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
-declare <4 x i32> @llvm.abs.v4i32(<4 x i32>, i1 immarg) #1
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare <4 x i32> @llvm.abs.v4i32(<4 x i32>, i1 immarg) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
+; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
 declare <4 x float> @llvm.fabs.v4f32(<4 x float>) #1
 
-attributes #0 = { nocallback nofree nosync nounwind readnone willreturn }
-attributes #1 = { nocallback nofree nosync nounwind readnone speculatable willreturn }
+attributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #1 = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }

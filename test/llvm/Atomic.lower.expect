@@ -23,7 +23,7 @@ define fastcc ptr @pointerExchange(ptr %p, ptr %q) {
   br label %1
 
 1:                                                ; preds = %0
-  %old = atomicrmw xchg ptr %p, %q acq_rel, align 8
+  %old = atomicrmw xchg ptr %p, ptr %q acq_rel, align 8
   ret ptr %old
 }
 

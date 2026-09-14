@@ -1,6 +1,7 @@
 #include "build.h"
 #include "../entry.h"
 
+#include <llvm/Config/llvm-config.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Passes/PassBuilder.h>
@@ -443,10 +444,18 @@ static Ptr<llvm::TargetMachine> createMachine(Context& context, llvm::Module& mo
     auto triple = module.getTargetTriple();
     auto target = llvm::TargetRegistry::lookupTarget(triple, error);
 
+    // The spelling, for the two messages below - a module's triple is a `Triple` since LLVM 21 and
+    // was the string itself before.
+#if LLVM_VERSION_MAJOR >= 21
+    const std::string& tripleText = triple.str();
+#else
+    const std::string& tripleText = triple;
+#endif
+
     if(!target) {
         if(required) {
             context.diagnostics.error("llvm: no code generator for %@: %@"_v, nullptr,
-                                      StringView { triple.data(), triple.size() },
+                                      StringView { tripleText.data(), tripleText.size() },
                                       StringView { error.data(), error.size() });
         }
 
@@ -480,7 +489,7 @@ static Ptr<llvm::TargetMachine> createMachine(Context& context, llvm::Module& mo
 
     if(stated != actual) {
         context.diagnostics.warning("llvm: the data layout stated for %@ is %@, but its code generator uses %@"_v,
-                                    nullptr, StringView { triple.data(), triple.size() },
+                                    nullptr, StringView { tripleText.data(), tripleText.size() },
                                     StringView { stated.data(), stated.size() },
                                     StringView { actual.data(), actual.size() });
     }
@@ -553,7 +562,13 @@ bool writeObjectFile(Context& context, llvm::Module& module, const String& path)
     }
 
     llvm::legacy::PassManager passes;
-    if(machine->addPassesToEmitFile(passes, file, nullptr, llvm::CGFT_ObjectFile)) {
+#if LLVM_VERSION_MAJOR >= 18
+    auto fileType = llvm::CodeGenFileType::ObjectFile;
+#else
+    auto fileType = llvm::CGFT_ObjectFile;
+#endif
+
+    if(machine->addPassesToEmitFile(passes, file, nullptr, fileType)) {
         context.diagnostics.error("llvm: this target cannot emit an object file"_v, nullptr);
         return false;
     }

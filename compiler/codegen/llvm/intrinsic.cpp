@@ -162,17 +162,23 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
             return true;
         }
 
+        // The two lists spelled out, because `{}` for both is ambiguous since LLVM 20 grew an
+        // overload taking the result type first.
         case LowerIntrinsic::MFence:
-            f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse2_mfence, {}, {});
+            f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse2_mfence, llvm::ArrayRef<llvm::Type*>(),
+                                      llvm::ArrayRef<llvm::Value*>());
             return true;
         case LowerIntrinsic::LFence:
-            f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse2_lfence, {}, {});
+            f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse2_lfence, llvm::ArrayRef<llvm::Type*>(),
+                                      llvm::ArrayRef<llvm::Value*>());
             return true;
         case LowerIntrinsic::SFence:
-            f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse_sfence, {}, {});
+            f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse_sfence, llvm::ArrayRef<llvm::Type*>(),
+                                      llvm::ArrayRef<llvm::Value*>());
             return true;
         case LowerIntrinsic::Pause:
-            f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse2_pause, {}, {});
+            f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse2_pause, llvm::ArrayRef<llvm::Type*>(),
+                                      llvm::ArrayRef<llvm::Value*>());
             return true;
 
         case LowerIntrinsic::Prefetch:

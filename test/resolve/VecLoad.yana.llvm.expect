@@ -106,7 +106,7 @@ define fastcc i32 @sumInts(ptr %"xs$items", i64 %"xs$length") {
 
 18:                                               ; preds = %8
   %19 = sub i32 %n, %4
-  %.splatinsert = insertelement <4 x i32> poison, i32 %19, i32 0
+  %.splatinsert = insertelement <4 x i32> poison, i32 %19, i64 0
   %.splat = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
   %live = icmp slt <4 x i32> <i32 0, i32 1, i32 2, i32 3>, %.splat
   %20 = sext i32 %4 to i64
@@ -131,7 +131,7 @@ define fastcc i32 @indexOf(ptr %"xs$items", i64 %"xs$length", i32 %needle) {
 
 1:                                                ; preds = %0
   %n = trunc i64 %"xs$length" to i32
-  %.splatinsert = insertelement <4 x i32> poison, i32 %needle, i32 0
+  %.splatinsert = insertelement <4 x i32> poison, i32 %needle, i64 0
   %wanted = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
   br label %2
 
@@ -175,7 +175,7 @@ define fastcc i32 @indexOf(ptr %"xs$items", i64 %"xs$length", i32 %needle) {
 
 27:                                               ; preds = %7
   %28 = sub i32 %n, %3
-  %.splatinsert1 = insertelement <4 x i32> poison, i32 %28, i32 0
+  %.splatinsert1 = insertelement <4 x i32> poison, i32 %28, i64 0
   %.splat = shufflevector <4 x i32> %.splatinsert1, <4 x i32> poison, <4 x i32> zeroinitializer
   %live = icmp slt <4 x i32> <i32 0, i32 1, i32 2, i32 3>, %.splat
   %29 = sext i32 %3 to i64
@@ -338,7 +338,7 @@ define fastcc i32 @main() {
 
 73:                                               ; preds = %69
   %74 = sub i32 %61, %65
-  %.splatinsert = insertelement <4 x i32> poison, i32 %74, i32 0
+  %.splatinsert = insertelement <4 x i32> poison, i32 %74, i64 0
   %.splat = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
   %75 = icmp slt <4 x i32> <i32 0, i32 1, i32 2, i32 3>, %.splat
   %76 = sext i32 %65 to i64
@@ -418,23 +418,22 @@ define fastcc i32 @main() {
   %131 = sext i32 %36 to i64
   %132 = shl i64 %131, 2
   %133 = getelementptr i8, ptr %3, i64 %132
-  store <4 x i32> <i32 3, i32 3, i32 3, i32 3>, ptr %133, align 1
+  store <4 x i32> splat (i32 3), ptr %133, align 1
   %134 = add i32 %36, 4
   br label %35
 }
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i1 @llvm.vector.reduce.or.v4i1(<4 x i1>) #0
 
-; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
-declare i32 @llvm.cttz.i32(i32, i1 immarg) #1
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare i32 @llvm.cttz.i32(i32, i1 immarg) #0
 
-; Function Attrs: argmemonly nocallback nofree nounwind willreturn writeonly
-declare void @llvm.memset.p0.i64(ptr nocapture writeonly, i8, i64, i1 immarg) #2
+; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: write)
+declare void @llvm.memset.p0.i64(ptr writeonly captures(none), i8, i64, i1 immarg) #1
 
-attributes #0 = { nocallback nofree nosync nounwind readnone willreturn }
-attributes #1 = { nocallback nofree nosync nounwind readnone speculatable willreturn }
-attributes #2 = { argmemonly nocallback nofree nounwind willreturn writeonly }
+attributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #1 = { nocallback nofree nounwind willreturn memory(argmem: write) }

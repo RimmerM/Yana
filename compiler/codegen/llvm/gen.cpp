@@ -1,6 +1,7 @@
 #include "build.h"
 
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/Config/llvm-config.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
 
@@ -41,7 +42,7 @@ llvm::Type* typeOf(Gen& gen, LowerType type) {
             // states what memory holds at the access rather than in the type, and since LLVM 15 so
             // does LLVM. Every `bitcast` between pointer types the old backend emitted was work to
             // agree with a type system that no longer exists.
-            return llvm::Type::getInt8PtrTy(gen.llvm);
+            return llvm::PointerType::get(gen.llvm, 0);
     }
 
     assertTrue("unknown lower type" == nullptr);
@@ -241,7 +242,7 @@ static llvm::Constant* initializerOf(Gen& gen, LowerGlobal& global, bool resolve
         llvm::Constant* address = nullptr;
 
         if(!resolve) {
-            address = llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(gen.llvm));
+            address = llvm::ConstantPointerNull::get(llvm::PointerType::get(gen.llvm, 0));
         } else if(relocation.function) {
             address = gen.functionOf(relocation.function);
         } else if(relocation.global) {
@@ -251,7 +252,7 @@ static llvm::Constant* initializerOf(Gen& gen, LowerGlobal& global, bool resolve
         if(!address) {
             gen.context.diagnostics.error("llvm: global %@ relocates against something that does not exist"_v,
                                           &global.source, gen.context.findName(global.name));
-            address = llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(gen.llvm));
+            address = llvm::ConstantPointerNull::get(llvm::PointerType::get(gen.llvm, 0));
         }
 
         if(!relocation.anchorRelative) {
@@ -456,7 +457,12 @@ Ptr<llvm::Module> genModule(llvm::LLVMContext& llvm, Context& context, LowerModu
     auto description = targetDescriptionOf(context);
     auto built = new llvm::Module(nameOf(context, module.name), llvm);
 
+    // A `Triple` rather than its spelling since LLVM 21, which is the only difference.
+#if LLVM_VERSION_MAJOR >= 21
+    built->setTargetTriple(llvm::Triple(toRef(description.triple)));
+#else
     built->setTargetTriple(toRef(description.triple));
+#endif
     built->setDataLayout(toRef(description.dataLayout));
 
     Gen gen(llvm, *built, context, module);

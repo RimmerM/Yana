@@ -1225,7 +1225,8 @@ static void genFence(FunGen& f, LowerInstFence& inst) {
 // costs the optimizer nothing where inline assembly would be an opaque clobber in a loop that is
 // otherwise the tightest one a program has.
 static void genSpinHint(FunGen& f) {
-    f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse2_pause, {}, {});
+    f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse2_pause, llvm::ArrayRef<llvm::Type*>(),
+                              llvm::ArrayRef<llvm::Value*>());
 }
 
 static void genCopy(FunGen& f, LowerInstCopy& inst) {
