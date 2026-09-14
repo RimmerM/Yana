@@ -153,7 +153,12 @@ struct AlignedRegion: Region<Tag> {
     static Size rounded(Size size) { return (size + 7) & ~Size(7); }
 
     void* alloc(Size size) {
-        return Region<Tag>::alloc(rounded(size));
+        return Region<Tag>::alloc(rounded(size), 8);
+    }
+
+    // For storage of `T`s, whose alignment may be more than this arena's eight.
+    void* alloc(Size size, Size align) {
+        return Region<Tag>::alloc(rounded(size), align < 8 ? 8 : align);
     }
 
     /*
@@ -261,7 +266,7 @@ private:
             return;
         }
 
-        auto p = (T*)arena.alloc(sizeof(T) * next);
+        auto p = (T*)arena.alloc(sizeof(T) * next, alignof(T));
         auto base = *arena;
 
         for(U32 i = 0; i < count; i++) p[i] = base[data][i];

@@ -532,10 +532,8 @@ LowerPtr<LowerValue> carriedInto(LowerBase base, LowerModule& module, LowerBlock
 // what registers those as uses, so that happens once they exist.
 LowerInstPhi* makePhi(LowerModule& module, LowerBlock& block, LowerType type) {
     auto count = block.incoming.size();
-    auto storage = module.arena.alloc(
-        sizeof(LowerInstPhi) +
-        sizeof(LowerPtr<LowerValue>) * count +
-        sizeof(LowerPtr<LowerBlock>) * count);
+    auto storage = allocTrailing<LowerInstPhi, LowerPtr<LowerValue>, LowerPtr<LowerBlock>>(
+        module.arena, sizeof(LowerPtr<LowerValue>) * count + sizeof(LowerPtr<LowerBlock>) * count);
 
     auto phi = new (storage) LowerInstPhi(StringId(), type);
     phi->usedCount = U8(count);

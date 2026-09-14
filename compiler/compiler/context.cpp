@@ -4,20 +4,40 @@
 
 StageObserver* gStageObserver = nullptr;
 
-void* Arena::alloc(Size size) {
-    if(buffer + size > max) {
+void* Arena::alloc(Size size, Size align) {
+    assertTrue(align && (align & (align - 1)) == 0);
+
+    auto it = alignArenaPointer(buffer, align);
+
+    if(it + size > max) {
+        /*
+         * A request a fresh chunk could not hold either - `size` plus the most alignment can skip -
+         * gets storage of its own. A new chunk would be written past its end, and a chunk sized to
+         * the request would make `reset`'s first-chunk-is-`kChunkSize` assumption false. The chunk
+         * being filled stays current, so what is left of it is still used.
+         */
+        if(size > kChunkSize - (align - 1)) [[unlikely]] {
+            auto storage = (Byte*)Tritium::hAlloc(size + align - 1);
+            large.push(storage);
+            return alignArenaPointer(storage, align);
+        }
+
         buffer = (Byte*)Tritium::hAlloc(kChunkSize);
         max = buffer + kChunkSize;
         buffers.push(buffer);
+        it = alignArenaPointer(buffer, align);
     }
 
-    auto it = buffer;
-    buffer += size;
-
+    buffer = it + size;
     return it;
 }
 
 void Arena::reset() {
+    for(auto storage: large) {
+        Tritium::hFree(storage);
+    }
+    large.clear();
+
     if(buffers.size() == 0) return;
 
     // Remove all but one buffer.
@@ -37,6 +57,11 @@ Arena::~Arena() {
         Tritium::hFree(buffer);
     }
     buffers.destroy();
+
+    for(auto storage: large) {
+        Tritium::hFree(storage);
+    }
+    large.destroy();
     buffer = nullptr;
     max = nullptr;
 }
@@ -52,9 +77,11 @@ LinearArena::LinearArena(LinearArena&& l) noexcept: base(l.base), p(l.p), commit
     l.committed = nullptr;
 }
 
-void* LinearArena::alloc(Size size) {
-    auto it = p;
-    if(it + size > committed) [[unlikely]] commitTo(it + size, size);
+void* LinearArena::alloc(Size size, Size align) {
+    assertTrue(align && (align & (align - 1)) == 0);
+
+    auto it = alignArenaPointer(p, align);
+    if(it + size > committed) [[unlikely]] commitTo(it + size, Size(it + size - p));
 
     p = it + size;
     return it;
@@ -231,7 +258,7 @@ StringId Context::addQualifiedName(const char* chars, Size count, Size segmentCo
         id.segmentHash = hash.get();
     } else {
         // Put the indexes and hashes first to get the correct alignment.
-        auto data = (U32*)stringArena.alloc(count + 2 * (segmentCount * sizeof(U32)));
+        auto data = (U32*)stringArena.alloc(count + 2 * (segmentCount * sizeof(U32)), alignof(U32));
 
         id.segmentCount = (U32)segmentCount;
         id.segments = data;

@@ -427,8 +427,7 @@ InstResolver handleAtomicCas() {
         auto previousType = getResultType(previous);
         auto exchangedType = getResultType(exchanged);
 
-        auto inst = (LowerInstAtomicCas*)resolve.moduleArena.alloc(sizeof(LowerInstAtomicCas));
-        new (inst) LowerInstAtomicCas(
+        auto inst = new (resolve.moduleArena) LowerInstAtomicCas(
             getResultName(previous), getResultName(exchanged),
             previousType ? previousType.unwrap() : base[expected - base]->type,
             to - base, expected - base, desired - base, width, weak, success, failure,
@@ -548,9 +547,8 @@ static void addVectorInstructions(HashMap<StringId, InstResolver>& instructionSe
             return Nothing();
         }
 
-        auto inst = (LowerInstVecShuffle*)resolve.moduleArena.alloc(
-            sizeof(LowerInstVecShuffle) + LowerInstVecShuffle::patternBytes(type));
-        new (inst) LowerInstVecShuffle(getResultName(result), type, left - base, right - base);
+        auto inst = new (allocTrailing<LowerInstVecShuffle>(resolve.moduleArena, LowerInstVecShuffle::patternBytes(type)))
+            LowerInstVecShuffle(getResultName(result), type, left - base, right - base);
 
         // A pattern entry names a lane of the two sources concatenated, so it runs to twice the
         // source's lane count rather than to the result's.
@@ -590,8 +588,8 @@ static Maybe<LowerInst*> handleIntrinsic(LowerResolve& resolve, LowerBase base, 
     assertArgCount(ast.args, desc.args);
 
     auto embeddedSize = sizeof(LowerValue) * desc.results + sizeof(LowerPtr<LowerValue>) * desc.args;
-    auto inst = (LowerInstIntrinsic*)resolve.moduleArena.alloc(sizeof(LowerInstIntrinsic) + embeddedSize);
-    new (inst) LowerInstIntrinsic(found.unwrap(), desc.results, desc.args);
+    auto inst = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(resolve.moduleArena, embeddedSize))
+        LowerInstIntrinsic(found.unwrap(), desc.results, desc.args);
 
     for(Size i = 0; i < desc.args; i++) {
         auto a = tryMaybe(findValue(resolve, base, block, ast.args[i], ast.source), return Nothing());
@@ -624,8 +622,8 @@ InstResolver handleCall() {
         auto usedCount = ast.args.size();
         auto embeddedSize = sizeof(LowerValue) * createdCount + sizeof(LowerPtr<LowerValue>) * usedCount;
 
-        inst = (LowerInstCall*)resolve.moduleArena.alloc(sizeof(LowerInstCall) + embeddedSize);
-        new (inst) LowerInstCall(createdCount, usedCount, callType);
+        inst = new (allocTrailing<LowerInstCall, LowerValue, LowerPtr<LowerValue>>(resolve.moduleArena, embeddedSize))
+            LowerInstCall(createdCount, usedCount, callType);
 
         for(Size i = 0; i < ast.args.size(); i++) {
             auto a = tryMaybe(findValue(resolve, base, block, ast.args[i], ast.source), return Nothing());
@@ -991,8 +989,8 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         assertResultCount(ast.results, 0);
         assertOnlyTerminator();
 
-        auto inst = (LowerInstRet*)resolve.moduleArena.alloc(sizeof(LowerInstRet) + sizeof(LowerPtr<LowerValue>) * ast.args.size());
-        new (inst) LowerInstRet;
+        auto inst = new (allocTrailing<LowerInstRet, LowerPtr<LowerValue>>(
+            resolve.moduleArena, sizeof(LowerPtr<LowerValue>) * ast.args.size())) LowerInstRet;
 
         auto used = inst->used();
 
@@ -1033,8 +1031,8 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         // resolveLowerPhi() will write the actual argument contents and set the used count;
         // otherwise we might accidentally read from the still uninitialized argument buffer.
         auto embeddedSize = (sizeof(LowerPtr<LowerValue>) + sizeof(LowerPtr<LowerBlock>)) * ast.args.size();
-        auto phi = (LowerInst*)resolve.moduleArena.alloc(sizeof(LowerInstPhi) + embeddedSize);
-        new (phi) LowerInstPhi(getResultName(result), type.unwrap());
+        auto phi = (LowerInst*)new (allocTrailing<LowerInstPhi, LowerPtr<LowerValue>, LowerPtr<LowerBlock>>(
+            resolve.moduleArena, embeddedSize)) LowerInstPhi(getResultName(result), type.unwrap());
 
         phi->block = &block - base;
         resolve.pending.push(resolve.parserArena, LowerPendingInst { phi - base, &ast - *resolve.parserArena });

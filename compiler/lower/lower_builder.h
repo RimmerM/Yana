@@ -86,10 +86,8 @@ inline LowerInst* nop(LowerBase base, LowerModule& module, LowerBlock& block) {
 // An unattached phi with room for a stated number of alternatives, filled in and added to a block by
 // the caller - adding it is what registers its reads, so the whole group has to be settled first.
 inline LowerInstPhi* makePhi(Region<LowerRegion>& arena, LowerType type, U32 alternatives) {
-    auto storage = arena.alloc(
-        sizeof(LowerInstPhi) +
-        sizeof(LowerPtr<LowerValue>) * alternatives +
-        sizeof(LowerPtr<LowerBlock>) * alternatives);
+    auto storage = allocTrailing<LowerInstPhi, LowerPtr<LowerValue>, LowerPtr<LowerBlock>>(
+        arena, sizeof(LowerPtr<LowerValue>) * alternatives + sizeof(LowerPtr<LowerBlock>) * alternatives);
 
     auto phi = new (storage) LowerInstPhi(StringId(), type);
     phi->usedCount = alternatives;
@@ -157,7 +155,8 @@ inline U32 retargetEdges(LowerBase base, LowerBlock* block, LowerPtr<LowerBlock>
 inline LowerInstX86JumpTable* makeJumpTable(Region<LowerRegion>& arena, LowerPtr<LowerValue> target,
                                             LowerPtr<LowerGlobal> table, U32 targetCount)
 {
-    auto storage = arena.alloc(LowerInstX86JumpTable::sizeFor(targetCount));
+    auto storage = allocTrailing<LowerInstX86JumpTable, LowerPtr<LowerBlock>>(
+        arena, LowerInstX86JumpTable::sizeFor(targetCount) - sizeof(LowerInstX86JumpTable));
     return new (storage) LowerInstX86JumpTable(target, table, targetCount);
 }
 
@@ -167,7 +166,8 @@ inline LowerInstX86JumpTable* makeJumpTable(Region<LowerRegion>& arena, LowerPtr
 inline LowerInstSwitch* makeSwitch(Region<LowerRegion>& arena, LowerPtr<LowerValue> selector,
                                    LowerPtr<LowerBlock> fallback, U32 caseCount)
 {
-    auto storage = arena.alloc(LowerInstSwitch::sizeFor(caseCount));
+    auto storage = allocTrailing<LowerInstSwitch, LowerSwitchCase>(
+        arena, LowerInstSwitch::sizeFor(caseCount) - sizeof(LowerInstSwitch));
     return new (storage) LowerInstSwitch(selector, fallback, caseCount);
 }
 
@@ -322,8 +322,8 @@ inline LowerInst* spinHint(LowerBase base, LowerModule& module, LowerBlock& bloc
 template<class Prepare>
 inline LowerInst* call(LowerBase base, LowerModule& module, LowerBlock& block, Size createdCount, Size usedCount, LowerCallType callType, Prepare&& prepare) {
     auto embeddedSize = sizeof(LowerValue) * createdCount + sizeof(LowerPtr<LowerValue>) * usedCount;
-    auto inst = (LowerInstCall*)module.arena.alloc(sizeof(LowerInstCall) + embeddedSize);
-    new (inst) LowerInstCall(createdCount, usedCount, callType);
+    auto inst = new (allocTrailing<LowerInstCall, LowerValue, LowerPtr<LowerValue>>(module.arena, embeddedSize))
+        LowerInstCall(createdCount, usedCount, callType);
 
     prepare(inst);
     return block.addInst(base, inst);
@@ -347,8 +347,8 @@ inline LowerInst* jmp(LowerBase base, LowerModule& module, LowerBlock& block, Lo
  */
 template<class Prepare>
 inline LowerInst* ret(LowerBase base, LowerModule& module, LowerBlock& block, Size usedCount, Prepare&& prepare) {
-    auto inst = (LowerInstRet*)module.arena.alloc(sizeof(LowerInstRet) + sizeof(LowerPtr<LowerValue>) * usedCount);
-    new (inst) LowerInstRet(usedCount);
+    auto inst = new (allocTrailing<LowerInstRet, LowerPtr<LowerValue>>(module.arena, sizeof(LowerPtr<LowerValue>) * usedCount))
+        LowerInstRet(usedCount);
 
     prepare(inst);
     return block.addInst(base, inst);

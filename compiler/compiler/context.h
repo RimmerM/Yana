@@ -114,13 +114,41 @@ struct OpProperties {
     Assoc associativity;
 };
 
+/*
+ * How the arenas align what they hand out.
+ *
+ * The bump pointer is moved up to each allocation's alignment rather than every size being rounded:
+ * bytes - a name's text, a global's contents - take the default of one and pack without holes, and
+ * an object gets exactly what it needs, including more than eight.
+ * Unaligned storage is undefined behaviour that optimizers act on: GCC at `-O3` vectorized a walk
+ * over an instruction list with an aligned `movdqa` load, and an instruction at an odd offset faulted
+ * there in release builds only.
+ *
+ * `new (arena) T` is the one caller that is not told the type's alignment - C++ passes it only for a
+ * type aligned past `__STDCPP_DEFAULT_NEW_ALIGNMENT__`, through the `std::align_val_t` overloads. The
+ * size says enough for every other one: a type's size is a multiple of its alignment, so the lowest
+ * set bit of the size is at least that alignment. Capped at the default new alignment, since any type
+ * needing more takes the other overload. The same argument covers an array of `T` sized as a count
+ * of `sizeof(T)`, which is how `ArenaAllocator` is asked.
+ */
+inline Size arenaAlignmentForSize(Size size) {
+    auto lowest = size & (~size + 1);
+    if(lowest == 0) return 1;
+    return lowest < __STDCPP_DEFAULT_NEW_ALIGNMENT__ ? lowest : __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+}
+
+inline Byte* alignArenaPointer(Byte* at, Size align) {
+    return (Byte*)((Size(at) + align - 1) & ~(align - 1));
+}
+
 struct Arena {
     static const Size kChunkSize = 4 * 1024 * 1024;
 
     Arena() = default;
     Arena(const Arena&) = delete;
 
-    void* alloc(Size size);
+    // `align` is a power of two - left at one for bytes, `alignof(T)` for storage holding `T`s.
+    void* alloc(Size size, Size align = 1);
     void reset();
     ~Arena();
 
@@ -128,10 +156,18 @@ private:
     Byte* buffer = nullptr;
     Byte* max = nullptr;
     Array<Byte*> buffers;
+
+    // Allocations no chunk can hold, each in storage of its own - see `alloc`. Apart from `buffers`
+    // because they are not chunks: `reset` keeps the first of those and assumes it is `kChunkSize`.
+    Array<Byte*> large;
 };
 
 inline void* operator new (Size count, Arena& arena) {
-    return arena.alloc(count);
+    return arena.alloc(count, arenaAlignmentForSize(count));
+}
+
+inline void* operator new (Size count, std::align_val_t align, Arena& arena) {
+    return arena.alloc(count, Size(align));
 }
 
 struct LinearArena;
@@ -226,7 +262,8 @@ struct LinearArena {
     LinearArena(LinearArena&&) noexcept;
     LinearArena(const LinearArena&) = delete;
 
-    void* alloc(Size size);
+    // `align` is a power of two, as for `Arena::alloc`.
+    void* alloc(Size size, Size align = 1);
     void reset(Size initialCommit);
     Size used() { return p - base; }
 
@@ -256,7 +293,31 @@ struct Region: LinearArena {
 };
 
 inline void* operator new (Size count, LinearArena& arena) {
-    return arena.alloc(count);
+    return arena.alloc(count, arenaAlignmentForSize(count));
+}
+
+inline void* operator new (Size count, std::align_val_t align, LinearArena& arena) {
+    return arena.alloc(count, Size(align));
+}
+
+/*
+ * Storage for a `T` followed by `trailing` bytes of entries it reaches past its own end - a phi's
+ * operands, a call's created values - for `new (allocTrailing<T, ...>(arena, bytes)) T(...)`.
+ *
+ * Not `new (arena) T`, whose size is `sizeof(T)` alone. The tail's entry types are named so that the
+ * storage is aligned for them too: they are laid out from `sizeof(T)`, which is a multiple of
+ * `alignof(T)` and of nothing larger.
+ */
+template<class T, class... Tail, class Arena>
+inline void* allocTrailing(Arena& arena, Size trailing) {
+    const Size aligns[] = { Size(alignof(T)), Size(alignof(Tail))... };
+
+    Size align = 1;
+    for(auto entry: aligns) {
+        if(entry > align) align = entry;
+    }
+
+    return arena.alloc(sizeof(T) + trailing, align);
 }
 
 struct Context {
@@ -443,8 +504,9 @@ struct ArenaAllocator {
     ArenaAllocator(Arena& arena): arena(arena) {}
     Arena& arena;
 
+    // Asked for a count of `sizeof(T)` and never told `T` - see `arenaAlignmentForSize`.
     void* alloc(Size size) {
-        return arena.alloc(size);
+        return arena.alloc(size, arenaAlignmentForSize(size));
     }
 
     void free(void*) {}

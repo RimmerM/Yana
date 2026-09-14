@@ -188,11 +188,9 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                  */
                 case NativeOp::CloneThread: {
                     auto type = lowerType(lower, instruction.type);
-                    auto inst = (LowerInstIntrinsic*)lower.to.arena.alloc(
-                        sizeof(LowerInstIntrinsic) + sizeof(LowerValue) +
-                        sizeof(LowerPtr<LowerValue>) * args.size());
-
-                    new (inst) LowerInstIntrinsic(LowerIntrinsic::CloneThread, 1, args.size());
+                    auto inst = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(
+                        lower.to.arena, sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>) * args.size()))
+                        LowerInstIntrinsic(LowerIntrinsic::CloneThread, 1, args.size());
                     for(Size i = 0; i < args.size(); i++) inst->used().ptr[i] = args[i];
                     new (inst->created().ptr) LowerValue(inst, type, instruction.name);
 
@@ -206,11 +204,9 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                  */
                 case NativeOp::StackInit: {
                     auto type = lowerType(lower, instruction.type);
-                    auto inst = (LowerInstIntrinsic*)lower.to.arena.alloc(
-                        sizeof(LowerInstIntrinsic) + sizeof(LowerValue) +
-                        sizeof(LowerPtr<LowerValue>) * args.size());
-
-                    new (inst) LowerInstIntrinsic(LowerIntrinsic::StackInit, 1, args.size());
+                    auto inst = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(
+                        lower.to.arena, sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>) * args.size()))
+                        LowerInstIntrinsic(LowerIntrinsic::StackInit, 1, args.size());
                     for(Size i = 0; i < args.size(); i++) inst->used().ptr[i] = args[i];
                     new (inst->created().ptr) LowerValue(inst, type, instruction.name);
 
@@ -336,8 +332,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     // Two results, and the second is claimed by the `AtomicOk` that names this
                     // instruction rather than produced here - see InstAtomicOk.
                     auto type = lowerType(lower, instruction.type);
-                    auto inst = (LowerInstAtomicCas*)lower.to.arena.alloc(sizeof(LowerInstAtomicCas));
-                    new (inst) LowerInstAtomicCas(resultName, StringId(), type,
+                    auto inst = new (lower.to.arena) LowerInstAtomicCas(resultName, StringId(), type,
                                                   args[0], args[1], args[2], width, atomic.weak,
                                                   order, lowerOrderOf(atomic.failure));
 
@@ -619,10 +614,8 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                        : instruction.kind == Value::LeadingZeros ? LowerIntrinsic::ClzWidth
                                                                  : LowerIntrinsic::CttzWidth;
 
-            auto inst = (LowerInstIntrinsic*)lower.to.arena.alloc(
-                sizeof(LowerInstIntrinsic) + sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>));
-
-            new (inst) LowerInstIntrinsic(which, 1, 1);
+            auto inst = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(
+                lower.to.arena, sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>))) LowerInstIntrinsic(which, 1, 1);
             inst->used().ptr[0] = from;
             new (inst->created().ptr) LowerValue(inst, type, instruction.name);
 
@@ -1075,8 +1068,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             auto left = mappedValue(lower, shuffle.left);
             auto right = mappedValue(lower, shuffle.right);
 
-            auto memory = lower.to.arena.alloc(sizeof(LowerInstVecShuffle) +
-                                               LowerInstVecShuffle::patternBytes(type));
+            auto memory = allocTrailing<LowerInstVecShuffle>(lower.to.arena, LowerInstVecShuffle::patternBytes(type));
             auto lowered = new (memory) LowerInstVecShuffle(instruction.name, type, left, right);
             auto pattern = lowered->pattern();
 

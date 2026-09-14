@@ -713,10 +713,8 @@ struct DeadSweep {
 // the same shape lower_promote.cpp and the x64 rotation build one in, because adding it is what
 // registers its reads.
 LowerInstPhi* makeInductionPhi(Region<LowerRegion>& arena, LowerType type) {
-    auto storage = arena.alloc(
-        sizeof(LowerInstPhi) +
-        sizeof(LowerPtr<LowerValue>) * 2 +
-        sizeof(LowerPtr<LowerBlock>) * 2);
+    auto storage = allocTrailing<LowerInstPhi, LowerPtr<LowerValue>, LowerPtr<LowerBlock>>(
+        arena, sizeof(LowerPtr<LowerValue>) * 2 + sizeof(LowerPtr<LowerBlock>) * 2);
 
     auto phi = new (storage) LowerInstPhi(StringId(), type);
     phi->usedCount = 2;

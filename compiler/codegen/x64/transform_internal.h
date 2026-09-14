@@ -170,10 +170,8 @@ struct Expansion {
      * `emit`, and builds the allocation the way `handleIntrinsic` in lower_resolve.cpp does.
      */
     LowerValue* intrinsic(LowerIntrinsic which, LowerType type, LowerValue* operand, StringId name = StringId()) {
-        auto inst = (LowerInstIntrinsic*)fun.arena.alloc(
-            sizeof(LowerInstIntrinsic) + sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>));
-
-        new (inst) LowerInstIntrinsic(which, 1, 1);
+        auto inst = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(
+            fun.arena, sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>))) LowerInstIntrinsic(which, 1, 1);
         inst->used().ptr[0] = operand - base;
         new (inst->created().ptr) LowerValue(inst, type, name);
 
@@ -185,10 +183,8 @@ struct Expansion {
     // variadic because the allocation size is what differs and two is where it stops.
     LowerValue* intrinsic2(LowerIntrinsic which, LowerType type, LowerValue* first,
                            LowerValue* second, StringId name = StringId()) {
-        auto inst = (LowerInstIntrinsic*)fun.arena.alloc(
-            sizeof(LowerInstIntrinsic) + sizeof(LowerValue) + 2 * sizeof(LowerPtr<LowerValue>));
-
-        new (inst) LowerInstIntrinsic(which, 1, 2);
+        auto inst = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(
+            fun.arena, sizeof(LowerValue) + 2 * sizeof(LowerPtr<LowerValue>))) LowerInstIntrinsic(which, 1, 2);
         inst->used().ptr[0] = first - base;
         inst->used().ptr[1] = second - base;
         new (inst->created().ptr) LowerValue(inst, type, name);
@@ -206,9 +202,8 @@ struct Expansion {
      */
     template<class F>
     LowerValue* shuffle(LowerType type, LowerValue* left, LowerValue* right, F&& entry, StringId name = StringId()) {
-        auto inst = (LowerInstVecShuffle*)fun.arena.alloc(
-            sizeof(LowerInstVecShuffle) + LowerInstVecShuffle::patternBytes(type));
-        new (inst) LowerInstVecShuffle(name, type, left - base, right - base);
+        auto inst = new (allocTrailing<LowerInstVecShuffle>(fun.arena, LowerInstVecShuffle::patternBytes(type)))
+            LowerInstVecShuffle(name, type, left - base, right - base);
 
         auto pattern = inst->pattern();
         for(Size i = 0; i < pattern.length; i++) pattern[i] = entry(i);

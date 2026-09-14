@@ -322,7 +322,7 @@ void lowerTerminator(LowerContext& lower, LowerBlock& block, ModulePtr<Inst> poi
             }
 
             auto count = returned && !memoryResult ? 1 : 0;
-            auto storage = lower.to.arena.alloc(sizeof(LowerInstRet) + sizeof(LowerPtr<LowerValue>) * count);
+            auto storage = allocTrailing<LowerInstRet, LowerPtr<LowerValue>>(lower.to.arena, sizeof(LowerPtr<LowerValue>) * count);
             auto returnLower = new (storage) LowerInstRet;
             returnLower->usedCount = count;
 

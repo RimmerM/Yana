@@ -1036,7 +1036,7 @@ struct EmbedList<T, true> {
 
     template<class Arena>
     void allocate(Arena& arena, Size currentCount, Size nextCount) {
-        auto p = (T*)arena.alloc(sizeof(T) * nextCount);
+        auto p = (T*)arena.alloc(sizeof(T) * nextCount, alignof(T));
 
         if(isEmbedded()) {
             for(Size i = 0; i < currentCount; i++) {
@@ -1177,7 +1177,7 @@ struct EmbedList<T, false> {
 
     template<class Arena>
     void allocate(Arena& arena, Size currentCount, Size nextCount) {
-        auto p = (T*)arena.alloc(sizeof(T) * nextCount);
+        auto p = (T*)arena.alloc(sizeof(T) * nextCount, alignof(T));
         auto head = list.p;
 
         for(Size i = 0; i < currentCount; i++) {
@@ -1352,7 +1352,7 @@ struct SmallList<Region, T, true, Count> {
 
     template<class Arena>
     void allocate(Arena& arena, Size currentCount, Size nextCount) {
-        auto p = (T*)arena.alloc(sizeof(T) * nextCount);
+        auto p = (T*)arena.alloc(sizeof(T) * nextCount, alignof(T));
 
         if(isEmbedded()) {
             for(Size i = 0; i < currentCount; i++) {
@@ -1493,7 +1493,7 @@ struct SmallList<Region, T, false, Count> {
 
     template<class Arena>
     void allocate(Arena& arena, Size currentCount, Size nextCount) {
-        auto p = (T*)arena.alloc(sizeof(T) * nextCount);
+        auto p = (T*)arena.alloc(sizeof(T) * nextCount, alignof(T));
         auto base = *arena;
         auto head = base[list.p];
 
@@ -1555,7 +1555,7 @@ struct EmbedSet {
         } else {
             // `alignSize<bits>(count) / bits` is a count of words, not of bytes - alloc takes bytes.
             auto words = alignSize<bits>(count) / bits;
-            list = (Size*)arena.alloc(words * sizeof(Size));
+            list = (Size*)arena.alloc(words * sizeof(Size), alignof(Size));
             for(Size i = 0; i < words; i++) list[i] = 0;
         }
     }

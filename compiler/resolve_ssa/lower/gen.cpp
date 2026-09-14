@@ -547,10 +547,8 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
             auto argument = ssa[argumentPointer];
             auto manifest = manifestOf(*argument);
 
-            auto storage = to.arena.alloc(
-                sizeof(LowerInstPhi) +
-                sizeof(LowerPtr<LowerValue>) * incoming +
-                sizeof(LowerPtr<LowerBlock>) * incoming);
+            auto storage = allocTrailing<LowerInstPhi, LowerPtr<LowerValue>, LowerPtr<LowerBlock>>(
+                to.arena, sizeof(LowerPtr<LowerValue>) * incoming + sizeof(LowerPtr<LowerBlock>) * incoming);
 
             auto phi = new (storage) LowerInstPhi(StringId(), manifest.type);
             phi->usedCount = U8(incoming);

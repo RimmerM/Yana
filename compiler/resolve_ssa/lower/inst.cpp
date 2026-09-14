@@ -1718,10 +1718,8 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                            : written.op == mir::UnaryOp::LeadingZeros ? LowerIntrinsic::ClzWidth
                                                                       : LowerIntrinsic::CttzWidth;
 
-                auto built = (LowerInstIntrinsic*)to.arena.alloc(
-                    sizeof(LowerInstIntrinsic) + sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>));
-
-                new (built) LowerInstIntrinsic(which, 1, 1);
+                auto built = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(
+                    to.arena, sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>))) LowerInstIntrinsic(which, 1, 1);
                 built->used().ptr[0] = operand - lower;
                 new (built->created().ptr) LowerValue(built, manifest.type, StringId());
 
@@ -2217,11 +2215,9 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     auto count = Size(6);
 
                     auto result = ssa[inst.results.get(ssa, 0)];
-                    auto built = (LowerInstIntrinsic*)to.arena.alloc(
-                        sizeof(LowerInstIntrinsic) + sizeof(LowerValue) +
-                        sizeof(LowerPtr<LowerValue>) * count);
-
-                    new (built) LowerInstIntrinsic(LowerIntrinsic::CloneThread, 1, count);
+                    auto built = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(
+                        to.arena, sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>) * count))
+                        LowerInstIntrinsic(LowerIntrinsic::CloneThread, 1, count);
                     for(Size i = 0; i < count; i++) built->used().ptr[i] = operands[i];
                     new (built->created().ptr) LowerValue(built, manifestOf(*result).type,
                                                           StringId());
@@ -2251,11 +2247,9 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     auto count = Size(4);
 
                     auto result = ssa[inst.results.get(ssa, 0)];
-                    auto built = (LowerInstIntrinsic*)to.arena.alloc(
-                        sizeof(LowerInstIntrinsic) + sizeof(LowerValue) +
-                        sizeof(LowerPtr<LowerValue>) * count);
-
-                    new (built) LowerInstIntrinsic(LowerIntrinsic::StackInit, 1, count);
+                    auto built = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(
+                        to.arena, sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>) * count))
+                        LowerInstIntrinsic(LowerIntrinsic::StackInit, 1, count);
                     for(Size i = 0; i < count; i++) built->used().ptr[i] = operands[i];
                     new (built->created().ptr) LowerValue(built, manifestOf(*result).type,
                                                           StringId());
@@ -2490,8 +2484,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto result = ssa[inst.results.get(ssa, 0)];
             auto type = manifestOf(*result).type;
 
-            auto memory = to.arena.alloc(sizeof(LowerInstVecShuffle) +
-                                         LowerInstVecShuffle::patternBytes(type));
+            auto memory = allocTrailing<LowerInstVecShuffle>(to.arena, LowerInstVecShuffle::patternBytes(type));
             auto lowered = new (memory) LowerInstVecShuffle(StringId(), type, left - lower,
                                                             right - lower);
             auto pattern = lowered->pattern();

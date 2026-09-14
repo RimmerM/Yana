@@ -288,10 +288,8 @@ LowerBlock* insertPreheader(LowerBase base, LowerModule& module, LowerFunction& 
 // they are not known until the edges exist - see `promoteStackSlots`, which builds its phis the same
 // way and for the same reason.
 LowerInstPhi* makePhi(LowerModule& module, Size count, LowerType type) {
-    auto storage = module.arena.alloc(
-        sizeof(LowerInstPhi) +
-        sizeof(LowerPtr<LowerValue>) * count +
-        sizeof(LowerPtr<LowerBlock>) * count);
+    auto storage = allocTrailing<LowerInstPhi, LowerPtr<LowerValue>, LowerPtr<LowerBlock>>(
+        module.arena, sizeof(LowerPtr<LowerValue>) * count + sizeof(LowerPtr<LowerBlock>) * count);
 
     auto phi = new (storage) LowerInstPhi(StringId(), type);
     phi->usedCount = U8(count);

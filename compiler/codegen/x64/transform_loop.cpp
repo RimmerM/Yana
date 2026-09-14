@@ -105,8 +105,10 @@ static bool isRotatableHeaderInst(LowerInst* inst) {
 // copy inherited - a list whose entries name the *original's* readers - and drops the source name
 // with it, so the two copies do not both claim to be `%i`.
 static LowerInst* cloneHeaderInst(Region<LowerRegion>& arena, LowerInst* inst) {
+    // Any kind of instruction, so aligned for the most any type allocated without an explicit
+    // alignment may need - the size includes the trailing entries and says nothing about the type.
     auto size = lowerInstSize(inst);
-    auto clone = (LowerInst*)arena.alloc(size);
+    auto clone = (LowerInst*)arena.alloc(size, __STDCPP_DEFAULT_NEW_ALIGNMENT__);
     copyMem(inst, clone, size);
 
     clone->block = nullptr;

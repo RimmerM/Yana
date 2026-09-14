@@ -184,10 +184,8 @@ static LowerInstPhi* createPhi(LowerContext& lower, ModulePtr<InstPhi> pointer) 
     if(isUnit(lower.global, phi.type)) return nullptr;
 
     auto count = phi.inputs.size();
-    auto storage = lower.to.arena.alloc(
-        sizeof(LowerInstPhi) +
-        sizeof(LowerPtr<LowerValue>) * count +
-        sizeof(LowerPtr<LowerBlock>) * count);
+    auto storage = allocTrailing<LowerInstPhi, LowerPtr<LowerValue>, LowerPtr<LowerBlock>>(
+        lower.to.arena, sizeof(LowerPtr<LowerValue>) * count + sizeof(LowerPtr<LowerBlock>) * count);
 
     auto result = new (storage) LowerInstPhi(phi.name, lowerType(lower, phi.type));
     result->source = phi.source;

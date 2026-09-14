@@ -412,7 +412,7 @@ FunParts funPartsOf(Gen& g, ModulePtr<Value> value) {
 
 VecParts newVecParts(Gen& g, U32 lanes) {
     VecParts parts;
-    parts.lanes = (JsPtr<Expr>*)g.file.arena.alloc(sizeof(JsPtr<Expr>) * lanes);
+    parts.lanes = (JsPtr<Expr>*)g.file.arena.alloc(sizeof(JsPtr<Expr>) * lanes, alignof(JsPtr<Expr>));
     parts.count = U16(lanes);
 
     for(U32 i = 0; i < lanes; i++) parts.lanes[i] = nullptr;
