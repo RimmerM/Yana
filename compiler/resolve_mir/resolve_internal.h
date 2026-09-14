@@ -3277,7 +3277,8 @@ struct Resolver {
     };
 
     /*
-     * The callee of a directly-named `lens fn` call, and null for everything else.
+     * The callee of a directly-named `lens fn` call, and null for everything else - an `iter fn`
+     * included, whose only continuation is a `for` body.
      *
      * A *directly* named one, because a lens reached through a class member or a binding of lens
      * type is the erased callback ABI rather than this form. Asked by both call forms, so that a

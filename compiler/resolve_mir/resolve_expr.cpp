@@ -5491,6 +5491,17 @@ bool Resolver::checkCallable(Function& callee, LocationId source, bool traversal
     // what was wanted: a `for` selects among the iterators of a name (`CandidateKind::Iterator`) and
     // then hands the winner the loop body. Everything above it is asked there too.
     if(callee.lens && !traversal) {
+        // An iterator's continuation is a loop body and nothing else, so the lens spellings are the
+        // wrong advice for one. Every lens call form sends an iterator here - see `lensCallee` - and
+        // the words are the shipping stage's, so both stages refuse it alike.
+        if(callee.iterator) {
+            context.diagnostics.error(
+                "%@ is an iterator, so this call has no body to hand its values to - write it as the "
+                "source of a `for` loop, which is the only thing that supplies one"_v,
+                source, context.findName(callee.name));
+            return false;
+        }
+
         context.diagnostics.error(
             "%@ is a lens, so it needs a continuation - write `%@(...):` with a block under it, or "
             "`let x = %@(...)` where what it hands over is used"_v,

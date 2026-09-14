@@ -612,10 +612,17 @@ NamedCall Resolver::iteratorCallee(Builder& builder, ast::Expr& expression,
  * rather than being reported here, which is what keeps one diagnostic per mistake. A `for` asks the
  * question the other way round - see `resolveIteratorFor` - because a call in that position has no
  * other reading to fall through to.
+ *
+ * **An `iter fn` is not one, although its `lens` flag is set.** The flag says the declaration takes a
+ * continuation, and a `for` is the only thing that supplies an iterator's. Answering one here gave
+ * every lens call form an iterator too - `let x = upTo(3)` ran the rest of its block once per element
+ * under a region marked `Once`, and so did a bare call, an `in` body and a call hoisted out of an
+ * argument - where the shipping stage refuses all of them. Declined, each of those reaches the
+ * ordinary call path, and `checkCallable` refuses it there with that stage's message.
  */
 NamedCall Resolver::lensCallee(ast::Expr& expression) {
     auto callee = namedCallee(expression);
-    return callee && callee->lens ? callee : NamedCall();
+    return callee && callee->lens && !callee->iterator ? callee : NamedCall();
 }
 
 /*

@@ -1,0 +1,60 @@
+{-
+   An `iter fn` called where only a lens call can stand. Its `lens` flag is set - it takes a
+   continuation - but the only thing that supplies an iterator's is a `for` body, so every lens call
+   form refuses one with the shipping stage's message rather than running the rest of its block once
+   per element. `test/resolve/Reject.Iter.yana` asserts the shipping stage's half of this.
+
+   # resolver: ownership
+-}
+
+iter fn upTo(limit: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < limit:
+        yield i
+        i = i + 1
+
+fn id(x: Int) -> Int = x
+
+-- The flat form, which ran `count = count + x + 1` three times.
+fn flat() -> Int:
+    let &count = 0 :: Int
+    let x = upTo(3)
+    count = count + x + 1
+    return count
+
+-- A bare call, whose extent would be the rest of the block.
+fn bare() -> Int:
+    let &count = 0 :: Int
+    upTo(3)
+    count = count + 1
+    return count
+
+-- The scoped form.
+fn scoped() -> Int:
+    let &count = 0 :: Int
+
+    let x = upTo(3) in:
+        count = count + x + 1
+
+    return count
+
+-- The block form.
+fn block() -> Int:
+    let &count = 0 :: Int
+
+    upTo(3):
+        count = count + 1
+
+    return count
+
+-- A call inside an argument, which is hoisted out into a flat `let` when the callee is a lens.
+fn hoisted() -> Int:
+    let &count = 0 :: Int
+    count = count + id(upTo(3))
+    return count
+
+-- And a value position, which no lens form reaches.
+fn value() -> Int = if upTo(3) > 1 then 1 else 0
+
+fn main() -> Int = flat() + bare() + scoped() + block() + hoisted() + value()
