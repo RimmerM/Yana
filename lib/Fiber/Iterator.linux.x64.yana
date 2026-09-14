@@ -48,6 +48,9 @@ import Native
 -- What a switch carries. The two directions are separate words because they are separate
 -- questions: what the consumer wants, and what the producer did. Prefixed because `Cursor` beside
 -- this file is the same module and already names its own pair.
+--
+-- A word-sized value travels as the producer's word itself (`IterBlock.inWord`), so the consumer
+-- reads whether the producer finished from the fiber's status rather than from the word.
 let kIterAdvance = 1 :: Size
 let kIterCancel = 2 :: Size
 let kIterYielded = 1 :: Size
@@ -69,8 +72,15 @@ let kIterStackBytes = 65536 :: Size
 pub data IterBlock(y, a) {
     fiber: Fiber,
 
-    -- The one value in flight: filled by `IterBlock.handOver`, emptied by `Iter.take`.
+    -- The one value in flight: filled by `IterBlock.handOver`, emptied by `Iter.take`. Unused for a
+    -- value that travels in `word` instead.
     slot: Maybe(y),
+
+    -- The word the producer's last switch answered the consumer with - the value itself where
+    -- `IterBlock.inWord` holds. A register's worth of bytes rather than a `Maybe(y)` exchange, which
+    -- cost the x64 step a blocked store-to-load forward per value (the switch-cost note in
+    -- Analysis-External-Iterators.md).
+    word: Size,
 
     stack: %U8,
     stackBytes: Size,
@@ -153,6 +163,7 @@ fn (y, a) IterBlock.create(->captured: a, entry: (%IterBlock(y, {})) -> {}) -> %
         slot: Nothing :: Maybe(y),
         stack: stack,
         stackBytes: kIterStackBytes,
+        word: 0,
         lent: null(),
         captured: Just(captured)
     } :: IterBlock(y, a)
@@ -218,14 +229,34 @@ instance (y, a) Drop(LentIter(y, a)):
 @builtin(iterNext)
 pub fn (y, a) Iter.advance(&self: Iter(y, a)) -> Bool = IterBlock.advance(self.block)
 
--- Both handles' step: the block they point at is the same, and so is what stepping it means.
+{-
+   Both handles' step: the block they point at is the same, and so is what stepping it means.
+
+   The switch is written out rather than called through `resume`, which would test the status a
+   second time. Whether the producer finished is the fiber's status after the switch - `finishOn`
+   sets it - so that the word coming back is free to be the value (`IterBlock.handOver`).
+-}
 fn (y, a) IterBlock.advance(block: %IterBlock(y, a)) -> Bool:
     if isNull(block) then return False
 
     let &me = borrowMut(block)
-    if hasFinished(me.fiber) then return False
+    if me.fiber.status == FiberStatus.Finished then return False
 
-    return resume(me.fiber, kIterAdvance) == kIterYielded
+    me.fiber.status = FiberStatus.Suspended
+    me.word = stackSwitch(me.fiber.child, addressOf(me.fiber.parent), kIterAdvance)
+
+    return me.fiber.status == FiberStatus.Suspended
+
+{-
+   Whether a `y` travels in the switch's transfer word rather than in the slot: a trivially copyable
+   value no larger than the word. Its bytes are written into a zeroed word and read back out of
+   `IterBlock.word`, so a narrower value is its low bytes on both sides.
+
+   A fact about the type, so every instantiation answers a constant and the other path is dead.
+-}
+@inline(always)
+fn (y, a) IterBlock.inWord(block: %IterBlock(y, a)) -> Bool =
+    (traits() :: TypeTraits(y)).trivialCopy && (traits() :: TypeTraits(y)).size <= (traits() :: TypeTraits(Size)).size
 
 {-
    The value the last `Iter.advance` produced, taken out of the slot.
@@ -235,8 +266,9 @@ fn (y, a) IterBlock.advance(block: %IterBlock(y, a)) -> Bool:
 -}
 @builtin(iterTake)
 pub fn (y, a) Iter.take(&self: Iter(y, a)) -> y:
-    let &me = borrowMut(self.block)
+    if IterBlock.inWord(self.block) then return *(bitcast(addressOf(borrowMut(self.block).word)) :: %y)
 
+    let &me = borrowMut(self.block)
     if exchange(me.slot, Nothing :: Maybe(y)) is Just(->value): return value
     return unreachableValue()
 
@@ -275,9 +307,15 @@ pub fn (y, a) IterBlock.begin(block: %IterBlock(y, {})) -> a:
 -- `yield value`, from inside the producer. `True` where the consumer answered by cancelling.
 @builtin(iterYield)
 pub fn (y) IterBlock.handOver(block: %IterBlock(y, {}), ->value: y) -> Bool:
+    -- The word is packed before the block is borrowed: a live borrow through a raw pointer may be
+    -- pointing at any local whose address was taken, and `word`'s is.
+    if IterBlock.inWord(block):
+        let &word = 0 :: Size
+        store(bitcast(addressOf(word)) :: %y, value)
+        return suspendOn(addressOf(borrowMut(block).fiber), word) == kIterCancel
+
     let &me = borrowMut(block)
     me.slot = Just(value)
-
     return suspendOn(addressOf(me.fiber), kIterYielded) == kIterCancel
 
 -- The end of the producer, which does not come back - see `Fiber.finishOn`.

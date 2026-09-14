@@ -2,12 +2,10 @@ mut @released = [0, 0, 0, 0]
 
 Counter.drop<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    copy %v_1, %value, 4
     %released = global @released: Ptr
-    %v_2 = loads %released, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store %released, %v_3, 4
+    %v_1 = loads %released, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store %released, %v_2, 4
     ret 
   }
 }

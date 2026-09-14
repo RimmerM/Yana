@@ -6,11 +6,9 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
 Guard.drop<complex>(%self: Ptr) {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    copy %v_1, %self, 4
-    %v_2 = loads @dropCalls, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store @dropCalls, %v_3, 4
+    %v_1 = loads @dropCalls, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @dropCalls, %v_2, 4
     ret 
   }
 }

@@ -77,7 +77,8 @@ static llvm::Value* asInt16(FunGen& f, llvm::Value* value) {
  *       mov  rsp, r12                the target's
  *       mov  rax, r14                the transfer word, in the result register
  *       pop  rbp                     the target's frame pointer
- *       ret                          and the address it left from
+ *       pop  rcx                     the address it left from
+ *       jmp  rcx                     which is a jump, not a `ret` - see below
  *
  * **`preserve_none` is what makes it correct, not merely fast.** It is the one LLVM convention
  * whose callee keeps nothing but `rsp` and `rbp`, which is exactly what `LowerCallType::StackSwitch`
@@ -89,7 +90,7 @@ static llvm::Value* asInt16(FunGen& f, llvm::Value* value) {
  *
  * A saved stack pointer names a saved frame pointer with a resume address above it, which is the
  * same shape the x64 sequence leaves - there the address is pushed, and here the call pushed it.
- * That is what lets `StackInit` lay out a fresh stack the ordinary `ret` enters: its resume address
+ * That is what lets `StackInit` lay out a fresh stack the ordinary switch enters: its resume address
  * is the entry routine, which pops what the layout put there and calls it.
  *
  *     __yana_stack_entry:            rsp at top - 24
@@ -102,11 +103,24 @@ static llvm::Value* asInt16(FunGen& f, llvm::Value* value) {
  * The entry is called under the internal convention, whose first two arguments `fastcc` places in
  * rdi and rsi - the same assumption `CloneThread`'s child sequence above makes.
  *
- * **`ret` rather than `pop r11; jmp r11`**, the x64 sequence's ending. The x64 sequence pushes its
- * resume address without a call, so it never touches the return-address predictor. Here the call
- * pushes an entry on that predictor and a `jmp` would never pop it, so every switch would leave a
- * stale entry for the next genuine return to mispredict against. A `ret` keeps the predictor's depth
- * right and mispredicts only the switch itself, which the indirect `jmp` would have done anyway.
+ * **An indirect `jmp` rather than `ret`**, as the x64 sequence ends. This used to be a `ret`, on the
+ * reasoning that it keeps the return-address predictor's depth right and "mispredicts only the
+ * switch itself, which the indirect `jmp` would have done anyway". The last clause was wrong, and it
+ * was the whole cost.
+ *
+ * - **A `ret` here always mispredicts.** It returns to an address in the *other* context, and the
+ *   predictor answers with this context's caller.
+ * - **An indirect `jmp` is predicted per site**, and the target of a ping-pong between two contexts is
+ *   the same every time.
+ *
+ * Measured 2026-09-15 on a Zen 5, 48M `Iter.next` steps: 62.6 cycles per step with two mispredicts,
+ * against 21.7 with none (Analysis-External-Iterators.md's switch-cost note).
+ *
+ * What the `jmp` gives up is the call's predictor entry, which nothing pops. A real `ret` in the
+ * resumed context - returning from a function that was active when that context last switched - can
+ * mispredict against it. A loop with everything between two switches inlined makes no such return,
+ * and measured no mispredicts. `rcx` carries the address because the convention keeps nothing, and
+ * `r11` is the entry routine's.
  *
  * Module assembly rather than a naked function, because the routine's arguments are registers and
  * nothing else: a definition LLVM could see is one whose unused arguments dead-argument elimination
@@ -163,7 +177,8 @@ static bool stackRuntimeOf(Gen& gen, LocationId source) {
             "\tmovq %r12, %rsp\n"
             "\tmovq %r14, %rax\n"
             "\tpopq %rbp\n"
-            "\tretq\n");
+            "\tpopq %rcx\n"
+            "\tjmpq *%rcx\n");
 
     routine("__yana_stack_entry",
             "\tpopq %rdi\n"

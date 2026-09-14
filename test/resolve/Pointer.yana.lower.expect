@@ -211,74 +211,70 @@ main<complex>(): I32 {
     %v_11 = loads %third, 8: I64
     %v_12 = add %v_10, %v_11: I64
     %v_13 = add %v_6, %v_12: I64
+    %v_14 = add %v_13, 116: I64
     %node = alloca 16, 8: Ptr
     store %node, 0, 8
-    %v_14 = add %node, 8: Ptr
-    store %v_14, %v_1, 8
-    %v_15 = add %v_13, 116: I64
-    %node = alloca 16, 8: Ptr
-    store %node, 0, 8
-    %v_16 = add %node, 8: Ptr
-    store %v_16, %v_1, 8
-    %v_17 = add %node, 16: Ptr
-    %v_18 = cmp_lt %node, %v_17: I32
-    je %v_18, b_19, b_20
+    %v_15 = add %node, 8: Ptr
+    store %v_15, %v_1, 8
+    %v_16 = add %node, 16: Ptr
+    %v_17 = cmp_lt %node, %v_16: I32
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    jmp b_19
   }
 
   b_19 {
-    jmp b_20
+    %v_20 = phi [b_0, 0], [b_18, 1]: I64
+    %v_21 = add %v_20, 2: I64
+    jmp b_22
   }
 
-  b_20 {
-    %v_21 = phi [b_0, 0], [b_19, 1]: I64
-    %v_22 = add %v_21, 2: I64
-    jmp b_23
+  b_22 {
+    %v_23 = add %v_21, 4: I64
+    jmp b_24
   }
 
-  b_23 {
-    %v_24 = add %v_22, 4: I64
-    jmp b_25
-  }
-
-  b_25 {
-    %v_26 = bitcast %node: I64
-    %v_27 = cmp_eq %v_26, 0: I32
-    je %v_27, b_28, b_29
-  }
-
-  b_29 {
-    %v_30 = add %v_24, 8: I64
-    jmp b_28
+  b_24 {
+    %v_25 = bitcast %node: I64
+    %v_26 = cmp_eq %v_25, 0: I32
+    je %v_26, b_27, b_28
   }
 
   b_28 {
-    %v_31 = phi [b_25, %v_24], [b_29, %v_30]: I64
-    %v_32 = add %v_15, %v_31: I64
+    %v_29 = add %v_23, 8: I64
+    jmp b_27
+  }
+
+  b_27 {
+    %v_30 = phi [b_24, %v_23], [b_28, %v_29]: I64
+    %v_31 = add %v_14, %v_30: I64
     %source = alloca 16, 8: Ptr
     store %source, 9, 8
-    %v_33 = add %source, 8: Ptr
-    store %v_33, %v_1, 8
+    %v_32 = add %source, 8: Ptr
+    store %v_32, %v_1, 8
     %target = alloca 16, 8: Ptr
     store %target, 0, 8
-    %v_34 = add %target, 8: Ptr
-    store %v_34, %v_1, 8
+    %v_33 = add %target, 8: Ptr
+    store %v_33, %v_1, 8
     call_complex copyMemory, %target, %source, 16
     %copied = loads %target, 8: I64
     setpattern %target, 16, 0
-    %v_35 = imul %copied, 10: I64
-    %v_36 = loads %target, 8: I64
-    %v_37 = add %v_35, %v_36: I64
-    %v_38 = add %v_32, %v_37: I64
-    %v_39 = add %v_38, 812: I64
-    %v_40 = alloca 1, 1: Ptr
-    store %v_40, 0, 1
-    %v_41 = bitcast %v_40: I64
-    %v_42 = cmp_eq %v_41, 0: I32
-    %v_43 = select %v_42, 0, 1: I64
-    %v_44 = shl %v_43, 1: I64
-    %result = add %v_39, %v_44: I64
-    %v_45 = cast %result: I32
-    ret %v_45
+    %v_34 = imul %copied, 10: I64
+    %v_35 = loads %target, 8: I64
+    %v_36 = add %v_34, %v_35: I64
+    %v_37 = add %v_31, %v_36: I64
+    %v_38 = add %v_37, 812: I64
+    %v_39 = alloca 1, 1: Ptr
+    store %v_39, 0, 1
+    %v_40 = bitcast %v_39: I64
+    %v_41 = cmp_eq %v_40, 0: I32
+    %v_42 = select %v_41, 0, 1: I64
+    %v_43 = shl %v_42, 1: I64
+    %result = add %v_38, %v_43: I64
+    %v_44 = cast %result: I32
+    ret %v_44
   }
 }
 

@@ -278,11 +278,9 @@ viaResult<complex>(%v_0: Ptr, %n: I32) {
 
 Token.drop<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    copy %v_1, %value, 4
-    %v_2 = loads @dropped, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store @dropped, %v_3, 4
+    %v_1 = loads @dropped, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @dropped, %v_2, 4
     ret 
   }
 }

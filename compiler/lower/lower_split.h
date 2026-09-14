@@ -45,16 +45,21 @@
  * left out of every copy, which is where most of the win is - a 24-byte copy becomes two moves of
  * twelve bytes between registers rather than three of eight between stack slots.
  *
- * That is only sound while the bytes are this function's own uninitialized frame memory, and one
- * thing can make them something else: a copy *into* a split slot from an address this pass cannot
- * see - a parameter, a heap block, a pointer a call returned - carries in bytes that mean whatever
- * the sender meant by them. So a copy from outside marks every cell it lands on live, and a live
- * cell is given storage and moved like any other, whether or not anything reads it.
+ * Dropping a cell is sound when nothing can observe its bytes, and there are exactly two ways to
+ * observe them: an access that reads the cell, and a copy that carries it *out* to an address this
+ * pass cannot see - a parameter, a heap block, a pointer a call returned, a slot it declined to split -
+ * where anyone may read them. So an access marks its cell live, a copy out marks live every cell it
+ * carries that something *wrote*, liveness travels across every copy between slots, and a live cell
+ * is given storage and moved like any other. A cell nothing wrote holds unspecified bytes wherever it
+ * goes, and leaving a destination's own unspecified bytes in their place is no difference at all.
  *
- * With that rule the induction closes: a dead cell's content comes from nowhere but another dead
- * cell or from storage nothing ever wrote, so a copy *out* of a split slot may leave the
- * corresponding bytes of its destination alone. What it leaves there is the destination's own
- * unspecified bytes instead of ours, and the program had no way to tell the two apart.
+ * Where the bytes *came from* does not enter. A copy in from outside carries bytes that mean whatever
+ * the sender meant, but a cell nothing reads and nothing hands on is never asked what they were. That
+ * used to be a third rule - a copy in made its cells live - and it was the expensive one: it kept a
+ * value's padding alive through every temporary it passed once the value had been read out of a heap
+ * block, so `Maybe(Size)`'s seven bytes above the tag were copied three times per `exchange`, as
+ * overlapping moves that stalled store forwarding (Analysis-External-Iterators.md's 2026-09-15
+ * switch-cost note).
  *
  * ## A move is a load and a store, not a copy
  *

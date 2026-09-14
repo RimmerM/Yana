@@ -2,11 +2,9 @@ mut @trace = [0, 0, 0, 0]
 
 Guard.drop<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    copy %v_1, %value, 4
-    %v_2 = loads @trace, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store @trace, %v_3, 4
+    %v_1 = loads @trace, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @trace, %v_2, 4
     ret 
   }
 }
@@ -51,126 +49,120 @@ main<complex>(): I32 {
 
   b_14 {
     store @trace, 0, 4
-    %v_15 = alloca 4, 4: Ptr
-    %v_16 = alloca 4, 4: Ptr
-    store %v_15, 5, 4
-    store %v_16, 7, 4
-    jmp b_17
+    jmp b_15
   }
 
   b_13 {
     ret 18446744073709551612
   }
 
+  b_15 {
+    %v_16 = alloca 4, 4: Ptr
+    store %v_16, 7, 4
+    call_complex Guard.drop, %v_16
+    jmp b_17
+  }
+
   b_17 {
-    %v_18 = alloca 4, 4: Ptr
-    store %v_18, 7, 4
-    call_complex Guard.drop, %v_18
-    jmp b_19
+    %v_18 = loads @trace, 4: I32
+    %v_19 = cmp_neq %v_18, 1: I32
+    je %v_19, b_20, b_21
   }
 
-  b_19 {
-    %v_20 = loads @trace, 4: I32
-    %v_21 = cmp_neq %v_20, 1: I32
-    je %v_21, b_22, b_23
-  }
-
-  b_23 {
+  b_21 {
     store @trace, 0, 4
-    %v_24 = alloca 4, 4: Ptr
-    store %v_24, 1, 4
-    call_complex Guard.drop, %v_24
-    jmp b_25
+    %v_22 = alloca 4, 4: Ptr
+    store %v_22, 1, 4
+    call_complex Guard.drop, %v_22
+    jmp b_23
   }
 
-  b_22 {
+  b_20 {
     ret 18446744073709551609
   }
 
-  b_25 {
-    %v_26 = loads @trace, 4: I32
-    %v_27 = cmp_neq %v_26, 1: I32
-    je %v_27, b_28, b_29
+  b_23 {
+    %v_24 = loads @trace, 4: I32
+    %v_25 = cmp_neq %v_24, 1: I32
+    je %v_25, b_26, b_27
   }
 
-  b_29 {
+  b_27 {
     store @trace, 0, 4
-    %v_30 = alloca 4, 4: Ptr
-    store %v_30, 2, 4
-    call_complex Guard.drop, %v_30
-    jmp b_31
+    %v_28 = alloca 4, 4: Ptr
+    store %v_28, 2, 4
+    call_complex Guard.drop, %v_28
+    jmp b_29
   }
 
-  b_28 {
+  b_26 {
     ret 18446744073709551607
   }
 
-  b_31 {
-    %v_32 = loads @trace, 4: I32
-    %v_33 = cmp_neq %v_32, 1: I32
-    je %v_33, b_34, b_35
+  b_29 {
+    %v_30 = loads @trace, 4: I32
+    %v_31 = cmp_neq %v_30, 1: I32
+    je %v_31, b_32, b_33
   }
 
-  b_35 {
+  b_33 {
     store @trace, 0, 4
+    %v_34 = alloca 4, 4: Ptr
+    %v_35 = alloca 4, 4: Ptr
     %v_36 = alloca 4, 4: Ptr
-    %v_37 = alloca 4, 4: Ptr
-    %v_38 = alloca 4, 4: Ptr
-    store %v_36, 1, 4
-    store %v_37, 2, 4
-    store %v_38, 3, 4
+    store %v_34, 1, 4
+    store %v_35, 2, 4
+    store %v_36, 3, 4
+    call_complex Guard.drop, %v_34
     call_complex Guard.drop, %v_36
-    call_complex Guard.drop, %v_38
-    call_complex Guard.drop, %v_37
-    %v_39 = loads @trace, 4: I32
-    %v_40 = cmp_neq %v_39, 3: I32
-    je %v_40, b_41, b_42
+    call_complex Guard.drop, %v_35
+    %v_37 = loads @trace, 4: I32
+    %v_38 = cmp_neq %v_37, 3: I32
+    je %v_38, b_39, b_40
   }
 
-  b_34 {
+  b_32 {
     ret 18446744073709551605
   }
 
-  b_42 {
+  b_40 {
     store @trace, 0, 4
-    %v_43 = alloca 4, 4: Ptr
-    store %v_43, 11, 4
-    jmp b_44
+    jmp b_41
   }
 
-  b_41 {
+  b_39 {
     ret 18446744073709551603
   }
 
-  b_44 {
-    %v_45 = alloca 4, 4: Ptr
-    %v_46 = alloca 4, 4: Ptr
-    store %v_46, 2, 4
-    store %v_45, 9, 4
-    call_complex Guard.drop, %v_46
-    %v_47 = loads %v_45, 4: I32
-    call_complex Guard.drop, %v_45
-    %v_48 = add 20, %v_47: I32
-    %v_49 = cmp_neq %v_48, 29: I32
-    je %v_49, b_50, b_51
+  b_41 {
+    %v_42 = alloca 4, 4: Ptr
+    %v_43 = alloca 4, 4: Ptr
+    store %v_43, 2, 4
+    store %v_42, 9, 4
+    call_complex Guard.drop, %v_43
+    %v_44 = loads %v_42, 4: I32
+    call_complex Guard.drop, %v_42
+    %v_45 = add 20, %v_44: I32
+    %v_46 = cmp_neq %v_45, 29: I32
+    je %v_46, b_47, b_48
   }
 
-  b_51 {
-    %v_52 = loads @trace, 4: I32
-    %v_53 = cmp_neq %v_52, 2: I32
-    je %v_53, b_54, b_55
+  b_48 {
+    %v_49 = loads @trace, 4: I32
+    %v_50 = cmp_neq %v_49, 2: I32
+    je %v_50, b_51, b_52
   }
 
-  b_50 {
+  b_47 {
     ret 18446744073709551601
   }
 
-  b_55 {
+  b_52 {
     store @trace, 0, 4
     ret 100
   }
 
-  b_54 {
+  b_51 {
     ret 18446744073709551600
   }
 }

@@ -27,60 +27,56 @@ main<complex>(): I32 {
 
   b_12 {
     %v_13 = add %v_14, 1237: I32
-    %v_15 = alloca 4, 4: Ptr
+    %v_15 = add %v_13, 10: I32
     %v_16 = alloca 8, 8: Ptr
-    store %v_15, 0, 4
-    store %v_16, %v_15, 8
-    %v_17 = add %v_13, 10: I32
-    %v_18 = alloca 8, 8: Ptr
-    %v_19 = alloca 8, 8: Ptr
-    store %v_18, 0, 8
-    %v_20 = load %v_18, 8: Ptr
-    %v_21 = call_complex lazyDefault.thunk, %v_20: I32
-    store %v_19, 0, 8
-    %v_22 = load %v_19, 8: Ptr
-    %v_23 = call_complex lazyDefault.thunk'2, %v_22: I32
-    %v_24 = add 9, %v_21: I32
-    %v_25 = add %v_24, %v_23: I32
-    %v_26 = add %v_17, %v_25: I32
-    %v_27 = add %v_26, 50: I32
-    %v_28 = bitcast 0: Ptr
-    %v_29 = call_complex main.thunk, %v_28: I32
-    %v_30 = imul 3, %v_29: I32
-    %v_31 = add %v_27, %v_30: I32
+    %v_17 = alloca 8, 8: Ptr
+    store %v_16, 0, 8
+    %v_18 = load %v_16, 8: Ptr
+    %v_19 = call_complex lazyDefault.thunk, %v_18: I32
+    store %v_17, 0, 8
+    %v_20 = load %v_17, 8: Ptr
+    %v_21 = call_complex lazyDefault.thunk'2, %v_20: I32
+    %v_22 = add 9, %v_19: I32
+    %v_23 = add %v_22, %v_21: I32
+    %v_24 = add %v_15, %v_23: I32
+    %v_25 = add %v_24, 50: I32
+    %v_26 = bitcast 0: Ptr
+    %v_27 = call_complex main.thunk, %v_26: I32
+    %v_28 = imul 3, %v_27: I32
+    %v_29 = add %v_25, %v_28: I32
     copy %v_1, @constant$0, 16
-    %v_32 = add %v_1, 12: Ptr
-    %v_33 = load %v_32, 4: I32
-    %v_34 = sext %v_33: I64
-    %v_35 = sext %v_34: I32
-    %v_36 = add 1, %v_35: I32
+    %v_30 = add %v_1, 12: Ptr
+    %v_31 = load %v_30, 4: I32
+    %v_32 = sext %v_31: I64
+    %v_33 = sext %v_32: I32
+    %v_34 = add 1, %v_33: I32
     call_complex String.reclaim, %v_1
-    %v_37 = add %v_31, %v_36: I32
+    %v_35 = add %v_29, %v_34: I32
     copy %v_2, @constant$1, 16
-    %v_38 = add %v_2, 12: Ptr
-    %v_39 = load %v_38, 4: I32
-    %v_40 = sext %v_39: I64
-    %v_41 = sext %v_40: I32
-    %v_42 = add 1, %v_41: I32
+    %v_36 = add %v_2, 12: Ptr
+    %v_37 = load %v_36, 4: I32
+    %v_38 = sext %v_37: I64
+    %v_39 = sext %v_38: I32
+    %v_40 = add 1, %v_39: I32
     call_complex String.reclaim, %v_2
-    %v_43 = add %v_37, %v_42: I32
-    %v_44 = add %v_43, 19: I32
-    ret %v_44
+    %v_41 = add %v_35, %v_40: I32
+    %v_42 = add %v_41, 19: I32
+    ret %v_42
   }
 
   b_8 {
-    %v_45 = phi [b_9, %v_11], [b_7, 10]: I32
-    %v_46 = phi [b_9, %v_14], [b_7, %v_47]: I32
-    %v_14 = add %v_46, %v_45: I32
-    %v_11 = add %v_45, 1: I32
+    %v_43 = phi [b_9, %v_11], [b_7, 10]: I32
+    %v_44 = phi [b_9, %v_14], [b_7, %v_45]: I32
+    %v_14 = add %v_44, %v_43: I32
+    %v_11 = add %v_43, 1: I32
     jmp b_9
   }
 
   b_3 {
-    %v_48 = phi [b_4, %v_6], [b_0, 0]: I32
-    %v_49 = phi [b_4, %v_47], [b_0, 0]: I32
-    %v_47 = add %v_49, %v_48: I32
-    %v_6 = add %v_48, 1: I32
+    %v_46 = phi [b_4, %v_6], [b_0, 0]: I32
+    %v_47 = phi [b_4, %v_45], [b_0, 0]: I32
+    %v_45 = add %v_47, %v_46: I32
+    %v_6 = add %v_46, 1: I32
     jmp b_4
   }
 }

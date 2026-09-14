@@ -14,50 +14,47 @@ main$<complex>(): I32 {
     store @counter, %v_3, 4
     %v_4 = loads @counter, 4: I32
     %shape = global @shape: Ptr
-    %v_5 = alloca 3, 4: Ptr
-    %v_6 = load %shape, 1: I32
-    %v_7 = add %shape, 1: Ptr
-    copy %v_5, %v_7, 3
-    %v_8 = add %shape, 4: Ptr
-    %v_9 = load %v_8, 4: I32
-    %v_10 = cmp_eq %v_6, 0: I32
-    je %v_10, b_11, b_12
-  }
-
-  b_13 {
-    %v_14 = phi [b_12, %v_15], [b_11, %v_16]: I32
-    %v_17 = add %v_4, %v_14: I32
-    store @counter, %v_17, 4
-    %v_18 = loads @counter, 4: I32
-    store @recorded, %v_18, 4
-    %v_19 = loads @counter, 4: I32
-    %v_20 = add %v_19, 1: I32
-    store @first, %v_20, 4
-    %v_21 = loads @first, 4: I32
-    %v_22 = add %v_21, 1: I32
-    store @second, %v_22, 4
-    %v_23 = loads @counter, 4: I32
-    %v_24 = add 3, %v_23: I32
-    %v_25 = loads @recorded, 4: I32
-    %v_26 = imul %v_25, 100: I32
-    %v_27 = add %v_24, %v_26: I32
-    %v_28 = loads @first, 4: I32
-    %v_29 = imul %v_28, 10000: I32
-    %v_30 = add %v_27, %v_29: I32
-    %v_31 = loads @second, 4: I32
-    %v_32 = imul %v_31, 1000000: I32
-    %v_33 = add %v_30, %v_32: I32
-    ret %v_33
-  }
-
-  b_12 {
-    %v_15 = imul %v_9, %v_9: I32
-    jmp b_13
+    %v_5 = load %shape, 1: I32
+    %v_6 = add %shape, 4: Ptr
+    %v_7 = load %v_6, 4: I32
+    %v_8 = cmp_eq %v_5, 0: I32
+    je %v_8, b_9, b_10
   }
 
   b_11 {
-    %v_16 = imul %v_9, %v_9: I32
-    jmp b_13
+    %v_12 = phi [b_10, %v_13], [b_9, %v_14]: I32
+    %v_15 = add %v_4, %v_12: I32
+    store @counter, %v_15, 4
+    %v_16 = loads @counter, 4: I32
+    store @recorded, %v_16, 4
+    %v_17 = loads @counter, 4: I32
+    %v_18 = add %v_17, 1: I32
+    store @first, %v_18, 4
+    %v_19 = loads @first, 4: I32
+    %v_20 = add %v_19, 1: I32
+    store @second, %v_20, 4
+    %v_21 = loads @counter, 4: I32
+    %v_22 = add 3, %v_21: I32
+    %v_23 = loads @recorded, 4: I32
+    %v_24 = imul %v_23, 100: I32
+    %v_25 = add %v_22, %v_24: I32
+    %v_26 = loads @first, 4: I32
+    %v_27 = imul %v_26, 10000: I32
+    %v_28 = add %v_25, %v_27: I32
+    %v_29 = loads @second, 4: I32
+    %v_30 = imul %v_29, 1000000: I32
+    %v_31 = add %v_28, %v_30: I32
+    ret %v_31
+  }
+
+  b_10 {
+    %v_13 = imul %v_7, %v_7: I32
+    jmp b_11
+  }
+
+  b_9 {
+    %v_14 = imul %v_7, %v_7: I32
+    jmp b_11
   }
 }
 

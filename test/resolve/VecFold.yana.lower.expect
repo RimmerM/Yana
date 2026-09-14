@@ -58,19 +58,17 @@ main$<complex>(): I32 {
     store @a, %v_1, 32
     %v_2 = vsplat 31: i32x8
     store @b, %v_2, 32
-    %v_3 = alloca 4, 8: Ptr
-    %v_4 = alloca 64, 16: Ptr
-    store %v_3, 2, 4
-    store %v_4, %v_1, 32
-    %v_5 = add %v_4, 32: Ptr
-    store %v_5, %v_2, 32
-    %s = call_complex sum, %v_4, 2: i32x8
-    %m = call_complex masked, %v_4, 2: i32x8
-    %v_6 = vlane %s, 0: I32
-    %v_7 = imul %v_6, 100: I32
-    %v_8 = vlane %m, 1: I32
-    %v_9 = add %v_7, %v_8: I32
-    ret %v_9
+    %v_3 = alloca 64, 16: Ptr
+    store %v_3, %v_1, 32
+    %v_4 = add %v_3, 32: Ptr
+    store %v_4, %v_2, 32
+    %s = call_complex sum, %v_3, 2: i32x8
+    %m = call_complex masked, %v_3, 2: i32x8
+    %v_5 = vlane %s, 0: I32
+    %v_6 = imul %v_5, 100: I32
+    %v_7 = vlane %m, 1: I32
+    %v_8 = add %v_6, %v_7: I32
+    ret %v_8
   }
 }
 

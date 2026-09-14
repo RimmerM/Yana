@@ -6,53 +6,49 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 8, 8: Ptr
-    %v_4 = alloca 16, 8: Ptr
-    %v_5 = alloca 16, 8: Ptr
-    store %v_1, 10, 4
-    store %v_3, %v_2, 8
-    store %v_2, 7, 4
-    %v_6 = call_complex allocateHeap, 12: Ptr
-    store %v_6, closure(makeAdder.lambda.env), 8
-    %v_7 = add %v_6, 8: Ptr
-    store %v_7, 5, 4
-    %v_8 = or %v_6, 1: Ptr
-    store %v_4, makeAdder.lambda, 8
-    %v_9 = add %v_4, 8: Ptr
-    store %v_9, %v_8, 8
-    %v_10 = load %v_4, 8: Ptr
-    %v_11 = call_complex %v_10, %v_8, 20: I32
-    call_complex teardown(fun), %v_4
-    %v_12 = call_complex allocateHeap, 16: Ptr
-    store %v_12, closure(makeScaler.lambda.env), 8
-    %v_13 = add %v_12, 8: Ptr
-    store %v_13, 3, 4
-    %v_14 = add %v_12, 12: Ptr
-    store %v_14, 4, 4
-    %v_15 = or %v_12, 1: Ptr
-    store %v_5, makeScaler.lambda, 8
-    %v_16 = add %v_5, 8: Ptr
-    store %v_16, %v_15, 8
-    %v_17 = load %v_5, 8: Ptr
-    %v_18 = call_complex %v_17, %v_15, 10: I32
-    call_complex teardown(fun), %v_5
-    %v_19 = imm 6: I32
-    %v_20 = alloca 8, 8: Ptr
-    %v_21 = alloca 8, 8: Ptr
-    store %v_20, 0, 8
-    store %v_21, 0, 8
-    %v_22 = load %v_21, 8: Ptr
-    %v_23 = call_complex colonBodies.lambda'2, %v_22, %v_19: I32
-    %v_24 = load %v_20, 8: Ptr
-    %v_25 = call_complex colonBodies.lambda, %v_24, %v_19: I32
-    %v_26 = add %v_23, %v_25: I32
-    %v_27 = loads %v_2, 4: I32
-    %v_28 = add 11, %v_27: I32
-    %v_29 = add %v_28, %v_11: I32
-    %v_30 = add %v_29, %v_18: I32
-    %v_31 = add %v_30, %v_26: I32
-    ret %v_31
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    store %v_1, 7, 4
+    %v_4 = call_complex allocateHeap, 12: Ptr
+    store %v_4, closure(makeAdder.lambda.env), 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, 5, 4
+    %v_6 = or %v_4, 1: Ptr
+    store %v_2, makeAdder.lambda, 8
+    %v_7 = add %v_2, 8: Ptr
+    store %v_7, %v_6, 8
+    %v_8 = load %v_2, 8: Ptr
+    %v_9 = call_complex %v_8, %v_6, 20: I32
+    call_complex teardown(fun), %v_2
+    %v_10 = call_complex allocateHeap, 16: Ptr
+    store %v_10, closure(makeScaler.lambda.env), 8
+    %v_11 = add %v_10, 8: Ptr
+    store %v_11, 3, 4
+    %v_12 = add %v_10, 12: Ptr
+    store %v_12, 4, 4
+    %v_13 = or %v_10, 1: Ptr
+    store %v_3, makeScaler.lambda, 8
+    %v_14 = add %v_3, 8: Ptr
+    store %v_14, %v_13, 8
+    %v_15 = load %v_3, 8: Ptr
+    %v_16 = call_complex %v_15, %v_13, 10: I32
+    call_complex teardown(fun), %v_3
+    %v_17 = imm 6: I32
+    %v_18 = alloca 8, 8: Ptr
+    %v_19 = alloca 8, 8: Ptr
+    store %v_18, 0, 8
+    store %v_19, 0, 8
+    %v_20 = load %v_19, 8: Ptr
+    %v_21 = call_complex colonBodies.lambda'2, %v_20, %v_17: I32
+    %v_22 = load %v_18, 8: Ptr
+    %v_23 = call_complex colonBodies.lambda, %v_22, %v_17: I32
+    %v_24 = add %v_21, %v_23: I32
+    %v_25 = loads %v_1, 4: I32
+    %v_26 = add 11, %v_25: I32
+    %v_27 = add %v_26, %v_9: I32
+    %v_28 = add %v_27, %v_16: I32
+    %v_29 = add %v_28, %v_24: I32
+    ret %v_29
   }
 }
 

@@ -667,14 +667,12 @@ chainBreak<complex>(%xs$items: Ptr, %xs$length: I64, %scale: I32, %stop: I32): I
   }
 
   b_42 {
-    %v_44 = alloca 1, 1: Ptr
-    store %v_44, %v_40, 1
-    jmp b_45
+    jmp b_44
   }
 
-  b_45 {
-    %v_46 = cmp_le %v_40, 2: I32
-    je %v_46, b_47, b_4
+  b_44 {
+    %v_45 = cmp_le %v_40, 2: I32
+    je %v_45, b_46, b_4
   }
 
   b_4 {
@@ -682,40 +680,40 @@ chainBreak<complex>(%xs$items: Ptr, %xs$length: I64, %scale: I32, %stop: I32): I
     jmp b_2
   }
 
-  b_47 {
+  b_46 {
     jmp b_11
   }
 
   b_11 {
-    %v_48 = phi [b_10, %v_3], [b_47, %v_5]: I32
-    %v_49 = phi [b_10, 3], [b_47, %v_40]: I64
-    %v_50 = cmp_le %v_49, 2: I32
-    je %v_50, b_51, b_52
-  }
-
-  b_52 {
-    jmp b_53
+    %v_47 = phi [b_10, %v_3], [b_46, %v_5]: I32
+    %v_48 = phi [b_10, 3], [b_46, %v_40]: I64
+    %v_49 = cmp_le %v_48, 2: I32
+    je %v_49, b_50, b_51
   }
 
   b_51 {
-    jmp b_54
+    jmp b_52
   }
 
-  b_54 {
-    %v_55 = cmp_le %v_49, 1: I32
-    je %v_55, b_56, b_53
+  b_50 {
+    jmp b_53
   }
 
   b_53 {
-    jmp b_57
+    %v_54 = cmp_le %v_48, 1: I32
+    je %v_54, b_55, b_52
+  }
+
+  b_52 {
+    jmp b_56
+  }
+
+  b_55 {
+    jmp b_56
   }
 
   b_56 {
-    jmp b_57
-  }
-
-  b_57 {
-    ret %v_48
+    ret %v_47
   }
 }
 

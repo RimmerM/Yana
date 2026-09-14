@@ -1788,6 +1788,121 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
     }
 }
 
+/*
+ * Whether every reader of `address` only writes *into* it - a store, a copy or a pattern fill naming
+ * it as the destination and nothing else - gathering those readers as it goes.
+ *
+ * A constant offset from the address is the same question one step along, so it is followed, twice
+ * at most: that is a field of a field, and nothing this tier writes goes deeper into a temporary.
+ * Anything else - a load, a copy *out*, the address stored as a value, handed to a call, compared - is
+ * a way for what was written to be seen, and ends the question with no.
+ */
+static bool onlyWrittenThrough(LowerBase base, LowerPtr<LowerValue> address,
+                               SmallArray<LowerPtr<LowerInst>, 16>& gathered, U32 depth) {
+    auto& uses = base[address]->uses;
+
+    for(Size i = 0; i < uses.size(); i++) {
+        auto userPtr = uses.get(base, i);
+        auto user = base[userPtr];
+
+        switch(user->kind) {
+            case LowerInst::Store: {
+                auto store = (LowerInstStore*)user;
+                if(store->to != address || store->value == address) return false;
+                break;
+            }
+            case LowerInst::Copy: {
+                auto copy = (LowerInstCopy*)user;
+                if(copy->to != address || copy->from == address || copy->count == address) return false;
+                break;
+            }
+            case LowerInst::SetPattern: {
+                auto fill = (LowerInstSetPattern*)user;
+                if(fill->to != address || fill->count == address || fill->pattern == address) return false;
+                break;
+            }
+            case LowerInst::Add: {
+                auto add = (LowerInstBinary*)user;
+                if(depth >= 2 || add->lhs != address || add->rhs == address) return false;
+                if(base[add->rhs]->inst()->kind != LowerInst::Imm) return false;
+                if(!onlyWrittenThrough(base, add->created().ptr - base, gathered, depth + 1)) return false;
+                break;
+            }
+            default:
+                return false;
+        }
+
+        gathered.push(userPtr);
+    }
+
+    return true;
+}
+
+/*
+ * Storage nothing reads - an `alloca` whose every use writes into it - removed with those writes.
+ *
+ * The writes are what keep such a slot alive, and nothing else in the sweep will take them: a store or
+ * a copy has no result, so it is never unused, and the allocation it names is never unused while it
+ * stands. So a temporary that is filled and then never read survived every pass to the backend, as a
+ * frame slot and a memory write. `splitAggregateSlots` makes these: a value read out of a heap block
+ * into a temporary and then handed to a cell nothing reads - the element an array's `remove` took out
+ * and nobody wanted - leaves the temporary with its copy in and no copy out once the dead cell's move
+ * is dropped.
+ *
+ * Sound for the reason a dead load is: the address never leaves (every use was accounted for above),
+ * so no reader anywhere can observe what the writes put there.
+ */
+static bool removeWriteOnlySlots(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun) {
+    HashMap<U32, U8> doomed;
+    auto found = false;
+
+    for(auto blockPtr: fun.blocks.contents(base)) {
+        for(auto instPtr: base[blockPtr]->instructions.contents(base)) {
+            auto inst = base[instPtr];
+            if(inst->kind != LowerInst::Alloca) continue;
+
+            auto address = ((LowerInstSingle*)inst)->created().ptr - base;
+            if(base[address]->uses.isEmpty()) continue;
+
+            SmallArray<LowerPtr<LowerInst>, 16> gathered;
+            if(!onlyWrittenThrough(base, address, gathered, 0)) continue;
+
+            doomed.add(U32(instPtr), 1);
+            for(auto write: gathered) doomed.add(U32(write), 1);
+            found = true;
+        }
+    }
+
+    if(!found) return false;
+
+    // Across every block, since a slot is allocated in one and may be written in any. Detaching in
+    // whatever order the blocks come is fine: each doomed instruction stops using what it read, and
+    // what it read is either another doomed instruction or a value the next sweep round can take.
+    for(auto blockPtr: fun.blocks.contents(base)) {
+        auto block = base[blockPtr];
+
+        SmallArray<LowerPtr<LowerInst>, 32> kept;
+        auto rewrote = false;
+
+        for(auto instPtr: block->instructions.contents(base)) {
+            if(doomed.getValue(U32(instPtr))) {
+                detach(base, base[instPtr]);
+                rewrote = true;
+                continue;
+            }
+
+            kept.push(instPtr);
+        }
+
+        if(!rewrote) continue;
+
+        block->instructions.clear();
+        for(auto instPtr: kept) block->instructions.push(arena, instPtr);
+    }
+
+    return true;
+}
+
 bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun) {
     auto changed = true;
     auto dropped = false;
@@ -1855,6 +1970,12 @@ bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction&
 
             block->instructions.clear();
             for(auto instPtr: kept) block->instructions.push(arena, instPtr);
+            changed = true;
+            dropped = true;
+        }
+
+        // And the storage only ever written, which a use count cannot see - see the function above.
+        if(removeWriteOnlySlots(base, arena, fun)) {
             changed = true;
             dropped = true;
         }

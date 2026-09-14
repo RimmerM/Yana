@@ -6,11 +6,9 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
 Guard.drop<complex>(%self: Ptr) {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    copy %v_1, %self, 4
-    %v_2 = loads @dropCalls, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store @dropCalls, %v_3, 4
+    %v_1 = loads @dropCalls, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @dropCalls, %v_2, 4
     ret 
   }
 }
@@ -82,12 +80,10 @@ round'2<complex>(): I32 {
     call_complex teardown(fun), %v_32
     %v_39 = add %v_31, %v_38: I32
     %v_40 = alloca 4, 4: Ptr
-    %v_41 = alloca 8, 8: Ptr
     store %v_40, 6, 4
-    store %v_41, %v_40, 8
     call_complex Guard.drop, %v_40
-    %v_42 = add %v_39, 36: I32
-    ret %v_42
+    %v_41 = add %v_39, 36: I32
+    ret %v_41
   }
 }
 

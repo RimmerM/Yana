@@ -88,43 +88,38 @@ main<complex>(): I32 {
 
 Array(a).reclaim(Atomic(I32))<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = load %value, 8: Ptr
-    %v_3 = add %value, 8: Ptr
-    %v_4 = load %v_3, 4: I64
-    %v_5 = add %value, 12: Ptr
-    %v_6 = load %v_5, 4: I32
-    %v_7 = sext %v_6: I64
-    jmp b_8
+    %v_1 = load %value, 8: Ptr
+    %v_2 = add %value, 8: Ptr
+    %v_3 = load %v_2, 4: I64
+    %v_4 = add %value, 12: Ptr
+    %v_5 = load %v_4, 4: I32
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_0, 0], [b_8, %v_9]: I32
+    %v_10 = cmp_ilt %v_7, %v_5: I32
+    je %v_10, b_8, b_11
+  }
+
+  b_11 {
+    %v_12 = shr %v_3, 30: I64
+    %v_13 = cast %v_12: I32
+    %v_14 = cmp_eq %v_13, 1: I32
+    je %v_14, b_15, b_16
   }
 
   b_8 {
-    %v_9 = phi [b_0, 0], [b_10, %v_11]: I64
-    %v_12 = cmp_ilt %v_9, %v_7: I32
-    je %v_12, b_10, b_13
+    %v_9 = add %v_7, 1: I32
+    jmp b_6
   }
 
-  b_13 {
-    %v_14 = shr %v_4, 30: I64
-    %v_15 = cast %v_14: I32
-    %v_16 = cmp_eq %v_15, 1: I32
-    je %v_16, b_17, b_18
+  b_15 {
+    call_complex freeHeap, %v_1
+    jmp b_16
   }
 
-  b_10 {
-    %v_19 = shl %v_9, 2: I64
-    %v_20 = add %v_2, %v_19: Ptr
-    copy %v_1, %v_20, 4
-    %v_11 = add %v_9, 1: I64
-    jmp b_8
-  }
-
-  b_17 {
-    call_complex freeHeap, %v_2
-    jmp b_18
-  }
-
-  b_18 {
+  b_16 {
     ret 
   }
 }

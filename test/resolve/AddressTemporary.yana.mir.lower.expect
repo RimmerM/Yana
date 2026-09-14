@@ -2,23 +2,16 @@
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    store %v_1, 5, 4
     %v_2 = alloca 4, 4: Ptr
-    store %v_2, 7, 4
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    store %v_3, 5, 4
-    store %v_4, 5, 4
-    %v_5 = bitcast %v_3: I64
-    %v_6 = bitcast %v_4: I64
-    %v_7 = cmp_eq %v_5, %v_6: I32
-    %v_8 = select %v_7, 0, 100: I32
-    %v_9 = add 12, %v_8: I32
-    %v_10 = alloca 4, 4: Ptr
-    %v_11 = imm 21: I32
-    store %v_10, %v_11, 4
-    %v_12 = add %v_9, %v_11: I32
-    ret %v_12
+    store %v_1, 5, 4
+    store %v_2, 5, 4
+    %v_3 = bitcast %v_1: I64
+    %v_4 = bitcast %v_2: I64
+    %v_5 = cmp_eq %v_3, %v_4: I32
+    %v_6 = select %v_5, 0, 100: I32
+    %v_7 = add 12, %v_6: I32
+    %v_8 = add %v_7, 21: I32
+    ret %v_8
   }
 }
 

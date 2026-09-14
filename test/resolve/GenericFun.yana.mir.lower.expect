@@ -34,27 +34,24 @@ main<complex>(): I32 {
 
 orElseKept(I32)<complex>(%value: Ptr, %fallback: I32): I32 {
   b_0 {
-    %v_1 = alloca 3, 4: Ptr
-    %v_2 = load %value, 1: I32
-    %v_3 = add %value, 1: Ptr
-    copy %v_1, %v_3, 3
-    %v_4 = add %value, 4: Ptr
-    %v_5 = load %v_4, 4: I32
-    %v_6 = cmp_eq %v_2, 1: I32
-    je %v_6, b_7, b_8
+    %v_1 = load %value, 1: I32
+    %v_2 = add %value, 4: Ptr
+    %v_3 = load %v_2, 4: I32
+    %v_4 = cmp_eq %v_1, 1: I32
+    je %v_4, b_5, b_6
   }
 
-  b_8 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_8, %fallback], [b_7, %v_5]: I32
-    ret %v_10
+  b_6 {
+    jmp b_7
   }
 
   b_7 {
-    jmp b_9
+    %v_8 = phi [b_6, %fallback], [b_5, %v_3]: I32
+    ret %v_8
+  }
+
+  b_5 {
+    jmp b_7
   }
 }
 

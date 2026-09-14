@@ -145,184 +145,178 @@ Buffer.drop<complex>(%value: Ptr) {
 
 main<complex>(): I64 {
   b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    %v_2 = alloca 8, 8: Ptr
-    store %v_1, 2, 8
-    store %v_2, 1, 8
-    jmp b_3
+    jmp b_1
   }
 
-  b_3 {
-    %v_4 = alloca 8, 8: Ptr
-    store %v_4, 9, 8
-    jmp b_5
+  b_1 {
+    jmp b_2
   }
 
-  b_5 {
+  b_2 {
     %counter = global @counter: Ptr
-    %v_6 = loads %counter, 8: I64
+    %v_3 = loads %counter, 8: I64
     store %counter, 7, 8
-    %v_7 = imul %v_6, 10: I64
-    %v_8 = loads @counter, 8: I64
-    %v_9 = add %v_7, %v_8: I64
-    %v_10 = cmp_neq %v_9, 57: I32
-    je %v_10, b_11, b_12
+    %v_4 = imul %v_3, 10: I64
+    %v_5 = loads @counter, 8: I64
+    %v_6 = add %v_4, %v_5: I64
+    %v_7 = cmp_neq %v_6, 57: I32
+    je %v_7, b_8, b_9
   }
 
-  b_12 {
+  b_9 {
+    %v_10 = alloca 8, 8: Ptr
+    %v_11 = alloca 8, 8: Ptr
+    store %v_10, 1, 8
+    store %v_11, 2, 8
+    %v_12 = alloca 8, 8: Ptr
+    copy %v_12, %v_10, 8
     %v_13 = alloca 8, 8: Ptr
+    copy %v_13, %v_12, 8
     %v_14 = alloca 8, 8: Ptr
-    store %v_13, 1, 8
-    store %v_14, 2, 8
-    %v_15 = alloca 8, 8: Ptr
-    copy %v_15, %v_13, 8
-    %v_16 = alloca 8, 8: Ptr
-    copy %v_16, %v_15, 8
-    %v_17 = alloca 8, 8: Ptr
-    copy %v_17, %v_14, 8
-    copy %v_13, %v_17, 8
-    copy %v_14, %v_16, 8
-    %v_18 = loads %v_13, 8: I64
-    %v_19 = imul %v_18, 10: I64
-    %v_20 = loads %v_14, 8: I64
-    %v_21 = add %v_19, %v_20: I64
-    %v_22 = cmp_neq %v_21, 21: I32
-    je %v_22, b_23, b_24
+    copy %v_14, %v_11, 8
+    copy %v_10, %v_14, 8
+    copy %v_11, %v_13, 8
+    %v_15 = loads %v_10, 8: I64
+    %v_16 = imul %v_15, 10: I64
+    %v_17 = loads %v_11, 8: I64
+    %v_18 = add %v_16, %v_17: I64
+    %v_19 = cmp_neq %v_18, 21: I32
+    je %v_19, b_20, b_21
   }
 
-  b_11 {
+  b_8 {
     ret 18446744073709551613
   }
 
-  b_24 {
-    %v_25 = alloca 8, 8: Ptr
-    store %v_25, 1, 8
-    %v_26 = alloca 8, 8: Ptr
-    copy %v_26, %v_25, 8
-    %v_27 = alloca 8, 8: Ptr
-    copy %v_27, %v_26, 8
-    store %v_25, 2, 8
-    %v_28 = load %v_27, 8: I64
-    %v_29 = imul %v_28, 10: I64
-    %v_30 = cmp_neq %v_29, 10: I32
-    je %v_30, b_31, b_32
+  b_21 {
+    %v_22 = alloca 8, 8: Ptr
+    store %v_22, 1, 8
+    %v_23 = alloca 8, 8: Ptr
+    copy %v_23, %v_22, 8
+    %v_24 = alloca 8, 8: Ptr
+    copy %v_24, %v_23, 8
+    store %v_22, 2, 8
+    %v_25 = load %v_24, 8: I64
+    %v_26 = imul %v_25, 10: I64
+    %v_27 = cmp_neq %v_26, 10: I32
+    je %v_27, b_28, b_29
   }
 
-  b_23 {
+  b_20 {
     ret 18446744073709551612
   }
 
-  b_32 {
-    %v_33 = alloca 8, 8: Ptr
-    %v_34 = alloca 8, 8: Ptr
-    %v_35 = alloca 8, 8: Ptr
-    call_complex makeBuffer, %v_33, 16
-    call_complex makeBuffer, %v_34, 32
-    copy %v_35, %v_33, 8
-    copy %v_33, %v_34, 8
-    copy %v_34, %v_35, 8
-    %v_36 = loads @liveBuffers, 8: I64
-    %v_37 = load %v_33, 8: Ptr
-    %v_38 = load %v_37, 1: I32
-    %v_39 = cast %v_38: I64
-    call_complex Buffer.drop, %v_33
-    %v_40 = add %v_36, %v_39: I64
-    %v_41 = load %v_34, 8: Ptr
-    %v_42 = load %v_41, 1: I32
-    %v_43 = cast %v_42: I64
-    call_complex Buffer.drop, %v_34
-    %v_44 = add %v_40, %v_43: I64
-    %v_45 = cmp_neq %v_44, 2: I32
-    je %v_45, b_46, b_47
+  b_29 {
+    %v_30 = alloca 8, 8: Ptr
+    %v_31 = alloca 8, 8: Ptr
+    %v_32 = alloca 8, 8: Ptr
+    call_complex makeBuffer, %v_30, 16
+    call_complex makeBuffer, %v_31, 32
+    copy %v_32, %v_30, 8
+    copy %v_30, %v_31, 8
+    copy %v_31, %v_32, 8
+    %v_33 = loads @liveBuffers, 8: I64
+    %v_34 = load %v_30, 8: Ptr
+    %v_35 = load %v_34, 1: I32
+    %v_36 = cast %v_35: I64
+    call_complex Buffer.drop, %v_30
+    %v_37 = add %v_33, %v_36: I64
+    %v_38 = load %v_31, 8: Ptr
+    %v_39 = load %v_38, 1: I32
+    %v_40 = cast %v_39: I64
+    call_complex Buffer.drop, %v_31
+    %v_41 = add %v_37, %v_40: I64
+    %v_42 = cmp_neq %v_41, 2: I32
+    je %v_42, b_43, b_44
   }
 
-  b_31 {
+  b_28 {
     ret 18446744073709551611
   }
 
-  b_47 {
-    %v_48 = loads @liveBuffers, 8: I64
-    %v_49 = cmp_neq %v_48, 0: I32
-    je %v_49, b_50, b_51
+  b_44 {
+    %v_45 = loads @liveBuffers, 8: I64
+    %v_46 = cmp_neq %v_45, 0: I32
+    je %v_46, b_47, b_48
   }
 
-  b_46 {
+  b_43 {
     ret 18446744073709551610
   }
 
-  b_51 {
-    %v_52 = alloca 8, 8: Ptr
-    %v_53 = alloca 8, 8: Ptr
-    call_complex makeBuffer, %v_52, 16
-    %v_54 = alloca 8, 8: Ptr
-    call_complex makeBuffer, %v_54, 32
-    copy %v_53, %v_52, 8
-    copy %v_52, %v_54, 8
-    %v_55 = loads @liveBuffers, 8: I64
-    %v_56 = load %v_53, 8: Ptr
-    %v_57 = load %v_56, 1: I32
-    %v_58 = cast %v_57: I64
-    call_complex Buffer.drop, %v_53
-    %v_59 = add %v_55, %v_58: I64
-    %v_60 = load %v_52, 8: Ptr
-    %v_61 = load %v_60, 1: I32
-    %v_62 = cast %v_61: I64
-    call_complex Buffer.drop, %v_52
-    %v_63 = add %v_59, %v_62: I64
-    %v_64 = cmp_neq %v_63, 2: I32
-    je %v_64, b_65, b_66
+  b_48 {
+    %v_49 = alloca 8, 8: Ptr
+    %v_50 = alloca 8, 8: Ptr
+    call_complex makeBuffer, %v_49, 16
+    %v_51 = alloca 8, 8: Ptr
+    call_complex makeBuffer, %v_51, 32
+    copy %v_50, %v_49, 8
+    copy %v_49, %v_51, 8
+    %v_52 = loads @liveBuffers, 8: I64
+    %v_53 = load %v_50, 8: Ptr
+    %v_54 = load %v_53, 1: I32
+    %v_55 = cast %v_54: I64
+    call_complex Buffer.drop, %v_50
+    %v_56 = add %v_52, %v_55: I64
+    %v_57 = load %v_49, 8: Ptr
+    %v_58 = load %v_57, 1: I32
+    %v_59 = cast %v_58: I64
+    call_complex Buffer.drop, %v_49
+    %v_60 = add %v_56, %v_59: I64
+    %v_61 = cmp_neq %v_60, 2: I32
+    je %v_61, b_62, b_63
   }
 
-  b_50 {
+  b_47 {
     ret 18446744073709551609
   }
 
-  b_66 {
-    %v_67 = loads @liveBuffers, 8: I64
-    %v_68 = cmp_neq %v_67, 0: I32
-    je %v_68, b_69, b_70
+  b_63 {
+    %v_64 = loads @liveBuffers, 8: I64
+    %v_65 = cmp_neq %v_64, 0: I32
+    je %v_65, b_66, b_67
   }
 
-  b_65 {
+  b_62 {
     ret 18446744073709551608
   }
 
-  b_70 {
-    %v_71 = alloca 8, 8: Ptr
-    %v_72 = alloca 8, 8: Ptr
-    call_complex makeBuffer, %v_71, 16
-    call_complex makeBuffer, %v_72, 32
-    %v_73 = alloca 8, 8: Ptr
-    copy %v_73, %v_71, 8
-    copy %v_71, %v_72, 8
-    copy %v_72, %v_73, 8
-    %v_74 = loads @liveBuffers, 8: I64
-    %v_75 = load %v_71, 8: Ptr
-    %v_76 = load %v_75, 1: I32
-    %v_77 = cast %v_76: I64
-    call_complex Buffer.drop, %v_71
-    %v_78 = add %v_74, %v_77: I64
-    %v_79 = load %v_72, 8: Ptr
-    %v_80 = load %v_79, 1: I32
-    %v_81 = cast %v_80: I64
-    call_complex Buffer.drop, %v_72
-    %v_82 = add %v_78, %v_81: I64
-    %v_83 = cmp_neq %v_82, 2: I32
-    je %v_83, b_84, b_85
+  b_67 {
+    %v_68 = alloca 8, 8: Ptr
+    %v_69 = alloca 8, 8: Ptr
+    call_complex makeBuffer, %v_68, 16
+    call_complex makeBuffer, %v_69, 32
+    %v_70 = alloca 8, 8: Ptr
+    copy %v_70, %v_68, 8
+    copy %v_68, %v_69, 8
+    copy %v_69, %v_70, 8
+    %v_71 = loads @liveBuffers, 8: I64
+    %v_72 = load %v_68, 8: Ptr
+    %v_73 = load %v_72, 1: I32
+    %v_74 = cast %v_73: I64
+    call_complex Buffer.drop, %v_68
+    %v_75 = add %v_71, %v_74: I64
+    %v_76 = load %v_69, 8: Ptr
+    %v_77 = load %v_76, 1: I32
+    %v_78 = cast %v_77: I64
+    call_complex Buffer.drop, %v_69
+    %v_79 = add %v_75, %v_78: I64
+    %v_80 = cmp_neq %v_79, 2: I32
+    je %v_80, b_81, b_82
   }
 
-  b_69 {
+  b_66 {
     ret 18446744073709551607
   }
 
-  b_85 {
-    %v_86 = loads @liveBuffers, 8: I64
-    %v_87 = cmp_neq %v_86, 0: I32
-    %v_88 = select %v_87, 18446744073709551605, 1: I64
-    ret %v_88
+  b_82 {
+    %v_83 = loads @liveBuffers, 8: I64
+    %v_84 = cmp_neq %v_83, 0: I32
+    %v_85 = select %v_84, 18446744073709551605, 1: I64
+    ret %v_85
   }
 
-  b_84 {
+  b_81 {
     ret 18446744073709551606
   }
 }

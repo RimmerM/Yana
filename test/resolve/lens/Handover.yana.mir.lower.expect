@@ -25,19 +25,14 @@ main<complex>(): I32 {
     %v_13 = loads @log, 4: I32
     %v_14 = add %v_13, 1: I32
     store @log, %v_14, 4
-    %v_15 = imm 20: I32
-    %v_16 = alloca 4, 4: Ptr
-    store %v_16, %v_15, 4
+    %v_15 = loads @log, 4: I32
+    %v_16 = add %v_15, 20: I32
+    store @log, %v_16, 4
     %v_17 = loads @log, 4: I32
-    %v_18 = add %v_17, %v_15: I32
+    %v_18 = add %v_17, 21: I32
     store @log, %v_18, 4
-    %v_19 = imm 21: I32
-    store %v_16, %v_19, 4
-    %v_20 = loads @log, 4: I32
-    %v_21 = add %v_20, %v_19: I32
-    store @log, %v_21, 4
-    %v_22 = loads @log, 4: I32
-    ret %v_22
+    %v_19 = loads @log, 4: I32
+    ret %v_19
   }
 }
 

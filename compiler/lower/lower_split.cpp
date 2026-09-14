@@ -512,11 +512,17 @@ bool shareField(Field& a, Field& b) {
 /*
  * The cells themselves: what each one holds, and whether anything can tell.
  *
- * A cell an access names is live and typed by it. A cell a copy from *outside* lands on is live
- * whatever else is true of it, because what it holds then came from somewhere this pass cannot see
- * and is not the frame's own uninitialized bytes - which is the one rule the header's induction
- * rests on. Everything else is what the copies then relate, taken to a fixpoint: liveness and the
- * register type both travel across a copy, in both directions.
+ * A cell an access names is live and typed by it. A cell something wrote that a copy carries *out*
+ * to somewhere this pass cannot see is live, because the destination may be read by anyone - which
+ * is the one rule the header's argument rests on. Everything else is what the copies then relate,
+ * taken to a fixpoint: liveness and the register type both travel across a copy, in both
+ * directions.
+ *
+ * A copy *in* from outside does not make a cell live. It used to, and that kept every padding byte of
+ * a value read out of a heap block alive through every temporary it passed - `Maybe(Size)`'s seven
+ * bytes above its tag, copied three times per `exchange` as two overlapping four-byte moves each, and
+ * the store-forwarding stall that cost an external iterator's step two-thirds of its time. What such
+ * a cell holds is the sender's, and nobody here reads it or hands it on.
  */
 void computeFields(Array<Slot>& slots, Array<Edge>& edges) {
     for(auto& slot: slots) {
@@ -538,20 +544,21 @@ void computeFields(Array<Slot>& slots, Array<Edge>& edges) {
         }
     }
 
-    // A copy that brings bytes in from somewhere this pass cannot see. Both things it says are said
-    // here: the cells it lands on hold what a sender meant by them, so they are live, and they hold
-    // something rather than nothing, so they are written.
     for(auto& edge: edges) {
-        if(edge.to == kNoSlot || !slots[edge.to].active) continue;
-        if(edge.from != kNoSlot && slots[edge.from].active) continue;
+        auto toActive = edge.to != kNoSlot && slots[edge.to].active;
+        auto fromActive = edge.from != kNoSlot && slots[edge.from].active;
 
-        for(auto& field: slots[edge.to].fields) {
-            if(field.offset < edge.toOffset) continue;
-            if(field.offset >= edge.toOffset + edge.count) continue;
+        // A copy that brings bytes in from somewhere this pass cannot see: the cells it lands on hold
+        // something rather than nothing, so they are written. Not live - see above.
+        if(toActive && !fromActive) {
+            for(auto& field: slots[edge.to].fields) {
+                if(field.offset < edge.toOffset) continue;
+                if(field.offset >= edge.toOffset + edge.count) continue;
 
-            field.live = true;
-            field.written = true;
+                field.written = true;
+            }
         }
+
     }
 
     // And what the far end of such a copy reads its bytes through, where it is a slot at all - see
@@ -572,33 +579,66 @@ void computeFields(Array<Slot>& slots, Array<Edge>& edges) {
         }
     }
 
-    auto changed = true;
-    while(changed) {
-        changed = false;
+    auto settle = [&]() {
+        auto changed = true;
+        while(changed) {
+            changed = false;
 
-        for(auto& edge: edges) {
-            if(edge.to == kNoSlot || edge.from == kNoSlot) continue;
-            if(!slots[edge.to].active || !slots[edge.from].active) continue;
+            for(auto& edge: edges) {
+                if(edge.to == kNoSlot || edge.from == kNoSlot) continue;
+                if(!slots[edge.to].active || !slots[edge.from].active) continue;
 
-            auto& to = slots[edge.to];
-            auto& from = slots[edge.from];
+                auto& to = slots[edge.to];
+                auto& from = slots[edge.from];
 
-            for(Size i = 0; i < to.fields.size(); i++) {
-                auto offset = to.fields[i].offset;
-                if(offset < edge.toOffset || offset >= edge.toOffset + edge.count) continue;
+                for(Size i = 0; i < to.fields.size(); i++) {
+                    auto offset = to.fields[i].offset;
+                    if(offset < edge.toOffset || offset >= edge.toOffset + edge.count) continue;
 
-                auto other = fieldAt(from, edge.fromOffset + (offset - edge.toOffset));
-                changed |= shareField(to.fields[i], from.fields[other]);
+                    auto other = fieldAt(from, edge.fromOffset + (offset - edge.toOffset));
+                    changed |= shareField(to.fields[i], from.fields[other]);
 
-                // Being written travels the way the bytes do and no further: a copy gives the
-                // destination whatever the source had, and says nothing about the source.
-                if(from.fields[other].written && !to.fields[i].written) {
-                    to.fields[i].written = true;
-                    changed = true;
+                    // Being written travels the way the bytes do and no further: a copy gives the
+                    // destination whatever the source had, and says nothing about the source.
+                    if(from.fields[other].written && !to.fields[i].written) {
+                        to.fields[i].written = true;
+                        changed = true;
+                    }
                 }
             }
         }
+    };
+
+    settle();
+
+    /*
+     * A copy that takes bytes out to somewhere this pass cannot see, which may read every one of
+     * them: the cells it leaves from are live - where something wrote them.
+     *
+     * After the fixpoint rather than beside the copies in, because *written* is what the fixpoint
+     * settles. A cell nothing wrote holds this frame's own unspecified bytes wherever it is copied
+     * to, so leaving the destination's bytes alone is not a difference a program can see; making it
+     * live anyway gave it an allocation and a zero to carry out. Liveness it adds here then travels
+     * the copies like any other, which is the second settle.
+     */
+    auto carriedOut = false;
+
+    for(auto& edge: edges) {
+        auto toActive = edge.to != kNoSlot && slots[edge.to].active;
+        auto fromActive = edge.from != kNoSlot && slots[edge.from].active;
+        if(!fromActive || toActive) continue;
+
+        for(auto& field: slots[edge.from].fields) {
+            if(field.offset < edge.fromOffset) continue;
+            if(field.offset >= edge.fromOffset + edge.count) continue;
+            if(!field.written || field.live) continue;
+
+            field.live = true;
+            carriedOut = true;
+        }
     }
+
+    if(carriedOut) settle();
 }
 
 /*
@@ -751,9 +791,9 @@ void moveField(LowerBase base, LowerModule& module, LowerBlock& block, LowerPtr<
  * slots, which is what the partition fixpoint established - so the enumeration is over whichever end
  * is being split and the other side is addressed at the same relative offsets.
  *
- * The dead cells are simply not moved. Where the destination is a slot that is what they are for;
- * where it is not, this is the copy leaving the destination's own bytes where they were, which the
- * header argues is not a difference a program can observe.
+ * The dead cells are simply not moved. Between two slots that is bytes nothing reads. Into a
+ * destination that is not a slot it is bytes nothing wrote - a copy out makes every written cell it
+ * carries live - so what the destination keeps is its own unspecified bytes instead of this frame's.
  */
 bool expandCopy(LowerBase base, LowerModule& module, LowerBlock& block, Array<Slot>& slots,
                 Edge& edge) {

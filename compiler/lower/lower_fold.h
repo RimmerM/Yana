@@ -101,6 +101,11 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
  * statement about *when* the sweep may run rather than about what it may take, and running it at the
  * end of the pipeline is what answers it; a second pass that only knew about `Imm` was answering it
  * twice.
+ *
+ * **And storage only ever written.** An `alloca` whose every use writes into it - directly or through
+ * a constant offset - is dead together with those writes, which a use count never shows: a store has
+ * no result to go unused, and the slot it names is used by the store. `splitAggregateSlots` leaves
+ * these behind when the cell a temporary was copied into turns out to be one nothing reads.
  */
 bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun);
 

@@ -118,79 +118,76 @@ main<complex>(): I32 {
   }
 
   b_30 {
-    %v_31 = alloca 3, 4: Ptr
-    jmp b_32
+    jmp b_31
   }
 
   b_28 {
-    jmp b_33
-  }
-
-  b_33 {
-    jmp b_30
+    jmp b_32
   }
 
   b_32 {
-    %v_34 = phi [b_30, 4], [b_35, %v_36]: I32
-    %v_37 = phi [b_30, 0], [b_35, %v_38]: I32
-    %v_39 = cmp_igt %v_34, 0: I32
-    je %v_39, b_40, b_41
+    jmp b_30
   }
 
-  b_41 {
-    %v_42 = alloca 8, 4: Ptr
-    store %v_42, 1, 1
-    jmp b_43
+  b_31 {
+    %v_33 = phi [b_30, 4], [b_34, %v_35]: I32
+    %v_36 = phi [b_30, 0], [b_34, %v_37]: I32
+    %v_38 = cmp_igt %v_33, 0: I32
+    je %v_38, b_39, b_40
   }
 
   b_40 {
-    %v_44 = alloca 8, 4: Ptr
-    store %v_44, 0, 1
-    %v_45 = add %v_44, 4: Ptr
-    store %v_45, %v_34, 4
-    jmp b_43
+    %v_41 = alloca 8, 4: Ptr
+    store %v_41, 1, 1
+    jmp b_42
   }
 
-  b_43 {
-    %v_46 = phi [b_41, %v_42], [b_40, %v_44]: Ptr
-    %v_47 = load %v_46, 1: I32
-    %v_48 = add %v_46, 1: Ptr
-    copy %v_31, %v_48, 3
-    %v_49 = add %v_46, 4: Ptr
-    %v_50 = load %v_49, 4: I32
-    %v_51 = cmp_eq %v_47, 0: I32
-    je %v_51, b_52, b_53
+  b_39 {
+    %v_43 = alloca 8, 4: Ptr
+    store %v_43, 0, 1
+    %v_44 = add %v_43, 4: Ptr
+    store %v_44, %v_33, 4
+    jmp b_42
   }
 
-  b_52 {
-    %v_54 = cmp_igt %v_50, 2: I32
-    je %v_54, b_35, b_53
+  b_42 {
+    %v_45 = phi [b_40, %v_41], [b_39, %v_43]: Ptr
+    %v_46 = load %v_45, 1: I32
+    %v_47 = add %v_45, 4: Ptr
+    %v_48 = load %v_47, 4: I32
+    %v_49 = cmp_eq %v_46, 0: I32
+    je %v_49, b_50, b_51
   }
 
-  b_53 {
-    %v_55 = cmp_eq %v_37, 7: I32
-    %v_56 = select %v_55, 4095, 2047: I32
+  b_50 {
+    %v_52 = cmp_igt %v_48, 2: I32
+    je %v_52, b_34, b_51
+  }
+
+  b_51 {
+    %v_53 = cmp_eq %v_36, 7: I32
+    %v_54 = select %v_53, 4095, 2047: I32
+    %v_55 = loads @trace, 4: I32
+    %v_56 = add %v_55, 1: I32
+    store @trace, %v_56, 4
     %v_57 = loads @trace, 4: I32
-    %v_58 = add %v_57, 1: I32
+    %v_58 = add %v_57, 2: I32
     store @trace, %v_58, 4
     %v_59 = loads @trace, 4: I32
-    %v_60 = add %v_59, 2: I32
+    %v_60 = add %v_59, 4: I32
     store @trace, %v_60, 4
-    %v_61 = loads @trace, 4: I32
-    %v_62 = add %v_61, 4: I32
-    store @trace, %v_62, 4
-    %v_63 = add %v_56, 126976: I32
-    %v_64 = loads @trace, 4: I32
-    %v_65 = cmp_eq %v_64, 7: I32
-    %v_66 = add %v_56, 258048: I32
-    %v_67 = select %v_65, %v_66, %v_63: I32
-    ret %v_67
+    %v_61 = add %v_54, 126976: I32
+    %v_62 = loads @trace, 4: I32
+    %v_63 = cmp_eq %v_62, 7: I32
+    %v_64 = add %v_54, 258048: I32
+    %v_65 = select %v_63, %v_64, %v_61: I32
+    ret %v_65
   }
 
-  b_35 {
-    %v_38 = add %v_37, %v_50: I32
-    %v_36 = sub %v_34, 1: I32
-    jmp b_32
+  b_34 {
+    %v_37 = add %v_36, %v_48: I32
+    %v_35 = sub %v_33, 1: I32
+    jmp b_31
   }
 }
 

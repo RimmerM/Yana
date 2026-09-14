@@ -148,62 +148,49 @@ main<complex>(): I32 {
   b_31 {
     %v_40 = phi [b_32, %v_34], [b_12, 2]: I64
     %v_41 = alloca 24, 8: Ptr
-    %v_42 = alloca 4, 8: Ptr
-    %v_43 = alloca 4, 1: Ptr
-    %v_44 = imm 4: I32
-    store %v_42, %v_44, 4
-    store %v_43, 1, 1
-    %v_45 = add %v_43, 1: Ptr
-    store %v_45, 2, 1
-    %v_46 = add %v_43, 2: Ptr
-    store %v_46, 3, 1
-    %v_47 = add %v_43, 3: Ptr
-    store %v_47, 4, 1
+    %v_42 = alloca 4, 1: Ptr
+    store %v_42, 1, 1
+    %v_43 = add %v_42, 1: Ptr
+    store %v_43, 2, 1
+    %v_44 = add %v_42, 2: Ptr
+    store %v_44, 3, 1
+    %v_45 = add %v_42, 3: Ptr
+    store %v_45, 4, 1
     store %v_41, 1, 4
-    %v_48 = add %v_41, 8: Ptr
-    store %v_48, %v_43, 8
-    %v_49 = add %v_41, 16: Ptr
-    store %v_49, %v_44, 4
-    %v_50 = add %v_41, 20: Ptr
-    store %v_50, 4, 4
-    %v_51 = alloca 1, 1: Ptr
-    call_complex %v_30, %v_51, %v_29, %v_41
-    %v_52 = loads %v_51, 1: I32
-    %v_53 = cmp_eq %v_52, 1: I32
-    je %v_53, b_54, b_55
+    %v_46 = add %v_41, 8: Ptr
+    store %v_46, %v_42, 8
+    %v_47 = add %v_41, 16: Ptr
+    store %v_47, 4, 4
+    %v_48 = add %v_41, 20: Ptr
+    store %v_48, 4, 4
+    %v_49 = alloca 1, 1: Ptr
+    call_complex %v_30, %v_49, %v_29, %v_41
+    %v_50 = loads %v_49, 1: I32
+    %v_51 = cmp_eq %v_50, 1: I32
+    je %v_51, b_52, b_53
   }
 
-  b_55 {
+  b_53 {
     %v_34 = sub %v_40, 1: I64
     jmp b_32
   }
 
-  b_54 {
+  b_52 {
     jmp b_39
   }
 
   b_39 {
-    %v_56 = loads %count, 8: I64
-    %v_57 = add %v_27, %v_56: I64
-    %v_58 = cast %v_57: I32
-    ret %v_58
+    %v_54 = loads %count, 8: I64
+    %v_55 = add %v_27, %v_54: I64
+    %v_56 = cast %v_55: I32
+    ret %v_56
   }
 
   b_1 {
-    %v_59 = phi [b_2, %v_28], [b_0, 0]: I64
-    %v_60 = phi [b_2, %v_4], [b_0, 2]: I64
-    %v_61 = alloca 4, 8: Ptr
-    %v_62 = alloca 4, 1: Ptr
-    store %v_61, 4, 4
-    store %v_62, 1, 1
-    %v_63 = add %v_62, 1: Ptr
-    store %v_63, 2, 1
-    %v_64 = add %v_62, 2: Ptr
-    store %v_64, 3, 1
-    %v_65 = add %v_62, 3: Ptr
-    store %v_65, 4, 1
-    %v_28 = add %v_59, 4: I64
-    %v_4 = sub %v_60, 1: I64
+    %v_57 = phi [b_2, %v_28], [b_0, 0]: I64
+    %v_58 = phi [b_2, %v_4], [b_0, 2]: I64
+    %v_28 = add %v_57, 4: I64
+    %v_4 = sub %v_58, 1: I64
     jmp b_2
   }
 }
