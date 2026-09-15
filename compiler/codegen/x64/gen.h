@@ -1412,6 +1412,11 @@ struct AsmBranch {
 
     U8 shortOpcode;   // 0xeb, or 0x70 + the condition code the long form encodes as 0x80 + cc
     bool isShort;     // what relaxation decided
+
+    // The first byte of the instruction the branch executes as one unit with: the flag-setting
+    // instruction written directly in front of a conditional, or `start` when there is none. A
+    // back edge's placement is decided on this range - see `loopPadding`.
+    U32 pairStart;
 };
 
 /*

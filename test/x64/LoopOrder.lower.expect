@@ -235,12 +235,13 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   jmp uses=[] creates=[] pre=[rax->rcx, rax->rdx]  => 8bc88bd0
+  align  => 66660f1f840000000000
 block outer:
   cmp_ige uses=[rcx, rdi] creates=[-]  => 39f9
-  je uses=[-] creates=[]  => 7d19
+  je uses=[-] creates=[]  => 7d1f
 block #3:
   jmp uses=[] creates=[] pre=[rax->r8]  => 448bc0
-  align  => 0f1f00
+  align  => 660f1f840000000000
 block innerHead:
   cmp_ige uses=[r8, rsi] creates=[-]  => 4139f0
   je uses=[-] creates=[]  => 7d08
@@ -254,7 +255,7 @@ block outerEnd:
   add uses=[rdx, -] creates=[rdx]  => ffc2
   imm uses=[] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx]  => ffc1
-  jmp uses=[] creates=[]  => ebe3
+  jmp uses=[] creates=[]  => ebdd
 block done:
   ret uses=[rax] creates=[] pre=[rdx->rax]  => 8bc2c3
 

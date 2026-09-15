@@ -71,12 +71,13 @@ block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => 31c0
   jmp uses=[] creates=[] pre=[rax->rcx, rax->rdx]  => 8bc88bd0
+  align  => 0f1f4000
 block outer:
   cmp_ilt uses=[rcx, rdi] creates=[-]  => 39f9
-  je uses=[-] creates=[]  => 7d15
+  je uses=[-] creates=[]  => 7d21
 block #3:
   jmp uses=[] creates=[] pre=[rax->r8]  => 448bc0
-  align  => 0f1f00
+  align  => 666666666666660f1f840000000000
 block inner:
   add uses=[rdx, r8] creates=[rdx]  => 4401c2
   imm uses=[] creates=[-]  => 
@@ -86,7 +87,7 @@ block inner:
 block outerEnd:
   imm uses=[] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx]  => ffc1
-  jmp uses=[] creates=[]  => ebe7
+  jmp uses=[] creates=[]  => ebdb
 block done:
   ret uses=[rax] creates=[] pre=[rdx->rax]  => 8bc2c3
 
