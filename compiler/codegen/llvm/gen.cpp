@@ -315,13 +315,188 @@ static bool anchorAtZero(Gen& gen) {
     return gen.context.settings.format == ExecutableFormat::ELF;
 }
 
-static llvm::GlobalVariable* declareGlobal(Gen& gen, LowerGlobal& global) {
+/*
+ * The tail-read guarantee, on a path where storage is an object the optimizer can see.
+ *
+ * Design-Vector §5 promises that the `kVectorBytes - 1` bytes after anything the language allocated
+ * are readable, and an overreading load (`LowerInstLoad::isOverread`) spends that promise: a vector
+ * loop's last iteration loads a whole register from where the last few elements start and masks
+ * off the lanes past the end. §5.2 says who keeps it natively - the stack because the bytes past a
+ * local are the rest of the frame, static data because the ELF writer pads each section - and both
+ * of those are statements about *memory*.
+ *
+ * LLVM's are about *objects*. An `alloca` and a global variable are each an allocation of exactly
+ * their size, and a load that runs past the end of one is undefined behaviour wherever the bytes
+ * behind it happen to live. `MergeRoot.yana` at v3 is what that costs: `sum` over an
+ * `@inline(4) @capacity(4) [Int]` in the frame loads `<8 x i32>` from a 16-byte `alloca`, and dead
+ * store elimination deletes the four stores that built it (§114.4 of test/bench/findings.md).
+ *
+ * So where a tail read can reach an object, the object is made large enough to hold it:
+ *
+ *  - **An allocation** gets `tailBytes` more than the lowering asked for.
+ *  - **A global** gets the same, as zero bytes after its initializer.
+ *
+ * **Each global its own tail, rather than one pool with a tail at the end - measured.** A pool is
+ * one variable holding every reachable global end to end, so a read past one lands inside the pool
+ * and the tail is paid once. It was built and measured against this (§114.5 of
+ * test/bench/findings.md), and it saves data in only one configuration while costing more code in
+ * all of them: legacy's resolve corpus at v3 was +2189 function bytes pooled against +1222 padded,
+ * and +1661 against +633 at v2. What a pool takes away is the global as an object - a
+ * constant global LLVM can fold a load of, and delete once nothing else reads it, is a member it
+ * has to keep beside the rest of the pool.
+ *
+ * "Can reach" is conservative, because the lower IR cannot follow an address through the storage
+ * it is written to: an array's run is stored into its header and loaded back somewhere else. An
+ * address reaches a tail read if it arrives at an overreading load through pointer arithmetic, phis
+ * and selects, or if it is used as anything *other* than the address of an access - stored as a
+ * value, handed to a call, returned, compared, cast. An allocation read and written only in place
+ * is left exactly as large as it was, which is most of them. A module with no overreading load pads
+ * nothing at all.
+ *
+ * Nothing is gained by telling LLVM instead. `llvm.masked.load` is the one construct whose masked
+ * lanes are not accessed, and it has no instruction below AVX, none for a byte lane below AVX-512,
+ * and is slower than the load it replaces where it exists.
+ */
+
+// The widest overreading load in the module, less one - how far past its end any storage may be read.
+static U32 tailBytesOf(LowerBase base, LowerModule& module) {
+    U32 widest = 0;
+
+    for(auto f: module.functionOrder) {
+        for(auto blockPtr: base[f]->blocks.contents(base)) {
+            for(auto instPtr: base[blockPtr]->instructions.contents(base)) {
+                auto inst = base[instPtr];
+                if(inst->kind != LowerInst::Load || !((LowerInstLoad*)inst)->isOverread()) continue;
+
+                auto bytes = ((LowerInstLoad*)inst)->result.type.byteWidth();
+                if(bytes > widest) widest = bytes;
+            }
+        }
+    }
+
+    return widest ? widest - 1 : 0;
+}
+
+// Whether an address can reach a load that reads past the end of what it names - see above for
+// what "reach" is and why it is conservative.
+static bool reachesTailRead(LowerBase base, LowerValue* root) {
+    SmallArray<LowerValue*, 16> seen;
+    SmallArray<LowerValue*, 16> pending;
+    seen.push(root);
+    pending.push(root);
+
+    auto follow = [&](LowerValue* value) {
+        for(auto known: seen) {
+            if(known == value) return;
+        }
+
+        seen.push(value);
+        pending.push(value);
+    };
+
+    while(pending.size()) {
+        auto value = pending.pop().unwrap();
+
+        for(auto userPtr: value->uses.contents(base)) {
+            auto user = base[userPtr];
+
+            // The same address, or one derived from it, under another name.
+            if(user->kind == LowerInst::Phi) {
+                follow(&((LowerInstPhi*)user)->result);
+                continue;
+            }
+
+            if(user->kind == LowerInst::Select && base[((LowerInstSelect*)user)->cmp] != value) {
+                follow(&((LowerInstSelect*)user)->result);
+                continue;
+            }
+
+            if((user->kind == LowerInst::Add || user->kind == LowerInst::Sub) &&
+               isPtr(((LowerInstBinary*)user)->result.type)) {
+                follow(&((LowerInstBinary*)user)->result);
+                continue;
+            }
+
+            // Anything else may name it only as the address of an access. Every operand slot holding
+            // it has to be one of the addresses the instruction declares.
+            LowerAccess accesses[kMaxAccesses];
+            auto count = lowerInstAccesses(user, accesses);
+            auto used = user->used();
+
+            for(Size i = 0; i < used.length; i++) {
+                if(base[used.ptr[i]] != value) continue;
+
+                auto named = false;
+                for(Size k = 0; k < count; k++) {
+                    if(accesses[k].address == used.ptr + i) named = true;
+                }
+
+                if(!named) return true;
+            }
+
+            if(user->kind == LowerInst::Load && ((LowerInstLoad*)user)->isOverread()) return true;
+        }
+    }
+
+    return false;
+}
+
+// The allocations a tail read can reach, onto `gen`, and the globals, into `reached`.
+static void planTailReads(Gen& gen, HashSet<U32>& reached) {
+    auto base = gen.base;
+    auto& module = gen.lower;
+
+    gen.tailBytes = tailBytesOf(base, module);
+    if(!gen.tailBytes) return;
+
+    // A global another global's contents point at is reached by whoever loads that pointer, which
+    // is the same question as a stored address and gets the same answer.
+    auto noteRelocations = [&](LowerGlobal& global) {
+        for(auto relocation: global.relocations.contents(base)) {
+            if(relocation.global) reached.add(relocation.global.offset);
+        }
+    };
+
+    for(auto g: module.globalOrder) noteRelocations(*base[g]);
+
+    for(auto f: module.functionOrder) {
+        auto fun = base[f];
+        if(fun->prefix) noteRelocations(*base[fun->prefix]);
+
+        for(auto blockPtr: fun->blocks.contents(base)) {
+            for(auto instPtr: base[blockPtr]->instructions.contents(base)) {
+                auto inst = base[instPtr];
+
+                if(inst->kind == LowerInst::Alloca) {
+                    if(reachesTailRead(base, &((LowerInstAlloca*)inst)->result)) {
+                        gen.paddedAllocas.add((inst - base).offset);
+                    }
+                } else if(inst->kind == LowerInst::Global) {
+                    auto target = ((LowerInstGlobal*)inst)->target;
+                    if(reached.contains(target.offset)) continue;
+
+                    if(reachesTailRead(base, &((LowerInstGlobal*)inst)->result)) reached.add(target.offset);
+                }
+            }
+        }
+    }
+}
+
+// An initializer with `tail` zero bytes after it.
+static llvm::Constant* withTail(Gen& gen, llvm::Constant* initializer, U32 tail) {
+    if(!tail) return initializer;
+
+    auto zeros = llvm::ConstantAggregateZero::get(llvm::ArrayType::get(llvm::Type::getInt8Ty(gen.llvm), tail));
+    return llvm::ConstantStruct::getAnon(gen.llvm, { initializer, zeros }, true);
+}
+
+static llvm::GlobalVariable* declareGlobal(Gen& gen, LowerGlobal& global, U32 tail) {
     auto here = &global - gen.base;
     auto zeroAnchor = here == gen.lower.imageAnchor && anchorAtZero(gen);
 
     // Declared and not defined: what stands where this names is an absolute symbol the assembler is
     // told about below, and a definition here would be a second one, in a section, at an address.
-    auto initializer = zeroAnchor ? nullptr : initializerOf(gen, global, false);
+    auto initializer = zeroAnchor ? nullptr : withTail(gen, initializerOf(gen, global, false), tail);
     auto type = zeroAnchor ? (llvm::Type*)llvm::ArrayType::get(llvm::Type::getInt8Ty(gen.llvm), 0)
                            : initializer->getType();
 
@@ -492,18 +667,28 @@ Ptr<llvm::Module> genModule(llvm::LLVMContext& llvm, Context& context, LowerModu
     Gen gen(llvm, *built, context, module);
     auto base = gen.base;
 
+    // Which storage a tail read can reach, before anything is declared: it decides how large both an
+    // allocation and a global are. See `planTailReads`.
+    HashSet<U32> reached;
+    planTailReads(gen, reached);
+
+    // The anchor is never padded, since on ELF it is an absolute symbol rather than storage.
+    auto tailOf = [&](LowerPtr<LowerGlobal> g) -> U32 {
+        return reached.contains(g.offset) && g != module.imageAnchor ? gen.tailBytes : 0;
+    };
+
     // Declarations first, and all of them: a call is a forward reference as often as not, and a
     // constant table holding the address of a function is one by definition.
-    for(auto g: module.globalOrder) declareGlobal(gen, *base[g]);
+    for(auto g: module.globalOrder) declareGlobal(gen, *base[g], tailOf(g));
     for(auto f: module.functionOrder) declareFunction(gen, *base[f]);
 
     // Now that everything has a name, what the constant tables hold can be filled in. The anchor is
     // skipped where it is a declaration rather than a definition - see anchorAtZero.
     for(auto g: module.globalOrder) {
-        auto variable = gen.globalOf(g);
+        auto variable = llvm::cast<llvm::GlobalVariable>(gen.globalOf(g));
         if(variable->isDeclaration()) continue;
 
-        variable->setInitializer(initializerOf(gen, *base[g], true));
+        variable->setInitializer(withTail(gen, initializerOf(gen, *base[g], true), tailOf(g)));
     }
 
     // Prefix data is emitted immediately in front of the entry point, which is what LLVM calls it

@@ -265,7 +265,7 @@ static bool ensureOutputDirectory(const String& outputDir) {
  * disagreement between them a difference in what the front halves decided.
  *
  * The modes it answers are the ones that have an answer. `mir` and `ssa` are its own two dumps;
- * `lower` and `exe` are the shared backend reached through it. The rest - `ir`, `drops`, `llvm`, and
+ * `lower`, `llvm` and `exe` are the shared backends reached through it. The rest - `ir`, `drops`, and
  * two library modes - are either the other stage's own output or work that has not arrived, and each
  * says which rather than producing something misleading.
  */
@@ -333,8 +333,8 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
         });
     }
 
-    if(settings.mode != CompileMode::Executable) {
-        context.diagnostics.error("-resolver ownership implements -mode mir, ssa, lower and exe so far"_v,
+    if(settings.mode != CompileMode::Executable && settings.mode != CompileMode::Llvm) {
+        context.diagnostics.error("-resolver ownership implements -mode mir, ssa, lower, llvm and exe so far"_v,
                                   nullptr);
         return false;
     }
@@ -345,10 +345,12 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
         return false;
     }
 
-    if(settings.backend == NativeBackend::Local) {
+    if(settings.mode == CompileMode::Executable && settings.backend == NativeBackend::Local) {
         return genX64Executable(context, *lowered, joinPath(outputDir, name, ""_v));
     }
 
+    // The module `-mode llvm` writes is the one `-backend llvm` would compile, entry and optimization
+    // included - the same rule `genNative` states for the shipping stage.
     llvm::LLVMContext llvm;
     auto module = llvmgen::genModule(llvm, context, *lowered);
     if(context.diagnostics.errorCount()) return false;
@@ -356,6 +358,10 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
     if(!llvmgen::verifyGenModule(context, *module)) return false;
 
     llvmgen::optimizeModule(context, *module, settings.optimization);
+
+    if(settings.mode == CompileMode::Llvm) {
+        return llvmgen::writeIrFile(context, *module, joinPath(outputDir, name, ".ll"_v));
+    }
 
     auto objectPath = joinPath(outputDir, name, ".o"_v);
     if(!llvmgen::writeObjectFile(context, *module, objectPath)) return false;

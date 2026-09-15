@@ -29,7 +29,14 @@ struct Gen {
     // is an ordinary forward reference here, and a witness table holds the address of a function
     // that has not been generated yet.
     HashMap<U32, llvm::Function*> functions;
+
     HashMap<U32, llvm::GlobalVariable*> globals;
+
+    // How many bytes past its end a load in this module may read, and the allocations - by region
+    // offset of the instruction - that such a load can reach. Zero and empty in a module with no
+    // overreading load. See `planTailReads` in gen.cpp.
+    U32 tailBytes = 0;
+    HashSet<U32> paddedAllocas;
 
     // The two assembly routines a stack switch is built from, declared - and their text appended to
     // the module - the first time a function needs either. See `stackRuntimeOf` in intrinsic.cpp.

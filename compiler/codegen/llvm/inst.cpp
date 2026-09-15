@@ -1041,6 +1041,16 @@ static void genAlloca(FunGen& f, LowerInstAlloca& inst) {
     auto byte = llvm::Type::getInt8Ty(f.gen.llvm);
     llvm::AllocaInst* value;
 
+    // Room for the tail-read guarantee, where a load past this allocation's end can reach it - see
+    // `planTailReads` in gen.cpp, and why an object LLVM can see needs it where the frame did not.
+    if(f.gen.paddedAllocas.contains(((LowerInst*)&inst - f.base).offset)) {
+        if(auto constant = llvm::dyn_cast<llvm::ConstantInt>(count)) {
+            count = llvm::ConstantInt::get(constant->getType(), constant->getZExtValue() + f.gen.tailBytes);
+        } else {
+            count = f.builder.CreateAdd(count, llvm::ConstantInt::get(count->getType(), f.gen.tailBytes));
+        }
+    }
+
     if(llvm::isa<llvm::ConstantInt>(count)) {
         // A fixed-size allocation is a frame object for the whole function wherever it was written -
         // which is the same test collectFrameObjects makes in the x64 backend - so it goes in the
@@ -1065,9 +1075,11 @@ static void genLoad(FunGen& f, LowerInstLoad& inst) {
     llvm::Value* value;
 
     // A vector is loaded whole - there is no narrower access to widen from, and the validator says
-    // so. The overread flag needs nothing here: LLVM has no way to be told that a load deliberately
-    // reads past the end of the object it names, and needs none, because the load it is given names
-    // the whole width it reads and no object smaller than that is derived from anything here.
+    // so. The overread flag needs nothing *here*: LLVM has no way to be told that a load deliberately
+    // reads past the end of the object it names, so the objects are made large enough instead - an
+    // allocation or a global a tail read can reach carries the guarantee's bytes after it. See
+    // `planTailReads` in gen.cpp; before it, this said no object smaller than the load was derived
+    // from anything here, and an `alloca` is exactly such an object.
     if(isVectorLike(result) || isFloat(result) || (isPtr(result) && width == 8)) {
         value = f.builder.CreateAlignedLoad(type, from, kUnknownAlign, name);
     } else {
