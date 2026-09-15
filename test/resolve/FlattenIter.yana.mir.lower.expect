@@ -53,164 +53,152 @@ main<complex>(): I32 {
   }
 
   b_6 {
-    %v_7 = cmp_ilt %v_8, 6: I32
-    je %v_7, b_5, b_9
-  }
-
-  b_9 {
-    %v_10 = load %v_1, 8: Ptr
-    %v_11 = add %v_1, 12: Ptr
-    %v_12 = load %v_11, 4: I32
-    %v_13 = cast %v_12: I64
-    %v_14 = alloca 4, 4: Ptr
-    store %v_14, 3, 4
-    %v_15 = sext %v_13: I32
-    %v_16 = sext %v_15: I64
-    jmp b_17
+    %v_7 = load %v_1, 8: Ptr
+    %v_8 = add %v_1, 12: Ptr
+    %v_9 = load %v_8, 4: I32
+    %v_10 = cast %v_9: I64
+    %v_11 = alloca 4, 4: Ptr
+    store %v_11, 3, 4
+    %v_12 = sext %v_10: I32
+    %v_13 = sext %v_12: I64
+    jmp b_14
   }
 
   b_5 {
-    %v_18 = phi [b_6, %v_8], [b_0, 0]: I32
-    %v_19 = add %v_1, 12: Ptr
-    %v_20 = load %v_19, 4: I32
-    %v_21 = cast %v_20: I64
-    %v_22 = add %v_21, 1: I64
-    %v_23 = add %v_1, 8: Ptr
-    %v_24 = load %v_23, 4: I64
-    %v_25 = and %v_24, 1073741823: I64
-    %v_26 = cast %v_25: I32
-    %v_27 = cast %v_26: I64
-    %v_28 = cmp_ile %v_22, %v_27: I32
-    je %v_28, b_29, b_30
+    %v_15 = phi [b_16, %v_17], [b_0, 0]: I32
+    %v_18 = add %v_1, 12: Ptr
+    %v_19 = load %v_18, 4: I32
+    %v_20 = cast %v_19: I64
+    %v_21 = add %v_20, 1: I64
+    %v_22 = add %v_1, 8: Ptr
+    %v_23 = load %v_22, 4: I64
+    %v_24 = and %v_23, 1073741823: I64
+    %v_25 = cast %v_24: I32
+    %v_26 = cast %v_25: I64
+    %v_27 = cmp_ile %v_21, %v_26: I32
+    je %v_27, b_28, b_29
   }
 
-  b_17 {
-    %v_31 = phi [b_9, 0], [b_32, %v_33]: I32
-    %v_34 = phi [b_9, 0], [b_32, %v_35]: I64
-    %v_36 = cmp_ilt %v_34, %v_16: I32
-    je %v_36, b_37, b_38
-  }
-
-  b_38 {
-    %v_39 = alloca 4, 4: Ptr
-    store %v_39, 3, 4
-    %v_40 = sext %v_15: I64
-    jmp b_41
+  b_14 {
+    %v_30 = phi [b_6, 0], [b_31, %v_32]: I32
+    %v_33 = phi [b_6, 0], [b_31, %v_34]: I64
+    %v_35 = cmp_ilt %v_33, %v_13: I32
+    je %v_35, b_36, b_37
   }
 
   b_37 {
-    %v_42 = loads @trace, 4: I32
-    %v_43 = add %v_42, 1: I32
-    store @trace, %v_43, 4
-    jmp b_44
+    %v_38 = alloca 4, 4: Ptr
+    store %v_38, 3, 4
+    %v_39 = sext %v_12: I64
+    jmp b_40
   }
 
-  b_44 {
-    %v_45 = shl %v_34, 2: I64
-    %v_46 = add %v_10, %v_45: Ptr
-    %v_47 = loads %v_46, 4: I32
-    %v_48 = loads %v_14, 4: I32
-    %v_49 = imul %v_47, %v_48: I32
-    %v_50 = add %v_49, 1: I32
-    %v_51 = and %v_50, 1: I32
-    je %v_51, b_52, b_32
+  b_36 {
+    %v_41 = loads @trace, 4: I32
+    %v_42 = add %v_41, 1: I32
+    store @trace, %v_42, 4
+    %v_43 = shl %v_33, 2: I64
+    %v_44 = add %v_7, %v_43: Ptr
+    %v_45 = loads %v_44, 4: I32
+    %v_46 = loads %v_11, 4: I32
+    %v_47 = imul %v_45, %v_46: I32
+    %v_48 = add %v_47, 1: I32
+    %v_49 = and %v_48, 1: I32
+    je %v_49, b_50, b_31
   }
 
-  b_52 {
-    %v_53 = add %v_31, %v_50: I32
-    jmp b_32
+  b_50 {
+    %v_51 = add %v_30, %v_48: I32
+    jmp b_31
   }
 
-  b_32 {
-    %v_33 = phi [b_44, %v_31], [b_52, %v_53]: I32
-    %v_35 = add %v_34, 1: I64
-    jmp b_17
+  b_31 {
+    %v_32 = phi [b_36, %v_30], [b_50, %v_51]: I32
+    %v_34 = add %v_33, 1: I64
+    jmp b_14
   }
 
-  b_41 {
-    %v_54 = phi [b_38, 0], [b_55, %v_56]: I32
-    %v_57 = phi [b_38, 0], [b_55, %v_58]: I32
-    %v_59 = phi [b_38, 0], [b_55, %v_60]: I64
-    %v_61 = cmp_ilt %v_59, %v_40: I32
-    je %v_61, b_62, b_63
+  b_40 {
+    %v_52 = phi [b_37, 0], [b_53, %v_54]: I32
+    %v_55 = phi [b_37, 0], [b_53, %v_56]: I32
+    %v_57 = phi [b_37, 0], [b_53, %v_58]: I64
+    %v_59 = cmp_ilt %v_57, %v_39: I32
+    je %v_59, b_60, b_61
   }
 
-  b_62 {
-    %v_64 = loads @trace, 4: I32
-    %v_65 = add %v_64, 1: I32
-    store @trace, %v_65, 4
-    jmp b_66
+  b_60 {
+    %v_62 = loads @trace, 4: I32
+    %v_63 = add %v_62, 1: I32
+    store @trace, %v_63, 4
+    %v_64 = shl %v_57, 2: I64
+    %v_65 = add %v_7, %v_64: Ptr
+    %v_66 = loads %v_65, 4: I32
+    %v_67 = loads %v_38, 4: I32
+    %v_68 = imul %v_66, %v_67: I32
+    %v_69 = add %v_68, 1: I32
+    %v_70 = and %v_69, 1: I32
+    je %v_70, b_71, b_53
   }
 
-  b_66 {
-    %v_67 = shl %v_59, 2: I64
-    %v_68 = add %v_10, %v_67: Ptr
-    %v_69 = loads %v_68, 4: I32
-    %v_70 = loads %v_39, 4: I32
-    %v_71 = imul %v_69, %v_70: I32
-    %v_72 = add %v_71, 1: I32
-    %v_73 = and %v_72, 1: I32
-    je %v_73, b_74, b_55
+  b_71 {
+    %v_72 = add %v_55, %v_69: I32
+    %v_73 = cmp_igt %v_72, 5: I32
+    %v_74 = select %v_73, 2, 0: I32
+    %v_75 = cmp_eq %v_74, 0: I32
+    je %v_75, b_53, b_61
   }
 
-  b_74 {
-    %v_75 = add %v_57, %v_72: I32
-    %v_76 = cmp_igt %v_75, 5: I32
-    %v_77 = select %v_76, 2, 0: I32
-    %v_78 = cmp_eq %v_77, 0: I32
-    je %v_78, b_55, b_63
-  }
-
-  b_63 {
-    %v_79 = phi [b_41, %v_57], [b_74, %v_75]: I32
+  b_61 {
+    %v_76 = phi [b_40, %v_55], [b_71, %v_72]: I32
     call_complex Array(a).reclaim(I32), %v_1
-    %v_80 = call_complex nested, 1: I32
-    %v_81 = imul %v_31, 1000000: I32
-    %v_82 = imul %v_79, 10000: I32
-    %v_83 = add %v_81, %v_82: I32
-    %v_84 = imul %v_80, 100: I32
-    %v_85 = add %v_83, %v_84: I32
-    %v_86 = loads @trace, 4: I32
-    %v_87 = add %v_85, %v_86: I32
-    ret %v_87
+    %v_77 = call_complex nested, 1: I32
+    %v_78 = imul %v_30, 1000000: I32
+    %v_79 = imul %v_76, 10000: I32
+    %v_80 = add %v_78, %v_79: I32
+    %v_81 = imul %v_77, 100: I32
+    %v_82 = add %v_80, %v_81: I32
+    %v_83 = loads @trace, 4: I32
+    %v_84 = add %v_82, %v_83: I32
+    ret %v_84
   }
 
-  b_55 {
-    %v_56 = phi [b_66, %v_54], [b_74, %v_77]: I32
-    %v_58 = phi [b_66, %v_57], [b_74, %v_75]: I32
-    %v_60 = add %v_59, 1: I64
-    jmp b_41
+  b_53 {
+    %v_54 = phi [b_60, %v_52], [b_71, %v_74]: I32
+    %v_56 = phi [b_60, %v_55], [b_71, %v_72]: I32
+    %v_58 = add %v_57, 1: I64
+    jmp b_40
+  }
+
+  b_28 {
+    %v_85 = phi [b_5, %v_26], [b_29, %v_86]: I64
+    %v_87 = cmp_ige %v_20, %v_85: I32
+    je %v_87, b_88, b_16
   }
 
   b_29 {
-    %v_88 = phi [b_5, %v_27], [b_30, %v_89]: I64
-    %v_90 = cmp_ige %v_21, %v_88: I32
-    je %v_90, b_91, b_92
+    call_complex growArray(I32), %v_1, %v_21
+    %v_89 = load %v_22, 4: I64
+    %v_90 = and %v_89, 1073741823: I64
+    %v_91 = cast %v_90: I32
+    %v_86 = cast %v_91: I64
+    jmp b_28
   }
 
-  b_30 {
-    call_complex growArray(I32), %v_1, %v_22
-    %v_93 = load %v_23, 4: I64
-    %v_94 = and %v_93, 1073741823: I64
-    %v_95 = cast %v_94: I32
-    %v_89 = cast %v_95: I64
-    jmp b_29
+  b_16 {
+    %v_92 = load %v_1, 8: Ptr
+    %v_93 = shl %v_20, 2: I64
+    %v_94 = add %v_92, %v_93: Ptr
+    store %v_94, %v_15, 4
+    %v_95 = cast %v_21: I32
+    %v_96 = and %v_95, 1073741823: I32
+    store %v_18, %v_96, 4
+    %v_17 = add %v_15, 1: I32
+    %v_97 = cmp_ilt %v_17, 6: I32
+    je %v_97, b_5, b_6
   }
 
-  b_92 {
-    %v_96 = load %v_1, 8: Ptr
-    %v_97 = shl %v_21, 2: I64
-    %v_98 = add %v_96, %v_97: Ptr
-    store %v_98, %v_18, 4
-    %v_99 = cast %v_22: I32
-    %v_100 = and %v_99, 1073741823: I32
-    store %v_19, %v_100, 4
-    %v_8 = add %v_18, 1: I32
-    jmp b_6
-  }
-
-  b_91 {
-    %v_101 = syscall 60, 134: I64
+  b_88 {
+    %v_98 = syscall 60, 134: I64
     unreachable 
   }
 }

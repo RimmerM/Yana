@@ -83,29 +83,13 @@ main<complex>(): I32 {
     %v_55 = add %v_54, 812: I64
     %v_56 = alloca 1, 1: Ptr
     store %v_56, 0, 1
-    jmp b_57
-  }
-
-  b_57 {
-    jmp b_58
-  }
-
-  b_58 {
-    jmp b_59
-  }
-
-  b_59 {
-    %v_60 = bitcast %v_56: I64
-    %v_61 = cmp_eq %v_60, 0: I32
-    %v_62 = select %v_61, 0, 1: I64
-    jmp b_63
-  }
-
-  b_63 {
-    %v_64 = shl %v_62, 1: I64
-    %v_65 = add %v_55, %v_64: I64
-    %v_66 = sext %v_65: I32
-    ret %v_66
+    %v_57 = bitcast %v_56: I64
+    %v_58 = cmp_eq %v_57, 0: I32
+    %v_59 = select %v_58, 0, 1: I64
+    %v_60 = shl %v_59, 1: I64
+    %v_61 = add %v_55, %v_60: I64
+    %v_62 = sext %v_61: I32
+    ret %v_62
   }
 }
 

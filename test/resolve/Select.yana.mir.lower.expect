@@ -42,62 +42,58 @@ main<complex>(): I32 {
   }
 
   b_17 {
-    %v_18 = cmp_ilt %v_19, 5: I32
-    je %v_18, b_16, b_20
-  }
-
-  b_20 {
-    %v_21 = shl %v_22, 9: I32
-    %v_23 = add %v_15, %v_21: I32
-    %v_24 = call_complex zero'2: I32
-    %v_25 = cmp_neq %v_24, 0: I32
-    je %v_25, b_26, b_27
+    %v_18 = shl %v_19, 9: I32
+    %v_20 = add %v_15, %v_18: I32
+    %v_21 = call_complex zero'2: I32
+    %v_22 = cmp_neq %v_21, 0: I32
+    je %v_22, b_23, b_24
   }
 
   b_16 {
-    %v_28 = phi [b_17, %v_22], [b_0, 100]: I32
-    %v_29 = phi [b_17, %v_19], [b_0, 0]: I32
-    %v_30 = imul %v_29, 3: I32
-    %v_31 = sub 40, %v_30: I32
-    %v_32 = cmp_ilt %v_31, %v_28: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_34 {
-    jmp b_35
+    %v_25 = phi [b_26, %v_19], [b_0, 100]: I32
+    %v_27 = phi [b_26, %v_28], [b_0, 0]: I32
+    %v_29 = imul %v_27, 3: I32
+    %v_30 = sub 40, %v_29: I32
+    %v_31 = cmp_ilt %v_30, %v_25: I32
+    je %v_31, b_32, b_33
   }
 
   b_33 {
+    jmp b_26
+  }
+
+  b_32 {
+    jmp b_26
+  }
+
+  b_26 {
+    %v_19 = phi [b_33, %v_25], [b_32, %v_30]: I32
+    %v_28 = add %v_27, 1: I32
+    %v_34 = cmp_ilt %v_28, 5: I32
+    je %v_34, b_16, b_17
+  }
+
+  b_24 {
+    jmp b_35
+  }
+
+  b_23 {
+    %v_36 = cmp_eq %v_21, 4294967295: I32
+    %v_37 = select %v_36, 1, %v_21: I32
+    %v_38 = idiv 10, %v_37: I32
+    %v_39 = select %v_36, 4294967286, %v_38: I32
     jmp b_35
   }
 
   b_35 {
-    %v_22 = phi [b_34, %v_28], [b_33, %v_31]: I32
-    %v_19 = add %v_29, 1: I32
-    jmp b_17
-  }
-
-  b_27 {
-    jmp b_36
-  }
-
-  b_26 {
-    %v_37 = cmp_eq %v_24, 4294967295: I32
-    %v_38 = select %v_37, 1, %v_24: I32
-    %v_39 = idiv 10, %v_38: I32
-    %v_40 = select %v_37, 4294967286, %v_39: I32
-    jmp b_36
-  }
-
-  b_36 {
-    %v_41 = phi [b_27, 0], [b_26, %v_40]: I32
-    %v_42 = shl %v_41, 10: I32
-    %v_43 = add %v_23, %v_42: I32
-    %v_44 = add %v_43, 10240: I32
-    %v_45 = call_complex doubled, 3: I32
-    %v_46 = shl %v_45, 12: I32
-    %v_47 = add %v_44, %v_46: I32
-    ret %v_47
+    %v_40 = phi [b_24, 0], [b_23, %v_39]: I32
+    %v_41 = shl %v_40, 10: I32
+    %v_42 = add %v_20, %v_41: I32
+    %v_43 = add %v_42, 10240: I32
+    %v_44 = call_complex doubled, 3: I32
+    %v_45 = shl %v_44, 12: I32
+    %v_46 = add %v_43, %v_45: I32
+    ret %v_46
   }
 }
 

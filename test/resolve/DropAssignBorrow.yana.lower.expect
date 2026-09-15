@@ -36,12 +36,8 @@ mapMemory<complex>(%size: I64): Ptr {
   }
 
   b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = bitcast %result: Ptr
-    ret %v_6
+    %v_5 = bitcast %result: Ptr
+    ret %v_5
   }
 }
 
@@ -248,20 +244,16 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 
   b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: I64
-    %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: I64
-    %v_9 = add %v_7, %v_8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    store %allocation, %v_10, 8
-    %v_11 = load @heapFree, 8: Ptr
-    %v_12 = add %v_11, %v_8: Ptr
-    store %v_12, %allocation, 8
+    %v_5 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_5, 8: I64
+    %v_6 = load @heapFree, 8: Ptr
+    %v_7 = shl %sizeClass, 3: I64
+    %v_8 = add %v_6, %v_7: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    store %allocation, %v_9, 8
+    %v_10 = load @heapFree, 8: Ptr
+    %v_11 = add %v_10, %v_7: Ptr
+    store %v_11, %allocation, 8
     ret 
   }
 }
@@ -308,78 +300,66 @@ main<complex>(): I64 {
   }
 
   b_21 {
-    jmp b_22
-  }
-
-  b_22 {
     call_complex +=(I64), @liveBuffers, 1
-    %v_23 = call_complex allocateHeap, %v_15: Ptr
-    setpattern %v_23, %v_15, 0
+    %v_22 = call_complex allocateHeap, %v_15: Ptr
+    setpattern %v_22, %v_15, 0
     call_complex +=(I64), @liveBuffers, 1
-    %v_24 = call_complex allocateHeap, %v_16: Ptr
-    setpattern %v_24, %v_16, 0
+    %v_23 = call_complex allocateHeap, %v_16: Ptr
+    setpattern %v_23, %v_16, 0
     call_complex +=(I64), @liveBuffers, 1
-    %v_25 = call_complex allocateHeap, %v_17: Ptr
-    setpattern %v_25, %v_17, 0
-    call_complex freeHeap, %v_24
-    call_complex -=(I64), @liveBuffers, 1
-    %counted = loads @liveBuffers, 8: I64
-    %v_26 = load %v_23, 1: I32
-    %v_27 = cast %v_26: I64
+    %v_24 = call_complex allocateHeap, %v_17: Ptr
+    setpattern %v_24, %v_17, 0
     call_complex freeHeap, %v_23
     call_complex -=(I64), @liveBuffers, 1
-    %v_28 = add %counted, %v_27: I64
-    %v_29 = load %v_25, 1: I32
-    %v_30 = cast %v_29: I64
-    call_complex freeHeap, %v_25
+    %counted = loads @liveBuffers, 8: I64
+    %v_25 = load %v_22, 1: I32
+    %v_26 = cast %v_25: I64
+    call_complex freeHeap, %v_22
     call_complex -=(I64), @liveBuffers, 1
-    %v_31 = add %v_28, %v_30: I64
-    %v_32 = add %v_12, %v_31: I64
-    %v_33 = loads @liveBuffers, 8: I64
-    %v_34 = cmp_neq %v_33, 0: I32
-    je %v_34, b_35, b_36
+    %v_27 = add %counted, %v_26: I64
+    %v_28 = load %v_24, 1: I32
+    %v_29 = cast %v_28: I64
+    call_complex freeHeap, %v_24
+    call_complex -=(I64), @liveBuffers, 1
+    %v_30 = add %v_27, %v_29: I64
+    %v_31 = add %v_12, %v_30: I64
+    %v_32 = loads @liveBuffers, 8: I64
+    %v_33 = cmp_neq %v_32, 0: I32
+    je %v_33, b_34, b_35
   }
 
-  b_35 {
+  b_34 {
     ret 18446744073709551614
   }
 
-  b_36 {
-    jmp b_37
-  }
-
-  b_37 {
+  b_35 {
     call_complex +=(I64), @liveBuffers, 1
-    %v_38 = call_complex allocateHeap, %v_18: Ptr
-    setpattern %v_38, %v_18, 0
+    %v_36 = call_complex allocateHeap, %v_18: Ptr
+    setpattern %v_36, %v_18, 0
     call_complex +=(I64), @liveBuffers, 1
-    %v_39 = call_complex allocateHeap, %v_19: Ptr
-    setpattern %v_39, %v_19, 0
-    call_complex freeHeap, %v_38
+    %v_37 = call_complex allocateHeap, %v_19: Ptr
+    setpattern %v_37, %v_19, 0
+    call_complex freeHeap, %v_36
     call_complex -=(I64), @liveBuffers, 1
     %counted = loads @liveBuffers, 8: I64
-    %v_40 = load %v_39, 1: I32
-    %v_41 = cast %v_40: I64
-    %v_42 = add %counted, %v_41: I64
-    call_complex freeHeap, %v_39
+    %v_38 = load %v_37, 1: I32
+    %v_39 = cast %v_38: I64
+    %v_40 = add %counted, %v_39: I64
+    call_complex freeHeap, %v_37
     call_complex -=(I64), @liveBuffers, 1
-    %v_43 = add %v_42, 3: I64
-    %v_44 = add %v_32, %v_43: I64
-    %v_45 = loads @liveBuffers, 8: I64
-    %v_46 = cmp_neq %v_45, 0: I32
-    je %v_46, b_47, b_48
+    %v_41 = add %v_40, 3: I64
+    %v_42 = add %v_31, %v_41: I64
+    %v_43 = loads @liveBuffers, 8: I64
+    %v_44 = cmp_neq %v_43, 0: I32
+    je %v_44, b_45, b_46
   }
 
-  b_47 {
+  b_45 {
     ret 18446744073709551613
   }
 
-  b_48 {
-    jmp b_49
-  }
-
-  b_49 {
-    ret %v_44
+  b_46 {
+    ret %v_42
   }
 }
 

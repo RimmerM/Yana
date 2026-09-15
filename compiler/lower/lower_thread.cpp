@@ -916,3 +916,84 @@ bool foldDecidedBranches(LowerBase base, LowerModule& module, LowerFunction& fun
 
     return changed;
 }
+
+/*
+ * The pair a removed branch left, spliced - see lower_thread.h for where they come from and what
+ * reads the difference.
+ */
+bool mergeLinearBlocks(LowerBase base, LowerFunction& fun) {
+    auto& arena = fun.arena;
+    auto entry = fun.blocks.get(base, 0);
+    auto merged = false;
+
+    for(Size i = 0; i < fun.blocks.size(); i++) {
+        auto block = base[fun.blocks.get(base, i)];
+
+        // Never into the entry, which is a stub rather than a block of the body: `LowerFunction`
+        // makes it to hold the argument references, nothing enters it, and `validateLowerEntryBlock`
+        // requires it to leave by one unconditional jump.
+        if(block - base == entry) continue;
+
+        // Repeated, since the block that moves up may end in a jump of its own.
+        while(block->terminator && base[block->terminator]->kind == LowerInst::Jmp) {
+            auto next = block->successor(base, 0);
+            if(next == block || next - base == entry || next->incoming.size() != 1) break;
+            if(next->successors(base).containsValue(block - base)) break;
+
+            // One predecessor, so each phi is its one alternative.
+            for(auto phiPtr: next->phis.contents(base)) {
+                auto phi = base[phiPtr];
+                replaceUses(base, arena, &phi->result - base, phi->used().ptr[0]);
+                detach(base, (LowerInst*)phi);
+            }
+
+            detach(base, base[block->terminator]);
+            block->terminator = nullptr;
+            block->clearSuccessors();
+
+            for(auto instPtr: next->instructions.contents(base)) {
+                base[instPtr]->block = block - base;
+                block->instructions.push(arena, instPtr);
+            }
+
+            // The terminator moves as it is, so its edges are the successor's own: each target keeps
+            // its position, and names this block where it named the successor.
+            SmallArray<LowerPtr<LowerBlock>, 4> targets;
+            for(auto targetPtr: next->successors(base)) {
+                targets.push(targetPtr);
+
+                auto target = base[targetPtr];
+                for(Size k = 0; k < target->incoming.size(); k++) {
+                    if(base[target->incoming.get(base, k)] == next) target->incoming.set(base, k, block - base);
+                }
+
+                for(auto phiPtr: target->phis.contents(base)) {
+                    auto sources = base[phiPtr]->sources();
+                    for(Size k = 0; k < sources.length; k++) {
+                        if(base[sources.ptr[k]] == next) sources.ptr[k] = block - base;
+                    }
+                }
+            }
+
+            block->terminator = next->terminator;
+            base[block->terminator]->block = block - base;
+            block->setSuccessors(base, targets.pointer(), targets.size());
+
+            for(Size k = 0; k < fun.blocks.size(); k++) {
+                if(fun.blocks.get(base, k) != next - base) continue;
+
+                fun.blocks.remove(base, k);
+                if(k < i) i--;
+                break;
+            }
+
+            merged = true;
+        }
+    }
+
+    if(merged) {
+        for(Size i = 0; i < fun.blocks.size(); i++) base[fun.blocks.get(base, i)]->index = BlockIndex(i);
+    }
+
+    return merged;
+}

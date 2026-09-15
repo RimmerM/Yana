@@ -168,20 +168,16 @@ released<complex>(%c: I32, %h: Ptr): I32 {
     jmp b_5
   }
 
-  b_6 {
-    jmp b_5
-  }
-
   b_5 {
-    %v_7 = phi [b_1, %v_4], [b_6, 0]: I32
-    ret %v_7
+    %v_6 = phi [b_1, %v_4], [b_2, 0]: I32
+    ret %v_6
   }
 
   b_2 {
-    %v_8 = loads @live, 4: I32
-    %v_9 = sub %v_8, 1: I32
-    store @live, %v_9, 4
-    jmp b_6
+    %v_7 = loads @live, 4: I32
+    %v_8 = sub %v_7, 1: I32
+    store @live, %v_8, 4
+    jmp b_5
   }
 }
 

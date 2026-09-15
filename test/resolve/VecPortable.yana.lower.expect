@@ -67,83 +67,59 @@ arithmetic<complex>(%v: i32x4): I32 {
   }
 
   b_9 {
-    jmp b_10
+    %v_10 = vlane %upper, 0: I32
+    %v_11 = cmp_neq %v_10, 2: I32
+    je %v_11, b_12, b_13
   }
 
-  b_10 {
-    %v_11 = vlane %upper, 0: I32
-    %v_12 = cmp_neq %v_11, 2: I32
-    je %v_12, b_13, b_14
-  }
-
-  b_13 {
+  b_12 {
     ret 18446744073709551614
   }
 
-  b_14 {
-    jmp b_15
+  b_13 {
+    %v_14 = vlane %lower, 1: I32
+    %v_15 = cmp_neq %v_14, 1: I32
+    je %v_15, b_16, b_17
   }
 
-  b_15 {
-    %v_16 = vlane %lower, 1: I32
-    %v_17 = cmp_neq %v_16, 1: I32
-    je %v_17, b_18, b_19
-  }
-
-  b_18 {
+  b_16 {
     ret 18446744073709551613
   }
 
-  b_19 {
-    jmp b_20
+  b_17 {
+    %v_18 = vlane %upper, 1: I32
+    %v_19 = cmp_neq %v_18, 2: I32
+    je %v_19, b_20, b_21
   }
 
   b_20 {
-    %v_21 = vlane %upper, 1: I32
-    %v_22 = cmp_neq %v_21, 2: I32
-    je %v_22, b_23, b_24
-  }
-
-  b_23 {
     ret 18446744073709551612
   }
 
-  b_24 {
-    jmp b_25
+  b_21 {
+    %negated = sub %v_1, %v: i32x4
+    %v_22 = abs %negated: i32x4
+    %v_23 = vlane %v_22, 0: I32
+    %v_24 = cmp_neq %v_23, 2: I32
+    je %v_24, b_25, b_26
   }
 
   b_25 {
-    %negated = sub %v_1, %v: i32x4
-    %v_26 = abs %negated: i32x4
-    %v_27 = vlane %v_26, 0: I32
-    %v_28 = cmp_neq %v_27, 2: I32
-    je %v_28, b_29, b_30
-  }
-
-  b_29 {
     ret 18446744073709551611
   }
 
+  b_26 {
+    %v_27 = abs %v: i32x4
+    %v_28 = vlane %v_27, 1: I32
+    %v_29 = cmp_neq %v_28, 2: I32
+    je %v_29, b_30, b_31
+  }
+
   b_30 {
-    jmp b_31
-  }
-
-  b_31 {
-    %v_32 = abs %v: i32x4
-    %v_33 = vlane %v_32, 1: I32
-    %v_34 = cmp_neq %v_33, 2: I32
-    je %v_34, b_35, b_36
-  }
-
-  b_35 {
     ret 18446744073709551610
   }
 
-  b_36 {
-    jmp b_37
-  }
-
-  b_37 {
+  b_31 {
     ret 0
   }
 }
@@ -163,58 +139,42 @@ floats<complex>(): I32 {
   }
 
   b_5 {
-    jmp b_6
+    %v_6 = cmp_lt %a, %zeros: m32x4
+    %v_7 = select %v_6, %a, %zeros: f32x4
+    %v_8 = vlane %v_7, 0: F32
+    %v_9 = cmp_neq %v_8, -1.5: I32
+    je %v_9, b_10, b_11
   }
 
-  b_6 {
-    %v_7 = cmp_lt %a, %zeros: m32x4
-    %v_8 = select %v_7, %a, %zeros: f32x4
-    %v_9 = vlane %v_8, 0: F32
-    %v_10 = cmp_neq %v_9, -1.5: I32
-    je %v_10, b_11, b_12
-  }
-
-  b_11 {
+  b_10 {
     ret 18446744073709551614
   }
 
-  b_12 {
-    jmp b_13
+  b_11 {
+    %v_12 = cmp_gt %a, %zeros: m32x4
+    %v_13 = select %v_12, %a, %zeros: f32x4
+    %v_14 = vlane %v_13, 1: F32
+    %v_15 = cmp_neq %v_14, 0: I32
+    je %v_15, b_16, b_17
   }
 
-  b_13 {
-    %v_14 = cmp_gt %a, %zeros: m32x4
-    %v_15 = select %v_14, %a, %zeros: f32x4
-    %v_16 = vlane %v_15, 1: F32
-    %v_17 = cmp_neq %v_16, 0: I32
-    je %v_17, b_18, b_19
-  }
-
-  b_18 {
+  b_16 {
     ret 18446744073709551613
   }
 
-  b_19 {
-    jmp b_20
+  b_17 {
+    %v_18 = abs %zeros: f32x4
+    %v_19 = vlane %v_18, 0: F32
+    %v_20 = div 1, %v_19: F32
+    %v_21 = cmp_lt %v_20, 0: I32
+    je %v_21, b_22, b_23
   }
 
-  b_20 {
-    %v_21 = abs %zeros: f32x4
-    %v_22 = vlane %v_21, 0: F32
-    %v_23 = div 1, %v_22: F32
-    %v_24 = cmp_lt %v_23, 0: I32
-    je %v_24, b_25, b_26
-  }
-
-  b_25 {
+  b_22 {
     ret 18446744073709551612
   }
 
-  b_26 {
-    jmp b_27
-  }
-
-  b_27 {
+  b_23 {
     ret 0
   }
 }
@@ -236,113 +196,81 @@ rearrangement<complex>(): I32 {
   }
 
   b_7 {
-    jmp b_8
+    %v_8 = vlane %backwards, 1: I32
+    %v_9 = cmp_neq %v_8, 2: I32
+    je %v_9, b_10, b_11
   }
 
-  b_8 {
-    %v_9 = vlane %backwards, 1: I32
-    %v_10 = cmp_neq %v_9, 2: I32
-    je %v_10, b_11, b_12
-  }
-
-  b_11 {
+  b_10 {
     ret 18446744073709551614
   }
 
-  b_12 {
-    jmp b_13
+  b_11 {
+    %v_12 = vshuffle %indices, %indices, 1, 2, 3, 0: i32x4
+    %v_13 = vlane %v_12, 0: I32
+    %v_14 = cmp_neq %v_13, 1: I32
+    je %v_14, b_15, b_16
   }
 
-  b_13 {
-    %v_14 = vshuffle %indices, %indices, 1, 2, 3, 0: i32x4
-    %v_15 = vlane %v_14, 0: I32
-    %v_16 = cmp_neq %v_15, 1: I32
-    je %v_16, b_17, b_18
-  }
-
-  b_17 {
+  b_15 {
     ret 18446744073709551613
   }
 
-  b_18 {
-    jmp b_19
+  b_16 {
+    %v_17 = vshuffle %indices, %indices, 3, 0, 1, 2: i32x4
+    %v_18 = vlane %v_17, 0: I32
+    %v_19 = cmp_neq %v_18, 3: I32
+    je %v_19, b_20, b_21
   }
 
-  b_19 {
-    %v_20 = vshuffle %indices, %indices, 3, 0, 1, 2: i32x4
-    %v_21 = vlane %v_20, 0: I32
-    %v_22 = cmp_neq %v_21, 3: I32
-    je %v_22, b_23, b_24
-  }
-
-  b_23 {
+  b_20 {
     ret 18446744073709551612
   }
 
-  b_24 {
-    jmp b_25
-  }
-
-  b_25 {
+  b_21 {
     %nines = vsplat 9: i32x4
     %low = vshuffle %indices, %nines, 0, 4, 1, 5: i32x4
     %high = vshuffle %indices, %nines, 2, 6, 3, 7: i32x4
-    %v_26 = vlane %low, 0: I32
-    %v_27 = cmp_neq %v_26, 0: I32
+    %v_22 = vlane %low, 0: I32
+    %v_23 = cmp_neq %v_22, 0: I32
+    je %v_23, b_24, b_25
+  }
+
+  b_24 {
+    ret 18446744073709551611
+  }
+
+  b_25 {
+    %v_26 = vlane %low, 1: I32
+    %v_27 = cmp_neq %v_26, 9: I32
     je %v_27, b_28, b_29
   }
 
   b_28 {
-    ret 18446744073709551611
-  }
-
-  b_29 {
-    jmp b_30
-  }
-
-  b_30 {
-    %v_31 = vlane %low, 1: I32
-    %v_32 = cmp_neq %v_31, 9: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_33 {
     ret 18446744073709551610
   }
 
-  b_34 {
-    jmp b_35
+  b_29 {
+    %v_30 = vlane %high, 0: I32
+    %v_31 = cmp_neq %v_30, 2: I32
+    je %v_31, b_32, b_33
   }
 
-  b_35 {
-    %v_36 = vlane %high, 0: I32
-    %v_37 = cmp_neq %v_36, 2: I32
-    je %v_37, b_38, b_39
-  }
-
-  b_38 {
+  b_32 {
     ret 18446744073709551609
   }
 
-  b_39 {
-    jmp b_40
+  b_33 {
+    %v_34 = vlane %high, 1: I32
+    %v_35 = cmp_neq %v_34, 9: I32
+    je %v_35, b_36, b_37
   }
 
-  b_40 {
-    %v_41 = vlane %high, 1: I32
-    %v_42 = cmp_neq %v_41, 9: I32
-    je %v_42, b_43, b_44
-  }
-
-  b_43 {
+  b_36 {
     ret 18446744073709551608
   }
 
-  b_44 {
-    jmp b_45
-  }
-
-  b_45 {
+  b_37 {
     ret 0
   }
 }
@@ -408,78 +336,58 @@ main<complex>(): I32 {
   }
 
   b_5 {
-    jmp b_7
+    %v_7 = call_complex arithmetic, %v: I32
+    %v_8 = cmp_neq %v_7, 0: I32
+    je %v_8, b_9, b_10
   }
 
-  b_7 {
-    %v_8 = call_complex arithmetic, %v: I32
-    %v_9 = cmp_neq %v_8, 0: I32
-    je %v_9, b_10, b_11
+  b_9 {
+    %v_11 = call_complex arithmetic, %v: I32
+    %v_12 = imul %v_11, 10: I32
+    ret %v_12
   }
 
   b_10 {
-    %v_12 = call_complex arithmetic, %v: I32
-    %v_13 = imul %v_12, 10: I32
-    ret %v_13
+    %v_13 = call_complex floats: I32
+    %v_14 = cmp_neq %v_13, 0: I32
+    je %v_14, b_15, b_16
   }
 
-  b_11 {
-    jmp b_14
+  b_15 {
+    %v_17 = call_complex floats: I32
+    %v_18 = imul %v_17, 100: I32
+    ret %v_18
   }
 
-  b_14 {
-    %v_15 = call_complex floats: I32
-    %v_16 = cmp_neq %v_15, 0: I32
-    je %v_16, b_17, b_18
-  }
-
-  b_17 {
-    %v_19 = call_complex floats: I32
-    %v_20 = imul %v_19, 100: I32
-    ret %v_20
-  }
-
-  b_18 {
-    jmp b_21
+  b_16 {
+    %v_19 = call_complex rearrangement: I32
+    %v_20 = cmp_neq %v_19, 0: I32
+    je %v_20, b_21, b_22
   }
 
   b_21 {
-    %v_22 = call_complex rearrangement: I32
-    %v_23 = cmp_neq %v_22, 0: I32
-    je %v_23, b_24, b_25
+    %v_23 = call_complex rearrangement: I32
+    %v_24 = imul %v_23, 1000: I32
+    ret %v_24
   }
 
-  b_24 {
-    %v_26 = call_complex rearrangement: I32
-    %v_27 = imul %v_26, 1000: I32
-    ret %v_27
+  b_22 {
+    %v_25 = loads @seed, 4: I32
+    %v_26 = vsplat %v_25: i32x4
+    %v_27 = call_complex regrouping, %v_26: I32
+    %v_28 = cmp_neq %v_27, 0: I32
+    je %v_28, b_29, b_30
   }
 
-  b_25 {
-    jmp b_28
+  b_29 {
+    %v_31 = loads @seed, 4: I32
+    %v_32 = vsplat %v_31: i32x4
+    %v_33 = call_complex regrouping, %v_32: I32
+    %v_34 = imul %v_33, 10000: I32
+    ret %v_34
   }
 
-  b_28 {
-    %v_29 = loads @seed, 4: I32
-    %v_30 = vsplat %v_29: i32x4
-    %v_31 = call_complex regrouping, %v_30: I32
-    %v_32 = cmp_neq %v_31, 0: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_33 {
-    %v_35 = loads @seed, 4: I32
-    %v_36 = vsplat %v_35: i32x4
-    %v_37 = call_complex regrouping, %v_36: I32
-    %v_38 = imul %v_37, 10000: I32
-    ret %v_38
-  }
-
-  b_34 {
-    jmp b_39
-  }
-
-  b_39 {
+  b_30 {
     ret 271
   }
 }

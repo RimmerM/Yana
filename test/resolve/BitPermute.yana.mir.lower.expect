@@ -169,76 +169,72 @@ main<complex>(): I32 {
   }
 
   b_135 {
-    jmp b_137
-  }
-
-  b_137 {
-    %v_138 = call_complex opaqueI32, 18: I32
-    %v_139 = scatterbits %v_138, %v_131: I32
-    %v_140 = cmp_eq %v_139, 301989888: I32
-    je %v_140, b_141, b_136
+    %v_137 = call_complex opaqueI32, 18: I32
+    %v_138 = scatterbits %v_137, %v_131: I32
+    %v_139 = cmp_eq %v_138, 301989888: I32
+    je %v_139, b_140, b_136
   }
 
   b_136 {
-    jmp b_142
+    jmp b_141
+  }
+
+  b_140 {
+    %v_142 = call_complex opaqueI32, 18446744073709551615: I32
+    %v_143 = call_complex opaqueI32, 18446744073709551615: I32
+    %v_144 = gatherbits %v_142, %v_143: I32
+    %v_145 = cmp_eq %v_144, 18446744073709551615: I32
+    jmp b_141
   }
 
   b_141 {
-    %v_143 = call_complex opaqueI32, 18446744073709551615: I32
-    %v_144 = call_complex opaqueI32, 18446744073709551615: I32
-    %v_145 = gatherbits %v_143, %v_144: I32
-    %v_146 = cmp_eq %v_145, 18446744073709551615: I32
-    jmp b_142
-  }
-
-  b_142 {
-    %v_147 = phi [b_136, 0], [b_141, %v_146]: I32
-    %v_148 = select %v_147, 8388608, 0: I32
-    %v_149 = add %v_130, %v_148: I32
-    %v_150 = call_complex opaqueU64, 81985529216486895: I64
-    %v_151 = call_complex opaqueU64, 71776123356119040: I64
-    %v_152 = gatherbits %v_150, %v_151: I64
-    %v_153 = cmp_eq %v_152, 2329003: I32
-    je %v_153, b_154, b_155
-  }
-
-  b_155 {
-    jmp b_156
+    %v_146 = phi [b_136, 0], [b_140, %v_145]: I32
+    %v_147 = select %v_146, 8388608, 0: I32
+    %v_148 = add %v_130, %v_147: I32
+    %v_149 = call_complex opaqueU64, 81985529216486895: I64
+    %v_150 = call_complex opaqueU64, 71776123356119040: I64
+    %v_151 = gatherbits %v_149, %v_150: I64
+    %v_152 = cmp_eq %v_151, 2329003: I32
+    je %v_152, b_153, b_154
   }
 
   b_154 {
-    %v_157 = call_complex opaqueU64, 291: I64
-    %v_158 = call_complex opaqueU64, 71776123356119040: I64
-    %v_159 = scatterbits %v_157, %v_158: I64
-    %v_160 = cmp_eq %v_159, 19070976: I32
-    jmp b_156
+    jmp b_155
   }
 
-  b_156 {
-    %v_161 = phi [b_155, 0], [b_154, %v_160]: I32
-    %v_162 = select %v_161, 16777216, 0: I32
-    %v_163 = add %v_149, %v_162: I32
-    %v_164 = call_complex opaqueU32, 43981: I32
-    %v_165 = call_complex opaqueU32, 4660: I32
-    %v_166 = scatterbits %v_164, 1431655765: I32
-    %v_167 = scatterbits %v_165, 2863311530: I32
-    %v_168 = or %v_166, %v_167: I32
-    %v_169 = cmp_eq %v_168, 1179474545: I32
-    %v_170 = select %v_169, 33554432, 0: I32
-    %v_171 = add %v_163, %v_170: I32
-    %v_172 = add %v_171, 201326592: I32
-    %v_173 = call_complex opaqueU32, 3735928559: I32
-    %v_174 = call_complex lowVia(U32), %v_173, 16: I32
-    %v_175 = cmp_eq %v_174, 48879: I32
-    %v_176 = select %v_175, 268435456, 0: I32
-    %v_177 = call_complex opaqueU32, 305419896: I32
-    %v_178 = call_complex opaqueU32, 4278255360: I32
-    %v_179 = call_complex gatherVia(U32), %v_177, %v_178: I32
-    %v_180 = cmp_eq %v_179, 4694: I32
-    %v_181 = select %v_180, 536870912, 0: I32
-    %v_182 = add %v_176, %v_181: I32
-    %v_183 = add %v_172, %v_182: I32
-    ret %v_183
+  b_153 {
+    %v_156 = call_complex opaqueU64, 291: I64
+    %v_157 = call_complex opaqueU64, 71776123356119040: I64
+    %v_158 = scatterbits %v_156, %v_157: I64
+    %v_159 = cmp_eq %v_158, 19070976: I32
+    jmp b_155
+  }
+
+  b_155 {
+    %v_160 = phi [b_154, 0], [b_153, %v_159]: I32
+    %v_161 = select %v_160, 16777216, 0: I32
+    %v_162 = add %v_148, %v_161: I32
+    %v_163 = call_complex opaqueU32, 43981: I32
+    %v_164 = call_complex opaqueU32, 4660: I32
+    %v_165 = scatterbits %v_163, 1431655765: I32
+    %v_166 = scatterbits %v_164, 2863311530: I32
+    %v_167 = or %v_165, %v_166: I32
+    %v_168 = cmp_eq %v_167, 1179474545: I32
+    %v_169 = select %v_168, 33554432, 0: I32
+    %v_170 = add %v_162, %v_169: I32
+    %v_171 = add %v_170, 201326592: I32
+    %v_172 = call_complex opaqueU32, 3735928559: I32
+    %v_173 = call_complex lowVia(U32), %v_172, 16: I32
+    %v_174 = cmp_eq %v_173, 48879: I32
+    %v_175 = select %v_174, 268435456, 0: I32
+    %v_176 = call_complex opaqueU32, 305419896: I32
+    %v_177 = call_complex opaqueU32, 4278255360: I32
+    %v_178 = call_complex gatherVia(U32), %v_176, %v_177: I32
+    %v_179 = cmp_eq %v_178, 4694: I32
+    %v_180 = select %v_179, 536870912, 0: I32
+    %v_181 = add %v_175, %v_180: I32
+    %v_182 = add %v_171, %v_181: I32
+    ret %v_182
   }
 }
 

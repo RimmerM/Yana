@@ -1,0 +1,192 @@
+{-
+   **Index arithmetic carried as counters of its own.**
+
+   `compiler/lower/lower_induction.h`'s `reduceDerivedInductions`, and §112 of
+   `test/bench/findings.md`. A value the loop recomputes from its counter every iteration - `r * n + c`
+   - becomes a header phi advanced in the latch, and where every other reader of the counter is its
+   step and the loop's own test, the test moves onto the derived value and the counter goes.
+
+   The `.lower.expect` beside this file records which loops lost their counter. This file checks what a
+   golden cannot: that every one of them still computes what it did, and above all the cases where the
+   restated test `%d != f(max(%n, %s))` could disagree with `%i < %n` - a loop entered zero times, a
+   negative bound, a start past the bound, and derived values that wrap.
+
+   Each check contributes 1, so `main` is the number of checks when they all pass.
+-}
+
+import Native
+
+-- The shape the pass is about: two loops, each index recomputed from both counters. `c + 3` rather
+-- than `c + 1`, which would be the counter's own step and give it a second reader.
+@noinline
+fn nested(n: Int) -> Int:
+    let &acc = 0 :: Int
+    let &r = 0 :: Int
+
+    while r < n:
+        let &c = 0 :: Int
+        while c < n:
+            acc = acc + (r * n + c) * (c + 3)
+            c = c + 1
+        r = r + 1
+
+    return acc
+
+-- An offset from a start that may already be at or past the bound, so the loop may never be entered.
+@noinline
+fn offset(start: Int, n: Int, x: Int) -> Int:
+    let &acc = 0 :: Int
+    let &i = start
+
+    while i < n:
+        acc = acc * 3 + (x + i)
+        i = i + 1
+
+    return acc
+
+-- The bound spelled on the left, and a difference rather than a sum.
+@noinline
+fn distance(n: Int, x: Int) -> Int:
+    let &acc = 0 :: Int
+    let &i = 0 :: Int
+
+    while n > i:
+        acc = acc * 5 + (i - x)
+        i = i + 1
+
+    return acc
+
+-- Descending, with a reflection: the derived value steps up while the counter steps down.
+@noinline
+fn reflection(start: Int, n: Int, x: Int) -> Int:
+    let &acc = 0 :: Int
+    let &i = start
+
+    while i > n:
+        acc = acc * 7 + (x - i)
+        i = i - 1
+
+    return acc
+
+-- A derived value that wraps partway through the loop, and a limit that wraps with it.
+@noinline
+fn wrapping(n: Int) -> Int:
+    let &acc = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < n:
+        acc = acc + ((2147483600 + i) `and` 1023)
+        i = i + 1
+
+    return acc
+
+-- The counter has a reader of its own, so it stays; the multiply by a value is still carried.
+@noinline
+fn scaled(n: Int, m: Int) -> Int:
+    let &acc = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < n:
+        acc = acc + i * m + i
+        i = i + 1
+
+    return acc
+
+-- Only a shift is derived, which is not one to one, so the test cannot move and nothing changes.
+@noinline
+fn shifted(n: Int) -> Int:
+    let &acc = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < n:
+        acc = acc + (i `shl` 3)
+        i = i + 1
+
+    return acc
+
+-- A counter read after the loop, which keeps it.
+@noinline
+fn escaping(n: Int, x: Int) -> Int:
+    let &acc = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < n:
+        acc = acc + (x + i)
+        i = i + 1
+
+    return acc + i * 1000
+
+-- Two at a time, so the test is not one this restates.
+@noinline
+fn striding(n: Int, x: Int) -> Int:
+    let &acc = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < n:
+        acc = acc * 3 + (x + i)
+        i = i + 2
+
+    return acc
+
+-- An inclusive test, which is not restated either.
+@noinline
+fn inclusive(n: Int, x: Int) -> Int:
+    let &acc = 0 :: Int
+    let &i = 0 :: Int
+
+    while i <= n:
+        acc = acc * 3 + (x + i)
+        i = i + 1
+
+    return acc
+
+-- A 64-bit counter and bound.
+@noinline
+fn wide(n: I64, x: I64) -> I64:
+    let &acc = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < n:
+        acc = acc * 3 + (x + i)
+        i = i + 1
+
+    return acc
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    if nested(7) == 7252 then total = total + 1
+    if nested(0) == 0 then total = total + 1
+    if nested(-3) == 0 then total = total + 1
+
+    if offset(0, 10, 5) == 162377 then total = total + 1
+    if offset(4, 4, 5) == 0 then total = total + 1
+    if offset(9, 2, 5) == 0 then total = total + 1
+    if offset(0, -6, 5) == 0 then total = total + 1
+    if offset(-3, 2, 100) == 11795 then total = total + 1
+
+    if distance(6, 2) == -6837 then total = total + 1
+    if distance(-2, 2) == 0 then total = total + 1
+
+    if reflection(10, 3, 1) == -1212438 then total = total + 1
+    if reflection(3, 10, 1) == 0 then total = total + 1
+    if reflection(-4, -9, 1) == 14471 then total = total + 1
+
+    if wrapping(200) == 59452 then total = total + 1
+
+    if scaled(9, 13) == 504 then total = total + 1
+    if scaled(-1, 13) == 0 then total = total + 1
+
+    if shifted(9) == 288 then total = total + 1
+
+    if escaping(5, 3) == 5025 then total = total + 1
+    if escaping(-5, 3) == 0 then total = total + 1
+
+    if striding(9, 1) == 237 then total = total + 1
+    if inclusive(4, 1) == 179 then total = total + 1
+    if inclusive(-1, 1) == 0 then total = total + 1
+
+    if wide(5, 10000000000) == 1210000000058 then total = total + 1
+    if wide(-5, 10000000000) == 0 then total = total + 1
+
+    return total

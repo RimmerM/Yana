@@ -235,8 +235,10 @@ static void selectMemorySources(Context&, LowerBase base, LowerFunction& fun) {
 // Expects: canonical operands.  Establishes: no store reaches allocation whose value is an operation
 // on a load of the same location. Mutates: the instruction lists and the affected use lists.
 // Invalidates: instruction positions within a block.
-static void selectStoreUpdates(Context&, LowerBase base, LowerFunction& fun) {
-    foldStoreUpdates(base, fun);
+static void selectStoreUpdates(Context& ctx, LowerBase base, LowerFunction& fun) {
+    // Inside loops too only where the build is tuned for a core that measured it as a win - see
+    // the note above `tryFoldStoreUpdate`, and TargetTuning.
+    foldStoreUpdates(base, fun, ctx.settings.tuning == TargetTuning::Amd);
 }
 
 // Chooses the shape of each instruction: which immediates are embedded into the encoding, which

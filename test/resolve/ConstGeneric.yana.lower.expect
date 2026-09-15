@@ -180,25 +180,21 @@ doubled<complex>(%genEnv: Ptr, %v_0: Ptr, %xs: Ptr) {
 
   b_19 {
     %v_26 = cmp_ge %v_15, %v_12: I32
-    je %v_26, b_27, b_28
-  }
-
-  b_28 {
-    %v_29 = shl %v_15, 2: I64
-    %v_30 = add %out, %v_29: Ptr
-    jmp b_16
+    je %v_26, b_27, b_16
   }
 
   b_16 {
-    %v_31 = loads %v_30, 4: I32
-    %v_32 = shl %v_31, 1: I32
-    store %v_30, %v_32, 4
+    %v_28 = shl %v_15, 2: I64
+    %v_29 = add %out, %v_28: Ptr
+    %v_30 = loads %v_29, 4: I32
+    %v_31 = shl %v_30, 1: I32
+    store %v_29, %v_31, 4
     %v_17 = add %v_15, 1: I64
     jmp b_14
   }
 
   b_27 {
-    %v_33 = syscall 60, 134: I64
+    %v_32 = syscall 60, 134: I64
     unreachable 
   }
 }
@@ -223,23 +219,15 @@ mutatedCopy<complex>(%genEnv: Ptr, %xs: Ptr): I32 {
   }
 
   b_14 {
-    jmp b_15
-  }
-
-  b_15 {
-    %v_16 = loads %c, 4: I32
-    %v_17 = add %v_16, 1: I32
-    store %c, %v_17, 4
-    jmp b_18
-  }
-
-  b_18 {
-    %v_19 = loads %c, 4: I32
-    ret %v_19
+    %v_15 = loads %c, 4: I32
+    %v_16 = add %v_15, 1: I32
+    store %c, %v_16, 4
+    %v_17 = loads %c, 4: I32
+    ret %v_17
   }
 
   b_13 {
-    %v_20 = syscall 60, 134: I64
+    %v_18 = syscall 60, 134: I64
     unreachable 
   }
 }

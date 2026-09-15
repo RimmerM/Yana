@@ -100,49 +100,33 @@ main<complex>(): I32 {
     %v_56 = add %v_53, 4: Ptr
     store %v_56, 0, 4
     %v_57 = call_complex opaqueU32, 305419896: I32
-    jmp b_58
-  }
-
-  b_58 {
     store %v_53, %v_57, 4
-    jmp b_59
-  }
-
-  b_59 {
-    %v_60 = load %v_53, 4: I32
-    %v_61 = bswap %v_60: I32
-    %v_62 = cmp_eq %v_61, 2018915346: I32
-    %v_63 = select %v_62, 512, 0: I32
-    %v_64 = call_complex opaqueU32, 305419896: I32
-    %v_65 = bswap %v_64: I32
-    jmp b_66
-  }
-
-  b_66 {
-    %v_67 = add %v_53, 4: Ptr
-    store %v_67, %v_65, 4
-    jmp b_68
-  }
-
-  b_68 {
-    %v_69 = load %v_67, 4: I32
+    %v_58 = load %v_53, 4: I32
+    %v_59 = bswap %v_58: I32
+    %v_60 = cmp_eq %v_59, 2018915346: I32
+    %v_61 = select %v_60, 512, 0: I32
+    %v_62 = call_complex opaqueU32, 305419896: I32
+    %v_63 = bswap %v_62: I32
+    %v_64 = add %v_53, 4: Ptr
+    store %v_64, %v_63, 4
+    %v_65 = load %v_64, 4: I32
     call_complex Array(a).reclaim(U32), %v_52
-    %v_70 = cmp_eq %v_69, 2018915346: I32
-    %v_71 = select %v_70, 1024, 0: I32
-    %v_72 = add %v_63, %v_71: I32
-    %v_73 = add %v_51, %v_72: I32
-    %v_74 = add %v_73, 2048: I32
-    %v_75 = call_complex opaqueU32, 305419896: I32
-    %v_76 = call_complex swapVia(U32), %v_75: I32
-    %v_77 = cmp_eq %v_76, 2018915346: I32
-    %v_78 = select %v_77, 4096, 0: I32
-    %v_79 = call_complex opaqueU64, 1: I64
-    %v_80 = call_complex swapVia(U64), %v_79: I64
-    %v_81 = cmp_eq %v_80, 72057594037927936: I32
-    %v_82 = select %v_81, 8192, 0: I32
-    %v_83 = add %v_78, %v_82: I32
-    %v_84 = add %v_74, %v_83: I32
-    ret %v_84
+    %v_66 = cmp_eq %v_65, 2018915346: I32
+    %v_67 = select %v_66, 1024, 0: I32
+    %v_68 = add %v_61, %v_67: I32
+    %v_69 = add %v_51, %v_68: I32
+    %v_70 = add %v_69, 2048: I32
+    %v_71 = call_complex opaqueU32, 305419896: I32
+    %v_72 = call_complex swapVia(U32), %v_71: I32
+    %v_73 = cmp_eq %v_72, 2018915346: I32
+    %v_74 = select %v_73, 4096, 0: I32
+    %v_75 = call_complex opaqueU64, 1: I64
+    %v_76 = call_complex swapVia(U64), %v_75: I64
+    %v_77 = cmp_eq %v_76, 72057594037927936: I32
+    %v_78 = select %v_77, 8192, 0: I32
+    %v_79 = add %v_74, %v_78: I32
+    %v_80 = add %v_70, %v_79: I32
+    ret %v_80
   }
 }
 

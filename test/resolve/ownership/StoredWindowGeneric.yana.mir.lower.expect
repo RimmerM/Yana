@@ -14,33 +14,29 @@ main<complex>(): I32 {
   }
 
   b_7 {
-    %v_8 = cmp_ilt %v_9, %v_5: I32
-    je %v_8, b_10, b_11
-  }
-
-  b_11 {
-    %v_12 = imul %v_13, 6: I32
-    ret %v_12
+    %v_8 = imul %v_9, 6: I32
+    ret %v_8
   }
 
   b_10 {
-    %v_14 = cmp_ge %v_9, %v_5: I32
-    je %v_14, b_15, b_6
+    %v_11 = cmp_ge %v_12, %v_5: I32
+    je %v_11, b_13, b_6
   }
 
   b_6 {
-    %v_16 = phi [b_10, %v_13], [b_0, 0]: I32
-    %v_17 = phi [b_10, %v_9], [b_0, 0]: I64
-    %v_18 = shl %v_17, 2: I64
-    %v_19 = add %v_1, %v_18: Ptr
-    %v_20 = loads %v_19, 4: I32
-    %v_13 = add %v_16, %v_20: I32
-    %v_9 = add %v_17, 1: I64
-    jmp b_7
+    %v_14 = phi [b_10, %v_9], [b_0, 0]: I32
+    %v_15 = phi [b_10, %v_12], [b_0, 0]: I64
+    %v_16 = shl %v_15, 2: I64
+    %v_17 = add %v_1, %v_16: Ptr
+    %v_18 = loads %v_17, 4: I32
+    %v_9 = add %v_14, %v_18: I32
+    %v_12 = add %v_15, 1: I64
+    %v_19 = cmp_ilt %v_12, %v_5: I32
+    je %v_19, b_10, b_7
   }
 
-  b_15 {
-    %v_21 = syscall 60, 134: I64
+  b_13 {
+    %v_20 = syscall 60, 134: I64
     unreachable 
   }
 }

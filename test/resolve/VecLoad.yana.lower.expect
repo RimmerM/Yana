@@ -53,20 +53,16 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 
   b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: I64
-    %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: I64
-    %v_9 = add %v_7, %v_8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    store %allocation, %v_10, 8
-    %v_11 = load @heapFree, 8: Ptr
-    %v_12 = add %v_11, %v_8: Ptr
-    store %v_12, %allocation, 8
+    %v_5 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_5, 8: I64
+    %v_6 = load @heapFree, 8: Ptr
+    %v_7 = shl %sizeClass, 3: I64
+    %v_8 = add %v_6, %v_7: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    store %allocation, %v_9, 8
+    %v_10 = load @heapFree, 8: Ptr
+    %v_11 = add %v_10, %v_7: Ptr
+    store %v_11, %allocation, 8
     ret 
   }
 }
@@ -156,18 +152,14 @@ indexOf<complex>(%xs$items: Ptr, %xs$length: I64, %needle: I32): I32 {
     %v_15 = load %v_14, 16: i32x4
     %hits = cmp_eq %v_15, %wanted: m32x4
     %v_16 = vreduce_or %hits: I32
-    je %v_16, b_17, b_18
+    je %v_16, b_17, b_3
   }
 
   b_17 {
-    %v_19 = phi [b_7, %hits], [b_10, %hits]: m32x4
-    %v_20 = vreduce_first %v_19: I32
-    %v_21 = add %v_2, %v_20: I32
-    ret %v_21
-  }
-
-  b_18 {
-    jmp b_3
+    %v_18 = phi [b_7, %hits], [b_10, %hits]: m32x4
+    %v_19 = vreduce_first %v_18: I32
+    %v_20 = add %v_2, %v_19: I32
+    ret %v_20
   }
 
   b_3 {
@@ -176,36 +168,32 @@ indexOf<complex>(%xs$items: Ptr, %xs$length: I64, %needle: I32): I32 {
   }
 
   b_10 {
-    %v_22 = sub %n, %v_2: I32
-    %v_23 = vsplat 0: i32x4
-    %v_24 = vwithlane %v_23, 1, 1: i32x4
-    %v_25 = vwithlane %v_24, 2, 2: i32x4
-    %v_26 = vwithlane %v_25, 3, 3: i32x4
-    %v_27 = vsplat %v_22: i32x4
-    %live = cmp_ilt %v_26, %v_27: m32x4
-    %v_28 = sext %v_2: I64
-    %v_29 = shl %v_28, 2: I64
-    %v_30 = add %xs$items, %v_29: Ptr
-    %v_31 = loadx %v_30, 16: i32x4
-    %v_32 = cmp_eq %v_31, %wanted: m32x4
-    %hits = and %v_32, %live: m32x4
-    %v_33 = vreduce_or %hits: I32
-    je %v_33, b_17, b_34
+    %v_21 = sub %n, %v_2: I32
+    %v_22 = vsplat 0: i32x4
+    %v_23 = vwithlane %v_22, 1, 1: i32x4
+    %v_24 = vwithlane %v_23, 2, 2: i32x4
+    %v_25 = vwithlane %v_24, 3, 3: i32x4
+    %v_26 = vsplat %v_21: i32x4
+    %live = cmp_ilt %v_25, %v_26: m32x4
+    %v_27 = sext %v_2: I64
+    %v_28 = shl %v_27, 2: I64
+    %v_29 = add %xs$items, %v_28: Ptr
+    %v_30 = loadx %v_29, 16: i32x4
+    %v_31 = cmp_eq %v_30, %wanted: m32x4
+    %hits = and %v_31, %live: m32x4
+    %v_32 = vreduce_or %hits: I32
+    je %v_32, b_17, b_33
   }
 
   b_11 {
-    jmp b_35
+    jmp b_34
+  }
+
+  b_33 {
+    jmp b_34
   }
 
   b_34 {
-    jmp b_36
-  }
-
-  b_36 {
-    jmp b_35
-  }
-
-  b_35 {
     ret 18446744073709551615
   }
 }

@@ -1415,6 +1415,417 @@ void dropUnreachedBlock(LowerBase base, LowerFunction& fun, LowerBlock* block) {
     for(Size i = 0; i < fun.blocks.size(); i++) base[fun.blocks.get(base, i)]->index = BlockIndex(i);
 }
 
+/*
+ * A value computed from a counter every iteration, carried as a recurrence of its own instead - see
+ * `reduceDerivedInductions` in the header.
+ */
+
+// Masked to the counter's width. An immediate is stored as the pattern of its own type, and the
+// arithmetic below is done at 64 bits.
+U64 widthMask(LowerType type) {
+    return widthOf(type) >= 64 ? ~U64(0) : (U64(1) << widthOf(type)) - 1;
+}
+
+// A counter advanced by a literal on the latch edge. Nothing is asked about wrapping: every value this
+// pass derives from it is computed at the counter's own width, where the recurrence is exact.
+struct DerivedCounter {
+    LowerInst* step;
+    LowerValue* initial;
+    U64 amount;
+};
+
+Maybe<DerivedCounter> derivedCounterOf(LowerBase base, const ReducibleLoop& loop, LowerInstPhi* phi) {
+    if(phi->usedCount != 2 || !isInt(phi->result.type)) return Nothing();
+
+    auto initial = phiValueFrom(base, phi, loop.pre);
+    auto advanced = phiValueFrom(base, phi, loop.latch);
+    if(!initial || !advanced || advanced == &phi->result || advanced->type != phi->result.type) return Nothing();
+
+    auto inst = advanced->inst();
+    if(inst->kind != LowerInst::Add && inst->kind != LowerInst::Sub) return Nothing();
+
+    auto binary = (LowerInstBinary*)inst;
+    auto lhs = base[binary->lhs];
+    auto rhs = base[binary->rhs];
+
+    LowerValue* stride;
+    if(lhs == &phi->result) stride = rhs;
+    else if(rhs == &phi->result && inst->kind == LowerInst::Add) stride = lhs;
+    else return Nothing();
+
+    auto constant = immediateOf(base, stride);
+    if(!constant) return Nothing();
+
+    auto mask = widthMask(phi->result.type);
+    auto amount = inst->kind == LowerInst::Sub ? (U64(0) - constant.unwrap()) & mask : constant.unwrap() & mask;
+    if(amount == 0) return Nothing();
+
+    return Just(DerivedCounter { inst, initial, amount });
+}
+
+/*
+ * The five shapes a derived value takes, by how it is recomputed from the counter `%i`:
+ *
+ *     Offset       %x + %i, %i + %x      starts at %x + %s, steps by the counter's step
+ *     Distance     %i - %x               starts at %s - %x, the same step
+ *     Reflection   %x - %i               starts at %x - %s, the step negated
+ *     Scale        %i * %x, %x * %i      starts at %s * %x, steps by the step times the factor
+ *     Shift        %i << k               starts at %s << k, steps by the step shifted
+ *
+ * The first three map counter values to derived values one to one, which is what lets the loop's own
+ * test move onto them. The last two do not, since a multiply by an even number and a shift both lose
+ * the top bits.
+ */
+enum class DerivedShape { Offset, Distance, Reflection, Scale, Shift };
+
+struct Derived {
+    LowerValue* value;
+    LowerValue* other;   // `%x`, or the shift count
+    DerivedShape shape;
+};
+
+bool isOneToOne(DerivedShape shape) {
+    return shape == DerivedShape::Offset || shape == DerivedShape::Distance || shape == DerivedShape::Reflection;
+}
+
+// Whether a value can be read in the preheader. A literal always can, since it is rebuilt there; a
+// defined value has to be outside the loop and dominate the preheader, which LoopInfo alone does not
+// promise for an irreducible graph - see `collectScaledAddresses`.
+bool availableInPreheader(LowerBase base, const LoopInfo& loops, const DominatorTree& dominators,
+                          const ReducibleLoop& loop, LowerValue* value)
+{
+    if(immediateOf(base, value)) return true;
+    if(!outsideLoop(base, loops, loop.header->index, value)) return false;
+
+    return base[value->inst()->block]->dominates(loop.pre, dominators);
+}
+
+// The value as the preheader reads it. A literal is rebuilt there, because the one the loop reads may
+// have been built inside it.
+LowerValue* inPreheader(LowerBase base, LowerModule& module, const ReducibleLoop& loop, LowerValue* value) {
+    if(auto constant = immediateOf(base, value)) {
+        return immediate(base, module, *loop.pre, value->type, constant.unwrap());
+    }
+
+    return value;
+}
+
+Maybe<Derived> derivedOf(LowerBase base, const LoopInfo& loops, const DominatorTree& dominators,
+                         const ReducibleLoop& loop, LowerInstPhi* phi, LowerInst* inst)
+{
+    if(!isBinary(inst) || inst->kind == LowerInst::Cmp || inst->createdCount != 1) return Nothing();
+
+    auto result = inst->created().ptr;
+    if(result->type != phi->result.type) return Nothing();
+
+    auto binary = (LowerInstBinary*)inst;
+    auto lhs = base[binary->lhs];
+    auto rhs = base[binary->rhs];
+    auto counter = &phi->result;
+
+    // `%i + %i` and its relatives are not a counter and an invariant.
+    if(lhs == rhs) return Nothing();
+
+    auto other = lhs == counter ? rhs : lhs;
+    if(!availableInPreheader(base, loops, dominators, loop, other)) return Nothing();
+
+    // Every reader has to see the value the header's phi holds, which is what the phi replacing it
+    // holds too - see `readOnlyInsideLoop`.
+    if(!readOnlyInsideLoop(base, loops, loop, dominators, result)) return Nothing();
+
+    switch(inst->kind) {
+        case LowerInst::Add:
+            return Just(Derived { result, other, DerivedShape::Offset });
+        case LowerInst::Sub:
+            return Just(Derived { result, other, lhs == counter ? DerivedShape::Distance : DerivedShape::Reflection });
+        case LowerInst::Mul:
+        case LowerInst::IMul:
+            return Just(Derived { result, other, DerivedShape::Scale });
+        case LowerInst::Shl: {
+            if(lhs != counter) return Nothing();
+
+            auto count = immediateOf(base, other);
+            if(!count || count.unwrap() >= widthOf(result->type)) return Nothing();
+            return Just(Derived { result, other, DerivedShape::Shift });
+        }
+        default:
+            return Nothing();
+    }
+}
+
+// The derived value's start, from the counter's: the same arithmetic, done once in the preheader.
+LowerValue* derivedStart(LowerBase base, LowerModule& module, const ReducibleLoop& loop, const Derived& derived,
+                         LowerValue* initial)
+{
+    auto type = derived.value->type;
+    auto start = inPreheader(base, module, loop, initial);
+    auto other = inPreheader(base, module, loop, derived.other);
+    auto& pre = *loop.pre;
+
+    switch(derived.shape) {
+        case DerivedShape::Offset:
+            return resultOf(binary<LowerInst::Add>(base, module, pre, other, start, type, StringId()));
+        case DerivedShape::Distance:
+            return resultOf(binary<LowerInst::Sub>(base, module, pre, start, other, type, StringId()));
+        case DerivedShape::Reflection:
+            return resultOf(binary<LowerInst::Sub>(base, module, pre, other, start, type, StringId()));
+        case DerivedShape::Scale:
+            return resultOf(binary<LowerInst::IMul>(base, module, pre, start, other, type, StringId()));
+        case DerivedShape::Shift:
+            return resultOf(binary<LowerInst::Shl>(base, module, pre, start, other, type, StringId()));
+    }
+
+    return nullptr;
+}
+
+// What the derived value advances by. A literal where it can be one, which is every shape but a scale
+// by a value - that one is multiplied out in the preheader.
+LowerValue* derivedStep(LowerBase base, LowerModule& module, const ReducibleLoop& loop, const Derived& derived,
+                        U64 amount)
+{
+    auto type = derived.value->type;
+    auto mask = widthMask(type);
+
+    switch(derived.shape) {
+        case DerivedShape::Offset:
+        case DerivedShape::Distance:
+            return immediate(base, module, *loop.latch, type, amount);
+        case DerivedShape::Reflection:
+            return immediate(base, module, *loop.latch, type, (U64(0) - amount) & mask);
+        case DerivedShape::Shift:
+            return immediate(base, module, *loop.latch, type, (amount << immediateOf(base, derived.other).unwrap()) & mask);
+        case DerivedShape::Scale: {
+            if(auto factor = immediateOf(base, derived.other)) {
+                return immediate(base, module, *loop.latch, type, (amount * factor.unwrap()) & mask);
+            }
+
+            auto step = immediate(base, module, *loop.pre, type, amount);
+            return resultOf(binary<LowerInst::IMul>(base, module, *loop.pre, step, derived.other, type, StringId()));
+        }
+    }
+
+    return nullptr;
+}
+
+// The derived value, replaced by a header phi of its own, and the phi returned.
+LowerInstPhi* reduceDerived(LowerBase base, LowerModule& module, LowerFunction& fun, const ReducibleLoop& loop,
+                            const Derived& derived, const DerivedCounter& counter, DeadSweep& sweep)
+{
+    auto type = derived.value->type;
+    auto start = derivedStart(base, module, loop, derived, counter.initial);
+    auto step = derivedStep(base, module, loop, derived, counter.amount);
+
+    auto phi = makeInductionPhi(fun.arena, type);
+    phi->source = derived.value->inst()->source;
+
+    auto advanced = binary<LowerInst::Add>(base, module, *loop.latch, &phi->result, step, type, StringId());
+
+    auto used = phi->used();
+    auto sources = phi->sources();
+
+    used[0] = start - base;
+    sources[0] = loop.pre - base;
+    used[1] = resultOf(advanced) - base;
+    sources[1] = loop.latch - base;
+
+    loop.header->addInst(base, phi);
+
+    replaceUses(base, fun.arena, derived.value - base, &phi->result - base);
+    sweep.kill(derived.value->inst());
+    return phi;
+}
+
+/*
+ * The loop's own test on the counter, where it is one that can be restated on a derived value: a
+ * strict signed comparison in the header against a bound the preheader can read, with the arm that
+ * stays in the loop on the true side, and the counter stepping by one towards the bound.
+ */
+struct CounterTest {
+    LowerInstCmp* cmp;
+    LowerValue* bound;
+    bool ascending;
+};
+
+Maybe<CounterTest> counterTestOf(LowerBase base, const LoopInfo& loops, const DominatorTree& dominators,
+                                 const ReducibleLoop& loop, LowerInstPhi* phi, const DerivedCounter& counter,
+                                 LowerInst* inst)
+{
+    if(inst->kind != LowerInst::Cmp || base[inst->block] != loop.header) return Nothing();
+
+    auto cmp = (LowerInstCmp*)inst;
+    if(cmp->result.uses.size() != 1) return Nothing();
+
+    auto headerJe = base[loop.header->terminator];
+    if(headerJe->kind != LowerInst::Je) return Nothing();
+
+    auto branch = (LowerInstJe*)headerJe;
+    if(base[branch->cond] != &cmp->result) return Nothing();
+    if(!loops.contains(loop.header->index, base[branch->then]->index)) return Nothing();
+    if(loops.contains(loop.header->index, base[branch->otherwise]->index)) return Nothing();
+
+    auto lhs = base[cmp->lhs];
+    auto rhs = base[cmp->rhs];
+    if(lhs == rhs) return Nothing();
+
+    // Normalized to the counter on the left: `%n > %i` is `%i < %n`.
+    auto counterLeft = lhs == &phi->result;
+    auto bound = counterLeft ? rhs : lhs;
+    if(bound->type != phi->result.type) return Nothing();
+    if(!availableInPreheader(base, loops, dominators, loop, bound)) return Nothing();
+
+    auto kind = cmp->getCmp();
+    if(!counterLeft) {
+        if(kind == LowerCmp::igt) kind = LowerCmp::ilt;
+        else if(kind == LowerCmp::ilt) kind = LowerCmp::igt;
+        else return Nothing();
+    }
+
+    auto mask = widthMask(phi->result.type);
+    if(kind == LowerCmp::ilt && counter.amount == 1) return Just(CounterTest { cmp, bound, true });
+    if(kind == LowerCmp::igt && counter.amount == mask) return Just(CounterTest { cmp, bound, false });
+
+    return Nothing();
+}
+
+/*
+ * `%i < %n` restated as `%d != f(max(%n, %s))`, where `%d = f(%i)` is one to one.
+ *
+ * The counter reaches the header with `%s` the first time and, after that, only with one more than a
+ * value the test let through - so with `%s < %n`, with every value from `%s` to `%n` and no other,
+ * none of them wrapped; and with `%s >= %n` only with `%s`, which the test refuses. Over exactly those
+ * values `%i < %n` and `%i != max(%n, %s)` agree, and `f` being one to one carries the second onto
+ * the derived value. Descending is the mirror, with `min`.
+ */
+LowerValue* counterTestLimit(LowerBase base, LowerModule& module, const ReducibleLoop& loop, const CounterTest& test,
+                             const Derived& derived, LowerValue* initial)
+{
+    auto& pre = *loop.pre;
+    auto type = derived.value->type;
+    auto bound = inPreheader(base, module, loop, test.bound);
+    auto start = inPreheader(base, module, loop, initial);
+
+    // The clamp, which a start known to be at or past the bound's lowest value leaves out.
+    LowerValue* last = bound;
+    auto startValue = immediateOf(base, start);
+    auto boundKnownNonNegative = (knownZeroBits(base, bound) >> (widthOf(type) - 1)) & 1;
+    auto startAtMostZero = startValue && I64(signedValue(startValue.unwrap(), widthOf(type))) <= 0;
+
+    if(!(test.ascending && boundKnownNonNegative && startAtMostZero)) {
+        auto kind = test.ascending ? LowerCmp::ilt : LowerCmp::igt;
+        auto beyond = resultOf(cmp(base, module, pre, bound, start, kind, StringId()));
+        last = resultOf(pre.addInst(base, new (module.arena) LowerInstSelect(StringId(), start - base, bound - base,
+                                                                            beyond - base, type)));
+    }
+
+    auto other = inPreheader(base, module, loop, derived.other);
+    LowerValue* limit = nullptr;
+
+    switch(derived.shape) {
+        case DerivedShape::Offset:
+            limit = resultOf(binary<LowerInst::Add>(base, module, pre, other, last, type, StringId()));
+            break;
+        case DerivedShape::Distance:
+            limit = resultOf(binary<LowerInst::Sub>(base, module, pre, last, other, type, StringId()));
+            break;
+        case DerivedShape::Reflection:
+            limit = resultOf(binary<LowerInst::Sub>(base, module, pre, other, last, type, StringId()));
+            break;
+        default:
+            assertTrue(false);
+    }
+
+    return limit;
+}
+
+void reduceDerivedLoop(LowerBase base, LowerModule& module, LowerFunction& fun, const LoopInfo& loops,
+                       const DominatorTree& dominators, const ReducibleLoop& loop, DeadSweep& sweep)
+{
+    SmallArray<LowerInstPhi*, 8> phis;
+    for(auto p: loop.header->phis.contents(base)) phis.push(base[p]);
+
+    for(auto phi: phis) {
+        auto found = derivedCounterOf(base, loop, phi);
+        if(!found) continue;
+
+        auto& counter = found.unwrap();
+        if(!availableInPreheader(base, loops, dominators, loop, counter.initial)) continue;
+
+        // Every reader of the counter, sorted. Anything that is none of the three keeps the counter
+        // alive, and then only the multiplies are worth rewriting.
+        SmallArray<Derived, 4> derived;
+        Maybe<CounterTest> test;
+        auto others = false;
+
+        for(auto u: phi->result.uses.contents(base)) {
+            auto user = base[u];
+            if(user == counter.step) continue;
+
+            if(auto d = derivedOf(base, loops, dominators, loop, phi, user)) {
+                derived.push(d.unwrap());
+            } else if(auto t = counterTestOf(base, loops, dominators, loop, phi, counter, user); t && !test) {
+                test = t;
+            } else {
+                others = true;
+            }
+        }
+
+        if(derived.isEmpty()) continue;
+
+        Derived* restated = nullptr;
+        if(test) {
+            for(auto& d: derived) {
+                if(isOneToOne(d.shape)) {
+                    restated = &d;
+                    break;
+                }
+            }
+        }
+
+        auto step = counter.step->created().ptr;
+        auto removable = !others && step->uses.size() == 1 && (!test || restated);
+
+        if(!removable) {
+            // The counter stays, so replacing an addition with an addition buys nothing. A multiply by a
+            // value becomes an addition, which does.
+            for(auto& d: derived) {
+                if(d.shape == DerivedShape::Scale && !immediateOf(base, d.other)) {
+                    reduceDerived(base, module, fun, loop, d, counter, sweep);
+                }
+            }
+
+            continue;
+        }
+
+        // The limit first, while every value it reads is still standing: replacing a derived value can
+        // take the last reader of its operand with it.
+        auto limit = test ? counterTestLimit(base, module, loop, test.unwrap(), *restated, counter.initial) : nullptr;
+        LowerInstPhi* restatedPhi = nullptr;
+
+        for(auto& d: derived) {
+            auto reduced = reduceDerived(base, module, fun, loop, d, counter, sweep);
+            if(&d == restated) restatedPhi = reduced;
+        }
+
+        if(test) {
+            auto cmp = test.unwrap().cmp;
+            setOperand(base, fun.arena, cmp, cmp->lhs, &restatedPhi->result);
+            setOperand(base, fun.arena, cmp, cmp->rhs, limit);
+            cmp->setCmp(LowerCmp::neq);
+        }
+
+        // Nothing reads the counter now. The phi goes by hand, as in `widenLoopCounters`.
+        detach(base, (LowerInst*)phi);
+
+        for(Size i = 0; i < loop.header->phis.size(); i++) {
+            if(base[loop.header->phis.get(base, i)] != phi) continue;
+            loop.header->phis.remove(base, i);
+            break;
+        }
+
+        sweep.kill(counter.step);
+    }
+}
+
 } // namespace
 
 void eliminateBoundedChecks(LowerBase base, LowerModule& module, LowerFunction& fun,
@@ -1460,6 +1871,29 @@ void reduceInductionVariables(LowerBase base, LowerModule& module, LowerFunction
 
         if(auto loop = reducibleLoop(base, loops, dominators, block)) {
             reduceLoop(base, module, fun, loops, dominators, loop.unwrap(), sweep);
+        }
+    }
+
+    sweep.sweep(fun);
+}
+
+void reduceDerivedInductions(LowerBase base, LowerModule& module, LowerFunction& fun,
+                             const LoopAnalysis& analysis)
+{
+    if(fun.blocks.size() < 2) return;
+
+    // Valid for the whole walk for the reason `reduceInductionVariables` gives: no block is created,
+    // removed or renumbered.
+    auto& loops = analysis.loops;
+    auto& dominators = analysis.dominators;
+    DeadSweep sweep { base, module, {} };
+
+    for(auto blockPtr: fun.blocks.contents(base)) {
+        auto block = base[blockPtr];
+        if(!loops.isHeader(block->index)) continue;
+
+        if(auto loop = reducibleLoop(base, loops, dominators, block)) {
+            reduceDerivedLoop(base, module, fun, loops, dominators, loop.unwrap(), sweep);
         }
     }
 

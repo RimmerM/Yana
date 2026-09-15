@@ -33,20 +33,16 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 
   b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: I64
-    %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: I64
-    %v_9 = add %v_7, %v_8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    store %allocation, %v_10, 8
-    %v_11 = load @heapFree, 8: Ptr
-    %v_12 = add %v_11, %v_8: Ptr
-    store %v_12, %allocation, 8
+    %v_5 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_5, 8: I64
+    %v_6 = load @heapFree, 8: Ptr
+    %v_7 = shl %sizeClass, 3: I64
+    %v_8 = add %v_6, %v_7: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    store %allocation, %v_9, 8
+    %v_10 = load @heapFree, 8: Ptr
+    %v_11 = add %v_10, %v_7: Ptr
+    store %v_11, %allocation, 8
     ret 
   }
 }
@@ -285,36 +281,32 @@ main<complex>(): I32 {
     jmp b_33
   }
 
-  b_34 {
-    %v_35 = cmp_ilt %v_36, 7: I32
-    je %v_35, b_33, b_15
-  }
-
   b_15 {
-    %v_37 = phi [b_34, %v_38], [b_29, 18446744073709551611], [b_24, 18446744073709551612], [b_20, 18446744073709551613], [b_16, 18446744073709551614], [b_0, 18446744073709551615]: I32
+    %v_34 = phi [b_35, %v_36], [b_29, 18446744073709551611], [b_24, 18446744073709551612], [b_20, 18446744073709551613], [b_16, 18446744073709551614], [b_0, 18446744073709551615]: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_1
-    ret %v_37
+    ret %v_34
   }
 
   b_33 {
-    %v_39 = phi [b_34, %v_38], [b_32, 0]: I32
-    %v_40 = phi [b_34, %v_36], [b_32, 0]: I32
-    %v_41 = sext %v_40: I64
-    %v_42 = cmp_ge %v_41, 7: I32
-    je %v_42, b_43, b_44
+    %v_37 = phi [b_35, %v_36], [b_32, 0]: I32
+    %v_38 = phi [b_35, %v_39], [b_32, 0]: I32
+    %v_40 = sext %v_38: I64
+    %v_41 = cmp_ge %v_40, 7: I32
+    je %v_41, b_42, b_35
   }
 
-  b_44 {
-    %v_45 = shl %v_41, 2: I64
-    %v_46 = add %v_2, %v_45: Ptr
-    %v_47 = loads %v_46, 4: I32
-    %v_38 = add %v_39, %v_47: I32
-    %v_36 = add %v_40, 1: I32
-    jmp b_34
+  b_35 {
+    %v_43 = shl %v_40, 2: I64
+    %v_44 = add %v_2, %v_43: Ptr
+    %v_45 = loads %v_44, 4: I32
+    %v_36 = add %v_37, %v_45: I32
+    %v_39 = add %v_38, 1: I32
+    %v_46 = cmp_ilt %v_39, 7: I32
+    je %v_46, b_33, b_15
   }
 
-  b_43 {
-    %v_48 = syscall 60, 134: I64
+  b_42 {
+    %v_47 = syscall 60, 134: I64
     unreachable 
   }
 }

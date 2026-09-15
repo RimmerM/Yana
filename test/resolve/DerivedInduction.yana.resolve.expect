@@ -1,0 +1,699 @@
+let image$base: () = <none>
+
+fn nested(%n: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %r = alloc : I32
+    init %r, 0
+    jmp b1
+
+  b1:
+    %v8 = load %r : I32
+    %v9 = cmp_lt %v8, %n : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v42 = load %acc : I32
+    ret %v42
+
+  b3:
+    %c = alloc : I32
+    init %c, 0
+    jmp b4
+
+  b4:
+    %v15 = load %c : I32
+    %v16 = cmp_lt %v15, %n : Bool
+    je %v16, b6, b5
+
+  b5:
+    %v36 = load %r : I32
+    %v39 = add %v36, 1 : I32
+    assign %r, %v39
+    jmp b1
+
+  b6:
+    %v18 = load %acc : I32
+    %v19 = load %r : I32
+    %v20 = mul %v19, %n : I32
+    %v21 = load %c : I32
+    %v22 = add %v20, %v21 : I32
+    %v23 = load %c : I32
+    %v26 = add %v23, 3 : I32
+    %v27 = mul %v22, %v26 : I32
+    %v28 = add %v18, %v27 : I32
+    assign %acc, %v28
+    %v30 = load %c : I32
+    %v33 = add %v30, 1 : I32
+    assign %c, %v33
+    jmp b4
+}
+
+fn offset(%start: I32, %n: I32, %x: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %i = alloc : I32
+    init %i, %start
+    jmp b1
+
+  b1:
+    %v9 = load %i : I32
+    %v10 = cmp_lt %v9, %n : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v26 = load %acc : I32
+    ret %v26
+
+  b3:
+    %v12 = load %acc : I32
+    %v15 = mul %v12, 3 : I32
+    %v16 = load %i : I32
+    %v17 = add %x, %v16 : I32
+    %v18 = add %v15, %v17 : I32
+    assign %acc, %v18
+    %v20 = load %i : I32
+    %v23 = add %v20, 1 : I32
+    assign %i, %v23
+    jmp b1
+}
+
+fn distance(%n: I32, %x: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : I32
+    %v10 = cmp_gt %n, %v9 : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v26 = load %acc : I32
+    ret %v26
+
+  b3:
+    %v12 = load %acc : I32
+    %v15 = mul %v12, 5 : I32
+    %v16 = load %i : I32
+    %v17 = sub %v16, %x : I32
+    %v18 = add %v15, %v17 : I32
+    assign %acc, %v18
+    %v20 = load %i : I32
+    %v23 = add %v20, 1 : I32
+    assign %i, %v23
+    jmp b1
+}
+
+fn reflection(%start: I32, %n: I32, %x: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %i = alloc : I32
+    init %i, %start
+    jmp b1
+
+  b1:
+    %v9 = load %i : I32
+    %v10 = cmp_gt %v9, %n : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v26 = load %acc : I32
+    ret %v26
+
+  b3:
+    %v12 = load %acc : I32
+    %v15 = mul %v12, 7 : I32
+    %v16 = load %i : I32
+    %v17 = sub %x, %v16 : I32
+    %v18 = add %v15, %v17 : I32
+    assign %acc, %v18
+    %v20 = load %i : I32
+    %v23 = sub %v20, 1 : I32
+    assign %i, %v23
+    jmp b1
+}
+
+fn wrapping(%n: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : I32
+    %v9 = cmp_lt %v8, %n : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v27 = load %acc : I32
+    ret %v27
+
+  b3:
+    %v11 = load %acc : I32
+    %v13 = load %i : I32
+    %v15 = add 2147483600, %v13 : I32
+    %v18 = and %v15, 1023 : I32
+    %v19 = add %v11, %v18 : I32
+    assign %acc, %v19
+    %v21 = load %i : I32
+    %v24 = add %v21, 1 : I32
+    assign %i, %v24
+    jmp b1
+}
+
+fn scaled(%n: I32, %m: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : I32
+    %v10 = cmp_lt %v9, %n : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v25 = load %acc : I32
+    ret %v25
+
+  b3:
+    %v12 = load %acc : I32
+    %v13 = load %i : I32
+    %v14 = mul %v13, %m : I32
+    %v15 = add %v12, %v14 : I32
+    %v16 = load %i : I32
+    %v17 = add %v15, %v16 : I32
+    assign %acc, %v17
+    %v19 = load %i : I32
+    %v22 = add %v19, 1 : I32
+    assign %i, %v22
+    jmp b1
+}
+
+fn shifted(%n: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : I32
+    %v9 = cmp_lt %v8, %n : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v24 = load %acc : I32
+    ret %v24
+
+  b3:
+    %v11 = load %acc : I32
+    %v12 = load %i : I32
+    %v15 = shl %v12, 3 : I32
+    %v16 = add %v11, %v15 : I32
+    assign %acc, %v16
+    %v18 = load %i : I32
+    %v21 = add %v18, 1 : I32
+    assign %i, %v21
+    jmp b1
+}
+
+fn escaping(%n: I32, %x: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : I32
+    %v10 = cmp_lt %v9, %n : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v23 = load %acc : I32
+    %v24 = load %i : I32
+    %v27 = mul %v24, 1000 : I32
+    %v28 = add %v23, %v27 : I32
+    ret %v28
+
+  b3:
+    %v12 = load %acc : I32
+    %v13 = load %i : I32
+    %v14 = add %x, %v13 : I32
+    %v15 = add %v12, %v14 : I32
+    assign %acc, %v15
+    %v17 = load %i : I32
+    %v20 = add %v17, 1 : I32
+    assign %i, %v20
+    jmp b1
+}
+
+fn striding(%n: I32, %x: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : I32
+    %v10 = cmp_lt %v9, %n : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v26 = load %acc : I32
+    ret %v26
+
+  b3:
+    %v12 = load %acc : I32
+    %v15 = mul %v12, 3 : I32
+    %v16 = load %i : I32
+    %v17 = add %x, %v16 : I32
+    %v18 = add %v15, %v17 : I32
+    assign %acc, %v18
+    %v20 = load %i : I32
+    %v23 = add %v20, 2 : I32
+    assign %i, %v23
+    jmp b1
+}
+
+fn inclusive(%n: I32, %x: I32) -> I32 {
+  b0:
+    %acc = alloc : I32
+    init %acc, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : I32
+    %v10 = cmp_le %v9, %n : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v26 = load %acc : I32
+    ret %v26
+
+  b3:
+    %v12 = load %acc : I32
+    %v15 = mul %v12, 3 : I32
+    %v16 = load %i : I32
+    %v17 = add %x, %v16 : I32
+    %v18 = add %v15, %v17 : I32
+    assign %acc, %v18
+    %v20 = load %i : I32
+    %v23 = add %v20, 1 : I32
+    assign %i, %v23
+    jmp b1
+}
+
+fn wide(%n: I64, %x: I64) -> I64 {
+  b0:
+    %acc = alloc : I64
+    init %acc, 0
+    %i = alloc : I64
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : I64
+    %v10 = cmp_lt %v9, %n : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v26 = load %acc : I64
+    ret %v26
+
+  b3:
+    %v12 = load %acc : I64
+    %v15 = mul %v12, 3 : I64
+    %v16 = load %i : I64
+    %v17 = add %x, %v16 : I64
+    %v18 = add %v15, %v17 : I64
+    assign %acc, %v18
+    %v20 = load %i : I64
+    %v23 = add %v20, 1 : I64
+    assign %i, %v23
+    jmp b1
+}
+
+fn main() -> I32 {
+  b0:
+    %total = alloc : I32
+    init %total, 0
+    %v4 = call nested, 7 : I32
+    %v7 = cmp_eq %v4, 7252 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v9 = load %total : I32
+    %v12 = add %v9, 1 : I32
+    assign %total, %v12
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v17 = call nested, 0 : I32
+    %v20 = cmp_eq %v17, 0 : Bool
+    je %v20, b4, b5
+
+  b4:
+    %v22 = load %total : I32
+    %v25 = add %v22, 1 : I32
+    assign %total, %v25
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v30 = call nested, -3 : I32
+    %v33 = cmp_eq %v30, 0 : Bool
+    je %v33, b7, b8
+
+  b7:
+    %v35 = load %total : I32
+    %v38 = add %v35, 1 : I32
+    assign %total, %v38
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v45 = call offset, 0, 10, 5 : I32
+    %v48 = cmp_eq %v45, 162377 : Bool
+    je %v48, b10, b11
+
+  b10:
+    %v50 = load %total : I32
+    %v53 = add %v50, 1 : I32
+    assign %total, %v53
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v60 = call offset, 4, 4, 5 : I32
+    %v63 = cmp_eq %v60, 0 : Bool
+    je %v63, b13, b14
+
+  b13:
+    %v65 = load %total : I32
+    %v68 = add %v65, 1 : I32
+    assign %total, %v68
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v75 = call offset, 9, 2, 5 : I32
+    %v78 = cmp_eq %v75, 0 : Bool
+    je %v78, b16, b17
+
+  b16:
+    %v80 = load %total : I32
+    %v83 = add %v80, 1 : I32
+    assign %total, %v83
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v90 = call offset, 0, -6, 5 : I32
+    %v93 = cmp_eq %v90, 0 : Bool
+    je %v93, b19, b20
+
+  b19:
+    %v95 = load %total : I32
+    %v98 = add %v95, 1 : I32
+    assign %total, %v98
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v105 = call offset, -3, 2, 100 : I32
+    %v108 = cmp_eq %v105, 11795 : Bool
+    je %v108, b22, b23
+
+  b22:
+    %v110 = load %total : I32
+    %v113 = add %v110, 1 : I32
+    assign %total, %v113
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v119 = call distance, 6, 2 : I32
+    %v122 = neg 6837 : I32
+    %v123 = cmp_eq %v119, %v122 : Bool
+    je %v123, b25, b26
+
+  b25:
+    %v125 = load %total : I32
+    %v128 = add %v125, 1 : I32
+    assign %total, %v128
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v134 = call distance, -2, 2 : I32
+    %v137 = cmp_eq %v134, 0 : Bool
+    je %v137, b28, b29
+
+  b28:
+    %v139 = load %total : I32
+    %v142 = add %v139, 1 : I32
+    assign %total, %v142
+    jmp b30
+
+  b29:
+    jmp b30
+
+  b30:
+    %v149 = call reflection, 10, 3, 1 : I32
+    %v152 = neg 1212438 : I32
+    %v153 = cmp_eq %v149, %v152 : Bool
+    je %v153, b31, b32
+
+  b31:
+    %v155 = load %total : I32
+    %v158 = add %v155, 1 : I32
+    assign %total, %v158
+    jmp b33
+
+  b32:
+    jmp b33
+
+  b33:
+    %v165 = call reflection, 3, 10, 1 : I32
+    %v168 = cmp_eq %v165, 0 : Bool
+    je %v168, b34, b35
+
+  b34:
+    %v170 = load %total : I32
+    %v173 = add %v170, 1 : I32
+    assign %total, %v173
+    jmp b36
+
+  b35:
+    jmp b36
+
+  b36:
+    %v180 = call reflection, -4, -9, 1 : I32
+    %v183 = cmp_eq %v180, 14471 : Bool
+    je %v183, b37, b38
+
+  b37:
+    %v185 = load %total : I32
+    %v188 = add %v185, 1 : I32
+    assign %total, %v188
+    jmp b39
+
+  b38:
+    jmp b39
+
+  b39:
+    %v193 = call wrapping, 200 : I32
+    %v196 = cmp_eq %v193, 59452 : Bool
+    je %v196, b40, b41
+
+  b40:
+    %v198 = load %total : I32
+    %v201 = add %v198, 1 : I32
+    assign %total, %v201
+    jmp b42
+
+  b41:
+    jmp b42
+
+  b42:
+    %v207 = call scaled, 9, 13 : I32
+    %v210 = cmp_eq %v207, 504 : Bool
+    je %v210, b43, b44
+
+  b43:
+    %v212 = load %total : I32
+    %v215 = add %v212, 1 : I32
+    assign %total, %v215
+    jmp b45
+
+  b44:
+    jmp b45
+
+  b45:
+    %v221 = call scaled, -1, 13 : I32
+    %v224 = cmp_eq %v221, 0 : Bool
+    je %v224, b46, b47
+
+  b46:
+    %v226 = load %total : I32
+    %v229 = add %v226, 1 : I32
+    assign %total, %v229
+    jmp b48
+
+  b47:
+    jmp b48
+
+  b48:
+    %v234 = call shifted, 9 : I32
+    %v237 = cmp_eq %v234, 288 : Bool
+    je %v237, b49, b50
+
+  b49:
+    %v239 = load %total : I32
+    %v242 = add %v239, 1 : I32
+    assign %total, %v242
+    jmp b51
+
+  b50:
+    jmp b51
+
+  b51:
+    %v248 = call escaping, 5, 3 : I32
+    %v251 = cmp_eq %v248, 5025 : Bool
+    je %v251, b52, b53
+
+  b52:
+    %v253 = load %total : I32
+    %v256 = add %v253, 1 : I32
+    assign %total, %v256
+    jmp b54
+
+  b53:
+    jmp b54
+
+  b54:
+    %v262 = call escaping, -5, 3 : I32
+    %v265 = cmp_eq %v262, 0 : Bool
+    je %v265, b55, b56
+
+  b55:
+    %v267 = load %total : I32
+    %v270 = add %v267, 1 : I32
+    assign %total, %v270
+    jmp b57
+
+  b56:
+    jmp b57
+
+  b57:
+    %v276 = call striding, 9, 1 : I32
+    %v279 = cmp_eq %v276, 237 : Bool
+    je %v279, b58, b59
+
+  b58:
+    %v281 = load %total : I32
+    %v284 = add %v281, 1 : I32
+    assign %total, %v284
+    jmp b60
+
+  b59:
+    jmp b60
+
+  b60:
+    %v290 = call inclusive, 4, 1 : I32
+    %v293 = cmp_eq %v290, 179 : Bool
+    je %v293, b61, b62
+
+  b61:
+    %v295 = load %total : I32
+    %v298 = add %v295, 1 : I32
+    assign %total, %v298
+    jmp b63
+
+  b62:
+    jmp b63
+
+  b63:
+    %v304 = call inclusive, -1, 1 : I32
+    %v307 = cmp_eq %v304, 0 : Bool
+    je %v307, b64, b65
+
+  b64:
+    %v309 = load %total : I32
+    %v312 = add %v309, 1 : I32
+    assign %total, %v312
+    jmp b66
+
+  b65:
+    jmp b66
+
+  b66:
+    %v318 = call wide, 5, 10000000000 : I64
+    %v321 = cmp_eq %v318, 1210000000058 : Bool
+    je %v321, b67, b68
+
+  b67:
+    %v323 = load %total : I32
+    %v326 = add %v323, 1 : I32
+    assign %total, %v326
+    jmp b69
+
+  b68:
+    jmp b69
+
+  b69:
+    %v332 = call wide, -5, 10000000000 : I64
+    %v335 = cmp_eq %v332, 0 : Bool
+    je %v335, b70, b71
+
+  b70:
+    %v337 = load %total : I32
+    %v340 = add %v337, 1 : I32
+    assign %total, %v340
+    jmp b72
+
+  b71:
+    jmp b72
+
+  b72:
+    %v344 = load %total : I32
+    ret %v344
+}

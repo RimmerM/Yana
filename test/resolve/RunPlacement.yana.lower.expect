@@ -33,20 +33,16 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 
   b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: I64
-    %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: I64
-    %v_9 = add %v_7, %v_8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    store %allocation, %v_10, 8
-    %v_11 = load @heapFree, 8: Ptr
-    %v_12 = add %v_11, %v_8: Ptr
-    store %v_12, %allocation, 8
+    %v_5 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_5, 8: I64
+    %v_6 = load @heapFree, 8: Ptr
+    %v_7 = shl %sizeClass, 3: I64
+    %v_8 = add %v_6, %v_7: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    store %allocation, %v_9, 8
+    %v_10 = load @heapFree, 8: Ptr
+    %v_11 = add %v_10, %v_7: Ptr
+    store %v_11, %allocation, 8
     ret 
   }
 }
@@ -88,53 +84,49 @@ main<complex>(): I32 {
   }
 
   b_19 {
-    %v_20 = cmp_ilt %v_21, 6: I32
-    je %v_20, b_18, b_22
-  }
-
-  b_22 {
-    %v_23 = add %v_17, %v_24: I32
-    ret %v_23
+    %v_20 = add %v_17, %v_21: I32
+    ret %v_20
   }
 
   b_18 {
-    %v_25 = phi [b_19, %v_24], [b_0, 0]: I32
-    %v_26 = phi [b_19, %v_21], [b_0, 0]: I32
-    %v_27 = alloca 16, 8: Ptr
-    %v_28 = alloca 12, 4: Ptr
-    store %v_27, %v_28, 8
-    %v_29 = add %v_27, 8: Ptr
-    store %v_29, 3, 4
-    store %v_28, 2, 4
-    %v_30 = add %v_28, 4: Ptr
-    store %v_30, 4, 4
-    %v_31 = add %v_28, 8: Ptr
-    store %v_31, 6, 4
-    %v_32 = add %v_27, 12: Ptr
-    store %v_32, 3, 4
-    %v_33 = imulhi %v_26, 1431655766: I32
-    %v_34 = shr %v_33, 31: I32
-    %v_35 = add %v_33, %v_34: I32
-    %v_36 = imul %v_35, 3: I32
-    %v_37 = sub %v_26, %v_36: I32
-    %v_38 = sext %v_37: I64
-    %v_39 = cmp_ge %v_38, 3: I32
-    je %v_39, b_40, b_41
+    %v_22 = phi [b_23, %v_21], [b_0, 0]: I32
+    %v_24 = phi [b_23, %v_25], [b_0, 0]: I32
+    %v_26 = alloca 16, 8: Ptr
+    %v_27 = alloca 12, 4: Ptr
+    store %v_26, %v_27, 8
+    %v_28 = add %v_26, 8: Ptr
+    store %v_28, 3, 4
+    store %v_27, 2, 4
+    %v_29 = add %v_27, 4: Ptr
+    store %v_29, 4, 4
+    %v_30 = add %v_27, 8: Ptr
+    store %v_30, 6, 4
+    %v_31 = add %v_26, 12: Ptr
+    store %v_31, 3, 4
+    %v_32 = imulhi %v_24, 1431655766: I32
+    %v_33 = shr %v_32, 31: I32
+    %v_34 = add %v_32, %v_33: I32
+    %v_35 = imul %v_34, 3: I32
+    %v_36 = sub %v_24, %v_35: I32
+    %v_37 = sext %v_36: I64
+    %v_38 = cmp_ge %v_37, 3: I32
+    je %v_38, b_39, b_23
   }
 
-  b_41 {
-    %v_42 = load %v_27, 8: Ptr
-    %v_43 = shl %v_38, 2: I64
-    %v_44 = add %v_42, %v_43: Ptr
-    %v_45 = loads %v_44, 4: I32
-    call_complex Reclaim(Array(a)).reclaim(I32), %v_27
-    %v_24 = add %v_25, %v_45: I32
-    %v_21 = add %v_26, 1: I32
-    jmp b_19
+  b_23 {
+    %v_40 = load %v_26, 8: Ptr
+    %v_41 = shl %v_37, 2: I64
+    %v_42 = add %v_40, %v_41: Ptr
+    %v_43 = loads %v_42, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_26
+    %v_21 = add %v_22, %v_43: I32
+    %v_25 = add %v_24, 1: I32
+    %v_44 = cmp_ilt %v_25, 6: I32
+    je %v_44, b_18, b_19
   }
 
-  b_40 {
-    %v_46 = syscall 60, 134: I64
+  b_39 {
+    %v_45 = syscall 60, 134: I64
     unreachable 
   }
 }

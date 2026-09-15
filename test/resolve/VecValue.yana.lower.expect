@@ -18,121 +18,93 @@ main<complex>(): I32 {
   }
 
   b_8 {
-    jmp b_9
+    %v_9 = vlane %v_4, 1: I32
+    %v_10 = cmp_neq %v_9, 6: I32
+    je %v_10, b_11, b_12
   }
 
-  b_9 {
-    %v_10 = vlane %v_4, 1: I32
-    %v_11 = cmp_neq %v_10, 6: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
+  b_11 {
     ret 18446744073709551614
   }
 
-  b_13 {
-    jmp b_14
-  }
-
-  b_14 {
+  b_12 {
     %mixed = vwithlane %base, 10, 0: i32x4
-    %v_15 = vreduce_imax %mixed: I32
-    %v_16 = cmp_neq %v_15, 10: I32
-    je %v_16, b_17, b_18
+    %v_13 = vreduce_imax %mixed: I32
+    %v_14 = cmp_neq %v_13, 10: I32
+    je %v_14, b_15, b_16
   }
 
-  b_17 {
+  b_15 {
     ret 18446744073709551613
   }
 
-  b_18 {
-    jmp b_19
+  b_16 {
+    %v_17 = vreduce_imin %mixed: I32
+    %v_18 = cmp_neq %v_17, 3: I32
+    je %v_18, b_19, b_20
   }
 
   b_19 {
-    %v_20 = vreduce_imin %mixed: I32
-    %v_21 = cmp_neq %v_20, 3: I32
-    je %v_21, b_22, b_23
-  }
-
-  b_22 {
     ret 18446744073709551612
   }
 
-  b_23 {
-    jmp b_24
+  b_20 {
+    jmp b_21
   }
 
-  b_24 {
-    jmp b_25
-  }
-
-  b_26 {
-    %v_27 = cmp_ilt %v_28, 4: I32
-    je %v_27, b_25, b_29
-  }
-
-  b_29 {
-    %v_30 = vlane %v_31, 0: I32
-    %v_32 = cmp_neq %v_30, 15: I32
-    je %v_32, b_33, b_34
+  b_22 {
+    %v_23 = cmp_ilt %v_24, 4: I32
+    je %v_23, b_21, b_25
   }
 
   b_25 {
-    %v_35 = phi [b_26, %v_31], [b_24, %base]: i32x4
-    %v_36 = phi [b_26, %v_28], [b_24, 0]: I32
-    %v_31 = add %v_35, %base: i32x4
-    %v_28 = add %v_36, 1: I32
-    jmp b_26
+    %v_26 = vlane %v_27, 0: I32
+    %v_28 = cmp_neq %v_26, 15: I32
+    je %v_28, b_29, b_30
   }
 
-  b_33 {
+  b_21 {
+    %v_31 = phi [b_22, %v_27], [b_20, %base]: i32x4
+    %v_32 = phi [b_22, %v_24], [b_20, 0]: I32
+    %v_27 = add %v_31, %base: i32x4
+    %v_24 = add %v_32, 1: I32
+    jmp b_22
+  }
+
+  b_29 {
     ret 18446744073709551611
   }
 
-  b_34 {
-    jmp b_37
+  b_30 {
+    %v_33 = vlane %v_27, 1: I32
+    %v_34 = cmp_neq %v_33, 15: I32
+    je %v_34, b_35, b_36
   }
 
-  b_37 {
-    %v_38 = vlane %v_31, 1: I32
-    %v_39 = cmp_neq %v_38, 15: I32
+  b_35 {
+    ret 18446744073709551610
+  }
+
+  b_36 {
+    %lanes = vreduce_add %v_3: I32
+    %v_37 = vreduce_add %v_27: I32
+    %v_38 = imul %lanes, 15: I32
+    %v_39 = cmp_neq %v_37, %v_38: I32
     je %v_39, b_40, b_41
   }
 
   b_40 {
-    ret 18446744073709551610
-  }
-
-  b_41 {
-    jmp b_42
-  }
-
-  b_42 {
-    %lanes = vreduce_add %v_3: I32
-    %v_43 = vreduce_add %v_31: I32
-    %v_44 = imul %lanes, 15: I32
-    %v_45 = cmp_neq %v_43, %v_44: I32
-    je %v_45, b_46, b_47
-  }
-
-  b_46 {
     ret 18446744073709551609
   }
 
-  b_47 {
-    jmp b_48
-  }
-
-  b_48 {
-    %v_49 = vlane %v_2, 1: I32
-    %v_50 = imul %v_49, 100: I32
-    %v_51 = vlane %v_4, 0: I32
-    %v_52 = add %v_50, %v_51: I32
-    %v_53 = vlane %mixed, 0: I32
-    %v_54 = add %v_52, %v_53: I32
-    ret %v_54
+  b_41 {
+    %v_42 = vlane %v_2, 1: I32
+    %v_43 = imul %v_42, 100: I32
+    %v_44 = vlane %v_4, 0: I32
+    %v_45 = add %v_43, %v_44: I32
+    %v_46 = vlane %mixed, 0: I32
+    %v_47 = add %v_45, %v_46: I32
+    ret %v_47
   }
 }
 

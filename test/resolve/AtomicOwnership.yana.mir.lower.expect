@@ -12,31 +12,15 @@ twoElements<complex>(): I32 {
     store %v_2, 1, 4
     %v_5 = add %v_2, 4: Ptr
     store %v_5, 2, 4
-    jmp b_6
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = atomic_loads %v_2, 4, relaxed: I32
-    %v_9 = atomic_loads %v_5, 4, relaxed: I32
-    %v_10 = add %v_8, %v_9: I32
-    jmp b_11
-  }
-
-  b_11 {
-    jmp b_12
-  }
-
-  b_12 {
-    %v_13 = atomic_loads %v_2, 4, relaxed: I32
-    %v_14 = atomic_loads %v_2, 4, relaxed: I32
-    %v_15 = add %v_13, %v_14: I32
+    %v_6 = atomic_loads %v_2, 4, relaxed: I32
+    %v_7 = atomic_loads %v_5, 4, relaxed: I32
+    %v_8 = add %v_6, %v_7: I32
+    %v_9 = atomic_loads %v_2, 4, relaxed: I32
+    %v_10 = atomic_loads %v_2, 4, relaxed: I32
+    %v_11 = add %v_9, %v_10: I32
     call_complex Array(a).reclaim(Atomic(I32)), %v_1
-    %v_16 = add %v_10, %v_15: I32
-    ret %v_16
+    %v_12 = add %v_8, %v_11: I32
+    ret %v_12
   }
 }
 

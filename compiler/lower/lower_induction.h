@@ -23,7 +23,9 @@
  * This is `test/bench/findings.md` item 6, and it is the item that file ranks third by value and
  * first by cost. The counter is left exactly where it was: replacing the loop's own test with one
  * against the pointer (linear function test replacement) is a second transform, and `llc -O3` does
- * not perform it on this corpus either - its `sumFields` carries both.
+ * not perform it on this corpus either - its `sumFields` carries both. `reduceDerivedInductions`
+ * below does perform it, for an integer derived at the counter's own width; a pointer is a width
+ * change and would need this pass's no-wrap proof as well.
  *
  * ## Why this is a lower-IR pass and not a resolve-IR one
  *
@@ -98,6 +100,49 @@
  * with the same operands, and both become the same `%p` with the field offsets left as the
  * displacements they already were.
  */
+
+/*
+ * A value the loop computes from its counter, carried as a counter of its own - and the loop's test
+ * moved onto it, where that lets the original counter go.
+ *
+ * `out[row * n + column]` recomputes `row * n + column` every iteration from `column`, and the
+ * enclosing loops recompute `row * n` from `row`. Each of those is an arithmetic sequence: it starts
+ * at the same arithmetic done on the counter's start, and advances by the same arithmetic done on
+ * its step. So it can be a header phi advanced in the latch instead:
+ *
+ *     head:  %c = phi [pre, 0], [latch, %c2]         head:  %d = phi [pre, %r], [latch, %d2]
+ *            %t = cmp_ilt %c, %n                            %t = cmp_neq %d, %limit
+ *            je %t, body, exit                              je %t, body, exit
+ *     body:  %d = add %r, %c                  ->      body:  ... %d ...
+ *            ...                                            %d2 = add %d, 1
+ *            %c2 = add %c, 1                         pre:   %limit = add %r, max(%n, 0)
+ *
+ * **Nothing has to be proved about wrapping.** The derived value is computed at the counter's own
+ * width, where `%x + (%i + 1) == (%x + %i) + 1` holds modulo the width whether or not anything wraps,
+ * and the same for a subtraction, a multiply and a shift. That is the difference from the address
+ * reduction above, which changes width and has to prove the narrow addition exact.
+ *
+ * **What it buys depends on the counter going.** An addition replaced by an addition is the same
+ * work plus a register: measured on `Matrix`'s inner loop (§112 of test/bench/findings.md), carrying
+ * the two indices while the counter stayed was 134.3 ms against 134.2, and moving the loop's test
+ * onto one of them as well was 114.2. So a counter whose readers are all derived values, its own
+ * step, and the loop's test is replaced whole. Where it has any other reader it stays, and only a
+ * multiply by a value is rewritten - that one turns an `imul` into an `add` regardless.
+ *
+ * **The test moves as `%i < %n` becoming `%d != f(max(%n, %s))`**, for a strict signed test, a step
+ * of one towards the bound and an `f` that is one to one (an offset or a difference; a multiply is
+ * not). The counter reaches the header with its start and then only with one more than a value the
+ * test let through, so the values it can hold there are exactly those `max` separates correctly. The
+ * `max` is left out when the start is at most zero and the bound provably not negative.
+ *
+ * In front of `reduceInductionVariables` and the widening, so that a phi this builds is one those
+ * passes see as an ordinary counter. What they do not get from it is a bound: a derived phi that is
+ * sign-extended into an address has no test of its own once the test has moved, so the widening's
+ * no-wrap argument has nothing to start from and the `movsxd` stays in the loop. `Matrix`'s inner
+ * loop keeps two of them, which is part of what separates it from LLVM's (§113).
+ */
+void reduceDerivedInductions(LowerBase base, LowerModule& module, LowerFunction& fun,
+                             const LoopAnalysis& analysis);
 
 // Run over a function after `strengthReduceFunction` and the fold behind it, so that `mul %i, 32` is
 // already `shl %i, 5` and a stride that came from a `strideof` is already a literal. Emits an `Imm`

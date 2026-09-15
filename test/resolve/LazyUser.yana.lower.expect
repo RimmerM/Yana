@@ -28,183 +28,167 @@ main<complex>(): I32 {
 
   b_11 {
     %v_13 = phi [b_5, %v_6], [b_10, %v_12]: I32
-    jmp b_14
+    %v_14 = add %v_13, 8: I32
+    %v_15 = bitcast 0: Ptr
+    %v_16 = call_complex ResolveTest.deferred$29, %v_15: I32
+    %v_17 = cmp_eq %v_16, 32768: I32
+    je %v_17, b_18, b_19
   }
 
-  b_14 {
-    %v_15 = add %v_13, 8: I32
-    jmp b_16
+  b_18 {
+    %v_20 = add %v_14, 16: I32
+    jmp b_19
   }
 
-  b_16 {
-    %v_17 = bitcast 0: Ptr
-    %v_18 = call_complex ResolveTest.deferred$29, %v_17: I32
-    %v_19 = cmp_eq %v_18, 32768: I32
-    je %v_19, b_20, b_21
+  b_19 {
+    %v_21 = phi [b_11, %v_14], [b_18, %v_20]: I32
+    %v_22 = add %v_21, 32: I32
+    %v_23 = loads @effects, 4: I32
+    %v_24 = add %v_23, 32: I32
+    store @effects, %v_24, 4
+    %v_25 = add %v_22, 448: I32
+    %v_26 = bitcast 0: Ptr
+    %v_27 = call_complex ResolveTest.deferred$32, %v_26: I32
+    %v_28 = cmp_eq %v_27, 640: I32
+    je %v_28, b_29, b_30
   }
 
-  b_20 {
-    %v_22 = add %v_15, 16: I32
-    jmp b_21
+  b_29 {
+    %v_31 = add %v_25, 512: I32
+    jmp b_30
   }
 
-  b_21 {
-    %v_23 = phi [b_16, %v_15], [b_20, %v_22]: I32
-    jmp b_24
+  b_30 {
+    %v_32 = phi [b_19, %v_25], [b_29, %v_31]: I32
+    %v_33 = add %v_32, 1024: I32
+    %v_34 = bitcast 0: Ptr
+    %v_35 = alloca 8, 4: Ptr
+    call_complex ResolveTest.deferred$34, %v_35, %v_34
+    %v_36 = loads %v_35, 4: I32
+    %v_37 = cmp_eq %v_36, 2: I32
+    je %v_37, b_38, b_39
   }
 
-  b_24 {
-    %v_25 = add %v_23, 32: I32
-    jmp b_26
+  b_38 {
+    %v_40 = add %v_33, 2048: I32
+    jmp b_39
   }
 
-  b_26 {
-    %v_27 = loads @effects, 4: I32
-    %v_28 = add %v_27, 32: I32
-    store @effects, %v_28, 4
-    %v_29 = add %v_25, 448: I32
-    %v_30 = bitcast 0: Ptr
-    %v_31 = call_complex ResolveTest.deferred$32, %v_30: I32
-    %v_32 = cmp_eq %v_31, 640: I32
-    je %v_32, b_33, b_34
+  b_39 {
+    %v_41 = phi [b_30, %v_33], [b_38, %v_40]: I32
+    %v_42 = add %v_41, 4096: I32
+    %v_43 = bitcast 0: Ptr
+    %v_44 = call_complex ResolveTest.deferred$36, %v_43: I32
+    %v_45 = cmp_eq %v_44, 5: I32
+    je %v_45, b_46, b_47
   }
 
-  b_33 {
-    %v_35 = add %v_29, 512: I32
-    jmp b_34
+  b_46 {
+    %v_48 = add %v_42, 8192: I32
+    jmp b_47
   }
 
-  b_34 {
-    %v_36 = phi [b_26, %v_29], [b_33, %v_35]: I32
-    %v_37 = add %v_36, 1024: I32
-    %v_38 = bitcast 0: Ptr
-    %v_39 = alloca 8, 4: Ptr
-    call_complex ResolveTest.deferred$34, %v_39, %v_38
-    %v_40 = loads %v_39, 4: I32
-    %v_41 = cmp_eq %v_40, 2: I32
-    je %v_41, b_42, b_43
+  b_47 {
+    %v_49 = phi [b_39, %v_42], [b_46, %v_48]: I32
+    %v_50 = bitcast 0: Ptr
+    %v_51 = call_complex ResolveTest.deferred$38, %v_50: I32
+    jmp b_52
   }
 
-  b_42 {
-    %v_44 = add %v_37, 2048: I32
-    jmp b_43
-  }
-
-  b_43 {
-    %v_45 = phi [b_34, %v_37], [b_42, %v_44]: I32
-    %v_46 = add %v_45, 4096: I32
-    %v_47 = bitcast 0: Ptr
-    %v_48 = call_complex ResolveTest.deferred$36, %v_47: I32
-    %v_49 = cmp_eq %v_48, 5: I32
-    je %v_49, b_50, b_51
-  }
-
-  b_50 {
-    %v_52 = add %v_46, 8192: I32
-    jmp b_51
-  }
-
-  b_51 {
-    %v_53 = phi [b_43, %v_46], [b_50, %v_52]: I32
-    %v_54 = bitcast 0: Ptr
-    %v_55 = call_complex ResolveTest.deferred$38, %v_54: I32
-    jmp b_56
-  }
-
-  b_57 {
-    %v_58 = cmp_ilt %v_59, 3: I32
-    je %v_58, b_56, b_60
-  }
-
-  b_60 {
-    %v_61 = cmp_eq %v_62, 16387: I32
-    je %v_61, b_63, b_64
-  }
-
-  b_63 {
-    %v_65 = add %v_53, 16384: I32
-    jmp b_64
-  }
-
-  b_64 {
-    %v_66 = phi [b_60, %v_53], [b_63, %v_65]: I32
-    %v_67 = add %v_66, 32768: I32
-    %v_68 = bitcast 0: Ptr
-    %v_69 = call_complex ResolveTest.deferred$40, %v_68: I32
-    je %v_69, b_70, b_71
-  }
-
-  b_70 {
-    %v_72 = add %v_67, 65536: I32
-    jmp b_71
-  }
-
-  b_71 {
-    %v_73 = phi [b_64, %v_67], [b_70, %v_72]: I32
-    %v_74 = bitcast 0: Ptr
-    %v_75 = call_complex ResolveTest.deferred$41, %v_74: I32
-    %v_76 = cmp_neq %v_75, 0: I32
-    je %v_76, b_77, b_78
-  }
-
-  b_77 {
-    %v_79 = add %v_73, 131072: I32
-    jmp b_78
-  }
-
-  b_78 {
-    %v_80 = phi [b_71, %v_73], [b_77, %v_79]: I32
-    %v_81 = add %v_80, 262144: I32
-    %v_82 = bitcast 0: Ptr
-    %v_83 = alloca 8, 4: Ptr
-    call_complex ResolveTest.deferred$43, %v_83, %v_82
-    %v_84 = loads %v_83, 4: I32
-    %v_85 = cmp_eq %v_84, 1: I32
-    je %v_85, b_86, b_87
-  }
-
-  b_86 {
-    %v_88 = add %v_81, 524288: I32
-    jmp b_87
-  }
-
-  b_87 {
-    %v_89 = phi [b_78, %v_81], [b_86, %v_88]: I32
-    %v_90 = add %v_89, 1048576: I32
-    %v_91 = bitcast 0: Ptr
-    %v_92 = call_complex ResolveTest.deferred$45, %v_91: I32
-    %v_93 = cmp_eq %v_92, 8388608: I32
-    je %v_93, b_94, b_95
-  }
-
-  b_94 {
-    %v_96 = add %v_90, 2097152: I32
-    jmp b_95
-  }
-
-  b_95 {
-    %v_97 = phi [b_87, %v_90], [b_94, %v_96]: I32
-    %v_98 = loads @effects, 4: I32
-    %v_99 = cmp_eq %v_98, 11323814: I32
-    je %v_99, b_100, b_101
-  }
-
-  b_100 {
-    %v_102 = add %v_97, 4194304: I32
-    jmp b_101
-  }
-
-  b_101 {
-    %v_103 = phi [b_95, %v_97], [b_100, %v_102]: I32
-    ret %v_103
+  b_53 {
+    %v_54 = cmp_ilt %v_55, 3: I32
+    je %v_54, b_52, b_56
   }
 
   b_56 {
-    %v_104 = phi [b_57, %v_62], [b_51, %v_55]: I32
-    %v_105 = phi [b_57, %v_59], [b_51, 0]: I32
-    %v_62 = add %v_104, 1: I32
-    %v_59 = add %v_105, 1: I32
-    jmp b_57
+    %v_57 = cmp_eq %v_58, 16387: I32
+    je %v_57, b_59, b_60
+  }
+
+  b_59 {
+    %v_61 = add %v_49, 16384: I32
+    jmp b_60
+  }
+
+  b_60 {
+    %v_62 = phi [b_56, %v_49], [b_59, %v_61]: I32
+    %v_63 = add %v_62, 32768: I32
+    %v_64 = bitcast 0: Ptr
+    %v_65 = call_complex ResolveTest.deferred$40, %v_64: I32
+    je %v_65, b_66, b_67
+  }
+
+  b_66 {
+    %v_68 = add %v_63, 65536: I32
+    jmp b_67
+  }
+
+  b_67 {
+    %v_69 = phi [b_60, %v_63], [b_66, %v_68]: I32
+    %v_70 = bitcast 0: Ptr
+    %v_71 = call_complex ResolveTest.deferred$41, %v_70: I32
+    %v_72 = cmp_neq %v_71, 0: I32
+    je %v_72, b_73, b_74
+  }
+
+  b_73 {
+    %v_75 = add %v_69, 131072: I32
+    jmp b_74
+  }
+
+  b_74 {
+    %v_76 = phi [b_67, %v_69], [b_73, %v_75]: I32
+    %v_77 = add %v_76, 262144: I32
+    %v_78 = bitcast 0: Ptr
+    %v_79 = alloca 8, 4: Ptr
+    call_complex ResolveTest.deferred$43, %v_79, %v_78
+    %v_80 = loads %v_79, 4: I32
+    %v_81 = cmp_eq %v_80, 1: I32
+    je %v_81, b_82, b_83
+  }
+
+  b_82 {
+    %v_84 = add %v_77, 524288: I32
+    jmp b_83
+  }
+
+  b_83 {
+    %v_85 = phi [b_74, %v_77], [b_82, %v_84]: I32
+    %v_86 = add %v_85, 1048576: I32
+    %v_87 = bitcast 0: Ptr
+    %v_88 = call_complex ResolveTest.deferred$45, %v_87: I32
+    %v_89 = cmp_eq %v_88, 8388608: I32
+    je %v_89, b_90, b_91
+  }
+
+  b_90 {
+    %v_92 = add %v_86, 2097152: I32
+    jmp b_91
+  }
+
+  b_91 {
+    %v_93 = phi [b_83, %v_86], [b_90, %v_92]: I32
+    %v_94 = loads @effects, 4: I32
+    %v_95 = cmp_eq %v_94, 11323814: I32
+    je %v_95, b_96, b_97
+  }
+
+  b_96 {
+    %v_98 = add %v_93, 4194304: I32
+    jmp b_97
+  }
+
+  b_97 {
+    %v_99 = phi [b_91, %v_93], [b_96, %v_98]: I32
+    ret %v_99
+  }
+
+  b_52 {
+    %v_100 = phi [b_53, %v_58], [b_47, %v_51]: I32
+    %v_101 = phi [b_53, %v_55], [b_47, 0]: I32
+    %v_58 = add %v_100, 1: I32
+    %v_55 = add %v_101, 1: I32
+    jmp b_53
   }
 }
 

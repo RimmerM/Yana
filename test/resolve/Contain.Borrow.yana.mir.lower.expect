@@ -74,57 +74,49 @@ fill<complex>(%n: I32): I32 {
 
   b_36 {
     %v_38 = cmp_ge %v_33, %v_15: I32
-    je %v_38, b_39, b_40
-  }
-
-  b_40 {
-    %v_41 = shl %v_33, 2: I64
-    %v_42 = add %v_12, %v_41: Ptr
-    %v_43 = loads %v_42, 4: I32
-    %v_44 = add %v_43, 1: I32
-    jmp b_45
-  }
-
-  b_39 {
-    %v_46 = syscall 60, 134: I64
-    unreachable 
-  }
-
-  b_45 {
-    store %v_42, %v_44, 4
-    jmp b_31
+    je %v_38, b_39, b_31
   }
 
   b_31 {
-    %v_47 = loads %v_42, 4: I32
-    %v_32 = add %v_30, %v_47: I32
+    %v_40 = shl %v_33, 2: I64
+    %v_41 = add %v_12, %v_40: Ptr
+    %v_42 = loads %v_41, 4: I32
+    %v_43 = add %v_42, 1: I32
+    store %v_41, %v_43, 4
+    %v_44 = loads %v_41, 4: I32
+    %v_32 = add %v_30, %v_44: I32
     %v_34 = add %v_33, 1: I64
     jmp b_17
   }
 
+  b_39 {
+    %v_45 = syscall 60, 134: I64
+    unreachable 
+  }
+
   b_28 {
-    %v_48 = phi [b_10, %v_26], [b_29, %v_49]: I64
-    %v_50 = cmp_ige %v_20, %v_48: I32
-    je %v_50, b_39, b_7
+    %v_46 = phi [b_10, %v_26], [b_29, %v_47]: I64
+    %v_48 = cmp_ige %v_20, %v_46: I32
+    je %v_48, b_39, b_7
   }
 
   b_29 {
     call_complex growArray(I32), %v_1, %v_21
-    %v_51 = load %v_22, 4: I64
-    %v_52 = and %v_51, 1073741823: I64
-    %v_53 = cast %v_52: I32
-    %v_49 = cast %v_53: I64
+    %v_49 = load %v_22, 4: I64
+    %v_50 = and %v_49, 1073741823: I64
+    %v_51 = cast %v_50: I32
+    %v_47 = cast %v_51: I64
     jmp b_28
   }
 
   b_7 {
-    %v_54 = load %v_1, 8: Ptr
-    %v_55 = shl %v_20, 2: I64
-    %v_56 = add %v_54, %v_55: Ptr
-    store %v_56, %v_6, 4
-    %v_57 = cast %v_21: I32
-    %v_58 = and %v_57, 1073741823: I32
-    store %v_18, %v_58, 4
+    %v_52 = load %v_1, 8: Ptr
+    %v_53 = shl %v_20, 2: I64
+    %v_54 = add %v_52, %v_53: Ptr
+    store %v_54, %v_6, 4
+    %v_55 = cast %v_21: I32
+    %v_56 = and %v_55, 1073741823: I32
+    store %v_18, %v_56, 4
     %v_8 = add %v_6, 1: I32
     jmp b_5
   }

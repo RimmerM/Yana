@@ -28,20 +28,12 @@ branch<complex>(%flag: I32): I32 {
     ret %v_6
   }
 
-  b_7 {
-    jmp b_8
-  }
-
-  b_8 {
+  b_4 {
+    %v_7 = loads @live, 4: I32
+    %v_8 = sub %v_7, 1: I32
+    store @live, %v_8, 4
     %v_9 = loads @live, 4: I32
     ret %v_9
-  }
-
-  b_4 {
-    %v_10 = loads @live, 4: I32
-    %v_11 = sub %v_10, 1: I32
-    store @live, %v_11, 4
-    jmp b_7
   }
 }
 

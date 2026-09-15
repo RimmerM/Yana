@@ -139,57 +139,49 @@ main<complex>(): I32 {
     call_complex String.reclaim, %v_7
     %v_51 = add %v_7, 16: Ptr
     call_complex String.reclaim, %v_51
-    jmp b_52
+    copy %v_8, @constant$14, 16
+    %v_52 = add %v_8, 32: Ptr
+    store %v_52, 74, 4
+    %v_53 = add %v_8, 36: Ptr
+    store %v_53, 7, 4
+    %v_54 = add %v_8, 16: Ptr
+    copy %v_54, @constant$15, 16
+    call_complex String.reclaim, %v_8
+    %v_55 = add %v_8, 16: Ptr
+    call_complex String.reclaim, %v_55
+    copy %v_9, @constant$16, 16
+    %v_56 = add %v_9, 32: Ptr
+    store %v_56, 74, 4
+    %v_57 = add %v_9, 36: Ptr
+    store %v_57, 22, 4
+    %v_58 = add %v_9, 16: Ptr
+    copy %v_58, @constant$17, 16
+    call_complex String.reclaim, %v_9
+    %v_59 = add %v_9, 16: Ptr
+    call_complex String.reclaim, %v_59
+    ret 0
   }
 
   b_45 {
     ret 4
   }
 
-  b_52 {
-    jmp b_53
-  }
-
-  b_53 {
-    copy %v_8, @constant$14, 16
-    %v_54 = add %v_8, 32: Ptr
-    store %v_54, 74, 4
-    %v_55 = add %v_8, 36: Ptr
-    store %v_55, 7, 4
-    %v_56 = add %v_8, 16: Ptr
-    copy %v_56, @constant$15, 16
-    call_complex String.reclaim, %v_8
-    %v_57 = add %v_8, 16: Ptr
-    call_complex String.reclaim, %v_57
-    copy %v_9, @constant$16, 16
-    %v_58 = add %v_9, 32: Ptr
-    store %v_58, 74, 4
-    %v_59 = add %v_9, 36: Ptr
-    store %v_59, 22, 4
-    %v_60 = add %v_9, 16: Ptr
-    copy %v_60, @constant$17, 16
-    call_complex String.reclaim, %v_9
-    %v_61 = add %v_9, 16: Ptr
-    call_complex String.reclaim, %v_61
-    ret 0
-  }
-
   b_35 {
-    %v_62 = call_complex compareMemory(CodeUnit), %v_29, @string'152, %v_32: I32
-    %v_63 = cmp_eq %v_62, 1: I32
-    jmp b_64
+    %v_60 = call_complex compareMemory(CodeUnit), %v_29, @string'152, %v_32: I32
+    %v_61 = cmp_eq %v_60, 1: I32
+    jmp b_62
   }
 
   b_34 {
-    jmp b_64
+    jmp b_62
   }
 
-  b_64 {
-    %v_65 = phi [b_35, %v_63], [b_34, 0]: I32
+  b_62 {
+    %v_63 = phi [b_35, %v_61], [b_34, 0]: I32
     call_complex String.reclaim, %v_5
-    %v_66 = add %v_5, 16: Ptr
-    call_complex String.reclaim, %v_66
-    je %v_65, b_36, b_47
+    %v_64 = add %v_5, 16: Ptr
+    call_complex String.reclaim, %v_64
+    je %v_63, b_36, b_47
   }
 }
 

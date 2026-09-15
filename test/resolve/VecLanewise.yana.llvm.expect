@@ -19,81 +19,60 @@ define fastcc i32 @comparisons(<4 x i32> %a, <4 x i32> %b) #0 {
   ret i32 -1
 
 6:                                                ; preds = %1
-  br label %7
+  %7 = icmp sle <4 x i32> %a, %b
+  %8 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %7)
+  %9 = zext i1 %8 to i32
+  br i1 %8, label %11, label %10
 
-7:                                                ; preds = %6
-  %8 = icmp sle <4 x i32> %a, %b
-  %9 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %8)
-  %10 = zext i1 %9 to i32
-  br i1 %9, label %12, label %11
-
-11:                                               ; preds = %7
+10:                                               ; preds = %6
   ret i32 -2
 
-12:                                               ; preds = %7
-  br label %13
+11:                                               ; preds = %6
+  %12 = icmp sgt <4 x i32> %b, %a
+  %13 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %12)
+  %14 = zext i1 %13 to i32
+  br i1 %13, label %16, label %15
 
-13:                                               ; preds = %12
-  %14 = icmp sgt <4 x i32> %b, %a
-  %15 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %14)
-  %16 = zext i1 %15 to i32
-  br i1 %15, label %18, label %17
-
-17:                                               ; preds = %13
+15:                                               ; preds = %11
   ret i32 -3
 
-18:                                               ; preds = %13
-  br label %19
+16:                                               ; preds = %11
+  %17 = icmp sge <4 x i32> %b, %a
+  %18 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %17)
+  %19 = zext i1 %18 to i32
+  br i1 %18, label %21, label %20
 
-19:                                               ; preds = %18
-  %20 = icmp sge <4 x i32> %b, %a
-  %21 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %20)
-  %22 = zext i1 %21 to i32
-  br i1 %21, label %24, label %23
-
-23:                                               ; preds = %19
+20:                                               ; preds = %16
   ret i32 -4
 
-24:                                               ; preds = %19
-  br label %25
+21:                                               ; preds = %16
+  %22 = icmp ne <4 x i32> %a, %b
+  %23 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %22)
+  %24 = zext i1 %23 to i32
+  br i1 %23, label %26, label %25
 
-25:                                               ; preds = %24
-  %26 = icmp ne <4 x i32> %a, %b
-  %27 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %26)
-  %28 = zext i1 %27 to i32
-  br i1 %27, label %30, label %29
-
-29:                                               ; preds = %25
+25:                                               ; preds = %21
   ret i32 -5
 
-30:                                               ; preds = %25
-  br label %31
+26:                                               ; preds = %21
+  %27 = icmp eq <4 x i32> %a, %b
+  %28 = call i1 @llvm.vector.reduce.or.v4i1(<4 x i1> %27)
+  %29 = zext i1 %28 to i32
+  br i1 %28, label %30, label %31
 
-31:                                               ; preds = %30
-  %32 = icmp eq <4 x i32> %a, %b
+30:                                               ; preds = %26
+  ret i32 -6
+
+31:                                               ; preds = %26
+  %32 = icmp sgt <4 x i32> %a, %b
   %33 = call i1 @llvm.vector.reduce.or.v4i1(<4 x i1> %32)
   %34 = zext i1 %33 to i32
   br i1 %33, label %35, label %36
 
 35:                                               ; preds = %31
-  ret i32 -6
-
-36:                                               ; preds = %31
-  br label %37
-
-37:                                               ; preds = %36
-  %38 = icmp sgt <4 x i32> %a, %b
-  %39 = call i1 @llvm.vector.reduce.or.v4i1(<4 x i1> %38)
-  %40 = zext i1 %39 to i32
-  br i1 %39, label %41, label %42
-
-41:                                               ; preds = %37
   ret i32 -7
 
-42:                                               ; preds = %37
-  br label %43
-
-43:                                               ; preds = %42
+36:                                               ; preds = %31
   ret i32 0
 }
 
@@ -113,21 +92,15 @@ define fastcc i32 @selection(<4 x i32> %a, <4 x i32> %b) #0 {
   ret i32 -1
 
 7:                                                ; preds = %1
-  br label %8
+  %8 = extractelement <4 x i32> %larger, i32 1
+  %9 = icmp ne i32 %8, 4
+  %10 = zext i1 %9 to i32
+  br i1 %9, label %11, label %12
 
-8:                                                ; preds = %7
-  %9 = extractelement <4 x i32> %larger, i32 1
-  %10 = icmp ne i32 %9, 4
-  %11 = zext i1 %10 to i32
-  br i1 %10, label %12, label %13
-
-12:                                               ; preds = %8
+11:                                               ; preds = %7
   ret i32 -2
 
-13:                                               ; preds = %8
-  br label %14
-
-14:                                               ; preds = %13
+12:                                               ; preds = %7
   ret i32 0
 }
 
@@ -146,45 +119,33 @@ define fastcc i32 @combining(<4 x i32> %a, <4 x i32> %b) #0 {
   ret i32 -1
 
 6:                                                ; preds = %1
-  br label %7
+  %7 = and <4 x i1> %below, %equal
+  %8 = call i1 @llvm.vector.reduce.or.v4i1(<4 x i1> %7)
+  %9 = zext i1 %8 to i32
+  br i1 %8, label %10, label %11
 
-7:                                                ; preds = %6
-  %8 = and <4 x i1> %below, %equal
-  %9 = call i1 @llvm.vector.reduce.or.v4i1(<4 x i1> %8)
-  %10 = zext i1 %9 to i32
-  br i1 %9, label %11, label %12
-
-11:                                               ; preds = %7
+10:                                               ; preds = %6
   ret i32 -2
 
-12:                                               ; preds = %7
-  br label %13
+11:                                               ; preds = %6
+  %12 = xor <4 x i1> %below, %equal
+  %13 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %12)
+  %14 = zext i1 %13 to i32
+  br i1 %13, label %16, label %15
 
-13:                                               ; preds = %12
-  %14 = xor <4 x i1> %below, %equal
-  %15 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %14)
-  %16 = zext i1 %15 to i32
-  br i1 %15, label %18, label %17
-
-17:                                               ; preds = %13
+15:                                               ; preds = %11
   ret i32 -3
 
-18:                                               ; preds = %13
-  br label %19
+16:                                               ; preds = %11
+  %17 = xor <4 x i1> %equal, splat (i1 true)
+  %18 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %17)
+  %19 = zext i1 %18 to i32
+  br i1 %18, label %21, label %20
 
-19:                                               ; preds = %18
-  %20 = xor <4 x i1> %equal, splat (i1 true)
-  %21 = call i1 @llvm.vector.reduce.and.v4i1(<4 x i1> %20)
-  %22 = zext i1 %21 to i32
-  br i1 %21, label %24, label %23
-
-23:                                               ; preds = %19
+20:                                               ; preds = %16
   ret i32 -4
 
-24:                                               ; preds = %19
-  br label %25
-
-25:                                               ; preds = %24
+21:                                               ; preds = %16
   ret i32 0
 }
 
@@ -201,71 +162,53 @@ define fastcc i32 @counting() #0 {
   ret i32 -1
 
 6:                                                ; preds = %1
-  br label %7
+  %7 = zext i4 bitcast (<4 x i1> <i1 false, i1 true, i1 true, i1 true> to i4) to i32
+  %8 = or i32 %7, 16
+  %9 = call i32 @llvm.cttz.i32(i32 %8, i1 true)
+  %10 = icmp ne i32 %9, 1
+  %11 = zext i1 %10 to i32
+  br i1 %10, label %12, label %13
 
-7:                                                ; preds = %6
-  %8 = zext i4 bitcast (<4 x i1> <i1 false, i1 true, i1 true, i1 true> to i4) to i32
-  %9 = or i32 %8, 16
-  %10 = call i32 @llvm.cttz.i32(i32 %9, i1 true)
-  %11 = icmp ne i32 %10, 1
-  %12 = zext i1 %11 to i32
-  br i1 %11, label %13, label %14
-
-13:                                               ; preds = %7
+12:                                               ; preds = %6
   ret i32 -2
 
-14:                                               ; preds = %7
-  br label %15
+13:                                               ; preds = %6
+  %14 = call i32 @llvm.cttz.i32(i32 16, i1 true)
+  %15 = icmp ne i32 %14, 4
+  %16 = zext i1 %15 to i32
+  br i1 %15, label %17, label %18
 
-15:                                               ; preds = %14
-  %16 = call i32 @llvm.cttz.i32(i32 16, i1 true)
-  %17 = icmp ne i32 %16, 4
-  %18 = zext i1 %17 to i32
-  br i1 %17, label %19, label %20
-
-19:                                               ; preds = %15
+17:                                               ; preds = %13
   ret i32 -3
 
-20:                                               ; preds = %15
-  br label %21
+18:                                               ; preds = %13
+  %19 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> zeroinitializer)
+  %20 = icmp ne i32 %19, 0
+  %21 = zext i1 %20 to i32
+  br i1 %20, label %22, label %23
 
-21:                                               ; preds = %20
-  %22 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> zeroinitializer)
-  %23 = icmp ne i32 %22, 0
-  %24 = zext i1 %23 to i32
-  br i1 %23, label %25, label %26
-
-25:                                               ; preds = %21
+22:                                               ; preds = %18
   ret i32 -4
 
-26:                                               ; preds = %21
-  br label %27
+23:                                               ; preds = %18
+  %24 = call i32 @llvm.cttz.i32(i32 31, i1 true)
+  %25 = icmp ne i32 %24, 0
+  %26 = zext i1 %25 to i32
+  br i1 %25, label %27, label %28
 
-27:                                               ; preds = %26
-  %28 = call i32 @llvm.cttz.i32(i32 31, i1 true)
-  %29 = icmp ne i32 %28, 0
-  %30 = zext i1 %29 to i32
-  br i1 %29, label %31, label %32
-
-31:                                               ; preds = %27
+27:                                               ; preds = %23
   ret i32 -5
 
-32:                                               ; preds = %27
-  br label %33
+28:                                               ; preds = %23
+  %29 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> splat (i32 1))
+  %30 = icmp ne i32 %29, 4
+  %31 = zext i1 %30 to i32
+  br i1 %30, label %32, label %33
 
-33:                                               ; preds = %32
-  %34 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> splat (i32 1))
-  %35 = icmp ne i32 %34, 4
-  %36 = zext i1 %35 to i32
-  br i1 %35, label %37, label %38
-
-37:                                               ; preds = %33
+32:                                               ; preds = %28
   ret i32 -6
 
-38:                                               ; preds = %33
-  br label %39
-
-39:                                               ; preds = %38
+33:                                               ; preds = %28
   ret i32 0
 }
 
@@ -281,18 +224,12 @@ define fastcc i32 @floats() #0 {
   ret i32 -1
 
 5:                                                ; preds = %1
-  br label %6
+  br i1 false, label %6, label %7
 
 6:                                                ; preds = %5
-  br i1 false, label %7, label %8
-
-7:                                                ; preds = %6
   ret i32 -2
 
-8:                                                ; preds = %6
-  br label %9
-
-9:                                                ; preds = %8
+7:                                                ; preds = %5
   ret i32 0
 }
 
@@ -316,65 +253,50 @@ define fastcc i32 @main() #0 {
   ret i32 %8
 
 9:                                                ; preds = %1
-  br label %10
+  %10 = call fastcc i32 @selection(<4 x i32> %a, <4 x i32> %b)
+  %11 = icmp ne i32 %10, 0
+  %12 = zext i1 %11 to i32
+  br i1 %11, label %13, label %16
 
-10:                                               ; preds = %9
-  %11 = call fastcc i32 @selection(<4 x i32> %a, <4 x i32> %b)
-  %12 = icmp ne i32 %11, 0
-  %13 = zext i1 %12 to i32
-  br i1 %12, label %14, label %17
+13:                                               ; preds = %9
+  %14 = call fastcc i32 @selection(<4 x i32> %a, <4 x i32> %b)
+  %15 = mul i32 %14, 10
+  ret i32 %15
 
-14:                                               ; preds = %10
-  %15 = call fastcc i32 @selection(<4 x i32> %a, <4 x i32> %b)
-  %16 = mul i32 %15, 10
-  ret i32 %16
+16:                                               ; preds = %9
+  %17 = call fastcc i32 @combining(<4 x i32> %a, <4 x i32> %b)
+  %18 = icmp ne i32 %17, 0
+  %19 = zext i1 %18 to i32
+  br i1 %18, label %20, label %23
 
-17:                                               ; preds = %10
-  br label %18
+20:                                               ; preds = %16
+  %21 = call fastcc i32 @combining(<4 x i32> %a, <4 x i32> %b)
+  %22 = mul i32 %21, 100
+  ret i32 %22
 
-18:                                               ; preds = %17
-  %19 = call fastcc i32 @combining(<4 x i32> %a, <4 x i32> %b)
-  %20 = icmp ne i32 %19, 0
-  %21 = zext i1 %20 to i32
-  br i1 %20, label %22, label %25
+23:                                               ; preds = %16
+  %24 = call fastcc i32 @counting()
+  %25 = icmp ne i32 %24, 0
+  %26 = zext i1 %25 to i32
+  br i1 %25, label %27, label %30
 
-22:                                               ; preds = %18
-  %23 = call fastcc i32 @combining(<4 x i32> %a, <4 x i32> %b)
-  %24 = mul i32 %23, 100
-  ret i32 %24
+27:                                               ; preds = %23
+  %28 = call fastcc i32 @counting()
+  %29 = mul i32 %28, 1000
+  ret i32 %29
 
-25:                                               ; preds = %18
-  br label %26
+30:                                               ; preds = %23
+  %31 = call fastcc i32 @floats()
+  %32 = icmp ne i32 %31, 0
+  %33 = zext i1 %32 to i32
+  br i1 %32, label %34, label %37
 
-26:                                               ; preds = %25
-  %27 = call fastcc i32 @counting()
-  %28 = icmp ne i32 %27, 0
-  %29 = zext i1 %28 to i32
-  br i1 %28, label %30, label %33
-
-30:                                               ; preds = %26
-  %31 = call fastcc i32 @counting()
-  %32 = mul i32 %31, 1000
-  ret i32 %32
-
-33:                                               ; preds = %26
-  br label %34
-
-34:                                               ; preds = %33
+34:                                               ; preds = %30
   %35 = call fastcc i32 @floats()
-  %36 = icmp ne i32 %35, 0
-  %37 = zext i1 %36 to i32
-  br i1 %36, label %38, label %41
+  %36 = mul i32 %35, 10000
+  ret i32 %36
 
-38:                                               ; preds = %34
-  %39 = call fastcc i32 @floats()
-  %40 = mul i32 %39, 10000
-  ret i32 %40
-
-41:                                               ; preds = %34
-  br label %42
-
-42:                                               ; preds = %41
+37:                                               ; preds = %30
   ret i32 4839
 }
 

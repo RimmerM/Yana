@@ -110,287 +110,279 @@ main<complex>(): I64 {
 
   b_72 {
     call_complex LentIter(y, a).drop(String, {String}), %v_3
-    jmp b_73
+    %v_73 = loads @trace, 8: I64
+    %v_74 = imul %v_73, 100: I64
+    %v_75 = add %v_74, %v_39: I64
+    %v_76 = imul %v_75, 100: I64
+    %v_77 = add %v_76, %v_65: I64
+    ret %v_77
   }
 
   b_67 {
-    %v_68 = add %v_65, %v_74: I64
+    %v_68 = add %v_65, %v_78: I64
     jmp b_64
   }
 
-  b_73 {
-    %v_75 = loads @trace, 8: I64
-    %v_76 = imul %v_75, 100: I64
-    %v_77 = add %v_76, %v_39: I64
-    %v_78 = imul %v_77, 100: I64
-    %v_79 = add %v_78, %v_65: I64
-    ret %v_79
-  }
-
   b_37 {
-    %v_80 = syscall 60, 134: I64
+    %v_79 = syscall 60, 134: I64
     jmp b_18
   }
 
   b_18 {
-    %v_81 = add %v_34, 12: Ptr
-    %v_82 = load %v_81, 4: I32
-    %v_83 = sext %v_82: I64
-    %v_19 = add %v_16, %v_83: I64
+    %v_80 = add %v_34, 12: Ptr
+    %v_81 = load %v_80, 4: I32
+    %v_82 = sext %v_81: I64
+    %v_19 = add %v_16, %v_82: I64
     jmp b_15
   }
 
   b_63 {
-    %v_84 = syscall 60, 134: I64
+    %v_83 = syscall 60, 134: I64
     jmp b_41
   }
 
   b_41 {
-    %v_85 = loads %v_60, 8: I64
-    %v_42 = add %v_39, %v_85: I64
+    %v_84 = loads %v_60, 8: I64
+    %v_42 = add %v_39, %v_84: I64
     jmp b_38
   }
 
-  b_86 {
-    %v_87 = phi [b_88, %v_89], [b_90, %v_91]: Ptr
-    %v_92 = load %v_87, 8: I64
-    %v_93 = add %v_87, 8: Ptr
-    %v_74 = load %v_93, 8: I64
-    %v_94 = cmp_neq %v_92, 0: I32
-    je %v_94, b_67, b_72
+  b_85 {
+    %v_86 = phi [b_87, %v_88], [b_89, %v_90]: Ptr
+    %v_91 = load %v_86, 8: I64
+    %v_92 = add %v_86, 8: Ptr
+    %v_78 = load %v_92, 8: I64
+    %v_93 = cmp_neq %v_91, 0: I32
+    je %v_93, b_67, b_72
   }
 
-  b_95 {
-    %v_96 = add %v_97, 64: Ptr
-    %v_98 = load %v_96, 8: Ptr
-    %v_99 = bitcast %v_98: I64
-    %v_100 = cmp_eq %v_99, 0: I32
-    je %v_100, b_101, b_88
+  b_94 {
+    %v_95 = add %v_96, 64: Ptr
+    %v_97 = load %v_95, 8: Ptr
+    %v_98 = bitcast %v_97: I64
+    %v_99 = cmp_eq %v_98, 0: I32
+    je %v_99, b_100, b_87
   }
 
-  b_90 {
-    %v_91 = alloca 16, 8: Ptr
-    store %v_91, 0, 8
-    jmp b_86
+  b_89 {
+    %v_90 = alloca 16, 8: Ptr
+    store %v_90, 0, 8
+    jmp b_85
   }
 
   b_17 {
-    %v_33 = phi [b_14, %v_102], [b_13, %v_103]: Ptr
+    %v_33 = phi [b_14, %v_101], [b_13, %v_102]: Ptr
     store %v_1, %v_33, 8
-    %v_104 = bitcast %v_33: I64
-    %v_20 = cmp_eq %v_104, 0: I32
+    %v_103 = bitcast %v_33: I64
+    %v_20 = cmp_eq %v_103, 0: I32
     jmp b_15
   }
 
   b_14 {
-    %v_105 = add %v_10, 65536: Ptr
-    %v_106 = bitcast %v_105: I64
-    %v_107 = sub %v_106, 88: I64
-    %v_108 = and %v_107, 18446744073709551552: I64
-    %v_109 = call_complex stackGuardBytes: I64
-    %v_110 = add %v_10, %v_109: Ptr
-    %v_111 = bitcast %v_110: I64
-    %v_102 = bitcast %v_108: Ptr
-    %v_112 = sub %v_108, %v_111: I64
-    %v_113 = alloca 17, 8: Ptr
-    call_complex newFiber, @environment(newFiber(IterBlock(String, {}))), %v_113, %v_110, %v_112, %v_102, %v_5
-    %v_114 = bitcast 0: Ptr
+    %v_104 = add %v_10, 65536: Ptr
+    %v_105 = bitcast %v_104: I64
+    %v_106 = sub %v_105, 88: I64
+    %v_107 = and %v_106, 18446744073709551552: I64
+    %v_108 = call_complex stackGuardBytes: I64
+    %v_109 = add %v_10, %v_108: Ptr
+    %v_110 = bitcast %v_109: I64
+    %v_101 = bitcast %v_107: Ptr
+    %v_111 = sub %v_107, %v_110: I64
+    %v_112 = alloca 17, 8: Ptr
+    call_complex newFiber, @environment(newFiber(IterBlock(String, {}))), %v_112, %v_109, %v_111, %v_101, %v_5
+    %v_113 = bitcast 0: Ptr
     copy %v_9, %v_6, 16
-    copy %v_8, %v_113, 17
-    copy %v_102, %v_8, 17
-    %v_115 = add %v_102, 36: Ptr
-    store %v_115, 1073741824, 4
-    %v_116 = add %v_102, 40: Ptr
-    store %v_116, 0, 8
-    %v_117 = add %v_102, 48: Ptr
-    store %v_117, %v_10, 8
-    %v_118 = add %v_102, 56: Ptr
-    store %v_118, 65536, 8
-    %v_119 = add %v_102, 64: Ptr
-    store %v_119, %v_114, 8
-    %v_120 = add %v_102, 72: Ptr
-    copy %v_120, %v_9, 16
+    copy %v_8, %v_112, 17
+    copy %v_101, %v_8, 17
+    %v_114 = add %v_101, 36: Ptr
+    store %v_114, 1073741824, 4
+    %v_115 = add %v_101, 40: Ptr
+    store %v_115, 0, 8
+    %v_116 = add %v_101, 48: Ptr
+    store %v_116, %v_10, 8
+    %v_117 = add %v_101, 56: Ptr
+    store %v_117, 65536, 8
+    %v_118 = add %v_101, 64: Ptr
+    store %v_118, %v_113, 8
+    %v_119 = add %v_101, 72: Ptr
+    copy %v_119, %v_9, 16
     jmp b_17
   }
 
   b_13 {
     call_complex String.reclaim, %v_6
-    %v_103 = bitcast 0: Ptr
+    %v_102 = bitcast 0: Ptr
     jmp b_17
   }
 
   b_40 {
-    %v_59 = phi [b_30, %v_121], [b_29, %v_122]: Ptr
+    %v_59 = phi [b_30, %v_120], [b_29, %v_121]: Ptr
     store %v_2, %v_59, 8
-    %v_123 = bitcast %v_59: I64
-    %v_43 = cmp_eq %v_123, 0: I32
+    %v_122 = bitcast %v_59: I64
+    %v_43 = cmp_eq %v_122, 0: I32
     jmp b_38
   }
 
   b_30 {
-    %v_124 = add %v_26, 65536: Ptr
-    %v_125 = bitcast %v_124: I64
-    %v_126 = sub %v_125, 73: I64
-    %v_127 = and %v_126, 18446744073709551552: I64
-    %v_128 = call_complex stackGuardBytes: I64
-    %v_129 = add %v_26, %v_128: Ptr
-    %v_130 = bitcast %v_129: I64
-    %v_121 = bitcast %v_127: Ptr
-    %v_131 = sub %v_127, %v_130: I64
-    %v_132 = alloca 17, 8: Ptr
-    call_complex newFiber, @environment(newFiber(IterBlock(Guard, {}))), %v_132, %v_129, %v_131, %v_121, %v_23
-    %v_133 = add %v_25, 24: Ptr
-    store %v_133, 0, 1
-    %v_134 = bitcast 0: Ptr
-    %v_135 = add %v_25, 72: Ptr
-    store %v_135, 1, 1
-    copy %v_25, %v_132, 17
-    %v_136 = add %v_25, 40: Ptr
-    store %v_136, 0, 8
-    %v_137 = add %v_25, 48: Ptr
-    store %v_137, %v_26, 8
-    %v_138 = add %v_25, 56: Ptr
-    store %v_138, 65536, 8
-    %v_139 = add %v_25, 64: Ptr
-    store %v_139, %v_134, 8
-    copy %v_121, %v_25, 73
+    %v_123 = add %v_26, 65536: Ptr
+    %v_124 = bitcast %v_123: I64
+    %v_125 = sub %v_124, 73: I64
+    %v_126 = and %v_125, 18446744073709551552: I64
+    %v_127 = call_complex stackGuardBytes: I64
+    %v_128 = add %v_26, %v_127: Ptr
+    %v_129 = bitcast %v_128: I64
+    %v_120 = bitcast %v_126: Ptr
+    %v_130 = sub %v_126, %v_129: I64
+    %v_131 = alloca 17, 8: Ptr
+    call_complex newFiber, @environment(newFiber(IterBlock(Guard, {}))), %v_131, %v_128, %v_130, %v_120, %v_23
+    %v_132 = add %v_25, 24: Ptr
+    store %v_132, 0, 1
+    %v_133 = bitcast 0: Ptr
+    %v_134 = add %v_25, 72: Ptr
+    store %v_134, 1, 1
+    copy %v_25, %v_131, 17
+    %v_135 = add %v_25, 40: Ptr
+    store %v_135, 0, 8
+    %v_136 = add %v_25, 48: Ptr
+    store %v_136, %v_26, 8
+    %v_137 = add %v_25, 56: Ptr
+    store %v_137, 65536, 8
+    %v_138 = add %v_25, 64: Ptr
+    store %v_138, %v_133, 8
+    copy %v_120, %v_25, 73
     jmp b_40
   }
 
   b_29 {
-    %v_122 = bitcast 0: Ptr
+    %v_121 = bitcast 0: Ptr
     jmp b_40
   }
 
   b_66 {
-    %v_97 = phi [b_56, %v_140], [b_55, %v_141]: Ptr
-    store %v_3, %v_97, 8
-    %v_142 = bitcast %v_97: I64
-    %v_69 = cmp_eq %v_142, 0: I32
+    %v_96 = phi [b_56, %v_139], [b_55, %v_140]: Ptr
+    store %v_3, %v_96, 8
+    %v_141 = bitcast %v_96: I64
+    %v_69 = cmp_eq %v_141, 0: I32
     jmp b_64
   }
 
   b_56 {
-    %v_143 = add %v_52, 65536: Ptr
-    %v_144 = bitcast %v_143: I64
-    %v_145 = sub %v_144, 88: I64
-    %v_146 = and %v_145, 18446744073709551552: I64
-    %v_147 = call_complex stackGuardBytes: I64
-    %v_148 = add %v_52, %v_147: Ptr
-    %v_149 = bitcast %v_148: I64
-    %v_140 = bitcast %v_146: Ptr
-    %v_150 = sub %v_146, %v_149: I64
-    %v_151 = alloca 17, 8: Ptr
-    call_complex newFiber, @environment(newFiber(IterBlock(String, {}))), %v_151, %v_148, %v_150, %v_140, %v_47
-    %v_152 = bitcast 0: Ptr
+    %v_142 = add %v_52, 65536: Ptr
+    %v_143 = bitcast %v_142: I64
+    %v_144 = sub %v_143, 88: I64
+    %v_145 = and %v_144, 18446744073709551552: I64
+    %v_146 = call_complex stackGuardBytes: I64
+    %v_147 = add %v_52, %v_146: Ptr
+    %v_148 = bitcast %v_147: I64
+    %v_139 = bitcast %v_145: Ptr
+    %v_149 = sub %v_145, %v_148: I64
+    %v_150 = alloca 17, 8: Ptr
+    call_complex newFiber, @environment(newFiber(IterBlock(String, {}))), %v_150, %v_147, %v_149, %v_139, %v_47
+    %v_151 = bitcast 0: Ptr
     copy %v_51, %v_48, 16
-    copy %v_50, %v_151, 17
-    copy %v_140, %v_50, 17
-    %v_153 = add %v_140, 36: Ptr
-    store %v_153, 1073741824, 4
-    %v_154 = add %v_140, 40: Ptr
-    store %v_154, 0, 8
-    %v_155 = add %v_140, 48: Ptr
-    store %v_155, %v_52, 8
-    %v_156 = add %v_140, 56: Ptr
-    store %v_156, 65536, 8
-    %v_157 = add %v_140, 64: Ptr
-    store %v_157, %v_152, 8
-    %v_158 = add %v_140, 72: Ptr
-    copy %v_158, %v_51, 16
+    copy %v_50, %v_150, 17
+    copy %v_139, %v_50, 17
+    %v_152 = add %v_139, 36: Ptr
+    store %v_152, 1073741824, 4
+    %v_153 = add %v_139, 40: Ptr
+    store %v_153, 0, 8
+    %v_154 = add %v_139, 48: Ptr
+    store %v_154, %v_52, 8
+    %v_155 = add %v_139, 56: Ptr
+    store %v_155, 65536, 8
+    %v_156 = add %v_139, 64: Ptr
+    store %v_156, %v_151, 8
+    %v_157 = add %v_139, 72: Ptr
+    copy %v_157, %v_51, 16
     jmp b_66
   }
 
   b_55 {
     call_complex String.reclaim, %v_48
-    %v_141 = bitcast 0: Ptr
+    %v_140 = bitcast 0: Ptr
     jmp b_66
   }
 
   b_22 {
-    %v_159 = add %v_33, 16: Ptr
-    %v_160 = load %v_159, 1: I32
-    %v_161 = cmp_eq %v_160, 2: I32
-    je %v_161, b_21, b_162
+    %v_158 = add %v_33, 16: Ptr
+    %v_159 = load %v_158, 1: I32
+    %v_160 = cmp_eq %v_159, 2: I32
+    je %v_160, b_21, b_161
   }
 
-  b_162 {
-    store %v_159, 1, 1
-    %v_163 = load %v_33, 8: Ptr
-    %v_164 = add %v_33, 8: Ptr
-    %v_165 = stackswitch %v_163, %v_164, 1: I64
-    %v_166 = add %v_33, 40: Ptr
-    store %v_166, %v_165, 8
-    %v_167 = load %v_159, 1: I32
-    %v_168 = cmp_eq %v_167, 1: I32
-    je %v_168, b_31, b_21
+  b_161 {
+    store %v_158, 1, 1
+    %v_162 = load %v_33, 8: Ptr
+    %v_163 = add %v_33, 8: Ptr
+    %v_164 = stackswitch %v_162, %v_163, 1: I64
+    %v_165 = add %v_33, 40: Ptr
+    store %v_165, %v_164, 8
+    %v_166 = load %v_158, 1: I32
+    %v_167 = cmp_eq %v_166, 1: I32
+    je %v_167, b_31, b_21
   }
 
   b_45 {
-    %v_169 = add %v_59, 16: Ptr
-    %v_170 = load %v_169, 1: I32
-    %v_171 = cmp_eq %v_170, 2: I32
-    je %v_171, b_44, b_172
+    %v_168 = add %v_59, 16: Ptr
+    %v_169 = load %v_168, 1: I32
+    %v_170 = cmp_eq %v_169, 2: I32
+    je %v_170, b_44, b_171
   }
 
-  b_172 {
-    store %v_169, 1, 1
-    %v_173 = load %v_59, 8: Ptr
-    %v_174 = add %v_59, 8: Ptr
-    %v_175 = stackswitch %v_173, %v_174, 1: I64
-    %v_176 = add %v_59, 40: Ptr
-    store %v_176, %v_175, 8
-    %v_177 = load %v_169, 1: I32
-    %v_178 = cmp_eq %v_177, 1: I32
-    je %v_178, b_57, b_44
+  b_171 {
+    store %v_168, 1, 1
+    %v_172 = load %v_59, 8: Ptr
+    %v_173 = add %v_59, 8: Ptr
+    %v_174 = stackswitch %v_172, %v_173, 1: I64
+    %v_175 = add %v_59, 40: Ptr
+    store %v_175, %v_174, 8
+    %v_176 = load %v_168, 1: I32
+    %v_177 = cmp_eq %v_176, 1: I32
+    je %v_177, b_57, b_44
   }
 
   b_71 {
-    %v_179 = add %v_97, 16: Ptr
-    %v_180 = load %v_179, 1: I32
-    %v_181 = cmp_eq %v_180, 2: I32
-    je %v_181, b_182, b_183
-  }
-
-  b_183 {
-    store %v_179, 1, 1
-    %v_184 = load %v_97, 8: Ptr
-    %v_185 = add %v_97, 8: Ptr
-    %v_186 = stackswitch %v_184, %v_185, 1: I64
-    %v_187 = add %v_97, 40: Ptr
-    store %v_187, %v_186, 8
-    %v_188 = load %v_179, 1: I32
-    %v_189 = cmp_eq %v_188, 1: I32
-    jmp b_190
+    %v_178 = add %v_96, 16: Ptr
+    %v_179 = load %v_178, 1: I32
+    %v_180 = cmp_eq %v_179, 2: I32
+    je %v_180, b_181, b_182
   }
 
   b_182 {
-    jmp b_90
+    store %v_178, 1, 1
+    %v_183 = load %v_96, 8: Ptr
+    %v_184 = add %v_96, 8: Ptr
+    %v_185 = stackswitch %v_183, %v_184, 1: I64
+    %v_186 = add %v_96, 40: Ptr
+    store %v_186, %v_185, 8
+    %v_187 = load %v_178, 1: I32
+    %v_188 = cmp_eq %v_187, 1: I32
+    je %v_188, b_94, b_89
+  }
+
+  b_181 {
+    jmp b_89
   }
 
   b_70 {
-    jmp b_90
+    jmp b_89
   }
 
-  b_190 {
-    je %v_189, b_95, b_90
+  b_100 {
+    %v_189 = syscall 60, 134: I64
+    jmp b_87
   }
 
-  b_101 {
-    %v_191 = syscall 60, 134: I64
-    jmp b_88
-  }
-
-  b_88 {
-    %v_192 = load %v_98, 8: Ptr
-    %v_193 = add %v_98, 12: Ptr
-    %v_194 = load %v_193, 4: I32
-    %v_195 = sext %v_194: I64
-    %v_89 = alloca 16, 8: Ptr
-    store %v_89, %v_192, 8
-    %v_196 = add %v_89, 8: Ptr
-    store %v_196, %v_195, 8
-    jmp b_86
+  b_87 {
+    %v_190 = load %v_97, 8: Ptr
+    %v_191 = add %v_97, 12: Ptr
+    %v_192 = load %v_191, 4: I32
+    %v_193 = sext %v_192: I64
+    %v_88 = alloca 16, 8: Ptr
+    store %v_88, %v_190, 8
+    %v_194 = add %v_88, 8: Ptr
+    store %v_194, %v_193, 8
+    jmp b_85
   }
 }
 

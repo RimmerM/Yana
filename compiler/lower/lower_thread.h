@@ -77,3 +77,28 @@ void threadDecidedBranches(LowerBase base, LowerModule& module, LowerFunction& f
  * block set changed.
  */
 bool foldDecidedBranches(LowerBase base, LowerModule& module, LowerFunction& fun);
+
+/*
+ * A block that ends in a jump to a block nothing else enters, and the two made one.
+ *
+ * Nothing above builds this shape on purpose; it is what a removed branch leaves behind. A bounds
+ * check a dominating one already decided becomes a `jmp` into the arm it always took
+ * (`takeDecidedArm` in lower_cse.cpp), and so does one the loop's own test made
+ * (`eliminateBoundedChecks`) - and neither of those rewrites is in a position to splice, since each
+ * runs under an analysis indexed by the block set. So the pair is left for here.
+ *
+ * **Why it is worth a pass: the backend's folds are per block.** `foldStoreUpdates` takes a load,
+ * an operation on it and the store of the result only when the operation and the store share a
+ * block, and the ownership resolver checks `out[i]` once for the read and once for the write in
+ * `out[i] = out[i] + x`. The second check is decided, and what is left is exactly
+ * `b1 { ...; %v = add %l, %x; jmp b2 }  b2 { store %p, %v }`: the fold fired under the shipping
+ * resolver, which checks the place once, and not under this one - on the same program, with
+ * otherwise the same IR (§113 of test/bench/findings.md).
+ *
+ * The successor's phis have one alternative each and are replaced by it; the terminator, and with it
+ * every edge the successor had, moves up. A successor that jumps back to the block is left alone,
+ * because the merge would make that a jump from the block to itself.
+ *
+ * Last in the run, behind every pass that removes a branch, and answers whether anything merged.
+ */
+bool mergeLinearBlocks(LowerBase base, LowerFunction& fun);

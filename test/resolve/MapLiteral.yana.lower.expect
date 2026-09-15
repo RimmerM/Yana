@@ -177,10 +177,6 @@ reserve(Entry(I32, I32))<complex>(%self: Ptr, %wanted: I64) {
   }
 
   b_8 {
-    jmp b_9
-  }
-
-  b_9 {
     call_complex growArray(Entry(I32, I32)), %self, %wanted
     ret 
   }
@@ -373,84 +369,80 @@ indexPlace(I32, I32)<complex>(%self: Ptr, %at: I64, %h: I32) {
     %v_26 = sext %v_25: I64
     %v_27 = add %v_11, %v_26: I64
     %v_28 = and %v_27, %mask: I64
-    jmp b_29
+    %v_29 = cmp_ilt %v_28, 0: I32
+    je %v_29, b_19, b_30
   }
 
-  b_29 {
-    %v_30 = cmp_ilt %v_28, 0: I32
-    je %v_30, b_19, b_31
-  }
-
-  b_31 {
-    %v_32 = add %v_9, %v_28: Ptr
-    %taken = load %v_32, 1: I32
-    %v_33 = shr %h, 25: I32
-    store %v_32, %v_33, 1
-    %v_34 = cmp_ilt %v_28, 16: I32
-    je %v_34, b_35, b_36
-  }
-
-  b_36 {
-    jmp b_37
+  b_30 {
+    %v_31 = add %v_9, %v_28: Ptr
+    %taken = load %v_31, 1: I32
+    %v_32 = shr %h, 25: I32
+    store %v_31, %v_32, 1
+    %v_33 = cmp_ilt %v_28, 16: I32
+    je %v_33, b_34, b_35
   }
 
   b_35 {
-    %v_38 = load %v_8, 8: Ptr
-    %v_39 = load %v_1, 8: I64
-    %v_40 = shr %v_39, 32: I64
-    %v_41 = and %v_40, 1073741823: I64
-    %v_42 = cast %v_41: I32
-    %v_43 = cast %v_42: I64
-    %v_44 = add %v_43, 1: I64
-    %v_45 = add %v_44, %v_28: I64
-    %v_46 = add %v_38, %v_45: Ptr
-    store %v_46, %v_33, 1
-    jmp b_37
+    jmp b_36
   }
 
-  b_37 {
-    %v_47 = load %v_8, 8: Ptr
-    %v_48 = load %v_1, 8: I64
-    %v_49 = shr %v_48, 32: I64
-    %v_50 = and %v_49, 1073741823: I64
-    %v_51 = cast %v_50: I32
-    %v_52 = cast %v_51: I64
-    %v_53 = add %v_52, 17: I64
-    %v_54 = add %v_47, %v_53: Ptr
-    %v_55 = shl %v_28, 2: I64
-    %v_56 = add %v_54, %v_55: Ptr
-    %v_57 = cast %at: I32
-    %v_58 = and %v_57, 1073741823: I32
-    store %v_56, %v_58, 4
-    %v_59 = cmp_eq %taken, 128: I32
-    je %v_59, b_60, b_61
+  b_34 {
+    %v_37 = load %v_8, 8: Ptr
+    %v_38 = load %v_1, 8: I64
+    %v_39 = shr %v_38, 32: I64
+    %v_40 = and %v_39, 1073741823: I64
+    %v_41 = cast %v_40: I32
+    %v_42 = cast %v_41: I64
+    %v_43 = add %v_42, 1: I64
+    %v_44 = add %v_43, %v_28: I64
+    %v_45 = add %v_37, %v_44: Ptr
+    store %v_45, %v_32, 1
+    jmp b_36
   }
 
-  b_61 {
-    jmp b_62
+  b_36 {
+    %v_46 = load %v_8, 8: Ptr
+    %v_47 = load %v_1, 8: I64
+    %v_48 = shr %v_47, 32: I64
+    %v_49 = and %v_48, 1073741823: I64
+    %v_50 = cast %v_49: I32
+    %v_51 = cast %v_50: I64
+    %v_52 = add %v_51, 17: I64
+    %v_53 = add %v_46, %v_52: Ptr
+    %v_54 = shl %v_28, 2: I64
+    %v_55 = add %v_53, %v_54: Ptr
+    %v_56 = cast %at: I32
+    %v_57 = and %v_56, 1073741823: I32
+    store %v_55, %v_57, 4
+    %v_58 = cmp_eq %taken, 128: I32
+    je %v_58, b_59, b_60
   }
 
   b_60 {
-    %v_63 = load %v_1, 8: I64
-    %v_64 = and %v_63, 1073741823: I64
-    %v_65 = cast %v_64: I32
-    %v_66 = cast %v_65: I64
-    %v_67 = add %v_66, 1: I64
-    %v_68 = cast %v_67: I32
-    %v_69 = and %v_68, 1073741823: I32
-    %v_70 = cast %v_69: I64
-    %v_71 = and %v_63, 18446744072635809792: I64
-    %v_72 = or %v_71, %v_70: I64
-    store %v_1, %v_72, 8
-    jmp b_62
+    jmp b_61
   }
 
-  b_62 {
+  b_59 {
+    %v_62 = load %v_1, 8: I64
+    %v_63 = and %v_62, 1073741823: I64
+    %v_64 = cast %v_63: I32
+    %v_65 = cast %v_64: I64
+    %v_66 = add %v_65, 1: I64
+    %v_67 = cast %v_66: I32
+    %v_68 = and %v_67, 1073741823: I32
+    %v_69 = cast %v_68: I64
+    %v_70 = and %v_62, 18446744072635809792: I64
+    %v_71 = or %v_70, %v_69: I64
+    store %v_1, %v_71, 8
+    jmp b_61
+  }
+
+  b_61 {
     ret 
   }
 
   b_19 {
-    %v_73 = syscall 60, 134: I64
+    %v_72 = syscall 60, 134: I64
     unreachable 
   }
 }
@@ -783,10 +775,6 @@ reserve(Entry(String, I32))<complex>(%self: Ptr, %wanted: I64) {
   }
 
   b_8 {
-    jmp b_9
-  }
-
-  b_9 {
     call_complex growArray(Entry(String, I32)), %self, %wanted
     ret 
   }
@@ -999,84 +987,80 @@ indexPlace(String, I32)<complex>(%self: Ptr, %at: I64, %h: I32) {
     %v_26 = sext %v_25: I64
     %v_27 = add %v_11, %v_26: I64
     %v_28 = and %v_27, %mask: I64
-    jmp b_29
+    %v_29 = cmp_ilt %v_28, 0: I32
+    je %v_29, b_19, b_30
   }
 
-  b_29 {
-    %v_30 = cmp_ilt %v_28, 0: I32
-    je %v_30, b_19, b_31
-  }
-
-  b_31 {
-    %v_32 = add %v_9, %v_28: Ptr
-    %taken = load %v_32, 1: I32
-    %v_33 = shr %h, 25: I32
-    store %v_32, %v_33, 1
-    %v_34 = cmp_ilt %v_28, 16: I32
-    je %v_34, b_35, b_36
-  }
-
-  b_36 {
-    jmp b_37
+  b_30 {
+    %v_31 = add %v_9, %v_28: Ptr
+    %taken = load %v_31, 1: I32
+    %v_32 = shr %h, 25: I32
+    store %v_31, %v_32, 1
+    %v_33 = cmp_ilt %v_28, 16: I32
+    je %v_33, b_34, b_35
   }
 
   b_35 {
-    %v_38 = load %v_8, 8: Ptr
-    %v_39 = load %v_1, 8: I64
-    %v_40 = shr %v_39, 32: I64
-    %v_41 = and %v_40, 1073741823: I64
-    %v_42 = cast %v_41: I32
-    %v_43 = cast %v_42: I64
-    %v_44 = add %v_43, 1: I64
-    %v_45 = add %v_44, %v_28: I64
-    %v_46 = add %v_38, %v_45: Ptr
-    store %v_46, %v_33, 1
-    jmp b_37
+    jmp b_36
   }
 
-  b_37 {
-    %v_47 = load %v_8, 8: Ptr
-    %v_48 = load %v_1, 8: I64
-    %v_49 = shr %v_48, 32: I64
-    %v_50 = and %v_49, 1073741823: I64
-    %v_51 = cast %v_50: I32
-    %v_52 = cast %v_51: I64
-    %v_53 = add %v_52, 17: I64
-    %v_54 = add %v_47, %v_53: Ptr
-    %v_55 = shl %v_28, 2: I64
-    %v_56 = add %v_54, %v_55: Ptr
-    %v_57 = cast %at: I32
-    %v_58 = and %v_57, 1073741823: I32
-    store %v_56, %v_58, 4
-    %v_59 = cmp_eq %taken, 128: I32
-    je %v_59, b_60, b_61
+  b_34 {
+    %v_37 = load %v_8, 8: Ptr
+    %v_38 = load %v_1, 8: I64
+    %v_39 = shr %v_38, 32: I64
+    %v_40 = and %v_39, 1073741823: I64
+    %v_41 = cast %v_40: I32
+    %v_42 = cast %v_41: I64
+    %v_43 = add %v_42, 1: I64
+    %v_44 = add %v_43, %v_28: I64
+    %v_45 = add %v_37, %v_44: Ptr
+    store %v_45, %v_32, 1
+    jmp b_36
   }
 
-  b_61 {
-    jmp b_62
+  b_36 {
+    %v_46 = load %v_8, 8: Ptr
+    %v_47 = load %v_1, 8: I64
+    %v_48 = shr %v_47, 32: I64
+    %v_49 = and %v_48, 1073741823: I64
+    %v_50 = cast %v_49: I32
+    %v_51 = cast %v_50: I64
+    %v_52 = add %v_51, 17: I64
+    %v_53 = add %v_46, %v_52: Ptr
+    %v_54 = shl %v_28, 2: I64
+    %v_55 = add %v_53, %v_54: Ptr
+    %v_56 = cast %at: I32
+    %v_57 = and %v_56, 1073741823: I32
+    store %v_55, %v_57, 4
+    %v_58 = cmp_eq %taken, 128: I32
+    je %v_58, b_59, b_60
   }
 
   b_60 {
-    %v_63 = load %v_1, 8: I64
-    %v_64 = and %v_63, 1073741823: I64
-    %v_65 = cast %v_64: I32
-    %v_66 = cast %v_65: I64
-    %v_67 = add %v_66, 1: I64
-    %v_68 = cast %v_67: I32
-    %v_69 = and %v_68, 1073741823: I32
-    %v_70 = cast %v_69: I64
-    %v_71 = and %v_63, 18446744072635809792: I64
-    %v_72 = or %v_71, %v_70: I64
-    store %v_1, %v_72, 8
-    jmp b_62
+    jmp b_61
   }
 
-  b_62 {
+  b_59 {
+    %v_62 = load %v_1, 8: I64
+    %v_63 = and %v_62, 1073741823: I64
+    %v_64 = cast %v_63: I32
+    %v_65 = cast %v_64: I64
+    %v_66 = add %v_65, 1: I64
+    %v_67 = cast %v_66: I32
+    %v_68 = and %v_67, 1073741823: I32
+    %v_69 = cast %v_68: I64
+    %v_70 = and %v_62, 18446744072635809792: I64
+    %v_71 = or %v_70, %v_69: I64
+    store %v_1, %v_71, 8
+    jmp b_61
+  }
+
+  b_61 {
     ret 
   }
 
   b_19 {
-    %v_73 = syscall 60, 134: I64
+    %v_72 = syscall 60, 134: I64
     unreachable 
   }
 }
@@ -1097,24 +1081,7 @@ insert(String, I32)<complex>(%v_0: Ptr, %self: Ptr, %key: Ptr, %value: I32) {
     je %v_2, b_3, b_4
   }
 
-  b_5 {
-    %v_6 = load %self, 8: Ptr
-    %v_7 = imul %at, 24: I64
-    %v_8 = add %v_6, %v_7: Ptr
-    %v_9 = add %v_8, 16: Ptr
-    %v_10 = loads %v_9, 4: I32
-    store %v_9, %value, 4
-    store %v_0, 1, 4
-    %v_11 = add %v_0, 4: Ptr
-    store %v_11, %v_10, 4
-    ret 
-  }
-
   b_4 {
-    jmp b_12
-  }
-
-  b_12 {
     call_complex appendEntry(String, I32), %self, %key, %value, %h
     store %v_0, 0, 4
     ret 
@@ -1122,7 +1089,16 @@ insert(String, I32)<complex>(%v_0: Ptr, %self: Ptr, %key: Ptr, %value: I32) {
 
   b_3 {
     call_complex Reclaim(String).reclaim, %key
-    jmp b_5
+    %v_5 = load %self, 8: Ptr
+    %v_6 = imul %at, 24: I64
+    %v_7 = add %v_5, %v_6: Ptr
+    %v_8 = add %v_7, 16: Ptr
+    %v_9 = loads %v_8, 4: I32
+    store %v_8, %value, 4
+    store %v_0, 1, 4
+    %v_10 = add %v_0, 4: Ptr
+    store %v_10, %v_9, 4
+    ret 
   }
 }
 
@@ -1467,10 +1443,6 @@ reserve(Entry(I32, Array(I32)))<complex>(%self: Ptr, %wanted: I64) {
   }
 
   b_8 {
-    jmp b_9
-  }
-
-  b_9 {
     call_complex growArray(Entry(I32, Array(I32))), %self, %wanted
     ret 
   }
@@ -1628,84 +1600,80 @@ indexPlace(I32, Array(I32))<complex>(%self: Ptr, %at: I64, %h: I32) {
     %v_26 = sext %v_25: I64
     %v_27 = add %v_11, %v_26: I64
     %v_28 = and %v_27, %mask: I64
-    jmp b_29
+    %v_29 = cmp_ilt %v_28, 0: I32
+    je %v_29, b_19, b_30
   }
 
-  b_29 {
-    %v_30 = cmp_ilt %v_28, 0: I32
-    je %v_30, b_19, b_31
-  }
-
-  b_31 {
-    %v_32 = add %v_9, %v_28: Ptr
-    %taken = load %v_32, 1: I32
-    %v_33 = shr %h, 25: I32
-    store %v_32, %v_33, 1
-    %v_34 = cmp_ilt %v_28, 16: I32
-    je %v_34, b_35, b_36
-  }
-
-  b_36 {
-    jmp b_37
+  b_30 {
+    %v_31 = add %v_9, %v_28: Ptr
+    %taken = load %v_31, 1: I32
+    %v_32 = shr %h, 25: I32
+    store %v_31, %v_32, 1
+    %v_33 = cmp_ilt %v_28, 16: I32
+    je %v_33, b_34, b_35
   }
 
   b_35 {
-    %v_38 = load %v_8, 8: Ptr
-    %v_39 = load %v_1, 8: I64
-    %v_40 = shr %v_39, 32: I64
-    %v_41 = and %v_40, 1073741823: I64
-    %v_42 = cast %v_41: I32
-    %v_43 = cast %v_42: I64
-    %v_44 = add %v_43, 1: I64
-    %v_45 = add %v_44, %v_28: I64
-    %v_46 = add %v_38, %v_45: Ptr
-    store %v_46, %v_33, 1
-    jmp b_37
+    jmp b_36
   }
 
-  b_37 {
-    %v_47 = load %v_8, 8: Ptr
-    %v_48 = load %v_1, 8: I64
-    %v_49 = shr %v_48, 32: I64
-    %v_50 = and %v_49, 1073741823: I64
-    %v_51 = cast %v_50: I32
-    %v_52 = cast %v_51: I64
-    %v_53 = add %v_52, 17: I64
-    %v_54 = add %v_47, %v_53: Ptr
-    %v_55 = shl %v_28, 2: I64
-    %v_56 = add %v_54, %v_55: Ptr
-    %v_57 = cast %at: I32
-    %v_58 = and %v_57, 1073741823: I32
-    store %v_56, %v_58, 4
-    %v_59 = cmp_eq %taken, 128: I32
-    je %v_59, b_60, b_61
+  b_34 {
+    %v_37 = load %v_8, 8: Ptr
+    %v_38 = load %v_1, 8: I64
+    %v_39 = shr %v_38, 32: I64
+    %v_40 = and %v_39, 1073741823: I64
+    %v_41 = cast %v_40: I32
+    %v_42 = cast %v_41: I64
+    %v_43 = add %v_42, 1: I64
+    %v_44 = add %v_43, %v_28: I64
+    %v_45 = add %v_37, %v_44: Ptr
+    store %v_45, %v_32, 1
+    jmp b_36
   }
 
-  b_61 {
-    jmp b_62
+  b_36 {
+    %v_46 = load %v_8, 8: Ptr
+    %v_47 = load %v_1, 8: I64
+    %v_48 = shr %v_47, 32: I64
+    %v_49 = and %v_48, 1073741823: I64
+    %v_50 = cast %v_49: I32
+    %v_51 = cast %v_50: I64
+    %v_52 = add %v_51, 17: I64
+    %v_53 = add %v_46, %v_52: Ptr
+    %v_54 = shl %v_28, 2: I64
+    %v_55 = add %v_53, %v_54: Ptr
+    %v_56 = cast %at: I32
+    %v_57 = and %v_56, 1073741823: I32
+    store %v_55, %v_57, 4
+    %v_58 = cmp_eq %taken, 128: I32
+    je %v_58, b_59, b_60
   }
 
   b_60 {
-    %v_63 = load %v_1, 8: I64
-    %v_64 = and %v_63, 1073741823: I64
-    %v_65 = cast %v_64: I32
-    %v_66 = cast %v_65: I64
-    %v_67 = add %v_66, 1: I64
-    %v_68 = cast %v_67: I32
-    %v_69 = and %v_68, 1073741823: I32
-    %v_70 = cast %v_69: I64
-    %v_71 = and %v_63, 18446744072635809792: I64
-    %v_72 = or %v_71, %v_70: I64
-    store %v_1, %v_72, 8
-    jmp b_62
+    jmp b_61
   }
 
-  b_62 {
+  b_59 {
+    %v_62 = load %v_1, 8: I64
+    %v_63 = and %v_62, 1073741823: I64
+    %v_64 = cast %v_63: I32
+    %v_65 = cast %v_64: I64
+    %v_66 = add %v_65, 1: I64
+    %v_67 = cast %v_66: I32
+    %v_68 = and %v_67, 1073741823: I32
+    %v_69 = cast %v_68: I64
+    %v_70 = and %v_62, 18446744072635809792: I64
+    %v_71 = or %v_70, %v_69: I64
+    store %v_1, %v_71, 8
+    jmp b_61
+  }
+
+  b_61 {
     ret 
   }
 
   b_19 {
-    %v_73 = syscall 60, 134: I64
+    %v_72 = syscall 60, 134: I64
     unreachable 
   }
 }
@@ -1884,48 +1852,40 @@ indexFind(I32, Array(I32))<complex>(%self: Ptr, %key: I32, %h: I32): I64 {
     %v_33 = cmp_eq %group, %empty: m8x16
     %v_34 = vreduce_bits %v_33: I32
     %v_35 = cmp_neq %v_34, 0: I32
-    je %v_35, b_22, b_36
+    je %v_35, b_22, b_16
   }
 
   b_31 {
-    %v_37 = cttz_width %v_27: I32
-    %v_38 = sext %v_37: I64
-    %v_39 = add %v_15, %v_38: I64
-    %slot = and %v_39, %mask: I64
-    %v_40 = shl %slot, 2: I64
-    %v_41 = add %v_12, %v_40: Ptr
-    %v_42 = load %v_41, 4: I32
-    %v_43 = cast %v_42: I64
-    %v_44 = imul %v_43, 24: I64
-    %v_45 = add %v_13, %v_44: Ptr
-    %v_46 = add %v_45, 16: Ptr
-    %v_47 = loads %v_46, 4: I32
-    %v_48 = cmp_eq %v_47, %key: I32
-    je %v_48, b_49, b_50
+    %v_36 = cttz_width %v_27: I32
+    %v_37 = sext %v_36: I64
+    %v_38 = add %v_15, %v_37: I64
+    %slot = and %v_38, %mask: I64
+    %v_39 = shl %slot, 2: I64
+    %v_40 = add %v_12, %v_39: Ptr
+    %v_41 = load %v_40, 4: I32
+    %v_42 = cast %v_41: I64
+    %v_43 = imul %v_42, 24: I64
+    %v_44 = add %v_13, %v_43: Ptr
+    %v_45 = add %v_44, 16: Ptr
+    %v_46 = loads %v_45, 4: I32
+    %v_47 = cmp_eq %v_46, %key: I32
+    je %v_47, b_48, b_28
   }
 
-  b_49 {
-    ret %v_43
-  }
-
-  b_50 {
-    jmp b_28
+  b_48 {
+    ret %v_42
   }
 
   b_28 {
-    %v_51 = sub %v_27, 1: I32
-    %v_29 = and %v_27, %v_51: I32
+    %v_49 = sub %v_27, 1: I32
+    %v_29 = and %v_27, %v_49: I32
     jmp b_26
-  }
-
-  b_36 {
-    jmp b_16
   }
 
   b_16 {
     %v_19 = add %v_18, 16: I64
-    %v_52 = add %v_15, %v_19: I64
-    %v_17 = and %v_52, %mask: I64
+    %v_50 = add %v_15, %v_19: I64
+    %v_17 = and %v_50, %mask: I64
     jmp b_14
   }
 }
@@ -2066,10 +2026,6 @@ reserve(Entry(I32, Map(I32, I32)))<complex>(%self: Ptr, %wanted: I64) {
   }
 
   b_8 {
-    jmp b_9
-  }
-
-  b_9 {
     call_complex growArray(Entry(I32, Map(I32, I32))), %self, %wanted
     ret 
   }
@@ -2227,84 +2183,80 @@ indexPlace(I32, Map(I32, I32))<complex>(%self: Ptr, %at: I64, %h: I32) {
     %v_26 = sext %v_25: I64
     %v_27 = add %v_11, %v_26: I64
     %v_28 = and %v_27, %mask: I64
-    jmp b_29
+    %v_29 = cmp_ilt %v_28, 0: I32
+    je %v_29, b_19, b_30
   }
 
-  b_29 {
-    %v_30 = cmp_ilt %v_28, 0: I32
-    je %v_30, b_19, b_31
-  }
-
-  b_31 {
-    %v_32 = add %v_9, %v_28: Ptr
-    %taken = load %v_32, 1: I32
-    %v_33 = shr %h, 25: I32
-    store %v_32, %v_33, 1
-    %v_34 = cmp_ilt %v_28, 16: I32
-    je %v_34, b_35, b_36
-  }
-
-  b_36 {
-    jmp b_37
+  b_30 {
+    %v_31 = add %v_9, %v_28: Ptr
+    %taken = load %v_31, 1: I32
+    %v_32 = shr %h, 25: I32
+    store %v_31, %v_32, 1
+    %v_33 = cmp_ilt %v_28, 16: I32
+    je %v_33, b_34, b_35
   }
 
   b_35 {
-    %v_38 = load %v_8, 8: Ptr
-    %v_39 = load %v_1, 8: I64
-    %v_40 = shr %v_39, 32: I64
-    %v_41 = and %v_40, 1073741823: I64
-    %v_42 = cast %v_41: I32
-    %v_43 = cast %v_42: I64
-    %v_44 = add %v_43, 1: I64
-    %v_45 = add %v_44, %v_28: I64
-    %v_46 = add %v_38, %v_45: Ptr
-    store %v_46, %v_33, 1
-    jmp b_37
+    jmp b_36
   }
 
-  b_37 {
-    %v_47 = load %v_8, 8: Ptr
-    %v_48 = load %v_1, 8: I64
-    %v_49 = shr %v_48, 32: I64
-    %v_50 = and %v_49, 1073741823: I64
-    %v_51 = cast %v_50: I32
-    %v_52 = cast %v_51: I64
-    %v_53 = add %v_52, 17: I64
-    %v_54 = add %v_47, %v_53: Ptr
-    %v_55 = shl %v_28, 2: I64
-    %v_56 = add %v_54, %v_55: Ptr
-    %v_57 = cast %at: I32
-    %v_58 = and %v_57, 1073741823: I32
-    store %v_56, %v_58, 4
-    %v_59 = cmp_eq %taken, 128: I32
-    je %v_59, b_60, b_61
+  b_34 {
+    %v_37 = load %v_8, 8: Ptr
+    %v_38 = load %v_1, 8: I64
+    %v_39 = shr %v_38, 32: I64
+    %v_40 = and %v_39, 1073741823: I64
+    %v_41 = cast %v_40: I32
+    %v_42 = cast %v_41: I64
+    %v_43 = add %v_42, 1: I64
+    %v_44 = add %v_43, %v_28: I64
+    %v_45 = add %v_37, %v_44: Ptr
+    store %v_45, %v_32, 1
+    jmp b_36
   }
 
-  b_61 {
-    jmp b_62
+  b_36 {
+    %v_46 = load %v_8, 8: Ptr
+    %v_47 = load %v_1, 8: I64
+    %v_48 = shr %v_47, 32: I64
+    %v_49 = and %v_48, 1073741823: I64
+    %v_50 = cast %v_49: I32
+    %v_51 = cast %v_50: I64
+    %v_52 = add %v_51, 17: I64
+    %v_53 = add %v_46, %v_52: Ptr
+    %v_54 = shl %v_28, 2: I64
+    %v_55 = add %v_53, %v_54: Ptr
+    %v_56 = cast %at: I32
+    %v_57 = and %v_56, 1073741823: I32
+    store %v_55, %v_57, 4
+    %v_58 = cmp_eq %taken, 128: I32
+    je %v_58, b_59, b_60
   }
 
   b_60 {
-    %v_63 = load %v_1, 8: I64
-    %v_64 = and %v_63, 1073741823: I64
-    %v_65 = cast %v_64: I32
-    %v_66 = cast %v_65: I64
-    %v_67 = add %v_66, 1: I64
-    %v_68 = cast %v_67: I32
-    %v_69 = and %v_68, 1073741823: I32
-    %v_70 = cast %v_69: I64
-    %v_71 = and %v_63, 18446744072635809792: I64
-    %v_72 = or %v_71, %v_70: I64
-    store %v_1, %v_72, 8
-    jmp b_62
+    jmp b_61
   }
 
-  b_62 {
+  b_59 {
+    %v_62 = load %v_1, 8: I64
+    %v_63 = and %v_62, 1073741823: I64
+    %v_64 = cast %v_63: I32
+    %v_65 = cast %v_64: I64
+    %v_66 = add %v_65, 1: I64
+    %v_67 = cast %v_66: I32
+    %v_68 = and %v_67, 1073741823: I32
+    %v_69 = cast %v_68: I64
+    %v_70 = and %v_62, 18446744072635809792: I64
+    %v_71 = or %v_70, %v_69: I64
+    store %v_1, %v_71, 8
+    jmp b_61
+  }
+
+  b_61 {
     ret 
   }
 
   b_19 {
-    %v_73 = syscall 60, 134: I64
+    %v_72 = syscall 60, 134: I64
     unreachable 
   }
 }
@@ -2403,22 +2355,18 @@ insert(I32, Map(I32, I32))<complex>(%v_0: Ptr, %self: Ptr, %key: I32, %value: Pt
   }
 
   b_4 {
-    jmp b_21
-  }
-
-  b_21 {
     call_complex appendEntry(I32, Map(I32, I32)), %self, %key, %value, %h
     store %v_0, 0, 8
-    %v_22 = add %v_0, 8: Ptr
+    %v_21 = add %v_0, 8: Ptr
+    store %v_21, 0, 8
+    %v_22 = add %v_0, 16: Ptr
     store %v_22, 0, 8
-    %v_23 = add %v_0, 16: Ptr
+    %v_23 = add %v_0, 24: Ptr
     store %v_23, 0, 8
-    %v_24 = add %v_0, 24: Ptr
+    %v_24 = add %v_0, 32: Ptr
     store %v_24, 0, 8
-    %v_25 = add %v_0, 32: Ptr
-    store %v_25, 0, 8
-    %v_26 = add %v_0, 12: Ptr
-    store %v_26, 1073741824, 4
+    %v_25 = add %v_0, 12: Ptr
+    store %v_25, 1073741824, 4
     ret 
   }
 }
@@ -2756,12 +2704,8 @@ mapMemory<complex>(%size: I64): Ptr {
   }
 
   b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = bitcast %result: Ptr
-    ret %v_6
+    %v_5 = bitcast %result: Ptr
+    ret %v_5
   }
 }
 
@@ -2968,20 +2912,16 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 
   b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: I64
-    %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: I64
-    %v_9 = add %v_7, %v_8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    store %allocation, %v_10, 8
-    %v_11 = load @heapFree, 8: Ptr
-    %v_12 = add %v_11, %v_8: Ptr
-    store %v_12, %allocation, 8
+    %v_5 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_5, 8: I64
+    %v_6 = load @heapFree, 8: Ptr
+    %v_7 = shl %sizeClass, 3: I64
+    %v_8 = add %v_6, %v_7: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    store %allocation, %v_9, 8
+    %v_10 = load @heapFree, 8: Ptr
+    %v_11 = add %v_10, %v_7: Ptr
+    store %v_11, %allocation, 8
     ret 
   }
 }
@@ -3188,86 +3128,70 @@ resize(U8)<complex>(%self: Ptr, %wanted: I64): I32 {
   }
 
   b_7 {
-    jmp b_8
+    %v_8 = shr %v_2, 30: I64
+    %v_9 = cast %v_8: I32
+    %v_10 = cmp_eq %v_9, 2: I32
+    je %v_10, b_11, b_12
   }
 
-  b_8 {
-    %v_9 = shr %v_2, 30: I64
-    %v_10 = cast %v_9: I32
-    %v_11 = cmp_eq %v_10, 2: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
+  b_11 {
     ret 0
   }
 
-  b_13 {
-    jmp b_14
+  b_12 {
+    %v_13 = cmp_igt %wanted, 1073741823: I32
+    je %v_13, b_11, b_14
   }
 
   b_14 {
-    %v_15 = cmp_igt %wanted, 1073741823: I32
-    je %v_15, b_12, b_16
+    %v_15 = call_complex allocateHeap, %wanted: Ptr
+    %v_16 = bitcast %v_15: I64
+    %v_17 = cmp_eq %v_16, 0: I32
+    je %v_17, b_11, b_18
   }
 
-  b_16 {
-    jmp b_17
+  b_18 {
+    %v_19 = cmp_igt %room, 0: I32
+    je %v_19, b_20, b_21
   }
 
-  b_17 {
-    %v_18 = call_complex allocateHeap, %wanted: Ptr
-    %v_19 = bitcast %v_18: I64
-    %v_20 = cmp_eq %v_19, 0: I32
-    je %v_20, b_12, b_21
+  b_20 {
+    %v_22 = load %self, 8: Ptr
+    call_complex copyMemory, %v_15, %v_22, %room
+    jmp b_23
   }
 
   b_21 {
-    jmp b_22
+    jmp b_23
   }
 
-  b_22 {
-    %v_23 = cmp_igt %room, 0: I32
-    je %v_23, b_24, b_25
+  b_23 {
+    %v_24 = add %self, 8: Ptr
+    %v_25 = load %v_24, 4: I64
+    %v_26 = shr %v_25, 30: I64
+    %v_27 = cast %v_26: I32
+    %v_28 = cmp_eq %v_27, 1: I32
+    je %v_28, b_29, b_30
   }
 
-  b_24 {
-    %v_26 = load %self, 8: Ptr
-    call_complex copyMemory, %v_18, %v_26, %room
-    jmp b_27
+  b_29 {
+    %v_31 = load %self, 8: Ptr
+    call_complex freeHeap, %v_31
+    jmp b_32
   }
 
-  b_25 {
-    jmp b_27
+  b_30 {
+    jmp b_32
   }
 
-  b_27 {
-    %v_28 = add %self, 8: Ptr
-    %v_29 = load %v_28, 4: I64
-    %v_30 = shr %v_29, 30: I64
-    %v_31 = cast %v_30: I32
-    %v_32 = cmp_eq %v_31, 1: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_33 {
-    %v_35 = load %self, 8: Ptr
-    call_complex freeHeap, %v_35
-    jmp b_36
-  }
-
-  b_34 {
-    jmp b_36
-  }
-
-  b_36 {
-    store %self, %v_18, 8
-    %v_37 = cast %wanted: I32
-    %v_38 = and %v_37, 1073741823: I32
-    %v_39 = add %self, 8: Ptr
-    %v_40 = cast %v_38: I64
-    %v_41 = or %v_40, 1073741824: I64
-    store %v_39, %v_41, 4
+  b_32 {
+    store %self, %v_15, 8
+    %v_33 = cast %wanted: I32
+    %v_34 = and %v_33, 1073741823: I32
+    %v_35 = add %self, 8: Ptr
+    %v_36 = cast %v_34: I64
+    %v_37 = or %v_36, 1073741824: I64
+    store %v_35, %v_37, 4
     ret 1
   }
 }
@@ -3288,88 +3212,72 @@ resize(Entry(I32, I32))<complex>(%self: Ptr, %wanted: I64): I32 {
   }
 
   b_7 {
-    jmp b_8
+    %v_8 = shr %v_2, 30: I64
+    %v_9 = cast %v_8: I32
+    %v_10 = cmp_eq %v_9, 2: I32
+    je %v_10, b_11, b_12
   }
 
-  b_8 {
-    %v_9 = shr %v_2, 30: I64
-    %v_10 = cast %v_9: I32
-    %v_11 = cmp_eq %v_10, 2: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
+  b_11 {
     ret 0
   }
 
-  b_13 {
-    jmp b_14
+  b_12 {
+    %v_13 = cmp_igt %wanted, 1073741823: I32
+    je %v_13, b_11, b_14
   }
 
   b_14 {
-    %v_15 = cmp_igt %wanted, 1073741823: I32
-    je %v_15, b_12, b_16
+    %v_15 = shl %wanted, 3: I64
+    %v_16 = call_complex allocateHeap, %v_15: Ptr
+    %v_17 = bitcast %v_16: I64
+    %v_18 = cmp_eq %v_17, 0: I32
+    je %v_18, b_11, b_19
   }
 
-  b_16 {
-    jmp b_17
+  b_19 {
+    %v_20 = cmp_igt %room, 0: I32
+    je %v_20, b_21, b_22
   }
 
-  b_17 {
-    %v_18 = shl %wanted, 3: I64
-    %v_19 = call_complex allocateHeap, %v_18: Ptr
-    %v_20 = bitcast %v_19: I64
-    %v_21 = cmp_eq %v_20, 0: I32
-    je %v_21, b_12, b_22
+  b_21 {
+    %v_23 = load %self, 8: Ptr
+    %v_24 = shl %room, 3: I64
+    call_complex copyMemory, %v_16, %v_23, %v_24
+    jmp b_25
   }
 
   b_22 {
-    jmp b_23
-  }
-
-  b_23 {
-    %v_24 = cmp_igt %room, 0: I32
-    je %v_24, b_25, b_26
+    jmp b_25
   }
 
   b_25 {
-    %v_27 = load %self, 8: Ptr
-    %v_28 = shl %room, 3: I64
-    call_complex copyMemory, %v_19, %v_27, %v_28
-    jmp b_29
+    %v_26 = add %self, 8: Ptr
+    %v_27 = load %v_26, 4: I64
+    %v_28 = shr %v_27, 30: I64
+    %v_29 = cast %v_28: I32
+    %v_30 = cmp_eq %v_29, 1: I32
+    je %v_30, b_31, b_32
   }
 
-  b_26 {
-    jmp b_29
+  b_31 {
+    %v_33 = load %self, 8: Ptr
+    call_complex freeHeap, %v_33
+    jmp b_34
   }
 
-  b_29 {
-    %v_30 = add %self, 8: Ptr
-    %v_31 = load %v_30, 4: I64
-    %v_32 = shr %v_31, 30: I64
-    %v_33 = cast %v_32: I32
-    %v_34 = cmp_eq %v_33, 1: I32
-    je %v_34, b_35, b_36
+  b_32 {
+    jmp b_34
   }
 
-  b_35 {
-    %v_37 = load %self, 8: Ptr
-    call_complex freeHeap, %v_37
-    jmp b_38
-  }
-
-  b_36 {
-    jmp b_38
-  }
-
-  b_38 {
-    store %self, %v_19, 8
-    %v_39 = cast %wanted: I32
-    %v_40 = and %v_39, 1073741823: I32
-    %v_41 = add %self, 8: Ptr
-    %v_42 = cast %v_40: I64
-    %v_43 = or %v_42, 1073741824: I64
-    store %v_41, %v_43, 4
+  b_34 {
+    store %self, %v_16, 8
+    %v_35 = cast %wanted: I32
+    %v_36 = and %v_35, 1073741823: I32
+    %v_37 = add %self, 8: Ptr
+    %v_38 = cast %v_36: I64
+    %v_39 = or %v_38, 1073741824: I64
+    store %v_37, %v_39, 4
     ret 1
   }
 }
@@ -3418,15 +3326,11 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: I64): I32 {
     %v_28 = and %third, %fourth: m8x16
     %v_29 = and %v_27, %v_28: m8x16
     %v_30 = vreduce_and %v_29: I32
-    je %v_30, b_31, b_32
-  }
-
-  b_32 {
-    jmp b_9
+    je %v_30, b_5, b_31
   }
 
   b_31 {
-    jmp b_5
+    jmp b_9
   }
 
   b_5 {
@@ -3435,103 +3339,95 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: I64): I32 {
   }
 
   b_10 {
-    %v_33 = phi [b_9, %v_4], [b_34, %v_35]: I64
-    %v_36 = cmp_ile %v_33, %last: I32
-    je %v_36, b_37, b_38
-  }
-
-  b_38 {
-    %v_39 = cmp_ilt %v_33, %count: I32
-    je %v_39, b_40, b_41
+    %v_32 = phi [b_9, %v_4], [b_33, %v_34]: I64
+    %v_35 = cmp_ile %v_32, %last: I32
+    je %v_35, b_36, b_37
   }
 
   b_37 {
-    %v_42 = add %left, %v_33: Ptr
-    %v_43 = load %v_42, 16: i8x16
-    %v_44 = add %right, %v_33: Ptr
-    %v_45 = load %v_44, 16: i8x16
-    %same = cmp_eq %v_43, %v_45: m8x16
-    %v_46 = vreduce_and %same: I32
-    je %v_46, b_47, b_48
+    %v_38 = cmp_ilt %v_32, %count: I32
+    je %v_38, b_39, b_40
   }
 
-  b_48 {
-    %v_49 = not %same: m8x16
-    %v_50 = vreduce_first %v_49: I32
-    %v_51 = sext %v_50: I64
-    %differs = add %v_33, %v_51: I64
-    %v_52 = add %left, %differs: Ptr
+  b_36 {
+    %v_41 = add %left, %v_32: Ptr
+    %v_42 = load %v_41, 16: i8x16
+    %v_43 = add %right, %v_32: Ptr
+    %v_44 = load %v_43, 16: i8x16
+    %same = cmp_eq %v_42, %v_44: m8x16
+    %v_45 = vreduce_and %same: I32
+    je %v_45, b_33, b_46
+  }
+
+  b_46 {
+    %v_47 = not %same: m8x16
+    %v_48 = vreduce_first %v_47: I32
+    %v_49 = sext %v_48: I64
+    %differs = add %v_32, %v_49: I64
+    %v_50 = add %left, %differs: Ptr
+    %v_51 = load %v_50, 1: I32
+    %v_52 = add %right, %differs: Ptr
     %v_53 = load %v_52, 1: I32
-    %v_54 = add %right, %differs: Ptr
-    %v_55 = load %v_54, 1: I32
-    %v_56 = cmp_eq %v_53, %v_55: I32
-    %v_57 = cmp_gt %v_53, %v_55: I32
-    %v_58 = select %v_57, 2, 0: I32
-    %v_59 = select %v_56, 1, %v_58: I32
-    ret %v_59
+    %v_54 = cmp_eq %v_51, %v_53: I32
+    %v_55 = cmp_gt %v_51, %v_53: I32
+    %v_56 = select %v_55, 2, 0: I32
+    %v_57 = select %v_54, 1, %v_56: I32
+    ret %v_57
   }
 
-  b_47 {
-    jmp b_34
-  }
-
-  b_34 {
-    %v_35 = add %v_33, %v_2: I64
+  b_33 {
+    %v_34 = add %v_32, %v_2: I64
     jmp b_10
   }
 
-  b_40 {
-    %v_60 = add %left, %v_33: Ptr
+  b_39 {
+    %v_58 = add %left, %v_32: Ptr
+    %v_59 = loadx %v_58, 16: i8x16
+    %v_60 = add %right, %v_32: Ptr
     %v_61 = loadx %v_60, 16: i8x16
-    %v_62 = add %right, %v_33: Ptr
-    %v_63 = loadx %v_62, 16: i8x16
-    %same = cmp_eq %v_61, %v_63: m8x16
-    %v_64 = vreduce_and %same: I32
-    je %v_64, b_65, b_66
+    %same = cmp_eq %v_59, %v_61: m8x16
+    %v_62 = vreduce_and %same: I32
+    je %v_62, b_63, b_64
   }
 
-  b_41 {
-    jmp b_67
+  b_40 {
+    jmp b_65
   }
 
-  b_66 {
-    %v_68 = not %same: m8x16
-    %v_69 = vreduce_first %v_68: I32
-    %v_70 = sext %v_69: I64
-    %differs = add %v_33, %v_70: I64
-    %v_71 = cmp_ilt %differs, %count: I32
-    je %v_71, b_72, b_73
+  b_64 {
+    %v_66 = not %same: m8x16
+    %v_67 = vreduce_first %v_66: I32
+    %v_68 = sext %v_67: I64
+    %differs = add %v_32, %v_68: I64
+    %v_69 = cmp_ilt %differs, %count: I32
+    je %v_69, b_70, b_71
   }
 
-  b_65 {
-    jmp b_74
+  b_63 {
+    jmp b_72
+  }
+
+  b_70 {
+    %v_73 = add %left, %differs: Ptr
+    %v_74 = load %v_73, 1: I32
+    %v_75 = add %right, %differs: Ptr
+    %v_76 = load %v_75, 1: I32
+    %v_77 = cmp_eq %v_74, %v_76: I32
+    %v_78 = cmp_gt %v_74, %v_76: I32
+    %v_79 = select %v_78, 2, 0: I32
+    %v_80 = select %v_77, 1, %v_79: I32
+    ret %v_80
+  }
+
+  b_71 {
+    jmp b_72
   }
 
   b_72 {
-    %v_75 = add %left, %differs: Ptr
-    %v_76 = load %v_75, 1: I32
-    %v_77 = add %right, %differs: Ptr
-    %v_78 = load %v_77, 1: I32
-    %v_79 = cmp_eq %v_76, %v_78: I32
-    %v_80 = cmp_gt %v_76, %v_78: I32
-    %v_81 = select %v_80, 2, 0: I32
-    %v_82 = select %v_79, 1, %v_81: I32
-    ret %v_82
+    jmp b_65
   }
 
-  b_73 {
-    jmp b_83
-  }
-
-  b_83 {
-    jmp b_74
-  }
-
-  b_74 {
-    jmp b_67
-  }
-
-  b_67 {
+  b_65 {
     ret 1
   }
 }
@@ -3552,88 +3448,72 @@ resize(Entry(String, I32))<complex>(%self: Ptr, %wanted: I64): I32 {
   }
 
   b_7 {
-    jmp b_8
+    %v_8 = shr %v_2, 30: I64
+    %v_9 = cast %v_8: I32
+    %v_10 = cmp_eq %v_9, 2: I32
+    je %v_10, b_11, b_12
   }
 
-  b_8 {
-    %v_9 = shr %v_2, 30: I64
-    %v_10 = cast %v_9: I32
-    %v_11 = cmp_eq %v_10, 2: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
+  b_11 {
     ret 0
   }
 
-  b_13 {
-    jmp b_14
+  b_12 {
+    %v_13 = cmp_igt %wanted, 1073741823: I32
+    je %v_13, b_11, b_14
   }
 
   b_14 {
-    %v_15 = cmp_igt %wanted, 1073741823: I32
-    je %v_15, b_12, b_16
+    %v_15 = imul %wanted, 24: I64
+    %v_16 = call_complex allocateHeap, %v_15: Ptr
+    %v_17 = bitcast %v_16: I64
+    %v_18 = cmp_eq %v_17, 0: I32
+    je %v_18, b_11, b_19
   }
 
-  b_16 {
-    jmp b_17
+  b_19 {
+    %v_20 = cmp_igt %room, 0: I32
+    je %v_20, b_21, b_22
   }
 
-  b_17 {
-    %v_18 = imul %wanted, 24: I64
-    %v_19 = call_complex allocateHeap, %v_18: Ptr
-    %v_20 = bitcast %v_19: I64
-    %v_21 = cmp_eq %v_20, 0: I32
-    je %v_21, b_12, b_22
+  b_21 {
+    %v_23 = load %self, 8: Ptr
+    %v_24 = imul %room, 24: I64
+    call_complex copyMemory, %v_16, %v_23, %v_24
+    jmp b_25
   }
 
   b_22 {
-    jmp b_23
-  }
-
-  b_23 {
-    %v_24 = cmp_igt %room, 0: I32
-    je %v_24, b_25, b_26
+    jmp b_25
   }
 
   b_25 {
-    %v_27 = load %self, 8: Ptr
-    %v_28 = imul %room, 24: I64
-    call_complex copyMemory, %v_19, %v_27, %v_28
-    jmp b_29
+    %v_26 = add %self, 8: Ptr
+    %v_27 = load %v_26, 4: I64
+    %v_28 = shr %v_27, 30: I64
+    %v_29 = cast %v_28: I32
+    %v_30 = cmp_eq %v_29, 1: I32
+    je %v_30, b_31, b_32
   }
 
-  b_26 {
-    jmp b_29
+  b_31 {
+    %v_33 = load %self, 8: Ptr
+    call_complex freeHeap, %v_33
+    jmp b_34
   }
 
-  b_29 {
-    %v_30 = add %self, 8: Ptr
-    %v_31 = load %v_30, 4: I64
-    %v_32 = shr %v_31, 30: I64
-    %v_33 = cast %v_32: I32
-    %v_34 = cmp_eq %v_33, 1: I32
-    je %v_34, b_35, b_36
+  b_32 {
+    jmp b_34
   }
 
-  b_35 {
-    %v_37 = load %self, 8: Ptr
-    call_complex freeHeap, %v_37
-    jmp b_38
-  }
-
-  b_36 {
-    jmp b_38
-  }
-
-  b_38 {
-    store %self, %v_19, 8
-    %v_39 = cast %wanted: I32
-    %v_40 = and %v_39, 1073741823: I32
-    %v_41 = add %self, 8: Ptr
-    %v_42 = cast %v_40: I64
-    %v_43 = or %v_42, 1073741824: I64
-    store %v_41, %v_43, 4
+  b_34 {
+    store %self, %v_16, 8
+    %v_35 = cast %wanted: I32
+    %v_36 = and %v_35, 1073741823: I32
+    %v_37 = add %self, 8: Ptr
+    %v_38 = cast %v_36: I64
+    %v_39 = or %v_38, 1073741824: I64
+    store %v_37, %v_39, 4
     ret 1
   }
 }
@@ -3654,88 +3534,72 @@ resize(Entry(I32, Array(I32)))<complex>(%self: Ptr, %wanted: I64): I32 {
   }
 
   b_7 {
-    jmp b_8
+    %v_8 = shr %v_2, 30: I64
+    %v_9 = cast %v_8: I32
+    %v_10 = cmp_eq %v_9, 2: I32
+    je %v_10, b_11, b_12
   }
 
-  b_8 {
-    %v_9 = shr %v_2, 30: I64
-    %v_10 = cast %v_9: I32
-    %v_11 = cmp_eq %v_10, 2: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
+  b_11 {
     ret 0
   }
 
-  b_13 {
-    jmp b_14
+  b_12 {
+    %v_13 = cmp_igt %wanted, 1073741823: I32
+    je %v_13, b_11, b_14
   }
 
   b_14 {
-    %v_15 = cmp_igt %wanted, 1073741823: I32
-    je %v_15, b_12, b_16
+    %v_15 = imul %wanted, 24: I64
+    %v_16 = call_complex allocateHeap, %v_15: Ptr
+    %v_17 = bitcast %v_16: I64
+    %v_18 = cmp_eq %v_17, 0: I32
+    je %v_18, b_11, b_19
   }
 
-  b_16 {
-    jmp b_17
+  b_19 {
+    %v_20 = cmp_igt %room, 0: I32
+    je %v_20, b_21, b_22
   }
 
-  b_17 {
-    %v_18 = imul %wanted, 24: I64
-    %v_19 = call_complex allocateHeap, %v_18: Ptr
-    %v_20 = bitcast %v_19: I64
-    %v_21 = cmp_eq %v_20, 0: I32
-    je %v_21, b_12, b_22
+  b_21 {
+    %v_23 = load %self, 8: Ptr
+    %v_24 = imul %room, 24: I64
+    call_complex copyMemory, %v_16, %v_23, %v_24
+    jmp b_25
   }
 
   b_22 {
-    jmp b_23
-  }
-
-  b_23 {
-    %v_24 = cmp_igt %room, 0: I32
-    je %v_24, b_25, b_26
+    jmp b_25
   }
 
   b_25 {
-    %v_27 = load %self, 8: Ptr
-    %v_28 = imul %room, 24: I64
-    call_complex copyMemory, %v_19, %v_27, %v_28
-    jmp b_29
+    %v_26 = add %self, 8: Ptr
+    %v_27 = load %v_26, 4: I64
+    %v_28 = shr %v_27, 30: I64
+    %v_29 = cast %v_28: I32
+    %v_30 = cmp_eq %v_29, 1: I32
+    je %v_30, b_31, b_32
   }
 
-  b_26 {
-    jmp b_29
+  b_31 {
+    %v_33 = load %self, 8: Ptr
+    call_complex freeHeap, %v_33
+    jmp b_34
   }
 
-  b_29 {
-    %v_30 = add %self, 8: Ptr
-    %v_31 = load %v_30, 4: I64
-    %v_32 = shr %v_31, 30: I64
-    %v_33 = cast %v_32: I32
-    %v_34 = cmp_eq %v_33, 1: I32
-    je %v_34, b_35, b_36
+  b_32 {
+    jmp b_34
   }
 
-  b_35 {
-    %v_37 = load %self, 8: Ptr
-    call_complex freeHeap, %v_37
-    jmp b_38
-  }
-
-  b_36 {
-    jmp b_38
-  }
-
-  b_38 {
-    store %self, %v_19, 8
-    %v_39 = cast %wanted: I32
-    %v_40 = and %v_39, 1073741823: I32
-    %v_41 = add %self, 8: Ptr
-    %v_42 = cast %v_40: I64
-    %v_43 = or %v_42, 1073741824: I64
-    store %v_41, %v_43, 4
+  b_34 {
+    store %self, %v_16, 8
+    %v_35 = cast %wanted: I32
+    %v_36 = and %v_35, 1073741823: I32
+    %v_37 = add %self, 8: Ptr
+    %v_38 = cast %v_36: I64
+    %v_39 = or %v_38, 1073741824: I64
+    store %v_37, %v_39, 4
     ret 1
   }
 }
@@ -3756,88 +3620,72 @@ resize(Entry(I32, Map(I32, I32)))<complex>(%self: Ptr, %wanted: I64): I32 {
   }
 
   b_7 {
-    jmp b_8
+    %v_8 = shr %v_2, 30: I64
+    %v_9 = cast %v_8: I32
+    %v_10 = cmp_eq %v_9, 2: I32
+    je %v_10, b_11, b_12
   }
 
-  b_8 {
-    %v_9 = shr %v_2, 30: I64
-    %v_10 = cast %v_9: I32
-    %v_11 = cmp_eq %v_10, 2: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
+  b_11 {
     ret 0
   }
 
-  b_13 {
-    jmp b_14
+  b_12 {
+    %v_13 = cmp_igt %wanted, 1073741823: I32
+    je %v_13, b_11, b_14
   }
 
   b_14 {
-    %v_15 = cmp_igt %wanted, 1073741823: I32
-    je %v_15, b_12, b_16
+    %v_15 = imul %wanted, 48: I64
+    %v_16 = call_complex allocateHeap, %v_15: Ptr
+    %v_17 = bitcast %v_16: I64
+    %v_18 = cmp_eq %v_17, 0: I32
+    je %v_18, b_11, b_19
   }
 
-  b_16 {
-    jmp b_17
+  b_19 {
+    %v_20 = cmp_igt %room, 0: I32
+    je %v_20, b_21, b_22
   }
 
-  b_17 {
-    %v_18 = imul %wanted, 48: I64
-    %v_19 = call_complex allocateHeap, %v_18: Ptr
-    %v_20 = bitcast %v_19: I64
-    %v_21 = cmp_eq %v_20, 0: I32
-    je %v_21, b_12, b_22
+  b_21 {
+    %v_23 = load %self, 8: Ptr
+    %v_24 = imul %room, 48: I64
+    call_complex copyMemory, %v_16, %v_23, %v_24
+    jmp b_25
   }
 
   b_22 {
-    jmp b_23
-  }
-
-  b_23 {
-    %v_24 = cmp_igt %room, 0: I32
-    je %v_24, b_25, b_26
+    jmp b_25
   }
 
   b_25 {
-    %v_27 = load %self, 8: Ptr
-    %v_28 = imul %room, 48: I64
-    call_complex copyMemory, %v_19, %v_27, %v_28
-    jmp b_29
+    %v_26 = add %self, 8: Ptr
+    %v_27 = load %v_26, 4: I64
+    %v_28 = shr %v_27, 30: I64
+    %v_29 = cast %v_28: I32
+    %v_30 = cmp_eq %v_29, 1: I32
+    je %v_30, b_31, b_32
   }
 
-  b_26 {
-    jmp b_29
+  b_31 {
+    %v_33 = load %self, 8: Ptr
+    call_complex freeHeap, %v_33
+    jmp b_34
   }
 
-  b_29 {
-    %v_30 = add %self, 8: Ptr
-    %v_31 = load %v_30, 4: I64
-    %v_32 = shr %v_31, 30: I64
-    %v_33 = cast %v_32: I32
-    %v_34 = cmp_eq %v_33, 1: I32
-    je %v_34, b_35, b_36
+  b_32 {
+    jmp b_34
   }
 
-  b_35 {
-    %v_37 = load %self, 8: Ptr
-    call_complex freeHeap, %v_37
-    jmp b_38
-  }
-
-  b_36 {
-    jmp b_38
-  }
-
-  b_38 {
-    store %self, %v_19, 8
-    %v_39 = cast %wanted: I32
-    %v_40 = and %v_39, 1073741823: I32
-    %v_41 = add %self, 8: Ptr
-    %v_42 = cast %v_40: I64
-    %v_43 = or %v_42, 1073741824: I64
-    store %v_41, %v_43, 4
+  b_34 {
+    store %self, %v_16, 8
+    %v_35 = cast %wanted: I32
+    %v_36 = and %v_35, 1073741823: I32
+    %v_37 = add %self, 8: Ptr
+    %v_38 = cast %v_36: I64
+    %v_39 = or %v_38, 1073741824: I64
+    store %v_37, %v_39, 4
     ret 1
   }
 }
@@ -4169,503 +4017,499 @@ main<complex>(): I32 {
   }
 
   b_130 {
-    %v_131 = cmp_ilt %v_132, 12: I32
-    je %v_131, b_129, b_133
-  }
-
-  b_133 {
     call_complex reclaim$Map(I32, I32), %v_120
-    %v_134 = cmp_neq %v_135, 12: I32
-    je %v_134, b_136, b_137
+    %v_131 = cmp_neq %v_132, 12: I32
+    je %v_131, b_133, b_134
   }
 
-  b_137 {
-    %v_138 = alloca 40, 8: Ptr
-    call_complex newMap(I32, I32), %v_138, 3
+  b_134 {
+    %v_135 = alloca 40, 8: Ptr
+    call_complex newMap(I32, I32), %v_135, 3
     %ordered = alloca 40, 8: Ptr
     store %ordered, 0, 8
-    %v_139 = add %ordered, 8: Ptr
+    %v_136 = add %ordered, 8: Ptr
+    store %v_136, 0, 8
+    %v_137 = add %ordered, 16: Ptr
+    store %v_137, 0, 8
+    %v_138 = add %ordered, 24: Ptr
+    store %v_138, 0, 8
+    %v_139 = add %ordered, 32: Ptr
     store %v_139, 0, 8
-    %v_140 = add %ordered, 16: Ptr
-    store %v_140, 0, 8
-    %v_141 = add %ordered, 24: Ptr
-    store %v_141, 0, 8
-    %v_142 = add %ordered, 32: Ptr
-    store %v_142, 0, 8
-    copy %ordered, %v_138, 40
+    copy %ordered, %v_135, 40
     call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %ordered, 3, 1
     call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %ordered, 1, 2
     call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %ordered, 2, 3
-    %v_143 = add %ordered, 12: Ptr
-    %v_144 = load %v_143, 4: I32
-    %v_145 = cast %v_144: I64
-    %v_146 = load %ordered, 8: Ptr
-    jmp b_147
+    %v_140 = add %ordered, 12: Ptr
+    %v_141 = load %v_140, 4: I32
+    %v_142 = cast %v_141: I64
+    %v_143 = load %ordered, 8: Ptr
+    jmp b_144
   }
 
-  b_147 {
-    %v_148 = phi [b_137, 0], [b_149, %v_150]: I32
-    %v_151 = phi [b_137, 0], [b_149, %v_152]: I64
-    %v_153 = cmp_ilt %v_151, %v_145: I32
-    je %v_153, b_149, b_154
+  b_144 {
+    %v_145 = phi [b_134, 0], [b_146, %v_147]: I32
+    %v_148 = phi [b_134, 0], [b_146, %v_149]: I64
+    %v_150 = cmp_ilt %v_148, %v_142: I32
+    je %v_150, b_146, b_151
+  }
+
+  b_151 {
+    call_complex reclaim$Map(I32, I32), %ordered
+    %v_152 = cmp_neq %v_145, 312: I32
+    je %v_152, b_153, b_154
   }
 
   b_154 {
-    call_complex reclaim$Map(I32, I32), %ordered
-    %v_155 = cmp_neq %v_148, 312: I32
-    je %v_155, b_156, b_157
-  }
-
-  b_157 {
     call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, I32), @shared, 6, 60
-    %v_158 = call_complex Index(Map(k, v), k, v).get(I32, I32), @shared, 5: Ptr
-    %v_159 = loads %v_158, 4: I32
-    %v_160 = call_complex Index(Map(k, v), k, v).get(I32, I32), @shared, 6: Ptr
-    %v_161 = loads %v_160, 4: I32
-    %v_162 = add %v_159, %v_161: I32
-    %v_163 = cmp_neq %v_162, 110: I32
-    je %v_163, b_164, b_165
+    %v_155 = call_complex Index(Map(k, v), k, v).get(I32, I32), @shared, 5: Ptr
+    %v_156 = loads %v_155, 4: I32
+    %v_157 = call_complex Index(Map(k, v), k, v).get(I32, I32), @shared, 6: Ptr
+    %v_158 = loads %v_157, 4: I32
+    %v_159 = add %v_156, %v_158: I32
+    %v_160 = cmp_neq %v_159, 110: I32
+    je %v_160, b_161, b_162
   }
 
-  b_165 {
-    %v_166 = alloca 40, 8: Ptr
-    call_complex newMap(I32, I32), %v_166, 1
-    %v_167 = alloca 40, 8: Ptr
+  b_162 {
+    %v_163 = alloca 40, 8: Ptr
+    call_complex newMap(I32, I32), %v_163, 1
+    %v_164 = alloca 40, 8: Ptr
+    store %v_164, 0, 8
+    %v_165 = add %v_164, 8: Ptr
+    store %v_165, 0, 8
+    %v_166 = add %v_164, 16: Ptr
+    store %v_166, 0, 8
+    %v_167 = add %v_164, 24: Ptr
     store %v_167, 0, 8
-    %v_168 = add %v_167, 8: Ptr
+    %v_168 = add %v_164, 32: Ptr
     store %v_168, 0, 8
-    %v_169 = add %v_167, 16: Ptr
-    store %v_169, 0, 8
-    %v_170 = add %v_167, 24: Ptr
-    store %v_170, 0, 8
-    %v_171 = add %v_167, 32: Ptr
-    store %v_171, 0, 8
-    copy %v_167, %v_166, 40
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %v_167, 1, 10
-    %v_172 = alloca 16, 8: Ptr
-    copy %v_172, @ResolveTest.literal$1, 16
-    %v_173 = alloca 16, 8: Ptr
-    copy %v_173, @ResolveTest.literal$3, 16
+    copy %v_164, %v_163, 40
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %v_164, 1, 10
+    %v_169 = alloca 16, 8: Ptr
+    copy %v_169, @ResolveTest.literal$1, 16
+    %v_170 = alloca 16, 8: Ptr
+    copy %v_170, @ResolveTest.literal$3, 16
     %two = alloca 40, 8: Ptr
-    call_complex pair(String, I32), %two, %v_172, 1, %v_173, 2
-    %v_174 = alloca 40, 8: Ptr
-    call_complex newMap(I32, I32), %v_174, 0
-    %v_175 = alloca 40, 8: Ptr
+    call_complex pair(String, I32), %two, %v_169, 1, %v_170, 2
+    %v_171 = alloca 40, 8: Ptr
+    call_complex newMap(I32, I32), %v_171, 0
+    %v_172 = alloca 40, 8: Ptr
+    store %v_172, 0, 8
+    %v_173 = add %v_172, 8: Ptr
+    store %v_173, 0, 8
+    %v_174 = add %v_172, 16: Ptr
+    store %v_174, 0, 8
+    %v_175 = add %v_172, 24: Ptr
     store %v_175, 0, 8
-    %v_176 = add %v_175, 8: Ptr
+    %v_176 = add %v_172, 32: Ptr
     store %v_176, 0, 8
-    %v_177 = add %v_175, 16: Ptr
-    store %v_177, 0, 8
-    %v_178 = add %v_175, 24: Ptr
-    store %v_178, 0, 8
-    %v_179 = add %v_175, 32: Ptr
-    store %v_179, 0, 8
-    copy %v_175, %v_174, 40
-    %v_180 = call_complex Index(Map(k, v), k, v).get(I32, I32), %v_167, 1: Ptr
+    copy %v_172, %v_171, 40
+    %v_177 = call_complex Index(Map(k, v), k, v).get(I32, I32), %v_164, 1: Ptr
+    %v_178 = loads %v_177, 4: I32
+    call_complex reclaim$Map(I32, I32), %v_164
+    %v_179 = alloca 16, 8: Ptr
+    copy %v_179, @ResolveTest.literal$5, 16
+    %v_180 = call_complex Index(Map(k, v), k, v).get(String, I32), %two, %v_179: Ptr
     %v_181 = loads %v_180, 4: I32
-    call_complex reclaim$Map(I32, I32), %v_167
-    %v_182 = alloca 16, 8: Ptr
-    copy %v_182, @ResolveTest.literal$5, 16
-    %v_183 = call_complex Index(Map(k, v), k, v).get(String, I32), %two, %v_182: Ptr
-    %v_184 = loads %v_183, 4: I32
-    %v_185 = add %v_181, %v_184: I32
-    %v_186 = alloca 16, 8: Ptr
-    copy %v_186, @ResolveTest.literal$7, 16
-    %v_187 = call_complex Index(Map(k, v), k, v).get(String, I32), %two, %v_186: Ptr
-    %v_188 = loads %v_187, 4: I32
-    %v_189 = add %two, 12: Ptr
-    %v_190 = load %v_189, 4: I32
-    %v_191 = sext %v_190: I64
-    jmp b_192
+    %v_182 = add %v_178, %v_181: I32
+    %v_183 = alloca 16, 8: Ptr
+    copy %v_183, @ResolveTest.literal$7, 16
+    %v_184 = call_complex Index(Map(k, v), k, v).get(String, I32), %two, %v_183: Ptr
+    %v_185 = loads %v_184, 4: I32
+    %v_186 = add %two, 12: Ptr
+    %v_187 = load %v_186, 4: I32
+    %v_188 = sext %v_187: I64
+    jmp b_189
   }
 
-  b_192 {
-    %v_193 = phi [b_165, 0], [b_194, %v_195]: I64
-    %v_196 = cmp_ilt %v_193, %v_191: I32
-    je %v_196, b_194, b_197
-  }
-
-  b_197 {
-    %v_198 = add %two, 8: Ptr
-    %v_199 = load %v_198, 4: I32
-    %v_200 = shr %v_199, 30: I32
-    %v_201 = cmp_eq %v_200, 1: I32
-    je %v_201, b_202, b_203
-  }
-
-  b_202 {
-    %v_204 = load %two, 8: Ptr
-    call_complex freeHeap, %v_204
-    jmp b_203
-  }
-
-  b_203 {
-    %v_205 = add %two, 16: Ptr
-    call_complex Reclaim(Run(a)).reclaim(U8), %v_205
-    %v_206 = add %v_185, %v_188: I32
-    %v_207 = add %v_175, 12: Ptr
-    %v_208 = load %v_207, 4: I32
-    call_complex reclaim$Map(I32, I32), %v_175
-    %v_209 = add %v_206, %v_208: I32
-    %v_210 = cmp_neq %v_209, 13: I32
-    je %v_210, b_211, b_212
-  }
-
-  b_212 {
-    %v_213 = alloca 16, 8: Ptr
-    %v_214 = call_complex allocateHeap, 8: Ptr
-    store %v_213, %v_214, 8
-    %v_215 = add %v_213, 8: Ptr
-    store %v_215, 1073741826, 4
-    store %v_214, 10, 4
-    %v_216 = add %v_214, 4: Ptr
-    store %v_216, 11, 4
-    %v_217 = add %v_213, 12: Ptr
-    store %v_217, 2, 4
-    %v_218 = alloca 16, 8: Ptr
-    %v_219 = call_complex allocateHeap, 4: Ptr
-    store %v_218, %v_219, 8
-    %v_220 = add %v_218, 8: Ptr
-    store %v_220, 1073741825, 4
-    store %v_219, 20, 4
-    %v_221 = add %v_218, 12: Ptr
-    store %v_221, 1, 4
-    %v_222 = alloca 40, 8: Ptr
-    store %v_222, 0, 8
-    %v_223 = add %v_222, 8: Ptr
-    store %v_223, 0, 8
-    %v_224 = add %v_222, 16: Ptr
-    store %v_224, 0, 8
-    %v_225 = add %v_222, 24: Ptr
-    store %v_225, 0, 8
-    %v_226 = add %v_222, 32: Ptr
-    store %v_226, 0, 8
-    %v_227 = alloca 40, 8: Ptr
-    store %v_227, 0, 8
-    %v_228 = add %v_227, 8: Ptr
-    store %v_228, 0, 8
-    %v_229 = add %v_227, 16: Ptr
-    store %v_229, 0, 8
-    %v_230 = add %v_227, 24: Ptr
-    store %v_230, 0, 8
-    %v_231 = add %v_227, 32: Ptr
-    store %v_231, 0, 8
-    %v_232 = bitcast 0: Ptr
-    store %v_227, %v_232, 8
-    store %v_228, 0, 4
-    %v_233 = add %v_227, 12: Ptr
-    store %v_233, 0, 4
-    store %v_229, %v_232, 8
-    store %v_230, 0, 4
-    %v_234 = load %v_231, 8: I64
-    %v_235 = and %v_234, 18446744072635809792: I64
-    %v_236 = and %v_235, 13835058058503389184: I64
-    store %v_231, %v_236, 8
-    store %v_222, 0, 8
-    store %v_223, 0, 8
-    store %v_224, 0, 8
-    store %v_225, 0, 8
-    store %v_226, 0, 8
-    copy %v_222, %v_227, 40
-    call_complex reserve(Entry(I32, Array(I32))), %v_222, 2
-    %lists = alloca 40, 8: Ptr
-    store %lists, 0, 8
-    %v_237 = add %lists, 8: Ptr
-    store %v_237, 0, 8
-    %v_238 = add %lists, 16: Ptr
-    store %v_238, 0, 8
-    %v_239 = add %lists, 24: Ptr
-    store %v_239, 0, 8
-    %v_240 = add %lists, 32: Ptr
-    store %v_240, 0, 8
-    store %v_237, 0, 4
-    copy %lists, %v_222, 40
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, Array(I32)), %lists, 1, %v_213
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, Array(I32)), %lists, 2, %v_218
-    %v_241 = add %lists, 12: Ptr
-    %v_242 = load %v_241, 4: I32
-    %v_243 = cast %v_242: I64
-    %v_244 = load %lists, 8: Ptr
-    jmp b_245
-  }
-
-  b_245 {
-    %v_246 = phi [b_212, 0], [b_247, %v_248]: I32
-    %v_249 = phi [b_212, 0], [b_247, %v_250]: I64
-    %v_251 = phi [b_212, %v_244], [b_247, %v_252]: Ptr
-    %v_253 = cmp_ilt %v_249, %v_243: I32
-    je %v_253, b_247, b_254
-  }
-
-  b_254 {
-    jmp b_255
-  }
-
-  b_255 {
-    %v_256 = phi [b_254, 0], [b_257, %v_258]: I32
-    %v_259 = phi [b_254, %v_244], [b_257, %v_260]: Ptr
-    %v_261 = cmp_ilt %v_256, %v_242: I32
-    je %v_261, b_262, b_263
-  }
-
-  b_263 {
-    %v_264 = add %lists, 8: Ptr
-    %v_265 = load %v_264, 4: I32
-    %v_266 = shr %v_265, 30: I32
-    %v_267 = cmp_eq %v_266, 1: I32
-    je %v_267, b_268, b_269
-  }
-
-  b_268 {
-    %v_270 = load %lists, 8: Ptr
-    call_complex freeHeap, %v_270
-    jmp b_269
-  }
-
-  b_269 {
-    %v_271 = add %lists, 16: Ptr
-    call_complex Reclaim(Run(a)).reclaim(U8), %v_271
-    %v_272 = cmp_neq %v_246, 3: I32
-    je %v_272, b_273, b_274
-  }
-
-  b_274 {
-    %v_275 = alloca 40, 8: Ptr
-    call_complex newMap(I32, I32), %v_275, 1
-    %v_276 = alloca 40, 8: Ptr
-    store %v_276, 0, 8
-    %v_277 = add %v_276, 8: Ptr
-    store %v_277, 0, 8
-    %v_278 = add %v_276, 16: Ptr
-    store %v_278, 0, 8
-    %v_279 = add %v_276, 24: Ptr
-    store %v_279, 0, 8
-    %v_280 = add %v_276, 32: Ptr
-    store %v_280, 0, 8
-    copy %v_276, %v_275, 40
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %v_276, 2, 3
-    %v_281 = alloca 40, 8: Ptr
-    store %v_281, 0, 8
-    %v_282 = add %v_281, 8: Ptr
-    store %v_282, 0, 8
-    %v_283 = add %v_281, 16: Ptr
-    store %v_283, 0, 8
-    %v_284 = add %v_281, 24: Ptr
-    store %v_284, 0, 8
-    %v_285 = add %v_281, 32: Ptr
-    store %v_285, 0, 8
-    %v_286 = alloca 40, 8: Ptr
-    store %v_286, 0, 8
-    %v_287 = add %v_286, 8: Ptr
-    store %v_287, 0, 8
-    %v_288 = add %v_286, 16: Ptr
-    store %v_288, 0, 8
-    %v_289 = add %v_286, 24: Ptr
-    store %v_289, 0, 8
-    %v_290 = add %v_286, 32: Ptr
-    store %v_290, 0, 8
-    %v_291 = bitcast 0: Ptr
-    store %v_286, %v_291, 8
-    store %v_287, 0, 4
-    %v_292 = add %v_286, 12: Ptr
-    store %v_292, 0, 4
-    store %v_288, %v_291, 8
-    store %v_289, 0, 4
-    %v_293 = load %v_290, 8: I64
-    %v_294 = and %v_293, 18446744072635809792: I64
-    %v_295 = and %v_294, 13835058058503389184: I64
-    store %v_290, %v_295, 8
-    store %v_281, 0, 8
-    store %v_282, 0, 8
-    store %v_283, 0, 8
-    store %v_284, 0, 8
-    store %v_285, 0, 8
-    copy %v_281, %v_286, 40
-    call_complex reserve(Entry(I32, Map(I32, I32))), %v_281, 1
-    %nested = alloca 40, 8: Ptr
-    store %nested, 0, 8
-    %v_296 = add %nested, 8: Ptr
-    store %v_296, 0, 8
-    %v_297 = add %nested, 16: Ptr
-    store %v_297, 0, 8
-    %v_298 = add %nested, 24: Ptr
-    store %v_298, 0, 8
-    %v_299 = add %nested, 32: Ptr
-    store %v_299, 0, 8
-    store %v_296, 0, 4
-    copy %nested, %v_281, 40
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, Map(I32, I32)), %nested, 1, %v_276
-    %v_300 = call_complex hashKey(I32), %v_10: I32
-    %at = call_complex findEntry(I32, Map(I32, I32)), %nested, %v_10, %v_300: I64
-    %v_301 = cmp_ilt %at, 0: I32
-    je %v_301, b_302, b_303
-  }
-
-  b_303 {
-    %v_304 = load %nested, 8: Ptr
-    %v_305 = imul %at, 48: I64
-    %v_306 = add %v_304, %v_305: Ptr
-    %v_307 = call_complex Index(Map(k, v), k, v).get(I32, I32), %v_306, 2: Ptr
-    %v_308 = loads %v_307, 4: I32
-    %v_309 = add %nested, 12: Ptr
-    %v_310 = load %v_309, 4: I32
-    jmp b_311
-  }
-
-  b_311 {
-    %v_312 = phi [b_303, 0], [b_313, %v_314]: I32
-    %v_315 = phi [b_303, %v_304], [b_313, %v_316]: Ptr
-    %v_317 = cmp_ilt %v_312, %v_310: I32
-    je %v_317, b_313, b_318
-  }
-
-  b_318 {
-    %v_319 = add %nested, 8: Ptr
-    %v_320 = load %v_319, 4: I32
-    %v_321 = shr %v_320, 30: I32
-    %v_322 = cmp_eq %v_321, 1: I32
-    je %v_322, b_323, b_324
-  }
-
-  b_323 {
-    %v_325 = load %nested, 8: Ptr
-    call_complex freeHeap, %v_325
-    jmp b_324
-  }
-
-  b_324 {
-    %v_326 = add %nested, 16: Ptr
-    call_complex Reclaim(Run(a)).reclaim(U8), %v_326
-    %v_327 = cmp_neq %v_308, 3: I32
-    %v_328 = select %v_327, 18446744073709551594, 1: I32
-    ret %v_328
-  }
-
-  b_313 {
-    %doomed = alloca 44, 8: Ptr
-    store %doomed, 0, 8
-    %v_329 = add %doomed, 8: Ptr
-    store %v_329, 0, 8
-    %v_330 = add %doomed, 16: Ptr
-    store %v_330, 0, 8
-    %v_331 = add %doomed, 24: Ptr
-    store %v_331, 0, 8
-    %v_332 = add %doomed, 32: Ptr
-    store %v_332, 0, 8
-    %v_333 = add %doomed, 40: Ptr
-    store %v_333, 0, 4
-    copy %doomed, %v_315, 44
-    call_complex reclaim$Map(I32, I32), %doomed
-    %v_314 = add %v_312, 1: I32
-    %v_316 = add %v_315, 48: Ptr
-    jmp b_311
-  }
-
-  b_302 {
-    %v_334 = syscall 60, 134: I64
-    unreachable 
-  }
-
-  b_273 {
-    ret 18446744073709551595
-  }
-
-  b_262 {
-    %v_335 = load %v_259, 8: Ptr
-    %v_336 = add %v_259, 8: Ptr
-    %v_337 = load %v_336, 4: I32
-    %v_338 = shr %v_337, 30: I32
-    %v_339 = cmp_eq %v_338, 1: I32
-    je %v_339, b_340, b_341
-  }
-
-  b_341 {
-    jmp b_257
-  }
-
-  b_340 {
-    call_complex freeHeap, %v_335
-    jmp b_257
-  }
-
-  b_257 {
-    %v_258 = add %v_256, 1: I32
-    %v_260 = add %v_259, 24: Ptr
-    jmp b_255
-  }
-
-  b_247 {
-    %v_342 = add %v_251, 12: Ptr
-    %v_343 = load %v_342, 4: I32
-    %v_248 = add %v_246, %v_343: I32
-    %v_250 = add %v_249, 1: I64
-    %v_252 = add %v_251, 24: Ptr
-    jmp b_245
-  }
-
-  b_211 {
-    ret 18446744073709551596
+  b_189 {
+    %v_190 = phi [b_162, 0], [b_191, %v_192]: I64
+    %v_193 = cmp_ilt %v_190, %v_188: I32
+    je %v_193, b_191, b_194
   }
 
   b_194 {
-    %v_344 = load %two, 8: Ptr
-    %v_345 = imul %v_193, 24: I64
-    %v_346 = add %v_344, %v_345: Ptr
-    %doomed = alloca 20, 8: Ptr
-    copy %doomed, %v_346, 20
-    call_complex Reclaim(String).reclaim, %doomed
-    %v_195 = add %v_193, 1: I64
-    jmp b_192
+    %v_195 = add %two, 8: Ptr
+    %v_196 = load %v_195, 4: I32
+    %v_197 = shr %v_196, 30: I32
+    %v_198 = cmp_eq %v_197, 1: I32
+    je %v_198, b_199, b_200
   }
 
-  b_164 {
+  b_199 {
+    %v_201 = load %two, 8: Ptr
+    call_complex freeHeap, %v_201
+    jmp b_200
+  }
+
+  b_200 {
+    %v_202 = add %two, 16: Ptr
+    call_complex Reclaim(Run(a)).reclaim(U8), %v_202
+    %v_203 = add %v_182, %v_185: I32
+    %v_204 = add %v_172, 12: Ptr
+    %v_205 = load %v_204, 4: I32
+    call_complex reclaim$Map(I32, I32), %v_172
+    %v_206 = add %v_203, %v_205: I32
+    %v_207 = cmp_neq %v_206, 13: I32
+    je %v_207, b_208, b_209
+  }
+
+  b_209 {
+    %v_210 = alloca 16, 8: Ptr
+    %v_211 = call_complex allocateHeap, 8: Ptr
+    store %v_210, %v_211, 8
+    %v_212 = add %v_210, 8: Ptr
+    store %v_212, 1073741826, 4
+    store %v_211, 10, 4
+    %v_213 = add %v_211, 4: Ptr
+    store %v_213, 11, 4
+    %v_214 = add %v_210, 12: Ptr
+    store %v_214, 2, 4
+    %v_215 = alloca 16, 8: Ptr
+    %v_216 = call_complex allocateHeap, 4: Ptr
+    store %v_215, %v_216, 8
+    %v_217 = add %v_215, 8: Ptr
+    store %v_217, 1073741825, 4
+    store %v_216, 20, 4
+    %v_218 = add %v_215, 12: Ptr
+    store %v_218, 1, 4
+    %v_219 = alloca 40, 8: Ptr
+    store %v_219, 0, 8
+    %v_220 = add %v_219, 8: Ptr
+    store %v_220, 0, 8
+    %v_221 = add %v_219, 16: Ptr
+    store %v_221, 0, 8
+    %v_222 = add %v_219, 24: Ptr
+    store %v_222, 0, 8
+    %v_223 = add %v_219, 32: Ptr
+    store %v_223, 0, 8
+    %v_224 = alloca 40, 8: Ptr
+    store %v_224, 0, 8
+    %v_225 = add %v_224, 8: Ptr
+    store %v_225, 0, 8
+    %v_226 = add %v_224, 16: Ptr
+    store %v_226, 0, 8
+    %v_227 = add %v_224, 24: Ptr
+    store %v_227, 0, 8
+    %v_228 = add %v_224, 32: Ptr
+    store %v_228, 0, 8
+    %v_229 = bitcast 0: Ptr
+    store %v_224, %v_229, 8
+    store %v_225, 0, 4
+    %v_230 = add %v_224, 12: Ptr
+    store %v_230, 0, 4
+    store %v_226, %v_229, 8
+    store %v_227, 0, 4
+    %v_231 = load %v_228, 8: I64
+    %v_232 = and %v_231, 18446744072635809792: I64
+    %v_233 = and %v_232, 13835058058503389184: I64
+    store %v_228, %v_233, 8
+    store %v_219, 0, 8
+    store %v_220, 0, 8
+    store %v_221, 0, 8
+    store %v_222, 0, 8
+    store %v_223, 0, 8
+    copy %v_219, %v_224, 40
+    call_complex reserve(Entry(I32, Array(I32))), %v_219, 2
+    %lists = alloca 40, 8: Ptr
+    store %lists, 0, 8
+    %v_234 = add %lists, 8: Ptr
+    store %v_234, 0, 8
+    %v_235 = add %lists, 16: Ptr
+    store %v_235, 0, 8
+    %v_236 = add %lists, 24: Ptr
+    store %v_236, 0, 8
+    %v_237 = add %lists, 32: Ptr
+    store %v_237, 0, 8
+    store %v_234, 0, 4
+    copy %lists, %v_219, 40
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, Array(I32)), %lists, 1, %v_210
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, Array(I32)), %lists, 2, %v_215
+    %v_238 = add %lists, 12: Ptr
+    %v_239 = load %v_238, 4: I32
+    %v_240 = cast %v_239: I64
+    %v_241 = load %lists, 8: Ptr
+    jmp b_242
+  }
+
+  b_242 {
+    %v_243 = phi [b_209, 0], [b_244, %v_245]: I32
+    %v_246 = phi [b_209, 0], [b_244, %v_247]: I64
+    %v_248 = phi [b_209, %v_241], [b_244, %v_249]: Ptr
+    %v_250 = cmp_ilt %v_246, %v_240: I32
+    je %v_250, b_244, b_251
+  }
+
+  b_251 {
+    jmp b_252
+  }
+
+  b_252 {
+    %v_253 = phi [b_251, 0], [b_254, %v_255]: I32
+    %v_256 = phi [b_251, %v_241], [b_254, %v_257]: Ptr
+    %v_258 = cmp_ilt %v_253, %v_239: I32
+    je %v_258, b_259, b_260
+  }
+
+  b_260 {
+    %v_261 = add %lists, 8: Ptr
+    %v_262 = load %v_261, 4: I32
+    %v_263 = shr %v_262, 30: I32
+    %v_264 = cmp_eq %v_263, 1: I32
+    je %v_264, b_265, b_266
+  }
+
+  b_265 {
+    %v_267 = load %lists, 8: Ptr
+    call_complex freeHeap, %v_267
+    jmp b_266
+  }
+
+  b_266 {
+    %v_268 = add %lists, 16: Ptr
+    call_complex Reclaim(Run(a)).reclaim(U8), %v_268
+    %v_269 = cmp_neq %v_243, 3: I32
+    je %v_269, b_270, b_271
+  }
+
+  b_271 {
+    %v_272 = alloca 40, 8: Ptr
+    call_complex newMap(I32, I32), %v_272, 1
+    %v_273 = alloca 40, 8: Ptr
+    store %v_273, 0, 8
+    %v_274 = add %v_273, 8: Ptr
+    store %v_274, 0, 8
+    %v_275 = add %v_273, 16: Ptr
+    store %v_275, 0, 8
+    %v_276 = add %v_273, 24: Ptr
+    store %v_276, 0, 8
+    %v_277 = add %v_273, 32: Ptr
+    store %v_277, 0, 8
+    copy %v_273, %v_272, 40
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %v_273, 2, 3
+    %v_278 = alloca 40, 8: Ptr
+    store %v_278, 0, 8
+    %v_279 = add %v_278, 8: Ptr
+    store %v_279, 0, 8
+    %v_280 = add %v_278, 16: Ptr
+    store %v_280, 0, 8
+    %v_281 = add %v_278, 24: Ptr
+    store %v_281, 0, 8
+    %v_282 = add %v_278, 32: Ptr
+    store %v_282, 0, 8
+    %v_283 = alloca 40, 8: Ptr
+    store %v_283, 0, 8
+    %v_284 = add %v_283, 8: Ptr
+    store %v_284, 0, 8
+    %v_285 = add %v_283, 16: Ptr
+    store %v_285, 0, 8
+    %v_286 = add %v_283, 24: Ptr
+    store %v_286, 0, 8
+    %v_287 = add %v_283, 32: Ptr
+    store %v_287, 0, 8
+    %v_288 = bitcast 0: Ptr
+    store %v_283, %v_288, 8
+    store %v_284, 0, 4
+    %v_289 = add %v_283, 12: Ptr
+    store %v_289, 0, 4
+    store %v_285, %v_288, 8
+    store %v_286, 0, 4
+    %v_290 = load %v_287, 8: I64
+    %v_291 = and %v_290, 18446744072635809792: I64
+    %v_292 = and %v_291, 13835058058503389184: I64
+    store %v_287, %v_292, 8
+    store %v_278, 0, 8
+    store %v_279, 0, 8
+    store %v_280, 0, 8
+    store %v_281, 0, 8
+    store %v_282, 0, 8
+    copy %v_278, %v_283, 40
+    call_complex reserve(Entry(I32, Map(I32, I32))), %v_278, 1
+    %nested = alloca 40, 8: Ptr
+    store %nested, 0, 8
+    %v_293 = add %nested, 8: Ptr
+    store %v_293, 0, 8
+    %v_294 = add %nested, 16: Ptr
+    store %v_294, 0, 8
+    %v_295 = add %nested, 24: Ptr
+    store %v_295, 0, 8
+    %v_296 = add %nested, 32: Ptr
+    store %v_296, 0, 8
+    store %v_293, 0, 4
+    copy %nested, %v_278, 40
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(I32, Map(I32, I32)), %nested, 1, %v_273
+    %v_297 = call_complex hashKey(I32), %v_10: I32
+    %at = call_complex findEntry(I32, Map(I32, I32)), %nested, %v_10, %v_297: I64
+    %v_298 = cmp_ilt %at, 0: I32
+    je %v_298, b_299, b_300
+  }
+
+  b_300 {
+    %v_301 = load %nested, 8: Ptr
+    %v_302 = imul %at, 48: I64
+    %v_303 = add %v_301, %v_302: Ptr
+    %v_304 = call_complex Index(Map(k, v), k, v).get(I32, I32), %v_303, 2: Ptr
+    %v_305 = loads %v_304, 4: I32
+    %v_306 = add %nested, 12: Ptr
+    %v_307 = load %v_306, 4: I32
+    jmp b_308
+  }
+
+  b_308 {
+    %v_309 = phi [b_300, 0], [b_310, %v_311]: I32
+    %v_312 = phi [b_300, %v_301], [b_310, %v_313]: Ptr
+    %v_314 = cmp_ilt %v_309, %v_307: I32
+    je %v_314, b_310, b_315
+  }
+
+  b_315 {
+    %v_316 = add %nested, 8: Ptr
+    %v_317 = load %v_316, 4: I32
+    %v_318 = shr %v_317, 30: I32
+    %v_319 = cmp_eq %v_318, 1: I32
+    je %v_319, b_320, b_321
+  }
+
+  b_320 {
+    %v_322 = load %nested, 8: Ptr
+    call_complex freeHeap, %v_322
+    jmp b_321
+  }
+
+  b_321 {
+    %v_323 = add %nested, 16: Ptr
+    call_complex Reclaim(Run(a)).reclaim(U8), %v_323
+    %v_324 = cmp_neq %v_305, 3: I32
+    %v_325 = select %v_324, 18446744073709551594, 1: I32
+    ret %v_325
+  }
+
+  b_310 {
+    %doomed = alloca 44, 8: Ptr
+    store %doomed, 0, 8
+    %v_326 = add %doomed, 8: Ptr
+    store %v_326, 0, 8
+    %v_327 = add %doomed, 16: Ptr
+    store %v_327, 0, 8
+    %v_328 = add %doomed, 24: Ptr
+    store %v_328, 0, 8
+    %v_329 = add %doomed, 32: Ptr
+    store %v_329, 0, 8
+    %v_330 = add %doomed, 40: Ptr
+    store %v_330, 0, 4
+    copy %doomed, %v_312, 44
+    call_complex reclaim$Map(I32, I32), %doomed
+    %v_311 = add %v_309, 1: I32
+    %v_313 = add %v_312, 48: Ptr
+    jmp b_308
+  }
+
+  b_299 {
+    %v_331 = syscall 60, 134: I64
+    unreachable 
+  }
+
+  b_270 {
+    ret 18446744073709551595
+  }
+
+  b_259 {
+    %v_332 = load %v_256, 8: Ptr
+    %v_333 = add %v_256, 8: Ptr
+    %v_334 = load %v_333, 4: I32
+    %v_335 = shr %v_334, 30: I32
+    %v_336 = cmp_eq %v_335, 1: I32
+    je %v_336, b_337, b_338
+  }
+
+  b_338 {
+    jmp b_254
+  }
+
+  b_337 {
+    call_complex freeHeap, %v_332
+    jmp b_254
+  }
+
+  b_254 {
+    %v_255 = add %v_253, 1: I32
+    %v_257 = add %v_256, 24: Ptr
+    jmp b_252
+  }
+
+  b_244 {
+    %v_339 = add %v_248, 12: Ptr
+    %v_340 = load %v_339, 4: I32
+    %v_245 = add %v_243, %v_340: I32
+    %v_247 = add %v_246, 1: I64
+    %v_249 = add %v_248, 24: Ptr
+    jmp b_242
+  }
+
+  b_208 {
+    ret 18446744073709551596
+  }
+
+  b_191 {
+    %v_341 = load %two, 8: Ptr
+    %v_342 = imul %v_190, 24: I64
+    %v_343 = add %v_341, %v_342: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_343, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_192 = add %v_190, 1: I64
+    jmp b_189
+  }
+
+  b_161 {
     ret 18446744073709551597
   }
 
-  b_156 {
+  b_153 {
     ret 18446744073709551598
   }
 
-  b_149 {
-    %v_347 = shl %v_151, 3: I64
-    %v_348 = add %v_146, %v_347: Ptr
-    %v_349 = imul %v_148, 10: I32
-    %v_350 = loads %v_348, 4: I32
-    %v_150 = add %v_349, %v_350: I32
-    %v_152 = add %v_151, 1: I64
-    jmp b_147
+  b_146 {
+    %v_344 = shl %v_148, 3: I64
+    %v_345 = add %v_143, %v_344: Ptr
+    %v_346 = imul %v_145, 10: I32
+    %v_347 = loads %v_345, 4: I32
+    %v_147 = add %v_346, %v_347: I32
+    %v_149 = add %v_148, 1: I64
+    jmp b_144
   }
 
-  b_136 {
+  b_133 {
     ret 18446744073709551599
   }
 
   b_129 {
-    %v_351 = phi [b_130, %v_132], [b_128, 0]: I32
-    %v_352 = phi [b_130, %v_135], [b_128, 0]: I32
-    %v_353 = call_complex Index(Map(k, v), k, v).get(I32, I32), %v_120, %v_351: Ptr
-    %v_354 = loads %v_353, 4: I32
-    %v_355 = imul %v_351, 10: I32
-    %v_356 = cmp_eq %v_354, %v_355: I32
-    je %v_356, b_357, b_358
+    %v_348 = phi [b_349, %v_350], [b_128, 0]: I32
+    %v_351 = phi [b_349, %v_132], [b_128, 0]: I32
+    %v_352 = call_complex Index(Map(k, v), k, v).get(I32, I32), %v_120, %v_348: Ptr
+    %v_353 = loads %v_352, 4: I32
+    %v_354 = imul %v_348, 10: I32
+    %v_355 = cmp_eq %v_353, %v_354: I32
+    je %v_355, b_356, b_349
   }
 
-  b_357 {
-    %v_359 = add %v_352, 1: I32
-    jmp b_358
+  b_356 {
+    %v_357 = add %v_351, 1: I32
+    jmp b_349
   }
 
-  b_358 {
-    %v_135 = phi [b_129, %v_352], [b_357, %v_359]: I32
-    %v_132 = add %v_351, 1: I32
-    jmp b_130
+  b_349 {
+    %v_132 = phi [b_129, %v_351], [b_356, %v_357]: I32
+    %v_350 = add %v_348, 1: I32
+    %v_358 = cmp_ilt %v_350, 12: I32
+    je %v_358, b_129, b_130
   }
 
   b_11 {
-    %v_360 = phi [b_118, %v_120], [b_109, %dup], [b_100, %dup], [b_54, %v_46], [b_44, %v_46], [b_26, %v_2], [b_22, %v_2], [b_12, %v_2], [b_0, %v_2]: Ptr
-    %v_361 = phi [b_118, 18446744073709551600], [b_109, 18446744073709551602], [b_100, 18446744073709551603], [b_54, 18446744073709551608], [b_44, 18446744073709551609], [b_26, 18446744073709551612], [b_22, 18446744073709551613], [b_12, 18446744073709551614], [b_0, 18446744073709551615]: I32
-    call_complex reclaim$Map(I32, I32), %v_360
-    ret %v_361
+    %v_359 = phi [b_118, %v_120], [b_109, %dup], [b_100, %dup], [b_54, %v_46], [b_44, %v_46], [b_26, %v_2], [b_22, %v_2], [b_12, %v_2], [b_0, %v_2]: Ptr
+    %v_360 = phi [b_118, 18446744073709551600], [b_109, 18446744073709551602], [b_100, 18446744073709551603], [b_54, 18446744073709551608], [b_44, 18446744073709551609], [b_26, 18446744073709551612], [b_22, 18446744073709551613], [b_12, 18446744073709551614], [b_0, 18446744073709551615]: I32
+    call_complex reclaim$Map(I32, I32), %v_359
+    ret %v_360
   }
 
   b_117 {

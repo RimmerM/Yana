@@ -362,6 +362,27 @@ static llvm::Function* declareFunction(Gen& gen, LowerFunction& fun) {
     // mapped below it. See `genStackReserve` in `codegen/x64/gen.cpp`.
     target->addFnAttr("probe-stack", "inline-asm");
 
+    // Tuned for the part `-tune` names, which is the same part the x64 backend's own gates were
+    // measured on - see TargetTuning. A function attribute rather than the target machine's CPU,
+    // because the CPU is also what features are inferred from, and the level already says those.
+    // `Generic` adds nothing: the machine's "x86-64" already tunes generically.
+    if(gen.context.settings.arch == TargetArch::X64) {
+        switch(gen.context.settings.tuning) {
+            case TargetTuning::Generic:
+                break;
+            case TargetTuning::Intel:
+                target->addFnAttr("tune-cpu", "raptorlake");
+                break;
+            case TargetTuning::Amd:
+#if LLVM_VERSION_MAJOR >= 20
+                target->addFnAttr("tune-cpu", "znver5");
+#else
+                target->addFnAttr("tune-cpu", "znver4");
+#endif
+                break;
+        }
+    }
+
     U32 index = 0;
     for(auto a: fun.args.contents(gen.base)) {
         target->getArg(index++)->setName(nameOf(gen.context, gen.base[a]->result.name));

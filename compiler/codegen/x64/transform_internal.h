@@ -266,7 +266,7 @@ void selectSignExtends(Context&, LowerBase base, LowerFunction& fun);
 void foldAddresses(LowerBase base, LowerFunction& fun);
 void foldLeas(LowerBase base, LowerFunction& fun);
 void foldLoads(LowerBase base, LowerFunction& fun);
-void foldStoreUpdates(LowerBase base, LowerFunction& fun);
+void foldStoreUpdates(LowerBase base, LowerFunction& fun, bool inLoops);
 
 // Folds a load into the byte reversal that reads it, and a reversal into the store that writes it -
 // `movbe`, where the target has it. See the header above the pass.

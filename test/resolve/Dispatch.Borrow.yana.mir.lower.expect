@@ -14,26 +14,14 @@ main<complex>(): I32 {
     store %v_5, 6, 4
     %v_6 = add %v_2, 8: Ptr
     store %v_6, 7, 4
-    jmp b_7
-  }
-
-  b_8 {
+    %v_7 = loads %v_2, 4: I32
+    %v_8 = add %v_7, 1: I32
+    store %v_2, %v_8, 4
     %v_9 = loads %v_2, 4: I32
-    jmp b_10
-  }
-
-  b_10 {
-    %v_11 = loads %v_5, 4: I32
+    %v_10 = loads %v_5, 4: I32
     call_complex Array(a).reclaim(I32), %v_1
-    %v_12 = add %v_9, %v_11: I32
-    ret %v_12
-  }
-
-  b_7 {
-    %v_13 = loads %v_2, 4: I32
-    %v_14 = add %v_13, 1: I32
-    store %v_2, %v_14, 4
-    jmp b_8
+    %v_11 = add %v_9, %v_10: I32
+    ret %v_11
   }
 }
 

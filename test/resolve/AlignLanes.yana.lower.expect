@@ -35,132 +35,100 @@ main<complex>(): I32 {
   }
 
   b_9 {
-    jmp b_10
+    %v_10 = vshuffle %above, %below, 0, 1, 2, 3: i32x4
+    %v_11 = call_complex digits, %v_10: I32
+    %v_12 = cmp_neq %v_11, 123: I32
+    je %v_12, b_13, b_14
   }
 
-  b_10 {
-    %v_11 = vshuffle %above, %below, 0, 1, 2, 3: i32x4
-    %v_12 = call_complex digits, %v_11: I32
-    %v_13 = cmp_neq %v_12, 123: I32
-    je %v_13, b_14, b_15
-  }
-
-  b_14 {
+  b_13 {
     ret 18446744073709551614
   }
 
-  b_15 {
-    jmp b_16
+  b_14 {
+    %v_15 = vshuffle %above, %below, 5, 6, 7, 0: i32x4
+    %v_16 = call_complex digits, %v_15: I32
+    %v_17 = cmp_neq %v_16, 12330: I32
+    je %v_17, b_18, b_19
   }
 
-  b_16 {
-    %v_17 = vshuffle %above, %below, 5, 6, 7, 0: i32x4
-    %v_18 = call_complex digits, %v_17: I32
-    %v_19 = cmp_neq %v_18, 12330: I32
-    je %v_19, b_20, b_21
-  }
-
-  b_20 {
+  b_18 {
     ret 18446744073709551613
   }
 
-  b_21 {
-    jmp b_22
+  b_19 {
+    %v_20 = vshuffle %above, %below, 6, 7, 0, 1: i32x4
+    %v_21 = call_complex digits, %v_20: I32
+    %v_22 = cmp_neq %v_21, 13301: I32
+    je %v_22, b_23, b_24
   }
 
-  b_22 {
-    %v_23 = vshuffle %above, %below, 6, 7, 0, 1: i32x4
-    %v_24 = call_complex digits, %v_23: I32
-    %v_25 = cmp_neq %v_24, 13301: I32
-    je %v_25, b_26, b_27
-  }
-
-  b_26 {
+  b_23 {
     ret 18446744073709551612
   }
 
-  b_27 {
-    jmp b_28
+  b_24 {
+    %v_25 = vshuffle %above, %below, 7, 0, 1, 2: i32x4
+    %v_26 = call_complex digits, %v_25: I32
+    %v_27 = cmp_neq %v_26, 13012: I32
+    je %v_27, b_28, b_29
   }
 
   b_28 {
-    %v_29 = vshuffle %above, %below, 7, 0, 1, 2: i32x4
-    %v_30 = call_complex digits, %v_29: I32
-    %v_31 = cmp_neq %v_30, 13012: I32
-    je %v_31, b_32, b_33
-  }
-
-  b_32 {
     ret 18446744073709551611
   }
 
-  b_33 {
-    jmp b_34
+  b_29 {
+    %v_30 = vsplat 7: i8x16
+    %v_31 = vsplat 0: i8x16
+    %v_32 = vwithlane %v_31, 1, 1: i8x16
+    %v_33 = vwithlane %v_32, 2, 2: i8x16
+    %v_34 = vwithlane %v_33, 3, 3: i8x16
+    %v_35 = vwithlane %v_34, 4, 4: i8x16
+    %v_36 = vwithlane %v_35, 5, 5: i8x16
+    %v_37 = vwithlane %v_36, 6, 6: i8x16
+    %v_38 = vwithlane %v_37, 7, 7: i8x16
+    %v_39 = vwithlane %v_38, 8, 8: i8x16
+    %v_40 = vwithlane %v_39, 9, 9: i8x16
+    %v_41 = vwithlane %v_40, 10, 10: i8x16
+    %v_42 = vwithlane %v_41, 11, 11: i8x16
+    %v_43 = vwithlane %v_42, 12, 12: i8x16
+    %v_44 = vwithlane %v_43, 13, 13: i8x16
+    %v_45 = vwithlane %v_44, 14, 14: i8x16
+    %v_46 = vwithlane %v_45, 15, 15: i8x16
+    %v_47 = vshuffle %v_30, %v_46, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 1, 2, 3, 4: i8x16
+    %v_48 = vlane %v_47, 0: I32
+    %v_49 = cmp_neq %v_48, 5: I32
+    je %v_49, b_50, b_51
   }
 
-  b_34 {
-    %v_35 = vsplat 7: i8x16
-    %v_36 = vsplat 0: i8x16
-    %v_37 = vwithlane %v_36, 1, 1: i8x16
-    %v_38 = vwithlane %v_37, 2, 2: i8x16
-    %v_39 = vwithlane %v_38, 3, 3: i8x16
-    %v_40 = vwithlane %v_39, 4, 4: i8x16
-    %v_41 = vwithlane %v_40, 5, 5: i8x16
-    %v_42 = vwithlane %v_41, 6, 6: i8x16
-    %v_43 = vwithlane %v_42, 7, 7: i8x16
-    %v_44 = vwithlane %v_43, 8, 8: i8x16
-    %v_45 = vwithlane %v_44, 9, 9: i8x16
-    %v_46 = vwithlane %v_45, 10, 10: i8x16
-    %v_47 = vwithlane %v_46, 11, 11: i8x16
-    %v_48 = vwithlane %v_47, 12, 12: i8x16
-    %v_49 = vwithlane %v_48, 13, 13: i8x16
-    %v_50 = vwithlane %v_49, 14, 14: i8x16
-    %v_51 = vwithlane %v_50, 15, 15: i8x16
-    %v_52 = vshuffle %v_35, %v_51, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 1, 2, 3, 4: i8x16
-    %v_53 = vlane %v_52, 0: I32
-    %v_54 = cmp_neq %v_53, 5: I32
-    je %v_54, b_55, b_56
-  }
-
-  b_55 {
+  b_50 {
     ret 18446744073709551610
   }
 
-  b_56 {
-    jmp b_57
+  b_51 {
+    %v_52 = vlane %v_47, 10: I32
+    %v_53 = cmp_neq %v_52, 15: I32
+    je %v_53, b_54, b_55
   }
 
-  b_57 {
-    %v_58 = vlane %v_52, 10: I32
-    %v_59 = cmp_neq %v_58, 15: I32
-    je %v_59, b_60, b_61
-  }
-
-  b_60 {
+  b_54 {
     ret 18446744073709551609
   }
 
-  b_61 {
-    jmp b_62
+  b_55 {
+    %v_56 = vlane %v_47, 11: I32
+    %v_57 = cmp_neq %v_56, 7: I32
+    je %v_57, b_58, b_59
   }
 
-  b_62 {
-    %v_63 = vlane %v_52, 11: I32
-    %v_64 = cmp_neq %v_63, 7: I32
-    je %v_64, b_65, b_66
-  }
-
-  b_65 {
+  b_58 {
     ret 18446744073709551608
   }
 
-  b_66 {
-    jmp b_67
-  }
-
-  b_67 {
-    %v_68 = call_complex digits, %v_17: I32
-    ret %v_68
+  b_59 {
+    %v_60 = call_complex digits, %v_15: I32
+    ret %v_60
   }
 }
 

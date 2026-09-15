@@ -139,81 +139,57 @@ byteLane<complex>(): I32 {
   }
 
   b_19 {
-    jmp b_20
+    %v_20 = vlane %swapped, 3: I32
+    %v_21 = cmp_neq %v_20, 0: I32
+    je %v_21, b_22, b_23
   }
 
-  b_20 {
-    %v_21 = vlane %swapped, 3: I32
-    %v_22 = cmp_neq %v_21, 0: I32
-    je %v_22, b_23, b_24
-  }
-
-  b_23 {
+  b_22 {
     ret 18446744073709551614
   }
 
-  b_24 {
-    jmp b_25
+  b_23 {
+    %v_24 = vlane %swapped, 4: I32
+    %v_25 = cmp_neq %v_24, 7: I32
+    je %v_25, b_26, b_27
   }
 
-  b_25 {
-    %v_26 = vlane %swapped, 4: I32
-    %v_27 = cmp_neq %v_26, 7: I32
-    je %v_27, b_28, b_29
-  }
-
-  b_28 {
+  b_26 {
     ret 18446744073709551613
   }
 
-  b_29 {
-    jmp b_30
+  b_27 {
+    %v_28 = vlane %swapped, 15: I32
+    %v_29 = cmp_neq %v_28, 12: I32
+    je %v_29, b_30, b_31
   }
 
   b_30 {
-    %v_31 = vlane %swapped, 15: I32
-    %v_32 = cmp_neq %v_31, 12: I32
-    je %v_32, b_33, b_34
-  }
-
-  b_33 {
     ret 18446744073709551612
   }
 
+  b_31 {
+    %backwards = vshuffle %v, %v, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0: i8x16
+    %v_32 = vlane %backwards, 0: I32
+    %v_33 = cmp_neq %v_32, 15: I32
+    je %v_33, b_34, b_35
+  }
+
   b_34 {
-    jmp b_35
+    ret 18446744073709551611
   }
 
   b_35 {
-    %backwards = vshuffle %v, %v, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0: i8x16
-    %v_36 = vlane %backwards, 0: I32
-    %v_37 = cmp_neq %v_36, 15: I32
+    %v_36 = vlane %backwards, 15: I32
+    %v_37 = cmp_neq %v_36, 0: I32
     je %v_37, b_38, b_39
   }
 
   b_38 {
-    ret 18446744073709551611
-  }
-
-  b_39 {
-    jmp b_40
-  }
-
-  b_40 {
-    %v_41 = vlane %backwards, 15: I32
-    %v_42 = cmp_neq %v_41, 0: I32
-    je %v_42, b_43, b_44
-  }
-
-  b_43 {
     ret 18446744073709551610
   }
 
-  b_44 {
-    jmp b_45
-  }
-
-  b_45 {
+  b_39 {
     ret 0
   }
 }
@@ -235,24 +211,16 @@ floatLane<complex>(): I32 {
   }
 
   b_8 {
-    jmp b_9
+    %v_9 = vlane %v, 3: F32
+    %v_10 = cmp_neq %v_9, 0: I32
+    je %v_10, b_11, b_12
   }
 
-  b_9 {
-    %v_10 = vlane %v, 3: F32
-    %v_11 = cmp_neq %v_10, 0: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
+  b_11 {
     ret 18446744073709551614
   }
 
-  b_13 {
-    jmp b_14
-  }
-
-  b_14 {
+  b_12 {
     ret 0
   }
 }
@@ -272,54 +240,38 @@ runtime<complex>(%v: i32x4): I32 {
   }
 
   b_5 {
-    jmp b_6
+    %v_6 = vlane %mixed, 0: I32
+    %v_7 = vlane %v, 0: I32
+    %v_8 = cmp_neq %v_6, %v_7: I32
+    je %v_8, b_9, b_10
   }
 
-  b_6 {
-    %v_7 = vlane %mixed, 0: I32
-    %v_8 = vlane %v, 0: I32
-    %v_9 = cmp_neq %v_7, %v_8: I32
-    je %v_9, b_10, b_11
-  }
-
-  b_10 {
+  b_9 {
     ret 18446744073709551614
   }
 
-  b_11 {
-    jmp b_12
+  b_10 {
+    %v_11 = vlane %mixed, 2: I32
+    %v_12 = vlane %v, 1: I32
+    %v_13 = cmp_neq %v_11, %v_12: I32
+    je %v_13, b_14, b_15
   }
 
-  b_12 {
-    %v_13 = vlane %mixed, 2: I32
-    %v_14 = vlane %v, 1: I32
-    %v_15 = cmp_neq %v_13, %v_14: I32
-    je %v_15, b_16, b_17
-  }
-
-  b_16 {
+  b_14 {
     ret 18446744073709551613
   }
 
-  b_17 {
-    jmp b_18
+  b_15 {
+    %v_16 = vlane %mixed, 3: I32
+    %v_17 = cmp_neq %v_16, %v_7: I32
+    je %v_17, b_18, b_19
   }
 
   b_18 {
-    %v_19 = vlane %mixed, 3: I32
-    %v_20 = cmp_neq %v_19, %v_8: I32
-    je %v_20, b_21, b_22
-  }
-
-  b_21 {
     ret 18446744073709551612
   }
 
-  b_22 {
-    jmp b_23
-  }
-
-  b_23 {
+  b_19 {
     ret 0
   }
 }
@@ -344,74 +296,54 @@ main<complex>(): I32 {
   }
 
   b_10 {
-    jmp b_12
+    %v_12 = call_complex twoSources: I32
+    %v_13 = cmp_neq %v_12, 0: I32
+    je %v_13, b_14, b_15
   }
 
-  b_12 {
-    %v_13 = call_complex twoSources: I32
-    %v_14 = cmp_neq %v_13, 0: I32
-    je %v_14, b_15, b_16
+  b_14 {
+    %v_16 = call_complex twoSources: I32
+    %v_17 = imul %v_16, 10: I32
+    ret %v_17
   }
 
   b_15 {
-    %v_17 = call_complex twoSources: I32
-    %v_18 = imul %v_17, 10: I32
-    ret %v_18
+    %v_18 = call_complex byteLane: I32
+    %v_19 = cmp_neq %v_18, 0: I32
+    je %v_19, b_20, b_21
   }
 
-  b_16 {
-    jmp b_19
+  b_20 {
+    %v_22 = call_complex byteLane: I32
+    %v_23 = imul %v_22, 100: I32
+    ret %v_23
   }
 
-  b_19 {
-    %v_20 = call_complex byteLane: I32
-    %v_21 = cmp_neq %v_20, 0: I32
-    je %v_21, b_22, b_23
-  }
-
-  b_22 {
-    %v_24 = call_complex byteLane: I32
-    %v_25 = imul %v_24, 100: I32
-    ret %v_25
-  }
-
-  b_23 {
-    jmp b_26
+  b_21 {
+    %v_24 = call_complex floatLane: I32
+    %v_25 = cmp_neq %v_24, 0: I32
+    je %v_25, b_26, b_27
   }
 
   b_26 {
-    %v_27 = call_complex floatLane: I32
-    %v_28 = cmp_neq %v_27, 0: I32
-    je %v_28, b_29, b_30
+    %v_28 = call_complex floatLane: I32
+    %v_29 = imul %v_28, 1000: I32
+    ret %v_29
   }
 
-  b_29 {
-    %v_31 = call_complex floatLane: I32
-    %v_32 = imul %v_31, 1000: I32
-    ret %v_32
+  b_27 {
+    %v_30 = call_complex runtime, %v: I32
+    %v_31 = cmp_neq %v_30, 0: I32
+    je %v_31, b_32, b_33
   }
 
-  b_30 {
-    jmp b_33
+  b_32 {
+    %v_34 = call_complex runtime, %v: I32
+    %v_35 = imul %v_34, 10000: I32
+    ret %v_35
   }
 
   b_33 {
-    %v_34 = call_complex runtime, %v: I32
-    %v_35 = cmp_neq %v_34, 0: I32
-    je %v_35, b_36, b_37
-  }
-
-  b_36 {
-    %v_38 = call_complex runtime, %v: I32
-    %v_39 = imul %v_38, 10000: I32
-    ret %v_39
-  }
-
-  b_37 {
-    jmp b_40
-  }
-
-  b_40 {
     ret 314
   }
 }

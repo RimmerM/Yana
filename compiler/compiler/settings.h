@@ -261,6 +261,34 @@ enum class SwitchForm: U8 {
     JumpTable,    /// A placed table of code offsets, indexed by the selector.
 };
 
+/*
+ * Which vendor's recent cores a build favours where the two disagree - `-tune`.
+ *
+ * **Speed only, never correctness.** `-enable-inst` says which instructions exist; this says which of
+ * two programs that both run everywhere is picked. A build tuned for one vendor runs on the other,
+ * only slower in the places listed below, so it can default to something without host detection and
+ * stay reproducible.
+ *
+ * **A gate exists only where both vendors were measured and disagree.** One that cannot be measured
+ * again on either side goes stale without saying so - §55.4 of test/bench/findings.md found a loop
+ * refusal that had quietly reversed - so every decision reading this names the measurements it
+ * rests on. `Generic` takes the answer that is least bad on both, which so far has always been the
+ * one the compiler gave before there was a choice.
+ *
+ * What reads it today:
+ *
+ *  - `foldStoreUpdates` in codegen/x64/transform_address.cpp, in a loop. `add [m], r` against its
+ *    three instructions was +8% on `Matrix` on a 13900K (§45.2, §55.4) and -8.2% on Zen 5 (§112), so
+ *    only `Amd` folds inside a loop.
+ *  - The LLVM backend's `tune-cpu`, so that the two backends answer the question for the same part:
+ *    Raptor Lake for `Intel`, Zen 5 for `Amd`, and LLVM's generic tuning for `Generic`.
+ */
+enum class TargetTuning: U8 {
+    Generic, /// The default. Whatever is least bad on both vendors.
+    Intel,   /// Recent Intel performance cores - Golden Cove and Raptor Cove, the 13900K the corpus was measured on.
+    Amd,     /// Recent AMD cores - Zen 4 and Zen 5.
+};
+
 // The one provider name the compiler knows, and it knows it only as what `-allocator` starts at -
 // see `allocatorSelector`, where the argument for that is written.
 static constexpr StringView kDefaultAllocator = "bootstrap"_v;
@@ -428,6 +456,9 @@ struct CompileSettings {
     /// Which shape a multi-way branch is spent in - see SwitchForm. A measurement's knob; `Auto` is
     /// the thresholds and is what every build but a probe uses.
     SwitchForm switchForm = SwitchForm::Auto;
+
+    /// Which vendor's recent cores the build favours where they disagree - see TargetTuning.
+    TargetTuning tuning = TargetTuning::Generic;
 
     /*
      * The checks a program stops on - a subscript's bounds test, and the range test on a store

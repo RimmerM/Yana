@@ -98,67 +98,59 @@ grown<complex>(%n: I32): I32 {
     copy %v_1, @constant$0, 16
     %v_2 = alloca 16, 8: Ptr
     copy %v_2, %v_1, 16
-    jmp b_3
+    %v_3 = add %v_2, 12: Ptr
+    %v_4 = load %v_3, 4: I32
+    %v_5 = cast %v_4: I64
+    %v_6 = add %v_5, 3: I64
+    %v_7 = add %v_2, 8: Ptr
+    %v_8 = load %v_7, 4: I64
+    %v_9 = and %v_8, 1073741823: I64
+    %v_10 = cast %v_9: I32
+    %v_11 = cast %v_10: I64
+    %v_12 = cmp_ile %v_6, %v_11: I32
+    je %v_12, b_13, b_14
   }
 
-  b_4 {
+  b_14 {
+    call_complex growArray(CodeUnit), %v_2, %v_6
+    %v_15 = load %v_3, 4: I32
+    %v_16 = cast %v_15: I64
+    %v_17 = add %v_16, 3: I64
+    %v_18 = load %v_7, 4: I64
+    %v_19 = and %v_18, 1073741823: I64
+    %v_20 = cast %v_19: I32
+    %v_21 = cast %v_20: I64
+    jmp b_13
+  }
+
+  b_13 {
+    %v_22 = phi [b_0, %v_5], [b_14, %v_16]: I64
+    %v_23 = phi [b_0, %v_6], [b_14, %v_17]: I64
+    %v_24 = phi [b_0, %v_11], [b_14, %v_21]: I64
+    %v_25 = add %v_2, 12: Ptr
+    %v_26 = cmp_ilt %v_24, %v_23: I32
+    je %v_26, b_27, b_28
+  }
+
+  b_28 {
+    %v_29 = load %v_2, 8: Ptr
+    %v_30 = add %v_29, %v_22: Ptr
+    call_complex copyMemory, %v_30, @string'149, 3
+    %v_31 = cast %v_23: I32
+    %v_32 = and %v_31, 1073741823: I32
+    store %v_25, %v_32, 4
     copy %v_1, %v_2, 16
-    %v_5 = add %v_1, 12: Ptr
-    %v_6 = load %v_5, 4: I32
-    %v_7 = sext %v_6: I64
+    %v_33 = add %v_1, 12: Ptr
+    %v_34 = load %v_33, 4: I32
+    %v_35 = sext %v_34: I64
     call_complex String.reclaim, %v_1
-    %v_8 = sext %v_7: I32
-    %v_9 = add %v_8, %n: I32
-    ret %v_9
+    %v_36 = sext %v_35: I32
+    %v_37 = add %v_36, %n: I32
+    ret %v_37
   }
 
-  b_3 {
-    %v_10 = add %v_2, 12: Ptr
-    %v_11 = load %v_10, 4: I32
-    %v_12 = cast %v_11: I64
-    %v_13 = add %v_12, 3: I64
-    %v_14 = add %v_2, 8: Ptr
-    %v_15 = load %v_14, 4: I64
-    %v_16 = and %v_15, 1073741823: I64
-    %v_17 = cast %v_16: I32
-    %v_18 = cast %v_17: I64
-    %v_19 = cmp_ile %v_13, %v_18: I32
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
-    call_complex growArray(CodeUnit), %v_2, %v_13
-    %v_22 = load %v_10, 4: I32
-    %v_23 = cast %v_22: I64
-    %v_24 = add %v_23, 3: I64
-    %v_25 = load %v_14, 4: I64
-    %v_26 = and %v_25, 1073741823: I64
-    %v_27 = cast %v_26: I32
-    %v_28 = cast %v_27: I64
-    jmp b_20
-  }
-
-  b_20 {
-    %v_29 = phi [b_3, %v_12], [b_21, %v_23]: I64
-    %v_30 = phi [b_3, %v_13], [b_21, %v_24]: I64
-    %v_31 = phi [b_3, %v_18], [b_21, %v_28]: I64
-    %v_32 = add %v_2, 12: Ptr
-    %v_33 = cmp_ilt %v_31, %v_30: I32
-    je %v_33, b_34, b_35
-  }
-
-  b_35 {
-    %v_36 = load %v_2, 8: Ptr
-    %v_37 = add %v_36, %v_29: Ptr
-    call_complex copyMemory, %v_37, @string'149, 3
-    %v_38 = cast %v_30: I32
-    %v_39 = and %v_38, 1073741823: I32
-    store %v_32, %v_39, 4
-    jmp b_4
-  }
-
-  b_34 {
-    %v_40 = syscall 60, 134: I64
+  b_27 {
+    %v_38 = syscall 60, 134: I64
     unreachable 
   }
 }

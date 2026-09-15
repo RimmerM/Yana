@@ -1,45 +1,21 @@
 
 main<complex>(): I32 {
   b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    jmp b_2
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = alloca 8, 8: Ptr
-    %v_8 = alloca 8, 8: Ptr
-    store %v_7, 0, 8
-    store %v_8, 0, 8
-    %v_9 = cmp_lt %v_7, %v_8: I32
-    %v_10 = select %v_9, %v_7, %v_8: Ptr
-    %v_11 = cmp_lt %v_8, %v_7: I32
-    %v_12 = select %v_11, %v_8, %v_7: Ptr
-    %v_13 = cmp_le %v_10, %v_12: I32
-    %v_14 = select %v_13, 1, 0: I64
-    %v_15 = add %v_14, 6: I64
-    %v_16 = add 15, %v_15: I64
-    %v_17 = add %v_16, 16: I64
-    %v_18 = sext %v_17: I32
-    ret %v_18
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_1, 0, 8
+    store %v_2, 0, 8
+    %v_3 = cmp_lt %v_1, %v_2: I32
+    %v_4 = select %v_3, %v_1, %v_2: Ptr
+    %v_5 = cmp_lt %v_2, %v_1: I32
+    %v_6 = select %v_5, %v_2, %v_1: Ptr
+    %v_7 = cmp_le %v_4, %v_6: I32
+    %v_8 = select %v_7, 1, 0: I64
+    %v_9 = add %v_8, 6: I64
+    %v_10 = add 15, %v_9: I64
+    %v_11 = add %v_10, 16: I64
+    %v_12 = sext %v_11: I32
+    ret %v_12
   }
 }
 

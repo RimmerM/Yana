@@ -176,6 +176,12 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     // address twice is shown one load.
     hoistLoopInvariants(base, module, fun, analysis);
 
+    // The index arithmetic a loop recomputes from its counter every iteration - `row * n + column` -
+    // carried as counters of its own, with the loop's test moved onto one of them where that lets the
+    // original counter go. See lower_induction.h. Behind the hoisting, because what it needs to know
+    // is that the other operand does not change in the loop.
+    reduceDerivedInductions(base, module, fun, analysis);
+
     // The multiply that is left because its other operand is the loop's own counter, which is not a
     // strength reduction of one operation into another but of a whole recurrence - see
     // lower_induction.h. After the fold above, since what it needs to read is the stride as a
@@ -203,6 +209,11 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     // deciding happened, and here rather than one line higher because this changes the block set:
     // the loop analysis above has already been ended by the check elimination.
     foldDecidedBranches(base, module, fun);
+
+    // And the jumps the branches removed since the CSE left behind, each into a block nothing else
+    // enters - see lower_thread.h. Here because every pass that removes a branch is above it; in
+    // front of the exit merge so that two copies of one exit are compared as the blocks they became.
+    mergeLinearBlocks(base, fun);
 
     // And the exits inlining brought several copies of, along with the teardown every early return
     // of one function writes out again - see lower_merge.h, and §32 of test/bench/findings.md. Last,

@@ -966,6 +966,12 @@ static bool nothingWritesBetween(LowerBase base, LowerBlock* block, Size store, 
  * the one it looked like: three decoded instructions and a register become one instruction in code
  * that runs once. That is most of what it reaches anyway - a teardown, a field updated on a path, a
  * counter bumped outside a loop - and it is the whole of the size win with none of the cost.
+ *
+ * **"This machine" is a 13900K, and the ruling is Intel's.** On Zen 5 the same fold inside loops is
+ * -8.2% on `Matrix` (108.5 ms against 99.7, §112) and changes no other program in the corpus: the
+ * store forwarding the table above is limited by is not what limits that core. Neither machine can
+ * speak for the other, so the loops are a `-tune` question - see TargetTuning in
+ * compiler/settings.h - and only `-tune amd` folds inside one.
  */
 
 // Folds the store at `index`, the operation feeding it and the load feeding that into one in-place
@@ -1172,15 +1178,15 @@ void selectByteSwapMemory(LowerBase base, LowerFunction& fun) {
     }
 }
 
-void foldStoreUpdates(LowerBase base, LowerFunction& fun) {
-    // Which blocks are in a loop, which is the whole of what decides where this fires - see the
-    // table above. Built once for the function; nothing here creates or renumbers a block, so the
-    // indexes it is read by stay the ones it was built from.
+void foldStoreUpdates(LowerBase base, LowerFunction& fun, bool inLoops) {
+    // Which blocks are in a loop, which is the whole of what decides where this fires unless the
+    // tuning says loops too - see the table above. Built once for the function; nothing here creates
+    // or renumbers a block, so the indexes it is read by stay the ones it was built from.
     auto loops = fun.buildLoops(base);
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
-        if(loops.depth[block->index] > 0) continue;
+        if(!inLoops && loops.depth[block->index] > 0) continue;
 
         for(Size i = 0; i < block->instructions.size(); i++) {
             // The fold removes two instructions that may both be above the store, so where the

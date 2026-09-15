@@ -651,125 +651,101 @@ runMain<complex>(%cases$items: Ptr, %cases$length: I64): I32 {
 
   b_19 {
     %v_5 = add %v_3, 1: I32
-    jmp b_24
-  }
-
-  b_25 {
-    jmp b_26
-  }
-
-  b_26 {
-    %v_7 = phi [b_25, %v_6], [b_27, %v_28]: I32
-    jmp b_29
+    %v_24 = add %v_16, 88: Ptr
+    %v_25 = load %v_24, 1: I32
+    je %v_25, b_26, b_27
   }
 
   b_27 {
-    %v_28 = add %v_6, 1: I32
-    jmp b_26
-  }
-
-  b_23 {
-    jmp b_30
-  }
-
-  b_30 {
-    %v_31 = phi [b_23, 0], [b_32, 1]: I32
-    %v_33 = shl %v_3, 6: I32
-    %v_34 = shl %v_6, 5: I32
-    %v_35 = add %v_33, %v_34: I32
-    %v_36 = sar %v_8, 31: I32
-    %v_37 = shr %v_36, 29: I32
-    %v_38 = add %v_8, %v_37: I32
-    %v_39 = and %v_38, 4294967288: I32
-    %v_40 = sub %v_8, %v_39: I32
-    %v_41 = shl %v_40, 2: I32
-    %v_42 = add %v_35, %v_41: I32
-    %v_43 = shl %v_31, 1: I32
-    %v_44 = add %v_42, %v_43: I32
-    %v_45 = loads @failed, 4: I32
-    %v_46 = sar %v_45, 31: I32
-    %v_47 = shr %v_46, 31: I32
-    %v_48 = add %v_45, %v_47: I32
-    %v_49 = and %v_48, 4294967294: I32
-    %v_50 = sub %v_45, %v_49: I32
-    %v_51 = add %v_44, %v_50: I32
-    ret %v_51
-  }
-
-  b_22 {
-    %v_52 = cmp_eq %cases$length, 0: I32
-    je %v_52, b_53, b_54
-  }
-
-  b_55 {
-    jmp b_56
-  }
-
-  b_32 {
-    jmp b_30
-  }
-
-  b_24 {
-    %v_57 = add %v_16, 88: Ptr
-    %v_58 = load %v_57, 1: I32
-    je %v_58, b_27, b_25
-  }
-
-  b_29 {
-    %v_59 = add %v_16, 52: Ptr
-    %v_60 = load %v_59, 4: I32
-    %v_61 = sext %v_60: I64
-    %v_62 = sext %v_61: I32
-    %v_9 = add %v_8, %v_62: I32
-    jmp b_63
-  }
-
-  b_63 {
-    %v_64 = add %v_16, 68: Ptr
-    %v_65 = load %v_64, 4: I32
-    %v_66 = sext %v_65: I64
-    %v_67 = sext %v_66: I32
-    %v_11 = add %v_10, %v_67: I32
-    jmp b_68
-  }
-
-  b_68 {
-    %v_69 = add %v_16, 32: Ptr
-    %v_70 = loads %v_69, 4: I32
-    %v_13 = add %v_12, %v_70: I32
     jmp b_4
   }
 
   b_4 {
-    %v_71 = add %v_16, 72: Ptr
-    %v_72 = load %v_71, 8: Ptr
-    %v_73 = add %v_16, 80: Ptr
-    %v_74 = load %v_73, 8: Ptr
-    call_complex %v_72, %v_74, %v_1
+    %v_7 = phi [b_27, %v_6], [b_26, %v_28]: I32
+    %v_29 = add %v_16, 52: Ptr
+    %v_30 = load %v_29, 4: I32
+    %v_31 = sext %v_30: I64
+    %v_32 = sext %v_31: I32
+    %v_9 = add %v_8, %v_32: I32
+    %v_33 = add %v_16, 68: Ptr
+    %v_34 = load %v_33, 4: I32
+    %v_35 = sext %v_34: I64
+    %v_36 = sext %v_35: I32
+    %v_11 = add %v_10, %v_36: I32
+    %v_37 = add %v_16, 32: Ptr
+    %v_38 = loads %v_37, 4: I32
+    %v_13 = add %v_12, %v_38: I32
+    %v_39 = add %v_16, 72: Ptr
+    %v_40 = load %v_39, 8: Ptr
+    %v_41 = add %v_16, 80: Ptr
+    %v_42 = load %v_41, 8: Ptr
+    call_complex %v_40, %v_42, %v_1
     call_complex teardown(Test), %v_1
     %v_15 = add %v_14, 1: I64
     %v_17 = add %v_16, 96: Ptr
     jmp b_2
   }
 
-  b_54 {
-    %v_75 = add %cases$items, 68: Ptr
-    %v_76 = load %v_75, 4: I32
-    %v_77 = sext %v_76: I64
-    %v_78 = sext %v_77: I32
-    %v_79 = imul %v_3, %v_78: I32
-    %v_80 = cmp_eq %v_10, %v_79: I32
-    je %v_80, b_55, b_23
+  b_26 {
+    %v_28 = add %v_6, 1: I32
+    jmp b_4
   }
 
-  b_53 {
-    %v_81 = syscall 60, 134: I64
+  b_23 {
+    jmp b_43
+  }
+
+  b_43 {
+    %v_44 = phi [b_23, 0], [b_45, 1]: I32
+    %v_46 = shl %v_3, 6: I32
+    %v_47 = shl %v_6, 5: I32
+    %v_48 = add %v_46, %v_47: I32
+    %v_49 = sar %v_8, 31: I32
+    %v_50 = shr %v_49, 29: I32
+    %v_51 = add %v_8, %v_50: I32
+    %v_52 = and %v_51, 4294967288: I32
+    %v_53 = sub %v_8, %v_52: I32
+    %v_54 = shl %v_53, 2: I32
+    %v_55 = add %v_48, %v_54: I32
+    %v_56 = shl %v_44, 1: I32
+    %v_57 = add %v_55, %v_56: I32
+    %v_58 = loads @failed, 4: I32
+    %v_59 = sar %v_58, 31: I32
+    %v_60 = shr %v_59, 31: I32
+    %v_61 = add %v_58, %v_60: I32
+    %v_62 = and %v_61, 4294967294: I32
+    %v_63 = sub %v_58, %v_62: I32
+    %v_64 = add %v_57, %v_63: I32
+    ret %v_64
+  }
+
+  b_22 {
+    %v_65 = cmp_eq %cases$length, 0: I32
+    je %v_65, b_66, b_67
+  }
+
+  b_68 {
+    %v_69 = cmp_igt %v_70, 0: I32
+    je %v_69, b_45, b_23
+  }
+
+  b_45 {
+    jmp b_43
+  }
+
+  b_67 {
+    %v_71 = add %cases$items, 68: Ptr
+    %v_72 = load %v_71, 4: I32
+    %v_70 = sext %v_72: I64
+    %v_73 = sext %v_70: I32
+    %v_74 = imul %v_3, %v_73: I32
+    %v_75 = cmp_eq %v_10, %v_74: I32
+    je %v_75, b_68, b_23
+  }
+
+  b_66 {
+    %v_76 = syscall 60, 134: I64
     unreachable 
-  }
-
-  b_56 {
-    %v_82 = cmp_igt %v_77, 0: I32
-    je %v_82, b_32, b_23
   }
 }
 

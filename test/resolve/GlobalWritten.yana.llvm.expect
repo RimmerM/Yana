@@ -12,8 +12,8 @@ module asm "\09.set \22image$base\22, 0"
 define fastcc i32 @countdown(i32 %k) #0 {
   br label %1
 
-1:                                                ; preds = %8, %0
-  %2 = phi i32 [ %k, %0 ], [ %9, %8 ]
+1:                                                ; preds = %7, %0
+  %2 = phi i32 [ %k, %0 ], [ %8, %7 ]
   %3 = icmp sle i32 %2, 0
   %4 = zext i1 %3 to i32
   br i1 %3, label %5, label %7
@@ -23,10 +23,7 @@ define fastcc i32 @countdown(i32 %k) #0 {
   ret i32 %6
 
 7:                                                ; preds = %1
-  br label %8
-
-8:                                                ; preds = %7
-  %9 = sub i32 %2, 1
+  %8 = sub i32 %2, 1
   br label %1
 }
 

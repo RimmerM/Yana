@@ -115,41 +115,37 @@ main<complex>(): I32 {
   }
 
   b_12 {
-    %v_13 = cmp_ilt %v_14, 100: I32
-    je %v_13, b_11, b_15
-  }
-
-  b_15 {
-    %v_16 = load @heapNext, 8: Ptr
-    %v_17 = bitcast %v_16: I64
-    %v_18 = cmp_neq %v_17, %v_10: I32
-    je %v_18, b_19, b_20
+    %v_13 = load @heapNext, 8: Ptr
+    %v_14 = bitcast %v_13: I64
+    %v_15 = cmp_neq %v_14, %v_10: I32
+    je %v_15, b_16, b_17
   }
 
   b_11 {
-    %v_21 = phi [b_12, %v_14], [b_8, 0]: I32
-    %v_22 = call_complex round'2: I32
-    %v_23 = cmp_neq %v_22, 112: I32
-    je %v_23, b_24, b_25
-  }
-
-  b_25 {
-    %v_14 = add %v_21, 1: I32
-    jmp b_12
-  }
-
-  b_24 {
-    ret 18446744073709551613
-  }
-
-  b_20 {
-    %v_26 = loads @dropCalls, 4: I32
-    %v_27 = sub %v_26, 600: I32
-    %v_28 = add 112, %v_27: I32
-    ret %v_28
+    %v_18 = phi [b_19, %v_20], [b_8, 0]: I32
+    %v_21 = call_complex round'2: I32
+    %v_22 = cmp_neq %v_21, 112: I32
+    je %v_22, b_23, b_19
   }
 
   b_19 {
+    %v_20 = add %v_18, 1: I32
+    %v_24 = cmp_ilt %v_20, 100: I32
+    je %v_24, b_11, b_12
+  }
+
+  b_23 {
+    ret 18446744073709551613
+  }
+
+  b_17 {
+    %v_25 = loads @dropCalls, 4: I32
+    %v_26 = sub %v_25, 600: I32
+    %v_27 = add 112, %v_26: I32
+    ret %v_27
+  }
+
+  b_16 {
     ret 18446744073709551612
   }
 }

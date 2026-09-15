@@ -4,26 +4,10 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    jmp b_1
-  }
-
-  b_2 {
-    %v_3 = select %v_4, 15, 7: I32
+    %v_1 = call_complex compareMemory(CodeUnit), @string'145, @string'143, 20: I32
+    %v_2 = cmp_eq %v_1, 1: I32
+    %v_3 = select %v_2, 15, 7: I32
     ret %v_3
-  }
-
-  b_5 {
-    %v_6 = call_complex compareMemory(CodeUnit), @string'145, @string'143, 20: I32
-    %v_4 = cmp_eq %v_6, 1: I32
-    jmp b_2
-  }
-
-  b_1 {
-    jmp b_7
-  }
-
-  b_7 {
-    jmp b_5
   }
 }
 

@@ -31,6 +31,7 @@ struct Flag {
         framePointer,
         inlining,
         switchForm,
+        tune,
         optimization,
         explain,
         project,
@@ -89,6 +90,9 @@ Flag flagTable[] = {
 
     // Which shape a multi-way branch is spent in - see SwitchForm. A measurement's knob.
     { "switch-form"_v, 1, Flag::switchForm },
+
+    // Which vendor's recent cores the build favours where they disagree - see TargetTuning.
+    { "tune"_v, 1, Flag::tune },
     { "explain"_v, 1, Flag::explain },
     { "project"_v, 1, Flag::project },
     { "lib"_v, 1, Flag::library },
@@ -130,6 +134,13 @@ StringView switchFormTable[] = {
     "chain"_v,  // Chain
     "search"_v, // BinarySearch
     "table"_v,  // JumpTable
+};
+
+// TargetTuning, in declaration order.
+StringView tuneTable[] = {
+    "generic"_v, // Generic
+    "intel"_v,   // Intel
+    "amd"_v,     // Amd
 };
 
 // CompileMode, in declaration order. What comes out; `platformTable` below says what it is for, and
@@ -864,6 +875,7 @@ Which machine:
   -target <os>          linux, mac or win32          -arch <a>       x64, x86, arm, arm64
   -format <f>           elf, mach or pe              -backend <b>    llvm or local
   -enable-inst <level>  v2, v3, v4, or sha / neon beside one
+  -tune <t>             generic (default), intel or amd - whose recent cores to favour
 
 How hard to try:
   -opt <0-3>            the LLVM pipeline's level, on -backend llvm
@@ -1152,6 +1164,14 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     return true;
                 } else {
                     error = Tritium::format("Unrecognized switch form \"%@\". Valid forms are: auto|chain|search|table.", value);
+                    return false;
+                }
+            case Flag::tune:
+                if(auto tuning = matchString(tuneTable, sizeof(tuneTable) / sizeof(StringView), value)) {
+                    settings.tuning = (TargetTuning)tuning.unwrap();
+                    return true;
+                } else {
+                    error = Tritium::format("Unrecognized tuning \"%@\". Valid tunings are: generic|intel|amd.", value);
                     return false;
                 }
             case Flag::optimization: {

@@ -14,41 +14,37 @@ Guard.drop<complex>(%value: Ptr) {
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    jmp b_2
-  }
-
-  b_2 {
     store %v_1, 5, 4
     call_complex Guard.drop, %v_1
-    %v_3 = loads @trace, 4: I32
-    %v_4 = cmp_neq %v_3, 5: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    store @trace, 0, 4
-    %v_7 = alloca 8, 4: Ptr
-    store %v_7, 7, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, 3, 4
-    %v_9 = load %v_7, 4: I32
-    call_complex Guard.drop, %v_8
-    %v_10 = cmp_neq %v_9, 7: I32
-    je %v_10, b_11, b_12
+    %v_2 = loads @trace, 4: I32
+    %v_3 = cmp_neq %v_2, 5: I32
+    je %v_3, b_4, b_5
   }
 
   b_5 {
+    store @trace, 0, 4
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 7, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, 3, 4
+    %v_8 = load %v_6, 4: I32
+    call_complex Guard.drop, %v_7
+    %v_9 = cmp_neq %v_8, 7: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_4 {
     ret 18446744073709551614
   }
 
-  b_12 {
-    %v_13 = loads @trace, 4: I32
-    %v_14 = cmp_neq %v_13, 3: I32
-    %v_15 = select %v_14, 18446744073709551612, 0: I32
-    ret %v_15
+  b_11 {
+    %v_12 = loads @trace, 4: I32
+    %v_13 = cmp_neq %v_12, 3: I32
+    %v_14 = select %v_13, 18446744073709551612, 0: I32
+    ret %v_14
   }
 
-  b_11 {
+  b_10 {
     ret 18446744073709551613
   }
 }
