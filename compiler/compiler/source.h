@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../parse/ast.h"
-#include "../resolve/module.h"
+#include "../parse/library.h"
 #include "settings.h"
 
 /*
@@ -123,7 +123,7 @@ Result<void, String> buildModuleMap(ModuleMap& map, const CompileSettings& setti
  * One object answers both because both answers come from the same file, and reading it twice would
  * be two chances to disagree about what it says.
  */
-struct FileProvider: ModuleProvider, SourceProvider {
+struct FileProvider: ast::ModuleProvider, SourceProvider {
     FileProvider(ModuleMap& map): moduleMap(map) {}
 
     /*

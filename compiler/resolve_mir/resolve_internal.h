@@ -1,6 +1,8 @@
 #pragma once
 
 #include "build.h"
+#include "complete.h"
+#include "index.h"
 #include "gen.h"
 #include "select.h"
 #include "specialize.h"
@@ -181,12 +183,18 @@ struct Chain {
 struct TestLibrary;
 
 struct ErrorMark {
-    explicit ErrorMark(Context& context): context(context), before(context.diagnostics.errorCount()) {}
+    explicit ErrorMark(Context& context, U32 parseErrors = 0):
+        context(context), before(context.diagnostics.errorCount()), parseErrorsBefore(parseErrors) {}
 
     bool reported() const { return context.diagnostics.errorCount() != before; }
 
     Context& context;
     U32 before;
+
+    // `Resolver::parseErrors` where a *body's* walk began - what `finish` and the editor's body drop
+    // compare against, since a placeholder the parser left is a mistake already named and nothing
+    // counted it here. Zero, and unread, for every other mark.
+    U32 parseErrorsBefore;
 };
 
 /*
@@ -1105,6 +1113,17 @@ struct Resolver {
      * rather than being implemented.
      */
     Array<Binding> bindings;
+
+    /*
+     * How many placeholders the parser left where it reported - `ast::Expr::Error`, and a `match`
+     * with nothing under it - this walk has reached.
+     *
+     * Only an editor's compile resolves a file that did not parse. What it reads a placeholder as is
+     * nothing, silently, since the mistake is named already; what it may not do is hand the body that
+     * held one to the analyses, which is what `resolveBody` asks this for - a count it compares, on
+     * `ErrorMark`'s terms, because a body may be built inside another.
+     */
+    U32 parseErrors = 0;
 
     // The function whose body is being resolved, which `return` and `yield` need and nothing else
     // does. Swapped for the length of a lifted body - `resolveLiftedBody` - which is the one walk
@@ -3579,6 +3598,42 @@ struct Resolver {
      * nobody had named, two files away from the statement that actually failed.
      */
     Local* findLocal(StringId name, bool* bound = nullptr);
+
+    /*
+     * The semantic index's view of a body's names - `index.h`.
+     *
+     * `bindLocal` is how a name enters scope, and it is the one place a binding's declaration is
+     * recorded, with its type beside it: a `let` nothing reads afterwards is exactly the one an
+     * editor is asked about while it is being written. The other two record a *read* of a name, a
+     * local's and a capture's. All three do nothing in a batch compile.
+     */
+    void bindLocal(StringId name, Local* local);
+    void recordLocal(LocationId source, Local& local);
+    void recordCapture(LocationId source, StringId name);
+
+    // The declaration a call's name reached, recorded at the name. `typeArguments` is what the call
+    // settled, and is what names the instance a class member's call was served by - null before the
+    // arguments have been read, which records the declaration alone.
+    void recordCallee(LocationId nameSource, DeclPtr<Function> callee,
+                      TypeArguments* typeArguments = nullptr);
+
+    /*
+     * Completion - `complete.h`, and `complete.cpp` for what each position offers.
+     *
+     * Each is reached where the cursor sentinel stands in for what the resolver was about to look up,
+     * and answers the request once; the caller then carries on as it does for any name that resolves
+     * to nothing. The two `capture...` predicates find a sentinel among written arguments, which is
+     * a position the ordinary walk would reach only after deciding what the arguments are for.
+     */
+    void captureCompletion(DeclPtr<Type> expected);
+    void captureMemberCompletion(const Occurrence& receiver);
+    void captureUpdateCompletion(const Occurrence& receiver);
+    void captureConstructionCompletion(DeclPtr<Type> record, U16 first, U16 count, bool namesOnly);
+    void captureArgumentCompletion(const OverloadSet& set, DeclPtr<Type> expected, bool namesOnly);
+    void capturePatternCompletion(DeclPtr<Type> pivot);
+
+    bool captureArguments(ast::ParseList<ast::TupArg> written, const OverloadSet& set, U32 leading);
+    bool captureFields(ast::ParseList<ast::TupArg> written, DeclPtr<Type> record, U16 first, U16 count);
 
     // `@lazy` in a body: whether a name is one, the read that *is* the force, and the call that
     // spends it - resolve_expr.cpp.

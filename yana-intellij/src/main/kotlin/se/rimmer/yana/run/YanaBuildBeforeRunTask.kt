@@ -102,6 +102,14 @@ class YanaBuildBeforeRunTaskProvider : BeforeRunTaskProvider<YanaBuildBeforeRunT
         // declarations exist, so the mode is part of what the program *is*.
         configuration.mode.trim().takeIf { it.isNotEmpty() }?.let { command.withParameters("-mode", it) }
 
+        // The rewritten resolve stage for every native build - the stage the language server answers
+        // from, so what runs is the program the editor described. JavaScript is the one target only
+        // the shipping stage builds, and the driver refuses the flag for it; `-mode js` is the old
+        // spelling of that platform and is honoured the same way.
+        val javascript = configuration.mode.trim() == "js" ||
+            configuration.readProjectFile()?.platform == "js"
+        if (!javascript) command.withParameters("-resolver", "ownership")
+
         command.withWorkDirectory(configuration.buildWorkingDirectory())
         command.withCharset(Charsets.UTF_8)
 

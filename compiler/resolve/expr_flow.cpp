@@ -11,10 +11,8 @@
  */
 
 #include "expr.h"
-#include "complete.h"
 #include "generic.h"
 #include "name.h"
-#include "index.h"
 
 ModulePtr<Value> ExprResolver::finishBranches(BranchArmList& arms, LocationId source, bool used) {
     // Every arm that diverged - returned, or broke out of a loop - left no block behind. If none

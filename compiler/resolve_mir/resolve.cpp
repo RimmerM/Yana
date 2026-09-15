@@ -328,7 +328,10 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
         case ast::Type::Unit:
             return program.types.unit;
         case ast::Type::Con: {
-            if(auto builtin = program.types.findBuiltin(context, type.name)) return builtin;
+            if(auto builtin = program.types.findBuiltin(context, type.name)) {
+                recordReference(context, type.source, typeSymbol(decl(), builtin), builtin);
+                return builtin;
+            }
 
             /*
              * A transparent alias, which answers with what it names - `Alias`.
@@ -339,6 +342,8 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
              * the same call with the answer already cached.
              */
             if(auto alias = findAlias(context, program, here(), type.name, type.source)) {
+                recordReference(context, type.source, aliasSymbol(decl(), alias));
+
                 if(isGeneric(decl(), decl()[alias]->gen)) {
                     return applyAlias(alias, nullptr, 0, type.source);
                 }
@@ -347,6 +352,9 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
             }
 
             if(auto record = findRecord(context, program, here(), type.name, type.source)) {
+                recordReference(context, type.source, typeSymbol(decl(), asBase<Type>(record)),
+                                asBase<Type>(record));
+
                 // A generic declaration written without arguments. Reported by the one function that
                 // knows the arity, rather than by a second count here that would have to agree with
                 // it - `Boxed` and `Boxed(I32, I32)` are one mistake made twice.
@@ -373,7 +381,10 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
             if(!roomForVariable(genContext, type.name, type.source)) return nullptr;
 
             auto variable = genVariable(program, genContext, type.name, type.source);
-            if(variable) return variable;
+            if(variable) {
+                recordReference(context, type.source, typeVarSymbol(decl(), here(), variable), variable);
+                return variable;
+            }
 
             context.diagnostics.error("%@ is not a type this declaration binds"_v, type.source,
                                       context.findName(type.name));
@@ -1008,6 +1019,11 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint, bool* no
          */
         case ast::Expr::Var: {
             auto global = findGlobal(context, program, here(), expr.var, expr.source);
+            if(global) {
+                recordReference(context, expr.source, globalSymbol(program, global),
+                                decl()[global]->occurrence.type);
+            }
+
             if(!global || decl()[global]->writable) return notOne();
             if(!decl()[global]->initial.isSet()) return notOne();
 
@@ -1212,6 +1228,8 @@ Maybe<Constant> Resolver::resolveConstructorConstant(ast::Expr& expr, DeclPtr<Ty
 
     auto found = findConstructor(context, program, here(), written.type.name, expr.source);
     if(!found) return Nothing();
+
+    recordReference(context, written.type.source, constructorSymbol(decl(), found));
 
     auto& declared = *decl()[found.record];
     if(!reachesInside(declared, expr.source, "its constructor"_v)) return Just(Constant());
@@ -1626,6 +1644,8 @@ Maybe<Constant> Resolver::resolveAggregateConstant(ast::Expr& expr, DeclPtr<Type
 
     auto found = findConstructor(context, program, here(), written.type.name, expr.source);
     if(!found) return Nothing();
+
+    recordReference(context, written.type.source, constructorSymbol(decl(), found));
 
     auto& declared = *decl()[found.record];
     if(!reachesInside(declared, expr.source, "its constructor"_v)) return Just(Constant());
@@ -2194,6 +2214,23 @@ Local* Resolver::findLocal(StringId name, bool* bound) {
     return nullptr;
 }
 
+void Resolver::bindLocal(StringId name, Local* local) {
+    bindings.push(Binding { name, local });
+    if(!recording(context) || !local || !currentFunction || name == StringId()) return;
+
+    // As an occurrence of itself as well as a definition: a symbol says which binding a name is and
+    // a reference says what type it had, and the declaration is where the type is known.
+    auto symbol = localSymbol(decl(), *program.mir, currentFunction - *program.decl, *local);
+    recordDefinition(context, symbol);
+    recordReference(context, local->source, symbol, local->occurrence.type);
+}
+
+void Resolver::recordLocal(LocationId source, Local& local) {
+    if(!recording(context) || !currentFunction) return;
+    recordReference(context, source, localSymbol(decl(), *program.mir, currentFunction - *program.decl, local),
+                    local.occurrence.type);
+}
+
 ModuleScope::ModuleScope(Resolver& resolver, DeclPtr<Module> module, U16 file):
     resolver(resolver), saved(resolver.current), savedFile(saved ? saved->activeFile : 0) {
     resolver.current = resolver.decl()[module];
@@ -2393,7 +2430,16 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      */
     checkExports(context, *program, toBuffer(groups));
 
-    if(context.diagnostics.errorCount()) return program;
+    /*
+     * The one checkpoint an editor's compile does not stop at.
+     *
+     * A file being written is a file with a mistake in it, and what an editor asks is what the rest of
+     * it means - so with an index attached the bodies are resolved against whatever declarations did
+     * resolve, and a body that reports because of a broken one is dropped before the analyses rather
+     * than handed to them (see `Resolver::resolveBody`). Every other checkpoint below is a pass
+     * refusing its own input and stops an editor's compile exactly as it stops a build.
+     */
+    if(context.diagnostics.errorCount() && !context.index) return program;
 
     /*
      * The layout cycles, and then what every type owes - `own.h`, where the order is argued.
@@ -2456,6 +2502,10 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
 
     resolver.eachFile([&](ast::Module& file) { resolver.resolveBodies(file); });
 
+    // A completion request stops here - Implementation-Tooling.md §8.2. What it answers was recorded
+    // while the body holding the cursor was resolved, and the analyses answer nothing it asks.
+    if(context.completion) return program;
+
     // The string globals, which are the one constant whose value is a *body's* answer - see
     // `PendingTextGlobal`. Here because this is the first point at which the library's own string
     // builder has one, and before anything reads what a global holds.
@@ -2479,9 +2529,11 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      * milestone builds adds a requirement from a body, and the call is placed where it will still be
      * right when something does - which is the point of freezing at all rather than caching.
      */
+    ErrorMark frozen(context);
     freezeSchemas(context, *program);
 
-    if(context.diagnostics.errorCount()) return program;
+    // An editor's compile has errors by definition, so it stops only on what this pass reported.
+    if(context.index ? frozen.reported() : context.diagnostics.errorCount() != 0) return program;
 
     /*
      * Verified, then analysed, then summarized, and the order is the dependency order.
@@ -2503,8 +2555,9 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      * what will decide whether a call makes a specialization at all, so it has to be settled before
      * anything asks.
      */
+    ErrorMark forms(context);
     selectGenForms(context, *program);
-    if(context.diagnostics.errorCount()) return program;
+    if(context.index ? forms.reported() : context.diagnostics.errorCount() != 0) return program;
 
     computeSummaries(context, *program);
 

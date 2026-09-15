@@ -18,7 +18,6 @@
 #include "expr.h"
 #include "generic.h"
 #include "host.h"
-#include "index.h"
 #include "name.h"
 #include "native.h"
 #include "test.h"
@@ -265,11 +264,6 @@ Function* Module::addFunction(StringId functionName, LocationId source) {
     function->source = source;
     *found.value = function - *arena;
     functionOrder.push(arena, function - *arena);
-
-    // §1.2's declaration walk, taken here rather than in it: every named function in the program
-    // arrives through this one call, including the ones a class instance and Core's own generated
-    // definitions make, so there is one place rather than four.
-    recordDefinition(context, functionSymbol(*this, function - *arena));
 
     function->addBlock(*this);
     return function;
@@ -1160,11 +1154,6 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ModuleProv
     // What each module's globals owe, once every type's instances are settled - see
     // checkGlobalTeardown, and why it is a sweep rather than a check beside each initializer.
     for(auto entry: program->modules) checkGlobalTeardown(*entry);
-
-    // A completion request stops here - Implementation-Tooling.md §8.2. Ownership and the generic
-    // environments are the expensive half of a compile and they answer nothing completion asks, and
-    // the answer itself was recorded while the body holding the cursor was being resolved.
-    if(context.completion) return program;
 
     // The generic environments come before ownership, because filling them generates real
     // functions - the erased entry thunk of every class method a witness holds - and those need

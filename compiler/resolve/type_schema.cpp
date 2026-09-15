@@ -11,7 +11,6 @@
 #include "generic.h"
 #include "module.h"
 #include "name.h"
-#include "index.h"
 
 /*
  * Resolving written types.

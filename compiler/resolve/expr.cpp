@@ -10,10 +10,8 @@
 
 #include "expr.h"
 #include "const.h"
-#include "complete.h"
 #include "generic.h"
 #include "name.h"
-#include "index.h"
 
 void ExprResolver::terminate(Inst* inst) {
     assertTrue(isTerminator(*inst));
@@ -109,73 +107,7 @@ Binding* ExprResolver::findBinding(StringId name, LocationId source) {
     // §8's "there is no capture list" made literal.
     if(!found) found = captureBinding(name, source);
 
-    // §1.2's function-local choke point. A null source is a caller asking whether the name is bound
-    // at all rather than reading it - resolveCall does exactly that to tell a call of a binding from
-    // a call of a declaration - and an occurrence nobody wrote is not one to record.
-    if(found && source != kNullLocation) recordBinding(*this, *found, source);
-
     return found;
-}
-
-/*
- * One binding, as the index records it.
- *
- * Which of the three local kinds it is comes off the binding rather than being carried on it: a
- * capture says so, and an ordinary binding whose value is the parameter itself is an argument. The
- * payload is the slot the kind addresses - the local index, the environment field, or the argument
- * index - which is only meaningful together with the enclosing function, and that is what `function`
- * is for.
- */
-Symbol bindingSymbol(ExprResolver& resolver, const Binding& binding) {
-    Symbol symbol;
-    symbol.kind = Symbol::Kind::Local;
-    symbol.module = &resolver.module;
-    symbol.function = &resolver.function - resolver.local;
-    symbol.name = binding.name;
-    symbol.definition = binding.definition;
-    symbol.payload = binding.local;
-
-    if(binding.captured) {
-        symbol.kind = Symbol::Kind::Capture;
-        symbol.payload = binding.captureField;
-    } else if(binding.value && resolver.local[binding.value]->kind == Value::Arg) {
-        symbol.kind = Symbol::Kind::Arg;
-        symbol.payload = ((Arg*)resolver.local[binding.value])->index;
-    }
-
-    return symbol;
-}
-
-void recordBinding(ExprResolver& resolver, const Binding& binding, LocationId source) {
-    if(!resolver.context.index) return;
-    recordReference(resolver.context, source, bindingSymbol(resolver, binding), bindingType(resolver, binding));
-}
-
-/*
- * The binding itself, as a definition rather than as a use - §1.2's `expr_pat.cpp` row.
- *
- * Recorded where the name is *introduced*, which the references cannot stand in for: a `let` whose
- * name is never read afterwards is recorded nowhere at all otherwise, and it is exactly the one an
- * editor is asked about while it is being written. It is also what makes find-references work from
- * the declaration rather than only from a use.
- */
-void recordBindingDefinition(ExprResolver& resolver, const Binding& binding) {
-    if(!resolver.context.index || binding.definition == kNullLocation) return;
-
-    auto symbol = bindingSymbol(resolver, binding);
-    recordDefinition(resolver.context, symbol);
-
-    /*
-     * And as an occurrence of itself, which is not redundant: a Symbol says which slot a name is
-     * and a Reference says what type it had there, and the type of a local is not reachable from
-     * the slot - an immutable binding names an SSA value rather than a frame slot at all. So a
-     * declaration nothing reads afterwards - which is exactly the one being written - would
-     * otherwise have no type recorded anywhere.
-     *
-     * The two surfaces that list occurrences leave it out where it would be a duplicate of the
-     * declaration they already write; see lsp/feature.cpp.
-     */
-    recordReference(resolver.context, binding.definition, symbol, bindingType(resolver, binding));
 }
 
 ModulePtr<Value> ExprResolver::find(StringId name) {
@@ -217,8 +149,6 @@ ModulePtr<Value> ExprResolver::constParameterValue(StringId name, LocationId sou
     if(!found || global[found]->kind != GenKind::Const) return nullptr;
 
     auto variable = (Type*)global[found] - global;
-    recordReference(context, source, typeVarSymbol(module, found), variable);
-
     return countOf(variable, global[found]->constType, source);
 }
 
@@ -1059,18 +989,6 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return result;
         }
         case ast::Expr::Var: {
-            /*
-             * The cursor sentinel in ordinary value position - Implementation-Tooling.md §8.2.
-             *
-             * Everything completion needs is already here: the scope stack, and the type this
-             * position was asked for. Ahead of the lookup because the sentinel names nothing, so
-             * the lookup's only possible outcome is the "unknown scalar value" report below.
-             */
-            if(isCursorSentinel(context, expr.var)) {
-                captureCompletion(*this, target, nullptr, false);
-                return nullptr;
-            }
-
             auto binding = findBinding(expr.var, expr.source);
             if(!binding) {
                 if(auto found = findGlobal(module, expr.var, expr.source)) {
@@ -1164,20 +1082,6 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             auto type = coerce.type.kind == ast::Type::ArrInferred
                 ? inferredArrayType(module, coerce.type, coerce.target, env)
                 : resolveType(module, coerce.type, env);
-
-            /*
-             * The cursor sentinel takes the ascription as what this position asked for.
-             *
-             * Here rather than in the Var case below, because the fallback at the end of this
-             * function deliberately does *not* push the type into a plain name - `x :: U8` converts
-             * explicitly afterwards rather than resolving `x` against `U8`. An ascription on a name
-             * that has not been written yet is the one thing saying what belongs there, so it is
-             * exactly the type completion should rank by.
-             */
-            if(coerce.target.kind == ast::Expr::Var && isCursorSentinel(context, coerce.target.var)) {
-                captureCompletion(*this, type, nullptr, false);
-                return nullptr;
-            }
 
             // `::` is what supplies the expected type where nothing else does, so it is pushed
             // down into a literal (which has no type of its own), into a call (whose class

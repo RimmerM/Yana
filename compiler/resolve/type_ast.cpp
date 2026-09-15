@@ -12,7 +12,6 @@
 #include "generic.h"
 #include "module.h"
 #include "name.h"
-#include "index.h"
 
 static bool readBoxAttribute(Module& module, const ast::Type& type);
 static bool readHostAttribute(Module& module, const ast::Type& type);
@@ -1138,9 +1137,6 @@ static TypePtr resolveCountVariable(Module& module, GenEnv* env, StringId name, 
         return nullptr;
     }
 
-    recordReference(module.context, source, typeVarSymbol(module, found),
-                    (Type*)variable - *module.types);
-
     return (Type*)variable - *module.types;
 }
 
@@ -1304,11 +1300,6 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env, LoanGrou
                                                  type.source, module.context.findName(type.name));
                 return module.scalar.error;
             }
-
-            // `a` in a signature jumps to its binder, which is wherever the context first named
-            // it - §1.2's type variable choke point.
-            recordReference(module.context, type.source, typeVarSymbol(module, found),
-                            (Type*)(*module.types)[found] - *module.types);
 
             return (Type*)(*module.types)[found] - *module.types;
         }

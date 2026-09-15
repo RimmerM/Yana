@@ -32,6 +32,10 @@ class YanaProjectFile private constructor(val file: File) {
     var output: String = ""
         private set
 
+    // `native` or `js`, or empty where the file does not say - which the driver reads as native.
+    var platform: String = ""
+        private set
+
     /// `sources = ["src"]` - joined onto the project directory.
     val sources: MutableList<File> = mutableListOf()
 
@@ -86,6 +90,7 @@ class YanaProjectFile private constructor(val file: File) {
                     "main" -> project.main = values[0]
                     "to" -> project.to = project.directory.resolve(values[0])
                     "output" -> project.output = values[0]
+                    "platform" -> project.platform = values[0]
                     "sources" -> values.forEach { project.sources += project.directory.resolve(it) }
                 }
             }

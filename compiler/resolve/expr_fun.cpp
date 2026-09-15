@@ -2,7 +2,6 @@
 #include "analyze.h"
 #include "generic.h"
 #include "name.h"
-#include "index.h"
 #include "witness.h"
 
 /*

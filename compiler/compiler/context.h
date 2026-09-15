@@ -57,11 +57,13 @@ namespace Tritium {
     }
 }
 
-// The editor-facing side tables - resolve/index.h and resolve/complete.h. Declared rather than
-// included, because both are built out of the resolver's own handles and this header is below the
-// resolver.
+// The editor-facing side tables - resolve_mir/index.h and resolve_mir/complete.h. Declared rather
+// than included, because both are built out of the resolver's own handles and this header is below
+// the resolver.
+namespace mir {
 struct SemanticIndex;
 struct CompletionRequest;
+}
 
 /*
  * Where a completion request is asking about - Implementation-Tooling.md §8.2.
@@ -369,7 +371,7 @@ struct Context {
      * predictable not-taken branch and nothing else; a language server sets it before resolving and
      * drops it with the program, since what it holds are that program's own handles.
      */
-    SemanticIndex* index = nullptr;
+    mir::SemanticIndex* index = nullptr;
 
     /*
      * The completion request this compile is answering, or none - Implementation-Tooling.md §8.
@@ -379,7 +381,7 @@ struct Context {
      * nothing else, so an ordinary compile parses and resolves exactly as it did before.
      */
     Cursor cursor;
-    CompletionRequest* completion = nullptr;
+    mir::CompletionRequest* completion = nullptr;
 
     void addOp(StringId op, U16 prec = 9, Assoc assoc = Assoc::Left);
     OpProperties findOp(StringId op);

@@ -846,6 +846,8 @@ void Resolver::declareTypes(ast::Module& file) {
             context.diagnostics.error("%@ is already declared in this module"_v,
                                       declaration.source, context.findName(record->name));
         }
+
+        recordDefinition(context, typeSymbol(decl(), asBase<Type>(pointer)));
     }
 }
 
@@ -908,6 +910,7 @@ void Resolver::declareAliases(ast::Module& file) {
 
         alias->written = U32(writtenAliasDecls.size());
         program.aliases.push(pointer);
+        recordDefinition(context, aliasSymbol(decl(), pointer));
         writtenAliasDecls.push(&declaration);
     }
 }
@@ -1455,6 +1458,7 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
         }
 
         record->cons.push(program.decl, declared);
+        recordDefinition(context, constructorSymbol(decl(), reference));
     }
 
     record->layout = recordLayoutOf(decl(), *record);
@@ -1575,6 +1579,8 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
             context.diagnostics.error("%@ is already declared in this module"_v,
                                       binding.pat.source, context.findName(global->name));
         }
+
+        recordDefinition(context, globalSymbol(program, pointer));
 
         /*
          * `@builtin(role)` - a global the compiler fills or supplies.

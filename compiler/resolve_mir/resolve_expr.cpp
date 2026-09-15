@@ -144,9 +144,16 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, 
             return resolvePlace(builder, *parse[expr.nested], complain, access);
 
         case ast::Expr::Var: {
+            if(isCursorSentinel(context, expr.var)) {
+                captureCompletion(nullptr);
+                return nullptr;
+            }
+
             auto bound = false;
 
             if(auto local = findLocal(expr.var, &bound)) {
+                recordLocal(expr.source, *local);
+
                 /*
                  * A `@lazy` parameter is **not** storage of the type it was written with: what lives
                  * there is the thunk, and the value only exists once the thunk has run. So the name
@@ -179,9 +186,17 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, 
              * of the same name exactly as a local does, and putting the lookup anywhere else would
              * make that depend on whether the name was captured.
              */
-            if(auto captured = findCapture(builder, expr.var)) return captured;
+            if(auto captured = findCapture(builder, expr.var)) {
+                recordCapture(expr.source, expr.var);
+                return captured;
+            }
 
             auto found = findGlobal(context, program, here(), expr.var, expr.source);
+            if(found) {
+                recordReference(context, expr.source, globalSymbol(program, found),
+                                decl()[found]->occurrence.type);
+            }
+
             if(!found) {
                 // The one place an unknown name is reported, and the reason `complain` exists: the
                 // target of a projection is asked whether it is a place *before* it is resolved as a
@@ -452,6 +467,12 @@ Place* Resolver::pointeeThrough(Builder& builder, Place& target, LocationId sour
 
 Place* Resolver::fieldNamedOf(Builder& builder, Place& target, StringId name,
                               LocationId nameSource, LocationId targetSource) {
+    // The cursor after a `.` - §8.1's third kind, where both a read and an assignment reach a field.
+    if(isCursorSentinel(context, name)) {
+        captureMemberCompletion(target.occurrence);
+        return nullptr;
+    }
+
     /*
      * A field of a value whose type is a **variable** - `fn (a.size: I32) f(x: a)`.
      *
@@ -502,6 +523,9 @@ Place* Resolver::fieldNamedOf(Builder& builder, Place& target, StringId name,
     }
 
     if(index != kNoField) {
+        recordReference(context, nameSource, fieldSymbol(decl(), recordType, index),
+                        record.field(decl(), index).occurrence.type);
+
         if(!reachesInside(record, nameSource, "its fields"_v)) return nullptr;
         return builder.fieldPlace(target, index);
     }
@@ -1414,6 +1438,8 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     }
 
     auto found = findConstructor(context, program, here(), written.type.name, expr.source);
+    if(found) recordReference(context, written.type.source, constructorSymbol(decl(), found));
+
     if(!found) {
         context.diagnostics.error("unknown constructor %@"_v, expr.source,
                                   context.findName(written.type.name));
@@ -1472,6 +1498,10 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     auto type = asBase<Type>(record);
 
     ArgMap map;
+    // The cursor among the fields being written - before they are mapped, since a half-typed name is
+    // not a field and mapping it is what would report.
+    if(captureFields(written.args, asBase<Type>(record), arm.first, arm.count)) return nullptr;
+
     if(!constructionArguments(expr, *declared, arm, map)) return nullptr;
 
     SmallArray<Node*, 8> values;
@@ -1601,6 +1631,13 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
 Node* Resolver::resolveTupleLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
     auto written = expr.tup;
     auto count = U32(written.size());
+
+    // A tuple written where one is expected knows its own field names before any argument is
+    // resolved - the only way a tuple's fields have names to complete against.
+    if(hint && decl()[hint]->kind == Type::Record && ((RecordType*)decl()[hint])->tuple) {
+        auto fields = U16(((RecordType*)decl()[hint])->fields.size());
+        if(captureFields(written, hint, 0, fields)) return nullptr;
+    }
 
     /*
      * The position's own type, where it is a tuple this literal could be one of.
@@ -1847,6 +1884,12 @@ Node* Resolver::resolveUpdate(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
         // same answer a `.` gives, because an update path *is* field selection with a value on the
         // end of it.
         for(auto field: argument.path.contents(parse)) {
+            if(isCursorSentinel(context, field)) {
+                captureUpdateCompletion(place->occurrence);
+                place = nullptr;
+                break;
+            }
+
             place = fieldNamedOf(builder, *place, field, argument.value.source,
                                  written.value.source);
             if(!place) break;
@@ -2156,8 +2199,17 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              * place walk below would hand back the thunk's storage and every position after it would
              * be checked against `() -> T`, which is the type the author did not write.
              */
+            // The cursor, in value position - Implementation-Tooling.md §8.2. The expected type is
+            // what ranks the answer.
+            if(isCursorSentinel(context, expr.var)) {
+                captureCompletion(hint);
+                return nullptr;
+            }
+
             auto boundHere = false;
             auto local = findLocal(expr.var, &boundHere);
+            if(local) recordLocal(expr.source, *local);
+
             if(local && deferredParameter(*local)) return forceDeferred(builder, *local, expr.source);
 
             // A binding of this body whose initializer failed - reported there, and the name is
@@ -2167,6 +2219,8 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             if(!local && currentFunction) {
                 auto found = findGenVariable(decl(), currentFunction->gen, expr.var);
                 if(found && ((VariableType*)decl()[found])->isConst()) {
+                    recordReference(context, expr.source, typeVarSymbol(decl(), here(), found),
+                                    ((VariableType*)decl()[found])->constType);
                     return builder.addGenValue(expr.source, found);
                 }
             }
@@ -2270,6 +2324,12 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 
             auto type = resolveAscribedType(written, ascription.target);
             if(!type) return nullptr;
+
+            // An ascription on a name not written yet is the one thing saying what belongs there.
+            if(ascription.target.kind == ast::Expr::Var && isCursorSentinel(context, ascription.target.var)) {
+                captureCompletion(type);
+                return nullptr;
+            }
 
             /*
              * The request travels down as the surrounding position's, with one thing taken off it:
@@ -2407,6 +2467,11 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         case ast::Expr::Map:
             return resolveMapLiteral(builder, expr, hint);
 
+        // What the parser left where it reported - see `parseErrors`.
+        case ast::Expr::Error:
+            parseErrors++;
+            return nullptr;
+
         default:
             // A literal is a call to `FromInt` - `literalValue`, which is where the fold to a
             // constant at a primitive is argued.
@@ -2534,6 +2599,7 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
     }
 
     auto& callee = *decl()[found];
+    recordCallee(source, found);
 
     // What the signature says it answers, which for an `=` form with no result type is what its body
     // says - and `funTypeOf` below is about to read it. The other position that reads a signature
@@ -3353,6 +3419,13 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
 
     auto name = written.callee.var;
 
+    // The cursor where a callee is written - where an editor asks most often, since a call is typed
+    // name first.
+    if(isCursorSentinel(context, name)) {
+        captureCompletion(hint);
+        return nullptr;
+    }
+
     /*
      * By name **and arity** - `Program::addFunctionName`, which is where the rule is argued.
      *
@@ -3391,6 +3464,7 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
      */
     OverloadSet set;
     findOverloads(context, program, here(), name, arity, written.callee.source, set);
+    if(captureArguments(written.args, set, 0)) return nullptr;
 
     if(set.size() > 1) {
         return resolveOverloadedCall(builder, written, set, name, written.callee.source, hint,
@@ -3406,15 +3480,35 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
         if(hasFunctionName(context, program, here(), name)) {
             context.diagnostics.error("no %@ takes %@ arguments"_v, written.callee.source,
                                       context.findName(name), U64(arity));
+
+            // The right name at the wrong arity is still an occurrence of that name, and a call
+            // being typed is exactly the one an editor is asked about.
+            if(recording(context)) {
+                auto named = search<DeclPtr<Function>>(context, program, here(), name, kNullLocation,
+                                                       [&](DeclPtr<Module> in, NameRef reference) {
+                    return program.functionNamed(in, reference.rest());
+                }, false);
+
+                if(named) recordCallee(written.callee.source, *named);
+            }
         } else {
             context.diagnostics.error("unknown function %@"_v, written.callee.source,
                                       context.findName(name));
+        }
+
+        // The arguments still name things an editor is asked about, and the body is dropped before
+        // the analyses either way - see `Resolver::resolveBody`.
+        if(recording(context)) {
+            for(auto argument: written.args.contents(parse)) {
+                resolveValue(builder, argument.value, nullptr, bindingRequest(Access::Shared));
+            }
         }
 
         return nullptr;
     }
 
     auto& callee = *decl()[found];
+    recordCallee(written.callee.source, found);
 
     if(!checkCallable(callee, expr.source)) return nullptr;
 
@@ -3434,7 +3528,9 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
         return nullptr;
     }
 
-    return finishCall(builder, callee, arguments, typeArguments, hint, expr.source);
+    auto call = finishCall(builder, callee, arguments, typeArguments, hint, expr.source);
+    recordCallee(written.callee.source, found, &typeArguments);
+    return call;
 }
 
 /*
@@ -3532,6 +3628,11 @@ Node* Resolver::resolveDotCall(Builder& builder, ast::AppExpr& written, ast::Fie
     auto receiver = projectionTarget(builder, field.target, Access::Shared);
     if(!receiver) return nullptr;
 
+    if(isCursorSentinel(context, field.field.var)) {
+        captureMemberCompletion(receiver->occurrence);
+        return nullptr;
+    }
+
     /*
      * **The choice, and the only place it is made.**
      *
@@ -3561,6 +3662,7 @@ Node* Resolver::resolveDotCall(Builder& builder, ast::AppExpr& written, ast::Fie
 
     OverloadSet set;
     findDotOverloads(receiver->occurrence.type, name, arity, field.field.source, set);
+    if(captureArguments(written.args, set, 1)) return nullptr;
 
     Receiver from { receiver, field.target.source };
 
@@ -3606,6 +3708,7 @@ Node* Resolver::resolveDotCall(Builder& builder, ast::AppExpr& written, ast::Fie
     }
 
     auto& callee = *decl()[found];
+    recordCallee(field.field.source, found);
 
     if(!checkCallable(callee, source)) return nullptr;
 
@@ -3620,7 +3723,9 @@ Node* Resolver::resolveDotCall(Builder& builder, ast::AppExpr& written, ast::Fie
         return nullptr;
     }
 
-    return finishCall(builder, callee, arguments, typeArguments, hint, source);
+    auto call = finishCall(builder, callee, arguments, typeArguments, hint, source);
+    recordCallee(field.field.source, found, &typeArguments);
+    return call;
 }
 
 Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
@@ -3707,6 +3812,45 @@ Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
     }
 
     return holdBorrowed(builder, *adapted, wanted, expected, source);
+}
+
+void Resolver::recordCallee(LocationId nameSource, DeclPtr<Function> callee,
+                            TypeArguments* typeArguments) {
+    if(!recording(context)) return;
+
+    auto& function = *decl()[callee];
+    auto result = function.result.type;
+    DeclPtr<Instance> instance = nullptr;
+
+    if(typeArguments && typeArguments->any()) {
+        // The result at this call rather than as declared - `Just(I32)` where the signature says
+        // `Maybe(a)`. What the call left open stays the declaration's variable.
+        result = typeArguments->expected(result);
+
+        /*
+         * Which instance served a class member - the same question `expandProvidedCall` asks, asked
+         * quietly. Only where the call settled its arguments concretely: a call inside a generic body
+         * is served by a different instance at each specialization, and the one an open head matches
+         * here is not the one a more specific instance would displace it with there. A position the
+         * class determines may still be null, which is selection's own protocol for filling it.
+         */
+        if(function.klass) {
+            auto with = typeArguments->with();
+            auto concrete = true;
+
+            for(Size i = 0; i < with.count && concrete; i++) {
+                if(with.arguments[i] && !isConcreteType(decl(), with.arguments[i])) concrete = false;
+            }
+
+            InstanceMatch found;
+            if(concrete && selectInstance(context, program, function.klass, with.arguments,
+                                          with.count, nameSource, false, found)) {
+                instance = found.instance;
+            }
+        }
+    }
+
+    recordReference(context, nameSource, functionSymbol(decl(), callee), result, instance);
 }
 
 Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,

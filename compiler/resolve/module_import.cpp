@@ -15,7 +15,6 @@
 #include "expr.h"
 #include "generic.h"
 #include "host.h"
-#include "index.h"
 #include "name.h"
 #include "native.h"
 #include "verify.h"
@@ -114,12 +113,6 @@ void resolveImports(Module& module) {
             entry.localName = imported.localName ? imported.localName : imported.from;
             entry.qualified = imported.qualified;
             entry.file = index;
-
-            // §1.2: an import line is navigable. The module has no location of its own - it is a
-            // file, not a declaration - so this is a reference whose target is jumped to by *path*
-            // rather than by position; the server turns the module name into a URI through the
-            // module map.
-            recordReference(module.context, imported.source, moduleSymbol(*target));
 
             for(auto symbol: imported.include.contents(module.parse)) entry.include.push(symbol);
             for(auto symbol: imported.exclude.contents(module.parse)) entry.exclude.push(symbol);

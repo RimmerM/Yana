@@ -1231,9 +1231,8 @@ struct Constructor {
     // collision is reported at.
     bool pinnedValue = false;
 
-    // Where the constructor was written, for the editor to jump to - resolve/index.h. Null for
-    // every constructor Core and Native generate rather than parse, which is what makes it a
-    // declaration nothing can navigate to rather than a missing one.
+    // Where the constructor was written. Null for every constructor Core and Native generate rather
+    // than parse.
     LocationId source = kNullLocation;
 
     /*

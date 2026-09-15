@@ -115,6 +115,9 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `resolve_test.cpp` | `@test` - the registry the attribute fills, and the entry a `-test` build runs |
 | `resolve_intrinsic.cpp` | the intrinsics whose expansion *makes blocks* - `OpForm::Branch`, and why those are the resolver's rather than an emitter's |
 | `name.h`/`name.cpp` | the one traversal every module-level lookup goes through, and what `pub` means to it |
+| `index.h`/`index.cpp` | the semantic index - what each name meant, recorded where the resolver decided it, for an editor attached through `Context::index` |
+| `complete.h`/`complete.cpp` | completion - what the cursor sentinel's position offers, read off the resolver's own scope when it reaches the sentinel |
+| `explain.h`/`explain.cpp` | `explain` - the summaries and placements as a report, a hover section and an inlay hint |
 | `import.cpp` | which modules the program is made of, and what each one can see |
 | `export.cpp` | the declaring side of `pub` - a marker that means nothing, and an interface that leaks |
 | `intrinsic/` | the compiler's roles over this IR - see below |
@@ -126,6 +129,15 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 `resolveInitializers`, `checkExportedGlobals`, `checkRoles`, `resolveProgramEntry` (or
 `resolveTestEntry` under `-test`), `resolveBodies`, `freezeSchemas`, `verifyProgram`,
 `analyzeProgram`, `computeSummaries`.
+
+**An editor's compile is the same order with three differences**, all keyed off `Context::index` being
+set, which only `lsp::Session` does. It does not stop at the checkpoint after the declaration passes,
+so bodies are resolved against whichever declarations did resolve; a body whose walk reported - or
+reached a placeholder the parser left, `Resolver::parseErrors` - has its MIR handle dropped at the end
+of the walk, so the verifier and the analyses see it as a declaration with no body rather than a
+malformed one; and a completion request (`Context::completion`) stops after the bodies. The
+summaries also root every non-generic function of the program's own modules there and under
+`explain`, since both are asked about functions nothing calls.
 
 **Every phase runs over the whole program**, not over one module and then the next. That is the same
 statement as "an import does not trigger the resolution of what it names": a pass that finished a

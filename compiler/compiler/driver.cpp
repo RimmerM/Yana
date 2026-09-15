@@ -2,7 +2,7 @@
 #include "../parse/ast_print.h"
 #include "../resolve/module.h"
 #include "../resolve/print.h"
-#include "../resolve/explain.h"
+#include "../resolve_mir/explain.h"
 #include "../resolve/test.h"
 #include "../resolve/lower.h"
 #include "../resolve/analyze.h"
@@ -367,22 +367,26 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
  * The `explain` query - Analysis-Ambient.md §7.3.
  *
  * Nothing is emitted and nothing is written: the answer goes to stdout, because this is a question
- * asked at a terminal rather than a build step. Everything it reads was produced by resolution and
- * the ownership passes, both of which have already run by the time this is called.
+ * asked at a terminal rather than a build step. Everything it reads was produced by resolution, the
+ * ownership analysis and the summaries, all of which have run by the time this is called.
+ *
+ * Always over the rewritten stage's program, whichever stage a build of the same flags would use -
+ * the facts are that stage's `Summary`, and the shipping stage's editor surface is gone. See
+ * `resolve_mir/explain.h`.
  *
  * The call-site index is built once for the whole query even when one function is being explained,
- * since "specialized at 3 of 11 call sites" is a fact about the program rather than about the
- * function - see CallSiteIndex.
+ * since "specialized at 3 call sites" is a fact about the program rather than about the function.
  */
-static bool explainProgram(Context& context, Program& program) {
+static bool explainProgram(Context& context, mir::Program& program) {
     auto& settings = context.settings;
+    auto decl = *program.decl;
 
-    CallSiteIndex calls;
+    mir::CallSiteIndex calls;
     calls.build(program);
 
     if(settings.explainAll) {
         Net::Writer writer(16384);
-        printExplanations(writer, context, program);
+        mir::printExplanations(writer, context, program);
         auto buffered = writer.getBuffered();
         print(StringView { (const char*)buffered.ptr, buffered.length });
         return true;
@@ -393,8 +397,8 @@ static bool explainProgram(Context& context, Program& program) {
         : context.addQualifiedName(settings.explainModule.text(), settings.explainModule.size());
     auto name = context.addQualifiedName(settings.explainName.text(), settings.explainName.size());
 
-    Array<Function*> targets;
-    findExplainTargets(program, moduleName, name, targets);
+    Array<DeclPtr<mir::Function>> targets;
+    mir::findExplainTargets(context, program, moduleName, name, targets);
 
     if(targets.isEmpty()) {
         if(settings.explainModule == "") {
@@ -408,21 +412,21 @@ static bool explainProgram(Context& context, Program& program) {
         return false;
     }
 
-    // Every match rather than the first one, because a name is not a function: overloads and class
-    // instances share one, and picking one of them silently would answer a question nobody asked.
-    // Where there is more than one, each is said to come from somewhere - two identical signatures
-    // in two modules is exactly the case the query is being asked about.
+    // Every match rather than the first one, because a name is not a function: arities share one.
+    // Where there is more than one, each is said to come from somewhere - two identical signatures in
+    // two modules is exactly the case the query is being asked about.
     StringBuilder text;
     for(auto function: targets) {
         if(text.size()) text.append("\n"_v);
 
-        if(targets.size() > 1 && function->module) {
+        auto module = decl[function]->module;
+        if(targets.size() > 1 && module) {
             text.append("-- in "_v);
-            text.append(context.findName(function->module->name));
+            text.append(context.findName(decl[module]->name));
             text.append("\n"_v);
         }
 
-        printExplanation(text, context, program, explainFunction(program, *function, &calls));
+        mir::printExplanation(text, context, program, mir::explainFunction(program, function, &calls));
     }
 
     print(stringView(text));
@@ -595,23 +599,27 @@ int main(int argc, const char** argv) {
      * produce: the rewrite has its own declarations, its own IR and its own arenas, and the first
      * thing they have in common is the `LowerModule` each hands to the same backends.
      */
-    if(context.settings.resolver == ResolverStage::Ownership) {
-        /*
-         * The query, refused rather than answered - and refused *here*, above the output directory.
-         *
-         * `explainFunction` reads the shipping stage's `Program`, and there is no shared object for
-         * the two stages to produce, so this is not a call that could be made to work by pointing it
-         * somewhere else. What made it worth a check of its own rather than falling into the mode
-         * refusal below is that a query has no mode: `explain` leaves `-mode exe` in place, so this
-         * branch built an executable and answered nothing at all - which for a query that is
-         * documented as producing no output is the one wrong answer available.
-         */
-        if(context.settings.explaining()) {
-            context.diagnostics.error("`explain` reads the shipping stage's program - it has no answer under `-resolver ownership`"_v,
-                                      nullptr);
+    /*
+     * The query, ahead of both stages and above the output directory: a query produces no output, so
+     * it has no business leaving a directory behind - and it has no mode either, so `explain` leaves
+     * `-mode exe` standing and would otherwise fall into a build.
+     */
+    if(context.settings.explaining()) {
+        // What the query reads is resolved by the rewritten stage, and that stage reads no JavaScript
+        // program yet - the library's `@platform(js)` half is written against the shipping stage. So
+        // the query is refused for one, rather than answered with every reason the library did not
+        // resolve.
+        if(isJsMode(context.settings)) {
+            printlnError("Error: explain reads the rewritten resolve stage, which does not resolve a JavaScript program yet. Use -platform native.");
             return 1;
         }
 
+        ssa::Pipeline pipeline(context);
+        if(!pipeline.resolve(root->parsed, &provider, toBuffer(testRoots))) return 1;
+        return explainProgram(context, *pipeline.program) ? 0 : 1;
+    }
+
+    if(context.settings.resolver == ResolverStage::Ownership) {
         if(!ensureOutputDirectory(context.settings.outputDir)) return 1;
 
         auto& given = context.settings.outputName;
@@ -628,10 +636,6 @@ int main(int argc, const char** argv) {
                                   toBuffer(testRoots));
 
     if(!program || diagnostics.errorCount() > 0) return 1;
-
-    // Before the output directory is created, deliberately: a query produces no output, so it has
-    // no business leaving a directory behind.
-    if(context.settings.explaining()) return explainProgram(context, *program) ? 0 : 1;
 
     auto& outputDir = context.settings.outputDir;
     if(!ensureOutputDirectory(outputDir)) return 1;

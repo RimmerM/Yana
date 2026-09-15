@@ -341,9 +341,8 @@ static void deriveNewtypeInstance(Module& module, ast::Decl& decl,
         // of class functions. A class whose obligation is answered at the content by a plain function
         // rather than by another class is a shape nothing in this tree has, and rejecting it here
         // would be this check being narrower than the expansion again - the mistake the comment above
-        // is about. `kNullLocation` for the occurrence so the lookup records nothing in the index:
-        // there is no name in any source file at this point.
-        if(!answered && findFunction(module, entry.name, derive.source, kNullLocation)) answered = true;
+        // is about.
+        if(!answered && findFunction(module, entry.name, derive.source)) answered = true;
 
         if(answered) continue;
 

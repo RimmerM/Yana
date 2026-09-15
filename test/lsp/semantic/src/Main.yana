@@ -52,15 +52,15 @@ fn build() -> Int:
     return sum({x: 4, y: 5}) + area(s) + p.x
 --                    ^sigTuple
 
--- What `explain` found and the source does not say - M9. `keep` writes what it was handed into
--- storage the caller also owns, so the loan cannot end at the call, and no part of the signature
--- says so. `plain` is here for the same reason the fixture has unsurprising functions in it at all:
--- a hover section that appeared under every declaration would be one nobody reads.
+-- What `explain` found and the source does not say - M9. `keep` puts what it was handed on the
+-- heap, which is a placement nothing at a call site can see. `plain` is here for the same reason
+-- the fixture has unsurprising functions in it at all: a hover section that appeared under every
+-- declaration would be one nobody reads.
 data Slot {value: Int}
 
-fn keep(&slot: Slot, ->with: Slot) -> Int:
+fn keep(with: Slot) -> Int:
 --  ^explained
-    slot = with
+    let @heap &slot = with
     return slot.value
 
 fn plain(n: Int) -> Int = n + 1
@@ -101,3 +101,35 @@ fn counted() -> Int:
         sum = sum + v
 
     return sum
+
+-- Four answers the move to the rewritten stage had stopped recording, one caret each. A const
+-- generic read in a body is the variable its signature binds.
+fn (n: Int) lanes(xs: [I32 *n]) -> Int = n
+--                                       ^constRead
+
+-- A call whose name reaches a plain function and a class member is overloaded, and the hover on it
+-- still says which instance served it.
+class Width(a):
+    fn measure(x: a) -> Int
+
+instance Width(Point):
+    fn measure(x: Point) = x.x
+
+fn measure(s: Shape) -> Int = 1
+
+fn measured(p: Point) -> Int = measure(p)
+--                             ^overloadedClass
+
+-- An applied type is recorded with what it was applied at, which is hover's `-- here:`. A type of this
+-- file's own, because every use of a library one is an occurrence the references would list.
+data Held(a) {value: a}
+
+fn unwrapped(m: Held(Int)) -> Int = m.value
+--              ^applied
+
+-- A class member with a default body is explained like a function, hover section included.
+class Keeps(a):
+    fn keeps(x: a) -> Int:
+--     ^classExplained
+        let @heap &slot = 1 :: Int
+        return slot

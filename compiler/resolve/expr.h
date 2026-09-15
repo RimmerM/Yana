@@ -72,9 +72,7 @@ struct Binding {
     // is the one binding whose use is an effect - see ExprResolver::force.
     bool lazy = false;
 
-    // Where the name was introduced - the pattern, the parameter, or the `let`. Carried so that
-    // the editor can jump to it and so that two `x` in two scopes are two symbols: a slot index is
-    // not an identity, and a name is one only within the scope that bound it. See resolve/index.h.
+    // Where the name was introduced - the pattern, the parameter, or the `let`.
     LocationId definition = kNullLocation;
 
     bool isPlace() const { return captured || local != maxLimit<U32> || borrow != nullptr; }
@@ -456,12 +454,6 @@ struct ExprResolver;
  */
 using PendingGlobals = SmallArray<ModulePtr<Global>, 16>;
 
-// What an editor shows for a class function's name, recorded at the point the call decided which
-// class and which instance answered it. Shared with the `for` loop's own selection, which reaches a
-// class iterator without going through resolveCall.
-void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMatch& match,
-                             ModulePtr<ClassInstance> instance);
-
 /*
  * What sort of call site is selecting from a set, and the whole of what that changes.
  *
@@ -621,9 +613,8 @@ struct OverloadSet {
     // defaults, which is the whole of what a default argument is.
     Size arity = 0;
 
-    // Where the name was written, which is not where the call was: an editor asking about the name
-    // under the cursor needs the name. `kNullLocation` for a synthesized call - a pattern's `==`, an
-    // array literal's `slice` - which is what keeps those out of the index. See resolve/index.h.
+    // Where the name was written, which is not where the call was. `kNullLocation` for a
+    // synthesized call - a pattern's `==`, an array literal's `slice`.
     LocationId nameSource = kNullLocation;
 
     bool isEmpty() const { return !direct && candidates.isEmpty(); }
@@ -806,18 +797,6 @@ struct OptionalChain {
 // The type one name has, without emitting anything to find out. Deliberately separate from
 // placeOf(), which for a by-reference capture emits the load that reaches the storage.
 TypePtr bindingType(ExprResolver& resolver, const Binding& binding);
-
-// Records one occurrence of a local, an argument or a capture - see resolve/index.h. Called from
-// findBinding, which is the one funnel every read of a name in a body goes through.
-void recordBinding(ExprResolver& resolver, const Binding& binding, LocationId source);
-
-// Which of the three function-local kinds a binding is, and the slot it addresses. Shared by the
-// index and by completion, so a name offered and the same name hovered describe one thing.
-struct Symbol bindingSymbol(ExprResolver& resolver, const Binding& binding);
-
-// Records a binding as a *definition*, where it is introduced. See expr.cpp; a no-op in a batch
-// compile, like every other recording site.
-void recordBindingDefinition(ExprResolver& resolver, const Binding& binding);
 
 struct ExprResolver {
     ExprResolver(Context& context, Module& module, Function& function):
@@ -1381,11 +1360,7 @@ struct ExprResolver {
                                   const ast::AppExpr& call, TypePtr target);
     /*
      * `nameSource` is where the callee's *name* was written, which is not `source`: `source` is the
-     * whole call, and an editor asking about the name under the cursor needs the name.
-     *
-     * Null for every synthesized call - a pattern's `==`, an array literal's `slice` - and that is
-     * what keeps those out of the index: nothing in the source spelled them, so there is no
-     * occurrence to record. See resolve/index.h.
+     * whole call. Null for every synthesized call - a pattern's `==`, an array literal's `slice`.
      */
     /*
      * `convert`, applied to an argument without forgetting what the position is.
@@ -1822,14 +1797,6 @@ struct ExprResolver {
     // The name each written argument gave, or 0 - see ArgNames. One per position, in written order.
     void collectArgNames(ast::ParseList<ast::TupArg> arguments, ArgNames& out);
 
-    // An editor's cursor at one of a call's arguments - see expr_call.cpp. True when it captured,
-    // which ends the call: the sentinel names nothing for the resolving loop to resolve.
-    // `leading` is how many parameters the call site filled before the written list - 1 for a
-    // dot-call's receiver - since the mapping is indexed by position and not by writing order.
-    bool captureCallArguments(ast::ParseList<ast::TupArg> arguments, const OverloadSet& set,
-                              const ArgMapping* pushdown, ModulePtr<Function> signature,
-                              Size leading = 0);
-
     /*
      * `x?` - Implementation-Semantics.md part 5's early exit.
      *
@@ -2169,11 +2136,6 @@ struct ExprResolver {
     // Whether a receiver of this type has a field of this name - the same walk projectField performs,
     // asked without reporting and without taking a place. What decides field-or-dot-call.
     bool hasFieldNamed(TypePtr type, StringId field);
-
-    // Whether the cursor is in a field-name position of this construction, and the completion
-    // request was answered with its fields - Implementation-Tooling.md §8.1. False in every
-    // ordinary compile, where there is no request to answer.
-    bool captureConstructionFields(ast::ParseList<ast::TupArg> args, TypePtr owner, TypePtr content);
 
     // The place of one named field of `place`, following the downcast a single-constructor
     // record needs and the dereference a reference does. Shared by field reads and field

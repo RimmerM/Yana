@@ -1146,6 +1146,8 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
      * target names, and it is reached through its own name.
      */
     if(auto alias = mir::findAlias(context, program, here(), application.base.name, written.source)) {
+        recordReference(context, application.base.source, aliasSymbol(decl(), alias));
+
         SmallArray<DeclPtr<Type>, 4> arguments;
 
         for(auto argument: application.args.contents(parse)) {
@@ -1179,6 +1181,8 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
     }
 
     auto found = mir::findRecord(context, program, here(), application.base.name, written.source);
+    if(found) recordReference(context, application.base.source, typeSymbol(decl(), asBase<Type>(found)));
+
     if(!found) {
         /*
          * `Vec(a, n)`, `Mask(a, n)` and `Atomic(a)` - the constructors the compiler creates,
@@ -1260,6 +1264,11 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
     logical = instantiateRecord(context, program, found, arguments.pointer(), arguments.size(),
                                 written.source);
     if(!logical) return false;
+
+    // Again with the instantiation, which is what hover reads as "here" - `Maybe(I32)` rather than
+    // the declaration alone. The first record is what an application that failed keeps.
+    recordReference(context, application.base.source, typeSymbol(decl(), asBase<Type>(found)),
+                    logical);
 
     /*
      * `data (Eq(a)) Set(a)` - what the head requires of the arguments this application supplied.
@@ -1619,6 +1628,23 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
         } else if(!resolveOccurrence(*parse[argument.type], argument.bind, Position::Parameter,
                                      slots, occurrence, ownerSubject && function.args.size() == 0)) {
             ok = false;
+
+            /*
+             * An editor's compile keeps the position, with no type, so that a signature that did not
+             * resolve still lists what was written - see `declareSignature`, which is what keeps the
+             * function. With the written sigil, since that much of the position was never in doubt.
+             */
+            if(recording(context)) {
+                auto declared = new (program.decl) Arg();
+                declared->name = argument.name;
+                declared->source = argument.source;
+                declared->index = U32(function.args.size());
+                declared->occurrence = argument.bind == ast::BindType::Sink ? owned(nullptr)
+                    : borrowed(nullptr, argument.bind == ast::BindType::Ref ? Access::Unique
+                                                                            : Access::Shared);
+                function.args.push(program.decl, declared - *program.decl);
+            }
+
             continue;
         }
 
@@ -2052,7 +2078,37 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * one a diagnostic is about.
      */
     SlotScope slots;
-    if(!declareArgs(*function, declaration, slots, inherited, inheritedWith)) return nullptr;
+    if(!declareArgs(*function, declaration, slots, inherited, inheritedWith)) {
+        /*
+         * A signature that did not resolve, kept for an editor.
+         *
+         * The function is still not declared: no module lists it, so nothing calls it, no body is
+         * resolved against it and no pass reads it. What an editor's compile keeps is the
+         * *description* - the outline and hover list `fn borrowed(s: ?) -> I32` rather than losing a
+         * declaration the author can see on the screen, which is the one where a mistake is. So the
+         * result is resolved as far as it goes and the definition is recorded.
+         *
+         * Only a module-level `fn`. A class or instance member is listed with the declaration that
+         * holds it, and that one was refused as well.
+         */
+        if(recording(context) && !classContext && !inherited) {
+            auto handsOver = lens || written.external;
+            auto& outgoing = handsOver ? function->handover : function->result;
+            outgoing = owned(written.ret ? nullptr : program.types.unit);
+
+            if(written.ret) {
+                auto outerElision = elisionSubject;
+                elisionSubject = function;
+                resolveOccurrence(*parse[written.ret], written.retBind,
+                                  handsOver ? Position::Handover : Position::Result, slots, outgoing);
+                elisionSubject = outerElision;
+            }
+
+            recordDefinition(context, functionSymbol(decl(), function - *program.decl));
+        }
+
+        return nullptr;
+    }
 
     /*
      * `-> ->T` and `-> &T` - the convention what leaves under, which only a hand-over has.
@@ -2309,6 +2365,7 @@ void Resolver::declareFunction(ast::Decl& declaration) {
 
     auto pointer = function - *program.decl;
     writtenFunctions.push(pointer);
+    recordDefinition(context, functionSymbol(decl(), pointer));
 
     // `@test`, which adds this declaration to the suite rather than setting a flag on it - see
     // resolve_test.cpp. Here rather than in `declareSignature`, for the reason the inferring result

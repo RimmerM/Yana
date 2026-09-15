@@ -316,6 +316,8 @@ void Resolver::declareClass(ast::Decl& declaration) {
         return;
     }
 
+    recordDefinition(context, classSymbol(decl(), pointer));
+
     /*
      * `@builtin(role)` - which of the compiler's roles this class fills, if any.
      *
@@ -348,7 +350,10 @@ void Resolver::declareClass(ast::Decl& declaration) {
  * declaration.
  */
 DeclPtr<Class> Resolver::lookupClass(StringId name, LocationId source) {
-    if(auto found = mir::findClass(context, program, here(), name, source)) return found;
+    if(auto found = mir::findClass(context, program, here(), name, source)) {
+        recordReference(context, source, classSymbol(decl(), found));
+        return found;
+    }
 
     context.diagnostics.error("%@ is not a class this module can see"_v, source,
                               context.findName(name));
@@ -490,6 +495,7 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
         function->klass = pointer;
         function->classMember = U16(klass->members.size());
         function->derivation = derivation;
+        recordDefinition(context, functionSymbol(decl(), function - *program.decl));
 
         /*
          * One member per `(name, arity)` **within this class**, which is the part of R1 the module's
@@ -993,6 +999,20 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         function->derivation = isDerivationMember(declared.role, U32(index));
 
         instance->members.set(decl(), U32(index), function - *program.decl);
+
+        /*
+         * A member an author wrote is a declaration an editor lists and jumps to, whichever call
+         * reaches it by selection. The class's defaults below are the class's declarations, recorded
+         * there.
+         *
+         * Under the name that was written. The function's own name is `Shape.area` so that it is
+         * unique among the module's symbols, and an outline showing that would read as a function in
+         * `Shape`'s namespace - which is a different declaration a program can also write.
+         * `describeSymbol` says which instance it is.
+         */
+        auto symbol = functionSymbol(decl(), function - *program.decl);
+        symbol.name = member.fun.name;
+        recordDefinition(context, symbol);
     }
 
     /*

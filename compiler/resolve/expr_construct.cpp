@@ -2,10 +2,8 @@
 #include "const.h"
 #include "edit.h"
 #include "solve.h"
-#include "complete.h"
 #include "generic.h"
 #include "name.h"
-#include "index.h"
 #include "witness.h"
 
 /*
@@ -1381,48 +1379,8 @@ bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::Tu
     return success;
 }
 
-/*
- * The cursor sentinel among the arguments of a construction - Implementation-Tooling.md §8.1's
- * fourth kind.
- *
- * Two positions, and the difference between them is whether a `:` has been typed yet. A sentinel
- * that is an argument's *name* (`Square {si|: 3}`) can only ever be a field; a sentinel that is a
- * bare argument (`Square {si|`) is a field name the author has not finished, or a positional value,
- * and nothing in the text says which - so `namesOnly` is false and the names in scope are offered
- * under the fields.
- *
- * Asked before the arguments are resolved, because resolving one *is* what reaches the sentinel in
- * value position: the ordinary capture there would answer first and a field would never be offered.
- * A sentinel in an argument's value (`Square {side: v|}`) is deliberately not found here - it is a
- * value, and the ordinary capture is the right answer for it.
- */
-bool ExprResolver::captureConstructionFields(ast::ParseList<ast::TupArg> args, TypePtr owner, TypePtr content) {
-    if(!wantsCompletion(context)) return false;
-
-    for(auto arg: args.contents(parse)) {
-        if(arg.name && isCursorSentinel(context, arg.name)) {
-            captureConstructionCompletion(*this, owner, content, true);
-            return true;
-        }
-
-        if(!arg.name && arg.value.kind == ast::Expr::Var && isCursorSentinel(context, arg.value.var)) {
-            captureConstructionCompletion(*this, owner, content, false);
-            return true;
-        }
-    }
-
-    return false;
-}
-
 ModulePtr<Value> ExprResolver::resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> astArgs, TypePtr target) {
     if(astArgs.isEmpty()) return nullptr;
-
-    // A tuple written where one is expected knows its own field names before any of its arguments
-    // are resolved. Without an expected type there is nothing to complete against - the tuple's
-    // type is about to be interned from what the author writes rather than known in advance.
-    if(target && global[target]->kind == Type::Tup) {
-        captureConstructionFields(astArgs, target, target);
-    }
 
     TupType* tuple = nullptr;
     ValueList inferredValues;
@@ -1545,8 +1503,8 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
         return nullptr;
     }
 
-    // At the constructor *name* rather than at the whole construction, so that what the index
-    // records is the occurrence a cursor can be on - see resolve/index.h.
+    // At the constructor *name* rather than at the whole construction, which is what an ambiguity
+    // between two imports is about.
     auto found = findConstructor(module, construct.type.name, construct.type.source);
     if(!found) {
         context.diagnostics.error("unknown constructor %@"_v, expr.source, context.findName(construct.type.name));
@@ -1554,21 +1512,6 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
     }
 
     auto reference = found.unwrap();
-
-    /*
-     * Before the type is inferred, because inferring it resolves the arguments and one of them may
-     * be the cursor. The declaration's own constructor is what the fields are read from - the
-     * instantiation is not built yet and would name the same fields anyway, since what differs
-     * between the two is the field *types* and not which fields there are.
-     */
-    if(wantsCompletion(context)) {
-        auto declaration = (RecordType*)global[reference.record];
-        if(reference.index < declaration->constructors.size()) {
-            auto content = declaration->constructors.get(global, reference.index).content;
-            auto owner = (Type*)global[reference.record] - global;
-            if(captureConstructionFields(construct.args, owner, content)) return nullptr;
-        }
-    }
 
     ValueList inferredValues;
     auto recordType = constructedType(reference, construct.args, target, inferredValues, expr.source);
@@ -1833,20 +1776,6 @@ ModulePtr<Value> ExprResolver::resolveTupUpdate(const ast::Expr& expr, const ast
         auto reached = true;
 
         for(auto field: path.contents(parse)) {
-            /*
-             * The cursor in a path segment - `{v | ori|gin: p}` - Implementation-Tooling.md §8.1.
-             *
-             * The members of whatever the path has reached so far, which for the first segment is
-             * the value being updated and for a later one is the field before it. That is the same
-             * answer a `.` gives, and for the same reason: an update path is field selection with a
-             * value on the end of it.
-             */
-            if(isCursorSentinel(context, field)) {
-                captureUpdateCompletion(*this, placeType(place));
-                reached = false;
-                break;
-            }
-
             auto next = projectField(place, field, arg.value.source, expr.source);
             if(!next) {
                 reached = false;
@@ -1922,19 +1851,6 @@ bool ExprResolver::reportUnfollowedReference(TypePtr type, LocationId source) {
 }
 
 Maybe<Place> ExprResolver::projectField(Place place, const ast::Expr& field, LocationId source) {
-    /*
-     * The cursor sentinel in field position - Implementation-Tooling.md §8.1's third kind.
-     *
-     * Here rather than in resolveField because this is where both a read and an assignment reach a
-     * field, and because the receiver's type is what this function already had to work out. What
-     * the place holds is handed over unchanged: whether it is a reference to be followed is
-     * collectMembers' question, and it is the same question the lines below ask.
-     */
-    if(field.kind == ast::Expr::Var && isCursorSentinel(context, field.var)) {
-        captureCompletion(*this, nullptr, placeType(place), true);
-        return Nothing();
-    }
-
     /*
      * `e.0` - a positional selection, which the grammar has always had in the field position and
      * which nothing below it implemented. A field written without a name is reachable by the only
@@ -2148,19 +2064,6 @@ Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId 
     auto tuple = (TupType*)global[type];
     for(Size i = 0; i < tuple->fields.size(); i++) {
         if(tuple->fields.get(global, i).name == field) {
-            /*
-             * §1.2's field choke point: the declaring type and the index within it, which together
-             * are what makes two `length` fields two symbols.
-             *
-             * Only for a field the program *wrote*. A desugaring reaches into a type the source
-             * never named - an array literal projects `run` and `items` out of the array it just
-             * built - and it says so by handing the enclosing expression's location for both, since
-             * there is no name of its own to point at.
-             */
-            if(fieldSource != source) recordReference(context, fieldSource,
-                            fieldSymbol(module, owner, U16(i), field, ownerSource),
-                            tuple->fields.get(global, i).type);
-
             return Just(project(place, ProjectionKind::Field, U16(i)));
         }
     }

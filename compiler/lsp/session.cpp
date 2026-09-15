@@ -59,15 +59,15 @@ Result<void, String> Session::rescan() {
 }
 
 void Session::compile(CompletionRequest* completion, Cursor cursor) {
-    // The order matters. The program holds arenas whose pointers are offsets into them, so it can
+    // The order matters. The program holds arenas whose handles are offsets into them, so it can
     // outlive neither the context nor the provider; and the ASTs hold LocationIds, which index one
     // context's location array in the order that context created them. So everything goes and
     // everything is rebuilt - which is the whole of §5.3's v1 answer, and is measured to be fast
     // enough that the alternative is not worth its cost in invalidation.
+    calls = nullptr;
     program = nullptr;
     context = nullptr;
     index = nullptr;
-    calls = nullptr;
     positions.clear();
 
     diagnostics.reset();
@@ -75,6 +75,18 @@ void Session::compile(CompletionRequest* completion, Cursor cursor) {
 
     context = Ptr(new Context(diagnostics));
     context->settings = settings;
+
+    // The rewritten stage, which is the only one with an editor surface - `ssa::Pipeline` states the
+    // same assignment for a build, and the setting is read below this.
+    context->settings.resolver = ResolverStage::Ownership;
+
+    /*
+     * A JavaScript project is answered as the native program, until the rewritten stage resolves a
+     * JavaScript one: the library's `@platform(js)` half is written against the shipping stage, and a
+     * session that asked for it would report every declaration of that half as not resolving. What
+     * this costs is the project's own `@platform(js)` declarations, which the answers do not see.
+     */
+    context->settings.platform = TargetPlatform::Native;
 
     // Before anything is resolved, because it is what turns the recording sites on. A driver never
     // does this, which is the whole of what Implementation-Tooling.md §1.1 means by the cost being
@@ -99,7 +111,7 @@ void Session::compile(CompletionRequest* completion, Cursor cursor) {
         return;
     }
 
-    program = resolveProgram(*context, root->parsed, &provider);
+    program = mir::resolveProgram(*context, root->parsed, &provider);
 }
 
 void Session::complete(StringId module, U32 offset, CompletionRequest& request, U32& prefixStart) {

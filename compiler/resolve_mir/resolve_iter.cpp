@@ -868,7 +868,7 @@ bool Resolver::resolveExternalFor(Builder& builder, ast::Expr& expr, ast::ForExp
         builder.addWrite(loop.pat.source, *builder.localPlace(*bound), *item, Destination::Init);
 
         if(named) {
-            bindings.push(Binding { loop.pat.var, bound });
+            bindLocal(loop.pat.var, bound);
         } else if(loop.pat.kind != ast::Pat::Any &&
                   !bindIrrefutable(builder, loop.pat, *builder.localPlace(*bound), "a `for` binding"_v)) {
             return false;

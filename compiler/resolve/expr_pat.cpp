@@ -1,8 +1,6 @@
 #include "expr.h"
 #include "map.h"
-#include "complete.h"
 #include "name.h"
-#include "index.h"
 
 /*
  * Patterns, `match`, and the refutable half of `let`.
@@ -707,7 +705,6 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
         Binding binding { name, pivot };
         binding.definition = pattern.source;
         bindings.push(binding);
-        recordBindingDefinition(*this, binding);
     };
 
     if(pattern.asVar) bind(pattern.asVar);
@@ -795,19 +792,6 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
         }
         case ast::Pat::Con: {
             auto pivotType = valueType(pivot);
-
-            /*
-             * The cursor in a constructor pattern - Implementation-Tooling.md §8.1's fifth kind.
-             *
-             * The pivot's type is what the position asked for, and it is what makes the answer
-             * ranked rather than alphabetical: the constructors of the value being matched come
-             * first, and the ones of every other visible record follow. Ahead of the lookup, since
-             * the sentinel names nothing and the only outcome of looking it up is the report below.
-             */
-            if(isCursorSentinel(context, pattern.con.name)) {
-                capturePatternCompletion(*this, pivotType);
-                return PatternResult::Never;
-            }
 
             auto found = findConstructor(module, pattern.con.name, pattern.source);
 

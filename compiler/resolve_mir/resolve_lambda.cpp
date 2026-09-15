@@ -81,6 +81,37 @@ static CaptureKind captureKindOf(DeclBase base, Local& outer, bool heap) {
 }
 
 /*
+ * A read of a captured name, for the semantic index - `index.h`.
+ *
+ * Asked after `findCapture` answered, so the capture is always there to be found: the name was
+ * either captured before or appended to the environment by that call.
+ */
+void Resolver::recordCapture(LocationId source, StringId name) {
+    if(!recording(context) || !currentFunction || lambdaFrames.size() <= lambdaFloor) return;
+
+    auto& frame = lambdaFrames[lambdaFrames.size() - 1];
+
+    for(U32 i = frame.captureFloor; i < captures.size(); i++) {
+        auto& captured = captures[i];
+        if(captured.name != name) continue;
+
+        // The enclosing binding's declaration is the capture's identity, so every use of one name in
+        // one lambda is one symbol - and the environment field is what the lifted body reads.
+        Symbol symbol;
+        symbol.kind = Symbol::Kind::Capture;
+        symbol.module = currentFunction->module;
+        symbol.function = currentFunction - *program.decl;
+        symbol.payload = captured.field;
+        symbol.name = name;
+        symbol.definition = captured.outer ? captured.outer->source : kNullLocation;
+
+        recordReference(context, source, symbol,
+                        captured.outer ? captured.outer->occurrence.type : nullptr);
+        return;
+    }
+}
+
+/*
  * A binding of the enclosing function, named inside a lambda.
  *
  * Answers the place the *lambda's* body reads it through, appending a field to the environment the
@@ -308,7 +339,7 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
 void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implicitReturn, bool thunk,
                                  LocationId source) {
     // The same mark an ordinary body takes - `ErrorMark`, and `finish` is what reads it.
-    ErrorMark mark(context);
+    ErrorMark mark(context, parseErrors);
     Builder builder(context, program, lifted);
 
     LambdaFrame frame;
@@ -362,7 +393,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
             continue;
         }
 
-        bindings.push(Binding { local->name, local });
+        bindLocal(local->name, local);
     }
 
     lambdaFrames.push(frame);
@@ -441,6 +472,11 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
 
     finish(builder, lifted, unit, source, mark);
     builder.seal();
+
+    // As for any body - see `resolveBody`.
+    if(recording(context) && (mark.reported() || parseErrors != mark.parseErrorsBefore)) {
+        lifted.mir = nullptr;
+    }
 
     bindings.resize(frame.floor);
     bindingFloor = outerBindingFloor;

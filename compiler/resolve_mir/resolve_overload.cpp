@@ -868,8 +868,16 @@ Node* Resolver::resolveOverloadedCall(Builder& builder, ast::AppExpr& written,
         return nullptr;
     }
 
-    return finishOverloadedCall(builder, written, *decl()[chosen.function], chosen.map,
-                                chosen.values, chosen.args.unwrap(), hint, source, receiver);
+    recordCallee(nameSource, chosen.function);
+
+    auto call = finishOverloadedCall(builder, written, *decl()[chosen.function], chosen.map,
+                                     chosen.values, chosen.args.unwrap(), hint, source, receiver);
+
+    // Again, with the winner's own trial now that its arguments are prepared - which is what names
+    // the instance an overloaded class member's call was served by. The first record stands for a
+    // call whose arguments did not.
+    if(call) recordCallee(nameSource, chosen.function, &chosen.args.unwrap());
+    return call;
 }
 
 /*

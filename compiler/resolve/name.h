@@ -277,21 +277,8 @@ void registerNamespace(Module& module, StringId name, LocationId source);
  * Program::typeMethods for why that matters.
  */
 StringId findTypeMethod(Module& module, TypePtr receiver, StringId name);
-/*
- * `occurrence` is where the name was *written*, which is not always where it is looked up.
- *
- * The lookup location decides what is visible and is where an ambiguity between two imports is
- * reported, so every lookup has one. An occurrence is a name in the source, and a synthesized call
- * has none - it is `kNullLocation` there, which records nothing. The three-argument form is the
- * ordinary case, where the name is written at the place it is resolved from.
- */
 // `report` is false for a probe that only asks whether the name exists - see search.
-ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source, LocationId occurrence,
-                                 bool report = true);
-
-inline ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source) {
-    return findFunction(module, name, source, source);
-}
+ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source, bool report = true);
 ModulePtr<Global> findGlobal(Module& module, StringId name, LocationId source);
 GlobalPtr<TypeClass> findClass(Module& module, StringId name, LocationId source);
 // The fixity an operator has here, falsy when nothing in scope declares one.

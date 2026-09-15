@@ -2,11 +2,9 @@
 #include "inline.h"
 #include "caller.h"
 #include "solve.h"
-#include "complete.h"
 #include "witness.h"
 #include "generic.h"
 #include "name.h"
-#include "index.h"
 
 /*
  * Calls, operators, and typeclass instance selection.
@@ -533,15 +531,10 @@ void ExprResolver::gatherOverloads(StringId name, Size arity, LocationId source,
     replaceContents(out.names, names);
 
     /*
-     * Both halves, looked up at the same location - and the occurrence recorded at a different one.
+     * Both halves, looked up at the same location.
      *
      * `source` is where the set is looked up from, which decides what is visible and is where an
-     * ambiguity between two imports is reported. `nameSource` is the name the author wrote, which is
-     * where the index should hold the answer: recording it against the whole call would make
-     * find-references report the call and the name as two hits on the same name. A synthesized call
-     * has no such name, so it records nothing at all - which is what `kNullLocation` means here, and
-     * why the two have to be passed separately rather than one standing in for the other. See
-     * findFunction and resolve/index.h.
+     * ambiguity between two imports is reported.
      */
     /*
      * A dot-call whose receiver's type declares a function of this name in its own namespace -
@@ -572,11 +565,11 @@ void ExprResolver::gatherOverloads(StringId name, Size arity, LocationId source,
 
     if(shape.receiver) {
         if(auto method = findTypeMethod(module, shape.receiver, name)) {
-            plain = findFunction(module, method, source, nameSource);
+            plain = findFunction(module, method, source);
         }
     }
 
-    if(!plain) plain = findFunction(module, name, source, nameSource);
+    if(!plain) plain = findFunction(module, name, source);
 
     /*
      * A plain function is a candidate when it is of this call's kind and the call site's arguments
@@ -1473,59 +1466,6 @@ ModulePtr<Value> ExprResolver::callIndirect(ModulePtr<Value> callable, const ast
 }
 
 /*
- * The cursor sentinel in an argument of a written call - `f(x|` and `f(mo|: 1)`.
- *
- * A position of its own rather than an ordinary name that happens to be inside brackets: what may be
- * written at an argument is a value, *or* the name of a parameter the call has not filled yet.
- * Caught ahead of the loop that resolves the arguments, because by the time `resolve` reaches the
- * sentinel the set is out of reach - the ordinary capture sees a name and an expected type, and
- * which call it is an argument of is exactly what it cannot ask.
- *
- * The two positions are the two the construction form has, and for the same reason: a cursor in a
- * *name* (`f(mo|: 1)`) can be nothing but a parameter, while one in a bare argument has not said yet
- * which of the two it is. See captureConstructionFields, whose shape this is.
- *
- * True when it captured, which ends the call: the sentinel names nothing, so there is no call left
- * to resolve underneath it.
- */
-bool ExprResolver::captureCallArguments(ast::ParseList<ast::TupArg> arguments, const OverloadSet& set,
-                                        const ArgMapping* pushdown, ModulePtr<Function> signature,
-                                        Size leading) {
-    if(!wantsCompletion(context)) return false;
-
-    auto written = arguments.contents(parse);
-
-    for(Size index = 0; index < written.size(); index++) {
-        auto arg = written.pointerAt(index);
-
-        if(arg->name && isCursorSentinel(context, arg->name)) {
-            captureArgumentCompletion(*this, set, nullptr, true);
-            return true;
-        }
-
-        auto& value = unwrapNested(arg->value);
-        if(arg->name || value.kind != ast::Expr::Var || !isCursorSentinel(context, value.var)) continue;
-
-        // The type this position was asked for, where one candidate is the whole of the set - the
-        // same pushdown the arguments are resolved against, read through the same mapping.
-        TypePtr expected = nullptr;
-
-        if(signature && pushdown && index + leading < pushdown->parameters.size()) {
-            auto filled = pushdown->parameters[index + leading];
-
-            if(filled < local[signature]->args.size()) {
-                expected = local[local[signature]->args.get(local, filled)]->declaredType();
-            }
-        }
-
-        captureArgumentCompletion(*this, set, expected, false);
-        return true;
-    }
-
-    return false;
-}
-
-/*
  * An argument that resolved to nothing did so for one of two reasons, and the difference is only
  * visible here: either the resolver reported on it, or the expression genuinely produces no value -
  * `{}`, or a call whose result type is `{}`. The same before-and-after count `resolvePattern`'s
@@ -1545,19 +1485,6 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     // A binding of function type shadows a declaration of the same name, and an arbitrary callee
     // expression was never a name at all. Both are the indirect path.
     auto& calleeExpr = unwrapNested(call.callee);
-
-    /*
-     * The cursor sentinel in callee position - `f|(x)` - which is where an editor asks most often,
-     * since typing a name and then its arguments is the order a call is written in.
-     *
-     * The call's expected result type is what ranks the answer: a candidate that returns what this
-     * position wants is the one being reached for. Ahead of everything, because the arguments are
-     * resolved against a callee that does not exist and would each report.
-     */
-    if(calleeExpr.kind == ast::Expr::Var && isCursorSentinel(context, calleeExpr.var)) {
-        captureCompletion(*this, target, nullptr, false);
-        return nullptr;
-    }
 
     // `x.f(y)` - Design.md's dot-call form. Ahead of the indirect path because deciding between the
     // two is what it does: a field of function type is still called indirectly, and everything else
@@ -1595,10 +1522,8 @@ ModulePtr<Value> ExprResolver::resolveNamedCall(const ast::Expr& expr, StringId 
     /*
      * The overload set, gathered once, at the *callee's* location rather than the call's.
      *
-     * It is where the name is written, so it is both the better place for an ambiguity diagnostic
-     * to point and the only location the index should hold this answer against - see
-     * resolve/index.h. Recording it against the whole call would make find-references report the
-     * call and the name as two hits on the same name.
+     * It is where the name is written, so it is the better place for an ambiguity diagnostic to
+     * point.
      *
      * Everything below reads this: which positions are `@lazy`, whether a plain function is the
      * whole of it, whether the callee is a lens or an iterator, and - through emitCall - which
@@ -1660,18 +1585,6 @@ ModulePtr<Value> ExprResolver::resolveNamedCall(const ast::Expr& expr, StringId 
     if(sole) {
         mapArguments(direct, toBuffer(names), callArgs.size() + leading, 0, set.name, expr.source,
                      false, pushdown);
-    }
-
-    /*
-     * An editor asking what may be written at one of the arguments.
-     *
-     * Ahead of the diagnostics below as well as of the loop that resolves the arguments: each of
-     * them ends the call, and a call the author is still typing is exactly the one an editor asks
-     * about. See captureCallArguments.
-     */
-    if(captureCallArguments(callArgs, set, declared ? &pushdown : nullptr, declared ? direct : nullptr,
-                            leading)) {
-        return nullptr;
     }
 
     /*
@@ -1862,7 +1775,7 @@ bool ExprResolver::namedCallee(const ast::Expr& calleeExpr, const ast::AppExpr& 
         field = parse[calleeExpr.field];
         auto& selected = field->field;
 
-        if(selected.kind != ast::Expr::Var || isCursorSentinel(context, selected.var)) return false;
+        if(selected.kind != ast::Expr::Var) return false;
 
         name = selected.var;
         nameSource = selected.source;
@@ -1903,7 +1816,7 @@ bool ExprResolver::namedCallee(const ast::Expr& calleeExpr, const ast::AppExpr& 
     };
 
     auto serves = [&]() {
-        auto plain = findFunction(module, name, nameSource, kNullLocation, false);
+        auto plain = findFunction(module, name, nameSource, false);
         if(plain && takes(plain, supplied)) return true;
 
         ClassFunList found;
@@ -1973,7 +1886,7 @@ ModulePtr<Value> ExprResolver::resolveDotCall(const ast::Expr& expr, const ast::
      * is the one place this form departs from `resolveCall`'s "a binding shadows a declaration"
      * rule, and it departs from it because the two are not in the same namespace to begin with.
      */
-    auto asField = selected.kind != ast::Expr::Var || isCursorSentinel(context, selected.var) ||
+    auto asField = selected.kind != ast::Expr::Var ||
                    hasFieldNamed(valueType(receiver), selected.var);
 
     if(asField) {
@@ -2243,34 +2156,6 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
     return result;
 }
 
-/*
- * The selected class function, and the instance that served it.
- *
- * §1.2's second rule made concrete: this is the point of *decision*, so the reference recorded here
- * is the one an editor shows. `findClassFunctions` collected four candidates and recorded none of
- * them, because a call site showing all four would be showing something the program does not mean.
- *
- * The instance is the answer §1.2 calls the one hover most wants - which `Ord` served this
- * `compare` - and it is null exactly when the types that would decide are still variables here.
- */
-void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMatch& match,
-                             ModulePtr<ClassInstance> instance) {
-    if(!resolver.context.index || source == kNullLocation || !match.typeClass) return;
-
-    auto symbol = classFunSymbol(resolver.module, match.typeClass, match.index);
-
-    // The result type at this occurrence, in the caller's terms rather than the class's.
-    TypePtr type = nullptr;
-    auto entry = resolver.global[match.typeClass]->functions.get(resolver.global, match.index);
-
-    if(entry.fun) {
-        type = substituteType(resolver.module, resolver.local[entry.fun]->returnType,
-                              toBuffer(match.args), source);
-    }
-
-    recordReference(resolver.context, source, symbol, type, instance);
-}
-
 // The synthesized form: nothing here knew a set, so one is gathered for the name. The lookup uses
 // the enclosing expression, which is the only location a call nobody wrote has.
 ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ResolvedArg> args, LocationId source,
@@ -2464,8 +2349,6 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
             return;
         }
 
-        recordReference(context, nameSource, functionSymbol(module, direct));
-
         ArgList normalized;
         normalizeArguments(mapping, args, normalized);
         commit(direct, normalized);
@@ -2492,8 +2375,6 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
      * see mapArguments.
      */
     auto reportMismatched = [&]() {
-        recordReference(context, nameSource, functionSymbol(module, set.mismatched));
-
         auto declared = local[set.mismatched];
 
         // The wrong *kind* first, where the kind is required at all, because its arity is then
@@ -2661,11 +2542,6 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
             return;
         }
 
-        // Selected, but not yet decided *which instance* - the types are still this body's own
-        // variables. The class function is the answer either way, and the instance is left null,
-        // which is what §1.3 means by recording the generic answer.
-        recordClassFunReference(*this, nameSource, undecided[chosen], nullptr);
-
         out.kind = ResolvedCallee::Kind::Dispatch;
         adopt(out.match, undecided[chosen]);
 
@@ -2769,8 +2645,6 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
                                   context.findName(global[selected.typeClass]->name), context.findName(callName));
         return;
     }
-
-    recordClassFunReference(*this, nameSource, selected, selected.instance);
 
     out.kind = ResolvedCallee::Kind::Instance;
     adopt(out.match, selected);

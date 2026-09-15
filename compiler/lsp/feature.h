@@ -178,7 +178,7 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
  *
  * "The overload set at the enclosing call's LocationId, plus which argument the cursor is in", and
  * both halves come from things that already exist: the position index says which call node the
- * cursor is in, and `findFunction`/`findClassFunctions` are the same lookup a call site makes.
+ * cursor is in, and `mir::findOverloads`/`mir::findConstructor` are the lookups a call site makes.
  *
  * Unlike completion this reads the ordinary compile - a call being typed still parses as a call,
  * which is what M7's recovery bought - so it costs a lookup rather than a compile.

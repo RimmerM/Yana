@@ -24,9 +24,11 @@
 --    so its result carries only what it came from. A deferred class dispatch names the class
 --    signature, which has no body - the same case `hostGrow` is in by having no body at all.
 --
--- Asserted through `.explain.expect`, which is the only dump that reads a *generic* body's summary:
--- the ownership dump prints specializations, and the specialization never had the bug. The row to
--- watch is `retains` on `step`, which must be `none`.
+-- Asserted through `.explain.expect`, which since J47 reads the *rewritten* stage's summaries. The row
+-- to watch is `retains` on `step`, which must be `none`. That stage reached the same false positive by
+-- its own road - the escape row's value reach says the value written into `self` came out of `self` -
+-- and `bodyArgumentFacts` in `resolve_mir/summary.cpp` is where a write back into the one parameter it
+-- reaches stopped counting as one.
 --
 -- What this cost was not the one function. `growJsArray` reported that it kept `self`, `reserve`
 -- inherited that from calling it and `push` inherited it from `reserve`, so one write took the whole

@@ -1,23 +1,15 @@
-fn step(&self: Cursor(a)) -> ()
-  suspends:   unknown (not inferred yet)
+fn step(&self: Cursor(a)) -> {}
+  suspends:   no
   ambients:   unknown (not implemented)
-  storage:    unknown for the locals (a generic body is analyzed through its specializations)
-  mutates:    self writable resizable
+  storage:    everything is frame-placed
+  mutates:    self writable
   retains:    none
-  calls:      specialized at 1 of 1 call site, 1 specialization
+  calls:      specialized at 1 call site, 1 specialization
 
 fn main() -> I32
-  suspends:   unknown (not inferred yet)
+  suspends:   no
   ambients:   unknown (not implemented)
   storage:    everything is frame-placed
   mutates:    none
   retains:    none
   calls:      called at 0 sites
-
-fn Advance(I32).advance(return p: %I32) -> %I32
-  suspends:   unknown (not inferred yet)
-  ambients:   unknown (not implemented)
-  storage:    the result's storage is the caller's, not this frame's
-  mutates:    none
-  retains:    none
-  calls:      called at 1 site

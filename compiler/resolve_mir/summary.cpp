@@ -354,9 +354,30 @@ struct Interprocedural {
             }
         }
 
-        if(program.entry) {
-            root(program.entry);
-        } else {
+        if(program.entry) root(program.entry);
+
+        /*
+         * A compile that answers questions roots every function it could be asked about.
+         *
+         * An editor hovers over a function nothing calls yet, and `yana explain` names one; an answer
+         * that depended on whether `main` happened to reach it would be an answer about the call
+         * graph rather than about the function. Nothing is emitted from either compile, so what this
+         * costs is the summaries of the program's own functions and nothing else - the library is
+         * still reached only through them. A generic is not a root here for the reason it is not one
+         * below.
+         */
+        if(context.index || context.settings.explaining()) {
+            for(auto module: program.modules) {
+                if(decl[module]->fromLibrary) continue;
+
+                for(auto pointer: decl[module]->functions.contents(decl)) {
+                    if(isGeneric(decl, decl[pointer]->gen)) continue;
+                    root(pointer);
+                }
+            }
+        }
+
+        if(!program.entry) {
             auto module = decl[program.root()];
 
             /*
@@ -1656,9 +1677,11 @@ struct Interprocedural {
      * `p: %Pair` both write the caller's. So a destination counts only where the walk reached the
      * caller's storage - through a `Deref`, a loan or an address, or from a root that is a reference
      * parameter - and that is the one thing separating this from `placeParameters`.
+     *
+     * `throughDeref` is left saying whether the walk crossed a `Deref`, loan or address, which the
+     * `Write` arm needs to tell a write *into* a parameter from one into storage it points at.
      */
-    ArgumentSet writtenParameters(BodyRooting& rooting, PlaceId id) {
-        auto throughDeref = false;
+    ArgumentSet writtenParameters(BodyRooting& rooting, PlaceId id, bool& throughDeref) {
         auto reached = placeParameters(rooting, id, throughDeref, 0);
         if(!reached.any() || throughDeref) return reached;
 
@@ -1767,10 +1790,11 @@ struct Interprocedural {
                     auto& write = *(NodeWrite*)node;
 
                     auto outside = false;
+                    auto throughDeref = false;
                     ArgumentSet target;
 
                     if(write.destination.source() == SourceKind::Place) {
-                        target = writtenParameters(rooting, write.destination.placeId());
+                        target = writtenParameters(rooting, write.destination.placeId(), throughDeref);
                         outside = target.any() || rootsInGlobal(rooting, write.destination.placeId());
                     } else {
                         // A destination that is a value is an address computed here, so what it
@@ -1782,6 +1806,28 @@ struct Interprocedural {
                     facts.mutates = facts.mutates.join(target);
                     if(outside) {
                         auto stored = operandParameters(rooting, write.value, 0);
+
+                        /*
+                         * **A write back into the one parameter it reaches** keeps nothing of that
+                         * parameter - `test/resolve/EscapeSelfWrite.yana`.
+                         *
+                         * `self.items = grow(self.items)` stores a value derived from `self` into
+                         * `self`, and the value reach says parameter 0 - but whatever was reachable
+                         * from `self` afterwards was reachable from it before, so nothing new outlives
+                         * the call. Reporting it was what made `step` in that fixture, and every
+                         * container body with the shape, read as keeping its subject.
+                         *
+                         * Exactly three conditions, and each is a case where dropping the position
+                         * would be wrong. The destination reaches **one** parameter, since a write
+                         * that may land in either of two lets one's value into the other. The walk to
+                         * its root crossed **no `Deref`, loan or address**, since `self.child.items =
+                         * self.items` puts the pointer into storage `self` merely points at - a place
+                         * `opt/place.cpp` cannot follow a load out of. And only the **value** half is
+                         * narrowed: an address of `self`'s own storage written into `self` is a
+                         * self-reference `Contained` has to hear about, and the address walk below
+                         * is left as it was.
+                         */
+                        if(!throughDeref && target.single()) stored.bits &= ~target.bits;
 
                         /*
                          * **And the value reach, not only the address reach** - J48.

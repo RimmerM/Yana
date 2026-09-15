@@ -15,7 +15,6 @@
 #include "expr.h"
 #include "generic.h"
 #include "host.h"
-#include "index.h"
 #include "name.h"
 #include "native.h"
 #include "verify.h"
@@ -202,8 +201,6 @@ void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poin
     typeClass->exported = decl.exported;
     *found.value = typeClass - *module.types;
 
-    recordDefinition(module.context, classSymbol(module, typeClass - *module.types));
-
     // The `known.def` role this class claims, if any - `Program::knownClasses`. Here rather than at
     // the lookup sites for the reason `readIntrinsicRole` is where it is: what a role binds is a
     // *declaration*, and the attribute is written on one.
@@ -255,12 +252,6 @@ void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poin
 
         typeClass->functions.push(module.types, ClassFun { member.fun.name, nullptr, index, U16(member.fun.args.size()) });
         module.classFunctions.push(ClassFunRef { typeClass - *module.types, member.fun.name, index });
-
-        // The signature's own line rather than the class's, so that jumping to `show` lands on the
-        // declaration of `show` - see classFunSymbol, which prefers the signature when it exists.
-        auto entry = classFunSymbol(module, typeClass - *module.types, index);
-        entry.definition = member.source;
-        recordDefinition(module.context, entry);
 
         index++;
     }

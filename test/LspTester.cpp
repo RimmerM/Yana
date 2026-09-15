@@ -330,7 +330,7 @@ static void writeSemanticAnswers(Net::Writer& writer, lsp::Session& session, Str
         }
 
         writer.writeString("  kind: "_v);
-        writer.writeString(symbolKindName(symbol->kind));
+        writer.writeString(mir::symbolKindName(symbol->kind));
         writer.writeString("\n  definition: "_v);
         writeSymbolLocation(writer, session, symbol->definition);
         writer.writeString("\n"_v);
@@ -349,7 +349,7 @@ static void writeSemanticAnswers(Net::Writer& writer, lsp::Session& session, Str
         /*
          * The `explain` section the hover carries under the signature - M9.
          *
-         * Held here rather than only in `test/resolve/Explain.yana`'s dump because what that
+         * Held here rather than only in `test/resolve/Explain.yana`'s explain dump because what that
          * fixture asserts is the *printer* and what this one asserts is the *caller*: which symbol
          * under a cursor produces a section at all. A cursor on a call gets the callee's, and a
          * function with nothing surprising to say gets none, and neither of those is visible from
@@ -366,7 +366,7 @@ static void writeSemanticAnswers(Net::Writer& writer, lsp::Session& session, Str
         }
 
         if(session.index) {
-            Array<const Reference*> occurrences;
+            Array<const mir::Reference*> occurrences;
             session.index->findOccurrences(*symbol, occurrences);
 
             for(auto occurrence: occurrences) {
@@ -823,7 +823,7 @@ static bool runCompletionSweep(const String& root) {
             lsp::Session session;
             if(session.open(stringView(root)).isErr()) continue;
 
-            CompletionRequest request;
+            mir::CompletionRequest request;
             U32 prefixStart = offset;
             session.complete(fixture.module, offset, request, prefixStart);
 

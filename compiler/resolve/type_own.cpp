@@ -12,7 +12,6 @@
 #include "generic.h"
 #include "module.h"
 #include "name.h"
-#include "index.h"
 
 /*
  * Ownership classification (Implementation-IR.md part 4).

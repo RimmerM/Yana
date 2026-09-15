@@ -12,10 +12,8 @@
  */
 
 #include "expr.h"
-#include "complete.h"
 #include "generic.h"
 #include "name.h"
-#include "index.h"
 
 /*
  * Literal variables.

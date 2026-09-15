@@ -14,7 +14,6 @@
 #include "expr.h"
 #include "generic.h"
 #include "host.h"
-#include "index.h"
 #include "name.h"
 #include "native.h"
 #include "verify.h"

@@ -91,10 +91,6 @@ set(RESOLVE_SOURCE_FILES
     resolve/const.cpp
     resolve/name.h
     resolve/name.cpp
-    resolve/index.h
-    resolve/index.cpp
-    resolve/complete.h
-    resolve/complete.cpp
     resolve/class.h
     resolve/core.h
     resolve/core.cpp
@@ -142,8 +138,6 @@ set(RESOLVE_SOURCE_FILES
     resolve/print.h
     resolve/verify.h
     resolve/verify.cpp
-    resolve/explain.h
-    resolve/explain.cpp
     resolve/builder.h
     resolve/clone.h
     resolve/solve.h
@@ -330,6 +324,12 @@ set(RESOLVE_MIR_SOURCE_FILES
 
     resolve_mir/name.h
     resolve_mir/name.cpp
+    resolve_mir/index.h
+    resolve_mir/index.cpp
+    resolve_mir/explain.h
+    resolve_mir/explain.cpp
+    resolve_mir/complete.h
+    resolve_mir/complete.cpp
     resolve_mir/import.cpp
     resolve_mir/export.cpp
 
@@ -449,6 +449,11 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES
     x86codegen x86asmparser x86desc x86info
 )
 
+option(YANA_LLVM_DYLIB "Link the LLVM backend against the shared libLLVM" OFF)
+if(YANA_LLVM_DYLIB)
+    set(LLVM_LIBRARIES LLVM)
+endif()
+
 add_library(YanaLLVM ${LLVM_SOURCE_FILES})
 target_include_directories(YanaLLVM PUBLIC ${LLVM_INCLUDE_DIRS})
 separate_arguments(LLVM_DEFINITION_LIST NATIVE_COMMAND "${LLVM_DEFINITIONS}")
@@ -534,7 +539,7 @@ set(PROJECT_SOURCE_FILES
 )
 
 add_library(YanaProject ${PROJECT_SOURCE_FILES})
-target_link_libraries(YanaProject PUBLIC YanaCore YanaParse YanaResolve)
+target_link_libraries(YanaProject PUBLIC YanaCore YanaParse)
 set(DRIVER_SOURCE_FILES
     compiler/driver.cpp
 )
@@ -561,7 +566,7 @@ set(LSP_SOURCE_FILES
     lsp/server.cpp
 )
 add_library(YanaLspCore ${LSP_SOURCE_FILES})
-target_link_libraries(YanaLspCore PUBLIC YanaCore YanaParse YanaResolve YanaProject)
+target_link_libraries(YanaLspCore PUBLIC YanaCore YanaParse YanaResolveMir YanaProject)
 
 add_executable(YanaLsp lsp/main.cpp)
 set_target_properties(YanaLsp PROPERTIES OUTPUT_NAME yana-lsp)

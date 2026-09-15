@@ -9,10 +9,8 @@
  */
 
 #include "expr.h"
-#include "complete.h"
 #include "generic.h"
 #include "name.h"
-#include "index.h"
 
 ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarations, TypePtr target, bool used) {
     ModulePtr<Value> result = nullptr;
@@ -237,7 +235,6 @@ void ExprResolver::bindBorrow(const ast::VarDecl& declaration, ModulePtr<Value> 
     Binding binding { declaration.pat.var, value, maxLimit<U32>, value };
     binding.definition = declaration.pat.source;
     bindings.push(binding);
-    recordBindingDefinition(*this, binding);
 }
 
 Maybe<U32> ExprResolver::adoptableLocal(ModulePtr<Value> value, U32 fresh) {
@@ -427,7 +424,6 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
         Binding adoptedBinding { name, slot.value, index };
         adoptedBinding.definition = declaration.pat.source;
         bindings.push(adoptedBinding);
-        recordBindingDefinition(*this, adoptedBinding);
         return;
     }
 
@@ -443,7 +439,6 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
     Binding binding { name, storage, place.local };
     binding.definition = declaration.pat.source;
     bindings.push(binding);
-    recordBindingDefinition(*this, binding);
 }
 
 /*

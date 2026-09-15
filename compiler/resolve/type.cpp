@@ -12,7 +12,6 @@
 #include "generic.h"
 #include "module.h"
 #include "name.h"
-#include "index.h"
 
 /*
  * The kind table - type.def, read as data.

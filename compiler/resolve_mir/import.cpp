@@ -228,6 +228,10 @@ void linkImports(Context& context, Program& program, Buffer<ast::ModuleGroup*> g
                     entry.exclude.push(program.decl, symbol);
                 }
 
+                // An import line is navigable. A module is a file rather than a declaration, so this
+                // is a reference whose target is found by path - see `moduleSymbol`.
+                recordReference(context, imported.source, moduleSymbol(base, target));
+
                 module.imports.push(program.decl, entry);
             }
         }

@@ -11,7 +11,6 @@
 #include "generic.h"
 #include "module.h"
 #include "name.h"
-#include "index.h"
 
 /*
  * Automatic indirection - Design.md's "Representation and layout" and doc/spec/repr.md.

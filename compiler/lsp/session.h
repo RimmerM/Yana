@@ -3,14 +3,21 @@
 #include "../compiler/overlay.h"
 #include "../compiler/position.h"
 #include "../compiler/project.h"
-#include "../resolve/complete.h"
-#include "../resolve/explain.h"
-#include "../resolve/index.h"
-#include "../resolve/module.h"
+#include "../resolve_mir/complete.h"
+#include "../resolve_mir/explain.h"
+#include "../resolve_mir/index.h"
+#include "../resolve_mir/resolve.h"
 
 namespace lsp {
 
 using namespace Tritium;
+
+using mir::CallSiteIndex;
+using mir::CompletionItem;
+using mir::CompletionRequest;
+using mir::Reference;
+using mir::SemanticIndex;
+using mir::Symbol;
 
 /*
  * The project, and the compile that answers questions about it.
@@ -19,9 +26,13 @@ using namespace Tritium;
  * resolution, so a native session and a JS session do not share one and the project file's `target`
  * picks which of the two this is.
  *
- * v1 re-resolves everything on every change, which §5.3 argues for at some length: the region
- * arenas that make the compiler fast are what make invalidating one module's results impossible, so
- * the two-tier scheme belongs in a later milestone and a query engine belongs nowhere.
+ * The program is the rewritten stage's - `compiler/resolve_mir` - and nothing below its analyses runs:
+ * a language server never converts, lowers or emits, so the MIR bodies stay alive for as long as the
+ * compile does and the placements and summaries read off them are the ones the analyses left.
+ *
+ * v1 re-resolves everything on every change, which §5.3 argues for at some length: the region arenas
+ * that make the compiler fast are what make invalidating one module's results impossible, so the
+ * two-tier scheme belongs in a later milestone and a query engine belongs nowhere.
  */
 struct Session {
     /// Reads the project file at or above `rootPath` and builds the module map from it. The error
@@ -34,8 +45,8 @@ struct Session {
     Result<void, String> rescan();
 
     /// Re-resolves the whole program. Everything reported lands in `diagnostics.messages`, and the
-    /// previous compile's results are dropped first - a `Program` owns arenas that the next one
-    /// cannot share.
+    /// previous compile's results are dropped first - a program owns arenas that the next one cannot
+    /// share.
     void compile() { compile(nullptr, Cursor()); }
 
     /*
@@ -44,13 +55,12 @@ struct Session {
      * A compile of its own, because the cursor sentinel is a *parse*-time decision: the module the
      * cursor is in is parsed with a distinguished name where the half-written one is, and everything
      * after that is the ordinary pipeline. So this replaces the session's program with one built
-     * around the cursor, and `staleProgram()` is true afterwards - the name the sentinel stood in
-     * for resolves to nothing there, and ownership never ran, so nothing else should be answered
-     * out of it.
+     * around the cursor, and `staleProgram()` is true afterwards - the name the sentinel stood in for
+     * resolves to nothing there, and the analyses never ran, so nothing else should be answered out
+     * of it.
      *
      * `prefixStart` reports where the partial name begins, so the caller can take the text between
-     * it and the cursor. The compiler never sees that text: it is the client's document, and the
-     * server is the only thing that holds it.
+     * it and the cursor. The compiler never sees that text: it is the client's document.
      */
     void complete(StringId module, U32 offset, CompletionRequest& request, U32& prefixStart);
 
@@ -81,8 +91,7 @@ struct Session {
     /// use. `find references` on a definition is the request this exists for.
     const Symbol* definitionAt(StringId module, U32 offset);
 
-    /// The file one module's source is in, or an empty view for Core and Native - which are
-    /// compiled into the compiler and have no file to point at.
+    /// The file one module's source is in, or an empty view for a module with no file.
     StringView pathOf(StringId module);
 
     /*
@@ -112,14 +121,15 @@ struct Session {
     CollectDiagnostics diagnostics { provider };
 
     Ptr<Context> context;
-    Ptr<Program> program;
+    Ptr<mir::Program> program;
 
     /*
-     * What name resolution decided, kept - resolve/index.h.
+     * What name resolution decided, kept - resolve_mir/index.h.
      *
      * Owned here and rebuilt with the program, because what it holds are that program's own
-     * handles: a Module*, a TypePtr, a region offset. It is created before resolution and hung on
-     * the context, which is the whole of how the recording sites are switched on.
+     * handles. It is created before resolution and hung on the context, which is the whole of how
+     * the recording sites are switched on - and what tells the resolver it is answering an editor,
+     * which keeps going past a declaration that did not resolve.
      */
     Ptr<SemanticIndex> index;
 

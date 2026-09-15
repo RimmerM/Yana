@@ -52,9 +52,15 @@
         <!--
           Indentation is syntax in Yana, so backspace inside an indent goes back a level rather than
           a space, and the level is a code style setting the author can change.
+
+          First, because the platform stops at the first delegate that consumes the keystroke, and its
+          own AUTOINDENT handler is registered ahead of a plugin's. That one asks the indent provider
+          below which column the line belongs at, and a caret already there is taken as "nothing left
+          to unindent" - so it joins the line onto the one above, and under a header that opens a
+          block that deletes the block. YanaIndentTest's first-level case is that keystroke.
         -->
         <langCodeStyleSettingsProvider implementation="se.rimmer.yana.YanaCodeStyleSettingsProvider"/>
-        <backspaceHandlerDelegate implementation="se.rimmer.yana.YanaBackspaceHandler"/>
+        <backspaceHandlerDelegate order="first" implementation="se.rimmer.yana.YanaBackspaceHandler"/>
 
         <!--
           And Enter opens a level under a header that asked for one. There is no formatter to

@@ -1126,7 +1126,14 @@ bool Resolver::resolveTuplePattern(Builder& builder, ast::Pat& pat, Place& pivot
 bool Resolver::resolveConstructorPattern(Builder& builder, ast::Pat& pat, Place& pivot,
                                          SmallArray<PatternBinding, 4>& into, Block* onFail,
                                          Carry& carry) {
+    if(isCursorSentinel(context, pat.con.name)) {
+        capturePatternCompletion(pivot.occurrence.type);
+        return false;
+    }
+
     auto found = mir::findConstructor(context, program, here(), pat.con.name, pat.source);
+    if(found) recordReference(context, pat.source, constructorSymbol(decl(), found));
+
     if(!found) {
         context.diagnostics.error("unknown constructor %@"_v, pat.source,
                                   context.findName(pat.con.name));
@@ -1243,7 +1250,7 @@ void Resolver::bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>
         auto place = builder.localPlace(*local);
         builder.addWrite(binding.source, *place, *value, Destination::Init);
 
-        if(binding.name != StringId()) bindings.push(Binding { binding.name, local });
+        if(binding.name != StringId()) bindLocal(binding.name, local);
     }
 }
 
@@ -1442,11 +1449,14 @@ bool Resolver::resolveBinding(Builder& builder, const ast::VarDecl& binding, Pla
             // list produces a value, and `resolveStatement` takes the expression by reference.
             auto arm = alternatives[i];
             auto errors = context.diagnostics.errorCount();
+            auto placeholders = parseErrors;
             resolveStatement(builder, arm.expr);
 
             // An alternative that failed to resolve did not leave the block either, and saying so as
-            // well would repeat the first report in weaker words.
-            if(!departed(builder) && errors == context.diagnostics.errorCount()) {
+            // well would repeat the first report in weaker words - which is also true of one the
+            // parser left a placeholder in, whose report is the parser's.
+            if(!departed(builder) && errors == context.diagnostics.errorCount() &&
+               placeholders == parseErrors) {
                 context.diagnostics.error(
                     "an alternative of a declaration has to leave the block - return, break, or continue"_v,
                     arm.expr.source);
@@ -2352,8 +2362,15 @@ Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
                              Request wanted) {
     auto& written = *parse[expr.match];
 
+    /*
+     * No alternatives, which the grammar produces only where the parser has already said so: this is
+     * a `match` being typed, with its pivot written and nothing under it yet. So it is a placeholder
+     * like any other - see `parseErrors` - and the pivot is still resolved in an editor's compile,
+     * since it is what the author is asking about while the alternatives are written.
+     */
     if(!written.alts.size()) {
-        context.diagnostics.error("a match needs at least one alternative"_v, expr.source);
+        parseErrors++;
+        if(recording(context)) resolvePlace(builder, written.pivot, false);
         return nullptr;
     }
 

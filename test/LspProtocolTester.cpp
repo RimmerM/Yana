@@ -325,16 +325,17 @@ static void writeScenarios(Net::Writer& writer, const String& root, const String
      * response - four whole-file requests and one position request, which are the two shapes the
      * server has to route.
      *
-     * `retains` is here because it is the one function in this file with something surprising to
-     * say, and an inlay hint answer with nothing in it would assert nothing about M9.
+     * `keep` is here because it is the one function in this file with something surprising to say -
+     * a local placed on the heap - and an inlay hint answer with nothing in it would assert nothing
+     * about M9.
      */
     auto withHints = String("data Pair {left: Int, right: Int}\\n"
-                            "fn keep(&slot: Pair, ->with: Pair) -> Int:\\n"
-                            "    slot = with\\n"
+                            "fn keep(with: Pair) -> Int:\\n"
+                            "    let @heap &slot = with\\n"
                             "    return slot.left\\n"
                             "fn main() -> Int:\\n"
                             "    let &p = Pair {left: 1, right: 2}\\n"
-                            "    return keep(p, Pair {left: 3, right: 4})\\n");
+                            "    return keep(p)\\n");
 
     runScenario(writer, "hints, highlights, symbols and folding"_v, [&](MemoryTransport& t) {
         t.send(stringView(initializeMessage(root)));

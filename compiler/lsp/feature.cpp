@@ -1,8 +1,14 @@
 #include "feature.h"
-#include "../resolve/name.h"
+#include "../resolve_mir/name.h"
 #include "../util/lexer_util.h"
 
 namespace lsp {
+
+using DeclFunction = DeclPtr<mir::Function>;
+
+static void appendText(StringBuilder& into, const String& text) {
+    into.append(text.text(), text.size());
+}
 
 /*
  * Locations.
@@ -112,16 +118,19 @@ void writeDefinition(Net::JsonWriter& json, Session& session, LocationWriter& lo
         return;
     }
 
-    if(symbol->kind == Symbol::Kind::Module || symbol->kind == Symbol::Kind::Import) {
-        if(symbol->module && locations.writeModuleLocation(json, symbol->module->name)) return;
+    if(symbol->kind == Symbol::Kind::Module) {
+        if(symbol->module && session.program &&
+           locations.writeModuleLocation(json, (*session.program->decl)[symbol->module]->name)) {
+            return;
+        }
 
         json.null();
         return;
     }
 
     if(symbol->definition == kNullLocation || !locations.writeLocation(json, symbol->definition)) {
-        // Everything in Core and Native, which are compiled into the compiler. Answering null says
-        // "there is nowhere to go", which is true, rather than pointing at an unrelated file.
+        // A declaration the compiler made rather than read. Answering null says "there is nowhere to
+        // go", which is true, rather than pointing at an unrelated file.
         json.null();
     }
 }
@@ -129,24 +138,23 @@ void writeDefinition(Net::JsonWriter& json, Session& session, LocationWriter& lo
 /*
  * Type definition - §6's `typeDefinition` row.
  *
- * A different question from `definition`, which is what it was answered with before: "go to the
- * declaration of the *type* of what is under the cursor" rather than of the thing itself. On a
- * local `p: Point` the first lands on `data Point` and the second on the `let` that bound it, and
- * an editor offers both because both are wanted.
+ * A different question from `definition`: "go to the declaration of the *type* of what is under the
+ * cursor" rather than of the thing itself. On a local `p: Point` the first lands on `data Point` and
+ * the second on the `let` that bound it, and an editor offers both because both are wanted.
  *
  * The type at the occurrence is what the semantic index already recorded, and `typeSymbol` is what
- * turns an instantiation back into the declaration it was made from - `Maybe(Int)` jumps to
- * `Maybe`, which is where the source text is.
+ * turns an instantiation back into the declaration it was made from - `Maybe(Int)` jumps to `Maybe`,
+ * which is where the source text is.
  */
 void writeTypeDefinition(Net::JsonWriter& json, Session& session, LocationWriter& locations,
                          StringId module, U32 offset) {
     auto reference = session.referenceAt(module, offset);
-    if(!reference || !reference->type || !reference->target.module) {
+    if(!reference || !reference->type || !session.program) {
         json.null();
         return;
     }
 
-    auto symbol = typeSymbol(*reference->target.module, reference->type);
+    auto symbol = mir::typeSymbol(*session.program->decl, reference->type);
     if(symbol.definition == kNullLocation || !locations.writeLocation(json, symbol.definition)) {
         json.null();
     }
@@ -280,7 +288,7 @@ void writeDocumentSymbols(Net::JsonWriter& json, Session& session, LocationWrite
                           StringId module) {
     json.startArray();
 
-    if(!session.index || !session.context) {
+    if(!session.index || !session.context || !session.program) {
         json.endArray();
         return;
     }
@@ -288,11 +296,10 @@ void writeDocumentSymbols(Net::JsonWriter& json, Session& session, LocationWrite
     auto& context = *session.context;
 
     /*
-     * Out of the semantic index's definitions rather than out of the module's declaration tables,
-     * which is what §6 named as the source.
+     * Out of the semantic index's definitions rather than out of the module's declaration tables.
      *
      * They are the same set for everything a file declares, and the index has the two things the
-     * tables do not: one entry per *written* declaration - a class function is recorded where it was
+     * tables do not: one entry per *written* declaration - a class member is recorded where it was
      * declared rather than once per instance that implements it - and the location already resolved
      * to the file it was written in. What the tables would add is an order, and the order a hash map
      * is walked in is not one, so it is sorted here by where each declaration starts.
@@ -344,7 +351,7 @@ void writeDocumentSymbols(Net::JsonWriter& json, Session& session, LocationWrite
         json.field("name"_v).value(context.findName(symbol.name));
 
         StringBuilder detail;
-        describeSymbol(context, symbol, nullptr, detail);
+        mir::describeSymbol(context, *session.program, symbol, nullptr, detail);
         if(detail.size()) json.field("detail"_v).value(detail.view());
 
         json.field("kind"_v).value(documentSymbolKind(symbol.kind));
@@ -433,83 +440,84 @@ void writeFoldingRanges(Net::JsonWriter& json, StringView text, const LineTable&
  * Hover.
  */
 
-// The specializations a generic function was cloned for - §1.3's answer to "which type does hover
+// The argument lists a generic function was specialized at - §1.3's answer to "which type does hover
 // show inside a generic body". The generic type, plus what it was instantiated at, so the answer is
 // neither a lie nor useless.
-static void describeSpecializations(Context& context, Module& module, Function& function,
+static void describeSpecializations(Context& context, mir::Program& program, DeclFunction pointer,
                                     StringBuilder& into) {
-    auto global = *module.types;
-    auto local = *module.arena;
-    if(!function.gen || function.specializations.isEmpty()) return;
-
-    into << "\nspecialized at: ";
+    auto base = *program.decl;
+    if(!mir::isGeneric(base, base[pointer]->gen)) return;
 
     auto first = true;
-    for(auto pointer: function.specializations.contents(local)) {
-        auto specialization = local[pointer];
-        if(!first) into << "; ";
-        first = false;
 
-        auto firstArg = true;
-        for(auto type: specialization->genericArgs.contents(local)) {
-            if(!firstArg) into << ", ";
-            firstArg = false;
-            describeType(context, global, type, into);
+    for(auto module: program.modules) {
+        for(auto candidate: base[module]->functions.contents(base)) {
+            auto& clone = *base[candidate];
+            if(clone.specializes != pointer) continue;
+
+            into << (first ? "\nspecialized at: " : "; ");
+            first = false;
+
+            auto firstArgument = true;
+            for(auto type: clone.typeArguments.contents(base)) {
+                if(!firstArgument) into << ", ";
+                firstArgument = false;
+                appendText(into, mir::typeText(context, base, type));
+            }
         }
     }
 }
 
 void describeAt(Session& session, StringId module, U32 offset, StringBuilder& into) {
-    if(!session.context) return;
+    if(!session.context || !session.program) return;
 
     auto& context = *session.context;
+    auto& program = *session.program;
+    auto base = *program.decl;
+
     auto reference = session.referenceAt(module, offset);
     auto symbol = reference ? &reference->target : session.definitionAt(module, offset);
     if(!symbol) return;
 
-    describeSymbol(context, *symbol, reference ? reference->type : nullptr, into);
+    mir::describeSymbol(context, program, *symbol, reference ? reference->type : nullptr, into);
 
     // Against the module the file belongs to, not against the file - see Session::moduleOf. A
     // grouped module's files would otherwise each read as "from" their own module.
-    if(symbol->module && symbol->module->name != session.moduleOf(module)) {
+    if(symbol->module && base[symbol->module]->name != session.moduleOf(module)) {
         into << "\n-- from ";
-        into << context.findName(symbol->module->name);
+        into << context.findName(base[symbol->module]->name);
     }
 
-    // Which instance served this call, which is the question a class function's signature does not
-    // answer and the reason §1.2 records the selection rather than the candidate set.
-    if(reference && reference->instance && symbol->module) {
-        auto local = *symbol->module->arena;
-        auto global = *symbol->module->types;
-        auto instance = local[reference->instance];
+    // Which instance served this call, which is the question a class member's signature does not
+    // answer and the reason the index records the selection rather than the candidate set.
+    if(reference && reference->instance) {
+        auto& instance = *base[reference->instance];
 
         into << "\n-- instance ";
-        into << context.findName(global[instance->typeClass]->name);
+        into << context.findName(base[instance.klass]->name);
         into << "(";
 
         auto first = true;
-        for(auto type: instance->forTypes.contents(local)) {
+        for(auto type: instance.args.contents(base)) {
             if(!first) into << ", ";
             first = false;
-            describeType(context, global, type, into);
+            appendText(into, mir::typeText(context, base, type));
         }
 
         into << ")";
     }
 
-    if(symbol->kind == Symbol::Kind::Function && symbol->module) {
-        describeSpecializations(context, *symbol->module,
-                                *(*symbol->module->arena)[ModulePtr<Function>(symbol->payload)], into);
+    if(symbol->kind == Symbol::Kind::Function) {
+        describeSpecializations(context, program, DeclFunction(symbol->payload), into);
     }
 }
 
 /*
  * The `explain` section of a hover - Implementation-Tooling.md M9, §7.2.
  *
- * The record and the printer both exist; this is the caller §7 says was missing. What it adds is
- * the five inferred properties that are invisible in the source - storage, mutation demand,
- * retention, the return root, and how the function is reached - and only where one of them is
- * *surprising*, which is `printExplanationHover`'s own filter rather than a second one here.
+ * What it adds is the properties that are invisible in the source - suspension, placement, what an
+ * argument escapes into, how the function is reached - and only where one of them is *surprising*,
+ * which is `printExplanationHover`'s own filter rather than a second one here.
  *
  * A function only, because that is what an explanation is about. A cursor on a call gets the
  * callee's, which is the useful direction: what this call is about to cost is a property of the
@@ -520,13 +528,14 @@ bool explainAt(Session& session, StringId module, U32 offset, StringBuilder& int
 
     auto reference = session.referenceAt(module, offset);
     auto symbol = reference ? &reference->target : session.definitionAt(module, offset);
-    if(!symbol || symbol->kind != Symbol::Kind::Function || !symbol->module) return false;
+    // A class member too, which has a body to explain where it declares a default - a member with
+    // none has nothing summarized, and the hover's own filter then says nothing.
+    if(!symbol) return false;
+    if(symbol->kind != Symbol::Kind::Function && symbol->kind != Symbol::Kind::ClassFun) return false;
 
-    auto function = (*symbol->module->arena)[ModulePtr<Function>(symbol->payload)];
-    if(!function) return false;
-
-    auto explanation = explainFunction(*session.program, *function, session.callSites());
-    return printExplanationHover(into, *session.context, *session.program, explanation);
+    auto explanation = mir::explainFunction(*session.program, DeclFunction(symbol->payload),
+                                            session.callSites());
+    return mir::printExplanationHover(into, *session.context, *session.program, explanation);
 }
 
 void writeHover(Net::JsonWriter& json, Session& session, LocationWriter& locations,
@@ -586,6 +595,7 @@ void writeInlayHints(Net::JsonWriter& json, Session& session, StringId module, S
     }
 
     auto& context = *session.context;
+    auto& program = *session.program;
 
     // The end of the line a declaration starts on, which is where a hint about the whole
     // declaration belongs: a signature's own range ends before the `=` of a one-line body, and a
@@ -614,25 +624,23 @@ void writeInlayHints(Net::JsonWriter& json, Session& session, StringId module, S
         StringBuilder label;
         U32 at = 0;
 
-        if(symbol.kind == Symbol::Kind::Function && symbol.module) {
-            auto function = (*symbol.module->arena)[ModulePtr<Function>(symbol.payload)];
-            if(!function) continue;
-
-            auto explanation = explainFunction(*session.program, *function, session.callSites());
-            auto summary = explanationSummary(context, *session.program, explanation);
+        if(symbol.kind == Symbol::Kind::Function || symbol.kind == Symbol::Kind::ClassFun) {
+            auto explanation = mir::explainFunction(program, DeclFunction(symbol.payload),
+                                                    session.callSites());
+            auto summary = mir::explanationSummary(context, program, explanation);
             if(summary.size() == 0) continue;
 
             label << "-- " << stringView(summary);
             at = endOfLine(start);
-        } else if(symbol.kind == Symbol::Kind::Local && symbol.module) {
-            // The type comes off the occurrence recorded at the declaration rather than off the
-            // slot: an immutable binding names an SSA value and has no slot to read one from.
+        } else if(symbol.kind == Symbol::Kind::Local) {
+            // The type comes off the occurrence recorded at the declaration, which is where the index
+            // wrote down what the binding came out as.
             auto declaration = session.index->findReference(symbol.definition);
             if(!declaration || !declaration->type || !symbol.name) continue;
 
             /*
              * Only where the author did not write the type. Whether they did is a question about
-             * the text rather than about the slot - a written type and an inferred one produce the
+             * the text rather than about the binding - a written type and an inferred one produce the
              * same `Local` - so the answer is the next thing after the name, which is a `:` exactly
              * when one was written.
              */
@@ -641,7 +649,7 @@ void writeInlayHints(Net::JsonWriter& json, Session& session, StringId module, S
             if(after < text.length && text.ptr[after] == ':') continue;
 
             label << ": ";
-            describeType(context, *symbol.module->types, declaration->type, label);
+            appendText(label, mir::typeText(context, *program.decl, declaration->type));
             at = end;
         } else {
             continue;
@@ -691,8 +699,7 @@ U32 completionItemKind(Symbol::Kind kind) {
         case Symbol::Kind::Class: return 8;      // Interface
         case Symbol::Kind::Field: return 5;      // Field
         case Symbol::Kind::TypeVar: return 25;   // TypeParameter
-        case Symbol::Kind::Module:
-        case Symbol::Kind::Import: return 9;     // Module
+        case Symbol::Kind::Module: return 9;     // Module
         default: return 6;                       // Variable - the three local kinds and a global
     }
 }
@@ -714,21 +721,6 @@ static bool startsWith(StringView name, StringView prefix) {
 }
 
 /*
- * What selecting an item actually types.
- *
- * A name on its own is only ever half of what the author meant: choosing a function is choosing to
- * call it, and choosing a constructor is choosing to build one. So an item that takes arguments
- * inserts its brackets and puts the caret in the first of them, which is the difference between
- * completion finishing a thought and completion saving four keystrokes.
- *
- * As a snippet where the client accepts one - `f(${1:a}, ${2:b})` - so the caret lands on the first
- * argument and Tab walks the rest. A client that declined `snippetSupport` gets the bare name for
- * anything with arguments, rather than the placeholder syntax as literal text: the fallback has to
- * be worse, not wrong.
- *
- * Returns true when what it wrote is a snippet.
- */
-/*
  * What the document around the caret says about what may be inserted.
  *
  * Every one of these is a question about the text rather than about the item: whether the brackets
@@ -749,15 +741,26 @@ struct InsertSite {
     bool naming = false;
 };
 
-static bool writeInsertText(Context& context, const Symbol& symbol, const String& label,
-                            const InsertSite& site, StringBuilder& into) {
+/*
+ * What selecting an item actually types.
+ *
+ * A name on its own is only ever half of what the author meant: choosing a function is choosing to
+ * call it, and choosing a constructor is choosing to build one. So an item that takes arguments
+ * inserts its brackets and puts the caret in the first of them, which is the difference between
+ * completion finishing a thought and completion saving four keystrokes.
+ *
+ * As a snippet where the client accepts one - `f(${1:a}, ${2:b})` - so the caret lands on the first
+ * argument and Tab walks the rest. A client that declined `snippetSupport` gets the bare name for
+ * anything with arguments, rather than the placeholder syntax as literal text: the fallback has to
+ * be worse, not wrong.
+ *
+ * Returns true when what it wrote is a snippet.
+ */
+static bool writeInsertText(Context& context, mir::Program& program, const Symbol& symbol,
+                            const String& label, const InsertSite& site, StringBuilder& into) {
     into << label;
 
-    auto module = symbol.module;
-    if(!module) return false;
-
-    auto global = *module->types;
-    auto local = *module->arena;
+    auto base = *program.decl;
     auto snippets = site.snippets;
 
     /*
@@ -793,21 +796,15 @@ static bool writeInsertText(Context& context, const Symbol& symbol, const String
     };
 
     /*
-     * A function, and the class functions that are called exactly like one.
+     * A function, and the class members that are called exactly like one.
      */
     if(symbol.kind == Symbol::Kind::Function || symbol.kind == Symbol::Kind::ClassFun) {
-        Function* function = nullptr;
+        auto& function = *base[DeclFunction(symbol.payload)];
 
-        if(symbol.kind == Symbol::Kind::Function) {
-            function = local[ModulePtr<Function>(symbol.payload)];
-        } else {
-            auto typeClass = global[GlobalPtr<TypeClass>(symbol.payload)];
-            if(symbol.index >= typeClass->functions.size()) return false;
-
-            auto entry = typeClass->functions.get(global, symbol.index);
-            if(!entry.fun) return false;
-
-            function = local[entry.fun];
+        // The positions a call writes - a lens's continuation and a closure's environment are not.
+        SmallArray<U32, 8> positions;
+        for(U32 i = 0; i < U32(function.args.size()); i++) {
+            if(function.writesArg(i)) positions.push(i);
         }
 
         /*
@@ -819,8 +816,8 @@ static bool writeInsertText(Context& context, const Symbol& symbol, const String
          * cannot be dropped from a positional call, since what follows it would move up a place, and
          * skipping one is what a named argument is for rather than what a snippet should assume.
          */
-        auto written = function->args.size();
-        while(written && local[function->args.get(local, written - 1)]->hasDefault()) written--;
+        auto written = positions.size();
+        while(written && base[function.args.get(base, positions[written - 1])]->omittable()) written--;
 
         // A call with nothing to write is finished by the empty brackets, so it needs no snippet -
         // and a client without snippet support gets the same text, which is why this is ahead of the
@@ -835,7 +832,7 @@ static bool writeInsertText(Context& context, const Symbol& symbol, const String
         into << "(";
         for(Size i = 0; i < written; i++) {
             if(index) into << ", ";
-            placeholder(local[function->args.get(local, i)]->name);
+            placeholder(base[function.args.get(base, positions[i])]->name);
         }
 
         into << ")";
@@ -844,80 +841,51 @@ static bool writeInsertText(Context& context, const Symbol& symbol, const String
 
     /*
      * A constructor, whose brackets say which of the two forms it was declared in - `Just(x)` for a
-     * payload the declaration did not name, and `Square {side: x}` for one it did. `Nothing` carries
-     * nothing and is complete as it stands.
+     * payload the declaration did not name, and `Square {side: x}` for one it did. A constructor
+     * that carries nothing is complete as it stands.
      */
     if(symbol.kind == Symbol::Kind::Constructor) {
-        auto record = global[GlobalPtr<RecordType>(symbol.payload)];
-        if(symbol.index >= record->constructors.size()) return false;
+        auto& record = *base[DeclPtr<mir::RecordType>(symbol.payload)];
+        if(symbol.index >= record.cons.size()) return false;
 
-        // `Nothing` is complete as it stands. Its payload is not absent but *empty* - Core writes it
-        // as `Maybe.Nothing(())` - so the test is unit rather than null, and a constructor whose
-        // payload carries nothing takes no brackets.
-        auto content = record->constructors.get(global, symbol.index).content;
-        if(!content || isUnit(global, content)) return false;
+        auto arm = record.cons.get(base, symbol.index);
+        if(!arm.count || !snippets) return false;
 
-        if(!snippets) return false;
-
-        if(global[content]->kind != Type::Tup) {
+        if(arm.count == 1 && record.field(base, arm.first).anonymous) {
             into << "(";
             placeholder(StringId());
             into << ")";
             return true;
         }
 
-        auto tuple = (TupType*)global[content];
-        if(tuple->fields.size() == 0) return false;
-
         /*
          * Which fields have to be written, which is the same question a call asks of its arguments.
          *
          * A field with a declared default is not one of them: `Square {}` is a complete expression
-         * when every field has one, and a placeholder for a field the author did not have to
-         * mention is one they have to delete. The defaults are read from the *declaration* rather
-         * than from this record, which may be an instantiation of it - the same reason
-         * resolveConstruct gives, and the same `base()` it goes through.
+         * when every field has one, and a placeholder for a field the author did not have to mention
+         * is one they have to delete.
          */
-        auto declaration = (RecordType*)global[record->base(global)];
-        auto defaults = symbol.index < declaration->constructors.size()
-                      ? declaration->constructors.get(global, symbol.index).defaults
-                      : GlobalList<FieldDefault>();
-
-        auto defaulted = [&](U16 field) {
-            for(auto entry: defaults.contents(global)) {
-                if(entry.field == field) return true;
-            }
-
-            return false;
-        };
-
         U32 required = 0;
-        for(Size i = 0; i < tuple->fields.size(); i++) required += defaulted(U16(i)) ? 0 : 1;
+        for(U16 i = 0; i < arm.count; i++) {
+            if(!record.field(base, U16(arm.first + i)).def.isSet()) required++;
+        }
 
         // Nothing left to write: every field carries its own value, so the name alone is the whole
         // expression and brackets would only be something to fill in or remove.
         if(required == 0) return false;
 
-        // Named fields are written as a record and positional ones as arguments, which is the same
-        // distinction the parser makes after a ConID.
-        auto named = tuple->fields.get(global, 0).name != 0;
-        into << (named ? " {" : "(");
+        into << " {";
 
-        for(Size i = 0; i < tuple->fields.size(); i++) {
-            auto field = tuple->fields.get(global, i);
-
-            // A positional payload has no name to write, so a defaulted field in the middle of one
-            // cannot be skipped - what follows it would move up a place. Only the named form, where
-            // every value says which field it is.
-            if(named && defaulted(U16(i))) continue;
+        for(U16 i = 0; i < arm.count; i++) {
+            auto field = record.field(base, U16(arm.first + i));
+            if(field.def.isSet()) continue;
 
             if(index) into << ", ";
-
-            if(named) into << context.findName(field.name) << ": ";
-            placeholder(named ? StringId(0) : field.name);
+            into << context.findName(field.name) << ": ";
+            placeholder(StringId());
         }
 
-        into << (named ? "}" : ")");
+        into << "}";
         return true;
     }
 
@@ -982,11 +950,6 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
      * Two things follow. The filter is the last segment, because that is what the client's own word
      * definition will replace; and the label is the bare name rather than the qualified one, because
      * inserting the qualifier a second time is what would otherwise happen.
-     *
-     * What this does *not* do is narrow the answer to the module the qualifier names: everything
-     * visible is still offered, filtered by the segment. Narrowing needs the qualifier as a
-     * resolved module rather than as text, which is a question about the name the sentinel replaced
-     * and therefore something the parser would have to carry.
      */
     auto qualifierTyped = false;
     for(Size i = prefix.length; i > 0; i--) {
@@ -1050,15 +1013,16 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
     json.field("isIncomplete"_v).value(prefix.length != 0);
     json.field("items"_v).startArray();
 
-    // A compile always leaves a context behind, so this is a guard against a session that never
-    // opened rather than one against a failed compile.
-    if(!session.context) {
+    // A compile leaves a program behind wherever it found a root, so this is a guard against a
+    // session that never opened rather than one against a failed compile.
+    if(!session.context || !session.program) {
         json.endArray();
         json.endObject();
         return;
     }
 
     auto& context = *session.context;
+    auto& program = *session.program;
 
     for(auto& item: request.items) {
         auto& identifier = context.find(item.symbol.name);
@@ -1073,7 +1037,7 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
         label << name;
 
         StringBuilder detail;
-        describeSymbol(context, item.symbol, item.type, detail);
+        mir::describeSymbol(context, program, item.symbol, item.type, detail);
 
         json.arrayField().startObject();
         json.field("label"_v).value(label.view());
@@ -1087,7 +1051,7 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
 
         StringBuilder insert;
         auto isSnippet = !alreadyCalled &&
-                         writeInsertText(context, item.symbol, label.view(), itemSite, insert);
+                         writeInsertText(context, program, item.symbol, label.string(), itemSite, insert);
 
         // Only when it differs from the label. An item whose insert text is its own name says
         // nothing by carrying one, and a client is entitled to show the two apart.
@@ -1131,7 +1095,7 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
  * The call the cursor is inside, read out of the document text.
  *
  * §8.5 found this through the position index - the innermost enclosing *node* whose text opens a
- * bracket still unclosed at the cursor - on the grounds that `parseChain` builds the `App` whether
+ * bracket still unclosed at the cursor - on the grounds that the parser builds the `App` whether
  * or not the closing bracket arrived. That is true of a call whose arguments are written and false
  * of the one an editor is actually asked about: `pick(` at the end of a line is where the overlay
  * has to appear, and there is no node covering the cursor there at all, because the bracket M7's
@@ -1284,10 +1248,11 @@ static bool calleeName(StringView text, const EnclosingCall& call, StringView& i
 
 // One candidate, written as the protocol's SignatureInformation. The label is `describeSymbol`'s,
 // so a signature shown here and the same one shown by hover are one string built once.
-static void writeSignature(Net::JsonWriter& json, Context& context, const Symbol& symbol) {
+static void writeSignature(Net::JsonWriter& json, Context& context, mir::Program& program,
+                           const Symbol& symbol) {
     StringBuilder label;
-    Array<SignatureParameter> parameters;
-    describeSymbol(context, symbol, nullptr, label, &parameters);
+    Array<mir::SignatureParameter> parameters;
+    mir::describeSymbol(context, program, symbol, nullptr, label, &parameters);
 
     json.arrayField().startObject();
     json.field("label"_v).value(label.view());
@@ -1309,23 +1274,16 @@ static void writeSignature(Net::JsonWriter& json, Context& context, const Symbol
     json.endObject();
 }
 
-// How many parameters a candidate declares, so that the one the written call could still fit is the
-// one shown first.
-static Size parameterCount(Context& context, const Symbol& symbol) {
+// The parameters a candidate declares, as signature help numbers them.
+static void parametersOf(Context& context, mir::Program& program, const Symbol& symbol,
+                         Array<mir::SignatureParameter>& into) {
     StringBuilder label;
-    Array<SignatureParameter> parameters;
-    describeSymbol(context, symbol, nullptr, label, &parameters);
-
-    return parameters.size();
+    mir::describeSymbol(context, program, symbol, nullptr, label, &into);
 }
 
 // Which parameter of a candidate a name reaches, or the count where none does - which is what makes
 // "no such parameter" sort a candidate after the ones that have it.
-static Size parameterNamed(Context& context, const Symbol& symbol, StringId name) {
-    StringBuilder label;
-    Array<SignatureParameter> parameters;
-    describeSymbol(context, symbol, nullptr, label, &parameters);
-
+static Size parameterNamed(const Array<mir::SignatureParameter>& parameters, StringId name) {
     for(Size i = 0; i < parameters.size(); i++) {
         if(parameters[i].name == name) return i;
     }
@@ -1366,17 +1324,31 @@ static StringId writtenArgumentName(Context& context, StringView text, U32 from,
     return context.addUnqualifiedName(text.ptr + start, end - start);
 }
 
+/*
+ * How many arguments signature help asks the overload table about.
+ *
+ * A name is keyed by `(name, arity)`, and the call being typed is exactly the one whose arity is not
+ * known yet - so every arity a declaration could have is asked. A candidate reached at several, which
+ * is what a defaulted parameter makes, is still one candidate.
+ */
+static constexpr U32 kMaxSignatureArity = 16;
+
 void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module, U32 offset,
                         StringView text) {
     auto program = session.program.get();
-    Module* owner = program ? program->findModule(session.moduleOf(module)) : nullptr;
-
-    if(!owner || !session.context) {
+    if(!program || !session.context) {
         json.null();
         return;
     }
 
     auto& context = *session.context;
+    auto base = *program->decl;
+
+    auto owner = program->findModule(session.moduleOf(module));
+    if(!owner) {
+        json.null();
+        return;
+    }
 
     Array<EnclosingCall> open;
     findOpenBrackets(text, offset, open);
@@ -1387,11 +1359,11 @@ void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module
     /*
      * The overload set, through the compiler's own lookup.
      *
-     * `findFunction`, `findClassFunctions` and `findConstructor` are what a call site asks, so what
-     * is shown is what the call would select from rather than a second opinion about visibility -
-     * §8.1's argument for `forEachVisible`, applied to one name instead of all of them.
-     * `kNullLocation` keeps the lookup out of the semantic index: this is a question about the
-     * program, not an occurrence in it.
+     * `findOverloads` and `findConstructor` are what a call site asks, so what is shown is what the
+     * call would select from rather than a second opinion about visibility. The lookup is made from
+     * the file the request is about, because an import is scoped to the file that wrote it; and a
+     * lookup that reports reports into the compile's own diagnostics, which is not a place for a
+     * question about a position to leave anything behind.
      *
      * Innermost first and outwards until something answers, for the same reason `referenceAt` walks
      * outwards: the bracket the caret is in is often not one anything is named in front of - a bare
@@ -1399,6 +1371,15 @@ void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module
      * call it is an argument of. A subscript is skipped rather than looked up, since the name in
      * front of one is an array and not a callee.
      */
+    auto& declared = *base[owner];
+    auto savedFile = declared.activeFile;
+
+    for(U16 i = 0; i < U16(declared.files.size()); i++) {
+        if(declared.files.get(base, i) == module) declared.activeFile = i;
+    }
+
+    auto reported = session.diagnostics.messages.size();
+
     for(Size i = open.size(); i > 0 && candidates.size() == 0; i--) {
         auto& candidate = open[i - 1];
         StringView name;
@@ -1410,28 +1391,34 @@ void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module
                 ? context.addQualifiedName(name.ptr, name.length)
                 : context.addUnqualifiedName(name.ptr, name.length);
 
-        if(auto function = findFunction(*owner, id, kNullLocation)) {
-            candidates.push(functionSymbol(*owner, function));
-        }
+        for(U32 arity = 0; arity <= kMaxSignatureArity; arity++) {
+            mir::OverloadSet set;
+            mir::findOverloads(context, *program, owner, id, arity, kNullLocation, set, false);
 
-        ClassFunList overloads;
-        findClassFunctions(*owner, id, kNullLocation, overloads);
-        for(auto& overload: overloads) {
-            candidates.push(classFunSymbol(*owner, overload.typeClass, overload.index));
+            for(Size s = 0; s < set.size(); s++) {
+                auto symbol = mir::functionSymbol(base, set.at(s));
+
+                auto seen = false;
+                for(auto& existing: candidates) seen = seen || existing.payload == symbol.payload;
+                if(!seen) candidates.push(symbol);
+            }
         }
 
         /*
          * A constructor, which is the other thing written with brackets and arguments in front of a
-         * caret - `Square {side: 3}` and `Just(x)`. §8.5 left it out and there is no reason for it
-         * to be: what a record's fields are is exactly what somebody halfway through writing one
-         * wants, and it is the same question about the same brackets.
+         * caret - `Square {side: 3}` and `Just(x)`. What a record's fields are is exactly what
+         * somebody halfway through writing one wants, and it is the same question about the same
+         * brackets.
          */
-        if(auto constructor = findConstructor(*owner, id, kNullLocation)) {
-            candidates.push(constructorSymbol(*owner, constructor.unwrap()));
+        if(auto constructor = mir::findConstructor(context, *program, owner, id, kNullLocation)) {
+            candidates.push(mir::constructorSymbol(base, constructor));
         }
 
         call = candidate;
     }
+
+    while(session.diagnostics.messages.size() > reported) session.diagnostics.messages.pop();
+    declared.activeFile = savedFile;
 
     if(candidates.size() == 0) {
         json.null();
@@ -1450,9 +1437,11 @@ void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module
     U32 active = 0;
 
     for(U32 i = 0; i < candidates.size(); i++) {
-        auto count = parameterCount(context, candidates[i]);
-        auto fits = written ? parameterNamed(context, candidates[i], written) < count
-                            : count > call.argument;
+        Array<mir::SignatureParameter> parameters;
+        parametersOf(context, *program, candidates[i], parameters);
+
+        auto fits = written ? parameterNamed(parameters, written) < parameters.size()
+                            : parameters.size() > call.argument;
 
         if(fits) { active = i; break; }
     }
@@ -1467,13 +1456,16 @@ void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module
     auto parameter = call.argument;
 
     if(written) {
-        auto named = parameterNamed(context, candidates[active], written);
-        if(named < parameterCount(context, candidates[active])) parameter = U32(named);
+        Array<mir::SignatureParameter> parameters;
+        parametersOf(context, *program, candidates[active], parameters);
+
+        auto named = parameterNamed(parameters, written);
+        if(named < parameters.size()) parameter = U32(named);
     }
 
     json.startObject();
     json.field("signatures"_v).startArray();
-    for(auto& candidate: candidates) writeSignature(json, context, candidate);
+    for(auto& candidate: candidates) writeSignature(json, context, *program, candidate);
     json.endArray();
 
     json.field("activeSignature"_v).value(active);
@@ -1540,59 +1532,67 @@ static TokenType tokenTypeOf(Symbol::Kind kind) {
         case Symbol::Kind::Capture: return TokenType::Variable;
         case Symbol::Kind::Field: return TokenType::Property;
         case Symbol::Kind::TypeVar: return TokenType::TypeParameter;
-        case Symbol::Kind::Module:
-        case Symbol::Kind::Import: return TokenType::Namespace;
+        case Symbol::Kind::Module: return TokenType::Namespace;
     }
 
     return TokenType::Variable;
 }
 
-// The ownership conventions and the storage decision, read off the slot the symbol names. This is
-// the half of §11's table that is a *modifier*: it says something about the binding rather than
+// Whether the object a binding holds went off the frame - the placement the ownership analysis
+// decided, read off the lineage the local names. False where the body did not survive, which is the
+// answer the analysis would also have had nothing to say about.
+static bool heapPlaced(mir::Program& program, const Symbol& symbol) {
+    auto local = mir::symbolLocal(program, symbol);
+    if(!local || !symbol.function) return false;
+
+    auto& function = *(*program.decl)[symbol.function];
+    if(!function.mir) return false;
+
+    auto base = *program.mir;
+    return mir::storageOf(base, *base[function.mir], *local) == mir::StorageClass::Heap;
+}
+
+// The ownership conventions and the storage decision, read off the declaration the symbol names. This
+// is the half of §11's table that is a *modifier*: it says something about the binding rather than
 // replacing what the binding is.
-static U32 tokenModifiersOf(const Symbol& symbol) {
+static U32 tokenModifiersOf(mir::Program& program, const Symbol& symbol) {
+    auto base = *program.decl;
     U32 modifiers = 0;
 
     switch(symbol.kind) {
         case Symbol::Kind::Global: {
             modifiers |= U32(TokenModifier::Static);
-            if(symbol.module) {
-                auto global_ = (*symbol.module->arena)[ModulePtr<Global>(symbol.payload)];
-                if(!global_->mut) modifiers |= U32(TokenModifier::Readonly);
+            if(!base[DeclPtr<mir::Global>(symbol.payload)]->writable) {
+                modifiers |= U32(TokenModifier::Readonly);
             }
 
             return modifiers;
         }
         case Symbol::Kind::Arg: {
-            if(!symbol.module || !symbol.function) return modifiers;
+            auto local = mir::symbolLocal(program, symbol);
+            if(!local || !local->isParameter() || !symbol.function) return modifiers;
 
-            auto local = *symbol.module->arena;
-            auto function = local[symbol.function];
-            if(symbol.payload >= function->args.size()) return modifiers;
+            auto& function = *base[symbol.function];
+            if(local->parameter >= function.args.size()) return modifiers;
 
-            auto arg = local[function->args.get(local, symbol.payload)];
-            if(arg->convention == ast::BindType::Ref) modifiers |= U32(TokenModifier::Borrowed);
-            else if(arg->convention == ast::BindType::Sink) modifiers |= U32(TokenModifier::Sunk);
+            auto access = base[function.args.get(base, local->parameter)]->occurrence.contract.access();
+            if(access == mir::Access::Unique) modifiers |= U32(TokenModifier::Borrowed);
+            else if(access == mir::Access::Owned) modifiers |= U32(TokenModifier::Sunk);
 
+            if(heapPlaced(program, symbol)) modifiers |= U32(TokenModifier::HeapPlaced);
             return modifiers;
         }
         case Symbol::Kind::Local: {
-            if(!symbol.module || !symbol.function) return modifiers;
-            if(symbol.payload == maxLimit<U32>) return modifiers;
+            auto local = mir::symbolLocal(program, symbol);
+            if(!local) return modifiers;
 
-            auto local = *symbol.module->arena;
-            auto function = local[symbol.function];
-            if(symbol.payload >= function->localCount()) return modifiers;
-
-            auto slot = function->localAt(local, symbol.payload);
-            if(slot.borrowed || slot.convention == ast::BindType::Ref) {
+            // `let &x`, and a binding holding a reference: both are storage written through a name.
+            if(local->writable || local->occurrence.contract.access() == mir::Access::Unique) {
                 modifiers |= U32(TokenModifier::Borrowed);
-            } else if(slot.convention == ast::BindType::Sink) {
-                modifiers |= U32(TokenModifier::Sunk);
             }
 
             // The `explain` cliff, inline. Off by default in any theme that has not asked for it.
-            if(slot.storage == StorageClass::Heap) modifiers |= U32(TokenModifier::HeapPlaced);
+            if(heapPlaced(program, symbol)) modifiers |= U32(TokenModifier::HeapPlaced);
             return modifiers;
         }
         case Symbol::Kind::Capture:
@@ -1605,12 +1605,12 @@ static U32 tokenModifiersOf(const Symbol& symbol) {
 /*
  * Whether a range covers exactly one written name.
  *
- * Not every recorded reference does. A lookup made while resolving a call is recorded against the
- * *call*, because that is the location the resolver had when it asked - and colouring a whole call
- * as its callee would paint over every argument in it. So a token is emitted only for a range that
- * is one lexeme: no whitespace, no bracket, no comma. That is a property of the text rather than a
- * flag anything has to remember to set, which is what makes it hold for recording sites that do not
- * know this exists.
+ * Not every recorded reference does. A lookup made while resolving a pattern is recorded against the
+ * whole pattern, because that is the location the resolver had when it asked - and colouring a whole
+ * pattern as its constructor would paint over every name bound inside it. So a token is emitted only
+ * for a range that is one lexeme: no whitespace, no bracket, no comma. That is a property of the text
+ * rather than a flag anything has to remember to set, which is what makes it hold for recording sites
+ * that do not know this exists.
  */
 static bool isOneLexeme(StringView text, U32 start, U32 end) {
     if(end <= start || end > text.length) return false;
@@ -1656,7 +1656,7 @@ void writeSemanticTokens(Net::JsonWriter& json, Session& session, StringId modul
                          StringView text, const LineTable& lines, bool utf16) {
     Array<SemanticToken> tokens;
 
-    if(session.index && session.context) {
+    if(session.index && session.context && session.program) {
         for(auto& reference: session.index->references) {
             auto location = session.context->getLocation(reference.source);
             if(!location || location->sourceModule != module) continue;
@@ -1672,7 +1672,7 @@ void writeSemanticTokens(Net::JsonWriter& json, Session& session, StringId modul
             token.character = utf16 ? lines.utf16Column(text, start) : start - lines.lineStart(token.line);
             token.length = utf16 ? lines.utf16Column(text, end) - token.character : end - start;
             token.type = U32(tokenTypeOf(reference.target.kind));
-            token.modifiers = tokenModifiersOf(reference.target);
+            token.modifiers = tokenModifiersOf(*session.program, reference.target);
 
             // A token the protocol cannot express: the range crossed a line break, which
             // `isOneLexeme` already rules out for anything but a line ending inside a name.

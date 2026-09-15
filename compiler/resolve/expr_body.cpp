@@ -9,10 +9,8 @@
 #include "expr.h"
 #include "inline.h"
 #include "test.h"
-#include "complete.h"
 #include "generic.h"
 #include "name.h"
-#include "index.h"
 #include "../intrinsic/role.h"
 
 /*
@@ -39,7 +37,6 @@ void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function
             // load from until the force has happened - see ExprResolver::force.
             binding.lazy = true;
             resolver.bindings.push(binding);
-            recordBindingDefinition(resolver, binding);
             continue;
         }
 
@@ -58,7 +55,6 @@ void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function
         }
 
         resolver.bindings.push(binding);
-        recordBindingDefinition(resolver, binding);
     }
 }
 

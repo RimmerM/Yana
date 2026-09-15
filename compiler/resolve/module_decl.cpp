@@ -14,7 +14,6 @@
 #include "expr.h"
 #include "generic.h"
 #include "host.h"
-#include "index.h"
 #include "name.h"
 #include "native.h"
 #include "verify.h"
@@ -409,7 +408,6 @@ static void declareConstructor(Module& module, RecordType& record, StringId name
     constructor.pinnedValue = pinned;
     record.constructors.push(module.types, constructor);
 
-    recordDefinition(module.context, constructorSymbol(module, ConstructorRef { &record - *module.types, U16(index) }));
     if(qualified) return;
 
     auto inserted = module.constructors.add(name);
@@ -485,8 +483,6 @@ void declareRecord(Module& module, ast::Decl& decl) {
     auto record = declareRecordType(module, decl.data.type, decl.data.constraints, decl.qualified, decl.exported,
                                     decl.source, claimsKnownRecordRole(module, decl, intrinsic::Known::string));
     if(!record) return;
-
-    recordDefinition(module.context, typeSymbol(module, (Type*)record - *module.types));
 
     // The `known.def` role this declaration claims, if any - `Program::knownRecords`. Here for the
     // reason the class one is in `declareClass`: what a role binds is a *declaration*.
@@ -931,7 +927,6 @@ void declareAlias(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poin
     if(variables.isNotEmpty()) alias.gen = prepareGenEnv(module, GenEnv::Alias, variables, {});
 
     *found.value = alias;
-    recordDefinition(module.context, aliasSymbol(module, alias));
 }
 
 /*
@@ -1650,7 +1645,6 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
         }
 
         auto global_ = module.addGlobal(declaration.pat.var, declaration.pat.source);
-        recordDefinition(module.context, globalSymbol(module, global_ - *module.arena));
         global_->type = constantType(*module.arena, constant);
         global_->initial = constant;
         global_->mut = declaration.bind == ast::BindType::Ref;

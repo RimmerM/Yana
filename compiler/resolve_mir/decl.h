@@ -232,6 +232,7 @@ struct ArgumentSet {
 
     bool has(U32 index) const { return (bits & bit(index)) != 0; }
     bool any() const { return bits != 0; }
+    bool single() const { return any() && (bits & (bits - 1)) == 0; }
 
     void add(U32 index) { bits |= bit(index); }
 
@@ -1340,6 +1341,17 @@ struct Function {
      */
     U32 writtenArity() {
         return U32(args.size()) - (continuationArg == kNoContinuation ? 0 : 1);
+    }
+
+    /*
+     * Whether position `i` is one a call site writes - every parameter but the continuation a lens's
+     * desugaring appended and the environment a lifted lambda takes first.
+     *
+     * What an editor shows as the signature, a completion offers as a parameter name and `explain`
+     * reports on, so that the three list one set of positions.
+     */
+    bool writesArg(U32 i) const {
+        return i != continuationArg && !(i == 0 && environment);
     }
 
     /*

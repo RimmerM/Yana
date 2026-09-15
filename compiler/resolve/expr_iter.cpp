@@ -12,7 +12,6 @@
 #include "generic.h"
 #include "name.h"
 #include "witness.h"
-#include "complete.h"
 
 /*
  * Which iterator a `for` loop names, or nothing after saying why this one cannot be named.

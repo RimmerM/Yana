@@ -9,7 +9,6 @@
 #include "generic.h"
 #include "module.h"
 #include "name.h"
-#include "index.h"
 
 void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder& target) {
     if(!type) {

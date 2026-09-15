@@ -6,7 +6,7 @@
 #include <cerrno>
 #include "../compiler/parse/parser.h"
 #include "../compiler/resolve/analyze.h"
-#include "../compiler/resolve/explain.h"
+#include "../compiler/resolve_mir/explain.h"
 #include "../compiler/resolve/lower.h"
 #include "../compiler/resolve/print.h"
 #include "../compiler/repr/repr_print.h"
@@ -1112,6 +1112,31 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
     auto pass = compareText(mirPath, mirWriter.getBuffered());
 
     /*
+     * The `explain` query - Analysis-Ambient.md §7.3, opt-in by a `.explain.expect` beside the source.
+     *
+     * A different assertion from `.mir.expect` even though it reads the same program: that file pins
+     * what the passes *found*, and this one pins what a person is *told* - which rows appear, which of
+     * them an editor calls surprising, and what a hover therefore contains. The second is the whole
+     * point of the feature and none of it follows from the first.
+     *
+     * Before conversion, deliberately: the locals' placements are read off the MIR bodies, which the
+     * conversion releases, and the answers an editor shows are the ones the program had before the
+     * optimizer moved anything around.
+     */
+    auto explainPath = path + String(".explain.expect");
+    if(fileExists(explainPath)) {
+        if(generate) {
+            writeText(explainPath, [&](Net::Writer& writer) {
+                mir::printExplanations(writer, context, *pipeline.program);
+            });
+        }
+
+        Net::Writer explainWriter(16384);
+        mir::printExplanations(explainWriter, context, *pipeline.program);
+        pass = compareText(explainPath, explainWriter.getBuffered()) && pass;
+    }
+
+    /*
      * The native layout this stage chose, opt-in per fixture on the same terms as the shipping
      * stage's `.repr.expect` - and in the same format, so that the two can be diffed.
      *
@@ -1336,31 +1361,6 @@ static bool runTest(const String& path, StringView source, bool generate) {
         Net::Writer ownWriter(16384);
         printOwnership(ownWriter, context, *module);
         pass = compareText(ownPath, ownWriter.getBuffered()) && pass;
-    }
-
-    /*
-     * The `explain` query - Analysis-Ambient.md §7.3, opt-in on the same terms as the ownership dump.
-     *
-     * A different assertion from `.own.expect` even though it reads the same data: that file pins
-     * what the passes *found*, and this one pins what a person is *told* - which rows appear, which
-     * of them an editor calls surprising, and what a hover therefore contains. The second is the
-     * whole point of the feature and none of it follows from the first.
-     *
-     * Before lowering, deliberately: the optimizer rewrites the program in place, and the answers
-     * an editor shows are the ones the program had when it was written rather than after inlining
-     * moved allocations around.
-     */
-    auto explainPath = path + String(".explain.expect");
-    if(fileExists(explainPath)) {
-        if(generate) {
-            writeText(explainPath, [&](Net::Writer& writer) {
-                printExplanations(writer, context, *module);
-            });
-        }
-
-        Net::Writer explainWriter(16384);
-        printExplanations(explainWriter, context, *module);
-        pass = compareText(explainPath, explainWriter.getBuffered()) && pass;
     }
 
     /*
