@@ -119,6 +119,41 @@ inline bool wrapsAtDeclaredWidth(mir::WidthEffect effect) {
  */
 inline LowerType packLane(U32 bytes) { return bytes > 4 ? LowerType::Int64 : LowerType::Int32; }
 
+/*
+ * One cell of a record that travels in a register of its own - `convention.cpp`.
+ *
+ * Where the bytes are in the record, how many, and the register type they are read and written at.
+ */
+struct CarriedPart {
+    U32 offset = 0;
+    U32 bytes = 0;
+    LowerType type;
+};
+
+// Where one declared parameter's parts are in `Lowering::shapeParts`; a count of zero is a parameter
+// passed as it manifests.
+struct ShapeArg {
+    U32 start = 0;
+    U32 count = 0;
+};
+
+/*
+ * A declared function's aggregate convention - which parameters arrive as parts, and whether the
+ * result leaves as parts instead of through a hidden pointer. Only functions that split something
+ * have one, so every reader treats a missing shape as the convention `README.md` describes.
+ *
+ * Indices into flat tables on `Lowering` rather than lists of its own: every shape is computed
+ * before the first body is lowered, and read far more often than it is built.
+ */
+struct CallShape {
+    U32 firstArg = 0;
+    U32 argCount = 0;
+    U32 resultStart = 0;
+    U32 resultCount = 0;
+
+    bool splitsResult() const { return resultCount != 0; }
+};
+
 struct Lowering {
     Context& context;
     mir::Program& program;
@@ -152,6 +187,36 @@ struct Lowering {
      * is what keeps the two ends of the convention from disagreeing.
      */
     HashMap<U32, LowerPtr<LowerValue>> returnPlaces;
+
+    /*
+     * convention.cpp - the aggregate half of the calling convention, one shape per function that
+     * splits anything, keyed by the function's offset.
+     */
+    Array<CallShape> shapes;
+    Array<ShapeArg> shapeArgs;
+    Array<CarriedPart> shapeParts;
+    HashMap<U32, U32> shapeIndex;
+
+    bool carriedCells(const mir::Occurrence& occurrence, SmallArray<CarriedPart, 16>& cells);
+    void planCallShape(DeclPtr<mir::Function> function);
+    const CallShape* callShapeOf(DeclPtr<mir::Function> function);
+
+    // A call's argument for declared position `position`: the address itself, or the parts loaded
+    // out of it where the callee takes that parameter apart.
+    void passCarried(LowerBlock& block, const CallShape* shape, U32 position,
+                     LowerPtr<LowerValue> address, SmallArray<LowerPtr<LowerValue>, 8>& passed);
+
+    // One part, read out of or written into the record at `storage`.
+    LowerPtr<LowerValue> loadCarried(LowerBlock& block, const CarriedPart& part, LowerPtr<LowerValue> storage);
+    void storeCarried(LowerBlock& block, const CarriedPart& part, LowerPtr<LowerValue> value,
+                      LowerPtr<LowerValue> storage);
+
+    void storeReturnedParts(LowerBlock& block, const CallShape& shape, LowerInst* call,
+                            LowerPtr<LowerValue> storage);
+
+    const CarriedPart& resultPart(const CallShape& shape, U32 i) { return shapeParts[shape.resultStart + i]; }
+
+    bool carriedDuplicate(Inst& copy, Value& result);
 
     // The generic environment each erased function receives, on the same terms and for the same
     // reason: whether a function has one is a question two ends ask, and a table that answers it
@@ -196,6 +261,10 @@ struct Lowering {
      * thunk writer rather than the block walk, and everything here is inside one body.
      */
     LowerFunction* currentLowerFunction = nullptr;
+
+    // The aggregate convention of the function being lowered, or null where it splits nothing -
+    // read by every `ret` in it, beside `currentReturnPlace`.
+    const CallShape* currentShape = nullptr;
 
     /*
      * gen.cpp.
@@ -315,7 +384,10 @@ struct Lowering {
     LowerPtr<LowerValue> heapStorage(LowerBlock& block, const mir::Occurrence& occurrence,
                                      LocationId source);
 
-    LowerPtr<LowerValue> frameStorage(LowerBlock& block, const mir::Occurrence& occurrence);
+    // `whole` is the caller promising that the first thing to write the slot writes every byte of
+    // it, which is what makes the `hasPaddedWord` zeroing a write nothing could read.
+    LowerPtr<LowerValue> frameStorage(LowerBlock& block, const mir::Occurrence& occurrence,
+                                      bool whole = false);
     void zeroStorage(LowerBlock& block, LowerPtr<LowerValue> storage, U32 size);
 
     /*
@@ -378,6 +450,12 @@ struct Lowering {
     // have to hold.
     bool uniformFill(LowerBlock& block, LowerPtr<LowerValue> storage, InstAggregate& written,
                      U32 stride);
+
+    // A record's runs of zero fields as `setpattern`s, with the fields each run covers marked in
+    // `filled` so that the field walk skips them. See the definition for what bounds a run.
+    void zeroFieldRuns(LowerBlock& block, LowerPtr<LowerValue> storage, InstAggregate& written,
+                       mir::RecordType& declared, U16 first, Repr& repr,
+                       SmallArray<bool, 32>& filled);
 
     /*
      * box.cpp - `@box`, and the allocation an indirect field is.

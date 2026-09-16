@@ -79,6 +79,14 @@ static const IntRegister kWin64Clobber[] = {
 static const IntRegister kComplexArgs[] = {
     IntRegister::rdi, IntRegister::rsi, IntRegister::rdx, IntRegister::rcx,
     IntRegister::r8, IntRegister::r9, IntRegister::r10, IntRegister::r11,
+    IntRegister::rax,
+};
+
+// The switch's `(target, save, transfer)`, which its expansion expects in the first three - the
+// eight `Complex` had before `rax` joined the argument registers.
+static const IntRegister kStackSwitchArgs[] = {
+    IntRegister::rdi, IntRegister::rsi, IntRegister::rdx, IntRegister::rcx,
+    IntRegister::r8, IntRegister::r9, IntRegister::r10, IntRegister::r11,
 };
 
 static const IntRegister kComplexResults[] = {
@@ -140,6 +148,14 @@ static void finish(CallConvention& convention) {
     convention.defined = true;
 }
 
+// The tables against the budget the lowering plans with - see `ConventionBudget`.
+static void checkBudget(const CallConvention& convention, ConventionBudget budget) {
+    assertTrue(convention.args[BankGpr].count == budget.args.gpr);
+    assertTrue(convention.args[BankVector].count == budget.args.vector);
+    assertTrue(convention.results[BankGpr].count == budget.results.gpr);
+    assertTrue(convention.results[BankVector].count == budget.results.vector);
+}
+
 Constraints::Constraints() {
     /*
      * System V AMD64.
@@ -193,14 +209,30 @@ Constraints::Constraints() {
      */
     {
         auto& complex = convention[(Size)LowerCallType::Complex];
-        addGenRegs(complex.args[BankGpr], kComplexArgs);
-        addXmmRegs(complex.args[BankVector], 16);
-        addGenRegs(complex.results[BankGpr], kComplexResults);
-        addXmmRegs(complex.results[BankVector], 16);
+        auto budget = complexBudget();
 
+        addGenRegs(complex.args[BankGpr], kComplexArgs);
+        addXmmRegs(complex.args[BankVector], budget.args.vector);
+        addGenRegs(complex.results[BankGpr], kComplexResults);
+        addXmmRegs(complex.results[BankVector], budget.results.vector);
+
+        /*
+         * Every caller-saved general register passes arguments and receives results, and so does
+         * every vector register below xmm12 - `ConventionBudget` in lower/convention.h, which the
+         * aggregate convention plans with. A register a call destroys anyway costs the caller nothing
+         * more for carrying an argument in, and `resolve_ssa/lower/convention.cpp` sends a record's
+         * fields in as many of them as the list leaves free.
+         *
+         * xmm12-15 are callee-saved, which is test/bench/callconv/findings.md's matrix: preserving
+         * four costs a callee nothing until it needs more than twelve vector registers, and lets a
+         * caller keep four vector values across a call without spilling them. `X86.vzeroupper()` is
+         * refused in a function entered under this convention for exactly that reason - see
+         * `checkLegacyVectorEncoding`.
+         */
         addGenClobber(complex.clobber, kComplexArgs);
         addGenClobber(complex.clobber, kComplexResults);
-        addXmmClobber(complex.clobber, 0, 16);
+        addXmmClobber(complex.clobber, 0, budget.args.vector);
+        checkBudget(complex, budget);
 
         // The compiler is on both sides of this one and nothing it generates yet needs a
         // 16-byte-aligned stack, so it costs no padding. It has to become 16 as soon as a value is
@@ -224,10 +256,12 @@ Constraints::Constraints() {
 
     {
         auto& clobber = convention[(Size)LowerCallType::Clobber];
+        auto budget = complexBudget();
+
         addGenRegs(clobber.args[BankGpr], kComplexArgs);
-        addXmmRegs(clobber.args[BankVector], 16);
+        addXmmRegs(clobber.args[BankVector], budget.args.vector);
         addGenRegs(clobber.results[BankGpr], kComplexResults);
-        addXmmRegs(clobber.results[BankVector], 16);
+        addXmmRegs(clobber.results[BankVector], budget.results.vector);
 
         // Everything the allocator could have handed out is gone across this call, so nothing can
         // be kept in a register over it - except rbp, which no convention may clobber. The caller
@@ -295,7 +329,7 @@ Constraints::Constraints() {
      */
     {
         auto& switching = convention[(Size)LowerCallType::StackSwitch];
-        addGenRegs(switching.args[BankGpr], kComplexArgs);
+        addGenRegs(switching.args[BankGpr], kStackSwitchArgs);
         addGenRegs(switching.results[BankGpr], kComplexResults);
 
         switching.clobber = allocatableRegs();

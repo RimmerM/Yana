@@ -6,19 +6,19 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
+    %escaping.lambda = fun escaping.lambda: Ptr
     %v_2 = call_complex allocateHeap, 12: Ptr
     store %v_2, closure(escaping.lambda.env), 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, 100, 4
     %v_4 = or %v_2, 1: Ptr
-    store %v_1, escaping.lambda, 8
+    store %v_1, %escaping.lambda, 8
     %v_5 = add %v_1, 8: Ptr
     store %v_5, %v_4, 8
-    %v_6 = load %v_1, 8: Ptr
-    %v_7 = call_complex %v_6, %v_4, 1: I32
+    %v_6 = call_complex %escaping.lambda, %v_4, 1: I32
     call_complex teardown(fun), %v_1
-    %v_8 = add 89, %v_7: I32
-    ret %v_8
+    %v_7 = add 89, %v_6: I32
+    ret %v_7
   }
 }
 

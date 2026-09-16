@@ -360,75 +360,75 @@ fn decodeChar(%text: String, %at: Size) -> {Char, Size} {
     %v25 = call leadBits, %lead : {Size, U32}
     %need = load %local4.0 : Size
     %bits = load %local4.1 : U32
-    %v29 = cmp_eq %need, 0 : Bool
-    je %v29, b7, b8
+    %v30 = cmp_eq %need, 0 : Bool
+    je %v30, b7, b8
 
   b7:
-    %v31 = alloc : {Char, Size}
-    %v32 = load replacementChar : Char
-    %v35 = add %at, 1 : Size
-    aggregate %local5.0 = %v32, %local5.1 = %v35
-    ret %v31
+    %v32 = alloc : {Char, Size}
+    %v33 = load replacementChar : Char
+    %v36 = add %at, 1 : Size
+    aggregate %local5.0 = %v33, %local5.1 = %v36
+    ret %v32
 
   b8:
     jmp b9
 
   b9:
     %count = call Length(String).length, %text : Size
-    %v42 = add %at, 1 : Size
-    %end = add %v42, %need : Size
+    %v43 = add %at, 1 : Size
+    %end = add %v43, %need : Size
     %value = alloc : U32
     init %value, %bits
-    %v48 = add %at, 1 : Size
+    %v49 = add %at, 1 : Size
     %next = alloc : Size
-    init %next, %v48
+    init %next, %v49
     jmp b10
 
   b10:
-    %v52 = load %next : Size
-    %v53 = cmp_lt %v52, %end : Bool
-    je %v53, b12, b11
+    %v53 = load %next : Size
+    %v54 = cmp_lt %v53, %end : Bool
+    je %v54, b12, b11
 
   b11:
-    %v111 = alloc : {Char, Size}
-    %v112 = alloc : Char
-    %v113 = load %value : U32
-    init %local11@Char, %v113
-    aggregate %local10.0 = %v112, %local10.1 = %end
-    ret %v111
+    %v112 = alloc : {Char, Size}
+    %v113 = alloc : Char
+    %v114 = load %value : U32
+    init %local11@Char, %v114
+    aggregate %local10.0 = %v113, %local10.1 = %end
+    ret %v112
 
   b12:
-    %v55 = load %next : Size
-    %v56 = cmp_ge %v55, %count : Bool
-    je %v56, b13, b14
+    %v56 = load %next : Size
+    %v57 = cmp_ge %v56, %count : Bool
+    je %v57, b13, b14
 
   b13:
-    %v58 = alloc : {Char, Size}
-    %v59 = load replacementChar : Char
-    %v60 = load %next : Size
-    aggregate %local8.0 = %v59, %local8.1 = %v60
-    ret %v58
+    %v59 = alloc : {Char, Size}
+    %v60 = load replacementChar : Char
+    %v61 = load %next : Size
+    aggregate %local8.0 = %v60, %local8.1 = %v61
+    ret %v59
 
   b14:
     jmp b15
 
   b15:
-    %v64 = load %next : Size
-    %unit = call unitNumber, %text, %v64 : U32
-    %v66 = load %next : Size
-    %v69 = add %at, 1 : Size
-    %v70 = cmp_eq %v66, %v69 : Bool
-    je %v70, b16, b17
+    %v65 = load %next : Size
+    %unit = call unitNumber, %text, %v65 : U32
+    %v67 = load %next : Size
+    %v70 = add %at, 1 : Size
+    %v71 = cmp_eq %v67, %v70 : Bool
+    je %v71, b16, b17
 
   b16:
-    %v72 = call firstContinuation, %lead, %unit : Bool
+    %v73 = call firstContinuation, %lead, %unit : Bool
     jmp b21
 
   b17:
-    %v75 = cmp_ge %unit, 128 : Bool
-    %v76 = cmp_le %unit, 191 : Bool
-    %v77 = and %v75, %v76 : Bool
-    je %v77, b19, b18
+    %v76 = cmp_ge %unit, 128 : Bool
+    %v77 = cmp_le %unit, 191 : Bool
+    %v78 = and %v76, %v77 : Bool
+    je %v78, b19, b18
 
   b18:
     jmp b20
@@ -437,33 +437,33 @@ fn decodeChar(%text: String, %at: Size) -> {Char, Size} {
     jmp b20
 
   b20:
-    %v83 = phi [b19, True], [b18, False] : Bool
+    %v84 = phi [b19, True], [b18, False] : Bool
     jmp b21
 
   b21:
-    %continues = phi [b16, %v72], [b20, %v83] : Bool
-    %v88 = xor %continues, True : Bool
-    je %v88, b22, b23
+    %continues = phi [b16, %v73], [b20, %v84] : Bool
+    %v89 = xor %continues, True : Bool
+    je %v89, b22, b23
 
   b22:
-    %v90 = alloc : {Char, Size}
-    %v91 = load replacementChar : Char
-    %v92 = load %next : Size
-    aggregate %local9.0 = %v91, %local9.1 = %v92
-    ret %v90
+    %v91 = alloc : {Char, Size}
+    %v92 = load replacementChar : Char
+    %v93 = load %next : Size
+    aggregate %local9.0 = %v92, %local9.1 = %v93
+    ret %v91
 
   b23:
     jmp b24
 
   b24:
-    %v96 = load %value : U32
-    %v99 = shl %v96, 6 : U32
-    %v102 = and %unit, 63 : U32
-    %v103 = or %v99, %v102 : U32
-    assign %value, %v103
-    %v105 = load %next : Size
-    %v108 = add %v105, 1 : Size
-    assign %next, %v108
+    %v97 = load %value : U32
+    %v100 = shl %v97, 6 : U32
+    %v103 = and %unit, 63 : U32
+    %v104 = or %v100, %v103 : U32
+    assign %value, %v104
+    %v106 = load %next : Size
+    %v109 = add %v106, 1 : Size
+    assign %next, %v109
     jmp b10
 }
 
@@ -879,8 +879,8 @@ fn heapClassOf(%total: Size) -> Size {
 
 fn heapBlockSize(%sizeClass: Size) -> Size {
   b0:
-    %v2 = shl 16, %sizeClass : Size
-    ret %v2
+    %v3 = shl 16, %sizeClass : Size
+    ret %v3
 }
 
 fn freeListHead(%sizeClass: Size) -> %U8 {

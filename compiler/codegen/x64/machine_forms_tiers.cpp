@@ -136,9 +136,9 @@ void MachineFormBuilder::registerWideForms() {
     // has, a shared count being one quadword whatever the vector is - and `widenClass` leaves it
     // alone for the same reason it leaves a broadcast's general register alone. What widens is
     // the vector, and the tie stays because a pseudo's bytes are its emitter's.
-    wideTwin(FormVWideShlReg, FormVShlReg, "vmovd xmm15, r; vpsllw/d/q ymm, ymm, xmm15"_v);
-    wideTwin(FormVWideShrReg, FormVShrReg, "vmovd xmm15, r; vpsrlw/d/q ymm, ymm, xmm15"_v);
-    wideTwin(FormVWideSarReg, FormVSarReg, "vmovd xmm15, r; vpsraw/d ymm, ymm, xmm15"_v);
+    wideTwin(FormVWideShlReg, FormVShlReg, "vmovd xmm11, r; vpsllw/d/q ymm, ymm, xmm11"_v);
+    wideTwin(FormVWideShrReg, FormVShrReg, "vmovd xmm11, r; vpsrlw/d/q ymm, ymm, xmm11"_v);
+    wideTwin(FormVWideSarReg, FormVSarReg, "vmovd xmm11, r; vpsraw/d ymm, ymm, xmm11"_v);
 
     wideTwin(FormVWideShlVar32, FormVShlVar32, "vpsllvd ymm, ymm, ymm"_v);
     wideTwin(FormVWideShlVar64, FormVShlVar64, "vpsllvq ymm, ymm, ymm"_v);
@@ -187,12 +187,12 @@ void MachineFormBuilder::registerWideForms() {
     wideTwin(FormVWideMaxF32, FormVMaxF32, "vmaxps ymm, ymm, ymm/m"_v);
     wideTwin(FormVWideMaxF64, FormVMaxF64, "vmaxpd ymm, ymm, ymm/m"_v);
 
-    // The four pseudos, which keep their ties and their clobber. What changes for each is the
-    // width its emitter writes - see genPackedTwoAddress - and xmm15 becoming ymm15, which is
+    // The pseudos, which keep their ties and their clobber. What changes for each is the
+    // width its emitter writes - see genPackedTwoAddress - and xmm11 becoming ymm11, which is
     // the same physical register named at the width the expansion now works at.
     wideTwin(FormVWideCmpInverted, FormVCmpInverted, "vpcmpXX; vpcmpeqd; vpxor (inverted)"_v);
     wideTwin(FormVWideNot,         FormVNot,         "vpcmpeqd; vpxor (complement)"_v);
-    wideTwin(FormVWideSelect,      FormVSelect,      "vpand; vpandn; vpor (lanewise select)"_v);
+    wideTwin(FormVWideSelect,      FormVSelect,      "vpblendvb ymm, ymm, ymm, mask (lanewise select)"_v);
 
     wideTwin(FormVWideNeg8,   FormVNeg8,   "vpxor; vpsubb (negate)"_v);
     wideTwin(FormVWideNeg16,  FormVNeg16,  "vpxor; vpsubw (negate)"_v);
@@ -467,7 +467,7 @@ void MachineFormBuilder::registerWideForms() {
         form.uses.push(anyReg(ClassYmm256));
         form.defs.push(def(cls));
         form.requiredFeatures = kFeatureAvx | kFeatureAvx2;
-        if(scratch) form.clobbers.add(vectorReg(15));
+        if(scratch) form.clobbers.add(vectorReg(kVectorScratch));
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecWideLane,
         };
@@ -491,7 +491,7 @@ void MachineFormBuilder::registerWideForms() {
         form.uses.push(anyReg(cls));
         form.defs.push(def(ClassYmm256));
         form.requiredFeatures = kFeatureAvx | kFeatureAvx2;
-        form.clobbers.add(vectorReg(15));
+        form.clobbers.add(vectorReg(kVectorScratch));
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecWideWithLane,
         };

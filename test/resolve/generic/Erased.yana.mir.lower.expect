@@ -9,21 +9,18 @@ mut @trace = [0, 0, 0, 0]
 @environment(capacity'2(4)) = [4, 0, 0, 0]
 @environment(twice(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-Guard.drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 4: I32
-    %v_2 = loads @trace, 4: I32
-    %v_3 = add %v_2, %v_1: I32
-    store @trace, %v_3, 4
+Guard.drop<complex>(%v_0: I32, %v_1: I32) {
+  b_2 {
+    %v_3 = loads @trace, 4: I32
+    %v_4 = add %v_3, %v_0: I32
+    store @trace, %v_4, 4
     ret 
   }
 }
 
-Vessel.size<complex>(%x: Ptr): I32 {
-  b_0 {
-    %v_1 = add %x, 4: Ptr
-    %v_2 = loads %v_1, 4: I32
-    ret %v_2
+Vessel.size<complex>(%v_0: I32, %v_1: I32): I32 {
+  b_2 {
+    ret %v_1
   }
 }
 
@@ -34,16 +31,13 @@ Guard.size<complex>(%x: Ptr): I32 {
   }
 }
 
-grow<complex>(%v_0: Ptr, %v: Ptr) {
-  b_1 {
-    %v_2 = loads %v, 4: I32
-    %v_3 = add %v_2, 1: I32
-    %v_4 = add %v, 4: Ptr
-    %v_5 = loads %v_4, 4: I32
-    store %v_0, %v_3, 4
-    %v_6 = add %v_0, 4: Ptr
-    store %v_6, %v_5, 4
-    ret 
+grow<complex>(%v: Ptr): I32, I32 {
+  b_0 {
+    %v_1 = loads %v, 4: I32
+    %v_2 = add %v_1, 1: I32
+    %v_3 = add %v, 4: Ptr
+    %v_4 = loads %v_3, 4: I32
+    ret %v_2, %v_4
   }
 }
 
@@ -155,11 +149,14 @@ main<complex>(): I32 {
     %v_9 = call_complex capacity'2, @environment(capacity'2(4)), %v_8: I32
     %v_10 = add %v_7, %v_9: I32
     %v_11 = call_complex twice, @environment(twice(Guard)), %v_1: I32
-    call_complex Guard.drop, %v_1
-    %v_12 = add %v_10, %v_11: I32
-    %v_13 = loads @trace, 4: I32
-    %v_14 = add %v_12, %v_13: I32
-    ret %v_14
+    %v_12 = load %v_1, 4: I32
+    %v_13 = add %v_1, 4: Ptr
+    %v_14 = load %v_13, 4: I32
+    call_complex Guard.drop, %v_12, %v_14
+    %v_15 = add %v_10, %v_11: I32
+    %v_16 = loads @trace, 4: I32
+    %v_17 = add %v_15, %v_16: I32
+    ret %v_17
   }
 }
 
@@ -171,14 +168,20 @@ teardown()<complex>(%v_0: Ptr) {
 
 thunk(Vessel.size)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
   b_2 {
-    %v_3 = call_complex Vessel.size, %v_1: I32
-    ret %v_3
+    %v_3 = load %v_1, 4: I32
+    %v_4 = add %v_1, 4: Ptr
+    %v_5 = load %v_4, 4: I32
+    %v_6 = call_complex Vessel.size, %v_3, %v_5: I32
+    ret %v_6
   }
 }
 
 teardown(Guard)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex Guard.drop, %v_0
+    %v_2 = load %v_0, 4: I32
+    %v_3 = add %v_0, 4: Ptr
+    %v_4 = load %v_3, 4: I32
+    call_complex Guard.drop, %v_2, %v_4
     ret 
   }
 }
@@ -192,7 +195,10 @@ thunk(Guard.size)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
 
 thunk(grow)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr) {
   b_3 {
-    call_complex grow, %v_1, %v_2
+    %v_4, %v_5 = call_complex grow, %v_2: I32, I32
+    store %v_1, %v_4, 4
+    %v_6 = add %v_1, 4: Ptr
+    store %v_6, %v_5, 4
     ret 
   }
 }

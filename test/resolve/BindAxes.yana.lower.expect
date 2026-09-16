@@ -310,35 +310,29 @@ make<complex>(%v_0: Ptr, %ok: I32, %n: I64) {
   }
 
   b_2 {
-    %v_5 = alloca 4, 8: Ptr
-    %v_6 = call_complex allocateHeap, %n: Ptr
-    %v_7 = cast %n: I32
-    %v_8 = and %v_7, 1073741823: I32
-    %v_9 = or %v_8, 1073741824: I32
-    store %v_5, %v_9, 4
+    %v_5 = call_complex allocateHeap, %n: Ptr
+    %v_6 = cast %n: I32
+    %v_7 = and %v_6, 1073741823: I32
+    %v_8 = or %v_7, 1073741824: I32
     store %v_0, 1, 4
-    %v_10 = add %v_0, 8: Ptr
-    store %v_10, %v_6, 8
-    %v_11 = add %v_0, 16: Ptr
-    %v_12 = load %v_5, 4: I32
-    store %v_11, %v_12, 4
+    %v_9 = add %v_0, 8: Ptr
+    store %v_9, %v_5, 8
+    %v_10 = add %v_0, 16: Ptr
+    store %v_10, %v_8, 4
     ret 
   }
 }
 
 setName<complex>(%self: Ptr, %n: I64) {
   b_0 {
-    %v_1 = alloca 4, 8: Ptr
-    %v_2 = call_complex allocateHeap, %n: Ptr
-    %v_3 = cast %n: I32
-    %v_4 = and %v_3, 1073741823: I32
-    %v_5 = or %v_4, 1073741824: I32
-    store %v_1, %v_5, 4
+    %v_1 = call_complex allocateHeap, %n: Ptr
+    %v_2 = cast %n: I32
+    %v_3 = and %v_2, 1073741823: I32
+    %v_4 = or %v_3, 1073741824: I32
     call_complex Reclaim(Run(a)).reclaim(U8), %self
-    store %self, %v_2, 8
-    %v_6 = add %self, 8: Ptr
-    %v_7 = load %v_1, 4: I32
-    store %v_6, %v_7, 4
+    store %self, %v_1, 8
+    %v_5 = add %self, 8: Ptr
+    store %v_5, %v_4, 4
     ret 
   }
 }
@@ -457,32 +451,29 @@ viaNamedPlace<complex>(%b: Ptr, %n: I64): I64 {
 fieldOfNamedLocal<complex>(%n: I64): I64 {
   b_0 {
     %v_1 = alloca 28, 8: Ptr
-    %v_2 = alloca 4, 8: Ptr
-    %v_3 = call_complex allocateHeap, %n: Ptr
-    %v_4 = cast %n: I32
-    %v_5 = and %v_4, 1073741823: I32
-    %v_6 = or %v_5, 1073741824: I32
-    store %v_2, %v_6, 4
-    %v_7 = call_complex allocateHeap, %n: Ptr
-    %v_8 = or %v_5, 1073741824: I32
-    store %v_1, %v_3, 8
-    %v_9 = add %v_1, 8: Ptr
-    %v_10 = load %v_2, 4: I32
-    store %v_9, %v_10, 4
-    %v_11 = add %v_1, 16: Ptr
-    store %v_11, %v_7, 8
-    %v_12 = add %v_1, 24: Ptr
-    store %v_12, %v_8, 4
-    %v_13 = add %n, 1: I64
-    call_complex setName, %v_1, %v_13
-    %v_14 = add %v_1, 8: Ptr
-    %v_15 = load %v_14, 4: I32
-    %v_16 = and %v_15, 1073741823: I32
+    %v_2 = call_complex allocateHeap, %n: Ptr
+    %v_3 = cast %n: I32
+    %v_4 = and %v_3, 1073741823: I32
+    %v_5 = or %v_4, 1073741824: I32
+    %v_6 = call_complex allocateHeap, %n: Ptr
+    %v_7 = or %v_4, 1073741824: I32
+    store %v_1, %v_2, 8
+    %v_8 = add %v_1, 8: Ptr
+    store %v_8, %v_5, 4
+    %v_9 = add %v_1, 16: Ptr
+    store %v_9, %v_6, 8
+    %v_10 = add %v_1, 24: Ptr
+    store %v_10, %v_7, 4
+    %v_11 = add %n, 1: I64
+    call_complex setName, %v_1, %v_11
+    %v_12 = add %v_1, 8: Ptr
+    %v_13 = load %v_12, 4: I32
+    %v_14 = and %v_13, 1073741823: I32
     call_complex Reclaim(Run(a)).reclaim(U8), %v_1
-    %v_17 = add %v_1, 16: Ptr
-    call_complex Reclaim(Run(a)).reclaim(U8), %v_17
-    %v_18 = cast %v_16: I64
-    ret %v_18
+    %v_15 = add %v_1, 16: Ptr
+    call_complex Reclaim(Run(a)).reclaim(U8), %v_15
+    %v_16 = cast %v_14: I64
+    ret %v_16
   }
 }
 

@@ -289,107 +289,101 @@ main<complex>(): I64 {
     %v_14 = call_complex allocateHeap, %v_2: Ptr
     setpattern %v_14, %v_2, 0
     %v_15 = loads @liveBuffers, 8: I64
-    %v_16 = load %v_14, 1: I32
-    %v_17 = cast %v_16: I64
     call_complex freeHeap, %v_14
     call_complex -=(I64), @liveBuffers, 1
-    %v_18 = add %v_15, %v_17: I64
-    %v_19 = load %v_13, 1: I32
-    %v_20 = cast %v_19: I64
+    %v_16 = load %v_13, 1: I32
+    %v_17 = cast %v_16: I64
     call_complex freeHeap, %v_13
     call_complex -=(I64), @liveBuffers, 1
-    %v_21 = add %v_18, %v_20: I64
-    %v_22 = cmp_neq %v_21, 2: I32
-    je %v_22, b_23, b_24
+    %v_18 = add %v_15, %v_17: I64
+    %v_19 = cmp_neq %v_18, 2: I32
+    je %v_19, b_20, b_21
   }
 
-  b_23 {
+  b_20 {
     ret 18446744073709551610
   }
 
-  b_24 {
-    %v_25 = loads @liveBuffers, 8: I64
-    %v_26 = cmp_neq %v_25, 0: I32
-    je %v_26, b_27, b_28
+  b_21 {
+    %v_22 = loads @liveBuffers, 8: I64
+    %v_23 = cmp_neq %v_22, 0: I32
+    je %v_23, b_24, b_25
   }
 
-  b_27 {
+  b_24 {
     ret 18446744073709551609
   }
 
-  b_28 {
+  b_25 {
     call_complex +=(I64), @liveBuffers, 1
-    %v_29 = call_complex allocateHeap, %v_3: Ptr
-    setpattern %v_29, %v_3, 0
+    %v_26 = call_complex allocateHeap, %v_3: Ptr
+    setpattern %v_26, %v_3, 0
     call_complex +=(I64), @liveBuffers, 1
-    %v_30 = call_complex allocateHeap, %v_4: Ptr
-    setpattern %v_30, %v_4, 0
+    %v_27 = call_complex allocateHeap, %v_4: Ptr
+    setpattern %v_27, %v_4, 0
     %counted = loads @liveBuffers, 8: I64
-    %v_31 = load %v_29, 1: I32
+    %v_28 = load %v_26, 1: I32
+    %v_29 = cast %v_28: I64
+    call_complex freeHeap, %v_26
+    call_complex -=(I64), @liveBuffers, 1
+    %v_30 = add %counted, %v_29: I64
+    %v_31 = load %v_27, 1: I32
     %v_32 = cast %v_31: I64
-    call_complex freeHeap, %v_29
+    call_complex freeHeap, %v_27
     call_complex -=(I64), @liveBuffers, 1
-    %v_33 = add %counted, %v_32: I64
-    %v_34 = load %v_30, 1: I32
-    %v_35 = cast %v_34: I64
-    call_complex freeHeap, %v_30
-    call_complex -=(I64), @liveBuffers, 1
-    %v_36 = add %v_33, %v_35: I64
-    %v_37 = cmp_neq %v_36, 2: I32
-    je %v_37, b_38, b_39
+    %v_33 = add %v_30, %v_32: I64
+    %v_34 = cmp_neq %v_33, 2: I32
+    je %v_34, b_35, b_36
   }
 
-  b_38 {
+  b_35 {
     ret 18446744073709551608
   }
 
-  b_39 {
-    %v_40 = loads @liveBuffers, 8: I64
-    %v_41 = cmp_neq %v_40, 0: I32
-    je %v_41, b_42, b_43
+  b_36 {
+    %v_37 = loads @liveBuffers, 8: I64
+    %v_38 = cmp_neq %v_37, 0: I32
+    je %v_38, b_39, b_40
   }
 
-  b_42 {
+  b_39 {
     ret 18446744073709551607
   }
 
-  b_43 {
+  b_40 {
     call_complex +=(I64), @liveBuffers, 1
-    %v_44 = call_complex allocateHeap, %v_5: Ptr
-    setpattern %v_44, %v_5, 0
+    %v_41 = call_complex allocateHeap, %v_5: Ptr
+    setpattern %v_41, %v_5, 0
     call_complex +=(I64), @liveBuffers, 1
-    %v_45 = call_complex allocateHeap, %v_6: Ptr
-    setpattern %v_45, %v_6, 0
-    %v_46 = loads @liveBuffers, 8: I64
-    %v_47 = load %v_45, 1: I32
-    %v_48 = cast %v_47: I64
-    call_complex freeHeap, %v_45
+    %v_42 = call_complex allocateHeap, %v_6: Ptr
+    setpattern %v_42, %v_6, 0
+    %v_43 = loads @liveBuffers, 8: I64
+    call_complex freeHeap, %v_42
     call_complex -=(I64), @liveBuffers, 1
-    %v_49 = add %v_46, %v_48: I64
-    %v_50 = load %v_44, 1: I32
-    %v_51 = cast %v_50: I64
-    call_complex freeHeap, %v_44
+    %v_44 = load %v_41, 1: I32
+    %v_45 = cast %v_44: I64
+    call_complex freeHeap, %v_41
     call_complex -=(I64), @liveBuffers, 1
-    %v_52 = add %v_49, %v_51: I64
-    %v_53 = cmp_neq %v_52, 2: I32
-    je %v_53, b_54, b_55
+    %v_46 = add %v_43, %v_45: I64
+    %v_47 = cmp_neq %v_46, 2: I32
+    je %v_47, b_48, b_49
   }
 
-  b_54 {
+  b_48 {
     ret 18446744073709551606
   }
 
-  b_55 {
-    %v_56 = loads @liveBuffers, 8: I64
-    %v_57 = cmp_neq %v_56, 0: I32
-    je %v_57, b_58, b_59
+  b_49 {
+    %v_50 = loads @liveBuffers, 8: I64
+    %v_51 = cmp_neq %v_50, 0: I32
+    je %v_51, b_52, b_53
   }
 
-  b_58 {
+  b_52 {
     ret 18446744073709551605
   }
 
-  b_59 {
+  b_53 {
     ret 1
   }
 }

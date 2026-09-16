@@ -64,6 +64,40 @@ enum class LowerCallType {
 
 static constexpr LowerCallType kDefaultCallType = LowerCallType::Complex;
 
+/*
+ * How many registers of each bank a convention hands to arguments, and how many to results.
+ *
+ * Stated here rather than read off the x64 tables because two tiers need the same numbers and only
+ * one of them links the backend: `resolve_ssa/lower` decides which by-value records travel as their
+ * fields, and that decision is only worth anything if every field it sends lands in a register. The
+ * tables in `codegen/x64/constraint.cpp` are checked against this (`checkBudget`), so a table that
+ * grows or shrinks without the budget is a failed assertion rather than a record quietly spilling to
+ * the stack.
+ */
+struct RegisterBudget {
+    U8 gpr = 0;
+    U8 vector = 0;
+};
+
+struct ConventionBudget {
+    RegisterBudget args;
+    RegisterBudget results;
+};
+
+/*
+ * `complex`'s budget: every caller-saved general register and the twelve low vector registers, for
+ * arguments and for results alike.
+ *
+ * Nine general registers are the whole caller-saved half - `rax` joined the argument list last, where
+ * it was the one volatile register nothing could pass a value in. Twelve vector registers rather than
+ * sixteen because xmm12-15 are callee-saved, which is `test/bench/callconv/findings.md`'s robust
+ * compromise: a callee that needs twelve or fewer pays nothing, and a caller keeps four values
+ * across a call without spilling them.
+ */
+inline ConventionBudget complexBudget() {
+    return ConventionBudget { RegisterBudget { 9, 12 }, RegisterBudget { 9, 12 } };
+}
+
 // In declaration order, which is what `callTypeForName` indexes by and what the lower-IR printer
 // emits. `system` rather than `syscall` because that is the spelling the fixtures already use.
 inline StringView nameForCallType(LowerCallType type) {

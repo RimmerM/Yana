@@ -244,12 +244,9 @@ handedOver<complex>(): I64 {
     %p = call_complex allocateHeap, 16: Ptr
     store %p, 3, 8
     %v_1 = add %p, 8: Ptr
-    %v_2 = imm 4: I64
-    store %v_1, %v_2, 8
-    %v_3 = load %p, 8: I64
+    store %v_1, 4, 8
     call_complex freeHeap, %p
-    %v_4 = add %v_3, %v_2: I64
-    ret %v_4
+    ret 7
   }
 }
 

@@ -6,34 +6,30 @@
 @witness(Top(Vessel.crown, Vessel.shift, Vessel.tag, Vessel.scale)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @environment(both(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-Vessel.tag<complex>(%x: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %x, 4: I32
-    %v_2 = add %v_1, 1: I32
+Vessel.tag<complex>(%v_0: I32): I32 {
+  b_1 {
+    %v_2 = add %v_0, 1: I32
     ret %v_2
   }
 }
 
-Vessel.scale<complex>(%x: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %x, 4: I32
-    %v_2 = shl %v_1, 1: I32
+Vessel.scale<complex>(%v_0: I32): I32 {
+  b_1 {
+    %v_2 = shl %v_0, 1: I32
     ret %v_2
   }
 }
 
-Vessel.shift<complex>(%x: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %x, 4: I32
-    %v_2 = add %v_1, 100: I32
+Vessel.shift<complex>(%v_0: I32): I32 {
+  b_1 {
+    %v_2 = add %v_0, 100: I32
     ret %v_2
   }
 }
 
-Vessel.crown<complex>(%x: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %x, 4: I32
-    %v_2 = add %v_1, 1000: I32
+Vessel.crown<complex>(%v_0: I32): I32 {
+  b_1 {
+    %v_2 = add %v_0, 1000: I32
     ret %v_2
   }
 }
@@ -128,29 +124,33 @@ teardown()<complex>(%v_0: Ptr) {
 
 thunk(Vessel.shift)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
   b_2 {
-    %v_3 = call_complex Vessel.shift, %v_1: I32
-    ret %v_3
+    %v_3 = load %v_1, 4: I32
+    %v_4 = call_complex Vessel.shift, %v_3: I32
+    ret %v_4
   }
 }
 
 thunk(Vessel.tag)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
   b_2 {
-    %v_3 = call_complex Vessel.tag, %v_1: I32
-    ret %v_3
+    %v_3 = load %v_1, 4: I32
+    %v_4 = call_complex Vessel.tag, %v_3: I32
+    ret %v_4
   }
 }
 
 thunk(Vessel.scale)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
   b_2 {
-    %v_3 = call_complex Vessel.scale, %v_1: I32
-    ret %v_3
+    %v_3 = load %v_1, 4: I32
+    %v_4 = call_complex Vessel.scale, %v_3: I32
+    ret %v_4
   }
 }
 
 thunk(Vessel.crown)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
   b_2 {
-    %v_3 = call_complex Vessel.crown, %v_1: I32
-    ret %v_3
+    %v_3 = load %v_1, 4: I32
+    %v_4 = call_complex Vessel.crown, %v_3: I32
+    ret %v_4
   }
 }
 

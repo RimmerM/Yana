@@ -4,11 +4,10 @@ mut @trace = [0, 0, 0, 0]
 @descriptor(Guard) = [4, 0, 0, 14, 0, 0, 0, 0]
 @environment(sink(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Guard.drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 4: I32
+Guard.drop<complex>(%v_0: I32) {
+  b_1 {
     %v_2 = loads @trace, 4: I32
-    %v_3 = add %v_2, %v_1: I32
+    %v_3 = add %v_2, %v_0: I32
     store @trace, %v_3, 4
     ret 
   }
@@ -99,7 +98,8 @@ main<complex>(): I32 {
 
 teardown(Guard)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex Guard.drop, %v_0
+    %v_2 = load %v_0, 4: I32
+    call_complex Guard.drop, %v_2
     ret 
   }
 }

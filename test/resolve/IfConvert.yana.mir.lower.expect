@@ -1,11 +1,11 @@
 mut @live = [0, 0, 0, 0]
 mut @calls = [0, 0, 0, 0]
 
-Held.drop<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = loads @live, 4: I32
-    %v_2 = sub %v_1, 1: I32
-    store @live, %v_2, 4
+Held.drop<complex>(%v_0: I32) {
+  b_1 {
+    %v_2 = loads @live, 4: I32
+    %v_3 = sub %v_2, 1: I32
+    store @live, %v_3, 4
     ret 
   }
 }
@@ -56,38 +56,30 @@ main<complex>(): I32 {
     %v_19 = call_complex doubled, 6: I32
     %v_20 = imul %v_19, 103: I32
     %v_21 = add %v_18, %v_20: I32
-    %v_22 = alloca 4, 4: Ptr
-    %v_23 = loads @live, 4: I32
-    %v_24 = add %v_23, 1: I32
-    store @live, %v_24, 4
-    store %v_22, 3, 4
-    call_complex Held.drop, %v_22
-    %v_25 = alloca 4, 4: Ptr
+    %v_22 = loads @live, 4: I32
+    %v_23 = add %v_22, 1: I32
+    store @live, %v_23, 4
+    call_complex Held.drop, 3
+    %v_24 = loads @live, 4: I32
+    %v_25 = add %v_24, 1: I32
+    store @live, %v_25, 4
+    call_complex Held.drop, 4
     %v_26 = loads @live, 4: I32
     %v_27 = add %v_26, 1: I32
     store @live, %v_27, 4
-    store %v_25, 4, 4
-    call_complex Held.drop, %v_25
-    %v_28 = loads @live, 4: I32
-    %v_29 = add %v_28, 1: I32
-    store @live, %v_29, 4
-    %v_30 = alloca 4, 4: Ptr
-    store %v_30, 7, 4
-    call_complex Held.drop, %v_30
-    %v_31 = add %v_21, 1178: I32
-    %v_32 = loads @live, 4: I32
-    %v_33 = add %v_32, 1: I32
-    store @live, %v_33, 4
-    %v_34 = alloca 4, 4: Ptr
-    store %v_34, 7, 4
-    call_complex Held.drop, %v_34
-    %v_35 = imul %v_31, 1000: I32
-    %v_36 = loads @calls, 4: I32
-    %v_37 = imul %v_36, 10: I32
-    %v_38 = add %v_35, %v_37: I32
-    %v_39 = loads @live, 4: I32
-    %v_40 = add %v_38, %v_39: I32
-    ret %v_40
+    call_complex Held.drop, 7
+    %v_28 = add %v_21, 1178: I32
+    %v_29 = loads @live, 4: I32
+    %v_30 = add %v_29, 1: I32
+    store @live, %v_30, 4
+    call_complex Held.drop, 7
+    %v_31 = imul %v_28, 1000: I32
+    %v_32 = loads @calls, 4: I32
+    %v_33 = imul %v_32, 10: I32
+    %v_34 = add %v_31, %v_33: I32
+    %v_35 = loads @live, 4: I32
+    %v_36 = add %v_34, %v_35: I32
+    ret %v_36
   }
 }
 

@@ -684,14 +684,19 @@ LowerPtr<LowerFunction> Lowering::thunkFor(U64 promise, DeclPtr<mir::Function> c
      * Exactly one direction ever needs an instruction: a position the declaration erased arrives as
      * an address, and the callee wants a *value* wherever the type it was bound to has a register
      * form. Everything else passes through - an address-only bound type is already what the callee
-     * takes, and a position that was never erased was never adapted.
+     * takes, and a position that was never erased was never adapted - except that a parameter the
+     * callee takes apart (`convention.cpp`) arrives here as the address it was promised as, and is
+     * passed as the parts loaded out of it.
      */
+    auto shape = callShapeOf(concrete);
+    auto splitResult = shape && shape->splitsResult();
+
     SmallArray<LowerPtr<LowerValue>, 8> passed;
     for(Size i = 0; i < count; i++) {
         auto& bound = decl[callee.args.get(decl, U32(i))]->occurrence;
 
         if(!erasedPosition(decl, declared[i]) || arrivesAsAddress(layout, bound)) {
-            passed.push(incoming[i]);
+            passCarried(*block, shape, U32(i), incoming[i], passed);
             continue;
         }
 
@@ -708,14 +713,15 @@ LowerPtr<LowerFunction> Lowering::thunkFor(U64 promise, DeclPtr<mir::Function> c
 
     auto calleePlace = returnPlaces.getValue(concrete.offset);
     auto hidden = calleePlace ? 1u : 0u;
-    auto created = concreteResult.inMemory || decl[callee.result.type]->kind == mir::Type::Unit
-        ? 0u : 1u;
+    auto created = splitResult ? shape->resultCount
+        : concreteResult.inMemory || decl[callee.result.type]->kind == mir::Type::Unit ? 0u : 1u;
 
     auto convention = lower[target.unwrap()]->callType;
     auto result = call(lower, to, *block, created, passed.size() + 1 + hidden, convention,
                        [&](LowerInstCall* built) {
         for(Size i = 0; i < created; i++) {
-            new (built->created().ptr + i) LowerValue(built, concreteResult.type, StringId());
+            auto type = splitResult ? resultPart(*shape, U32(i)).type : concreteResult.type;
+            new (built->created().ptr + i) LowerValue(built, type, StringId());
         }
 
         built->used()[0] = ((LowerInstSingle*)calleeValue)->created().ptr - lower;
@@ -729,9 +735,14 @@ LowerPtr<LowerFunction> Lowering::thunkFor(U64 promise, DeclPtr<mir::Function> c
         for(Size i = 0; i < passed.size(); i++) built->used()[index++] = passed[i];
     });
 
-    // A register result where the promise was storage - the one place the two ends genuinely differ
-    // about the result, and the store is the whole of the adaptation.
-    if(created && erasedResult.inMemory) {
+    if(splitResult) {
+        // A result the callee returns as its parts, written into the storage the promise names -
+        // which is storage either way, since both ends agree the type is address-only.
+        assertTrue(!returns);
+        storeReturnedParts(*block, *shape, result, resultPlace);
+    } else if(created && erasedResult.inMemory) {
+        // A register result where the promise was storage - the one place the two ends genuinely
+        // differ about the result, and the store is the whole of the adaptation.
         block->addInst(lower, new (to.arena) LowerInstStore(
             resultPlace, result->created().ptr - lower, concreteResult.size));
     }
@@ -1036,12 +1047,15 @@ LowerPtr<LowerFunction> Lowering::callThunkFor(DeclPtr<mir::Type> subject,
 
     // Each argument, from the promised form into the one the callee was compiled at - `thunkFor`'s
     // loop, which is the same adaptation and the same one direction it ever needs.
+    auto shape = named ? callShapeOf(named) : nullptr;
+    auto splitResult = shape && shape->splitsResult();
+
     SmallArray<LowerPtr<LowerValue>, 8> passed;
     for(Size i = first; i < count; i++) {
         auto position = bound(i);
 
         if(!erasedPosition(decl, declared[i]) || arrivesAsAddress(layout, position)) {
-            passed.push(incoming[i]);
+            passCarried(*block, shape, U32(i), incoming[i], passed);
             continue;
         }
 
@@ -1059,10 +1073,10 @@ LowerPtr<LowerFunction> Lowering::callThunkFor(DeclPtr<mir::Type> subject,
      * two ends can disagree in either direction here, because the promise erased its result or the
      * subject's own result is a record.
      */
-    auto hidden = concreteResult.inMemory ? 1u : 0u;
+    auto hidden = concreteResult.inMemory && !splitResult ? 1u : 0u;
     LowerPtr<LowerValue> place = resultPlace;
 
-    if(hidden && !place) {
+    if((hidden || splitResult) && !place) {
         auto size = block->addInst(lower, new (to.arena) LowerImm(
             StringId(), LowerType::Int64, U64(concreteResult.size)));
 
@@ -1073,8 +1087,8 @@ LowerPtr<LowerFunction> Lowering::callThunkFor(DeclPtr<mir::Type> subject,
         place = ((LowerInstSingle*)storage)->created().ptr - lower;
     }
 
-    auto created = concreteResult.inMemory ||
-                   decl[concreteResultOccurrence.type]->kind == mir::Type::Unit ? 0u : 1u;
+    auto created = splitResult ? shape->resultCount
+        : concreteResult.inMemory || decl[concreteResultOccurrence.type]->kind == mir::Type::Unit ? 0u : 1u;
 
     auto convention = named ? lower[target]->callType : kDefaultCallType;
     auto leading = 1u + (environment ? 1u : 0u) + hidden;
@@ -1082,7 +1096,8 @@ LowerPtr<LowerFunction> Lowering::callThunkFor(DeclPtr<mir::Type> subject,
     auto result = call(lower, to, *block, created, passed.size() + leading, convention,
                        [&](LowerInstCall* built) {
         for(Size i = 0; i < created; i++) {
-            new (built->created().ptr + i) LowerValue(built, concreteResult.type, StringId());
+            auto type = splitResult ? resultPart(*shape, U32(i)).type : concreteResult.type;
+            new (built->created().ptr + i) LowerValue(built, type, StringId());
         }
 
         built->used()[0] = code;
@@ -1095,7 +1110,11 @@ LowerPtr<LowerFunction> Lowering::callThunkFor(DeclPtr<mir::Type> subject,
 
     // The two directions the ends can differ about the result, each one instruction: a register
     // answer stored into the promised storage, and a memory answer a register promise reads back.
-    if(created && erasedResult.inMemory) {
+    // Parts the callee returned are written into whichever storage the result lands in - the
+    // promised pointer, or the landing pad that load reads back out of.
+    if(splitResult) {
+        storeReturnedParts(*block, *shape, result, place);
+    } else if(created && erasedResult.inMemory) {
         block->addInst(lower, new (to.arena) LowerInstStore(
             resultPlace, result->created().ptr - lower, concreteResult.size));
     }
@@ -1103,7 +1122,7 @@ LowerPtr<LowerFunction> Lowering::callThunkFor(DeclPtr<mir::Type> subject,
     auto returned = LowerPtr<LowerValue>(nullptr);
 
     if(returns) {
-        if(created) {
+        if(created && !splitResult) {
             returned = result->created().ptr - lower;
         } else {
             auto loaded = block->addInst(lower, new (to.arena) LowerInstLoad(

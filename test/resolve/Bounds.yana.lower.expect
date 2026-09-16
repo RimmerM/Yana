@@ -586,88 +586,74 @@ main<complex>(): I32 {
     store %v_5, 30, 4
     %v_6 = add %v_1, 12: Ptr
     store %v_6, 3, 4
+    call_complex growArray(I32), %v_1, 4
     %v_7 = load %v_3, 4: I32
     %v_8 = and %v_7, 1073741823: I32
     %v_9 = cast %v_8: I64
-    %v_10 = imm 4: I64
-    %v_11 = cmp_ile %v_10, %v_9: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_13 {
-    call_complex growArray(I32), %v_1, %v_10
-    %v_14 = load %v_3, 4: I32
-    %v_15 = and %v_14, 1073741823: I32
-    %v_16 = cast %v_15: I64
-    jmp b_12
+    %v_10 = cmp_ige 3, %v_9: I32
+    je %v_10, b_11, b_12
   }
 
   b_12 {
-    %v_17 = phi [b_0, %v_9], [b_13, %v_16]: I64
-    %v_18 = cmp_ige 3, %v_17: I32
-    je %v_18, b_19, b_20
-  }
-
-  b_20 {
-    %v_21 = load %v_1, 8: Ptr
-    %v_22 = add %v_21, 12: Ptr
-    store %v_22, 40, 4
-    %v_23 = load %v_1, 8: Ptr
-    %v_24 = add %v_1, 12: Ptr
-    store %v_24, 3, 4
-    %v_25 = loads %v_23, 4: I32
-    %v_26 = add %v_23, 8: Ptr
-    %v_27 = loads %v_26, 4: I32
+    %v_13 = load %v_1, 8: Ptr
+    %v_14 = add %v_13, 12: Ptr
+    store %v_14, 40, 4
+    %v_15 = load %v_1, 8: Ptr
+    %v_16 = add %v_1, 12: Ptr
+    store %v_16, 3, 4
+    %v_17 = loads %v_15, 4: I32
+    %v_18 = add %v_15, 8: Ptr
+    %v_19 = loads %v_18, 4: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_1
-    %v_28 = add %v_25, %v_27: I32
+    %v_20 = add %v_17, %v_19: I32
     %xs = alloca 16, 8: Ptr
-    %v_29 = alloca 24, 4: Ptr
+    %v_21 = alloca 24, 4: Ptr
+    store %xs, %v_21, 8
+    %v_22 = add %xs, 8: Ptr
+    store %v_22, 6, 4
+    store %v_21, 1, 4
+    %v_23 = add %v_21, 4: Ptr
+    store %v_23, 2, 4
+    %v_24 = add %v_21, 8: Ptr
+    store %v_24, 3, 4
+    %v_25 = add %v_21, 12: Ptr
+    store %v_25, 4, 4
+    %v_26 = add %v_21, 16: Ptr
+    store %v_26, 5, 4
+    %v_27 = add %v_21, 20: Ptr
+    store %v_27, 6, 4
+    %v_28 = add %xs, 12: Ptr
+    store %v_28, 6, 4
+    call_complex Reclaim(Array(a)).reclaim(I32), %xs
+    %xs = alloca 16, 8: Ptr
+    %v_29 = alloca 12, 4: Ptr
     store %xs, %v_29, 8
     %v_30 = add %xs, 8: Ptr
-    store %v_30, 6, 4
-    store %v_29, 1, 4
+    store %v_30, 3, 4
+    store %v_29, 7, 4
     %v_31 = add %v_29, 4: Ptr
-    store %v_31, 2, 4
+    store %v_31, 8, 4
     %v_32 = add %v_29, 8: Ptr
-    store %v_32, 3, 4
-    %v_33 = add %v_29, 12: Ptr
-    store %v_33, 4, 4
-    %v_34 = add %v_29, 16: Ptr
-    store %v_34, 5, 4
-    %v_35 = add %v_29, 20: Ptr
-    store %v_35, 6, 4
+    store %v_32, 9, 4
+    %v_33 = add %xs, 12: Ptr
+    store %v_33, 3, 4
+    call_complex Reclaim(Array(a)).reclaim(I32), %xs
+    %xs = alloca 16, 8: Ptr
+    %v_34 = alloca 4, 4: Ptr
+    store %xs, %v_34, 8
+    %v_35 = add %xs, 8: Ptr
+    store %v_35, 1, 4
+    store %v_34, 42, 4
     %v_36 = add %xs, 12: Ptr
-    store %v_36, 6, 4
+    store %v_36, 1, 4
     call_complex Reclaim(Array(a)).reclaim(I32), %xs
-    %xs = alloca 16, 8: Ptr
-    %v_37 = alloca 12, 4: Ptr
-    store %xs, %v_37, 8
-    %v_38 = add %xs, 8: Ptr
-    store %v_38, 3, 4
-    store %v_37, 7, 4
-    %v_39 = add %v_37, 4: Ptr
-    store %v_39, 8, 4
-    %v_40 = add %v_37, 8: Ptr
-    store %v_40, 9, 4
-    %v_41 = add %xs, 12: Ptr
-    store %v_41, 3, 4
-    call_complex Reclaim(Array(a)).reclaim(I32), %xs
-    %xs = alloca 16, 8: Ptr
-    %v_42 = alloca 4, 4: Ptr
-    store %xs, %v_42, 8
-    %v_43 = add %xs, 8: Ptr
-    store %v_43, 1, 4
-    store %v_42, 42, 4
-    %v_44 = add %xs, 12: Ptr
-    store %v_44, 1, 4
-    call_complex Reclaim(Array(a)).reclaim(I32), %xs
-    %v_45 = imul %v_28, 1000: I32
-    %v_46 = add %v_45, 1002: I32
-    ret %v_46
+    %v_37 = imul %v_20, 1000: I32
+    %v_38 = add %v_37, 1002: I32
+    ret %v_38
   }
 
-  b_19 {
-    %v_47 = syscall 60, 134: I64
+  b_11 {
+    %v_39 = syscall 60, 134: I64
     unreachable 
   }
 }

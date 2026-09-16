@@ -855,9 +855,9 @@ static const ClassMoveEncoding kClassMoves[kRegisterClassCount] = {
      * moved by the row above would be a silent half-copy.
      *
      * `vmovups` for the frame transfer and not `vmovaps`, for the reason the 128-bit row gives and
-     * one more: a Slot256 raises the frame's alignment to 32 the way a Slot128 raises it to 16, but
-     * the callee-saved region is settled before the allocator knows what will land there. The
-     * unaligned encoding is the same length and faults on nothing.
+     * one more: the unaligned encoding is what lets a spill slot of this class sit on an 8-byte
+     * boundary (`spillSlotAlignment`), and the callee-saved region is settled before the allocator
+     * knows what will land there. It is the same length and faults on nothing.
      */
     {
         .regToReg = 0x28, .load = 0x10, .store = 0x11,
@@ -2112,7 +2112,7 @@ struct Emitter {
          * of the value itself, which is the same count as the byte's route without the register.
          */
         if(lane == 1) {
-            auto zeros = U8(15); // the form's declared clobber - see FormVBroadcast8Sse
+            auto zeros = kVectorScratch; // the form's declared clobber - see FormVBroadcast8Sse
 
             // `pxor` against itself, which is the shortest zero on this machine and needs nothing.
             genRegReg(to, false, zeros, zeros, 0xef, 0x0f, 0x66);
@@ -2148,65 +2148,32 @@ struct Emitter {
         to.buffer.writeByte(is64 ? 0x44 : 0x00);
     }
 
-    /*
-     * A lane-wise select - see OpVBlend.
-     *
-     * `(mask & a) | (~mask & b)`, in the one order that needs a single scratch register and leaves
-     * both of the caller's inputs alone. `pandn` computes `~lhs & rhs`, which is what makes the
-     * second half one instruction rather than a complement and an `and`.
-     *
-     * The destination is `a` by the form's tie, so the third instruction writes it in place. xmm15
-     * is the form's declared clobber, so nothing live is in it here.
-     *
-     * All three are the integer-domain forms whatever the lanes hold. A bitwise operation has no
-     * lane width and the domain crossing costs a forwarding penalty at most, where selecting
-     * `andps`/`andnps`/`orps` for a float vector would be three more rows saying the same thing.
-     */
+    // A lane-wise select - see OpVBlend and FormVSelect.
     void emitVecSelect(LowerInst* inst, const InstRegs& regs) {
         auto wide = isWideVector(((LowerInstSelect*)inst)->result.type);
         auto destination = reg(regs.creates[0]);
         auto whenTrue = reg(regs.uses[0]);
         auto whenFalse = reg(regs.uses[1]);
         auto mask = reg(regs.uses[2]);
-        auto scratch = U8(15);
 
         /*
-         * `vpblendvb` where the target has a VEX encoding, which is the whole of the operation in one
-         * instruction - VEX.66.0F3A.W0 4C /r /is4, and the byte after it names the mask in its high
-         * nibble. It reads *every* byte's sign bit, which is exactly what a mask lane is at any lane
-         * width, so one row serves the float and integer cases and both register widths.
+         * `vpblendvb`, which is the whole of the operation in one instruction - VEX.66.0F3A.W0 4C /r
+         * /is4, and the byte after it names the mask in its high nibble. It reads *every* byte's sign
+         * bit, which is exactly what a mask lane is at any lane width, so one row serves the float
+         * and integer cases and both register widths.
          *
-         * Three instructions saved out of four, and the sequence below was worse than its own
-         * description under a prefix: the copy in front of it exists only because `pandn` is
-         * two-address, and VEX made it dead years before this read it. Measured at four occurrences
-         * per program in the SIMD corpus - see §34.3 of test/bench/findings.md.
+         * The only expansion, because the form is only selected where VEX is: a legacy 128-bit select
+         * is `FormVSelectBlend`. The four-instruction `pand; pandn; por` sequence that used to follow
+         * needed a scratch register the form no longer declares - see the row.
          */
-        if(packedNeedsVex() || wide) {
-            genRegRegPrefixed(to, InstPrefix {
-                .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
-                .map = kOpcodeMap0F3A, .length = wide ? U8(1) : U8(0), .vvvv = whenFalse,
-            }, whenTrue, destination, 0x4c);
+        assertTrue(packedNeedsVex() || wide);
 
-            to.buffer.writeByte(U8(mask << 4));
-            return;
-        }
+        genRegRegPrefixed(to, InstPrefix {
+            .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
+            .map = kOpcodeMap0F3A, .length = wide ? U8(1) : U8(0), .vvvv = whenFalse,
+        }, whenTrue, destination, 0x4c);
 
-        /*
-         * The legacy sequence: `(mask & a) | (~mask & b)`, in the one order that needs a single
-         * scratch register and leaves both of the caller's inputs alone. `pandn` computes
-         * `~lhs & rhs`, which is what makes the second half one instruction rather than a complement
-         * and an `and`.
-         *
-         * Reached only where the blend row was not selected - which today is the 256-bit twin, whose
-         * `wide` flag brings it here for a target with AVX but not AVX2. `FormVSelectBlend` is the
-         * 128-bit legacy answer and is two instructions; see emitVecSelectBlend below.
-         */
-        genPackedCopy(wide, mask, scratch, 0x28, 0x0f, 0x00);      // movaps scratch, mask
-        genPackedTwoAddress(wide, whenFalse, scratch, 0xdf, 0x0f, 0x66); // pandn scratch, b
-
-        // And `mask & a` into the destination, which the tie has already made `a`.
-        genPackedTwoAddress(wide, mask, destination, 0xdb, 0x0f, 0x66);  // pand dst, mask
-        genPackedTwoAddress(wide, scratch, destination, 0xeb, 0x0f, 0x66); // por dst, scratch
+        to.buffer.writeByte(U8(mask << 4));
     }
 
     /*
@@ -2275,11 +2242,11 @@ struct Emitter {
     }
 
     // A vector or a mask complemented: an exclusive-or against the above. The destination is the
-    // operand by the form's tie, and xmm15 is its declared clobber.
+    // operand by the form's tie, and `kVectorScratch` is its declared clobber.
     void emitVecNot(LowerInst* inst, const InstRegs& regs) {
         auto wide = isWideVector(((LowerInstUnary*)inst)->result.type);
         auto destination = reg(regs.creates[0]);
-        auto scratch = U8(15);
+        auto scratch = kVectorScratch;
 
         emitAllOnes(wide, scratch);
         genPackedTwoAddress(wide, scratch, destination, 0xef, 0x0f, 0x66); // pxor dst, scratch
@@ -2314,7 +2281,7 @@ struct Emitter {
 
         auto wide = isWideVector(lanes);
         auto destination = reg(regs.creates[0]);
-        auto scratch = U8(15);
+        auto scratch = kVectorScratch;
 
         genPackedTwoAddress(wide, reg(regs.uses[1]), destination, opcode, 0x0f, 0x66, map);
         emitAllOnes(wide, scratch);
@@ -2345,7 +2312,7 @@ struct Emitter {
         auto wide = isWideVector(type);
         auto destination = reg(regs.creates[0]);
         auto count = reg(regs.uses[1]);
-        auto scratch = U8(15);
+        auto scratch = kVectorScratch;
 
         // The count's own width, which the *lane* decides: `scalarFormOf` makes a count an `Int32`
         // at every lane below the quadword and an `Int64` at that one. Either transfer clears
@@ -2370,8 +2337,8 @@ struct Emitter {
     void emitVecMul32(const InstRegs& regs) {
         auto destination = reg(regs.creates[0]);
         auto rhs = reg(regs.uses[1]);
-        auto even = U8(14);
-        auto odd = U8(15);
+        auto even = kVectorScratchPair;
+        auto odd = kVectorScratch;
 
         // Lane 1 into lane 0 and lane 3 into lane 2, which is what puts the odd lanes where
         // `pmuludq` reads: [1, 1, 3, 3].
@@ -2418,7 +2385,7 @@ struct Emitter {
         auto wide = isWideVector(type);
         auto destination = reg(regs.creates[0]);
         auto source = reg(regs.uses[0]);
-        auto scratch = U8(15);
+        auto scratch = kVectorScratch;
 
         if(isFloatVector(type)) {
             auto quad = laneBytes(type.lane) == 8;
@@ -2515,7 +2482,7 @@ struct Emitter {
             return;
         }
 
-        auto scratch = U8(15);
+        auto scratch = kVectorScratch;
         auto held = source;
 
         if(high) {
@@ -2600,7 +2567,7 @@ struct Emitter {
         auto destination = reg(regs.creates[0]);
         auto vector = reg(regs.uses[0]);
         auto value = reg(regs.uses[1]);
-        auto scratch = U8(15);
+        auto scratch = kVectorScratch;
 
         // The half being written, as a 128-bit source operand. The upper one has to be brought down
         // to be one; the lower one already is one, the register being the same register.

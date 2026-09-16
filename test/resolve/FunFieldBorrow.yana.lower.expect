@@ -13,14 +13,14 @@ retarget<complex>(%slot: Ptr) {
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 20, 8: Ptr
-    %v_2 = bitcast 0: Ptr
-    %v_3 = add %v_1, 16: Ptr
-    store %v_3, 1, 4
-    store %v_1, funvalue$double, 8
-    %v_4 = add %v_1, 8: Ptr
-    store %v_4, %v_2, 8
-    %v_5 = load %v_1, 8: Ptr
-    %v_6 = call_complex %v_5, %v_2, 10: I32
+    %v_2 = fun funvalue$double: Ptr
+    %v_3 = bitcast 0: Ptr
+    %v_4 = add %v_1, 16: Ptr
+    store %v_4, 1, 4
+    store %v_1, %v_2, 8
+    %v_5 = add %v_1, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = call_complex %v_2, %v_3, 10: I32
     call_complex retarget, %v_1
     %v_7 = add %v_1, 8: Ptr
     %v_8 = load %v_1, 8: Ptr
@@ -30,12 +30,12 @@ main<complex>(): I32 {
     %v_12 = loads %v_11, 4: I32
     %after = imul %v_10, %v_12: I32
     store %v_11, 4, 4
-    store %v_1, funvalue$negate, 8
-    %v_13 = bitcast 0: Ptr
-    %v_14 = add %v_1, 8: Ptr
-    store %v_14, %v_13, 8
-    %v_15 = load %v_1, 8: Ptr
-    %v_16 = call_complex %v_15, %v_13, 10: I32
+    %v_13 = fun funvalue$negate: Ptr
+    store %v_1, %v_13, 8
+    %v_14 = bitcast 0: Ptr
+    %v_15 = add %v_1, 8: Ptr
+    store %v_15, %v_14, 8
+    %v_16 = call_complex %v_13, %v_14, 10: I32
     %last = shl %v_16, 2: I32
     %v_17 = add %v_6, %after: I32
     %v_18 = add %v_17, %last: I32

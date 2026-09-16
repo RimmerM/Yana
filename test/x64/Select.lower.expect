@@ -98,12 +98,12 @@ block #1:
 
 --- codegen: zeroArm ---
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+  jmp uses=[] creates=[]  => 
 block #1:
-  load uses=[rax] creates=[rax]  => 488b00
+  load uses=[rdi] creates=[rdi]  => 488b3f
   imm uses=[] creates=[remat:0]  => 
-  cmp_igt uses=[rax, rsi] creates=[-]  => 4839f0
-  select uses=[rax, rdi, -] creates=[rax] pre=[remat:0->rdi]  => bf00000000480f4ec7
+  cmp_igt uses=[rdi, rsi] creates=[-]  => 4839f7
+  select uses=[rax, rdx, -] creates=[rax] pre=[rdi->rax, remat:0->rdx]  => 488bc7ba00000000480f4ec2
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: provider ---

@@ -1,11 +1,11 @@
 mut @log = [0, 0, 0, 0]
 mut @dropped = [0, 0, 0, 0]
 
-Node.drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @dropped, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @dropped, %v_2, 4
+Node.drop<complex>(%v_0: I32, %v_1: I32, %v_2: I32, %v_3: I32) {
+  b_4 {
+    %v_5 = loads @dropped, 4: I32
+    %v_6 = add %v_5, 1: I32
+    store @dropped, %v_6, 4
     ret 
   }
 }
@@ -21,1224 +21,1242 @@ main<complex>(): I32 {
   b_0 {
     store @log, 0, 4
     store @dropped, 0, 4
-    %v_1 = alloca 16, 4: Ptr
-    %v_2 = loads @log, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store @log, %v_3, 4
-    %v_4 = alloca 20, 4: Ptr
-    %v_5 = add %v_4, 4: Ptr
-    %v_6 = add %v_4, 12: Ptr
-    store %v_6, 12, 4
-    %v_7 = add %v_4, 8: Ptr
-    store %v_7, 18, 4
-    store %v_5, 1, 1
-    %v_8 = add %v_4, 16: Ptr
-    store %v_8, 6, 4
+    %v_1 = loads @log, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @log, %v_2, 4
+    %v_3 = alloca 20, 4: Ptr
+    %v_4 = add %v_3, 4: Ptr
+    %v_5 = add %v_3, 12: Ptr
+    store %v_5, 12, 4
+    %v_6 = add %v_3, 8: Ptr
+    store %v_6, 18, 4
     store %v_4, 1, 1
-    %v_9 = alloca 16, 4: Ptr
-    copy %v_9, %v_5, 16
-    %v_10 = alloca 20, 4: Ptr
-    store %v_10, 0, 1
-    %v_11 = add %v_10, 4: Ptr
-    copy %v_11, %v_9, 16
-    %v_12 = load %v_10, 1: I32
-    %v_13 = cmp_eq %v_12, 1: I32
-    je %v_13, b_14, b_15
+    %v_7 = add %v_3, 16: Ptr
+    store %v_7, 6, 4
+    store %v_3, 1, 1
+    %v_8 = alloca 16, 4: Ptr
+    copy %v_8, %v_4, 16
+    %v_9 = alloca 20, 4: Ptr
+    store %v_9, 0, 1
+    %v_10 = add %v_9, 4: Ptr
+    copy %v_10, %v_8, 16
+    %v_11 = load %v_9, 1: I32
+    %v_12 = cmp_eq %v_11, 1: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    call_complex teardown(Outcome(Node, {})), %v_9
+    %v_15 = alloca 8, 4: Ptr
+    store %v_15, 0, 1
+    jmp b_16
   }
 
   b_14 {
-    call_complex teardown(Outcome(Node, {})), %v_10
-    %v_16 = alloca 8, 4: Ptr
-    store %v_16, 0, 1
-    jmp b_17
+    %v_17 = add %v_9, 4: Ptr
+    %v_18 = load %v_17, 1: I32
+    %v_19 = add %v_9, 8: Ptr
+    %v_20 = load %v_19, 4: I32
+    %v_21 = add %v_9, 12: Ptr
+    %v_22 = load %v_21, 4: I32
+    %v_23 = add %v_9, 16: Ptr
+    %v_24 = load %v_23, 4: I32
+    call_complex Node.drop, %v_18, %v_20, %v_22, %v_24
+    %v_25 = alloca 8, 4: Ptr
+    store %v_25, 1, 1
+    %v_26 = add %v_25, 4: Ptr
+    store %v_26, %v_22, 4
+    jmp b_16
   }
 
-  b_15 {
-    %v_18 = add %v_10, 4: Ptr
-    copy %v_1, %v_18, 16
-    %v_19 = add %v_1, 8: Ptr
-    %v_20 = loads %v_19, 4: I32
-    call_complex Node.drop, %v_1
-    %v_21 = alloca 8, 4: Ptr
-    store %v_21, 1, 1
-    %v_22 = add %v_21, 4: Ptr
-    store %v_22, %v_20, 4
-    jmp b_17
+  b_16 {
+    %v_27 = phi [b_13, %v_15], [b_14, %v_25]: Ptr
+    %v_28 = load %v_27, 1: I32
+    %v_29 = cmp_eq %v_28, 1: I32
+    je %v_29, b_30, b_31
   }
 
-  b_17 {
-    %v_23 = phi [b_14, %v_16], [b_15, %v_21]: Ptr
-    %v_24 = load %v_23, 1: I32
-    %v_25 = cmp_eq %v_24, 1: I32
-    je %v_25, b_26, b_27
+  b_31 {
+    jmp b_32
   }
 
-  b_27 {
-    jmp b_28
+  b_30 {
+    %v_33 = add %v_27, 4: Ptr
+    %v_34 = loads %v_33, 4: I32
+    jmp b_32
   }
 
-  b_26 {
-    %v_29 = add %v_23, 4: Ptr
-    %v_30 = loads %v_29, 4: I32
-    jmp b_28
-  }
-
-  b_28 {
-    %v_31 = phi [b_27, 0], [b_26, %v_30]: I32
-    %v_32 = alloca 16, 4: Ptr
-    %v_33 = loads @log, 4: I32
-    %v_34 = add %v_33, 1: I32
-    store @log, %v_34, 4
-    %v_35 = alloca 20, 4: Ptr
-    store %v_35, 0, 1
-    %v_36 = alloca 16, 4: Ptr
-    call_complex teardown(Maybe(Node)), %v_35
-    %v_37 = alloca 20, 4: Ptr
-    store %v_37, 1, 1
-    %v_38 = load %v_37, 1: I32
-    %v_39 = cmp_eq %v_38, 1: I32
-    je %v_39, b_40, b_41
-  }
-
-  b_40 {
-    call_complex teardown(Outcome(Node, {})), %v_37
-    %v_42 = alloca 8, 4: Ptr
-    store %v_42, 0, 1
-    jmp b_43
-  }
-
-  b_41 {
-    %v_44 = add %v_37, 4: Ptr
-    copy %v_32, %v_44, 16
-    %v_45 = add %v_32, 8: Ptr
-    %v_46 = loads %v_45, 4: I32
-    call_complex Node.drop, %v_32
-    %v_47 = alloca 8, 4: Ptr
-    store %v_47, 1, 1
-    %v_48 = add %v_47, 4: Ptr
-    store %v_48, %v_46, 4
-    jmp b_43
+  b_32 {
+    %v_35 = phi [b_31, 0], [b_30, %v_34]: I32
+    %v_36 = loads @log, 4: I32
+    %v_37 = add %v_36, 1: I32
+    store @log, %v_37, 4
+    %v_38 = alloca 20, 4: Ptr
+    store %v_38, 0, 1
+    %v_39 = alloca 16, 4: Ptr
+    call_complex teardown(Maybe(Node)), %v_38
+    %v_40 = alloca 20, 4: Ptr
+    store %v_40, 1, 1
+    %v_41 = load %v_40, 1: I32
+    %v_42 = cmp_eq %v_41, 1: I32
+    je %v_42, b_43, b_44
   }
 
   b_43 {
-    %v_49 = phi [b_40, %v_42], [b_41, %v_47]: Ptr
-    %v_50 = load %v_49, 1: I32
-    %v_51 = cmp_eq %v_50, 1: I32
-    je %v_51, b_52, b_53
+    call_complex teardown(Outcome(Node, {})), %v_40
+    %v_45 = alloca 8, 4: Ptr
+    store %v_45, 0, 1
+    jmp b_46
   }
 
-  b_53 {
-    jmp b_54
+  b_44 {
+    %v_47 = add %v_40, 4: Ptr
+    %v_48 = load %v_47, 1: I32
+    %v_49 = add %v_40, 8: Ptr
+    %v_50 = load %v_49, 4: I32
+    %v_51 = add %v_40, 12: Ptr
+    %v_52 = load %v_51, 4: I32
+    %v_53 = add %v_40, 16: Ptr
+    %v_54 = load %v_53, 4: I32
+    call_complex Node.drop, %v_48, %v_50, %v_52, %v_54
+    %v_55 = alloca 8, 4: Ptr
+    store %v_55, 1, 1
+    %v_56 = add %v_55, 4: Ptr
+    store %v_56, %v_52, 4
+    jmp b_46
   }
 
-  b_52 {
-    %v_55 = add %v_49, 4: Ptr
-    %v_56 = loads %v_55, 4: I32
-    jmp b_54
+  b_46 {
+    %v_57 = phi [b_43, %v_45], [b_44, %v_55]: Ptr
+    %v_58 = load %v_57, 1: I32
+    %v_59 = cmp_eq %v_58, 1: I32
+    je %v_59, b_60, b_61
   }
 
-  b_54 {
-    %v_57 = phi [b_53, 0], [b_52, %v_56]: I32
-    %v_58 = alloca 16, 4: Ptr
-    %v_59 = loads @log, 4: I32
-    %v_60 = add %v_59, 1: I32
-    store @log, %v_60, 4
-    %v_61 = alloca 20, 4: Ptr
-    %v_62 = add %v_61, 4: Ptr
-    %v_63 = add %v_61, 12: Ptr
-    store %v_63, 12, 4
-    %v_64 = add %v_61, 8: Ptr
-    store %v_64, 18, 4
-    store %v_62, 1, 1
-    %v_65 = add %v_61, 16: Ptr
-    store %v_65, 6, 4
-    store %v_61, 1, 1
-    %v_66 = alloca 16, 4: Ptr
-    copy %v_66, %v_62, 16
-    %v_67 = alloca 20, 4: Ptr
-    store %v_67, 0, 1
-    %v_68 = add %v_67, 4: Ptr
-    copy %v_68, %v_66, 16
-    %v_69 = load %v_67, 1: I32
-    %v_70 = cmp_eq %v_69, 1: I32
-    je %v_70, b_71, b_72
+  b_61 {
+    jmp b_62
   }
 
-  b_71 {
-    call_complex teardown(Outcome(Node, {})), %v_67
-    %v_73 = alloca 8, 4: Ptr
-    store %v_73, 0, 1
-    jmp b_74
+  b_60 {
+    %v_63 = add %v_57, 4: Ptr
+    %v_64 = loads %v_63, 4: I32
+    jmp b_62
   }
 
-  b_72 {
-    %v_75 = add %v_67, 4: Ptr
-    copy %v_58, %v_75, 16
-    %v_76 = load %v_58, 1: I32
-    %v_77 = add %v_58, 4: Ptr
-    %v_78 = load %v_77, 4: I32
-    call_complex Node.drop, %v_58
-    %v_79 = cmp_eq %v_76, 1: I32
-    je %v_79, b_80, b_81
+  b_62 {
+    %v_65 = phi [b_61, 0], [b_60, %v_64]: I32
+    %v_66 = loads @log, 4: I32
+    %v_67 = add %v_66, 1: I32
+    store @log, %v_67, 4
+    %v_68 = alloca 20, 4: Ptr
+    %v_69 = add %v_68, 4: Ptr
+    %v_70 = add %v_68, 12: Ptr
+    store %v_70, 12, 4
+    %v_71 = add %v_68, 8: Ptr
+    store %v_71, 18, 4
+    store %v_69, 1, 1
+    %v_72 = add %v_68, 16: Ptr
+    store %v_72, 6, 4
+    store %v_68, 1, 1
+    %v_73 = alloca 16, 4: Ptr
+    copy %v_73, %v_69, 16
+    %v_74 = alloca 20, 4: Ptr
+    store %v_74, 0, 1
+    %v_75 = add %v_74, 4: Ptr
+    copy %v_75, %v_73, 16
+    %v_76 = load %v_74, 1: I32
+    %v_77 = cmp_eq %v_76, 1: I32
+    je %v_77, b_78, b_79
   }
 
-  b_81 {
-    %v_82 = alloca 8, 4: Ptr
-    store %v_82, 1, 1
-    jmp b_83
+  b_78 {
+    call_complex teardown(Outcome(Node, {})), %v_74
+    %v_80 = alloca 8, 4: Ptr
+    store %v_80, 0, 1
+    jmp b_81
   }
 
-  b_80 {
-    %v_84 = alloca 8, 4: Ptr
-    store %v_84, 0, 1
-    %v_85 = add %v_84, 4: Ptr
-    store %v_85, %v_78, 4
-    jmp b_83
+  b_79 {
+    %v_82 = add %v_74, 4: Ptr
+    %v_83 = load %v_82, 1: I32
+    %v_84 = add %v_74, 8: Ptr
+    %v_85 = load %v_84, 4: I32
+    %v_86 = add %v_74, 12: Ptr
+    %v_87 = load %v_86, 4: I32
+    %v_88 = add %v_74, 16: Ptr
+    %v_89 = load %v_88, 4: I32
+    call_complex Node.drop, %v_83, %v_85, %v_87, %v_89
+    %v_90 = cmp_eq %v_83, 1: I32
+    je %v_90, b_91, b_92
   }
 
-  b_83 {
-    %v_86 = phi [b_81, %v_82], [b_80, %v_84]: Ptr
-    %v_87 = load %v_86, 1: I32
-    %v_88 = cmp_eq %v_87, 1: I32
-    je %v_88, b_89, b_90
+  b_92 {
+    %v_93 = alloca 8, 4: Ptr
+    store %v_93, 1, 1
+    jmp b_94
   }
 
-  b_89 {
-    %v_91 = alloca 8, 4: Ptr
-    store %v_91, 0, 1
-    jmp b_74
+  b_91 {
+    %v_95 = alloca 8, 4: Ptr
+    store %v_95, 0, 1
+    %v_96 = add %v_95, 4: Ptr
+    store %v_96, %v_85, 4
+    jmp b_94
   }
 
-  b_90 {
-    %v_92 = add %v_86, 4: Ptr
-    %v_93 = load %v_92, 4: I32
-    %v_94 = alloca 8, 4: Ptr
-    store %v_94, 1, 1
-    %v_95 = add %v_94, 4: Ptr
-    store %v_95, %v_93, 4
-    jmp b_74
-  }
-
-  b_74 {
-    %v_96 = phi [b_71, %v_73], [b_89, %v_91], [b_90, %v_94]: Ptr
-    %v_97 = load %v_96, 1: I32
-    %v_98 = cmp_eq %v_97, 1: I32
-    je %v_98, b_99, b_100
+  b_94 {
+    %v_97 = phi [b_92, %v_93], [b_91, %v_95]: Ptr
+    %v_98 = load %v_97, 1: I32
+    %v_99 = cmp_eq %v_98, 1: I32
+    je %v_99, b_100, b_101
   }
 
   b_100 {
-    jmp b_101
-  }
-
-  b_99 {
-    %v_102 = add %v_96, 4: Ptr
-    %v_103 = loads %v_102, 4: I32
-    jmp b_101
+    %v_102 = alloca 8, 4: Ptr
+    store %v_102, 0, 1
+    jmp b_81
   }
 
   b_101 {
-    %v_104 = phi [b_100, 0], [b_99, %v_103]: I32
-    %v_105 = alloca 16, 4: Ptr
-    %v_106 = loads @log, 4: I32
-    %v_107 = add %v_106, 1: I32
-    store @log, %v_107, 4
-    %v_108 = alloca 20, 4: Ptr
-    %v_109 = add %v_108, 4: Ptr
-    %v_110 = add %v_108, 12: Ptr
-    store %v_110, 6, 4
-    store %v_109, 0, 1
-    %v_111 = add %v_108, 16: Ptr
-    store %v_111, 3, 4
-    store %v_108, 1, 1
-    %v_112 = alloca 16, 4: Ptr
-    copy %v_112, %v_109, 16
-    %v_113 = alloca 20, 4: Ptr
-    store %v_113, 0, 1
-    %v_114 = add %v_113, 4: Ptr
-    copy %v_114, %v_112, 16
-    %v_115 = load %v_113, 1: I32
-    %v_116 = cmp_eq %v_115, 1: I32
-    je %v_116, b_117, b_118
+    %v_103 = add %v_97, 4: Ptr
+    %v_104 = load %v_103, 4: I32
+    %v_105 = alloca 8, 4: Ptr
+    store %v_105, 1, 1
+    %v_106 = add %v_105, 4: Ptr
+    store %v_106, %v_104, 4
+    jmp b_81
   }
 
-  b_117 {
-    call_complex teardown(Outcome(Node, {})), %v_113
-    %v_119 = alloca 8, 4: Ptr
+  b_81 {
+    %v_107 = phi [b_78, %v_80], [b_100, %v_102], [b_101, %v_105]: Ptr
+    %v_108 = load %v_107, 1: I32
+    %v_109 = cmp_eq %v_108, 1: I32
+    je %v_109, b_110, b_111
+  }
+
+  b_111 {
+    jmp b_112
+  }
+
+  b_110 {
+    %v_113 = add %v_107, 4: Ptr
+    %v_114 = loads %v_113, 4: I32
+    jmp b_112
+  }
+
+  b_112 {
+    %v_115 = phi [b_111, 0], [b_110, %v_114]: I32
+    %v_116 = loads @log, 4: I32
+    %v_117 = add %v_116, 1: I32
+    store @log, %v_117, 4
+    %v_118 = alloca 20, 4: Ptr
+    %v_119 = add %v_118, 4: Ptr
+    %v_120 = add %v_118, 12: Ptr
+    store %v_120, 6, 4
     store %v_119, 0, 1
-    jmp b_120
-  }
-
-  b_118 {
-    %v_121 = add %v_113, 4: Ptr
-    copy %v_105, %v_121, 16
-    %v_122 = load %v_105, 1: I32
-    %v_123 = add %v_105, 4: Ptr
-    %v_124 = load %v_123, 4: I32
-    call_complex Node.drop, %v_105
-    %v_125 = cmp_eq %v_122, 1: I32
-    je %v_125, b_126, b_127
+    %v_121 = add %v_118, 16: Ptr
+    store %v_121, 3, 4
+    store %v_118, 1, 1
+    %v_122 = alloca 16, 4: Ptr
+    copy %v_122, %v_119, 16
+    %v_123 = alloca 20, 4: Ptr
+    store %v_123, 0, 1
+    %v_124 = add %v_123, 4: Ptr
+    copy %v_124, %v_122, 16
+    %v_125 = load %v_123, 1: I32
+    %v_126 = cmp_eq %v_125, 1: I32
+    je %v_126, b_127, b_128
   }
 
   b_127 {
-    %v_128 = alloca 8, 4: Ptr
-    store %v_128, 1, 1
-    jmp b_129
+    call_complex teardown(Outcome(Node, {})), %v_123
+    %v_129 = alloca 8, 4: Ptr
+    store %v_129, 0, 1
+    jmp b_130
   }
 
-  b_126 {
-    %v_130 = alloca 8, 4: Ptr
-    store %v_130, 0, 1
-    %v_131 = add %v_130, 4: Ptr
-    store %v_131, %v_124, 4
-    jmp b_129
+  b_128 {
+    %v_131 = add %v_123, 4: Ptr
+    %v_132 = load %v_131, 1: I32
+    %v_133 = add %v_123, 8: Ptr
+    %v_134 = load %v_133, 4: I32
+    %v_135 = add %v_123, 12: Ptr
+    %v_136 = load %v_135, 4: I32
+    %v_137 = add %v_123, 16: Ptr
+    %v_138 = load %v_137, 4: I32
+    call_complex Node.drop, %v_132, %v_134, %v_136, %v_138
+    %v_139 = cmp_eq %v_132, 1: I32
+    je %v_139, b_140, b_141
   }
 
-  b_129 {
-    %v_132 = phi [b_127, %v_128], [b_126, %v_130]: Ptr
-    %v_133 = load %v_132, 1: I32
-    %v_134 = cmp_eq %v_133, 1: I32
-    je %v_134, b_135, b_136
+  b_141 {
+    %v_142 = alloca 8, 4: Ptr
+    store %v_142, 1, 1
+    jmp b_143
   }
 
-  b_135 {
-    %v_137 = alloca 8, 4: Ptr
-    store %v_137, 0, 1
-    jmp b_120
+  b_140 {
+    %v_144 = alloca 8, 4: Ptr
+    store %v_144, 0, 1
+    %v_145 = add %v_144, 4: Ptr
+    store %v_145, %v_134, 4
+    jmp b_143
   }
 
-  b_136 {
-    %v_138 = add %v_132, 4: Ptr
-    %v_139 = load %v_138, 4: I32
-    %v_140 = alloca 8, 4: Ptr
-    store %v_140, 1, 1
-    %v_141 = add %v_140, 4: Ptr
-    store %v_141, %v_139, 4
-    jmp b_120
+  b_143 {
+    %v_146 = phi [b_141, %v_142], [b_140, %v_144]: Ptr
+    %v_147 = load %v_146, 1: I32
+    %v_148 = cmp_eq %v_147, 1: I32
+    je %v_148, b_149, b_150
   }
 
-  b_120 {
-    %v_142 = phi [b_117, %v_119], [b_135, %v_137], [b_136, %v_140]: Ptr
-    %v_143 = load %v_142, 1: I32
-    %v_144 = cmp_eq %v_143, 1: I32
-    je %v_144, b_145, b_146
+  b_149 {
+    %v_151 = alloca 8, 4: Ptr
+    store %v_151, 0, 1
+    jmp b_130
   }
 
-  b_146 {
-    jmp b_147
+  b_150 {
+    %v_152 = add %v_146, 4: Ptr
+    %v_153 = load %v_152, 4: I32
+    %v_154 = alloca 8, 4: Ptr
+    store %v_154, 1, 1
+    %v_155 = add %v_154, 4: Ptr
+    store %v_155, %v_153, 4
+    jmp b_130
   }
 
-  b_145 {
-    %v_148 = add %v_142, 4: Ptr
-    %v_149 = loads %v_148, 4: I32
-    jmp b_147
-  }
-
-  b_147 {
-    %v_150 = phi [b_146, 0], [b_145, %v_149]: I32
-    %v_151 = alloca 16, 4: Ptr
-    %v_152 = loads @log, 4: I32
-    %v_153 = add %v_152, 1: I32
-    store @log, %v_153, 4
-    %v_154 = alloca 20, 4: Ptr
-    store %v_154, 0, 1
-    %v_155 = alloca 16, 4: Ptr
-    call_complex teardown(Maybe(Node)), %v_154
-    %v_156 = alloca 20, 4: Ptr
-    store %v_156, 1, 1
+  b_130 {
+    %v_156 = phi [b_127, %v_129], [b_149, %v_151], [b_150, %v_154]: Ptr
     %v_157 = load %v_156, 1: I32
     %v_158 = cmp_eq %v_157, 1: I32
     je %v_158, b_159, b_160
   }
 
-  b_159 {
-    call_complex teardown(Outcome(Node, {})), %v_156
-    %v_161 = alloca 8, 4: Ptr
-    store %v_161, 0, 1
-    jmp b_162
-  }
-
   b_160 {
-    %v_163 = add %v_156, 4: Ptr
-    copy %v_151, %v_163, 16
-    %v_164 = load %v_151, 1: I32
-    %v_165 = add %v_151, 4: Ptr
-    %v_166 = load %v_165, 4: I32
-    call_complex Node.drop, %v_151
-    %v_167 = cmp_eq %v_164, 1: I32
-    je %v_167, b_168, b_169
+    jmp b_161
   }
 
-  b_169 {
-    %v_170 = alloca 8, 4: Ptr
-    store %v_170, 1, 1
-    jmp b_171
+  b_159 {
+    %v_162 = add %v_156, 4: Ptr
+    %v_163 = loads %v_162, 4: I32
+    jmp b_161
   }
 
-  b_168 {
-    %v_172 = alloca 8, 4: Ptr
-    store %v_172, 0, 1
-    %v_173 = add %v_172, 4: Ptr
-    store %v_173, %v_166, 4
-    jmp b_171
+  b_161 {
+    %v_164 = phi [b_160, 0], [b_159, %v_163]: I32
+    %v_165 = loads @log, 4: I32
+    %v_166 = add %v_165, 1: I32
+    store @log, %v_166, 4
+    %v_167 = alloca 20, 4: Ptr
+    store %v_167, 0, 1
+    %v_168 = alloca 16, 4: Ptr
+    call_complex teardown(Maybe(Node)), %v_167
+    %v_169 = alloca 20, 4: Ptr
+    store %v_169, 1, 1
+    %v_170 = load %v_169, 1: I32
+    %v_171 = cmp_eq %v_170, 1: I32
+    je %v_171, b_172, b_173
   }
 
-  b_171 {
-    %v_174 = phi [b_169, %v_170], [b_168, %v_172]: Ptr
-    %v_175 = load %v_174, 1: I32
-    %v_176 = cmp_eq %v_175, 1: I32
-    je %v_176, b_177, b_178
+  b_172 {
+    call_complex teardown(Outcome(Node, {})), %v_169
+    %v_174 = alloca 8, 4: Ptr
+    store %v_174, 0, 1
+    jmp b_175
   }
 
-  b_177 {
-    %v_179 = alloca 8, 4: Ptr
-    store %v_179, 0, 1
-    jmp b_162
-  }
-
-  b_178 {
-    %v_180 = add %v_174, 4: Ptr
+  b_173 {
+    %v_176 = add %v_169, 4: Ptr
+    %v_177 = load %v_176, 1: I32
+    %v_178 = add %v_169, 8: Ptr
+    %v_179 = load %v_178, 4: I32
+    %v_180 = add %v_169, 12: Ptr
     %v_181 = load %v_180, 4: I32
-    %v_182 = alloca 8, 4: Ptr
-    store %v_182, 1, 1
-    %v_183 = add %v_182, 4: Ptr
-    store %v_183, %v_181, 4
-    jmp b_162
+    %v_182 = add %v_169, 16: Ptr
+    %v_183 = load %v_182, 4: I32
+    call_complex Node.drop, %v_177, %v_179, %v_181, %v_183
+    %v_184 = cmp_eq %v_177, 1: I32
+    je %v_184, b_185, b_186
   }
 
-  b_162 {
-    %v_184 = phi [b_159, %v_161], [b_177, %v_179], [b_178, %v_182]: Ptr
-    %v_185 = load %v_184, 1: I32
-    %v_186 = cmp_eq %v_185, 1: I32
-    je %v_186, b_187, b_188
+  b_186 {
+    %v_187 = alloca 8, 4: Ptr
+    store %v_187, 1, 1
+    jmp b_188
+  }
+
+  b_185 {
+    %v_189 = alloca 8, 4: Ptr
+    store %v_189, 0, 1
+    %v_190 = add %v_189, 4: Ptr
+    store %v_190, %v_179, 4
+    jmp b_188
   }
 
   b_188 {
-    jmp b_189
+    %v_191 = phi [b_186, %v_187], [b_185, %v_189]: Ptr
+    %v_192 = load %v_191, 1: I32
+    %v_193 = cmp_eq %v_192, 1: I32
+    je %v_193, b_194, b_195
   }
 
-  b_187 {
-    %v_190 = add %v_184, 4: Ptr
-    %v_191 = loads %v_190, 4: I32
-    jmp b_189
+  b_194 {
+    %v_196 = alloca 8, 4: Ptr
+    store %v_196, 0, 1
+    jmp b_175
   }
 
-  b_189 {
-    %v_192 = phi [b_188, 0], [b_187, %v_191]: I32
-    %v_193 = alloca 16, 4: Ptr
-    %v_194 = loads @log, 4: I32
-    %v_195 = add %v_194, 10: I32
-    store @log, %v_195, 4
-    %v_196 = alloca 20, 4: Ptr
-    %v_197 = add %v_196, 4: Ptr
-    %v_198 = add %v_196, 12: Ptr
-    store %v_198, 16, 4
-    store %v_197, 0, 1
-    %v_199 = add %v_196, 16: Ptr
-    store %v_199, 4, 4
-    store %v_196, 1, 1
-    %v_200 = alloca 16, 4: Ptr
-    copy %v_200, %v_197, 16
-    %v_201 = alloca 20, 4: Ptr
-    store %v_201, 0, 1
-    %v_202 = add %v_201, 4: Ptr
-    copy %v_202, %v_200, 16
-    %v_203 = load %v_201, 1: I32
-    %v_204 = cmp_eq %v_203, 1: I32
-    je %v_204, b_205, b_206
+  b_195 {
+    %v_197 = add %v_191, 4: Ptr
+    %v_198 = load %v_197, 4: I32
+    %v_199 = alloca 8, 4: Ptr
+    store %v_199, 1, 1
+    %v_200 = add %v_199, 4: Ptr
+    store %v_200, %v_198, 4
+    jmp b_175
+  }
+
+  b_175 {
+    %v_201 = phi [b_172, %v_174], [b_194, %v_196], [b_195, %v_199]: Ptr
+    %v_202 = load %v_201, 1: I32
+    %v_203 = cmp_eq %v_202, 1: I32
+    je %v_203, b_204, b_205
   }
 
   b_205 {
+    jmp b_206
+  }
+
+  b_204 {
     %v_207 = add %v_201, 4: Ptr
     %v_208 = loads %v_207, 4: I32
-    call_complex teardown(Outcome(Node, I32)), %v_201
-    %v_209 = alloca 8, 4: Ptr
-    store %v_209, 0, 1
-    %v_210 = add %v_209, 4: Ptr
-    store %v_210, %v_208, 4
-    jmp b_211
+    jmp b_206
   }
 
   b_206 {
-    %v_212 = add %v_201, 4: Ptr
-    copy %v_193, %v_212, 16
-    %v_213 = add %v_193, 12: Ptr
-    %v_214 = loads %v_213, 4: I32
-    call_complex Node.drop, %v_193
-    %v_215 = alloca 8, 4: Ptr
-    store %v_215, 1, 1
-    %v_216 = add %v_215, 4: Ptr
-    store %v_216, %v_214, 4
-    jmp b_211
-  }
-
-  b_211 {
-    %v_217 = phi [b_205, %v_209], [b_206, %v_215]: Ptr
-    %v_218 = load %v_217, 1: I32
-    %v_219 = cmp_eq %v_218, 1: I32
-    je %v_219, b_220, b_221
+    %v_209 = phi [b_205, 0], [b_204, %v_208]: I32
+    %v_210 = loads @log, 4: I32
+    %v_211 = add %v_210, 10: I32
+    store @log, %v_211, 4
+    %v_212 = alloca 20, 4: Ptr
+    %v_213 = add %v_212, 4: Ptr
+    %v_214 = add %v_212, 12: Ptr
+    store %v_214, 16, 4
+    store %v_213, 0, 1
+    %v_215 = add %v_212, 16: Ptr
+    store %v_215, 4, 4
+    store %v_212, 1, 1
+    %v_216 = alloca 16, 4: Ptr
+    copy %v_216, %v_213, 16
+    %v_217 = alloca 20, 4: Ptr
+    store %v_217, 0, 1
+    %v_218 = add %v_217, 4: Ptr
+    copy %v_218, %v_216, 16
+    %v_219 = load %v_217, 1: I32
+    %v_220 = cmp_eq %v_219, 1: I32
+    je %v_220, b_221, b_222
   }
 
   b_221 {
-    jmp b_222
-  }
-
-  b_220 {
     %v_223 = add %v_217, 4: Ptr
     %v_224 = loads %v_223, 4: I32
-    jmp b_222
+    call_complex teardown(Outcome(Node, I32)), %v_217
+    %v_225 = alloca 8, 4: Ptr
+    store %v_225, 0, 1
+    %v_226 = add %v_225, 4: Ptr
+    store %v_226, %v_224, 4
+    jmp b_227
   }
 
   b_222 {
-    %v_225 = phi [b_221, 0], [b_220, %v_224]: I32
-    %v_226 = alloca 16, 4: Ptr
-    %v_227 = loads @log, 4: I32
-    %v_228 = add %v_227, 10: I32
-    store @log, %v_228, 4
-    %v_229 = alloca 20, 4: Ptr
-    store %v_229, 1, 1
-    %v_230 = add %v_229, 4: Ptr
-    store %v_230, 18446744073709551614, 4
-    %v_231 = load %v_229, 1: I32
-    %v_232 = cmp_eq %v_231, 1: I32
-    je %v_232, b_233, b_234
-  }
-
-  b_233 {
-    %v_235 = loads %v_230, 4: I32
-    call_complex teardown(Outcome(Node, I32)), %v_229
+    %v_228 = add %v_217, 4: Ptr
+    %v_229 = load %v_228, 1: I32
+    %v_230 = add %v_217, 8: Ptr
+    %v_231 = load %v_230, 4: I32
+    %v_232 = add %v_217, 12: Ptr
+    %v_233 = load %v_232, 4: I32
+    %v_234 = add %v_217, 16: Ptr
+    %v_235 = load %v_234, 4: I32
+    call_complex Node.drop, %v_229, %v_231, %v_233, %v_235
     %v_236 = alloca 8, 4: Ptr
-    store %v_236, 0, 1
+    store %v_236, 1, 1
     %v_237 = add %v_236, 4: Ptr
     store %v_237, %v_235, 4
-    jmp b_238
+    jmp b_227
   }
 
-  b_234 {
-    copy %v_226, %v_230, 16
-    %v_239 = add %v_226, 12: Ptr
-    %v_240 = loads %v_239, 4: I32
-    call_complex Node.drop, %v_226
-    %v_241 = alloca 8, 4: Ptr
-    store %v_241, 1, 1
-    %v_242 = add %v_241, 4: Ptr
-    store %v_242, %v_240, 4
-    jmp b_238
+  b_227 {
+    %v_238 = phi [b_221, %v_225], [b_222, %v_236]: Ptr
+    %v_239 = load %v_238, 1: I32
+    %v_240 = cmp_eq %v_239, 1: I32
+    je %v_240, b_241, b_242
   }
 
-  b_238 {
-    %v_243 = phi [b_233, %v_236], [b_234, %v_241]: Ptr
-    %v_244 = load %v_243, 1: I32
-    %v_245 = cmp_eq %v_244, 1: I32
-    je %v_245, b_246, b_247
+  b_242 {
+    jmp b_243
   }
 
-  b_247 {
-    jmp b_248
+  b_241 {
+    %v_244 = add %v_238, 4: Ptr
+    %v_245 = loads %v_244, 4: I32
+    jmp b_243
   }
 
-  b_246 {
-    %v_249 = add %v_243, 4: Ptr
-    %v_250 = loads %v_249, 4: I32
-    jmp b_248
+  b_243 {
+    %v_246 = phi [b_242, 0], [b_241, %v_245]: I32
+    %v_247 = loads @log, 4: I32
+    %v_248 = add %v_247, 10: I32
+    store @log, %v_248, 4
+    %v_249 = alloca 20, 4: Ptr
+    store %v_249, 1, 1
+    %v_250 = add %v_249, 4: Ptr
+    store %v_250, 18446744073709551614, 4
+    %v_251 = load %v_249, 1: I32
+    %v_252 = cmp_eq %v_251, 1: I32
+    je %v_252, b_253, b_254
   }
 
-  b_248 {
-    %v_251 = phi [b_247, 0], [b_246, %v_250]: I32
-    %v_252 = alloca 16, 4: Ptr
-    %v_253 = alloca 16, 4: Ptr
-    %v_254 = loads @log, 4: I32
-    %v_255 = add %v_254, 1: I32
-    store @log, %v_255, 4
-    %v_256 = alloca 20, 4: Ptr
+  b_253 {
+    %v_255 = loads %v_250, 4: I32
+    call_complex teardown(Outcome(Node, I32)), %v_249
+    %v_256 = alloca 8, 4: Ptr
+    store %v_256, 0, 1
     %v_257 = add %v_256, 4: Ptr
-    %v_258 = add %v_256, 12: Ptr
-    store %v_258, 4, 4
-    store %v_257, 0, 1
-    %v_259 = add %v_256, 16: Ptr
-    store %v_259, 2, 4
-    store %v_256, 1, 1
-    %v_260 = alloca 16, 4: Ptr
-    copy %v_260, %v_257, 16
-    %v_261 = alloca 20, 4: Ptr
-    store %v_261, 0, 1
-    %v_262 = add %v_261, 4: Ptr
-    copy %v_262, %v_260, 16
-    %v_263 = load %v_261, 1: I32
-    %v_264 = cmp_eq %v_263, 1: I32
-    je %v_264, b_265, b_266
+    store %v_257, %v_255, 4
+    jmp b_258
   }
 
-  b_265 {
-    call_complex teardown(Outcome(Node, {})), %v_261
-    %v_267 = alloca 8, 4: Ptr
-    store %v_267, 0, 1
-    jmp b_268
+  b_254 {
+    %v_259 = load %v_250, 1: I32
+    %v_260 = add %v_249, 8: Ptr
+    %v_261 = load %v_260, 4: I32
+    %v_262 = add %v_249, 12: Ptr
+    %v_263 = load %v_262, 4: I32
+    %v_264 = add %v_249, 16: Ptr
+    %v_265 = load %v_264, 4: I32
+    call_complex Node.drop, %v_259, %v_261, %v_263, %v_265
+    %v_266 = alloca 8, 4: Ptr
+    store %v_266, 1, 1
+    %v_267 = add %v_266, 4: Ptr
+    store %v_267, %v_265, 4
+    jmp b_258
   }
 
-  b_266 {
-    %v_269 = add %v_261, 4: Ptr
-    copy %v_252, %v_269, 16
-    %v_270 = add %v_252, 12: Ptr
-    %v_271 = loads %v_270, 4: I32
-    call_complex Node.drop, %v_252
-    %v_272 = alloca 8, 4: Ptr
-    store %v_272, 1, 1
-    %v_273 = add %v_272, 4: Ptr
-    store %v_273, %v_271, 4
-    jmp b_268
+  b_258 {
+    %v_268 = phi [b_253, %v_256], [b_254, %v_266]: Ptr
+    %v_269 = load %v_268, 1: I32
+    %v_270 = cmp_eq %v_269, 1: I32
+    je %v_270, b_271, b_272
   }
 
-  b_268 {
-    %v_274 = phi [b_265, %v_267], [b_266, %v_272]: Ptr
-    %v_275 = loads @log, 4: I32
-    %v_276 = add %v_275, 1: I32
-    store @log, %v_276, 4
-    %v_277 = alloca 20, 4: Ptr
-    %v_278 = add %v_277, 4: Ptr
-    %v_279 = add %v_277, 12: Ptr
-    store %v_279, 14, 4
-    %v_280 = add %v_277, 8: Ptr
-    store %v_280, 21, 4
-    store %v_278, 1, 1
-    %v_281 = add %v_277, 16: Ptr
-    store %v_281, 7, 4
-    store %v_277, 1, 1
-    %v_282 = alloca 16, 4: Ptr
-    copy %v_282, %v_278, 16
-    %v_283 = alloca 20, 4: Ptr
-    store %v_283, 0, 1
-    %v_284 = add %v_283, 4: Ptr
-    copy %v_284, %v_282, 16
-    %v_285 = load %v_283, 1: I32
-    %v_286 = cmp_eq %v_285, 1: I32
-    je %v_286, b_287, b_288
+  b_272 {
+    jmp b_273
   }
 
-  b_287 {
-    call_complex teardown(Outcome(Node, {})), %v_283
-    %v_289 = alloca 8, 4: Ptr
-    store %v_289, 0, 1
-    jmp b_290
+  b_271 {
+    %v_274 = add %v_268, 4: Ptr
+    %v_275 = loads %v_274, 4: I32
+    jmp b_273
+  }
+
+  b_273 {
+    %v_276 = phi [b_272, 0], [b_271, %v_275]: I32
+    %v_277 = loads @log, 4: I32
+    %v_278 = add %v_277, 1: I32
+    store @log, %v_278, 4
+    %v_279 = alloca 20, 4: Ptr
+    %v_280 = add %v_279, 4: Ptr
+    %v_281 = add %v_279, 12: Ptr
+    store %v_281, 4, 4
+    store %v_280, 0, 1
+    %v_282 = add %v_279, 16: Ptr
+    store %v_282, 2, 4
+    store %v_279, 1, 1
+    %v_283 = alloca 16, 4: Ptr
+    copy %v_283, %v_280, 16
+    %v_284 = alloca 20, 4: Ptr
+    store %v_284, 0, 1
+    %v_285 = add %v_284, 4: Ptr
+    copy %v_285, %v_283, 16
+    %v_286 = load %v_284, 1: I32
+    %v_287 = cmp_eq %v_286, 1: I32
+    je %v_287, b_288, b_289
   }
 
   b_288 {
-    %v_291 = add %v_283, 4: Ptr
-    copy %v_253, %v_291, 16
-    %v_292 = add %v_253, 12: Ptr
-    %v_293 = loads %v_292, 4: I32
-    call_complex Node.drop, %v_253
-    %v_294 = alloca 8, 4: Ptr
-    store %v_294, 1, 1
-    %v_295 = add %v_294, 4: Ptr
-    store %v_295, %v_293, 4
-    jmp b_290
+    call_complex teardown(Outcome(Node, {})), %v_284
+    %v_290 = alloca 8, 4: Ptr
+    store %v_290, 0, 1
+    jmp b_291
   }
 
-  b_290 {
-    %v_296 = phi [b_287, %v_289], [b_288, %v_294]: Ptr
-    %v_297 = load %v_274, 1: I32
-    %v_298 = add %v_274, 4: Ptr
+  b_289 {
+    %v_292 = add %v_284, 4: Ptr
+    %v_293 = load %v_292, 1: I32
+    %v_294 = add %v_284, 8: Ptr
+    %v_295 = load %v_294, 4: I32
+    %v_296 = add %v_284, 12: Ptr
+    %v_297 = load %v_296, 4: I32
+    %v_298 = add %v_284, 16: Ptr
     %v_299 = load %v_298, 4: I32
-    %v_300 = cmp_eq %v_297, 1: I32
-    je %v_300, b_301, b_302
+    call_complex Node.drop, %v_293, %v_295, %v_297, %v_299
+    %v_300 = alloca 8, 4: Ptr
+    store %v_300, 1, 1
+    %v_301 = add %v_300, 4: Ptr
+    store %v_301, %v_299, 4
+    jmp b_291
   }
 
-  b_302 {
-    jmp b_303
+  b_291 {
+    %v_302 = phi [b_288, %v_290], [b_289, %v_300]: Ptr
+    %v_303 = loads @log, 4: I32
+    %v_304 = add %v_303, 1: I32
+    store @log, %v_304, 4
+    %v_305 = alloca 20, 4: Ptr
+    %v_306 = add %v_305, 4: Ptr
+    %v_307 = add %v_305, 12: Ptr
+    store %v_307, 14, 4
+    %v_308 = add %v_305, 8: Ptr
+    store %v_308, 21, 4
+    store %v_306, 1, 1
+    %v_309 = add %v_305, 16: Ptr
+    store %v_309, 7, 4
+    store %v_305, 1, 1
+    %v_310 = alloca 16, 4: Ptr
+    copy %v_310, %v_306, 16
+    %v_311 = alloca 20, 4: Ptr
+    store %v_311, 0, 1
+    %v_312 = add %v_311, 4: Ptr
+    copy %v_312, %v_310, 16
+    %v_313 = load %v_311, 1: I32
+    %v_314 = cmp_eq %v_313, 1: I32
+    je %v_314, b_315, b_316
   }
 
-  b_301 {
-    jmp b_303
+  b_315 {
+    call_complex teardown(Outcome(Node, {})), %v_311
+    %v_317 = alloca 8, 4: Ptr
+    store %v_317, 0, 1
+    jmp b_318
   }
 
-  b_303 {
-    %v_304 = phi [b_302, 0], [b_301, %v_299]: I32
-    %v_305 = load %v_296, 1: I32
-    %v_306 = add %v_296, 4: Ptr
-    %v_307 = load %v_306, 4: I32
-    %v_308 = cmp_eq %v_305, 1: I32
-    je %v_308, b_309, b_310
+  b_316 {
+    %v_319 = add %v_311, 4: Ptr
+    %v_320 = load %v_319, 1: I32
+    %v_321 = add %v_311, 8: Ptr
+    %v_322 = load %v_321, 4: I32
+    %v_323 = add %v_311, 12: Ptr
+    %v_324 = load %v_323, 4: I32
+    %v_325 = add %v_311, 16: Ptr
+    %v_326 = load %v_325, 4: I32
+    call_complex Node.drop, %v_320, %v_322, %v_324, %v_326
+    %v_327 = alloca 8, 4: Ptr
+    store %v_327, 1, 1
+    %v_328 = add %v_327, 4: Ptr
+    store %v_328, %v_326, 4
+    jmp b_318
   }
 
-  b_310 {
-    jmp b_311
+  b_318 {
+    %v_329 = phi [b_315, %v_317], [b_316, %v_327]: Ptr
+    %v_330 = load %v_302, 1: I32
+    %v_331 = add %v_302, 4: Ptr
+    %v_332 = load %v_331, 4: I32
+    %v_333 = cmp_eq %v_330, 1: I32
+    je %v_333, b_334, b_335
   }
 
-  b_309 {
-    jmp b_311
+  b_335 {
+    jmp b_336
   }
 
-  b_311 {
-    %v_312 = phi [b_310, 0], [b_309, %v_307]: I32
-    %v_313 = imul %v_312, 100: I32
-    %v_314 = add %v_304, %v_313: I32
-    %v_315 = alloca 16, 4: Ptr
-    %v_316 = loads @log, 4: I32
-    %v_317 = add %v_316, 1: I32
-    store @log, %v_317, 4
-    %v_318 = alloca 20, 4: Ptr
-    %v_319 = add %v_318, 4: Ptr
-    %v_320 = add %v_318, 12: Ptr
-    store %v_320, 16, 4
-    %v_321 = add %v_318, 8: Ptr
-    store %v_321, 24, 4
-    store %v_319, 1, 1
-    %v_322 = add %v_318, 16: Ptr
-    store %v_322, 8, 4
-    store %v_318, 1, 1
-    %v_323 = alloca 16, 4: Ptr
-    copy %v_323, %v_319, 16
-    %v_324 = alloca 20, 4: Ptr
-    store %v_324, 0, 1
-    %v_325 = add %v_324, 4: Ptr
-    copy %v_325, %v_323, 16
-    %v_326 = load %v_324, 1: I32
-    %v_327 = cmp_eq %v_326, 1: I32
-    je %v_327, b_328, b_329
+  b_334 {
+    jmp b_336
   }
 
-  b_330 {
-    %v_331 = phi [b_332, %v_333], [b_328, %v_334]: Ptr
-    %v_335 = load %v_331, 1: I32
-    %v_336 = cmp_eq %v_335, 1: I32
-    je %v_336, b_337, b_338
+  b_336 {
+    %v_337 = phi [b_335, 0], [b_334, %v_332]: I32
+    %v_338 = load %v_329, 1: I32
+    %v_339 = add %v_329, 4: Ptr
+    %v_340 = load %v_339, 4: I32
+    %v_341 = cmp_eq %v_338, 1: I32
+    je %v_341, b_342, b_343
   }
 
-  b_329 {
-    %v_339 = add %v_324, 4: Ptr
-    copy %v_315, %v_339, 16
-    %v_340 = load %v_315, 1: I32
-    %v_341 = add %v_315, 4: Ptr
-    %v_342 = load %v_341, 4: I32
-    call_complex Node.drop, %v_315
-    %v_343 = cmp_eq %v_340, 1: I32
-    je %v_343, b_344, b_345
+  b_343 {
+    jmp b_344
   }
 
-  b_345 {
-    %v_346 = alloca 8, 4: Ptr
-    store %v_346, 1, 1
-    jmp b_347
+  b_342 {
+    jmp b_344
   }
 
   b_344 {
-    %v_348 = alloca 8, 4: Ptr
-    store %v_348, 0, 1
-    %v_349 = add %v_348, 4: Ptr
-    store %v_349, %v_342, 4
-    jmp b_347
+    %v_345 = phi [b_343, 0], [b_342, %v_340]: I32
+    %v_346 = imul %v_345, 100: I32
+    %v_347 = add %v_337, %v_346: I32
+    %v_348 = loads @log, 4: I32
+    %v_349 = add %v_348, 1: I32
+    store @log, %v_349, 4
+    %v_350 = alloca 20, 4: Ptr
+    %v_351 = add %v_350, 4: Ptr
+    %v_352 = add %v_350, 12: Ptr
+    store %v_352, 16, 4
+    %v_353 = add %v_350, 8: Ptr
+    store %v_353, 24, 4
+    store %v_351, 1, 1
+    %v_354 = add %v_350, 16: Ptr
+    store %v_354, 8, 4
+    store %v_350, 1, 1
+    %v_355 = alloca 16, 4: Ptr
+    copy %v_355, %v_351, 16
+    %v_356 = alloca 20, 4: Ptr
+    store %v_356, 0, 1
+    %v_357 = add %v_356, 4: Ptr
+    copy %v_357, %v_355, 16
+    %v_358 = load %v_356, 1: I32
+    %v_359 = cmp_eq %v_358, 1: I32
+    je %v_359, b_360, b_361
   }
 
-  b_347 {
-    %v_350 = phi [b_345, %v_346], [b_344, %v_348]: Ptr
-    %v_351 = load %v_350, 1: I32
-    %v_352 = cmp_eq %v_351, 1: I32
-    je %v_352, b_353, b_354
+  b_362 {
+    %v_363 = phi [b_364, %v_365], [b_360, %v_366]: Ptr
+    %v_367 = load %v_363, 1: I32
+    %v_368 = cmp_eq %v_367, 1: I32
+    je %v_368, b_369, b_370
   }
 
-  b_353 {
-    %v_355 = alloca 8, 4: Ptr
-    store %v_355, 0, 1
-    jmp b_332
+  b_361 {
+    %v_371 = add %v_356, 4: Ptr
+    %v_372 = load %v_371, 1: I32
+    %v_373 = add %v_356, 8: Ptr
+    %v_374 = load %v_373, 4: I32
+    %v_375 = add %v_356, 12: Ptr
+    %v_376 = load %v_375, 4: I32
+    %v_377 = add %v_356, 16: Ptr
+    %v_378 = load %v_377, 4: I32
+    call_complex Node.drop, %v_372, %v_374, %v_376, %v_378
+    %v_379 = cmp_eq %v_372, 1: I32
+    je %v_379, b_380, b_381
   }
 
-  b_354 {
-    %v_356 = add %v_350, 4: Ptr
-    %v_357 = load %v_356, 4: I32
-    %v_358 = alloca 8, 4: Ptr
-    store %v_358, 1, 1
-    %v_359 = add %v_358, 4: Ptr
-    store %v_359, %v_357, 4
-    jmp b_332
-  }
-
-  b_332 {
-    %v_333 = phi [b_353, %v_355], [b_354, %v_358]: Ptr
-    jmp b_330
-  }
-
-  b_328 {
-    call_complex teardown(Outcome(Node, {})), %v_324
-    %v_334 = alloca 8, 4: Ptr
-    store %v_334, 0, 1
-    jmp b_330
-  }
-
-  b_338 {
-    jmp b_360
-  }
-
-  b_337 {
-    %v_361 = add %v_331, 4: Ptr
-    %v_362 = loads %v_361, 4: I32
-    jmp b_360
-  }
-
-  b_360 {
-    %v_363 = phi [b_338, 0], [b_337, %v_362]: I32
-    %v_364 = alloca 16, 4: Ptr
-    %v_365 = loads @log, 4: I32
-    %v_366 = add %v_365, 1: I32
-    store @log, %v_366, 4
-    %v_367 = alloca 20, 4: Ptr
-    %v_368 = add %v_367, 4: Ptr
-    %v_369 = add %v_367, 12: Ptr
-    store %v_369, 4, 4
-    store %v_368, 0, 1
-    %v_370 = add %v_367, 16: Ptr
-    store %v_370, 2, 4
-    store %v_367, 1, 1
-    %v_371 = alloca 16, 4: Ptr
-    copy %v_371, %v_368, 16
-    %v_372 = alloca 20, 4: Ptr
-    store %v_372, 0, 1
-    %v_373 = add %v_372, 4: Ptr
-    copy %v_373, %v_371, 16
-    %v_374 = load %v_372, 1: I32
-    %v_375 = cmp_eq %v_374, 1: I32
-    je %v_375, b_376, b_377
-  }
-
-  b_378 {
-    %v_379 = phi [b_380, %v_381], [b_376, %v_382]: Ptr
-    %v_383 = load %v_379, 1: I32
-    %v_384 = cmp_eq %v_383, 1: I32
-    je %v_384, b_385, b_386
-  }
-
-  b_377 {
-    %v_387 = add %v_372, 4: Ptr
-    copy %v_364, %v_387, 16
-    %v_388 = load %v_364, 1: I32
-    %v_389 = add %v_364, 4: Ptr
-    %v_390 = load %v_389, 4: I32
-    call_complex Node.drop, %v_364
-    %v_391 = cmp_eq %v_388, 1: I32
-    je %v_391, b_392, b_393
-  }
-
-  b_393 {
-    %v_394 = alloca 8, 4: Ptr
-    store %v_394, 1, 1
-    jmp b_395
-  }
-
-  b_392 {
-    %v_396 = alloca 8, 4: Ptr
-    store %v_396, 0, 1
-    %v_397 = add %v_396, 4: Ptr
-    store %v_397, %v_390, 4
-    jmp b_395
-  }
-
-  b_395 {
-    %v_398 = phi [b_393, %v_394], [b_392, %v_396]: Ptr
-    %v_399 = load %v_398, 1: I32
-    %v_400 = cmp_eq %v_399, 1: I32
-    je %v_400, b_401, b_402
-  }
-
-  b_401 {
-    %v_403 = alloca 8, 4: Ptr
-    store %v_403, 0, 1
-    jmp b_380
-  }
-
-  b_402 {
-    %v_404 = add %v_398, 4: Ptr
-    %v_405 = load %v_404, 4: I32
-    %v_406 = alloca 8, 4: Ptr
-    store %v_406, 1, 1
-    %v_407 = add %v_406, 4: Ptr
-    store %v_407, %v_405, 4
-    jmp b_380
+  b_381 {
+    %v_382 = alloca 8, 4: Ptr
+    store %v_382, 1, 1
+    jmp b_383
   }
 
   b_380 {
-    %v_381 = phi [b_401, %v_403], [b_402, %v_406]: Ptr
-    jmp b_378
+    %v_384 = alloca 8, 4: Ptr
+    store %v_384, 0, 1
+    %v_385 = add %v_384, 4: Ptr
+    store %v_385, %v_374, 4
+    jmp b_383
   }
 
-  b_376 {
-    call_complex teardown(Outcome(Node, {})), %v_372
-    %v_382 = alloca 8, 4: Ptr
-    store %v_382, 0, 1
-    jmp b_378
+  b_383 {
+    %v_386 = phi [b_381, %v_382], [b_380, %v_384]: Ptr
+    %v_387 = load %v_386, 1: I32
+    %v_388 = cmp_eq %v_387, 1: I32
+    je %v_388, b_389, b_390
   }
 
-  b_386 {
-    jmp b_408
+  b_389 {
+    %v_391 = alloca 8, 4: Ptr
+    store %v_391, 0, 1
+    jmp b_364
   }
 
-  b_385 {
-    %v_409 = add %v_379, 4: Ptr
-    %v_410 = loads %v_409, 4: I32
-    jmp b_408
+  b_390 {
+    %v_392 = add %v_386, 4: Ptr
+    %v_393 = load %v_392, 4: I32
+    %v_394 = alloca 8, 4: Ptr
+    store %v_394, 1, 1
+    %v_395 = add %v_394, 4: Ptr
+    store %v_395, %v_393, 4
+    jmp b_364
   }
 
-  b_408 {
-    %v_411 = phi [b_386, 0], [b_385, %v_410]: I32
-    %v_412 = alloca 16, 4: Ptr
-    %v_413 = loads @log, 4: I32
-    %v_414 = add %v_413, 1: I32
-    store @log, %v_414, 4
-    %v_415 = alloca 20, 4: Ptr
-    store %v_415, 0, 1
-    %v_416 = alloca 16, 4: Ptr
-    call_complex teardown(Maybe(Node)), %v_415
-    %v_417 = alloca 20, 4: Ptr
-    store %v_417, 1, 1
-    %v_418 = load %v_417, 1: I32
+  b_364 {
+    %v_365 = phi [b_389, %v_391], [b_390, %v_394]: Ptr
+    jmp b_362
+  }
+
+  b_360 {
+    call_complex teardown(Outcome(Node, {})), %v_356
+    %v_366 = alloca 8, 4: Ptr
+    store %v_366, 0, 1
+    jmp b_362
+  }
+
+  b_370 {
+    jmp b_396
+  }
+
+  b_369 {
+    %v_397 = add %v_363, 4: Ptr
+    %v_398 = loads %v_397, 4: I32
+    jmp b_396
+  }
+
+  b_396 {
+    %v_399 = phi [b_370, 0], [b_369, %v_398]: I32
+    %v_400 = loads @log, 4: I32
+    %v_401 = add %v_400, 1: I32
+    store @log, %v_401, 4
+    %v_402 = alloca 20, 4: Ptr
+    %v_403 = add %v_402, 4: Ptr
+    %v_404 = add %v_402, 12: Ptr
+    store %v_404, 4, 4
+    store %v_403, 0, 1
+    %v_405 = add %v_402, 16: Ptr
+    store %v_405, 2, 4
+    store %v_402, 1, 1
+    %v_406 = alloca 16, 4: Ptr
+    copy %v_406, %v_403, 16
+    %v_407 = alloca 20, 4: Ptr
+    store %v_407, 0, 1
+    %v_408 = add %v_407, 4: Ptr
+    copy %v_408, %v_406, 16
+    %v_409 = load %v_407, 1: I32
+    %v_410 = cmp_eq %v_409, 1: I32
+    je %v_410, b_411, b_412
+  }
+
+  b_413 {
+    %v_414 = phi [b_415, %v_416], [b_411, %v_417]: Ptr
+    %v_418 = load %v_414, 1: I32
     %v_419 = cmp_eq %v_418, 1: I32
     je %v_419, b_420, b_421
   }
 
-  b_422 {
-    %v_423 = phi [b_424, %v_425], [b_420, %v_426]: Ptr
-    %v_427 = load %v_423, 1: I32
-    %v_428 = cmp_eq %v_427, 1: I32
-    je %v_428, b_429, b_430
+  b_412 {
+    %v_422 = add %v_407, 4: Ptr
+    %v_423 = load %v_422, 1: I32
+    %v_424 = add %v_407, 8: Ptr
+    %v_425 = load %v_424, 4: I32
+    %v_426 = add %v_407, 12: Ptr
+    %v_427 = load %v_426, 4: I32
+    %v_428 = add %v_407, 16: Ptr
+    %v_429 = load %v_428, 4: I32
+    call_complex Node.drop, %v_423, %v_425, %v_427, %v_429
+    %v_430 = cmp_eq %v_423, 1: I32
+    je %v_430, b_431, b_432
+  }
+
+  b_432 {
+    %v_433 = alloca 8, 4: Ptr
+    store %v_433, 1, 1
+    jmp b_434
+  }
+
+  b_431 {
+    %v_435 = alloca 8, 4: Ptr
+    store %v_435, 0, 1
+    %v_436 = add %v_435, 4: Ptr
+    store %v_436, %v_425, 4
+    jmp b_434
+  }
+
+  b_434 {
+    %v_437 = phi [b_432, %v_433], [b_431, %v_435]: Ptr
+    %v_438 = load %v_437, 1: I32
+    %v_439 = cmp_eq %v_438, 1: I32
+    je %v_439, b_440, b_441
+  }
+
+  b_440 {
+    %v_442 = alloca 8, 4: Ptr
+    store %v_442, 0, 1
+    jmp b_415
+  }
+
+  b_441 {
+    %v_443 = add %v_437, 4: Ptr
+    %v_444 = load %v_443, 4: I32
+    %v_445 = alloca 8, 4: Ptr
+    store %v_445, 1, 1
+    %v_446 = add %v_445, 4: Ptr
+    store %v_446, %v_444, 4
+    jmp b_415
+  }
+
+  b_415 {
+    %v_416 = phi [b_440, %v_442], [b_441, %v_445]: Ptr
+    jmp b_413
+  }
+
+  b_411 {
+    call_complex teardown(Outcome(Node, {})), %v_407
+    %v_417 = alloca 8, 4: Ptr
+    store %v_417, 0, 1
+    jmp b_413
   }
 
   b_421 {
-    %v_431 = add %v_417, 4: Ptr
-    copy %v_412, %v_431, 16
-    %v_432 = load %v_412, 1: I32
-    %v_433 = add %v_412, 4: Ptr
-    %v_434 = load %v_433, 4: I32
-    call_complex Node.drop, %v_412
-    %v_435 = cmp_eq %v_432, 1: I32
-    je %v_435, b_436, b_437
-  }
-
-  b_437 {
-    %v_438 = alloca 8, 4: Ptr
-    store %v_438, 1, 1
-    jmp b_439
-  }
-
-  b_436 {
-    %v_440 = alloca 8, 4: Ptr
-    store %v_440, 0, 1
-    %v_441 = add %v_440, 4: Ptr
-    store %v_441, %v_434, 4
-    jmp b_439
-  }
-
-  b_439 {
-    %v_442 = phi [b_437, %v_438], [b_436, %v_440]: Ptr
-    %v_443 = load %v_442, 1: I32
-    %v_444 = cmp_eq %v_443, 1: I32
-    je %v_444, b_445, b_446
-  }
-
-  b_445 {
-    %v_447 = alloca 8, 4: Ptr
-    store %v_447, 0, 1
-    jmp b_424
-  }
-
-  b_446 {
-    %v_448 = add %v_442, 4: Ptr
-    %v_449 = load %v_448, 4: I32
-    %v_450 = alloca 8, 4: Ptr
-    store %v_450, 1, 1
-    %v_451 = add %v_450, 4: Ptr
-    store %v_451, %v_449, 4
-    jmp b_424
-  }
-
-  b_424 {
-    %v_425 = phi [b_445, %v_447], [b_446, %v_450]: Ptr
-    jmp b_422
+    jmp b_447
   }
 
   b_420 {
-    call_complex teardown(Outcome(Node, {})), %v_417
-    %v_426 = alloca 8, 4: Ptr
-    store %v_426, 0, 1
-    jmp b_422
+    %v_448 = add %v_414, 4: Ptr
+    %v_449 = loads %v_448, 4: I32
+    jmp b_447
   }
 
-  b_430 {
-    jmp b_452
+  b_447 {
+    %v_450 = phi [b_421, 0], [b_420, %v_449]: I32
+    %v_451 = loads @log, 4: I32
+    %v_452 = add %v_451, 1: I32
+    store @log, %v_452, 4
+    %v_453 = alloca 20, 4: Ptr
+    store %v_453, 0, 1
+    %v_454 = alloca 16, 4: Ptr
+    call_complex teardown(Maybe(Node)), %v_453
+    %v_455 = alloca 20, 4: Ptr
+    store %v_455, 1, 1
+    %v_456 = load %v_455, 1: I32
+    %v_457 = cmp_eq %v_456, 1: I32
+    je %v_457, b_458, b_459
   }
 
-  b_429 {
-    %v_453 = add %v_423, 4: Ptr
-    %v_454 = loads %v_453, 4: I32
-    jmp b_452
+  b_460 {
+    %v_461 = phi [b_462, %v_463], [b_458, %v_464]: Ptr
+    %v_465 = load %v_461, 1: I32
+    %v_466 = cmp_eq %v_465, 1: I32
+    je %v_466, b_467, b_468
   }
 
-  b_452 {
-    %v_455 = phi [b_430, 0], [b_429, %v_454]: I32
-    %v_456 = alloca 16, 4: Ptr
-    %v_457 = loads @log, 4: I32
-    %v_458 = add %v_457, 1: I32
-    store @log, %v_458, 4
-    %v_459 = alloca 20, 4: Ptr
-    %v_460 = add %v_459, 4: Ptr
-    %v_461 = add %v_459, 12: Ptr
-    store %v_461, 10, 4
-    store %v_460, 0, 1
-    %v_462 = add %v_459, 16: Ptr
-    store %v_462, 5, 4
-    store %v_459, 1, 1
-    %v_463 = alloca 16, 4: Ptr
-    copy %v_463, %v_460, 16
-    %v_464 = alloca 20, 4: Ptr
+  b_459 {
+    %v_469 = add %v_455, 4: Ptr
+    %v_470 = load %v_469, 1: I32
+    %v_471 = add %v_455, 8: Ptr
+    %v_472 = load %v_471, 4: I32
+    %v_473 = add %v_455, 12: Ptr
+    %v_474 = load %v_473, 4: I32
+    %v_475 = add %v_455, 16: Ptr
+    %v_476 = load %v_475, 4: I32
+    call_complex Node.drop, %v_470, %v_472, %v_474, %v_476
+    %v_477 = cmp_eq %v_470, 1: I32
+    je %v_477, b_478, b_479
+  }
+
+  b_479 {
+    %v_480 = alloca 8, 4: Ptr
+    store %v_480, 1, 1
+    jmp b_481
+  }
+
+  b_478 {
+    %v_482 = alloca 8, 4: Ptr
+    store %v_482, 0, 1
+    %v_483 = add %v_482, 4: Ptr
+    store %v_483, %v_472, 4
+    jmp b_481
+  }
+
+  b_481 {
+    %v_484 = phi [b_479, %v_480], [b_478, %v_482]: Ptr
+    %v_485 = load %v_484, 1: I32
+    %v_486 = cmp_eq %v_485, 1: I32
+    je %v_486, b_487, b_488
+  }
+
+  b_487 {
+    %v_489 = alloca 8, 4: Ptr
+    store %v_489, 0, 1
+    jmp b_462
+  }
+
+  b_488 {
+    %v_490 = add %v_484, 4: Ptr
+    %v_491 = load %v_490, 4: I32
+    %v_492 = alloca 8, 4: Ptr
+    store %v_492, 1, 1
+    %v_493 = add %v_492, 4: Ptr
+    store %v_493, %v_491, 4
+    jmp b_462
+  }
+
+  b_462 {
+    %v_463 = phi [b_487, %v_489], [b_488, %v_492]: Ptr
+    jmp b_460
+  }
+
+  b_458 {
+    call_complex teardown(Outcome(Node, {})), %v_455
+    %v_464 = alloca 8, 4: Ptr
     store %v_464, 0, 1
-    %v_465 = add %v_464, 4: Ptr
-    copy %v_465, %v_463, 16
-    %v_466 = load %v_464, 1: I32
-    %v_467 = cmp_eq %v_466, 1: I32
-    je %v_467, b_468, b_469
-  }
-
-  b_470 {
-    %v_471 = phi [b_469, %v_472], [b_468, %v_473]: Ptr
-    %v_474 = load %v_471, 1: I32
-    %v_475 = cmp_eq %v_474, 1: I32
-    je %v_475, b_476, b_477
-  }
-
-  b_469 {
-    %v_478 = add %v_464, 4: Ptr
-    copy %v_456, %v_478, 16
-    %v_479 = add %v_456, 12: Ptr
-    %v_480 = loads %v_479, 4: I32
-    call_complex Node.drop, %v_456
-    %v_472 = alloca 8, 4: Ptr
-    store %v_472, 1, 1
-    %v_481 = add %v_472, 4: Ptr
-    store %v_481, %v_480, 4
-    jmp b_470
+    jmp b_460
   }
 
   b_468 {
-    call_complex teardown(Outcome(Node, {})), %v_464
-    %v_473 = alloca 8, 4: Ptr
-    store %v_473, 0, 1
-    jmp b_470
+    jmp b_494
   }
 
-  b_477 {
-    jmp b_482
-  }
-
-  b_476 {
-    %v_483 = add %v_471, 4: Ptr
-    %v_484 = loads %v_483, 4: I32
-    jmp b_482
-  }
-
-  b_482 {
-    %v_485 = phi [b_477, 0], [b_476, %v_484]: I32
-    %v_486 = alloca 16, 4: Ptr
-    %v_487 = loads @log, 4: I32
-    %v_488 = add %v_487, 1: I32
-    store @log, %v_488, 4
-    %v_489 = alloca 20, 4: Ptr
-    store %v_489, 0, 1
-    %v_490 = alloca 16, 4: Ptr
-    call_complex teardown(Maybe(Node)), %v_489
-    %v_491 = alloca 20, 4: Ptr
-    store %v_491, 1, 1
-    %v_492 = load %v_491, 1: I32
-    %v_493 = cmp_eq %v_492, 1: I32
-    je %v_493, b_494, b_495
-  }
-
-  b_496 {
-    %v_497 = phi [b_495, %v_498], [b_494, %v_499]: Ptr
-    %v_500 = load %v_497, 1: I32
-    %v_501 = cmp_eq %v_500, 1: I32
-    je %v_501, b_502, b_503
-  }
-
-  b_495 {
-    %v_504 = add %v_491, 4: Ptr
-    copy %v_486, %v_504, 16
-    %v_505 = add %v_486, 12: Ptr
-    %v_506 = loads %v_505, 4: I32
-    call_complex Node.drop, %v_486
-    %v_498 = alloca 8, 4: Ptr
-    store %v_498, 1, 1
-    %v_507 = add %v_498, 4: Ptr
-    store %v_507, %v_506, 4
-    jmp b_496
+  b_467 {
+    %v_495 = add %v_461, 4: Ptr
+    %v_496 = loads %v_495, 4: I32
+    jmp b_494
   }
 
   b_494 {
-    call_complex teardown(Outcome(Node, {})), %v_491
-    %v_499 = alloca 8, 4: Ptr
-    store %v_499, 0, 1
-    jmp b_496
+    %v_497 = phi [b_468, 0], [b_467, %v_496]: I32
+    %v_498 = loads @log, 4: I32
+    %v_499 = add %v_498, 1: I32
+    store @log, %v_499, 4
+    %v_500 = alloca 20, 4: Ptr
+    %v_501 = add %v_500, 4: Ptr
+    %v_502 = add %v_500, 12: Ptr
+    store %v_502, 10, 4
+    store %v_501, 0, 1
+    %v_503 = add %v_500, 16: Ptr
+    store %v_503, 5, 4
+    store %v_500, 1, 1
+    %v_504 = alloca 16, 4: Ptr
+    copy %v_504, %v_501, 16
+    %v_505 = alloca 20, 4: Ptr
+    store %v_505, 0, 1
+    %v_506 = add %v_505, 4: Ptr
+    copy %v_506, %v_504, 16
+    %v_507 = load %v_505, 1: I32
+    %v_508 = cmp_eq %v_507, 1: I32
+    je %v_508, b_509, b_510
   }
 
-  b_503 {
-    jmp b_508
+  b_511 {
+    %v_512 = phi [b_510, %v_513], [b_509, %v_514]: Ptr
+    %v_515 = load %v_512, 1: I32
+    %v_516 = cmp_eq %v_515, 1: I32
+    je %v_516, b_517, b_518
   }
 
-  b_502 {
-    %v_509 = add %v_497, 4: Ptr
-    %v_510 = loads %v_509, 4: I32
-    jmp b_508
-  }
-
-  b_508 {
-    %v_511 = phi [b_503, 0], [b_502, %v_510]: I32
-    %v_512 = alloca 16, 8: Ptr
-    %v_513 = alloca 24, 8: Ptr
+  b_510 {
+    %v_519 = add %v_505, 4: Ptr
+    %v_520 = load %v_519, 1: I32
+    %v_521 = add %v_505, 8: Ptr
+    %v_522 = load %v_521, 4: I32
+    %v_523 = add %v_505, 12: Ptr
+    %v_524 = load %v_523, 4: I32
+    %v_525 = add %v_505, 16: Ptr
+    %v_526 = load %v_525, 4: I32
+    call_complex Node.drop, %v_520, %v_522, %v_524, %v_526
+    %v_513 = alloca 8, 4: Ptr
     store %v_513, 1, 1
-    %v_514 = add %v_513, 8: Ptr
-    store %v_514, funvalue(twice), 8
-    %v_515 = add %v_513, 16: Ptr
-    store %v_515, 0, 8
-    %v_516 = alloca 16, 8: Ptr
-    %v_517 = load %v_513, 1: I32
-    %v_518 = cmp_eq %v_517, 1: I32
-    je %v_518, b_519, b_520
+    %v_527 = add %v_513, 4: Ptr
+    store %v_527, %v_526, 4
+    jmp b_511
   }
 
-  b_520 {
-    call_complex teardown(Maybe((I32) -> I32)), %v_513
-    %v_521 = alloca 24, 8: Ptr
-    store %v_521, 1, 1
-    jmp b_522
+  b_509 {
+    call_complex teardown(Outcome(Node, {})), %v_505
+    %v_514 = alloca 8, 4: Ptr
+    store %v_514, 0, 1
+    jmp b_511
   }
 
-  b_519 {
-    copy %v_516, %v_514, 16
-    %v_523 = alloca 24, 8: Ptr
-    store %v_523, 0, 1
-    %v_524 = add %v_523, 8: Ptr
-    copy %v_524, %v_516, 16
-    jmp b_522
+  b_518 {
+    jmp b_528
   }
 
-  b_522 {
-    %v_525 = phi [b_520, %v_521], [b_519, %v_523]: Ptr
-    %v_526 = load %v_525, 1: I32
-    %v_527 = cmp_eq %v_526, 1: I32
-    je %v_527, b_528, b_529
+  b_517 {
+    %v_529 = add %v_512, 4: Ptr
+    %v_530 = loads %v_529, 4: I32
+    jmp b_528
   }
 
   b_528 {
-    call_complex teardown(Outcome((I32) -> I32, {})), %v_525
-    %v_530 = alloca 8, 4: Ptr
-    store %v_530, 0, 1
-    jmp b_531
+    %v_531 = phi [b_518, 0], [b_517, %v_530]: I32
+    %v_532 = loads @log, 4: I32
+    %v_533 = add %v_532, 1: I32
+    store @log, %v_533, 4
+    %v_534 = alloca 20, 4: Ptr
+    store %v_534, 0, 1
+    %v_535 = alloca 16, 4: Ptr
+    call_complex teardown(Maybe(Node)), %v_534
+    %v_536 = alloca 20, 4: Ptr
+    store %v_536, 1, 1
+    %v_537 = load %v_536, 1: I32
+    %v_538 = cmp_eq %v_537, 1: I32
+    je %v_538, b_539, b_540
   }
 
-  b_529 {
-    %v_532 = add %v_525, 8: Ptr
-    copy %v_512, %v_532, 16
-    %v_533 = load %v_512, 8: Ptr
-    %v_534 = add %v_512, 8: Ptr
-    %v_535 = load %v_534, 8: Ptr
-    %v_536 = call_complex %v_533, %v_535, 21: I32
-    call_complex teardown(fun), %v_512
-    %v_537 = alloca 8, 4: Ptr
-    store %v_537, 1, 1
-    %v_538 = add %v_537, 4: Ptr
-    store %v_538, %v_536, 4
-    jmp b_531
+  b_541 {
+    %v_542 = phi [b_540, %v_543], [b_539, %v_544]: Ptr
+    %v_545 = load %v_542, 1: I32
+    %v_546 = cmp_eq %v_545, 1: I32
+    je %v_546, b_547, b_548
   }
 
-  b_531 {
-    %v_539 = phi [b_528, %v_530], [b_529, %v_537]: Ptr
-    %v_540 = load %v_539, 1: I32
-    %v_541 = cmp_eq %v_540, 1: I32
-    je %v_541, b_542, b_543
+  b_540 {
+    %v_549 = add %v_536, 4: Ptr
+    %v_550 = load %v_549, 1: I32
+    %v_551 = add %v_536, 8: Ptr
+    %v_552 = load %v_551, 4: I32
+    %v_553 = add %v_536, 12: Ptr
+    %v_554 = load %v_553, 4: I32
+    %v_555 = add %v_536, 16: Ptr
+    %v_556 = load %v_555, 4: I32
+    call_complex Node.drop, %v_550, %v_552, %v_554, %v_556
+    %v_543 = alloca 8, 4: Ptr
+    store %v_543, 1, 1
+    %v_557 = add %v_543, 4: Ptr
+    store %v_557, %v_556, 4
+    jmp b_541
   }
 
-  b_543 {
-    jmp b_544
+  b_539 {
+    call_complex teardown(Outcome(Node, {})), %v_536
+    %v_544 = alloca 8, 4: Ptr
+    store %v_544, 0, 1
+    jmp b_541
   }
 
-  b_542 {
-    %v_545 = add %v_539, 4: Ptr
-    %v_546 = loads %v_545, 4: I32
-    jmp b_544
+  b_548 {
+    jmp b_558
   }
 
-  b_544 {
-    %v_547 = phi [b_543, 0], [b_542, %v_546]: I32
-    %v_548 = alloca 16, 8: Ptr
-    %v_549 = alloca 24, 8: Ptr
-    store %v_549, 0, 1
-    %v_550 = alloca 16, 8: Ptr
-    call_complex teardown(Maybe((I32) -> I32)), %v_549
-    %v_551 = alloca 24, 8: Ptr
-    store %v_551, 1, 1
-    %v_552 = load %v_551, 1: I32
-    %v_553 = cmp_eq %v_552, 1: I32
-    je %v_553, b_554, b_555
+  b_547 {
+    %v_559 = add %v_542, 4: Ptr
+    %v_560 = loads %v_559, 4: I32
+    jmp b_558
   }
 
-  b_554 {
-    call_complex teardown(Outcome((I32) -> I32, {})), %v_551
-    %v_556 = alloca 8, 4: Ptr
-    store %v_556, 0, 1
-    jmp b_557
-  }
-
-  b_555 {
-    %v_558 = add %v_551, 8: Ptr
-    copy %v_548, %v_558, 16
-    %v_559 = load %v_548, 8: Ptr
-    %v_560 = add %v_548, 8: Ptr
-    %v_561 = load %v_560, 8: Ptr
-    %v_562 = call_complex %v_559, %v_561, 21: I32
-    call_complex teardown(fun), %v_548
-    %v_563 = alloca 8, 4: Ptr
+  b_558 {
+    %v_561 = phi [b_548, 0], [b_547, %v_560]: I32
+    %v_562 = alloca 16, 8: Ptr
+    %v_563 = alloca 24, 8: Ptr
     store %v_563, 1, 1
-    %v_564 = add %v_563, 4: Ptr
-    store %v_564, %v_562, 4
-    jmp b_557
+    %v_564 = add %v_563, 8: Ptr
+    store %v_564, funvalue(twice), 8
+    %v_565 = add %v_563, 16: Ptr
+    store %v_565, 0, 8
+    %v_566 = alloca 16, 8: Ptr
+    copy %v_566, %v_564, 16
+    %v_567 = alloca 24, 8: Ptr
+    store %v_567, 0, 1
+    %v_568 = add %v_567, 8: Ptr
+    copy %v_568, %v_566, 16
+    %v_569 = load %v_567, 1: I32
+    %v_570 = cmp_eq %v_569, 1: I32
+    je %v_570, b_571, b_572
   }
 
-  b_557 {
-    %v_565 = phi [b_554, %v_556], [b_555, %v_563]: Ptr
-    %v_566 = load %v_565, 1: I32
-    %v_567 = cmp_eq %v_566, 1: I32
-    je %v_567, b_568, b_569
+  b_571 {
+    call_complex teardown(Outcome((I32) -> I32, {})), %v_567
+    %v_573 = alloca 8, 4: Ptr
+    store %v_573, 0, 1
+    jmp b_574
   }
 
-  b_569 {
-    jmp b_570
+  b_572 {
+    %v_575 = add %v_567, 8: Ptr
+    copy %v_562, %v_575, 16
+    %v_576 = load %v_562, 8: Ptr
+    %v_577 = add %v_562, 8: Ptr
+    %v_578 = load %v_577, 8: Ptr
+    %v_579 = call_complex %v_576, %v_578, 21: I32
+    call_complex teardown(fun), %v_562
+    %v_580 = alloca 8, 4: Ptr
+    store %v_580, 1, 1
+    %v_581 = add %v_580, 4: Ptr
+    store %v_581, %v_579, 4
+    jmp b_574
   }
 
-  b_568 {
-    %v_571 = add %v_565, 4: Ptr
-    %v_572 = loads %v_571, 4: I32
-    jmp b_570
+  b_574 {
+    %v_582 = phi [b_571, %v_573], [b_572, %v_580]: Ptr
+    %v_583 = load %v_582, 1: I32
+    %v_584 = cmp_eq %v_583, 1: I32
+    je %v_584, b_585, b_586
   }
 
-  b_570 {
-    %v_573 = phi [b_569, 0], [b_568, %v_572]: I32
-    %v_574 = add %v_31, %v_57: I32
-    %v_575 = add %v_574, %v_104: I32
-    %v_576 = add %v_575, %v_150: I32
-    %v_577 = add %v_576, %v_192: I32
-    %v_578 = add %v_577, %v_225: I32
-    %v_579 = add %v_578, %v_251: I32
-    %v_580 = add %v_579, %v_314: I32
-    %v_581 = add %v_580, %v_363: I32
-    %v_582 = add %v_581, %v_411: I32
-    %v_583 = add %v_582, %v_455: I32
-    %v_584 = add %v_583, %v_485: I32
-    %v_585 = add %v_584, %v_511: I32
-    %v_586 = add %v_585, %v_547: I32
-    %v_587 = add %v_586, %v_573: I32
-    %v_588 = loads @dropped, 4: I32
-    %v_589 = imul %v_588, 1000: I32
-    %v_590 = add %v_587, %v_589: I32
-    %v_591 = loads @log, 4: I32
-    %v_592 = imul %v_591, 100000: I32
-    %v_593 = add %v_590, %v_592: I32
-    ret %v_593
+  b_586 {
+    jmp b_587
+  }
+
+  b_585 {
+    %v_588 = add %v_582, 4: Ptr
+    %v_589 = loads %v_588, 4: I32
+    jmp b_587
+  }
+
+  b_587 {
+    %v_590 = phi [b_586, 0], [b_585, %v_589]: I32
+    %v_591 = alloca 16, 8: Ptr
+    %v_592 = alloca 24, 8: Ptr
+    store %v_592, 0, 1
+    %v_593 = alloca 16, 8: Ptr
+    call_complex teardown(Maybe((I32) -> I32)), %v_592
+    %v_594 = alloca 24, 8: Ptr
+    store %v_594, 1, 1
+    %v_595 = load %v_594, 1: I32
+    %v_596 = cmp_eq %v_595, 1: I32
+    je %v_596, b_597, b_598
+  }
+
+  b_597 {
+    call_complex teardown(Outcome((I32) -> I32, {})), %v_594
+    %v_599 = alloca 8, 4: Ptr
+    store %v_599, 0, 1
+    jmp b_600
+  }
+
+  b_598 {
+    %v_601 = add %v_594, 8: Ptr
+    copy %v_591, %v_601, 16
+    %v_602 = load %v_591, 8: Ptr
+    %v_603 = add %v_591, 8: Ptr
+    %v_604 = load %v_603, 8: Ptr
+    %v_605 = call_complex %v_602, %v_604, 21: I32
+    call_complex teardown(fun), %v_591
+    %v_606 = alloca 8, 4: Ptr
+    store %v_606, 1, 1
+    %v_607 = add %v_606, 4: Ptr
+    store %v_607, %v_605, 4
+    jmp b_600
+  }
+
+  b_600 {
+    %v_608 = phi [b_597, %v_599], [b_598, %v_606]: Ptr
+    %v_609 = load %v_608, 1: I32
+    %v_610 = cmp_eq %v_609, 1: I32
+    je %v_610, b_611, b_612
+  }
+
+  b_612 {
+    jmp b_613
+  }
+
+  b_611 {
+    %v_614 = add %v_608, 4: Ptr
+    %v_615 = loads %v_614, 4: I32
+    jmp b_613
+  }
+
+  b_613 {
+    %v_616 = phi [b_612, 0], [b_611, %v_615]: I32
+    %v_617 = add %v_35, %v_65: I32
+    %v_618 = add %v_617, %v_115: I32
+    %v_619 = add %v_618, %v_164: I32
+    %v_620 = add %v_619, %v_209: I32
+    %v_621 = add %v_620, %v_246: I32
+    %v_622 = add %v_621, %v_276: I32
+    %v_623 = add %v_622, %v_347: I32
+    %v_624 = add %v_623, %v_399: I32
+    %v_625 = add %v_624, %v_450: I32
+    %v_626 = add %v_625, %v_497: I32
+    %v_627 = add %v_626, %v_531: I32
+    %v_628 = add %v_627, %v_561: I32
+    %v_629 = add %v_628, %v_590: I32
+    %v_630 = add %v_629, %v_616: I32
+    %v_631 = loads @dropped, 4: I32
+    %v_632 = imul %v_631, 1000: I32
+    %v_633 = add %v_630, %v_632: I32
+    %v_634 = loads @log, 4: I32
+    %v_635 = imul %v_634, 100000: I32
+    %v_636 = add %v_633, %v_635: I32
+    ret %v_636
   }
 }
 
@@ -1255,7 +1273,14 @@ teardown(Maybe(Node))<complex>(%v_0: Ptr) {
 
   b_4 {
     %v_7 = add %v_0, 4: Ptr
-    call_complex Node.drop, %v_7
+    %v_8 = load %v_7, 1: I32
+    %v_9 = add %v_0, 8: Ptr
+    %v_10 = load %v_9, 4: I32
+    %v_11 = add %v_0, 12: Ptr
+    %v_12 = load %v_11, 4: I32
+    %v_13 = add %v_0, 16: Ptr
+    %v_14 = load %v_13, 4: I32
+    call_complex Node.drop, %v_8, %v_10, %v_12, %v_14
     jmp b_6
   }
 
@@ -1277,7 +1302,14 @@ teardown(Outcome(Node, {}))<complex>(%v_0: Ptr) {
 
   b_4 {
     %v_7 = add %v_0, 4: Ptr
-    call_complex Node.drop, %v_7
+    %v_8 = load %v_7, 1: I32
+    %v_9 = add %v_0, 8: Ptr
+    %v_10 = load %v_9, 4: I32
+    %v_11 = add %v_0, 12: Ptr
+    %v_12 = load %v_11, 4: I32
+    %v_13 = add %v_0, 16: Ptr
+    %v_14 = load %v_13, 4: I32
+    call_complex Node.drop, %v_8, %v_10, %v_12, %v_14
     jmp b_6
   }
 
@@ -1299,7 +1331,14 @@ teardown(Outcome(Node, I32))<complex>(%v_0: Ptr) {
 
   b_4 {
     %v_7 = add %v_0, 4: Ptr
-    call_complex Node.drop, %v_7
+    %v_8 = load %v_7, 1: I32
+    %v_9 = add %v_0, 8: Ptr
+    %v_10 = load %v_9, 4: I32
+    %v_11 = add %v_0, 12: Ptr
+    %v_12 = load %v_11, 4: I32
+    %v_13 = add %v_0, 16: Ptr
+    %v_14 = load %v_13, 4: I32
+    call_complex Node.drop, %v_8, %v_10, %v_12, %v_14
     jmp b_6
   }
 

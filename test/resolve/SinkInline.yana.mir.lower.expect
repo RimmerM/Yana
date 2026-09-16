@@ -1,10 +1,10 @@
 mut @dropped = [0, 0, 0, 0]
 
-Token.drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @dropped, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @dropped, %v_2, 4
+Token.drop<complex>(%v_0: I32) {
+  b_1 {
+    %v_2 = loads @dropped, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store @dropped, %v_3, 4
     ret 
   }
 }
@@ -53,17 +53,16 @@ main<complex>(): I32 {
     %v_23 = add %v_22, 4: Ptr
     store %v_23, 7, 4
     store %v_22, 1, 1
-    %v_24 = alloca 8, 8: Ptr
-    store %v_24, 0, 8
-    %v_25 = alloca 4, 4: Ptr
-    copy %v_25, %v_23, 4
-    %v_26 = load %v_24, 8: Ptr
-    %v_27 = call_complex identify.lambda, %v_26, %v_25: I32
-    call_complex Token.drop, %v_25
+    %v_24 = alloca 4, 4: Ptr
+    copy %v_24, %v_23, 4
+    %v_25 = bitcast 0: Ptr
+    %v_26 = call_complex identify.lambda, %v_25, %v_24: I32
+    %v_27 = load %v_24, 4: I32
+    call_complex Token.drop, %v_27
     %v_28 = alloca 8, 4: Ptr
     store %v_28, 1, 1
     %v_29 = add %v_28, 4: Ptr
-    store %v_29, %v_27, 4
+    store %v_29, %v_26, 4
     %v_30 = load %v_28, 1: I32
     %v_31 = cmp_eq %v_30, 1: I32
     je %v_31, b_32, b_33
@@ -147,7 +146,8 @@ teardown(Maybe(Token))<complex>(%v_0: Ptr) {
 
   b_4 {
     %v_7 = add %v_0, 4: Ptr
-    call_complex Token.drop, %v_7
+    %v_8 = load %v_7, 4: I32
+    call_complex Token.drop, %v_8
     jmp b_6
   }
 

@@ -28,7 +28,11 @@ fn resetThenAdd(lhs: Vec(U32, 4), rhs: Vec(U32, 4)) -> Int:
     X86.vzeroupper()
     return bitcast(lane(lhs + rhs, 0)) :: Int
 
--- And outside any region, which is the same instruction with nothing around it.
+-- And outside any region, which is the same instruction with nothing around it but the convention:
+-- `complex` preserves xmm12-15, so the reset needs one whose vector file is caller-saved, and
+-- `@noinline` keeps it from landing in a `complex` caller.
+@noinline
+@convention(sysv)
 fn plainReset(x: Int) -> Int:
     X86.vzeroupper()
     return x + 1

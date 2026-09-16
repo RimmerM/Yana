@@ -139,9 +139,8 @@ fn zeroWords() -> Vec(U32, 4) = zero() :: Vec(U32, 4)
    `@convention(sysv)` is what makes that safety a *guarantee* rather than an observation. The
    backend checks the condition either way - a function calling the intrinsic may not be entered
    under a convention that preserves vector registers - and `Complex`, which this would get by
-   default, happens to satisfy it today by clobbering all sixteen. That is a fact about the current
-   internal convention and not a promise: the backend is entitled to start preserving some of them if
-   that allocates better, and this declaration should not be what silently breaks when it does.
+   default, does not satisfy it: it preserves xmm12-15 since 2026-09-17. It clobbered all sixteen
+   when this was written, and the declaration is why that change broke nothing here.
    System V's vector file is caller-saved *by the psABI*, so naming it here is a promise that
    outlives any decision this compiler makes about its own conventions.
 
@@ -315,9 +314,8 @@ fn scheduleGroup(&state0: Vec(U32, 4), &state1: Vec(U32, 4), constants: Vec(U32,
    `@convention(sysv)` is what makes that safety a *guarantee* rather than an observation. The
    backend checks the condition either way - a function calling the intrinsic may not be entered
    under a convention that preserves vector registers - and `Complex`, which this would get by
-   default, happens to satisfy it today by clobbering all sixteen. That is a fact about the current
-   internal convention and not a promise: the backend is entitled to start preserving some of them if
-   that allocates better, and this declaration should not be what silently breaks when it does.
+   default, does not satisfy it: it preserves xmm12-15 since 2026-09-17. It clobbered all sixteen
+   when this was written, and the declaration is why that change broke nothing here.
    System V's vector file is caller-saved *by the psABI*, so naming it here is a promise that
    outlives any decision this compiler makes about its own conventions.
 

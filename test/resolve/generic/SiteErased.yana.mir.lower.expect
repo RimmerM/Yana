@@ -122,15 +122,10 @@ addOne<complex>(%x: I32): I32 {
   }
 }
 
-blow<complex>(%v_0: Ptr, %x: I32) {
-  b_1 {
-    %v_2 = sext %x: I64
-    store %v_0, %v_2, 8
-    %v_3 = add %v_0, 8: Ptr
-    store %v_3, 0, 8
-    %v_4 = add %v_0, 16: Ptr
-    store %v_4, 0, 8
-    ret 
+blow<complex>(%x: I32): I64, I64, I64 {
+  b_0 {
+    %v_1 = sext %x: I64
+    ret %v_1, 0, 0
   }
 }
 
@@ -294,7 +289,12 @@ thunk(Call(main.lambda'2.env erased 8000000000000003))<complex>(%v_0: Ptr, %v_1:
 
 funvalue(blow)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: I32) {
   b_3 {
-    call_complex blow, %v_1, %v_2
+    %v_4, %v_5, %v_6 = call_complex blow, %v_2: I64, I64, I64
+    store %v_1, %v_4, 8
+    %v_7 = add %v_1, 8: Ptr
+    store %v_7, %v_5, 8
+    %v_8 = add %v_1, 16: Ptr
+    store %v_8, %v_6, 8
     ret 
   }
 }

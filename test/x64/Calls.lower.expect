@@ -72,14 +72,12 @@ block #1:
   ret uses=[rax] creates=[]  => 5bc3
 
 --- codegen: pushCall ---
-  prologue  => 4883ec08
 block #0:
-  jmp uses=[] creates=[]  => 
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 8bc6
 block #1:
-  x86_pusharg uses=[rsi] creates=[-]  => 48893424
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 8bf78bd78bcf448bc7448bcf448bd7448bdfe8b1ffffff
-  ret uses=[rax] creates=[]  => 4883c408c3
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, rax] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 8bf78bd78bcf448bc7448bcf448bd7448bdfe8b7ffffff
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: sysCall ---
 block #0:

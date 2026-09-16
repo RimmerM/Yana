@@ -19,106 +19,93 @@ parity<complex>(%n: I32, %salt: I32): I32 {
 
 main<complex>(): I32 {
   b_0 {
-    jmp b_1
+    %v_1 = imm 3: I32
+    jmp b_2
+  }
+
+  b_3 {
+    ret %v_4
   }
 
   b_2 {
-    ret %v_3
-  }
-
-  b_1 {
-    %v_4 = phi [b_5, %v_3], [b_0, 0]: I32
-    %v_6 = phi [b_5, %v_7], [b_0, 0]: I32
-    %v_8 = alloca 16, 8: Ptr
-    %v_9 = alloca 12, 4: Ptr
-    store %v_8, %v_9, 8
-    %v_10 = add %v_8, 8: Ptr
-    store %v_10, 3, 4
-    %v_11 = add %v_8, 12: Ptr
-    store %v_11, 3, 4
-    store %v_9, 10, 4
-    %v_12 = add %v_9, 4: Ptr
+    %v_5 = phi [b_6, %v_4], [b_0, 0]: I32
+    %v_7 = phi [b_6, %v_8], [b_0, 0]: I32
+    %v_9 = alloca 4, 8: Ptr
+    %v_10 = alloca 12, 4: Ptr
+    %v_11 = bitcast %v_10: I64
+    store %v_9, 3, 4
+    store %v_10, 10, 4
+    %v_12 = add %v_10, 4: Ptr
     store %v_12, 20, 4
-    %v_13 = add %v_9, 8: Ptr
+    %v_13 = add %v_10, 8: Ptr
     store %v_13, 30, 4
-    %v_14 = cmp_eq %v_6, 0: I32
+    %v_14 = cmp_eq %v_7, 0: I32
     je %v_14, b_15, b_16
   }
 
-  b_5 {
+  b_6 {
     %v_17 = phi [b_18, %v_19], [b_20, 18446744073709551613], [b_21, 18446744073709551614], [b_15, 18446744073709551615]: I32
-    %v_22 = add %v_4, %v_17: I32
-    %v_23 = call_complex parity, %v_6, %v_6: I32
-    %v_3 = add %v_22, %v_23: I32
-    %v_7 = add %v_6, 1: I32
-    %v_24 = cmp_ilt %v_7, 5: I32
-    je %v_24, b_1, b_2
+    %v_22 = add %v_5, %v_17: I32
+    %v_23 = call_complex parity, %v_7, %v_7: I32
+    %v_4 = add %v_22, %v_23: I32
+    %v_8 = add %v_7, 1: I32
+    %v_24 = cmp_ilt %v_8, 5: I32
+    je %v_24, b_2, b_3
   }
 
   b_16 {
-    %v_25 = cmp_eq %v_6, 1: I32
+    %v_25 = cmp_eq %v_7, 1: I32
     je %v_25, b_21, b_26
   }
 
   b_26 {
-    %v_27 = cmp_eq %v_6, 2: I32
-    je %v_27, b_20, b_28
-  }
-
-  b_28 {
-    %v_29 = load %v_8, 8: Ptr
-    %v_30 = add %v_8, 12: Ptr
-    %v_31 = load %v_30, 4: I32
-    %v_32 = cast %v_31: I64
-    %v_33 = cmp_eq %v_32, 0: I32
-    je %v_33, b_34, b_18
+    %v_27 = cmp_eq %v_7, 2: I32
+    je %v_27, b_20, b_18
   }
 
   b_18 {
-    %v_35 = loads %v_29, 4: I32
-    call_complex Array(a).reclaim(I32), %v_8
-    %v_19 = add %v_35, %v_6: I32
-    jmp b_5
-  }
-
-  b_34 {
-    %v_36 = syscall 60, 134: I64
-    unreachable 
+    %v_28 = loads %v_10, 4: I32
+    %v_29 = load %v_9, 4: I32
+    call_complex Array(a).reclaim(I32), %v_11, %v_29, %v_1
+    %v_19 = add %v_28, %v_7: I32
+    jmp b_6
   }
 
   b_20 {
-    call_complex Array(a).reclaim(I32), %v_8
-    jmp b_5
+    %v_30 = load %v_9, 4: I32
+    call_complex Array(a).reclaim(I32), %v_11, %v_30, %v_1
+    jmp b_6
   }
 
   b_21 {
-    call_complex Array(a).reclaim(I32), %v_8
-    jmp b_5
+    %v_31 = load %v_9, 4: I32
+    call_complex Array(a).reclaim(I32), %v_11, %v_31, %v_1
+    jmp b_6
   }
 
   b_15 {
-    call_complex Array(a).reclaim(I32), %v_8
-    jmp b_5
+    %v_32 = load %v_9, 4: I32
+    call_complex Array(a).reclaim(I32), %v_11, %v_32, %v_1
+    jmp b_6
   }
 }
 
-Array(a).reclaim(I32)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    %v_2 = add %value, 8: Ptr
-    %v_3 = load %v_2, 4: I64
-    %v_4 = shr %v_3, 30: I64
-    %v_5 = cast %v_4: I32
-    %v_6 = cmp_eq %v_5, 1: I32
-    je %v_6, b_7, b_8
-  }
-
-  b_7 {
-    call_complex freeHeap, %v_1
-    jmp b_8
+Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
+  b_3 {
+    %v_4 = cast %v_1: I64
+    %v_5 = shr %v_4, 30: I64
+    %v_6 = cast %v_5: I32
+    %v_7 = cmp_eq %v_6, 1: I32
+    je %v_7, b_8, b_9
   }
 
   b_8 {
+    %v_10 = bitcast %v_0: Ptr
+    call_complex freeHeap, %v_10
+    jmp b_9
+  }
+
+  b_9 {
     ret 
   }
 }
@@ -149,11 +136,9 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-Run(a).reclaim(I32)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    %v_2 = add %value, 8: Ptr
-    %v_3 = load %v_2, 4: I64
+Run(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = cast %v_1: I64
     %v_4 = shr %v_3, 30: I64
     %v_5 = cast %v_4: I32
     %v_6 = cmp_eq %v_5, 1: I32
@@ -161,7 +146,8 @@ Run(a).reclaim(I32)<complex>(%value: Ptr) {
   }
 
   b_7 {
-    call_complex freeHeap, %v_1
+    %v_9 = bitcast %v_0: Ptr
+    call_complex freeHeap, %v_9
     jmp b_8
   }
 

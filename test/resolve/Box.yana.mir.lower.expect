@@ -6,40 +6,21 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 main<complex>(): I32 {
   b_0 {
     %v_1 = call_complex allocateHeap, 8: Ptr
-    store %v_1, 1, 4
     %v_2 = add %v_1, 4: Ptr
-    store %v_2, 20, 4
-    %v_3 = loads %v_1, 4: I32
-    %v_4 = add %v_3, 1: I32
-    store %v_1, %v_4, 4
-    %v_5 = loads %v_2, 4: I32
-    %v_6 = add %v_5, 1: I32
-    store %v_2, %v_6, 4
-    %v_7 = loads %v_1, 4: I32
-    %v_8 = imul %v_7, 100: I32
-    %v_9 = add 3000, %v_8: I32
+    store %v_1, 2, 4
+    store %v_2, 21, 4
     call_complex freeHeap, %v_1
-    %v_10 = add %v_9, %v_6: I32
-    %v_11 = cmp_neq %v_10, 3221: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_13 {
-    %v_14 = call_complex allocateHeap, 8: Ptr
-    store %v_14, 6, 4
-    %v_15 = add %v_14, 4: Ptr
-    store %v_15, 40, 4
-    call_complex freeHeap, %v_14
-    %v_16 = call_complex allocateHeap, 8: Ptr
-    store %v_16, 2, 4
-    %v_17 = add %v_16, 4: Ptr
-    store %v_17, 3, 4
-    call_complex freeHeap, %v_16
+    %v_3 = call_complex allocateHeap, 8: Ptr
+    store %v_3, 6, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 40, 4
+    call_complex freeHeap, %v_3
+    %v_5 = call_complex allocateHeap, 8: Ptr
+    store %v_5, 2, 4
+    %v_6 = add %v_5, 4: Ptr
+    store %v_6, 3, 4
+    call_complex freeHeap, %v_5
     ret 3790
-  }
-
-  b_12 {
-    ret 18446744073709551614
   }
 }
 

@@ -108,8 +108,70 @@ bool onlyFeedsMachineSplats(LowerBase base, LowerImm* imm) {
     return true;
 }
 
+/*
+ * A constant written by several stores, and what it costs each way.
+ *
+ * `isEmbeddableImm`'s "a one-byte immediate is always cheaper embedded" is a statement about the
+ * arithmetic forms, where `add r, imm8` is `83 /0 ib`. A store has no such encoding: `mov [m], imm`
+ * carries a two-byte immediate at sixteen bits and a four-byte one at thirty-two and sixty-four,
+ * whatever the value - so a zero written into eight fields of a record is thirty-two bytes of zeroes,
+ * where one `xor` and eight register stores would be two.
+ *
+ * Nothing reached that answer, because nothing could: the lowering builds a fresh `imm` per store
+ * and no pass merges constants, so every one had a single use and the per-use rule never saw more.
+ * `shareStoredConstants` below is what gives it a second use to count.
+ */
+static U32 storeImmediateBytes(U32 width) {
+    return width >= 4 ? 4 : width;
+}
+
+static U32 storedImmediateBytes(LowerBase base, LowerImm* imm) {
+    U32 bytes = 0;
+
+    for(auto offset: imm->result.uses.contents(base)) {
+        auto use = base[offset];
+        if(use->kind != LowerInst::Store) return 0;
+
+        auto store = (LowerInstStore*)use;
+        if(base[store->value] != &imm->result || base[store->to] == &imm->result) return 0;
+
+        bytes += storeImmediateBytes(store->getWidth());
+    }
+
+    return bytes;
+}
+
+// What the constant costs in a register instead: `xor r32, r32` for a zero, `mov r32, imm32` for
+// anything a 32-bit move zero-extends into the value, and the sign-extending `mov r64, imm32` for a
+// small negative one.
+static U32 materializedBytes(LowerImm* imm) {
+    auto value = imm->result.type == LowerType::Int32 ? imm->i & 0xffffffffull : imm->i;
+    if(value == 0) return 2;
+    if(value <= 0xffffffffull) return 5;
+    if(fitsImmediate(ImmediateWidth::Imm32, value)) return 7;
+    return 10;
+}
+
+/*
+ * The register the shared constant occupies, stated in bytes so that it can sit beside them.
+ *
+ * Not free, and `Pipeline.yana`'s `each` is the measurement of how much it is not: a constant held
+ * in a register where every register was taken cost two callee-saved pushes. Sharing only inside a
+ * run with no call in it (see the pass) keeps the web short enough to be a scratch register's worth,
+ * and this is the margin on top.
+ */
+static constexpr U32 kSharedConstantPenalty = 2;
+
+static bool storesPreferRegister(LowerBase base, LowerImm* imm) {
+    if(imm->result.uses.size() < 2) return false;
+
+    auto stored = storedImmediateBytes(base, imm);
+    return stored > materializedBytes(imm) + kSharedConstantPenalty;
+}
+
 // Tries to embed this immediate into any instructions that use it.
 bool tryEmbedImm(LowerBase base, LowerImm* imm) {
+    if(storesPreferRegister(base, imm)) return false;
     if(!isEmbeddableImm(imm) && !onlyFeedsMachineSplats(base, imm)) return false;
 
     for(auto use: imm->result.uses.contents(base)) {
@@ -118,6 +180,83 @@ bool tryEmbedImm(LowerBase base, LowerImm* imm) {
 
     imm->result.flags |= LowerValue::Implicit;
     return true;
+}
+
+/*
+ * One constant for every store of the same number in a stretch of a block with no call in it.
+ *
+ * The lowering writes `imm 0` in front of each store that wants one, so a record's zero-initialization
+ * is as many constants as it has fields. Merging them is what lets `tryEmbedImm` weigh the stores
+ * together; it decides, and a group it would embed anyway is left exactly as it was, so this never
+ * turns an embedded constant into a register for nothing.
+ *
+ * A call ends the stretch. The constant would be live across it, which is a callee-saved register or
+ * a rematerialization - and a rematerialization is the embedded form's cost again with a `xor` added.
+ * Same block and same type only: a constant defined in another block may not dominate the use, and a
+ * 32-bit zero and a 64-bit one are different values to every reader that asks for a class.
+ */
+void shareStoredConstants(Context&, LowerBase base, LowerFunction& fun) {
+    // Every constant seen, the first of its group included, with the group it joined: a group is the
+    // index of its first member here.
+    struct Member {
+        LowerImm* imm;
+        U32 group;
+    };
+
+    Array<Member> members;
+    Array<U32> groupBytes;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+        auto stretchStart = members.size(); // the first member the current stretch may join
+
+        for(auto i: block->instructions.contents(base)) {
+            auto inst = base[i];
+
+            if(inst->kind == LowerInst::Call) {
+                stretchStart = members.size();
+                continue;
+            }
+
+            if(inst->kind != LowerInst::Store) continue;
+
+            auto store = (LowerInstStore*)inst;
+            auto value = base[store->value];
+            if(value->inst()->kind != LowerInst::Imm || store->getWidth() < 2) continue;
+
+            auto imm = (LowerImm*)value->inst();
+            if(imm->result.uses.size() != 1 || base[imm->block] != block) continue;
+            if(!isIntLike(imm->result.type) || isVectorLike(imm->result.type)) continue;
+
+            // Its own group unless an earlier constant of this stretch is the same number.
+            auto group = U32(members.size());
+            for(Size m = stretchStart; m < members.size(); m++) {
+                auto other = members[m].imm;
+                if(members[m].group == U32(m) && other->result.type == imm->result.type &&
+                   other->i == imm->i) {
+                    group = U32(m);
+                    break;
+                }
+            }
+
+            groupBytes.push(0);
+            groupBytes[group] += storeImmediateBytes(store->getWidth());
+            members.push(Member { imm, group });
+        }
+    }
+
+    // Decided per group before anything is edited, and asked the way `tryEmbedImm` will ask the merged
+    // constant - a group it would embed anyway is left as it was.
+    for(Size m = 0; m < members.size(); m++) {
+        auto& member = members[m];
+        if(member.group == U32(m)) continue;
+
+        auto first = members[member.group].imm;
+        if(groupBytes[member.group] <= materializedBytes(first) + kSharedConstantPenalty) continue;
+
+        replaceAllUses(base, &member.imm->result, &first->result);
+        removeInst(base, member.imm);
+    }
 }
 
 // A call to a statically known function is encoded as a direct rel32 call, which never reads the

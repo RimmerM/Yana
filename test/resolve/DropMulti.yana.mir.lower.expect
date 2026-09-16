@@ -4,11 +4,10 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Buffer.drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    %v_2 = bitcast %v_1: I64
-    %v_3 = cmp_eq %v_2, 0: I32
+Buffer.drop<complex>(%v_0: I64) {
+  b_1 {
+    %v_2 = bitcast %v_0: Ptr
+    %v_3 = cmp_eq %v_0, 0: I32
     je %v_3, b_4, b_5
   }
 
@@ -21,16 +20,16 @@ Buffer.drop<complex>(%value: Ptr) {
   }
 
   b_5 {
-    %v_8 = sub %v_1, 8: Ptr
+    %v_8 = sub %v_2, 8: Ptr
     %v_9 = loads %v_8, 8: I64
     %v_10 = load @heapFree, 8: Ptr
     %v_11 = shl %v_9, 3: I64
     %v_12 = add %v_10, %v_11: Ptr
     %v_13 = load %v_12, 8: Ptr
-    store %v_1, %v_13, 8
+    store %v_2, %v_13, 8
     %v_14 = load @heapFree, 8: Ptr
     %v_15 = add %v_14, %v_11: Ptr
-    store %v_15, %v_1, 8
+    store %v_15, %v_2, 8
     jmp b_4
   }
 }
@@ -466,24 +465,27 @@ teardown(Slot)<complex>(%v_0: Ptr) {
 
   b_4 {
     %v_7 = add %v_0, 8: Ptr
-    call_complex Buffer.drop, %v_7
+    %v_8 = load %v_7, 8: I64
+    call_complex Buffer.drop, %v_8
     jmp b_6
   }
 
   b_5 {
-    %v_8 = cmp_eq %v_2, 2: I32
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    %v_11 = add %v_0, 8: Ptr
-    call_complex Buffer.drop, %v_11
-    %v_12 = add %v_0, 16: Ptr
-    call_complex Buffer.drop, %v_12
-    jmp b_6
+    %v_9 = cmp_eq %v_2, 2: I32
+    je %v_9, b_10, b_11
   }
 
   b_10 {
+    %v_12 = add %v_0, 8: Ptr
+    %v_13 = load %v_12, 8: I64
+    call_complex Buffer.drop, %v_13
+    %v_14 = add %v_0, 16: Ptr
+    %v_15 = load %v_14, 8: I64
+    call_complex Buffer.drop, %v_15
+    jmp b_6
+  }
+
+  b_11 {
     jmp b_6
   }
 }

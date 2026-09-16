@@ -33,10 +33,10 @@ void MachineFormBuilder::registerPackedForms() {
      * The right-hand side may be read out of a frame slot, and that is the first memory operand
      * in this table with an *alignment* requirement: a legacy-encoded packed operation faults on
      * a memory operand that is not 16-byte aligned, where every operand of eight bytes or fewer
-     * has no such rule. A Slot128 is what makes it hold - a slot of that class raises the frame's
-     * alignment, `computeFrameLayout` realigns the prologue for it, and the one case where that
-     * cannot happen (a run-time allocation in the same function) is already reported as an
-     * unsupported frame rather than emitted.
+     * has no such rule. A Slot128 is what makes it hold - without VEX a slot of that class raises
+     * the frame's alignment (`spillSlotAlignment`), `computeFrameLayout` realigns the prologue for
+     * it, and the one case where that cannot happen (a run-time allocation in the same function) is
+     * already reported as an unsupported frame rather than emitted.
      *
      * What that same rule refuses is a memory *twin*: an address the program computed is one
      * nothing here has promised anything about, so `memoryTwin` is deliberately not called for
@@ -249,17 +249,16 @@ void MachineFormBuilder::registerPackedForms() {
      * interleaved back - which is two `pmuludq`s and five shuffles, and needs two scratch
      * registers because both halves are alive at once.
      *
-     * Two clobbers rather than one, and they are the highest two registers for the reason
-     * `FormVSelect` gives: placement reaches for those last, so a function that fits in the file
-     * pays nothing for them.
+     * Two clobbers rather than one - `kVectorScratch` and `kVectorScratchPair`, which is where the
+     * choice of register is argued.
      */
     {
         auto& form = add(FormVMul32Sse2, OpVMul, "pmuludq (32-bit lane product)"_v);
         form.uses.push(anyReg(ClassXmm128));
         form.uses.push(anyReg(ClassXmm128));
         form.defs.push(tiedDef(0, ClassXmm128));
-        form.clobbers.add(vectorReg(14));
-        form.clobbers.add(vectorReg(15));
+        form.clobbers.add(vectorReg(kVectorScratchPair));
+        form.clobbers.add(vectorReg(kVectorScratch));
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecMul32,
         };
@@ -370,15 +369,15 @@ void MachineFormBuilder::registerPackedForms() {
         form.uses.push(anyReg(ClassXmm128));
         form.uses.push(anyReg());
         form.defs.push(tiedDef(0, ClassXmm128));
-        form.clobbers.add(vectorReg(15));
+        form.clobbers.add(vectorReg(kVectorScratch));
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecShiftCount,
         };
     };
 
-    shiftReg(FormVShlReg, OpVShl, "movd xmm15, r; psllw/d/q xmm, xmm15"_v);
-    shiftReg(FormVShrReg, OpVShr, "movd xmm15, r; psrlw/d/q xmm, xmm15"_v);
-    shiftReg(FormVSarReg, OpVSar, "movd xmm15, r; psraw/d xmm, xmm15"_v);
+    shiftReg(FormVShlReg, OpVShl, "movd xmm11, r; psllw/d/q xmm, xmm11"_v);
+    shiftReg(FormVShrReg, OpVShr, "movd xmm11, r; psrlw/d/q xmm, xmm11"_v);
+    shiftReg(FormVSarReg, OpVSar, "movd xmm11, r; psraw/d xmm, xmm11"_v);
 
     /*
      * A count *per lane*, which is AVX2's own family and has no spelling at all below it.
@@ -498,7 +497,7 @@ void MachineFormBuilder::registerPackedForms() {
      * `pcmpXX dst, rhs` and then the mask inverted, which needs an all-ones vector - and the way
      * to make one without a constant pool is to compare a register with itself, whatever it
      * holds. So this is the base comparison plus two instructions and one scratch register,
-     * declared as a clobber for the reason `FormVSelect` above declares one.
+     * declared as a clobber - `kVectorScratch`.
      *
      * One form for every lane width. What the widths differ in is the opcode byte, which the
      * pseudo reads off the instruction's own type; the operands, the tie and the clobber are the
@@ -509,7 +508,7 @@ void MachineFormBuilder::registerPackedForms() {
         form.uses.push(anyReg(ClassXmm128));
         form.uses.push(anyReg(ClassXmm128));
         form.defs.push(tiedDef(0, ClassXmm128));
-        form.clobbers.add(vectorReg(15));
+        form.clobbers.add(vectorReg(kVectorScratch));
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecCompareInverted,
         };
@@ -523,7 +522,7 @@ void MachineFormBuilder::registerPackedForms() {
         auto& form = add(FormVNot, OpVNot, "pcmpeqd; pxor (complement)"_v);
         form.uses.push(anyReg(ClassXmm128));
         form.defs.push(tiedDef(0, ClassXmm128));
-        form.clobbers.add(vectorReg(15));
+        form.clobbers.add(vectorReg(kVectorScratch));
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecNot,
         };
@@ -651,9 +650,8 @@ void MachineFormBuilder::registerPackedForms() {
         form.requiredFeatures = features;
 
         // The byte broadcast's baseline route alone - `pshufb` shuffles by a *vector* of indices
-        // and the indices wanted are zeros, which have to be somewhere. xmm15 for the reason
-        // `FormVSelect` gives: it is the last register placement reaches for.
-        if(scratch) form.clobbers.add(vectorReg(15));
+        // and the indices wanted are zeros, which have to be somewhere - `kVectorScratch`.
+        if(scratch) form.clobbers.add(vectorReg(kVectorScratch));
 
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecBroadcast,
@@ -972,30 +970,28 @@ void MachineFormBuilder::registerPackedForms() {
                 kOpcodeMap0F, false, kFeatureBaseline);
 
     /*
-     * A lane-wise select.
+     * A lane-wise select, as `vpblendvb`.
      *
-     * `(mask & a) | (~mask & b)`, which is three instructions and one value more than there are
-     * registers to hold it: the destination is `a`, the mask has to survive being read twice,
-     * and `~mask & b` has to be computed somewhere that is neither. So the form declares a
-     * clobber and the expansion uses it as scratch - the arrangement `FormImmFloat32` already
-     * has one bank over, and for the same reason: a clobber keeps a live value out of one
-     * register at this one instruction, where `MachineForm::temporaries` would hold one back
-     * from the whole function.
+     * Selected only where there is a VEX encoding - a 128-bit select without one is
+     * `FormVSelectBlend` below, and a 256-bit vector exists only in a build that has VEX - so the
+     * expansion is always the one instruction that takes the mask as a real operand. See
+     * `selectForm`'s `Select` arm in machine_vector.cpp.
      *
-     * xmm15 rather than xmm0, which is what a later `blendvps` form would want: the highest
-     * register is the last one placement reaches for, so a function that fits in the file loses
-     * nothing to this.
+     * **No clobber.** This row used to be the legacy `(mask & a) | (~mask & b)` sequence, which needed
+     * a scratch register and declared xmm15 for it; the sequence stopped being reachable when the blend
+     * row took the legacy case, and the declaration stayed. A declared clobber is a written register,
+     * so once `complex` preserved xmm12-15 every function holding a select saved and restored a
+     * register nothing wrote.
      *
-     * The operand order is the instruction's - `lhs, rhs, cmp` - so use 0 is the value taken
-     * where the mask is set, and the tie is on it because `pand` writes what it reads.
+     * The operand order is the instruction's - `lhs, rhs, cmp` - so use 0 is the value taken where
+     * the mask is set. The tie on it is the pseudo's, which a three-operand encoding does not need.
      */
     {
-        auto& form = add(FormVSelect, OpVBlend, "pand; pandn; por (lanewise select)"_v);
+        auto& form = add(FormVSelect, OpVBlend, "vpblendvb xmm, xmm, xmm, mask (lanewise select)"_v);
         form.uses.push(anyReg(ClassXmm128));
         form.uses.push(anyReg(ClassXmm128));
         form.uses.push(anyReg(ClassXmm128));
         form.defs.push(tiedDef(0, ClassXmm128));
-        form.clobbers.add(vectorReg(15));
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecSelect,
         };
@@ -1017,7 +1013,7 @@ void MachineFormBuilder::registerPackedForms() {
      * which operand it is writing over before it places anything.
      *
      * **The cost is xmm0**, which is not the register a scratch should be: it is the first one
-     * placement reaches for, where `FormVSelect`'s xmm15 is the last. §34.3 declined the row for
+     * placement reaches for, where `kVectorScratch` is the last volatile one. §34.3 declined the row for
      * that reason and did not measure it. Measured, the trade is one-sided: a clobber holds a
      * register back at *one instruction*, and two instructions are removed at every select in a
      * language whose vector library selects in every masked tail. A function under enough
@@ -1087,7 +1083,7 @@ void MachineFormBuilder::registerPackedForms() {
         auto& form = add(id, OpVNeg, formName);
         form.uses.push(anyReg(ClassXmm128));
         form.defs.push(def(ClassXmm128));
-        form.clobbers.add(vectorReg(15));
+        form.clobbers.add(vectorReg(kVectorScratch));
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::VecNegate,
         };

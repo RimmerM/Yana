@@ -1271,7 +1271,7 @@ struct Placer {
             .kind = StackSlotKind::Spill,
             .slotClass = slotClass,
             .size = size,
-            .alignment = size,
+            .alignment = spillSlotAlignment(slotClass),
         });
 
         while(slotOccupants.size() <= slot) slotOccupants.push();
@@ -1983,7 +1983,7 @@ static void placeInst(Placer& a, LowerInst* inst, U32 index) {
          * defined by it.
          *
          * Latent in `FormVSelect` from the day it was written, and unreachable there only because
-         * its scratch is xmm15 and placement reaches for that last. `FormVSelectBlend` stages its
+         * its scratch was xmm15 and placement reaches for that last. `FormVSelectBlend` stages its
          * mask in xmm0, which placement reaches for *first*, and it produced `movups %xmm0 (the
          * false arm) ; movaps %xmm2,%xmm0 (the mask, over it) ; pblendvb` - a select that answered
          * its mask where it should have answered a value.

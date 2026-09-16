@@ -121,17 +121,17 @@ static U32 requiredStackAlignment(LowerBase base, LowerFunction& fun, const Cons
  * alignments a function's slots can be drawn from is a property of its value types alone. Reading
  * the set rather than the membership is what lets the question be asked this early at all.
  *
- * It answers 8 for every function the lowering produces today, since no scalar spills wider than a
- * word. A packed vector value is the first thing that raises it, and it is the reason this exists:
- * a slot wanting more alignment than the entry convention promises is a realignment, and a
- * realignment needs a frame pointer, and whether rbp is a frame pointer has to be settled before
- * the allocator starts.
+ * It answers 8 for every scalar, which spills no wider than a word, and for every vector under VEX,
+ * whose slots ask for no more than that (`spillSlotAlignment`). A packed vector value in a legacy-
+ * encoded function is what raises it, and it is the reason this exists: a slot wanting more
+ * alignment than the entry convention promises is a realignment, and a realignment needs a frame
+ * pointer, and whether rbp is a frame pointer has to be settled before the allocator starts.
  */
 static U32 spillStackAlignment(LowerBase base, LowerFunction& fun) {
     U32 required = 8;
 
     auto raise = [&](LowerType type) {
-        auto alignment = stackSlotSize(stackSlotClassFor(type));
+        auto alignment = spillSlotAlignment(stackSlotClassFor(type));
         if(alignment > required) required = alignment;
     };
 

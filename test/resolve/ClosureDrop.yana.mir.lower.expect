@@ -4,21 +4,19 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Guard.drop<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = loads @dropCalls, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @dropCalls, %v_2, 4
+Guard.drop<complex>(%v_0: I32) {
+  b_1 {
+    %v_2 = loads @dropCalls, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store @dropCalls, %v_3, 4
     ret 
   }
 }
 
-plain<complex>(%v_0: Ptr) {
-  b_1 {
-    store %v_0, plain.lambda, 8
-    %v_2 = add %v_0, 8: Ptr
-    store %v_2, 0, 8
-    ret 
+plain<complex>(): I64, I64 {
+  b_0 {
+    %v_1 = bitcast plain.lambda: I64
+    ret %v_1, 0
   }
 }
 
@@ -26,46 +24,48 @@ main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 16, 8: Ptr
+    %guarded.lambda = fun guarded.lambda: Ptr
     %v_3 = call_complex allocateHeap, 12: Ptr
     store %v_3, closure(guarded.lambda.env), 8
     %v_4 = add %v_3, 8: Ptr
     store %v_4, 7, 4
     %v_5 = or %v_3, 1: Ptr
-    store %v_1, guarded.lambda, 8
+    store %v_1, %guarded.lambda, 8
     %v_6 = add %v_1, 8: Ptr
     store %v_6, %v_5, 8
-    %v_7 = load %v_1, 8: Ptr
-    %v_8 = call_complex %v_7, %v_5: I32
+    %v_7 = call_complex %guarded.lambda, %v_5: I32
     call_complex teardown(fun), %v_1
-    %v_9 = loads @dropCalls, 4: I32
-    %v_10 = cmp_neq %v_9, 1: I32
-    je %v_10, b_11, b_12
-  }
-
-  b_12 {
-    call_complex plain, %v_2
-    %v_13 = load %v_2, 8: Ptr
-    %v_14 = add %v_2, 8: Ptr
-    %v_15 = load %v_14, 8: Ptr
-    %v_16 = call_complex %v_13, %v_15: I32
-    call_complex teardown(fun), %v_2
-    %v_17 = loads @dropCalls, 4: I32
-    %v_18 = cmp_neq %v_17, 1: I32
-    je %v_18, b_19, b_20
+    %v_8 = loads @dropCalls, 4: I32
+    %v_9 = cmp_neq %v_8, 1: I32
+    je %v_9, b_10, b_11
   }
 
   b_11 {
+    %v_12, %v_13 = call_complex plain: I64, I64
+    store %v_2, %v_12, 8
+    %v_14 = add %v_2, 8: Ptr
+    store %v_14, %v_13, 8
+    %v_15 = load %v_2, 8: Ptr
+    %v_16 = load %v_14, 8: Ptr
+    %v_17 = call_complex %v_15, %v_16: I32
+    call_complex teardown(fun), %v_2
+    %v_18 = loads @dropCalls, 4: I32
+    %v_19 = cmp_neq %v_18, 1: I32
+    je %v_19, b_20, b_21
+  }
+
+  b_10 {
     ret 18446744073709551615
   }
 
-  b_20 {
-    %v_21 = add %v_8, %v_16: I32
-    %v_22 = loads @dropCalls, 4: I32
-    %v_23 = add %v_21, %v_22: I32
-    ret %v_23
+  b_21 {
+    %v_22 = add %v_7, %v_17: I32
+    %v_23 = loads @dropCalls, 4: I32
+    %v_24 = add %v_22, %v_23: I32
+    ret %v_24
   }
 
-  b_19 {
+  b_20 {
     ret 18446744073709551614
   }
 }
@@ -293,7 +293,8 @@ closure(guarded.lambda.env)<complex>(%v_0: Ptr) {
 
 teardown(guarded.lambda.env)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex Guard.drop, %v_0
+    %v_2 = load %v_0, 4: I32
+    call_complex Guard.drop, %v_2
     ret 
   }
 }

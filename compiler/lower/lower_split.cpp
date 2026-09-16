@@ -22,7 +22,7 @@ constexpr Size kMaxFields = 16;
 // The constant an operand carries, where it is one.
 Maybe<U64> constantOf(LowerBase base, LowerPtr<LowerValue> value) {
     auto inst = base[value]->inst();
-    if(inst->kind != LowerInst::Imm) return Nothing();
+    if(!inst || inst->kind != LowerInst::Imm) return Nothing();
 
     return Just(((LowerImm*)inst)->i);
 }
@@ -75,6 +75,14 @@ struct Field {
     LowerPtr<LowerValue> address = nullptr;
 };
 
+// A zero fill of part of a slot. It names a range rather than a cell, so it is neither an Access -
+// which has to fit one - nor an Edge, and it is rewritten as a zero per cell it covers.
+struct Fill {
+    LowerPtr<LowerInst> inst = nullptr;
+    U32 offset = 0;
+    U32 size = 0;
+};
+
 struct Slot {
     LowerPtr<LowerValue> address = nullptr;
     LowerPtr<LowerInst> allocation = nullptr;
@@ -89,6 +97,7 @@ struct Slot {
 
     Array<LowerPtr<LowerInst>> offsets;  // the constant-offset arithmetic over the address
     Array<Access> accesses;
+    Array<Fill> fills;
     Array<U32> points;                   // the cut offsets, ascending, 0 and `size` included
     Array<Field> fields;
 };
@@ -200,13 +209,29 @@ bool collectUses(LowerBase base, Slot& slot, Size which, HashMap<U32, U64>& loca
         }
 
         /*
-         * Everything else, which is the address leaving - and one thing that is not.
+         * A zero fill of a constant length - which is what a zeroed record is (`zeroStorage` and
+         * `zeroFieldRuns` in resolve_ssa/lower/inst.cpp), and what this used to see as a run of
+         * stores. It cuts the partition at the words those stores wrote (see computePoints) and
+         * writes every cell it covers, and the rewrite gives each live one a zero of the register
+         * it is moved through.
          *
-         * A `setpattern` fills the slot with a byte, and splitting it would mean one fill per cell
-         * and a cell that then has a value nothing typed. It is declined rather than handled because
-         * the front end writes a zeroed record as a run of stores (`zeroStorage` in lower_gen.cpp),
-         * so the whole of what this gives up is one instruction in one program.
+         * Only a zero. Another byte would have to be replicated to each cell's width and
+         * reinterpreted for a floating one, and nothing writes one into a record.
          */
+        if(user->kind == LowerInst::SetPattern) {
+            auto fill = (LowerInstSetPattern*)user;
+            if(fill->to != self || fill->count == self || fill->pattern == self) return false;
+
+            auto count = constantOf(base, fill->count);
+            auto pattern = constantOf(base, fill->pattern);
+            if(count.isNothing() || pattern.isNothing() || (pattern.unwrap() & 0xff) != 0) return false;
+            if(count.unwrap() == 0 || count.unwrap() > slot.size - offset) return false;
+
+            slot.fills.push(Fill { userPtr, offset, U32(count.unwrap()) });
+            continue;
+        }
+
+        // Everything else, which is the address leaving.
         return false;
     }
 
@@ -342,6 +367,25 @@ void computePoints(Array<Slot>& slots, Array<Edge>& edges) {
         for(auto& access: slot.accesses) {
             addPoint(slot.points, access.offset);
             addPoint(slot.points, access.offset + access.size);
+        }
+
+        /*
+         * A fill cuts where a zeroing written a word at a time would have: widest word first, from
+         * where it starts. That is where a record's fields sit whenever each is aligned to its own
+         * width, and it is the structure this pass saw when `zeroStorage` wrote those words - the
+         * only structure a temporary a duplicate is copied through has, since nothing else here
+         * names a field of it.
+         */
+        for(auto& fill: slot.fills) {
+            auto at = fill.offset;
+            auto end = fill.offset + fill.size;
+
+            addPoint(slot.points, at);
+            while(at < end) {
+                auto left = end - at;
+                at += left >= 8 ? 8 : left >= 4 ? 4 : left >= 2 ? 2 : 1;
+                addPoint(slot.points, at);
+            }
         }
     }
 
@@ -541,6 +585,13 @@ void computeFields(Array<Slot>& slots, Array<Edge>& edges) {
             field.live = true;
             field.written |= access.writes;
             mergeFieldType(field, access.type);
+        }
+
+        // A fill writes every cell it covers, and reads none of them.
+        for(auto& fill: slot.fills) {
+            for(auto& field: slot.fields) {
+                if(field.offset >= fill.offset && field.offset < fill.offset + fill.size) field.written = true;
+            }
         }
     }
 
@@ -830,6 +881,60 @@ bool expandCopy(LowerBase base, LowerModule& module, LowerBlock& block, Array<Sl
     return true;
 }
 
+/*
+ * One zero fill, rewritten as a zero per live cell it covers - an immediate stored through the
+ * register the cell is moved through, which is what lets promotion take the cell, and a fill of the
+ * cell's own bytes where there is no such register. A dead cell is not written, for the reason a
+ * dead cell is not moved.
+ */
+bool expandFill(LowerBase base, LowerModule& module, LowerBlock& block, Array<Slot>& slots,
+                HashMap<U32, U64>& location, LowerInstSetPattern* fill) {
+    auto found = location.getValue(U32(fill->to));
+    if(found.isNothing()) return false;
+
+    auto& slot = slots[Size(found.unwrap() >> 32)];
+    if(!slot.active) return false;
+
+    auto offset = U32(found.unwrap());
+    auto size = U32(constantOf(base, fill->count).unwrap());
+    auto source = fill->source;
+    detach(base, fill);
+
+    for(auto& field: slot.fields) {
+        if(field.offset < offset || field.offset >= offset + size || !field.live) continue;
+
+        auto type = moveType(field);
+        if(type && !isVectorLike(type.unwrap())) {
+            auto zero = isFloat(type.unwrap())
+                ? new (module.arena) LowerImm(StringId(), type.unwrap(), F64(0))
+                : new (module.arena) LowerImm(StringId(), type.unwrap(), U64(0));
+            zero->source = source;
+            block.addInst(base, zero);
+
+            auto stored = new (module.arena) LowerInstStore(field.address, zero->created().ptr - base,
+                                                            field.size);
+            stored->source = source;
+            block.addInst(base, stored);
+            continue;
+        }
+
+        auto count = new (module.arena) LowerImm(StringId(), LowerType::Int64, U64(field.size));
+        count->source = source;
+        block.addInst(base, count);
+
+        auto pattern = new (module.arena) LowerImm(StringId(), LowerType::Int32, U64(0));
+        pattern->source = source;
+        block.addInst(base, pattern);
+
+        auto filled = new (module.arena) LowerInstSetPattern(field.address, count->created().ptr - base,
+                                                             pattern->created().ptr - base);
+        filled->source = source;
+        block.addInst(base, filled);
+    }
+
+    return true;
+}
+
 // The cell an address names, where it names one of a slot being split.
 Maybe<LowerPtr<LowerValue>> fieldOf(Array<Slot>& slots, HashMap<U32, U64>& location,
                                     LowerPtr<LowerValue> address) {
@@ -883,6 +988,8 @@ void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<
         } else if(inst->kind == LowerInst::Copy) {
             auto found = edgeOf.getValue(U32(instPtr));
             if(found && expandCopy(base, module, block, slots, edges[found.unwrap()])) continue;
+        } else if(inst->kind == LowerInst::SetPattern) {
+            if(expandFill(base, module, block, slots, location, (LowerInstSetPattern*)inst)) continue;
         }
 
         block.instructions.push(module.arena, instPtr);

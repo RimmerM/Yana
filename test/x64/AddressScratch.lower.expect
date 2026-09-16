@@ -38,31 +38,31 @@ block #1:
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: scratchAddress ---
-  prologue  => 535541544155415641574883ec20
+  prologue  => 535541544155415641574883ec60440f1164241c440f116c242c440f1174243c440f117c244c
 block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0, rcx->stack:1, r8->stack:2]  => 488bee4889142448894c24084c89442410
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] post=[rax->rdi]  => e8ccffffff8bf8
-  x86_addr scale=1 disp=0 uses=[rbp, rsi] creates=[-] pre=[stack:0->rsi]  => 488b3424
-  load uses=[-] creates=[rbp]  => 8b6c3500
-  x86_addr scale=1 disp=0 uses=[rsi, rdx] creates=[-] pre=[stack:1->rsi, stack:2->rdx]  => 488b742408488b542410
-  load uses=[-] creates=[rcx] post=[rcx->stack:3]  => 8b0c16894c2418
+  call_clobber uses=[-, rdi] creates=[rax] post=[rax->rdi]  => e8b4ffffff8bf8
+  x86_addr scale=1 disp=0 uses=[rbp, r11] creates=[-] pre=[stack:0->r11]  => 4c8b1c24
+  load uses=[-] creates=[rbp]  => 428b6c1d00
+  x86_addr scale=1 disp=0 uses=[r11, r10] creates=[-] pre=[stack:1->r11, stack:2->r10]  => 4c8b5c24084c8b542410
+  load uses=[-] creates=[r9] post=[r9->stack:3]  => 478b0c1344894c2418
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e8acffffff
+  call_clobber uses=[-, rdi] creates=[rax]  => e891ffffff
   add uses=[rbp, stack:3] creates=[rbp]  => 036c2418
   add uses=[rbp, rax] creates=[rbp]  => 01c5
-  ret uses=[rax] creates=[] pre=[rbp->rax]  => 8bc54883c420415f415e415d415c5d5bc3
+  ret uses=[rax] creates=[] pre=[rbp->rax]  => 8bc5440f1064241c440f106c242c440f1074243c440f107c244c4883c460415f415e415d415c5d5bc3
 
 --- codegen: scratchAddressStore ---
-  prologue  => 535541544155415641574883ec18
+  prologue  => 535541544155415641574883ec58440f11642414440f116c2424440f11742434440f117c2444
 block #0:
   jmp uses=[] creates=[] pre=[rsi->stack:0, rdx->stack:1, rcx->stack:2, r8->rbp]  => 897424104889142448894c2408418be8
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e86dffffff
-  x86_addr scale=1 disp=0 uses=[rsi, rdx] creates=[-] pre=[stack:1->rsi, stack:2->rdx]  => 488b3424488b542408
-  store uses=[-, rcx] creates=[] pre=[stack:0->rcx]  => 8b4c2410890c16
-  add uses=[rdi, rax] creates=[rdi] pre=[rbp->rdi]  => 8d7c0500
-  add uses=[rax, rbp] creates=[rax] pre=[rdi->rax]  => 8d042f
-  ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
+  call_clobber uses=[-, rdi] creates=[rax]  => e825ffffff
+  x86_addr scale=1 disp=0 uses=[r11, r10] creates=[-] pre=[stack:1->r11, stack:2->r10]  => 4c8b1c244c8b542408
+  store uses=[-, r9] creates=[] pre=[stack:0->r9]  => 448b4c241047890c13
+  add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 8d4c0500
+  add uses=[rax, rbp] creates=[rax] pre=[rcx->rax]  => 8d0429
+  ret uses=[rax] creates=[]  => 440f10642414440f106c2424440f10742434440f107c24444883c458415f415e415d415c5d5bc3

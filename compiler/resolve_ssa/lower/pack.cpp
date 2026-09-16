@@ -370,7 +370,7 @@ void Lowering::encodeFolded(LowerBlock& block, LowerPtr<LowerValue> payload,
  */
 LowerPtr<LowerValue> Lowering::decodeIntoStorage(LowerBlock& block, const VirtualPlace& place,
                                                  const mir::Occurrence& held) {
-    auto storage = frameStorage(block, held);
+    auto storage = frameStorage(block, held, true);
     auto manifest = manifestNative(layout, held);
     auto bits = decodePacked(block, place, packLane(manifest.size));
 
@@ -570,7 +570,7 @@ Lowering::PackedBorrow Lowering::materializeNarrow(LowerBlock& block, LowerPtr<L
     auto place = unpackNarrowRef(block, reference, held.type);
     auto manifest = manifestNative(layout, mir::owned(held.type));
 
-    auto storage = frameStorage(block, mir::owned(held.type));
+    auto storage = frameStorage(block, mir::owned(held.type), true);
     auto bits = decodePacked(block, place, packLane(manifest.size));
 
     block.addInst(lower, new (to.arena) LowerInstStore(storage, bits, manifest.size));

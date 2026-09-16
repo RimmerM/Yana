@@ -61,75 +61,51 @@ main<complex>(): I32 {
     store %v_5, 40, 4
     %v_6 = add %v_1, 12: Ptr
     store %v_6, 3, 4
-    %v_7 = alloca 16, 4: Ptr
-    store %v_7, 1, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, 2, 4
+    %v_7 = alloca 16, 8: Ptr
+    %v_8 = alloca 12, 4: Ptr
+    store %v_7, %v_8, 8
     %v_9 = add %v_7, 8: Ptr
     store %v_9, 3, 4
+    setpattern %v_8, 12, 0
     %v_10 = add %v_7, 12: Ptr
-    store %v_10, 4, 4
-    store %v_7, 7, 4
-    store %v_8, 8, 4
-    store %v_9, 9, 4
-    %v_11 = alloca 16, 8: Ptr
-    %v_12 = alloca 12, 4: Ptr
-    store %v_11, %v_12, 8
-    %v_13 = add %v_11, 8: Ptr
-    store %v_13, 3, 4
-    setpattern %v_12, 12, 0
-    %v_14 = add %v_11, 12: Ptr
-    store %v_14, 3, 4
-    %v_15 = loads %v_2, 4: I32
-    %v_16 = loads %v_5, 4: I32
-    %v_17 = add %v_15, %v_16: I32
-    %v_18 = loads %v_4, 4: I32
-    %v_19 = add %v_15, %v_18: I32
-    %v_20 = add %v_17, %v_19: I32
-    %v_21 = loads %v_7, 4: I32
-    %v_22 = loads %v_10, 4: I32
-    %v_23 = add %v_21, %v_22: I32
-    %v_24 = imm 5: I32
-    jmp b_25
+    store %v_10, 3, 4
+    jmp b_11
   }
 
-  b_26 {
-    %v_27 = cmp_ilt %v_28, 2: I32
-    je %v_27, b_25, b_29
+  b_12 {
+    %v_13 = cmp_ilt %v_14, 2: I32
+    je %v_13, b_11, b_15
   }
 
-  b_29 {
-    %v_30 = add %v_20, %v_23: I32
-    %v_31 = load %v_11, 8: Ptr
-    %v_32 = add %v_31, 8: Ptr
-    store %v_32, %v_24, 4
-    call_complex Reclaim(Array(a)).reclaim(I32), %v_11
-    %v_33 = add %v_30, %v_24: I32
-    %v_34 = add %v_33, 2: I32
-    %v_35 = load %v_1, 8: Ptr
-    %v_36 = add %v_1, 12: Ptr
-    %v_37 = load %v_36, 4: I32
-    %v_38 = cast %v_37: I64
-    %v_39 = cmp_eq %v_38, 0: I32
-    je %v_39, b_40, b_41
+  b_15 {
+    %v_16 = load %v_7, 8: Ptr
+    %v_17 = add %v_16, 8: Ptr
+    store %v_17, 5, 4
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_7
+    %v_18 = load %v_1, 8: Ptr
+    %v_19 = add %v_1, 12: Ptr
+    %v_20 = load %v_19, 4: I32
+    %v_21 = cast %v_20: I64
+    %v_22 = cmp_eq %v_21, 0: I32
+    je %v_22, b_23, b_24
   }
 
-  b_41 {
-    %v_42 = loads %v_35, 4: I32
+  b_24 {
+    %v_25 = loads %v_18, 4: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_1
-    %v_43 = add %v_34, %v_42: I32
-    ret %v_43
+    %v_26 = add 98, %v_25: I32
+    ret %v_26
   }
 
-  b_40 {
-    %v_44 = syscall 60, 134: I64
+  b_23 {
+    %v_27 = syscall 60, 134: I64
     unreachable 
   }
 
-  b_25 {
-    %v_45 = phi [b_26, %v_28], [b_0, 0]: I32
-    %v_28 = add %v_45, 1: I32
-    jmp b_26
+  b_11 {
+    %v_28 = phi [b_12, %v_14], [b_0, 0]: I32
+    %v_14 = add %v_28, 1: I32
+    jmp b_12
   }
 }
 

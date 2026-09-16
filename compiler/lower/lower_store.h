@@ -25,16 +25,32 @@
  *
  * ## What it is allowed to assume
  *
- * Block-local, and the address has to be the **same value** rather than an address that computes the
- * same number. A place is an address by this point, so telling `%p` apart from some other pointer is
- * disambiguation over values - the question lower_cse.h declines to ask about loads, and for the same
- * reason. What is left needs no aliasing at all: a load reading the value of the store immediately
- * above it, through the pointer that store was given.
+ * Block-local. A forwarded load has to read through the **same value** its store wrote through,
+ * rather than an address that computes the same number - telling `%p` apart from some other pointer
+ * is disambiguation over values, the question lower_cse.h declines to ask about loads, and for the
+ * same reason.
  *
- * So anything that could read or write storage between the two ends it - a call, a copy, a pattern
- * fill, an intrinsic, and a store through any other pointer. The record is a single store rather than
- * a table for exactly that reason: a second store is what clears the first, whether or not the two
- * addresses have anything to do with each other.
+ * What the walk *does* compare is where each access lands relative to a root: the value reached by
+ * walking back through constant `add`s, and the byte range from there. That is arithmetic on
+ * literals rather than a question about values, and it answers two things:
+ *
+ *  - **Whether a write clears a record.** A store to one field of a record leaves a record of another
+ *    field of it standing, which is what lets a field written again be recognized at all - it used
+ *    to be that every store forgot every record whose allocation it could not prove different.
+ *  - **Whether a write replaces a record.** A store, a copy or a fill that covers every byte of an
+ *    earlier one nothing read makes that one dead - so a slot zeroed and then overwritten whole by a
+ *    copy loses the zeroing, whatever width either was written at.
+ *
+ * A write of zeroes answers two more things. A load every byte of which a zero fill or a zero store
+ * last wrote is a zero, which is what the first read-modify-write of a packed word in a cleared slot
+ * reads. And a zero written over bytes a standing zero write already covers is no write at all - a
+ * record literal's zero fields in a slot its padded word already cleared.
+ *
+ * Two roots are only known apart where both are allocations, or where one is an allocation whose
+ * address is used for nothing but its own accesses (`addressContained` in lower_store.cpp) - nothing
+ * else can point into that, not a parameter and not a call. Everything else that could read or write
+ * storage between two accesses is taken as touching every record: a call, an intrinsic, and an
+ * access through a root this cannot place.
  *
  * ## The two things a forwarded load is not
  *
@@ -51,8 +67,8 @@
  *
  * After `eliminateCommonValues`, and that is the whole of why it is not beside `promoteStackSlots`
  * where it otherwise belongs. Two accesses of one field are written as two `add %self, 8`, so "the
- * same pointer" is not true of them until the CSE has made those one value - and this pass compares
- * pointers by identity precisely so that it never has to ask anything harder.
+ * same pointer" is not true of them until the CSE has made those one value, and a forwarded load
+ * compares pointers by identity precisely so that it never has to ask anything harder.
  *
  * What reads the value it forwards is the last `foldFunctionConstants` of the pipeline: the mask
  * folding in lower_fold.h is what turns the forwarded chain into the single merge it always was.

@@ -672,6 +672,9 @@ static const TransformPass kTransformPipeline[] = {
     { "selectByteSwapAccesses"_v,      selectByteSwapAccesses,      0 },
     { "poolFloatConstants"_v,          poolFloatConstants,          0 },
     { "selectMemorySources"_v,         selectMemorySources,         0 },
+    // Directly in front of selection, because what it does is give `tryEmbedImm` a use count to weigh:
+    // nothing between here and there creates a store or a constant.
+    { "shareStoredConstants"_v,        shareStoredConstants,        0 },
     { "selectMachineInstructions"_v,   selectMachineInstructions,   0 },
     { "lowerOutgoingStackArguments"_v, lowerOutgoingStackArguments, 0 },
     { "normalizePhiEdges"_v,           normalizePhiEdges,           InvariantPhiEdgesNormalized },

@@ -147,8 +147,8 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  not uses=[xmm0] creates=[xmm0]  => 66450f76ff66410fefc7
-  not uses=[xmm2] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d166450f76ff66410fefd7
+  not uses=[xmm0] creates=[xmm0]  => 66450f76db66410fefc3
+  not uses=[xmm2] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d166450f76db66410fefd3
   cmp_eq uses=[xmm2, xmm1] creates=[xmm2]  => 660f76d1
   and uses=[xmm0, xmm2] creates=[xmm0]  => 660fdbc2
   ret uses=[xmm0] creates=[]  => c3
@@ -157,18 +157,18 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  neg uses=[xmm0] creates=[xmm0]  => 66450fefff66440ffaf8410f28c7
-  neg uses=[xmm1] creates=[xmm1]  => 66450f76ff66410f72f71f410f57cf
-  neg uses=[xmm2] creates=[xmm2]  => 66450f76ff66410f73f73f66410f57d7
+  neg uses=[xmm0] creates=[xmm0]  => 66450fefdb66440ffad8410f28c3
+  neg uses=[xmm1] creates=[xmm1]  => 66450f76db66410f72f31f410f57cb
+  neg uses=[xmm2] creates=[xmm2]  => 66450f76db66410f73f33f66410f57d3
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: inverted ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  cmp_neq uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f76d166450f76ff66410fefd7
-  cmp_ile uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8660f66d966450f76ff66410fefdf
-  cmp_ile uses=[xmm1, xmm0] creates=[xmm1]  => 660f66c866450f76ff66410fefcf
+  cmp_neq uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0660f76d166450f76db66410fefd3
+  cmp_ile uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d8660f66d966450f76db66410fefdb
+  cmp_ile uses=[xmm1, xmm0] creates=[xmm1]  => 660f66c866450f76db66410fefcb
   and uses=[xmm2, xmm3] creates=[xmm2]  => 660fdbd3
   and uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660fdbc1
   ret uses=[xmm0] creates=[]  => c3

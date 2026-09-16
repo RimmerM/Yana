@@ -203,16 +203,16 @@ block #1:
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: spilledAddress ---
-  prologue  => 535541544155415641574883ec08
+  prologue  => 535541544155415641574883ec48440f11642408440f116c2418440f11742428440f117c2438
 block #0:
   jmp uses=[] creates=[] pre=[rsi->rbp, rdx->stack:0]  => 8bee48891424
 block #1:
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax]  => e8d7ffffff
-  clflush uses=[rsi] creates=[] pre=[stack:0->rsi]  => 488b34240fae3e
-  add uses=[rcx, rax] creates=[rcx] pre=[rbp->rcx]  => 8d4c0500
-  add uses=[rax, rcx] creates=[rax] pre=[rbp->rax]  => 8d440d00
-  ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
+  call_clobber uses=[-, rdi] creates=[rax]  => e8bfffffff
+  clflush uses=[rcx] creates=[] pre=[stack:0->rcx]  => 488b0c240fae39
+  add uses=[rdx, rax] creates=[rdx] pre=[rbp->rdx]  => 8d540500
+  add uses=[rax, rdx] creates=[rax] pre=[rbp->rax]  => 8d441500
+  ret uses=[rax] creates=[]  => 440f10642408440f106c2418440f10742428440f107c24384883c448415f415e415d415c5d5bc3
 
 --- codegen: copyMsr ---
 block #0:
@@ -278,8 +278,8 @@ block start:
   lfence uses=[] creates=[]  => 0faee8
   sub uses=[rax, rcx] creates=[rax] pre=[rcx->rax]  => 488bc14829c8
   cmp_lt uses=[rax, rdi] creates=[-]  => 4839f8
-  je uses=[-] creates=[]  => 732f
-  align  => 666666666666660f1f8400000000000f1f8000000000
+  je uses=[-] creates=[]  => 731f
+  align  => 660f1f440000
 block body:
   pause uses=[] creates=[]  => f390
   rdtsc uses=[] creates=[rax]  => 0f3148c1e2204809d0

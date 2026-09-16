@@ -4,36 +4,34 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Guard.drop<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = loads @dropCalls, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @dropCalls, %v_2, 4
+Guard.drop<complex>(%v_0: I32) {
+  b_1 {
+    %v_2 = loads @dropCalls, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store @dropCalls, %v_3, 4
     ret 
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 3, 4
-    call_complex Guard.drop, %v_1
-    %v_2 = call_complex allocateHeap, 12: Ptr
-    store %v_2, closure(handedOff.lambda.env), 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, 5, 4
-    %v_4 = or %v_2, 1: Ptr
-    %v_5 = alloca 16, 8: Ptr
-    store %v_5, handedOff.lambda, 8
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, %v_4, 8
-    %v_7 = load %v_5, 8: Ptr
-    %v_8 = call_complex %v_7, %v_4, 1: I32
-    call_complex teardown(fun), %v_5
-    %v_9 = add 13, %v_8: I32
-    %v_10 = loads @dropCalls, 4: I32
-    %v_11 = add %v_9, %v_10: I32
-    ret %v_11
+    call_complex Guard.drop, 3
+    %handedOff.lambda = fun handedOff.lambda: Ptr
+    %v_1 = call_complex allocateHeap, 12: Ptr
+    store %v_1, closure(handedOff.lambda.env), 8
+    %v_2 = add %v_1, 8: Ptr
+    store %v_2, 5, 4
+    %v_3 = or %v_1, 1: Ptr
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, %handedOff.lambda, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = call_complex %handedOff.lambda, %v_3, 1: I32
+    call_complex teardown(fun), %v_4
+    %v_7 = add 13, %v_6: I32
+    %v_8 = loads @dropCalls, 4: I32
+    %v_9 = add %v_7, %v_8: I32
+    ret %v_9
   }
 }
 
@@ -255,7 +253,8 @@ closure(handedOff.lambda.env)<complex>(%v_0: Ptr) {
 
 teardown(handedOff.lambda.env)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex Guard.drop, %v_0
+    %v_2 = load %v_0, 4: I32
+    call_complex Guard.drop, %v_2
     ret 
   }
 }

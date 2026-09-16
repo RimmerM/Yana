@@ -5,7 +5,7 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 12, 8: Ptr
+    %v_1 = alloca 4, 8: Ptr
     %v_2 = bitcast 0: Ptr
     jmp b_3
   }
@@ -26,18 +26,17 @@ main<complex>(): I32 {
     %v_15 = select %v_14, 0, %v_11: I64
     %v_16 = cast %v_15: I32
     %v_17 = and %v_16, 1073741823: I32
-    store %v_1, %v_12, 8
-    %v_18 = add %v_1, 8: Ptr
-    %v_19 = cast %v_17: I64
-    %v_20 = or %v_19, 1073741824: I64
-    store %v_18, %v_20, 4
-    %v_21 = cast %v_17: I64
-    %v_22 = sub %v_21, 1: I64
-    %v_23 = add %v_12, %v_22: Ptr
-    store %v_23, 42, 1
-    %v_24 = imul %v_21, 1000: I64
-    call_complex Run(a).reclaim(U8), %v_1
-    %v_25 = add %v_24, 42: I64
+    %v_18 = cast %v_17: I64
+    %v_19 = or %v_18, 1073741824: I64
+    store %v_1, %v_19, 4
+    %v_20 = cast %v_17: I64
+    %v_21 = sub %v_20, 1: I64
+    %v_22 = add %v_12, %v_21: Ptr
+    store %v_22, 42, 1
+    %v_23 = imul %v_20, 1000: I64
+    %v_24 = load %v_1, 4: I32
+    call_complex Run(a).reclaim(U8), %v_13, %v_24
+    %v_25 = add %v_23, 42: I64
     %v_10 = add %v_9, %v_25: I64
     jmp b_4
   }
@@ -134,11 +133,9 @@ growHeap<complex>(%needed: I64): I32 {
   }
 }
 
-Run(a).reclaim(U8)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    %v_2 = add %value, 8: Ptr
-    %v_3 = load %v_2, 4: I64
+Run(a).reclaim(U8)<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = cast %v_1: I64
     %v_4 = shr %v_3, 30: I64
     %v_5 = cast %v_4: I32
     %v_6 = cmp_eq %v_5, 1: I32
@@ -146,8 +143,8 @@ Run(a).reclaim(U8)<complex>(%value: Ptr) {
   }
 
   b_7 {
-    %v_9 = bitcast %v_1: I64
-    %v_10 = cmp_eq %v_9, 0: I32
+    %v_9 = bitcast %v_0: Ptr
+    %v_10 = cmp_eq %v_0, 0: I32
     je %v_10, b_8, b_11
   }
 
@@ -156,16 +153,16 @@ Run(a).reclaim(U8)<complex>(%value: Ptr) {
   }
 
   b_11 {
-    %v_12 = sub %v_1, 8: Ptr
+    %v_12 = sub %v_9, 8: Ptr
     %v_13 = loads %v_12, 8: I64
     %v_14 = load @heapFree, 8: Ptr
     %v_15 = shl %v_13, 3: I64
     %v_16 = add %v_14, %v_15: Ptr
     %v_17 = load %v_16, 8: Ptr
-    store %v_1, %v_17, 8
+    store %v_9, %v_17, 8
     %v_18 = load @heapFree, 8: Ptr
     %v_19 = add %v_18, %v_15: Ptr
-    store %v_19, %v_1, 8
+    store %v_19, %v_9, 8
     jmp b_8
   }
 }

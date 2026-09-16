@@ -167,7 +167,7 @@ swap<complex>(%x: F64, %y: F64, %n: I32): F64 {
 
 
 --- codegen: manyLive ---
-  prologue  => 4883ec10
+  prologue  => 4883ec50440f11642410440f116c2420440f11742430440f117c2440
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -204,10 +204,10 @@ block #1:
   add uses=[xmm0, xmm3] creates=[xmm0]  => f20f58c3
   add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
   add uses=[xmm0, xmm2] creates=[xmm0]  => f20f58c2
-  ret uses=[xmm0] creates=[]  => 4883c410c3
+  ret uses=[xmm0] creates=[]  => 440f10642410440f106c2420440f10742430440f107c24404883c450c3
 
 --- codegen: manyLive32 ---
-  prologue  => 4883ec08
+  prologue  => 4883ec48440f11642408440f116c2418440f11742428440f117c2438
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -244,10 +244,10 @@ block #1:
   add uses=[xmm0, xmm3] creates=[xmm0]  => f30f58c3
   add uses=[xmm0, xmm1] creates=[xmm0]  => f30f58c1
   add uses=[xmm0, xmm2] creates=[xmm0]  => f30f58c2
-  ret uses=[xmm0] creates=[]  => 4883c408c3
+  ret uses=[xmm0] creates=[]  => 440f10642408440f106c2418440f10742428440f107c24384883c448c3
 
 --- codegen: mixedWidth ---
-  prologue  => 4883ec18
+  prologue  => 4883ec58440f11642418440f116c2428440f11742438440f117c2448
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -287,11 +287,12 @@ block #1:
   add uses=[xmm1, xmm11] creates=[xmm1]  => f2410f58cb
   cast uses=[xmm0] creates=[xmm0]  => f30f5ac0
   add uses=[xmm0, xmm1] creates=[xmm0]  => f20f58c1
-  ret uses=[xmm0] creates=[]  => 4883c418c3
+  ret uses=[xmm0] creates=[]  => 440f10642418440f106c2428440f10742438440f107c24484883c458c3
 
 --- codegen: cycle ---
 block #0:
   jmp uses=[] creates=[]  => 
+  align  => 666666666666660f1f84000000000090
 block head:
   imm uses=[] creates=[-]  => 
   sub uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8d47ff
@@ -310,8 +311,8 @@ block #0:
 block start:
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdi, -] creates=[-]  => 85ff
-  je uses=[-] creates=[]  => 7421
-  align  => 666666660f1f840000000000
+  je uses=[-] creates=[]  => 7431
+  align  => 666666666666660f1f84000000000066666666660f1f840000000000
 block body:
   add uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0f20f58d1
   mul uses=[xmm1, xmm0] creates=[xmm1]  => f20f59c8

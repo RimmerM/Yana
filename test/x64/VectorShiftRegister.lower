@@ -5,7 +5,7 @@
 # count is a scalar in a general register, and the shift wants it in the low quadword of a vector one
 # with everything above it clear. What to look for:
 #
-#   - **`movd`/`movq` into xmm15 and then the shift**, two instructions and the clobber the form
+#   - **`movd`/`movq` into xmm11 and then the shift**, two instructions and the clobber the form
 #     declares. `movd` clears bits 32-127, which is what makes the quadword the shift reads *the
 #     count* rather than a pattern - a splat of 7 at a 32-bit lane would arrive as
 #     0x0000000700000007 and shift every lane out.

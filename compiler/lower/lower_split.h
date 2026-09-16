@@ -61,6 +61,15 @@
  * overlapping moves that stalled store forwarding (Analysis-External-Iterators.md's 2026-09-15
  * switch-cost note).
  *
+ * ## A zero fill is a write of every cell it covers
+ *
+ * A zeroed record reaches this stage as one `setpattern` rather than a store per word. It cuts the
+ * partition where those stores would have - widest word first from where it starts, which is where a
+ * record's fields sit - and the rewrite writes a zero into each live cell it covers, through the
+ * register the cell is moved through. The cuts matter beyond the fill itself: a temporary a duplicate
+ * is copied through names no field of its own, and the fill in front of the copy is the only
+ * structure it has.
+ *
  * ## A move is a load and a store, not a copy
  *
  * A per-cell copy would be correct and would buy nothing: promotion reads the register type of a

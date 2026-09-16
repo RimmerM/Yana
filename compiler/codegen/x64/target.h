@@ -361,6 +361,21 @@ inline PhysicalReg gpr(Size index) { return PhysicalReg { BankGpr, U16(index) };
 inline PhysicalReg vectorReg(Size index) { return PhysicalReg { BankVector, U16(index) }; }
 inline PhysicalReg maskReg(Size index) { return PhysicalReg { BankMask, U16(index) }; }
 
+/*
+ * The vector registers a pseudo's expansion uses as scratch - declared as the form's clobber, and
+ * written by its emitter. A second one for the one expansion that needs two live at once.
+ *
+ * The highest two that `complex` **clobbers**, rather than the top of the file. A clobber keeps a live
+ * value out of the register at one instruction and costs nothing more where the register is volatile
+ * anyway, but a declared clobber is a written register, and a written callee-saved register is a save
+ * in the prologue and a restore at every return. xmm15 was the answer while every vector register was
+ * volatile; since `complex` preserves xmm12-15 it put a `vmovups` pair into every function holding a
+ * shift by a register, a complement or a negation. Placement reaches for these two last among the
+ * volatile ones, which is the half of the old argument that still holds.
+ */
+static constexpr U8 kVectorScratch = 11;
+static constexpr U8 kVectorScratchPair = 10;
+
 // The units one physical register occupies. One bit today: every described class covers its whole
 // register, so two values in one register always interfere and two in different ones never do.
 inline RegisterUnitMask unitsOf(PhysicalReg reg) {

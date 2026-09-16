@@ -55,14 +55,14 @@ block #1:
 
 --- codegen: mulHigh ---
 block #0:
-  jmp uses=[] creates=[] pre=[rdx->r8, rcx->r9, rdi->rcx]  => 448bc2448bc9488bcf
+  jmp uses=[] creates=[] pre=[rcx->r8, rdx->rcx]  => 448bc18bca
 block #1:
-  mulhi uses=[rax, rsi] creates=[rdx] pre=[rcx->rax] post=[rdx->r10]  => 488bc148f7e64c8bd2
-  imulhi uses=[rax, rsi] creates=[rdx] pre=[rcx->rax] post=[rdx->rcx]  => 488bc148f7ee488bca
-  mulhi uses=[rax, r9] creates=[rdx] pre=[r8->rax]  => 418bc041f7e1
+  mulhi uses=[rax, rsi] creates=[rdx] pre=[rdi->rax] post=[rdx->r9]  => 488bc748f7e64c8bca
+  imulhi uses=[rax, rsi] creates=[rdx] pre=[rdi->rax] post=[rdx->rsi]  => 488bc748f7ee488bf2
+  mulhi uses=[rax, r8] creates=[rdx] pre=[rcx->rax]  => 8bc141f7e0
   imm uses=[] creates=[remat:0]  => 
-  imulhi uses=[rax, rdi] creates=[rdx] pre=[r8->rax, remat:0->rdi]  => 418bc0bf07000000f7ef
-  add uses=[rax, rcx] creates=[rax] pre=[r10->rax]  => 498d040a
+  imulhi uses=[rax, r11] creates=[rdx] pre=[rcx->rax, remat:0->r11]  => 8bc141bb0700000041f7eb
+  add uses=[rax, rsi] creates=[rax] pre=[r9->rax]  => 498d0431
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: remLiveResult ---

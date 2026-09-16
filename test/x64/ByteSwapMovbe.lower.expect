@@ -166,17 +166,17 @@ block #1:
 
 --- codegen: swapLoadApart ---
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+  jmp uses=[] creates=[] pre=[rdx->rax]  => 488bc2
 block #1:
   imm uses=[] creates=[-]  => 
-  x86_addr scale=8 disp=0 uses=[rax, rsi] creates=[-]  => 
-  x86_movbe_load uses=[-] creates=[rcx]  => 480f38f00cf0
+  x86_addr scale=8 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  x86_movbe_load uses=[-] creates=[rsi]  => 480f38f034f7
   imm uses=[] creates=[remat:0]  => 
-  mul uses=[rax, rdi] creates=[rax] pre=[rdx->rax, remat:0->rdi]  => 488bc2bf0300000048f7e7
+  mul uses=[rax, rcx] creates=[rax] pre=[remat:0->rcx]  => b90300000048f7e1
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 4883c007
-  add uses=[rcx, rax] creates=[rcx]  => 4801c1
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+  add uses=[rsi, rax] creates=[rsi]  => 4801c6
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
 
 --- codegen: swapStoreIndexed ---
 block #0:

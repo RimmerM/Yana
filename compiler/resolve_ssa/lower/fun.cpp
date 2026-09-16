@@ -107,28 +107,45 @@ LowerPtr<LowerFunction> Lowering::funThunkFor(DeclPtr<mir::Function> concrete, L
     auto result = manifestNative(layout, callee.result);
     auto calleePlace = returnPlaces.getValue(concrete.offset);
 
-    LowerPtr<LowerValue> resultPlace = nullptr;
-    if(calleePlace) resultPlace = &function->addArg(lower, StringId(), LowerType::Pointer)->result - lower;
+    /*
+     * The thunk's own signature is the function type's, so it takes a pointer wherever the result
+     * is in memory - including where the callee returns that result as its parts, which the thunk
+     * then writes through the pointer. Its parameters are the declared manifestations for the same
+     * reason, and a parameter the callee takes apart is loaded out of the address it arrives at.
+     */
+    auto shape = callShapeOf(concrete);
+    auto splitResult = shape && shape->splitsResult();
 
-    SmallArray<LowerPtr<LowerValue>, 8> passed;
+    LowerPtr<LowerValue> resultPlace = nullptr;
+    if(result.inMemory) resultPlace = &function->addArg(lower, StringId(), LowerType::Pointer)->result - lower;
+
+    SmallArray<LowerPtr<LowerValue>, 8> incoming;
     for(auto argument: callee.args.contents(decl)) {
         auto manifest = manifestNative(layout, decl[argument]->occurrence);
-        passed.push(&function->addArg(lower, StringId(), manifest.type)->result - lower);
+        incoming.push(&function->addArg(lower, StringId(), manifest.type)->result - lower);
     }
 
     auto returns = !result.inMemory && decl[callee.result.type]->kind != mir::Type::Unit;
     if(returns) function->returnTypes.push(to.arena, result.type);
 
     auto block = function->addBlock(lower, StringId());
+
+    SmallArray<LowerPtr<LowerValue>, 8> passed;
+    for(U32 i = 0; i < incoming.size(); i++) passCarried(*block, shape, i, incoming[i], passed);
+
     auto calleeValue = block->addInst(lower, new (to.arena) LowerInstFun(callee.symbol,
                                                                         target.unwrap()));
 
     auto hidden = calleePlace ? 1u : 0u;
     auto convention = lower[target.unwrap()]->callType;
+    auto created = returns ? 1u : splitResult ? shape->resultCount : 0u;
 
-    auto called = call(lower, to, *block, returns ? 1u : 0u, passed.size() + 1 + hidden, convention,
+    auto called = call(lower, to, *block, created, passed.size() + 1 + hidden, convention,
                        [&](LowerInstCall* built) {
         if(returns) new (built->created().ptr) LowerValue(built, result.type, StringId());
+        for(U32 i = 0; splitResult && i < created; i++) {
+            new (built->created().ptr + i) LowerValue(built, resultPart(*shape, i).type, StringId());
+        }
 
         built->used()[0] = ((LowerInstSingle*)calleeValue)->created().ptr - lower;
 
@@ -139,6 +156,8 @@ LowerPtr<LowerFunction> Lowering::funThunkFor(DeclPtr<mir::Function> concrete, L
         if(hidden) built->used()[index++] = resultPlace;
         for(Size i = 0; i < passed.size(); i++) built->used()[index++] = passed[i];
     });
+
+    if(splitResult) storeReturnedParts(*block, *shape, called, resultPlace);
 
     auto returned = returns ? called->created().ptr - lower : LowerPtr<LowerValue>(nullptr);
     emitReturn(*block, &returned, returns ? 1u : 0u);

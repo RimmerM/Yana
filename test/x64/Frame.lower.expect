@@ -259,15 +259,15 @@ block out:
 --- codegen: locals ---
   prologue  => 4883ec28
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+  jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rcx]  => 488d0c24
+  alloca uses=[-] creates=[rax]  => 488d0424
   imm uses=[] creates=[-]  => 
   alloca uses=[-] creates=[remat:0]  => 
-  store uses=[rcx, rax] creates=[]  => 488901
-  store uses=[rdi, rax] creates=[] pre=[remat:0->rdi]  => 488d7c2408488907
-  load uses=[rcx] creates=[rax]  => 488b01
+  store uses=[rax, rdi] creates=[]  => 488938
+  store uses=[rsi, rdi] creates=[] pre=[remat:0->rsi]  => 488d74240848893e
+  load uses=[rax] creates=[rax]  => 488b00
   ret uses=[rax] creates=[]  => 4883c428c3
 
 --- codegen: localsAndCall ---
@@ -317,38 +317,36 @@ block #1:
 
 --- codegen: stackArg ---
 block #0:
-  jmp uses=[] creates=[] pre=[stack:0->rax, stack:1->rcx]  => 488b442408488b4c2410
+  jmp uses=[] creates=[] pre=[stack:0->rcx]  => 488b4c2408
 block #1:
   add uses=[rax, rcx] creates=[rax]  => 01c8
   add uses=[rax, rdi] creates=[rax]  => 01f8
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: stackArgsAndLocals ---
-  prologue  => 534883ec18
+  prologue  => 534883ec10
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  x86_pusharg uses=[rdi] creates=[-]  => 48897c2408
   x86_pusharg uses=[rdi] creates=[-]  => 48893c24
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rbx]  => 488d5c2410
+  alloca uses=[-] creates=[rbx]  => 488d5c2408
   store uses=[rbx, rdi] creates=[]  => 48893b
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 8bf78bd78bcf448bc7448bcf448bd7448bdfe8c3ffffff
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, rax, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11, rdi->rax]  => 8bf78bd78bcf448bc7448bcf448bd7448bdf8bc7e8c6ffffff
   load uses=[rbx] creates=[rbx]  => 488b1b
   add uses=[rax, rbx] creates=[rax]  => 01d8
-  ret uses=[rax] creates=[]  => 4883c4185bc3
+  ret uses=[rax] creates=[]  => 4883c4105bc3
 
 --- codegen: stackArgsOnly ---
-  prologue  => 4883ec10
+  prologue  => 4883ec08
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  x86_pusharg uses=[rdi] creates=[-]  => 48897c2408
   x86_pusharg uses=[rdi] creates=[-]  => 48893c24
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 8bf78bd78bcf448bc7448bcf448bd7448bdfe88cffffff
-  ret uses=[rax] creates=[]  => 4883c410c3
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, rax, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11, rdi->rax]  => 8bf78bd78bcf448bc7448bcf448bd7448bdf8bc7e88fffffff
+  ret uses=[rax] creates=[]  => 4883c408c3
 
 --- codegen: sysvCallee ---
 block #0:
@@ -368,17 +366,17 @@ block #1:
   ret uses=[rax] creates=[]  => 5bc3
 
 --- codegen: alignedCallFromWeakerConvention ---
-  prologue  => 55488bec534883e4f0
+  prologue  => 55488bec534883e4f04883ec40440f112424440f116c2410440f11742420440f117c2430
 block #0:
   jmp uses=[] creates=[] pre=[rsi->rbx]  => 8bde
 block #1:
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe8b4ffffff
+  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe899ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
-  ret uses=[rax] creates=[]  => 488d65f85b5dc3
+  ret uses=[rax] creates=[]  => 440f102424440f106c2410440f10742420440f107c2430488d65f85b5dc3
 
 --- codegen: alignedCallWithSpill ---
-  prologue  => 55488bec5341544155415641574883e4f04883ec10
+  prologue  => 55488bec5341544155415641574883e4f04883ec50440f11642404440f116c2414440f11742424440f117c2434
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -395,23 +393,22 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[r11, -] creates=[r11] pre=[rdi->r11] post=[r11->stack:0]  => 448bdf4183c30644891c24
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe85cffffff
+  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 8bf78bd78bcf448bc7448bcfe814ffffff
   add uses=[rax, rbx] creates=[rax]  => 01d8
   add uses=[rax, r12] creates=[rax]  => 4401e0
   add uses=[rax, r13] creates=[rax]  => 4401e8
   add uses=[rax, r14] creates=[rax]  => 4401f0
   add uses=[rax, r15] creates=[rax]  => 4401f8
   add uses=[rax, stack:0] creates=[rax]  => 030424
-  ret uses=[rax] creates=[]  => 488d65d8415f415e415d415c5b5dc3
+  ret uses=[rax] creates=[]  => 440f10642404440f106c2414440f10742424440f107c2434488d65d8415f415e415d415c5b5dc3
 
 --- codegen: hoistedStackArg ---
-  prologue  => 4883ec10
+  prologue  => 4883ec08
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8d4701
-  x86_pusharg uses=[rax] creates=[-]  => 4889442408
   x86_pusharg uses=[rax] creates=[-]  => 48890424
   imm uses=[] creates=[-]  => 
   add uses=[rsi, -] creates=[rsi] pre=[rdi->rsi]  => 8d7702
@@ -420,5 +417,5 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx] pre=[rdx->rcx]  => 8d4a04
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->r8, rsi->r9, rdx->r10, rcx->r11]  => 448bc7448bce448bd2448bd9e886feffff
-  ret uses=[rax] creates=[]  => 4883c410c3
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, rax, -] creates=[rax] pre=[rdi->r8, rsi->r9, rdx->r10, rcx->r11]  => 448bc7448bce448bd2448bd9e82bfeffff
+  ret uses=[rax] creates=[]  => 4883c408c3

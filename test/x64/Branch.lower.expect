@@ -335,7 +335,7 @@ block start:
   je uses=[-] creates=[]  => 7609
 block b:
   imm uses=[] creates=[remat:0]  => 
-  mul uses=[rax, rdi] creates=[rax] pre=[remat:0->rdi]  => bf02000000f7e7
+  mul uses=[rax, rcx] creates=[rax] pre=[remat:0->rcx]  => b902000000f7e1
   jmp uses=[] creates=[]  => eb02
 block a:
   imm uses=[] creates=[-]  => 
@@ -346,13 +346,13 @@ block end:
 
 --- codegen: flagWindow ---
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->rcx]  => 8bcf
+  jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
-  add uses=[r8, -] creates=[r8] pre=[rcx->r8]  => 448d4101
+  add uses=[r8, -] creates=[r8] pre=[rdi->r8]  => 448d4701
   imm uses=[] creates=[remat:0]  => 
-  mul uses=[rax, rdi] creates=[rax] pre=[rsi->rax, remat:0->rdi]  => 8bc6bf03000000f7e7
-  cmp_ilt uses=[rcx, rsi] creates=[-]  => 39f1
+  mul uses=[rax, rcx] creates=[rax] pre=[rsi->rax, remat:0->rcx]  => 8bc6b903000000f7e1
+  cmp_ilt uses=[rdi, rsi] creates=[-]  => 39f7
   je uses=[-] creates=[]  => 7c01
 block b:
   ret uses=[rax] creates=[]  => c3

@@ -5,11 +5,10 @@ mut @tokensDropped = [0, 0, 0, 0]
 @map$3 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0]
 @constant$4 = [9, 0, 0, 0, 9, 0, 0, 0]
 
-Token.drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 4: I32
+Token.drop<complex>(%v_0: I32) {
+  b_1 {
     %v_2 = loads @tokensDropped, 4: I32
-    %v_3 = add %v_2, %v_1: I32
+    %v_3 = add %v_2, %v_0: I32
     store @tokensDropped, %v_3, 4
     ret 
   }
@@ -374,40 +373,42 @@ main<complex>(): I32 {
   b_231 {
     %v_235 = phi [b_195, %v_230], [b_198, %v_232], [b_197, %v_233], [b_196, %v_234]: Ptr
     %v_236 = loads %v_235, 4: I32
-    call_complex Token.drop, %v_235
-    %v_237 = cmp_eq %v_236, 10: I32
-    je %v_237, b_224, b_202
+    %v_237 = load %v_235, 4: I32
+    call_complex Token.drop, %v_237
+    %v_238 = cmp_eq %v_236, 10: I32
+    je %v_238, b_224, b_202
   }
 
   b_226 {
-    %v_238 = alloca 4, 4: Ptr
-    store %v_238, 40, 4
+    %v_239 = alloca 4, 4: Ptr
+    store %v_239, 40, 4
     jmp b_205
   }
 
   b_229 {
-    %v_239 = alloca 4, 4: Ptr
-    store %v_239, 30, 4
+    %v_240 = alloca 4, 4: Ptr
+    store %v_240, 30, 4
     jmp b_205
   }
 
   b_228 {
-    %v_240 = alloca 4, 4: Ptr
-    store %v_240, 20, 4
+    %v_241 = alloca 4, 4: Ptr
+    store %v_241, 20, 4
     jmp b_205
   }
 
   b_227 {
-    %v_241 = alloca 4, 4: Ptr
-    store %v_241, 10, 4
+    %v_242 = alloca 4, 4: Ptr
+    store %v_242, 10, 4
     jmp b_205
   }
 
   b_205 {
-    %v_242 = phi [b_226, %v_238], [b_229, %v_239], [b_228, %v_240], [b_227, %v_241]: Ptr
-    %v_243 = loads %v_242, 4: I32
-    call_complex Token.drop, %v_242
-    %v_206 = cmp_eq %v_243, 40: I32
+    %v_243 = phi [b_226, %v_239], [b_229, %v_240], [b_228, %v_241], [b_227, %v_242]: Ptr
+    %v_244 = loads %v_243, 4: I32
+    %v_245 = load %v_243, 4: I32
+    call_complex Token.drop, %v_245
+    %v_206 = cmp_eq %v_244, 40: I32
     jmp b_203
   }
 }

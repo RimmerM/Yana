@@ -31,8 +31,8 @@ main<complex>(): I32 {
   }
 }
 
-Buf(n).units(16)<complex>(%x: Ptr): I32 {
-  b_0 {
+Buf(n).units(16)<complex>(%v_0: I32): I32 {
+  b_1 {
     ret 16
   }
 }
@@ -45,8 +45,9 @@ teardown()<complex>(%v_0: Ptr) {
 
 thunk(Buf(n).units(16))<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
   b_2 {
-    %v_3 = call_complex Buf(n).units(16), %v_1: I32
-    ret %v_3
+    %v_3 = load %v_1, 4: I32
+    %v_4 = call_complex Buf(n).units(16), %v_3: I32
+    ret %v_4
   }
 }
 

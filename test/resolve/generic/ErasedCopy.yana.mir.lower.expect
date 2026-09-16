@@ -6,32 +6,27 @@ mut @trace = [0, 0, 0, 0]
 @witness(Sink(Tally.take)) = [0, 0, 0, 0]
 @environment(doubled(Tally)) = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Tally.drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 4: I32
+Tally.drop<complex>(%v_0: I32) {
+  b_1 {
     %v_2 = loads @trace, 4: I32
-    %v_3 = add %v_2, %v_1: I32
+    %v_3 = add %v_2, %v_0: I32
     store @trace, %v_3, 4
     ret 
   }
 }
 
-Tally.copy<complex>(%v_0: Ptr, %from: Ptr) {
-  b_1 {
-    %v_2 = loads %from, 4: I32
-    %v_3 = add %v_2, 100: I32
-    store %v_0, %v_3, 4
-    ret 
+Tally.copy<complex>(%from: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %from, 4: I32
+    %v_2 = add %v_1, 100: I32
+    ret %v_2
   }
 }
 
-Tally.take<complex>(%x: Ptr): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    copy %v_1, %x, 4
-    %v_2 = loads %v_1, 4: I32
-    call_complex Tally.drop, %v_1
-    ret %v_2
+Tally.take<complex>(%v_0: I32): I32 {
+  b_1 {
+    call_complex Tally.drop, %v_0
+    ret %v_0
   }
 }
 
@@ -103,35 +98,40 @@ main<complex>(): I32 {
     %v_2 = alloca 4, 4: Ptr
     store %v_1, 1, 4
     %v_3 = call_complex twiceSunk, @environment(twiceSunk(Tally)), %v_1: I32
-    call_complex Tally.drop, %v_1
+    %v_4 = load %v_1, 4: I32
+    call_complex Tally.drop, %v_4
     store %v_2, 7, 4
-    %v_4 = call_complex doubled, @environment(doubled(Tally)), %v_2: I32
-    call_complex Tally.drop, %v_2
-    %v_5 = add %v_3, %v_4: I32
-    %v_6 = loads @trace, 4: I32
-    %v_7 = add %v_5, %v_6: I32
-    ret %v_7
+    %v_5 = call_complex doubled, @environment(doubled(Tally)), %v_2: I32
+    %v_6 = load %v_2, 4: I32
+    call_complex Tally.drop, %v_6
+    %v_7 = add %v_3, %v_5: I32
+    %v_8 = loads @trace, 4: I32
+    %v_9 = add %v_7, %v_8: I32
+    ret %v_9
   }
 }
 
 teardown(Tally)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex Tally.drop, %v_0
+    %v_2 = load %v_0, 4: I32
+    call_complex Tally.drop, %v_2
     ret 
   }
 }
 
 thunk(Tally.copy)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr) {
   b_3 {
-    call_complex Tally.copy, %v_1, %v_2
+    %v_4 = call_complex Tally.copy, %v_2: I32
+    store %v_1, %v_4, 4
     ret 
   }
 }
 
 thunk(Tally.take)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
   b_2 {
-    %v_3 = call_complex Tally.take, %v_1: I32
-    ret %v_3
+    %v_3 = load %v_1, 4: I32
+    %v_4 = call_complex Tally.take, %v_3: I32
+    ret %v_4
   }
 }
 

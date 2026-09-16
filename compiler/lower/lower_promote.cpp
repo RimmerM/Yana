@@ -243,6 +243,28 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
                     }
 
                     continue;
+                } else if(user->kind == LowerInst::SetPattern) {
+                    /*
+                     * A zero fill of exactly this slot, which is a store of zero that names no
+                     * register - the zeroing `hasPaddedWord` asks for, written as a fill rather than
+                     * as a store so that every tier below reads it as one (`zeroStorage`). Like a
+                     * copy it says nothing about the type, so a slot whose only traffic is fills is
+                     * still declined; what it needs is to cover the whole slot, and to be a zero,
+                     * which is the one byte that is the same value in every register.
+                     */
+                    auto fill = (LowerInstSetPattern*)user;
+                    auto count = base[fill->count]->inst();
+                    auto pattern = base[fill->pattern]->inst();
+
+                    if(fill->to != slot.address || fill->count == slot.address ||
+                       fill->pattern == slot.address ||
+                       !count || count->kind != LowerInst::Imm || ((LowerImm*)count)->i != width ||
+                       !pattern || pattern->kind != LowerInst::Imm || (((LowerImm*)pattern)->i & 0xff) != 0) {
+                        usable = false;
+                        break;
+                    }
+
+                    continue;
                 } else {
                     usable = false;
                     break;
@@ -270,16 +292,37 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
                      * `carriedInto` makes for a copy between two promoted slots. A slot that fills
                      * its register is declined, because there nothing narrows and the spare bits
                      * would be read.
+                     *
+                     * And an address and the integer of its width over one full-width slot, which is
+                     * one general register named two ways rather than a narrowing at all - the
+                     * aggregate convention carries a pointer field as the integer it is
+                     * (`resolve_ssa/lower/convention.cpp`), so a box pointer stored as one and
+                     * returned as the other is the shape. Held as the integer, which is the type
+                     * with a literal, and read back through the bitcast `carriedInto` writes.
                      */
+                    if(isIntLike(slot.type) && isIntLike(type) && isInt(slot.type) != isInt(type) &&
+                       registerBits(slot.type) == registerBits(type) && width * 8 == registerBits(type)) {
+                        if(isInt(type)) slot.type = type;
+                        continue;
+                    }
+
                     // `isInt` and not `isIntLike`: what is being relied on is the integer bank's
                     // two widths. A pointer would be declined by `promotableSlot` below anyway, and
                     // saying so here is what makes the argument above cover the accepted cases.
                     if(!isInt(slot.type) || !isInt(type)) { usable = false; break; }
 
                     auto wider = registerBits(type) > registerBits(slot.type) ? type : slot.type;
-                    auto narrower = registerBits(type) > registerBits(slot.type) ? slot.type : type;
 
-                    if(width * 8 >= registerBits(narrower)) { usable = false; break; }
+                    /*
+                     * Narrower than the register it is *held* in, which is the one that decides
+                     * whether a load narrows - `narrowedTo` reads `slot.type`, the wider. A four-byte
+                     * slot read as both `I32` and `I64` is the case this used to decline on the
+                     * narrower register: every `I64` load of it masks or extends from thirty-two
+                     * bits, and every `I32` store reaches it through a zero-extending cast, so the
+                     * spare half is never observed. It is the shape a co-packed length word takes
+                     * when the aggregate convention hands it over as its own part.
+                     */
+                    if(width * 8 >= registerBits(wider)) { usable = false; break; }
 
                     slot.type = wider;
                 }
@@ -314,6 +357,7 @@ Size readSlot(HashMap<U32, U32>& index, LowerInst* inst) {
 
 Size writtenSlot(HashMap<U32, U32>& index, LowerInst* inst) {
     if(inst->kind == LowerInst::Store) return slotOf(index, ((LowerInstStore*)inst)->to);
+    if(inst->kind == LowerInst::SetPattern) return slotOf(index, ((LowerInstSetPattern*)inst)->to);
     if(inst->kind == LowerInst::Copy) return slotOf(index, ((LowerInstCopy*)inst)->to);
     return maxLimit<Size>;
 }
@@ -593,6 +637,31 @@ void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<
                 // carries two - see collectSlots. Nothing is masked, for the reason a copy between
                 // two promoted slots masks nothing: every load of a slot this narrow narrows.
                 current[which] = carriedInto(base, module, block, store->value, slots[which].type);
+                detach(base, inst);
+                continue;
+            }
+        } else if(inst->kind == LowerInst::SetPattern) {
+            auto fill = (LowerInstSetPattern*)inst;
+            auto which = slotOf(index, fill->to);
+
+            if(which != maxLimit<Size>) {
+                // A zero in the slot's own register - `collectSlots` accepted only a zero fill of the
+                // whole slot. An address has no literal, so its zero is the integer's, renamed; a
+                // vector's is a splat of the lane's, which is how this IR spells a vector constant.
+                auto type = slots[which].type;
+                auto literalType = isPtr(type) ? LowerType::Int64 : isVectorLike(type) ? scalarFormOf(type) : type;
+
+                auto zero = block.addInst(base, new (module.arena) LowerImm(StringId(), literalType, U64(0)));
+                auto value = ((LowerInstSingle*)zero)->created().ptr - base;
+
+                if(isVectorLike(type)) {
+                    auto splat = block.addInst(base, new (module.arena) LowerInstVecSplat(StringId(), type, value));
+                    value = ((LowerInstSingle*)splat)->created().ptr - base;
+                } else if(isPtr(type)) {
+                    value = carriedInto(base, module, block, value, type);
+                }
+
+                current[which] = value;
                 detach(base, inst);
                 continue;
             }

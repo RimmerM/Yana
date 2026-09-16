@@ -516,10 +516,36 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
     auto bias = funEnvironmentBias(&source - decl);
     auto entryLower = lower[blocks.getValue(0).unwrap()];
 
+    /*
+     * A parameter the shape takes apart arrives as its parts, and the body still reads it through
+     * an address - so the entry gives it a slot and writes the parts back. That slot is what
+     * `splitAggregateSlots` and `promoteStackSlots` take apart again, into the registers the parts
+     * arrived in, wherever the body only reads fields.
+     */
+    auto shape = callShapeOf(&source - decl);
+    auto index = leading + (closure ? 1u : 0u);
+    currentShape = shape;
+
     for(U32 i = 0; i < entryBlock->argumentCount(); i++) {
         auto argument = ssa[entryBlock->argumentAt(ssa, i)];
-        auto index = closure && i == 0 ? 0u : i + leading;
-        auto declared = lower[target.args.get(lower, index)];
+        auto carried = shape && i < shape->argCount ? shapeArgs[shape->firstArg + i] : ShapeArg {};
+
+        if(carried.count) {
+            auto storage = frameStorage(*entryLower, argument->occurrence.contract.isOwned()
+                ? argument->occurrence : mir::owned(argument->occurrence.type));
+
+            for(U32 k = 0; k < carried.count; k++) {
+                auto part = &lower[target.args.get(lower, index + k)]->result - lower;
+                storeCarried(*entryLower, shapeParts[carried.start + k], part, storage);
+            }
+
+            values.add(argument->id.index, storage);
+            index += carried.count;
+            continue;
+        }
+
+        auto position = closure && i == 0 ? 0u : index++;
+        auto declared = lower[target.args.get(lower, position)];
 
         auto value = &declared->result - lower;
         if(closure && i == 0 && bias) value = offsetAddress(*entryLower, value, bias);
@@ -676,6 +702,11 @@ void Lowering::run() {
 
             auto result = manifestNative(layout, function->result);
 
+            // Which records this signature takes and gives back as their fields - `convention.cpp`.
+            // Before any parameter is declared, because the answer decides how many there are.
+            planCallShape(functionPointer);
+            auto shape = callShapeOf(functionPointer);
+
             /*
              * The generic environment, before everything - Analysis-IR.md §11.4's G5.
              *
@@ -716,7 +747,7 @@ void Lowering::run() {
              * other producer does, and two producers that disagreed about the position would build
              * calls no callee could read.
              */
-            if(result.inMemory) {
+            if(result.inMemory && !(shape && shape->splitsResult())) {
                 auto place = target->addArg(lower, StringId(), LowerType::Pointer);
                 returnPlaces.add(functionPointer.offset, &place->result - lower);
             }
@@ -725,15 +756,32 @@ void Lowering::run() {
             // of another, so every signature has to exist before the first call is built. Their
             // manifestation is the declared occurrence's, which is what makes a shared window and
             // its owner two different signatures for one logical type.
+            //
+            // A parameter the shape takes apart is one argument per part, in the order the parts
+            // were laid out - which is also the order every call site loads them in.
             for(U32 i = closure ? 1 : 0; i < function->args.size(); i++) {
                 auto argument = decl[function->args.get(decl, i)];
-                target->addArg(lower, argument->name,
-                               manifestNative(layout, argument->occurrence).type);
+                auto carried = shape ? shapeArgs[shape->firstArg + i] : ShapeArg {};
+
+                if(!carried.count) {
+                    target->addArg(lower, argument->name,
+                                   manifestNative(layout, argument->occurrence).type);
+                    continue;
+                }
+
+                for(U32 k = 0; k < carried.count; k++) {
+                    target->addArg(lower, StringId(), shapeParts[carried.start + k].type);
+                }
             }
 
             // A `{}` and an address-only result both return nothing: the first has no bytes and the
-            // second was written into the caller's storage before the `ret`.
-            if(decl[function->result.type]->kind != mir::Type::Unit && !result.inMemory) {
+            // second was written into the caller's storage before the `ret`. A result the shape
+            // takes apart returns its parts.
+            if(shape && shape->splitsResult()) {
+                for(U32 k = 0; k < shape->resultCount; k++) {
+                    target->returnTypes.push(to.arena, resultPart(*shape, k).type);
+                }
+            } else if(decl[function->result.type]->kind != mir::Type::Unit && !result.inMemory) {
                 target->returnTypes.push(to.arena, result.type);
             }
 

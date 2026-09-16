@@ -77,66 +77,62 @@ define fastcc i64 @main() #0 {
   %7 = zext i1 %6 to i32
   %8 = inttoptr i64 %5 to ptr
   %9 = select i1 %6, ptr null, ptr %8
-  store ptr null, ptr %3, align 1
-  %10 = getelementptr i8, ptr %3, i64 8
-  store ptr null, ptr %10, align 1
-  %11 = getelementptr i8, ptr %3, i64 16
-  store i8 0, ptr %11, align 1
-  %12 = getelementptr i8, ptr %3, i64 24
-  store i64 5, ptr %12, align 1
-  %13 = getelementptr i8, ptr %3, i64 32
-  store i64 0, ptr %13, align 1
+  call void @llvm.memset.p0.i64(ptr align 1 %3, i8 0, i64 17, i1 false)
+  %10 = getelementptr i8, ptr %3, i64 24
+  store i64 5, ptr %10, align 1
+  %11 = getelementptr i8, ptr %3, i64 32
+  store i64 0, ptr %11, align 1
   store ptr @"funvalue(count'2)", ptr %2, align 1
-  %14 = getelementptr i8, ptr %2, i64 8
-  store i64 0, ptr %14, align 1
+  %12 = getelementptr i8, ptr %2, i64 8
+  store i64 0, ptr %12, align 1
   call fastcc void @newFiber(ptr @"environment(newFiber(Counter))", ptr %1, ptr %9, i64 65536, ptr %3, ptr %2)
   call void @llvm.memcpy.p0.p0.i64(ptr align 1 %3, ptr align 1 %1, i64 17, i1 false)
-  br label %15
+  br label %13
 
-15:                                               ; preds = %39, %4
-  %16 = phi i64 [ 0, %4 ], [ %41, %39 ]
-  %17 = phi i64 [ 0, %4 ], [ %33, %39 ]
-  %18 = getelementptr i8, ptr %3, i64 16
-  %19 = load i8, ptr %18, align 1
-  %20 = zext i8 %19 to i32
-  %21 = icmp eq i32 %20, 2
-  %22 = zext i1 %21 to i32
-  br i1 %21, label %23, label %32
+13:                                               ; preds = %37, %4
+  %14 = phi i64 [ 0, %4 ], [ %39, %37 ]
+  %15 = phi i64 [ 0, %4 ], [ %31, %37 ]
+  %16 = getelementptr i8, ptr %3, i64 16
+  %17 = load i8, ptr %16, align 1
+  %18 = zext i8 %17 to i32
+  %19 = icmp eq i32 %18, 2
+  %20 = zext i1 %19 to i32
+  br i1 %19, label %21, label %30
 
-23:                                               ; preds = %15
-  %24 = ptrtoint ptr %9 to i64
-  %25 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %24, i64 65536)
-  %26 = mul i64 %16, 10000
-  %27 = mul i64 %17, 100
-  %28 = add i64 %26, %27
-  %29 = getelementptr i8, ptr %3, i64 32
-  %30 = load i64, ptr %29, align 1
-  %31 = add i64 %28, %30
-  ret i64 %31
+21:                                               ; preds = %13
+  %22 = ptrtoint ptr %9 to i64
+  %23 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 11, i64 %22, i64 65536)
+  %24 = mul i64 %14, 10000
+  %25 = mul i64 %15, 100
+  %26 = add i64 %24, %25
+  %27 = getelementptr i8, ptr %3, i64 32
+  %28 = load i64, ptr %27, align 1
+  %29 = add i64 %26, %28
+  ret i64 %29
 
-32:                                               ; preds = %15
-  %33 = add i64 %17, 1
-  %34 = getelementptr i8, ptr %3, i64 16
-  %35 = load i8, ptr %34, align 1
-  %36 = zext i8 %35 to i32
-  %37 = icmp eq i32 %36, 2
-  %38 = zext i1 %37 to i32
-  br i1 %37, label %46, label %42
+30:                                               ; preds = %13
+  %31 = add i64 %15, 1
+  %32 = getelementptr i8, ptr %3, i64 16
+  %33 = load i8, ptr %32, align 1
+  %34 = zext i8 %33 to i32
+  %35 = icmp eq i32 %34, 2
+  %36 = zext i1 %35 to i32
+  br i1 %35, label %44, label %40
 
-39:                                               ; preds = %46, %42
-  %40 = phi i64 [ %45, %42 ], [ 0, %46 ]
-  %41 = add i64 %16, %40
-  br label %15
+37:                                               ; preds = %44, %40
+  %38 = phi i64 [ %43, %40 ], [ 0, %44 ]
+  %39 = add i64 %14, %38
+  br label %13
 
-42:                                               ; preds = %32
-  store i8 1, ptr %34, align 1
-  %43 = load ptr, ptr %3, align 1
-  %44 = getelementptr i8, ptr %3, i64 8
-  %45 = call preserve_nonecc i64 @__yana_stack_switch(ptr %43, ptr %44, i64 %33)
-  br label %39
+40:                                               ; preds = %30
+  store i8 1, ptr %32, align 1
+  %41 = load ptr, ptr %3, align 1
+  %42 = getelementptr i8, ptr %3, i64 8
+  %43 = call preserve_nonecc i64 @__yana_stack_switch(ptr %41, ptr %42, i64 %31)
+  br label %37
 
-46:                                               ; preds = %32
-  br label %39
+44:                                               ; preds = %30
+  br label %37
 }
 
 define fastcc void @newFiber(ptr %0, ptr %1, ptr %stack, i64 %stackBytes, ptr %context, ptr %entry) #0 {
@@ -161,11 +157,9 @@ define fastcc void @newFiber(ptr %0, ptr %1, ptr %stack, i64 %stackBytes, ptr %c
   %15 = getelementptr i8, ptr %7, i64 -40
   store i64 0, ptr %15, align 8
   %16 = getelementptr i8, ptr %7, i64 -40
-  store ptr %16, ptr %1, align 1
   %17 = getelementptr i8, ptr %1, i64 8
-  store ptr null, ptr %17, align 1
-  %18 = getelementptr i8, ptr %1, i64 16
-  store i8 0, ptr %18, align 1
+  call void @llvm.memset.p0.i64(ptr align 1 %17, i8 0, i64 9, i1 false)
+  store ptr %16, ptr %1, align 1
   ret void
 }
 
@@ -203,8 +197,12 @@ declare preserve_nonecc i64 @__yana_stack_switch(ptr, ptr, i64)
 
 declare void @__yana_stack_entry()
 
+; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: write)
+declare void @llvm.memset.p0.i64(ptr writeonly captures(none), i8, i64, i1 immarg) #1
+
 ; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: readwrite)
-declare void @llvm.memcpy.p0.p0.i64(ptr noalias writeonly captures(none), ptr noalias readonly captures(none), i64, i1 immarg) #1
+declare void @llvm.memcpy.p0.p0.i64(ptr noalias writeonly captures(none), ptr noalias readonly captures(none), i64, i1 immarg) #2
 
 attributes #0 = { "probe-stack"="inline-asm" }
-attributes #1 = { nocallback nofree nounwind willreturn memory(argmem: readwrite) }
+attributes #1 = { nocallback nofree nounwind willreturn memory(argmem: write) }
+attributes #2 = { nocallback nofree nounwind willreturn memory(argmem: readwrite) }

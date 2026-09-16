@@ -243,9 +243,9 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  vwithlane uses=[xmm0, rdi] creates=[xmm0]  => c4c37d39c701c4630122ff01c4c37d38c701
-  vwithlane uses=[xmm0, rdi] creates=[xmm0]  => c4637922ff01c4c37d38c700
-  vlane uses=[xmm0] creates=[rax]  => c4c37d39c701c4637916f801
+  vwithlane uses=[xmm0, rdi] creates=[xmm0]  => c4c37d39c301c4632122df01c4c37d38c301
+  vwithlane uses=[xmm0, rdi] creates=[xmm0]  => c4637922df01c4c37d38c300
+  vlane uses=[xmm0] creates=[rax]  => c4c37d39c301c4637916d801
   vlane uses=[xmm0] creates=[rcx]  => c4e37916c101
   add uses=[rax, rcx] creates=[rax]  => 01c8
   ret uses=[rax] creates=[]  => c3
@@ -257,16 +257,16 @@ block #1:
   ret uses=[rax] creates=[]  => c5f877c3
 
 --- codegen: crossing ---
-  prologue  => 55488bec4883e4e04883ec20
+  prologue  => 4883ec28
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   add uses=[xmm0, xmm0] creates=[xmm7] post=[xmm7->stack:0]  => c5fdfef8c5fc113c24
   fun uses=[] creates=[-]  => 
-  call_sysv uses=[-, rdi] creates=[rax]  => c5f877e8d3ffffff
+  call_sysv uses=[-, rdi] creates=[rax]  => c5f877e8dbffffff
   vlane uses=[xmm7] creates=[rcx] pre=[stack:0->xmm7]  => c5fc103c24c5f97ef9
   add uses=[rax, rcx] creates=[rax]  => 01c8
-  ret uses=[rax] creates=[]  => c9c5f877c3
+  ret uses=[rax] creates=[]  => 4883c428c5f877c3
 
 --- codegen: internalSink ---
 block #0:
@@ -275,16 +275,16 @@ block #1:
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: internal ---
-  prologue  => 55488bec4883e4e04883ec20
+  prologue  => 4883ec20c57c112424
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[xmm0, xmm0] creates=[xmm7] post=[xmm7->stack:0]  => c5fdfef8c5fc113c24
+  add uses=[xmm0, xmm0] creates=[xmm12]  => c57dfee0
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e8d6ffffff
-  vlane uses=[xmm7] creates=[rcx] pre=[stack:0->xmm7]  => c5fc103c24c5f97ef9
+  call_complex uses=[-, rdi] creates=[rax]  => e8deffffff
+  vlane uses=[xmm12] creates=[rcx]  => c5797ee1
   add uses=[rax, rcx] creates=[rax]  => 01c8
-  ret uses=[rax] creates=[]  => c9c3
+  ret uses=[rax] creates=[]  => c57c1024244883c420c3
 
 --- codegen: narrow ---
   prologue  => 4883ec18

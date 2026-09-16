@@ -144,21 +144,12 @@ LowerPtr<LowerValue> Lowering::heapStorage(LowerBlock& block, const mir::Occurre
         return address;
     }
 
-    U32 at = 0;
-    while(at < manifest.size) {
-        auto width = manifest.size - at >= 8 ? 8u : manifest.size - at >= 4 ? 4u
-                   : manifest.size - at >= 2 ? 2u : 1u;
-
-        block.addInst(lower, new (to.arena) LowerInstStore(
-            offsetAddress(block, address, at), immediate(block, LowerType::Int64, 0), width));
-
-        at += width;
-    }
-
+    zeroStorage(block, address, manifest.size);
     return address;
 }
 
-LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurrence& occurrence) {
+LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurrence& occurrence,
+                                            bool whole) {
     auto manifest = manifestNative(layout, occurrence);
 
     // A size that is not a number, which is a type parameter in a body compiled once - `erase.cpp`,
@@ -185,33 +176,43 @@ LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurr
      * value that goes into it: a co-packed word is filled by read-modify-writes, so whichever of
      * them runs first inherits whatever was in the bits above the run - and the niche the record
      * publishes is made of exactly those bits.
+     *
+     * Not where the caller says the first write is a whole one - a decoded word stored at the
+     * manifestation's width. The zeroing is then a write of bytes the very next instruction
+     * replaces.
+     *
+     * A duplicate's slot is *not* one of those, although its copy writes every byte: the fill is
+     * what gives the slot the word boundaries `splitAggregateSlots` cuts it at, and a temporary
+     * with none is one cell that stays a block move. `forwardStoredValues` removes the fill once
+     * the split has used it.
      */
-    if(!manifest.inMemory || !hasPaddedWord(layout, occurrence.type)) return storage;
+    if(whole || !manifest.inMemory || !hasPaddedWord(layout, occurrence.type)) return storage;
 
     zeroStorage(block, storage, manifest.size);
     return storage;
 }
 
 /*
- * `size` bytes of storage written to zero, widest word first.
+ * `size` bytes of storage written to zero, as one fill.
  *
- * Two callers, and they are the two places a value with a padded word comes to occupy storage:
- * `frameStorage` above, where the storage is fresh, and `destinationFor`'s `Store` arm, where it is
- * a slot the value is about to be written into anyway. One function because the rule they are
- * serving is one rule - see `hasPaddedWord` - and two spellings of it is how one of them comes to
- * stop at four bytes.
+ * Four callers, and they are the places a value with a padded word comes to occupy storage:
+ * `frameStorage` and `heapStorage` above, where the storage is fresh, `destinationFor`'s `Store`
+ * arm, where it is a slot the value is about to be written into anyway, and `createBox`. One
+ * function because the rule they are serving is one rule - see `hasPaddedWord` - and two spellings
+ * of it is how one of them comes to stop at four bytes.
+ *
+ * **A `setpattern` rather than a store per word**, which it was. The fill is what the zeroing *is*,
+ * and every consumer below has a better answer for it than for a run of stores:
+ * `expandBlockOperations` writes a short one as the widest transfers the machine has, LLVM reads
+ * `llvm.memset`, `forwardStoredValues` sees one write that a copy of the whole value replaces, and
+ * the two passes that turn slots into registers take a zero fill for the zero it writes -
+ * `promoteStackSlots` over a whole slot, `splitAggregateSlots` cell by cell.
  */
 void Lowering::zeroStorage(LowerBlock& block, LowerPtr<LowerValue> storage, U32 size) {
-    U32 at = 0;
-    while(at < size) {
-        auto width = size - at >= 8 ? 8u : size - at >= 4 ? 4u
-                   : size - at >= 2 ? 2u : 1u;
+    if(!size) return;
 
-        block.addInst(lower, new (to.arena) LowerInstStore(
-            offsetAddress(block, storage, at), immediate(block, LowerType::Int64, 0), width));
-
-        at += width;
-    }
+    block.addInst(lower, new (to.arena) LowerInstSetPattern(
+        storage, immediate(block, LowerType::Int64, size), immediate(block, LowerType::Int32, 0)));
 }
 
 /*
@@ -561,6 +562,118 @@ bool Lowering::uniformFill(LowerBlock& block, LowerPtr<LowerValue> storage, Inst
     return true;
 }
 
+/*
+ * The zero fields of a record literal, written as one `setpattern` per run rather than one store
+ * each - the record's counterpart of `uniformFill`.
+ *
+ * `emptyToken()` is fifteen fields and fourteen of them zero, and a lexer's own state record is forty.
+ * Written field by field that is a run of scalar stores the backend would have to find again and
+ * put back together; written as a fill it is one instruction, which `expandBlockOperations` turns
+ * into the widest transfers the machine has and `llvm.memset` is what the other backend's pipeline
+ * is written to recognize. It is also one *write* - which is what lets `forwardStoredValues` see
+ * that a zeroed slot overwritten whole by a copy was never read, where a run of fifteen stores was
+ * fifteen records it had to hold at once.
+ *
+ * A run is the fields that are zero and adjacent in **offset order**, and the bytes between them:
+ *
+ *  - **Padding is bridged.** It belongs to this record's storage, and nothing may read it - so
+ *    zeroing it is free, and the discriminant and the box flags are written after the fill.
+ *  - **A field that is not zero ends a run.** Filling across it would write its bytes twice, and
+ *    this is not the place to decide that a second write is cheaper than a second fill.
+ *  - **So does a component already built in place** - `destinations`, whose bytes are written
+ *    *before* this instruction and which a fill in front of the field walk would erase.
+ *  - **A packed field ends one too**, being a read-modify-write of a word rather than a value.
+ *
+ * A record with a boxed field is left alone. The box's slot is written by `createBox`, and whether
+ * it already holds a pointer depends on whether the component was built in place - a question this
+ * would have to ask again for a record shape that is rare in a literal.
+ *
+ * A run of one field is refused, as in `uniformFill`: one field is already one store.
+ */
+static bool isZeroValue(LowerBase lower, LowerValue* value, U32 bytes) {
+    auto inst = value->inst();
+    if(inst && inst->kind == LowerInst::Bitcast) inst = lower[((LowerInstUnary*)inst)->from]->inst();
+    if(!inst || inst->kind != LowerInst::Imm) return false;
+
+    // A floating immediate holds a `double` whatever its type, so `0.5 :: F32` has no bits in its
+    // low four bytes - its whole pattern is what says zero. An integer's bits above the field's width
+    // are not written, and only the ones below are asked.
+    auto imm = (LowerImm*)inst;
+    if(isFloat(imm->result.type)) return imm->i == 0;
+
+    auto bits = imm->i;
+    if(bytes < 8) bits &= (U64(1) << (bytes * 8)) - 1;
+    return bits == 0;
+}
+
+void Lowering::zeroFieldRuns(LowerBlock& block, LowerPtr<LowerValue> storage, InstAggregate& written,
+                             mir::RecordType& declared, U16 first, Repr& repr,
+                             SmallArray<bool, 32>& filled) {
+    struct Span {
+        U32 start;
+        U32 end;
+        bool zero;
+        Size component;
+    };
+
+    SmallArray<Span, 32> spans;
+    U16 index = first;
+
+    for(auto used: written.components.contents(ssa)) {
+        auto field = index++;
+        auto component = filled.size();
+        filled.push(false);
+
+        if(mir::indirectField(decl, declared.field(decl, field))) return;
+
+        auto held = repr.fields.get(decl, field);
+        if(held.isPacked()) {
+            spans.push(Span { held.offset, held.offset + held.wordBytes, false, component });
+            continue;
+        }
+
+        auto& value = *ssa[used.value()];
+        auto manifest = manifestOf(value);
+        if(manifest.dynamic) return;
+        if(!manifest.size) continue;
+
+        auto built = destinations.getValue(value.id.index);
+        auto source = built || manifest.inMemory ? nullptr : mapped(used.value());
+        auto zero = source && isZeroValue(lower, source, manifest.size);
+
+        spans.push(Span { held.offset, held.offset + manifest.size, zero, component });
+    }
+
+    // Offset order, which a record's field order need not be. Few enough for an insertion sort.
+    for(Size i = 1; i < spans.size(); i++) {
+        for(auto j = i; j > 0 && spans[j - 1].start > spans[j].start; j--) {
+            auto swapped = spans[j - 1];
+            spans[j - 1] = spans[j];
+            spans[j] = swapped;
+        }
+    }
+
+    for(Size i = 0; i < spans.size(); ) {
+        if(!spans[i].zero) { i++; continue; }
+
+        auto end = i + 1;
+        while(end < spans.size() && spans[end].zero) end++;
+
+        if(end - i >= 2) {
+            auto start = spans[i].start;
+            auto bytes = spans[end - 1].end - start;
+
+            block.addInst(lower, new (to.arena) LowerInstSetPattern(
+                offsetAddress(block, storage, start), immediate(block, LowerType::Int64, bytes),
+                immediate(block, LowerType::Int32, 0)));
+
+            for(auto k = i; k < end; k++) filled[spans[k].component] = true;
+        }
+
+        i = end;
+    }
+}
+
 LowerPtr<LowerValue> Lowering::offsetAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                              U32 offset) {
     if(!offset) return address;
@@ -679,10 +792,14 @@ LowerBlock* Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> addre
         auto callee = block.addInst(lower, new (to.arena) LowerInstFun(
             decl[member]->name, found.unwrap()));
 
+        // Or the fields of it, where the member's convention takes the value apart.
+        SmallArray<LowerPtr<LowerValue>, 8> passed;
+        passCarried(block, callShapeOf(member), 0, address, passed);
+
         auto convention = lower[found.unwrap()]->callType;
-        call(lower, to, block, 0, 2, convention, [&](LowerInstCall* built) {
+        call(lower, to, block, 0, U32(passed.size() + 1), convention, [&](LowerInstCall* built) {
             built->used()[0] = ((LowerInstSingle*)callee)->created().ptr - lower;
-            built->used()[1] = address;
+            for(Size i = 0; i < passed.size(); i++) built->used()[i + 1] = passed[i];
         });
     };
 
@@ -1934,6 +2051,13 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 break;
             }
 
+            // A duplicate whose one reader takes it apart into registers is never made at all - see
+            // `carriedDuplicate`, where the window it has to be read in is argued.
+            if(carriedDuplicate(inst, *result)) {
+                values.add(result->id.index, address - lower);
+                break;
+            }
+
             /*
              * `storageFor` rather than `frameStorage`, which is the whole of J65's copy elision.
              *
@@ -2015,6 +2139,11 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto arm = declared.cons.get(decl, written.constructor);
             auto repr = reprOf(layout, record, result->occurrence.shape);
 
+            // The zero fields first, as fills - see `zeroFieldRuns`. In front of the tag, which a run
+            // may bridge and which is written below it.
+            SmallArray<bool, 32> filled;
+            zeroFieldRuns(block, storage, written, declared, arm.first, repr, filled);
+
             /*
              * The discriminant first, where the record stores one.
              *
@@ -2063,6 +2192,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             U16 index = arm.first;
 
             for(auto used: written.components.contents(ssa)) {
+                auto position = Size(index - arm.first);
                 auto field = index++;
                 auto held = repr.fields.get(decl, field);
 
@@ -2107,6 +2237,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 }
 
                 if(destinations.getValue(ssa[used.value()]->id.index)) continue;
+                if(position < filled.size() && filled[position]) continue;
                 install(block, offsetAddress(block, storage, held.offset), *ssa[used.value()]);
             }
 
@@ -2902,6 +3033,11 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             SmallArray<PackedBorrow, 4> commits;
             U32 position = 0;
 
+            // Which records the callee takes and gives back as their fields - only ever a direct
+            // call's question, since a slot names a thunk whose signature is the promise's.
+            auto shape = written.through == mir::CallThrough::Declaration ? callShapeOf(target)
+                                                                         : nullptr;
+
             for(auto used: written.arguments.contents(ssa)) {
                 auto value = mapped(used.value());
                 if(!value) return;
@@ -2941,7 +3077,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     }
                 }
 
-                passed.push(place);
+                passCarried(block, shape, position, place, passed);
                 position++;
             }
 
@@ -2973,6 +3109,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 ? manifestNative(layout, declared->result).inMemory
                 : results && manifest.inMemory;
 
+            // A result the callee returns as its parts needs storage just the same, and no pointer.
+            auto splitResult = shape && shape->splitsResult() && results;
+            if(splitResult) returnsInMemory = false;
+
             auto memoryResult = results && manifest.inMemory;
             LowerPtr<LowerValue> returnPlace = nullptr;
 
@@ -2984,7 +3124,15 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * A plain `frameStorage` where the *callee* returns in memory and this frame wanted a
              * register: the storage is then a landing pad this walk reads back out of, and it has no
              * consumer to inherit it from.
+             *
+             * The storage a result returned as parts is going into is asked for here too, on the same
+             * terms as a hidden pointer's: where it is a box, the allocation comes first and the parts
+             * are written into it the moment the call returns, rather than held across the
+             * allocator's call - which is `Tree`'s `build`, and cost it 4% when this was asked after.
              */
+            LowerPtr<LowerValue> partsStorage = nullptr;
+            if(splitResult) partsStorage = storageFor(block, *ssa[inst.results.get(ssa, 0)]);
+
             if(returnsInMemory && results) {
                 returnPlace = memoryResult
                             ? storageFor(block, *ssa[inst.results.get(ssa, 0)])
@@ -2999,7 +3147,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * is calling, and reading the enclosing function's would agree with the caller instead.
              * Nothing would report it: the registers simply differ.
              */
-            auto created = returnsInMemory ? 0u : U32(results);
+            auto created = returnsInMemory ? 0u : splitResult ? shape->resultCount : U32(results);
 
             /*
              * The **callee's** convention where the call names one, and the default where it does
@@ -3017,9 +3165,9 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto value = call(lower, to, block, created, passed.size() + leading,
                               convention, [&](LowerInstCall* built) {
                 for(Size i = 0; i < created; i++) {
-                    auto result = ssa[inst.results.get(ssa, i)];
-                    new (built->created().ptr + i) LowerValue(built, manifestOf(*result).type,
-                                                              StringId());
+                    auto type = splitResult ? resultPart(*shape, U32(i)).type
+                                            : manifestOf(*ssa[inst.results.get(ssa, i)]).type;
+                    new (built->created().ptr + i) LowerValue(built, type, StringId());
                 }
 
                 built->used()[0] = callee;
@@ -3033,6 +3181,17 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             // What the callee wrote into a flattened reference, put back - and here because a write
             // through a reference becomes visible when the callee returns. See `PackedBorrow`.
             for(auto& borrow: commits) commitPackedBorrow(block, borrow);
+
+            /*
+             * The parts, written into the storage the value is going to live in - `storageFor`, so a
+             * result bound for a field, a box or this function's own result pointer is written there
+             * directly, exactly as a hidden pointer to that storage would have been.
+             */
+            if(splitResult) {
+                value->source = inst.source;
+                storeReturnedParts(block, *shape, value, partsStorage);
+                break;
+            }
 
             if(returnsInMemory && results) {
                 value->source = inst.source;
@@ -3069,8 +3228,23 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * which is what the signature above declared for it.
              */
             SmallArray<LowerPtr<LowerValue>, 4> returned;
+            auto shape = currentShape;
+
             for(auto used: written.values.contents(ssa)) {
                 auto value = ssa[used.value()];
+
+                // A result this function returns as its parts - loaded out of wherever it was built.
+                if(shape && shape->splitsResult() && manifestOf(*value).inMemory) {
+                    auto address = mapped(used.value());
+                    if(!address) return;
+
+                    for(U32 i = 0; i < shape->resultCount; i++) {
+                        returned.push(loadCarried(block, resultPart(*shape, i), address - lower));
+                    }
+
+                    continue;
+                }
+
                 if(manifestOf(*value).inMemory) {
                     // Nothing to install where the value was built in the result pointer to begin
                     // with - `storageFor`, which is what handed it that address.

@@ -416,6 +416,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/lower/internal.h
     resolve_ssa/lower/gen.cpp
     resolve_ssa/lower/inst.cpp
+    resolve_ssa/lower/convention.cpp
     resolve_ssa/lower/box.cpp
     resolve_ssa/lower/erase.cpp
     resolve_ssa/lower/fun.cpp

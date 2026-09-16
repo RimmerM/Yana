@@ -148,37 +148,37 @@ main<complex>(): I32 {
     store %v_1, %v_2, 8
     %v_3 = add %v_1, 8: Ptr
     store %v_3, 5, 4
-    store %v_2, 1, 4
-    %v_4 = add %v_2, 4: Ptr
-    store %v_4, 2, 4
-    %v_5 = add %v_2, 8: Ptr
-    store %v_5, 3, 4
-    %v_6 = add %v_2, 12: Ptr
-    store %v_6, 4, 4
-    %v_7 = add %v_2, 16: Ptr
-    store %v_7, 5, 4
-    %v_8 = add %v_1, 12: Ptr
+    %v_4 = imm 1: I32
+    store %v_2, %v_4, 4
+    %v_5 = add %v_2, 4: Ptr
+    store %v_5, 2, 4
+    %v_6 = add %v_2, 8: Ptr
+    store %v_6, 3, 4
+    %v_7 = add %v_2, 12: Ptr
+    store %v_7, 4, 4
+    %v_8 = add %v_2, 16: Ptr
     store %v_8, 5, 4
-    %v_9 = alloca 16, 8: Ptr
-    %v_10 = alloca 12, 4: Ptr
-    store %v_9, %v_10, 8
-    %v_11 = add %v_9, 8: Ptr
-    store %v_11, 3, 4
-    store %v_10, 2, 4
-    %v_12 = add %v_10, 4: Ptr
-    store %v_12, 0, 4
-    %v_13 = add %v_10, 8: Ptr
-    store %v_13, 1, 4
-    %v_14 = add %v_9, 12: Ptr
-    store %v_14, 3, 4
-    %v_15 = loads %v_2, 4: I32
+    %v_9 = add %v_1, 12: Ptr
+    store %v_9, 5, 4
+    %v_10 = alloca 16, 8: Ptr
+    %v_11 = alloca 12, 4: Ptr
+    store %v_10, %v_11, 8
+    %v_12 = add %v_10, 8: Ptr
+    store %v_12, 3, 4
+    store %v_11, 2, 4
+    %v_13 = add %v_11, 4: Ptr
+    store %v_13, 0, 4
+    %v_14 = add %v_11, 8: Ptr
+    store %v_14, 1, 4
+    %v_15 = add %v_10, 12: Ptr
+    store %v_15, 3, 4
     %v_16 = alloca 16, 8: Ptr
     call_complex slice(I32), %v_16, %v_2, 5, 1, 3
     %xs$items = load %v_16, 8: Ptr
     %v_17 = add %v_16, 8: Ptr
     %xs$length = loads %v_17, 8: I64
     %v_18 = call_complex total, %xs$items, %xs$length: I32
-    %v_19 = add %v_15, %v_18: I32
+    %v_19 = add %v_4, %v_18: I32
     %v_20 = cmp_neq %v_19, 6: I32
     %v_21 = imm 5: I64
     je %v_20, b_22, b_23
@@ -193,8 +193,8 @@ main<complex>(): I32 {
   }
 
   b_28 {
-    %v_29 = load %v_9, 8: Ptr
-    %v_30 = add %v_9, 12: Ptr
+    %v_29 = load %v_10, 8: Ptr
+    %v_30 = add %v_10, 12: Ptr
     %v_31 = load %v_30, 4: I32
     %v_32 = cast %v_31: I64
     %v_33 = cmp_eq %v_32, 0: I32
@@ -212,7 +212,7 @@ main<complex>(): I32 {
     %v_40 = shl %v_37, 2: I64
     %v_41 = add %v_2, %v_40: Ptr
     %v_42 = loads %v_41, 4: I32
-    call_complex Reclaim(Array(a)).reclaim(I32), %v_9
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_10
     %v_43 = cmp_neq %v_42, 3: I32
     je %v_43, b_44, b_45
   }
@@ -259,7 +259,7 @@ main<complex>(): I32 {
   b_22 {
     %v_61 = phi [b_23, 18446744073709551614], [b_0, 18446744073709551615]: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_1
-    call_complex Reclaim(Array(a)).reclaim(I32), %v_9
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_10
     ret %v_61
   }
 }

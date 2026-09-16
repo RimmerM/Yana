@@ -4,8 +4,8 @@
 @environment(describe(Guard)) = [0, 0, 0, 0]
 @descriptor(Guard) = [4, 0, 0, 14, 0, 0, 0, 0]
 
-Guard.drop<complex>(%value: Ptr) {
-  b_0 {
+Guard.drop<complex>(%v_0: I32) {
+  b_1 {
     ret 
   }
 }
@@ -60,10 +60,11 @@ main<complex>(): I32 {
     store %v_1, 3, 4
     %v_4 = call_complex describe, @environment(describe(Pad)), %v_2: I64
     %v_5 = call_complex describe, @environment(describe(Guard)), %v_1: I64
-    call_complex Guard.drop, %v_1
-    %v_6 = add %v_4, %v_5: I64
-    %v_7 = sext %v_6: I32
-    ret %v_7
+    %v_6 = load %v_1, 4: I32
+    call_complex Guard.drop, %v_6
+    %v_7 = add %v_4, %v_5: I64
+    %v_8 = sext %v_7: I32
+    ret %v_8
   }
 }
 
@@ -75,7 +76,8 @@ teardown()<complex>(%v_0: Ptr) {
 
 teardown(Guard)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex Guard.drop, %v_0
+    %v_2 = load %v_0, 4: I32
+    call_complex Guard.drop, %v_2
     ret 
   }
 }

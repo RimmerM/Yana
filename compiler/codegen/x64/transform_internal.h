@@ -238,6 +238,10 @@ void expandBlockOperations(Context& ctx, LowerBase base, LowerFunction& fun);
  * state the whole sweep as a list rather than as a nest of conditions.
  */
 bool tryEmbedImm(LowerBase base, LowerImm* imm);
+
+// The pass in front of them: one constant per stretch of stores writing the same number - see the
+// note above it, and `storedImmediateBytes` for why it matters.
+void shareStoredConstants(Context& ctx, LowerBase base, LowerFunction& fun);
 bool tryElideDirectCallee(LowerBase base, LowerInstFun* fun);
 bool tryFoldGlobalAddress(LowerBase base, LowerInstGlobal* global);
 bool trySkipCastExtend(LowerBase base, LowerInstCast* cast);

@@ -21,96 +21,87 @@ main<complex>(): I32 {
     store %v_9, 4, 4
     %v_10 = add %v_1, 32: Ptr
     store %v_10, 5, 4
-    setpattern %v_2, 16, 0
-    %v_11 = add %v_2, 16: Ptr
-    store %v_11, 0, 4
-    %v_12 = add %v_2, 20: Ptr
-    store %v_12, 0, 4
-    %v_13 = add %v_2, 24: Ptr
-    store %v_13, 0, 4
-    %v_14 = add %v_2, 28: Ptr
-    store %v_14, 0, 4
-    %v_15 = add %v_2, 32: Ptr
-    store %v_15, 0, 4
+    %v_11 = add %v_2, 24: Ptr
+    %v_12 = add %v_2, 32: Ptr
     copy %v_2, %v_1, 36
-    %v_16 = loads %v_2, 4: I32
-    %v_17 = cmp_neq %v_16, 10: I32
-    je %v_17, b_18, b_19
+    %v_13 = loads %v_2, 4: I32
+    %v_14 = cmp_neq %v_13, 10: I32
+    je %v_14, b_15, b_16
   }
 
-  b_19 {
-    %v_20 = add %v_2, 12: Ptr
-    %v_21 = loads %v_20, 4: I32
-    %v_22 = cmp_neq %v_21, 40: I32
-    je %v_22, b_23, b_24
+  b_16 {
+    %v_17 = add %v_2, 12: Ptr
+    %v_18 = loads %v_17, 4: I32
+    %v_19 = cmp_neq %v_18, 40: I32
+    je %v_19, b_20, b_21
   }
 
-  b_18 {
+  b_15 {
     ret 18446744073709551613
   }
 
-  b_24 {
-    %v_25 = loads %v_13, 4: I32
-    %v_26 = cmp_neq %v_25, 3: I32
-    je %v_26, b_27, b_28
+  b_21 {
+    %v_22 = loads %v_11, 4: I32
+    %v_23 = cmp_neq %v_22, 3: I32
+    je %v_23, b_24, b_25
   }
 
-  b_23 {
+  b_20 {
     ret 18446744073709551612
   }
 
-  b_28 {
-    %v_29 = loads %v_15, 4: I32
-    %v_30 = cmp_neq %v_29, 5: I32
-    je %v_30, b_31, b_32
+  b_25 {
+    %v_26 = loads %v_12, 4: I32
+    %v_27 = cmp_neq %v_26, 5: I32
+    je %v_27, b_28, b_29
   }
 
-  b_27 {
+  b_24 {
     ret 18446744073709551611
   }
 
-  b_32 {
+  b_29 {
     store %v_2, 99, 4
-    store %v_13, 99, 4
-    %v_33 = loads %v_1, 4: I32
-    %v_34 = cmp_neq %v_33, 10: I32
-    je %v_34, b_35, b_36
+    store %v_11, 99, 4
+    %v_30 = loads %v_1, 4: I32
+    %v_31 = cmp_neq %v_30, 10: I32
+    je %v_31, b_32, b_33
   }
 
-  b_31 {
+  b_28 {
     ret 18446744073709551610
   }
 
-  b_36 {
-    %v_37 = loads %v_8, 4: I32
-    %v_38 = cmp_neq %v_37, 3: I32
-    je %v_38, b_39, b_40
+  b_33 {
+    %v_34 = loads %v_8, 4: I32
+    %v_35 = cmp_neq %v_34, 3: I32
+    je %v_35, b_36, b_37
   }
 
-  b_35 {
+  b_32 {
     ret 18446744073709551609
   }
 
-  b_40 {
-    %v_41 = loads @copyCalls, 4: I32
-    %v_42 = add %v_41, 1: I32
-    store @copyCalls, %v_42, 4
-    %v_43 = loads @copyCalls, 4: I32
-    %v_44 = cmp_neq %v_43, 1: I32
-    je %v_44, b_45, b_46
+  b_37 {
+    %v_38 = loads @copyCalls, 4: I32
+    %v_39 = add %v_38, 1: I32
+    store @copyCalls, %v_39, 4
+    %v_40 = loads @copyCalls, 4: I32
+    %v_41 = cmp_neq %v_40, 1: I32
+    je %v_41, b_42, b_43
   }
 
-  b_39 {
+  b_36 {
     ret 18446744073709551608
   }
 
-  b_46 {
-    %v_47 = loads @copyCalls, 4: I32
-    %v_48 = add 24, %v_47: I32
-    ret %v_48
+  b_43 {
+    %v_44 = loads @copyCalls, 4: I32
+    %v_45 = add 24, %v_44: I32
+    ret %v_45
   }
 
-  b_45 {
+  b_42 {
     ret 18446744073709551614
   }
 }

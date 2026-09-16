@@ -1,10 +1,9 @@
 mut @trace = [0, 0, 0, 0]
 
-Guard.drop<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 4: I32
+Guard.drop<complex>(%v_0: I32) {
+  b_1 {
     %v_2 = loads @trace, 4: I32
-    %v_3 = add %v_2, %v_1: I32
+    %v_3 = add %v_2, %v_0: I32
     store @trace, %v_3, 4
     ret 
   }
@@ -12,18 +11,11 @@ Guard.drop<complex>(%value: Ptr) {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    store %v_1, 6, 4
-    store %v_2, 5, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 1, 4
-    store %v_2, 11, 4
-    call_complex Guard.drop, %v_1
-    call_complex Guard.drop, %v_2
-    %v_4 = loads @trace, 4: I32
-    %v_5 = add 17, %v_4: I32
-    ret %v_5
+    call_complex Guard.drop, 6
+    call_complex Guard.drop, 11
+    %v_1 = loads @trace, 4: I32
+    %v_2 = add 17, %v_1: I32
+    ret %v_2
   }
 }
 

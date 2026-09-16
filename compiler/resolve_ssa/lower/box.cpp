@@ -226,19 +226,9 @@ LowerPtr<LowerValue> Lowering::createBox(LowerBlock& block, LowerPtr<LowerValue>
      * `allocateHeap` hands back whatever was in the block, and a boxed value whose own record
      * carries a provenance word or a co-packed run would read that as its starting bits. This is
      * the second allocation site in the stage and therefore the second place the rule has to be
-     * stated; there is no third.
+     * stated - through `zeroStorage`, so that it is stated once; there is no third.
      */
-    if(hasPaddedWord(layout, held.occurrence.type)) {
-        U32 at = 0;
-        while(at < bytes) {
-            auto width = bytes - at >= 8 ? 8u : bytes - at >= 4 ? 4u : bytes - at >= 2 ? 2u : 1u;
-
-            block.addInst(lower, new (to.arena) LowerInstStore(
-                offsetAddress(block, address, at), immediate(block, LowerType::Int64, 0), width));
-
-            at += width;
-        }
-    }
+    if(hasPaddedWord(layout, held.occurrence.type)) zeroStorage(block, address, bytes);
 
     // The pointer into the field's own slot, which is what the field *is*.
     block.addInst(lower, new (to.arena) LowerInstStore(slot, address, layout.target.pointerSize));

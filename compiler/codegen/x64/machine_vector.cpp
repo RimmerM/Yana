@@ -1778,8 +1778,9 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
  * untouched by it and a `Vec(I32, 8)` is destroyed. An earlier reading of this had the entry reset
  * unsafe in any function taking a vector argument, and concluded that such a function needed a
  * calling convention that preserved nothing - which was two mistakes: an xmm argument survives, and
- * `Complex` already clobbers all sixteen vector registers anyway, so no convention this compiler
- * enters a function under has a callee-saved one to protect.
+ * `Complex` clobbered all sixteen vector registers at the time, so no convention this compiler
+ * entered a function under had a callee-saved one to protect. It preserves xmm12-15 since
+ * 2026-09-17, which is the case the convention check below exists for.
  *
  * The attribute promises that no instruction in this body carries a VEX prefix, which is what stops
  * the crossing between prefixed and unprefixed encodings that costs 140x on the part it was measured
@@ -1856,13 +1857,13 @@ bool checkLegacyVectorEncoding(Context& ctx, LowerBase base, LowerFunction& fun)
      * be one the instruction clears.
      *
      * **Checked rather than assumed, and the difference is not academic.** `Complex` - what every
-     * function gets by default - happens to clobber all sixteen vector registers today, so this
-     * passes without a convention being written. That is a fact about the current internal
-     * convention and not a promise: the backend is entitled to start preserving some of them if that
-     * allocates better, and the day it does, every `X86.vzeroupper()` in the program would begin
-     * corrupting a caller's register with nothing to say so. A library that wants the guarantee in
-     * its own declaration writes `@convention(sysv)`, whose vector file is caller-saved *by the
-     * psABI* rather than by this compiler's current judgement.
+     * function gets by default - clobbered all sixteen vector registers when this was written, so it
+     * passed without a convention being written. That was a fact about the internal convention and
+     * not a promise, and it stopped being one on 2026-09-17: `Complex` preserves xmm12-15 now, and
+     * this check is what turned every unannotated `X86.vzeroupper()` into a diagnostic instead of a
+     * caller's register quietly corrupted. `test/resolve/VectorResetNoSha.yana` was the one to move.
+     * A library that wants the guarantee in its own declaration writes `@convention(sysv)`, whose
+     * vector file is caller-saved *by the psABI* rather than by this compiler's current judgement.
      */
     if(holdsReset) {
         auto& convention = targetConstraints().getConvention(fun.callType);

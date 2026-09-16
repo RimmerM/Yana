@@ -80,6 +80,7 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | how a constant becomes bytes | `lower/gen.cpp`, `materialize` |
 | how a constant names another global | `lower/gen.cpp`, `materialize`'s `Constant::Address` arm - a `LowerDataRelocation`, which is why `lowerGlobal` is a declare pass and a fill pass |
 | whether a fixed array's components are one block fill | `lower/inst.cpp`, `uniformFill` - a `setpattern` where every component is one constant whose bytes are all equal |
+| whether a record literal's zero fields are block fills | `lower/inst.cpp`, `zeroFieldRuns` - a `setpattern` per run of zero fields adjacent in offset order |
 | what order a body's blocks are read in | `dominance.cpp`, `reversePostorder` |
 | which passes run over a body, in what order, and how many times | `opt/opt.cpp` |
 | whether a local becomes a value | `opt/promote.cpp`, `eligible` - and where its block arguments go |

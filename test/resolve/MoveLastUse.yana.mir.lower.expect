@@ -1,11 +1,10 @@
 mut @dropped = [0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Held.drop<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = load %self, 4: I32
+Held.drop<complex>(%v_0: I32) {
+  b_1 {
     %v_2 = loads @dropped, 4: I32
-    %v_3 = add %v_2, %v_1: I32
+    %v_3 = add %v_2, %v_0: I32
     store @dropped, %v_3, 4
     ret 
   }
@@ -13,91 +12,67 @@ Held.drop<complex>(%self: Ptr) {
 
 main<complex>(): I32 {
   b_0 {
+    call_complex Held.drop, 1
     %v_1 = alloca 8, 4: Ptr
-    store %v_1, 1, 4
+    store %v_1, 1, 1
     %v_2 = add %v_1, 4: Ptr
-    store %v_2, 0, 4
-    call_complex Held.drop, %v_1
-    %v_3 = alloca 8, 4: Ptr
-    store %v_3, 1, 1
-    %v_4 = add %v_3, 4: Ptr
-    store %v_4, 2, 4
-    call_complex teardown(Maybe(Held)), %v_3
-    %v_5 = alloca 16, 8: Ptr
-    %v_6 = alloca 4, 4: Ptr
-    store %v_5, %v_6, 8
-    %v_7 = add %v_5, 8: Ptr
-    store %v_7, 1, 4
-    %v_8 = add %v_5, 12: Ptr
-    store %v_8, 1, 4
-    store %v_6, 4, 4
-    call_complex Array(a).reclaim(Held), %v_5
-    %v_9 = alloca 4, 4: Ptr
-    store %v_9, 8, 4
-    call_complex Held.drop, %v_9
-    store %v_9, 16, 4
-    call_complex Held.drop, %v_9
-    %v_10 = alloca 8, 4: Ptr
-    store %v_10, 32, 4
-    %v_11 = add %v_10, 4: Ptr
-    store %v_11, 0, 4
-    call_complex Held.drop, %v_10
-    store %v_10, 64, 4
-    call_complex Held.drop, %v_10
-    %v_12 = alloca 8, 4: Ptr
-    store %v_12, 128, 4
-    %v_13 = add %v_12, 4: Ptr
-    store %v_13, 0, 4
-    call_complex Held.drop, %v_12
-    %v_14 = alloca 4, 4: Ptr
-    %v_15 = alloca 8, 4: Ptr
-    store %v_14, 128, 4
-    call_complex Held.drop, %v_14
-    %v_16 = loads @dropped, 4: I32
-    ret %v_16
+    store %v_2, 2, 4
+    call_complex teardown(Maybe(Held)), %v_1
+    %v_3 = alloca 4, 8: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    %v_5 = bitcast %v_4: I64
+    store %v_3, 1, 4
+    store %v_4, 4, 4
+    %v_6 = load %v_3, 4: I32
+    call_complex Array(a).reclaim(Held), %v_5, %v_6, 1
+    call_complex Held.drop, 8
+    call_complex Held.drop, 16
+    call_complex Held.drop, 32
+    call_complex Held.drop, 64
+    call_complex Held.drop, 128
+    %v_7 = alloca 8, 4: Ptr
+    call_complex Held.drop, 128
+    %v_8 = loads @dropped, 4: I32
+    ret %v_8
   }
 }
 
-Array(a).reclaim(Held)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = load %value, 8: Ptr
-    %v_3 = add %value, 8: Ptr
-    %v_4 = load %v_3, 4: I64
-    %v_5 = add %value, 12: Ptr
-    %v_6 = load %v_5, 4: I32
-    %v_7 = sext %v_6: I64
-    jmp b_8
+Array(a).reclaim(Held)<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
+  b_3 {
+    %v_4 = cast %v_1: I64
+    %v_5 = bitcast %v_0: Ptr
+    %v_6 = sext %v_2: I64
+    jmp b_7
   }
 
-  b_8 {
-    %v_9 = phi [b_0, 0], [b_10, %v_11]: I64
-    %v_12 = cmp_ilt %v_9, %v_7: I32
-    je %v_12, b_10, b_13
+  b_7 {
+    %v_8 = phi [b_3, 0], [b_9, %v_10]: I64
+    %v_11 = cmp_ilt %v_8, %v_6: I32
+    je %v_11, b_9, b_12
   }
 
-  b_13 {
-    %v_14 = shr %v_4, 30: I64
-    %v_15 = cast %v_14: I32
-    %v_16 = cmp_eq %v_15, 1: I32
-    je %v_16, b_17, b_18
+  b_12 {
+    %v_13 = shr %v_4, 30: I64
+    %v_14 = cast %v_13: I32
+    %v_15 = cmp_eq %v_14, 1: I32
+    je %v_15, b_16, b_17
   }
 
-  b_10 {
-    %v_19 = shl %v_9, 2: I64
-    %v_20 = add %v_2, %v_19: Ptr
-    copy %v_1, %v_20, 4
-    call_complex Held.drop, %v_1
-    %v_11 = add %v_9, 1: I64
-    jmp b_8
+  b_9 {
+    %v_18 = shl %v_8, 2: I64
+    %v_19 = add %v_5, %v_18: Ptr
+    %v_20 = load %v_19, 4: I32
+    call_complex Held.drop, %v_20
+    %v_10 = add %v_8, 1: I64
+    jmp b_7
+  }
+
+  b_16 {
+    call_complex freeHeap, %v_5
+    jmp b_17
   }
 
   b_17 {
-    call_complex freeHeap, %v_2
-    jmp b_18
-  }
-
-  b_18 {
     ret 
   }
 }
@@ -128,11 +103,9 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-Run(a).reclaim(Held)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    %v_2 = add %value, 8: Ptr
-    %v_3 = load %v_2, 4: I64
+Run(a).reclaim(Held)<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = cast %v_1: I64
     %v_4 = shr %v_3, 30: I64
     %v_5 = cast %v_4: I32
     %v_6 = cmp_eq %v_5, 1: I32
@@ -140,7 +113,8 @@ Run(a).reclaim(Held)<complex>(%value: Ptr) {
   }
 
   b_7 {
-    call_complex freeHeap, %v_1
+    %v_9 = bitcast %v_0: Ptr
+    call_complex freeHeap, %v_9
     jmp b_8
   }
 
@@ -162,7 +136,8 @@ teardown(Maybe(Held))<complex>(%v_0: Ptr) {
 
   b_4 {
     %v_7 = add %v_0, 4: Ptr
-    call_complex Held.drop, %v_7
+    %v_8 = load %v_7, 4: I32
+    call_complex Held.drop, %v_8
     jmp b_6
   }
 

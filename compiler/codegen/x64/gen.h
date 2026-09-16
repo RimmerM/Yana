@@ -1235,6 +1235,32 @@ inline bool packedNeedsVex() {
     return (targetFeatures() & kFeatureAvx) != 0;
 }
 
+/*
+ * The boundary a spill slot of this class has to sit on - its own width without VEX, and at most a
+ * word with it.
+ *
+ * **The width was never the slot's own requirement.** A spill is written and reloaded with the
+ * unaligned moves (`kClassMoves` in gen.cpp), which fault on nothing. What needs an aligned slot is
+ * a *legacy-encoded packed operation* reading one as its memory operand - `paddd xmm, m128` faults
+ * off a 16-byte boundary - and `packed` in machine_forms_packed.cpp lets one read a frame slot
+ * exactly because a Slot128 used to be aligned by construction. A VEX-encoded operation has no
+ * alignment rule at all, so where every packed form is VEX the width asks for nothing.
+ *
+ * And asking for nothing is worth a register. A slot wider than the entry convention's boundary is a
+ * realignment, a realignment needs a frame pointer, and whether rbp is one is settled before the
+ * allocator runs - so `functionMayRealignStack` held rbp back in **every function holding a vector
+ * value**, spilled or not. In the library suite at v3 that was 1.8% of the image; in `VecInt/avx2`
+ * it was 5.5% of the time (test/bench/callconv/findings.md, 2026-09-17).
+ *
+ * Asked per function, since `legacyVectorEncodings` is: a SHA-NI function in a VEX build is legacy
+ * throughout and keeps the aligned slots its folds rely on.
+ */
+inline U32 spillSlotAlignment(StackSlotClass slotClass) {
+    auto width = stackSlotSize(slotClass);
+    if(!packedNeedsVex()) return width;
+    return width < 8 ? width : 8;
+}
+
 struct FrameLayout {
     // Callee-saved general registers the prologue pushes, in ascending register order.
     RegSet savedRegs;

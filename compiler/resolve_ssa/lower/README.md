@@ -42,6 +42,39 @@ decidable before a target is chosen.
   it from the argument list, so "does this function have one" and "is its result address-only" cannot
   come to differ.
 
+### ...unless it fits in the registers `complex` already clobbers
+
+Since 2026-09-17 `convention.cpp` refines both of the last two bullets per function. A record that
+comes apart into **cells** - a scalar field, a co-packed word, a tag, a box pointer, each at the
+offset and width the layout gave it - is passed as those cells where the whole argument list still
+fits the convention's registers, and returned as them wherever they fit the result registers. A
+split result takes no hidden pointer. `CallShape` is the answer, computed once per function from the
+declaration and the layout before any body is lowered, and read by the five places that build a call
+to a declared function: the call instruction, an authored teardown, and the three thunks.
+
+- **Which records**: an owned `->x`, or a plain shared `x: T` bounded by the call of a trivially
+  copyable type - the second is the one that matters, because it arrived as a pointer to a
+  temporary the caller zeroed and filled. Not a type `isRelocatable` refuses, not a sum whose arms
+  put different widths at one offset (a wider load of a narrower store is a store-forwarding stall),
+  and not a function reached by address: a lifted lambda, an erased body, an allocator or check role,
+  `@convention`, the entry.
+- **How many**: every other parameter takes its register first and a candidate counts as the
+  pointer it would be, then candidates split smallest first while the whole list still fits - so a
+  split never pushes another argument out of a register, and a function of one record may spend all
+  nine general registers on it.
+- **Floats go in vector registers even beside integers.** `test/bench/callconv/Mixed.yana` measured
+  that against sending a mixed record in general registers alone: 289 ms against 573, and 651 bytes
+  against 887.
+- **The callee** stores the parts into a slot of its own at entry, and `splitAggregateSlots` and
+  `promoteStackSlots` take that slot apart again wherever the body reads fields - which is why a part
+  is a field and not an eight-byte word. **The caller** loads the parts out of the value, and where
+  the value is a duplicate made only for this call (`carriedDuplicate`) it loads them from the
+  original and the temporary is never made. A split result's storage is asked for *before* the call,
+  so a result bound for a box is written into the box as soon as the call returns rather than held
+  across the allocation.
+- A pointer cell travels as `I64`: the lower IR has no pointer literal, and a returned `Nothing`
+  whose niche folds to zero would be one.
+
 ### A sum is a tag and one shared payload
 
 `layoutRecord` places a discriminant first where the declaration has several constructors, then lays
@@ -215,6 +248,11 @@ fields flattened across one call from losing an update.
 writes that preserve everything outside the field, so the bits above the run are whatever the storage
 held - and the niche the record publishes is made of exactly those bits. `hasPaddedWord` is the
 question and `frameStorage` is the one place it is asked.
+
+**A record literal's zero fields are fills too.** `zeroFieldRuns` writes each run of fields that are
+zero and adjacent in offset order - padding between them included - as one `setpattern` ahead of the
+field walk, which then skips them. A field that is not zero, a packed word, or a component already
+built in place ends a run, and a record with a boxed field is left alone.
 
 **`isNarrowReference` is a question about an *occurrence*, and one instruction restates a reference
 under another one.** `swap` and `exchange` expand to `addressOf` of their `&` argument and a
@@ -656,9 +694,12 @@ nothing and makes no second box.
 **The zeroing rule is stated at all three allocation sites and nowhere else** - `frameStorage`,
 `heapStorage` and `createBox`. A type with a word whose spare bits nobody writes (`hasPaddedWord`)
 has its storage cleared, because a co-packed run is filled by read-modify-writes and the niche the
-record publishes is made of exactly those bits. `heapStorage` asks for the **stride** rather than the
-size, on `createBox`'s reason: a record's size stops at its last field so a container can land in its
-trailing padding, and a standalone allocation has no container to do that.
+record publishes is made of exactly those bits. The clearing is one `setpattern` (`zeroStorage`)
+rather than a store per word: the x64 backend unrolls a short fill into its widest transfers, LLVM
+reads it as `llvm.memset`, and `forwardStoredValues` sees one write that a copy of the whole value
+replaces. `heapStorage` asks for the **stride** rather than the size, on `createBox`'s reason: a
+record's size stops at its last field so a container can land in its trailing padding, and a
+standalone allocation has no container to do that.
 
 ## The erased ABI lives at the bottom, in one file
 
@@ -721,9 +762,9 @@ hand-written one compiles to, with no slot in them.
 
 The accessor pair takes the **`simple`** convention, and that is what makes the one case that needs a
 call affordable. `simple` passes in three GPRs and clobbers those plus `rax` and `xmm0-2`, leaving
-every other allocatable register callee-saved; `complex` takes eight argument registers and clobbers
-nine plus all sixteen vector ones, so a call through one forces the caller to spill everything it was
-holding. Two pointers and no result is what `simple` was cut for. Both ends state it, because the
+every other allocatable register callee-saved; `complex` takes nine argument registers and clobbers
+nine plus twelve vector ones, so a call through one forces the caller to spill nearly everything it
+was holding. Two pointers and no result is what `simple` was cut for. Both ends state it, because the
 call is indirect through a cell and a callee's convention is not something an indirect site can look
 up - see `codegen/x64/constraint.cpp`, where the tables are.
 

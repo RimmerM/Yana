@@ -671,7 +671,7 @@ struct Legalizer {
      * The same hazard as the paragraph above, reached from the other side and found by the first
      * wide vector that had to be reloaded at a pseudo. A form that expands into several machine
      * instructions needs a register that is neither operand nor result, and it says so by declaring
-     * a **clobber** - `FormVSelect` names xmm15, the lane accesses name it, the negation names it.
+     * a **clobber** - the lane accesses name `kVectorScratch`, the negation names it.
      * A clobber keeps a live *web* out of that register at this instruction, which is what it is
      * for; what it does not do, and could not, is keep the *scratch pool* out of it, because the
      * pool is not a web and is handed out here rather than by placement.

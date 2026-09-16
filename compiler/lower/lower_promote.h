@@ -35,7 +35,9 @@
  * transformation (see `scalarizable` in resolve/lower.cpp, which does exactly that for the shapes it
  * can prove safe). What this catches is the slot that is loaded and stored as one value and nothing
  * else: a scalar record, an integer local, a pointer, and the temporary `materializeScalar` allocates
- * to hand a scalar record's bits to something that wanted an address.
+ * to hand a scalar record's bits to something that wanted an address. A zero fill of the whole slot
+ * counts as a store of zero - it is how lowering clears a slot with a padded word (`zeroStorage`),
+ * and it names no register, so like a copy it types nothing.
  *
  * It leaves its own litter behind - the byte count of an allocation that is gone, the mask a load
  * turned out not to need - and does not clean it up. `removeDeadValues` in lower_fold.h does, for

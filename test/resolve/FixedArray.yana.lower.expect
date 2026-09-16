@@ -72,26 +72,20 @@ main<complex>(): I32 {
 
   b_26 {
     %v_27 = alloca 8, 4: Ptr
-    store %v_27, 7, 4
     %v_28 = add %v_27, 4: Ptr
-    store %v_28, 8, 4
-    %v_29 = loads %v_27, 4: I32
-    %v_30 = add %v_29, 1: I32
-    store %v_27, %v_30, 4
-    %v_31 = loads %v_28, 4: I32
-    %v_32 = add %v_31, 1: I32
-    store %v_28, %v_32, 4
-    %v_33 = call_complex total, %v_27, 2: I32
-    %v_34 = cmp_neq %v_33, 17: I32
-    je %v_34, b_35, b_36
+    store %v_27, 8, 4
+    store %v_28, 9, 4
+    %v_29 = call_complex total, %v_27, 2: I32
+    %v_30 = cmp_neq %v_29, 17: I32
+    je %v_30, b_31, b_32
   }
 
-  b_36 {
-    %v_37 = call_complex total, %v_1, 4: I32
-    ret %v_37
+  b_32 {
+    %v_33 = call_complex total, %v_1, 4: I32
+    ret %v_33
   }
 
-  b_35 {
+  b_31 {
     ret 18446744073709551606
   }
 
@@ -103,32 +97,32 @@ main<complex>(): I32 {
     ret 18446744073709551611
   }
 
-  b_38 {
-    %v_39 = cmp_ge %v_40, %v_7: I32
-    je %v_39, b_41, b_15
+  b_34 {
+    %v_35 = cmp_ge %v_36, %v_7: I32
+    je %v_35, b_37, b_15
   }
 
   b_15 {
-    %v_42 = phi [b_38, %v_40], [b_14, 0]: I64
-    %v_43 = shl %v_42, 2: I64
+    %v_38 = phi [b_34, %v_36], [b_14, 0]: I64
+    %v_39 = shl %v_38, 2: I64
+    %v_40 = add %v_1, %v_39: Ptr
+    %value = loads %v_40, 4: I32
+    %v_41 = cmp_ge %v_38, %v_7: I32
+    je %v_41, b_37, b_42
+  }
+
+  b_42 {
+    %v_43 = shl %v_38, 2: I64
     %v_44 = add %v_1, %v_43: Ptr
-    %value = loads %v_44, 4: I32
-    %v_45 = cmp_ge %v_42, %v_7: I32
-    je %v_45, b_41, b_46
+    %v_45 = add %value, %value: I32
+    store %v_44, %v_45, 4
+    %v_36 = add %v_38, 1: I64
+    %v_46 = cmp_ilt %v_36, 4: I32
+    je %v_46, b_34, b_16
   }
 
-  b_46 {
-    %v_47 = shl %v_42, 2: I64
-    %v_48 = add %v_1, %v_47: Ptr
-    %v_49 = add %value, %value: I32
-    store %v_48, %v_49, 4
-    %v_40 = add %v_42, 1: I64
-    %v_50 = cmp_ilt %v_40, 4: I32
-    je %v_50, b_38, b_16
-  }
-
-  b_41 {
-    %v_51 = syscall 60, 134: I64
+  b_37 {
+    %v_47 = syscall 60, 134: I64
     unreachable 
   }
 

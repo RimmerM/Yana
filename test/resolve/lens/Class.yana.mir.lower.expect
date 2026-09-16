@@ -4,58 +4,49 @@
 @witness(Guard(Gate.depth, Gate.hold, Gate.depthOf, Gate.opened, twiceDeep(Gate), steps(Gate))) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @environment(erasedIter(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Gate.depth<complex>(%self: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %self, 4: I32
-    ret %v_1
+Gate.depth<complex>(%v_0: I32): I32 {
+  b_1 {
+    ret %v_0
   }
 }
 
-Gate.hold<complex>(%self: Ptr, %$body: Ptr): I32 {
-  b_0 {
-    %v_1 = load %$body, 8: Ptr
-    %v_2 = add %$body, 8: Ptr
-    %v_3 = load %v_2, 8: Ptr
-    %v_4 = call_complex %v_1, %v_3, 0: I32
-    ret %v_4
-  }
-}
-
-Gate.depthOf<complex>(%self: Ptr, %$body: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %self, 4: I32
+Gate.hold<complex>(%v_0: I32, %$body: Ptr): I32 {
+  b_1 {
     %v_2 = load %$body, 8: Ptr
     %v_3 = add %$body, 8: Ptr
     %v_4 = load %v_3, 8: Ptr
-    %v_5 = call_complex %v_2, %v_4, %v_1: I32
+    %v_5 = call_complex %v_2, %v_4, 0: I32
     ret %v_5
   }
 }
 
-Gate.opened<complex>(%v_0: Ptr, %self: Ptr, %$body: Ptr) {
+Gate.depthOf<complex>(%v_0: I32, %$body: Ptr): I32 {
   b_1 {
-    %v_2 = loads %self, 4: I32
-    %v_3 = cmp_ile %v_2, 0: I32
-    je %v_3, b_4, b_5
+    %v_2 = load %$body, 8: Ptr
+    %v_3 = add %$body, 8: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    %v_5 = call_complex %v_2, %v_4, %v_0: I32
+    ret %v_5
   }
+}
 
-  b_5 {
-    %v_6 = imul %v_2, 10: I32
-    %v_7 = load %$body, 8: Ptr
-    %v_8 = add %$body, 8: Ptr
-    %v_9 = load %v_8, 8: Ptr
-    %v_10 = call_complex %v_7, %v_9, %v_6: I32
-    store %v_0, 0, 1
-    %v_11 = add %v_0, 4: Ptr
-    store %v_11, %v_10, 4
-    ret 
+Gate.opened<complex>(%v_0: I32, %$body: Ptr): I32, I32 {
+  b_1 {
+    %v_2 = cmp_ile %v_0, 0: I32
+    je %v_2, b_3, b_4
   }
 
   b_4 {
-    store %v_0, 1, 1
-    %v_12 = add %v_0, 4: Ptr
-    store %v_12, 5, 4
-    ret 
+    %v_5 = imul %v_0, 10: I32
+    %v_6 = load %$body, 8: Ptr
+    %v_7 = add %$body, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = call_complex %v_6, %v_8, %v_5: I32
+    ret 0, %v_9
+  }
+
+  b_3 {
+    ret 1, 5
   }
 }
 
@@ -196,10 +187,9 @@ main<complex>(): I32 {
   }
 }
 
-twiceDeep(Gate)<complex>(%self: Ptr, %$body: Ptr): I32 {
-  b_0 {
-    %v_1 = loads %self, 4: I32
-    %v_2 = shl %v_1, 1: I32
+twiceDeep(Gate)<complex>(%v_0: I32, %$body: Ptr): I32 {
+  b_1 {
+    %v_2 = shl %v_0, 1: I32
     %v_3 = load %$body, 8: Ptr
     %v_4 = add %$body, 8: Ptr
     %v_5 = load %v_4, 8: Ptr
@@ -208,20 +198,19 @@ twiceDeep(Gate)<complex>(%self: Ptr, %$body: Ptr): I32 {
   }
 }
 
-steps(Gate)<complex>(%self: Ptr, %$body: Ptr): I32 {
-  b_0 {
-    jmp b_1
+steps(Gate)<complex>(%v_0: I32, %$body: Ptr): I32 {
+  b_1 {
+    jmp b_2
   }
 
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: I32
-    %v_5 = loads %self, 4: I32
-    %v_6 = cmp_ilt %v_2, %v_5: I32
+  b_2 {
+    %v_3 = phi [b_1, 0], [b_4, %v_5]: I32
+    %v_6 = cmp_ilt %v_3, %v_0: I32
     je %v_6, b_7, b_8
   }
 
   b_8 {
-    %v_9 = phi [b_1, 0], [b_10, %v_11]: I32
+    %v_9 = phi [b_2, 0], [b_10, %v_11]: I32
     ret %v_9
   }
 
@@ -229,14 +218,14 @@ steps(Gate)<complex>(%self: Ptr, %$body: Ptr): I32 {
     %v_12 = load %$body, 8: Ptr
     %v_13 = add %$body, 8: Ptr
     %v_14 = load %v_13, 8: Ptr
-    %v_11 = call_complex %v_12, %v_14, %v_2: I32
+    %v_11 = call_complex %v_12, %v_14, %v_3: I32
     %v_15 = cmp_eq %v_11, 0: I32
-    je %v_15, b_3, b_10
+    je %v_15, b_4, b_10
   }
 
-  b_3 {
-    %v_4 = add %v_2, 1: I32
-    jmp b_1
+  b_4 {
+    %v_5 = add %v_3, 1: I32
+    jmp b_2
   }
 
   b_10 {
@@ -271,43 +260,52 @@ teardown()<complex>(%v_0: Ptr) {
 
 thunk(Gate.depth)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
   b_2 {
-    %v_3 = call_complex Gate.depth, %v_1: I32
-    ret %v_3
+    %v_3 = load %v_1, 4: I32
+    %v_4 = call_complex Gate.depth, %v_3: I32
+    ret %v_4
   }
 }
 
 thunk(Gate.hold)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr): I32 {
   b_3 {
-    %v_4 = call_complex Gate.hold, %v_1, %v_2: I32
-    ret %v_4
+    %v_4 = load %v_1, 4: I32
+    %v_5 = call_complex Gate.hold, %v_4, %v_2: I32
+    ret %v_5
   }
 }
 
 thunk(Gate.depthOf)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr): I32 {
   b_3 {
-    %v_4 = call_complex Gate.depthOf, %v_1, %v_2: I32
-    ret %v_4
+    %v_4 = load %v_1, 4: I32
+    %v_5 = call_complex Gate.depthOf, %v_4, %v_2: I32
+    ret %v_5
   }
 }
 
 thunk(Gate.opened)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr, %v_3: Ptr) {
   b_4 {
-    call_complex Gate.opened, %v_1, %v_2, %v_3
+    %v_5 = load %v_2, 4: I32
+    %v_6, %v_7 = call_complex Gate.opened, %v_5, %v_3: I32, I32
+    store %v_1, %v_6, 1
+    %v_8 = add %v_1, 4: Ptr
+    store %v_8, %v_7, 4
     ret 
   }
 }
 
 thunk(twiceDeep(Gate))<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr): I32 {
   b_3 {
-    %v_4 = call_complex twiceDeep(Gate), %v_1, %v_2: I32
-    ret %v_4
+    %v_4 = load %v_1, 4: I32
+    %v_5 = call_complex twiceDeep(Gate), %v_4, %v_2: I32
+    ret %v_5
   }
 }
 
 thunk(steps(Gate))<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr): I32 {
   b_3 {
-    %v_4 = call_complex steps(Gate), %v_1, %v_2: I32
-    ret %v_4
+    %v_4 = load %v_1, 4: I32
+    %v_5 = call_complex steps(Gate), %v_4, %v_2: I32
+    ret %v_5
   }
 }
 

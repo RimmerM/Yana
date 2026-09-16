@@ -1,10 +1,10 @@
 mut @drops = [0, 0, 0, 0]
 
-Held.drop<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = loads @drops, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @drops, %v_2, 4
+Held.drop<complex>(%v_0: I32) {
+  b_1 {
+    %v_2 = loads @drops, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store @drops, %v_3, 4
     ret 
   }
 }
@@ -91,7 +91,8 @@ teardown(Maybe(Held))<complex>(%v_0: Ptr) {
 
   b_4 {
     %v_7 = add %v_0, 4: Ptr
-    call_complex Held.drop, %v_7
+    %v_8 = load %v_7, 4: I32
+    call_complex Held.drop, %v_8
     jmp b_6
   }
 

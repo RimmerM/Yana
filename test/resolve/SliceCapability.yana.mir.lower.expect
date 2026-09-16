@@ -5,7 +5,7 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I64 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
+    %v_1 = alloca 4, 8: Ptr
     %v_2 = call_complex allocateHeap, 12: Ptr
     %v_3 = bitcast %v_2: I64
     %v_4 = cmp_eq %v_3, 0: I32
@@ -24,97 +24,99 @@ main<complex>(): I64 {
   }
 
   b_17 {
-    call_complex Array(a).reclaim(I32), %v_1
+    %v_18 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_18, %v_19
     ret 18446744073709551615
   }
 
   b_16 {
-    %v_18 = loads %v_11, 4: I32
-    %v_19 = cmp_neq %v_18, 2: I32
-    je %v_19, b_20, b_21
+    %v_20 = loads %v_11, 4: I32
+    %v_21 = cmp_neq %v_20, 2: I32
+    je %v_21, b_22, b_23
   }
 
   b_15 {
-    call_complex Array(a).reclaim(I32), %v_1
+    %v_24 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_24, %v_19
     ret 18446744073709551614
   }
 
-  b_21 {
-    %v_22 = loads %v_23, 4: I32
-    %v_24 = cmp_neq %v_22, 2: I32
-    je %v_24, b_25, b_26
+  b_23 {
+    %v_25 = loads %v_26, 4: I32
+    %v_27 = cmp_neq %v_25, 2: I32
+    je %v_27, b_28, b_29
   }
 
-  b_20 {
-    call_complex Array(a).reclaim(I32), %v_1
+  b_22 {
+    %v_30 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_30, %v_19
     ret 18446744073709551613
   }
 
-  b_26 {
+  b_29 {
     store %v_2, 100, 4
-    %v_27 = loads %v_2, 4: I32
-    %v_28 = cmp_neq %v_27, 100: I32
-    je %v_28, b_29, b_30
+    %v_31 = loads %v_2, 4: I32
+    %v_32 = cmp_neq %v_31, 100: I32
+    je %v_32, b_33, b_34
   }
 
-  b_25 {
-    call_complex Array(a).reclaim(I32), %v_1
+  b_28 {
+    %v_35 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_35, %v_19
     ret 18446744073709551612
   }
 
-  b_30 {
-    %v_31 = loads %v_11, 4: I32
-    %v_32 = loads %v_23, 4: I32
-    call_complex Array(a).reclaim(I32), %v_1
-    %v_33 = add %v_31, %v_32: I32
-    %v_34 = sext %v_33: I64
-    ret %v_34
+  b_34 {
+    %v_36 = loads %v_11, 4: I32
+    %v_37 = loads %v_26, 4: I32
+    %v_38 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_38, %v_19
+    %v_39 = add %v_36, %v_37: I32
+    %v_40 = sext %v_39: I64
+    ret %v_40
   }
 
-  b_29 {
-    call_complex Array(a).reclaim(I32), %v_1
+  b_33 {
+    %v_41 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_41, %v_19
     ret 18446744073709551610
   }
 
   b_6 {
-    store %v_1, %v_2, 8
-    %v_35 = add %v_1, 8: Ptr
-    store %v_35, 1073741827, 4
-    %v_36 = add %v_1, 12: Ptr
-    store %v_36, 3, 4
+    store %v_1, 1073741827, 4
+    %v_19 = imm 3: I32
     store %v_2, 3, 4
     %v_11 = add %v_2, 4: Ptr
     store %v_11, 1, 4
-    %v_23 = add %v_2, 8: Ptr
-    store %v_23, 2, 4
+    %v_26 = add %v_2, 8: Ptr
+    store %v_26, 2, 4
     %v_9 = loads %v_2, 4: I32
-    %v_37 = cmp_neq %v_9, 3: I32
-    je %v_37, b_17, b_7
+    %v_42 = cmp_neq %v_9, 3: I32
+    je %v_42, b_17, b_7
   }
 
   b_5 {
-    %v_38 = syscall 60, 134: I64
+    %v_43 = syscall 60, 134: I64
     unreachable 
   }
 }
 
-Array(a).reclaim(I32)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    %v_2 = add %value, 8: Ptr
-    %v_3 = load %v_2, 4: I64
-    %v_4 = shr %v_3, 30: I64
-    %v_5 = cast %v_4: I32
-    %v_6 = cmp_eq %v_5, 1: I32
-    je %v_6, b_7, b_8
-  }
-
-  b_7 {
-    call_complex freeHeap, %v_1
-    jmp b_8
+Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
+  b_3 {
+    %v_4 = cast %v_1: I64
+    %v_5 = shr %v_4, 30: I64
+    %v_6 = cast %v_5: I32
+    %v_7 = cmp_eq %v_6, 1: I32
+    je %v_7, b_8, b_9
   }
 
   b_8 {
+    %v_10 = bitcast %v_0: Ptr
+    call_complex freeHeap, %v_10
+    jmp b_9
+  }
+
+  b_9 {
     ret 
   }
 }
@@ -317,11 +319,9 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-Run(a).reclaim(I32)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Ptr
-    %v_2 = add %value, 8: Ptr
-    %v_3 = load %v_2, 4: I64
+Run(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = cast %v_1: I64
     %v_4 = shr %v_3, 30: I64
     %v_5 = cast %v_4: I32
     %v_6 = cmp_eq %v_5, 1: I32
@@ -329,7 +329,8 @@ Run(a).reclaim(I32)<complex>(%value: Ptr) {
   }
 
   b_7 {
-    call_complex freeHeap, %v_1
+    %v_9 = bitcast %v_0: Ptr
+    call_complex freeHeap, %v_9
     jmp b_8
   }
 

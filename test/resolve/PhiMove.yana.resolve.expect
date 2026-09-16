@@ -248,17 +248,17 @@ fn showSigned32(%value: I32, %to: String) -> () {
     %v8 = borrow_mut %to : &String
     call String.pushUnit, %v8, 45
     %v11 = bitcast %value : U32
-    %v12 = sub 0, %v11 : U32
-    %v13 = load %to : String
-    %v14 = borrow_mut %to : &String
-    call pushUnsigned32, %v12, %v14
+    %v13 = sub 0, %v11 : U32
+    %v14 = load %to : String
+    %v15 = borrow_mut %to : &String
+    call pushUnsigned32, %v13, %v15
     jmp b3
 
   b2:
-    %v16 = bitcast %value : U32
-    %v17 = load %to : String
-    %v18 = borrow_mut %to : &String
-    call pushUnsigned32, %v16, %v18
+    %v17 = bitcast %value : U32
+    %v18 = load %to : String
+    %v19 = borrow_mut %to : &String
+    call pushUnsigned32, %v17, %v19
     jmp b3
 
   b3:
@@ -791,8 +791,8 @@ fn heapClassOf(%total: Size) -> Size {
 
 fn heapBlockSize(%sizeClass: Size) -> Size {
   b0:
-    %v2 = shl 16, %sizeClass : Size
-    ret %v2
+    %v3 = shl 16, %sizeClass : Size
+    ret %v3
 }
 
 fn freeListHead(%sizeClass: Size) -> %U8 {

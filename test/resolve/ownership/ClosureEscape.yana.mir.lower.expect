@@ -4,11 +4,11 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Guard.drop<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = loads @dropCalls, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @dropCalls, %v_2, 4
+Guard.drop<complex>(%v_0: I32) {
+  b_1 {
+    %v_2 = loads @dropCalls, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store @dropCalls, %v_3, 4
     ret 
   }
 }
@@ -17,73 +17,71 @@ round'2<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 16, 8: Ptr
+    %returned.lambda = fun returned.lambda: Ptr
     %v_3 = call_complex allocateHeap, 12: Ptr
     store %v_3, closure(returned.lambda.env), 8
     %v_4 = add %v_3, 8: Ptr
     store %v_4, 1, 4
     %v_5 = or %v_3, 1: Ptr
-    store %v_1, returned.lambda, 8
+    store %v_1, %returned.lambda, 8
     %v_6 = add %v_1, 8: Ptr
     store %v_6, %v_5, 8
-    %v_7 = load %v_1, 8: Ptr
-    %v_8 = call_complex %v_7, %v_5, 10: I32
+    %v_7 = call_complex %returned.lambda, %v_5, 10: I32
     call_complex teardown(fun), %v_1
-    %v_9 = call_complex allocateHeap, 12: Ptr
-    store %v_9, closure(inRecord.lambda.env), 8
-    %v_10 = add %v_9, 8: Ptr
-    store %v_10, 2, 4
-    %v_11 = or %v_9, 1: Ptr
-    store %v_2, inRecord.lambda, 8
-    %v_12 = add %v_2, 8: Ptr
-    store %v_12, %v_11, 8
-    %v_13 = load %v_2, 8: Ptr
-    %v_14 = call_complex %v_13, %v_11, 20: I32
+    %inRecord.lambda = fun inRecord.lambda: Ptr
+    %v_8 = call_complex allocateHeap, 12: Ptr
+    store %v_8, closure(inRecord.lambda.env), 8
+    %v_9 = add %v_8, 8: Ptr
+    store %v_9, 2, 4
+    %v_10 = or %v_8, 1: Ptr
+    store %v_2, %inRecord.lambda, 8
+    %v_11 = add %v_2, 8: Ptr
+    store %v_11, %v_10, 8
+    %v_12 = call_complex %inRecord.lambda, %v_10, 20: I32
     call_complex teardown(fun), %v_2
-    %v_15 = add %v_8, %v_14: I32
-    %v_16 = call_complex allocateHeap, 12: Ptr
-    store %v_16, closure(handedOff.lambda.env), 8
-    %v_17 = add %v_16, 8: Ptr
-    store %v_17, 3, 4
-    %v_18 = or %v_16, 1: Ptr
-    %v_19 = alloca 16, 8: Ptr
-    store %v_19, handedOff.lambda, 8
-    %v_20 = add %v_19, 8: Ptr
-    store %v_20, %v_18, 8
-    %v_21 = load %v_19, 8: Ptr
-    %v_22 = call_complex %v_21, %v_18, 1: I32
-    call_complex teardown(fun), %v_19
-    %v_23 = add %v_15, %v_22: I32
-    %v_24 = alloca 16, 8: Ptr
-    %v_25 = call_complex allocateHeap, 12: Ptr
-    store %v_25, closure(returned.lambda.env), 8
-    %v_26 = add %v_25, 8: Ptr
-    store %v_26, 4, 4
-    %v_27 = or %v_25, 1: Ptr
-    store %v_24, returned.lambda, 8
-    %v_28 = add %v_24, 8: Ptr
-    store %v_28, %v_27, 8
-    %v_29 = load %v_24, 8: Ptr
-    %v_30 = call_complex %v_29, %v_27, 10: I32
-    call_complex teardown(fun), %v_24
-    %v_31 = add %v_23, %v_30: I32
-    %v_32 = alloca 16, 8: Ptr
-    %v_33 = call_complex allocateHeap, 12: Ptr
-    store %v_33, closure(returned.lambda.env), 8
-    %v_34 = add %v_33, 8: Ptr
-    store %v_34, 5, 4
-    %v_35 = or %v_33, 1: Ptr
-    store %v_32, returned.lambda, 8
-    %v_36 = add %v_32, 8: Ptr
-    store %v_36, %v_35, 8
-    %v_37 = load %v_32, 8: Ptr
-    %v_38 = call_complex %v_37, %v_35, 20: I32
-    call_complex teardown(fun), %v_32
-    %v_39 = add %v_31, %v_38: I32
-    %v_40 = alloca 4, 4: Ptr
-    store %v_40, 6, 4
-    call_complex Guard.drop, %v_40
-    %v_41 = add %v_39, 36: I32
-    ret %v_41
+    %v_13 = add %v_7, %v_12: I32
+    %handedOff.lambda = fun handedOff.lambda: Ptr
+    %v_14 = call_complex allocateHeap, 12: Ptr
+    store %v_14, closure(handedOff.lambda.env), 8
+    %v_15 = add %v_14, 8: Ptr
+    store %v_15, 3, 4
+    %v_16 = or %v_14, 1: Ptr
+    %v_17 = alloca 16, 8: Ptr
+    store %v_17, %handedOff.lambda, 8
+    %v_18 = add %v_17, 8: Ptr
+    store %v_18, %v_16, 8
+    %v_19 = call_complex %handedOff.lambda, %v_16, 1: I32
+    call_complex teardown(fun), %v_17
+    %v_20 = add %v_13, %v_19: I32
+    %v_21 = alloca 16, 8: Ptr
+    %returned.lambda = fun returned.lambda: Ptr
+    %v_22 = call_complex allocateHeap, 12: Ptr
+    store %v_22, closure(returned.lambda.env), 8
+    %v_23 = add %v_22, 8: Ptr
+    store %v_23, 4, 4
+    %v_24 = or %v_22, 1: Ptr
+    store %v_21, %returned.lambda, 8
+    %v_25 = add %v_21, 8: Ptr
+    store %v_25, %v_24, 8
+    %v_26 = call_complex %returned.lambda, %v_24, 10: I32
+    call_complex teardown(fun), %v_21
+    %v_27 = add %v_20, %v_26: I32
+    %v_28 = alloca 16, 8: Ptr
+    %returned.lambda = fun returned.lambda: Ptr
+    %v_29 = call_complex allocateHeap, 12: Ptr
+    store %v_29, closure(returned.lambda.env), 8
+    %v_30 = add %v_29, 8: Ptr
+    store %v_30, 5, 4
+    %v_31 = or %v_29, 1: Ptr
+    store %v_28, %returned.lambda, 8
+    %v_32 = add %v_28, 8: Ptr
+    store %v_32, %v_31, 8
+    %v_33 = call_complex %returned.lambda, %v_31, 20: I32
+    call_complex teardown(fun), %v_28
+    %v_34 = add %v_27, %v_33: I32
+    call_complex Guard.drop, 6
+    %v_35 = add %v_34, 36: I32
+    ret %v_35
   }
 }
 
@@ -395,7 +393,8 @@ closure(returned.lambda.env)<complex>(%v_0: Ptr) {
 
 teardown(returned.lambda.env)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex Guard.drop, %v_0
+    %v_2 = load %v_0, 4: I32
+    call_complex Guard.drop, %v_2
     ret 
   }
 }
@@ -433,7 +432,8 @@ closure(inRecord.lambda.env)<complex>(%v_0: Ptr) {
 
 teardown(inRecord.lambda.env)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex Guard.drop, %v_0
+    %v_2 = load %v_0, 4: I32
+    call_complex Guard.drop, %v_2
     ret 
   }
 }
@@ -449,7 +449,8 @@ closure(handedOff.lambda.env)<complex>(%v_0: Ptr) {
 
 teardown(handedOff.lambda.env)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex Guard.drop, %v_0
+    %v_2 = load %v_0, 4: I32
+    call_complex Guard.drop, %v_2
     ret 
   }
 }

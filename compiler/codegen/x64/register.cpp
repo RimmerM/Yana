@@ -167,6 +167,30 @@ static void chooseTemporaryPool(LowerBase base, LowerFunction& fun, const Machin
 
     for(auto a: fun.args.contents(base)) note((LowerInst*)base[a]);
 
+    /*
+     * And the registers this function's own arguments **arrive** in, which no instruction's shape
+     * names: an argument is placed by the convention before the first instruction, and the entry
+     * copies that move it home run in front of everything - so a scratch in one of those registers
+     * is overwritten by, or overwrites, an argument still in transit. A stack argument copied to a
+     * spill slot is the move that takes a scratch.
+     *
+     * It held by accident while `rax` was in no convention's argument list, because `rax` is the
+     * first register this pool reaches for. Since `complex` passes a ninth argument in it,
+     * `spawnReporting` in `lib/Test/Harness.native.yana` had its tenth argument loaded through `rax`
+     * while its ninth was still sitting there.
+     */
+    {
+        auto args = fun.args.contents(base);
+        ArgLocationList arrived;
+        classifyArgs(constraints.getConvention(fun.callType), args.size(), [&](Size i) {
+            return base[args[i]]->result.type;
+        }, arrived);
+
+        for(auto& location: arrived) {
+            if(location.kind == ArgLocation::Register) fixed.add(location.reg);
+        }
+    }
+
     for(auto b: fun.blocks.contents(base)) {
         auto block = base[b];
 
