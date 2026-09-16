@@ -319,15 +319,18 @@ fn collectReport(path: String) -> ChildReport:
    knows the path.
 -}
 fn collectComplaint(path: String) -> String:
-    let &said = match readWholeFile(path):
-        Ok(text) -> trim(text)
+    let text = match readWholeFile(path):
+        Ok(->contents) -> contents
         Err(_) -> ""
 
     removeFile(path)
 
-    return match findAscii(said, 10):
-        Nothing -> said
-        Just(at) -> trimEnd(String.slice(said, 0, at))
+    -- Windows of `text` until the one line is found, and one copy of that line.
+    let said = trim(text)
+    let &end = length(said)
+    if findAscii(said, 10) is Just(at) then end = at
+
+    return copy(trimEnd(said.slice(0, end)))
 
 {-
    What all of that came to, for one case.

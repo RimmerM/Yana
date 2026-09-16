@@ -314,7 +314,7 @@ fn sameLineMultiset(before: String, after: String) -> Bool:
 fn linesOf(text: String) -> [String]:
     let &out = [] :: [String]
     for line in lines(text):
-        push(out, line)
+        push(out, copy(line))
 
     return out
 
@@ -369,7 +369,7 @@ fn takeLine(text: String, &at: Size) -> String:
     while end < length(text) && text.unit(end) != 10:
         end = end + 1
 
-    let line = String.slice(text, at, end)
+    let line = copy(text.slice(at, end))
     at = if end < length(text) then end + 1 else end
     return line
 

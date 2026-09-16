@@ -1,0 +1,25 @@
+import Native
+
+{-
+   `String.slice` under the ownership resolve stage - a window, and `String.yana` has the contract.
+
+   Two words over the units `text` already holds, rooted in `text` by `source'` exactly as
+   `Array.native.yana`'s `slice` roots a subslice: the loan that covers `text` covers the window, so
+   the checker refuses a window that outlives what it looks into. No allocation and no copy - a
+   caller that needs an independent owner writes `copy`.
+
+   The clamping is `slice`'s over an array, in the same order: `start` into `[0, count]`, then `end`
+   into `[start, count]`, so an empty or inverted range is an empty window at `start` rather than a
+   pointer outside the string.
+-}
+@platform(native) pub fn String.slice(text: source'String, from: Size, to: Size) -> source'String:
+    let count = length(text)
+    let &start = from
+    if start < (0 :: Size) then start = 0
+    if start > count then start = count
+
+    let &end = to
+    if end < start then end = start
+    if end > count then end = count
+
+    return StringView {units: units(text) + start, length: end - start}

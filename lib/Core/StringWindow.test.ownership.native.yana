@@ -1,0 +1,79 @@
+{-
+   Implementation-String.md part 4, under the ownership resolve stage: `String.slice`, the trims and
+   the splits hand back **windows** into the text they were given - the same units, not a copy.
+
+   What `Text.test.yana` checks is the *content*, on every stage and target. What only this file can
+   check is the representation, because the legacy stage copies (`String.legacy.native.yana`) and a
+   host string has no address: each case compares where a result's units are against where the
+   text's are, which is the one observation a copy cannot pass.
+-}
+
+import Native
+import Test
+
+-- How far into `text` the units of `part` begin, or a number outside it when they are elsewhere.
+fn offsetIn(text: String, part: String) -> Size =
+    (bitcast(units(part)) :: Size) - (bitcast(units(text)) :: Size)
+
+@test fn sliceSharesUnits():
+    let text = copy("name,age,city")
+    let part = text.slice(5, 8)
+
+    checkEqual(part, "age")
+    checkEqual(offsetIn(text, part), 5 :: Size)
+
+-- A clamped or empty range is still a window inside the text, never a pointer past either end.
+@test fn clampedSliceStaysInside():
+    let text = copy("name,age,city")
+
+    checkEqual(offsetIn(text, text.slice(0 - 5, 4)), 0 :: Size)
+    checkEqual(offsetIn(text, text.slice(20, 30)), length(text))
+    checkEqual(offsetIn(text, text.slice(9, 4)), 9 :: Size)
+    checkEqual(length(text.slice(9, 4)), 0 :: Size)
+
+@test fn trimSharesUnits():
+    let text = copy("  hello  ")
+
+    checkEqual(offsetIn(text, trim(text)), 2 :: Size)
+    checkEqual(offsetIn(text, trimStart(text)), 2 :: Size)
+    checkEqual(offsetIn(text, trimEnd(text)), 0 :: Size)
+
+@test fn splitPartsShareUnits():
+    let text = copy("a,bb,ccc")
+    let &expected = 0 :: Size
+
+    for part in splitOn(text, 44):
+        checkEqual(offsetIn(text, part), expected)
+        expected = expected + length(part) + 1
+
+    let lined = copy("one\r\ntwo\nthree")
+    let &at = 0 :: Int
+    for line in lines(lined):
+        if at == 0 then checkEqual(offsetIn(lined, line), 0 :: Size)
+        if at == 1 then checkEqual(offsetIn(lined, line), 5 :: Size)
+        if at == 2 then checkEqual(offsetIn(lined, line), 9 :: Size)
+        at = at + 1
+
+    checkEqual(at, 3)
+
+@test fn wordsShareUnits():
+    let text = copy("  alpha beta ")
+    let &offsets = [] :: [Size]
+
+    for word in words(text):
+        push(offsets, offsetIn(text, word))
+
+    checkEqual(length(offsets), 2 :: Size)
+    checkEqual(offsets[0], 2 :: Size)
+    checkEqual(offsets[1], 8 :: Size)
+
+-- A kept part is a `copy`, which is the one place a split allocates, and it is its own storage.
+@test fn copiedPartIsIndependent():
+    let text = copy("left,right")
+    let &kept = [] :: [String]
+
+    for part in splitOn(text, 44):
+        push(kept, copy(part))
+
+    checkEqual(kept[1], "right")
+    check(offsetIn(text, kept[1]) != (5 :: Size))

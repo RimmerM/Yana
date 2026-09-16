@@ -16,7 +16,7 @@ bb1:
   %8: %List address = field.addr .tail inspect %0
   %9: List [shared call] guaranteed from{%0} = load inspect %8
   %10: I32 trivial = load inspect %1
-  %11: List [shared call] guaranteed from{%0, %9} = load inspect %9
+  %11: List [shared call] guaranteed from{%0} = load inspect %9
   %12: I32 trivial = call sum'2 borrow %11
   %13: I32 trivial = add inspect %10 inspect %12
   return consume %13
@@ -42,7 +42,7 @@ bb1:
   %8: %List address = field.addr .tail inspect %0
   %9: List [shared call] guaranteed from{%0} = load inspect %8
   %10: I32 trivial = const 1
-  %11: List [shared call] guaranteed from{%0, %9} = load inspect %9
+  %11: List [shared call] guaranteed from{%0} = load inspect %9
   %12: I32 trivial = call length'2 borrow %11
   %13: I32 trivial = add inspect %10 inspect %12
   return consume %13
@@ -70,8 +70,8 @@ bb1:
   %10: %Maybe(Tree) address = field.addr .right inspect %0
   %11: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %10
   %12: I32 trivial = const 1
-  %13: Maybe(Tree) [shared call] guaranteed from{%0, %9} = load inspect %9
-  %14: Maybe(Tree) [shared call] guaranteed from{%0, %11} = load inspect %11
+  %13: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %9
+  %14: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %11
   %15: I32 trivial = call deeper borrow %13 borrow %14
   %16: I32 trivial = add inspect %12 inspect %15
   return consume %16
@@ -119,7 +119,7 @@ bb0(%0: Maybe(Tree) [shared call] guaranteed):
 bb1:
   %5: %Tree address = field.addr .Just inspect %0
   %6: Tree [shared call] guaranteed from{%0} = load inspect %5
-  %7: Tree [shared call] guaranteed from{%0, %6} = load inspect %6
+  %7: Tree [shared call] guaranteed from{%0} = load inspect %6
   %8: I32 trivial = call depth borrow %7
   return consume %8
 
@@ -146,10 +146,10 @@ bb1:
   %10: %Maybe(Tree) address = field.addr .right inspect %0
   %11: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %10
   %12: I32 trivial = load inspect %1
-  %13: Maybe(Tree) [shared call] guaranteed from{%0, %9} = load inspect %9
+  %13: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %9
   %14: I32 trivial = call branchTotal borrow %13
   %15: I32 trivial = add inspect %12 inspect %14
-  %16: Maybe(Tree) [shared call] guaranteed from{%0, %11} = load inspect %11
+  %16: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %11
   %17: I32 trivial = call branchTotal borrow %16
   %18: I32 trivial = add inspect %15 inspect %17
   return consume %18
@@ -170,7 +170,7 @@ bb0(%0: Maybe(Tree) [shared call] guaranteed):
 bb1:
   %5: %Tree address = field.addr .Just inspect %0
   %6: Tree [shared call] guaranteed from{%0} = load inspect %5
-  %7: Tree [shared call] guaranteed from{%0, %6} = load inspect %6
+  %7: Tree [shared call] guaranteed from{%0} = load inspect %6
   %8: I32 trivial = call total borrow %7
   return consume %8
 
@@ -195,7 +195,7 @@ bb1:
   %8: %Stack(I32) address = field.addr .rest inspect %0
   %9: Stack(I32) [shared call] guaranteed from{%0} = load inspect %8
   %10: I32 trivial = const 1
-  %11: Stack(I32) [shared call] guaranteed from{%0, %9} = load inspect %9
+  %11: Stack(I32) [shared call] guaranteed from{%0} = load inspect %9
   %12: I32 trivial = call count'2 borrow %11
   %13: I32 trivial = add inspect %10 inspect %12
   return consume %13
@@ -221,7 +221,7 @@ bb1:
   %8: %Stack(I32) address = field.addr .rest inspect %0
   %9: Stack(I32) [shared call] guaranteed from{%0} = load inspect %8
   %10: I32 trivial = load inspect %1
-  %11: Stack(I32) [shared call] guaranteed from{%0, %9} = load inspect %9
+  %11: Stack(I32) [shared call] guaranteed from{%0} = load inspect %9
   %12: I32 trivial = call peak borrow %11
   %13: I32 trivial = call max'3 borrow %10 borrow %12
   return consume %13

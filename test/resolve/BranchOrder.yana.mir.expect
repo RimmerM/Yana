@@ -1,8 +1,8 @@
 module ResolveTest
 
-let string'143: [CodeUnit *2] = "99"
+let string'142: [CodeUnit *2] = "99"
 
-let string'144: [CodeUnit *2] = "19"
+let string'143: [CodeUnit *2] = "19"
 
 fn withAnd(text: String [shared call view], keep: I32 [shared call], out: String [unique call]) -> I32 {
   local & kept: String
@@ -240,7 +240,7 @@ bb0:
   %3: String = call String.ofCapacity borrow.shared %2
   write.init borrow.unique (out) take %3
   %5: I32 = read copy.trivial (total)
-  %6: String = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %6: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
   write.init borrow.unique (local2) take %6
   %8: String [shared slot 0] = read borrow.shared (local2) loan0
   %9: String [shared slot 0 view] = call.derivation view(String) borrow.shared %8 roots{0}
@@ -251,7 +251,7 @@ bb0:
   %13: I32 = add inspect %5 inspect %12
   write.assign borrow.unique (total) take %13
   %15: I32 = read copy.trivial (total)
-  %16: String = const String {units: Array {run: Run {items: &string'144, capacity: 2, ownsHeap: 0}, length: 2}}
+  %16: String = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
   write.init borrow.unique (local3) take %16
   %18: String [shared slot 0] = read borrow.shared (local3) loan2
   %19: String [shared slot 0 view] = call.derivation view(String) borrow.shared %18 roots{2}

@@ -1,8 +1,8 @@
 module ResolveTest
 
-let string'143: [CodeUnit *2] = "ab"
+let string'142: [CodeUnit *2] = "ab"
 
-let string'144: [CodeUnit *4] = "abcd"
+let string'143: [CodeUnit *4] = "abcd"
 
 fn explain(it: a [shared call], why: () -> I32 [shared call]) -> I32 = <no body>
 
@@ -571,7 +571,7 @@ bb0:
   %137: I32 trivial = call I32.explain borrow %136 borrow %135
   %138: I32 trivial = add inspect %133 inspect %137
   %139: I32 trivial = const 1
-  %140: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %140: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %18 consume %140
   %141: String [shared call] guaranteed from{%18} = load inspect %18
   %142: String [shared call view] guaranteed = call String.view borrow %141
@@ -579,7 +579,7 @@ bb0:
   drop String inspect %18
   %144: I32 trivial = add inspect %138 inspect %143
   %145: I32 trivial = const 1
-  %146: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 4, ownsHeap: 0}, length: 4}}
+  %146: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
   store inspect %19 consume %146
   %147: String [shared slot 0] guaranteed from{%19} = load inspect %19
   %148: String [shared slot 0 view] guaranteed from{%19} = call String.view borrow %147

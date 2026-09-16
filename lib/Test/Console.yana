@@ -387,10 +387,13 @@ fn Console.tally(&self: Console, name: String, nanos: I64, outcome: Outcome):
    name may not, because it is a declaration name. So the final dot is the join `qualifiedName` made
    and there is no ambiguity to resolve. A name with no dot at all is its own module, which is what a
    caller outside the runner would hand over.
+
+   A lens, so what the caller compares is a window of `name`; it copies only when it keeps one.
 -}
-fn moduleOf(name: String) -> String = match findLastAscii(name, 46):
-    Just(at) -> String.slice(name, 0, at)
-    Nothing -> copy(name)
+lens fn moduleOf(name: String) -> String:
+    let &end = length(name)
+    if findLastAscii(name, 46) is Just(at) then end = at
+    yield name.slice(0, end)
 
 {-
    The tallies as the table a long run ends with.

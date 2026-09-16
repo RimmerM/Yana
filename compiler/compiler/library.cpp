@@ -222,7 +222,7 @@ static void walkModuleFiles(Context& context, LibrarySource& library, const Stri
         auto selected = selectsFileName(walk.context.settings, stem, walk.scope, isTest, unknown);
 
         if(unknown.length) {
-            walk.context.diagnostics.error("%@ in the standard library names %@, which is not a selector - a file name selects a target with `native`, `js`, an operating system, an architecture, an x86-64 level or an instruction-set extension, and an allocator with `allocator.<provider>`"_v,
+            walk.context.diagnostics.error("%@ in the standard library names %@, which is not a selector - a file name selects a target with `native`, `js`, an operating system, an architecture, an x86-64 level or an instruction-set extension, an allocator with `allocator.<provider>`, and a resolve stage with `legacy` or `ownership`"_v,
                                            nullptr, formatPath("%@/%@"_v, walk.path, fileName),
                                            toString(unknown));
             return;

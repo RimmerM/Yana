@@ -1,34 +1,34 @@
 module ResolveTest
 
-let string'143: [CodeUnit *1] = "a"
+let string'142: [CodeUnit *1] = "a"
 
-let string'144: [CodeUnit *1] = "b"
+let string'143: [CodeUnit *1] = "b"
 
-let string'145: [CodeUnit *1] = "c"
+let string'144: [CodeUnit *1] = "c"
 
-let string'146: [CodeUnit *1] = "a"
+let string'145: [CodeUnit *1] = "a"
 
-let string'147: [CodeUnit *1] = "b"
+let string'146: [CodeUnit *1] = "b"
 
-let string'148: [CodeUnit *1] = "c"
+let string'147: [CodeUnit *1] = "c"
+
+let string'148: [CodeUnit *17] = "alpha beta  gamma"
 
 let string'149: [CodeUnit *17] = "alpha beta  gamma"
 
 let string'150: [CodeUnit *17] = "alpha beta  gamma"
 
-let string'151: [CodeUnit *17] = "alpha beta  gamma"
+let string'151: [CodeUnit *8] = "a
+bb
+ccc"
 
 let string'152: [CodeUnit *8] = "a
 bb
 ccc"
 
-let string'153: [CodeUnit *8] = "a
-bb
-ccc"
+let string'153: [CodeUnit *8] = "a,bb,ccc"
 
 let string'154: [CodeUnit *8] = "a,bb,ccc"
-
-let string'155: [CodeUnit *8] = "a,bb,ccc"
 
 fn pairsByFor() -> I32 {
   local & local0: Map(String, I32) object0
@@ -38,11 +38,11 @@ fn pairsByFor() -> I32 {
   local e: Entry(String, I32) [shared slot 0 shape8 .0=shared slot 0 view .1=shared slot 0]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
   %1: I32 = const 1
-  %2: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %2: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
   %3: I32 = const 2
-  %4: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %4: String = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
   %5: I32 = const 3
   %6: Size = const 3
   %7: Map(String, I32) = call newMap(String, I32) borrow.shared %6
@@ -95,11 +95,11 @@ fn pairsByLoop() -> I32 {
   local e: Entry(String, I32) [shared call shape8 .0=shared slot 0 view .1=shared slot 0]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
+  %0: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
   %1: I32 = const 1
-  %2: String = const String {units: Array {run: Run {items: &string'147, capacity: 1, ownsHeap: 0}, length: 1}}
+  %2: String = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
   %3: I32 = const 2
-  %4: String = const String {units: Array {run: Run {items: &string'148, capacity: 1, ownsHeap: 0}, length: 1}}
+  %4: String = const String {units: Array {run: Run {items: &string'147, capacity: 1, ownsHeap: 0}, length: 1}}
   %5: I32 = const 3
   %6: Size = const 3
   %7: Map(String, I32) = call newMap(String, I32) borrow.shared %6
@@ -137,12 +137,12 @@ fn wordsByFor() -> Size {
   local text: String
   local & it: words.Iter [owned here shape12 .2.0.*=shared slot 0]
   local & total: Size
-  local w: String
+  local w: String [shared slot 0 view]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'149, capacity: 17, ownsHeap: 0}, length: 17}}
+  %0: String = const String {units: Array {run: Run {items: &string'148, capacity: 17, ownsHeap: 0}, length: 17}}
   write.init borrow.unique (text) take %0
-  %2: String [shared call] = read borrow.shared (text) loan0
+  %2: String [shared slot 0] = read borrow.shared (text) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
   %4: words.Iter [owned here shape12 .2.0.*=shared slot 0] = call words$new borrow.shared %3 roots.0{0}
   write.init borrow.unique (it) take %4
@@ -158,57 +158,52 @@ bb1:
   branch inspect %12 -> bb3 -> bb2
 
 bb2:
-  drop (it)
   drop (text)
-  %26: Size = read copy.trivial (total)
-  return take %26
+  %25: Size = read copy.trivial (total)
+  return take %25
 
 bb3:
-  %14: words.Iter [unique call shape12 .2.0.*=shared slot 0] = read borrow.unique (it) loan2 roots.0{0}
-  %15: String = call words$take borrow.unique %14
-  write.init borrow.unique (w) take %15
+  %14: StringView = read copy.trivial (it.$slot)
+  %15: String [shared slot 0 view] = represent inspect %14
+  write.init borrow.unique (w) borrow.shared %15
   %17: Size = read copy.trivial (total)
   %18: Size = const 10
   %19: Size = mul inspect %17 inspect %18
-  %20: String [shared call] = read borrow.shared (w) loan3
-  %21: String [shared slot 0 view] = call.derivation view(String) borrow.shared %20 roots{3}
-  %22: Size = call length(String) borrow.shared %21
-  drop (w)
-  %23: Size = add inspect %19 inspect %22
-  write.assign borrow.unique (total) take %23
+  %20: String [shared slot 0 view] = read borrow.shared (w) loan2
+  %21: Size = call length(String) borrow.shared %20
+  %22: Size = add inspect %19 inspect %21
+  write.assign borrow.unique (total) take %22
   jump -> bb1
 }
 
 fn wordsByLoop() -> Size {
   local text: String
   local & total: Size
-  local w: String
+  local w: String [shared slot 0 view]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'150, capacity: 17, ownsHeap: 0}, length: 17}}
+  %0: String = const String {units: Array {run: Run {items: &string'149, capacity: 17, ownsHeap: 0}, length: 17}}
   write.init borrow.unique (text) take %0
   %2: Size = const 0
   write.init borrow.unique (total) take %2
-  %4: String [shared call] = read borrow.shared (text) loan0
+  %4: String [shared slot 0] = read borrow.shared (text) loan0
   %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
   lens.call words borrow.shared %5 -> bb2
 
 bb1:
-  %18: Size = read copy.trivial (total)
-  return take %18
-
-bb2(%6: String) handover(String) many -> bb1:
   drop (text)
-  write.init borrow.unique (w) take %6
+  %17: Size = read copy.trivial (total)
+  return take %17
+
+bb2(%6: String [shared slot 0 view]) handover(String [shared slot 0 view]) many -> bb1:
+  write.init borrow.unique (w) borrow.shared %6
   %9: Size = read copy.trivial (total)
   %10: Size = const 10
   %11: Size = mul inspect %9 inspect %10
-  %12: String [shared call] = read borrow.shared (w) loan1
-  %13: String [shared slot 0 view] = call.derivation view(String) borrow.shared %12 roots{1}
-  %14: Size = call length(String) borrow.shared %13
-  drop (w)
-  %15: Size = add inspect %11 inspect %14
-  write.assign borrow.unique (total) take %15
+  %12: String [shared slot 0 view] = read borrow.shared (w) loan1 roots{0}
+  %13: Size = call length(String) borrow.shared %12
+  %14: Size = add inspect %11 inspect %13
+  write.assign borrow.unique (total) take %14
   jump -> bb1
 }
 
@@ -220,9 +215,9 @@ fn wordsByNext() -> Size {
   local w: String [shared slot 0 view]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'151, capacity: 17, ownsHeap: 0}, length: 17}}
+  %0: String = const String {units: Array {run: Run {items: &string'150, capacity: 17, ownsHeap: 0}, length: 17}}
   write.init borrow.unique (text) take %0
-  %2: String [shared call] = read borrow.shared (text) loan0
+  %2: String [shared slot 0] = read borrow.shared (text) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
   %4: words.Iter [owned here shape12 .2.0.*=shared slot 0] = call words$new borrow.shared %3 roots.0{0}
   write.init borrow.unique (it) take %4
@@ -240,7 +235,6 @@ bb1:
   branch inspect %14 -> bb3 -> bb2
 
 bb2:
-  drop (it)
   drop (text)
   %26: Size = read copy.trivial (total)
   return take %26
@@ -381,12 +375,12 @@ fn linesByFor() -> Size {
   local text: String
   local & it: lines.Iter [owned here shape12 .2.0.*=shared slot 0]
   local & packed: Size
-  local l: String
+  local l: String [shared slot 0 view]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'152, capacity: 8, ownsHeap: 0}, length: 8}}
+  %0: String = const String {units: Array {run: Run {items: &string'151, capacity: 8, ownsHeap: 0}, length: 8}}
   write.init borrow.unique (text) take %0
-  %2: String [shared call] = read borrow.shared (text) loan0
+  %2: String [shared slot 0] = read borrow.shared (text) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
   %4: lines.Iter [owned here shape12 .2.0.*=shared slot 0] = call lines$new borrow.shared %3 roots.0{0}
   write.init borrow.unique (it) take %4
@@ -402,57 +396,52 @@ bb1:
   branch inspect %12 -> bb3 -> bb2
 
 bb2:
-  drop (it)
   drop (text)
-  %26: Size = read copy.trivial (packed)
-  return take %26
+  %25: Size = read copy.trivial (packed)
+  return take %25
 
 bb3:
-  %14: lines.Iter [unique call shape12 .2.0.*=shared slot 0] = read borrow.unique (it) loan2 roots.0{0}
-  %15: String = call lines$take borrow.unique %14
-  write.init borrow.unique (l) take %15
+  %14: StringView = read copy.trivial (it.$slot)
+  %15: String [shared slot 0 view] = represent inspect %14
+  write.init borrow.unique (l) borrow.shared %15
   %17: Size = read copy.trivial (packed)
   %18: Size = const 10
   %19: Size = mul inspect %17 inspect %18
-  %20: String [shared call] = read borrow.shared (l) loan3
-  %21: String [shared slot 0 view] = call.derivation view(String) borrow.shared %20 roots{3}
-  %22: Size = call length(String) borrow.shared %21
-  drop (l)
-  %23: Size = add inspect %19 inspect %22
-  write.assign borrow.unique (packed) take %23
+  %20: String [shared slot 0 view] = read borrow.shared (l) loan2
+  %21: Size = call length(String) borrow.shared %20
+  %22: Size = add inspect %19 inspect %21
+  write.assign borrow.unique (packed) take %22
   jump -> bb1
 }
 
 fn linesByLoop() -> Size {
   local text: String
   local & packed: Size
-  local l: String
+  local l: String [shared slot 0 view]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'153, capacity: 8, ownsHeap: 0}, length: 8}}
+  %0: String = const String {units: Array {run: Run {items: &string'152, capacity: 8, ownsHeap: 0}, length: 8}}
   write.init borrow.unique (text) take %0
   %2: Size = const 0
   write.init borrow.unique (packed) take %2
-  %4: String [shared call] = read borrow.shared (text) loan0
+  %4: String [shared slot 0] = read borrow.shared (text) loan0
   %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
   lens.call lines borrow.shared %5 -> bb2
 
 bb1:
-  %18: Size = read copy.trivial (packed)
-  return take %18
-
-bb2(%6: String) handover(String) many -> bb1:
   drop (text)
-  write.init borrow.unique (l) take %6
+  %17: Size = read copy.trivial (packed)
+  return take %17
+
+bb2(%6: String [shared slot 0 view]) handover(String [shared slot 0 view]) many -> bb1:
+  write.init borrow.unique (l) borrow.shared %6
   %9: Size = read copy.trivial (packed)
   %10: Size = const 10
   %11: Size = mul inspect %9 inspect %10
-  %12: String [shared call] = read borrow.shared (l) loan1
-  %13: String [shared slot 0 view] = call.derivation view(String) borrow.shared %12 roots{1}
-  %14: Size = call length(String) borrow.shared %13
-  drop (l)
-  %15: Size = add inspect %11 inspect %14
-  write.assign borrow.unique (packed) take %15
+  %12: String [shared slot 0 view] = read borrow.shared (l) loan1 roots{0}
+  %13: Size = call length(String) borrow.shared %12
+  %14: Size = add inspect %11 inspect %13
+  write.assign borrow.unique (packed) take %14
   jump -> bb1
 }
 
@@ -460,12 +449,12 @@ fn splitByFor() -> Size {
   local text: String
   local & it: splitOn.Iter [owned here shape12 .2.0.*=shared slot 0]
   local & packed: Size
-  local part: String
+  local part: String [shared slot 0 view]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'154, capacity: 8, ownsHeap: 0}, length: 8}}
+  %0: String = const String {units: Array {run: Run {items: &string'153, capacity: 8, ownsHeap: 0}, length: 8}}
   write.init borrow.unique (text) take %0
-  %2: String [shared call] = read borrow.shared (text) loan0
+  %2: String [shared slot 0] = read borrow.shared (text) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
   %4: CodeUnit = const 44
   %5: splitOn.Iter [owned here shape12 .2.0.*=shared slot 0] = call splitOn$new borrow.shared %3 take %4 roots.0{0}
@@ -482,58 +471,53 @@ bb1:
   branch inspect %13 -> bb3 -> bb2
 
 bb2:
-  drop (it)
   drop (text)
-  %27: Size = read copy.trivial (packed)
-  return take %27
+  %26: Size = read copy.trivial (packed)
+  return take %26
 
 bb3:
-  %15: splitOn.Iter [unique call shape12 .2.0.*=shared slot 0] = read borrow.unique (it) loan2 roots.0{0}
-  %16: String = call splitOn$take borrow.unique %15
-  write.init borrow.unique (part) take %16
+  %15: StringView = read copy.trivial (it.$slot)
+  %16: String [shared slot 0 view] = represent inspect %15
+  write.init borrow.unique (part) borrow.shared %16
   %18: Size = read copy.trivial (packed)
   %19: Size = const 10
   %20: Size = mul inspect %18 inspect %19
-  %21: String [shared call] = read borrow.shared (part) loan3
-  %22: String [shared slot 0 view] = call.derivation view(String) borrow.shared %21 roots{3}
-  %23: Size = call length(String) borrow.shared %22
-  drop (part)
-  %24: Size = add inspect %20 inspect %23
-  write.assign borrow.unique (packed) take %24
+  %21: String [shared slot 0 view] = read borrow.shared (part) loan2
+  %22: Size = call length(String) borrow.shared %21
+  %23: Size = add inspect %20 inspect %22
+  write.assign borrow.unique (packed) take %23
   jump -> bb1
 }
 
 fn splitByLoop() -> Size {
   local text: String
   local & packed: Size
-  local part: String
+  local part: String [shared slot 0 view]
 
 bb0:
-  %0: String = const String {units: Array {run: Run {items: &string'155, capacity: 8, ownsHeap: 0}, length: 8}}
+  %0: String = const String {units: Array {run: Run {items: &string'154, capacity: 8, ownsHeap: 0}, length: 8}}
   write.init borrow.unique (text) take %0
   %2: Size = const 0
   write.init borrow.unique (packed) take %2
-  %4: String [shared call] = read borrow.shared (text) loan0
+  %4: String [shared slot 0] = read borrow.shared (text) loan0
   %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
   %6: CodeUnit = const 44
   lens.call splitOn borrow.shared %5 borrow.shared %6 -> bb2
 
 bb1:
-  %19: Size = read copy.trivial (packed)
-  return take %19
-
-bb2(%7: String) handover(String) many -> bb1:
   drop (text)
-  write.init borrow.unique (part) take %7
+  %18: Size = read copy.trivial (packed)
+  return take %18
+
+bb2(%7: String [shared slot 0 view]) handover(String [shared slot 0 view]) many -> bb1:
+  write.init borrow.unique (part) borrow.shared %7
   %10: Size = read copy.trivial (packed)
   %11: Size = const 10
   %12: Size = mul inspect %10 inspect %11
-  %13: String [shared call] = read borrow.shared (part) loan1
-  %14: String [shared slot 0 view] = call.derivation view(String) borrow.shared %13 roots{1}
-  %15: Size = call length(String) borrow.shared %14
-  drop (part)
-  %16: Size = add inspect %12 inspect %15
-  write.assign borrow.unique (packed) take %16
+  %13: String [shared slot 0 view] = read borrow.shared (part) loan1 roots{0}
+  %14: Size = call length(String) borrow.shared %13
+  %15: Size = add inspect %12 inspect %14
+  write.assign borrow.unique (packed) take %15
   jump -> bb1
 }
 

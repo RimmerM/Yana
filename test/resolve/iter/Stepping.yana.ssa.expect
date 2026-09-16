@@ -2,11 +2,11 @@ module ResolveTest
 
 let & trace: Size = 0
 
-let string'143: [CodeUnit *1] = "w"
+let string'142: [CodeUnit *1] = "w"
 
-let string'144: [CodeUnit *0] = ""
+let string'143: [CodeUnit *0] = ""
 
-let string'145: [CodeUnit *1] = "."
+let string'144: [CodeUnit *1] = "."
 
 iter evens.Iter of evens {
   $index: I32
@@ -431,9 +431,9 @@ bb38:
   branch inspect %134 -> bb40 -> bb39
 
 bb39:
-  %135: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %135: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
   store inspect %20 consume %135
-  %136: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 0, ownsHeap: 0}, length: 0}}
+  %136: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 0, ownsHeap: 0}, length: 0}}
   store inspect %21 consume %136
   %137: String [shared call] guaranteed from{%20} = load inspect %20
   %138: String [shared slot 0 view] guaranteed from{%20} = call String.view borrow %137
@@ -478,7 +478,7 @@ bb43:
   %156: String owned = load inspect %21
   %157: String owned = load inspect %23
   %158: String owned = call String.++ consume %156 consume %157
-  %159: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %159: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
   %160: String owned = call String.++ consume %158 consume %159
   store inspect %21 consume %160
   jump -> bb41

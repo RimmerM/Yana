@@ -6,9 +6,9 @@ let string: [CodeUnit *3] = "at "
 
 let string'2: [CodeUnit *4] = " of "
 
-let string'145: [CodeUnit *3] = "abc"
+let string'144: [CodeUnit *3] = "abc"
 
-let string'146: [CodeUnit *5] = "hello"
+let string'145: [CodeUnit *5] = "hello"
 
 iter shared.Iter of shared {
   $index: I32
@@ -90,7 +90,7 @@ bb4:
 
 bb5:
   drop owning.Iter inspect %2
-  %25: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 5, ownsHeap: 0}, length: 5}}
+  %25: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 5, ownsHeap: 0}, length: 5}}
   store inspect %4 consume %25
   %26: String [shared call] guaranteed from{%4} = load inspect %4
   %27: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %26
@@ -521,7 +521,7 @@ bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   %2: %owning.Iter address = alloc frame owning.Iter
   store inspect %1 borrow %0
-  %3: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 3, ownsHeap: 0}, length: 3}}
+  %3: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 3, ownsHeap: 0}, length: 3}}
   %4: I32 trivial = load inspect %1
   %5: owning.Iter owned = call owning$new consume %3 consume %4
   store inspect %2 consume %5

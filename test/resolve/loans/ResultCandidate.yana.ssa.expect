@@ -1,10 +1,10 @@
 module ResolveTest
 
-let string'143: [CodeUnit *4] = "abcd"
+let string'142: [CodeUnit *4] = "abcd"
 
-let string'144: [CodeUnit *1] = "x"
+let string'143: [CodeUnit *1] = "x"
 
-let string'145: [CodeUnit *2] = "yz"
+let string'144: [CodeUnit *2] = "yz"
 
 fn firstOf(xs: Array(I32) [shared slot 0 view]) -> I32 [shared slot 0] {
 bb0(%0: Array(I32) [shared slot 0 view] guaranteed):
@@ -21,7 +21,7 @@ bb1:
   jump -> bb6
 
 bb2(%3: I32 [shared slot 0] guaranteed from{%0}):
-  %20: I32 [shared slot 0] guaranteed from{%0, %3} = load inspect %3
+  %20: I32 [shared slot 0] guaranteed from{%0} = load inspect %3
   return borrow %20
 
 bb3:
@@ -79,7 +79,7 @@ bb1:
   jump -> bb6
 
 bb2(%4: I32 [shared slot 0] guaranteed from{%0}):
-  %21: I32 [shared slot 0] guaranteed from{%0, %4} = load inspect %4
+  %21: I32 [shared slot 0] guaranteed from{%0} = load inspect %4
   return borrow %21
 
 bb3:
@@ -168,7 +168,7 @@ bb9:
   jump -> bb14
 
 bb10(%28: String [shared slot 0 view] guaranteed from{%0}):
-  %46: String [shared slot 0 view] guaranteed from{%0, %28} = load inspect %28
+  %46: String [shared slot 0 view] guaranteed from{%0} = load inspect %28
   %47: (String) -> I32 [shared call] guaranteed from{%1} = load inspect %1
   %48: I32 trivial = call [value #0] inspect %47 borrow %46
   %49: I32 trivial = const 0
@@ -241,7 +241,7 @@ bb0:
   %25: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
   %26: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %25
   %27: I32 [shared slot 0] guaranteed from{%1} = call firstOf borrow %26
-  %28: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  %28: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 4, ownsHeap: 0}, length: 4}}
   store inspect %2 consume %28
   %29: String [shared slot 0] guaranteed from{%2} = load inspect %2
   %30: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %29
@@ -253,8 +253,8 @@ bb0:
   %35: Guard [unique slot 0 owner] guaranteed from{%3} = call held borrow %34
   %36: I32 trivial = const 0
   store inspect %4 consume %36
-  %37: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
-  %38: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 2, ownsHeap: 0}, length: 2}}
+  %37: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %38: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 2, ownsHeap: 0}, length: 2}}
   %39: [String *2] owned = aggregate.0 consume %37 consume %38
   store inspect %5 consume %39
   %40: [String *2] [shared slot 0] guaranteed from{%5} = load inspect %5
@@ -274,7 +274,7 @@ bb1:
   %50: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %49
   %51: I32 [shared slot 0] guaranteed from{%1} = call leftmost borrow %48 borrow %50
   %52: I32 trivial = load inspect %27
-  %53: String [shared slot 0 view] guaranteed from{%2, %31} = load inspect %31
+  %53: String [shared slot 0 view] guaranteed from{%2} = load inspect %31
   %54: Size trivial = call String.length borrow %53
   drop String inspect %2
   %55: I32 trivial = convert inspect %54

@@ -1,10 +1,10 @@
-@string'143 = [97]
-@string'144 = [98]
+@string'142 = [97]
+@string'143 = [98]
+@string'144 = []
 @string'145 = []
-@string'146 = []
-@string'147 = [97]
-@string'148 = [97, 98]
-@string'149 = [122, 122]
+@string'146 = [97]
+@string'147 = [97, 98]
+@string'148 = [122, 122]
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -53,14 +53,14 @@ codeIn<complex>(%m: Ptr): I32 {
   }
 
   b_10 {
-    %string'147 = global @string'147: Ptr
+    %string'146 = global @string'146: Ptr
     %v_16 = cmp_neq %v_8, 1: I32
     je %v_16, b_17, b_18
   }
 
   b_18 {
     %v_19 = loadx %v_6, 16: i8x16
-    %v_20 = loadx %string'147, 16: i8x16
+    %v_20 = loadx %string'146, 16: i8x16
     %v_21 = cmp_eq %v_19, %v_20: m8x16
     %v_22 = vreduce_and %v_21: I32
     je %v_22, b_23, b_24
@@ -71,14 +71,14 @@ codeIn<complex>(%m: Ptr): I32 {
   }
 
   b_17 {
-    %string'148 = global @string'148: Ptr
+    %string'147 = global @string'147: Ptr
     %v_26 = cmp_neq %v_8, 2: I32
     je %v_26, b_27, b_28
   }
 
   b_28 {
     %v_29 = loadx %v_6, 16: i8x16
-    %v_30 = loadx %string'148, 16: i8x16
+    %v_30 = loadx %string'147, 16: i8x16
     %v_31 = cmp_eq %v_29, %v_30: m8x16
     %v_32 = vreduce_and %v_31: I32
     je %v_32, b_33, b_34
@@ -115,7 +115,7 @@ codeIn<complex>(%m: Ptr): I32 {
   b_45 {
     %v_46 = add %v_6, %v_43: Ptr
     %v_47 = load %v_46, 1: I32
-    %v_48 = add %string'147, %v_43: Ptr
+    %v_48 = add %string'146, %v_43: Ptr
     %v_49 = load %v_48, 1: I32
     %v_50 = cmp_lt %v_47, %v_49: I32
     je %v_50, b_17, b_51
@@ -147,7 +147,7 @@ codeIn<complex>(%m: Ptr): I32 {
   b_60 {
     %v_61 = add %v_6, %v_58: Ptr
     %v_62 = load %v_61, 1: I32
-    %v_63 = add %string'148, %v_58: Ptr
+    %v_63 = add %string'147, %v_58: Ptr
     %v_64 = load %v_63, 1: I32
     %v_65 = cmp_lt %v_62, %v_64: I32
     je %v_65, b_66, b_67
@@ -180,7 +180,7 @@ stored<complex>(): I32 {
     store %v_4, 0, 4
     %v_5 = alloca 16, 8: Ptr
     call_complex opaque, %v_5, @constant$0
-    call_complex String.appendUnits, %v_5, @string'144, 1
+    call_complex String.appendUnits, %v_5, @string'143, 1
     %v_6 = add %v_1, 12: Ptr
     call_complex growArray(Maybe(String)), %v_1, 1
     %v_7 = add %v_1, 8: Ptr
@@ -474,7 +474,7 @@ main<complex>(): I32 {
   b_72 {
     %v_73 = load %v_4, 8: Ptr
     %v_74 = add %v_73, %v_66: Ptr
-    call_complex copyMemory, %v_74, @string'144, 1
+    call_complex copyMemory, %v_74, @string'143, 1
     %v_75 = cast %v_67: I32
     %v_76 = and %v_75, 1073741823: I32
     store %v_69, %v_76, 4
@@ -542,7 +542,7 @@ main<complex>(): I32 {
   b_24 {
     %v_116 = load %v_90, 8: Ptr
     %v_117 = add %v_116, %v_111: Ptr
-    call_complex copyMemory, %v_117, @string'144, 1
+    call_complex copyMemory, %v_117, @string'143, 1
     %v_118 = cast %v_112: I32
     %v_119 = and %v_118, 1073741823: I32
     store %v_114, %v_119, 4

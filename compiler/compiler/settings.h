@@ -879,6 +879,24 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name,
 TargetSelector allocatorSelector(const CompileSettings& settings, StringView name);
 
 /*
+ * The **resolve-stage** axis: `legacy` and `ownership` in a file name, e.g. `Text.legacy.yana`.
+ *
+ * It exists for one transition and should go when `compiler/resolve` does (Analysis-IR.md 11.5). The
+ * two stages read one `lib/`, and a few library operations cannot have one signature both accept.
+ * `String.slice` is the first of them: the rewrite hands back a borrowed window of the string, and the
+ * old stage, whose shared `String` is the owner's address, has no way to represent a partial window
+ * and copies instead (Implementation-String.md part 4). The two bodies then differ in their
+ * *signatures*, so choosing between them after reading both is not an option; the file that is not
+ * this stage's is not read at all, exactly as a `.js.yana` file is not read by a native build.
+ *
+ * A file-name selector only, not a `@platform` target: it is a fact about the compiler rather than
+ * the machine, and keeping it off the declaration attribute keeps it out of every program that is not
+ * the standard library's. Deleting the old stage is then deleting every `*.legacy.yana` file and
+ * folding each `*.ownership.yana` into its module's main file.
+ */
+TargetSelector resolverSelector(const CompileSettings& settings, StringView name);
+
+/*
  * The marker segment that hands a file name's next segment to the allocator axis -
  * `Heap.native.allocator.bootstrap.yana`, Design-Allocator.md §18.3.
  *

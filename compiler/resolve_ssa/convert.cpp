@@ -1617,12 +1617,17 @@ struct Conversion {
      * global, so a loan on one does not end, and a set that named it would be a lender the endpoint
      * rule watches for an event that cannot happen.
      */
-    Value* storageOfLoan(LoanId id) {
+    Value* storageOfLoan(LoanId id, bool& secondName) {
+        secondName = false;
+
         auto place = source.place(mir, source.loan(mir, id)->place);
         while(place->parent) place = mir[place->parent];
 
         if(place->kind != mir::Place::Local) return nullptr;
         if(place->payload >= slots.size() || !slots[place->payload]) return nullptr;
+
+        auto local = source.local(mir, LocalId(place->payload));
+        secondName = !local->isParameter() && aliasesLender(substituted(local->occurrence));
 
         return base()[slots[place->payload]];
     }
@@ -1645,12 +1650,51 @@ struct Conversion {
 
         SmallArray<SsaPtr<Value>, 4> storage;
 
+        auto add = [&](SsaPtr<Value> member) {
+            for(auto& held: storage) if(held == member) return;
+            storage.push(member);
+        };
+
         auto include = [&](LoanId id) {
-            auto found = storageOfLoan(id);
+            auto secondName = false;
+            auto found = storageOfLoan(id, secondName);
             if(!found) return;
 
-            for(auto& held: storage) if(held == found - base()) return;
-            storage.push(found - base());
+            /*
+             * A loan on a local that holds a borrow is a loan on **its lender's** storage.
+             *
+             * Such a local has no storage of its own - its slot is the borrowed value the `let`
+             * established (see the slot loop in `run`) - so naming that value here would name a
+             * definition rather than storage. It is also wrong: the value is defined wherever the
+             * binding was, which need not dominate the borrow. `let text = match m: Just(c) -> c`
+             * binds `c` in one arm, and everything derived from `text` after the join is rooted in
+             * the loan on `c` too. Whether `c`'s value was in the set then depended on whether its
+             * arm happened to be converted before the use - blocks go in index order, not dominance
+             * order - and a use past a second join named a value only the arm defines.
+             *
+             * What the value is borrowed from is already a loan set, so that set is what goes in.
+             * Nothing is lost: the origin environment lists the lender's loans beside this one, so
+             * a binding not converted yet contributes the same members anyway. A parameter is the
+             * exception and keeps its slot - it is defined on entry, and it is the member the
+             * inliner maps onto the caller's own lenders.
+             *
+             * **Only where that set names something.** A binding whose value has no lender this
+             * body can name - a window built over a raw address, or one the origin environment did
+             * not trace - keeps naming the value, as it did before. Dropping it would leave an
+             * empty set, and an empty set is not "unknown": it is the caller's loan, which
+             * `canSubstitute` in `opt/cfg.cpp` reads as one that never ends inside this body, and
+             * which the inliner's `rootLender` would stop walking at.
+             */
+            if(secondName && found->loan) {
+                auto& lent = *base()[found->loan];
+
+                if(lent.storage.size()) {
+                    for(auto member: lent.storage.contents(base())) add(member);
+                    return;
+                }
+            }
+
+            add(found - base());
         };
 
         if(node.kind == mir::Node::Read && ((mir::NodeRead&)node).loan.valid()) {

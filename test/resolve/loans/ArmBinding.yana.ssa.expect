@@ -1,0 +1,180 @@
+module ResolveTest
+
+let string'142: [CodeUnit *11] = "  one
+two  "
+
+let string'143: [CodeUnit *0] = ""
+
+fn source(flag: Bool [shared call]) -> Maybe(String) {
+bb0(%0: Bool trivial):
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %String address = alloc frame String
+  store inspect %2 borrow %0
+  %4: Bool trivial = load inspect %2
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %5: Maybe(String) owned = aggregate.Nothing
+  jump -> bb2(consume %5)
+
+bb2(%1: Maybe(String) owned):
+  return consume %1
+
+bb3:
+  %6: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 11, ownsHeap: 0}, length: 11}}
+  store inspect %3 consume %6
+  %7: String [shared slot 0] guaranteed from{%3} = load inspect %3
+  %8: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %7
+  %9: String owned = call String.copy borrow %8
+  drop String inspect %3
+  %10: Maybe(String) owned = aggregate.Just consume %9
+  jump -> bb2(consume %10)
+}
+
+fn firstLine(flag: Bool [shared call], $body: (String) -> $r [shared call]) -> $r = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: I32 trivial = const 0
+  store inspect %0 consume %1
+  %2: Bool trivial = const True
+  %3: I32 [unique slot 0] guaranteed = load inspect %0
+  %4: main.cont'2.env affine = aggregate.main.cont'2.env borrow %3
+  %5: (String) -> I32 [owned here shape8 .0=shared call] affine = fun.value main.cont'2 borrow %4
+  %6: I32 trivial = call firstLine(I32) borrow %2 borrow %5
+  jump -> bb1
+
+bb1:
+  %7: Bool trivial = const False
+  %8: I32 [unique slot 0] guaranteed = load inspect %0
+  %9: main.cont.env affine = aggregate.main.cont.env borrow %8
+  %10: (String) -> I32 [owned here shape8 .0=shared call] affine = fun.value main.cont borrow %9
+  %11: I32 trivial = call firstLine(I32) borrow %7 borrow %10
+  jump -> bb2
+
+bb2:
+  %12: I32 trivial = load inspect %0
+  return consume %12
+}
+
+fn firstLine(I32)(flag: Bool [shared call], $body: (String) -> I32 [shared call]) -> I32 {
+bb0(%0: Bool trivial, %1: (String) -> I32 [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32
+  %5: %Maybe(String) address = alloc frame Maybe(String)
+  %6: %String address = alloc frame String
+  %7: %Size address = alloc frame Size
+  %8: %Maybe(Size) address = alloc frame Maybe(Size)
+  %9: %Size address = alloc frame Size
+  %10: %Bool address = alloc frame Bool
+  store inspect %3 borrow %0
+  %11: Bool trivial = const False
+  store inspect %10 consume %11
+  %12: Bool trivial = load inspect %3
+  %13: Maybe(String) owned = call source borrow %12
+  store inspect %5 consume %13
+  %14: %U8 address = field.addr .# inspect %5
+  %15: U8 trivial = load inspect %14
+  %16: U8 trivial = const 1
+  %17: Bool trivial = eq inspect %15 inspect %16
+  branch inspect %17 -> bb3 -> bb1
+
+bb1:
+  %18: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 0, ownsHeap: 0}, length: 0}}
+  %19: Bool trivial = const True
+  store inspect %10 consume %19
+  store inspect %6 consume %18
+  %20: String [shared call] guaranteed from{%6} = load inspect %6
+  jump -> bb2(borrow %20)
+
+bb2(%2: String [shared call] guaranteed):
+  %21: String [shared slot 0] guaranteed from{%2, %5, %6} = load inspect %2
+  %22: String [shared slot 0 view] guaranteed from{%2, %5, %6} = call String.view borrow %21
+  %23: String [shared slot 0 view] guaranteed from{%2, %5, %6} = call trim borrow %22
+  %24: String [shared slot 0 view] guaranteed from{%2, %5, %6} = load inspect %23
+  %25: Size trivial = call String.length borrow %24
+  store inspect %7 consume %25
+  %26: String [shared slot 0 view] guaranteed from{%2, %5, %6} = load inspect %23
+  %27: CodeUnit trivial = const 10
+  %28: Size trivial = const 0
+  %29: Maybe(Size) trivial = call findAscii borrow %26 borrow %27 borrow %28
+  store inspect %8 consume %29
+  %30: %U8 address = field.addr .# inspect %8
+  %31: U8 trivial = load inspect %30
+  %32: U8 trivial = const 1
+  %33: Bool trivial = eq inspect %31 inspect %32
+  branch inspect %33 -> bb6 -> bb4
+
+bb3:
+  %34: %String address = field.addr .Just inspect %5
+  %35: String [shared call] guaranteed from{%5} = load inspect %34
+  %36: String [shared call] guaranteed from{%5} = load inspect %35
+  jump -> bb2(borrow %36)
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %37: String [shared slot 0 view] guaranteed from{%2, %5, %6} = load inspect %23
+  %38: Size trivial = const 0
+  %39: Size trivial = load inspect %7
+  %40: String [shared slot 0 view] guaranteed from{%2, %5, %6} = call String.slice borrow %37 borrow %38 borrow %39
+  %41: String [shared slot 0 view] guaranteed from{%2, %5, %6} = call trimEnd borrow %40
+  %42: (String) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %43: I32 trivial = call [value #0] inspect %42 borrow %41
+  drop Maybe(String) inspect %5
+  %44: Bool trivial = load inspect %10
+  branch inspect %44 -> bb7 -> bb8
+
+bb6:
+  %47: %Size address = field.addr .Just inspect %8
+  %48: Size trivial = load inspect %47
+  store inspect %9 consume %48
+  %49: Size trivial = load inspect %9
+  store inspect %7 consume %49
+  jump -> bb5
+
+bb7 cleanup:
+  drop String inspect %6
+  jump -> bb8
+
+bb8:
+  %45: Bool trivial = const False
+  store inspect %10 consume %45
+  store inspect %4 consume %43
+  %46: I32 trivial = load inspect %4
+  return consume %46
+}
+
+fn main.cont(main.cont.env: main.cont.env [unique call], $handed: String [shared call view]) -> I32 {
+bb0(%0: main.cont.env [unique call] guaranteed, %1: String [shared call view] guaranteed):
+  %2: %I32 address = field.addr .total inspect %0
+  %3: %I32 address = load inspect %2
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = const 10
+  %6: I32 trivial = mul inspect %4 inspect %5
+  %7: String [shared call view] guaranteed from{%1} = load inspect %1
+  %8: Size trivial = call String.length borrow %7
+  %9: I32 trivial = convert inspect %8
+  %10: I32 trivial = add inspect %6 inspect %9
+  store inspect %3 consume %10
+  %11: I32 trivial = const 0
+  return consume %11
+}
+
+fn main.cont'2(main.cont'2.env: main.cont'2.env [unique call], $handed: String [shared call view]) -> I32 {
+bb0(%0: main.cont'2.env [unique call] guaranteed, %1: String [shared call view] guaranteed):
+  %2: %I32 address = field.addr .total inspect %0
+  %3: %I32 address = load inspect %2
+  %4: I32 trivial = load inspect %3
+  %5: String [shared call view] guaranteed from{%1} = load inspect %1
+  %6: Size trivial = call String.length borrow %5
+  %7: I32 trivial = convert inspect %6
+  %8: I32 trivial = add inspect %4 inspect %7
+  store inspect %3 consume %8
+  %9: I32 trivial = const 0
+  return consume %9
+}
+
+entry main

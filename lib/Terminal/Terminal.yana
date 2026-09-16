@@ -344,7 +344,7 @@ pub fn clipTo(text: String, width: Size, mark: String) -> String:
     if displayWidth(text) <= width then return copy(text)
 
     let markWidth = displayWidth(mark)
-    if width <= markWidth then return String.slice(mark, 0, length(mark))
+    if width <= markWidth then return copy(mark)
 
     let count = length(text)
     let &out = String.ofCapacity(count)
@@ -443,7 +443,7 @@ pub fn Terminal.clip(self: Terminal, text: String, width: Size) -> String:
 -}
 fn frameOf(frames: String, units: Size, index: Size, count: Size) -> String:
     let at = (index % count) * units
-    return String.slice(frames, at, at + units)
+    return copy(frames.slice(at, at + units))
 
 pub fn Terminal.spinner(self: Terminal, tick: Size) -> String =
     if self.unicode then frameOf("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 3, tick, 10) else frameOf("|/-\\", 1, tick, 4)
@@ -579,8 +579,12 @@ fn boxRule(g: Glyphs, widths: [Size], indent: Size, left: String, join: String, 
    nothing, an editor shows as a diff, and `git` shows as an error. It matters most for the row a
    half-built table ends with, where the trailing cells are missing rather than short. A boxed row
    keeps its padding, because there the right-hand border is what the padding is against.
+
+   A lens without the line ending, so the trimmed row is a window of the row just built rather than
+   a copy of it; the caller appends the row and then the newline. Called as `Table.renderRow(self, …)`
+   because neither resolve stage takes a lens through a dot call yet.
 -}
-fn Table.renderRow(self: Table, widths: [Size], cells: [String], from: Size, g: Glyphs) -> String:
+lens fn Table.renderRow(self: Table, widths: [Size], cells: [String], from: Size, g: Glyphs) -> String:
     let wide = length(self.columns)
     let boxed = self.frame == BoxFrame
 
@@ -599,14 +603,9 @@ fn Table.renderRow(self: Table, widths: [Size], cells: [String], from: Size, g: 
         out.push(alignIn(shown, widths[c], self.columns[c].align))
         if c + 1 < wide then out.push(separator)
 
-    if boxed:
-        out.push(" {g.vertical}")
-        out.push("\n")
-        return out
-
-    let &line = trimEnd(out)
-    line.push("\n")
-    return line
+    -- A boxed row ends in its border, so trimming it removes nothing.
+    if boxed then out.push(" {g.vertical}")
+    yield trimEnd(out)
 
 -- The headings, painted, as a row of cells like any other.
 fn headerRow(table: Table) -> [String]:
@@ -634,7 +633,9 @@ pub fn Table.render(self: Table) -> String:
     if self.frame == BoxFrame:
         out.push(boxRule(g, widths, self.indent, g.topLeft, g.topJoin, g.topRight))
 
-    out.push(self.renderRow(widths, headerRow(self), 0, g))
+    let header = Table.renderRow(self, widths, headerRow(self), 0, g) in:
+        out.push(header)
+    out.push("\n")
 
     match self.frame:
         BoxFrame -> out.push(boxRule(g, widths, self.indent, g.leftJoin, g.cross, g.rightJoin))
@@ -649,7 +650,9 @@ pub fn Table.render(self: Table) -> String:
             out.push("{margin}{self.terminal.dimmed(line)}\n")
 
     for row in 0 .. self.rowCount():
-        out.push(self.renderRow(widths, self.cells, row * wide, g))
+        let line = Table.renderRow(self, widths, self.cells, row * wide, g) in:
+            out.push(line)
+        out.push("\n")
 
     if self.frame == BoxFrame:
         out.push(boxRule(g, widths, self.indent, g.bottomLeft, g.bottomJoin, g.bottomRight))

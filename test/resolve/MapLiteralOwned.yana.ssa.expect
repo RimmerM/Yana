@@ -2,7 +2,7 @@ module ResolveTest
 
 let & live: I32 = 0
 
-let string'143: [CodeUnit *2] = "k-"
+let string'142: [CodeUnit *2] = "k-"
 
 fn Held.drop(value: Held) -> {} {
 bb0(%0: Held owned):
@@ -42,7 +42,7 @@ bb0(%0: I32 trivial):
   %5: String owned = call String.ofCapacity borrow %4
   store inspect %2 consume %5
   %6: String [unique call] guaranteed from{%2} = load inspect %2
-  %7: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %7: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %3 consume %7
   %8: String [shared slot 0] guaranteed from{%3} = load inspect %3
   %9: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %8

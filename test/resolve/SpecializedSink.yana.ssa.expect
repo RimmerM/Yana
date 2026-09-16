@@ -1,12 +1,12 @@
 module ResolveTest
 
-let string'143: [CodeUnit *2] = "ab"
+let string'142: [CodeUnit *2] = "ab"
 
 fn one(i: Size [shared call]) -> String {
 bb0(%0: Size trivial):
   %1: %Size address = alloc frame Size [shared call]
   store inspect %1 borrow %0
-  %2: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %2: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
   return consume %2
 }
 
@@ -162,7 +162,7 @@ bb5:
   jump -> bb10
 
 bb6(%28: String [shared slot 0 view] guaranteed from{%2}):
-  %46: String [shared slot 0 view] guaranteed from{%2, %28} = load inspect %28
+  %46: String [shared slot 0 view] guaranteed from{%2} = load inspect %28
   %47: Size trivial = call String.length borrow %46
   drop Array(String) inspect %2
   %48: I32 trivial = convert inspect %47

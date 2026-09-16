@@ -2,13 +2,13 @@ module ResolveTest
 
 let & tags: I32 = 0
 
-let string'143: [CodeUnit *2] = "n="
+let string'142: [CodeUnit *2] = "n="
+
+let string'143: [CodeUnit *1] = "!"
 
 let string'144: [CodeUnit *1] = "!"
 
 let string'145: [CodeUnit *1] = "!"
-
-let string'146: [CodeUnit *1] = "!"
 
 fn tagged(n: I32 [shared call]) -> String {
 bb0(%0: I32 trivial):
@@ -30,7 +30,7 @@ bb0(%0: I32 trivial):
   %14: String owned = call String.ofCapacity borrow %13
   store inspect %2 consume %14
   %15: String [unique call] guaranteed from{%2} = load inspect %2
-  %16: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %16: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %3 consume %16
   %17: String [shared slot 0] guaranteed from{%3} = load inspect %3
   %18: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %17
@@ -52,7 +52,7 @@ bb0(%0: I32 trivial):
   %4: String owned = call tagged borrow %3
   store inspect %2 consume %4
   %5: String owned = load inspect %2
-  %6: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %6: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
   %7: String owned = call String.++ consume %5 consume %6
   store inspect %2 consume %7
   %8: String [shared call] guaranteed from{%2} = load inspect %2
@@ -89,7 +89,7 @@ bb2:
 
 bb3:
   %12: String owned = load inspect %2
-  %13: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %13: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
   %14: String owned = call String.++ consume %12 consume %13
   store inspect %2 consume %14
   jump -> bb2
@@ -123,7 +123,7 @@ bb3:
   %12: String owned = call tagged borrow %11
   store inspect %4 consume %12
   %13: String owned = load inspect %4
-  %14: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
+  %14: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
   %15: String owned = call String.++ consume %13 consume %14
   store inspect %4 consume %15
   %16: I32 trivial = load inspect %2

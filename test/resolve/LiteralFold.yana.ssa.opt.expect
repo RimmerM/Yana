@@ -1,10 +1,10 @@
 module ResolveTest
 
-let string'143: [CodeUnit *5] = "hello"
+let string'142: [CodeUnit *5] = "hello"
 
 fn litLen(n: Size [shared call]) -> Size {
 bb0(%0: Size trivial):
-  %24: %CodeUnit trivial = const &string'143
+  %24: %CodeUnit trivial = const &string'142
   %27: Size trivial = const 5
   %22: StringView trivial = aggregate.StringView consume %24 consume %27
   %8: Size trivial = add inspect %27 inspect %0
@@ -13,13 +13,13 @@ bb0(%0: Size trivial):
 
 fn twice(n: Size [shared call]) -> Size {
 bb0(%0: Size trivial):
-  %9: %CodeUnit trivial = const &string'143
+  %9: %CodeUnit trivial = const &string'142
   %10: Size trivial = const 5
   %11: StringView trivial = aggregate.StringView consume %9 consume %10
   %12: Size trivial = add inspect %10 inspect %0
   %5: Size trivial = const 1
   %6: Size trivial = add inspect %0 inspect %5
-  %13: %CodeUnit trivial = const &string'143
+  %13: %CodeUnit trivial = const &string'142
   %14: Size trivial = const 5
   %15: StringView trivial = aggregate.StringView consume %13 consume %14
   %16: Size trivial = add inspect %14 inspect %6
@@ -29,10 +29,10 @@ bb0(%0: Size trivial):
 
 fn main() -> I32 {
 bb0:
-  %3: %CodeUnit trivial = const &string'143
+  %3: %CodeUnit trivial = const &string'142
   %4: Size trivial = const 5
   %5: StringView trivial = aggregate.StringView consume %3 consume %4
-  %9: %CodeUnit trivial = const &string'143
+  %9: %CodeUnit trivial = const &string'142
   %10: Size trivial = const 5
   %11: StringView trivial = aggregate.StringView consume %9 consume %10
   %18: I32 trivial = const 17

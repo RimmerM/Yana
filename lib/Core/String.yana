@@ -246,36 +246,25 @@ instance Monoid(String):
    The units between two positions - Implementation-String.md part 4's slice.
    ==========================================================================================
 
-   **A copy, and there is no other answer.** A native `String` is a run this caller does not own and a
-   host one is a primitive, so a view over part of either is not a value this language has. That turns
-   out to be what the callers want anyway: a line read out of a buffer outlives the buffer.
-
    Half-open and clamped rather than checked, on the same terms `unit` reads: `String.slice(text, 0,
    length(text) + 1)` is the whole string, and an empty range in either order is the empty string.
    Nothing here can read past the end.
 
+   **What comes back depends on the resolve stage**, which is why the native bodies are in two files
+   of their own. Under `-resolver ownership` (`String.ownership.native.yana`) it is a **window**: a
+   `StringView` over the same units, rooted in `text` by `source'`, with no allocation. That is the
+   form part 4 specifies, and a caller that keeps the result past `text` says `copy`. The legacy stage
+   (`String.legacy.native.yana`, and the JS body below, which only that stage compiles) cannot
+   represent a window over part of a string, because its shared `String` is the owner's address, so
+   there it is a **copy**. Code written against the window is correct against the copy; the reverse
+   is not true, so library code is written to the window.
+
    **Positions are raw units and this does not check that either lands on a code-point boundary.**
-   Cutting between the two halves of one produces a byte sequence nothing downstream can decode, which
-   is a real hazard and is why `Terminal.clipTo` walks characters rather than calling this. The
-   boundary-safe slice is Implementation-String.md part 4's `String.Index` and is not written yet;
-   what makes this safe *today* is the same thing that makes `Core/Text.yana` safe - every position
-   the search family hands back is one an ASCII unit was found at, and an ASCII unit is
-   self-synchronizing in both encodings.
+   Cutting between the two halves of one produces a unit sequence that decodes as U+FFFD. Every
+   position the ASCII search family hands back is a boundary, because an ASCII unit is
+   self-synchronizing in both encodings; any other offset is rounded with the boundary functions
+   Implementation-String.md part 4 plans.
 -}
-@platform(native) pub fn String.slice(text: String, from: Size, to: Size) -> String:
-    let count = length(text)
-    let &start = from
-    if start < (0 :: Size) then start = 0
-
-    let &end = to
-    if end > count then end = count
-    if start >= end then return ""
-
-    -- One block copy rather than a loop over units, which is what makes this the same operation
-    -- `copy` is with an offset on the front.
-    let &out = String.ofCapacity(end - start)
-    String.appendUnits(out, units(text) + start, end - start)
-    return out
 
 {-
    `self.substring(from, to)` on the host, which is the engine's own copy.

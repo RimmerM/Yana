@@ -581,7 +581,7 @@ bb3:
   %14: %I32 address = field.addr .value inspect %0
   %15: I32 trivial = load inspect %14
   store inspect %3 consume %15
-  %16: Branch [shared call] guaranteed from{%0, %11} = load inspect %11
+  %16: Branch [shared call] guaranteed from{%0} = load inspect %11
   %17: I32 [unique slot 0] guaranteed = load inspect %2
   %18: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %19: Branch.descend.cont'2.env affine = aggregate.Branch.descend.cont'2.env borrow %17 borrow %18
@@ -606,7 +606,7 @@ bb6:
   jump -> bb7
 
 bb7:
-  %28: Branch [shared call] guaranteed from{%0, %13} = load inspect %13
+  %28: Branch [shared call] guaranteed from{%0} = load inspect %13
   %29: I32 [unique slot 0] guaranteed = load inspect %2
   %30: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %31: Branch.descend.cont.env affine = aggregate.Branch.descend.cont.env borrow %29 borrow %30
@@ -747,7 +747,7 @@ bb3:
   %25: %Array(I32) trivial = load inspect %11
   %26: iter(Array(I32)) [shared slot 0] guaranteed from{%9} = load inspect %9
   %27: Array(I32) [shared slot 0 view] guaranteed from{%9} = call iter(Array(I32))'2$item borrow %26 consume %25
-  %28: Array(I32) [shared slot 0 view] guaranteed from{%9, %27} = load inspect %27
+  %28: Array(I32) [shared slot 0 view] guaranteed from{%9} = load inspect %27
   jump -> bb8
 
 bb4(%1: Size trivial, %2: Size trivial):
@@ -769,7 +769,7 @@ bb7(%7: Size trivial, %8: Size trivial):
   store inspect %13 consume %38
   %39: I32 [unique call] guaranteed from{%10} = load inspect %10
   %40: Size trivial = load inspect %13
-  %41: Array(I32) [shared slot 0 view] guaranteed from{%9, %27} = load inspect %27
+  %41: Array(I32) [shared slot 0 view] guaranteed from{%9} = load inspect %27
   jump -> bb10
 
 bb8:
@@ -791,7 +791,7 @@ bb10:
   %46: Array(I32) [shared slot 0 view] guaranteed from{%41} = load inspect %41
   jump -> bb15
 
-bb11(%42: I32 [shared slot 0] guaranteed from{%9, %27}):
+bb11(%42: I32 [shared slot 0] guaranteed from{%9}):
   %59: I32 trivial = load inspect %42
   call +=(I32) borrow %39 borrow %59
   jump -> bb5(consume %7, consume %8)
@@ -871,7 +871,7 @@ bb5:
 bb6:
   %28: %Array(I32) address = field.addr .Just inspect %12
   %29: Array(I32) [shared slot 0 view] guaranteed from{%9, %12} = load inspect %28
-  %30: Array(I32) [shared slot 0 view] guaranteed from{%9, %12, %29} = load inspect %29
+  %30: Array(I32) [shared slot 0 view] guaranteed from{%9, %12} = load inspect %29
   jump -> bb11
 
 bb7(%1: Size trivial, %2: Size trivial):
@@ -893,7 +893,7 @@ bb10(%7: Size trivial, %8: Size trivial):
   store inspect %14 consume %40
   %41: I32 [unique call] guaranteed from{%10} = load inspect %10
   %42: Size trivial = load inspect %14
-  %43: Array(I32) [shared slot 0 view] guaranteed from{%9, %12, %29} = load inspect %29
+  %43: Array(I32) [shared slot 0 view] guaranteed from{%9, %12} = load inspect %29
   jump -> bb13
 
 bb11:
@@ -915,7 +915,7 @@ bb13:
   %48: Array(I32) [shared slot 0 view] guaranteed from{%43} = load inspect %43
   jump -> bb18
 
-bb14(%44: I32 [shared slot 0] guaranteed from{%9, %12, %29}):
+bb14(%44: I32 [shared slot 0] guaranteed from{%9, %12}):
   %61: I32 trivial = load inspect %44
   call +=(I32) borrow %41 borrow %61
   jump -> bb8(consume %7, consume %8)
@@ -984,7 +984,7 @@ bb3:
   %28: %iter(Array(I32)) address = field.addr .walk inspect %9
   %29: iter(Array(I32)) [shared slot 0] guaranteed from{%9} = load inspect %28
   %30: Array(I32) [shared slot 0 view] guaranteed from{%9} = call iter(Array(I32))'2$item borrow %29 consume %27
-  %31: Array(I32) [shared slot 0 view] guaranteed from{%9, %30} = load inspect %30
+  %31: Array(I32) [shared slot 0 view] guaranteed from{%9} = load inspect %30
   jump -> bb8
 
 bb4(%1: Size trivial, %2: Size trivial):
@@ -1007,7 +1007,7 @@ bb7(%7: Size trivial, %8: Size trivial):
   %42: %I32 address = field.addr .packed inspect %9
   %43: I32 [unique call] guaranteed from{%9} = load inspect %42
   %44: Size trivial = load inspect %12
-  %45: Array(I32) [shared slot 0 view] guaranteed from{%9, %30} = load inspect %30
+  %45: Array(I32) [shared slot 0 view] guaranteed from{%9} = load inspect %30
   jump -> bb10
 
 bb8:
@@ -1029,7 +1029,7 @@ bb10:
   %50: Array(I32) [shared slot 0 view] guaranteed from{%45} = load inspect %45
   jump -> bb15
 
-bb11(%46: I32 [shared slot 0] guaranteed from{%9, %30}):
+bb11(%46: I32 [shared slot 0] guaranteed from{%9}):
   %63: I32 trivial = load inspect %46
   call +=(I32) borrow %43 borrow %63
   jump -> bb5(consume %7, consume %8)
@@ -2227,7 +2227,7 @@ bb6:
   %33: %I32 address = field.addr .value inspect %4
   %34: I32 trivial = load inspect %33
   store inspect %6 consume %34
-  %35: Branch [shared call] guaranteed from{%4, %29} = load inspect %29
+  %35: Branch [shared call] guaranteed from{%4} = load inspect %29
   %36: Branch.descend.Iter [owned here shape8 .2.*=shared slot 0] owned = call Branch.descend$new borrow %35
   %37: %Branch.descend.Iter address = alloc frame Branch.descend.Iter
   store inspect %37 consume %36
@@ -2591,7 +2591,7 @@ bb3:
   %25: %Array(I32) trivial = load inspect %11
   %26: iter(Array(I32)) [shared slot 0] guaranteed from{%9} = load inspect %9
   %27: Array(I32) [shared slot 0 view] guaranteed from{%9} = call iter(Array(I32))'2$item borrow %26 consume %25
-  %28: Array(I32) [shared slot 0 view] guaranteed from{%9, %27} = load inspect %27
+  %28: Array(I32) [shared slot 0 view] guaranteed from{%9} = load inspect %27
   jump -> bb8
 
 bb4(%1: Size trivial, %2: Size trivial):
@@ -2613,7 +2613,7 @@ bb7(%7: Size trivial, %8: Size trivial):
   store inspect %13 consume %38
   %39: I32 [unique call] guaranteed from{%10} = load inspect %10
   %40: Size trivial = load inspect %13
-  %41: Array(I32) [shared slot 0 view] guaranteed from{%9, %27} = load inspect %27
+  %41: Array(I32) [shared slot 0 view] guaranteed from{%9} = load inspect %27
   jump -> bb10
 
 bb8:
@@ -2635,7 +2635,7 @@ bb10:
   %46: Array(I32) [shared slot 0 view] guaranteed from{%41} = load inspect %41
   jump -> bb15
 
-bb11(%42: I32 [shared slot 0] guaranteed from{%9, %27}):
+bb11(%42: I32 [shared slot 0] guaranteed from{%9}):
   %59: I32 trivial = load inspect %42
   call +=(I32) borrow %39 borrow %59
   jump -> bb5(consume %7, consume %8)
@@ -2702,7 +2702,7 @@ bb3:
   %25: %Array(I32) trivial = load inspect %11
   %26: iter(Array(I32)) [shared slot 0] guaranteed from{%9} = load inspect %9
   %27: Array(I32) [shared slot 0 view] guaranteed from{%9} = call iter(Array(I32))'2$item borrow %26 consume %25
-  %28: Array(I32) [shared slot 0 view] guaranteed from{%9, %27} = load inspect %27
+  %28: Array(I32) [shared slot 0 view] guaranteed from{%9} = load inspect %27
   jump -> bb8
 
 bb4(%1: Size trivial, %2: Size trivial):
@@ -2724,7 +2724,7 @@ bb7(%7: Size trivial, %8: Size trivial):
   store inspect %13 consume %38
   %39: I32 [unique call] guaranteed from{%10} = load inspect %10
   %40: Size trivial = load inspect %13
-  %41: Array(I32) [shared slot 0 view] guaranteed from{%9, %27} = load inspect %27
+  %41: Array(I32) [shared slot 0 view] guaranteed from{%9} = load inspect %27
   jump -> bb10
 
 bb8:
@@ -2746,7 +2746,7 @@ bb10:
   %46: Array(I32) [shared slot 0 view] guaranteed from{%41} = load inspect %41
   jump -> bb15
 
-bb11(%42: I32 [shared slot 0] guaranteed from{%9, %27}):
+bb11(%42: I32 [shared slot 0] guaranteed from{%9}):
   %59: I32 trivial = load inspect %42
   call +=(I32) borrow %39 borrow %59
   jump -> bb5(consume %7, consume %8)

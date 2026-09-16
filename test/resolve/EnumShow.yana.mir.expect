@@ -8,15 +8,15 @@ data Mood = Happy | Sad
 
 instance Show(Mood): Mood.show, Mood.showBound
 
-let string'151: [CodeUnit *2] = ":)"
+let string'150: [CodeUnit *2] = ":)"
 
-let string'152: [CodeUnit *2] = ":("
+let string'151: [CodeUnit *2] = ":("
 
-let string'153: [CodeUnit *5] = "Green"
+let string'152: [CodeUnit *5] = "Green"
 
-let string'154: [CodeUnit *11] = "FromCurrent"
+let string'153: [CodeUnit *11] = "FromCurrent"
 
-let string'155: [CodeUnit *2] = ":)"
+let string'154: [CodeUnit *2] = ":)"
 
 fn Mood.show(value: Mood [shared call], to: String [unique call]) -> {} {
   local local2: String
@@ -29,7 +29,7 @@ bb0:
   branch inspect %4 -> bb3(borrow.unique %0) -> bb1(borrow.unique %0)
 
 bb1(%1: String [unique call]):
-  %8: String = const String {units: Array {run: Run {items: &string'152, capacity: 2, ownsHeap: 0}, length: 2}}
+  %8: String = const String {units: Array {run: Run {items: &string'151, capacity: 2, ownsHeap: 0}, length: 2}}
   jump -> bb2(take %8, borrow.unique %1)
 
 bb2(%9: String, %10: String [unique call]):
@@ -41,7 +41,7 @@ bb2(%9: String, %10: String [unique call]):
   return
 
 bb3(%5: String [unique call]):
-  %7: String = const String {units: Array {run: Run {items: &string'151, capacity: 2, ownsHeap: 0}, length: 2}}
+  %7: String = const String {units: Array {run: Run {items: &string'150, capacity: 2, ownsHeap: 0}, length: 2}}
   jump -> bb2(take %7, borrow.unique %5)
 }
 
@@ -91,7 +91,7 @@ bb0:
   write.init borrow.unique (local0) take %1
   %3: String [shared slot 0] = read borrow.shared (local0) loan0
   %4: String [shared slot 0 view] = call.derivation view(String) borrow.shared %3 roots{0}
-  %5: String = const String {units: Array {run: Run {items: &string'153, capacity: 5, ownsHeap: 0}, length: 5}}
+  %5: String = const String {units: Array {run: Run {items: &string'152, capacity: 5, ownsHeap: 0}, length: 5}}
   write.init borrow.unique (local1) take %5
   %7: String [shared slot 0] = read borrow.shared (local1) loan1
   %8: String [shared slot 0 view] = call.derivation view(String) borrow.shared %7 roots{1}
@@ -120,7 +120,7 @@ bb2:
   write.init borrow.unique (local4) take %26
   %28: String [shared slot 0] = read borrow.shared (local4) loan3
   %29: String [shared slot 0 view] = call.derivation view(String) borrow.shared %28 roots{3}
-  %30: String = const String {units: Array {run: Run {items: &string'154, capacity: 11, ownsHeap: 0}, length: 11}}
+  %30: String = const String {units: Array {run: Run {items: &string'153, capacity: 11, ownsHeap: 0}, length: 11}}
   write.init borrow.unique (local5) take %30
   %32: String [shared slot 0] = read borrow.shared (local5) loan4
   %33: String [shared slot 0 view] = call.derivation view(String) borrow.shared %32 roots{4}
@@ -153,7 +153,7 @@ bb5:
   write.init borrow.unique (local8) take %51
   %53: String [shared slot 0] = read borrow.shared (local8) loan6
   %54: String [shared slot 0 view] = call.derivation view(String) borrow.shared %53 roots{6}
-  %55: String = const String {units: Array {run: Run {items: &string'155, capacity: 2, ownsHeap: 0}, length: 2}}
+  %55: String = const String {units: Array {run: Run {items: &string'154, capacity: 2, ownsHeap: 0}, length: 2}}
   write.init borrow.unique (local9) take %55
   %57: String [shared slot 0] = read borrow.shared (local9) loan7
   %58: String [shared slot 0 view] = call.derivation view(String) borrow.shared %57 roots{7}

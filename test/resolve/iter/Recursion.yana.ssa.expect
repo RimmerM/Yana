@@ -183,7 +183,7 @@ bb3:
   %14: %I32 address = field.addr .value inspect %0
   %15: I32 trivial = load inspect %14
   store inspect %3 consume %15
-  %16: Tree [shared call] guaranteed from{%0, %11} = load inspect %11
+  %16: Tree [shared call] guaranteed from{%0} = load inspect %11
   %17: I32 [unique slot 0] guaranteed = load inspect %2
   %18: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %19: walk.cont'2.env affine = aggregate.walk.cont'2.env borrow %17 borrow %18
@@ -208,7 +208,7 @@ bb6:
   jump -> bb7
 
 bb7:
-  %28: Tree [shared call] guaranteed from{%0, %13} = load inspect %13
+  %28: Tree [shared call] guaranteed from{%0} = load inspect %13
   %29: I32 [unique slot 0] guaranteed = load inspect %2
   %30: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %31: walk.cont.env affine = aggregate.walk.cont.env borrow %29 borrow %30
@@ -247,7 +247,7 @@ bb3:
   %14: %I32 address = field.addr .value inspect %0
   %15: I32 trivial = load inspect %14
   store inspect %3 consume %15
-  %16: Tree [shared call] guaranteed from{%0, %11} = load inspect %11
+  %16: Tree [shared call] guaranteed from{%0} = load inspect %11
   %17: I32 [unique slot 0] guaranteed = load inspect %2
   %18: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %19: evens.cont'2.env affine = aggregate.evens.cont'2.env borrow %17 borrow %18
@@ -274,7 +274,7 @@ bb6:
   jump -> bb7
 
 bb7:
-  %30: Tree [shared call] guaranteed from{%0, %13} = load inspect %13
+  %30: Tree [shared call] guaranteed from{%0} = load inspect %13
   %31: I32 [unique slot 0] guaranteed = load inspect %2
   %32: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %33: evens.cont.env affine = aggregate.evens.cont.env borrow %31 borrow %32
@@ -313,7 +313,7 @@ bb3:
   %14: %I32 address = field.addr .value inspect %0
   %15: I32 trivial = load inspect %14
   store inspect %3 consume %15
-  %16: Tree [shared call] guaranteed from{%0, %11} = load inspect %11
+  %16: Tree [shared call] guaranteed from{%0} = load inspect %11
   %17: I32 [unique slot 0] guaranteed = load inspect %2
   %18: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %19: odds.cont'2.env affine = aggregate.odds.cont'2.env borrow %17 borrow %18
@@ -338,7 +338,7 @@ bb6:
   jump -> bb7
 
 bb7:
-  %28: Tree [shared call] guaranteed from{%0, %13} = load inspect %13
+  %28: Tree [shared call] guaranteed from{%0} = load inspect %13
   %29: I32 [unique slot 0] guaranteed = load inspect %2
   %30: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %31: odds.cont.env affine = aggregate.odds.cont.env borrow %29 borrow %30
@@ -378,7 +378,7 @@ bb3:
   %15: %I32 address = field.addr .value inspect %0
   %16: I32 trivial = load inspect %15
   store inspect %3 consume %16
-  %17: Tree [shared call] guaranteed from{%0, %12} = load inspect %12
+  %17: Tree [shared call] guaranteed from{%0} = load inspect %12
   %18: I32 [unique slot 0] guaranteed = load inspect %2
   %19: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %20: marked.cont'2.env affine = aggregate.marked.cont'2.env borrow %18 borrow %19
@@ -427,7 +427,7 @@ bb9:
   jump -> bb10
 
 bb10:
-  %40: Tree [shared call] guaranteed from{%0, %14} = load inspect %14
+  %40: Tree [shared call] guaranteed from{%0} = load inspect %14
   %41: I32 [unique slot 0] guaranteed = load inspect %2
   %42: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %43: marked.cont.env affine = aggregate.marked.cont.env borrow %41 borrow %42
@@ -1101,7 +1101,7 @@ bb6:
   %33: %I32 address = field.addr .value inspect %4
   %34: I32 trivial = load inspect %33
   store inspect %6 consume %34
-  %35: Tree [shared call] guaranteed from{%4, %29} = load inspect %29
+  %35: Tree [shared call] guaranteed from{%4} = load inspect %29
   %36: walk.Iter [owned here shape8 .2.*=shared slot 0] owned = call walk$new borrow %35
   %37: %walk.Iter address = alloc frame walk.Iter
   store inspect %37 consume %36
@@ -1471,7 +1471,7 @@ bb6:
   %33: %I32 address = field.addr .value inspect %4
   %34: I32 trivial = load inspect %33
   store inspect %6 consume %34
-  %35: Tree [shared call] guaranteed from{%4, %29} = load inspect %29
+  %35: Tree [shared call] guaranteed from{%4} = load inspect %29
   %36: evens.Iter [owned here shape8 .2.*=shared slot 0] owned = call evens$new borrow %35
   %37: %evens.Iter address = alloc frame evens.Iter
   store inspect %37 consume %36
@@ -1841,7 +1841,7 @@ bb6:
   %33: %I32 address = field.addr .value inspect %4
   %34: I32 trivial = load inspect %33
   store inspect %6 consume %34
-  %35: Tree [shared call] guaranteed from{%4, %29} = load inspect %29
+  %35: Tree [shared call] guaranteed from{%4} = load inspect %29
   %36: odds.Iter [owned here shape8 .2.*=shared slot 0] owned = call odds$new borrow %35
   %37: %odds.Iter address = alloc frame odds.Iter
   store inspect %37 consume %36
@@ -2214,7 +2214,7 @@ bb6:
   %34: %I32 address = field.addr .value inspect %4
   %35: I32 trivial = load inspect %34
   store inspect %6 consume %35
-  %36: Tree [shared call] guaranteed from{%4, %30} = load inspect %30
+  %36: Tree [shared call] guaranteed from{%4} = load inspect %30
   %37: marked.Iter [owned here shape8 .2.*=shared slot 0] owned = call marked$new borrow %36
   %38: %marked.Iter address = alloc frame marked.Iter
   store inspect %38 consume %37

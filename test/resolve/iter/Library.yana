@@ -10,9 +10,9 @@
    | | |
    | --- | --- |
    | `pairs(m)` | a **shared** loan of a `Map`, held as the lender's address |
-   | `words(t)` | a **window** capture, and `$held` for an owning hand-over of a `String` |
+   | `words(t)` | a **window** capture, handing over a window of the text (a `String` slice, since Implementation-String.md part 4 - it was an owning hand-over with `$held` before) |
    | `items(xs)` | a **nested traversal** - `for chunk in chunks(self)` - whose child hands over a window |
-   | `lines(t)`, `splitOn(t, c)` | the same nest over `spansOn`, with an owning `->String` hand-over above it |
+   | `lines(t)`, `splitOn(t, c)` | the same nest over `spansOn`, handing a window of the text on above it |
 
    The last three are §3.2's first step and arrived with J53. All three run another traversal inside
    their own body, so the child's site type is a **payload member** of the outer record and the

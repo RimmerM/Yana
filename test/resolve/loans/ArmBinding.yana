@@ -1,0 +1,41 @@
+{-
+   A borrow bound inside one arm of a join, and a value derived from it used past a **second** join.
+
+   # resolver: ownership
+
+   `text` is `contents` on one path and a literal local on the other, so everything derived from it -
+   `said`, `end`'s window, `trimEnd`'s answer - is rooted in the loan on `contents` as well. `contents`
+   is a local that holds a borrow, which has no storage of its own: its SSA slot is the value the arm
+   loaded. The conversion used to name that value in the loan set of every borrow rooted in it, and it
+   converts blocks in index order - so the join block, which comes before the arm in the list, got a
+   set without it, and a use after the `if … is Just(at)` join got a set naming a value only the arm
+   defines. The verifier reported "value N borrows M, whose definition does not dominate it".
+
+   A loan on such a local now contributes the local's own lenders (`attachLoan` in
+   `resolve_ssa/convert.cpp`), which is the storage the borrow really is rooted in and does not depend
+   on the order blocks are converted in.
+-}
+
+fn source(flag: Bool) -> Maybe(String) = if flag then Just(copy("  one\ntwo  ")) else Nothing
+
+lens fn firstLine(flag: Bool) -> String:
+    let text = match source(flag):
+        Just(contents) -> contents
+        Nothing -> ""
+
+    let said = trim(text)
+    let &end = length(said)
+    if findAscii(said, 10) is Just(at) then end = at
+
+    yield trimEnd(said.slice(0, end))
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    let line = firstLine(True)
+    total = total + (truncate(length(line)) :: Int)
+
+    let none = firstLine(False)
+    total = total * 10 + (truncate(length(none)) :: Int)
+
+    return total

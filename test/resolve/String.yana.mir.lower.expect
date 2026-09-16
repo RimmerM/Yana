@@ -1,12 +1,12 @@
-@string'143 = [104, 101, 108, 108, 111]
-@string'144 = [97, 98, 99]
-@string'145 = []
-@string'146 = [108, 105, 116]
-@string'147 = [101, 114, 97, 108]
+@string'142 = [104, 101, 108, 108, 111]
+@string'143 = [97, 98, 99]
+@string'144 = []
+@string'145 = [108, 105, 116]
+@string'146 = [101, 114, 97, 108]
+@string'147 = [97, 98, 99]
 @string'148 = [97, 98, 99]
 @string'149 = [97, 98, 99]
-@string'150 = [97, 98, 99]
-@string'151 = [97, 98, 100]
+@string'150 = [97, 98, 100]
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -15,7 +15,7 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = load @string'144, 1: I32
+    %v_1 = load @string'143, 1: I32
     %v_2 = add 5, %v_1: I32
     %v_3 = alloca 16, 8: Ptr
     copy %v_3, @constant$0, 16
@@ -80,7 +80,7 @@ main<complex>(): I32 {
   b_41 {
     %v_42 = load %v_3, 8: Ptr
     %v_43 = add %v_42, %v_35: Ptr
-    call_complex copyMemory, %v_43, @string'147, 4
+    call_complex copyMemory, %v_43, @string'146, 4
     %v_44 = cast %v_36: I32
     %v_45 = and %v_44, 1073741823: I32
     store %v_38, %v_45, 4
@@ -88,10 +88,10 @@ main<complex>(): I32 {
     call_complex String.reclaim, %v_3
     %v_47 = sext %v_46: I32
     %v_23 = add %v_2, %v_47: I32
+    %string'147 = global @string'147: Ptr
     %string'148 = global @string'148: Ptr
-    %string'149 = global @string'149: Ptr
-    %v_48 = loadx %string'148, 16: i8x16
-    %v_49 = loadx %string'149, 16: i8x16
+    %v_48 = loadx %string'147, 16: i8x16
+    %v_49 = loadx %string'148, 16: i8x16
     %v_50 = cmp_eq %v_48, %v_49: m8x16
     %v_51 = vreduce_and %v_50: I32
     je %v_51, b_52, b_53
@@ -105,10 +105,10 @@ main<complex>(): I32 {
   b_55 {
     %v_56 = phi [b_52, 1], [b_57, %v_58]: I32
     %v_27 = cmp_eq %v_56, 1: I32
+    %string'149 = global @string'149: Ptr
     %string'150 = global @string'150: Ptr
-    %string'151 = global @string'151: Ptr
-    %v_59 = loadx %string'150, 16: i8x16
-    %v_60 = loadx %string'151, 16: i8x16
+    %v_59 = loadx %string'149, 16: i8x16
+    %v_60 = loadx %string'150, 16: i8x16
     %v_61 = cmp_eq %v_59, %v_60: m8x16
     %v_62 = vreduce_and %v_61: I32
     je %v_62, b_63, b_64
@@ -127,9 +127,9 @@ main<complex>(): I32 {
   }
 
   b_69 {
-    %v_70 = add %string'148, %v_67: Ptr
+    %v_70 = add %string'147, %v_67: Ptr
     %v_71 = load %v_70, 1: I32
-    %v_72 = add %string'149, %v_67: Ptr
+    %v_72 = add %string'148, %v_67: Ptr
     %v_73 = load %v_72, 1: I32
     %v_74 = cmp_lt %v_71, %v_73: I32
     je %v_74, b_75, b_76
@@ -169,9 +169,9 @@ main<complex>(): I32 {
   }
 
   b_87 {
-    %v_88 = add %string'150, %v_85: Ptr
+    %v_88 = add %string'149, %v_85: Ptr
     %v_89 = load %v_88, 1: I32
-    %v_90 = add %string'151, %v_85: Ptr
+    %v_90 = add %string'150, %v_85: Ptr
     %v_91 = load %v_90, 1: I32
     %v_92 = cmp_lt %v_89, %v_91: I32
     je %v_92, b_93, b_94

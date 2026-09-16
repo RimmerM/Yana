@@ -1,13 +1,13 @@
 module ResolveTest
 
-let string'143: [CodeUnit *5] = "hello"
+let string'142: [CodeUnit *5] = "hello"
 
 fn litLen(n: Size [shared call]) -> Size {
 bb0(%0: Size trivial):
   %1: %Size address = alloc frame Size [shared call]
   %2: %String address = alloc frame String
   store inspect %1 borrow %0
-  %3: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 5, ownsHeap: 0}, length: 5}}
+  %3: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 5, ownsHeap: 0}, length: 5}}
   store inspect %2 consume %3
   %4: String [shared call] guaranteed from{%2} = load inspect %2
   %5: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %4

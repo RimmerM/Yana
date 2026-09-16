@@ -207,11 +207,17 @@ fn monthName(month: Int) -> String = match month:
     _ -> "?"
 
 -- Three units of the name above, which is what every abbreviation in use is - and is why this is a
--- slice of the one table rather than a second one to keep in step with it.
-fn monthAbbrev(month: Int) -> String = String.slice(monthName(month), 0, 3)
+-- slice of the one table rather than a second one to keep in step with it. A lens, so that the
+-- abbreviation is a window of the name for as long as the caller reads it rather than a copy.
+lens fn monthAbbrev(month: Int) -> String:
+    let name = monthName(month)
+    yield name.slice(0, 3)
 
 fn weekdayName(day: Weekday) -> String = nameOf(day)
-fn weekdayAbbrev(day: Weekday) -> String = String.slice(nameOf(day), 0, 3)
+
+lens fn weekdayAbbrev(day: Weekday) -> String:
+    let name = nameOf(day)
+    yield name.slice(0, 3)
 
 -- A field at a fixed width, which every part of a date but the year is. `number` is
 -- `Core/Format/Number.yana`'s, so the zero padding is one setting rather than a branch here.
@@ -267,7 +273,9 @@ fn pushMonth(style: DateStyle, date: Date, &to: String):
     match style.month:
         MonthNumber: pushFixed(widen(month) :: Long, 2, to)
         MonthName: String.push(to, monthName(month))
-        MonthAbbrev: String.push(to, monthAbbrev(month))
+        MonthAbbrev:
+            let short = monthAbbrev(month)
+            String.push(to, short)
 
 fn pushTimePart(style: DateStyle, date: Date, &to: String):
     if style.time is NoTime then return
@@ -334,7 +342,8 @@ instance ShowWith(DateStyle, Date):
                 String.push(to, ", ")
 
             WeekdayAbbrev:
-                String.push(to, weekdayAbbrev(weekdayOf(date)))
+                let short = weekdayAbbrev(weekdayOf(date))
+                String.push(to, short)
                 String.push(to, ", ")
 
         pushDatePart(style, date, to)

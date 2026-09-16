@@ -1,18 +1,18 @@
 module ResolveTest
 
-let string'143: [CodeUnit *1] = "a"
+let string'142: [CodeUnit *1] = "a"
 
-let string'144: [CodeUnit *1] = "b"
+let string'143: [CodeUnit *1] = "b"
+
+let string'144: [CodeUnit *0] = ""
 
 let string'145: [CodeUnit *0] = ""
 
-let string'146: [CodeUnit *0] = ""
+let string'146: [CodeUnit *1] = "a"
 
-let string'147: [CodeUnit *1] = "a"
+let string'147: [CodeUnit *2] = "ab"
 
-let string'148: [CodeUnit *2] = "ab"
-
-let string'149: [CodeUnit *2] = "zz"
+let string'148: [CodeUnit *2] = "zz"
 
 fn opaque(s: String) -> String {
 bb0(%0: String owned):
@@ -26,7 +26,7 @@ fn built(n: I32 [shared call]) -> String {
 bb0(%0: I32 trivial):
   %5: %I32 address = alloc frame I32 [shared call]
   store inspect %5 borrow %0
-  %6: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %6: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
   %7: String owned = call opaque consume %6
   %8: I32 trivial = load inspect %5
   %9: I32 trivial = const 0
@@ -34,7 +34,7 @@ bb0(%0: I32 trivial):
   branch inspect %10 -> bb3(consume %7) -> bb1(consume %7)
 
 bb1(%1: String owned):
-  %11: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 0, ownsHeap: 0}, length: 0}}
+  %11: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 0, ownsHeap: 0}, length: 0}}
   jump -> bb2(consume %11, consume %1)
 
 bb2(%2: String owned, %3: String owned):
@@ -42,7 +42,7 @@ bb2(%2: String owned, %3: String owned):
   return consume %12
 
 bb3(%4: String owned):
-  %13: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %13: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
   jump -> bb2(consume %13, consume %4)
 }
 
@@ -52,7 +52,7 @@ bb0(%0: String [shared call view] guaranteed):
   %5: %String address = alloc frame String
   %6: %String address = alloc frame String
   %7: String [shared call view] guaranteed from{%0} = load inspect %0
-  %8: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 0, ownsHeap: 0}, length: 0}}
+  %8: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 0, ownsHeap: 0}, length: 0}}
   store inspect %4 consume %8
   %9: String [shared slot 0] guaranteed from{%4} = load inspect %4
   %10: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %9
@@ -62,7 +62,7 @@ bb0(%0: String [shared call view] guaranteed):
 
 bb1:
   %12: String [shared call view] guaranteed from{%0} = load inspect %0
-  %13: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 1, ownsHeap: 0}, length: 1}}
+  %13: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
   store inspect %5 consume %13
   %14: String [shared slot 0] guaranteed from{%5} = load inspect %5
   %15: String [shared slot 0 view] guaranteed from{%5} = call String.view borrow %14
@@ -79,7 +79,7 @@ bb3:
 
 bb4:
   %18: String [shared call view] guaranteed from{%0} = load inspect %0
-  %19: String owned = const String {units: Array {run: Run {items: &string'148, capacity: 2, ownsHeap: 0}, length: 2}}
+  %19: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %6 consume %19
   %20: String [shared slot 0] guaranteed from{%6} = load inspect %6
   %21: String [shared slot 0 view] guaranteed from{%6} = call String.view borrow %20
@@ -117,8 +117,8 @@ bb0(%0: Maybe(String) [shared call] guaranteed):
 bb1:
   %6: %String address = field.addr .Just inspect %0
   %7: String [shared call] guaranteed from{%0} = load inspect %6
-  %8: String [shared call] guaranteed from{%0, %7} = load inspect %7
-  %9: String [shared slot 0 view] guaranteed from{%0, %7} = call String.view borrow %8
+  %8: String [shared call] guaranteed from{%0} = load inspect %7
+  %9: String [shared slot 0 view] guaranteed from{%0} = call String.view borrow %8
   %10: I32 trivial = call codeOf borrow %9
   jump -> bb2(consume %10)
 
@@ -252,7 +252,7 @@ bb0:
   %23: Maybe(String) owned = aggregate.Nothing
   call push(Maybe(String)) borrow %22 consume %23
   %24: Array(Maybe(String)) [unique call] guaranteed from{%1} = load inspect %1
-  %25: String owned = const String {units: Array {run: Run {items: &string'149, capacity: 2, ownsHeap: 0}, length: 2}}
+  %25: String owned = const String {units: Array {run: Run {items: &string'148, capacity: 2, ownsHeap: 0}, length: 2}}
   %26: String owned = call opaque consume %25
   %27: Maybe(String) owned = aggregate.Just consume %26
   call push(Maybe(String)) borrow %24 consume %27
@@ -292,7 +292,7 @@ bb4:
   jump -> bb9
 
 bb5(%41: Maybe(String) [shared slot 0] guaranteed from{%1}):
-  %58: Maybe(String) [shared slot 0] guaranteed from{%1, %41} = load inspect %41
+  %58: Maybe(String) [shared slot 0] guaranteed from{%1} = load inspect %41
   %59: I32 trivial = call codeIn borrow %58
   %60: I32 trivial = add inspect %36 inspect %59
   store inspect %2 consume %60

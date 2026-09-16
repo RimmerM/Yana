@@ -676,7 +676,7 @@ bb1:
 
 bb2(%56: Array(I32) [shared slot 0 view] guaranteed from{%3}):
   %74: Size trivial = const 1
-  %75: Array(I32) [shared slot 0 view] guaranteed from{%3, %56} = load inspect %56
+  %75: Array(I32) [shared slot 0 view] guaranteed from{%3} = load inspect %56
   jump -> bb8
 
 bb3:
@@ -715,7 +715,7 @@ bb8:
   %80: Array(I32) [shared slot 0 view] guaranteed from{%75} = load inspect %75
   jump -> bb13
 
-bb9(%76: I32 [shared slot 0] guaranteed from{%3, %56}):
+bb9(%76: I32 [shared slot 0] guaranteed from{%3}):
   %93: I32 trivial = load inspect %76
   %94: Size trivial = const 1
   %95: Array(Array(I32)) [shared call] guaranteed from{%3} = load inspect %3
@@ -759,7 +759,7 @@ bb15:
 
 bb16(%97: Array(I32) [shared slot 0 view] guaranteed from{%3}):
   %115: Size trivial = const 2
-  %116: Array(I32) [shared slot 0 view] guaranteed from{%3, %97} = load inspect %97
+  %116: Array(I32) [shared slot 0 view] guaranteed from{%3} = load inspect %97
   jump -> bb22
 
 bb17:
@@ -798,7 +798,7 @@ bb22:
   %121: Array(I32) [shared slot 0 view] guaranteed from{%116} = load inspect %116
   jump -> bb27
 
-bb23(%117: I32 [shared slot 0] guaranteed from{%3, %97}):
+bb23(%117: I32 [shared slot 0] guaranteed from{%3}):
   %134: I32 trivial = load inspect %117
   %135: I32 trivial = add inspect %93 inspect %134
   %136: Size trivial = const 1
@@ -842,7 +842,7 @@ bb29:
   jump -> bb34
 
 bb30(%139: Array(I32) [shared slot 0 view] guaranteed from{%3}):
-  %157: Array(I32) [shared slot 0 view] guaranteed from{%3, %139} = load inspect %139
+  %157: Array(I32) [shared slot 0 view] guaranteed from{%3} = load inspect %139
   jump -> bb36
 
 bb31:

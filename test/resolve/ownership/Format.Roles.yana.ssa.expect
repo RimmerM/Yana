@@ -2,11 +2,11 @@ module ResolveTest
 
 let & calls: I32 = 0
 
-let string'143: [CodeUnit *2] = "n="
+let string'142: [CodeUnit *2] = "n="
 
-let string'144: [CodeUnit *1] = "!"
+let string'143: [CodeUnit *1] = "!"
 
-let string'145: [CodeUnit *8] = "no holes"
+let string'144: [CodeUnit *8] = "no holes"
 
 fn bumped(of: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
@@ -61,7 +61,7 @@ bb0:
   %18: String owned = call String.ofCapacity borrow %17
   store inspect %1 consume %18
   %19: String [unique call] guaranteed from{%1} = load inspect %1
-  %20: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %20: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %2 consume %20
   %21: String [shared slot 0] guaranteed from{%2} = load inspect %2
   %22: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %21
@@ -71,7 +71,7 @@ bb0:
   %24: String [unique call] guaranteed from{%1} = load inspect %1
   call I32.show borrow %23 borrow %24
   %25: String [unique call] guaranteed from{%1} = load inspect %1
-  %26: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %26: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
   store inspect %3 consume %26
   %27: String [shared slot 0] guaranteed from{%3} = load inspect %3
   %28: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %27
@@ -113,7 +113,7 @@ bb0:
   call I32.show borrow %53 borrow %54
   %55: String owned = load inspect %8
   store inspect %9 consume %55
-  %56: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 8, ownsHeap: 0}, length: 8}}
+  %56: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 8, ownsHeap: 0}, length: 8}}
   store inspect %10 consume %56
   %57: String [shared call] guaranteed from{%4} = load inspect %4
   %58: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %57

@@ -276,6 +276,21 @@ TargetSelector allocatorSelector(const CompileSettings& settings, StringView nam
     return name == chosen ? TargetSelector::Matched : TargetSelector::Excluded;
 }
 
+/*
+ * The resolve-stage axis - see the declaration. Two names, compared against the one setting.
+ */
+TargetSelector resolverSelector(const CompileSettings& settings, StringView name) {
+    if(name == "legacy"_v) {
+        return settings.resolver == ResolverStage::Legacy ? TargetSelector::Matched : TargetSelector::Excluded;
+    }
+
+    if(name == "ownership"_v) {
+        return settings.resolver == ResolverStage::Ownership ? TargetSelector::Matched : TargetSelector::Excluded;
+    }
+
+    return TargetSelector::Unknown;
+}
+
 TargetSelector targetSelector(const CompileSettings& settings, StringView name, SelectorScope scope) {
     auto isJs = isJsMode(settings);
     auto answer = [](bool matched) { return matched ? TargetSelector::Matched : TargetSelector::Excluded; };
@@ -405,6 +420,8 @@ bool selectsFileName(const CompileSettings& settings, StringView stem, SelectorS
                 provider = false;
             } else if(selector == kAllocatorMarker) {
                 provider = true;
+            } else if(auto stage = resolverSelector(settings, selector); stage != TargetSelector::Unknown) {
+                if(stage == TargetSelector::Excluded) selected = false;
             } else {
                 auto answer = targetSelector(settings, selector, scope);
 

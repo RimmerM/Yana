@@ -242,10 +242,10 @@ bb2:
   %11: Held owned = load inspect %10
   store inspect %4 consume %11
   %12: Held [unique call] guaranteed from{%4} = load inspect %4
-  %13: Held [unique call] guaranteed from{%4, %12} = load inspect %12
+  %13: Held [unique call] guaranteed from{%4} = load inspect %12
   %14: Size trivial = load inspect %3
   call setName borrow %13 borrow %14
-  %15: Held [shared call] guaranteed from{%4, %12} = load inspect %12
+  %15: Held [shared call] guaranteed from{%4} = load inspect %12
   %16: Size trivial = call slotCount borrow %15
   drop Held inspect %4
   return consume %16
@@ -337,7 +337,7 @@ bb13(%36: Run(U8) owned):
   store inspect %2 consume %67
   %68: %Held address = field.addr .first inspect %2
   %69: Held [unique call] guaranteed from{%2} = load inspect %68
-  %70: Held [unique call] guaranteed from{%2, %69} = load inspect %69
+  %70: Held [unique call] guaranteed from{%2} = load inspect %69
   %71: Size trivial = load inspect %1
   %72: Size trivial = const 1
   %73: Size trivial = add inspect %71 inspect %72

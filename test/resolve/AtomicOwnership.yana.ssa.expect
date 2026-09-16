@@ -142,7 +142,7 @@ bb1:
   jump -> bb6
 
 bb2(%23: Atomic(I32) [shared slot 0] guaranteed from{%1}):
-  %40: Atomic(I32) [shared slot 0] guaranteed from{%1, %23} = load inspect %23
+  %40: Atomic(I32) [shared slot 0] guaranteed from{%1} = load inspect %23
   %41: Size trivial = const 1
   %42: Array(Atomic(I32)) [shared call] guaranteed from{%1} = load inspect %1
   %43: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Atomic(I32)) borrow %42
@@ -184,7 +184,7 @@ bb8:
   jump -> bb13
 
 bb9(%44: Atomic(I32) [shared slot 0] guaranteed from{%1}):
-  %61: Atomic(I32) [shared slot 0] guaranteed from{%1, %44} = load inspect %44
+  %61: Atomic(I32) [shared slot 0] guaranteed from{%1} = load inspect %44
   %62: I32 trivial = call bothArguments borrow %40 borrow %61
   %63: Size trivial = const 0
   %64: Array(Atomic(I32)) [shared call] guaranteed from{%1} = load inspect %1
@@ -227,7 +227,7 @@ bb15:
   jump -> bb20
 
 bb16(%66: Atomic(I32) [shared slot 0] guaranteed from{%1}):
-  %83: Atomic(I32) [shared slot 0] guaranteed from{%1, %66} = load inspect %66
+  %83: Atomic(I32) [shared slot 0] guaranteed from{%1} = load inspect %66
   %84: Size trivial = const 0
   %85: Array(Atomic(I32)) [shared call] guaranteed from{%1} = load inspect %1
   %86: Array(Atomic(I32)) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(Atomic(I32)) borrow %85
@@ -269,7 +269,7 @@ bb22:
   jump -> bb27
 
 bb23(%87: Atomic(I32) [shared slot 0] guaranteed from{%1}):
-  %104: Atomic(I32) [shared slot 0] guaranteed from{%1, %87} = load inspect %87
+  %104: Atomic(I32) [shared slot 0] guaranteed from{%1} = load inspect %87
   %105: I32 trivial = call bothArguments borrow %83 borrow %104
   drop Array(Atomic(I32)) inspect %1
   %106: I32 trivial = add inspect %62 inspect %105

@@ -2,9 +2,9 @@ module ResolveTest
 
 let & trace: Size = 0
 
-let string'143: [CodeUnit *2] = "ab"
+let string'142: [CodeUnit *2] = "ab"
 
-let string'144: [CodeUnit *1] = "x"
+let string'143: [CodeUnit *1] = "x"
 
 iter words'2.Iter of words {
   $index: I32
@@ -60,7 +60,7 @@ bb0:
   store inspect %10 consume %12
   %13: Size trivial = const 0
   store inspect %0 consume %13
-  %14: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %14: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
   store inspect %1 consume %14
   %15: String [shared slot 0] guaranteed from{%1} = load inspect %1
   %16: String [shared slot 0 view] guaranteed from{%1} = call String.view borrow %15
@@ -105,7 +105,7 @@ bb4:
 
 bb5:
   drop guards.Iter inspect %4
-  %34: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %34: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
   %35: Bool trivial = const True
   store inspect %9 consume %35
   store inspect %6 consume %34
@@ -160,7 +160,7 @@ bb12:
   %68: %String address = field.addr .Just inspect %8
   %69: String [shared slot 0 view] guaranteed from{%6, %7, %8} = load inspect %68
   %70: Size [unique call] guaranteed from{%0} = load inspect %0
-  %71: String [shared slot 0 view] guaranteed from{%6, %7, %8, %69} = load inspect %69
+  %71: String [shared slot 0 view] guaranteed from{%6, %7, %8} = load inspect %69
   %72: Size trivial = call String.length borrow %71
   call +=(Size) borrow %70 borrow %72
   jump -> bb11

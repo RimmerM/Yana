@@ -85,4 +85,4 @@ pub fn readReport(text: String) -> ChildReport:
 -}
 fn nameOfBegin(line: String) -> String = match findAscii(line, 32, 6):
     Nothing -> ""
-    Just(space) -> trimStart(String.slice(line, space, length(line)))
+    Just(space) -> copy(trimStart(line.slice(space, length(line))))

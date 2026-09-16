@@ -25,10 +25,10 @@ module asm "\09callq *%r11"
 module asm "\09ud2"
 module asm "\09.size __yana_stack_entry, . - __yana_stack_entry"
 
-@"string'146" = constant [1 x i8] c"w", align 8
-@"string'147" = constant [0 x i8] zeroinitializer, align 8
-@"string'148" = constant [1 x i8] c".", align 8
-@"string'149" = constant [200 x i8] c"00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899", align 8
+@"string'145" = constant [1 x i8] c"w", align 8
+@"string'146" = constant [0 x i8] zeroinitializer, align 8
+@"string'147" = constant [1 x i8] c".", align 8
+@"string'148" = constant [200 x i8] c"00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899", align 8
 @commandLineEnvironment = global [8 x i8] zeroinitializer, align 8
 @heapNext = global [8 x i8] zeroinitializer, align 8
 @heapLimit = global [8 x i8] zeroinitializer, align 8
@@ -39,7 +39,7 @@ module asm "\09.size __yana_stack_entry, . - __yana_stack_entry"
 @"image$base" = external constant [0 x i8], align 8
 @"environment(newFiber(Cursor(String)))" = constant <{ i32 }> <{ i32 sub (i32 ptrtoint (ptr @"descriptor(Cursor(String))" to i32), i32 ptrtoint (ptr @"image$base" to i32)) }>, align 8
 @"descriptor(Cursor(String))" = constant <{ [4 x i8], i32 }> <{ [4 x i8] c"8\00\00\1E", i32 sub (i32 ptrtoint (ptr @"teardown(Cursor(String))" to i32), i32 ptrtoint (ptr @"image$base" to i32)) }>, align 8
-@"constant$0" = constant <{ ptr, [8 x i8] }> <{ ptr @"string'147", [8 x i8] zeroinitializer }>, align 8
+@"constant$0" = constant <{ ptr, [8 x i8] }> <{ ptr @"string'146", [8 x i8] zeroinitializer }>, align 8
 
 define fastcc void @squares(ptr %self) #0 {
   br label %1
@@ -202,7 +202,7 @@ define fastcc void @"words'2"(ptr %self) #0 {
 40:                                               ; preds = %27
   %41 = load ptr, ptr %2, align 1
   %42 = getelementptr i8, ptr %41, i64 %30
-  call fastcc void @copyMemory(ptr %42, ptr @"string'146", i64 1)
+  call fastcc void @copyMemory(ptr %42, ptr @"string'145", i64 1)
   %43 = trunc i64 %31 to i32
   %44 = and i32 %43, 1073741823
   store i32 %44, ptr %28, align 1
@@ -833,7 +833,7 @@ define fastcc i64 @main() #0 {
 341:                                              ; preds = %334
   %342 = load ptr, ptr %1, align 1
   %343 = getelementptr i8, ptr %342, i64 %335
-  call fastcc void @copyMemory(ptr %343, ptr @"string'148", i64 1)
+  call fastcc void @copyMemory(ptr %343, ptr @"string'147", i64 1)
   %344 = trunc i64 %336 to i32
   %345 = and i32 %344, 1073741823
   store i32 %345, ptr %338, align 1
@@ -902,7 +902,7 @@ define fastcc void @pushUnsigned32(i32 %value, ptr %to) #0 {
   br i1 %36, label %47, label %61
 
 38:                                               ; preds = %11
-  %39 = getelementptr i8, ptr @"string'149", i64 %20
+  %39 = getelementptr i8, ptr @"string'148", i64 %20
   %40 = load i8, ptr %39, align 1
   %41 = zext i8 %40 to i32
   %42 = getelementptr i8, ptr %1, i64 %21
@@ -919,7 +919,7 @@ define fastcc void @pushUnsigned32(i32 %value, ptr %to) #0 {
 
 49:                                               ; preds = %38
   %50 = add i64 %20, 1
-  %51 = getelementptr i8, ptr @"string'149", i64 %50
+  %51 = getelementptr i8, ptr @"string'148", i64 %50
   %52 = load i8, ptr %51, align 1
   %53 = zext i8 %52 to i32
   %54 = getelementptr i8, ptr %1, i64 %44
@@ -936,7 +936,7 @@ define fastcc void @pushUnsigned32(i32 %value, ptr %to) #0 {
   br label %28
 
 61:                                               ; preds = %32
-  %62 = getelementptr i8, ptr @"string'149", i64 %34
+  %62 = getelementptr i8, ptr @"string'148", i64 %34
   %63 = load i8, ptr %62, align 1
   %64 = zext i8 %63 to i32
   %65 = getelementptr i8, ptr %1, i64 %35
@@ -949,7 +949,7 @@ define fastcc void @pushUnsigned32(i32 %value, ptr %to) #0 {
 
 70:                                               ; preds = %61
   %71 = add i64 %34, 1
-  %72 = getelementptr i8, ptr @"string'149", i64 %71
+  %72 = getelementptr i8, ptr @"string'148", i64 %71
   %73 = load i8, ptr %72, align 1
   %74 = zext i8 %73 to i32
   %75 = getelementptr i8, ptr %1, i64 %67

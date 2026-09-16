@@ -282,7 +282,8 @@
 {-
    `self.substring(from, to)` - the units between two positions, as a string of its own.
 
-   Implementation-String.md part 4's slice on this target, and the reason the library's `String.slice`
+   Implementation-String.md part 4's slice on this target - a copy, because only the legacy resolve
+   stage compiles JS and it has no partial window - and the reason the library's `String.slice`
    is not a `charCodeAt` loop building a string one unit at a time: that loop is a concatenation per
    unit, so cutting one line out of a megabyte of text walked the whole rope for every line.
 

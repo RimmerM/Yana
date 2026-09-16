@@ -1,17 +1,16 @@
-@string'143 = [97]
-@string'144 = [98]
-@string'145 = [99]
-@string'146 = [97]
-@string'147 = [98]
-@string'148 = [99]
+@string'142 = [97]
+@string'143 = [98]
+@string'144 = [99]
+@string'145 = [97]
+@string'146 = [98]
+@string'147 = [99]
+@string'148 = [97, 108, 112, 104, 97, 32, 98, 101, 116, 97, 32, 32, 103, 97, 109, 109, 97]
 @string'149 = [97, 108, 112, 104, 97, 32, 98, 101, 116, 97, 32, 32, 103, 97, 109, 109, 97]
 @string'150 = [97, 108, 112, 104, 97, 32, 98, 101, 116, 97, 32, 32, 103, 97, 109, 109, 97]
-@string'151 = [97, 108, 112, 104, 97, 32, 98, 101, 116, 97, 32, 32, 103, 97, 109, 109, 97]
+@string'151 = [97, 10, 98, 98, 10, 99, 99, 99]
 @string'152 = [97, 10, 98, 98, 10, 99, 99, 99]
-@string'153 = [97, 10, 98, 98, 10, 99, 99, 99]
+@string'153 = [97, 44, 98, 98, 44, 99, 99, 99]
 @string'154 = [97, 44, 98, 98, 44, 99, 99, 99]
-@string'155 = [97, 44, 98, 98, 44, 99, 99, 99]
-@string'116 = []
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -22,10 +21,6 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @constant$3 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
 @constant$4 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
 @constant$5 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
-@constant$6 = [0, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 17, 0, 0, 0]
-@constant$7 = [0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0]
-@constant$8 = [0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0]
-@constant$9 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @environment(indexFreeSlot(String, I32)) = [0, 0, 0, 0, 0, 0, 0, 0]
 @descriptor(String) = [16, 0, 0, 30, 0, 0, 0, 0]
 @image$base = []
@@ -218,1367 +213,987 @@ main<complex>(): I32 {
     call_complex Array(a).reclaim(Entry(String, I32)), %v_49
     %v_97 = add %v_49, 16: Ptr
     call_complex Run(a).reclaim(U8), %v_97
-    %v_98 = alloca 53, 8: Ptr
-    %v_99 = alloca 16, 8: Ptr
-    %v_100 = alloca 16, 8: Ptr
-    store %v_100, @string'149, 8
-    %v_101 = add %v_100, 8: Ptr
-    store %v_101, 17, 8
-    call_complex words$new, %v_98, %v_100
-    jmp b_102
+    %v_98 = alloca 8, 8: Ptr
+    %v_99 = alloca 8, 8: Ptr
+    %string'148 = global @string'148: Ptr
+    %v_100 = imm 17: I64
+    jmp b_101
   }
 
   b_89 {
-    %v_103 = add %v_93, 16: Ptr
-    %v_104 = imul %v_91, 10: I32
-    %v_105 = loads %v_103, 4: I32
-    %v_92 = add %v_104, %v_105: I32
+    %v_102 = add %v_93, 16: Ptr
+    %v_103 = imul %v_91, 10: I32
+    %v_104 = loads %v_102, 4: I32
+    %v_92 = add %v_103, %v_104: I32
     %v_90 = add %v_88, 1: I64
     %v_94 = add %v_93, 24: Ptr
     jmp b_69
   }
 
-  b_102 {
-    %v_106 = phi [b_96, 0], [b_107, %v_108]: I64
-    %v_109 = add %v_98, 16: Ptr
-    %v_110 = add %v_98, 32: Ptr
-    %v_111 = add %v_98, 40: Ptr
-    %v_112 = add %v_98, 48: Ptr
-    %v_113 = loads %v_112, 4: I32
-    %v_114 = cmp_eq %v_113, 0: I32
-    je %v_114, b_115, b_116
+  b_101 {
+    %v_105 = phi [b_96, 0], [b_106, %v_107]: I64
+    %v_108 = phi [b_96, 0], [b_106, 1]: I32
+    je %v_108, b_109, b_110
+  }
+
+  b_109 {
+    je %v_108, b_111, b_112
+  }
+
+  b_110 {
+    store %v_98, %v_100, 8
+    store %v_99, 0, 8
+    jmp b_111
+  }
+
+  b_111 {
+    %v_113 = loads %v_99, 8: I64
+    %v_114 = loads %v_98, 8: I64
+    %v_115 = cmp_ilt %v_113, %v_114: I32
+    je %v_115, b_116, b_117
+  }
+
+  b_117 {
+    jmp b_112
+  }
+
+  b_112 {
+    %v_118 = phi [b_109, %v_108], [b_117, 2147483647]: I32
+    %string'149 = global @string'149: Ptr
+    %v_119 = imm 17: I64
+    jmp b_120
   }
 
   b_116 {
-    %v_117 = cmp_eq %v_113, 1: I32
-    je %v_117, b_118, b_119
+    %v_121 = loads %v_99, 8: I64
+    %v_122 = loads %v_98, 8: I64
+    %v_123 = cmp_ilt %v_121, %v_122: I32
+    je %v_123, b_124, b_125
   }
 
-  b_115 {
-    %v_120 = add %v_98, 24: Ptr
-    %v_121 = loads %v_120, 8: I64
-    store %v_110, %v_121, 8
-    store %v_111, 0, 8
-    jmp b_118
-  }
-
-  b_118 {
-    %v_122 = loads %v_111, 8: I64
-    %v_123 = loads %v_110, 8: I64
-    %v_124 = cmp_ilt %v_122, %v_123: I32
-    je %v_124, b_125, b_126
-  }
-
-  b_126 {
-    %v_127 = add %v_98, 52: Ptr
-    %v_128 = load %v_127, 1: I32
-    je %v_128, b_129, b_130
-  }
-
-  b_129 {
-    call_complex String.reclaim, %v_98
-    store %v_127, 0, 1
-    jmp b_130
-  }
-
-  b_130 {
-    store %v_112, 2147483647, 4
-    jmp b_119
-  }
-
-  b_119 {
-    call_complex words$drop, %v_98
-    %v_131 = alloca 16, 8: Ptr
-    copy %v_131, @constant$6, 16
-    %string'150 = global @string'150: Ptr
-    %v_132 = imm 17: I64
-    jmp b_133
+  b_124 {
+    %v_126 = add %string'148, %v_121: Ptr
+    %v_127 = load %v_126, 1: I32
+    %v_128 = cmp_eq %v_127, 32: I32
+    %v_129 = cmp_ige %v_127, 9: I32
+    %v_130 = cmp_ile %v_127, 13: I32
+    %v_131 = and %v_129, %v_130: I32
+    %v_132 = or %v_128, %v_131: I32
+    je %v_132, b_133, b_125
   }
 
   b_125 {
-    %v_134 = loads %v_111, 8: I64
-    %v_135 = loads %v_110, 8: I64
-    %v_136 = cmp_ilt %v_134, %v_135: I32
-    je %v_136, b_137, b_138
+    %v_134 = cmp_ilt %v_121, %v_122: I32
+    je %v_134, b_135, b_111
   }
 
-  b_137 {
-    %v_139 = load %v_109, 8: Ptr
-    %v_140 = add %v_139, %v_134: Ptr
+  b_135 {
+    %v_136 = loads %v_99, 8: I64
+    %v_137 = loads %v_98, 8: I64
+    %v_138 = cmp_ilt %v_136, %v_137: I32
+    je %v_138, b_139, b_106
+  }
+
+  b_139 {
+    %v_140 = add %string'148, %v_136: Ptr
     %v_141 = load %v_140, 1: I32
     %v_142 = cmp_eq %v_141, 32: I32
     %v_143 = cmp_ige %v_141, 9: I32
     %v_144 = cmp_ile %v_141, 13: I32
     %v_145 = and %v_143, %v_144: I32
     %v_146 = or %v_142, %v_145: I32
-    je %v_146, b_147, b_138
+    je %v_146, b_106, b_147
   }
 
-  b_138 {
-    %v_148 = cmp_ilt %v_134, %v_135: I32
-    je %v_148, b_149, b_118
-  }
-
-  b_149 {
-    %v_150 = loads %v_111, 8: I64
-    %v_151 = loads %v_110, 8: I64
-    %v_152 = cmp_ilt %v_150, %v_151: I32
-    je %v_152, b_153, b_154
-  }
-
-  b_153 {
-    %v_155 = load %v_109, 8: Ptr
-    %v_156 = add %v_155, %v_150: Ptr
-    %v_157 = load %v_156, 1: I32
-    %v_158 = cmp_eq %v_157, 32: I32
-    %v_159 = cmp_ige %v_157, 9: I32
-    %v_160 = cmp_ile %v_157, 13: I32
-    %v_161 = and %v_159, %v_160: I32
-    %v_162 = or %v_158, %v_161: I32
-    je %v_162, b_154, b_163
-  }
-
-  b_154 {
-    %v_164 = load %v_109, 8: Ptr
-    %v_165 = add %v_98, 24: Ptr
-    %v_166 = loads %v_165, 8: I64
-    %v_167 = alloca 16, 8: Ptr
-    call_complex String.slice, %v_167, %v_164, %v_166, %v_134, %v_150
-    %v_168 = add %v_98, 52: Ptr
-    %v_169 = load %v_168, 1: I32
-    je %v_169, b_170, b_107
-  }
-
-  b_170 {
-    call_complex String.reclaim, %v_98
-    store %v_168, 0, 1
-    jmp b_107
-  }
-
-  b_107 {
-    copy %v_98, %v_167, 16
-    store %v_168, 1, 1
-    store %v_112, 1, 4
-    %v_171 = add %v_98, 52: Ptr
-    store %v_171, 0, 1
-    copy %v_99, %v_98, 16
-    %v_172 = imul %v_106, 10: I64
-    %v_173 = add %v_99, 12: Ptr
-    %v_174 = load %v_173, 4: I32
-    %v_175 = sext %v_174: I64
-    call_complex String.reclaim, %v_99
-    %v_108 = add %v_172, %v_175: I64
-    jmp b_102
-  }
-
-  b_163 {
-    %v_176 = add %v_150, 1: I64
-    store %v_111, %v_176, 8
-    jmp b_149
+  b_106 {
+    %v_148 = cmp_ilt %v_121, 0: I32
+    %v_149 = select %v_148, 0, %v_121: I64
+    %v_150 = cmp_igt %v_149, %v_100: I32
+    %v_151 = select %v_150, %v_100, %v_149: I64
+    %v_152 = cmp_ilt %v_136, %v_151: I32
+    %v_153 = select %v_152, %v_151, %v_136: I64
+    %v_154 = cmp_igt %v_153, %v_100: I32
+    %v_155 = select %v_154, %v_100, %v_153: I64
+    %v_156 = sub %v_155, %v_151: I64
+    %v_157 = imul %v_105, 10: I64
+    %v_107 = add %v_157, %v_156: I64
+    jmp b_101
   }
 
   b_147 {
-    %v_177 = add %v_134, 1: I64
-    store %v_111, %v_177, 8
-    jmp b_125
-  }
-
-  b_178 {
-    %v_179 = alloca 53, 8: Ptr
-    %v_180 = alloca 16, 8: Ptr
-    store %v_180, @string'151, 8
-    %v_181 = add %v_180, 8: Ptr
-    store %v_181, 17, 8
-    call_complex words$new, %v_179, %v_180
-    jmp b_182
+    %v_158 = add %v_136, 1: I64
+    store %v_99, %v_158, 8
+    jmp b_135
   }
 
   b_133 {
-    %v_183 = phi [b_184, %v_185], [b_119, 0]: I64
-    %v_186 = phi [b_184, %v_187], [b_119, 0]: I64
-    jmp b_188
+    %v_159 = add %v_121, 1: I64
+    store %v_99, %v_159, 8
+    jmp b_116
+  }
+
+  b_160 {
+    %v_161 = alloca 52, 8: Ptr
+    %string'150 = global @string'150: Ptr
+    %v_162 = imm 17: I64
+    %v_163 = add %v_161, 48: Ptr
+    store %v_163, 0, 4
+    %v_164 = add %v_161, 16: Ptr
+    store %v_164, %string'150, 8
+    %v_165 = add %v_161, 24: Ptr
+    store %v_165, %v_162, 8
+    jmp b_166
+  }
+
+  b_120 {
+    %v_167 = phi [b_168, %v_169], [b_112, 0]: I64
+    %v_170 = phi [b_168, %v_171], [b_112, 0]: I64
+    jmp b_172
+  }
+
+  b_172 {
+    %v_173 = phi [b_120, %v_167], [b_174, %v_175]: I64
+    %v_176 = cmp_ilt %v_173, %v_119: I32
+    je %v_176, b_177, b_178
+  }
+
+  b_177 {
+    %v_179 = add %string'149, %v_173: Ptr
+    %v_180 = load %v_179, 1: I32
+    %v_181 = cmp_eq %v_180, 32: I32
+    %v_182 = cmp_ige %v_180, 9: I32
+    %v_183 = cmp_ile %v_180, 13: I32
+    %v_184 = and %v_182, %v_183: I32
+    %v_185 = or %v_181, %v_184: I32
+    je %v_185, b_174, b_178
+  }
+
+  b_178 {
+    %v_186 = cmp_ilt %v_173, %v_119: I32
+    je %v_186, b_187, b_188
   }
 
   b_188 {
-    %v_189 = phi [b_133, %v_183], [b_190, %v_191]: I64
-    %v_192 = cmp_ilt %v_189, %v_132: I32
-    je %v_192, b_193, b_194
+    jmp b_168
   }
 
-  b_193 {
-    %v_195 = add %string'150, %v_189: Ptr
-    %v_196 = load %v_195, 1: I32
-    %v_197 = cmp_eq %v_196, 32: I32
-    %v_198 = cmp_ige %v_196, 9: I32
-    %v_199 = cmp_ile %v_196, 13: I32
-    %v_200 = and %v_198, %v_199: I32
-    %v_201 = or %v_197, %v_200: I32
-    je %v_201, b_190, b_194
+  b_187 {
+    jmp b_189
+  }
+
+  b_189 {
+    %v_190 = phi [b_187, %v_173], [b_191, %v_192]: I64
+    %v_193 = cmp_ilt %v_190, %v_119: I32
+    je %v_193, b_194, b_195
   }
 
   b_194 {
-    %v_202 = cmp_ilt %v_189, %v_132: I32
-    je %v_202, b_203, b_204
+    %v_196 = add %string'149, %v_190: Ptr
+    %v_197 = load %v_196, 1: I32
+    %v_198 = cmp_eq %v_197, 32: I32
+    %v_199 = cmp_ige %v_197, 9: I32
+    %v_200 = cmp_ile %v_197, 13: I32
+    %v_201 = and %v_199, %v_200: I32
+    %v_202 = or %v_198, %v_201: I32
+    je %v_202, b_195, b_191
   }
 
-  b_204 {
-    jmp b_184
+  b_195 {
+    %v_203 = cmp_ilt %v_173, 0: I32
+    %v_204 = select %v_203, 0, %v_173: I64
+    %v_205 = cmp_igt %v_204, %v_119: I32
+    %v_206 = select %v_205, %v_119, %v_204: I64
+    %v_207 = cmp_ilt %v_190, %v_206: I32
+    %v_208 = select %v_207, %v_206, %v_190: I64
+    %v_209 = cmp_igt %v_208, %v_119: I32
+    %v_210 = select %v_209, %v_119, %v_208: I64
+    %v_211 = sub %v_210, %v_206: I64
+    %v_212 = imul %v_170, 10: I64
+    %v_213 = add %v_212, %v_211: I64
+    jmp b_168
   }
 
-  b_203 {
-    jmp b_205
+  b_168 {
+    %v_169 = phi [b_188, %v_173], [b_195, %v_190]: I64
+    %v_171 = phi [b_188, %v_170], [b_195, %v_213]: I64
+    %v_214 = cmp_ilt %v_169, %v_119: I32
+    je %v_214, b_120, b_160
   }
 
-  b_205 {
-    %v_206 = phi [b_203, %v_189], [b_207, %v_208]: I64
-    %v_209 = cmp_ilt %v_206, %v_132: I32
-    je %v_209, b_210, b_211
+  b_191 {
+    %v_192 = add %v_190, 1: I64
+    jmp b_189
   }
 
-  b_210 {
-    %v_212 = add %string'150, %v_206: Ptr
-    %v_213 = load %v_212, 1: I32
-    %v_214 = cmp_eq %v_213, 32: I32
-    %v_215 = cmp_ige %v_213, 9: I32
-    %v_216 = cmp_ile %v_213, 13: I32
-    %v_217 = and %v_215, %v_216: I32
-    %v_218 = or %v_214, %v_217: I32
-    je %v_218, b_211, b_207
+  b_174 {
+    %v_175 = add %v_173, 1: I64
+    jmp b_172
   }
 
-  b_211 {
-    %v_219 = alloca 16, 8: Ptr
-    call_complex String.slice, %v_219, %string'150, %v_132, %v_189, %v_206
-    %v_220 = alloca 16, 8: Ptr
-    call_complex String.reclaim, %v_131
-    copy %v_220, %v_219, 16
-    %v_221 = imul %v_186, 10: I64
-    %v_222 = add %v_220, 12: Ptr
-    %v_223 = load %v_222, 4: I32
-    %v_224 = sext %v_223: I64
-    call_complex String.reclaim, %v_220
-    %v_225 = add %v_221, %v_224: I64
-    jmp b_184
+  b_166 {
+    %v_215 = phi [b_160, 0], [b_216, %v_217]: I64
+    %v_218 = call_complex words$step, %v_161, 0, 0: I32
+    je %v_218, b_219, b_220
   }
 
-  b_184 {
-    %v_185 = phi [b_204, %v_189], [b_211, %v_206]: I64
-    %v_187 = phi [b_204, %v_186], [b_211, %v_225]: I64
-    %v_226 = cmp_ilt %v_185, %v_132: I32
-    je %v_226, b_133, b_178
+  b_220 {
+    %v_221 = alloca 16, 8: Ptr
+    store %v_221, 0, 8
+    jmp b_222
   }
 
-  b_207 {
-    %v_208 = add %v_206, 1: I64
-    jmp b_205
+  b_219 {
+    %v_223 = alloca 16, 8: Ptr
+    copy %v_223, %v_161, 16
+    jmp b_222
   }
 
-  b_190 {
-    %v_191 = add %v_189, 1: I64
-    jmp b_188
+  b_222 {
+    %v_224 = phi [b_220, %v_221], [b_219, %v_223]: Ptr
+    %v_225 = load %v_224, 8: I64
+    %v_226 = add %v_224, 8: Ptr
+    %v_227 = load %v_226, 8: I64
+    %v_228 = cmp_neq %v_225, 0: I32
+    je %v_228, b_216, b_229
   }
 
-  b_182 {
-    %v_227 = phi [b_178, 0], [b_228, %v_229]: I64
-    %v_230 = add %v_179, 16: Ptr
-    %v_231 = add %v_179, 32: Ptr
-    %v_232 = add %v_179, 40: Ptr
-    %v_233 = add %v_179, 48: Ptr
-    %v_234 = loads %v_233, 4: I32
-    %v_235 = cmp_eq %v_234, 0: I32
-    je %v_235, b_236, b_237
+  b_229 {
+    %v_230 = cmp_neq %v_19, %v_91: I32
+    je %v_230, b_231, b_232
+  }
+
+  b_216 {
+    %v_233 = imul %v_215, 10: I64
+    %v_217 = add %v_233, %v_227: I64
+    jmp b_166
+  }
+
+  b_232 {
+    %v_234 = cmp_neq %v_105, %v_171: I32
+    je %v_234, b_231, b_235
+  }
+
+  b_231 {
+    %v_236 = syscall 60, 134: I64
+    unreachable 
+  }
+
+  b_235 {
+    %v_237 = cmp_neq %v_105, %v_215: I32
+    je %v_237, b_231, b_238
   }
 
   b_238 {
     %v_239 = alloca 16, 8: Ptr
-    store %v_239, 0, 8
-    jmp b_240
+    %v_240 = alloca 104, 8: Ptr
+    %v_241 = call_complex allocateHeap, 16: Ptr
+    %v_242 = bitcast %v_241: I64
+    %v_243 = cmp_eq %v_242, 0: I32
+    je %v_243, b_231, b_244
   }
 
-  b_240 {
-    %v_241 = phi [b_238, %v_239], [b_242, %v_243]: Ptr
-    %v_244 = load %v_241, 8: I64
-    %v_245 = add %v_241, 8: Ptr
-    %v_246 = load %v_245, 8: I64
-    %v_247 = cmp_neq %v_244, 0: I32
-    je %v_247, b_228, b_248
-  }
-
-  b_248 {
-    call_complex words$drop, %v_179
-    %v_249 = cmp_neq %v_19, %v_91: I32
-    je %v_249, b_250, b_251
-  }
-
-  b_228 {
-    %v_252 = imul %v_227, 10: I64
-    %v_229 = add %v_252, %v_246: I64
-    jmp b_182
-  }
-
-  b_251 {
-    %v_253 = cmp_neq %v_106, %v_187: I32
-    je %v_253, b_250, b_254
-  }
-
-  b_250 {
-    %v_255 = syscall 60, 134: I64
-    unreachable 
-  }
-
-  b_254 {
-    %v_256 = cmp_neq %v_106, %v_227: I32
-    je %v_256, b_250, b_257
+  b_244 {
+    store %v_239, %v_241, 8
+    %v_245 = add %v_239, 8: Ptr
+    store %v_245, 1073741828, 4
+    %v_246 = add %v_239, 12: Ptr
+    store %v_246, 4, 4
+    store %v_241, 1, 4
+    %v_247 = add %v_241, 4: Ptr
+    store %v_247, 2, 4
+    %v_248 = add %v_241, 8: Ptr
+    store %v_248, 3, 4
+    %v_249 = add %v_241, 12: Ptr
+    store %v_249, 4, 4
+    %v_250 = imm 4: I64
+    %v_251 = imm 0: I32
+    %v_252 = imm 2147483647: I32
+    %v_253 = add %v_240, 32: Ptr
+    store %v_253, %v_252, 4
+    %v_254 = add %v_240, 40: Ptr
+    store %v_254, %v_241, 8
+    %v_255 = add %v_240, 48: Ptr
+    store %v_255, %v_250, 8
+    %v_256 = add %v_240, 96: Ptr
+    store %v_256, %v_251, 4
+    jmp b_257
   }
 
   b_257 {
-    %v_258 = alloca 16, 8: Ptr
-    %v_259 = alloca 104, 8: Ptr
-    %v_260 = call_complex allocateHeap, 16: Ptr
-    %v_261 = bitcast %v_260: I64
-    %v_262 = cmp_eq %v_261, 0: I32
-    je %v_262, b_250, b_263
+    %v_258 = phi [b_244, 0], [b_259, %v_260]: I32
+    %v_261 = phi [b_244, %v_19], [b_259, %v_262]: I32
+    %v_263 = phi [b_244, %v_91], [b_259, %v_264]: I32
+    %v_265 = phi [b_244, %v_105], [b_259, %v_266]: I64
+    %v_267 = phi [b_244, %v_171], [b_259, %v_268]: I64
+    %v_269 = phi [b_244, %v_215], [b_259, %v_270]: I64
+    %v_271 = phi [b_244, %v_65], [b_259, %v_272]: Ptr
+    %v_273 = phi [b_244, %v_68], [b_259, %v_274]: I64
+    %v_275 = phi [b_244, %string'148], [b_259, %v_276]: Ptr
+    %v_277 = phi [b_244, %v_100], [b_259, %v_278]: I64
+    %v_279 = phi [b_244, %v_118], [b_259, %v_280]: I32
+    %v_281 = phi [b_244, %string'148], [b_259, %v_282]: Ptr
+    %v_283 = phi [b_244, %v_100], [b_259, %v_284]: I64
+    %v_285 = phi [b_244, %string'149], [b_259, %v_286]: Ptr
+    %v_287 = phi [b_244, %v_119], [b_259, %v_288]: I64
+    %v_289 = phi [b_244, %v_225], [b_259, %v_290]: I64
+    %v_291 = phi [b_244, %v_227], [b_259, %v_292]: I64
+    %v_293 = phi [b_244, %string'150], [b_259, %v_294]: Ptr
+    %v_295 = phi [b_244, %v_162], [b_259, %v_296]: I64
+    %v_297 = phi [b_244, %v_241], [b_259, %v_298]: Ptr
+    %v_299 = phi [b_244, %v_250], [b_259, %v_300]: I64
+    %v_301 = phi [b_244, %v_252], [b_259, %v_302]: I32
+    %v_303 = phi [b_244, %v_241], [b_259, %v_304]: Ptr
+    %v_305 = phi [b_244, %v_250], [b_259, %v_306]: I64
+    %v_307 = phi [b_244, %v_251], [b_259, %v_308]: I32
+    %v_309 = add %v_240, 56: Ptr
+    %v_310 = add %v_240, 72: Ptr
+    %v_311 = loads %v_256, 4: I32
+    %v_312 = cmp_eq %v_311, 0: I32
+    je %v_312, b_313, b_314
   }
 
-  b_263 {
-    store %v_258, %v_260, 8
-    %v_264 = add %v_258, 8: Ptr
-    store %v_264, 1073741828, 4
-    %v_265 = add %v_258, 12: Ptr
-    store %v_265, 4, 4
-    store %v_260, 1, 4
-    %v_266 = add %v_260, 4: Ptr
-    store %v_266, 2, 4
-    %v_267 = add %v_260, 8: Ptr
-    store %v_267, 3, 4
-    %v_268 = add %v_260, 12: Ptr
-    store %v_268, 4, 4
-    %v_269 = imm 4: I64
-    %v_270 = imm 0: I32
-    %v_271 = imm 2147483647: I32
-    %v_272 = add %v_259, 32: Ptr
-    store %v_272, %v_271, 4
-    %v_273 = add %v_259, 40: Ptr
-    store %v_273, %v_260, 8
-    %v_274 = add %v_259, 48: Ptr
-    store %v_274, %v_269, 8
-    %v_275 = add %v_259, 96: Ptr
-    store %v_275, %v_270, 4
-    jmp b_276
+  b_314 {
+    %v_315 = cmp_eq %v_311, 1: I32
+    je %v_315, b_316, b_317
   }
 
-  b_276 {
-    %v_277 = phi [b_263, 0], [b_278, %v_279]: I32
-    %v_280 = phi [b_263, %v_19], [b_278, %v_281]: I32
-    %v_282 = phi [b_263, %v_91], [b_278, %v_283]: I32
-    %v_284 = phi [b_263, %v_106], [b_278, %v_285]: I64
-    %v_286 = phi [b_263, %v_187], [b_278, %v_287]: I64
-    %v_288 = phi [b_263, %v_227], [b_278, %v_289]: I64
-    %v_290 = phi [b_263, %v_65], [b_278, %v_291]: Ptr
-    %v_292 = phi [b_263, %v_68], [b_278, %v_293]: I64
-    %v_294 = phi [b_263, %string'150], [b_278, %v_295]: Ptr
-    %v_296 = phi [b_263, %v_132], [b_278, %v_297]: I64
-    %v_298 = phi [b_263, %v_244], [b_278, %v_299]: I64
-    %v_300 = phi [b_263, %v_246], [b_278, %v_301]: I64
-    %v_302 = phi [b_263, %v_260], [b_278, %v_303]: Ptr
-    %v_304 = phi [b_263, %v_269], [b_278, %v_305]: I64
-    %v_306 = phi [b_263, %v_271], [b_278, %v_307]: I32
-    %v_308 = phi [b_263, %v_260], [b_278, %v_309]: Ptr
-    %v_310 = phi [b_263, %v_269], [b_278, %v_311]: I64
-    %v_312 = phi [b_263, %v_270], [b_278, %v_313]: I32
-    %v_314 = add %v_259, 56: Ptr
-    %v_315 = add %v_259, 72: Ptr
-    %v_316 = loads %v_275, 4: I32
-    %v_317 = cmp_eq %v_316, 0: I32
-    je %v_317, b_318, b_319
+  b_317 {
+    jmp b_318
   }
 
-  b_319 {
-    %v_320 = cmp_eq %v_316, 1: I32
-    je %v_320, b_321, b_322
+  b_316 {
+    %v_319 = add %v_240, 80: Ptr
+    %v_320 = loads %v_319, 8: I64
+    %v_321 = add %v_240, 88: Ptr
+    %v_322 = loads %v_321, 8: I64
+    %v_323 = loads %v_310, 8: I64
+    %v_324 = add %v_323, %v_322: I64
+    store %v_310, %v_324, 8
+    jmp b_325
   }
 
-  b_322 {
-    jmp b_323
+  b_313 {
+    %v_326 = alloca 16, 16: Ptr
+    copy %v_326, %v_254, 16
+    %v_327 = add %v_240, 16: Ptr
+    copy %v_327, %v_326, 16
+    store %v_253, 0, 4
+    jmp b_328
   }
 
-  b_321 {
-    %v_324 = add %v_259, 80: Ptr
-    %v_325 = loads %v_324, 8: I64
-    %v_326 = add %v_259, 88: Ptr
-    %v_327 = loads %v_326, 8: I64
-    %v_328 = loads %v_315, 8: I64
-    %v_329 = add %v_328, %v_327: I64
-    store %v_315, %v_329, 8
-    jmp b_330
+  b_328 {
+    %v_329 = phi [b_313, %v_258], [b_325, %v_330]: I32
+    %v_331 = phi [b_313, %v_261], [b_325, %v_262]: I32
+    %v_332 = phi [b_313, %v_263], [b_325, %v_264]: I32
+    %v_333 = phi [b_313, %v_265], [b_325, %v_266]: I64
+    %v_334 = phi [b_313, %v_267], [b_325, %v_268]: I64
+    %v_335 = phi [b_313, %v_269], [b_325, %v_270]: I64
+    %v_336 = phi [b_313, %v_271], [b_325, %v_272]: Ptr
+    %v_337 = phi [b_313, %v_273], [b_325, %v_274]: I64
+    %v_338 = phi [b_313, %v_275], [b_325, %v_276]: Ptr
+    %v_339 = phi [b_313, %v_277], [b_325, %v_278]: I64
+    %v_340 = phi [b_313, %v_279], [b_325, %v_280]: I32
+    %v_341 = phi [b_313, %v_281], [b_325, %v_282]: Ptr
+    %v_342 = phi [b_313, %v_283], [b_325, %v_284]: I64
+    %v_343 = phi [b_313, %v_285], [b_325, %v_286]: Ptr
+    %v_344 = phi [b_313, %v_287], [b_325, %v_288]: I64
+    %v_345 = phi [b_313, %v_289], [b_325, %v_290]: I64
+    %v_346 = phi [b_313, %v_291], [b_325, %v_292]: I64
+    %v_347 = phi [b_313, %v_293], [b_325, %v_294]: Ptr
+    %v_348 = phi [b_313, %v_295], [b_325, %v_296]: I64
+    %v_349 = phi [b_313, %v_297], [b_325, %v_298]: Ptr
+    %v_350 = phi [b_313, %v_299], [b_325, %v_300]: I64
+    %v_351 = phi [b_313, %v_301], [b_325, %v_302]: I32
+    %v_352 = phi [b_313, %v_303], [b_325, %v_304]: Ptr
+    %v_353 = phi [b_313, %v_305], [b_325, %v_306]: I64
+    %v_354 = phi [b_313, %v_307], [b_325, %v_308]: I32
+    %v_355 = add %v_240, 16: Ptr
+    %v_356 = loads %v_253, 4: I32
+    %v_357 = cmp_eq %v_356, 0: I32
+    je %v_357, b_358, b_359
+  }
+
+  b_360 {
+    %v_361 = loads %v_253, 4: I32
+    %v_362 = cmp_eq %v_361, 0: I32
+    je %v_362, b_363, b_364
+  }
+
+  b_325 {
+    %v_365 = phi [b_316, %v_320], [b_358, %v_366]: I64
+    %v_367 = phi [b_316, %v_322], [b_358, 1]: I64
+    %v_330 = phi [b_316, %v_258], [b_358, %v_329]: I32
+    %v_262 = phi [b_316, %v_261], [b_358, %v_331]: I32
+    %v_264 = phi [b_316, %v_263], [b_358, %v_332]: I32
+    %v_266 = phi [b_316, %v_265], [b_358, %v_333]: I64
+    %v_268 = phi [b_316, %v_267], [b_358, %v_334]: I64
+    %v_270 = phi [b_316, %v_269], [b_358, %v_335]: I64
+    %v_272 = phi [b_316, %v_271], [b_358, %v_336]: Ptr
+    %v_274 = phi [b_316, %v_273], [b_358, %v_337]: I64
+    %v_276 = phi [b_316, %v_275], [b_358, %v_338]: Ptr
+    %v_278 = phi [b_316, %v_277], [b_358, %v_339]: I64
+    %v_280 = phi [b_316, %v_279], [b_358, %v_340]: I32
+    %v_282 = phi [b_316, %v_281], [b_358, %v_341]: Ptr
+    %v_284 = phi [b_316, %v_283], [b_358, %v_342]: I64
+    %v_286 = phi [b_316, %v_285], [b_358, %v_343]: Ptr
+    %v_288 = phi [b_316, %v_287], [b_358, %v_344]: I64
+    %v_290 = phi [b_316, %v_289], [b_358, %v_345]: I64
+    %v_292 = phi [b_316, %v_291], [b_358, %v_346]: I64
+    %v_294 = phi [b_316, %v_293], [b_358, %v_347]: Ptr
+    %v_296 = phi [b_316, %v_295], [b_358, %v_348]: I64
+    %v_298 = phi [b_316, %v_297], [b_358, %v_349]: Ptr
+    %v_300 = phi [b_316, %v_299], [b_358, %v_350]: I64
+    %v_302 = phi [b_316, %v_301], [b_358, %v_351]: I32
+    %v_304 = phi [b_316, %v_303], [b_358, %v_352]: Ptr
+    %v_306 = phi [b_316, %v_305], [b_358, %v_353]: I64
+    %v_308 = phi [b_316, %v_307], [b_358, %v_354]: I32
+    %v_368 = loads %v_310, 8: I64
+    %v_369 = cmp_ilt %v_368, %v_365: I32
+    je %v_369, b_370, b_328
+  }
+
+  b_370 {
+    %v_371 = add %v_240, 64: Ptr
+    %v_372 = loads %v_371, 8: I64
+    %v_373 = cmp_ge %v_368, %v_372: I32
+    je %v_373, b_231, b_259
+  }
+
+  b_259 {
+    %v_374 = load %v_309, 8: Ptr
+    %v_375 = shl %v_368, 2: I64
+    %v_376 = add %v_374, %v_375: Ptr
+    %v_377 = loads %v_376, 4: I32
+    %v_378 = add %v_240, 100: Ptr
+    store %v_378, %v_377, 4
+    %v_379 = add %v_240, 80: Ptr
+    store %v_379, %v_365, 8
+    %v_380 = add %v_240, 88: Ptr
+    store %v_380, %v_367, 8
+    store %v_256, 1, 4
+    %v_381 = loads %v_378, 4: I32
+    %v_382 = imul %v_330, 10: I32
+    %v_260 = add %v_382, %v_381: I32
+    jmp b_257
   }
 
   b_318 {
-    %v_331 = alloca 16, 16: Ptr
-    copy %v_331, %v_273, 16
-    %v_332 = add %v_259, 16: Ptr
-    copy %v_332, %v_331, 16
-    store %v_272, 0, 4
-    jmp b_333
+    %v_383 = phi [b_317, %v_258], [b_384, %v_329]: I32
+    %v_385 = phi [b_317, %v_261], [b_384, %v_331]: I32
+    %v_386 = phi [b_317, %v_265], [b_384, %v_333]: I64
+    call_complex Array(a).reclaim(I32), %v_239
+    %v_387 = alloca 16, 8: Ptr
+    %v_388 = alloca 16, 4: Ptr
+    store %v_387, %v_388, 8
+    %v_389 = add %v_387, 8: Ptr
+    store %v_389, 4, 4
+    %v_390 = add %v_387, 12: Ptr
+    store %v_390, 4, 4
+    store %v_388, 1, 4
+    %v_391 = add %v_388, 4: Ptr
+    store %v_391, 2, 4
+    %v_392 = add %v_388, 8: Ptr
+    store %v_392, 3, 4
+    %v_393 = add %v_388, 12: Ptr
+    store %v_393, 4, 4
+    %v_394 = imm 4: I64
+    jmp b_395
   }
 
-  b_333 {
-    %v_334 = phi [b_318, %v_277], [b_330, %v_335]: I32
-    %v_336 = phi [b_318, %v_280], [b_330, %v_281]: I32
-    %v_337 = phi [b_318, %v_282], [b_330, %v_283]: I32
-    %v_338 = phi [b_318, %v_284], [b_330, %v_285]: I64
-    %v_339 = phi [b_318, %v_286], [b_330, %v_287]: I64
-    %v_340 = phi [b_318, %v_288], [b_330, %v_289]: I64
-    %v_341 = phi [b_318, %v_290], [b_330, %v_291]: Ptr
-    %v_342 = phi [b_318, %v_292], [b_330, %v_293]: I64
-    %v_343 = phi [b_318, %v_294], [b_330, %v_295]: Ptr
-    %v_344 = phi [b_318, %v_296], [b_330, %v_297]: I64
-    %v_345 = phi [b_318, %v_298], [b_330, %v_299]: I64
-    %v_346 = phi [b_318, %v_300], [b_330, %v_301]: I64
-    %v_347 = phi [b_318, %v_302], [b_330, %v_303]: Ptr
-    %v_348 = phi [b_318, %v_304], [b_330, %v_305]: I64
-    %v_349 = phi [b_318, %v_306], [b_330, %v_307]: I32
-    %v_350 = phi [b_318, %v_308], [b_330, %v_309]: Ptr
-    %v_351 = phi [b_318, %v_310], [b_330, %v_311]: I64
-    %v_352 = phi [b_318, %v_312], [b_330, %v_313]: I32
-    %v_353 = add %v_259, 16: Ptr
-    %v_354 = loads %v_272, 4: I32
-    %v_355 = cmp_eq %v_354, 0: I32
-    je %v_355, b_356, b_357
+  b_396 {
+    %v_397 = cmp_ge %v_398, %v_394: I32
+    je %v_397, b_231, b_395
   }
 
-  b_358 {
-    %v_359 = loads %v_272, 4: I32
-    %v_360 = cmp_eq %v_359, 0: I32
-    je %v_360, b_361, b_362
+  b_395 {
+    %v_399 = phi [b_396, %v_398], [b_318, 0]: I64
+    %v_400 = phi [b_396, %v_401], [b_318, 0]: I32
+    %v_402 = shl %v_399, 2: I64
+    %v_403 = add %v_388, %v_402: Ptr
+    %v_404 = loads %v_403, 4: I32
+    %v_405 = imul %v_400, 10: I32
+    %v_401 = add %v_405, %v_404: I32
+    %v_398 = add %v_399, 1: I64
+    %v_406 = cmp_ilt %v_398, %v_394: I32
+    je %v_406, b_396, b_407
   }
 
-  b_330 {
-    %v_363 = phi [b_321, %v_325], [b_356, %v_364]: I64
-    %v_365 = phi [b_321, %v_327], [b_356, 1]: I64
-    %v_335 = phi [b_321, %v_277], [b_356, %v_334]: I32
-    %v_281 = phi [b_321, %v_280], [b_356, %v_336]: I32
-    %v_283 = phi [b_321, %v_282], [b_356, %v_337]: I32
-    %v_285 = phi [b_321, %v_284], [b_356, %v_338]: I64
-    %v_287 = phi [b_321, %v_286], [b_356, %v_339]: I64
-    %v_289 = phi [b_321, %v_288], [b_356, %v_340]: I64
-    %v_291 = phi [b_321, %v_290], [b_356, %v_341]: Ptr
-    %v_293 = phi [b_321, %v_292], [b_356, %v_342]: I64
-    %v_295 = phi [b_321, %v_294], [b_356, %v_343]: Ptr
-    %v_297 = phi [b_321, %v_296], [b_356, %v_344]: I64
-    %v_299 = phi [b_321, %v_298], [b_356, %v_345]: I64
-    %v_301 = phi [b_321, %v_300], [b_356, %v_346]: I64
-    %v_303 = phi [b_321, %v_302], [b_356, %v_347]: Ptr
-    %v_305 = phi [b_321, %v_304], [b_356, %v_348]: I64
-    %v_307 = phi [b_321, %v_306], [b_356, %v_349]: I32
-    %v_309 = phi [b_321, %v_308], [b_356, %v_350]: Ptr
-    %v_311 = phi [b_321, %v_310], [b_356, %v_351]: I64
-    %v_313 = phi [b_321, %v_312], [b_356, %v_352]: I32
-    %v_366 = loads %v_315, 8: I64
-    %v_367 = cmp_ilt %v_366, %v_363: I32
-    je %v_367, b_368, b_333
+  b_407 {
+    call_complex Array(a).reclaim(I32), %v_387
+    %v_408 = alloca 8, 8: Ptr
+    %v_409 = alloca 8, 8: Ptr
+    %v_410 = alloca 8, 8: Ptr
+    %v_411 = alloca 8, 8: Ptr
+    %v_412 = alloca 1, 4: Ptr
+    %v_413 = alloca 8, 8: Ptr
+    %string'151 = global @string'151: Ptr
+    %v_414 = imm 8: I64
+    jmp b_415
   }
 
-  b_368 {
-    %v_369 = add %v_259, 64: Ptr
-    %v_370 = loads %v_369, 8: I64
-    %v_371 = cmp_ge %v_366, %v_370: I32
-    je %v_371, b_250, b_278
-  }
-
-  b_278 {
-    %v_372 = load %v_314, 8: Ptr
-    %v_373 = shl %v_366, 2: I64
-    %v_374 = add %v_372, %v_373: Ptr
-    %v_375 = loads %v_374, 4: I32
-    %v_376 = add %v_259, 100: Ptr
-    store %v_376, %v_375, 4
-    %v_377 = add %v_259, 80: Ptr
-    store %v_377, %v_363, 8
-    %v_378 = add %v_259, 88: Ptr
-    store %v_378, %v_365, 8
-    store %v_275, 1, 4
-    %v_379 = loads %v_376, 4: I32
-    %v_380 = imul %v_335, 10: I32
-    %v_279 = add %v_380, %v_379: I32
-    jmp b_276
-  }
-
-  b_323 {
-    %v_381 = phi [b_322, %v_277], [b_382, %v_334]: I32
-    %v_383 = phi [b_322, %v_280], [b_382, %v_336]: I32
-    %v_384 = phi [b_322, %v_284], [b_382, %v_338]: I64
-    call_complex Array(a).reclaim(I32), %v_258
-    %v_385 = alloca 16, 8: Ptr
-    %v_386 = alloca 16, 4: Ptr
-    store %v_385, %v_386, 8
-    %v_387 = add %v_385, 8: Ptr
-    store %v_387, 4, 4
-    %v_388 = add %v_385, 12: Ptr
-    store %v_388, 4, 4
-    store %v_386, 1, 4
-    %v_389 = add %v_386, 4: Ptr
-    store %v_389, 2, 4
-    %v_390 = add %v_386, 8: Ptr
-    store %v_390, 3, 4
-    %v_391 = add %v_386, 12: Ptr
-    store %v_391, 4, 4
-    %v_392 = imm 4: I64
-    jmp b_393
-  }
-
-  b_394 {
-    %v_395 = cmp_ge %v_396, %v_392: I32
-    je %v_395, b_250, b_393
-  }
-
-  b_393 {
-    %v_397 = phi [b_394, %v_396], [b_323, 0]: I64
-    %v_398 = phi [b_394, %v_399], [b_323, 0]: I32
-    %v_400 = shl %v_397, 2: I64
-    %v_401 = add %v_386, %v_400: Ptr
-    %v_402 = loads %v_401, 4: I32
-    %v_403 = imul %v_398, 10: I32
-    %v_399 = add %v_403, %v_402: I32
-    %v_396 = add %v_397, 1: I64
-    %v_404 = cmp_ilt %v_396, %v_392: I32
-    je %v_404, b_394, b_405
-  }
-
-  b_405 {
-    call_complex Array(a).reclaim(I32), %v_385
-    %v_406 = alloca 109, 8: Ptr
-    %v_407 = alloca 16, 8: Ptr
-    %v_408 = alloca 16, 8: Ptr
-    store %v_408, @string'152, 8
-    %v_409 = add %v_408, 8: Ptr
-    store %v_409, 8, 8
-    call_complex lines$new, %v_406, %v_408
-    jmp b_410
-  }
-
-  b_410 {
-    %v_411 = phi [b_405, 0], [b_412, %v_413]: I64
-    %v_414 = add %v_406, 80: Ptr
-    %v_415 = add %v_406, 96: Ptr
-    %v_416 = add %v_406, 104: Ptr
-    %v_417 = loads %v_416, 4: I32
-    %v_418 = cmp_eq %v_417, 0: I32
-    je %v_418, b_419, b_420
-  }
-
-  b_420 {
-    %v_421 = cmp_eq %v_417, 1: I32
+  b_415 {
+    %v_416 = phi [b_407, 0], [b_417, %v_418]: I64
+    %v_419 = phi [b_407, 2147483647], [b_417, %v_420]: I32
+    %v_421 = phi [b_407, 0], [b_417, 1]: I32
     je %v_421, b_422, b_423
   }
 
-  b_419 {
-    %v_424 = add %v_406, 88: Ptr
-    %v_425 = loads %v_424, 8: I64
-    store %v_415, %v_425, 8
-    %v_426 = alloca 16, 16: Ptr
-    copy %v_426, %v_414, 16
-    %v_427 = add %v_406, 16: Ptr
-    copy %v_427, %v_426, 16
-    %v_428 = add %v_406, 56: Ptr
-    store %v_428, 0, 4
-    %v_429 = add %v_406, 60: Ptr
-    store %v_429, 10, 1
-    jmp b_422
-  }
-
   b_422 {
-    %v_430 = add %v_406, 16: Ptr
-    %v_431 = add %v_406, 60: Ptr
-    %v_432 = add %v_406, 32: Ptr
-    %v_433 = add %v_406, 40: Ptr
-    %v_434 = alloca 16, 8: Ptr
-    %v_435 = add %v_406, 48: Ptr
-    %v_436 = add %v_406, 56: Ptr
-    %v_437 = loads %v_436, 4: I32
-    switch %v_437, b_438, [b_439, 0], [b_440, 1], [b_441, 2]
-  }
-
-  b_438 {
-    %v_442 = add %v_406, 108: Ptr
-    %v_443 = load %v_442, 1: I32
-    je %v_443, b_444, b_445
-  }
-
-  b_444 {
-    %v_446 = add %v_406, 64: Ptr
-    call_complex String.reclaim, %v_446
-    store %v_442, 0, 1
-    jmp b_445
-  }
-
-  b_445 {
-    %v_447 = add %v_406, 56: Ptr
-    %v_448 = loads %v_447, 4: I32
-    switch %v_448, b_449, [b_450, 0], [b_451, 1], [b_452, 2]
+    je %v_421, b_424, b_425
   }
 
   b_423 {
-    call_complex lines$drop, %v_406
-    %v_453 = alloca 16, 8: Ptr
-    copy %v_453, @constant$7, 16
-    %string'153 = global @string'153: Ptr
-    %v_454 = imm 8: I64
-    %v_455 = alloca 16, 8: Ptr
-    jmp b_456
-  }
-
-  b_457 {
-    %v_458 = loads %v_406, 8: I64
-    %v_459 = add %v_406, 8: Ptr
-    %v_460 = loads %v_459, 8: I64
-    %v_461 = loads %v_415, 8: I64
-    %v_462 = cmp_ilt %v_458, %v_461: I32
-    je %v_462, b_463, b_422
-  }
-
-  b_463 {
-    %v_464 = cmp_igt %v_460, %v_458: I32
-    je %v_464, b_465, b_466
-  }
-
-  b_465 {
-    %v_467 = sub %v_460, 1: I64
-    %v_468 = load %v_414, 8: Ptr
-    %v_469 = add %v_468, %v_467: Ptr
-    %v_470 = load %v_469, 1: I32
-    %v_471 = cmp_eq %v_470, 13: I32
-    je %v_471, b_472, b_466
-  }
-
-  b_466 {
-    jmp b_473
-  }
-
-  b_472 {
-    jmp b_473
-  }
-
-  b_473 {
-    %v_474 = phi [b_466, %v_460], [b_472, %v_467]: I64
-    %v_475 = load %v_414, 8: Ptr
-    %v_476 = add %v_406, 88: Ptr
-    %v_477 = loads %v_476, 8: I64
-    %v_478 = alloca 16, 8: Ptr
-    call_complex String.slice, %v_478, %v_475, %v_477, %v_458, %v_474
-    %v_479 = add %v_406, 108: Ptr
-    %v_480 = load %v_479, 1: I32
-    je %v_480, b_481, b_412
-  }
-
-  b_481 {
-    %v_482 = add %v_406, 64: Ptr
-    call_complex String.reclaim, %v_482
-    store %v_479, 0, 1
-    jmp b_412
-  }
-
-  b_412 {
-    %v_483 = add %v_406, 64: Ptr
-    copy %v_483, %v_478, 16
-    store %v_479, 1, 1
-    store %v_416, 1, 4
-    %v_484 = add %v_406, 108: Ptr
-    store %v_484, 0, 1
-    copy %v_407, %v_483, 16
-    %v_485 = imul %v_411, 10: I64
-    %v_486 = add %v_407, 12: Ptr
-    %v_487 = load %v_486, 4: I32
-    %v_488 = sext %v_487: I64
-    call_complex String.reclaim, %v_407
-    %v_413 = add %v_485, %v_488: I64
-    jmp b_410
-  }
-
-  b_456 {
-    %v_489 = phi [b_423, 0], [b_490, %v_491]: I64
-    %v_492 = phi [b_423, 0], [b_490, %v_493]: I64
-    %v_494 = phi [b_423, 0], [b_490, %v_495]: I32
-    call_complex findAscii, %v_455, %string'153, %v_454, 10, %v_489
-    %v_496 = load %v_455, 1: I32
-    %v_497 = cmp_eq %v_496, 1: I32
-    je %v_497, b_498, b_499
-  }
-
-  b_499 {
-    %v_500 = cmp_ilt %v_489, %v_454: I32
-    je %v_500, b_501, b_502
-  }
-
-  b_501 {
-    %v_503 = cmp_igt %v_454, %v_489: I32
-    je %v_503, b_504, b_505
-  }
-
-  b_504 {
-    %v_506 = add %string'153, 7: Ptr
-    %v_507 = load %v_506, 1: I32
-    %v_508 = cmp_eq %v_507, 13: I32
-    je %v_508, b_509, b_505
-  }
-
-  b_505 {
-    jmp b_510
-  }
-
-  b_509 {
-    jmp b_510
-  }
-
-  b_510 {
-    %v_511 = phi [b_505, %v_454], [b_509, 7]: I64
-    %v_512 = alloca 16, 8: Ptr
-    call_complex String.slice, %v_512, %string'153, %v_454, %v_489, %v_511
-    %v_513 = alloca 16, 8: Ptr
-    call_complex String.reclaim, %v_453
-    copy %v_513, %v_512, 16
-    %v_514 = imul %v_492, 10: I64
-    %v_515 = add %v_513, 12: Ptr
-    %v_516 = load %v_515, 4: I32
-    %v_517 = sext %v_516: I64
-    call_complex String.reclaim, %v_513
-    %v_518 = add %v_514, %v_517: I64
-    jmp b_502
-  }
-
-  b_498 {
-    %v_519 = add %v_455, 8: Ptr
-    %v_520 = loads %v_519, 8: I64
-    %v_521 = cmp_ilt %v_489, %v_454: I32
-    je %v_521, b_522, b_490
-  }
-
-  b_522 {
-    %v_523 = cmp_igt %v_520, %v_489: I32
-    je %v_523, b_524, b_525
-  }
-
-  b_524 {
-    %v_526 = sub %v_520, 1: I64
-    %v_527 = add %string'153, %v_526: Ptr
-    %v_528 = load %v_527, 1: I32
-    %v_529 = cmp_eq %v_528, 13: I32
-    je %v_529, b_530, b_525
-  }
-
-  b_525 {
-    jmp b_531
-  }
-
-  b_530 {
-    jmp b_531
-  }
-
-  b_531 {
-    %v_532 = phi [b_525, %v_520], [b_530, %v_526]: I64
-    %v_533 = alloca 16, 8: Ptr
-    call_complex String.slice, %v_533, %string'153, %v_454, %v_489, %v_532
-    %v_534 = alloca 16, 8: Ptr
-    call_complex String.reclaim, %v_453
-    copy %v_534, %v_533, 16
-    %v_535 = imul %v_492, 10: I64
-    %v_536 = add %v_534, 12: Ptr
-    %v_537 = load %v_536, 4: I32
-    %v_538 = sext %v_537: I64
-    call_complex String.reclaim, %v_534
-    %v_539 = add %v_535, %v_538: I64
-    jmp b_490
-  }
-
-  b_502 {
-    %v_540 = phi [b_499, %v_492], [b_510, %v_518]: I64
-    %v_541 = alloca 102, 8: Ptr
-    %v_542 = alloca 16, 8: Ptr
-    %v_543 = alloca 16, 8: Ptr
-    store %v_543, @string'154, 8
-    %v_544 = add %v_543, 8: Ptr
-    store %v_544, 8, 8
-    call_complex splitOn$new, %v_541, %v_543, 44
-    jmp b_545
-  }
-
-  b_490 {
-    %v_493 = phi [b_498, %v_492], [b_531, %v_539]: I64
-    %v_495 = phi [b_498, %v_494], [b_531, 0]: I32
-    %v_491 = add %v_520, 1: I64
-    jmp b_456
-  }
-
-  b_545 {
-    %v_546 = phi [b_502, 0], [b_547, %v_548]: I64
-    %v_549 = add %v_541, 80: Ptr
-    %v_550 = add %v_541, 100: Ptr
-    %v_551 = add %v_541, 96: Ptr
-    %v_552 = loads %v_551, 4: I32
-    %v_553 = cmp_eq %v_552, 0: I32
-    je %v_553, b_554, b_555
-  }
-
-  b_555 {
-    %v_556 = cmp_eq %v_552, 1: I32
-    je %v_556, b_557, b_558
-  }
-
-  b_554 {
-    %v_559 = load %v_550, 1: I32
-    %v_560 = alloca 16, 16: Ptr
-    copy %v_560, %v_549, 16
-    %v_561 = add %v_541, 16: Ptr
-    copy %v_561, %v_560, 16
-    %v_562 = add %v_541, 56: Ptr
-    store %v_562, 0, 4
-    %v_563 = add %v_541, 60: Ptr
-    store %v_563, %v_559, 1
-    jmp b_557
-  }
-
-  b_557 {
-    %v_564 = add %v_541, 16: Ptr
-    %v_565 = add %v_541, 60: Ptr
-    %v_566 = add %v_541, 32: Ptr
-    %v_567 = add %v_541, 40: Ptr
-    %v_568 = alloca 16, 8: Ptr
-    %v_569 = add %v_541, 48: Ptr
-    %v_570 = add %v_541, 56: Ptr
-    %v_571 = loads %v_570, 4: I32
-    switch %v_571, b_572, [b_573, 0], [b_574, 1], [b_575, 2]
-  }
-
-  b_572 {
-    %v_576 = add %v_541, 101: Ptr
-    %v_577 = load %v_576, 1: I32
-    je %v_577, b_578, b_579
-  }
-
-  b_578 {
-    %v_580 = add %v_541, 64: Ptr
-    call_complex String.reclaim, %v_580
-    store %v_576, 0, 1
-    jmp b_579
-  }
-
-  b_579 {
-    %v_581 = add %v_541, 56: Ptr
-    %v_582 = loads %v_581, 4: I32
-    switch %v_582, b_583, [b_584, 0], [b_585, 1], [b_586, 2]
-  }
-
-  b_558 {
-    call_complex splitOn$drop, %v_541
-    %v_587 = alloca 16, 8: Ptr
-    copy %v_587, @constant$8, 16
-    %string'155 = global @string'155: Ptr
-    %v_588 = imm 8: I64
-    %v_589 = alloca 16, 8: Ptr
-    jmp b_590
-  }
-
-  b_591 {
-    %v_592 = loads %v_541, 8: I64
-    %v_593 = add %v_541, 8: Ptr
-    %v_594 = loads %v_593, 8: I64
-    %v_595 = load %v_549, 8: Ptr
-    %v_596 = add %v_541, 88: Ptr
-    %v_597 = loads %v_596, 8: I64
-    %v_598 = alloca 16, 8: Ptr
-    call_complex String.slice, %v_598, %v_595, %v_597, %v_592, %v_594
-    %v_599 = add %v_541, 101: Ptr
-    %v_600 = load %v_599, 1: I32
-    je %v_600, b_601, b_547
-  }
-
-  b_601 {
-    %v_602 = add %v_541, 64: Ptr
-    call_complex String.reclaim, %v_602
-    store %v_599, 0, 1
-    jmp b_547
-  }
-
-  b_547 {
-    %v_603 = add %v_541, 64: Ptr
-    copy %v_603, %v_598, 16
-    store %v_599, 1, 1
-    store %v_551, 1, 4
-    %v_604 = add %v_541, 101: Ptr
-    store %v_604, 0, 1
-    copy %v_542, %v_603, 16
-    %v_605 = imul %v_546, 10: I64
-    %v_606 = add %v_542, 12: Ptr
-    %v_607 = load %v_606, 4: I32
-    %v_608 = sext %v_607: I64
-    call_complex String.reclaim, %v_542
-    %v_548 = add %v_605, %v_608: I64
-    jmp b_545
-  }
-
-  b_590 {
-    %v_609 = phi [b_558, 0], [b_610, %v_611]: I64
-    %v_612 = phi [b_558, 0], [b_610, %v_613]: I64
-    call_complex findAscii, %v_589, %string'155, %v_588, 44, %v_609
-    %v_614 = load %v_589, 1: I32
-    %v_615 = cmp_eq %v_614, 1: I32
-    je %v_615, b_610, b_616
-  }
-
-  b_610 {
-    %v_617 = add %v_589, 8: Ptr
-    %v_618 = loads %v_617, 8: I64
-    %v_619 = alloca 16, 8: Ptr
-    call_complex String.slice, %v_619, %string'155, %v_588, %v_609, %v_618
-    %v_620 = alloca 16, 8: Ptr
-    call_complex String.reclaim, %v_587
-    copy %v_620, %v_619, 16
-    %v_621 = imul %v_612, 10: I64
-    %v_622 = add %v_620, 12: Ptr
-    %v_623 = load %v_622, 4: I32
-    %v_624 = sext %v_623: I64
-    call_complex String.reclaim, %v_620
-    %v_613 = add %v_621, %v_624: I64
-    %v_611 = add %v_618, 1: I64
-    jmp b_590
-  }
-
-  b_616 {
-    %v_625 = alloca 16, 8: Ptr
-    call_complex String.slice, %v_625, %string'155, %v_588, %v_609, %v_588
-    %v_626 = alloca 16, 8: Ptr
-    call_complex String.reclaim, %v_587
-    copy %v_626, %v_625, 16
-    %v_627 = imul %v_612, 10: I64
-    %v_628 = add %v_626, 12: Ptr
-    %v_629 = load %v_628, 4: I32
-    %v_630 = sext %v_629: I64
-    call_complex String.reclaim, %v_626
-    %v_631 = add %v_627, %v_630: I64
-    %v_632 = cmp_neq %v_381, %v_399: I32
-    je %v_632, b_250, b_633
-  }
-
-  b_633 {
-    %v_634 = cmp_neq %v_411, %v_540: I32
-    je %v_634, b_250, b_635
-  }
-
-  b_635 {
-    %v_636 = cmp_neq %v_546, %v_631: I32
-    je %v_636, b_250, b_637
-  }
-
-  b_637 {
-    %v_638 = sext %v_384: I32
-    %v_639 = add %v_383, %v_638: I32
-    %v_640 = add %v_639, %v_381: I32
-    %v_641 = sext %v_411: I32
-    %v_642 = add %v_640, %v_641: I32
-    %v_643 = sext %v_546: I32
-    %v_644 = add %v_642, %v_643: I32
-    ret %v_644
-  }
-
-  b_237 {
-    %v_645 = cmp_eq %v_234, 1: I32
-    je %v_645, b_646, b_238
-  }
-
-  b_236 {
-    %v_647 = add %v_179, 24: Ptr
-    %v_648 = loads %v_647, 8: I64
-    store %v_231, %v_648, 8
-    store %v_232, 0, 8
-    jmp b_646
-  }
-
-  b_646 {
-    %v_649 = loads %v_232, 8: I64
-    %v_650 = loads %v_231, 8: I64
-    %v_651 = cmp_ilt %v_649, %v_650: I32
-    je %v_651, b_652, b_653
-  }
-
-  b_653 {
-    %v_654 = add %v_179, 52: Ptr
-    %v_655 = load %v_654, 1: I32
-    je %v_655, b_656, b_657
-  }
-
-  b_656 {
-    call_complex String.reclaim, %v_179
-    store %v_654, 0, 1
-    jmp b_657
-  }
-
-  b_657 {
-    store %v_233, 2147483647, 4
-    jmp b_238
-  }
-
-  b_652 {
-    %v_658 = loads %v_232, 8: I64
-    %v_659 = loads %v_231, 8: I64
-    %v_660 = cmp_ilt %v_658, %v_659: I32
-    je %v_660, b_661, b_662
-  }
-
-  b_661 {
-    %v_663 = load %v_230, 8: Ptr
-    %v_664 = add %v_663, %v_658: Ptr
-    %v_665 = load %v_664, 1: I32
-    %v_666 = cmp_eq %v_665, 32: I32
-    %v_667 = cmp_ige %v_665, 9: I32
-    %v_668 = cmp_ile %v_665, 13: I32
-    %v_669 = and %v_667, %v_668: I32
-    %v_670 = or %v_666, %v_669: I32
-    je %v_670, b_671, b_662
-  }
-
-  b_662 {
-    %v_672 = cmp_ilt %v_658, %v_659: I32
-    je %v_672, b_673, b_646
-  }
-
-  b_673 {
-    %v_674 = loads %v_232, 8: I64
-    %v_675 = loads %v_231, 8: I64
-    %v_676 = cmp_ilt %v_674, %v_675: I32
-    je %v_676, b_677, b_678
-  }
-
-  b_677 {
-    %v_679 = load %v_230, 8: Ptr
-    %v_680 = add %v_679, %v_674: Ptr
-    %v_681 = load %v_680, 1: I32
-    %v_682 = cmp_eq %v_681, 32: I32
-    %v_683 = cmp_ige %v_681, 9: I32
-    %v_684 = cmp_ile %v_681, 13: I32
-    %v_685 = and %v_683, %v_684: I32
-    %v_686 = or %v_682, %v_685: I32
-    je %v_686, b_678, b_687
-  }
-
-  b_678 {
-    %v_688 = load %v_230, 8: Ptr
-    %v_689 = add %v_179, 24: Ptr
-    %v_690 = loads %v_689, 8: I64
-    %v_691 = alloca 16, 8: Ptr
-    call_complex String.slice, %v_691, %v_688, %v_690, %v_658, %v_674
-    %v_692 = add %v_179, 52: Ptr
-    %v_693 = load %v_692, 1: I32
-    je %v_693, b_694, b_242
-  }
-
-  b_694 {
-    call_complex String.reclaim, %v_179
-    store %v_692, 0, 1
-    jmp b_242
-  }
-
-  b_242 {
-    copy %v_179, %v_691, 16
-    store %v_692, 1, 1
-    store %v_233, 1, 4
-    %v_695 = load %v_179, 8: Ptr
-    %v_696 = add %v_179, 12: Ptr
-    %v_697 = load %v_696, 4: I32
-    %v_698 = sext %v_697: I64
-    %v_243 = alloca 16, 8: Ptr
-    store %v_243, %v_695, 8
-    %v_699 = add %v_243, 8: Ptr
-    store %v_699, %v_698, 8
-    jmp b_240
-  }
-
-  b_687 {
-    %v_700 = add %v_674, 1: I64
-    store %v_232, %v_700, 8
-    jmp b_673
-  }
-
-  b_671 {
-    %v_701 = add %v_658, 1: I64
-    store %v_232, %v_701, 8
-    jmp b_652
-  }
-
-  b_357 {
-    %v_702 = cmp_eq %v_354, 1: I32
-    je %v_702, b_703, b_358
-  }
-
-  b_703 {
-    store %v_272, 2147483647, 4
-    jmp b_358
-  }
-
-  b_356 {
-    copy %v_259, %v_353, 16
-    store %v_272, 1, 4
-    copy %v_314, %v_353, 16
-    %v_704 = add %v_259, 64: Ptr
-    %v_364 = loads %v_704, 8: I64
-    store %v_315, 0, 8
-    jmp b_330
-  }
-
-  b_382 {
-    store %v_275, 2147483647, 4
-    jmp b_323
-  }
-
-  b_362 {
-    %v_705 = cmp_eq %v_359, 1: I32
-    je %v_705, b_706, b_382
-  }
-
-  b_706 {
-    store %v_272, 2147483647, 4
-    jmp b_382
-  }
-
-  b_361 {
-    store %v_272, 2147483647, 4
-    jmp b_382
-  }
-
-  b_440 {
-    %v_707 = loads %v_435, 8: I64
-    %v_708 = add %v_707, 1: I64
-    store %v_433, %v_708, 8
-    jmp b_709
-  }
-
-  b_439 {
-    %v_710 = add %v_406, 24: Ptr
-    %v_711 = loads %v_710, 8: I64
-    store %v_432, %v_711, 8
-    store %v_433, 0, 8
-    jmp b_709
-  }
-
-  b_709 {
-    %v_712 = load %v_431, 1: I32
-    %v_713 = loads %v_433, 8: I64
-    %v_714 = load %v_430, 8: Ptr
-    %v_715 = add %v_406, 24: Ptr
-    %v_716 = loads %v_715, 8: I64
-    call_complex findAscii, %v_434, %v_714, %v_716, %v_712, %v_713
-    %v_717 = load %v_434, 1: I32
-    %v_718 = cmp_eq %v_717, 1: I32
-    je %v_718, b_719, b_720
-  }
-
-  b_720 {
-    %v_721 = loads %v_433, 8: I64
-    %v_722 = loads %v_432, 8: I64
-    store %v_406, %v_721, 8
-    %v_723 = add %v_406, 8: Ptr
-    store %v_723, %v_722, 8
-    store %v_436, 2, 4
-    jmp b_457
-  }
-
-  b_441 {
-    store %v_436, 2147483647, 4
-    jmp b_438
-  }
-
-  b_719 {
-    %v_724 = add %v_434, 8: Ptr
-    %v_725 = loads %v_724, 8: I64
-    store %v_435, %v_725, 8
-    %v_726 = loads %v_433, 8: I64
-    store %v_406, %v_726, 8
-    %v_727 = add %v_406, 8: Ptr
-    store %v_727, %v_725, 8
-    store %v_436, 1, 4
-    jmp b_457
+    store %v_413, %v_414, 8
+    store %v_408, %string'151, 8
+    store %v_409, %v_414, 8
+    store %v_410, 0, 8
+    store %v_411, 0, 8
+    store %v_412, 10, 1
+    jmp b_424
+  }
+
+  b_424 {
+    %v_426 = phi [b_422, %v_419], [b_423, 0], [b_427, %v_420]: I32
+    %v_428 = alloca 16, 8: Ptr
+    switch %v_426, b_429, [b_430, 0], [b_431, 1], [b_432, 2]
+  }
+
+  b_429 {
+    %v_433 = phi [b_424, %v_426], [b_432, 2147483647]: I32
+    switch %v_433, b_434, [b_435, 0], [b_436, 1], [b_437, 2]
+  }
+
+  b_425 {
+    %string'152 = global @string'152: Ptr
+    %v_438 = imm 8: I64
+    %v_439 = alloca 16, 8: Ptr
+    jmp b_440
+  }
+
+  b_427 {
+    %v_441 = phi [b_442, %v_443], [b_444, %v_445]: I64
+    %v_420 = phi [b_442, 2], [b_444, 1]: I32
+    %v_446 = loads %v_413, 8: I64
+    %v_447 = cmp_ilt %v_448, %v_446: I32
+    je %v_447, b_449, b_424
   }
 
   b_449 {
-    store %v_416, 2147483647, 4
-    jmp b_423
-  }
-
-  b_450 {
-    store %v_447, 2147483647, 4
-    jmp b_449
+    %v_450 = cmp_igt %v_441, %v_448: I32
+    je %v_450, b_451, b_452
   }
 
   b_451 {
-    store %v_447, 2147483647, 4
-    jmp b_449
-  }
-
-  b_574 {
-    %v_728 = loads %v_569, 8: I64
-    %v_729 = add %v_728, 1: I64
-    store %v_567, %v_729, 8
-    jmp b_730
-  }
-
-  b_573 {
-    %v_731 = add %v_541, 24: Ptr
-    %v_732 = loads %v_731, 8: I64
-    store %v_566, %v_732, 8
-    store %v_567, 0, 8
-    jmp b_730
-  }
-
-  b_730 {
-    %v_733 = load %v_565, 1: I32
-    %v_734 = loads %v_567, 8: I64
-    %v_735 = load %v_564, 8: Ptr
-    %v_736 = add %v_541, 24: Ptr
-    %v_737 = loads %v_736, 8: I64
-    call_complex findAscii, %v_568, %v_735, %v_737, %v_733, %v_734
-    %v_738 = load %v_568, 1: I32
-    %v_739 = cmp_eq %v_738, 1: I32
-    je %v_739, b_740, b_741
-  }
-
-  b_741 {
-    %v_742 = loads %v_567, 8: I64
-    %v_743 = loads %v_566, 8: I64
-    store %v_541, %v_742, 8
-    %v_744 = add %v_541, 8: Ptr
-    store %v_744, %v_743, 8
-    store %v_570, 2, 4
-    jmp b_591
-  }
-
-  b_575 {
-    store %v_570, 2147483647, 4
-    jmp b_572
-  }
-
-  b_740 {
-    %v_745 = add %v_568, 8: Ptr
-    %v_746 = loads %v_745, 8: I64
-    store %v_569, %v_746, 8
-    %v_747 = loads %v_567, 8: I64
-    store %v_541, %v_747, 8
-    %v_748 = add %v_541, 8: Ptr
-    store %v_748, %v_746, 8
-    store %v_570, 1, 4
-    jmp b_591
-  }
-
-  b_583 {
-    store %v_551, 2147483647, 4
-    jmp b_558
-  }
-
-  b_584 {
-    store %v_581, 2147483647, 4
-    jmp b_583
-  }
-
-  b_585 {
-    store %v_581, 2147483647, 4
-    jmp b_583
+    %v_453 = sub %v_441, 1: I64
+    %v_454 = add %string'151, %v_453: Ptr
+    %v_455 = load %v_454, 1: I32
+    %v_456 = cmp_eq %v_455, 13: I32
+    je %v_456, b_457, b_452
   }
 
   b_452 {
-    jmp b_451
+    jmp b_417
   }
 
-  b_586 {
-    jmp b_585
-  }
-}
-
-String.slice<complex>(%v_0: Ptr, %text$units: Ptr, %text$length: I64, %from: I64, %to: I64) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = cmp_ilt %from, 0: I32
-    %v_4 = select %v_3, 0, %from: I64
-    %v_5 = cmp_igt %to, %text$length: I32
-    %v_6 = select %v_5, %text$length, %to: I64
-    %v_7 = cmp_ige %v_4, %v_6: I32
-    je %v_7, b_8, b_9
+  b_457 {
+    jmp b_417
   }
 
-  b_9 {
-    %v_10 = sub %v_6, %v_4: I64
-    %v_11 = bitcast 0: Ptr
-    %v_12 = call_complex runSlots(CodeUnit), %v_11, %v_10: Ptr
-    %v_13 = bitcast %v_12: I64
-    %v_14 = cmp_eq %v_13, 0: I32
-    %v_15 = select %v_14, 0, %v_10: I64
-    %v_16 = cast %v_15: I32
-    %v_17 = and %v_16, 1073741823: I32
-    store %v_2, %v_12, 8
-    %v_18 = add %v_2, 8: Ptr
-    %v_19 = cast %v_17: I64
-    %v_20 = or %v_19, 1073741824: I64
-    store %v_18, %v_20, 4
-    %v_21 = add %v_2, 12: Ptr
-    store %v_21, 0, 4
-    %v_22 = add %text$units, %v_4: Ptr
-    %v_23 = cmp_ile %v_10, 0: I32
-    je %v_23, b_24, b_25
+  b_417 {
+    %v_458 = phi [b_452, %v_441], [b_457, %v_453]: I64
+    %v_459 = cmp_ilt %v_448, 0: I32
+    %v_460 = select %v_459, 0, %v_448: I64
+    %v_461 = cmp_igt %v_460, %v_414: I32
+    %v_462 = select %v_461, %v_414, %v_460: I64
+    %v_463 = cmp_ilt %v_458, %v_462: I32
+    %v_464 = select %v_463, %v_462, %v_458: I64
+    %v_465 = cmp_igt %v_464, %v_414: I32
+    %v_466 = select %v_465, %v_414, %v_464: I64
+    %v_467 = sub %v_466, %v_462: I64
+    %v_468 = imul %v_416, 10: I64
+    %v_418 = add %v_468, %v_467: I64
+    jmp b_415
   }
 
-  b_8 {
-    copy %v_0, @constant$9, 16
-    ret 
+  b_440 {
+    %v_469 = phi [b_425, 0], [b_470, %v_471]: I64
+    %v_472 = phi [b_425, 0], [b_470, %v_473]: I64
+    %v_474 = phi [b_425, 0], [b_470, %v_475]: I32
+    call_complex findAscii, %v_439, %string'152, %v_438, 10, %v_469
+    %v_476 = load %v_439, 1: I32
+    %v_477 = cmp_eq %v_476, 1: I32
+    je %v_477, b_478, b_479
   }
 
-  b_24 {
-    copy %v_0, %v_2, 16
-    ret 
+  b_479 {
+    %v_480 = cmp_ilt %v_469, %v_438: I32
+    je %v_480, b_481, b_482
   }
 
-  b_25 {
-    %v_26 = load %v_21, 4: I32
-    %v_27 = cast %v_26: I64
-    %v_28 = add %v_27, %v_10: I64
-    %v_29 = load %v_18, 4: I64
-    %v_30 = and %v_29, 1073741823: I64
-    %v_31 = cast %v_30: I32
-    %v_32 = cast %v_31: I64
-    %v_33 = cmp_ile %v_28, %v_32: I32
-    je %v_33, b_34, b_35
+  b_481 {
+    %v_483 = cmp_igt %v_438, %v_469: I32
+    je %v_483, b_484, b_485
   }
 
-  b_35 {
-    call_complex growArray(CodeUnit), %v_2, %v_28
-    %v_36 = load %v_21, 4: I32
-    %v_37 = cast %v_36: I64
-    %v_38 = add %v_37, %v_10: I64
-    %v_39 = load %v_18, 4: I64
-    %v_40 = and %v_39, 1073741823: I64
-    %v_41 = cast %v_40: I32
-    %v_42 = cast %v_41: I64
-    jmp b_34
+  b_484 {
+    %v_486 = add %string'152, 7: Ptr
+    %v_487 = load %v_486, 1: I32
+    %v_488 = cmp_eq %v_487, 13: I32
+    je %v_488, b_489, b_485
   }
 
-  b_34 {
-    %v_43 = phi [b_25, %v_27], [b_35, %v_37]: I64
-    %v_44 = phi [b_25, %v_28], [b_35, %v_38]: I64
-    %v_45 = phi [b_25, %v_32], [b_35, %v_42]: I64
-    %v_46 = add %v_2, 12: Ptr
-    %v_47 = cmp_ilt %v_45, %v_44: I32
-    je %v_47, b_48, b_49
+  b_485 {
+    jmp b_490
   }
 
-  b_49 {
-    %v_50 = load %v_2, 8: Ptr
-    %v_51 = add %v_50, %v_43: Ptr
-    call_complex copyMemory, %v_51, %v_22, %v_10
-    %v_52 = cast %v_44: I32
-    %v_53 = and %v_52, 1073741823: I32
-    store %v_46, %v_53, 4
-    jmp b_24
+  b_489 {
+    jmp b_490
   }
 
-  b_48 {
-    %v_54 = syscall 60, 134: I64
-    unreachable 
+  b_490 {
+    %v_491 = phi [b_485, %v_438], [b_489, 7]: I64
+    %v_492 = cmp_ilt %v_469, 0: I32
+    %v_493 = select %v_492, 0, %v_469: I64
+    %v_494 = cmp_igt %v_493, %v_438: I32
+    %v_495 = select %v_494, %v_438, %v_493: I64
+    %v_496 = cmp_ilt %v_491, %v_495: I32
+    %v_497 = select %v_496, %v_495, %v_491: I64
+    %v_498 = cmp_igt %v_497, %v_438: I32
+    %v_499 = select %v_498, %v_438, %v_497: I64
+    %v_500 = sub %v_499, %v_495: I64
+    %v_501 = imul %v_472, 10: I64
+    %v_502 = add %v_501, %v_500: I64
+    jmp b_482
+  }
+
+  b_478 {
+    %v_503 = add %v_439, 8: Ptr
+    %v_504 = loads %v_503, 8: I64
+    %v_505 = cmp_ilt %v_469, %v_438: I32
+    je %v_505, b_506, b_470
+  }
+
+  b_506 {
+    %v_507 = cmp_igt %v_504, %v_469: I32
+    je %v_507, b_508, b_509
+  }
+
+  b_508 {
+    %v_510 = sub %v_504, 1: I64
+    %v_511 = add %string'152, %v_510: Ptr
+    %v_512 = load %v_511, 1: I32
+    %v_513 = cmp_eq %v_512, 13: I32
+    je %v_513, b_514, b_509
+  }
+
+  b_509 {
+    jmp b_515
+  }
+
+  b_514 {
+    jmp b_515
+  }
+
+  b_515 {
+    %v_516 = phi [b_509, %v_504], [b_514, %v_510]: I64
+    %v_517 = cmp_ilt %v_469, 0: I32
+    %v_518 = select %v_517, 0, %v_469: I64
+    %v_519 = cmp_igt %v_518, %v_438: I32
+    %v_520 = select %v_519, %v_438, %v_518: I64
+    %v_521 = cmp_ilt %v_516, %v_520: I32
+    %v_522 = select %v_521, %v_520, %v_516: I64
+    %v_523 = cmp_igt %v_522, %v_438: I32
+    %v_524 = select %v_523, %v_438, %v_522: I64
+    %v_525 = sub %v_524, %v_520: I64
+    %v_526 = imul %v_472, 10: I64
+    %v_527 = add %v_526, %v_525: I64
+    jmp b_470
+  }
+
+  b_482 {
+    %v_528 = phi [b_479, %v_472], [b_490, %v_502]: I64
+    %v_529 = alloca 8, 8: Ptr
+    %v_530 = alloca 8, 8: Ptr
+    %v_531 = alloca 8, 8: Ptr
+    %v_532 = alloca 8, 8: Ptr
+    %v_533 = alloca 1, 4: Ptr
+    %v_534 = imm 8: I64
+    jmp b_535
+  }
+
+  b_470 {
+    %v_473 = phi [b_478, %v_472], [b_515, %v_527]: I64
+    %v_475 = phi [b_478, %v_474], [b_515, 0]: I32
+    %v_471 = add %v_504, 1: I64
+    jmp b_440
+  }
+
+  b_535 {
+    %v_536 = phi [b_482, 0], [b_537, %v_538]: I64
+    %v_539 = phi [b_482, 2147483647], [b_537, %v_540]: I32
+    %v_541 = phi [b_482, 0], [b_537, 1]: I32
+    je %v_541, b_542, b_543
+  }
+
+  b_542 {
+    je %v_541, b_544, b_545
+  }
+
+  b_543 {
+    store %v_529, @string'153, 8
+    store %v_530, %v_534, 8
+    store %v_531, 0, 8
+    store %v_532, 0, 8
+    store %v_533, 44, 1
+    jmp b_544
+  }
+
+  b_544 {
+    %v_546 = phi [b_542, %v_539], [b_543, 0]: I32
+    %v_547 = alloca 16, 8: Ptr
+    switch %v_546, b_548, [b_549, 0], [b_550, 1], [b_551, 2]
+  }
+
+  b_548 {
+    %v_552 = phi [b_544, %v_546], [b_551, 2147483647]: I32
+    switch %v_552, b_553, [b_554, 0], [b_555, 1], [b_556, 2]
+  }
+
+  b_545 {
+    %v_557 = imm 8: I64
+    %v_558 = alloca 16, 8: Ptr
+    jmp b_559
+  }
+
+  b_537 {
+    %v_560 = phi [b_561, %v_562], [b_563, %v_564]: I64
+    %v_540 = phi [b_561, 2], [b_563, 1]: I32
+    %v_565 = cmp_ilt %v_566, 0: I32
+    %v_567 = select %v_565, 0, %v_566: I64
+    %v_568 = cmp_igt %v_567, %v_534: I32
+    %v_569 = select %v_568, %v_534, %v_567: I64
+    %v_570 = cmp_ilt %v_560, %v_569: I32
+    %v_571 = select %v_570, %v_569, %v_560: I64
+    %v_572 = cmp_igt %v_571, %v_534: I32
+    %v_573 = select %v_572, %v_534, %v_571: I64
+    %v_574 = sub %v_573, %v_569: I64
+    %v_575 = imul %v_536, 10: I64
+    %v_538 = add %v_575, %v_574: I64
+    jmp b_535
+  }
+
+  b_559 {
+    %v_576 = phi [b_545, 0], [b_577, %v_578]: I64
+    %v_579 = phi [b_545, 0], [b_577, %v_580]: I64
+    call_complex findAscii, %v_558, @string'154, %v_557, 44, %v_576
+    %v_581 = load %v_558, 1: I32
+    %v_582 = cmp_eq %v_581, 1: I32
+    je %v_582, b_577, b_583
+  }
+
+  b_577 {
+    %v_584 = add %v_558, 8: Ptr
+    %v_585 = loads %v_584, 8: I64
+    %v_586 = cmp_ilt %v_576, 0: I32
+    %v_587 = select %v_586, 0, %v_576: I64
+    %v_588 = cmp_igt %v_587, %v_557: I32
+    %v_589 = select %v_588, %v_557, %v_587: I64
+    %v_590 = cmp_ilt %v_585, %v_589: I32
+    %v_591 = select %v_590, %v_589, %v_585: I64
+    %v_592 = cmp_igt %v_591, %v_557: I32
+    %v_593 = select %v_592, %v_557, %v_591: I64
+    %v_594 = sub %v_593, %v_589: I64
+    %v_595 = imul %v_579, 10: I64
+    %v_580 = add %v_595, %v_594: I64
+    %v_578 = add %v_585, 1: I64
+    jmp b_559
+  }
+
+  b_583 {
+    %v_596 = cmp_ilt %v_576, 0: I32
+    %v_597 = select %v_596, 0, %v_576: I64
+    %v_598 = cmp_igt %v_597, %v_557: I32
+    %v_599 = select %v_598, %v_557, %v_597: I64
+    %v_600 = cmp_ilt %v_557, %v_599: I32
+    %v_601 = select %v_600, %v_599, %v_557: I64
+    %v_602 = cmp_igt %v_601, %v_557: I32
+    %v_603 = select %v_602, %v_557, %v_601: I64
+    %v_604 = sub %v_603, %v_599: I64
+    %v_605 = imul %v_579, 10: I64
+    %v_606 = add %v_605, %v_604: I64
+    %v_607 = cmp_neq %v_383, %v_401: I32
+    je %v_607, b_231, b_608
+  }
+
+  b_608 {
+    %v_609 = cmp_neq %v_416, %v_528: I32
+    je %v_609, b_231, b_610
+  }
+
+  b_610 {
+    %v_611 = cmp_neq %v_536, %v_606: I32
+    je %v_611, b_231, b_612
+  }
+
+  b_612 {
+    %v_613 = sext %v_386: I32
+    %v_614 = add %v_385, %v_613: I32
+    %v_615 = add %v_614, %v_383: I32
+    %v_616 = sext %v_416: I32
+    %v_617 = add %v_615, %v_616: I32
+    %v_618 = sext %v_536: I32
+    %v_619 = add %v_617, %v_618: I32
+    ret %v_619
+  }
+
+  b_359 {
+    %v_620 = cmp_eq %v_356, 1: I32
+    je %v_620, b_621, b_360
+  }
+
+  b_621 {
+    store %v_253, 2147483647, 4
+    jmp b_360
+  }
+
+  b_358 {
+    copy %v_240, %v_355, 16
+    store %v_253, 1, 4
+    copy %v_309, %v_355, 16
+    %v_622 = add %v_240, 64: Ptr
+    %v_366 = loads %v_622, 8: I64
+    store %v_310, 0, 8
+    jmp b_325
+  }
+
+  b_384 {
+    store %v_256, 2147483647, 4
+    jmp b_318
+  }
+
+  b_364 {
+    %v_623 = cmp_eq %v_361, 1: I32
+    je %v_623, b_624, b_384
+  }
+
+  b_624 {
+    store %v_253, 2147483647, 4
+    jmp b_384
+  }
+
+  b_363 {
+    store %v_253, 2147483647, 4
+    jmp b_384
+  }
+
+  b_431 {
+    %v_625 = loads %v_411, 8: I64
+    %v_626 = add %v_625, 1: I64
+    jmp b_627
+  }
+
+  b_430 {
+    %v_628 = loads %v_409, 8: I64
+    store %v_410, %v_628, 8
+    jmp b_627
+  }
+
+  b_627 {
+    %v_448 = phi [b_431, %v_626], [b_430, 0]: I64
+    %v_629 = load %v_412, 1: I32
+    %v_630 = load %v_408, 8: Ptr
+    %v_631 = loads %v_409, 8: I64
+    call_complex findAscii, %v_428, %v_630, %v_631, %v_629, %v_448
+    %v_632 = load %v_428, 1: I32
+    %v_633 = cmp_eq %v_632, 1: I32
+    je %v_633, b_444, b_442
+  }
+
+  b_442 {
+    %v_443 = loads %v_410, 8: I64
+    jmp b_427
+  }
+
+  b_432 {
+    jmp b_429
+  }
+
+  b_444 {
+    %v_634 = add %v_428, 8: Ptr
+    %v_445 = loads %v_634, 8: I64
+    store %v_411, %v_445, 8
+    jmp b_427
+  }
+
+  b_434 {
+    jmp b_425
+  }
+
+  b_435 {
+    jmp b_434
+  }
+
+  b_436 {
+    jmp b_434
+  }
+
+  b_550 {
+    %v_635 = loads %v_532, 8: I64
+    %v_636 = add %v_635, 1: I64
+    jmp b_637
+  }
+
+  b_549 {
+    %v_638 = loads %v_530, 8: I64
+    store %v_531, %v_638, 8
+    jmp b_637
+  }
+
+  b_637 {
+    %v_566 = phi [b_550, %v_636], [b_549, 0]: I64
+    %v_639 = load %v_533, 1: I32
+    %v_640 = load %v_529, 8: Ptr
+    %v_641 = loads %v_530, 8: I64
+    call_complex findAscii, %v_547, %v_640, %v_641, %v_639, %v_566
+    %v_642 = load %v_547, 1: I32
+    %v_643 = cmp_eq %v_642, 1: I32
+    je %v_643, b_563, b_561
+  }
+
+  b_561 {
+    %v_562 = loads %v_531, 8: I64
+    jmp b_537
+  }
+
+  b_551 {
+    jmp b_548
+  }
+
+  b_563 {
+    %v_644 = add %v_547, 8: Ptr
+    %v_564 = loads %v_644, 8: I64
+    store %v_532, %v_564, 8
+    jmp b_537
+  }
+
+  b_553 {
+    jmp b_545
+  }
+
+  b_554 {
+    jmp b_553
+  }
+
+  b_555 {
+    jmp b_553
+  }
+
+  b_437 {
+    jmp b_436
+  }
+
+  b_556 {
+    jmp b_555
   }
 }
 
@@ -1862,259 +1477,142 @@ pairs(String, I32)$item<complex>(%$self: Ptr): Ptr {
   }
 }
 
-words$new<complex>(%v_0: Ptr, %text: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 16: Ptr
-    copy %v_2, %text, 16
-    %v_3 = add %v_0, 16: Ptr
-    copy %v_3, %v_2, 16
-    %v_4 = add %v_0, 48: Ptr
-    store %v_4, 0, 4
-    %v_5 = add %v_0, 52: Ptr
-    store %v_5, 0, 1
-    ret 
-  }
-}
-
-words$drop<complex>(%$self: Ptr) {
+words$step<complex>(%$self: Ptr, %$resume: I32, %$cancel: I32): I32 {
   b_0 {
-    %v_1 = alloca 53, 8: Ptr
-    copy %v_1, %$self, 53
-    %v_2 = add %v_1, 48: Ptr
-    %v_3 = loads %v_2, 4: I32
-    %v_4 = cmp_eq %v_3, 0: I32
-    je %v_4, b_5, b_6
+    %v_1 = add %$self, 16: Ptr
+    %v_2 = add %$self, 32: Ptr
+    %v_3 = add %$self, 40: Ptr
+    %v_4 = add %$self, 48: Ptr
+    %v_5 = loads %v_4, 4: I32
+    %v_6 = cmp_eq %v_5, 0: I32
+    je %v_6, b_7, b_8
   }
 
   b_7 {
-    ret 
+    je %$cancel, b_9, b_10
   }
 
-  b_6 {
-    %v_8 = cmp_eq %v_3, 1: I32
-    je %v_8, b_9, b_7
+  b_11 {
+    ret 0
   }
 
-  b_9 {
-    %v_10 = add %v_1, 52: Ptr
-    %v_11 = load %v_10, 1: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_5 {
-    store %v_2, 2147483647, 4
-    jmp b_7
-  }
-
-  b_12 {
-    call_complex String.reclaim, %v_1
-    store %v_10, 0, 1
-    jmp b_13
-  }
-
-  b_13 {
-    store %v_2, 2147483647, 4
-    jmp b_7
-  }
-}
-
-lines$new<complex>(%v_0: Ptr, %text: Ptr) {
-  b_1 {
-    %v_2 = alloca 16, 16: Ptr
-    copy %v_2, %text, 16
-    %v_3 = add %v_0, 56: Ptr
-    store %v_3, 2147483647, 4
-    %v_4 = add %v_0, 80: Ptr
-    copy %v_4, %v_2, 16
-    %v_5 = add %v_0, 104: Ptr
-    store %v_5, 0, 4
-    %v_6 = add %v_0, 108: Ptr
-    store %v_6, 0, 1
-    ret 
-  }
-}
-
-lines$drop<complex>(%$self: Ptr) {
-  b_0 {
-    %v_1 = alloca 109, 8: Ptr
-    copy %v_1, %$self, 109
-    %v_2 = add %v_1, 104: Ptr
-    %v_3 = loads %v_2, 4: I32
-    %v_4 = cmp_eq %v_3, 0: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_7 {
-    ret 
-  }
-
-  b_6 {
-    %v_8 = cmp_eq %v_3, 1: I32
-    je %v_8, b_9, b_7
-  }
-
-  b_9 {
-    %v_10 = add %v_1, 56: Ptr
-    %v_11 = loads %v_10, 4: I32
-    switch %v_11, b_12, [b_13, 0], [b_14, 1], [b_15, 2]
+  b_10 {
+    %v_12 = add %$self, 24: Ptr
+    %v_13 = loads %v_12, 8: I64
+    store %v_2, %v_13, 8
+    store %v_3, 0, 8
+    jmp b_14
   }
 
   b_14 {
-    store %v_10, 2147483647, 4
-    jmp b_12
+    %v_15 = loads %v_3, 8: I64
+    %v_16 = loads %v_2, 8: I64
+    %v_17 = cmp_ilt %v_15, %v_16: I32
+    je %v_17, b_18, b_9
   }
 
-  b_13 {
-    store %v_10, 2147483647, 4
-    jmp b_12
-  }
-
-  b_5 {
-    store %v_2, 2147483647, 4
-    jmp b_7
-  }
-
-  b_12 {
-    %v_16 = add %v_1, 108: Ptr
-    %v_17 = load %v_16, 1: I32
-    je %v_17, b_18, b_19
+  b_9 {
+    store %v_4, 2147483647, 4
+    ret 0
   }
 
   b_18 {
-    %v_20 = add %v_1, 64: Ptr
-    call_complex String.reclaim, %v_20
-    store %v_16, 0, 1
     jmp b_19
   }
 
   b_19 {
-    %v_21 = add %v_1, 56: Ptr
-    %v_22 = loads %v_21, 4: I32
-    switch %v_22, b_23, [b_24, 0], [b_25, 1], [b_26, 2]
-  }
-
-  b_25 {
-    store %v_21, 2147483647, 4
-    jmp b_23
+    %v_20 = loads %v_3, 8: I64
+    %v_21 = loads %v_2, 8: I64
+    %v_22 = cmp_ilt %v_20, %v_21: I32
+    je %v_22, b_23, b_24
   }
 
   b_24 {
-    store %v_21, 2147483647, 4
-    jmp b_23
+    %v_25 = loads %v_3, 8: I64
+    %v_26 = loads %v_2, 8: I64
+    %v_27 = cmp_ilt %v_25, %v_26: I32
+    je %v_27, b_28, b_14
   }
 
   b_23 {
-    store %v_2, 2147483647, 4
-    jmp b_7
+    %v_29 = loads %v_3, 8: I64
+    %v_30 = load %v_1, 8: Ptr
+    %v_31 = add %v_30, %v_29: Ptr
+    %v_32 = load %v_31, 1: I32
+    %v_33 = cmp_eq %v_32, 32: I32
+    %v_34 = cmp_ige %v_32, 9: I32
+    %v_35 = cmp_ile %v_32, 13: I32
+    %v_36 = and %v_34, %v_35: I32
+    %v_37 = or %v_33, %v_36: I32
+    je %v_37, b_38, b_24
   }
 
-  b_15 {
-    jmp b_14
-  }
-
-  b_26 {
-    jmp b_25
-  }
-}
-
-splitOn$new<complex>(%v_0: Ptr, %text: Ptr, %on: I32) {
-  b_1 {
-    %v_2 = alloca 16, 16: Ptr
-    copy %v_2, %text, 16
-    %v_3 = add %v_0, 56: Ptr
-    store %v_3, 2147483647, 4
-    %v_4 = add %v_0, 80: Ptr
-    copy %v_4, %v_2, 16
-    %v_5 = add %v_0, 96: Ptr
-    store %v_5, 0, 4
-    %v_6 = add %v_0, 100: Ptr
-    store %v_6, %on, 1
-    %v_7 = add %v_0, 101: Ptr
-    store %v_7, 0, 1
-    ret 
-  }
-}
-
-splitOn$drop<complex>(%$self: Ptr) {
-  b_0 {
-    %v_1 = alloca 102, 8: Ptr
-    copy %v_1, %$self, 102
-    %v_2 = add %v_1, 96: Ptr
-    %v_3 = loads %v_2, 4: I32
-    %v_4 = cmp_eq %v_3, 0: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_7 {
-    ret 
-  }
-
-  b_6 {
-    %v_8 = cmp_eq %v_3, 1: I32
-    je %v_8, b_9, b_7
-  }
-
-  b_9 {
-    %v_10 = add %v_1, 56: Ptr
-    %v_11 = loads %v_10, 4: I32
-    switch %v_11, b_12, [b_13, 0], [b_14, 1], [b_15, 2]
-  }
-
-  b_14 {
-    store %v_10, 2147483647, 4
-    jmp b_12
-  }
-
-  b_13 {
-    store %v_10, 2147483647, 4
-    jmp b_12
-  }
-
-  b_5 {
-    store %v_2, 2147483647, 4
-    jmp b_7
-  }
-
-  b_12 {
-    %v_16 = add %v_1, 101: Ptr
-    %v_17 = load %v_16, 1: I32
-    je %v_17, b_18, b_19
-  }
-
-  b_18 {
-    %v_20 = add %v_1, 64: Ptr
-    call_complex String.reclaim, %v_20
-    store %v_16, 0, 1
+  b_38 {
+    %v_39 = add %v_29, 1: I64
+    store %v_3, %v_39, 8
     jmp b_19
   }
 
-  b_19 {
-    %v_21 = add %v_1, 56: Ptr
-    %v_22 = loads %v_21, 4: I32
-    switch %v_22, b_23, [b_24, 0], [b_25, 1], [b_26, 2]
+  b_28 {
+    jmp b_40
   }
 
-  b_25 {
-    store %v_21, 2147483647, 4
-    jmp b_23
+  b_40 {
+    %v_41 = loads %v_3, 8: I64
+    %v_42 = loads %v_2, 8: I64
+    %v_43 = cmp_ilt %v_41, %v_42: I32
+    je %v_43, b_44, b_45
   }
 
-  b_24 {
-    store %v_21, 2147483647, 4
-    jmp b_23
+  b_45 {
+    %v_46 = loads %v_3, 8: I64
+    %v_47 = add %$self, 24: Ptr
+    %v_48 = loads %v_47, 8: I64
+    %v_49 = cmp_ilt %v_25, 0: I32
+    %v_50 = select %v_49, 0, %v_25: I64
+    %v_51 = cmp_igt %v_50, %v_48: I32
+    %v_52 = select %v_51, %v_48, %v_50: I64
+    %v_53 = cmp_ilt %v_46, %v_52: I32
+    %v_54 = select %v_53, %v_52, %v_46: I64
+    %v_55 = cmp_igt %v_54, %v_48: I32
+    %v_56 = select %v_55, %v_48, %v_54: I64
+    %v_57 = load %v_1, 8: Ptr
+    %v_58 = add %v_57, %v_52: Ptr
+    %v_59 = sub %v_56, %v_52: I64
+    store %$self, %v_58, 8
+    %v_60 = add %$self, 8: Ptr
+    store %v_60, %v_59, 8
+    store %v_4, 1, 4
+    ret 1
   }
 
-  b_23 {
-    store %v_2, 2147483647, 4
-    jmp b_7
+  b_44 {
+    %v_61 = loads %v_3, 8: I64
+    %v_62 = load %v_1, 8: Ptr
+    %v_63 = add %v_62, %v_61: Ptr
+    %v_64 = load %v_63, 1: I32
+    %v_65 = cmp_eq %v_64, 32: I32
+    %v_66 = cmp_ige %v_64, 9: I32
+    %v_67 = cmp_ile %v_64, 13: I32
+    %v_68 = and %v_66, %v_67: I32
+    %v_69 = or %v_65, %v_68: I32
+    je %v_69, b_45, b_70
   }
 
-  b_15 {
-    jmp b_14
+  b_70 {
+    %v_71 = add %v_61, 1: I64
+    store %v_3, %v_71, 8
+    jmp b_40
   }
 
-  b_26 {
-    jmp b_25
+  b_72 {
+    %v_73 = cmp_eq %$resume, 0: I32
+    je %v_73, b_14, b_9
+  }
+
+  b_8 {
+    %v_74 = cmp_eq %v_5, 1: I32
+    je %v_74, b_72, b_11
   }
 }
 
@@ -2917,81 +2415,6 @@ growArray(Entry(String, I32))<complex>(%self: Ptr, %wanted: I64) {
   }
 }
 
-growArray(CodeUnit)<complex>(%self: Ptr, %wanted: I64) {
-  b_0 {
-    %v_1 = add %self, 8: Ptr
-    %v_2 = load %v_1, 4: I64
-    %v_3 = and %v_2, 1073741823: I64
-    %v_4 = cast %v_3: I32
-    %v_5 = cast %v_4: I64
-    %v_6 = add %v_5, %v_5: I64
-    %v_7 = cmp_ilt %v_6, %wanted: I32
-    %v_8 = select %v_7, %wanted, %v_6: I64
-    %v_9 = cmp_ilt %v_8, 4: I32
-    %v_10 = select %v_9, 4, %v_8: I64
-    %v_11 = cmp_ile %v_10, %v_5: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
-    ret 
-  }
-
-  b_13 {
-    %v_14 = shr %v_2, 30: I64
-    %v_15 = cast %v_14: I32
-    %v_16 = cmp_eq %v_15, 2: I32
-    je %v_16, b_12, b_17
-  }
-
-  b_17 {
-    %v_18 = cmp_igt %v_10, 1073741823: I32
-    je %v_18, b_12, b_19
-  }
-
-  b_19 {
-    %v_20 = call_complex allocateHeap, %v_10: Ptr
-    %v_21 = bitcast %v_20: I64
-    %v_22 = cmp_eq %v_21, 0: I32
-    je %v_22, b_12, b_23
-  }
-
-  b_23 {
-    %v_24 = cmp_igt %v_5, 0: I32
-    je %v_24, b_25, b_26
-  }
-
-  b_25 {
-    %v_27 = load %self, 8: Ptr
-    call_complex copyMemory, %v_20, %v_27, %v_5
-    jmp b_26
-  }
-
-  b_26 {
-    %v_28 = load %v_1, 4: I64
-    %v_29 = shr %v_28, 30: I64
-    %v_30 = cast %v_29: I32
-    %v_31 = cmp_eq %v_30, 1: I32
-    je %v_31, b_32, b_33
-  }
-
-  b_32 {
-    %v_34 = load %self, 8: Ptr
-    call_complex freeHeap, %v_34
-    jmp b_33
-  }
-
-  b_33 {
-    store %self, %v_20, 8
-    %v_35 = cast %v_10: I32
-    %v_36 = and %v_35, 1073741823: I32
-    %v_37 = cast %v_36: I64
-    %v_38 = or %v_37, 1073741824: I64
-    store %v_1, %v_38, 4
-    jmp b_12
-  }
-}
-
 mapMemory<complex>(%size: I64): Ptr {
   b_0 {
     %v_1 = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: I64
@@ -3465,28 +2888,6 @@ Run(a).reclaim(I32)<complex>(%value: Ptr) {
 
   b_8 {
     ret 
-  }
-}
-
-runSlots(CodeUnit)<complex>(%probe: Ptr, %capacity: I64): Ptr {
-  b_0 {
-    %v_1 = cmp_eq %capacity, 0: I32
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    %v_4 = cmp_igt %capacity, 1073741823: I32
-    je %v_4, b_2, b_5
-  }
-
-  b_2 {
-    %v_6 = bitcast 0: Ptr
-    ret %v_6
-  }
-
-  b_5 {
-    %v_7 = call_complex allocateHeap, %capacity: Ptr
-    ret %v_7
   }
 }
 

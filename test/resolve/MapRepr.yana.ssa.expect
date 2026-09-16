@@ -1,8 +1,8 @@
 module ResolveTest
 
-let string'143: [CodeUnit *1] = "a"
+let string'142: [CodeUnit *1] = "a"
 
-let string'144: [CodeUnit *1] = "a"
+let string'143: [CodeUnit *1] = "a"
 
 fn touchInt(m: Map(I32, I32) [shared call]) -> I32 {
 bb0(%0: Map(I32, I32) [shared call] guaranteed):
@@ -51,7 +51,7 @@ bb0(%0: Map(String, I32) [shared call] guaranteed):
   %5: I32 trivial = const 0
   store inspect %1 consume %5
   %6: Map(String, I32) [shared slot 0] guaranteed from{%0} = load inspect %0
-  %7: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %7: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
   store inspect %2 consume %7
   %8: String [shared slot 0] guaranteed from{%2} = load inspect %2
   %9: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %8
@@ -98,7 +98,7 @@ bb0:
   %7: Map(String, I32) owned = call emptyMap(String, I32)
   store inspect %1 consume %7
   %8: Map(String, I32) [unique call] guaranteed from{%1} = load inspect %1
-  %9: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %9: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
   %10: I32 trivial = const 6
   %11: Maybe(I32) trivial = call insert(String, I32) borrow %8 consume %9 consume %10
   %12: Map(I32, I32) [shared call] guaranteed from{%0} = load inspect %0
