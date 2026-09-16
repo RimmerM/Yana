@@ -32,21 +32,21 @@ function pushDecimalDigits(value, count, pointAt, to$o, to$k, to$s) {
 
 function pushExponent(value, to$o, to$k, to$s) {
   if (value >= 100) {
-    var v71 = to$o[to$k] + String.fromCharCode((value / 100 | 0) + 48 | 0);
-    to$o[to$k] = v71;
-    var v75 = to$o[to$k] + String.fromCharCode(($rem(value / 10 | 0, 10) | 0) + 48 | 0);
-    to$o[to$k] = v75;
-    var v79 = to$o[to$k] + String.fromCharCode(($rem(value, 10) | 0) + 48 | 0);
-    to$o[to$k] = v79;
+    var v62 = to$o[to$k] + String.fromCharCode((value / 100 | 0) + 48 & 65535);
+    to$o[to$k] = v62;
+    var v69 = to$o[to$k] + String.fromCharCode(($rem(value / 10 | 0, 10) | 0) + 48 & 65535);
+    to$o[to$k] = v69;
+    var v76 = to$o[to$k] + String.fromCharCode(($rem(value, 10) | 0) + 48 & 65535);
+    to$o[to$k] = v76;
   } else {
     if (value >= 10) {
-      var v83 = to$o[to$k] + String.fromCharCode((value / 10 | 0) + 48 | 0);
+      var v83 = to$o[to$k] + String.fromCharCode((value / 10 | 0) + 48 & 65535);
       to$o[to$k] = v83;
-      var v87 = to$o[to$k] + String.fromCharCode(($rem(value, 10) | 0) + 48 | 0);
-      to$o[to$k] = v87;
+      var v90 = to$o[to$k] + String.fromCharCode(($rem(value, 10) | 0) + 48 & 65535);
+      to$o[to$k] = v90;
     } else {
-      var v91 = to$o[to$k] + String.fromCharCode(value + 48 | 0);
-      to$o[to$k] = v91;
+      var v97 = to$o[to$k] + String.fromCharCode(value + 48 & 65535);
+      to$o[to$k] = v97;
     }
   }
 }
@@ -160,28 +160,28 @@ function Show_F64_show(value, to$o, to$k, to$s) {
               digits = BigInt.asUintN(64, digits * 10n);
               zeros = zeros - 1 | 0;
             }
-            digits = BigInt.asUintN(64, BigInt.asUintN(64, digits * 10n) + BigInt.asUintN(64, BigInt.asIntN(64, BigInt(v56 - 48 | 0))));
+            digits = BigInt.asUintN(64, BigInt.asUintN(64, digits * 10n) + BigInt.asUintN(64, BigInt.asIntN(64, BigInt(v56 - 48 & 65535))));
           }
         }
         i = i + 1 | 0;
       }
       var exponent = 0;
       var negative = 0;
-      var v130 = i + 1 | 0;
-      i = v130;
-      if (v130 < v35) {
-        var v136 = v34.charCodeAt(i);
-        if (v136 === 45) {
+      var v131 = i + 1 | 0;
+      i = v131;
+      if (v131 < v35) {
+        var v137 = v34.charCodeAt(i);
+        if (v137 === 45) {
           negative = 1;
           i = i + 1 | 0;
         } else {
-          if (v136 === 43) {
+          if (v137 === 43) {
             i = i + 1 | 0;
           }
         }
       }
       while (i < v35) {
-        exponent = Math.imul(exponent, 10) + (v34.charCodeAt(i) - 48 | 0) | 0;
+        exponent = Math.imul(exponent, 10) + (v34.charCodeAt(i) - 48 & 65535) | 0;
         i = i + 1 | 0;
       }
       if (negative) {

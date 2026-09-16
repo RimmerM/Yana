@@ -48,7 +48,7 @@ iter holding.Iter of holding {
   g: Guard
 }
 
-iter words'2.Iter of words {
+iter words.Iter of words {
   $index: I32
   $slot: String
   prefix: StringView window
@@ -152,7 +152,7 @@ fn guarded($body: (Size) -> I32 [shared call]) -> I32 = <no body>
 
 fn holding(g: Guard, $body: (Size) -> I32 [shared call]) -> I32 = <no body>
 
-fn words'2(prefix: String [shared call view], $body: (->String) -> I32 [shared call]) -> I32 = <no body>
+fn words(prefix: String [shared call view], $body: (->String) -> I32 [shared call]) -> I32 = <no body>
 
 fn counting(total: Size [unique call], $body: (Size) -> I32 [shared call]) -> I32 = <no body>
 
@@ -182,7 +182,7 @@ bb0:
   %19: %Size address = alloc frame Size
   %20: %String address = alloc frame String
   %21: %String address = alloc frame String
-  %22: %words'2.Iter address = alloc frame words'2.Iter [owned here shape9 .2.0.*=shared slot 0]
+  %22: %words.Iter address = alloc frame words.Iter [owned here shape9 .2.0.*=shared slot 0]
   %23: %String address = alloc frame String
   %24: %Size address = alloc frame Size
   %25: %Size address = alloc frame Size
@@ -437,7 +437,7 @@ bb39:
   store inspect %21 consume %136
   %137: String [shared call] guaranteed from{%20} = load inspect %20
   %138: String [shared slot 0 view] guaranteed from{%20} = call String.view borrow %137
-  %139: words'2.Iter [owned here shape9 .2.0.*=shared slot 0] owned = call words'2$new borrow %138
+  %139: words.Iter [owned here shape9 .2.0.*=shared slot 0] owned = call words$new borrow %138
   store inspect %22 consume %139
   jump -> bb41
 
@@ -453,14 +453,14 @@ bb40:
   jump -> bb38
 
 bb41:
-  %146: words'2.Iter [unique call shape9 .2.0.*=shared slot 0] guaranteed from{%20, %22} = load inspect %22
+  %146: words.Iter [unique call shape9 .2.0.*=shared slot 0] guaranteed from{%20, %22} = load inspect %22
   %147: I32 trivial = const 0
   %148: Bool trivial = const False
-  %149: Bool trivial = call words'2$step borrow %146 consume %147 consume %148
+  %149: Bool trivial = call words$step borrow %146 consume %147 consume %148
   branch inspect %149 -> bb43 -> bb42
 
 bb42:
-  drop words'2.Iter [owned here shape9 .2.0.*=shared slot 0] inspect %22
+  drop words.Iter [owned here shape9 .2.0.*=shared slot 0] inspect %22
   drop String inspect %20
   %150: Size trivial = const 0
   store inspect %24 consume %150
@@ -472,8 +472,8 @@ bb42:
   jump -> bb44
 
 bb43:
-  %154: words'2.Iter [unique call shape9 .2.0.*=shared slot 0] guaranteed from{%20, %22} = load inspect %22
-  %155: String owned = call words'2$take borrow %154
+  %154: words.Iter [unique call shape9 .2.0.*=shared slot 0] guaranteed from{%20, %22} = load inspect %22
+  %155: String owned = call words$take borrow %154
   store inspect %23 consume %155
   %156: String owned = load inspect %21
   %157: String owned = load inspect %23
@@ -1167,9 +1167,9 @@ fn holding$next($self: holding.Iter [unique slot 0]) -> Maybe(Size) [owned here 
 
 fn holding$resume($self: holding.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn words'2$new(prefix: String [shared slot 0 view]) -> words'2.Iter [owned here shape9 .2.0.*=shared slot 0] {
+fn words$new(prefix: String [shared slot 0 view]) -> words.Iter [owned here shape9 .2.0.*=shared slot 0] {
 bb0(%0: String [shared slot 0 view] guaranteed):
-  %1: %words'2.Iter address = alloc frame words'2.Iter
+  %1: %words.Iter address = alloc frame words.Iter
   %2: I32 trivial = const 0
   %3: %I32 address = field.addr .$index inspect %1
   store inspect %3 consume %2
@@ -1179,12 +1179,12 @@ bb0(%0: String [shared slot 0 view] guaranteed):
   %6: Bool trivial = const False
   %7: %Bool address = field.addr .$held inspect %1
   store inspect %7 consume %6
-  %8: words'2.Iter owned = load inspect %1
+  %8: words.Iter owned = load inspect %1
   return consume %8
 }
 
-fn words'2$step($self: words'2.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
-bb0(%0: words'2.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
+fn words$step($self: words.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
+bb0(%0: words.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
   %13: %StringView address = field.addr .prefix inspect %0
   %14: %I32 address = alloc frame I32
   %15: %I32 address = field.addr . inspect %0
@@ -1328,19 +1328,19 @@ bb17:
   branch inspect %82 -> bb15 -> bb2
 }
 
-fn words'2$drop($self: words'2.Iter) -> {} {
-bb0(%0: words'2.Iter owned):
-  %1: %words'2.Iter address = alloc frame words'2.Iter
+fn words$drop($self: words.Iter) -> {} {
+bb0(%0: words.Iter owned):
+  %1: %words.Iter address = alloc frame words.Iter
   store inspect %1 consume %0
-  %2: words'2.Iter [unique call] guaranteed = load inspect %1
+  %2: words.Iter [unique call] guaranteed = load inspect %1
   %3: I32 trivial = const 1
   %4: Bool trivial = const True
-  %5: Bool trivial = call words'2$step borrow %2 consume %3 consume %4
+  %5: Bool trivial = call words$step borrow %2 consume %3 consume %4
   return
 }
 
-fn words'2$take($self: words'2.Iter [unique call]) -> String {
-bb0(%0: words'2.Iter [unique call] guaranteed):
+fn words$take($self: words.Iter [unique call]) -> String {
+bb0(%0: words.Iter [unique call] guaranteed):
   %1: %String address = field.addr .$slot inspect %0
   %2: String owned = load inspect %1
   %3: Bool trivial = const False
@@ -1349,9 +1349,9 @@ bb0(%0: words'2.Iter [unique call] guaranteed):
   return consume %2
 }
 
-fn words'2$next($self: words'2.Iter [unique slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+fn words$next($self: words.Iter [unique slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
 
-fn words'2$resume($self: words'2.Iter [unique slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+fn words$resume($self: words.Iter [unique slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
 
 fn counting$new(total: Size [unique slot 0]) -> counting.Iter [owned here shape11 .2.*=unique slot 0] {
 bb0(%0: Size [unique slot 0] guaranteed):

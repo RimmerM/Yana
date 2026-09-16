@@ -324,8 +324,8 @@ pub fn String.find(haystack: String, needle: String, from: Size = 0) -> Maybe(Si
     -- handed. `unitsEqual` reads its count off the *left* operand, so even this one's length field
     -- was never looked at - the call was the whole of the cost.
     let sought = allUnits(needle)
-    let firstUnit = truncate(String.unit(needle, 0)) :: CodeUnit
-    let lastUnit = truncate(String.unit(needle, inner - 1)) :: CodeUnit
+    let firstUnit = String.unit(needle, 0)
+    let lastUnit = String.unit(needle, inner - 1)
 
     let window = slice(allUnits(haystack), at, outer)
     let starts = length(window) - inner + 1
@@ -440,7 +440,7 @@ pub fn toLowerAscii(text: String) -> String:
         i = i + width
 
     while i < count:
-        store(target + i, truncate(toLowerUnit(text.unit(i))) :: CodeUnit)
+        store(target + i, toLowerUnit(text.unit(i)))
         i = i + 1
 
     return out
@@ -469,7 +469,7 @@ pub fn toUpperAscii(text: String) -> String:
         i = i + width
 
     while i < count:
-        store(target + i, truncate(toUpperUnit(text.unit(i))) :: CodeUnit)
+        store(target + i, toUpperUnit(text.unit(i)))
         i = i + 1
 
     return out

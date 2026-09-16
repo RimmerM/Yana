@@ -38,7 +38,7 @@ fn units(%self: 1'String) -> %CodeUnit {
     ret %v4
 }
 
-fn String.unit(%self: String, %index: Size) -> I32 {
+fn String.unit(%self: String, %index: Size) -> CodeUnit {
   b0:
     %v2 = borrow %self : 1'String
     %v3 = call units, %v2 : %CodeUnit
@@ -46,8 +46,7 @@ fn String.unit(%self: String, %index: Size) -> I32 {
     %v5 = mul %index, %v4 : Size
     %v6 = add %v3, %v5 : %CodeUnit
     %v7 = load [%v6] : CodeUnit
-    %v8 = cast %v7 : I32
-    ret %v8
+    ret %v7
 }
 
 fn String.ofCapacity(%capacity: Size) -> String {
@@ -71,15 +70,14 @@ fn String.ofCapacity(%capacity: Size) -> String {
     ret %v18
 }
 
-fn String.pushUnit(%self: String, %unit: I32) -> () {
+fn String.pushUnit(%self: String, %unit: CodeUnit) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &String
     %v4 = cast %v3 : &String
     %v5 = load [%v4]@String.units : Array(CodeUnit)
-    %v6 = cast %unit : CodeUnit
-    %v7 = borrow_mut [%v4]@String.units : &Array(CodeUnit)
-    call push(CodeUnit), %v7, %v6
+    %v6 = borrow_mut [%v4]@String.units : &Array(CodeUnit)
+    call push(CodeUnit), %v6, %unit
     ret
 }
 
@@ -1173,8 +1171,9 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
 fn write(%to: String, %unit: I32) -> () {
   b0:
     %v2 = load %to : String
-    %v3 = borrow_mut %to : &String
-    call String.pushUnit, %v3, %unit
+    %v3 = cast %unit : CodeUnit
+    %v4 = borrow_mut %to : &String
+    call String.pushUnit, %v4, %v3
     ret
 }
 
@@ -1197,8 +1196,9 @@ fn relayBack(%to: String, %unit: I32) -> () {
 fn writeOther(%unit: I32, %to: String) -> () {
   b0:
     %v2 = load %to : String
-    %v3 = borrow_mut %to : &String
-    call String.pushUnit, %v3, %unit
+    %v3 = cast %unit : CodeUnit
+    %v4 = borrow_mut %to : &String
+    call String.pushUnit, %v4, %v3
     ret
 }
 
@@ -1213,11 +1213,13 @@ fn rotate(%a: I32, %b: I32, %to: String) -> () {
 fn takeThree(%to: String, %first: I32, %second: I32) -> () {
   b0:
     %v3 = load %to : String
-    %v4 = borrow_mut %to : &String
-    call String.pushUnit, %v4, %first
-    %v6 = load %to : String
-    %v7 = borrow_mut %to : &String
-    call String.pushUnit, %v7, %second
+    %v4 = cast %first : CodeUnit
+    %v5 = borrow_mut %to : &String
+    call String.pushUnit, %v5, %v4
+    %v7 = load %to : String
+    %v8 = cast %second : CodeUnit
+    %v9 = borrow_mut %to : &String
+    call String.pushUnit, %v9, %v8
     ret
 }
 
@@ -1249,23 +1251,24 @@ fn main() -> I32 {
     je %v28, b3, b2
 
   b2:
-    %v42 = load %total : I32
-    %v43 = load %out : String
-    %v44 = call Length(String).length, %v43 : Size
+    %v43 = load %total : I32
+    %v44 = load %out : String
+    %v45 = call Length(String).length, %v44 : Size
     drop %out via Reclaim(String).reclaim
-    %v45 = cast %v44 : I32
-    %v46 = add %v42, %v45 : I32
-    ret %v46
+    %v46 = cast %v45 : I32
+    %v47 = add %v43, %v46 : I32
+    ret %v47
 
   b3:
     %v30 = load %total : I32
     %v31 = load %out : String
     %v32 = load %i : Size
-    %v33 = call String.unit, %v31, %v32 : I32
-    %v34 = add %v30, %v33 : I32
-    assign %total, %v34
-    %v36 = load %i : Size
-    %v39 = add %v36, 1 : Size
-    assign %i, %v39
+    %v33 = call String.unit, %v31, %v32 : CodeUnit
+    %v34 = cast %v33 : I32
+    %v35 = add %v30, %v34 : I32
+    assign %total, %v35
+    %v37 = load %i : Size
+    %v40 = add %v37, 1 : Size
+    assign %i, %v40
     jmp b1
 }

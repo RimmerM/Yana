@@ -91,7 +91,7 @@ bb1:
 bb2(%2: String [shared call] guaranteed):
   %21: String [shared slot 0] guaranteed from{%2, %5, %6} = load inspect %2
   %22: String [shared slot 0 view] guaranteed from{%2, %5, %6} = call String.view borrow %21
-  %23: String [shared slot 0 view] guaranteed from{%2, %5, %6} = call trim borrow %22
+  %23: String [shared slot 0 view] guaranteed from{%2, %5, %6} = call trimAscii borrow %22
   %24: String [shared slot 0 view] guaranteed from{%2, %5, %6} = load inspect %23
   %25: Size trivial = call String.length borrow %24
   store inspect %7 consume %25
@@ -120,7 +120,7 @@ bb5:
   %38: Size trivial = const 0
   %39: Size trivial = load inspect %7
   %40: String [shared slot 0 view] guaranteed from{%2, %5, %6} = call String.slice borrow %37 borrow %38 borrow %39
-  %41: String [shared slot 0 view] guaranteed from{%2, %5, %6} = call trimEnd borrow %40
+  %41: String [shared slot 0 view] guaranteed from{%2, %5, %6} = call trimEndAscii borrow %40
   %42: (String) -> I32 [shared call] guaranteed from{%1} = load inspect %1
   %43: I32 trivial = call [value #0] inspect %42 borrow %41
   drop Maybe(String) inspect %5

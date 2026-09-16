@@ -42,10 +42,10 @@ bb3:
   branch inspect %17 -> bb6(borrow.unique %14) -> bb4(borrow.unique %14)
 
 bb4(%18: String [unique call]):
-  %25: I32 = const 57
+  %25: CodeUnit = const 57
   jump -> bb5(take %25, borrow.unique %18)
 
-bb5(%26: I32, %27: String [unique call]):
+bb5(%26: CodeUnit, %27: String [unique call]):
   %30: {} = call String.pushUnit borrow.unique %27 borrow.shared %26
   %31: I32 = read copy.trivial (i)
   %32: I32 = const 1
@@ -57,7 +57,7 @@ bb6(%19: String [unique call]):
   %21: String [shared call view] = read borrow.shared (text) loan2
   %22: I32 = read copy.trivial (i)
   %23: Size = convert inspect %22
-  %24: I32 = call String.unit borrow.shared %21 borrow.shared %23
+  %24: CodeUnit = call String.unit borrow.shared %21 borrow.shared %23
   jump -> bb5(take %24, borrow.unique %19)
 
 bb7:
@@ -79,8 +79,8 @@ bb9:
   %46: I32 = const 1
   %47: I32 = sub inspect %45 inspect %46
   %48: Size = convert inspect %47
-  %49: I32 = call String.unit borrow.shared %44 borrow.shared %48
-  %50: I32 = const 57
+  %49: CodeUnit = call String.unit borrow.shared %44 borrow.shared %48
+  %50: CodeUnit = const 57
   %51: Bool = eq inspect %49 inspect %50
   branch inspect %51 -> bb10 -> bb8
 
@@ -102,7 +102,7 @@ bb12:
 bb13:
   drop (kept)
   %62: String [unique call] = read borrow.unique (out) loan4
-  %63: I32 = const 49
+  %63: CodeUnit = const 49
   %64: {} = call String.pushUnit borrow.unique %62 borrow.shared %63
   %65: I32 = const 0
   write.init borrow.unique (zeros) take %65
@@ -122,7 +122,7 @@ bb15:
 
 bb16:
   %72: String [unique call] = read borrow.unique (out) loan5
-  %73: I32 = const 48
+  %73: CodeUnit = const 48
   %74: {} = call String.pushUnit borrow.unique %72 borrow.shared %73
   %75: I32 = read copy.trivial (zeros)
   %76: I32 = const 1
@@ -147,7 +147,7 @@ bb19:
   %94: String [shared slot 0 view] = call.derivation view(String) borrow.shared %93 roots{7}
   %95: I32 = read copy.trivial (i)
   %96: Size = convert inspect %95
-  %97: I32 = call String.unit borrow.shared %94 borrow.shared %96
+  %97: CodeUnit = call String.unit borrow.shared %94 borrow.shared %96
   %98: {} = call String.pushUnit borrow.unique %92 borrow.shared %97
   %99: I32 = read copy.trivial (i)
   %100: I32 = const 1

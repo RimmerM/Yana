@@ -131,7 +131,7 @@ bb4(%13: I32, %14: I32):
   jump -> bb2(take %13, take %14)
 }
 
-fn words'2(self: %Cursor(String) [shared call]) -> {} {
+fn words(self: %Cursor(String) [shared call]) -> {} {
   local & local1: I32
   local i: I32
   local & local3: String
@@ -282,7 +282,7 @@ bb5:
   write.init borrow.unique (text) take %95
   %97: Cursor(String) [unique call] = read borrow.unique (text) loan14
   %98: Size = const 65536
-  %99: (%Cursor(String)) -> {} [owned here shape8 .0=unique call] = fun.value words'2
+  %99: (%Cursor(String)) -> {} [owned here shape8 .0=unique call] = fun.value words
   write.init borrow.unique (local16) take %99
   %101: (%Cursor(String)) -> {} [shared call shape8 .0=unique call] = read borrow.shared (local16) loan15
   %102: Bool = call Cursor.open(String) borrow.unique %97 borrow.shared %98 borrow.shared %101

@@ -12,7 +12,7 @@ data guarded.Iter {$index: I32, $slot: Size, g: Guard, : I32, : I32, : I32} drop
 
 data holding.Iter {$index: I32, $slot: Size, g: Guard} drop authored
 
-data words'2.Iter {$index: I32, $slot: String, prefix: StringView, : I32, : String, : I32, : I32, $held: Bool} shape9 drop authored
+data words.Iter {$index: I32, $slot: String, prefix: StringView, : I32, : String, : I32, : I32, $held: Bool} shape9 drop authored
 
 data counting.Iter {$index: I32, $slot: Size, total: %Size, : I32, : I32, : I32} shape11
 
@@ -34,9 +34,9 @@ instance Drop(holding.Iter): holding$drop
 
 instance Iterate(holding.Iter, Size, {}): holding$next, holding$resume
 
-instance Drop(words'2.Iter): words'2$drop
+instance Drop(words.Iter): words$drop
 
-instance Iterate(words'2.Iter, String, {}): words'2$next, words'2$resume
+instance Iterate(words.Iter, String, {}): words$next, words$resume
 
 instance Iterate(counting.Iter, Size, {}): counting$next, counting$resume
 
@@ -291,7 +291,7 @@ bb0:
   return take %6
 }
 
-lens fn words'2(prefix: String [shared call view], $body: (->String) -> I32 [shared call]) -> I32 {
+lens fn words(prefix: String [shared call view], $body: (->String) -> I32 [shared call]) -> I32 {
   local & $yielded: I32
   local & local3: I32
   local i: I32
@@ -488,7 +488,7 @@ fn main() -> Size {
   local v: Size
   local & prefix: String
   local & joined: String
-  local & spelling: words'2.Iter [owned here shape9 .2.0.*=shared slot 0]
+  local & spelling: words.Iter [owned here shape9 .2.0.*=shared slot 0]
   local w: String
   local & total: Size
   local & running: Size
@@ -742,7 +742,7 @@ bb40:
   write.init borrow.unique (joined) take %160
   %162: String [shared call] = read borrow.shared (prefix) loan13
   %163: String [shared slot 0 view] = call.derivation view(String) borrow.shared %162 roots{13}
-  %164: words'2.Iter [owned here shape9 .2.0.*=shared slot 0] = call words'2$new borrow.shared %163 roots.0{13}
+  %164: words.Iter [owned here shape9 .2.0.*=shared slot 0] = call words$new borrow.shared %163 roots.0{13}
   write.init borrow.unique (spelling) take %164
   jump -> bb42
 
@@ -757,10 +757,10 @@ bb41:
   jump -> bb39
 
 bb42:
-  %167: words'2.Iter [unique call shape9 .2.0.*=shared slot 0] = read borrow.unique (spelling) loan14 roots.0{13}
+  %167: words.Iter [unique call shape9 .2.0.*=shared slot 0] = read borrow.unique (spelling) loan14 roots.0{13}
   %168: I32 = const 0
   %169: Bool = const False
-  %170: Bool = call words'2$step borrow.unique %167 take %168 take %169
+  %170: Bool = call words$step borrow.unique %167 take %168 take %169
   branch inspect %170 -> bb44 -> bb43
 
 bb43:
@@ -776,8 +776,8 @@ bb43:
   jump -> bb45
 
 bb44:
-  %172: words'2.Iter [unique call shape9 .2.0.*=shared slot 0] = read borrow.unique (spelling) loan15 roots.0{13}
-  %173: String = call words'2$take borrow.unique %172
+  %172: words.Iter [unique call shape9 .2.0.*=shared slot 0] = read borrow.unique (spelling) loan15 roots.0{13}
+  %173: String = call words$take borrow.unique %172
   write.init borrow.unique (w) take %173
   %175: String = read take (joined)
   %176: String = read take (w)
@@ -904,17 +904,17 @@ fn holding$next($self: holding.Iter [unique slot 0]) -> Maybe(Size) [owned here 
 
 fn holding$resume($self: holding.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn words'2$new(prefix: String [shared slot 0 view]) -> words'2.Iter [owned here shape9 .2.0.*=shared slot 0] = <no body>
+fn words$new(prefix: String [shared slot 0 view]) -> words.Iter [owned here shape9 .2.0.*=shared slot 0] = <no body>
 
-fn words'2$step($self: words'2.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+fn words$step($self: words.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
 
-fn words'2$drop($self: words'2.Iter) -> {} = <no body>
+fn words$drop($self: words.Iter) -> {} = <no body>
 
-fn words'2$take($self: words'2.Iter [unique call]) -> String = <no body>
+fn words$take($self: words.Iter [unique call]) -> String = <no body>
 
-fn words'2$next($self: words'2.Iter [unique slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+fn words$next($self: words.Iter [unique slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
 
-fn words'2$resume($self: words'2.Iter [unique slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+fn words$resume($self: words.Iter [unique slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
 
 fn counting$new(total: Size [unique slot 0]) -> counting.Iter [owned here shape11 .2.*=unique slot 0] = <no body>
 

@@ -191,7 +191,7 @@ bb9(%48: I32 [unique slot 0 owner] guaranteed from{%0}):
   %72: String owned = call String.ofCapacity borrow %71
   store inspect %2 consume %72
   %73: String [unique call] guaranteed from{%2} = load inspect %2
-  %74: I32 trivial = const 65
+  %74: CodeUnit trivial = const 65
   call String.pushUnit borrow %73 borrow %74
   %75: String [unique call] guaranteed from{%2} = load inspect %2
   %76: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
@@ -254,34 +254,36 @@ bb16(%85: Size trivial):
   %93: String [shared call] guaranteed from{%2} = load inspect %2
   %94: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %93
   %95: Size trivial = const 2
-  %96: I32 trivial = call String.unit borrow %94 borrow %95
+  %96: CodeUnit trivial = call String.unit borrow %94 borrow %95
   drop String inspect %2
-  store inspect %8 consume %96
-  %97: String [shared call] guaranteed from{%4} = load inspect %4
-  %98: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %97
-  %99: Size trivial = call count'2 borrow %98
-  %100: I32 trivial = convert inspect %99
-  store inspect %9 consume %100
-  %101: String [shared call] guaranteed from{%4} = load inspect %4
-  %102: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %101
-  %103: Size trivial = const 1
-  %104: I32 trivial = call String.unit borrow %102 borrow %103
+  %97: I32 trivial = convert inspect %96
+  store inspect %8 consume %97
+  %98: String [shared call] guaranteed from{%4} = load inspect %4
+  %99: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %98
+  %100: Size trivial = call count'2 borrow %99
+  %101: I32 trivial = convert inspect %100
+  store inspect %9 consume %101
+  %102: String [shared call] guaranteed from{%4} = load inspect %4
+  %103: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %102
+  %104: Size trivial = const 1
+  %105: CodeUnit trivial = call String.unit borrow %103 borrow %104
   drop String inspect %4
-  store inspect %10 consume %104
-  %105: I32 trivial = load inspect %5
-  %106: I32 trivial = load inspect %6
-  %107: I32 trivial = add inspect %105 inspect %106
-  %108: I32 trivial = load inspect %7
+  %106: I32 trivial = convert inspect %105
+  store inspect %10 consume %106
+  %107: I32 trivial = load inspect %5
+  %108: I32 trivial = load inspect %6
   %109: I32 trivial = add inspect %107 inspect %108
-  %110: I32 trivial = load inspect %8
+  %110: I32 trivial = load inspect %7
   %111: I32 trivial = add inspect %109 inspect %110
-  %112: I32 trivial = load inspect %9
+  %112: I32 trivial = load inspect %8
   %113: I32 trivial = add inspect %111 inspect %112
-  %114: I32 trivial = load inspect %10
+  %114: I32 trivial = load inspect %9
   %115: I32 trivial = add inspect %113 inspect %114
-  %116: I32 trivial = load inspect %1
+  %116: I32 trivial = load inspect %10
   %117: I32 trivial = add inspect %115 inspect %116
-  return consume %117
+  %118: I32 trivial = load inspect %1
+  %119: I32 trivial = add inspect %117 inspect %118
+  return consume %119
 }
 
 entry main

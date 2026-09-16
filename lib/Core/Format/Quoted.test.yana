@@ -36,7 +36,7 @@ import Test
     checkEqual("{quoted(oneUnitText(127))}", "\"\\u007f\"")
 
 -- One unit as a string, for the cases a literal cannot spell.
-fn oneUnitText(unit: Int) -> String:
+fn oneUnitText(unit: CodeUnit) -> String:
     let &text = String.ofCapacity(1)
     String.pushUnit(text, unit)
     return text
@@ -59,6 +59,18 @@ fn oneUnitText(unit: Int) -> String:
     at = 0
     match readQuoted("\"caf\\u00e9\"", at):
         Ok(value) -> checkEqual(value, "café")
+        Err(_) -> check(False)
+
+    -- A surrogate pair written as two escapes is the one character it spells. A surrogate that is not
+    -- half of a pair has no character to be and reads as U+FFFD, and what follows it reads as itself.
+    at = 0
+    match readQuoted("\"\\ud83d\\ude00\"", at):
+        Ok(value) -> checkEqual(value, "😀")
+        Err(_) -> check(False)
+
+    at = 0
+    match readQuoted("\"\\ud83dx\\ude00\\ud83d\\u002d\"", at):
+        Ok(value) -> checkEqual(value, "\xFFFDx\xFFFD\xFFFD-")
         Err(_) -> check(False)
 
 {-

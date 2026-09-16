@@ -110,7 +110,7 @@ let letter = 65 :: U8
 @test fn longCString():
     let &text = String.ofCapacity(300)
     for i in 0 .. 300:
-        String.pushUnit(text, "a" + (truncate(i % 26) :: Int))
+        String.pushUnit(text, "a" + (truncate(i % 26) :: CodeUnit))
 
     let terminated = cString(text)
     checkEqual(cStringLength(stringBytes(terminated)), 300)
@@ -130,7 +130,7 @@ let letter = 65 :: U8
 fn repeated(count: Size) -> String:
     let &text = String.ofCapacity(count)
     for i in 0 .. count:
-        String.pushUnit(text, "a" + (truncate(i % 26) :: Int))
+        String.pushUnit(text, "a" + (truncate(i % 26) :: CodeUnit))
 
     return text
 

@@ -249,8 +249,9 @@
 @inline(always) pub fn hostStringLength(self: String) -> Size = hostField(self, "length")
 
 -- `self.charCodeAt(index)` - one raw UTF-16 unit, with no decode and no validation that it is a
--- whole code point. The exact counterpart of the native build's byte read.
-@inline(always) pub fn hostCharCodeAt(self: String, index: Size) -> Int
+-- whole code point. The exact counterpart of the native build's byte read, and typed as one: the host
+-- answers a number from 0 to 0xFFFF, which is a `CodeUnit` on this target with nothing to narrow.
+@inline(always) pub fn hostCharCodeAt(self: String, index: Size) -> CodeUnit
     = hostCall1(self, "charCodeAt", index)
 
 {-
@@ -309,7 +310,7 @@
 -- `String.fromCharCode(unit)` - one UTF-16 unit as a one-unit string, which is what appending a unit
 -- to a host string has to go through. A call on the host's global rather than on a value, which is
 -- why it is the one `HostGlobalCall` here.
-@inline(always) pub fn hostFromCharCode(unit: Int) -> String
+@inline(always) pub fn hostFromCharCode(unit: CodeUnit) -> String
     = hostGlobal1("String.fromCharCode", unit)
 
 -- `console.log(text)` - the host's own output, which is what `print` is there. A call on a global

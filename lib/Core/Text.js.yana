@@ -21,8 +21,9 @@ import Native
    - `toLowerCase` / `toUpperCase` are Unicode case folding and locale-sensitive. They change unit
      counts and they are not the same function as the native build's `A`-`Z` select, so the ASCII tier
      spells its own loop.
-   - `trim` trims the Unicode whitespace set, which is larger than the six units `isSpace` names.
-     `Text.yana`'s trim is written over `isSpace` and is one body for both targets for that reason.
+   - `trim` trims the Unicode whitespace set plus U+FEFF, which is neither the six units `isSpace`
+     names nor the `White_Space` property. `trimAscii` and `trimUnicode` are one body for both
+     targets for that reason.
    - `startsWith` / `endsWith` return a host boolean, and a `Bool` here is the number 0 or 1
      (`boolNumber` in codegen/js/type.cpp). The `HostCall` arm does not convert, so a predicate taken
      from the host would be right in a condition and wrong in a value position - see
@@ -37,7 +38,7 @@ import Native
 
 -- One unit as a one-unit string, which is what the host's search takes. `String.fromCharCode` is the
 -- only way to build one here, and it is what the whole unit-searching family below is written over.
-fn unitText(unit: CodeUnit) -> String = hostFromCharCode(unit :: Int)
+fn unitText(unit: CodeUnit) -> String = hostFromCharCode(unit)
 
 pub fn findAscii(self: String, unit: CodeUnit, from: Size = 0) -> Maybe(Size):
     let at = hostIndexOf(self, unitText(unit), from)
@@ -102,7 +103,7 @@ pub fn findAsciiNone(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(S
     if length(units) == (0 :: Size) then return if i < count then Just(i) else Nothing
 
     while i < count:
-        if !contains(units, truncate(self.unit(i)) :: CodeUnit) then return Just(i)
+        if !contains(units, self.unit(i)) then return Just(i)
         i = i + 1
 
     return Nothing

@@ -43,10 +43,10 @@ bb3:
   branch inspect %26 -> bb6(borrow %23) -> bb4(borrow %23)
 
 bb4(%3: String [unique call] guaranteed):
-  %27: I32 trivial = const 57
+  %27: CodeUnit trivial = const 57
   jump -> bb5(consume %27, borrow %3)
 
-bb5(%4: I32 trivial, %5: String [unique call] guaranteed):
+bb5(%4: CodeUnit trivial, %5: String [unique call] guaranteed):
   call String.pushUnit borrow %5 borrow %4
   %28: I32 trivial = load inspect %9
   %29: I32 trivial = const 1
@@ -58,7 +58,7 @@ bb6(%6: String [unique call] guaranteed):
   %31: String [shared call view] guaranteed from{%0} = load inspect %0
   %32: I32 trivial = load inspect %9
   %33: Size trivial = convert inspect %32
-  %34: I32 trivial = call String.unit borrow %31 borrow %33
+  %34: CodeUnit trivial = call String.unit borrow %31 borrow %33
   jump -> bb5(consume %34, borrow %6)
 
 bb7:
@@ -80,8 +80,8 @@ bb9:
   %44: I32 trivial = const 1
   %45: I32 trivial = sub inspect %43 inspect %44
   %46: Size trivial = convert inspect %45
-  %47: I32 trivial = call String.unit borrow %42 borrow %46
-  %48: I32 trivial = const 57
+  %47: CodeUnit trivial = call String.unit borrow %42 borrow %46
+  %48: CodeUnit trivial = const 57
   %49: Bool trivial = eq inspect %47 inspect %48
   branch inspect %49 -> bb10 -> bb8
 
@@ -103,7 +103,7 @@ bb12:
 bb13:
   drop String inspect %8
   %54: String [unique call] guaranteed from{%2} = load inspect %2
-  %55: I32 trivial = const 49
+  %55: CodeUnit trivial = const 49
   call String.pushUnit borrow %54 borrow %55
   %56: I32 trivial = const 0
   store inspect %12 consume %56
@@ -123,7 +123,7 @@ bb15:
 
 bb16:
   %63: String [unique call] guaranteed from{%2} = load inspect %2
-  %64: I32 trivial = const 48
+  %64: CodeUnit trivial = const 48
   call String.pushUnit borrow %63 borrow %64
   %65: I32 trivial = load inspect %12
   %66: I32 trivial = const 1
@@ -148,7 +148,7 @@ bb19:
   %74: String [shared slot 0 view] guaranteed from{%8} = call String.view borrow %73
   %75: I32 trivial = load inspect %9
   %76: Size trivial = convert inspect %75
-  %77: I32 trivial = call String.unit borrow %74 borrow %76
+  %77: CodeUnit trivial = call String.unit borrow %74 borrow %76
   call String.pushUnit borrow %72 borrow %77
   %78: I32 trivial = load inspect %9
   %79: I32 trivial = const 1

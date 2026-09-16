@@ -987,6 +987,151 @@ bool narrowComparison(LowerBase base, LowerInst* inst, Narrowed& into) {
     return true;
 }
 
+// What a pair of bounds is rewritten into: one unsigned comparison of `value - low` against `span`,
+// `le` where the two bounds were joined by an `and` and `gt` where they were joined by an `or`.
+struct RangeTest {
+    LowerValue* value;
+    U64 low;
+    U64 span;
+    bool outside;
+};
+
+/*
+ * One comparison of a value against a constant, read as a bound: the value it reads, and the first
+ * or last number the comparison admits (`lower`) or rejects (`!lower`) at the value's width.
+ * `lower` asks for a bound below which the answer is false - `ge`, `gt` - and `!lower` for one above
+ * which it is false - `le`, `lt`. `isSigned` is which ordering the relation reads its operands in.
+ */
+static bool boundOf(LowerBase base, LowerInst* inst, bool lower, LowerValue*& value, U64& bound,
+                    bool& isSigned) {
+    if(inst->kind != LowerInst::Cmp) return false;
+    if(((LowerInstSingle*)inst)->result.uses.size() != 1) return false;
+
+    auto compare = (LowerInstCmp*)inst;
+    auto lhs = base[compare->lhs];
+    auto rhs = base[compare->rhs];
+    if(lhs->type != rhs->type || !isInt(lhs->type)) return false;
+
+    auto cmp = compare->getCmp();
+    U64 constant, other;
+
+    if(lowerConstantOf(base, rhs, constant)) {
+        if(lowerConstantOf(base, lhs, other)) return false;
+        value = lhs;
+    } else if(lowerConstantOf(base, lhs, constant)) {
+        value = rhs;
+        cmp = swappedCmp(cmp);
+    } else {
+        return false;
+    }
+
+    auto bits = widthOf(value->type);
+    auto all = maskOf(bits);
+    auto top = all >> 1;
+
+    isSigned = cmp == LowerCmp::igt || cmp == LowerCmp::ige || cmp == LowerCmp::ilt || cmp == LowerCmp::ile;
+    auto highest = isSigned ? top : all;
+    auto lowest = isSigned ? top + 1 : U64(0);
+
+    // `gt k` admits from `k + 1` and `lt k` up to `k - 1`, which is a bound only where that number
+    // exists - `gt` of the highest value admits nothing and is the folder's, not this.
+    switch(cmp) {
+        case LowerCmp::ge: case LowerCmp::ige:
+            if(!lower) return false;
+            bound = constant;
+            return true;
+        case LowerCmp::gt: case LowerCmp::igt:
+            if(!lower || constant == highest) return false;
+            bound = (constant + 1) & all;
+            return true;
+        case LowerCmp::le: case LowerCmp::ile:
+            if(lower) return false;
+            bound = constant;
+            return true;
+        case LowerCmp::lt: case LowerCmp::ilt:
+            if(lower || constant == lowest) return false;
+            bound = (constant - 1) & all;
+            return true;
+        default:
+            return false;
+    }
+}
+
+/*
+ * A value tested against both ends of a range, as the one unsigned comparison the range is.
+ *
+ *   `and (cmp_ge %x, A), (cmp_le %x, B)`   is  `cmp_le (sub %x, A), B - A`
+ *   `or  (cmp_lt %x, A), (cmp_gt %x, B)`   is  `cmp_gt (sub %x, A), B - A`
+ *
+ * with the signed relations reading the same way, since subtracting the low end maps `[A, B]` onto
+ * `[0, B - A]` in either ordering and sends everything outside it above `B - A` once read unsigned.
+ * `gt` and `lt` are the same bounds one step in.
+ *
+ * It is what a range pattern and `c >= "0" && c <= "9"` both come to, once `fuseBranches` has made the
+ * first a single condition: two comparisons, two flag reads and a merge become a `lea` and one `cmp`,
+ * and a branch on the result is a `cmp`/`jcc` pair the machine fuses into one operation.
+ *
+ * Both comparisons must be read by this merge alone, so that they are what goes away. The bounds must
+ * be in order in the relations' own signedness: a reversed pair is an empty range or a full one, which
+ * is a constant and the folder's.
+ */
+static bool foldRangeTest(LowerBase base, LowerInst* inst, RangeTest& into) {
+    if(inst->kind != LowerInst::And && inst->kind != LowerInst::Or) return false;
+
+    auto binary = (LowerInstBinary*)inst;
+    auto left = base[binary->lhs];
+    auto right = base[binary->rhs];
+    if(!left->inst() || !right->inst()) return false;
+    if(!isBooleanValued(base, left) || !isBooleanValued(base, right)) return false;
+
+    // An `and` admits between its bounds, so it wants its lower bound from a `ge` and its upper one
+    // from a `le`. An `or` of the two *rejections* admits outside them - `lt` below the low end and
+    // `gt` above the high one - which is the same pair of bounds read from the other side.
+    auto outside = inst->kind == LowerInst::Or;
+
+    for(int order = 0; order < 2; order++) {
+        auto first = order == 0 ? left->inst() : right->inst();
+        auto second = order == 0 ? right->inst() : left->inst();
+
+        LowerValue* lowValue;
+        LowerValue* highValue;
+        U64 low, high;
+        bool lowSigned, highSigned;
+
+        if(!outside) {
+            if(!boundOf(base, first, true, lowValue, low, lowSigned)) continue;
+            if(!boundOf(base, second, false, highValue, high, highSigned)) continue;
+        } else {
+            // `lt A` rejects from `A` up, which is a lower bound of the admitted range read as
+            // `!(x >= A)`; `boundOf` answers `A - 1` for it, so the admitted bound is one above.
+            if(!boundOf(base, first, false, lowValue, low, lowSigned)) continue;
+            if(!boundOf(base, second, true, highValue, high, highSigned)) continue;
+
+            // A rejection bound at the far end of the type rejects nothing on that side, so the
+            // `or` is always true - the folder's constant, and not a range.
+            auto bits = widthOf(lowValue->type);
+            auto all = maskOf(bits);
+            auto signedBounds = lowSigned || highSigned;
+            if(low == (signedBounds ? all >> 1 : all)) continue;
+            if(high == (signedBounds ? (all >> 1) + 1 : U64(0))) continue;
+
+            low = (low + 1) & all;
+            high = (high - 1) & all;
+        }
+
+        if(lowValue != highValue || lowSigned != highSigned) continue;
+
+        auto bits = widthOf(lowValue->type);
+        auto inOrder = lowSigned ? signedValue(low, bits) <= signedValue(high, bits) : low <= high;
+        if(!inOrder) continue;
+
+        into = { lowValue, low, (high - low) & maskOf(bits), outside };
+        return true;
+    }
+
+    return false;
+}
+
 // What a mask is rewritten into: the same `and` over a different operand and a different constant.
 // The operand changes only for the second of the two rules below; the constant for either.
 struct Masked {
@@ -1668,6 +1813,59 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
                     detach(base, inst);
                     replaceUses(base, module.arena, result - base, &sum->result - base);
                     kept.push((LowerInst*)sum - base);
+
+                    rewrote = true;
+                    changed = true;
+                    continue;
+                }
+
+                /*
+                 * A range tested at both ends, as one comparison - see `foldRangeTest`. A new
+                 * subtraction and comparison in place of the merge, since the answer is a different
+                 * kind of instruction; the two comparisons it read are left to `removeDeadValues`.
+                 */
+                RangeTest range;
+                if(foldRangeTest(base, inst, range)) {
+                    auto merged = (LowerInstBinary*)inst;
+                    auto type = range.value->type;
+                    auto subject = range.value;
+
+                    if(range.low != 0) {
+                        auto low = new (module.arena) LowerImm(StringId(), type, range.low);
+                        low->block = blockPtr;
+                        low->source = inst->source;
+                        kept.push(low - base);
+
+                        auto shifted = new (module.arena) LowerInstBinary(StringId(), type,
+                                                                          range.value - base,
+                                                                          &low->result - base,
+                                                                          LowerInst::Sub);
+                        shifted->block = blockPtr;
+                        shifted->source = inst->source;
+                        range.value->uses.push(module.arena, (LowerInst*)shifted - base);
+                        low->result.uses.push(module.arena, (LowerInst*)shifted - base);
+                        kept.push((LowerInst*)shifted - base);
+                        subject = &shifted->result;
+                    }
+
+                    auto span = new (module.arena) LowerImm(StringId(), type, range.span);
+                    span->block = blockPtr;
+                    span->source = inst->source;
+                    kept.push(span - base);
+
+                    auto compare = new (module.arena) LowerInstCmp(merged->result.name, subject - base,
+                                                                   &span->result - base,
+                                                                   range.outside ? LowerCmp::gt
+                                                                                 : LowerCmp::le,
+                                                                   merged->result.type);
+                    compare->block = blockPtr;
+                    compare->source = inst->source;
+                    subject->uses.push(module.arena, (LowerInst*)compare - base);
+                    span->result.uses.push(module.arena, (LowerInst*)compare - base);
+                    kept.push((LowerInst*)compare - base);
+
+                    detach(base, inst);
+                    replaceUses(base, module.arena, &merged->result - base, &compare->result - base);
 
                     rewrote = true;
                     changed = true;

@@ -477,87 +477,85 @@ writeShortest<complex>(%value$digits: I64, %value$exponent: I32, %to: Ptr) {
   }
 
   b_18 {
-    %v_19 = cmp_ige %exp, 0: I32
-    %v_20 = cmp_ile %exp, 7: I32
-    %v_21 = and %v_19, %v_20: I32
-    je %v_21, b_22, b_23
+    %v_19 = cmp_le %exp, 7: I32
+    je %v_19, b_20, b_21
+  }
+
+  b_21 {
+    call_complex pushDecimalDigits, %value$digits, %count, 1, %to
+    call_complex push(CodeUnit), %to, 69
+    %v_22 = cmp_ilt %exp, 0: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_24 {
+    call_complex pushExponent, %exp, %to
+    jmp b_25
   }
 
   b_23 {
-    call_complex pushDecimalDigits, %value$digits, %count, 1, %to
-    call_complex push(CodeUnit), %to, 69
-    %v_24 = cmp_ilt %exp, 0: I32
-    je %v_24, b_25, b_26
-  }
-
-  b_26 {
-    call_complex pushExponent, %exp, %to
-    jmp b_27
+    call_complex push(CodeUnit), %to, 45
+    call_complex pushExponent, %v_14, %to
+    jmp b_25
   }
 
   b_25 {
-    call_complex push(CodeUnit), %to, 45
-    call_complex pushExponent, %v_14, %to
-    jmp b_27
-  }
-
-  b_27 {
     ret 
   }
 
-  b_22 {
-    %v_28 = cmp_ige %value$exponent, 0: I32
-    je %v_28, b_29, b_30
+  b_20 {
+    %v_26 = cmp_ige %value$exponent, 0: I32
+    je %v_26, b_27, b_28
   }
 
-  b_30 {
+  b_28 {
     call_complex pushDecimalDigits, %value$digits, %count, %v_12, %to
-    jmp b_27
+    jmp b_25
+  }
+
+  b_27 {
+    call_complex pushDecimalDigits, %value$digits, %count, %count, %to
+    jmp b_29
   }
 
   b_29 {
-    call_complex pushDecimalDigits, %value$digits, %count, %count, %to
-    jmp b_31
+    %v_30 = phi [b_27, %value$exponent], [b_31, %v_32]: I32
+    %v_33 = cmp_igt %v_30, 0: I32
+    je %v_33, b_31, b_34
+  }
+
+  b_34 {
+    jmp b_25
   }
 
   b_31 {
-    %v_32 = phi [b_29, %value$exponent], [b_33, %v_34]: I32
-    %v_35 = cmp_igt %v_32, 0: I32
-    je %v_35, b_33, b_36
-  }
-
-  b_36 {
-    jmp b_27
-  }
-
-  b_33 {
     call_complex push(CodeUnit), %to, 48
-    %v_34 = sub %v_32, 1: I32
-    jmp b_31
+    %v_32 = sub %v_30, 1: I32
+    jmp b_29
   }
 
   b_17 {
     call_complex push(CodeUnit), %to, 48
     call_complex push(CodeUnit), %to, 46
-    %v_37 = sub %v_14, 1: I32
-    jmp b_38
+    %v_35 = sub %v_14, 1: I32
+    jmp b_36
   }
 
-  b_38 {
-    %v_39 = phi [b_17, %v_37], [b_40, %v_41]: I32
-    %v_42 = cmp_igt %v_39, 0: I32
-    je %v_42, b_40, b_43
+  b_36 {
+    %v_37 = phi [b_17, %v_35], [b_38, %v_39]: I32
+    %v_40 = cmp_igt %v_37, 0: I32
+    je %v_40, b_38, b_41
   }
 
-  b_43 {
+  b_41 {
     call_complex pushDecimalDigits, %value$digits, %count, %count, %to
     ret 
   }
 
-  b_40 {
+  b_38 {
     call_complex push(CodeUnit), %to, 48
-    %v_41 = sub %v_39, 1: I32
-    jmp b_38
+    %v_39 = sub %v_37, 1: I32
+    jmp b_36
   }
 }
 

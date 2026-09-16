@@ -39,9 +39,10 @@ bb0:
   %2: String [shared slot 0] guaranteed from{%0} = load inspect %0
   %3: String [shared slot 0 view] guaranteed from{%0} = call String.view borrow %2
   %4: Size trivial = const 0
-  %5: I32 trivial = call String.unit borrow %3 borrow %4
+  %5: CodeUnit trivial = call String.unit borrow %3 borrow %4
   drop String inspect %0
-  return consume %5
+  %6: I32 trivial = convert inspect %5
+  return consume %6
 }
 
 fn emptyLength() -> I32 {

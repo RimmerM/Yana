@@ -1,46 +1,210 @@
 import Native
 
 {-
-   The first character of a UTF-8 string, for `FromText`'s run-time conversions.
+   ==========================================================================================
+   Code points over UTF-8 - Implementation-String.md parts 4 and 6, natively.
+   ==========================================================================================
 
-   Strict about what a sequence is - no overlong forms, no surrogates, nothing past U+10FFFF - and
-   U+FFFD for anything else, including an empty string. Part 6's decoder replaces this when it lands.
+   `Char.yana` has the contracts and everything both targets share; `Char.js.yana` is the same set
+   over UTF-16. What is here is what has to know the encoding: one decode each way, the boundaries,
+   the encoder, and the search that runs on encoded units.
+
+   **Invalid input decodes as U+FFFD by substitution of maximal subparts**, which is the Unicode
+   Standard's recommended practice (chapter 3, U+FFFD substitution) and exactly what the WHATWG
+   decoder does, so a native decode and a host `TextDecoder` agree byte for byte. A byte that cannot
+   begin a sequence is one U+FFFD. A lead byte followed by some but not all of the continuation bytes
+   it needs is one U+FFFD covering the lead and the ones that were valid, and the byte that broke the
+   sequence begins the next decode. "Valid" is narrower than `10xxxxxx` right after four leads, which
+   is how overlong forms, surrogates and anything past U+10FFFF are refused without decoding them:
+   `E0` takes `A0`-`BF` next, `ED` takes `80`-`9F`, `F0` takes `90`-`BF` and `F4` takes `80`-`8F`
+   (`firstContinuation`).
+
+   Scalar and one unit at a time. Vectorizing the ASCII runs and the counting is build order step 5,
+   which measures each of these against its `Unchecked` candidate (part 7.2).
 -}
-@platform(native) fn firstCharOf(text: String) -> U32:
+
+fn isContinuation(unit: CodeUnit) -> Bool = unit is 0x80..=0xBF
+
+-- The unit at `at`, read as a number the decode can compare against the ranges below.
+@inline fn unitNumber(text: String, at: Size) -> U32 = String.unit(text, at) :: U32
+
+-- How many continuation bytes a lead byte takes, and the payload bits it carries itself. A byte that
+-- cannot begin a sequence takes none - `C0`, `C1` and `F5` up are never UTF-8.
+fn leadBits(lead: U32) -> {Size, U32}
+  | 0xC2..=0xDF -> {1, lead `and` 0x1F}
+  | 0xE0..=0xEF -> {2, lead `and` 0x0F}
+  | 0xF0..=0xF4 -> {3, lead `and` 0x07}
+  | _           -> {0, 0}
+
+-- Whether `unit` may follow `lead` as its first continuation byte, which is the Unicode Standard's
+-- table 3-7: four leads narrow the range, and every other lead takes any continuation byte.
+fn firstContinuation(lead: U32, unit: U32) -> Bool
+  | {0xE0, 0xA0..=0xBF} -> True
+  | {0xE0, _}           -> False
+  | {0xED, 0x80..=0x9F} -> True
+  | {0xED, _}           -> False
+  | {0xF0, 0x90..=0xBF} -> True
+  | {0xF0, _}           -> False
+  | {0xF4, 0x80..=0x8F} -> True
+  | {0xF4, _}           -> False
+  | {_, 0x80..=0xBF}    -> True
+  | _                   -> False
+
+pub fn decodeChar(text: String, at: Size) -> {Char, Size}:
+    if !isUnitOffset(text, at) then return {replacementChar, at}
+
+    let lead = unitNumber(text, at)
+    if lead < 0x80 then return {Char(lead), at + 1}
+
+    let {need, bits} = leadBits(lead)
+    if need == (0 :: Size) then return {replacementChar, at + 1}
+
     let count = length(text)
-    if count == 0 then return 0xFFFD
+    let end = at + 1 + need
+    let &value = bits
+    let &next = at + 1
 
-    let at = units(text)
-    let lead = *at :: U32
-    if lead < 0x80 then return lead
+    while next < end:
+        -- A sequence cut off by the end of the text, or broken by a unit that cannot continue it, is
+        -- one replacement for what was read so far.
+        if next >= count then return {replacementChar, next}
 
-    let &need = 0 :: Size
-    let &value = 0 :: U32
-    let &lowest = 0 :: U32
+        let unit = unitNumber(text, next)
+        let continues = if next == at + 1 then firstContinuation(lead, unit) else unit is 0x80..=0xBF
+        if !continues then return {replacementChar, next}
 
-    if lead >= 0xC2 && lead <= 0xDF:
-        need = 1
-        value = lead `and` 0x1F
-        lowest = 0x80
-    else if lead >= 0xE0 && lead <= 0xEF:
-        need = 2
-        value = lead `and` 0x0F
-        lowest = 0x800
-    else if lead >= 0xF0 && lead <= 0xF4:
-        need = 3
-        value = lead `and` 0x07
-        lowest = 0x10000
-    else:
-        return 0xFFFD
+        value = (value `shl` 6) `or` (unit `and` 0x3F)
+        next = next + 1
 
-    if count <= need then return 0xFFFD
+    return {Char(value), end}
 
-    let &i = 1 :: Size
-    while i <= need:
-        let next = *(at + i) :: U32
-        if (next `and` 0xC0) != 0x80 then return 0xFFFD
-        value = (value `shl` 6) `or` (next `and` 0x3F)
-        i = i + 1
+{-
+   Where the decode that covers unit `at` begins: the nearest unit at or before it that is not a
+   continuation byte, looking back at most three units. A continuation byte with no lead within reach
+   is its own replacement, so it begins its own decode.
+-}
+fn sequenceStart(text: String, at: Size) -> Size:
+    let &start = at
+    let &limit = at - 3
+    if limit < (0 :: Size) then limit = 0
 
-    if value < lowest || value > 0x10FFFF || (value >= 0xD800 && value <= 0xDFFF) then return 0xFFFD
-    return value
+    while start > limit && isContinuation(String.unit(text, start)):
+        start = start - 1
+
+    return if isContinuation(String.unit(text, start)) then at else start
+
+{-
+   The decode that covers unit `at`, as its half-open extent. The lead `sequenceStart` finds may not
+   reach `at` - `C3 A9 80` decodes `é` and then a replacement for the last byte - and a unit a decode
+   did not reach is a replacement on its own.
+-}
+fn sequenceAround(text: String, at: Size) -> {Size, Size}:
+    let start = sequenceStart(text, at)
+    let {char, end} = decodeChar(text, start)
+    if end > at then return {start, end}
+
+    return {at, at + 1}
+
+pub fn decodeCharBefore(text: String, at: Size) -> {Char, Size}:
+    if !isUnitOffset(text, at - 1) then return {replacementChar, at}
+
+    let last = unitNumber(text, at - 1)
+    if last < 0x80 then return {Char(last), at - 1}
+
+    -- The decode that covers the last unit ends exactly at `at` when it is a whole character, and
+    -- anywhere else leaves that unit as a replacement of its own.
+    let start = sequenceStart(text, at - 1)
+    let {char, end} = decodeChar(text, start)
+    if end != at then return {replacementChar, at - 1}
+
+    return {char, start}
+
+pub fn isCharBoundary(text: String, at: Size) -> Bool:
+    -- Past the last unit only the end itself is a boundary, and an empty text's end is also its start.
+    if !isUnitOffset(text, at) then return at == length(text)
+    if !isContinuation(String.unit(text, at)) then return True
+
+    let {start, end} = sequenceAround(text, at)
+    return start == at
+
+pub fn floorCharBoundary(text: String, at: Size) -> Size:
+    let count = length(text)
+    if at <= (0 :: Size) then return 0
+    if at >= count then return count
+    if !isContinuation(String.unit(text, at)) then return at
+
+    let {start, end} = sequenceAround(text, at)
+    return start
+
+pub fn ceilCharBoundary(text: String, at: Size) -> Size:
+    let count = length(text)
+    if at <= (0 :: Size) then return 0
+    if at >= count then return count
+    if !isContinuation(String.unit(text, at)) then return at
+
+    let {start, end} = sequenceAround(text, at)
+    return if start == at then at else end
+
+-- The first unit of a scalar value's encoding, which says how long the sequence is and carries the
+-- value's top bits.
+fn leadUnit(value: U32) -> CodeUnit
+  | 0..0x80        -> truncate(value)
+  | 0x80..0x800    -> truncate(0xC0 `or` (value `shr` 6))
+  | 0x800..0x10000 -> truncate(0xE0 `or` (value `shr` 12))
+  | _              -> truncate(0xF0 `or` (value `shr` 18))
+
+-- A continuation byte: the marker and the six bits of `value` that start at `shift`.
+fn pushContinuation(&text: String, value: U32, shift: U32):
+    String.pushUnit(text, truncate(0x80 `or` ((value `shr` shift) `and` 0x3F)) :: CodeUnit)
+
+-- A value that is not a scalar value is encoded as U+FFFD, which is what part 1 says encoding one does.
+pub fn String.pushChar(&text: String, c: Char):
+    let value = scalarOrReplacement(c.0)
+    String.pushUnit(text, leadUnit(value))
+
+    match value:
+        0..0x80 -> {}
+        0x80..0x800 -> pushContinuation(text, value, 0)
+        0x800..0x10000:
+            pushContinuation(text, value, 6)
+            pushContinuation(text, value, 0)
+        _:
+            pushContinuation(text, value, 12)
+            pushContinuation(text, value, 6)
+            pushContinuation(text, value, 0)
+
+pub fn Char.encodedLength(c: Char) -> Size = match scalarOrReplacement(c.0):
+    0..0x80        -> 1
+    0x80..0x800    -> 2
+    0x800..0x10000 -> 3
+    _              -> 4
+
+{-
+   The first place `c` is encoded, at or after `from`.
+
+   The vector search for the lead byte and a decode at each hit, which needs no string to hold the
+   needle. A decode that answers `c` over exactly `encodedLength` units read `c`'s own encoding - an
+   invalid sequence that decodes as U+FFFD is always shorter than the three units U+FFFD takes.
+-}
+pub fn String.findChar(text: String, c: Char, from: Size = 0) -> Maybe(Size):
+    let value = scalarOrReplacement(c.0)
+    let lead = leadUnit(value)
+    if value < 0x80 then return findAscii(text, lead, from)
+
+    let width = Char.encodedLength(c)
+    let &at = from
+
+    while findAscii(text, lead, at) is Just(hit):
+        let {found, next} = decodeChar(text, hit)
+        if found.0 == value && next == hit + width then return Just(hit)
+        at = hit + 1
+
+    return Nothing
+
+{-
+   Code-point order, which natively *is* `compare`: UTF-8 was designed so that byte order and
+   code-point order agree. That holds for valid text. Invalid units are ordered by their bytes rather
+   than as the U+FFFD they decode to - `FF` sorts above `F0 9F 98 80` - which is still a total order,
+   and the same one in every native build.
+-}
+pub fn compareChars(left: String, right: String) -> Ordering = compare(left, right)

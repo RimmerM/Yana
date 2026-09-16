@@ -39,20 +39,21 @@ bb1:
   branch inspect %8 -> bb3 -> bb2
 
 bb2:
-  %21: I32 = read copy.trivial (total)
-  return take %21
+  %22: I32 = read copy.trivial (total)
+  return take %22
 
 bb3:
   %10: I32 = read copy.trivial (total)
   %11: String [shared call view] = read borrow.shared (text) loan1
   %12: Size = read copy.trivial (i)
-  %13: I32 = call String.unit borrow.shared %11 borrow.shared %12
-  %14: I32 = add inspect %10 inspect %13
-  write.assign borrow.unique (total) take %14
-  %16: Size = read copy.trivial (i)
-  %17: Size = const 1
-  %18: Size = add inspect %16 inspect %17
-  write.assign borrow.unique (i) take %18
+  %13: CodeUnit = call String.unit borrow.shared %11 borrow.shared %12
+  %14: I32 = convert inspect %13
+  %15: I32 = add inspect %10 inspect %14
+  write.assign borrow.unique (total) take %15
+  %17: Size = read copy.trivial (i)
+  %18: Size = const 1
+  %19: Size = add inspect %17 inspect %18
+  write.assign borrow.unique (i) take %19
   jump -> bb1
 }
 

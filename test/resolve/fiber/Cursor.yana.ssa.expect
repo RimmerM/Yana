@@ -134,7 +134,7 @@ bb4(%7: I32 trivial, %8: I32 trivial):
   jump -> bb2(consume %7, consume %8)
 }
 
-fn words'2(self: %Cursor(String) [shared call]) -> {} {
+fn words(self: %Cursor(String) [shared call]) -> {} {
 bb0(%0: %Cursor(String) trivial):
   %11: %%Cursor(String) address = alloc frame %Cursor(String) [shared call]
   %12: %I32 address = alloc frame I32
@@ -286,7 +286,7 @@ bb5:
   store inspect %15 consume %54
   %55: Cursor(String) [unique call] guaranteed from{%15} = load inspect %15
   %56: Size trivial = const 65536
-  %57: (%Cursor(String)) -> {} [owned here shape8 .0=unique call] affine = fun.value words'2
+  %57: (%Cursor(String)) -> {} [owned here shape8 .0=unique call] affine = fun.value words
   store inspect %16 consume %57
   %58: (%Cursor(String)) -> {} [shared call shape8 .0=unique call] guaranteed from{%16} = load inspect %16
   %59: Bool trivial = call Cursor.open(String) borrow %55 borrow %56 borrow %58

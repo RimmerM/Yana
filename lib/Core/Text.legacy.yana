@@ -4,7 +4,7 @@
    documented bodies; these are the same bodies with owned results. Goes with `compiler/resolve`.
 -}
 
-pub fn trimStart(text: String) -> String:
+pub fn trimStartAscii(text: String) -> String:
     let count = length(text)
     let &at = 0 :: Size
     while at < count && isSpace(text.unit(at)):
@@ -12,7 +12,7 @@ pub fn trimStart(text: String) -> String:
 
     return text.slice(at, count)
 
-pub fn trimEnd(text: String) -> String:
+pub fn trimEndAscii(text: String) -> String:
     let &end = length(text)
     while end > (0 :: Size) && isSpace(text.unit(end - 1)):
         end = end - 1
@@ -21,7 +21,7 @@ pub fn trimEnd(text: String) -> String:
 
 -- Both ends in one slice rather than two, so that an all-whitespace string is walked once and the
 -- text that survives is copied once.
-pub fn trim(text: String) -> String:
+pub fn trimAscii(text: String) -> String:
     let count = length(text)
     let &at = 0 :: Size
     while at < count && isSpace(text.unit(at)):
@@ -30,6 +30,44 @@ pub fn trim(text: String) -> String:
     let &end = count
     while end > at && isSpace(text.unit(end - 1)):
         end = end - 1
+
+    return text.slice(at, end)
+
+pub fn trimStartUnicode(text: String) -> String:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        if !isSpaceUnicode(char) then break
+        at = next
+
+    return text.slice(at, count)
+
+pub fn trimEndUnicode(text: String) -> String:
+    let &end = length(text)
+
+    while end > (0 :: Size):
+        let {char, start} = decodeCharBefore(text, end)
+        if !isSpaceUnicode(char) then break
+        end = start
+
+    return text.slice(0, end)
+
+pub fn trimUnicode(text: String) -> String:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        if !isSpaceUnicode(char) then break
+        at = next
+
+    let &end = count
+    while end > at:
+        let {char, start} = decodeCharBefore(text, end)
+        if !isSpaceUnicode(char) then break
+        end = start
 
     return text.slice(at, end)
 
@@ -65,7 +103,7 @@ pub iter fn lines(text: String) -> ->String:
 
             yield text.slice(from, end)
 
-pub iter fn words(text: String) -> ->String:
+pub iter fn wordsAscii(text: String) -> ->String:
     let count = length(text)
     let &at = 0 :: Size
 

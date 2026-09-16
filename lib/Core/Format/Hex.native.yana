@@ -45,7 +45,7 @@ pub fn pushHex(bytes: [U8], &to: String):
     let nibble = splat(15 :: U8) :: Vec(U8, 16)
     let nine = splat(9 :: U8) :: Vec(U8, 16)
     let digit = splat("0" :: U8) :: Vec(U8, 16)
-    let letter = splat(87 :: U8) :: Vec(U8, 16)
+    let letter = splat(("a" - 10) :: U8) :: Vec(U8, 16)
 
     let &i = 0 :: Size
     while i + 16 <= n:
@@ -65,6 +65,6 @@ pub fn pushHex(bytes: [U8], &to: String):
     -- run is the destruction of whatever follows it, where a read past it is §5.2's padding.
     while i < n:
         let byte = bytes[i] :: Int
-        store(target + i + i, truncate(hexUnit(byte `shr` 4)) :: CodeUnit)
-        store(target + i + i + 1, truncate(hexUnit(byte `and` 15)) :: CodeUnit)
+        store(target + i + i, hexUnit(byte `shr` 4))
+        store(target + i + i + 1, hexUnit(byte `and` 15))
         i = i + 1

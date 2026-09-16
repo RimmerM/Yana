@@ -231,17 +231,6 @@ pub fn Terminal.showCursor(self: Terminal) -> String = if self.interactive then 
    ==========================================================================================
 -}
 
-{-
-   A unit that is a continuation of the one before it.
-
-   Two ranges and one rule: `0x80`-`0xBF` is a UTF-8 continuation byte, which is what a native
-   `String` is made of, and `0xDC00`-`0xDFFF` is a UTF-16 low surrogate, which is what a host one is.
-   Neither range can occur on the other target - a native unit is a byte and a host unit above
-   `0xFF` is not a UTF-8 anything - so this is one function rather than a platform pair, and it is
-   the only place in this module that knows the two targets store text differently.
--}
-fn continues(unit: Int) -> Bool = (unit >= 128 && unit < 192) || (unit >= 56320 && unit < 57344)
-
 -- One escape sequence, stepped over. `\x1b[` … up to a byte in `@`-`~`, which is CSI's own framing;
 -- anything else after the escape is a two-unit sequence. Returns the position after it.
 fn afterEscape(text: String, from: Size) -> Size:
@@ -260,10 +249,10 @@ fn afterEscape(text: String, from: Size) -> Size:
 {-
    How many columns a string occupies, which is not how many units it is made of.
 
-   Two things are subtracted from the unit count: the escape sequences, which occupy none, and the
-   continuation units, which belong to a character already counted. That is what makes a *painted*
-   cell align in a table with an unpainted one, and it is the reason every alignment function here
-   measures with this rather than with `length`.
+   A column per character rather than per unit, with the escape sequences occupying none:
+   `decodeChar` steps over a whole character, so a multi-unit one is counted once on either target.
+   That is what makes a *painted* cell align in a table with an unpainted one, and it is the reason
+   every alignment function here measures with this rather than with `length`.
 
    **A double-width character counts as one**, which is a real limitation and is stated rather than
    hidden. Getting it right needs the East Asian Width tables, which are a data file larger than this
@@ -276,12 +265,11 @@ pub fn displayWidth(text: String) -> Size:
     let &i = 0 :: Size
 
     while i < count:
-        let unit = text.unit(i)
-        i = i + 1
-
-        if unit == "\x1b":
-            i = afterEscape(text, i)
-        else if !continues(unit):
+        if text.unit(i) == "\x1b":
+            i = afterEscape(text, i + 1)
+        else:
+            let {char, next} = decodeChar(text, i)
+            i = next
             wide = wide + 1
 
     return wide
@@ -334,8 +322,8 @@ pub fn padCenter(text: String, width: Size) -> String:
    Walked a character at a time rather than a unit at a time, which is the whole reason this is not
    `String.slice`: cutting between the two halves of a code point produces a byte sequence no terminal
    can render, and cutting inside an escape sequence leaves the rest of the line - and often the rest
-   of the screen - painted. So an escape is copied whole and counted as nothing, and a character's
-   continuation units come with it.
+   of the screen - painted. So an escape is copied whole and counted as nothing, and a character is
+   copied as the units `decodeChar` stepped over.
 
    A reset is appended when something was cut out of styled text, for the same reason: whatever
    sequence was open at the cut is closed here rather than left running into the next line.
@@ -354,16 +342,13 @@ pub fn clipTo(text: String, width: Size, mark: String) -> String:
 
     while i < count && shown < width - markWidth:
         let start = i
-        let unit = text.unit(i)
-        i = i + 1
 
-        if unit == "\x1b":
-            i = afterEscape(text, i)
+        if text.unit(i) == "\x1b":
+            i = afterEscape(text, i + 1)
             styled = True
         else:
-            while i < count && continues(text.unit(i)):
-                i = i + 1
-
+            let {char, next} = decodeChar(text, i)
+            i = next
             shown = shown + 1
 
         out.push(String.slice(text, start, i))
@@ -605,7 +590,7 @@ lens fn Table.renderRow(self: Table, widths: [Size], cells: [String], from: Size
 
     -- A boxed row ends in its border, so trimming it removes nothing.
     if boxed then out.push(" {g.vertical}")
-    yield trimEnd(out)
+    yield trimEndAscii(out)
 
 -- The headings, painted, as a row of cells like any other.
 fn headerRow(table: Table) -> [String]:

@@ -242,262 +242,258 @@ main<complex>(): I32 {
     %v_130 = select %v_129, 128, 0: I32
     %v_131 = add %v_114, %v_130: I32
     %v_132 = call_complex opaque, 1: I32
-    %v_133 = cmp_ige %v_132, 1: I32
-    %v_134 = cmp_ile %v_132, 3: I32
-    %v_135 = and %v_133, %v_134: I32
-    je %v_135, b_136, b_137
+    %v_133 = sub %v_132, 1: I32
+    %v_134 = cmp_le %v_133, 2: I32
+    je %v_134, b_135, b_136
+  }
+
+  b_135 {
+    %v_137 = call_complex opaque, 3: I32
+    %v_138 = sub %v_137, 1: I32
+    %v_139 = cmp_le %v_138, 2: I32
+    je %v_139, b_140, b_136
+  }
+
+  b_140 {
+    %v_141 = call_complex opaque, 0: I32
+    %v_142 = sub %v_141, 1: I32
+    %v_143 = cmp_le %v_142, 2: I32
+    je %v_143, b_136, b_144
   }
 
   b_136 {
-    %v_138 = call_complex opaque, 3: I32
-    %v_139 = cmp_ige %v_138, 1: I32
-    %v_140 = cmp_ile %v_138, 3: I32
-    %v_141 = and %v_139, %v_140: I32
-    je %v_141, b_142, b_137
+    jmp b_145
   }
 
-  b_142 {
-    %v_143 = call_complex opaque, 0: I32
-    %v_144 = cmp_ige %v_143, 1: I32
-    %v_145 = cmp_ile %v_143, 3: I32
-    %v_146 = and %v_144, %v_145: I32
-    je %v_146, b_137, b_147
+  b_144 {
+    %v_146 = call_complex opaque, 4: I32
+    %v_147 = sub %v_146, 1: I32
+    %v_148 = cmp_le %v_147, 2: I32
+    %v_149 = xor %v_148, 1: I32
+    jmp b_145
   }
 
-  b_137 {
-    jmp b_148
+  b_145 {
+    %v_150 = phi [b_144, %v_149], [b_136, 0]: I32
+    %v_151 = select %v_150, 256, 0: I32
+    %v_152 = add %v_131, %v_151: I32
+    %v_153 = call_complex opaque, 4: I32
+    %v_154 = cmp_eq %v_153, 4: I32
+    je %v_154, b_155, b_156
   }
 
-  b_147 {
-    %v_149 = call_complex opaque, 4: I32
-    %v_150 = cmp_ige %v_149, 1: I32
-    %v_151 = cmp_ile %v_149, 3: I32
-    %v_152 = and %v_150, %v_151: I32
-    %v_153 = xor %v_152, 1: I32
-    jmp b_148
-  }
-
-  b_148 {
-    %v_154 = phi [b_147, %v_153], [b_137, 0]: I32
-    %v_155 = select %v_154, 256, 0: I32
-    %v_156 = add %v_131, %v_155: I32
-    %v_157 = call_complex opaque, 4: I32
+  b_155 {
+    %v_157 = call_complex opaque, 0: I32
     %v_158 = cmp_eq %v_157, 4: I32
-    je %v_158, b_159, b_160
+    je %v_158, b_156, b_159
+  }
+
+  b_156 {
+    jmp b_160
   }
 
   b_159 {
-    %v_161 = call_complex opaque, 0: I32
+    %v_161 = call_complex opaque, 5: I32
     %v_162 = cmp_eq %v_161, 4: I32
-    je %v_162, b_160, b_163
+    %v_163 = xor %v_162, 1: I32
+    jmp b_160
   }
 
   b_160 {
-    jmp b_164
+    %v_164 = phi [b_159, %v_163], [b_156, 0]: I32
+    %v_165 = select %v_164, 512, 0: I32
+    %v_166 = add %v_152, %v_165: I32
+    %v_167 = call_complex opaque, 0: I32
+    %v_168 = shr 47, %v_167: I32
+    %v_169 = and %v_168, 1: I32
+    je %v_169, b_170, b_171
   }
 
-  b_163 {
-    %v_165 = call_complex opaque, 5: I32
-    %v_166 = cmp_eq %v_165, 4: I32
-    %v_167 = xor %v_166, 1: I32
-    jmp b_164
+  b_170 {
+    %v_172 = call_complex opaque, 5: I32
+    %v_173 = shr 47, %v_172: I32
+    %v_174 = and %v_173, 1: I32
+    je %v_174, b_175, b_171
   }
 
-  b_164 {
-    %v_168 = phi [b_163, %v_167], [b_160, 0]: I32
-    %v_169 = select %v_168, 512, 0: I32
-    %v_170 = add %v_156, %v_169: I32
-    %v_171 = call_complex opaque, 0: I32
-    %v_172 = shr 47, %v_171: I32
-    %v_173 = and %v_172, 1: I32
-    je %v_173, b_174, b_175
-  }
-
-  b_174 {
-    %v_176 = call_complex opaque, 5: I32
-    %v_177 = shr 47, %v_176: I32
-    %v_178 = and %v_177, 1: I32
-    je %v_178, b_179, b_175
+  b_171 {
+    jmp b_176
   }
 
   b_175 {
-    jmp b_180
+    %v_177 = call_complex opaque, 4: I32
+    %v_178 = shr 47, %v_177: I32
+    %v_179 = and %v_178, 1: I32
+    %v_180 = xor %v_179, 1: I32
+    jmp b_176
   }
 
-  b_179 {
-    %v_181 = call_complex opaque, 4: I32
-    %v_182 = shr 47, %v_181: I32
-    %v_183 = and %v_182, 1: I32
-    %v_184 = xor %v_183, 1: I32
-    jmp b_180
+  b_176 {
+    %v_181 = phi [b_175, %v_180], [b_171, 0]: I32
+    %v_182 = select %v_181, 1024, 0: I32
+    %v_183 = add %v_166, %v_182: I32
+    %v_184 = call_complex opaque, 0: I32
+    %v_185 = shr 37, %v_184: I32
+    %v_186 = and %v_185, 1: I32
+    je %v_186, b_187, b_188
   }
 
-  b_180 {
-    %v_185 = phi [b_179, %v_184], [b_175, 0]: I32
-    %v_186 = select %v_185, 1024, 0: I32
-    %v_187 = add %v_170, %v_186: I32
-    %v_188 = call_complex opaque, 0: I32
-    %v_189 = shr 37, %v_188: I32
-    %v_190 = and %v_189, 1: I32
-    je %v_190, b_191, b_192
-  }
-
-  b_191 {
-    %v_193 = call_complex opaque, 2: I32
-    %v_194 = shr 37, %v_193: I32
-    %v_195 = and %v_194, 1: I32
-    je %v_195, b_196, b_192
-  }
-
-  b_196 {
-    %v_197 = call_complex opaque, 5: I32
-    %v_198 = shr 37, %v_197: I32
-    %v_199 = and %v_198, 1: I32
-    je %v_199, b_200, b_192
+  b_187 {
+    %v_189 = call_complex opaque, 2: I32
+    %v_190 = shr 37, %v_189: I32
+    %v_191 = and %v_190, 1: I32
+    je %v_191, b_192, b_188
   }
 
   b_192 {
-    jmp b_201
+    %v_193 = call_complex opaque, 5: I32
+    %v_194 = shr 37, %v_193: I32
+    %v_195 = and %v_194, 1: I32
+    je %v_195, b_196, b_188
   }
 
-  b_200 {
-    %v_202 = call_complex opaque, 1: I32
-    %v_203 = shr 37, %v_202: I32
-    %v_204 = and %v_203, 1: I32
-    %v_205 = xor %v_204, 1: I32
-    jmp b_201
+  b_188 {
+    jmp b_197
   }
 
-  b_201 {
-    %v_206 = phi [b_200, %v_205], [b_192, 0]: I32
-    %v_207 = select %v_206, 2048, 0: I32
-    %v_208 = add %v_187, %v_207: I32
-    %v_209 = call_complex opaque, 0: I32
-    %v_210 = sext %v_209: I64
-    %v_211 = shl %v_210, 2: I64
-    %v_212 = add @ResolveTest.map$0, %v_211: Ptr
-    %v_213 = loads %v_212, 4: I32
-    %v_214 = cmp_eq %v_213, 1000: I32
-    je %v_214, b_215, b_216
+  b_196 {
+    %v_198 = call_complex opaque, 1: I32
+    %v_199 = shr 37, %v_198: I32
+    %v_200 = and %v_199, 1: I32
+    %v_201 = xor %v_200, 1: I32
+    jmp b_197
   }
 
-  b_215 {
-    %v_217 = call_complex opaque, 2: I32
-    %v_218 = sext %v_217: I64
-    %v_219 = shl %v_218, 2: I64
-    %v_220 = add @ResolveTest.map$0, %v_219: Ptr
-    %v_221 = loads %v_220, 4: I32
-    %v_222 = cmp_eq %v_221, 3500: I32
-    je %v_222, b_223, b_216
+  b_197 {
+    %v_202 = phi [b_196, %v_201], [b_188, 0]: I32
+    %v_203 = select %v_202, 2048, 0: I32
+    %v_204 = add %v_183, %v_203: I32
+    %v_205 = call_complex opaque, 0: I32
+    %v_206 = sext %v_205: I64
+    %v_207 = shl %v_206, 2: I64
+    %v_208 = add @ResolveTest.map$0, %v_207: Ptr
+    %v_209 = loads %v_208, 4: I32
+    %v_210 = cmp_eq %v_209, 1000: I32
+    je %v_210, b_211, b_212
   }
 
-  b_216 {
-    jmp b_224
+  b_211 {
+    %v_213 = call_complex opaque, 2: I32
+    %v_214 = sext %v_213: I64
+    %v_215 = shl %v_214, 2: I64
+    %v_216 = add @ResolveTest.map$0, %v_215: Ptr
+    %v_217 = loads %v_216, 4: I32
+    %v_218 = cmp_eq %v_217, 3500: I32
+    je %v_218, b_219, b_212
   }
 
-  b_223 {
-    %v_225 = call_complex opaque, 5: I32
-    %v_226 = sext %v_225: I64
-    %v_227 = shl %v_226, 2: I64
-    %v_228 = add @ResolveTest.map$0, %v_227: Ptr
-    %v_229 = loads %v_228, 4: I32
-    %v_230 = cmp_eq %v_229, 6000: I32
-    jmp b_224
+  b_212 {
+    jmp b_220
   }
 
-  b_224 {
-    %v_231 = phi [b_223, %v_230], [b_216, 0]: I32
-    %v_232 = select %v_231, 4096, 0: I32
-    %v_233 = add %v_208, %v_232: I32
-    %v_234 = call_complex opaque, 0: I32
-    %v_235 = sext %v_234: I64
-    %v_236 = shl %v_235, 3: I64
-    %v_237 = add @ResolveTest.map$1, %v_236: Ptr
-    %v_238 = load %v_237, 8: F64
-    %v_239 = cmp_eq %v_238, 1.5: I32
-    je %v_239, b_240, b_241
+  b_219 {
+    %v_221 = call_complex opaque, 5: I32
+    %v_222 = sext %v_221: I64
+    %v_223 = shl %v_222, 2: I64
+    %v_224 = add @ResolveTest.map$0, %v_223: Ptr
+    %v_225 = loads %v_224, 4: I32
+    %v_226 = cmp_eq %v_225, 6000: I32
+    jmp b_220
   }
 
-  b_240 {
-    %v_242 = call_complex opaque, 3: I32
-    %v_243 = sext %v_242: I64
-    %v_244 = shl %v_243, 3: I64
-    %v_245 = add @ResolveTest.map$1, %v_244: Ptr
-    %v_246 = load %v_245, 8: F64
-    %v_247 = cmp_eq %v_246, 8.25: I32
-    je %v_247, b_248, b_241
+  b_220 {
+    %v_227 = phi [b_219, %v_226], [b_212, 0]: I32
+    %v_228 = select %v_227, 4096, 0: I32
+    %v_229 = add %v_204, %v_228: I32
+    %v_230 = call_complex opaque, 0: I32
+    %v_231 = sext %v_230: I64
+    %v_232 = shl %v_231, 3: I64
+    %v_233 = add @ResolveTest.map$1, %v_232: Ptr
+    %v_234 = load %v_233, 8: F64
+    %v_235 = cmp_eq %v_234, 1.5: I32
+    je %v_235, b_236, b_237
   }
 
-  b_241 {
-    jmp b_249
+  b_236 {
+    %v_238 = call_complex opaque, 3: I32
+    %v_239 = sext %v_238: I64
+    %v_240 = shl %v_239, 3: I64
+    %v_241 = add @ResolveTest.map$1, %v_240: Ptr
+    %v_242 = load %v_241, 8: F64
+    %v_243 = cmp_eq %v_242, 8.25: I32
+    je %v_243, b_244, b_237
   }
 
-  b_248 {
-    %v_250 = call_complex opaque, 5: I32
-    %v_251 = sext %v_250: I64
-    %v_252 = shl %v_251, 3: I64
-    %v_253 = add @ResolveTest.map$1, %v_252: Ptr
-    %v_254 = load %v_253, 8: F64
-    %v_255 = cmp_eq %v_254, 16: I32
-    jmp b_249
+  b_237 {
+    jmp b_245
   }
 
-  b_249 {
-    %v_256 = phi [b_248, %v_255], [b_241, 0]: I32
-    %v_257 = select %v_256, 8192, 0: I32
-    %v_258 = add %v_233, %v_257: I32
-    %v_259 = call_complex opaque, 0: I32
-    %v_260 = sext %v_259: I64
-    %v_261 = shl %v_260, 3: I64
-    %v_262 = add @ResolveTest.map$2, %v_261: Ptr
-    %v_263 = load %v_262, 8: F64
-    %v_264 = div 1, %v_263: F64
-    %v_265 = cmp_gt %v_264, 0: I32
-    je %v_265, b_266, b_267
+  b_244 {
+    %v_246 = call_complex opaque, 5: I32
+    %v_247 = sext %v_246: I64
+    %v_248 = shl %v_247, 3: I64
+    %v_249 = add @ResolveTest.map$1, %v_248: Ptr
+    %v_250 = load %v_249, 8: F64
+    %v_251 = cmp_eq %v_250, 16: I32
+    jmp b_245
   }
 
-  b_267 {
-    jmp b_268
+  b_245 {
+    %v_252 = phi [b_244, %v_251], [b_237, 0]: I32
+    %v_253 = select %v_252, 8192, 0: I32
+    %v_254 = add %v_229, %v_253: I32
+    %v_255 = call_complex opaque, 0: I32
+    %v_256 = sext %v_255: I64
+    %v_257 = shl %v_256, 3: I64
+    %v_258 = add @ResolveTest.map$2, %v_257: Ptr
+    %v_259 = load %v_258, 8: F64
+    %v_260 = div 1, %v_259: F64
+    %v_261 = cmp_gt %v_260, 0: I32
+    je %v_261, b_262, b_263
   }
 
-  b_266 {
-    %v_269 = call_complex opaque, 4: I32
-    %v_270 = sext %v_269: I64
-    %v_271 = shl %v_270, 3: I64
-    %v_272 = add @ResolveTest.map$2, %v_271: Ptr
-    %v_273 = load %v_272, 8: F64
-    %v_274 = div 1, %v_273: F64
-    %v_275 = cmp_lt %v_274, 0: I32
-    jmp b_268
+  b_263 {
+    jmp b_264
   }
 
-  b_268 {
-    %v_276 = phi [b_266, %v_275], [b_267, 0]: I32
-    %v_277 = select %v_276, 16384, 0: I32
-    %v_278 = add %v_258, %v_277: I32
-    %v_279 = call_complex opaqueBit, 0: I32
-    %v_280 = imul %v_279, 900: I32
-    %v_281 = cmp_eq %v_280, 0: I32
-    je %v_281, b_282, b_283
+  b_262 {
+    %v_265 = call_complex opaque, 4: I32
+    %v_266 = sext %v_265: I64
+    %v_267 = shl %v_266, 3: I64
+    %v_268 = add @ResolveTest.map$2, %v_267: Ptr
+    %v_269 = load %v_268, 8: F64
+    %v_270 = div 1, %v_269: F64
+    %v_271 = cmp_lt %v_270, 0: I32
+    jmp b_264
   }
 
-  b_283 {
-    jmp b_284
+  b_264 {
+    %v_272 = phi [b_262, %v_271], [b_263, 0]: I32
+    %v_273 = select %v_272, 16384, 0: I32
+    %v_274 = add %v_254, %v_273: I32
+    %v_275 = call_complex opaqueBit, 0: I32
+    %v_276 = imul %v_275, 900: I32
+    %v_277 = cmp_eq %v_276, 0: I32
+    je %v_277, b_278, b_279
   }
 
-  b_282 {
-    %v_285 = call_complex opaqueBit, 1: I32
-    %v_286 = imul %v_285, 900: I32
-    %v_287 = cmp_eq %v_286, 900: I32
-    jmp b_284
+  b_279 {
+    jmp b_280
   }
 
-  b_284 {
-    %v_288 = phi [b_282, %v_287], [b_283, 0]: I32
-    %v_289 = select %v_288, 32768, 0: I32
-    %v_290 = add %v_278, %v_289: I32
-    %v_291 = add %v_290, 65536: I32
-    ret %v_291
+  b_278 {
+    %v_281 = call_complex opaqueBit, 1: I32
+    %v_282 = imul %v_281, 900: I32
+    %v_283 = cmp_eq %v_282, 900: I32
+    jmp b_280
+  }
+
+  b_280 {
+    %v_284 = phi [b_278, %v_283], [b_279, 0]: I32
+    %v_285 = select %v_284, 32768, 0: I32
+    %v_286 = add %v_274, %v_285: I32
+    %v_287 = add %v_286, 65536: I32
+    ret %v_287
   }
 }
 

@@ -46,7 +46,7 @@ fn units(%self: 1'String) -> %CodeUnit {
     ret %v4
 }
 
-fn String.unit(%self: String, %index: Size) -> I32 {
+fn String.unit(%self: String, %index: Size) -> CodeUnit {
   b0:
     %v2 = borrow %self : 1'String
     %v3 = call units, %v2 : %CodeUnit
@@ -54,8 +54,7 @@ fn String.unit(%self: String, %index: Size) -> I32 {
     %v5 = mul %index, %v4 : Size
     %v6 = add %v3, %v5 : %CodeUnit
     %v7 = load [%v6] : CodeUnit
-    %v8 = cast %v7 : I32
-    ret %v8
+    ret %v7
 }
 
 fn String.ofCapacity(%capacity: Size) -> String {
@@ -79,15 +78,14 @@ fn String.ofCapacity(%capacity: Size) -> String {
     ret %v18
 }
 
-fn String.pushUnit(%self: String, %unit: I32) -> () {
+fn String.pushUnit(%self: String, %unit: CodeUnit) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &String
     %v4 = cast %v3 : &String
     %v5 = load [%v4]@String.units : Array(CodeUnit)
-    %v6 = cast %unit : CodeUnit
-    %v7 = borrow_mut [%v4]@String.units : &Array(CodeUnit)
-    call push(CodeUnit), %v7, %v6
+    %v6 = borrow_mut [%v4]@String.units : &Array(CodeUnit)
+    call push(CodeUnit), %v6, %unit
     ret
 }
 
@@ -1208,14 +1206,14 @@ fn withAnd(%text: String, %keep: I32, %out: String) -> I32 {
   b4:
     %v20 = load %i : I32
     %v21 = cast %v20 : Size
-    %v22 = call String.unit, %text, %v21 : I32
+    %v22 = call String.unit, %text, %v21 : CodeUnit
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v26 = phi [b4, %v22], [b5, 57] : I32
+    %v26 = phi [b4, %v22], [b5, 57] : CodeUnit
     %v27 = borrow_mut %kept : &String
     call String.pushUnit, %v27, %v26
     %v29 = load %i : I32
@@ -1238,7 +1236,7 @@ fn withAnd(%text: String, %keep: I32, %out: String) -> I32 {
     %v44 = load %at : I32
     %v47 = sub %v44, 1 : I32
     %v48 = cast %v47 : Size
-    %v49 = call String.unit, %v43, %v48 : I32
+    %v49 = call String.unit, %v43, %v48 : CodeUnit
     %v52 = cmp_eq %v49, 57 : Bool
     jmp b11
 
@@ -1302,7 +1300,7 @@ fn withAnd(%text: String, %keep: I32, %out: String) -> I32 {
     %v102 = load %kept : String
     %v103 = load %i : I32
     %v104 = cast %v103 : Size
-    %v105 = call String.unit, %v102, %v104 : I32
+    %v105 = call String.unit, %v102, %v104 : CodeUnit
     %v106 = borrow_mut %out : &String
     call String.pushUnit, %v106, %v105
     %v108 = load %i : I32

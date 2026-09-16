@@ -116,7 +116,7 @@ odds<complex>(%self: Ptr) {
   }
 }
 
-words'2<complex>(%self: Ptr) {
+words<complex>(%self: Ptr) {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = imm 1: I32
@@ -606,7 +606,7 @@ main<complex>(): I64 {
     %v_207 = add %v_7, 48: Ptr
     store %v_207, 0, 8
     %v_208 = imm 65536: I64
-    store %v_8, funvalue(words'2), 8
+    store %v_8, funvalue(words), 8
     %v_209 = add %v_8, 8: Ptr
     store %v_209, 0, 8
     %v_210 = call_complex stackGuardBytes: I64
@@ -1876,9 +1876,9 @@ funvalue(odds)<complex>(%v_0: Ptr, %v_1: Ptr) {
   }
 }
 
-funvalue(words'2)<complex>(%v_0: Ptr, %v_1: Ptr) {
+funvalue(words)<complex>(%v_0: Ptr, %v_1: Ptr) {
   b_2 {
-    call_complex words'2, %v_1
+    call_complex words, %v_1
     ret 
   }
 }

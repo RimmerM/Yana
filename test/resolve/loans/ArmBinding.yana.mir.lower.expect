@@ -44,7 +44,7 @@ main<complex>(): I32 {
     %v_21 = add %v_20, 8: Ptr
     store %v_21, %v_19, 8
     %v_22 = alloca 16, 8: Ptr
-    call_complex trim, %v_22, %v_20
+    call_complex trimAscii, %v_22, %v_20
     %v_23 = add %v_22, 8: Ptr
     %v_24 = loads %v_23, 8: I64
     %v_25 = load %v_22, 8: Ptr
@@ -83,7 +83,7 @@ main<complex>(): I32 {
     %v_47 = add %v_46, 8: Ptr
     store %v_47, %v_45, 8
     %v_48 = alloca 16, 8: Ptr
-    call_complex trimEnd, %v_48, %v_46
+    call_complex trimEndAscii, %v_48, %v_46
     %v_49 = add %v_48, 8: Ptr
     %v_50 = loads %v_49, 8: I64
     %v_51 = sext %v_50: I32
@@ -112,7 +112,7 @@ main<complex>(): I32 {
     %v_63 = add %v_62, 8: Ptr
     store %v_63, %v_61, 8
     %v_64 = alloca 16, 8: Ptr
-    call_complex trim, %v_64, %v_62
+    call_complex trimAscii, %v_64, %v_62
     %v_65 = add %v_64, 8: Ptr
     %v_66 = loads %v_65, 8: I64
     %v_67 = load %v_64, 8: Ptr
@@ -151,7 +151,7 @@ main<complex>(): I32 {
     %v_89 = add %v_88, 8: Ptr
     store %v_89, %v_87, 8
     %v_90 = alloca 16, 8: Ptr
-    call_complex trimEnd, %v_90, %v_88
+    call_complex trimEndAscii, %v_90, %v_88
     %v_91 = imul %v_51, 10: I32
     %v_92 = add %v_90, 8: Ptr
     %v_93 = loads %v_92, 8: I64
@@ -347,7 +347,7 @@ findAscii<complex>(%v_0: Ptr, %self$units: Ptr, %self$length: I64, %unit: I32, %
   }
 }
 
-trimEnd<complex>(%v_0: Ptr, %text: Ptr) {
+trimEndAscii<complex>(%v_0: Ptr, %text: Ptr) {
   b_1 {
     %v_2 = add %text, 8: Ptr
     %v_3 = loads %v_2, 8: I64
@@ -383,11 +383,10 @@ trimEnd<complex>(%v_0: Ptr, %text: Ptr) {
     %v_23 = add %v_4, %v_8: Ptr
     %v_24 = load %v_23, 1: I32
     %v_25 = cmp_eq %v_24, 32: I32
-    %v_26 = cmp_ige %v_24, 9: I32
-    %v_27 = cmp_ile %v_24, 13: I32
-    %v_28 = and %v_26, %v_27: I32
-    %v_29 = or %v_25, %v_28: I32
-    je %v_29, b_7, b_11
+    %v_26 = sub %v_24, 9: I32
+    %v_27 = cmp_le %v_26, 4: I32
+    %v_28 = or %v_25, %v_27: I32
+    je %v_28, b_7, b_11
   }
 
   b_7 {
@@ -395,7 +394,7 @@ trimEnd<complex>(%v_0: Ptr, %text: Ptr) {
   }
 }
 
-trim<complex>(%v_0: Ptr, %text: Ptr) {
+trimAscii<complex>(%v_0: Ptr, %text: Ptr) {
   b_1 {
     %v_2 = add %text, 8: Ptr
     %v_3 = loads %v_2, 8: I64
@@ -418,11 +417,10 @@ trim<complex>(%v_0: Ptr, %text: Ptr) {
     %v_14 = add %v_4, %v_6: Ptr
     %v_15 = load %v_14, 1: I32
     %v_16 = cmp_eq %v_15, 32: I32
-    %v_17 = cmp_ige %v_15, 9: I32
-    %v_18 = cmp_ile %v_15, 13: I32
-    %v_19 = and %v_17, %v_18: I32
-    %v_20 = or %v_16, %v_19: I32
-    je %v_20, b_7, b_11
+    %v_17 = sub %v_15, 9: I32
+    %v_18 = cmp_le %v_17, 4: I32
+    %v_19 = or %v_16, %v_18: I32
+    je %v_19, b_7, b_11
   }
 
   b_7 {
@@ -431,42 +429,41 @@ trim<complex>(%v_0: Ptr, %text: Ptr) {
   }
 
   b_13 {
-    %v_21 = phi [b_11, %v_3], [b_22, %v_23]: I64
-    %v_24 = cmp_igt %v_21, %v_6: I32
-    je %v_24, b_25, b_26
-  }
-
-  b_26 {
-    %v_27 = cmp_ilt %v_6, 0: I32
-    %v_28 = select %v_27, 0, %v_6: I64
-    %v_29 = cmp_igt %v_28, %v_3: I32
-    %v_30 = select %v_29, %v_3, %v_28: I64
-    %v_31 = cmp_ilt %v_21, %v_30: I32
-    %v_32 = select %v_31, %v_30, %v_21: I64
-    %v_33 = cmp_igt %v_32, %v_3: I32
-    %v_34 = select %v_33, %v_3, %v_32: I64
-    %v_35 = load %text, 8: Ptr
-    %v_36 = add %v_35, %v_30: Ptr
-    %v_37 = sub %v_34, %v_30: I64
-    store %v_0, %v_36, 8
-    %v_38 = add %v_0, 8: Ptr
-    store %v_38, %v_37, 8
-    ret 
+    %v_20 = phi [b_11, %v_3], [b_21, %v_22]: I64
+    %v_23 = cmp_igt %v_20, %v_6: I32
+    je %v_23, b_24, b_25
   }
 
   b_25 {
-    %v_23 = sub %v_21, 1: I64
-    %v_39 = add %v_12, %v_23: Ptr
-    %v_40 = load %v_39, 1: I32
-    %v_41 = cmp_eq %v_40, 32: I32
-    %v_42 = cmp_ige %v_40, 9: I32
-    %v_43 = cmp_ile %v_40, 13: I32
-    %v_44 = and %v_42, %v_43: I32
-    %v_45 = or %v_41, %v_44: I32
-    je %v_45, b_22, b_26
+    %v_26 = cmp_ilt %v_6, 0: I32
+    %v_27 = select %v_26, 0, %v_6: I64
+    %v_28 = cmp_igt %v_27, %v_3: I32
+    %v_29 = select %v_28, %v_3, %v_27: I64
+    %v_30 = cmp_ilt %v_20, %v_29: I32
+    %v_31 = select %v_30, %v_29, %v_20: I64
+    %v_32 = cmp_igt %v_31, %v_3: I32
+    %v_33 = select %v_32, %v_3, %v_31: I64
+    %v_34 = load %text, 8: Ptr
+    %v_35 = add %v_34, %v_29: Ptr
+    %v_36 = sub %v_33, %v_29: I64
+    store %v_0, %v_35, 8
+    %v_37 = add %v_0, 8: Ptr
+    store %v_37, %v_36, 8
+    ret 
   }
 
-  b_22 {
+  b_24 {
+    %v_22 = sub %v_20, 1: I64
+    %v_38 = add %v_12, %v_22: Ptr
+    %v_39 = load %v_38, 1: I32
+    %v_40 = cmp_eq %v_39, 32: I32
+    %v_41 = sub %v_39, 9: I32
+    %v_42 = cmp_le %v_41, 4: I32
+    %v_43 = or %v_40, %v_42: I32
+    je %v_43, b_21, b_25
+  }
+
+  b_21 {
     jmp b_13
   }
 }

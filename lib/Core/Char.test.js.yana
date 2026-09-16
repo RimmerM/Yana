@@ -1,0 +1,35 @@
+module Core
+
+{-
+   Lone surrogates - Implementation-String.md part 6's replacement rule, on JS.
+
+   A host string can hold any UTF-16 units, so a surrogate that is not half of a pair is ordinary
+   input here: it decodes as U+FFFD, is a boundary on each side, and does not stop the walk.
+-}
+
+import Test
+
+fn unitsText(units: [U16]) -> String:
+    let &text = String.ofCapacity(length(units))
+    for i in 0 .. length(units):
+        String.pushUnit(text, truncate(units[i]) :: CodeUnit)
+
+    return text
+
+@test fn loneSurrogates():
+    -- A high surrogate at the end, a low one first, a high one before a letter, and a real pair.
+    let text = unitsText(elements([0xDC00 :: U16, 0x61, 0xD83D, 0x62, 0xD83D, 0xDE00, 0xD800]))
+    checkEqual(charNumbers(text), "65533 97 65533 98 128512 65533")
+    checkEqual(charNumbersBackwards(text), charNumbers(text))
+    checkEqual(countChars(text), 6 :: Size)
+    checkEqual(boundaryMismatches(text), 0)
+
+    -- Two high surrogates in a row are two replacements, and so are two low ones.
+    let doubled = unitsText(elements([0xD83D :: U16, 0xD83D, 0xDE00, 0xDE00]))
+    checkEqual(charNumbers(doubled), "65533 128512 65533")
+    checkEqual(charNumbersBackwards(doubled), charNumbers(doubled))
+    checkEqual(boundaryMismatches(doubled), 0)
+
+    check(!isCharBoundary("😀", 1))
+    checkEqual(floorCharBoundary("😀", 1), 0 :: Size)
+    checkEqual(ceilCharBoundary("😀", 1), 2 :: Size)

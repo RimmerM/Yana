@@ -265,10 +265,11 @@ instance (Magnitude(a, w), Show(w), Bounded(w), Integral(w), Ord(w), TrivialCopy
 
             -- Most significant first, out of the power the places were counted into - the same
             -- running-divisor shape `Format/Number.yana`'s digit loop uses, and for the same reason:
-            -- leading zeros are digits at their positions rather than a run in front of them.
+            -- leading zeros are digits at their positions rather than a run in front of them. A
+            -- decimal digit is `hexUnit` below ten.
             let &at = power / 10
             while at > 0:
-                String.pushUnit(to, "0" + (truncate((frac / at) % 10) :: Int))
+                String.pushUnit(to, hexUnit(truncate((frac / at) % 10) :: Int))
                 at = at / 10
 
         String.pushUnit(to, " ")

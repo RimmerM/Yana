@@ -49,7 +49,7 @@ pub fn urlEncoded(value: 'String, plus: Bool = False, slash: Bool = False) -> Ur
     Formatted {value: value, style: urlStyle(plus, slash)}
 
 -- One unit's membership of §2.3's unreserved set - letters, digits, `-`, `.`, `_` and `~`.
-pub fn isUnreserved(unit: Int) -> Bool =
+pub fn isUnreserved(unit: CodeUnit) -> Bool =
     isAlphaNum(unit) || unit == "-" || unit == "." || unit == "_" || unit == "~"
 
 instance ShowWith(UrlStyle, String):
@@ -108,7 +108,7 @@ instance ReadWith(UrlStyle, String):
 
             match {hexValue(String.unit(from, cursor + 1)), hexValue(String.unit(from, cursor + 2))}:
                 {Just(->high), Just(->low)}:
-                    String.pushUnit(text, truncate((high `shl` 4) `or` low) :: Int)
+                    String.pushUnit(text, truncate((high `shl` 4) `or` low) :: CodeUnit)
                     cursor = cursor + 3
                 _ -> return Err(OutOfRange)
         else if unit == "+":

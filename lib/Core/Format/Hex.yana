@@ -66,15 +66,13 @@ import Native
 -}
 pub alias HexDigit = @bits(4) U32
 
-pub fn hexValue(unit: Int) -> Maybe(HexDigit):
-    if isDigit(unit) then return Just(truncate(unit - "0") :: HexDigit)
+pub fn hexValue(unit: CodeUnit) -> Maybe(HexDigit)
+  | "0"..="9" -> Just(truncate((unit - "0") :: U32))
+  | "a"..="f" -> Just(truncate((unit - "a" + 10) :: U32))
+  | "A"..="F" -> Just(truncate((unit - "A" + 10) :: U32))
+  | _         -> Nothing
 
-    let lower = toLowerUnit(unit)
-    if lower >= "a" && lower <= "f" then return Just(truncate(lower - 87) :: HexDigit)
-
-    return Nothing
-
-pub fn isHexDigit(unit: Int) -> Bool = hexValue(unit) is Just(_)
+pub fn isHexDigit(unit: CodeUnit) -> Bool = hexValue(unit) is Just(_)
 
 {-
    ==========================================================================================
@@ -111,7 +109,7 @@ pub fn hexOf(bytes: [U8]) -> String:
 -- one `cmp` and a `cmov`, and a table would be a load and a bounds check the compiler cannot
 -- remove. It is what the JS half and the native tail are written out of, and the native block form
 -- is this same expression applied lanewise.
-pub fn hexUnit(nibble: Int) -> Int = if nibble < 10 then "0" + nibble else 87 + nibble
+pub fn hexUnit(nibble: Int) -> CodeUnit = truncate(if nibble < 10 then "0" + nibble else nibble - 10 + "a")
 
 {-
    ------------------------------------------------------------------------------------------
@@ -195,7 +193,7 @@ instance ShowWith(HexBytesStyle, [U8]):
         let bytes = subject.value
         let count = length(bytes)
         for i in 0 .. count:
-            if i > 0 && value.separator != 0 then String.pushUnit(to, value.separator :: Int)
+            if i > 0 && value.separator != 0 then String.pushUnit(to, value.separator)
 
             let byte = bytes[i] :: Int
             String.pushUnit(to, hexUnitCased(byte `shr` 4, value.upper))
@@ -210,12 +208,11 @@ instance ShowWith(HexBytesStyle, [U8]):
 
         return Just(count + count + (if value.separator != 0 then count - 1 else 0))
 
--- `hexUnit` with the other alphabet available. Upper case is `A` at 65 against `a` at 97, so the
--- bias above nine is 55 rather than 87 and the digits below it are the same units either way.
-pub fn hexUnitCased(nibble: Int, upper: Bool) -> Int
-  | {<10, _}   -> "0" + nibble
-  | {_,  True} -> 55 + nibble
-  | _          -> 87 + nibble
+-- `hexUnit` with the other alphabet available. The digits below ten are the same units either way.
+pub fn hexUnitCased(nibble: Int, upper: Bool) -> CodeUnit
+  | {<10, _}   -> truncate("0" + nibble)
+  | {_,  True} -> truncate(nibble - 10 + "A")
+  | _          -> truncate(nibble - 10 + "a")
 
 {-
    ------------------------------------------------------------------------------------------
@@ -258,7 +255,7 @@ instance ReadWith(HexBytesStyle, [U8]):
         -- rather than failing it: what follows a digest in a line is the caller's to read.
         let &cursor = start
         if separator != 0 && length(bytes) > 0:
-            if String.unit(from, cursor) != (separator :: Int) then break
+            if String.unit(from, cursor) != separator then break
             cursor = cursor + 1
 
         if cursor + 1 >= units then break

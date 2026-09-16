@@ -1,0 +1,430 @@
+let image$base: () = <none>
+
+let &calls: I32 = 0
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn numberOf(%call: Syscall) -> USize {
+  b0:
+    %v1 = cast %call : I32
+    %v2 = cast %v1 : USize
+    ret %v2
+}
+
+fn exitProcess(%status: Size) -> () {
+  b0:
+    %v2 = call numberOf, 60 : USize
+    %v3 = bitcast %status : USize
+    %v4 = syscall %v2, %v3 : Size
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn isDigit(%unit: I32) -> Bool {
+  b0:
+    %v3 = cmp_ge %unit, 48 : Bool
+    %v4 = cmp_le %unit, 57 : Bool
+    %v5 = and %v3, %v4 : Bool
+    je %v5, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b2, True], [b1, False] : Bool
+    ret %v11
+}
+
+fn isSpace(%unit: I32) -> Bool {
+  b0:
+    %v2 = cmp_eq %unit, 32 : Bool
+    je %v2, b2, b1
+
+  b1:
+    %v7 = cmp_ge %unit, 9 : Bool
+    %v8 = cmp_le %unit, 13 : Bool
+    %v9 = and %v7, %v8 : Bool
+    je %v9, b4, b3
+
+  b2:
+    jmp b5
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v16 = phi [b2, True], [b4, True], [b3, False] : Bool
+    ret %v16
+}
+
+fn isControl(%unit: I32) -> Bool {
+  b0:
+    %v2 = cmp_lt %unit, 32 : Bool
+    je %v2, b2, b1
+
+  b1:
+    %v6 = cmp_eq %unit, 127 : Bool
+    je %v6, b4, b3
+
+  b2:
+    jmp b5
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v13 = phi [b2, True], [b4, True], [b3, False] : Bool
+    ret %v13
+}
+
+fn inBox(%x: I32, %y: I32) -> Bool {
+  b0:
+    %v4 = cmp_ge %x, 0 : Bool
+    %v5 = cmp_le %x, 9 : Bool
+    %v6 = and %v4, %v5 : Bool
+    je %v6, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = phi [b2, True], [b1, False] : Bool
+    je %v12, b4, b5
+
+  b4:
+    %v16 = cmp_ge %y, 0 : Bool
+    %v17 = cmp_le %y, 9 : Bool
+    %v18 = and %v16, %v17 : Bool
+    je %v18, b7, b6
+
+  b5:
+    jmp b9
+
+  b6:
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %v24 = phi [b7, True], [b6, False] : Bool
+    jmp b9
+
+  b9:
+    %v28 = phi [b8, %v24], [b5, False] : Bool
+    ret %v28
+}
+
+fn sign(%value: I32) -> I32 {
+  b0:
+    %v2 = cmp_lt %value, 0 : Bool
+    je %v2, b2, b1
+
+  b1:
+    %v6 = cmp_eq %value, 0 : Bool
+    je %v6, b4, b3
+
+  b2:
+    jmp b5
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v13 = phi [b2, -1], [b4, 0], [b3, 1] : I32
+    ret %v13
+}
+
+fn count() -> Bool {
+  b0:
+    %v0 = load calls : I32
+    %v3 = add %v0, 1 : I32
+    assign calls, %v3
+    ret True
+}
+
+fn skipped(%value: I32) -> I32 {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = call count : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, %v5], [b2, False] : Bool
+    je %v9, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v15 = phi [b4, 1], [b5, 0] : I32
+    ret %v15
+}
+
+fn zero() -> I32 {
+  b0:
+    ret 0
+}
+
+fn guarded(%divisor: I32) -> I32 {
+  b0:
+    %v3 = cmp_ne %divisor, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v8 = cmp_eq %divisor, 0 : Bool
+    call checkCondition, %v8
+    %v10 = div 10, %divisor : I32
+    %v13 = cmp_gt %v10, 2 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v17 = phi [b1, %v13], [b2, False] : Bool
+    je %v17, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v23 = phi [b4, 1], [b5, 0] : I32
+    ret %v23
+}
+
+fn countInside(%limit: I32) -> I32 {
+  b0:
+    %total = alloc : I32
+    init %total, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : I32
+    %v9 = cmp_lt %v8, %limit : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v31 = load %total : I32
+    ret %v31
+
+  b3:
+    %v11 = load %i : I32
+    %v14 = cmp_ge %v11, 3 : Bool
+    %v15 = cmp_le %v11, 6 : Bool
+    %v16 = and %v14, %v15 : Bool
+    je %v16, b5, b4
+
+  b4:
+    jmp b6
+
+  b5:
+    %v18 = load %total : I32
+    %v21 = add %v18, 1 : I32
+    assign %total, %v21
+    jmp b6
+
+  b6:
+    %v25 = load %i : I32
+    %v28 = add %v25, 1 : I32
+    assign %i, %v28
+    jmp b1
+}
+
+fn classify(%from: I32, %to: I32) -> I32 {
+  b0:
+    %digits = alloc : I32
+    init %digits, 0
+    %spaces = alloc : I32
+    init %spaces, 0
+    %controls = alloc : I32
+    init %controls, 0
+    %unit = alloc : I32
+    init %unit, %from
+    jmp b1
+
+  b1:
+    %v14 = load %unit : I32
+    %v15 = cmp_lt %v14, %to : Bool
+    je %v15, b3, b2
+
+  b2:
+    %v53 = load %digits : I32
+    %v54 = load %spaces : I32
+    %v57 = mul %v54, 100 : I32
+    %v58 = add %v53, %v57 : I32
+    %v59 = load %controls : I32
+    %v62 = mul %v59, 10000 : I32
+    %v63 = add %v58, %v62 : I32
+    ret %v63
+
+  b3:
+    %v17 = load %unit : I32
+    %v18 = call isDigit, %v17 : Bool
+    je %v18, b4, b5
+
+  b4:
+    %v20 = load %digits : I32
+    %v23 = add %v20, 1 : I32
+    assign %digits, %v23
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v27 = load %unit : I32
+    %v28 = call isSpace, %v27 : Bool
+    je %v28, b7, b8
+
+  b7:
+    %v30 = load %spaces : I32
+    %v33 = add %v30, 1 : I32
+    assign %spaces, %v33
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v37 = load %unit : I32
+    %v38 = call isControl, %v37 : Bool
+    je %v38, b10, b11
+
+  b10:
+    %v40 = load %controls : I32
+    %v43 = add %v40, 1 : I32
+    assign %controls, %v43
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v47 = load %unit : I32
+    %v50 = add %v47, 1 : I32
+    assign %unit, %v50
+    jmp b1
+}
+
+fn effects() -> I32 {
+  b0:
+    assign calls, 0
+    %a = call skipped, 0 : I32
+    %b = call skipped, 4 : I32
+    %v8 = mul %b, 2 : I32
+    %v9 = add %a, %v8 : I32
+    %v10 = load calls : I32
+    %v13 = mul %v10, 4 : I32
+    %v14 = add %v9, %v13 : I32
+    ret %v14
+}
+
+fn main() -> I32 {
+  b0:
+    %v2 = call classify, 0, 130 : I32
+    %v5 = rem %v2, 1000 : I32
+    %v7 = call sign, -3 : I32
+    %v10 = add %v7, 1 : I32
+    %v13 = mul %v10, 1000 : I32
+    %v14 = add %v5, %v13 : I32
+    %v16 = call sign, 0 : I32
+    %v19 = mul %v16, 2000 : I32
+    %v20 = add %v14, %v19 : I32
+    %v22 = call sign, 8 : I32
+    %v25 = mul %v22, 4000 : I32
+    %v26 = add %v20, %v25 : I32
+    %v27 = call effects : I32
+    %v30 = mul %v27, 8000 : I32
+    %v31 = add %v26, %v30 : I32
+    %v32 = call zero : I32
+    %v33 = call guarded, %v32 : I32
+    %v36 = mul %v33, 64000 : I32
+    %v37 = add %v31, %v36 : I32
+    %v39 = call guarded, 3 : I32
+    %v42 = mul %v39, 128000 : I32
+    %v43 = add %v37, %v42 : I32
+    %v45 = call countInside, 10 : I32
+    %v48 = mul %v45, 256000 : I32
+    %v49 = add %v43, %v48 : I32
+    %v52 = call inBox, 3, 4 : Bool
+    je %v52, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v60 = phi [b1, 1], [b2, 0] : I32
+    %v63 = mul %v60, 512000 : I32
+    %v64 = add %v49, %v63 : I32
+    %v67 = call inBox, 3, 12 : Bool
+    je %v67, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v75 = phi [b4, 1], [b5, 0] : I32
+    %v78 = mul %v75, 1024000 : I32
+    %v79 = add %v64, %v78 : I32
+    ret %v79
+}

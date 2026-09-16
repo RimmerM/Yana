@@ -24,7 +24,7 @@ import Native
    disagreement the decoding tier has to worry about, and the engine's own C++ beats any
    `charCodeAt` loop this compiler emits.
 
-   Everything else is here, once, because it is *composed* of those - `trim` is two bounded walks
+   Everything else is here, once, because it is *composed* of those - `trimAscii` is two bounded walks
    and a slice, `splitOn` is a search in a loop, `String.replace` is a search and two appends. A
    second copy of one of those per target would be a second chance to disagree about an edge case
    for no speed at all.
@@ -61,41 +61,46 @@ import Native
    One unit, classified - Analysis-Library.md §2.2's predicate row.
    ------------------------------------------------------------------------------------------
 
-   `Int` rather than `CodeUnit`, because `String.unit` answers an `Int` and these exist to be written
-   next to it: `isSpace(text.unit(at))` is the expression they are for. A unit that is not ASCII
-   answers `False` to every one of them bar `isControl`, which is what makes them total rather than
-   partial - there is no unit these are undefined for, so no caller needs a range test in front of
-   one.
+   Over a `CodeUnit`, because `String.unit` answers one and these exist to be written next to it:
+   `isSpace(text.unit(at))` is the expression they are for. A unit that is not ASCII answers `False`
+   to every one of them, which is what makes them total rather than partial - there is no unit these
+   are undefined for, so no caller needs a range test in front of one.
 
-   Written as comparisons rather than as a table lookup, which is what the C++ they replace does too:
-   two compares and an `and` beat a load, and the optimizer folds the pair into one unsigned compare
-   where the range is contiguous - `unit - 48 <= 9` is the whole of `isDigit` after
-   `foldRangeCompare`.
+   Written as range patterns rather than as a table lookup, which is what the C++ they replace does
+   too: a range is two compares, which beat a load, and the optimizer makes the pair one unsigned
+   compare - `unit - "0" <= 9` is the whole of `isDigit` after `fuseBranches` and `foldRangeTest`.
 -}
 
 -- Whether it is an ASCII unit at all, which is the one predicate the rest are only meaningful under.
-pub fn isAscii(unit: Int) -> Bool = unit >= 0 && unit < 128
+pub fn isAscii(unit: CodeUnit) -> Bool = unit < 128
 
-pub fn isDigit(unit: Int) -> Bool = unit >= "0" && unit <= "9"
-pub fn isUpper(unit: Int) -> Bool = unit >= "A" && unit <= "Z"
-pub fn isLower(unit: Int) -> Bool = unit >= "a" && unit <= "z"
-pub fn isAlpha(unit: Int) -> Bool = isUpper(unit) || isLower(unit)
-pub fn isAlphaNum(unit: Int) -> Bool = isAlpha(unit) || isDigit(unit)
+pub fn isDigit(unit: CodeUnit) -> Bool = unit is "0"..="9"
+pub fn isUpper(unit: CodeUnit) -> Bool = unit is "A"..="Z"
+pub fn isLower(unit: CodeUnit) -> Bool = unit is "a"..="z"
+pub fn isAlpha(unit: CodeUnit) -> Bool = isUpper(unit) || isLower(unit)
+pub fn isAlphaNum(unit: CodeUnit) -> Bool = isAlpha(unit) || isDigit(unit)
 
 -- Space, tab, newline, vertical tab, form feed and carriage return - the six `isspace` answers `True`
--- for in the C locale, and the set `trim` and `words` are written against. 9 to 13 is contiguous, so
--- this is two comparisons and not six.
-pub fn isSpace(unit: Int) -> Bool = unit == " " || (unit >= "\t" && unit <= "\r")
+-- for in the C locale, and the set `trimAscii` and `wordsAscii` are written against. 9 to 13 is
+-- contiguous, so this is two comparisons and not six.
+pub fn isSpace(unit: CodeUnit) -> Bool
+  | " "         -> True
+  | "\t"..="\r" -> True
+  | _           -> False
 
-pub fn isControl(unit: Int) -> Bool = (unit >= 0 && unit < " ") || unit == "\x7f"
-pub fn isPrintable(unit: Int) -> Bool = unit >= " " && unit < "\x7f"
+pub fn isControl(unit: CodeUnit) -> Bool
+  | _.." "  -> True
+  | "\x7f"  -> True
+  | _       -> False
+
+pub fn isPrintable(unit: CodeUnit) -> Bool = unit is " ".."\x7f"
 
 
 -- One unit's case, changed only when it is a letter. The bias is 32 in both directions because the
 -- two ASCII alphabets are exactly that far apart, which is also why the vector forms below are one
 -- masked add rather than a table.
-pub fn toLowerUnit(unit: Int) -> Int = if isUpper(unit) then unit + 32 else unit
-pub fn toUpperUnit(unit: Int) -> Int = if isLower(unit) then unit - 32 else unit
+pub fn toLowerUnit(unit: CodeUnit) -> CodeUnit = if isUpper(unit) then unit + 32 else unit
+pub fn toUpperUnit(unit: CodeUnit) -> CodeUnit = if isLower(unit) then unit - 32 else unit
 
 {-
    ------------------------------------------------------------------------------------------
@@ -119,7 +124,12 @@ pub fn String.contains(haystack: String, needle: String) -> Bool =
    Trimming - Analysis-Library.md §2.2's third operation.
    ------------------------------------------------------------------------------------------
 
-   ASCII whitespace off one end or both. One body for both targets and no vectors anywhere, which is
+   Whitespace off one end or both, and **the name says which whitespace** (Implementation-String.md
+   part 5). `trimAscii`, `trimStartAscii` and `trimEndAscii` take the six units `isSpace` names;
+   `trimUnicode`, `trimStartUnicode` and `trimEndUnicode` take the 25 code points of the Unicode
+   `White_Space` property, which `isSpaceUnicode` below is. `wordsAscii` follows the same naming.
+
+   One body for both targets and no vectors anywhere, which is
    a measurement rather than an omission: what a trim walks is the whitespace *run*, which is one or
    two units in every text anyone trims, and a vector loop over a two-unit walk is the setup with
    none of the payoff. The scan stops at the first unit that is not whitespace, so the cost is the
@@ -131,6 +141,25 @@ pub fn String.contains(haystack: String, needle: String) -> Bool =
    `source'` and the legacy stage cannot accept one. A caller that keeps a trimmed string past the
    text it came from writes `copy`.
 -}
+
+{-
+   Whether a character has the Unicode `White_Space` property - the 25 code points `trimUnicode`
+   takes off. Six of them are the ASCII units `isSpace` names. The set has not changed since Unicode
+   6.3 took U+180E out of it, which is why it is written out here rather than read from the Unicode
+   library's generated tables (part 8).
+-}
+pub fn isSpaceUnicode(c: Char) -> Bool
+  | " "                 -> True
+  | "\t"..="\r"         -> True
+  | "\x85"              -> True
+  | "\xA0"              -> True
+  | "\x1680"            -> True
+  | "\x2000"..="\x200A" -> True
+  | "\x2028"..="\x2029" -> True
+  | "\x202F"            -> True
+  | "\x205F"            -> True
+  | "\x3000"            -> True
+  | _                   -> False
 
 {-
    ==========================================================================================
@@ -146,7 +175,7 @@ pub fn String.contains(haystack: String, needle: String) -> Bool =
 
    - `spansOn` yields the half-open `{from, to}` of each part. This is the primitive: the search under
      it is the vector scan and the loop carries two `Size`s.
-   - `splitOn`, `splitOnText`, `lines` and `words` yield the parts themselves, each one
+   - `splitOn`, `splitOnText`, `lines` and `wordsAscii` yield the parts themselves, each one
      `String.slice`. Under the ownership resolve stage that is a **window** into `text` and costs
      nothing; under the legacy stage it is a copy per part. Their bodies are in `Text.ownership.yana`
      and `Text.legacy.yana` for the reason the trims are. A loop body that keeps a part past the text
@@ -154,7 +183,7 @@ pub fn String.contains(haystack: String, needle: String) -> Bool =
 
    An empty text yields one empty part, and `n` separators yield `n + 1` parts however they are
    placed. That is what makes `splitOn` and `joinWith` inverses, and it is why nothing here skips an
-   empty part; `words` is the function that does, and it says so in its name.
+   empty part; `wordsAscii` is the function that does, and it says so in its name.
 -}
 pub iter fn spansOn(text: String, on: CodeUnit) -> {Size, Size}:
     let count = length(text)
@@ -184,11 +213,11 @@ pub iter fn spansOn(text: String, on: CodeUnit) -> {Size, Size}:
    directions.
 
    The ordering *at* the differing position is over the folded units read as unsigned, which is
-   `toLowerUnit` on the two `Int`s and not a lane comparison: a byte at or above 0x80 is negative in
-   the signed compare the case fold is written in, and while that is exactly right for deciding
-   whether the fold applies to it, it is exactly wrong for deciding which of two units is larger. So
-   the vector half answers *where* and the scalar comparison answers *which way*, which costs one
-   pair of unit reads on the one iteration that finds a difference.
+   `toLowerUnit` on the two `CodeUnit`s and not a lane comparison: a byte at or above 0x80 is
+   negative in the signed compare the case fold is written in, and while that is exactly right for
+   deciding whether the fold applies to it, it is exactly wrong for deciding which of two units is
+   larger. So the vector half answers *where* and the scalar comparison answers *which way*, which
+   costs one pair of unit reads on the one iteration that finds a difference.
 
    The units before that position compare equal folded, and a unit equal to another under the ASCII
    fold is equal to it under either sign, so nothing about the prefix depends on the reading.

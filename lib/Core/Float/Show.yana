@@ -58,8 +58,8 @@ fn decimalLength(value: U64) -> Int:
         let pair = truncate((rest - quotient * 100) * 2) :: Size
 
         at = at - 2
-        buffer[at] = truncate(String.unit(decimalPairs, pair)) :: CodeUnit
-        buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
+        buffer[at] = String.unit(decimalPairs, pair)
+        buffer[at + 1] = String.unit(decimalPairs, pair + 1)
 
         rest = quotient
         left = left - 2
@@ -94,14 +94,17 @@ fn decimalLength(value: U64) -> Int:
 -- A decimal exponent, which is at most three digits at either width.
 fn pushExponent(value: Int, &to: String):
     if value >= 100:
-        String.pushUnit(to, "0" + value / 100)
-        String.pushUnit(to, "0" + (value / 10) % 10)
-        String.pushUnit(to, "0" + value % 10)
+        String.pushUnit(to, digitOf(value / 100))
+        String.pushUnit(to, digitOf((value / 10) % 10))
+        String.pushUnit(to, digitOf(value % 10))
     else if value >= 10:
-        String.pushUnit(to, "0" + value / 10)
-        String.pushUnit(to, "0" + value % 10)
+        String.pushUnit(to, digitOf(value / 10))
+        String.pushUnit(to, digitOf(value % 10))
     else:
-        String.pushUnit(to, "0" + value)
+        String.pushUnit(to, digitOf(value))
+
+-- One decimal digit's unit, for a value from zero to nine.
+fn digitOf(value: Int) -> CodeUnit = truncate("0" + value)
 
 {-
    Where the plain form stops and the scientific one starts.

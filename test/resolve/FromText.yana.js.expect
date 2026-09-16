@@ -1,26 +1,50 @@
 "use strict";
+var replacementChar = 65533;
+
 // Core
 function firstCharOf(text) {
-  var v73 = text.length;
-  if (v73 === 0) {
-    return 65533;
+  var v101;
+  var v7 = { f0: 0, f1: 0 };
+  var v42 = text.length;
+  if (0 < v42 ^ 1) {
+    v7.f0 = { f0: replacementChar, f1: 0 }.f0;
+    v7.f1 = 0;
   } else {
-    var lead = text.charCodeAt(0) >>> 0;
-    if (lead < 55296 | lead > 57343) {
-      return lead;
+    var v44 = null;
+    if (0 < v42 ^ 1) {
+      v44 = null;
     } else {
-      if (lead > 56319 | v73 < 2) {
-        return 65533;
+      if (1 < v42 ^ 1) {
+        v44 = null;
       } else {
-        var trail = text.charCodeAt(1) >>> 0;
-        if (trail < 56320 | trail > 57343) {
-          return 65533;
-        } else {
-          return ((lead - 55296 << 10 >>> 0) + 65536 >>> 0) + (trail - 56320 >>> 0) >>> 0;
+        B0: {
+          B1: {
+            var v95 = text.charCodeAt(0) >>> 0;
+            var v98 = text.charCodeAt(1) >>> 0;
+            var v100 = null;
+            if (v95 >= 55296 & v95 <= 56319) {
+              if (v98 >= 56320 & v98 <= 57343) {
+                v101 = ((v95 - 55296 << 10 >>> 0) + 65536 >>> 0) + (v98 - 56320 >>> 0) >>> 0;
+                break B0;
+              }
+            }
+          }
+          v101 = null;
         }
+        v100 = v101;
+        v44 = v100;
       }
     }
+    if (!(v44 === null)) {
+      v7.f0 = v44;
+      v7.f1 = 2;
+    } else {
+      var v77 = text.charCodeAt(0) >>> 0;
+      v7.f0 = v77 >= 55296 & v77 <= 57343 ? 65533 : v77 >= 1114112 ? 65533 : v77;
+      v7.f1 = 1;
+    }
   }
+  return v7.f0;
 }
 
 // ResolveTest
@@ -38,7 +62,7 @@ function countUnit(text, wanted) {
   var count = 0;
   var i = 0;
   while (i < text.length) {
-    if (text.charCodeAt(i) === wanted) {
+    if ((text.charCodeAt(i) | 0) === wanted) {
       count = count + 1 | 0;
     }
     i = i + 1 | 0;

@@ -26,8 +26,10 @@ module Core
    escape table.
 
    The reading direction does accept `\uXXXX` above 127, because a text this did not write may carry
-   one - so there is a code-point encoder here, and it is the one part of this file that is split by
-   target.
+   one. It names a UTF-16 unit, so a surrogate pair written as two escapes is joined into the
+   character it spells, and the character is appended with `String.pushChar` in whatever this
+   target's encoding is. A surrogate that is not half of a pair has no character to be, and reads as
+   U+FFFD - which is what JSON's own decoders answer for one.
 -}
 
 {-
@@ -59,7 +61,7 @@ pub fn quoted(value: 'String, quote: CodeUnit = "\"") -> QuotedFormat =
 -- `\uXXXX`, which is the escape for everything the short spellings do not cover. Lower case, because
 -- that is what every emitter writes and what `hexUnitCased` answers by default; a reader takes
 -- either.
-fn pushUnitEscape(&to: String, unit: Int):
+fn pushUnitEscape(&to: String, unit: CodeUnit):
     String.pushUnit(to, "\\")
     String.pushUnit(to, "u")
     String.pushUnit(to, hexUnitCased((unit `shr` 12) `and` 15, False))
@@ -70,7 +72,7 @@ fn pushUnitEscape(&to: String, unit: Int):
 -- The two-unit escapes, as the letter that follows the backslash, or zero for a unit that has none.
 -- A table rather than a `match` chain would be six loads to save five compares over a range the
 -- branch predictor sees once per string.
-fn shortEscape(unit: Int) -> Int:
+fn shortEscape(unit: CodeUnit) -> CodeUnit:
     if unit == "\b" then return "b"
     if unit == "\t" then return "t"
     if unit == "\n" then return "n"
@@ -80,7 +82,7 @@ fn shortEscape(unit: Int) -> Int:
 
 instance ShowWith(QuoteStyle, String):
     fn showWith(subject: QuotedFormat, &to: String):
-        let quote = subject.style.quote :: Int
+        let quote = subject.style.quote
         let text = subject.value
         let units = length(text)
 
@@ -139,7 +141,7 @@ instance ShowWith(QuoteStyle, String):
 -}
 instance ReadWith(QuoteStyle, String):
   fn readWith(style: QuoteStyle, from: String, &at: Size) -> Result(ReadError, String):
-    let quote = style.quote :: Int
+    let quote = style.quote
     let units = length(from)
 
     if at >= units || String.unit(from, at) != quote then return Err(NoDigits)
@@ -174,18 +176,20 @@ instance ReadWith(QuoteStyle, String):
             "t" -> String.pushUnit(text, "\t")
             "/" -> String.pushUnit(text, "/")
             "u":
-                -- `\uXXXX`, which is exactly four digits: fewer is not a shorter escape but a
-                -- malformed one, since nothing says where it would stop.
-                if cursor + 4 > units then return Err(OutOfRange)
-
-                let &point = 0
-                for digit in 0 .. 4:
-                    match hexValue(String.unit(from, cursor + digit)):
-                        Just(value) -> point = (point `shl` 4) `or` (truncate(value) :: Int)
-                        Nothing -> return Err(OutOfRange)
+                let unit = match escapedUnit(from, cursor):
+                    Just(value) -> value
+                    Nothing -> return Err(OutOfRange)
 
                 cursor = cursor + 4
-                pushCodePoint(text, point)
+
+                -- A high surrogate and a `\u` low surrogate right after it are one character. The
+                -- second escape is only consumed when it completes the pair, so a surrogate that is
+                -- not half of one reads as a replacement and what follows it reads as itself.
+                match pairedEscape(unit, from, cursor):
+                    Just(pair):
+                        String.pushChar(text, pair)
+                        cursor = cursor + 6
+                    Nothing -> String.pushChar(text, Char(unit))
             _:
                 -- The quote unit, the backslash and anything else this file wrote itself arrive
                 -- here as themselves, which is what makes `\"` and `\\` need no arm of their own.
@@ -201,25 +205,25 @@ pub fn readQuoted(from: String, &at: Size, quote: CodeUnit = "\"") -> Result(Rea
     readWith(quoteStyle(quote), from, at)
 
 {-
-   One code point, in the target's own encoding - the one thing in this file that is not one body.
-
-   `\uXXXX` names a *code point* and a `String` holds *code units*, and those are the same number
-   only below 128. On JS they are the same thing again up to `0xFFFF`, because a host string is
-   UTF-16 and `\uXXXX` is exactly one of its units; natively the point has to be encoded, and the
-   two or three bytes it becomes are what a UTF-8 string holds.
-
-   No surrogate handling, because `\uXXXX` cannot name a point above `0xFFFF`: a text that carries
-   an astral character as a surrogate pair reads here as the two points it wrote, which is what every
-   decoder that does not re-pair them does. Re-pairing is a decoder's job and this is an escape.
+   The four digits of a `\uXXXX` escape starting at `at`, as the unit they name. Exactly four: fewer
+   is not a shorter escape but a malformed one, since nothing says where it would stop.
 -}
-@platform(native) fn pushCodePoint(&to: String, point: Int):
-    if point < 128 then String.pushUnit(to, point)
-    else if point < 2048:
-        String.pushUnit(to, 192 `or` (point `shr` 6))
-        String.pushUnit(to, 128 `or` (point `and` 63))
-    else:
-        String.pushUnit(to, 224 `or` (point `shr` 12))
-        String.pushUnit(to, 128 `or` ((point `shr` 6) `and` 63))
-        String.pushUnit(to, 128 `or` (point `and` 63))
+fn escapedUnit(from: String, at: Size) -> Maybe(U32):
+    if at + 4 > length(from) then return Nothing
 
-@platform(js) fn pushCodePoint(&to: String, point: Int): String.pushUnit(to, point)
+    let &value = 0 :: U32
+    for digit in 0 .. 4:
+        match hexValue(String.unit(from, at + digit)):
+            Just(nibble) -> value = (value `shl` 4) `or` nibble
+            Nothing -> return Nothing
+
+    return Just(value)
+
+-- The character `high` spells with a whole `\uXXXX` escape at `at` naming a low surrogate, when that
+-- is what is there.
+fn pairedEscape(high: U32, from: String, at: Size) -> Maybe(Char):
+    if at + 6 > length(from) then return Nothing
+
+    match {String.unit(from, at), String.unit(from, at + 1), escapedUnit(from, at + 2)}:
+        {"\\", "u", Just(low)} -> return surrogatePair(high, low)
+        _                      -> return Nothing

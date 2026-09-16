@@ -10,7 +10,7 @@
    | | |
    | --- | --- |
    | `pairs(m)` | a **shared** loan of a `Map`, held as the lender's address |
-   | `words(t)` | a **window** capture, handing over a window of the text (a `String` slice, since Implementation-String.md part 4 - it was an owning hand-over with `$held` before) |
+   | `wordsAscii(t)` | a **window** capture, handing over a window of the text (a `String` slice, since Implementation-String.md part 4 - it was an owning hand-over with `$held` before) |
    | `items(xs)` | a **nested traversal** - `for chunk in chunks(self)` - whose child hands over a window |
    | `lines(t)`, `splitOn(t, c)` | the same nest over `spansOn`, handing a window of the text on above it |
 
@@ -46,7 +46,7 @@ fn pairsByLoop() -> Int:
 
 fn wordsByFor() -> Size:
     let text = "alpha beta  gamma"
-    let &it = words(text)
+    let &it = wordsAscii(text)
     let &total = 0 :: Size
 
     for w in it:
@@ -58,7 +58,7 @@ fn wordsByLoop() -> Size:
     let text = "alpha beta  gamma"
     let &total = 0 :: Size
 
-    for w in words(text):
+    for w in wordsAscii(text):
         total = total * 10 + length(w)
 
     return total
@@ -67,7 +67,7 @@ fn wordsByLoop() -> Size:
 -- of it: `Maybe(source'String)`'s payload is two words derived from what the record holds.
 fn wordsByNext() -> Size:
     let text = "alpha beta  gamma"
-    let &it = words(text)
+    let &it = wordsAscii(text)
     let &total = 0 :: Size
 
     while it.next() is Just(w):

@@ -34,9 +34,9 @@ fn offsetIn(text: String, part: String) -> Size =
 @test fn trimSharesUnits():
     let text = copy("  hello  ")
 
-    checkEqual(offsetIn(text, trim(text)), 2 :: Size)
-    checkEqual(offsetIn(text, trimStart(text)), 2 :: Size)
-    checkEqual(offsetIn(text, trimEnd(text)), 0 :: Size)
+    checkEqual(offsetIn(text, trimAscii(text)), 2 :: Size)
+    checkEqual(offsetIn(text, trimStartAscii(text)), 2 :: Size)
+    checkEqual(offsetIn(text, trimEndAscii(text)), 0 :: Size)
 
 @test fn splitPartsShareUnits():
     let text = copy("a,bb,ccc")
@@ -60,7 +60,7 @@ fn offsetIn(text: String, part: String) -> Size =
     let text = copy("  alpha beta ")
     let &offsets = [] :: [Size]
 
-    for word in words(text):
+    for word in wordsAscii(text):
         push(offsets, offsetIn(text, word))
 
     checkEqual(length(offsets), 2 :: Size)

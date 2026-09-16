@@ -1,0 +1,68 @@
+module Core
+
+{-
+   Malformed UTF-8 - Implementation-String.md part 6's replacement rule, natively.
+
+   The sequences are the Unicode Standard's own examples of U+FFFD substitution of maximal subparts
+   (chapter 3, tables 3-8 to 3-11), which is also what the WHATWG decoder answers, so these are the
+   numbers a host `TextDecoder` gives for the same bytes. Each text is walked forwards and backwards,
+   and its boundaries are checked at every offset, since a stray byte is a boundary on each side.
+-}
+
+import Test
+
+fn bytesText(bytes: [U8]) -> String:
+    let &text = String.ofCapacity(length(bytes))
+    for i in 0 .. length(bytes):
+        String.pushUnit(text, bytes[i])
+
+    return text
+
+@test fn maximalSubparts():
+    -- Table 3-8: a lead with too few continuations is one replacement, a stray continuation is one.
+    let table8 = bytesText(elements([0x61 :: U8, 0xF1, 0x80, 0x80, 0xE1, 0x80, 0xC2, 0x62, 0x80, 0x63, 0x80, 0xBF, 0x64]))
+    checkEqual(charNumbers(table8), "97 65533 65533 65533 98 65533 99 65533 65533 100")
+    checkEqual(charNumbersBackwards(table8), charNumbers(table8))
+    checkEqual(countChars(table8), 10 :: Size)
+    checkEqual(boundaryMismatches(table8), 0)
+
+    -- Table 3-9: overlong forms are refused at the second byte, so every byte is its own replacement.
+    let table9 = bytesText(elements([0xC0 :: U8, 0xAF, 0xE0, 0x80, 0xBF, 0xF0, 0x81, 0x82, 0x41]))
+    checkEqual(charNumbers(table9), "65533 65533 65533 65533 65533 65533 65533 65533 65")
+    checkEqual(charNumbersBackwards(table9), charNumbers(table9))
+    checkEqual(boundaryMismatches(table9), 0)
+
+    -- Table 3-10: surrogates encoded as UTF-8 are refused the same way.
+    let table10 = bytesText(elements([0xED :: U8, 0xA0, 0x80, 0xED, 0xBF, 0xBF, 0xED, 0xAF, 0x41]))
+    checkEqual(charNumbers(table10), "65533 65533 65533 65533 65533 65533 65533 65533 65")
+    checkEqual(charNumbersBackwards(table10), charNumbers(table10))
+    checkEqual(boundaryMismatches(table10), 0)
+
+    -- Table 3-11: past U+10FFFF, and a byte that is never UTF-8.
+    let table11 = bytesText(elements([0xF4 :: U8, 0x91, 0x92, 0x93, 0xFF, 0x41, 0x80, 0xBF, 0x42]))
+    checkEqual(charNumbers(table11), "65533 65533 65533 65533 65533 65 65533 65533 66")
+    checkEqual(charNumbersBackwards(table11), charNumbers(table11))
+    checkEqual(boundaryMismatches(table11), 0)
+
+    -- Table 3-12's truncated sequences, each one replacement for its valid prefix.
+    let table12 = bytesText(elements([0xE1 :: U8, 0x80, 0xE2, 0xF0, 0x91, 0x92, 0xF1, 0xBF, 0x41]))
+    checkEqual(charNumbers(table12), "65533 65533 65533 65533 65")
+    checkEqual(charNumbersBackwards(table12), charNumbers(table12))
+    checkEqual(boundaryMismatches(table12), 0)
+
+-- A sequence cut off by the end of the text, and more continuation bytes than any lead takes.
+@test fn truncatedAndOverlong():
+    let cut = bytesText(elements([0x61 :: U8, 0xF0, 0x9F, 0x98]))
+    checkEqual(charNumbers(cut), "97 65533")
+    checkEqual(charNumbersBackwards(cut), "97 65533")
+    check(!isCharBoundary(cut, 2))
+    checkEqual(floorCharBoundary(cut, 3), 1 :: Size)
+    checkEqual(ceilCharBoundary(cut, 2), 4 :: Size)
+
+    let long = bytesText(elements([0xF0 :: U8, 0x9F, 0x98, 0x80, 0x80, 0x80]))
+    checkEqual(charNumbers(long), "128512 65533 65533")
+    checkEqual(charNumbersBackwards(long), charNumbers(long))
+    checkEqual(boundaryMismatches(long), 0)
+
+    -- `compareChars` is byte order natively, and invalid bytes are ordered as bytes.
+    checkEqual(compareChars(cut, long), compare(cut, long))

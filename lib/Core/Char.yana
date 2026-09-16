@@ -1,9 +1,10 @@
 {-
-   Characters - Implementation-String.md part 1 and part 1.1.
+   Characters - Implementation-String.md parts 1, 1.1, 4 and 6.
 
    A `Char` is one Unicode code point, and every one that a literal or a decode produces is a scalar
    value: at most `0x10FFFF` and never a surrogate. The newtype's constructor cannot check that, so
-   `Char.fromU32` is the checked way in and `Char(v)` is the unchecked one.
+   `Char.fromU32` is the checked way in and `Char(v)` is the unchecked one. Encoding a `Char` that is
+   not a scalar value writes U+FFFD.
 
    **Integer-like without being arithmetic.** It compares, orders and hashes as the number it holds,
    and arithmetic goes through `.0`: `c.0 - "0"` is a digit's value, because the literal becomes the
@@ -20,8 +21,151 @@ pub let replacementChar = Char(0xFFFD)
 
 -- `value` as a `Char` where it is a scalar value, and `Nothing` for a surrogate or anything above
 -- the last plane.
-pub fn Char.fromU32(value: U32) -> Maybe(Char) =
-    if value > 0x10FFFF || (value >= 0xD800 && value <= 0xDFFF) then Nothing else Just(Char(value))
+pub fn Char.fromU32(value: U32) -> Maybe(Char)
+  | 0xD800..=0xDFFF -> Nothing
+  | 0x110000.._     -> Nothing
+  | _               -> Just(Char(value))
+
+-- The value an encoder writes: the code point when it is a scalar value, and U+FFFD when it is not.
+fn scalarOrReplacement(value: U32) -> U32
+  | 0xD800..=0xDFFF -> 0xFFFD
+  | 0x110000.._     -> 0xFFFD
+  | _               -> value
+
+-- Whether `at` is the offset of one of the text's units. One comparison, because a negative `Size`
+-- read as a `USize` is above every length there is.
+fn isUnitOffset(text: String, at: Size) -> Bool =
+    (bitcast(at) :: USize) < (bitcast(length(text)) :: USize)
+
+-- The character a UTF-16 surrogate pair spells, or nothing when the two units are not a high and a
+-- low surrogate in that order - on JS, where a host string holds pairs, and in a `\u` escape.
+fn surrogatePair(high: U32, low: U32) -> Maybe(Char)
+  | {0xD800..=0xDBFF, 0xDC00..=0xDFFF} -> Just(Char(0x10000 + ((high - 0xD800) `shl` 10) + (low - 0xDC00)))
+  | _                                 -> Nothing
+
+-- The first and the last scalar value. Every value between them is a `Char`, and the surrogates in the
+-- middle are the ones no decode produces.
+instance Bounded(Char):
+    fn minValue() -> Char = Char(0)
+    fn maxValue() -> Char = Char(0x10FFFF)
+
+-- The character itself, in this target's encoding - so `"{c}"` is `é` and not `233`. `"{c.0}"` is
+-- the number.
+instance Show(Char):
+    fn show(value: Char, &to: String): String.pushChar(to, value)
+    fn showBound(value: Char) -> Maybe(Size) = Just(Char.encodedLength(value))
+
+-- An integer literal is a code point, unchecked like the constructor: `65 :: Char` is `A`.
+instance FromInt(Char):
+    fn fromInt(value: Long) -> Char = Char(truncate(value))
+
+{-
+   The conversion ladders - an unsigned 21-bit value.
+
+   A `Char` widens into every integer that holds 21 bits on every target, so `c :: U32` and an `Int`
+   parameter take one with nothing written. It narrows into the 8- and 16-bit types and `CodeUnit`,
+   which `truncate` spells: the low bits of a code point are a unit only when the character is ASCII
+   (or, at 16 bits, in the BMP), so a lossy conversion is exactly what that is. Nothing converts
+   *into* a `Char` implicitly - an integer is not a character - and `Char.fromU32` is the checked way.
+-}
+instance Widen(Char, U32):
+    fn widen(from: Char) -> U32 = from.0
+
+instance Widen(Char, I32):
+    fn widen(from: Char) -> I32 = bitcast(from.0)
+
+instance Widen(Char, U64):
+    fn widen(from: Char) -> U64 = from.0
+
+instance Widen(Char, I64):
+    fn widen(from: Char) -> I64 = from.0
+
+instance Widen(Char, WideInt):
+    fn widen(from: Char) -> WideInt = from.0
+
+instance Widen(Char, Size):
+    fn widen(from: Char) -> Size = bitcast(from.0) :: I32
+
+instance Widen(Char, USize):
+    fn widen(from: Char) -> USize = from.0
+
+instance Narrow(Char, U8):
+    fn truncate(from: Char) -> U8 = truncate(from.0)
+
+instance Narrow(Char, I8):
+    fn truncate(from: Char) -> I8 = truncate(from.0)
+
+instance Narrow(Char, U16):
+    fn truncate(from: Char) -> U16 = truncate(from.0)
+
+instance Narrow(Char, I16):
+    fn truncate(from: Char) -> I16 = truncate(from.0)
+
+instance Narrow(Char, CodeUnit):
+    fn truncate(from: Char) -> CodeUnit = truncate(from.0)
+
+{-
+   ==========================================================================================
+   Decoding - part 6, and the boundaries of part 4.
+   ==========================================================================================
+
+   The decoders are per target, in `Char.native.yana` (UTF-8) and `Char.js.yana` (UTF-16), and every
+   one of them is total: a `String` may hold invalid units on both targets (part 7.1), so a sequence
+   that is not a character decodes as U+FFFD and the walk goes on. For valid text the two targets
+   produce the same `Char`s at different offsets, because an offset counts the target's own units.
+
+   - `decodeChar(text, at) -> {Char, Size}` is the character starting at `at` and the offset after
+     it, and `decodeCharBefore(text, at)` the character ending at `at` and the offset it starts at.
+     Both answer U+FFFD and `at` itself for an offset with nothing on that side of it, which is what
+     makes a loop over them stop.
+   - `isCharBoundary`, `floorCharBoundary` and `ceilCharBoundary` say whether an offset is between two
+     characters and round one that is not. `0` and `length` are always boundaries, and an offset
+     outside the text rounds to the nearer of those.
+   - `String.pushChar` appends one encoded character, and `Char.encodedLength` is how many units that
+     writes.
+   - `String.findChar(text, c, from)` is the first place `c` is encoded, found by searching for the
+     encoded units rather than by decoding (part 5).
+   - `compareChars(left, right)` is code-point order, the same on every target for valid text
+     (part 3).
+
+   What follows is written once over those.
+-}
+
+-- Each character of the text in order, with U+FFFD for each invalid sequence.
+pub iter fn chars(text: String) -> Char:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        yield char
+        at = next
+
+-- Each character with the offset it starts at, which is what a caller that slices around one needs.
+pub iter fn charOffsets(text: String) -> {Size, Char}:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        yield {at, char}
+        at = next
+
+-- How many characters `chars` yields - the same number on every target for the same content, where
+-- `length` is not. O(n) on both.
+pub fn countChars(text: String) -> Size:
+    let count = length(text)
+    let &at = 0 :: Size
+    let &total = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        total = total + 1
+        at = next
+
+    return total
+
+pub fn String.containsChar(text: String, c: Char) -> Bool = String.findChar(text, c, 0) is Just(_)
 
 {-
    The literal conversions - part 1.1's table.
@@ -29,7 +173,7 @@ pub fn Char.fromU32(value: U32) -> Maybe(Char) =
    **A literal never reaches these bodies** at `Char` or at an integer: the compiler checks
    that the text is one code point the type means the same thing by, and folds it to a constant.
    What runs here is the conversion a generic body asks for with a string that is not a literal -
-   `fn (FromText(a)) f(text: String) -> a = fromText(text)` - and it cannot refuse, so it reads the
+   `fn (FromText(a)) f(text: String) -> a = fromText(text)` - and it cannot refuse, so it decodes the
    first character and narrows it, with U+FFFD for an empty or malformed start.
 
    `String`'s instance is the one every literal has by default, and a literal at `String` is the
@@ -73,3 +217,8 @@ instance FromText(Size):
 
 instance FromText(USize):
     fn fromText(value: String) -> USize = firstCharOf(value) :: USize
+
+-- The first character, as the number every instance above narrows.
+fn firstCharOf(text: String) -> U32:
+    let {char, next} = decodeChar(text, 0)
+    return char.0

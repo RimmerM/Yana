@@ -69,16 +69,16 @@ let decimalPairs = "000102030405060708091011121314151617181920212223242526272829
         let pair = truncate((rest - quotient * 100) * 2) :: Size
 
         at = at - 2
-        buffer[at] = truncate(String.unit(decimalPairs, pair)) :: CodeUnit
-        buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
+        buffer[at] = String.unit(decimalPairs, pair)
+        buffer[at + 1] = String.unit(decimalPairs, pair + 1)
 
         rest = quotient
 
     if rest >= 10:
         let pair = truncate(rest * 2) :: Size
         at = at - 2
-        buffer[at] = truncate(String.unit(decimalPairs, pair)) :: CodeUnit
-        buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
+        buffer[at] = String.unit(decimalPairs, pair)
+        buffer[at + 1] = String.unit(decimalPairs, pair + 1)
     else:
         at = at - 1
         buffer[at] = truncate("0" + rest) :: CodeUnit
@@ -124,16 +124,16 @@ let decimalPairs = "000102030405060708091011121314151617181920212223242526272829
         let pair = truncate((rest - quotient * 100) * 2) :: Size
 
         at = at - 2
-        buffer[at] = truncate(String.unit(decimalPairs, pair)) :: CodeUnit
-        buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
+        buffer[at] = String.unit(decimalPairs, pair)
+        buffer[at + 1] = String.unit(decimalPairs, pair + 1)
 
         rest = quotient
 
     if rest >= 10:
         let pair = truncate(rest * 2) :: Size
         at = at - 2
-        buffer[at] = truncate(String.unit(decimalPairs, pair)) :: CodeUnit
-        buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
+        buffer[at] = String.unit(decimalPairs, pair)
+        buffer[at + 1] = String.unit(decimalPairs, pair + 1)
     else:
         at = at - 1
         buffer[at] = truncate("0" + rest) :: CodeUnit

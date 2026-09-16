@@ -127,23 +127,23 @@ bb1:
 fn wordsByFor() -> Size {
 bb0:
   %0: %String address = alloc frame String
-  %1: %words.Iter address = alloc frame words.Iter [owned here shape12 .2.0.*=shared slot 0]
+  %1: %wordsAscii.Iter address = alloc frame wordsAscii.Iter [owned here shape12 .2.0.*=shared slot 0]
   %2: %Size address = alloc frame Size
   %3: String owned = const String {units: Array {run: Run {items: &string'148, capacity: 17, ownsHeap: 0}, length: 17}}
   store inspect %0 consume %3
   %4: String [shared slot 0] guaranteed from{%0} = load inspect %0
   %5: String [shared slot 0 view] guaranteed from{%0} = call String.view borrow %4
-  %6: words.Iter [owned here shape12 .2.0.*=shared slot 0] trivial = call words$new borrow %5
+  %6: wordsAscii.Iter [owned here shape12 .2.0.*=shared slot 0] trivial = call wordsAscii$new borrow %5
   store inspect %1 consume %6
   %7: Size trivial = const 0
   store inspect %2 consume %7
   jump -> bb1
 
 bb1:
-  %8: words.Iter [unique call shape12 .2.0.*=shared slot 0] guaranteed from{%0, %1} = load inspect %1
+  %8: wordsAscii.Iter [unique call shape12 .2.0.*=shared slot 0] guaranteed from{%0, %1} = load inspect %1
   %9: I32 trivial = const 0
   %10: Bool trivial = const False
-  %11: Bool trivial = call words$step borrow %8 consume %9 consume %10
+  %11: Bool trivial = call wordsAscii$step borrow %8 consume %9 consume %10
   branch inspect %11 -> bb3 -> bb2
 
 bb2:
@@ -179,7 +179,7 @@ bb0:
   %7: String [unique slot 1] guaranteed = load inspect %0
   %8: wordsByLoop.cont.env affine = aggregate.wordsByLoop.cont.env borrow %6 borrow %7
   %9: (String) -> I32 [owned here shape17 .0=shared call] affine = fun.value wordsByLoop.cont borrow %8
-  %10: I32 trivial = call words borrow %5 borrow %9
+  %10: I32 trivial = call wordsAscii borrow %5 borrow %9
   jump -> bb1
 
 bb1:
@@ -191,22 +191,22 @@ bb1:
 fn wordsByNext() -> Size {
 bb0:
   %0: %String address = alloc frame String
-  %1: %words.Iter address = alloc frame words.Iter [owned here shape12 .2.0.*=shared slot 0]
+  %1: %wordsAscii.Iter address = alloc frame wordsAscii.Iter [owned here shape12 .2.0.*=shared slot 0]
   %2: %Size address = alloc frame Size
   %3: %Maybe(String) address = alloc frame Maybe(String) [owned here shape1 .0=shared slot 0 view]
   %4: String owned = const String {units: Array {run: Run {items: &string'150, capacity: 17, ownsHeap: 0}, length: 17}}
   store inspect %0 consume %4
   %5: String [shared slot 0] guaranteed from{%0} = load inspect %0
   %6: String [shared slot 0 view] guaranteed from{%0} = call String.view borrow %5
-  %7: words.Iter [owned here shape12 .2.0.*=shared slot 0] trivial = call words$new borrow %6
+  %7: wordsAscii.Iter [owned here shape12 .2.0.*=shared slot 0] trivial = call wordsAscii$new borrow %6
   store inspect %1 consume %7
   %8: Size trivial = const 0
   store inspect %2 consume %8
   jump -> bb1
 
 bb1:
-  %9: words.Iter [unique slot 0 shape12 .2.0.*=shared slot 0] guaranteed from{%0, %1} = load inspect %1
-  %10: Maybe(String) [owned here shape1 .0=shared slot 0 view] trivial = call words$next borrow %9
+  %9: wordsAscii.Iter [unique slot 0 shape12 .2.0.*=shared slot 0] guaranteed from{%0, %1} = load inspect %1
+  %10: Maybe(String) [owned here shape1 .0=shared slot 0 view] trivial = call wordsAscii$next borrow %9
   store inspect %3 consume %10
   %11: %U8 address = field.addr .# inspect %3
   %12: U8 trivial = load inspect %11

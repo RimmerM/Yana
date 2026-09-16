@@ -28,8 +28,6 @@ import Native
 -- infinity and 2 for a NaN, which are the two `show` writes and which therefore have to read back.
 data Scanned {stop: Size, mantissa: U64, exponent: Int, digits: Int, negative: Bool, special: Int}
 
-fn lowerAscii(unit: Int) -> Int = if unit >= "A" && unit <= "Z" then unit + 32 else unit
-
 {-
    The extent and the pieces of a decimal number at `from`, or nothing where there is not one.
 
@@ -61,9 +59,9 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
     -- no more: `Infinity` reads as `Inf` with the cursor left on the `i`, which is the same answer
     -- a caller gets for any trailing text it did not ask about.
     if at + 3 <= units:
-        let first = lowerAscii(String.unit(text, at))
-        let second = lowerAscii(String.unit(text, at + 1))
-        let third = lowerAscii(String.unit(text, at + 2))
+        let first = toLowerUnit(String.unit(text, at))
+        let second = toLowerUnit(String.unit(text, at + 1))
+        let third = toLowerUnit(String.unit(text, at + 2))
 
         if first == "i" && second == "n" && third == "f":
             return Just(Scanned {stop: at + 3, mantissa: 0, exponent: 0, digits: 0,

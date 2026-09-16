@@ -1,0 +1,97 @@
+{-
+   Branch fusion: a range test becomes one test - `fuseBranches` in
+   `compiler/resolve_ssa/opt/select.cpp`, and `foldRangeTest` in `compiler/lower/lower_fold.cpp`
+   behind it.
+
+   A range pattern tests its upper bound inside the arm its lower bound guarded, so it is not the
+   diamond if-conversion takes. `.ssa.opt.expect` is what says which of these fused - an `and` of the
+   two bounds where there were two branches - and `.mir.lower.expect` is the one unsigned comparison
+   that `and` becomes.
+
+   The second half exists to *not* fuse. Both tests run once they are one, so a second test holding
+   anything that may not run on a path that skipped it has to stay behind its branch - and the way
+   that shows up when it is wrong is not IR text: `guarded(0)` divides by zero, and `skipped` counts
+   the calls the first test is supposed to skip. Both are in `main`'s answer, which the driver checks
+   against the same program compiled with the optimizer off.
+-}
+
+-- A range: `and`, the second test on the first one's true side.
+fn isDigit(unit: Int) -> Bool = unit is 48..=57
+
+-- A guard whose alternatives answer `True` from two blocks. The range inside it fuses; the two
+-- alternatives do not, because an `or` of tests stays the short-circuit branches `||` is - see the
+-- measurement in `select.cpp`.
+fn isSpace(unit: Int) -> Bool
+  | 32      -> True
+  | 9..=13  -> True
+  | _       -> False
+
+-- An open range and a literal, which is one comparison each and nothing to fuse.
+fn isControl(unit: Int) -> Bool
+  | _..32 -> True
+  | 127   -> True
+  | _     -> False
+
+-- Two tests of *different* values are not a range, and stay two branches.
+fn inBox(x: Int, y: Int) -> Bool = x is 0..=9 && y is 0..=9
+
+-- Alternatives answering different values do not meet anywhere, and stay a branch.
+fn sign(value: Int) -> Int
+  | <0 -> -1
+  | 0  -> 0
+  | _  -> 1
+
+let &calls = 0 :: Int
+
+fn count() -> Bool:
+    calls = calls + 1
+    return True
+
+-- A call in the second test may not run where the first failed.
+fn skipped(value: Int) -> Int = if value > 0 && count() then 1 else 0
+
+-- Nor may a division, which is the one arithmetic instruction that faults.
+@noinline
+fn zero() -> Int = 0
+
+fn guarded(divisor: Int) -> Int = if divisor != 0 && 10 / divisor > 2 then 1 else 0
+
+-- A loop condition, which fuses like any other test: both halves are a comparison of values the loop
+-- already holds.
+fn countInside(limit: Int) -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < limit:
+        if i is 3..=6 then total = total + 1
+        i = i + 1
+
+    return total
+
+fn classify(from: Int, to: Int) -> Int:
+    let &digits = 0 :: Int
+    let &spaces = 0 :: Int
+    let &controls = 0 :: Int
+    let &unit = from
+
+    while unit < to:
+        if isDigit(unit) then digits = digits + 1
+        if isSpace(unit) then spaces = spaces + 1
+        if isControl(unit) then controls = controls + 1
+        unit = unit + 1
+
+    return digits + spaces * 100 + controls * 10000
+
+fn effects() -> Int:
+    calls = 0
+    let a = skipped(0)
+    let b = skipped(4)
+    return a + b * 2 + calls * 4
+
+fn main() -> Int =
+    classify(0, 130) % 1000 +
+    (sign(-3) + 1) * 1000 + sign(0) * 2000 + sign(8) * 4000 +
+    effects() * 8000 +
+    guarded(zero()) * 64000 + guarded(3) * 128000 +
+    countInside(10) * 256000 +
+    (if inBox(3, 4) then 1 else 0) * 512000 + (if inBox(3, 12) then 1 else 0) * 1024000

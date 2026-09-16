@@ -183,6 +183,14 @@ void optimizeBody(OptContext& opt) {
         runPass(endNonReturningBlocks);
 
         runPass(cleanCfg);
+
+        /*
+         * Branch fusion immediately in front of if-conversion, because it makes that pass's shape: a
+         * range pattern's two tests become one branch on one condition, and where the two targets
+         * hand a join a value, the diamond left behind is what `convertSelects` turns into a select.
+         * Behind `cleanCfg`, so that the blocks it compares are the ones the folds left.
+         */
+        runPass(fuseBranches);
         runPass(convertSelects);
 
         /*

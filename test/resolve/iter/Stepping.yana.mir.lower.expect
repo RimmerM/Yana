@@ -191,7 +191,7 @@ main<complex>(): I64 {
     store %v_132, @string'142, 8
     %v_133 = add %v_132, 8: Ptr
     store %v_133, 1, 8
-    call_complex words'2$new, %v_6, %v_132
+    call_complex words$new, %v_6, %v_132
     %v_134 = bitcast 0: Ptr
     jmp b_135
   }
@@ -207,7 +207,7 @@ main<complex>(): I64 {
   }
 
   b_144 {
-    call_complex words'2$drop, %v_6
+    call_complex words$drop, %v_6
     store %v_7, 0, 8
     jmp b_145
   }
@@ -968,7 +968,7 @@ holding$drop<complex>(%$self: Ptr) {
   }
 }
 
-words'2$new<complex>(%v_0: Ptr, %prefix: Ptr) {
+words$new<complex>(%v_0: Ptr, %prefix: Ptr) {
   b_1 {
     %v_2 = alloca 16, 16: Ptr
     copy %v_2, %prefix, 16
@@ -982,7 +982,7 @@ words'2$new<complex>(%v_0: Ptr, %prefix: Ptr) {
   }
 }
 
-words'2$drop<complex>(%$self: Ptr) {
+words$drop<complex>(%$self: Ptr) {
   b_0 {
     %v_1 = alloca 65, 8: Ptr
     copy %v_1, %$self, 65

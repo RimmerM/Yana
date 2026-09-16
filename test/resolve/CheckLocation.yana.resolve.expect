@@ -62,9 +62,9 @@ fn pushUnsigned32(%value: U32, %to: String) -> () {
     je %v24, b3, b2
 
   b2:
-    %v106 = load %rest : U32
-    %v109 = cmp_ge %v106, 10 : Bool
-    je %v109, b4, b5
+    %v104 = load %rest : U32
+    %v107 = cmp_ge %v104, 10 : Bool
+    je %v107, b4, b5
 
   b3:
     %v26 = load %rest : U32
@@ -98,146 +98,142 @@ fn pushUnsigned32(%value: U32, %to: String) -> () {
     %v65 = add %v62, %v64 : %CodeUnit
     %v66 = borrow_mut [%v65] : &1'CodeUnit
     %v67 = load decimalPairs : String
-    %v68 = call String.unit, %v67, %pair : I32
-    %v69 = cast %v68 : CodeUnit
-    assign [%v66], %v69
-    %v71 = load %buffer : [CodeUnit *10]
-    %v72 = load %at : Size
-    %v75 = add %v72, 1 : Size
-    %v76 = borrow_mut %buffer : &[CodeUnit *10]
-    %v77 = alloc : ArrayView(CodeUnit)
-    %v78 = addressof [%v76] : %CodeUnit
-    init %local5@ArrayView.items, %v78
-    %v80 = countof 10 : Size
-    init %local5@ArrayView.length, %v80
-    %v82 = borrow_mut %local5 : &ArrayView(CodeUnit)
-    %v83 = load [%v82]@ArrayView.length : Size
-    %v84 = cast %v75 : USize
-    %v85 = cast %v83 : USize
-    %v86 = cmp_ge %v84, %v85 : Bool
-    %v89 = symbol Core.string$8 : %CodeUnit
-    call checkConditionAt, %v86, %v89, 9, 128, 8
-    %v92 = load [%v82]@ArrayView.items : %CodeUnit
-    %v93 = strideof CodeUnit : I64
-    %v94 = mul %v75, %v93 : I64
-    %v95 = add %v92, %v94 : %CodeUnit
-    %v96 = borrow_mut [%v95] : &1'CodeUnit
-    %v97 = load decimalPairs : String
-    %v100 = add %pair, 1 : Size
-    %v101 = call String.unit, %v97, %v100 : I32
-    %v102 = cast %v101 : CodeUnit
-    assign [%v96], %v102
+    %v68 = call String.unit, %v67, %pair : CodeUnit
+    assign [%v66], %v68
+    %v70 = load %buffer : [CodeUnit *10]
+    %v71 = load %at : Size
+    %v74 = add %v71, 1 : Size
+    %v75 = borrow_mut %buffer : &[CodeUnit *10]
+    %v76 = alloc : ArrayView(CodeUnit)
+    %v77 = addressof [%v75] : %CodeUnit
+    init %local5@ArrayView.items, %v77
+    %v79 = countof 10 : Size
+    init %local5@ArrayView.length, %v79
+    %v81 = borrow_mut %local5 : &ArrayView(CodeUnit)
+    %v82 = load [%v81]@ArrayView.length : Size
+    %v83 = cast %v74 : USize
+    %v84 = cast %v82 : USize
+    %v85 = cmp_ge %v83, %v84 : Bool
+    %v88 = symbol Core.string$8 : %CodeUnit
+    call checkConditionAt, %v85, %v88, 9, 128, 8
+    %v91 = load [%v81]@ArrayView.items : %CodeUnit
+    %v92 = strideof CodeUnit : I64
+    %v93 = mul %v74, %v92 : I64
+    %v94 = add %v91, %v93 : %CodeUnit
+    %v95 = borrow_mut [%v94] : &1'CodeUnit
+    %v96 = load decimalPairs : String
+    %v99 = add %pair, 1 : Size
+    %v100 = call String.unit, %v96, %v99 : CodeUnit
+    assign [%v95], %v100
     assign %rest, %quotient
     jmp b1
 
   b4:
-    %v111 = load %rest : U32
-    %v114 = mul %v111, 2 : U32
-    %pair = cast %v114 : Size
-    %v116 = load %at : Size
-    %v119 = sub %v116, 2 : Size
-    assign %at, %v119
-    %v121 = load %buffer : [CodeUnit *10]
-    %v122 = load %at : Size
-    %v123 = borrow_mut %buffer : &[CodeUnit *10]
-    %v124 = alloc : ArrayView(CodeUnit)
-    %v125 = addressof [%v123] : %CodeUnit
-    init %local6@ArrayView.items, %v125
-    %v127 = countof 10 : Size
-    init %local6@ArrayView.length, %v127
-    %v129 = borrow_mut %local6 : &ArrayView(CodeUnit)
-    %v130 = load [%v129]@ArrayView.length : Size
-    %v131 = cast %v122 : USize
-    %v132 = cast %v130 : USize
-    %v133 = cmp_ge %v131, %v132 : Bool
-    %v136 = symbol Core.string$9 : %CodeUnit
-    call checkConditionAt, %v133, %v136, 9, 135, 8
-    %v139 = load [%v129]@ArrayView.items : %CodeUnit
-    %v140 = strideof CodeUnit : I64
-    %v141 = mul %v122, %v140 : I64
-    %v142 = add %v139, %v141 : %CodeUnit
-    %v143 = borrow_mut [%v142] : &1'CodeUnit
-    %v144 = load decimalPairs : String
-    %v145 = call String.unit, %v144, %pair : I32
-    %v146 = cast %v145 : CodeUnit
-    assign [%v143], %v146
-    %v148 = load %buffer : [CodeUnit *10]
-    %v149 = load %at : Size
-    %v152 = add %v149, 1 : Size
-    %v153 = borrow_mut %buffer : &[CodeUnit *10]
-    %v154 = alloc : ArrayView(CodeUnit)
-    %v155 = addressof [%v153] : %CodeUnit
-    init %local7@ArrayView.items, %v155
-    %v157 = countof 10 : Size
-    init %local7@ArrayView.length, %v157
-    %v159 = borrow_mut %local7 : &ArrayView(CodeUnit)
-    %v160 = load [%v159]@ArrayView.length : Size
-    %v161 = cast %v152 : USize
-    %v162 = cast %v160 : USize
-    %v163 = cmp_ge %v161, %v162 : Bool
-    %v166 = symbol Core.string$10 : %CodeUnit
-    call checkConditionAt, %v163, %v166, 9, 136, 8
-    %v169 = load [%v159]@ArrayView.items : %CodeUnit
-    %v170 = strideof CodeUnit : I64
-    %v171 = mul %v152, %v170 : I64
-    %v172 = add %v169, %v171 : %CodeUnit
-    %v173 = borrow_mut [%v172] : &1'CodeUnit
-    %v174 = load decimalPairs : String
-    %v177 = add %pair, 1 : Size
-    %v178 = call String.unit, %v174, %v177 : I32
-    %v179 = cast %v178 : CodeUnit
-    assign [%v173], %v179
+    %v109 = load %rest : U32
+    %v112 = mul %v109, 2 : U32
+    %pair = cast %v112 : Size
+    %v114 = load %at : Size
+    %v117 = sub %v114, 2 : Size
+    assign %at, %v117
+    %v119 = load %buffer : [CodeUnit *10]
+    %v120 = load %at : Size
+    %v121 = borrow_mut %buffer : &[CodeUnit *10]
+    %v122 = alloc : ArrayView(CodeUnit)
+    %v123 = addressof [%v121] : %CodeUnit
+    init %local6@ArrayView.items, %v123
+    %v125 = countof 10 : Size
+    init %local6@ArrayView.length, %v125
+    %v127 = borrow_mut %local6 : &ArrayView(CodeUnit)
+    %v128 = load [%v127]@ArrayView.length : Size
+    %v129 = cast %v120 : USize
+    %v130 = cast %v128 : USize
+    %v131 = cmp_ge %v129, %v130 : Bool
+    %v134 = symbol Core.string$9 : %CodeUnit
+    call checkConditionAt, %v131, %v134, 9, 135, 8
+    %v137 = load [%v127]@ArrayView.items : %CodeUnit
+    %v138 = strideof CodeUnit : I64
+    %v139 = mul %v120, %v138 : I64
+    %v140 = add %v137, %v139 : %CodeUnit
+    %v141 = borrow_mut [%v140] : &1'CodeUnit
+    %v142 = load decimalPairs : String
+    %v143 = call String.unit, %v142, %pair : CodeUnit
+    assign [%v141], %v143
+    %v145 = load %buffer : [CodeUnit *10]
+    %v146 = load %at : Size
+    %v149 = add %v146, 1 : Size
+    %v150 = borrow_mut %buffer : &[CodeUnit *10]
+    %v151 = alloc : ArrayView(CodeUnit)
+    %v152 = addressof [%v150] : %CodeUnit
+    init %local7@ArrayView.items, %v152
+    %v154 = countof 10 : Size
+    init %local7@ArrayView.length, %v154
+    %v156 = borrow_mut %local7 : &ArrayView(CodeUnit)
+    %v157 = load [%v156]@ArrayView.length : Size
+    %v158 = cast %v149 : USize
+    %v159 = cast %v157 : USize
+    %v160 = cmp_ge %v158, %v159 : Bool
+    %v163 = symbol Core.string$10 : %CodeUnit
+    call checkConditionAt, %v160, %v163, 9, 136, 8
+    %v166 = load [%v156]@ArrayView.items : %CodeUnit
+    %v167 = strideof CodeUnit : I64
+    %v168 = mul %v149, %v167 : I64
+    %v169 = add %v166, %v168 : %CodeUnit
+    %v170 = borrow_mut [%v169] : &1'CodeUnit
+    %v171 = load decimalPairs : String
+    %v174 = add %pair, 1 : Size
+    %v175 = call String.unit, %v171, %v174 : CodeUnit
+    assign [%v170], %v175
     jmp b6
 
   b5:
-    %v181 = load %at : Size
-    %v184 = sub %v181, 1 : Size
-    assign %at, %v184
-    %v186 = load %buffer : [CodeUnit *10]
-    %v187 = load %at : Size
-    %v188 = borrow_mut %buffer : &[CodeUnit *10]
-    %v189 = alloc : ArrayView(CodeUnit)
-    %v190 = addressof [%v188] : %CodeUnit
-    init %local8@ArrayView.items, %v190
-    %v192 = countof 10 : Size
-    init %local8@ArrayView.length, %v192
-    %v194 = borrow_mut %local8 : &ArrayView(CodeUnit)
-    %v195 = load [%v194]@ArrayView.length : Size
-    %v196 = cast %v187 : USize
-    %v197 = cast %v195 : USize
-    %v198 = cmp_ge %v196, %v197 : Bool
-    %v201 = symbol Core.string$11 : %CodeUnit
-    call checkConditionAt, %v198, %v201, 9, 139, 8
-    %v204 = load [%v194]@ArrayView.items : %CodeUnit
-    %v205 = strideof CodeUnit : I64
-    %v206 = mul %v187, %v205 : I64
-    %v207 = add %v204, %v206 : %CodeUnit
-    %v208 = borrow_mut [%v207] : &1'CodeUnit
-    %v210 = load %rest : U32
-    %v212 = add 48, %v210 : U32
-    %v213 = cast %v212 : CodeUnit
-    assign [%v208], %v213
+    %v177 = load %at : Size
+    %v180 = sub %v177, 1 : Size
+    assign %at, %v180
+    %v182 = load %buffer : [CodeUnit *10]
+    %v183 = load %at : Size
+    %v184 = borrow_mut %buffer : &[CodeUnit *10]
+    %v185 = alloc : ArrayView(CodeUnit)
+    %v186 = addressof [%v184] : %CodeUnit
+    init %local8@ArrayView.items, %v186
+    %v188 = countof 10 : Size
+    init %local8@ArrayView.length, %v188
+    %v190 = borrow_mut %local8 : &ArrayView(CodeUnit)
+    %v191 = load [%v190]@ArrayView.length : Size
+    %v192 = cast %v183 : USize
+    %v193 = cast %v191 : USize
+    %v194 = cmp_ge %v192, %v193 : Bool
+    %v197 = symbol Core.string$11 : %CodeUnit
+    call checkConditionAt, %v194, %v197, 9, 139, 8
+    %v200 = load [%v190]@ArrayView.items : %CodeUnit
+    %v201 = strideof CodeUnit : I64
+    %v202 = mul %v183, %v201 : I64
+    %v203 = add %v200, %v202 : %CodeUnit
+    %v204 = borrow_mut [%v203] : &1'CodeUnit
+    %v206 = load %rest : U32
+    %v208 = add 48, %v206 : U32
+    %v209 = cast %v208 : CodeUnit
+    assign [%v204], %v209
     jmp b6
 
   b6:
-    %v217 = load %to : String
-    %v218 = load %buffer : [CodeUnit *10]
-    %v219 = borrow %buffer : '[CodeUnit *10]
-    %v220 = alloc : ArrayView(CodeUnit)
-    %v221 = addressof [%v219] : %CodeUnit
-    init %local9@ArrayView.items, %v221
-    %v223 = countof 10 : Size
-    init %local9@ArrayView.length, %v223
-    %v225 = borrow %local9 : 'ArrayView(CodeUnit)
-    %v226 = call values(CodeUnit), %v225 : %CodeUnit
-    %v227 = load %at : Size
-    %v228 = strideof CodeUnit : Size
-    %v229 = mul %v227, %v228 : Size
-    %v230 = add %v226, %v229 : %CodeUnit
-    %v232 = load %at : Size
-    %v234 = sub 10, %v232 : Size
-    %v235 = borrow_mut %to : &String
-    call String.appendUnits, %v235, %v230, %v234
+    %v213 = load %to : String
+    %v214 = load %buffer : [CodeUnit *10]
+    %v215 = borrow %buffer : '[CodeUnit *10]
+    %v216 = alloc : ArrayView(CodeUnit)
+    %v217 = addressof [%v215] : %CodeUnit
+    init %local9@ArrayView.items, %v217
+    %v219 = countof 10 : Size
+    init %local9@ArrayView.length, %v219
+    %v221 = borrow %local9 : 'ArrayView(CodeUnit)
+    %v222 = call values(CodeUnit), %v221 : %CodeUnit
+    %v223 = load %at : Size
+    %v224 = strideof CodeUnit : Size
+    %v225 = mul %v223, %v224 : Size
+    %v226 = add %v222, %v225 : %CodeUnit
+    %v228 = load %at : Size
+    %v230 = sub 10, %v228 : Size
+    %v231 = borrow_mut %to : &String
+    call String.appendUnits, %v231, %v226, %v230
     ret
 }
 
@@ -398,7 +394,7 @@ fn units(%self: 1'String) -> %CodeUnit {
     ret %v4
 }
 
-fn String.unit(%self: String, %index: Size) -> I32 {
+fn String.unit(%self: String, %index: Size) -> CodeUnit {
   b0:
     %v2 = borrow %self : 1'String
     %v3 = call units, %v2 : %CodeUnit
@@ -406,8 +402,7 @@ fn String.unit(%self: String, %index: Size) -> I32 {
     %v5 = mul %index, %v4 : Size
     %v6 = add %v3, %v5 : %CodeUnit
     %v7 = load [%v6] : CodeUnit
-    %v8 = cast %v7 : I32
-    ret %v8
+    ret %v7
 }
 
 fn String.ofCapacity(%capacity: Size) -> String {
@@ -449,15 +444,14 @@ fn String.reserve(%self: String, %wanted: Size) -> () {
     ret
 }
 
-fn String.pushUnit(%self: String, %unit: I32) -> () {
+fn String.pushUnit(%self: String, %unit: CodeUnit) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &String
     %v4 = cast %v3 : &String
     %v5 = load [%v4]@String.units : Array(CodeUnit)
-    %v6 = cast %unit : CodeUnit
-    %v7 = borrow_mut [%v4]@String.units : &Array(CodeUnit)
-    call push(CodeUnit), %v7, %v6
+    %v6 = borrow_mut [%v4]@String.units : &Array(CodeUnit)
+    call push(CodeUnit), %v6, %unit
     ret
 }
 

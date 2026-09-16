@@ -11,9 +11,9 @@ import Native
 
    The guiding principle of that document is that the *default* path - length, indexing, append,
    concat - costs what the target's own string costs. That is why `length` is a field read rather
-   than a walk, why `String.unit` does no decoding, and why the whole Unicode tier (code points,
-   grapheme clusters, boundary-safe slicing) is deliberately absent here rather than folded into
-   these: it is parts 4 to 7, and every one of them is layered *on* this without changing it.
+   than a walk, why `String.unit` does no decoding, and why the code-point tier (`Char`, `chars`, the
+   boundary functions) is in `Char.yana` rather than folded into these: it is parts 4 to 7, and every
+   one of them is layered *on* this without changing it.
 
    ------------------------------------------------------------------------------------------
    Why the names are namespaced under `String`
@@ -110,7 +110,7 @@ pub fn units(self: source'String) -> %source'CodeUnit = self.units
    JS, so the same content can answer differently in the two builds - a trade part 3 makes explicitly
    in exchange for zero overhead, on the grounds that the *complexity class* is the thing that has to
    be uniform across targets and a constant factor is a documented platform fact. Anyone who needs
-   the same number everywhere asks for a decoded count instead, which is part 6 and is O(n) on both.
+   the same number everywhere asks for `countChars` instead, which is part 6 and is O(n) on both.
 -}
 @platform(native) instance Length(String):
     -- The view's second word, which `view` above already read at this width.
@@ -121,6 +121,10 @@ pub fn units(self: source'String) -> %source'CodeUnit = self.units
 
 {-
    One raw native unit - part 3's `String[i: Int]`.
+
+   **A `CodeUnit` and not an `Int`**, so that a literal compared with one is checked as a unit: `","`
+   converts, and `"é"` is refused because no one unit of either encoding is that character
+   (Implementation-String.md part 1.1). `pushUnit` below takes one for the same reason.
 
    **A function and not an `Index` instance**, which is a real limitation rather than an omission and
    is worth stating where someone will look for the subscript. `Index` hands back a *borrow*, because
@@ -139,9 +143,9 @@ pub fn units(self: source'String) -> %source'CodeUnit = self.units
    which is the same tier `get` on an array is on and goes the same way when `checkBounds`
    (Implementation-Containers.md §15) lands.
 -}
-@platform(native) pub fn String.unit(self: String, index: Size) -> Int = (*(units(self) + index)) :: Int
+@platform(native) pub fn String.unit(self: String, index: Size) -> CodeUnit = *(units(self) + index)
 
-@platform(js) pub fn String.unit(self: String, index: Size) -> Int = hostCharCodeAt(self, index)
+@platform(js) pub fn String.unit(self: String, index: Size) -> CodeUnit = hostCharCodeAt(self, index)
 
 {-
    Concatenation - part 8, which observes that this is *already* encoding-agnostic with no extra
@@ -211,8 +215,7 @@ instance Monoid(String):
    This one *can* diverge between targets, and part 3 says so rather than papering over it: on JS,
    UTF-16 code-unit order is not code-point order for supplementary-plane characters compared against
    certain BMP ones. Every ASCII comparison - which is the overwhelming majority of what anyone sorts
-   - agrees on both. Code that needs guaranteed code-point order calls an explicit
-   `compareByCodePoint`, which is part 6's and is not written yet.
+   - agrees on both. Code that needs guaranteed code-point order calls `compareChars` (`Char.yana`).
 
    `compareMemory` over the shared prefix and then the two lengths - the same two steps a unit loop
    is, with the first one vectorized. It answers the order of the first differing *unit*, so the
@@ -317,7 +320,7 @@ instance Hash(String):
         let n = length(value)
         let &h = hashWord(state, truncate(n) :: U32)
         for i in 0 .. n:
-            h = (h `xor` (truncate(String.unit(value, i)) :: U32)) * 16777619
+            h = (h `xor` (String.unit(value, i) :: U32)) * 16777619
 
         return h
 
@@ -428,12 +431,12 @@ instance Hash(String):
    most `showBound` units, the buffer was sized from the bounds, so the appends are provably in range
    and the reserve above them is the only check.
 -}
-@platform(native) pub fn String.pushUnit(&self: String, unit: Int):
+@platform(native) pub fn String.pushUnit(&self: String, unit: CodeUnit):
     -- `push` is the reserve, the bounds check, the store and the count bump, and it was all four of
     -- them written twice until the bytes became an `Array(CodeUnit)`.
-    push(self.units, truncate(unit) :: CodeUnit)
+    push(self.units, unit)
 
-@platform(js) pub fn String.pushUnit(&self: String, unit: Int):
+@platform(js) pub fn String.pushUnit(&self: String, unit: CodeUnit):
     self = hostConcat(self, hostFromCharCode(unit))
 
 -- A whole string appended, which is the common case and is a block copy rather than a loop.

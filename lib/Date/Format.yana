@@ -233,7 +233,7 @@ fn pushFixed(value: Long, digits: Size, &to: String):
 fn pushYear(year: I32, &to: String): show(with(year, numberStyle(digits: 4)), to)
 
 fn pushSeparator(unit: CodeUnit, &to: String):
-    if unit != 0 then String.pushUnit(to, unit :: Int)
+    if unit != 0 then String.pushUnit(to, unit)
 
 {-
    The three parts a date is made of, and the order a setting puts them in.
@@ -635,7 +635,7 @@ fn showScaled(size: I64, negative: Bool, divisor: I64, suffix: String, decimals:
 
         let &at = power / 10
         while at > 0:
-            String.pushUnit(to, "0" + (truncate((frac / at) % 10) :: Int))
+            String.pushUnit(to, "0" + (truncate((frac / at) % 10) :: CodeUnit))
             at = at / 10
 
     String.push(to, suffix)
@@ -751,7 +751,7 @@ fn readFieldDigits(text: String, &at: Size, digits: Size, exact: Bool) -> Result
 -- nothing to expect and nothing to consume.
 fn expectUnit(text: String, &at: Size, unit: CodeUnit) -> Result(ReadError, {}):
     if unit == 0 then return Ok({})
-    if at >= length(text) || String.unit(text, at) != (unit :: Int) then return Err(NoDigits)
+    if at >= length(text) || String.unit(text, at) != unit then return Err(NoDigits)
 
     at = at + 1
     return Ok({})

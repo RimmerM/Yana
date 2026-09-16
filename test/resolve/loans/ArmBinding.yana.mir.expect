@@ -64,7 +64,7 @@ bb2(%13: String [shared call]):
   write.init borrow.unique (text) borrow.shared %13
   %17: String [shared slot 0] = read borrow.shared (text) loan3 roots{0, 1, 2}
   %18: String [shared slot 0 view] = call.derivation view(String) borrow.shared %17 roots{0, 1, 2, 3}
-  %19: String [shared slot 0 view] = call trim borrow.shared %18 roots{0, 1, 2, 3}
+  %19: String [shared slot 0 view] = call trimAscii borrow.shared %18 roots{0, 1, 2, 3}
   write.init borrow.unique (said) borrow.shared %19
   %21: String [shared slot 0 view] = read borrow.shared (said) loan4 roots{0, 1, 2, 3}
   %22: Size = call length(String) borrow.shared %21
@@ -93,7 +93,7 @@ bb5:
   %40: Size = const 0
   %41: Size = read copy.trivial (end)
   %42: String [shared slot 0 view] = call String.slice borrow.shared %39 borrow.shared %40 borrow.shared %41 roots{0, 1, 2, 3, 6}
-  %43: String [shared slot 0 view] = call trimEnd borrow.shared %42 roots{0, 1, 2, 3, 6}
+  %43: String [shared slot 0 view] = call trimEndAscii borrow.shared %42 roots{0, 1, 2, 3, 6}
   %44: (String) -> $r [shared call] = read borrow.shared ($body) loan7
   %45: $r = call inspect %44 borrow.shared %43
   drop (local3)

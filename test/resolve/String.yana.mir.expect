@@ -41,9 +41,10 @@ bb0:
   %2: String [shared slot 0] = read borrow.shared (local0) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
   %4: Size = const 0
-  %5: I32 = call String.unit borrow.shared %3 borrow.shared %4
+  %5: CodeUnit = call String.unit borrow.shared %3 borrow.shared %4
   drop (local0)
-  return take %5
+  %6: I32 = convert inspect %5
+  return take %6
 }
 
 fn emptyLength() -> I32 {

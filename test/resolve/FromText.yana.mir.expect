@@ -86,32 +86,33 @@ bb1:
   branch inspect %8 -> bb3 -> bb2
 
 bb2:
-  %27: I32 = read copy.trivial (count)
-  return take %27
+  %28: I32 = read copy.trivial (count)
+  return take %28
 
 bb3:
   %10: String [shared call view] = read borrow.shared (text) loan1
   %11: Size = read copy.trivial (i)
-  %12: I32 = call String.unit borrow.shared %10 borrow.shared %11
+  %12: CodeUnit = call String.unit borrow.shared %10 borrow.shared %11
   %13: I32 = read copy.trivial (wanted)
-  %14: Bool = eq inspect %12 inspect %13
-  branch inspect %14 -> bb6 -> bb4
+  %14: I32 = convert inspect %12
+  %15: Bool = eq inspect %14 inspect %13
+  branch inspect %15 -> bb6 -> bb4
 
 bb4:
   jump -> bb5
 
 bb5:
-  %22: Size = read copy.trivial (i)
-  %23: Size = const 1
-  %24: Size = add inspect %22 inspect %23
-  write.assign borrow.unique (i) take %24
+  %23: Size = read copy.trivial (i)
+  %24: Size = const 1
+  %25: Size = add inspect %23 inspect %24
+  write.assign borrow.unique (i) take %25
   jump -> bb1
 
 bb6:
-  %16: I32 = read copy.trivial (count)
-  %17: I32 = const 1
-  %18: I32 = add inspect %16 inspect %17
-  write.assign borrow.unique (count) take %18
+  %17: I32 = read copy.trivial (count)
+  %18: I32 = const 1
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (count) take %19
   jump -> bb5
 }
 

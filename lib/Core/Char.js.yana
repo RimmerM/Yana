@@ -1,19 +1,114 @@
 import Native
 
 {-
-   The first character of a host string, for `FromText`'s run-time conversions.
+   ==========================================================================================
+   Code points over UTF-16 - Implementation-String.md parts 4 and 6, on JS.
+   ==========================================================================================
 
-   A surrogate pair joins into its code point; a lone surrogate, and an empty string, are U+FFFD.
-   Part 6's decoder replaces this when it lands.
+   `Char.yana` has the contracts; `Char.native.yana` is the same set over UTF-8. A host string is
+   UTF-16 and may hold a lone surrogate from anywhere - the DOM, `JSON.parse`, `fetch` - so a high
+   surrogate followed by a low one is one character and any other surrogate decodes as U+FFFD,
+   which is what `TextEncoder` does with one. A boundary is every offset that is not between the
+   two halves of a pair.
 -}
-@platform(js) fn firstCharOf(text: String) -> U32:
+
+-- The unit at `at`, read as a number the decode can compare against the surrogate ranges.
+@inline fn unitNumber(text: String, at: Size) -> U32 = String.unit(text, at) :: U32
+
+-- The character the surrogate pair starting at `at` spells, when that is what is there.
+fn pairAt(text: String, at: Size) -> Maybe(Char):
+    if !isUnitOffset(text, at) then return Nothing
+    if !isUnitOffset(text, at + 1) then return Nothing
+
+    return surrogatePair(unitNumber(text, at), unitNumber(text, at + 1))
+
+pub fn decodeChar(text: String, at: Size) -> {Char, Size}:
+    if !isUnitOffset(text, at) then return {replacementChar, at}
+
+    match pairAt(text, at):
+        Just(pair) -> return {pair, at + 2}
+        Nothing -> return {Char(scalarOrReplacement(unitNumber(text, at))), at + 1}
+
+pub fn decodeCharBefore(text: String, at: Size) -> {Char, Size}:
+    if !isUnitOffset(text, at - 1) then return {replacementChar, at}
+
+    match pairAt(text, at - 2):
+        Just(pair) -> return {pair, at - 2}
+        Nothing -> return {Char(scalarOrReplacement(unitNumber(text, at - 1))), at - 1}
+
+pub fn isCharBoundary(text: String, at: Size) -> Bool:
+    -- Past the last unit only the end itself is a boundary, and an empty text's end is also its start.
+    if !isUnitOffset(text, at) then return at == length(text)
+
+    return pairAt(text, at - 1) is Nothing
+
+pub fn floorCharBoundary(text: String, at: Size) -> Size:
     let count = length(text)
-    if count == 0 then return 0xFFFD
+    if at <= (0 :: Size) then return 0
+    if at >= count then return count
 
-    let lead = bitcast(hostCharCodeAt(text, 0)) :: U32
-    if lead < 0xD800 || lead > 0xDFFF then return lead
-    if lead > 0xDBFF || count < 2 then return 0xFFFD
+    return if isCharBoundary(text, at) then at else at - 1
 
-    let trail = bitcast(hostCharCodeAt(text, 1)) :: U32
-    if trail < 0xDC00 || trail > 0xDFFF then return 0xFFFD
-    return 0x10000 + ((lead - 0xD800) `shl` 10) + (trail - 0xDC00)
+pub fn ceilCharBoundary(text: String, at: Size) -> Size:
+    let count = length(text)
+    if at <= (0 :: Size) then return 0
+    if at >= count then return count
+
+    return if isCharBoundary(text, at) then at else at + 1
+
+pub fn String.pushChar(&text: String, c: Char):
+    let value = scalarOrReplacement(c.0)
+    if value < 0x10000:
+        String.pushUnit(text, truncate(value) :: CodeUnit)
+    else:
+        let offset = value - 0x10000
+        String.pushUnit(text, truncate(0xD800 + (offset `shr` 10)) :: CodeUnit)
+        String.pushUnit(text, truncate(0xDC00 + (offset `and` 0x3FF)) :: CodeUnit)
+
+pub fn Char.encodedLength(c: Char) -> Size = if scalarOrReplacement(c.0) < 0x10000 then 1 else 2
+
+{-
+   The first place `c` is encoded, at or after `from` - the host's `indexOf` either way. A character in
+   the BMP is one unit and is the unit search; one past it is a two-unit needle.
+-}
+pub fn String.findChar(text: String, c: Char, from: Size = 0) -> Maybe(Size):
+    let value = scalarOrReplacement(c.0)
+    if value < 0x10000 then return findAscii(text, truncate(value) :: CodeUnit, from)
+
+    let &needle = String.ofCapacity(2)
+    String.pushChar(needle, c)
+    return String.find(text, needle, from)
+
+{-
+   Code-point order over UTF-16, which is the host's order everywhere except one pair of ranges.
+
+   A unit from U+E000 to U+FFFF is a whole BMP character and sorts *above* a surrogate on the host,
+   while the supplementary character that surrogate begins has the larger code point. So the first
+   differing unit decides, as it does for `Ord`, once the surrogates are moved above that range and the
+   range is moved down beneath them: one comparison of adjusted units rather than a decode, which is
+   ICU's method. Every unit below U+D800 stays where it is, so an order the host already answers
+   correctly is unchanged. A lone surrogate is ordered as the unit it is rather than as U+FFFD, so the
+   two targets agree on valid text, which is the promise.
+
+   A walk over `charCodeAt` rather than the host's `<`: the host cannot say where two strings differ,
+   so it cannot say whether the adjustment applies. Build order step 5 is where that is measured.
+-}
+fn codePointOrderUnit(unit: U32) -> U32
+  | 0xE000.._ -> unit - 0x800
+  | 0xD800.._ -> unit + 0x2000
+  | _         -> unit
+
+pub fn compareChars(left: String, right: String) -> Ordering:
+    let leftCount = length(left)
+    let rightCount = length(right)
+    let &shared = leftCount
+    if rightCount < shared then shared = rightCount
+
+    for i in 0 .. shared:
+        let a = unitNumber(left, i)
+        let b = unitNumber(right, i)
+        if a != b then return compare(codePointOrderUnit(a), codePointOrderUnit(b))
+
+    if leftCount < rightCount then return LT
+    if leftCount > rightCount then return GT
+    return EQ

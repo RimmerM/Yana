@@ -1,0 +1,218 @@
+module Core
+
+{-
+   The code-point tier - Implementation-String.md parts 1, 4 and 6.
+
+   **Every case runs on both targets and asserts the same answers**, which is the claim this tier is
+   for: the characters of a text are the same everywhere even though its offsets are not. So nothing
+   below asserts an offset past the first non-ASCII character as a number. Offsets are asserted as
+   what they are made of instead - the running sum of `Char.encodedLength`, or the answer of the unit
+   search over the same encoded text - which is one claim that holds in both encodings.
+
+   What only one encoding can hold is in `Char.test.native.yana` (malformed UTF-8) and
+   `Char.test.js.yana` (lone surrogates).
+-}
+
+import Test
+
+-- The code points `chars` yields, as decimal numbers separated by spaces.
+fn charNumbers(text: String) -> String:
+    let &out = ""
+    for c in chars(text):
+        if length(out) > (0 :: Size) then out.push(" ")
+        out.push("{c.0}")
+
+    return out
+
+-- The same walk from the end, with `decodeCharBefore`, written in reading order again so that one
+-- expectation serves both walks.
+fn charNumbersBackwards(text: String) -> String:
+    let &out = ""
+    let &at = length(text)
+
+    while at > (0 :: Size):
+        let {char, start} = decodeCharBefore(text, at)
+        if length(out) > (0 :: Size) then out = " " ++ out
+        out = "{char.0}" ++ out
+        at = start
+
+    return out
+
+{-
+   Every offset of the text against the characters `charOffsets` found: an offset is a boundary
+   exactly when a character starts there or it is the end, and the two rounding functions land on
+   boundaries on the correct side, moving nothing that already is one. Returns how many offsets
+   disagreed, so a failure says how badly.
+-}
+fn boundaryMismatches(text: String) -> Int:
+    let count = length(text)
+    let &starts = [] :: [Size]
+    for {at, c} in charOffsets(text):
+        push(starts, at)
+
+    let &wrong = 0
+    for at in 0 .. (count + 1):
+        let expected = at == count || contains(elements(starts), at)
+        if isCharBoundary(text, at) != expected then wrong = wrong + 1
+
+        let down = floorCharBoundary(text, at)
+        let up = ceilCharBoundary(text, at)
+        if down > at || !isCharBoundary(text, down) then wrong = wrong + 1
+        if up < at || !isCharBoundary(text, up) then wrong = wrong + 1
+        if expected && (down != at || up != at) then wrong = wrong + 1
+
+    return wrong
+
+@test fn decodingValidText():
+    checkEqual(charNumbers("aé€😀z"), "97 233 8364 128512 122")
+    checkEqual(charNumbersBackwards("aé€😀z"), "97 233 8364 128512 122")
+    checkEqual(countChars("aé€😀z"), 5 :: Size)
+
+    checkEqual(charNumbers(""), "")
+    checkEqual(countChars(""), 0 :: Size)
+
+-- The offsets `charOffsets` hands out are the encoded lengths added up, and they end at `length`.
+@test fn charOffsetsAreEncodedLengths():
+    let text = "aé€😀z"
+    let &expected = 0 :: Size
+
+    for {at, c} in charOffsets(text):
+        checkEqual(at, expected)
+        expected = expected + Char.encodedLength(c)
+
+    checkEqual(expected, length(text))
+
+-- An offset with nothing on the asked side decodes as U+FFFD and does not move, which is what stops
+-- a loop that runs off either end.
+@test fn decodingAtTheEdges():
+    let text = "ab"
+
+    let {atEnd, afterEnd} = decodeChar(text, 2)
+    checkEqual(atEnd, replacementChar)
+    checkEqual(afterEnd, 2 :: Size)
+
+    let {beforeStart, stillStart} = decodeCharBefore(text, 0)
+    checkEqual(beforeStart, replacementChar)
+    checkEqual(stillStart, 0 :: Size)
+
+    let {first, second} = decodeChar(text, 0)
+    checkEqual(first, "a" :: Char)
+    checkEqual(second, 1 :: Size)
+
+@test fn charBoundaries():
+    checkEqual(boundaryMismatches("aé€😀z"), 0)
+    checkEqual(boundaryMismatches("😀😀"), 0)
+    checkEqual(boundaryMismatches(""), 0)
+
+    -- Outside the text an offset rounds to the nearer end, and is not a boundary itself.
+    checkEqual(floorCharBoundary("abc", -4), 0 :: Size)
+    checkEqual(ceilCharBoundary("abc", 9), 3 :: Size)
+    check(!isCharBoundary("abc", 4))
+    check(!isCharBoundary("abc", -1))
+
+@test fn pushingChars():
+    let &text = ""
+    text.pushChar(Char(0x41))
+    text.pushChar(Char(0xE9))
+    text.pushChar(Char(0x20AC))
+    text.pushChar(Char(0x1F600))
+    checkEqual(text, "Aé€😀")
+
+    -- Each one writes the number of units `encodedLength` says, on this target.
+    for c in chars("Aé€😀"):
+        let &one = ""
+        one.pushChar(c)
+        checkEqual(length(one), Char.encodedLength(c))
+
+    -- A value that is not a scalar is written as the replacement character.
+    let &invalid = ""
+    invalid.pushChar(Char(0xD800))
+    invalid.pushChar(Char(0x110000))
+    checkEqual(invalid, "\xFFFD\xFFFD")
+    checkEqual(Char.encodedLength(Char(0xDFFF)), Char.encodedLength(replacementChar))
+
+-- A character is found where its encoding is, which is exactly where the whole-needle search finds
+-- the same text - from every starting offset.
+@test fn findingChars():
+    let text = "a€b€😀c😀"
+
+    for from in 0 .. (length(text) + 1):
+        checkEqual(found(String.findChar(text, "€", from)), found(String.find(text, "€", from)))
+        checkEqual(found(String.findChar(text, "😀", from)), found(String.find(text, "😀", from)))
+        checkEqual(found(String.findChar(text, "c", from)), found(String.find(text, "c", from)))
+
+    checkEqual(found(String.findChar(text, "€")), 1)
+    check(String.containsChar(text, "😀"))
+    check(!String.containsChar(text, "é"))
+    check(!String.containsChar("", "a"))
+
+{-
+   Code-point order, which is where the two targets' raw orders part: natively UTF-8 byte order already
+   is code-point order, and on JS a supplementary character's surrogates sort below U+E000-U+FFFF.
+-}
+@test fn codePointOrder():
+    checkEqual(compareChars("\xFF61", "😀"), LT)
+    checkEqual(compareChars("😀", "\xFF61"), GT)
+    checkEqual(compareChars("x\xE000", "x😀"), LT)
+    checkEqual(compareChars("\xD7FF", "\xE000"), LT)
+
+    checkEqual(compareChars("abc", "abd"), LT)
+    checkEqual(compareChars("abc", "abc"), EQ)
+    checkEqual(compareChars("ab", "abc"), LT)
+    checkEqual(compareChars("é", "e"), GT)
+
+@test fn charClasses():
+    let c = "é" :: Char
+    checkEqual("{c}", "é")
+    checkEqual("{c.0}", "233")
+    let face = "😀" :: Char
+    checkEqual("{face}", "😀")
+
+    -- The widening rungs, at a parameter and at an ascription.
+    checkEqual(c :: U32, 233 :: U32)
+    checkEqual(c :: Long, 233 :: Long)
+    checkEqual(widenedToInt(c), 233)
+
+    -- The narrowing ones keep the low bits, which is the unit only for ASCII.
+    checkEqual(truncate("A" :: Char) :: U8, 65 :: U8)
+    checkEqual(truncate("A" :: Char) :: CodeUnit, "A" :: CodeUnit)
+    checkEqual(truncate(Char(0x20AC)) :: U16, 0x20AC :: U16)
+
+    checkEqual(65 :: Char, "A" :: Char)
+    checkEqual(minValue() :: Char, Char(0))
+    checkEqual(maxValue() :: Char, Char(0x10FFFF))
+
+    check(Char.fromU32(0xD800) is Nothing)
+    check(Char.fromU32(0x110000) is Nothing)
+    match Char.fromU32(0x1F600):
+        Just(value) -> checkEqual(value, "😀" :: Char)
+        Nothing -> check(False)
+
+fn widenedToInt(value: Int) -> Int = value
+
+{-
+   The Unicode trims, against the ASCII ones.
+
+   `White_Space` is exactly 25 code points, all below U+3001, so counting the property over that range
+   pins the set rather than sampling it. U+FEFF and U+180E are the two a reader might expect: the
+   host's `trim` strips the first, and the second left the property in Unicode 6.3.
+-}
+@test fn unicodeWhitespace():
+    let &members = 0
+    for value in 0 .. 0x3001:
+        if isSpaceUnicode(Char(bitcast(value))) then members = members + 1
+
+    checkEqual(members, 25)
+    check(!isSpaceUnicode(Char(0xFEFF)))
+    check(!isSpaceUnicode(Char(0x180E)))
+    check(isSpaceUnicode(Char(0x3000)) && isSpaceUnicode(Char(0x85)) && isSpaceUnicode(" "))
+
+    checkEqual(trimUnicode("\x3000 \xA0 a b\x2029\x85"), "a b")
+    checkEqual(trimStartUnicode("\x2003\t x \x2003"), "x \x2003")
+    checkEqual(trimEndUnicode("\x2003 x \x2003"), "\x2003 x")
+    checkEqual(trimUnicode("\xA0\x3000"), "")
+    checkEqual(trimUnicode(""), "")
+    checkEqual(trimUnicode("\xFEFF x"), "\xFEFF x")
+
+    -- The ASCII trims leave everything above 127 where it is.
+    checkEqual(trimAscii(" \xA0 x \xA0 "), "\xA0 x \xA0")

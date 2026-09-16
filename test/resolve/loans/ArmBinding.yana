@@ -4,7 +4,7 @@
    # resolver: ownership
 
    `text` is `contents` on one path and a literal local on the other, so everything derived from it -
-   `said`, `end`'s window, `trimEnd`'s answer - is rooted in the loan on `contents` as well. `contents`
+   `said`, `end`'s window, `trimEndAscii`'s answer - is rooted in the loan on `contents` as well. `contents`
    is a local that holds a borrow, which has no storage of its own: its SSA slot is the value the arm
    loaded. The conversion used to name that value in the loan set of every borrow rooted in it, and it
    converts blocks in index order - so the join block, which comes before the arm in the list, got a
@@ -23,11 +23,11 @@ lens fn firstLine(flag: Bool) -> String:
         Just(contents) -> contents
         Nothing -> ""
 
-    let said = trim(text)
+    let said = trimAscii(text)
     let &end = length(said)
     if findAscii(said, 10) is Just(at) then end = at
 
-    yield trimEnd(said.slice(0, end))
+    yield trimEndAscii(said.slice(0, end))
 
 fn main() -> Int:
     let &total = 0 :: Int

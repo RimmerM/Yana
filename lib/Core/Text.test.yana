@@ -70,7 +70,7 @@ fn lineCount(text: String) -> Int:
 fn wordParts(text: String) -> String:
     let &out = [] :: [String]
 
-    for word in words(text):
+    for word in wordsAscii(text):
         push(out, copy(word))
 
     return barJoined(out)
@@ -108,17 +108,17 @@ fn wordParts(text: String) -> String:
 
 
 @test fn unitCase():
-    checkEqual(toLowerUnit(65), 97)
-    checkEqual(toLowerUnit(97), 97)
-    checkEqual(toUpperUnit(97), 65)
-    checkEqual(toUpperUnit(65), 65)
+    checkEqual(toLowerUnit("A"), "a")
+    checkEqual(toLowerUnit("a"), "a")
+    checkEqual(toUpperUnit("a"), "A")
+    checkEqual(toUpperUnit("A"), "A")
 
     -- Nothing outside the two alphabets moves, which is what makes the whole-string forms below
     -- safe on units that are part of a multi-unit encoding.
-    checkEqual(toLowerUnit(48), 48)
-    checkEqual(toUpperUnit(48), 48)
-    checkEqual(toLowerUnit(91), 91)
-    checkEqual(toUpperUnit(123), 123)
+    checkEqual(toLowerUnit("0"), "0")
+    checkEqual(toUpperUnit("0"), "0")
+    checkEqual(toLowerUnit("["), "[")
+    checkEqual(toUpperUnit("\{"), "\{")
     checkEqual(toLowerUnit(200), 200)
 
 {-
@@ -333,21 +333,21 @@ fn wordParts(text: String) -> String:
    ==========================================================================================
 -}
 @test fn trimming():
-    checkEqual(trim("  hello  "), "hello")
-    checkEqual(trimStart("  hello  "), "hello  ")
-    checkEqual(trimEnd("  hello  "), "  hello")
+    checkEqual(trimAscii("  hello  "), "hello")
+    checkEqual(trimStartAscii("  hello  "), "hello  ")
+    checkEqual(trimEndAscii("  hello  "), "  hello")
 
     -- Every unit `isSpace` names, at both ends at once.
-    checkEqual(trim("\t\n\x0b\x0c\r hello \r\x0c\x0b\n\t"), "hello")
+    checkEqual(trimAscii("\t\n\x0b\x0c\r hello \r\x0c\x0b\n\t"), "hello")
 
-    checkEqual(trim("hello"), "hello")
-    checkEqual(trim(""), "")
-    checkEqual(trim("   "), "")
-    checkEqual(trimStart("   "), "")
-    checkEqual(trimEnd("   "), "")
+    checkEqual(trimAscii("hello"), "hello")
+    checkEqual(trimAscii(""), "")
+    checkEqual(trimAscii("   "), "")
+    checkEqual(trimStartAscii("   "), "")
+    checkEqual(trimEndAscii("   "), "")
 
     -- Interior whitespace is not touched, which is the difference between a trim and a squeeze.
-    checkEqual(trim("  a b  "), "a b")
+    checkEqual(trimAscii("  a b  "), "a b")
 
 {-
    ==========================================================================================

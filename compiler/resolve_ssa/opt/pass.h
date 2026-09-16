@@ -435,6 +435,14 @@ void placeRuns(OptContext& opt);
 // to be sure of, and the linear rule is a precondition rather than a check.
 void convertSelects(OptContext& opt);
 
+/*
+ * A range test as one branch: a second comparison of the same value reached from the true side of the
+ * first and failing to the same block, made into a branch on the `and` of the two. `opt/select.cpp`,
+ * beside the if-conversion it runs in front of, and where the measurement that limits it to that one
+ * shape is written down.
+ */
+void fuseBranches(OptContext& opt);
+
 // A loop whose body has no effect and whose exit does not depend on anything it computes, decided
 // false at its header - `opt/loop.cpp`. It deletes nothing: `cleanCfg`, immediately below it in the
 // round, is what removes the body a constant test has stranded.

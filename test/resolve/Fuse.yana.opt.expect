@@ -1,0 +1,363 @@
+let image$base: () = <none>
+
+let &calls: I32 = 0
+
+fn isDigit(%unit: I32) -> Bool {
+  b0:
+    %v3 = cmp_ge %unit, 48 : Bool
+    %v4 = cmp_le %unit, 57 : Bool
+    %v5 = and %v3, %v4 : Bool
+    ret %v5
+}
+
+fn isSpace(%unit: I32) -> Bool {
+  b0:
+    %v2 = cmp_eq %unit, 32 : Bool
+    %v7 = cmp_ge %unit, 9 : Bool
+    %v8 = cmp_le %unit, 13 : Bool
+    %v9 = and %v7, %v8 : Bool
+    %v22 = or %v2, %v9 : Bool
+    ret %v22
+}
+
+fn isControl(%unit: I32) -> Bool {
+  b0:
+    %v2 = cmp_lt %unit, 32 : Bool
+    %v6 = cmp_eq %unit, 127 : Bool
+    %v19 = or %v2, %v6 : Bool
+    ret %v19
+}
+
+fn inBox(%x: I32, %y: I32) -> Bool {
+  b0:
+    %v4 = cmp_ge %x, 0 : Bool
+    %v5 = cmp_le %x, 9 : Bool
+    %v6 = and %v4, %v5 : Bool
+    %v16 = cmp_ge %y, 0 : Bool
+    %v17 = cmp_le %y, 9 : Bool
+    %v18 = and %v16, %v17 : Bool
+    %v36 = and %v6, %v18 : Bool
+    ret %v36
+}
+
+fn sign(%value: I32) -> I32 {
+  b0:
+    %v2 = cmp_lt %value, 0 : Bool
+    %v6 = cmp_eq %value, 0 : Bool
+    %v15 = select %v6 ? 0 : 1 : I32
+    %v17 = select %v2 ? -1 : %v15 : I32
+    ret %v17
+}
+
+fn count() -> Bool {
+  b0:
+    %v0 = load calls : I32
+    %v3 = add %v0, 1 : I32
+    assign calls, %v3
+    ret True
+}
+
+fn skipped(%value: I32) -> I32 {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v17 = load calls : I32
+    %v19 = add %v17, 1 : I32
+    assign calls, %v19
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, True], [b2, False] : Bool
+    %v22 = select %v9 ? 1 : 0 : I32
+    ret %v22
+}
+
+fn zero() -> I32 {
+  b0:
+    ret 0
+}
+
+fn guarded(%divisor: I32) -> I32 {
+  b0:
+    %v3 = cmp_ne %divisor, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v10 = div 10, %divisor : I32
+    %v13 = cmp_gt %v10, 2 : Bool
+    jmp b3
+
+  b3:
+    %v17 = phi [b2, %v13], [b1, False] : Bool
+    %v31 = select %v17 ? 1 : 0 : I32
+    ret %v31
+}
+
+fn countInside(%limit: I32) -> I32 {
+  b0:
+    %total = alloc : I32
+    init %total, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : I32
+    %v9 = cmp_lt %v8, %limit : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v31 = load %total : I32
+    ret %v31
+
+  b3:
+    %v11 = load %i : I32
+    %v14 = cmp_ge %v11, 3 : Bool
+    %v15 = cmp_le %v11, 6 : Bool
+    %v16 = and %v14, %v15 : Bool
+    je %v16, b5, b4
+
+  b4:
+    jmp b6
+
+  b5:
+    %v18 = load %total : I32
+    %v21 = add %v18, 1 : I32
+    assign %total, %v21
+    jmp b6
+
+  b6:
+    %v25 = load %i : I32
+    %v28 = add %v25, 1 : I32
+    assign %i, %v28
+    jmp b1
+}
+
+fn classify(%from: I32, %to: I32) -> I32 {
+  b0:
+    %digits = alloc : I32
+    init %digits, 0
+    %spaces = alloc : I32
+    init %spaces, 0
+    %controls = alloc : I32
+    init %controls, 0
+    %unit = alloc : I32
+    init %unit, %from
+    jmp b1
+
+  b1:
+    %v14 = load %unit : I32
+    %v15 = cmp_lt %v14, %to : Bool
+    je %v15, b3, b2
+
+  b2:
+    %v53 = load %digits : I32
+    %v54 = load %spaces : I32
+    %v57 = mul %v54, 100 : I32
+    %v58 = add %v53, %v57 : I32
+    %v59 = load %controls : I32
+    %v62 = mul %v59, 10000 : I32
+    %v63 = add %v58, %v62 : I32
+    ret %v63
+
+  b3:
+    %v17 = load %unit : I32
+    %v66 = cmp_ge %v17, 48 : Bool
+    %v68 = cmp_le %v17, 57 : Bool
+    %v69 = and %v66, %v68 : Bool
+    je %v69, b4, b5
+
+  b4:
+    %v20 = load %digits : I32
+    %v23 = add %v20, 1 : I32
+    assign %digits, %v23
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v27 = load %unit : I32
+    %v71 = cmp_eq %v27, 32 : Bool
+    %v73 = cmp_ge %v27, 9 : Bool
+    %v75 = cmp_le %v27, 13 : Bool
+    %v76 = and %v73, %v75 : Bool
+    %v77 = or %v71, %v76 : Bool
+    je %v77, b7, b8
+
+  b7:
+    %v30 = load %spaces : I32
+    %v33 = add %v30, 1 : I32
+    assign %spaces, %v33
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v37 = load %unit : I32
+    %v79 = cmp_lt %v37, 32 : Bool
+    %v81 = cmp_eq %v37, 127 : Bool
+    %v82 = or %v79, %v81 : Bool
+    je %v82, b10, b11
+
+  b10:
+    %v40 = load %controls : I32
+    %v43 = add %v40, 1 : I32
+    assign %controls, %v43
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v47 = load %unit : I32
+    %v50 = add %v47, 1 : I32
+    assign %unit, %v50
+    jmp b1
+}
+
+fn effects() -> I32 {
+  b0:
+    assign calls, 1
+    ret 6
+}
+
+fn main() -> I32 {
+  b0:
+    %digits = alloc : I32
+    init %digits, 0
+    %spaces = alloc : I32
+    init %spaces, 0
+    %controls = alloc : I32
+    init %controls, 0
+    %unit = alloc : I32
+    init %unit, 0
+    jmp b1
+
+  b1:
+    %v93 = load %unit : I32
+    %v94 = cmp_lt %v93, 130 : Bool
+    je %v94, b11, b2
+
+  b2:
+    %v96 = load %digits : I32
+    %v97 = load %spaces : I32
+    %v99 = mul %v97, 100 : I32
+    %v100 = add %v96, %v99 : I32
+    %v101 = load %controls : I32
+    %v103 = mul %v101, 10000 : I32
+    %v104 = add %v100, %v103 : I32
+    %v5 = rem %v104, 1000 : I32
+    assign calls, 1
+    %v31 = add %v5, 52000 : I32
+    %v32 = call zero : I32
+    %v287 = cmp_ne %v32, 0 : Bool
+    je %v287, b4, b3
+
+  b3:
+    jmp b5
+
+  b4:
+    %v291 = div 10, %v32 : I32
+    %v293 = cmp_gt %v291, 2 : Bool
+    jmp b5
+
+  b5:
+    %v285 = phi [b4, %v293], [b3, False] : Bool
+    %v297 = select %v285 ? 1 : 0 : I32
+    %v36 = mul %v297, 64000 : I32
+    %v37 = add %v31, %v36 : I32
+    %v43 = add %v37, 128000 : I32
+    %total = alloc : I32
+    init %total, 0
+    %i = alloc : I32
+    init %i, 0
+    jmp b6
+
+  b6:
+    %v216 = load %i : I32
+    %v217 = cmp_lt %v216, 10 : Bool
+    je %v217, b8, b7
+
+  b7:
+    %v219 = load %total : I32
+    %v48 = mul %v219, 256000 : I32
+    %v49 = add %v43, %v48 : I32
+    %v64 = add %v49, 512000 : I32
+    ret %v64
+
+  b8:
+    %v221 = load %i : I32
+    %v223 = cmp_ge %v221, 3 : Bool
+    %v225 = cmp_le %v221, 6 : Bool
+    %v226 = and %v223, %v225 : Bool
+    je %v226, b9, b10
+
+  b9:
+    %v229 = load %total : I32
+    %v231 = add %v229, 1 : I32
+    assign %total, %v231
+    jmp b10
+
+  b10:
+    %v234 = load %i : I32
+    %v236 = add %v234, 1 : I32
+    assign %i, %v236
+    jmp b6
+
+  b11:
+    %v106 = load %unit : I32
+    %v108 = cmp_ge %v106, 48 : Bool
+    %v110 = cmp_le %v106, 57 : Bool
+    %v111 = and %v108, %v110 : Bool
+    je %v111, b12, b13
+
+  b12:
+    %v114 = load %digits : I32
+    %v116 = add %v114, 1 : I32
+    assign %digits, %v116
+    jmp b13
+
+  b13:
+    %v119 = load %unit : I32
+    %v121 = cmp_eq %v119, 32 : Bool
+    %v123 = cmp_ge %v119, 9 : Bool
+    %v125 = cmp_le %v119, 13 : Bool
+    %v126 = and %v123, %v125 : Bool
+    %v127 = or %v121, %v126 : Bool
+    je %v127, b14, b15
+
+  b14:
+    %v130 = load %spaces : I32
+    %v132 = add %v130, 1 : I32
+    assign %spaces, %v132
+    jmp b15
+
+  b15:
+    %v135 = load %unit : I32
+    %v137 = cmp_lt %v135, 32 : Bool
+    %v139 = cmp_eq %v135, 127 : Bool
+    %v140 = or %v137, %v139 : Bool
+    je %v140, b16, b17
+
+  b16:
+    %v143 = load %controls : I32
+    %v145 = add %v143, 1 : I32
+    assign %controls, %v145
+    jmp b17
+
+  b17:
+    %v148 = load %unit : I32
+    %v150 = add %v148, 1 : I32
+    assign %unit, %v150
+    jmp b1
+}

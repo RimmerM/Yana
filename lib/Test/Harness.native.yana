@@ -326,11 +326,11 @@ fn collectComplaint(path: String) -> String:
     removeFile(path)
 
     -- Windows of `text` until the one line is found, and one copy of that line.
-    let said = trim(text)
+    let said = trimAscii(text)
     let &end = length(said)
     if findAscii(said, "\n") is Just(at) then end = at
 
-    return copy(trimEnd(said.slice(0, end)))
+    return copy(trimEndAscii(said.slice(0, end)))
 
 {-
    What all of that came to, for one case.

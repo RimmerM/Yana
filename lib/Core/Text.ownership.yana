@@ -7,7 +7,7 @@
    the stage that cannot represent a window.
 -}
 
-pub fn trimStart(text: source'String) -> source'String:
+pub fn trimStartAscii(text: source'String) -> source'String:
     let count = length(text)
     let &at = 0 :: Size
     while at < count && isSpace(text.unit(at)):
@@ -15,7 +15,7 @@ pub fn trimStart(text: source'String) -> source'String:
 
     return text.slice(at, count)
 
-pub fn trimEnd(text: source'String) -> source'String:
+pub fn trimEndAscii(text: source'String) -> source'String:
     let &end = length(text)
     while end > (0 :: Size) && isSpace(text.unit(end - 1)):
         end = end - 1
@@ -23,7 +23,7 @@ pub fn trimEnd(text: source'String) -> source'String:
     return text.slice(0, end)
 
 -- Both ends in one slice rather than two, so that an all-whitespace string is walked once.
-pub fn trim(text: source'String) -> source'String:
+pub fn trimAscii(text: source'String) -> source'String:
     let count = length(text)
     let &at = 0 :: Size
     while at < count && isSpace(text.unit(at)):
@@ -32,6 +32,50 @@ pub fn trim(text: source'String) -> source'String:
     let &end = count
     while end > at && isSpace(text.unit(end - 1)):
         end = end - 1
+
+    return text.slice(at, end)
+
+{-
+   The same three over the Unicode `White_Space` property rather than the six ASCII units - part 5's
+   `trimUnicode`. A character at a time with `decodeChar` and `decodeCharBefore`, which take the ASCII
+   path first, so a text whose ends are ASCII costs a call per unit trimmed more than `trimAscii`.
+   Not the host's `trim` on JS: that one also strips U+FEFF, which is not `White_Space`.
+-}
+pub fn trimStartUnicode(text: source'String) -> source'String:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        if !isSpaceUnicode(char) then break
+        at = next
+
+    return text.slice(at, count)
+
+pub fn trimEndUnicode(text: source'String) -> source'String:
+    let &end = length(text)
+
+    while end > (0 :: Size):
+        let {char, start} = decodeCharBefore(text, end)
+        if !isSpaceUnicode(char) then break
+        end = start
+
+    return text.slice(0, end)
+
+pub fn trimUnicode(text: source'String) -> source'String:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        if !isSpaceUnicode(char) then break
+        at = next
+
+    let &end = count
+    while end > at:
+        let {char, start} = decodeCharBefore(text, end)
+        if !isSpaceUnicode(char) then break
+        end = start
 
     return text.slice(at, end)
 
@@ -91,7 +135,7 @@ pub iter fn lines(text: source'String) -> source'String:
    *skipping* traversal - a walk to the next non-whitespace unit and then a scan to the whitespace
    after it - and it yields nothing at all for a text that is entirely whitespace.
 -}
-pub iter fn words(text: source'String) -> source'String:
+pub iter fn wordsAscii(text: source'String) -> source'String:
     let count = length(text)
     let &at = 0 :: Size
 

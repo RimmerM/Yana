@@ -159,7 +159,7 @@ fn units(%self: 1'String) -> %CodeUnit {
     ret %v4
 }
 
-fn String.unit(%self: String, %index: Size) -> I32 {
+fn String.unit(%self: String, %index: Size) -> CodeUnit {
   b0:
     %v2 = borrow %self : 1'String
     %v3 = call units, %v2 : %CodeUnit
@@ -167,8 +167,7 @@ fn String.unit(%self: String, %index: Size) -> I32 {
     %v5 = mul %index, %v4 : Size
     %v6 = add %v3, %v5 : %CodeUnit
     %v7 = load [%v6] : CodeUnit
-    %v8 = cast %v7 : I32
-    ret %v8
+    ret %v7
 }
 
 fn Ord(CodeUnit).compare(%lhs: CodeUnit, %rhs: CodeUnit) -> Ordering {
@@ -265,7 +264,7 @@ fn Hash(String).hash(%value: String, %state: U32) -> U32 {
 
   b2:
     %v15 = load %h : U32
-    %v16 = call String.unit, %value, %i : I32
+    %v16 = call String.unit, %value, %i : CodeUnit
     %v17 = cast %v16 : U32
     %v18 = xor %v15, %v17 : U32
     %v21 = mul %v18, 16777619 : U32

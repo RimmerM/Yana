@@ -138,7 +138,7 @@ define fastcc void @odds(ptr %self) #0 {
   br label %2
 }
 
-define fastcc void @"words'2"(ptr %self) #0 {
+define fastcc void @words(ptr %self) #0 {
   %1 = alloca i8, i64 16, align 8
   %2 = alloca i8, i64 16, align 8
   br label %3
@@ -619,7 +619,7 @@ define fastcc i64 @main() #0 {
   store ptr null, ptr %215, align 1
   %216 = getelementptr i8, ptr %24, i64 48
   store i64 0, ptr %216, align 1
-  store ptr @"funvalue(words'2)", ptr %23, align 1
+  store ptr @"funvalue(words)", ptr %23, align 1
   %217 = getelementptr i8, ptr %23, i64 8
   store i64 0, ptr %217, align 1
   %218 = call fastcc i64 @stackGuardBytes()
@@ -1872,11 +1872,11 @@ define fastcc void @"funvalue(odds)"(ptr %0, ptr %1) #0 {
   ret void
 }
 
-define fastcc void @"funvalue(words'2)"(ptr %0, ptr %1) #0 {
+define fastcc void @"funvalue(words)"(ptr %0, ptr %1) #0 {
   br label %3
 
 3:                                                ; preds = %2
-  call fastcc void @"words'2"(ptr %1)
+  call fastcc void @words(ptr %1)
   ret void
 }
 

@@ -818,11 +818,203 @@ struct SelectConverter {
     }
 };
 
+/*
+ * A range test made into one test - see `fuseBranches` in `pass.h`.
+ *
+ * The shape is what a range pattern converts to, and it is the one `convert` above cannot take: a
+ * pattern tests its upper bound *inside* the arm its lower bound guarded, so that arm ends in a second
+ * branch rather than a jump and is not an arm at all.
+ *
+ *     bb0: %lo = ge %x, 48               bb0: %lo = ge %x, 48
+ *          branch %lo -> bb1 -> fail          %hi = le %x, 57
+ *     bb1: %hi = le %x, 57                    %in = and %lo, %hi
+ *          branch %hi -> pass -> fail         branch %in -> pass -> fail
+ *
+ * What is left is an ordinary branch on one condition - or, where the two targets hand a join a value,
+ * the diamond `convert` makes a select and `simplify` a `Bool` - and the lower tier's
+ * `foldRangeTest` then makes the `and` of two bounds one unsigned comparison. So `c is "0"..="9"` and
+ * `c >= "0" && c <= "9"` end as the same `sub` and `cmp`.
+ *
+ * **Both tests now run**, which is `convert`'s one sentence and is held to its rules: the second
+ * block holds only what `speculatable` admits, and no more of it than `kMaxSpeculated`. A constant is
+ * not counted, because it is spelled where it is read and computes nothing.
+ *
+ * **Only `and`, and only two tests of one value against constants - both are measurements.**
+ * `test/bench/lexer`, which is a scanner made of these tests, is the program that decided it:
+ *
+ *  - Fusing the `or` shape as well - a second test on the first one's *false* side, which is a guard
+ *    whose alternatives answer one value - made every variant 2 to 4 percent slower, even with the
+ *    ranges folded. A chain of alternatives is a set of short-circuiting tests on data where the first
+ *    one usually decides, and the branches that skipped the rest were the cheaper program than a row
+ *    of `setcc`s. So `| " " -> True | "\t"..="\r" -> True` stays two branches, which is exactly what
+ *    `unit == " " || ...` compiles to.
+ *  - Fusing any pair of pure tests, as `&&` reads, was 5 to 8 percent slower before the range fold
+ *    existed and gains nothing the fold can use after it: two unrelated comparisons stay two `setcc`s.
+ *  - `and` over one value, with the fold behind it, made the `hand` and `iter` variants 4.5 and 2.6
+ *    percent faster and the two `idiom` ones no slower.
+ *
+ * Every edge involved carries no arguments. That is what a pattern's tests look like, and it keeps
+ * the rewrite to "the head's branch changes its condition and one target": nothing is handed over
+ * along an edge that goes away.
+ */
+struct BranchFuser: SelectConverter {
+    // The branch a block ends with, when it is a two-way one on a `Bool` whose edges carry nothing.
+    InstBranch* plainBranch(Block& block) {
+        auto last = block.terminator(opt.base);
+        if(!last || last->kind != Inst::Branch) return nullptr;
+
+        auto& branch = (InstBranch&)*last;
+        if(!branch.condition.isSet()) return nullptr;
+        if(branch.whenTrue.target == branch.whenFalse.target) return nullptr;
+        if(branch.whenTrue.arguments.size() || branch.whenFalse.arguments.size()) return nullptr;
+
+        auto boolean = mir::booleanType(opt.program);
+        if(!boolean || opt.base[branch.condition.value()]->type() != boolean) return nullptr;
+
+        return &branch;
+    }
+
+    // Whether the second test's block may be deleted by a rewrite at `head`: `head` is its only way
+    // in, it declares nothing, and it is in `head`'s region without being a point that region is named
+    // by - the questions `armEdge` asks, for its reasons.
+    bool ownedBy(Block& head, Block& block) {
+        if(&block == &head || block.deleted) return false;
+        if(&block == opt.base[opt.body->entry]) return false;
+
+        if(block.argumentCount()) return false;
+        if(block.predecessorCount() != 1) return false;
+        if(opt.base[block.predecessorAt(opt.base, 0)] != &head) return false;
+
+        return block.region == head.region && !isAnchor(block);
+    }
+
+    // What moving a block's instructions in front of a branch makes unconditional, or nothing where
+    // one of them may not be moved at all.
+    Maybe<Size> testCost(Block& block) {
+        Size count = 0;
+
+        for(auto pointer: block.instructions(opt.base)) {
+            auto inst = opt.base[pointer];
+            if(isTerminator(inst->kind)) break;
+
+            if(!speculatable(*inst)) return Nothing();
+            if(inst->kind != Inst::Const) count++;
+        }
+
+        return Just(count);
+    }
+
+    /*
+     * The value a condition tests against constants, or null where it is anything else: a comparison
+     * with a constant on one side, or an `and` of two conditions testing the same value - which is
+     * what a fusion here leaves, so a range with a third test behind it keeps qualifying.
+     */
+    Value* testedValue(Value* condition, U32 depth = 0) {
+        if(!condition || !condition->definer || depth > kTestDepth) return nullptr;
+
+        auto definer = opt.base[condition->definer];
+        if(definer->kind != Inst::Binary) return nullptr;
+
+        auto& binary = (InstBinary&)*definer;
+        auto lhs = valueOf(opt, binary.lhs);
+        auto rhs = valueOf(opt, binary.rhs);
+        if(!lhs || !rhs) return nullptr;
+
+        if(mir::isComparison(binary.op)) {
+            if(constantOf(opt, rhs)) return constantOf(opt, lhs) ? nullptr : lhs;
+            if(constantOf(opt, lhs)) return rhs;
+            return nullptr;
+        }
+
+        if(binary.op != BinaryOp::And) return nullptr;
+
+        auto left = testedValue(lhs, depth + 1);
+        return left && left == testedValue(rhs, depth + 1) ? left : nullptr;
+    }
+
+    // How far `testedValue` follows a chain of `and`s. Each fusion adds a level, and a range is two.
+    static constexpr U32 kTestDepth = 4;
+
+    /*
+     * One fusion at `head`: its branch leads on its true side to a second test of the same value, and
+     * that test fails to the same block the first one does.
+     */
+    bool fuse(Block& head) {
+        auto outer = plainBranch(head);
+        if(!outer) return false;
+
+        auto through = opt.base[outer->whenTrue.target];
+        auto fail = opt.base[outer->whenFalse.target];
+        if(!ownedBy(head, *through)) return false;
+
+        auto inner = plainBranch(*through);
+        if(!inner || inner->whenFalse.target != outer->whenFalse.target) return false;
+
+        // A target that is one of the two blocks being joined is a loop through them.
+        auto pass = opt.base[inner->whenTrue.target];
+        if(pass == &head || pass == through || fail == &head || fail == through) return false;
+
+        auto tested = testedValue(opt.base[outer->condition.value()]);
+        if(!tested || tested != testedValue(opt.base[inner->condition.value()])) return false;
+
+        auto cost = testCost(*through);
+        if(!cost || cost.unwrap() > kMaxSpeculated) return false;
+
+        auto first = opt.base[outer->condition.value()];
+        auto second = opt.base[inner->condition.value()];
+        auto source = inner->source;
+
+        auto editor = opt.ir();
+
+        // The second test moves up in front of the head's branch, for `convert`'s reason: the head is
+        // its block's only predecessor, so everything it reads is available there.
+        for(;;) {
+            auto inst = opt.base[through->instructionAt(opt.base, 0)];
+            if(isTerminator(inst->kind)) break;
+
+            editor.moveInst(*inst, head, head.instructionCount() - 1);
+        }
+
+        editor.setInsertBefore(*outer);
+        auto joined = editor.addBinary(source, BinaryOp::And, editor.use(*first, UseKind::Inspect),
+                                       editor.use(*second, UseKind::Inspect), first->occurrence,
+                                       Convention::Trivial);
+
+        auto condition = editor.use(*editor.resultOf(*joined), UseKind::Inspect);
+        editor.replaceTerminator(head, editor.makeBranch(outer->source, condition, *pass, *fail,
+                                                         nullptr, 0));
+
+        // Nothing reaches the second test any more - deleted here, on `convert`'s rule about what a
+        // pass owes its own checkpoint.
+        editor.deleteBlock(*through);
+        return true;
+    }
+
+    void run() {
+        SmallArray<Block*, 32> blocks;
+        for(auto pointer: opt.body->blocks.contents(opt.base)) blocks.push(opt.base[pointer]);
+
+        // Again at the same head, because a fused branch leads wherever the second test did, and that
+        // may be a third test of the same value. Every fusion deletes a block, which bounds the loop.
+        // A fusion elsewhere never makes a head it declined qualify: the blocks it deletes and the
+        // branches it rewrites are ones only its own head reached.
+        for(auto block: blocks) {
+            if(block->deleted) continue;
+            while(fuse(*block)) {}
+        }
+    }
+};
+
 } // namespace
 
 void convertSelects(OptContext& opt) {
     SelectConverter converter { opt };
     converter.run();
+}
+
+void fuseBranches(OptContext& opt) {
+    BranchFuser fuser { opt };
+    fuser.run();
 }
 
 } // namespace ssa

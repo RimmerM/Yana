@@ -17,7 +17,7 @@
    pair does at every call whose parameters are declared the other way round.
 -}
 
-fn write(&to: String, unit: Int): String.pushUnit(to, unit)
+fn write(&to: String, unit: Int): String.pushUnit(to, truncate(unit))
 
 -- The swap: `(Int, &String)` in, `(&String, Int)` out.
 fn relay(unit: Int, &to: String): write(to, unit)
@@ -25,14 +25,14 @@ fn relay(unit: Int, &to: String): write(to, unit)
 -- The same trade with the pointer arriving first, so the cycle is broken from the other side.
 fn relayBack(&to: String, unit: Int): writeOther(unit, to)
 
-fn writeOther(unit: Int, &to: String): String.pushUnit(to, unit)
+fn writeOther(unit: Int, &to: String): String.pushUnit(to, truncate(unit))
 
 -- Three values, so the cycle is longer than a pair and the exchange is not the whole of it.
 fn rotate(a: Int, b: Int, &to: String): takeThree(to, b, a)
 
 fn takeThree(&to: String, first: Int, second: Int):
-    String.pushUnit(to, first)
-    String.pushUnit(to, second)
+    String.pushUnit(to, truncate(first))
+    String.pushUnit(to, truncate(second))
 
 fn main() -> Int:
     let &out = String.ofCapacity(16 :: Size)

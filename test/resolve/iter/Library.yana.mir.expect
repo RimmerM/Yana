@@ -135,7 +135,7 @@ bb2(%20: Entry(String, I32) [shared call shape8 .0=shared slot 0 view .1=shared 
 
 fn wordsByFor() -> Size {
   local text: String
-  local & it: words.Iter [owned here shape12 .2.0.*=shared slot 0]
+  local & it: wordsAscii.Iter [owned here shape12 .2.0.*=shared slot 0]
   local & total: Size
   local w: String [shared slot 0 view]
 
@@ -144,17 +144,17 @@ bb0:
   write.init borrow.unique (text) take %0
   %2: String [shared slot 0] = read borrow.shared (text) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
-  %4: words.Iter [owned here shape12 .2.0.*=shared slot 0] = call words$new borrow.shared %3 roots.0{0}
+  %4: wordsAscii.Iter [owned here shape12 .2.0.*=shared slot 0] = call wordsAscii$new borrow.shared %3 roots.0{0}
   write.init borrow.unique (it) take %4
   %6: Size = const 0
   write.init borrow.unique (total) take %6
   jump -> bb1
 
 bb1:
-  %9: words.Iter [unique call shape12 .2.0.*=shared slot 0] = read borrow.unique (it) loan1 roots.0{0}
+  %9: wordsAscii.Iter [unique call shape12 .2.0.*=shared slot 0] = read borrow.unique (it) loan1 roots.0{0}
   %10: I32 = const 0
   %11: Bool = const False
-  %12: Bool = call words$step borrow.unique %9 take %10 take %11
+  %12: Bool = call wordsAscii$step borrow.unique %9 take %10 take %11
   branch inspect %12 -> bb3 -> bb2
 
 bb2:
@@ -188,7 +188,7 @@ bb0:
   write.init borrow.unique (total) take %2
   %4: String [shared slot 0] = read borrow.shared (text) loan0
   %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
-  lens.call words borrow.shared %5 -> bb2
+  lens.call wordsAscii borrow.shared %5 -> bb2
 
 bb1:
   drop (text)
@@ -209,7 +209,7 @@ bb2(%6: String [shared slot 0 view]) handover(String [shared slot 0 view]) many 
 
 fn wordsByNext() -> Size {
   local text: String
-  local & it: words.Iter [owned here shape12 .2.0.*=shared slot 0]
+  local & it: wordsAscii.Iter [owned here shape12 .2.0.*=shared slot 0]
   local & total: Size
   local local3: Maybe(String) [owned here shape1 .0=shared slot 0 view]
   local w: String [shared slot 0 view]
@@ -219,15 +219,15 @@ bb0:
   write.init borrow.unique (text) take %0
   %2: String [shared slot 0] = read borrow.shared (text) loan0
   %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
-  %4: words.Iter [owned here shape12 .2.0.*=shared slot 0] = call words$new borrow.shared %3 roots.0{0}
+  %4: wordsAscii.Iter [owned here shape12 .2.0.*=shared slot 0] = call wordsAscii$new borrow.shared %3 roots.0{0}
   write.init borrow.unique (it) take %4
   %6: Size = const 0
   write.init borrow.unique (total) take %6
   jump -> bb1
 
 bb1:
-  %9: words.Iter [unique slot 0 shape12 .2.0.*=shared slot 0] = read borrow.unique (it) loan1 roots.0{0}
-  %10: Maybe(String) [owned here shape1 .0=shared slot 0 view] = call next(words.Iter, String, {}) borrow.unique %9 roots.0{0, 1}
+  %9: wordsAscii.Iter [unique slot 0 shape12 .2.0.*=shared slot 0] = read borrow.unique (it) loan1 roots.0{0}
+  %10: Maybe(String) [owned here shape1 .0=shared slot 0 view] = call next(wordsAscii.Iter, String, {}) borrow.unique %9 roots.0{0, 1}
   write.init borrow.unique (local3) take %10
   %12: U8 = read copy.trivial (local3.#)
   %13: U8 = const 1
