@@ -428,13 +428,21 @@ struct Verifier {
         }
 
         auto target = base[written.target.value()];
-        if(!target->type() || decl[target->type()]->kind != mir::Type::Fun) {
+        auto kind = target->type() ? decl[target->type()]->kind : mir::Type::Unit;
+
+        // An **erased iterator object** is called across the signature its type carries - the same
+        // pair of words, and the same one declaration both ends read. See `mir::IterType::step`.
+        auto through = kind == mir::Type::Iter ? ((mir::IterType*)decl[target->type()])->step
+                     : kind == mir::Type::Fun  ? target->type()
+                                               : DeclPtr<mir::Type>(nullptr);
+
+        if(!through) {
             report(inst.source, "internal: a call through a value of type %@"_v,
                    mir::typeText(context, decl, target->type()));
             return;
         }
 
-        auto& shape = *(mir::FunType*)decl[target->type()];
+        auto& shape = *(mir::FunType*)decl[through];
         if(written.arguments.size() != shape.params.size()) {
             report(inst.source, "internal: a call through %@ supplies %@ arguments"_v,
                    mir::typeText(context, decl, target->type()), written.arguments.size());
@@ -457,6 +465,46 @@ struct Verifier {
     }
 
     /*
+     * A call the `Call` requirement typed, in a body compiled once - `CallThrough::CallWitness`.
+     *
+     * There is no callee to check against and no value's type either: the subject is a variable,
+     * and what says how it is called is the constraint this signature declared. So the three facts
+     * are the constraint's - that it exists, that it is the class this form is for, and that the
+     * argument list is its shape with the value's storage in front of it.
+     */
+    void checkCallWitness(Inst& inst) {
+        auto& written = (InstCall&)inst;
+        auto owner = function.gen ? decl[function.gen] : nullptr;
+
+        if(function.form != mir::GenForm::Erased || !owner ||
+           written.requirement >= owner->classes.size()) {
+            report(inst.source, "internal: a call through a call witness names requirement %@ of %@"_v,
+                   written.requirement, context.findName(function.name));
+            return;
+        }
+
+        auto requirement = owner->classes.get(decl, written.requirement);
+        auto shape = requirement.args.size() == 2 ? requirement.args.get(decl, 1)
+                                                  : DeclPtr<mir::Type>(nullptr);
+
+        if(!requirement.klass || decl[requirement.klass]->role != intrinsic::Known::call ||
+           !shape || decl[shape]->kind != mir::Type::Fun) {
+            report(inst.source, "internal: requirement %@ of %@ is not a `Call` constraint"_v,
+                   written.requirement, context.findName(function.name));
+            return;
+        }
+
+        // The value's storage, then the shape's own positions - the list `convertProgram` builds and
+        // the one `callWitnessFor` promises. One off in either direction is a boundary that no
+        // machine check would report.
+        auto expected = ((mir::FunType*)decl[shape])->params.size() + 1;
+        if(written.arguments.size() != expected) {
+            report(inst.source, "internal: a call through %@ supplies %@ arguments, and it takes %@"_v,
+                   mir::typeText(context, decl, shape), written.arguments.size(), expected);
+        }
+    }
+
+    /*
      * A call against the signature it names.
      *
      * Checked again here, and not because MIR's check was in doubt: this tier is re-verified after
@@ -475,6 +523,13 @@ struct Verifier {
         // A call through a function value is checked against the value's *type*, which is the whole
         // signature there is; the MIR verifier states the same rule over the node it came from.
         if(written.through == mir::CallThrough::Value) return checkValueCall(inst);
+
+        /*
+         * A call the `Call` requirement typed - `CallThrough::CallWitness`, which names no callee at
+         * all: the cell holds code the compiler synthesized, so what there is to check is the
+         * *constraint*. The value is argument zero and the rest are the written shape's positions.
+         */
+        if(written.through == mir::CallThrough::CallWitness) return checkCallWitness(inst);
 
         auto callee = decl[written.callee];
 

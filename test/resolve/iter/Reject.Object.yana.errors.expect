@@ -1,0 +1,7 @@
+46:20: error: recursive holds an object of itself, and a record cannot contain itself - a recursive `for x in recursive(...)` is boxed one `iter(T)` per level, and a held object is not
+58:13: error: failing can fail, and an iterator object needs a terminal failure on its step - `| E` on an object is not built yet; `for x in failing(...)` still compiles it
+91:14: error: advancing borrows cursor, and an object outlives the statement that built it - bind this argument to a name first
+101:13: error: echo's object type is minted per set of type arguments, so one cannot be built inside a body compiled at a type variable - write `@specialize` on this function
+160:13: error: resuming takes a resume value that is not trivially copyable, and an object's step is handed that value as a parameter - which is not built yet
+143:8: error: unnamed lends what it hands over, and this one is not a name - an object lends the value out of its own record, so bind it before the `yield`
+170:7: error: stepping's passes hand a value back, so `next()` has nothing to send it - write `resume(v)`

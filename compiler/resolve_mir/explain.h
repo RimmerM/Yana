@@ -173,6 +173,7 @@ enum class ExplainTopic: U8 {
     Mutates,
     Retains,
     Returns,
+    Object,
     Calls,
 };
 

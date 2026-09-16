@@ -180,6 +180,34 @@ DeclPtr<Type> Types::funType(DeclBase base, const FunParam* params, Size count,
 }
 
 /*
+ * `iter(T)`, interned on the whole protocol - the note on `Types::iterType` in type.h.
+ */
+DeclPtr<Type> Types::iterType(DeclBase base, const Occurrence& handover, DeclPtr<Type> resume,
+                              DeclPtr<Type> sent, DeclPtr<Type> step, bool window) {
+    InternKey key;
+    key.mix(handover.type.offset).mix(handover.contract.packed).mix(handover.shape.offset).next();
+    key.mix(resume.offset).next().mix(step.offset);
+
+    auto created = false;
+    auto entry = internSlot(iterators, key, created, [&](DeclPtr<Type> existing) {
+        auto& held = *(IterType*)base[existing];
+        return held.handover == handover && held.resume == resume && held.step == step;
+    });
+
+    if(created) {
+        auto type = new (arena) IterType();
+        type->handover = handover;
+        type->resume = resume;
+        type->sent = sent;
+        type->step = step;
+        type->window = window;
+        *entry = asBase<Type>(type - *arena);
+    }
+
+    return *entry;
+}
+
+/*
  * `[T *n]`, interned on the element and the count - the note on `Types::arrayType` in type.h.
  *
  * The two entry points meet here. A quantified count keys on the variable's handle and a written one
@@ -521,6 +549,11 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
          * exclusive capability over one object.
          */
         case Type::Fun:
+
+        // An erased iterator object is the same two words a closure is - the step and the block it
+        // steps - so what it owes is what a closure owes: the block, where the value owns one, which
+        // is the tag bit's question and not the type's. See type.def's `Iter` row.
+        case Type::Iter:
             return Ownership { false, true, false, TeardownKind::Derived, TeardownKind::Derived };
 
         /*
@@ -997,6 +1030,21 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
                    stringText(conventionMark(fun.result.contract, Access::Owned)) +
                    typeText(context, base, fun.result.type);
         }
+        case Type::Iter: {
+            // `iter(->T <- R)` - the protocol as it is written, which is the whole of a structural
+            // type's spelling here too. The conventions are printed for the same reason they are on
+            // a function type: two protocols that differ in one accept different consumers.
+            auto& iterated = (IterType&)logical;
+            auto result = String("iter(") +
+                          stringText(conventionMark(iterated.handover.contract, Access::Shared)) +
+                          typeText(context, base, iterated.handover.type);
+
+            if(iterated.resume && base[iterated.resume]->kind != Type::Unit) {
+                result = result + String(" <- ") + typeText(context, base, iterated.resume);
+            }
+
+            return result + String(")");
+        }
         case Type::Record: {
             auto& record = (RecordType&)logical;
 
@@ -1022,6 +1070,55 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
                 }
 
                 return result + String("}");
+            }
+
+            /*
+             * A **site type**, spelled by the path that names it - `lex.Iter`, `lex.Iter(I32)`,
+             * `count.lambda` - Design-Iterator-Objects.md §2.4.
+             *
+             * `around.Lens` for a **lens** region's member, which is the one site type no program
+             * can write: `.Iter` in type position is an `iter fn`'s and a lens's record is minted
+             * only where a producer runs one over part of its own body (§6.6). Spelled apart from
+             * `.Iter` so that a message and a dump name what the record is rather than what the
+             * nearest writable path would have been.
+             *
+             * The record's own name is a *symbol*: `pairs(String, I32).Iter` for the iterator and
+             * `wrongShape.lambda.env` for a closure's environment, both made unique within their
+             * module by `uniqueSymbol`. That is the right name for a dump, a descriptor and the
+             * reachability walk, and it is the wrong one for a message: the first spells the
+             * arguments where a program may not write them, and the second names the record a
+             * closure *has* rather than the closure. So the dumps keep the symbol and diagnostics
+             * get the path, which is now a thing a program can write.
+             *
+             * The producer is the **specialization**, so its type arguments are the path's - which
+             * is why this is built from `name` plus `typeArguments` rather than from `symbol`.
+             */
+            if(record.producer) {
+                auto& producer = *base[record.producer];
+                auto path = stringText(stringView(context.findName(producer.name))) +
+                            String(record.lensSite ? ".Lens" : ".Iter");
+
+                if(!producer.typeArguments.size()) return path;
+
+                auto applied = path + String("(");
+                auto begun = false;
+
+                for(auto argument: producer.typeArguments.contents(base)) {
+                    if(begun) applied = applied + String(", ");
+                    begun = true;
+                    applied = applied + typeText(context, base, argument);
+                }
+
+                return applied + String(")");
+            }
+
+            // And a closure's, whose path is the lifted function's own symbol - `<fn>.lambda`, or
+            // `<fn>.thunk` for a `@lazy` argument. The record is that function's environment and is
+            // named `...env` for the dump; naming it that in a message describes the storage where
+            // the author wrote a lambda.
+            if(record.lambda) {
+                auto lifted = stringView(context.findName(base[record.lambda]->symbol));
+                return String(lifted.ptr, lifted.size());
             }
 
             // The declared name, which is the whole of a nominal type's spelling. A field list would
@@ -1454,6 +1551,13 @@ bool mentionsVariable(DeclBase base, DeclPtr<Type> type, DeclPtr<Type> variable)
             }
 
             return mentionsVariable(base, function.result.type, variable);
+        }
+        case Type::Iter: {
+            // The protocol, which is what a variable could be written in - `iter(a)` inside a
+            // generic body is refused at the type, and this is what says a walk found one.
+            auto& iterated = *(IterType*)base[type];
+            return mentionsVariable(base, iterated.handover.type, variable) ||
+                   mentionsVariable(base, iterated.resume, variable);
         }
         case Type::Record: {
             auto& record = *(RecordType*)base[type];

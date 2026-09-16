@@ -574,6 +574,15 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
                 "a count written `_` is taken from the literal the type is written at, and there is no literal here - write the number, or move the type onto a `::` in front of one"_v,
                 type.source);
             return nullptr;
+        case ast::Type::Site:
+            // `f.Iter`, `f.Iter(a, b)`, `f.Result` - the type a declaration publishes,
+            // `resolve_sig.cpp`. Its own function because what it does is a *lookup* of a value
+            // name and a mint, neither of which any other arm of this switch does.
+            return resolveSiteType(type);
+        case ast::Type::Iter:
+            // `iter(T)` - the erased iterator object, `resolve_sig.cpp`. Its own function for the
+            // same reason: what it reads is a *protocol* and what it answers is a mint.
+            return resolveErasedIterType(type);
         case ast::Type::Loan:
             /*
              * A bare origin where a type is - `Reader(a')`'s argument, read one level up.
@@ -680,6 +689,7 @@ bool Resolver::resolveArrayCount(ast::Expr& written, DeclPtr<Type>& count, U64& 
      * reduce is reported below in the words this position wants.
      */
     auto notConstant = true;
+    ConstantScope constant_ { *this };
     auto constant = resolveConstant(written, nullptr, &notConstant);
 
     if(constant.kind == Constant::Int) {
@@ -1147,6 +1157,7 @@ Constant Resolver::declareDefault(ast::Expr& expr, DeclPtr<Type> type, StringId 
         return Constant();
     }
 
+    ConstantScope reading { *this };
     auto value = resolveConstant(expr, type);
     if(!value.isSet()) return Constant();
 
@@ -1160,7 +1171,14 @@ Constant Resolver::declareDefault(ast::Expr& expr, DeclPtr<Type> type, StringId 
     return value;
 }
 
-// See `PendingTextDefault`. One question, asked where the role is bound and every position is in.
+/*
+ * See `PendingTextDefault`. One question, asked where the role is bound and every position is in.
+ *
+ * **Drains**, exactly as `resolveFieldDefaults` does, and for the reason that pass states: this is
+ * called more than once. A declaration path defers a record's fields past the first call, so the
+ * positions those fields queue are checked by a later one - and an entry left in the queue would be
+ * reported twice.
+ */
 void Resolver::checkTextDefaults() {
     if(!pendingTextDefaults.size()) return;
 
@@ -1177,6 +1195,8 @@ void Resolver::checkTextDefaults() {
                                   typeText(context, decl(), text),
                                   typeText(context, decl(), pending.type));
     }
+
+    pendingTextDefaults.clear();
 }
 
 /*
@@ -2278,6 +2298,17 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
 
     Resolver resolver { context, *program, *context.parseRegion, nullptr, toBuffer(groups) };
 
+    /*
+     * And the one thing the resolver leaves behind it for the walks below - §6.4's witness entry.
+     *
+     * A witness is filled by the reachability walk, at argument lists only that walk discovers, and
+     * the "make an object" entry holds a function over the *instance's* own state record - which is
+     * minted from that instance's body and is therefore the resolver's to make. See
+     * `Program::IterObjects`.
+     */
+    resolver.objectHook.resolver = &resolver;
+    program->iterObjects = &resolver.objectHook;
+
     // The edges, before any declaration is read - see the order above. Reported here rather than
     // during discovery, because an import that named nothing is a diagnostic about the line that
     // wrote it and discovery has no line in hand.
@@ -2376,49 +2407,197 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     resolver.eachFile([&](ast::Module& file) { resolver.declare(file); });
 
     /*
-     * And the instances whose head is a **payload-free sum** - `provideEnumInstances`, one `Enum`,
-     * `Eq` and `Ord` per `data`.
+     * The passes between the declarations and the bodies, wrapped so that a program which wrote a
+     * **declaration path** can run them before the drain below - and so that one which did not runs
+     * them exactly where it always did.
      *
-     * Here rather than beside `provideInstances` above, and the position is the whole difference
-     * between the two: the families up there are the target's widths, which no declaration can add
-     * to, and these are the program's own enums - so this pass has to see every `data` *and* every
-     * written `instance`, because a program that declared `instance Eq(Colour)` gets its own and not
-     * the compiler's. Skipping a head the table already holds is what states that, where the
-     * shipping stage states it by consulting its hooks only after a lookup failed.
+     * The drain demands a *body*, and the order above says what a body needs: the third point, every
+     * type classified, and the fourth, every global holding the type its initializer gave it.
+     * Reading one earlier than that is silent rather than loud - a read of an untyped global answers
+     * null and takes its whole statement with it, and an unclassified record reads as trivially
+     * copyable - which is `../../doc/progress/2026-09-16-J57-object-defects.md` §1, found by writing
+     * a lexer as an `iter fn`. So the passes move to the front of the queue for the programs that
+     * need them, and nothing moves for the programs that do not.
+     *
+     * Three groups rather than one, because the checkpoint below sits between them and a program
+     * with no path must see it in the same place. Each runs once, whichever caller reaches it first -
+     * with the exception the first of them is split around, immediately below.
      */
-    resolver.provideEnumInstances();
 
     /*
-     * The field defaults the record walk queued - `Resolver::PendingDefault`, where the ordering
-     * this closes is argued.
+     * The three queues a declaration walk fills, drained - and the one group here that is **not**
+     * latched, because it is the one that has more than one walk to drain.
      *
-     * Here rather than beside the fields for **two** reasons now. Every constructor in the program
-     * exists, which is the original one: `{f: Flag = Off}` above `Flag` names a constructor table
-     * still being built. And every *instance* does, including the ones the compiler generates - a
-     * default is a constant expression, and `4 * 1024` is a constant only where the `Num(I32)`
-     * serving the `*` can be looked up and found to be the compiler's own. A parameter default is
-     * resolved inside `declare` and had both already; a field default was two passes early and
-     * silently had neither.
+     * `resolveFieldDefaults` is why. A `data` naming a declaration path has its fields deferred -
+     * `deferFields` - so the defaults on the *rest* of that record's fields are queued by
+     * `resolveSiteSignatures`, which runs after the group below has already latched. Draining once
+     * left them in the queue and `Holder {it: upTo.Iter, size: Int = 4 * 1024}` was "Holder leaves
+     * out size, which has no default" at every construction of it. The other two are here because
+     * they are queued by the same walk and read the same way, and a string default *of a field* is
+     * queued by the first of the three.
      *
-     * Before `checkTextDefaults` below, which is what a *string* default of a field is queued for.
+     * Safe to call twice because all three clear what they drained, which is the property this
+     * relies on and which each of them states.
      */
-    resolver.resolveFieldDefaults();
+    auto drainDeclarationQueues = [&]() {
+        /*
+         * The field defaults the record walk queued - `Resolver::PendingDefault`, where the ordering
+         * this closes is argued.
+         *
+         * Here rather than beside the fields for **two** reasons now. Every constructor in the
+         * program exists, which is the original one: `{f: Flag = Off}` above `Flag` names a
+         * constructor table still being built. And every *instance* does, including the ones the
+         * compiler generates - a default is a constant expression, and `4 * 1024` is a constant only
+         * where the `Num(I32)` serving the `*` can be looked up and found to be the compiler's own.
+         * A parameter default is resolved inside `declare` and had both already; a field default was
+         * two passes early and silently had neither.
+         *
+         * Before `checkTextDefaults` below, which is what a *string* default of a field is queued
+         * for.
+         */
+        resolver.resolveFieldDefaults();
 
-    // The string defaults every pass above queued, now that `String`'s own declaration is certainly
-    // in - `Resolver::PendingTextDefault`, where the ordering this closes is argued.
-    resolver.checkTextDefaults();
+        // The string defaults every pass above queued, now that `String`'s own declaration is
+        // certainly in - `Resolver::PendingTextDefault`, where the ordering this closes is argued.
+        resolver.checkTextDefaults();
 
-    // And the `@caller` positions that have to be that same type - `Resolver::PendingCallerText`.
-    resolver.checkCallerTexts();
+        // And the `@caller` positions that have to be that same type - `Resolver::PendingCallerText`.
+        resolver.checkCallerTexts();
+    };
+
+    auto declared = false;
+    auto settleDeclarations = [&]() {
+        if(declared) return;
+        declared = true;
+
+        /*
+         * The `Iterate` instance of every erased `iter(T)` a declaration wrote - the same pass
+         * problem from the other side.
+         *
+         * A written `iter(T)` is minted where it is read, which for a field is before `lib/Core`'s
+         * `Iterate` is certainly a declaration; the *type* needs nothing but the protocol, so what
+         * waits is the instance that steps it. See `completeErasedIterates`.
+         */
+        resolver.completeErasedIterates();
+
+        /*
+         * And the instances whose head is a **payload-free sum** - `provideEnumInstances`, one
+         * `Enum`, `Eq` and `Ord` per `data`.
+         *
+         * Here rather than beside `provideInstances` above, and the position is the whole difference
+         * between the two: the families up there are the target's widths, which no declaration can
+         * add to, and these are the program's own enums - so this pass has to see every `data` *and*
+         * every written `instance`, because a program that declared `instance Eq(Colour)` gets its
+         * own and not the compiler's. Skipping a head the table already holds is what states that,
+         * where the shipping stage states it by consulting its hooks only after a lookup failed.
+         */
+        resolver.provideEnumInstances();
+
+        drainDeclarationQueues();
+
+        /*
+         * Every instance's superclasses, now that there is nothing left to declare.
+         *
+         * Its own pass for the reason the whole phase order exists: an answer that depends on how
+         * much of the program has been read is an answer that depends on the order it was written
+         * in. `checkInstanceSuperclasses` is where that is argued.
+         */
+        resolver.checkInstanceSuperclasses();
+    };
 
     /*
-     * Every instance's superclasses, now that there is nothing left to declare.
+     * The layout cycles, and then what every type owes - `own.h`, where the order is argued.
      *
-     * Its own pass for the reason the whole phase order exists: an answer that depends on how much
-     * of the program has been read is an answer that depends on the order it was written in.
-     * `checkInstanceSuperclasses` is where that is argued.
+     * Here rather than beside the field walk because the cut has to see the whole member graph: a
+     * record may name one declared further down, and an instantiation `declareRecordFields` made is
+     * only filled by `completeInstantiations`. This is the first point at which every field of every
+     * type in the program is in, which is the earliest a containment cycle can be seen at all - with
+     * the one exception the drain below closes, a `data` whose field is a declaration path and whose
+     * fields are therefore read after this.
      */
-    resolver.checkInstanceSuperclasses();
+    auto classified = false;
+    auto settleTypes = [&]() {
+        if(classified) return true;
+        classified = true;
+
+        if(!breakLayoutCycles(context, *program)) return false;
+        if(!classifyTypes(context, *program)) return false;
+
+        /*
+         * What a qualified type argument may be written over - `checkQualifiedShapes`.
+         *
+         * Immediately after the classification and before the bodies, because that is the first
+         * point the answer exists and the last point before anything is built against it: what a
+         * `Maybe('v)` releases is a question about `Maybe`'s members, and whether `Maybe` has any is
+         * what the pass above settles.
+         */
+        return checkQualifiedShapes(context, *program);
+    };
+
+    auto initialized = false;
+    auto settleGlobals = [&]() {
+        if(initialized) return;
+        initialized = true;
+
+        resolver.eachFile([&](ast::Module& file) { resolver.resolveInitializers(file); });
+
+        // The half of `pub` that had to wait for them - a global's type is what its initializer said.
+        checkExportedGlobals(context, *program);
+    };
+
+    /*
+     * A program that wrote a declaration path: everything the drain's demanded bodies read, first.
+     *
+     * The three groups in their own order, which is the order they are written in below. The cost is
+     * that a program with a path sees the checkpoint further down than one without - so a broken one
+     * collects the classification's diagnostics alongside the declarations' - and the benefit is
+     * that a producer named in a signature is resolved against the same program every other body is.
+     */
+    if(resolver.hasDeferredSitePaths()) {
+        settleDeclarations();
+        if(!settleTypes()) return program;
+
+        /*
+         * The initializers, **unless the declarations are already broken** - which is the checkpoint
+         * further down, asked here for the one group that runs above it.
+         *
+         * A global's initializer is code, and code resolved against a declaration that failed reports
+         * about the failure rather than about itself: `data Bad {field: NoSuchType}` leaves `Bad` with
+         * no field of that name, so `let &g = Bad {field: 1}` beside it was "Bad has no field called
+         * field" - of a declaration that plainly writes one. Without a path in the module the
+         * checkpoint had already stopped the compile and only the true diagnostic was reported.
+         *
+         * Skipped rather than reordered, because the pass below needs what it needs: a demanded body
+         * reads a global's type, so this group cannot move after `resolveSiteSignatures`. A program
+         * that is not going to compile does not need it to have run - the checkpoint returns before
+         * any body - and the latch means a program that *is* runs it in its usual place.
+         *
+         * `context.index` keeps an editor's compile on the old path for the reason the checkpoint
+         * itself makes an exception for one: a file being written is a file with a mistake in it, and
+         * what it asks is what the rest of the file means.
+         */
+        if(!context.diagnostics.errorCount() || context.index) settleGlobals();
+    }
+
+    /*
+     * The headers that name a **declaration path** - `f.Iter`, `f.Result`, §2.4 of
+     * Design-Iterator-Objects.md - and therefore had to wait for all of them.
+     *
+     * Here and nowhere else: what such a header names is a type built out of somebody else's body,
+     * so it needs every function in the program to be a name with a signature behind it (which is
+     * what the pass above finishes) and it has to be in before anything reads a signature (which is
+     * everything below). `resolveAliasTargets` is the same pass one phase up, for the same reason.
+     */
+    resolver.resolveSiteSignatures();
+
+    settleDeclarations();
+
+    /*
+     * And the queues that pass just filled - the fields of every `data` it unblocked, and therefore
+     * the defaults on them. The call above is a no-op for a program that reached the group early,
+     * which is exactly the program this line exists for.
+     */
+    drainDeclarationQueues();
 
     /*
      * `pub`, from the declaring side - `export.cpp`.
@@ -2441,31 +2620,8 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      */
     if(context.diagnostics.errorCount() && !context.index) return program;
 
-    /*
-     * The layout cycles, and then what every type owes - `own.h`, where the order is argued.
-     *
-     * Here rather than beside the field walk because the cut has to see the whole member graph: a
-     * record may name one declared further down, and an instantiation `declareRecordFields` made is
-     * only filled by `completeInstantiations`. This is the first point at which every field of every
-     * type in the program is in, which is the earliest a containment cycle can be seen at all.
-     */
-    if(!breakLayoutCycles(context, *program)) return program;
-    if(!classifyTypes(context, *program)) return program;
-
-    /*
-     * What a qualified type argument may be written over - `checkQualifiedShapes`.
-     *
-     * Immediately after the classification and before the bodies, because that is the first point
-     * the answer exists and the last point before anything is built against it: what a `Maybe('v)`
-     * releases is a question about `Maybe`'s members, and whether `Maybe` has any is what the pass
-     * above settles.
-     */
-    if(!checkQualifiedShapes(context, *program)) return program;
-
-    resolver.eachFile([&](ast::Module& file) { resolver.resolveInitializers(file); });
-
-    // The half of `pub` that had to wait for them - a global's type is what its initializer said.
-    checkExportedGlobals(context, *program);
+    if(!settleTypes()) return program;
+    settleGlobals();
 
     /*
      * The compiler's roles against the declarations that claimed them - `intrinsic/link.h`.
@@ -2521,6 +2677,18 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     resolver.checkClassDefaults();
 
     /*
+     * And the **boxed** recursive nests, now that the last object in the program has been minted -
+     * `completeBoxedNests`, Design-Iterator-Objects.md §6.3.
+     *
+     * Here and nowhere earlier: a boxed member names the child's *producer* at the mint and the
+     * child's *record* only once every mint has finished, which for a mutually recursive pair is
+     * after the outer one returns. Before `freezeSchemas` below, because the pass declares the step
+     * shim each box is called across and a function declared after the numbering is one nothing
+     * counts.
+     */
+    resolver.completeBoxedNests();
+
+    /*
      * The canonical slot numbering, derived once every context is finished - `gen.h`.
      *
      * After the bodies and not after the signatures, because a body is the other source of
@@ -2573,6 +2741,18 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     // Every specialization the walks above made, against the generic it came from - `verify.h`. Last
     // because it is the only check whose subject does not exist until the walks have run.
     checkSpecializations(context, *program);
+
+    /*
+     * And the resolver stops answering, which is the honest statement about its own lifetime: it is
+     * a local of this function and the conversion runs after it, so a hook left set would be a
+     * pointer into a dead frame. What still needs an object of a class member below this line finds
+     * it on `Function::iterMaker`, where the walks above put it.
+     *
+     * A new protocol below this line has nowhere for its `Iterate` instance to come from for the
+     * same reason - `mir::erasedIterTypeOf` refuses one by name.
+     */
+    program->iterObjects = nullptr;
+    program->erasedItersClosed = true;
     return program;
 }
 

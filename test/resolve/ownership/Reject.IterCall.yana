@@ -4,6 +4,10 @@
    form refuses one with the shipping stage's message rather than running the rest of its block once
    per element. `test/resolve/Reject.Iter.yana` asserts the shipping stage's half of this.
 
+   The flat `let x = f(...)` is the exception since 2026-09-15 and is the row below that changed:
+   a `let` that keeps an iterator's result builds an **object** of it, which is what stage 3 of
+   Design-Iterator-Objects.md added, so that one reports about `x`'s type instead.
+
    # resolver: ownership
 -}
 
@@ -16,7 +20,9 @@ iter fn upTo(limit: Int) -> Int:
 
 fn id(x: Int) -> Int = x
 
--- The flat form, which ran `count = count + x + 1` three times.
+-- The flat form, which is the one row of this table that **stopped** being a lens call: a `let`
+-- that keeps an iterator's result builds an object of it - Design-Iterator-Objects.md §2.1 - so
+-- what is left over is `x`'s type, and the message is about that rather than about the call.
 fn flat() -> Int:
     let &count = 0 :: Int
     let x = upTo(3)
@@ -48,13 +54,21 @@ fn block() -> Int:
 
     return count
 
--- A call inside an argument, which is hoisted out into a flat `let` when the callee is a lens.
+{-
+   A call inside an **argument**, which is hoisted out into a flat `let` when the callee is a lens.
+
+   An `iter fn` there is a position that *keeps* the result since 2026-09-16, so the object is built
+   and the mistake is the type it lands at - which is the ordinary argument message and is a better
+   one than the lens advice this row used to get. `iter/Positions.yana` is where the same position
+   with a matching type runs.
+-}
 fn hoisted() -> Int:
     let &count = 0 :: Int
     count = count + id(upTo(3))
     return count
 
--- And a value position, which no lens form reaches.
+-- And a value position, which no call form reaches: an operand of `>` fills no declared slot that
+-- could keep an object, so there is nowhere for one to go.
 fn value() -> Int = if upTo(3) > 1 then 1 else 0
 
 fn main() -> Int = flat() + bare() + scoped() + block() + hoisted() + value()

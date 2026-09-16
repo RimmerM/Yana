@@ -1041,6 +1041,7 @@ StringView callThroughName(CallThrough through) {
         case CallThrough::ClassSlot:    return "class"_v;
         case CallThrough::FunctionSlot: return "function"_v;
         case CallThrough::Value:        return "value"_v;
+        case CallThrough::CallWitness:  return "call witness"_v;
     }
 
     assertTrue(false);

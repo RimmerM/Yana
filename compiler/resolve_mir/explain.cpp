@@ -1,3 +1,4 @@
+#include "specialize.h"
 #include "explain.h"
 #include "index.h"
 
@@ -315,6 +316,7 @@ StringView explainTopicLabel(ExplainTopic topic) {
         case ExplainTopic::Mutates:  return "mutates"_v;
         case ExplainTopic::Retains:  return "retains"_v;
         case ExplainTopic::Returns:  return "returns"_v;
+        case ExplainTopic::Object:   return "object"_v;
         case ExplainTopic::Calls:    return "calls"_v;
     }
 
@@ -572,6 +574,111 @@ static void explainCalls(const Explanation& explanation, Array<ExplainNote>& not
     addNote(notes, ExplainTopic::Calls, surprising, text);
 }
 
+/*
+ * The **state record** an `iter fn` compiles to where its result is kept -
+ * Design-Iterator-Objects.md §7 stage 3's inspection output, and the same answer the `.ssa` dump
+ * prints.
+ *
+ * Found by scanning the producer's module rather than carried on the function, because a site type
+ * is minted by the *first position that builds one* and a producer nothing keeps the result of has
+ * none at all - which is itself the answer worth printing.
+ *
+ * One row per member, and for a payload member the `yield`s it has to survive. That is the question
+ * an author actually has about a record - "why is this in it" - and the `#` rows are what the
+ * producer keeps across a hand-over without naming: a counted `for`'s own bound and step.
+ */
+static void explainObject(Context& context, Program& program, const Explanation& explanation,
+                          Array<ExplainNote>& notes) {
+    auto decl = *program.decl;
+    auto& function = *decl[explanation.function];
+    if(!function.iterator) return;
+
+    RecordType* site = nullptr;
+
+    for(auto recordPointer: decl[function.module]->records.contents(decl)) {
+        auto record = decl[recordPointer];
+        if(!record->producer) continue;
+        if(&bodyOwnerOf(decl, *decl[record->producer]) != &function) continue;
+
+        site = record;
+        break;
+    }
+
+    StringBuilder text;
+
+    if(!site) {
+        text.append("no object of it is built, so it has no record"_v);
+        addNote(notes, ExplainTopic::Object, false, text);
+        return;
+    }
+
+    text.append(context.findName(site->name));
+    text.append(" -"_v);
+
+    for(auto field: site->fields.contents(decl)) {
+        text.append(" "_v);
+        appendName(text, context, field.name, "#"_v);
+
+        // How a captured argument is held, where the name alone does not say it - the `.ssa` dump
+        // prints the same three words beside the same three kinds of field.
+        if(field.index >= 2 && field.index < site->payloadFirst) {
+            auto kind = site->captureKinds.get(decl, field.index - 2);
+            if(kind == RecordType::kCaptureAddress) text.append("(lent)"_v);
+            else if(kind == 2) text.append("(window)"_v);
+        }
+
+        // `$held` comes after the payload and is not part of it - see `RecordType::heldField` - and
+        // so do delegation's two words, which are notes about the chain rather than members.
+        if(field.index < site->payloadFirst || field.index == site->heldField) continue;
+        if(field.index == site->downField || field.index == site->innerField) continue;
+
+        // Every entry in this field, which is one unless slot sharing put two members whose live
+        // ranges never meet in it - `RecordType::payloadFields`. The field's own name says which
+        // members those are (`i+j`) and the `across` list here is the union of theirs.
+        for(U32 j = 0; j < site->payloadLocals.size(); j++) {
+            if(site->payloadFields.get(decl, j) != field.index) continue;
+
+            auto member = site->payloadLocals.get(decl, j);
+            if(member & RecordType::kHeapMember) text.append("(placed)"_v);
+            if(member & RecordType::kBorrowMember) text.append("(borrowed)"_v);
+            if(member & RecordType::kNestMember) {
+                /*
+                 * `(boxed)` where the child is §6.3's recursion - the member holds the erased form
+                 * rather than the child's own record, which is what the field's type says - and
+                 * `(delegated)` beside it where the level is one a consumer's trampoline steps past,
+                 * which the member's *link* type says.
+                 */
+                if(site->linkType && field.occurrence.type == site->linkType) {
+                    text.append("(nested, boxed, delegated)"_v);
+                } else {
+                    text.append(decl[field.occurrence.type]->kind == Type::Iter ? "(nested, boxed)"_v
+                                                                                 : "(nested)"_v);
+                }
+            }
+        }
+
+        text.append("(across"_v);
+
+        for(U32 y = 0; y < site->handovers; y++) {
+            auto keeps = false;
+
+            for(U32 j = 0; j < site->payloadLocals.size() && !keeps; j++) {
+                if(site->payloadFields.get(decl, j) != field.index) continue;
+                keeps = site->keepsAcross(decl, j, y);
+            }
+
+            if(!keeps) continue;
+
+            text.append(" "_v);
+            appendText(text, Tritium::format("%@", U64(y)));
+        }
+
+        text.append(")"_v);
+    }
+
+    addNote(notes, ExplainTopic::Object, false, text);
+}
+
 void explainNotes(Context& context, Program& program, const Explanation& explanation,
                   Array<ExplainNote>& notes) {
     // §7.3's row order, and it is deliberate: the property with no analysis behind it comes early so
@@ -582,6 +689,7 @@ void explainNotes(Context& context, Program& program, const Explanation& explana
     explainMutation(context, program, explanation, notes);
     explainRetention(context, explanation, notes);
     explainResult(context, explanation, notes);
+    explainObject(context, program, explanation, notes);
     explainCalls(explanation, notes);
 }
 

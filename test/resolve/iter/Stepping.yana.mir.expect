@@ -1,0 +1,935 @@
+module ResolveTest
+
+data Guard {id: Size} drop authored
+
+data evens.Iter {$index: I32, $slot: Size, : I32, : I32, : I32}
+
+data odds.Iter {$index: I32, $slot: Size, : I32, : I32, : I32}
+
+data squares.Iter {$index: I32, $slot: Size, n: Size, : Size, : Size, : Size}
+
+data guarded.Iter {$index: I32, $slot: Size, g: Guard, : I32, : I32, : I32} drop authored
+
+data holding.Iter {$index: I32, $slot: Size, g: Guard} drop authored
+
+data words'2.Iter {$index: I32, $slot: String, prefix: StringView, : I32, : String, : I32, : I32, $held: Bool} shape9 drop authored
+
+data counting.Iter {$index: I32, $slot: Size, total: %Size, : I32, : I32, : I32} shape11
+
+data watching.Iter {$index: I32, $slot: Size, g: %Guard} shape12
+
+instance Drop(Guard): Guard.drop
+
+instance Iterate(evens.Iter, Size, {}): evens$next, evens$resume
+
+instance Iterate(odds.Iter, Size, {}): odds$next, odds$resume
+
+instance Iterate(squares.Iter, Size, {}): squares$next, squares$resume
+
+instance Drop(guarded.Iter): guarded$drop
+
+instance Iterate(guarded.Iter, Size, {}): guarded$next, guarded$resume
+
+instance Drop(holding.Iter): holding$drop
+
+instance Iterate(holding.Iter, Size, {}): holding$next, holding$resume
+
+instance Drop(words'2.Iter): words'2$drop
+
+instance Iterate(words'2.Iter, String, {}): words'2$next, words'2$resume
+
+instance Iterate(counting.Iter, Size, {}): counting$next, counting$resume
+
+instance Iterate(watching.Iter, Size, {}): watching$next, watching$resume
+
+let & trace: Size = 0
+
+let string'143: [CodeUnit *1] = "w"
+
+let string'144: [CodeUnit *0] = ""
+
+let string'145: [CodeUnit *1] = "."
+
+fn Guard.drop(value: Guard) -> {} {
+bb0:
+  %0: Size = read copy.trivial (global trace)
+  %1: Size = read copy.trivial (value.id)
+  %2: Size = add inspect %0 inspect %1
+  write.assign borrow.unique (global trace) take %2
+  return
+}
+
+lens fn squares(n: Size [shared call], $body: (Size) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local3: Size
+  local i: Size
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Size = read copy.trivial (n)
+  %3: Size = const 1
+  %4: Size = const 1
+  write.init borrow.unique (local3) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: Size, %6: Size):
+  %13: Size = read copy.trivial (local3)
+  %14: Bool = le inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: Size, %8: Size):
+  %31: Size = read copy.trivial (local3)
+  %32: Size = sub inspect %7 inspect %31
+  %33: Bool = ge inspect %32 inspect %8
+  branch inspect %33 -> bb7(take %7, take %8) -> bb3(take %7, take %8)
+
+bb3(%9: Size, %10: Size):
+  %41: I32 = read copy.trivial ($yielded)
+  return take %41
+
+bb4(%15: Size, %16: Size):
+  %18: Size = read copy.trivial (local3)
+  write.init borrow.unique (i) take %18
+  %20: Size = read copy.trivial (i)
+  %21: Size = read copy.trivial (i)
+  %22: Size = mul inspect %20 inspect %21
+  %23: (Size) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %24: I32 = call inspect %23 borrow.shared %22
+  %25: I32 = const 0
+  %26: Bool = eq inspect %24 inspect %25
+  write.assign borrow.unique ($yielded) take %24
+  branch inspect %26 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+
+bb7(%34: Size, %35: Size):
+  %37: Size = read copy.trivial (local3)
+  %38: Size = add inspect %37 inspect %35
+  write.assign borrow.unique (local3) take %38
+  jump -> bb1(take %34, take %35)
+}
+
+lens fn evens($body: (Size) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local2: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  %3: I32 = const 4
+  %4: I32 = const 1
+  write.init borrow.unique (local2) take %2
+  jump -> bb1(take %3, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local2)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %32: I32 = read copy.trivial (local2)
+  %33: I32 = add inspect %32 inspect %8
+  write.assign borrow.unique (local2) take %33
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %36: I32 = read copy.trivial ($yielded)
+  return take %36
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local2)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: I32 = const 2
+  %22: I32 = mul inspect %20 inspect %21
+  %23: Size = convert inspect %22
+  %24: (Size) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %25: I32 = call inspect %24 borrow.shared %23
+  %26: I32 = const 0
+  %27: Bool = eq inspect %25 inspect %26
+  write.assign borrow.unique ($yielded) take %25
+  branch inspect %27 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+}
+
+lens fn odds($body: (Size) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local2: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  %3: I32 = const 4
+  %4: I32 = const 1
+  write.init borrow.unique (local2) take %2
+  jump -> bb1(take %3, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local2)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %34: I32 = read copy.trivial (local2)
+  %35: I32 = add inspect %34 inspect %8
+  write.assign borrow.unique (local2) take %35
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %38: I32 = read copy.trivial ($yielded)
+  return take %38
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local2)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: I32 = const 2
+  %22: I32 = mul inspect %20 inspect %21
+  %23: I32 = const 1
+  %24: I32 = add inspect %22 inspect %23
+  %25: Size = convert inspect %24
+  %26: (Size) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %27: I32 = call inspect %26 borrow.shared %25
+  %28: I32 = const 0
+  %29: Bool = eq inspect %27 inspect %28
+  write.assign borrow.unique ($yielded) take %27
+  branch inspect %29 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+}
+
+lens fn guarded($body: (Size) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local g: Guard
+  local & local3: I32
+  local i: I32
+  flag (g) = gone
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Size = const 7
+  %3: Guard = aggregate.Guard take %2
+  write.init borrow.unique (g) take %3
+  flag (g) = held
+  %5: I32 = const 0
+  %6: I32 = const 10
+  %7: I32 = const 1
+  write.init borrow.unique (local3) take %5
+  jump -> bb1(take %6, take %7)
+
+bb1(%8: I32, %9: I32):
+  %16: I32 = read copy.trivial (local3)
+  %17: Bool = lt inspect %16 inspect %8
+  branch inspect %17 -> bb4(take %8, take %9) -> bb3(take %8, take %9)
+
+bb2(%10: I32, %11: I32):
+  %35: I32 = read copy.trivial (local3)
+  %36: I32 = add inspect %35 inspect %11
+  write.assign borrow.unique (local3) take %36
+  jump -> bb1(take %10, take %11)
+
+bb3(%12: I32, %13: I32):
+  drop.maybe (g)
+  %39: I32 = read copy.trivial ($yielded)
+  flag (g) = gone
+  return take %39
+
+bb4(%18: I32, %19: I32):
+  %21: I32 = read copy.trivial (local3)
+  write.init borrow.unique (i) take %21
+  %23: I32 = read copy.trivial (i)
+  %24: Size = read copy.trivial (g.id)
+  %25: Size = convert inspect %23
+  %26: Size = add inspect %25 inspect %24
+  %27: (Size) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %28: I32 = call inspect %27 borrow.shared %26
+  %29: I32 = const 0
+  %30: Bool = eq inspect %28 inspect %29
+  write.assign borrow.unique ($yielded) take %28
+  branch inspect %30 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %18, take %19)
+
+bb6:
+  drop (g)
+  jump -> bb3(take %18, take %19)
+  flag (g) = gone
+}
+
+lens fn holding(g: Guard, $body: (Size) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Size = read copy.trivial (g.id)
+  drop (g)
+  %3: (Size) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %4: I32 = call inspect %3 borrow.shared %2
+  write.assign borrow.unique ($yielded) take %4
+  %6: I32 = read copy.trivial ($yielded)
+  return take %6
+}
+
+lens fn words'2(prefix: String [shared call view], $body: (->String) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local3: I32
+  local i: I32
+  local & local5: String
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 1
+  %3: I32 = const 3
+  %4: I32 = const 1
+  write.init borrow.unique (local3) take %2
+  jump -> bb1(take %3, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local3)
+  %14: Bool = le inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %46: I32 = read copy.trivial (local3)
+  %47: I32 = sub inspect %7 inspect %46
+  %48: Bool = ge inspect %47 inspect %8
+  branch inspect %48 -> bb7(take %7, take %8) -> bb3(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %56: I32 = read copy.trivial ($yielded)
+  return take %56
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local3)
+  write.init borrow.unique (i) take %18
+  %20: Size = const 0
+  %21: String [shared call view] = read borrow.shared (prefix) loan0
+  %22: Maybe(Size) = call showBound(String) borrow.shared %21
+  %23: Size = call formatBound borrow.shared %22
+  %24: Size = add inspect %20 inspect %23
+  %25: I32 = read copy.trivial (i)
+  %26: Maybe(Size) = call showBound(I32) borrow.shared %25
+  %27: Size = call formatBound borrow.shared %26
+  %28: Size = add inspect %24 inspect %27
+  %29: String = call String.ofCapacity borrow.shared %28
+  write.init borrow.unique (local5) take %29
+  %31: String [shared call view] = read borrow.shared (prefix) loan1
+  %32: String [unique call] = read borrow.unique (local5) loan2
+  %33: {} = call show(String) borrow.shared %31 borrow.unique %32
+  %34: I32 = read copy.trivial (i)
+  %35: String [unique call] = read borrow.unique (local5) loan3
+  %36: {} = call show(I32) borrow.shared %34 borrow.unique %35
+  %37: String = read take (local5)
+  %38: (->String) -> I32 [shared call] = read borrow.shared ($body) loan4
+  %39: I32 = call inspect %38 take %37
+  %40: I32 = const 0
+  %41: Bool = eq inspect %39 inspect %40
+  write.assign borrow.unique ($yielded) take %39
+  branch inspect %41 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+
+bb7(%49: I32, %50: I32):
+  %52: I32 = read copy.trivial (local3)
+  %53: I32 = add inspect %52 inspect %50
+  write.assign borrow.unique (local3) take %53
+  jump -> bb1(take %49, take %50)
+}
+
+lens fn counting(total: Size [unique call], $body: (Size) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local3: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 1
+  %3: I32 = const 3
+  %4: I32 = const 1
+  write.init borrow.unique (local3) take %2
+  jump -> bb1(take %3, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local3)
+  %14: Bool = le inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %34: I32 = read copy.trivial (local3)
+  %35: I32 = sub inspect %7 inspect %34
+  %36: Bool = ge inspect %35 inspect %8
+  branch inspect %36 -> bb7(take %7, take %8) -> bb3(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %44: I32 = read copy.trivial ($yielded)
+  return take %44
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local3)
+  write.init borrow.unique (i) take %18
+  %20: Size = read copy.trivial (total)
+  %21: I32 = read copy.trivial (i)
+  %22: Size = convert inspect %21
+  %23: Size = add inspect %20 inspect %22
+  write.assign borrow.unique (total) take %23
+  %25: Size = read copy.trivial (total)
+  %26: (Size) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %27: I32 = call inspect %26 borrow.shared %25
+  %28: I32 = const 0
+  %29: Bool = eq inspect %27 inspect %28
+  write.assign borrow.unique ($yielded) take %27
+  branch inspect %29 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+
+bb7(%37: I32, %38: I32):
+  %40: I32 = read copy.trivial (local3)
+  %41: I32 = add inspect %40 inspect %38
+  write.assign borrow.unique (local3) take %41
+  jump -> bb1(take %37, take %38)
+}
+
+lens fn watching(g: Guard [shared call], $body: (Size) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial ($yielded)
+  %3: I32 = const 0
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb1 -> bb2
+
+bb1:
+  %6: Size = read copy.trivial (g.id)
+  %7: (Size) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %8: I32 = call inspect %7 borrow.shared %6
+  write.assign borrow.unique ($yielded) take %8
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %12: I32 = read copy.trivial ($yielded)
+  %13: I32 = const 0
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb4 -> bb5
+
+bb4:
+  %16: Size = read copy.trivial (g.id)
+  %17: Size = const 2
+  %18: Size = mul inspect %16 inspect %17
+  %19: (Size) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %20: I32 = call inspect %19 borrow.shared %18
+  write.assign borrow.unique ($yielded) take %20
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %24: I32 = read copy.trivial ($yielded)
+  return take %24
+}
+
+fn main() -> Size {
+  local & sum: Size
+  local v: Size [shared call]
+  local & left: evens.Iter
+  local & right: odds.Iter
+  local & pairs: Size
+  local a: Maybe(Size) [owned here shape2 .0=shared slot 0]
+  local b: Maybe(Size) [owned here shape2 .0=shared slot 0]
+  local x: Size
+  local y: Size
+  local & firstTwo: Size
+  local & stopped: squares.Iter
+  local v: Size
+  local & abandoned: guarded.Iter
+  local v: Size
+  local unused: holding.Iter
+  local & ran: holding.Iter
+  local v: Size
+  local & c: squares.Iter
+  local & part: Size
+  local v: Size
+  local v: Size
+  local & prefix: String
+  local & joined: String
+  local & spelling: words'2.Iter [owned here shape9 .2.0.*=shared slot 0]
+  local w: String
+  local & total: Size
+  local & running: Size
+  local & stepping: counting.Iter [owned here shape11 .2.*=unique slot 0]
+  local v: Size
+  local g: Guard
+  local & seen: watching.Iter [owned here shape12 .2.*=shared slot 0]
+  local v: Size
+  flag (abandoned) = gone
+
+bb0:
+  %0: Size = const 0
+  write.init borrow.unique (sum) take %0
+  %2: Size = const 5
+  lens.call squares borrow.shared %2 -> bb2
+
+bb1:
+  %10: evens.Iter = call evens$new
+  write.init borrow.unique (left) take %10
+  %12: odds.Iter = call odds$new
+  write.init borrow.unique (right) take %12
+  %14: Size = const 0
+  write.init borrow.unique (pairs) take %14
+  jump -> bb3
+
+bb2(%3: Size [shared call]) handover(Size [shared call]) many -> bb1:
+  write.init borrow.unique (v) borrow.shared %3
+  %6: Size [unique call] = read borrow.unique (sum) loan0
+  %7: Size = read copy.trivial (v)
+  %8: {} = call +=(Size) borrow.unique %6 borrow.shared %7
+  jump -> bb1
+
+bb3:
+  %17: Bool = const True
+  branch inspect %17 -> bb5 -> bb4
+
+bb4:
+  %61: Size = const 0
+  write.init borrow.unique (firstTwo) take %61
+  %63: Size = const 100
+  %64: squares.Iter = call squares$new take %63
+  write.init borrow.unique (stopped) take %64
+  jump -> bb18
+
+bb5:
+  %19: evens.Iter [unique slot 0] = read borrow.unique (left) loan1
+  %20: Maybe(Size) [owned here shape2 .0=shared slot 0] = call next(evens.Iter, Size, {}) borrow.unique %19 roots.0{1}
+  write.init borrow.unique (a) take %20
+  %22: U8 = read copy.trivial (a.#)
+  %23: U8 = const 0
+  %24: Bool = eq inspect %22 inspect %23
+  branch inspect %24 -> bb8 -> bb6
+
+bb6:
+  jump -> bb7
+
+bb7:
+  %28: odds.Iter [unique slot 0] = read borrow.unique (right) loan2
+  %29: Maybe(Size) [owned here shape2 .0=shared slot 0] = call next(odds.Iter, Size, {}) borrow.unique %28 roots.0{2}
+  write.init borrow.unique (b) take %29
+  %31: U8 = read copy.trivial (b.#)
+  %32: U8 = const 0
+  %33: Bool = eq inspect %31 inspect %32
+  branch inspect %33 -> bb11 -> bb9
+
+bb8:
+  jump -> bb4
+
+bb9:
+  jump -> bb10
+
+bb10:
+  %37: U8 = read copy.trivial (a.#)
+  %38: U8 = const 1
+  %39: Bool = eq inspect %37 inspect %38
+  branch inspect %39 -> bb14 -> bb12
+
+bb11:
+  jump -> bb4
+
+bb12:
+  jump -> bb13
+
+bb13:
+  jump -> bb3
+
+bb14:
+  %41: Size = read copy.trivial (a.Just)
+  write.init borrow.unique (x) take %41
+  %43: U8 = read copy.trivial (b.#)
+  %44: U8 = const 1
+  %45: Bool = eq inspect %43 inspect %44
+  branch inspect %45 -> bb17 -> bb15
+
+bb15:
+  jump -> bb16
+
+bb16:
+  jump -> bb13
+
+bb17:
+  %47: Size = read copy.trivial (b.Just)
+  write.init borrow.unique (y) take %47
+  %49: Size [unique call] = read borrow.unique (pairs) loan3
+  %50: Size = read copy.trivial (x)
+  %51: Size = const 10
+  %52: Size = mul inspect %50 inspect %51
+  %53: Size = read copy.trivial (y)
+  %54: Size = add inspect %52 inspect %53
+  %55: {} = call +=(Size) borrow.unique %49 borrow.shared %54
+  jump -> bb16
+
+bb18:
+  %67: squares.Iter [unique call] = read borrow.unique (stopped) loan4
+  %68: I32 = const 0
+  %69: Bool = const False
+  %70: Bool = call squares$step borrow.unique %67 take %68 take %69
+  branch inspect %70 -> bb20 -> bb19
+
+bb19:
+  %84: guarded.Iter = call guarded$new
+  write.init borrow.unique (abandoned) take %84
+  flag (abandoned) = held
+  jump -> bb24
+
+bb20:
+  %72: Size = read copy.trivial (stopped.$slot)
+  write.init borrow.unique (v) take %72
+  %74: Size [unique call] = read borrow.unique (firstTwo) loan5
+  %75: Size = read copy.trivial (v)
+  %76: {} = call +=(Size) borrow.unique %74 borrow.shared %75
+  %77: Size = read copy.trivial (v)
+  %78: Size = const 4
+  %79: Bool = ge inspect %77 inspect %78
+  branch inspect %79 -> bb23 -> bb21
+
+bb21:
+  jump -> bb22
+
+bb22:
+  jump -> bb18
+
+bb23:
+  jump -> bb19
+
+bb24:
+  %87: guarded.Iter [unique call] = read borrow.unique (abandoned) loan6
+  %88: I32 = const 0
+  %89: Bool = const False
+  %90: Bool = call guarded$step borrow.unique %87 take %88 take %89
+  branch inspect %90 -> bb26 -> bb25
+
+bb25:
+  drop.maybe (abandoned)
+  %101: Size = const 100
+  flag (abandoned) = gone
+  %102: Guard = aggregate.Guard take %101
+  %103: holding.Iter = call holding$new take %102
+  write.init borrow.unique (unused) take %103
+  drop (unused)
+  %105: Size = const 1000
+  %106: Guard = aggregate.Guard take %105
+  %107: holding.Iter = call holding$new take %106
+  write.init borrow.unique (ran) take %107
+  jump -> bb30
+
+bb26:
+  %92: Size = read copy.trivial (abandoned.$slot)
+  write.init borrow.unique (v) take %92
+  %94: Size = read copy.trivial (v)
+  %95: Size = const 7
+  %96: Bool = ge inspect %94 inspect %95
+  branch inspect %96 -> bb29 -> bb27
+
+bb27:
+  jump -> bb28
+
+bb28:
+  jump -> bb24
+
+bb29:
+  drop (abandoned)
+  jump -> bb25
+  flag (abandoned) = gone
+
+bb30:
+  %110: holding.Iter [unique call] = read borrow.unique (ran) loan7
+  %111: I32 = const 0
+  %112: Bool = const False
+  %113: Bool = call holding$step borrow.unique %110 take %111 take %112
+  branch inspect %113 -> bb32 -> bb31
+
+bb31:
+  drop (ran)
+  %121: Size = const 4
+  %122: squares.Iter = call squares$new take %121
+  write.init borrow.unique (c) take %122
+  %124: Size = const 0
+  write.init borrow.unique (part) take %124
+  jump -> bb33
+
+bb32:
+  %115: Size = read copy.trivial (ran.$slot)
+  write.init borrow.unique (v) take %115
+  %117: Size [unique call] = read borrow.unique (sum) loan8
+  %118: Size = const 0
+  %119: {} = call +=(Size) borrow.unique %117 borrow.shared %118
+  jump -> bb30
+
+bb33:
+  %127: squares.Iter [unique call] = read borrow.unique (c) loan9
+  %128: I32 = const 0
+  %129: Bool = const False
+  %130: Bool = call squares$step borrow.unique %127 take %128 take %129
+  branch inspect %130 -> bb35 -> bb34
+
+bb34:
+  jump -> bb39
+
+bb35:
+  %132: Size = read copy.trivial (c.$slot)
+  write.init borrow.unique (v) take %132
+  %134: Size [unique call] = read borrow.unique (part) loan10
+  %135: Size = read copy.trivial (v)
+  %136: {} = call +=(Size) borrow.unique %134 borrow.shared %135
+  %137: Size = read copy.trivial (v)
+  %138: Size = const 4
+  %139: Bool = eq inspect %137 inspect %138
+  branch inspect %139 -> bb38 -> bb36
+
+bb36:
+  jump -> bb37
+
+bb37:
+  jump -> bb33
+
+bb38:
+  jump -> bb34
+
+bb39:
+  %145: squares.Iter [unique call] = read borrow.unique (c) loan11
+  %146: I32 = const 0
+  %147: Bool = const False
+  %148: Bool = call squares$step borrow.unique %145 take %146 take %147
+  branch inspect %148 -> bb41 -> bb40
+
+bb40:
+  %158: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (prefix) take %158
+  %160: String = const String {units: Array {run: Run {items: &string'144, capacity: 0, ownsHeap: 0}, length: 0}}
+  write.init borrow.unique (joined) take %160
+  %162: String [shared call] = read borrow.shared (prefix) loan13
+  %163: String [shared slot 0 view] = call.derivation view(String) borrow.shared %162 roots{13}
+  %164: words'2.Iter [owned here shape9 .2.0.*=shared slot 0] = call words'2$new borrow.shared %163 roots.0{13}
+  write.init borrow.unique (spelling) take %164
+  jump -> bb42
+
+bb41:
+  %150: Size = read copy.trivial (c.$slot)
+  write.init borrow.unique (v) take %150
+  %152: Size [unique call] = read borrow.unique (part) loan12
+  %153: Size = read copy.trivial (v)
+  %154: Size = const 10
+  %155: Size = mul inspect %153 inspect %154
+  %156: {} = call +=(Size) borrow.unique %152 borrow.shared %155
+  jump -> bb39
+
+bb42:
+  %167: words'2.Iter [unique call shape9 .2.0.*=shared slot 0] = read borrow.unique (spelling) loan14 roots.0{13}
+  %168: I32 = const 0
+  %169: Bool = const False
+  %170: Bool = call words'2$step borrow.unique %167 take %168 take %169
+  branch inspect %170 -> bb44 -> bb43
+
+bb43:
+  drop (spelling)
+  drop (prefix)
+  %182: Size = const 0
+  write.init borrow.unique (total) take %182
+  %184: Size = const 0
+  write.init borrow.unique (running) take %184
+  %186: Size [unique call] = read borrow.unique (total) loan16
+  %187: counting.Iter [owned here shape11 .2.*=unique slot 0] = call counting$new borrow.unique %186 roots.0{16}
+  write.init borrow.unique (stepping) take %187
+  jump -> bb45
+
+bb44:
+  %172: words'2.Iter [unique call shape9 .2.0.*=shared slot 0] = read borrow.unique (spelling) loan15 roots.0{13}
+  %173: String = call words'2$take borrow.unique %172
+  write.init borrow.unique (w) take %173
+  %175: String = read take (joined)
+  %176: String = read take (w)
+  %177: String = call ++(String) take %175 take %176
+  %178: String = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  %179: String = call ++(String) take %177 take %178
+  write.reinit borrow.unique (joined) take %179
+  jump -> bb42
+
+bb45:
+  %190: counting.Iter [unique call shape11 .2.*=unique slot 0] = read borrow.unique (stepping) loan17 roots.0{16}
+  %191: I32 = const 0
+  %192: Bool = const False
+  %193: Bool = call counting$step borrow.unique %190 take %191 take %192
+  branch inspect %193 -> bb47 -> bb46
+
+bb46:
+  %201: Size = const 3
+  %202: Guard = aggregate.Guard take %201
+  write.init borrow.unique (g) take %202
+  %204: Guard [shared call] = read borrow.shared (g) loan19
+  %205: watching.Iter [owned here shape12 .2.*=shared slot 0] = call watching$new borrow.shared %204 roots.0{19}
+  write.init borrow.unique (seen) take %205
+  jump -> bb48
+
+bb47:
+  %195: Size = read copy.trivial (stepping.$slot)
+  write.init borrow.unique (v) take %195
+  %197: Size [unique call] = read borrow.unique (running) loan18
+  %198: Size = read copy.trivial (v)
+  %199: {} = call +=(Size) borrow.unique %197 borrow.shared %198
+  jump -> bb45
+
+bb48:
+  %208: watching.Iter [unique call shape12 .2.*=shared slot 0] = read borrow.unique (seen) loan20 roots.0{19}
+  %209: I32 = const 0
+  %210: Bool = const False
+  %211: Bool = call watching$step borrow.unique %208 take %209 take %210
+  branch inspect %211 -> bb50 -> bb49
+
+bb49:
+  drop (g)
+  %219: Size [unique call] = read borrow.unique (sum) loan22
+  %220: Size = read copy.trivial (running)
+  %221: Size = read copy.trivial (total)
+  %222: Size = add inspect %220 inspect %221
+  %223: {} = call +=(Size) borrow.unique %219 borrow.shared %222
+  %224: Size = read copy.trivial (global trace)
+  %225: Size = const 100
+  %226: Size = mul inspect %224 inspect %225
+  %227: String [shared call] = read borrow.shared (joined) loan23
+  %228: String [shared slot 0 view] = call.derivation view(String) borrow.shared %227 roots{23}
+  %229: Size = call length(String) borrow.shared %228
+  drop (joined)
+  %230: Size = add inspect %226 inspect %229
+  %231: Size = const 1000
+  %232: Size = mul inspect %230 inspect %231
+  %233: Size = read copy.trivial (part)
+  %234: Size = add inspect %232 inspect %233
+  %235: Size = const 100
+  %236: Size = mul inspect %234 inspect %235
+  %237: Size = read copy.trivial (firstTwo)
+  %238: Size = add inspect %236 inspect %237
+  %239: Size = const 1000
+  %240: Size = mul inspect %238 inspect %239
+  %241: Size = read copy.trivial (pairs)
+  %242: Size = add inspect %240 inspect %241
+  %243: Size = const 100
+  %244: Size = mul inspect %242 inspect %243
+  %245: Size = read copy.trivial (sum)
+  %246: Size = add inspect %244 inspect %245
+  return take %246
+
+bb50:
+  %213: Size = read copy.trivial (seen.$slot)
+  write.init borrow.unique (v) take %213
+  %215: Size [unique call] = read borrow.unique (running) loan21
+  %216: Size = read copy.trivial (v)
+  %217: {} = call +=(Size) borrow.unique %215 borrow.shared %216
+  jump -> bb48
+}
+
+fn evens$new() -> evens.Iter = <no body>
+
+fn evens$step($self: evens.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn evens$next($self: evens.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn evens$resume($self: evens.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn odds$new() -> odds.Iter = <no body>
+
+fn odds$step($self: odds.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn odds$next($self: odds.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn odds$resume($self: odds.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn squares$new(n: Size) -> squares.Iter = <no body>
+
+fn squares$step($self: squares.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn squares$next($self: squares.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn squares$resume($self: squares.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn guarded$new() -> guarded.Iter = <no body>
+
+fn guarded$step($self: guarded.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn guarded$drop($self: guarded.Iter) -> {} = <no body>
+
+fn guarded$next($self: guarded.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn guarded$resume($self: guarded.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn holding$new(g: Guard) -> holding.Iter = <no body>
+
+fn holding$step($self: holding.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn holding$drop($self: holding.Iter) -> {} = <no body>
+
+fn holding$next($self: holding.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn holding$resume($self: holding.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn words'2$new(prefix: String [shared slot 0 view]) -> words'2.Iter [owned here shape9 .2.0.*=shared slot 0] = <no body>
+
+fn words'2$step($self: words'2.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn words'2$drop($self: words'2.Iter) -> {} = <no body>
+
+fn words'2$take($self: words'2.Iter [unique call]) -> String = <no body>
+
+fn words'2$next($self: words'2.Iter [unique slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+
+fn words'2$resume($self: words'2.Iter [unique slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+
+fn counting$new(total: Size [unique slot 0]) -> counting.Iter [owned here shape11 .2.*=unique slot 0] = <no body>
+
+fn counting$step($self: counting.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn counting$next($self: counting.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn counting$resume($self: counting.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn watching$new(g: Guard [shared slot 0]) -> watching.Iter [owned here shape12 .2.*=shared slot 0] = <no body>
+
+fn watching$step($self: watching.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn watching$next($self: watching.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn watching$resume($self: watching.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+entry main

@@ -1,0 +1,207 @@
+{-
+   How a captured argument travels into an object's record, and what its hand-over slot holds -
+   `doc/inflight/Design-Iterator-Objects.md` §3.1, and the four gaps J50 refused by name.
+
+   # resolver: ownership
+
+   `IterCaptureKind` is the list and it has three rows. A parameter the producer **owns**, or a
+   shared loan of something a copy cannot be told from, is held **by value**. Every other loan is
+   held as the lender's **address**, and the record publishes it at an origin slot so that the
+   lender stays borrowed for as long as the object lives. A **window** is the third: a descriptor is
+   already a value, so the record holds its two words and publishes the pointer inside them.
+
+   Beside them is the slot. A hand-over the consumer **owns** and that owes a teardown puts a value
+   in the record that the record owes until somebody takes it, and `$held` is the flag that says
+   whether it is still there - set by the step as it writes, cleared by the consumer that takes, and
+   read by the teardown.
+
+   Every case here is run twice - once as `for x in f(...)` and once as an object - and the assertion
+   is that the two answer the same number.
+-}
+
+let &trace = 0 :: Int
+
+data Owned {id: Int}
+
+instance Drop(Owned):
+    fn drop(->value: Owned):
+        trace = trace * 10 + value.id
+
+{-
+   `-> ->T` at a `T` that owes a teardown - the `$held` row.
+
+   The record's last field is a `Bool` saying whether the slot still holds what the last hand-over
+   put there. `f$take` is what a `for` calls, and it moves the value out and clears the flag in one
+   body: a plain read of `it.$slot` would be a move out of a path the loop's back edge names again,
+   which nothing in MIR says the next step refills.
+-}
+iter fn handing(n: Int) -> ->Owned:
+    let &i = 1 :: Int
+
+    while i <= n:
+        yield Owned {id: i}
+        i = i + 1
+
+fn handedByFor() -> Int:
+    trace = 0
+    let &it = handing(3)
+    let &packed = 0 :: Int
+
+    for v in it:
+        packed = packed * 10 + v.id
+
+    return packed * 1000 + trace
+
+fn handedByLoop() -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+
+    for v in handing(3):
+        packed = packed * 10 + v.id
+
+    return packed * 1000 + trace
+
+{-
+   Leaving the loop early with a value still owed.
+
+   `break` takes the item it was given, so the slot is empty and the record's teardown has nothing to
+   release from it; what the trace shows is the two values the loop did take. The flag is what makes
+   that a fact about the record rather than about where the `break` was written.
+-}
+fn handedAndLeft() -> Int:
+    trace = 0
+    let &it = handing(4)
+
+    for v in it:
+        if v.id == 2 then break
+
+    return trace
+
+data Big {a: Int, b: Int, c: Int, d: Int, e: Int, f: Int}
+
+instance Drop(Big):
+    fn drop(->value: Big): {}
+
+{-
+   A **shared** loan of something that is not trivially copyable - held as the lender's address.
+
+   J50 refused this because a shared loan is the record on some layouts and its address on others,
+   and the mint cannot ask. What settles it is that `f$new`'s parameter publishes an **origin slot**:
+   an occurrence in a published origin is reached through storage whatever its type's layout says, so
+   the argument arrives as an address and the field holds one. The same slot is what keeps `big`
+   borrowed for as long as the object is live.
+-}
+iter fn over(big: Big, n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield big.a + i
+        i = i + 1
+
+fn sharedByFor() -> Int:
+    let big = Big {a: 10, b: 0, c: 0, d: 0, e: 0, f: 0}
+    let &it = over(big, 3)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 100 + x
+
+    return packed
+
+fn sharedByLoop() -> Int:
+    let big = Big {a: 10, b: 0, c: 0, d: 0, e: 0, f: 0}
+    let &packed = 0 :: Int
+
+    for x in over(big, 3):
+        packed = packed * 100 + x
+
+    return packed
+
+{-
+   A **window** as a captured argument - `items(xs)`' own shape.
+
+   The record holds the descriptor: two words naming somebody else's storage, exactly as
+   `constructIter` puts one in a stack handle's captured tuple. The field carries **no origin of its
+   own** - a field whose contract publishes a slot is a reference to the lowering and a descriptor to
+   the manifestation table, and the two then disagree by one indirection - so the loan is stated
+   where the pointer inside the descriptor is, and `f$new`'s result binds it.
+-}
+iter fn picking(xs: [Int], n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield xs[i]
+        i = i + 1
+
+fn windowByFor() -> Int:
+    let xs = [4, 5, 6, 7]
+    let &it = picking(xs, 3)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x
+
+    return packed
+
+fn windowByLoop() -> Int:
+    let xs = [4, 5, 6, 7]
+    let &packed = 0 :: Int
+
+    for x in picking(xs, 3):
+        packed = packed * 10 + x
+
+    return packed
+
+{-
+   A hand-over with **interior positions** - `Entry('k, 'v)`, which is `pairs`' shape.
+
+   The occurrence carries a shape the type does not have, so its fields are laid out as *references*
+   and the value is addresses into somebody else's storage rather than words of its own. A slot
+   holding it by value would be laid out from the bare type, so the slot holds where the value is -
+   and what it points at is a payload member, because a lending hand-over's own local is live at the
+   hand-over whether or not the producer reads it below.
+-}
+data Pair(k, v) {key: k, value: v}
+
+iter fn paired(xs: [Int], n: Int) -> Pair('Int, 'Int):
+    let &i = 0 :: Int
+
+    while i < n:
+        let entry = Pair {key: xs[i], value: xs[i]}
+        yield entry
+        i = i + 1
+
+{-
+   The **object** form only, and that is a finding rather than an omission: `for p in paired(xs, 3)`
+   - the same traversal compiled continuation-passing - crashes at run time in this stage and is
+   refused outright by the shipping one ("cannot convert Pair(I32, I32) to Pair('I32, 'I32)"). A
+   qualified type argument in a hand-over is a shape the `yield` has to carry and neither `for` form
+   carries it; the object's slot does, because the record is where the value lives.
+-}
+fn pairedByFor() -> Int:
+    let xs = [1, 2, 3, 4]
+    let &it = paired(xs, 3)
+    let &packed = 0 :: Int
+
+    for p in it:
+        packed = packed * 10 + p.key + p.value
+
+    return packed
+
+fn main() -> Int:
+    let a = handedByFor()
+    let b = handedByLoop()
+    let c = handedAndLeft()
+    let d = sharedByFor()
+    let e = sharedByLoop()
+    let f = windowByFor()
+    let g = windowByLoop()
+    let h = pairedByFor()
+
+    -- Each pair agrees, which is what this file is for: what the record does with a captured
+    -- argument is invisible to the program that wrote the traversal.
+    checkCondition(a != b)
+    checkCondition(d != e)
+    checkCondition(f != g)
+
+    return a + c + d + f + h

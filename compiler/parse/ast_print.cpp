@@ -52,7 +52,7 @@ struct Printer {
             case Expr::Ret: printRetExpr(expr); break;
             case Expr::Yield: printYieldExpr(expr); break;
             case Expr::Break: printBreakExpr(expr); break;
-            case Expr::Continue: stream.writeString("ContinueExpr"_v); break;
+            case Expr::Continue: printContinueExpr(expr); break;
             case Expr::Is: printIsExpr(expr); break;
             case Expr::Try: printTryExpr(expr); break;
             case Expr::Unwrap: printUnwrapExpr(expr); break;
@@ -543,6 +543,15 @@ private:
         }
     }
 
+    void printContinueExpr(Expr& e) {
+        stream.writeString("ContinueExpr "_v);
+        if(e.continueValue) {
+            makeLevel();
+            toString(*base[e.continueValue], true);
+            removeLevel();
+        }
+    }
+
     // Writes just the bare tag ("<lens>"/"<iter>", nothing for Plain) - callers are
     // responsible for surrounding spacing, since it differs slightly by call site.
     void printFunKind(FunKind kind) {
@@ -1006,6 +1015,50 @@ private:
                     stream.writeString("GenType "_v);
                     auto name = context.find(type.name);
                     stream.writeBytes((const Byte*)name.text, name.textLength);
+                    break;
+                }
+                case Type::Site: {
+                    // `f.Iter`, printed as the path it is - the head and the member are two names
+                    // and the dot between them is grammar, so spelling them back joined is what
+                    // makes an `ast` dump comparable with the source. See ast::Type::Site.
+                    auto& site = *base[type.site];
+                    stream.writeString("SiteType "_v);
+
+                    auto head = context.find(site.head);
+                    stream.writeBytes((const Byte*)head.text, head.textLength);
+                    stream.writeByte('.');
+
+                    auto member = context.find(site.member);
+                    stream.writeBytes((const Byte*)member.text, member.textLength);
+
+                    if(site.args.isNotEmpty()) {
+                        makeLevel();
+                        printList(site.args);
+                        removeLevel();
+                    }
+
+                    break;
+                }
+                case Type::Iter: {
+                    // `iter(Y <- R | E)`, printed as the three channels it is - the hand-over
+                    // below it, and the two others where the grammar writes them. See
+                    // ast::Type::Iter.
+                    auto& iterated = *base[type.iterated];
+                    stream.writeString("IterType"_v);
+                    if(iterated.bind == BindType::Sink) stream.writeString(" ->"_v);
+
+                    makeLevel();
+
+                    auto last = !iterated.protocol.resume && !iterated.protocol.failure;
+                    toString(iterated.yielded, last);
+
+                    if(iterated.protocol.resume) {
+                        toString(*base[iterated.protocol.resume], !iterated.protocol.failure);
+                    }
+
+                    if(iterated.protocol.failure) toString(*base[iterated.protocol.failure], true);
+
+                    removeLevel();
                     break;
                 }
                 case Type::Tup:

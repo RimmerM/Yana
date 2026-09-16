@@ -356,7 +356,10 @@ struct Builder {
      * signature to look up and no type arguments to bind. The callee operand is read exactly as an
      * argument is - what a call does to a function value is inspect the two words it holds.
      */
-    Node* addCallValue(LocationId source, Node& target, Node* const* arguments, Size count);
+    // `signature` is what calling the value means - `callableShapeOf` - which for a site type and
+    // for a type variable is not the value's own type.
+    Node* addCallValue(LocationId source, Node& target, DeclPtr<Type> signature,
+                       Node* const* arguments, Size count);
 
     /*
      * Reading a place under a mode. The result's occurrence follows from the mode: `CopyTrivial` and
@@ -399,7 +402,6 @@ struct Builder {
     Node* addRepresent(LocationId source, Node& record, Occurrence view);
 
     // And the other way: a view occurrence as the owned record it is laid out as.
-    Node* addViewRecord(LocationId source, Node& view);
 
     // The same bits at another type - `Bitcast`'s rungs, whose set is `intrinsic::reinterpretable`.
     // A producer of its own for `addConvert`'s reason: the result type is stated here, not derived.
@@ -456,6 +458,16 @@ struct Builder {
     Node* addReturnUnit(LocationId source);
     Node* addJump(LocationId source, Block& target, const Operand* arguments, Size count);
     Node* addBreak(LocationId source, Block& target);
+
+    /*
+     * `continue v` - the same edge as falling out, with the pass's answer on the node.
+     *
+     * `resume` is the position the value fills, which is the region's declaration rather than
+     * anything in this block: the mode is `argumentMode`'s answer for it, so a resume value the
+     * declaration takes is a move by construction and there is no spelling for anything else - the
+     * same sentence `addCall` makes about an argument.
+     */
+    Node* addResume(LocationId source, Block& target, Node& value, const Occurrence& resume);
 
     /*
      * A lens call - `NodeLensCall`, and the one terminator that is also a call.

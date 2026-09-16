@@ -752,17 +752,35 @@ Inst* Editor::makeBranchEdges(LocationId source, Use condition,
 Inst* Editor::makeSwitch(LocationId source, Use selector, const I64* values,
                          Block* const* targets, Size count, Block& fallback,
                          const Use* arguments, Size argumentCount) {
+    // One list per case, all of them this one - see `makeSwitchEdges`, which is where a `switch`
+    // whose arms carry different lists comes from and is the only thing below this.
+    SmallArray<Size, 16> counts;
+    SmallArray<Use, 16> repeated;
+
+    for(Size i = 0; i < count; i++) {
+        counts.push(argumentCount);
+        for(Size a = 0; a < argumentCount; a++) repeated.push(arguments[a]);
+    }
+
+    return makeSwitchEdges(source, selector, values, targets, counts.pointer(), repeated.pointer(),
+                           count, fallback, arguments, argumentCount);
+}
+
+Inst* Editor::makeSwitchEdges(LocationId source, Use selector, const I64* values,
+                              Block* const* targets, const Size* counts, const Use* arguments,
+                              Size count, Block& fallback, const Use* fallbackArguments,
+                              Size fallbackCount) {
     // Below three cases it is a branch - the MIR node states the rule and the producer is what keeps
     // it; this is where the tier below finds out that something did not.
     assertTrue(count >= 3);
-    assertTrue(argumentCount == fallback.argumentList.size());
+    assertTrue(fallbackCount == fallback.argumentList.size());
 
     auto inst = new (arena) InstSwitch(source, selector);
     inst->cases.reserve(arena, count);
 
     for(Size i = 0; i < count; i++) {
         assertTrue(!i || values[i] > values[i - 1]);
-        assertTrue(argumentCount == targets[i]->argumentList.size());
+        assertTrue(counts[i] == targets[i]->argumentList.size());
 
         SwitchCase entry;
         entry.value = values[i];
@@ -772,13 +790,18 @@ Inst* Editor::makeSwitch(LocationId source, Use selector, const I64* values,
     // The edges after the list is complete: a reference into a `SmallList` is valid only until the
     // next push, and pushing an argument allocates.
     auto items = inst->cases.pointer(base());
+    Size at = 0;
+
     for(Size i = 0; i < count; i++) {
         items[i].edge.target = targets[i] - base();
-        for(Size a = 0; a < argumentCount; a++) items[i].edge.arguments.push(arena, arguments[a]);
+        for(Size a = 0; a < counts[i]; a++) items[i].edge.arguments.push(arena, arguments[at + a]);
+        at += counts[i];
     }
 
     inst->fallback.target = &fallback - base();
-    for(Size a = 0; a < argumentCount; a++) inst->fallback.arguments.push(arena, arguments[a]);
+    for(Size a = 0; a < fallbackCount; a++) {
+        inst->fallback.arguments.push(arena, fallbackArguments[a]);
+    }
 
     return inst;
 }

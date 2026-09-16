@@ -121,6 +121,51 @@ static constexpr U64 kExitLeave = 1;
 static constexpr U64 kExitBreak = 2;
 
 /*
+ * The resume index a **finished** iterator object carries - `resolve_mir/resolve_object.cpp`, where
+ * the same number is written for the record's other end.
+ *
+ * Repeated rather than shared because the two tiers do not include each other, and it is deliberately
+ * a number no `yield` can be given: a `yield`'s index is `1 + k`, so what is left over says the
+ * producer ran out or was cancelled.
+ */
+static constexpr I64 kIterFinished = 0x7fffffff;
+
+/*
+ * What a generated caller sends a step when it is sending a **row** rather than a value.
+ *
+ * The step's second argument is the continuation's answer at the type J49 gave it: the bare exit
+ * signal for a plain producer, and `Outcome(R, exit)` where the declaration wrote `<- R`. Three
+ * callers here choose a row of their own rather than passing a consumer's - the teardown's "leave",
+ * a nested member's "fall out", and the cancellation of a suspended child - and each of them wrote
+ * the bare signal. At a resuming producer that is a mistyped call, which the verifier reports as
+ * `internal: call to g$step supplies argument 1 of type I32, and it declares Outcome(Cmd, I32)`;
+ * the teardown is the one that made the whole declaration fail, because a record owing anything at
+ * all has one (`../../doc/progress/2026-09-16-J57-object-defects.md` §2).
+ *
+ * One function rather than the wrapper written out three times, so that the day a fourth caller
+ * appears it cannot get this wrong: `emitIterStepper` and `emitErasedStepper` build the same
+ * aggregate from the other direction, where the payload is a `Proceed(v)` a consumer supplied.
+ */
+static Use exitRow(mir::Program& program, Editor& editor, DeclPtr<mir::Type> sent, U64 code,
+                   LocationId at) {
+    auto decl = *program.decl;
+    auto row = editor.addConst(at, mir::intConstant(program.types.exitCode(), code));
+
+    if(decl[sent]->kind != mir::Type::Record) {
+        return editor.use(*editor.resultOf(*row), UseKind::Consume);
+    }
+
+    // `Exit(code)` - the second constructor of `Outcome(R, exit)`, whose payload is the same signal
+    // the bare form is. The first is `Proceed(v)` and is what a consumer's `resume(v)` builds.
+    auto& wrapper = *(mir::RecordType*)decl[sent];
+    auto held = mir::owned(sent);
+    Use component[1] = { editor.use(*editor.resultOf(*row), UseKind::Consume) };
+    auto exit = wrapper.cons.get(decl, 1).index;
+    auto built = editor.addAggregate(at, exit, component, 1, held, conventionFor(decl, held));
+    return editor.use(*editor.resultOf(*built), UseKind::Consume);
+}
+
+/*
  * Everything the outlining needs, worked out before a single instruction is emitted.
  *
  * Before, and not as the walk goes, for the reason the block map is built first: the call site is
@@ -346,7 +391,17 @@ struct Planner {
         auto lifted = new (program.decl) mir::Function(name, function.module);
         lifted->source = function.source;
         lifted->environment = recordPointer;
-        lifted->result = mir::owned(program.types.exitCode());
+        /*
+         * What the continuation answers - the bare exit signal, or `Outcome(R, exit)` where the
+         * iterator this is a pass of declared `-> (Y <- R)`.
+         *
+         * Read off the region rather than rebuilt here: `handoverCall` put the callee's declared
+         * answer on it under the call's substitution, and a conversion that interned the wrapper
+         * itself would be resolving a type at the tier that resolves none. A region with none is one
+         * no `handoverCall` opened, and answers the bare signal.
+         */
+        lifted->result = region->answer.type ? substituted(region->answer)
+                                             : mir::owned(program.types.exitCode());
         lifted->reachable = true;
         lifted->summary.bodyKnown = true;
 
@@ -440,6 +495,139 @@ struct Graft {
     LocationId site;
 };
 
+/*
+ * An iterator object's **step**, as a second reading of the producer's own MIR body -
+ * `doc/inflight/Design-Iterator-Objects.md` §3.2, and `resolve_mir/resolve_object.cpp` for the type.
+ *
+ * The fourth shape a conversion takes, beside a function of its own, an outlined continuation and a
+ * graft - and the only one that changes what the *body* means rather than where it is emitted.
+ * Three things are read differently and nothing else is:
+ *
+ *  - **a local's storage.** A parameter is a field of `self` - the captured argument - and a local
+ *    the producer keeps across a `yield` is a field too. Everything else is an ordinary `alloc`, in
+ *    the step's own frame, because it is dead by the time the step returns.
+ *  - **a `yield`**, which in MIR is a call through the continuation parameter: write the hand-over
+ *    into the slot, write the index, and return `True`. The call's *result* - what the continuation
+ *    answered - is the step's own `$resume` argument, in the block the next step resumes at.
+ *  - **a `return`**, which is the producer having run out or having been left: write the finished
+ *    index and return `False`.
+ *
+ * So the producer's departure path is the record's teardown with nothing added: the step is handed
+ * "leave" by `f$drop`, `resolveYield`'s own test takes the branch, `emitDeparture` walks out of the
+ * loops, the statements below them run, and drop elaboration releases every local that is still
+ * live. §3.3's "shared across indices" is what converting one body once already does.
+ */
+struct StepPlan {
+    static constexpr U32 kNoField = ~U32(0);
+    static constexpr U32 kNotAYield = ~U32(0);
+
+    mir::RecordType* record = nullptr;
+
+    // Per MIR local: which field of the record holds it, or `kNoField` for a step-frame local. Per
+    // MIR node: which `yield` it is, and whether it is the read of the continuation parameter that
+    // one goes through - the one node in the body with no storage and no value at all.
+    Array<U32> localField;
+    Array<U32> yieldOf;
+    Array<U8> readsContinuation;
+
+    // And per MIR local: whether its field holds a run's address rather than the value - `@heap` on
+    // the producer's binding, `RecordType::kHeapMember`. The fields of those members, in field
+    // order, are what the exits free.
+    Array<U8> localRun;
+    Array<U16> runFields;
+
+    // And per MIR local: whether the record carries it as a **borrow** - a pointer field written
+    // where the binding is established and read at every use. `RecordType::kBorrowMember`.
+    Array<U8> localBorrow;
+
+    /*
+     * The **embedded regions**, per `lens.call` node - `RecordType::kNestMember`, §3.2's first step.
+     *
+     * `nestOf` is which field holds each region's child, `nestFields` is the same list in field order
+     * and is what the exits cancel, and `nestAdvance` is the block that steps the child - made where
+     * the call is embedded and jumped to by every block of the region that falls out. Keyed by
+     * *region* rather than by node, because that is what an edge leaving one has in hand, and the
+     * record's entry is the node the region was opened by.
+     *
+     * A `for x in g(...)` and a `withLock(m):` are the same three lists: what differs is only what
+     * the second entry to `nestAdvance` does, which is the callee's own business - the next element
+     * for an `iter fn` and the code after the `yield` for a `lens fn`. See `convertStepNest`.
+     */
+    Array<U32> nestOf;
+    Array<U16> nestFields;
+    Array<SsaPtr<Block>> nestAdvance;
+
+    /*
+     * And which of them are **boxed** - §6.3's recursion, `RecordType::nestBoxed`.
+     *
+     * The `g$erased.heap` shim per region, or null where the member holds the child's record inline.
+     * A boxed member's field is the protocol `iter(Y)`, so the shim is the only thing that names
+     * what is in the box: its `generatedRecord` is the child's site type, and its own address is the
+     * pair's code word.
+     *
+     * `nestFieldBoxed` is the same answer in `nestFields` order, which is what the exits walk: they
+     * have a field in hand rather than a region, and a boxed member is released where a concrete one
+     * is cancelled.
+     */
+    Array<DeclPtr<mir::Function>> nestBoxed;
+    Array<DeclPtr<mir::Function>> nestFieldBoxed;
+
+    /*
+     * And which of them **delegate** - §6.3's `yield from`, `RecordType::nestDelegates`.
+     *
+     * Per region, beside `nestBoxed`, and what it changes is the whole of the emission: a delegating
+     * region is never *stepped* here. The call stores the child's pair into the member's link, writes
+     * the link's address into `$down`, and suspends this level - so there is no `advance`, and the
+     * region's own blocks are not converted at all (`inScope`), because what they contain is a
+     * hand-over of the item and nothing else and the consumer is about to take that item from the
+     * child directly.
+     *
+     * `delegateResume` is where the level comes back when the child has run out: it releases the box
+     * and carries on at the region's destination, which is exactly what `advance`'s false arm does
+     * for a level that steps its own child.
+     */
+    Array<U8> nestDelegate;
+
+    /*
+     * And where a delegating level **comes back** - the block the dispatch enters it at once the
+     * child has run out, one index per region past the hand-overs' own.
+     *
+     * What it does is the two things the region's own blocks would have done and this level no
+     * longer runs: it writes what the consumer answered into `guardYields`' local, so the code after
+     * the region can see that the consumer left, and it releases the box. Then it carries on where
+     * the region rejoins, which is `advance`'s false arm.
+     */
+    Array<SsaPtr<Block>> delegateResume;
+
+    /*
+     * The **values** the record spills - what crosses a hand-over without a name, which a counted
+     * `for`'s own block arguments are (`resolve_mir/resolve_object.cpp`'s `LiveAcross`).
+     *
+     * Three parallel lists rather than a table keyed by node, because what reads them is a loop over
+     * the ones live at *this* `yield`: `spillEntry` is the payload entry the record holds each in,
+     * and `RecordType::keepsAcross` is what says whether this hand-over keeps it - a spill it does
+     * not keep is one whose value does not exist yet on this path.
+     */
+    Array<U32> spillValue;
+    Array<U32> spillField;
+    Array<U32> spillEntry;
+
+    U32 continuationArg = 0;
+    U32 yields = 0;
+
+    // Filled as the conversion goes: where the step resumes for each index. `1 + k` is the index of
+    // `yield` k, so index zero stays "has not started" - see `resolve_object.cpp`.
+    Array<SsaPtr<Block>> resume;
+
+    Value* self = nullptr;
+    Value* resumeValue = nullptr;
+    Value* cancel = nullptr;
+
+    Block* fresh = nullptr;
+    Block* finished = nullptr;
+    Block* bodyEntry = nullptr;
+};
+
 struct Conversion {
     Context& context;
     mir::Program& program;
@@ -496,6 +684,10 @@ struct Conversion {
      * MIR body: the enclosing function emits the blocks of region zero, and each `Handover` region
      * emits its own. So one conversion is one *scope*, `outlining` is null for the first of them,
      * and everything below asks the scope rather than testing for a lens.
+     *
+     * A **step** is the exception and is one scope over the whole body: a nested traversal's region
+     * is embedded rather than outlined, because the producer it belongs to is suspended rather than
+     * running. `inScope` is where that is said once.
      */
     ContinuationId scope { 0 };
     Array<Outline>& outlines;
@@ -528,6 +720,10 @@ struct Conversion {
     Graft* grafting = nullptr;
     U32 graftDepth = 0;
 
+    // Set where this conversion is the **step** of an iterator object - `StepPlan`, which is where
+    // the three things it reads differently are written down.
+    StepPlan* stepping = nullptr;
+
     Conversion(Context& context, mir::Program& program, SsaArena& arena, mir::Function& owner,
                mir::Function& target, Editor& editor, Scratch& scratch, Array<Outline>& outlines,
                Outline* outlining, Graft* graft = nullptr, U32 depth = 0):
@@ -546,10 +742,51 @@ struct Conversion {
         if(source.elaboration) elaboration = mir[source.elaboration];
     }
 
-    // Whether a block belongs to the scope this conversion emits.
+    /*
+     * Whether a block belongs to the scope this conversion emits.
+     *
+     * Every block, in a **step**: a nested traversal's region is *embedded* rather than outlined, so
+     * the producer's whole body is one function here - §3.2's first step, and the one place a step
+     * and the continuation-passing form disagree about which blocks are whose.
+     */
     bool inScope(BlockId block) {
+        /*
+         * A **delegated** region's blocks are not converted at all - §6.3.
+         *
+         * The pass is a hand-over of the child's item and nothing else (`Continuation::reyield`), and
+         * under delegation the consumer takes that item from the child directly - so there is nothing
+         * of this level between the two and its blocks would be unreachable. Skipped rather than
+         * emitted and left unreachable, because dominance is not defined in a block the entry cannot
+         * reach and `verifyBody` says so.
+         *
+         * What the level still owes is the one write those blocks would have made: `guardYields`'
+         * own local, which the code after the region reads to find out whether the consumer left.
+         * `stepDelegateResume` is where it is written.
+         */
+        if(stepping) return !insideDelegated(source.block(mir, block)->region);
         return source.block(mir, block)->region == scope;
     }
+
+    bool insideDelegated(ContinuationId region) {
+        auto at = region;
+
+        while(at.valid()) {
+            if(at.index < stepping->nestDelegate.size() && stepping->nestDelegate[at.index]) {
+                return true;
+            }
+
+            auto held = source.region(mir, at);
+            if(!held) break;
+            at = held->parent;
+        }
+
+        return false;
+    }
+
+    // The region of the block being converted, which is `scope` everywhere but in a step - see
+    // `inScope`. What reads it is `convertEdge`, where an edge leaving a nested region is the one
+    // that asks the child for its next element.
+    ContinuationId emitting { 0 };
 
     Outline* outlineFor(ContinuationId region) {
         for(auto& entry: outlines) if(entry.region == region) return &entry;
@@ -726,6 +963,27 @@ struct Conversion {
                 return editor.resultOf(*editor.addGlobalAddress(at, global));
             }
             case mir::Place::Local: {
+                /*
+                 * A **borrow** the record carries across a hand-over - the pointer read out of its
+                 * field, here rather than once at the step's entry.
+                 *
+                 * Per use, which is the one thing that makes it correct: the field is written where
+                 * the producer's own `let held = base` establishes the binding, and a value cached
+                 * at the entry would be the contents from before that write - while a value cached
+                 * at the write would not reach the resume blocks, which the dispatch enters without
+                 * passing through it. The address the load is made from is `self`, a block argument,
+                 * so nothing about this depends on the order blocks are emitted in.
+                 */
+                if(stepping && place.payload < stepping->localBorrow.size() &&
+                   stepping->localBorrow[place.payload]) {
+                    auto field = U16(stepping->localField[place.payload]);
+                    auto held = mir::owned(stepping->record->field(decl(), field).occurrence.type);
+                    auto slot = stepField(at, field);
+
+                    return editor.resultOf(*editor.addLoad(at, editor.use(*slot, UseKind::Inspect),
+                                                           held, conventionFor(held), false));
+                }
+
                 if(place.payload >= slots.size() || !slots[place.payload]) {
                     report(at, "internal: a place names a local with no storage"_v);
                     return nullptr;
@@ -1423,7 +1681,53 @@ struct Conversion {
     void convertEdge(mir::Node& node, mir::Edge& written, U64 exit) {
         auto to = mir[written.target];
 
-        if(to->region != scope) {
+        /*
+         * A **step**, where a region is embedded rather than outlined - §3.2's first step, and the
+         * whole of what the two exits mean once the child is a field.
+         *
+         * Falling out of the region is the continuation ending, which here steps the member: the
+         * edge goes to the block the call made for that rather than to where the region rejoins.
+         * For a `Many` region that is the next element; for a lens's `Once` region it is the code
+         * after the lens's `yield`, which is its cleanup, and the member then answers `False` and
+         * the same block carries on at the destination. **A departure takes this edge too** - a
+         * `yield` inside a lens region whose consumer has left jumps to the region's destination
+         * (`emitDeparture`), which is a plain `Jump` - so the lens's cleanup runs on the way past
+         * exactly as it does in the continuation-passing form.
+         *
+         * `break` - which is what a departure out of the outer object emits where the region holds a
+         * loop, since `emitDeparture` leaves the loops the `yield` was written in - ends the child,
+         * so the child is cancelled and control resumes at the region's destination exactly as the
+         * caller of an outlined continuation resumes there. A `break` written *inside* a lens region
+         * is refused one tier up ("`break` out of a lens call"), so what reaches here for a `Once`
+         * region is the fall-out arm.
+         */
+        if(stepping && to->region != emitting) {
+            auto region = source.region(mir, emitting);
+
+            if(!region || to->index != region->destination || written.arguments.size()) {
+                report(node.source,
+                       "internal: an edge leaves an embedded region for somewhere other than where it rejoins"_v);
+                return;
+            }
+
+            if(exit == kExitFallOut) {
+                auto advance = stepping->nestAdvance[emitting.index];
+
+                if(!advance) {
+                    report(node.source, "internal: an embedded region falls out before it was entered"_v);
+                    return;
+                }
+
+                editor.addJump(node.source, *base()[advance], nullptr, 0);
+                return;
+            }
+
+            stepCancelNest(node.source, emitting);
+            editor.addJump(node.source, *base()[blocks[to->index.index]], nullptr, 0);
+            return;
+        }
+
+        if(to->region != scope && !stepping) {
             /*
              * The one edge that may leave, held to what the region declared.
              *
@@ -1497,6 +1801,18 @@ struct Conversion {
         }
     }
 
+    /*
+     * What this scope's terminators answer with - the exit signal, or the wrapper a resume channel
+     * turns it into.
+     *
+     * Read off the lifted declaration the planner already filled, so that the two cannot disagree:
+     * what a continuation returns is stated once, where the function is made.
+     */
+    mir::Occurrence answered() {
+        if(!outlining || !outlining->lifted) return mir::owned(program.types.exitCode());
+        return decl()[outlining->lifted]->result;
+    }
+
     // A continuation answering with which of its exits it took - the whole of the exit signal, and
     // the one thing a `Handover` region's terminators become that an ordinary block's do not.
     void emitExit(LocationId at, U64 code) {
@@ -1504,8 +1820,86 @@ struct Conversion {
 
         auto constant = mir::intConstant(program.types.exitCode(), code);
         auto value = editor.resultOf(*editor.addConst(at, constant));
+
+        /*
+         * `Exit(code)` where the continuation answers a wrapper - Design-Iterator-Objects.md §2.5.
+         *
+         * Every exit that is not `continue v` comes through here, so `break`, `return` and a pass
+         * that was already over are one row of the wrapper and need no case: which of them it was is
+         * still the number inside, and still only the callee's business.
+         */
+        auto answer = answered();
+
+        if(decl()[answer.type]->kind == mir::Type::Record) {
+            auto component = editor.use(*value, UseKind::Consume);
+            value = editor.resultOf(*editor.addAggregate(at, mir::kOutcomeExit, &component, 1,
+                                                         answer, conventionFor(answer)));
+        }
+
         auto used = editor.use(*value, UseKind::Consume);
         editor.addReturn(at, &used, 1);
+    }
+
+    /*
+     * `continue v` - the pass's own answer, which is the other row of the same wrapper.
+     *
+     * The one exit that carries something, and the reason the wrapper exists: a bare `I32` has
+     * nowhere to put it. Nothing else about the exit changes - the caller still reads the *iterator's*
+     * result, which is the signal it always was, and this travels only from the continuation back
+     * into the `yield` that called it.
+     */
+    void emitResume(LocationId at, Use value) {
+        auto answer = answered();
+
+        if(decl()[answer.type]->kind != mir::Type::Record) {
+            report(at, "internal: a `continue` carries a value out of a continuation that answers no wrapper"_v);
+            return;
+        }
+
+        auto wrapped = editor.resultOf(*editor.addAggregate(at, mir::kOutcomeProceed, &value, 1,
+                                                            answer, conventionFor(answer)));
+
+        releaseSlots(at);
+
+        auto used = editor.use(*wrapped, UseKind::Consume);
+        editor.addReturn(at, &used, 1);
+    }
+
+    /*
+     * The `Resume` terminator - `convertEdge` with a value, and the same two checks about where the
+     * edge goes.
+     *
+     * It can only leave: `Node::Resume` is built by `resolveExit` for a loop that *is* a
+     * continuation region, so an edge of one that stayed inside its own region is the two having
+     * come apart rather than a program being unusual - the same reading `convertEdge` gives a
+     * `Break` in its own region.
+     *
+     * **No `stepping` arm, and that is a fact about what can reach here rather than an omission.**
+     * `convertEdge` has one because an embedded region's ordinary exits go to the block that steps
+     * the member; a `Resume` cannot be in one. A nested region whose passes hand a value back is
+     * refused by name where the nest is collected - "an object's step does not carry one into a
+     * nested pass yet" - and a `<- {}` region builds no `Resume` at all, because a unit channel
+     * leaves the continuation answering the bare signal and the exemption takes the fall-out edge
+     * (`mir::resumesWithValue`). Before those two agreed, a `<- {}` producer nested inside an object
+     * reached this report: both spellings of the exemption, falling off the pass and a bare
+     * `continue`, were "a `continue` with a value leaves a continuation for somewhere other than
+     * where it rejoins". So the check below is the consistency check it reads as, and an arm added
+     * here would be building a row the tier above has refused.
+     */
+    void convertResume(mir::NodeResume& node) {
+        auto to = mir[node.to.target];
+        auto declared = outlining ? source.region(mir, scope)->destination : BlockId();
+
+        if(to->region == scope || to->index != declared || node.to.arguments.size()) {
+            report(node.source,
+                   "internal: a `continue` with a value leaves a continuation for somewhere other than where it rejoins"_v);
+            return;
+        }
+
+        Use used;
+        if(!useOf(node.value, node.source, used)) return;
+
+        emitResume(node.source, used);
     }
 
     /*
@@ -1934,7 +2328,1087 @@ struct Conversion {
         return value;
     }
 
+    /*
+     * The record's address, and one of its field addresses - the two things every part of a step
+     * starts from.
+     */
+    Use stepSelf() { return addressUse(*stepping->self); }
+
+    Value* stepField(LocationId at, U16 field) {
+        auto record = asBase<mir::Type>(DeclPtr<mir::RecordType>(stepping->record - decl()));
+        return editor.resultOf(*editor.addFieldAddress(at, stepSelf(), record, field));
+    }
+
+    void stepStoreIndex(LocationId at, I64 index) {
+        auto slot = stepField(at, 0);
+        auto written = editor.addConst(at, mir::intConstant(program.types.exitCode(), U64(index)));
+
+        editor.addStore(at, editor.use(*slot, UseKind::Inspect),
+                        editor.use(*editor.resultOf(*written), UseKind::Consume));
+    }
+
+    void stepReturn(LocationId at, bool more) {
+        auto answer = editor.addConst(at, mir::truthConstant(program, more));
+        Use values[1] = { editor.use(*editor.resultOf(*answer), UseKind::Consume) };
+        editor.addReturn(at, values, 1);
+    }
+
+    /*
+     * The runs a `@heap`-placed payload member lives in, handed back - `RecordType::kHeapMember`.
+     *
+     * At each path out of the *object*, which is a path out of the step that leaves the record
+     * finished: `f$new` made one allocation per member and the record owes one free each. Not at a
+     * hand-over, which is a path out of the step that leaves the record alive.
+     */
+    void stepReleaseRuns(LocationId at) {
+        for(Size i = stepping->runFields.size(); i > 0; i--) {
+            auto address = stepField(at, stepping->runFields[i - 1]);
+            auto held = mir::owned(stepping->record->field(decl(),
+                                   stepping->runFields[i - 1]).occurrence.type);
+
+            auto run = editor.addLoad(at, editor.use(*address, UseKind::Inspect), held,
+                                      conventionFor(held), false);
+            editor.addFree(at, editor.use(*editor.resultOf(*run), UseKind::Inspect));
+        }
+    }
+
+    /*
+     * One **embedded region**'s member ended - `g$step(&member, "leave", True)`, which is the child's
+     * own teardown reached without going through `Drop`.
+     *
+     * For a **lens** member this is where §6.6's "the lens's cleanup runs at the right time on every
+     * path" is discharged: a cancellation is the lens's step entered with "leave", which its `yield`
+     * reads as the consumer being gone - so `emitDeparture` walks out of whatever loops the `yield`
+     * was in, the statements below them are the cleanup, and drop elaboration releases what the lens
+     * still holds. The same call that ends an iterator's pass early releases a lock.
+     *
+     * The child's cancellation is its step entered with a cancel request, exactly as `f$drop` enters
+     * the outer one: at a suspend index the child's departure path runs and releases what it holds,
+     * and at the **finished** index the dispatch's fallback returns having released nothing. That
+     * second row is what makes this idempotent and is why nothing here needs a flag saying whether
+     * the child is running: `f$new` writes the finished index into every nested member, so a child
+     * that was never entered, one that ran out and one that was already cancelled are all a call
+     * that does nothing.
+     *
+     * Emitted where the region is left by a `break` - which is also a departure out of the outer
+     * object - and again at the producer's `return`, so that every path out of the object cancels a
+     * suspended child exactly once.
+     */
+    /*
+     * Where a nest member's **pair** is, and what type it has - the member itself for an ordinary
+     * box, and the link's first field for a delegating one (`RecordType::linkType`).
+     *
+     * Two spellings of one member, so the cancel path, the empty pair and the construction all read
+     * it through here rather than each testing which shape the field has.
+     */
+    DeclPtr<mir::Type> stepBoxType(U16 field) {
+        auto held = stepping->record->field(decl(), field).occurrence.type;
+        if(held != stepping->record->linkType) return held;
+
+        return ((mir::RecordType*)decl()[held])->field(decl(), 0).occurrence.type;
+    }
+
+    Value* stepBoxPair(LocationId at, U16 field) {
+        auto held = stepping->record->field(decl(), field).occurrence.type;
+        auto address = stepField(at, field);
+        if(held != stepping->record->linkType) return address;
+
+        return editor.resultOf(*editor.addFieldAddress(at, editor.use(*address, UseKind::Inspect),
+                                                       held, 0));
+    }
+
+    void stepCancelField(LocationId at, U16 field, DeclPtr<mir::Function> shim) {
+        auto held = stepBoxType(field);
+
+        /*
+         * A **boxed** level, which is ended by releasing the box rather than by stepping it - §6.3.
+         *
+         * A drop of the pair is the child's whole teardown: `funTeardown` tests the tag bit, calls
+         * the block's header - which is the child record's own `Drop`, which is its step entered
+         * with a cancel request - and hands the block back. So one instruction runs the departure
+         * path of every level below this one, and the recursion is the machine's rather than
+         * something this walk has to spell.
+         *
+         * The **empty pair** written back is what makes it idempotent, and it is the same value
+         * `f$new` writes: a box is released by the region it was built in *and* by the producer's
+         * `return`, exactly as a concrete child is cancelled twice, and a second free is not the
+         * no-op a second cancel is. A pair whose environment word is null has the tag bit clear, so
+         * the drop that meets it does nothing.
+         */
+        if(decl()[held]->kind == mir::Type::Iter) {
+            if(!shim) return;
+
+            editor.addDrop(at, editor.use(*stepBoxPair(at, field), UseKind::Inspect),
+                           mir::owned(held));
+            stepStoreEmptyBox(at, field, shim);
+            return;
+        }
+
+        auto& child = *(mir::RecordType*)decl()[held];
+        if(!child.producerStep) return;
+
+        auto& childStep = *decl()[child.producerStep];
+
+        auto borrow = mir::borrowed(held, mir::Access::Unique);
+        auto self = editor.resultOf(*editor.addLoad(at, editor.use(*stepField(at, field),
+                                                                   UseKind::Inspect),
+                                                    borrow, conventionFor(borrow), false));
+
+        auto leave = exitRow(program, editor, decl()[childStep.args.get(decl(), 1)]->occurrence.type,
+                             kExitLeave, at);
+        auto stop = editor.addConst(at, mir::truthConstant(program, true));
+
+        mir::CallSite site;
+        site.target = child.producerStep;
+        site.through = mir::CallThrough::Declaration;
+
+        Use arguments[3] = {
+            editor.use(*self, UseKind::Borrow),
+            leave,
+            editor.use(*editor.resultOf(*stop), UseKind::Consume),
+        };
+
+        editor.addCall(at, site, Use(), arguments, 3, childStep.result,
+                       conventionFor(childStep.result), true);
+    }
+
+    void stepCancelNest(LocationId at, ContinuationId region) {
+        auto field = stepping->nestOf[region.index];
+        if(field == StepPlan::kNoField) return;
+
+        stepCancelField(at, U16(field), stepping->nestBoxed[region.index]);
+    }
+
+    /*
+     * The **empty pair** a boxed member holds while its region has not been entered - §6.3.
+     *
+     * A function value whose environment word is null, built out of the same shim a real box points
+     * at: the code word is therefore honest and the tag bit is clear, so a drop of it does nothing
+     * and there is no separate flag to say whether the level is there. `emitIterNew` writes the same
+     * value into the field, which is why this is a method rather than two spellings.
+     */
+    void stepStoreEmptyBox(LocationId at, U16 field, DeclPtr<mir::Function> shim) {
+        auto occurrence = mir::owned(stepBoxType(field));
+
+        auto empty = editor.resultOf(*editor.addFunValue(at, shim, nullptr, occurrence,
+                                                         conventionFor(occurrence)));
+
+        editor.addStore(at, editor.use(*stepBoxPair(at, field), UseKind::Inspect),
+                        editor.use(*empty, UseKind::Consume));
+    }
+
+    // Every embedded region's member, at a path out of the **object** - the producer's `return`,
+    // which is exhaustion or the departure a cancellation takes. `stepReleaseRuns`' neighbour and for
+    // its reason: what the record still owes at that point is not something any drop the ownership
+    // analysis placed can reach, because a region's member is not a local of the producer's body.
+    //
+    // In field order reversed, which is body order reversed: a region nested inside another opened
+    // later and so holds a later field, and the inner one has to be ended before the outer - a lens
+    // inside a lens releases in the order the two `yield`s would have returned in.
+    void stepCancelNests(LocationId at) {
+        for(Size i = stepping->nestFields.size(); i > 0; i--) {
+            stepCancelField(at, stepping->nestFields[i - 1], stepping->nestFieldBoxed[i - 1]);
+        }
+    }
+
+    /*
+     * The branch a delegating region makes on the departure guard - §6.3, and `stepStoreGuard`'s
+     * counterpart: one writes the guard and this reads it.
+     *
+     * Answers false where there is no guard to read, having left the conversion where it found it -
+     * a producer with no `yield` at all has no `$yielded`, and a region inside one cannot be on a
+     * departure path.
+     */
+    bool stepDeparting(LocationId at, Block& departing, Block& delegating) {
+        auto local = source.yieldedLocal;
+        if(!local.valid() || local.index >= slots.size() || !slots[local.index]) return false;
+
+        auto held = mir::owned(program.types.exitCode());
+        auto loaded = editor.addLoad(at, editor.use(*base()[slots[local.index]], UseKind::Inspect),
+                                     held, conventionFor(held), false);
+
+        auto zero = editor.addConst(at, mir::intConstant(held.type, 0));
+        auto truth = mir::owned(mir::booleanType(program));
+
+        auto left = editor.addBinary(at, mir::BinaryOp::Ne,
+                                     editor.use(*editor.resultOf(*loaded), UseKind::Inspect),
+                                     editor.use(*editor.resultOf(*zero), UseKind::Inspect), truth,
+                                     conventionFor(truth));
+
+        editor.addBranch(at, editor.use(*editor.resultOf(*left), UseKind::Inspect), departing,
+                         delegating, nullptr, 0);
+        return true;
+    }
+
+    /*
+     * A region entered on the **departure** path, which is the non-delegating emission with the
+     * region's own blocks taken out - §6.3.
+     *
+     * One step of the child and then the box released, which is exactly what those blocks do when
+     * the guard is set: the item arrives, the entry sees that the consumer has gone, and the `break`
+     * arm cancels the member and carries on where the region rejoins. The item itself is dropped on
+     * the floor, which is what the skipped `yield` would have done with it.
+     */
+    void stepDrainBox(LocationId at, U16 field, DeclPtr<mir::Function> shim, Block& destination) {
+        auto held = stepBoxType(field);
+        auto& iterated = *(mir::IterType*)decl()[held];
+
+        auto borrow = mir::borrowed(held, mir::Access::Unique);
+        auto self = editor.resultOf(*editor.addLoad(at, editor.use(*stepBoxPair(at, field),
+                                                                   UseKind::Inspect),
+                                                    borrow, conventionFor(borrow), false));
+
+        auto next = exitRow(program, editor, iterated.sent, kExitFallOut, at);
+        auto carry = editor.addConst(at, mir::truthConstant(program, false));
+
+        mir::CallSite through;
+        through.target = nullptr;
+        through.through = mir::CallThrough::Value;
+
+        auto answered = mir::owned(program.types.pointerType(iterated.handover.type));
+        Use arguments[2] = { next, editor.use(*editor.resultOf(*carry), UseKind::Consume) };
+
+        editor.addCall(at, through, editor.use(*self, UseKind::Inspect), arguments, 2, answered,
+                       conventionFor(answered), true);
+
+        stepCancelField(at, field, shim);
+        editor.addJump(at, destination, nullptr, 0);
+    }
+
+    /*
+     * `guardYields`' own local, written with what the consumer answered - §6.3, and the one write a
+     * delegating level owes that its own blocks would have made.
+     *
+     * A traversal's departure is carried in `$yielded`: the `yield` writes what the continuation
+     * answered there, and everything below the loops reads it to find out whether the consumer left.
+     * A level that delegates never runs its `yield`, so its step writes the same thing when the
+     * child hands control back - and what it writes is `$resume`, which is the same value one tier
+     * over. `Body::yieldedLocal` is what names the storage.
+     */
+    void stepStoreGuard(LocationId at) {
+        auto local = source.yieldedLocal;
+        if(!local.valid() || local.index >= slots.size() || !slots[local.index]) return;
+
+        editor.addStore(at, editor.use(*base()[slots[local.index]], UseKind::Inspect),
+                        editor.use(*stepping->resumeValue, UseKind::Consume));
+    }
+
+    void stepStoreHeld(LocationId at, bool holding) {
+        auto flag = stepField(at, stepping->record->heldField);
+        auto written = editor.addConst(at, mir::truthConstant(program, holding));
+
+        editor.addStore(at, editor.use(*flag, UseKind::Inspect),
+                        editor.use(*editor.resultOf(*written), UseKind::Consume));
+    }
+
+    /*
+     * The slot released where `$held` says it still holds one, and the flag cleared.
+     *
+     * Three places ask for it and each is a point where the record stops being responsible for what
+     * it handed over: the next hand-over, which is about to overwrite the slot; the producer's own
+     * `return`, which is exhaustion or a departure; and the cancellation of a record nothing has
+     * taken from. A branch and not an unconditional drop, because a consumer that took the value is
+     * the common case and the slot is then a value that no longer exists.
+     *
+     * Leaves the conversion in the block execution continues in, which is why it is written as a
+     * diamond rather than as a call: everything after it is emitted into the join.
+     */
+    void stepReleaseHeld(LocationId at) {
+        if(!stepping->record->heldField) return;
+
+        auto flag = stepField(at, stepping->record->heldField);
+        auto held = mir::owned(mir::booleanType(program));
+        auto loaded = editor.addLoad(at, editor.use(*flag, UseKind::Inspect), held,
+                                     conventionFor(held), false);
+
+        auto release = editor.addBlock(StringId());
+        auto join = editor.addBlock(StringId());
+
+        editor.addBranch(at, editor.use(*editor.resultOf(*loaded), UseKind::Inspect), *release,
+                         *join, nullptr, 0);
+
+        editor.setBlock(*release);
+        editor.setRegion(release->region);
+
+        auto item = stepping->record->field(decl(), 1).occurrence;
+        editor.addDrop(at, editor.use(*stepField(at, 1), UseKind::Inspect),
+                       mir::owned(item.type));
+        stepStoreHeld(at, false);
+        editor.addJump(at, *join, nullptr, 0);
+
+        editor.setBlock(*join);
+        editor.setRegion(join->region);
+    }
+
+    /*
+     * A **region**, embedded - `for x in g(...)` or `withLock(m):` written inside the producer,
+     * §3.2's first step and the fifth shape a step's conversion takes.
+     *
+     *      %child = g$new(...)              -- the member, initialized where the call was
+     *      store %child -> self.$g
+     *      jump advance
+     *
+     *    advance:
+     *      %more = g$step(&self.$g, fallOut, False)
+     *      branch %more -> obtain -> <the region's destination>
+     *
+     *    obtain:
+     *      %item = <the child's slot, under g's own convention>
+     *      jump <the region's entry>(%item)
+     *
+     * `convertLensCall` **outlines** the region into a function and lets the callee call it. A step
+     * cannot: the outer producer is suspended rather than running, so there is no frame for the
+     * callee to hand control back into. So the region's blocks are emitted as this function's own
+     * and the three exits are mapped where the outlined form maps them - fall-out asks the member
+     * for the next element (`convertEdge`), `break` cancels the child and resumes at the region's
+     * destination, and a `return` or a departure propagates outward. A `yield` written inside the
+     * region needs nothing of its own: it writes the *outer* record's slot and index exactly as one
+     * written anywhere else does, and the child stays suspended in its field.
+     *
+     * § A lens region is this picture unchanged, which is the finding of §6.6
+     *
+     * `withLock(m): yield x` opens a `Once` region rather than a `Many` one, and J53 read that as a
+     * different mapping of the same three exits: falling out of a lens's continuation is the lens
+     * *finishing* rather than the loop coming round. It is the same mapping. A lens's step runs to
+     * its one `yield` and answers `True`; stepped again it runs the code after the `yield` - the
+     * cleanup - and answers `False`. So `advance` entered a second time is exactly "run the
+     * cleanup", and the `False` arm it already has is exactly "carry on at the region's
+     * destination". Nothing in this function distinguishes the two multiplicities, and the block
+     * that loops for an iterator is the block that releases for a lens.
+     *
+     * What that leaves is the three refusals `collectIterNests` makes: a skipping region, because
+     * the step's answer is a `Bool` with no room for a failure; a `Many` region whose passes hand a
+     * value back; and a callee this stage cannot name a body for.
+     *
+     * Answers true having reported, on the same terms as the rest of this file.
+     */
+    bool convertStepNest(mir::NodeLensCall& node) {
+        auto at = node.source;
+        auto region = source.region(mir, node.region);
+        auto field = U16(stepping->nestOf[node.region.index]);
+
+        auto held = stepping->record->field(decl(), field).occurrence.type;
+
+        /*
+         * A **boxed** level - §6.3's recursion, and the one nest whose member does not name its own
+         * child.
+         *
+         * The field is the protocol `iter(Y)`, so the record to build is read off the shim
+         * (`RecordType::nestBoxed`), and what goes in the field is the pair rather than the record:
+         * `g$new` into a local of this step, one `fun.value` over it, and the lowering relocates it
+         * into a heap block with the child's teardown in front of it. So the allocation is one per
+         * level *entered* rather than one per level the type mentions, which is what makes the
+         * record finite at all.
+         */
+        auto shim = stepping->nestBoxed[node.region.index];
+        auto boxed = shim != nullptr;
+
+        // And whether the level **delegates** rather than steps - §6.3. Its member is the link and
+        // its pair is the raw shim, so what is read out of the field below is the link's first field.
+        auto delegates = stepping->nestDelegate[node.region.index] != 0;
+        if(delegates) held = stepBoxType(field);
+
+        if(boxed && decl()[held]->kind != mir::Type::Iter) {
+            report(at, "internal: a boxed region's member is not an erased object"_v);
+            return true;
+        }
+
+        auto childType = boxed ? decl()[shim]->generatedRecord : held;
+
+        if(!childType || decl()[childType]->kind != mir::Type::Record) {
+            report(at, "internal: an embedded region has no object to step"_v);
+            return true;
+        }
+
+        auto& child = *(mir::RecordType*)decl()[childType];
+
+        if(!region || !child.producerNew || !child.producerStep || !region->entry.valid() ||
+           !region->destination.valid()) {
+            report(at, "internal: an embedded region has no object to step"_v);
+            return true;
+        }
+
+        /*
+         * The child, built where the call was - one call of `g$new`, whose signature is where the
+         * borrowing is stated, exactly as a `let it = g(...)` in the consumer builds one.
+         */
+        auto& make = *decl()[child.producerNew];
+
+        SmallArray<Use, 8> arguments;
+        for(auto operand: node.arguments.contents(mir)) {
+            Use used;
+            if(!useOf(operand, at, used)) return true;
+
+            /*
+             * Under **`g$new`'s** conventions and not the lens call's.
+             *
+             * The node was built against `g`'s own parameters - a shared loan of a counter, say -
+             * and the constructor takes the same argument under whatever the *record* holds it by,
+             * which for a trivially copyable one is by value. The value is the same; the statement
+             * about it is the constructor's, exactly as it is at a `let it = g(...)`, where the
+             * resolver makes the call against `g$new`'s declaration for this reason.
+             */
+            if(arguments.size() >= make.args.size()) break;
+
+            auto& declared = *decl()[make.args.get(decl(), arguments.size())];
+
+            UseKind kind;
+            if(!useKindFor(mir::argumentMode(declared.occurrence.contract,
+                                             mir::SourceKind::Result), kind)) {
+                report(at, "internal: an embedded region's capture has no handover mode"_v);
+                return true;
+            }
+
+            /*
+             * And the **bytes** the constructor's position takes, which is a load where the producer
+             * holds a reference and the field holds a copy.
+             *
+             * `items(buffer)` over the producer's own fixed array is where it shows: the record
+             * captures a trivially copyable whole value by value, so `g$new` consumes one - and what
+             * the producer has in hand is a loan, which is that array's address. A call boundary
+             * would make the adaptation from the two declarations; this call is built here and makes
+             * it here.
+             */
+            auto value = base()[used.value()];
+
+            if(isReferenceValue(layout(), value->occurrence) &&
+               !isReferenceValue(layout(), declared.occurrence)) {
+                auto held = mir::owned(declared.occurrence.type);
+                value = editor.resultOf(*editor.addLoad(at, editor.use(*value, UseKind::Inspect),
+                                                        held, conventionFor(held), false));
+            }
+
+            arguments.push(editor.use(*value, kind));
+        }
+
+        mir::CallSite making;
+        making.target = child.producerNew;
+        making.through = mir::CallThrough::Declaration;
+
+        auto built = editor.resultOf(*editor.addCall(at, making, Use(), arguments.pointer(),
+                                                     arguments.size(), make.result,
+                                                     conventionFor(make.result), true));
+
+        if(boxed) {
+            /*
+             * The box: storage in this step's own frame for the child, and a pair naming it.
+             *
+             * The frame local is where the record is built and the pair's environment word points
+             * at it *here*; `emitFunValue` reads the shim's `environmentStorage` and moves the bytes
+             * into a heap block, so what survives this step is the block and not the local. That is
+             * a lambda's own arrangement one construct over - `adaptIterValue` makes the same pair
+             * at an owning position - and it is why nothing here allocates by name.
+             */
+            auto storage = mir::owned(childType);
+            auto local = editor.resultOf(*editor.addAlloc(at, storage, mir::StorageClass::Frame));
+
+            editor.addStore(at, editor.use(*local, UseKind::Inspect),
+                            editor.use(*built, UseKind::Consume));
+
+            /*
+             * And which of the child's two shims the pair names, which for a **delegating** region
+             * is decided here rather than at the mint - §6.3.
+             *
+             * A level the consumer has already left does not delegate: a departure runs the code
+             * below the producer's loops, and that code may open this very region again with nobody
+             * left to step what it builds. So the guard - `guardYields`' own local, the same one the
+             * region's entry block tests - picks the path, and the two paths want two different
+             * pairs over one record: the raw shim where the level delegates, because only that one
+             * may answer the third row, and the ordinary one where the level steps the child itself
+             * and a third row would be an answer nobody is listening for.
+             */
+            auto departing = delegates ? editor.addBlock(StringId()) : nullptr;
+            auto delegating = delegates ? editor.addBlock(StringId()) : nullptr;
+
+            if(delegates && !stepDeparting(at, *departing, *delegating)) {
+                delegates = false;
+                departing = nullptr;
+                delegating = nullptr;
+            }
+
+            auto fill = [&](DeclPtr<mir::Function> named) {
+                auto occurrence = mir::owned(held);
+                Use environment = editor.use(*local, UseKind::Inspect);
+                auto pair = editor.resultOf(*editor.addFunValue(at, named, &environment, occurrence,
+                                                                conventionFor(occurrence)));
+
+                editor.addStore(at, editor.use(*stepBoxPair(at, field), UseKind::Inspect),
+                                editor.use(*pair, UseKind::Consume));
+            };
+
+            if(delegates) {
+                editor.setBlock(*departing);
+                editor.setRegion(departing->region);
+
+                auto plain = child.producerBox;
+
+                if(!plain) {
+                    report(at, "internal: a delegating region has no ordinary shim to drain with"_v);
+                    return true;
+                }
+
+                fill(plain);
+                stepDrainBox(at, field, plain, *base()[blocks[region->destination.index]]);
+
+                editor.setBlock(*delegating);
+                editor.setRegion(delegating->region);
+            }
+
+            fill(shim);
+        } else {
+            editor.addStore(at, editor.use(*stepField(at, field), UseKind::Inspect),
+                            editor.use(*built, UseKind::Consume));
+        }
+
+        /*
+         * A **delegating** level stops here - §6.3, and this is the whole of what delegation emits
+         * in a step.
+         *
+         * The child is built and its pair is in the member's link; what is left is to say so. Which
+         * member it is goes into `$down` - the third row of this step's answer, which `f$erased.step`
+         * reads and nothing else does - and the level suspends at an index of its own. From here the
+         * consumer's trampoline steps the child directly, and comes back to this level only when the
+         * child runs out.
+         *
+         * `$up` is left where it is: the trampoline writes it as it pushes, because the level above
+         * this one is a fact about the *chain* and not about this call.
+         */
+        if(delegates) {
+            auto slot = editor.resultOf(*editor.addFieldAddress(
+                at, editor.use(*stepField(at, field), UseKind::Inspect),
+                stepping->record->linkType, 1));
+
+            /*
+             * And **which member** it is, rather than where that member currently is: `field << 1 |
+             * 1` is the chain word's tagged reading (`iterLinkAddress`), resolved against whatever
+             * `self` the reader was entered with. A record moves with whatever holds it, so an
+             * address of a field of *this* record is a value one relocation of the object makes
+             * wrong - and the root's own link is exactly the link a consumer can relocate.
+             */
+            auto word = mir::owned(program.types.words[0]);
+            auto link = editor.resultOf(*editor.addConst(
+                at, mir::intConstant(word.type, (U64(field) << 1) | 1)));
+
+            auto zero = editor.addConst(at, mir::intConstant(word.type, 0));
+            editor.addStore(at, editor.use(*slot, UseKind::Inspect),
+                            editor.use(*editor.resultOf(*zero), UseKind::Consume));
+
+            editor.addStore(at, editor.use(*stepField(at, stepping->record->downField),
+                                           UseKind::Inspect),
+                            editor.use(*link, UseKind::Consume));
+
+            /*
+             * And the level suspends - at an index of its own, past the hand-overs', because the
+             * hand-over this region holds is one it is never going to run.
+             */
+            stepStoreIndex(at, I64(1 + stepping->yields + node.region.index));
+            stepReturn(at, true);
+
+            /*
+             * And where it comes back once the child has run out.
+             *
+             * Two things, and they are the two the region's own blocks would have done. **The guard**
+             * first: `guardYields`' local is what the code after the region reads to find out whether
+             * the consumer has left, and a level that never runs its own `yield x` never writes it -
+             * so this writes what the consumer answered, exactly as the hand-over would have. Then
+             * the box, released, which is `advance`'s false arm with the step taken out. Without the
+             * first of those a consumer's `break` deep in a walk ran the rest of every level above
+             * it, which is the defect this pass found by running `iter/Recursion.yana`.
+             */
+            auto resumed = editor.addBlock(StringId());
+            stepping->delegateResume[node.region.index] = resumed - base();
+
+            editor.setBlock(*resumed);
+            editor.setRegion(resumed->region);
+
+            stepStoreGuard(at);
+            stepCancelField(at, field, shim);
+            editor.addJump(at, *base()[blocks[region->destination.index]], nullptr, 0);
+            return true;
+        }
+
+        auto advance = editor.addBlock(StringId());
+        stepping->nestAdvance[node.region.index] = advance - base();
+        editor.addJump(at, *advance, nullptr, 0);
+
+        /*
+         * One step of the member, asked for here and again at every block of the region that falls
+         * out - which is the same block for the two multiplicities and means two things.
+         *
+         * "Fall out" is the exit signal `kExitFallOut` one tier over and means the pass ended, which
+         * is what a consumer's `for` says by coming round its own back edge. The child answers
+         * whether its slot now holds something, so the false arm is the loop being over and goes to
+         * where the region rejoins - which is a block of *this* body rather than a discriminant the
+         * caller tests, and is the whole of the difference from the outlined form.
+         *
+         * For a **lens** the first entry is the acquisition and the second is the release: a lens
+         * hands over exactly once on every path (`checkHandover`), so the first step answers `True`
+         * and the second runs the code after its `yield` and answers `False`. The false arm is then
+         * the cleanup having run rather than the elements having run out, and it goes to the same
+         * place. Which is why §6.6's "a different mapping of the same three exits" turned out to be
+         * the same mapping.
+         */
+        editor.setBlock(*advance);
+        editor.setRegion(advance->region);
+
+        auto borrow = mir::borrowed(held, mir::Access::Unique);
+        auto slot = stepField(at, field);
+
+        auto self = editor.resultOf(*editor.addLoad(at, editor.use(*slot, UseKind::Inspect), borrow,
+                                                    conventionFor(borrow), false));
+
+        auto obtain = editor.addBlock(StringId());
+        auto& destination = *base()[blocks[region->destination.index]];
+        Value* found = nullptr;
+        DeclPtr<mir::Type> carried = nullptr;
+
+        if(boxed) {
+            /*
+             * One step of the box, through the pair - `CallThrough::Value` against the signature
+             * `IterType::step` carries, which is the same call `Iterate`'s erased `next` makes.
+             *
+             * The answer is **where the item is** rather than a `Bool` and a slot, because a pair
+             * carries no record for this block to read a field out of - so the loop test is the one
+             * value an address cannot have. That indirect call, once per level between the root and
+             * the leaf, is the cost §6.3 states.
+             */
+            auto& iterated = *(mir::IterType*)decl()[held];
+            carried = iterated.handover.type;
+
+            auto next = exitRow(program, editor, iterated.sent, kExitFallOut, at);
+            auto carry = editor.addConst(at, mir::truthConstant(program, false));
+
+            mir::CallSite through;
+            through.target = nullptr;
+            through.through = mir::CallThrough::Value;
+
+            auto answered = mir::owned(program.types.pointerType(iterated.handover.type));
+            Use boxArguments[2] = {
+                next,
+                editor.use(*editor.resultOf(*carry), UseKind::Consume),
+            };
+
+            found = editor.resultOf(*editor.addCall(at, through,
+                                                    editor.use(*self, UseKind::Inspect),
+                                                    boxArguments, 2, answered,
+                                                    conventionFor(answered), true));
+
+            auto word = mir::owned(program.types.words[0]);
+            auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                           editor.use(*found, UseKind::Inspect),
+                                                           word, conventionFor(word)));
+
+            auto zero = editor.addConst(at, mir::intConstant(word.type, 0));
+            auto truth = mir::owned(mir::booleanType(program));
+
+            auto more = editor.addBinary(at, mir::BinaryOp::Ne,
+                                         editor.use(*number, UseKind::Inspect),
+                                         editor.use(*editor.resultOf(*zero), UseKind::Inspect),
+                                         truth, conventionFor(truth));
+
+            /*
+             * And the level released where it ran out, which a concrete child does not need: what
+             * ends one of those is a finished index the next cancellation reads, and what ends this
+             * is an allocation nobody else will hand back. The empty pair written in its place is
+             * what keeps the producer's own `return` from freeing it a second time.
+             */
+            auto ended = editor.addBlock(StringId());
+
+            editor.addBranch(at, editor.use(*editor.resultOf(*more), UseKind::Inspect), *obtain,
+                             *ended, nullptr, 0);
+
+            editor.setBlock(*ended);
+            editor.setRegion(ended->region);
+
+            editor.addDrop(at, editor.use(*stepField(at, field), UseKind::Inspect),
+                           mir::owned(held));
+            stepStoreEmptyBox(at, field, shim);
+            editor.addJump(at, destination, nullptr, 0);
+        } else {
+            /*
+             * A child the outer producer holds **inline**, stepped where it is - and through its own
+             * trampoline where it has one (§6.3).
+             *
+             * A delegating record's step may answer "I entered a child", which only `f$walk` knows
+             * what to do with, so a region over one has to go through the same door every other
+             * consumer of it goes through. What comes back is then an address rather than a `Bool`,
+             * which is the boxed arm's own reading one indirection less - so the item is read the
+             * same way and the two arms differ only in how the step is reached.
+             */
+            auto walking = child.producerWalk != nullptr;
+            auto& childStep = *decl()[walking ? child.producerWalk : child.producerStep];
+
+            auto next = exitRow(program, editor,
+                                decl()[childStep.args.get(decl(), 1)]->occurrence.type,
+                                kExitFallOut, at);
+            auto carry = editor.addConst(at, mir::truthConstant(program, false));
+
+            mir::CallSite stepping3;
+            stepping3.target = walking ? child.producerWalk : child.producerStep;
+            stepping3.through = mir::CallThrough::Declaration;
+
+            Use stepArguments[3] = {
+                editor.use(*self, UseKind::Borrow),
+                next,
+                editor.use(*editor.resultOf(*carry), UseKind::Consume),
+            };
+
+            auto answered = editor.addCall(at, stepping3, Use(), stepArguments, 3, childStep.result,
+                                           conventionFor(childStep.result), true);
+
+            auto more = editor.resultOf(*answered);
+
+            if(walking) {
+                found = more;
+                carried = ((mir::PointerType*)decl()[childStep.result.type])->to;
+
+                auto word = mir::owned(program.types.words[0]);
+                auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                               editor.use(*found, UseKind::Inspect),
+                                                               word, conventionFor(word)));
+
+                auto zero = editor.addConst(at, mir::intConstant(word.type, 0));
+                auto truth = mir::owned(mir::booleanType(program));
+
+                more = editor.resultOf(*editor.addBinary(at, mir::BinaryOp::Ne,
+                                                         editor.use(*number, UseKind::Inspect),
+                                                         editor.use(*editor.resultOf(*zero),
+                                                                    UseKind::Inspect),
+                                                         truth, conventionFor(truth)));
+            }
+
+            editor.addBranch(at, editor.use(*more, UseKind::Inspect), *obtain, destination,
+                             nullptr, 0);
+        }
+
+        editor.setBlock(*obtain);
+        editor.setRegion(obtain->region);
+
+        auto& entry = *base()[blocks[region->entry.index]];
+
+        if(!entry.argumentCount()) {
+            editor.addJump(at, entry, nullptr, 0);
+            return true;
+        }
+
+        auto position = base()[entry.argumentAt(base(), 0)]->occurrence;
+        auto item = found ? stepBoxItem(at, found, position, carried)
+                          : stepNestItem(at, field, child, position);
+        if(!item) return true;
+
+        UseKind kind;
+        if(!useKindFor(mir::argumentMode(base()[entry.argumentAt(base(), 0)]->occurrence.contract,
+                                         mir::SourceKind::Result), kind)) {
+            report(at, "internal: an embedded region's hand-over has no mode"_v);
+            return true;
+        }
+
+        Use handed[1] = { editor.use(*item, kind) };
+        editor.addJump(at, entry, handed, 1);
+        return true;
+    }
+
+    /*
+     * What a **boxed** level handed over - §6.3, and the erased half of `stepNestItem` below.
+     *
+     * A concrete child hands its item over out of a field of a record this step has in hand; a box
+     * answers an **address** and nothing else (`emitIterErasedStep`), which is where the item is
+     * whatever the slot holds - the value for a copying producer, the value itself for a lending
+     * one. So there are two rows rather than three: a position that is itself a reference takes the
+     * address as it stands, and one that takes the value loads through it.
+     *
+     * The value stays the child's until its next step either way, which is the same extent §2.6
+     * gives a concrete nest's item and is what the outer producer's own liveness is computed over.
+     */
+    Value* stepBoxItem(LocationId at, Value* found, const mir::Occurrence& position,
+                       DeclPtr<mir::Type> carriedType) {
+        if(!found) {
+            report(at, "internal: a boxed region's member hands over nothing"_v);
+            return nullptr;
+        }
+
+        if(isReferenceValue(layout(), position)) {
+            return editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Represent,
+                                                    editor.use(*found, UseKind::Inspect), position,
+                                                    conventionFor(position)));
+        }
+
+        auto carried = mir::owned(carriedType);
+        auto value = editor.resultOf(*editor.addLoad(at, editor.use(*found, UseKind::Inspect),
+                                                     carried, conventionFor(carried), false));
+
+        if(carried == position) return value;
+
+        return editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Represent,
+                                                editor.use(*value, UseKind::Inspect), position,
+                                                conventionFor(position)));
+    }
+
+    /*
+     * What the child handed over, out of its own slot and under its own convention - the same three
+     * rows `resolveObjectFor` reads one tier up, read here because the region's entry is a block of
+     * this body rather than a `for` the resolver built.
+     *
+     * A **lending** producer answers through `g$item`, whose signature roots the value in the child;
+     * one with a `$held` flag answers through `g$take`, which moves the value out and clears the flag
+     * in the same place; everything else is a copy of the slot. And where the position the region
+     * declared is a **window**, the two words are derived from the owner by the same member
+     * `emitIterStepper` calls - which is the one adaptation a hand-over can need at this boundary.
+     */
+    Value* stepNestItem(LocationId at, U16 field, mir::RecordType& child,
+                        const mir::Occurrence& position) {
+        auto held = stepping->record->field(decl(), field).occurrence.type;
+        auto slot = stepField(at, field);
+
+        auto item = child.field(decl(), 1).occurrence;
+        Value* value = nullptr;
+        mir::Occurrence carried;
+
+        auto reach = [&](DeclPtr<mir::Function> target) {
+            auto& called = *decl()[target];
+            auto& declared = *decl()[called.args.get(decl(), 0)];
+
+            auto self = editor.resultOf(*editor.addLoad(at, editor.use(*slot, UseKind::Inspect),
+                                                        declared.occurrence,
+                                                        conventionFor(declared.occurrence), false));
+
+            mir::CallSite site;
+            site.target = target;
+            site.through = mir::CallThrough::Declaration;
+
+            Use arguments[1] = { editor.use(*self, UseKind::Borrow) };
+            carried = called.result;
+            value = editor.resultOf(*editor.addCall(at, site, Use(), arguments, 1, called.result,
+                                                    conventionFor(called.result), true));
+        };
+
+        if(child.producerItem) {
+            reach(child.producerItem);
+        } else if(child.producerTake) {
+            reach(child.producerTake);
+        } else {
+            auto address = editor.resultOf(*editor.addFieldAddress(at, editor.use(*slot,
+                                                                                  UseKind::Inspect),
+                                                                   held, 1));
+            carried = mir::owned(item.type);
+            value = editor.resultOf(*editor.addLoad(at, editor.use(*address, UseKind::Inspect),
+                                                    carried, conventionFor(carried), false));
+        }
+
+        if(!value) {
+            report(at, "internal: an embedded region's member hands over nothing"_v);
+            return nullptr;
+        }
+
+        if(carried == position) return value;
+
+        /*
+         * The **window**, where the position takes one: a borrowed `String` is that string's
+         * descriptor rather than its address, so what the region's entry receives is two words built
+         * from the owner. `emitIterStepper` makes the same derivation at the same boundary and says
+         * why a generated body has to name the member itself.
+         */
+        if(mir::needsViewDerivation(decl(), program, carried, position)) {
+            auto target = mir::viewMember(context, program, position.type,
+                                          position.contract.access(), at);
+
+            if(!target || !decl()[target]->reachable) {
+                report(at, "internal: no derivation is reachable for an embedded hand-over's window"_v);
+                return nullptr;
+            }
+
+            mir::CallSite window;
+            window.target = target;
+            window.through = mir::CallThrough::Declaration;
+
+            Use owner[1] = { editor.use(*value, UseKind::Borrow) };
+            return editor.resultOf(*editor.addCall(at, window, Use(), owner, 1, position,
+                                                   conventionFor(position), true));
+        }
+
+        /*
+         * And otherwise the same bytes said as what the position declares - `represent`, which moves
+         * none of them. A slot-rooted loan and a call-bounded one are one address and two statements,
+         * and the block argument is held to its own occurrence where a call boundary would not be.
+         */
+        return editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Represent,
+                                                editor.use(*value, UseKind::Inspect), position,
+                                                conventionFor(position)));
+    }
+
+    /*
+     * The three nodes a step reads differently - `StepPlan`, where the reason for each is written.
+     *
+     * Answers true where the node has been dealt with, so that the switch below is the ordinary
+     * conversion with nothing added to it: everything between two hand-overs is the producer's own
+     * code and is converted exactly as the continuation-passing form converts it.
+     */
+    bool convertStepNode(mir::Node& node) {
+        if(stepping->readsContinuation[node.id.index]) return true;
+
+        // An embedded region - a `for x in g(...)` or a lens over part of the producer's own body,
+        // which is a call in the continuation-passing form and a **member** here. `convertStepNest`,
+        // §3.2's first step.
+        if(mir::isLensCall(node.kind) &&
+           stepping->nestOf[((mir::NodeLensCall&)node).region.index] != StepPlan::kNoField) {
+            return convertStepNest((mir::NodeLensCall&)node);
+        }
+
+        auto index = stepping->yieldOf[node.id.index];
+
+        if(index != StepPlan::kNotAYield) {
+            auto& call = (mir::NodeCall&)node;
+            auto items = call.arguments.contents(mir);
+
+            /*
+             * The hand-over, into the slot - the value where the convention owns or copies, and the
+             * lent value's **address** where it lends.
+             *
+             * The address and not the loan, and the difference is a manifestation one: a shared loan
+             * of a small record *is* the record, scalarized into a register, so storing the loan
+             * would put four bytes where the slot holds eight. What has to travel is where the value
+             * lives, which is the place the `yield`'s argument was read from - a local of the
+             * producer, and therefore a member of this record. The deleted stack handle's own
+             * `yield` took the same address one tier up, with `addressOf` written in the source
+             * (`../../doc/progress/2026-09-16-J55-iterator-objects.md`).
+             */
+            auto slotType = stepping->record->field(decl(), 1).occurrence.type;
+            auto lends = decl()[slotType]->kind == mir::Type::Pointer;
+
+            Use handed;
+            auto ready = !items.size();
+
+            if(items.size() && lends) {
+                auto& argument = *items.pointerAt(0);
+
+                if(argument.source() == mir::SourceKind::Result) {
+                    auto& defined = *source.node(mir, argument.nodeId());
+
+                    if(defined.kind == mir::Node::Read) {
+                        auto place = source.place(mir, ((mir::NodeRead&)defined).place.placeId());
+
+                        if(auto address = addressOf(*place, node.source)) {
+                            handed = editor.use(*address, UseKind::Inspect);
+                            ready = true;
+                        }
+                    }
+                }
+
+                if(!ready) {
+                    report(node.source,
+                           "internal: an object's lending hand-over is not a read of a place"_v);
+                    return true;
+                }
+            } else if(items.size()) {
+                if(!useOf(*items.pointerAt(0), node.source, handed)) return true;
+
+                /*
+                 * And the value at the **slot's** own reading, which is a load where what the
+                 * producer built is a reference and the slot holds bytes.
+                 *
+                 * A call boundary makes this adaptation silently - the lowering has the parameter's
+                 * declared occurrence and the argument's - and a store does not. `xs[i]` inside a
+                 * *generic* producer is where it shows: `Index`'s member answers `source'a`, which is
+                 * an address whatever `a` turns out to be, and the slot of a producer handing over a
+                 * trivially copyable item holds the item. Storing the address there is what made
+                 * `items(xs)` hand its consumer a pointer read as an `I32`.
+                 */
+                auto& built = *base()[handed.value()];
+                auto stored = mir::owned(slotType);
+
+                if(isReferenceValue(layout(), built.occurrence) &&
+                   !isReferenceValue(layout(), stored)) {
+                    auto loaded = editor.addLoad(node.source, editor.use(built, UseKind::Inspect),
+                                                 stored, conventionFor(stored), false);
+                    handed = editor.use(*editor.resultOf(*loaded), UseKind::Consume);
+                }
+
+                ready = true;
+            }
+
+            if(items.size() && ready) {
+                // Whatever the last hand-over left in the slot, where the consumer did not take it -
+                // `stepReleaseHeld`, which is a branch this returns from in the join.
+                stepReleaseHeld(node.source);
+
+                auto slot = stepField(node.source, 1);
+                editor.addStore(node.source, editor.use(*slot, UseKind::Inspect), handed);
+
+                if(stepping->record->heldField) stepStoreHeld(node.source, true);
+            }
+
+            /*
+             * And whatever crosses this hand-over without a name, into its own member - the spill a
+             * hand-written state machine makes, for the values `checkObjectBody` has already held to
+             * being copies.
+             */
+            for(U32 j = 0; j < stepping->spillValue.size(); j++) {
+                if(!stepping->record->keepsAcross(decl(), stepping->spillEntry[j], index)) continue;
+
+                auto value = produced[stepping->spillValue[j]];
+                if(!value) continue;
+
+                auto address = stepField(node.source, U16(stepping->spillField[j]));
+                editor.addStore(node.source, editor.use(*address, UseKind::Inspect),
+                                editor.use(*base()[value], UseKind::Consume));
+            }
+
+            stepStoreIndex(node.source, I64(1 + index));
+            stepReturn(node.source, true);
+
+            /*
+             * And the block the *next* step resumes at, which is where the rest of this MIR block
+             * goes. What the `yield` produced is the step's own `$resume` argument - the value the
+             * continuation answered, one tier over - so `resolveYield`'s test, `emitDeparture` and
+             * the statements below the loops are the producer's code unchanged.
+             */
+            auto resume = editor.addBlock(StringId());
+            stepping->resume[index] = resume - base();
+
+            editor.setBlock(*resume);
+            editor.setRegion(resume->region);
+
+            // The spilled values back out, replacing what the conversion holds for them. Every block
+            // emitted from here on reads the reload, which is what `checkObjectBody`'s ordering rule
+            // is about.
+            for(U32 j = 0; j < stepping->spillValue.size(); j++) {
+                if(!stepping->record->keepsAcross(decl(), stepping->spillEntry[j], index)) continue;
+                if(!produced[stepping->spillValue[j]]) continue;
+
+                auto held = mir::owned(stepping->record->field(decl(),
+                                       U16(stepping->spillField[j])).occurrence.type);
+                auto address = stepField(node.source, U16(stepping->spillField[j]));
+                auto loaded = editor.addLoad(node.source, editor.use(*address, UseKind::Inspect),
+                                             held, conventionFor(held), false);
+
+                produced[stepping->spillValue[j]] = editor.resultOf(*loaded) - base();
+            }
+
+            produced[node.id.index] = stepping->resumeValue - base();
+            return true;
+        }
+
+        if(node.kind == mir::Node::Return) {
+            // The producer is done - by exhaustion or by the departure a cancellation takes - so
+            // whatever the slot still holds is the record's last obligation, and so are its runs and
+            // whatever a nested traversal is still suspended in the middle of.
+            stepReleaseHeld(node.source);
+            stepCancelNests(node.source);
+            stepReleaseRuns(node.source);
+
+            stepStoreIndex(node.source, I64(kIterFinished));
+            stepReturn(node.source, false);
+            return true;
+        }
+
+        return false;
+    }
+
     void convertNode(mir::Node& node) {
+        // The three things a step reads differently - `convertStepNode`, which answers true where it
+        // has emitted them itself.
+        if(stepping && convertStepNode(node)) return;
+
         switch(node.kind) {
             case mir::Node::Const: {
                 auto& written = (mir::NodeConst&)node;
@@ -2628,6 +4102,39 @@ struct Conversion {
                 SmallArray<Use, 8> arguments;
                 U32 position = 0;
 
+                /*
+                 * A call through a **site type**: the environment, as argument zero - `CallSite::
+                 * siteCall`, and the one place the two tiers' argument lists differ.
+                 *
+                 * MIR holds the value separately because *which* form the call is, is the
+                 * substitution's answer and a node cannot hold two argument lists; by here the
+                 * answer is in, so what is emitted is an ordinary direct call and every pass below
+                 * this line - the verifier, the optimizer, the lowering - sees one. `position`
+                 * starts at one for the same reason: the positions below are the callee's own, and
+                 * the environment has filled the first of them.
+                 *
+                 * Nothing is adapted on the way in, and nothing has to be: the MIR read already
+                 * asked for what the environment parameter declares (`resolveValueCall` hands
+                 * `holdBorrowed` that parameter's own request), so the operand is a borrow of the
+                 * record - or, where the record is trivially copyable, the copy `readMode` answers
+                 * a shared request with, which the lowering places exactly as it places any other
+                 * value at a position that takes an address.
+                 *
+                 * A call the **`Call` constraint** typed leads with the same operand for a different
+                 * reason - `CallThrough::CallWitness`, §4. There the callee is a cell the caller
+                 * filled and the value is what the cell's entry is *about*, so it cannot ride in the
+                 * environment word: that word is where an erased callee's own generic environment
+                 * goes. Both forms therefore put it in the ordinary list and pass no target, which is
+                 * what `valueLeads` says.
+                 */
+                auto valueLeads = site.siteCall ||
+                                  site.through == mir::CallThrough::CallWitness;
+
+                if(valueLeads && target.isSet()) {
+                    arguments.push(target);
+                    position = 1;
+                }
+
                 for(auto operand: written.arguments.contents(mir)) {
                     /*
                      * A borrowed **scalar** at a position that holds the value - `valueUseOf`, and
@@ -2722,9 +4229,9 @@ struct Conversion {
                     at = grafting->site;
                 }
 
-                auto inst = editor.addCall(at, site, target, arguments.pointer(),
-                                           arguments.size(), result, conventionFor(result),
-                                           hasResult);
+                auto inst = editor.addCall(at, site, valueLeads ? Use() : target,
+                                           arguments.pointer(), arguments.size(), result,
+                                           conventionFor(result), hasResult);
 
                 if(hasResult) produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
@@ -2760,6 +4267,27 @@ struct Conversion {
                    aliasesLender(substituted(place->occurrence))) {
                     auto value = valueOf(written.value, node.source);
                     if(!value) return;
+
+                    /*
+                     * Unless the record **carries** the binding, where the storage it names is a
+                     * field rather than a value this conversion holds: a value would be one the
+                     * dispatch's jump into a resume block never passed through, which is the
+                     * dominance failure a `@heap` self-borrow used to report.
+                     *
+                     * Whichever kind of field it is, and that is one store either way: a pointer
+                     * field takes the address the loan is, and a window's field takes the two words
+                     * it is. What differs is what the *reads* do with it, which is the storage walk's
+                     * answer and not this one's.
+                     */
+                    if(stepping && place->payload < stepping->localField.size() &&
+                       stepping->localField[place->payload] != StepPlan::kNoField) {
+                        auto slot = stepField(node.source,
+                                              U16(stepping->localField[place->payload]));
+
+                        editor.addStore(node.source, editor.use(*slot, UseKind::Inspect),
+                                        editor.use(*value, UseKind::Inspect));
+                        break;
+                    }
 
                     slots[place->payload] = value - base();
                     break;
@@ -2826,6 +4354,9 @@ struct Conversion {
                 break;
             case mir::Node::Break:
                 convertEdge(node, ((mir::NodeJump&)node).to, kExitBreak);
+                break;
+            case mir::Node::Resume:
+                convertResume((mir::NodeResume&)node);
                 break;
             case mir::Node::LensCall:
             case mir::Node::LensTry:
@@ -2929,16 +4460,27 @@ struct Conversion {
         blocks.reserve(source.blocks.size());
         for(U32 i = 0; i < source.blocks.size(); i++) blocks.push(nullptr);
 
-        // A graft's entry is a block the caller made where the call was; a function's is its own.
-        blocks[entryBlock.index] = grafting ? grafting->entry - base() : editor.body.entry;
+        /*
+         * A graft's entry is a block the caller made where the call was; a function's is its own -
+         * and a **step's** is the dispatch, so the producer's own entry is a block beside it.
+         *
+         * The three made here are the ones nothing in MIR corresponds to: the arm a record that has
+         * not started takes, the arm a finished one takes, and the producer's first statement.
+         */
+        if(stepping) {
+            stepping->fresh = editor.addBlock(StringId());
+            stepping->finished = editor.addBlock(StringId());
+            stepping->bodyEntry = editor.addBlock(StringId());
+            blocks[entryBlock.index] = stepping->bodyEntry - base();
+        } else {
+            blocks[entryBlock.index] = grafting ? grafting->entry - base() : editor.body.entry;
+        }
 
         for(U32 i = 0; i < source.blocks.size(); i++) {
             if(i == entryBlock.index) continue;
+            if(!inScope(BlockId(i))) continue;
 
-            auto block = source.block(mir, BlockId(i));
-            if(block->region != scope) continue;
-
-            blocks[i] = editor.addBlock(block->name) - base();
+            blocks[i] = editor.addBlock(source.block(mir, BlockId(i))->name) - base();
         }
 
         /*
@@ -2953,7 +4495,9 @@ struct Conversion {
          * storage the body projects and borrows from. What arrives on entry is the value that fills
          * that storage, which is an SSA question and is answered here.
          */
-        auto entry = base()[blocks[entryBlock.index]];
+        // The function's entry, which is the block the *parameters* arrive on. In a step that is the
+        // dispatch rather than the producer's first block - see above.
+        auto entry = stepping ? base()[editor.body.entry] : base()[blocks[entryBlock.index]];
 
         // A grafted body's parameters are the call's arguments, already values; only a function of
         // its own receives them as its entry's arguments.
@@ -2980,9 +4524,19 @@ struct Conversion {
             return base()[entry->argumentAt(base(), i)];
         };
 
+        /*
+         * A step's own three - the record, what the continuation answered, and whether this is a
+         * cancellation. None of them is a parameter of the producer, so none is in the loop above.
+         */
+        if(stepping) {
+            stepping->self = base()[entry->argumentAt(base(), 0)];
+            stepping->resumeValue = base()[entry->argumentAt(base(), 1)];
+            stepping->cancel = base()[entry->argumentAt(base(), 2)];
+        }
+
         for(U32 i = 0; i < source.blocks.size(); i++) {
             auto block = source.block(mir, BlockId(i));
-            if(block->region != scope) continue;
+            if(!inScope(BlockId(i))) continue;
 
             /*
              * The scope's own entry declares its parameters from the *function*, not from MIR.
@@ -3082,7 +4636,90 @@ struct Conversion {
             return nullptr;
         };
 
-        for(U32 i = 0; i < source.locals.size(); i++) {
+        /*
+         * A **step**'s parameters, and the record's own members.
+         *
+         * This is the whole of the first thing a step reads differently. The producer's parameters
+         * are the captured arguments, the locals it keeps across a `yield` are the payload, and both
+         * are fields of `self`; the continuation parameter is the one local with no storage at all,
+         * because a `yield` is not a call here. Everything else falls through to the walk below and
+         * gets an ordinary frame slot, which is right because it is dead by the time a step returns.
+         *
+         * A capture the record holds **by address** is the one that is not a field address: the
+         * field holds the lender's pointer, so the local's storage is what is *in* it - which is
+         * exactly what `aliasesLender` gives a borrowed parameter in an ordinary conversion.
+         */
+        if(stepping) {
+            auto& record = *stepping->record;
+            auto recordType = asBase<mir::Type>(DeclPtr<mir::RecordType>(&record - decl()));
+            auto self = addressUse(*stepping->self);
+
+            for(U32 i = 0; i < source.locals.size(); i++) {
+                auto local = source.local(mir, LocalId(i));
+
+                if(local->isParameter() && local->parameter == stepping->continuationArg) {
+                    slots.push(nullptr);
+                    continue;
+                }
+
+                auto field = local->isParameter() ? 2 + local->parameter : stepping->localField[i];
+
+                // A **borrow** the record carries has no slot at all: which storage it names is read
+                // out of its field at every use - `addressOf`'s `Local` case, where the reason is.
+                if(!local->isParameter() && stepping->localBorrow[i]) {
+                    slots.push(nullptr);
+                    continue;
+                }
+
+                if(field == StepPlan::kNoField) {
+                    auto held = substituted(local->occurrence);
+                    if(aliasesLender(held)) { slots.push(nullptr); continue; }
+
+                    auto alloc = editor.addAlloc(local->source, held,
+                                                 mir::storageOf(mir, source, *local));
+                    slots.push(editor.resultOf(*alloc) - base());
+                    continue;
+                }
+
+                auto address = editor.addFieldAddress(local->source, self, recordType, U16(field));
+                auto slot = editor.resultOf(*address);
+
+                /*
+                 * A capture the record holds **by address**: what the local names is the lender's
+                 * storage, so the slot is the pointer *in* the field rather than the field.
+                 *
+                 * At the field's own `%T` and not at the local's borrow, which is the one place a
+                 * load has to be an instruction: a value that lives in storage *is* its address, so
+                 * a load whose result is declared a loan lowers to nothing at all and the "address"
+                 * that came back was the field's rather than what is in it. `lower/README.md`'s note
+                 * about a continuation's environment is the same sentence about the same shape.
+                 *
+                 * A **window** is the third kind and is not one of these: the descriptor's own bytes
+                 * are the field, so the field's address is the object exactly as it is for a capture
+                 * held by value. `resolve_mir/resolve_object.cpp`'s `IterCaptureKind` is the list,
+                 * and `Address` is its one row that names storage somewhere else.
+                 */
+                auto byAddress = local->isParameter() &&
+                                 record.captureKinds.get(decl(), local->parameter) ==
+                                     mir::RecordType::kCaptureAddress;
+
+                // And a `@heap`-placed payload member, which is the same shape for the other reason:
+                // the value lives in a run of its own so that the record may move without taking it
+                // along, and the field holds where it is - `RecordType::kHeapMember`, §6.1.
+                if(!local->isParameter() && stepping->localRun[i]) byAddress = true;
+
+                if(byAddress) {
+                    auto held = mir::owned(record.field(decl(), U16(field)).occurrence.type);
+                    auto loaded = editor.addLoad(local->source, editor.use(*slot, UseKind::Inspect),
+                                                 held, conventionFor(held), false);
+                    slot = editor.resultOf(*loaded);
+                }
+
+                slots.push(slot - base());
+            }
+        }
+
+        for(U32 i = 0; !stepping && i < source.locals.size(); i++) {
             auto local = source.local(mir, LocalId(i));
 
             // Storage of an enclosing scope, reached through the environment, and storage of a
@@ -3240,7 +4877,7 @@ struct Conversion {
          * IR's `promoteStackSlots` to remove, on the same terms as any other local: doing it here
          * would make the SSA dump depend on an optimization.
          */
-        for(U32 i = 0; !outlining && i < function.args.size(); i++) {
+        for(U32 i = 0; !outlining && !stepping && i < function.args.size(); i++) {
             auto& declared = *decl()[function.args.get(decl(), i)];
             auto incoming = incomingArgument(i);
 
@@ -3277,10 +4914,11 @@ struct Conversion {
 
         for(U32 i = 0; i < source.blocks.size(); i++) {
             auto block = source.block(mir, BlockId(i));
-            if(block->region != scope) continue;
+            if(!inScope(BlockId(i))) continue;
 
             editor.setBlock(*base()[blocks[i]]);
             editor.setRegion(base()[blocks[i]]->region);
+            emitting = block->region;
 
             auto count = block->nodes.size();
             for(U32 n = 0; n < count; n++) {
@@ -3299,12 +4937,1940 @@ struct Conversion {
             }
         }
 
+        // The dispatch, last: the blocks a `yield` resumes at are made while the body is converted,
+        // so the switch that names them cannot be written before it.
+        if(stepping) emitStepDispatch();
+
         // Sealed once, by the conversion that owns the body: a graft's blocks are sealed with the
         // caller's, and sealing them here as well would count every edge twice.
         if(!grafting) editor.seal();
         return errors == 0;
     }
+
+    /*
+     * The step's entry - a `switch` on the resume index - and the two arms nothing in MIR answers.
+     *
+     * Index 0 is a record that has **not started**, which is §2.6's rule as a block: a cancellation
+     * there releases the captured arguments and stops, because none of the producer's body has run.
+     * The finished index is the fallback and returns `False` having nothing to release: whatever the
+     * record owed was released by the `return` that set it.
+     */
+    void emitStepDispatch() {
+        auto at = emitted.source;
+        auto& record = *stepping->record;
+
+        auto cancelled = editor.addBlock(StringId());
+
+        editor.setBlock(*stepping->fresh);
+        editor.setRegion(stepping->fresh->region);
+        editor.addBranch(at, editor.use(*stepping->cancel, UseKind::Inspect), *cancelled,
+                         *stepping->bodyEntry, nullptr, 0);
+
+        editor.setBlock(*cancelled);
+        editor.setRegion(cancelled->region);
+
+        for(U32 i = 0; i < record.captureKinds.size(); i++) {
+            auto captured = record.field(decl(), U16(2 + i));
+
+            // What the record **holds**, and not what it reaches - `ownsField`, which is the same
+            // question `classifyRecord` asks of the same field. A window's field is in an origin
+            // slot, so releasing it would run a `Drop` on storage the lender still owns.
+            if(!mir::ownsField(captured)) continue;
+            if(!mir::hasTeardownAt(decl(), captured.occurrence)) continue;
+
+            auto address = stepField(at, U16(2 + i));
+            editor.addDrop(at, editor.use(*address, UseKind::Inspect),
+                           mir::owned(captured.occurrence.type));
+        }
+
+        // The runs `f$new` allocated, which exist at index zero exactly as they do everywhere else.
+        stepReleaseRuns(at);
+
+        stepStoreIndex(at, kIterFinished);
+        stepReturn(at, false);
+
+        editor.setBlock(*stepping->finished);
+        editor.setRegion(stepping->finished->region);
+        stepReturn(at, false);
+
+        auto dispatch = base()[editor.body.entry];
+        editor.setBlock(*dispatch);
+        editor.setRegion(dispatch->region);
+
+        SmallArray<I64, 8> values;
+        SmallArray<Block*, 8> targets;
+
+        values.push(0);
+        targets.push(stepping->fresh);
+
+        for(U32 i = 0; i < stepping->yields; i++) {
+            if(!stepping->resume[i]) continue;
+
+            values.push(I64(1 + i));
+            targets.push(base()[stepping->resume[i]]);
+        }
+
+        // And the **delegated** regions, whose indices continue the same numbering - §6.3. A level
+        // suspended at one of these has a child the consumer is stepping directly, and what it comes
+        // back to is the release of that child (`convertStepNest`).
+        for(U32 r = 0; r < stepping->delegateResume.size(); r++) {
+            if(!stepping->delegateResume[r]) continue;
+
+            values.push(I64(1 + stepping->yields + r));
+            targets.push(base()[stepping->delegateResume[r]]);
+        }
+
+        auto held = mir::owned(program.types.exitCode());
+        auto index = stepField(at, 0);
+        auto loaded = editor.addLoad(at, editor.use(*index, UseKind::Inspect), held,
+                                     conventionFor(held), false);
+
+        auto selector = editor.resultOf(*loaded);
+
+        /*
+         * A `switch` where there is a switch to make, and a chain of comparisons where there is not.
+         *
+         * Below three cases the IR states that a multi-way branch is a branch - `makeSwitch` asserts
+         * it - and a producer with one `yield` has exactly two arms, which is the common shape.
+         */
+        if(values.size() >= 3) {
+            editor.addSwitch(at, editor.use(*selector, UseKind::Inspect), values.pointer(),
+                             targets.pointer(), values.size(), *stepping->finished, nullptr, 0);
+            return;
+        }
+
+        auto answer = mir::owned(mir::booleanType(program));
+
+        for(Size i = 0; i < values.size(); i++) {
+            auto written = editor.addConst(at, mir::intConstant(held.type, U64(values[i])));
+            auto same = editor.addBinary(at, mir::BinaryOp::Eq,
+                                         editor.use(*selector, UseKind::Inspect),
+                                         editor.use(*editor.resultOf(*written), UseKind::Inspect),
+                                         answer, conventionFor(answer));
+
+            auto otherwise = i + 1 < values.size() ? editor.addBlock(StringId())
+                                                   : stepping->finished;
+
+            editor.addBranch(at, editor.use(*editor.resultOf(*same), UseKind::Inspect), *targets[i],
+                             *otherwise, nullptr, 0);
+
+            if(i + 1 == values.size()) break;
+
+            editor.setBlock(*otherwise);
+            editor.setRegion(otherwise->region);
+        }
+    }
 };
+
+/*
+ * The two generated bodies that are **not** a reading of the producer - `f$new` and `f$drop`.
+ *
+ * `f$new` is the construction, and it is here rather than in MIR because of what it does *not* do:
+ * a record with its captured arguments in it and its payload untouched is a shape MIR has no write
+ * for, since every write it has initializes something and a half-initialized record is not a thing
+ * the move paths can describe. Here there is no such question - the storage is allocated, the fields
+ * the call supplied are stored into, and what the record owes is answered by its own teardown rather
+ * than by a walk over its members.
+ *
+ * `f$drop` is one call of the step with `$cancel`, which is §3.3's whole teardown.
+ */
+static bool emitIterNew(Context& context, mir::Program& program, SsaArena& arena,
+                        mir::Function& function) {
+    auto decl = *program.decl;
+    auto recordType = function.generatedRecord;
+    auto at = function.source;
+
+    Editor editor(context, program, arena, function);
+    auto entry = editor.currentBlock();
+
+    for(auto argumentPointer: function.args.contents(decl)) {
+        auto& declared = *decl[argumentPointer];
+        editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+    }
+
+    auto held = mir::owned(recordType);
+    auto slot = editor.resultOf(*editor.addAlloc(at, held, mir::StorageClass::Frame));
+
+    auto fieldAt = [&](U16 field) {
+        return editor.resultOf(*editor.addFieldAddress(at, editor.use(*slot, UseKind::Inspect),
+                                                       recordType, field));
+    };
+
+    // The index, at zero: a record that has not started, which is what §2.6 says a call produces.
+    auto zero = editor.addConst(at, mir::intConstant(program.types.exitCode(), 0));
+    editor.addStore(at, editor.use(*fieldAt(0), UseKind::Inspect),
+                    editor.use(*editor.resultOf(*zero), UseKind::Consume));
+
+    for(U32 i = 0; i < function.args.size(); i++) {
+        auto& declared = *decl[function.args.get(decl, i)];
+        auto incoming = (*arena)[entry->argumentAt(*arena, i)];
+        auto stored = mir::owned(((mir::RecordType*)decl[recordType])->field(decl, U16(2 + i))
+                                     .occurrence.type);
+
+        /*
+         * A **window** is restated as the descriptor before it is stored.
+         *
+         * The argument arrives at `Array(a) [shared slot n view]`, which is two things at once to
+         * the tiers below: a view record to the manifestation table and a *reference* to every rule
+         * that reads the published origin first. What the field holds is the descriptor, so the
+         * store is made of a value that says only that - `represent`, which moves no bytes and is
+         * the same pair the deleted stack handle's entry made when it restated a captured window the
+         * other way (`../../doc/progress/2026-09-16-J55-iterator-objects.md`).
+         */
+        if(declared.occurrence.contract.form() == mir::AccessForm::View) {
+            auto window = editor.addUnary(at, mir::UnaryOp::Represent,
+                                          editor.use(*incoming, UseKind::Inspect), stored,
+                                          conventionFor(decl, stored));
+
+            editor.addStore(at, editor.use(*fieldAt(U16(2 + i)), UseKind::Inspect),
+                            editor.use(*editor.resultOf(*window), UseKind::Consume));
+            continue;
+        }
+
+        UseKind kind = declared.occurrence.contract.isOwned() ? UseKind::Consume : UseKind::Inspect;
+        editor.addStore(at, editor.use(*fieldAt(U16(2 + i)), UseKind::Inspect),
+                        editor.use(*incoming, kind));
+    }
+
+    /*
+     * The **runs** a `@heap`-placed payload member lives in - one allocation each, for the object's
+     * whole life, with the field holding the address (`RecordType::kHeapMember`).
+     *
+     * Here rather than at the step that first reaches the binding, which would need a flag per
+     * member saying whether there has been one. The record owes the frees either way, and the step
+     * is where they are made - `stepReleaseRuns`.
+     */
+    auto& made = *(mir::RecordType*)decl[recordType];
+
+    for(U32 j = 0; j < made.payloadLocals.size(); j++) {
+        auto member = made.payloadLocals.get(decl, j);
+        if(!(member & mir::RecordType::kHeapMember)) continue;
+
+        // The field this entry lives in, which is no longer its position: slot sharing put two
+        // members in one field where their ranges never met - `RecordType::payloadFields`. A placed
+        // member never shares, so this is always a field of its own, and it is read the same way.
+        auto index = made.payloadFields.get(decl, j);
+        auto& pointer = *(mir::PointerType*)decl[made.field(decl, index).occurrence.type];
+        auto run = mir::owned(pointer.to);
+
+        auto allocated = editor.resultOf(*editor.addAlloc(at, run, mir::StorageClass::Heap));
+        editor.addStore(at, editor.use(*fieldAt(index), UseKind::Inspect),
+                        editor.use(*allocated, UseKind::Inspect));
+    }
+
+    /*
+     * And every **nested traversal** at the finished index - `RecordType::kNestMember`, §3.2's first
+     * step, and what makes the outer object's teardown a call it can always make.
+     *
+     * A record that has not started has entered none of its nested traversals, so what the member
+     * holds is not a child at index zero - which would be one whose captured arguments the
+     * cancellation would release - but one that is *over*. The step writes a real child where the
+     * call is embedded and cancels it where the region is left; this is what stands in the field
+     * until then, and it is why `stepCancelField` needs no flag beside the member.
+     */
+    U32 box = 0;
+
+    for(U32 j = 0; j < made.payloadLocals.size(); j++) {
+        auto member = made.payloadLocals.get(decl, j);
+        if(!(member & mir::RecordType::kNestMember)) continue;
+
+        auto index = made.payloadFields.get(decl, j);
+        auto nested = made.field(decl, index).occurrence.type;
+
+        auto shim = box < made.nestBoxed.size() ? made.nestBoxed.get(decl, box)
+                                                : DeclPtr<mir::Function>(nullptr);
+        box++;
+
+        /*
+         * A **boxed** level is the empty pair rather than a finished index - §6.3.
+         *
+         * There is no child record in the field to write an index into: the member is two words, and
+         * what says "this level is not there" is an environment word of null, whose tag bit is
+         * clear. So a cancellation that reaches an unentered box drops a pair that owns nothing,
+         * which is the same "a call that does nothing" the finished index buys one row up. The code
+         * word is the real shim either way, so the pair is never a value that could be stepped into
+         * nothing.
+         */
+        /*
+         * A **delegating** member is the link rather than the bare pair - §6.3,
+         * `RecordType::linkType`. Its pair starts empty for the reason every box's does, and its
+         * chain word starts at zero: nothing has pushed this level onto a chain yet, and what would
+         * is a trampoline three calls away.
+         */
+        if(nested == made.linkType) {
+            auto& link = *(mir::RecordType*)decl[nested];
+            auto boxType = link.field(decl, 0).occurrence.type;
+
+            if(!shim) continue;
+
+            auto pair = editor.resultOf(*editor.addFieldAddress(at, editor.use(*fieldAt(index),
+                                                                               UseKind::Inspect),
+                                                                nested, 0));
+
+            auto occurrence = mir::owned(boxType);
+            auto empty = editor.resultOf(*editor.addFunValue(at, shim, nullptr, occurrence,
+                                                             conventionFor(decl, occurrence)));
+
+            editor.addStore(at, editor.use(*pair, UseKind::Inspect),
+                            editor.use(*empty, UseKind::Consume));
+
+            auto word = mir::owned(program.types.words[0]);
+            auto up = editor.resultOf(*editor.addFieldAddress(at, editor.use(*fieldAt(index),
+                                                                             UseKind::Inspect),
+                                                              nested, 1));
+
+            auto none = editor.addConst(at, mir::intConstant(word.type, 0));
+            editor.addStore(at, editor.use(*up, UseKind::Inspect),
+                            editor.use(*editor.resultOf(*none), UseKind::Consume));
+            continue;
+        }
+
+        if(decl[nested]->kind == mir::Type::Iter) {
+            if(!shim) continue;
+
+            auto occurrence = mir::owned(nested);
+            auto empty = editor.resultOf(*editor.addFunValue(at, shim, nullptr, occurrence,
+                                                             conventionFor(decl, occurrence)));
+
+            editor.addStore(at, editor.use(*fieldAt(index), UseKind::Inspect),
+                            editor.use(*empty, UseKind::Consume));
+            continue;
+        }
+
+        auto inside = editor.resultOf(*editor.addFieldAddress(at, editor.use(*fieldAt(index),
+                                                                             UseKind::Inspect),
+                                                              nested, 0));
+
+        auto over = editor.addConst(at, mir::intConstant(program.types.exitCode(), kIterFinished));
+        editor.addStore(at, editor.use(*inside, UseKind::Inspect),
+                        editor.use(*editor.resultOf(*over), UseKind::Consume));
+    }
+
+    /*
+     * And **delegation's** two words at zero - `$down`, which is the step's third answer and says
+     * "nothing entered", and `$inner`, which is the trampoline's own state and says "this record is
+     * the innermost level there is".
+     */
+    if(made.linkType) {
+        auto word = mir::owned(program.types.words[0]);
+        auto none = editor.addConst(at, mir::intConstant(word.type, 0));
+
+        editor.addStore(at, editor.use(*fieldAt(made.downField), UseKind::Inspect),
+                        editor.use(*editor.resultOf(*none), UseKind::Consume));
+
+        auto inner = editor.addConst(at, mir::intConstant(word.type, 0));
+        editor.addStore(at, editor.use(*fieldAt(made.innerField), UseKind::Inspect),
+                        editor.use(*editor.resultOf(*inner), UseKind::Consume));
+    }
+
+    // And `$held` at false, where the record has one: a record that has not started has handed
+    // nothing over, so the slot owes nothing - `RecordType::heldField`.
+    if(auto flag = made.heldField) {
+        auto empty = editor.addConst(at, mir::truthConstant(program, false));
+        editor.addStore(at, editor.use(*fieldAt(flag), UseKind::Inspect),
+                        editor.use(*editor.resultOf(*empty), UseKind::Consume));
+    }
+
+    auto loaded = editor.addLoad(at, editor.use(*slot, UseKind::Inspect), held,
+                                 conventionFor(decl, held), false);
+
+    Use answer[1] = { editor.use(*editor.resultOf(*loaded), UseKind::Consume) };
+    editor.addReturn(at, answer, 1);
+    editor.seal();
+    return true;
+}
+
+static bool emitIterDrop(Context& context, mir::Program& program, SsaArena& arena,
+                         mir::Function& function) {
+    auto decl = *program.decl;
+    auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+    auto at = function.source;
+
+    Editor editor(context, program, arena, function);
+    auto entry = editor.currentBlock();
+
+    auto& declared = *decl[function.args.get(decl, 0)];
+    editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+
+    auto incoming = (*arena)[entry->argumentAt(*arena, 0)];
+    auto& step = *decl[record.producerStep];
+
+    /*
+     * The subject, into storage of its own - which is what consumes it, and is exactly what an
+     * authored teardown's body does with its parameter.
+     *
+     * A teardown's subject is not an ownership root of its own frame (`Function::teardown`), so the
+     * slot is never released: the value ceases to exist here and its members are this body's to
+     * dispose of, which is what the step below does.
+     */
+    auto held = mir::owned(function.generatedRecord);
+    auto slot = editor.resultOf(*editor.addAlloc(at, held, mir::StorageClass::Frame));
+    editor.addStore(at, editor.use(*slot, UseKind::Inspect),
+                    editor.use(*incoming, UseKind::Consume));
+
+    auto borrow = mir::borrowed(function.generatedRecord, mir::Access::Unique);
+    auto self = editor.resultOf(*editor.addLoad(at, editor.use(*slot, UseKind::Inspect), borrow,
+                                                conventionFor(decl, borrow), false));
+
+    /*
+     * "Leave", at the type the step's own argument is - the continuation's answer, one tier over.
+     *
+     * A resuming producer's step takes `Outcome(R, exit)` and a plain one takes the signal, and the
+     * `yield` reads whichever it is exactly as it reads a continuation's return. `exitRow` is what
+     * puts the row in whichever of the two this producer declared - written out here until
+     * 2026-09-16 as the bare signal, which made *every* resuming producer that owned anything fail
+     * to compile, since owning anything is what gives a record this teardown at all.
+     */
+    auto leave = exitRow(program, editor, decl[step.args.get(decl, 1)]->occurrence.type, kExitLeave,
+                         at);
+    auto cancel = editor.addConst(at, mir::truthConstant(program, true));
+
+    mir::CallSite site;
+    site.target = record.producerStep;
+    site.through = mir::CallThrough::Declaration;
+
+    Use arguments[3] = {
+        editor.use(*self, UseKind::Borrow),
+        leave,
+        editor.use(*editor.resultOf(*cancel), UseKind::Consume),
+    };
+
+    editor.addCall(at, site, Use(), arguments, 3, step.result, conventionFor(decl, step.result), true);
+    editor.addReturn(at, nullptr, 0);
+    editor.seal();
+    return true;
+}
+
+/*
+ * `Iterate`'s two members - `f$next` and `f$resume`, §2.3's class.
+ *
+ *      %more = f$step(self, <what the pass answered>, False)
+ *      branch %more -> just -> nothing
+ *
+ * The item comes straight out of the slot, which is what makes the class's reading of a hand-over
+ * one reading: the record holds the item between two steps whatever the producer declared, so a body
+ * compiled once takes it by value. A producer that *lends* has no instance of the class at all -
+ * `resolve_mir/resolve_object.cpp` says why, and `for x in it` is the spelling that honours a
+ * lending convention.
+ *
+ * **`next` on a resuming producer is its first step, and only that.** What it sends is
+ * `Exit(kExitFallOut)`, which at index zero is never read - the producer has not reached a `yield`.
+ * At a **suspend** index it is a pass that answered nothing, and that is a failure rather than an
+ * early end: the producer asked for a value and the consumer wrote the member that has none. A
+ * witness cannot know which producer it holds, so the check is the index and it is here;
+ * `refuseNextOnResuming` is the same rule where the site type is written out, reported instead of
+ * run. So "`next` starts it and `resume` answers each `yield`" is the rule, and this is what
+ * enforces it.
+ */
+// The tail both steppers end with - see the definition, below the first of them.
+static bool answerItem(Context& context, mir::Program& program, Editor& editor,
+                       mir::Function& function, Value* slot, DeclPtr<mir::Type> stored, bool window,
+                       Block& nothing, LocationId at);
+
+/*
+ * Where a record's item is - the slot's address, or what is in it where the producer lends.
+ *
+ * The one line `f$erased`, `f$erased.step` and `f$walk` share and the one thing erasure changes
+ * about a step: a pair carries no record for the consumer to read a field out of, so what comes back
+ * has to be the address the field would have been read at. A window slot holds the descriptor rather
+ * than the owner, so the bitcast to the result's own type covers both and lowers to nothing.
+ */
+static Value* iterSlotAddress(mir::Program& program, Editor& editor, mir::Function& function,
+                              Value* self, LocationId at) {
+    auto decl = *program.decl;
+    auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+
+    auto item = record.field(decl, 1).occurrence;
+    auto lends = decl[item.type]->kind == mir::Type::Pointer;
+
+    auto slot = editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
+                                                        function.generatedRecord, 1));
+
+    if(lends) {
+        auto through = mir::owned(item.type);
+        slot = editor.resultOf(*editor.addLoad(at, editor.use(*slot, UseKind::Inspect), through,
+                                               conventionFor(decl, through), false));
+    }
+
+    return editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                            editor.use(*slot, UseKind::Inspect), function.result,
+                                            conventionFor(decl, function.result)));
+}
+
+// `null()` - the same `bitcast(0 :: Size)` `lib/Native/Pointer.yana` writes, which is what a producer
+// that ran out answers and is the one value no item can have.
+static Value* iterNoItem(mir::Program& program, Editor& editor, mir::Function& function,
+                         LocationId at) {
+    auto decl = *program.decl;
+    auto zero = editor.addConst(at, mir::intConstant(program.types.words[0], 0));
+
+    return editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                            editor.use(*editor.resultOf(*zero), UseKind::Inspect),
+                                            function.result, conventionFor(decl, function.result)));
+}
+
+// One word of a record, loaded and stored - `$down` and `$inner`, which are the two delegation adds.
+static Value* iterWordAt(mir::Program& program, Editor& editor, Value* self,
+                         DeclPtr<mir::Type> recordType, U16 field, LocationId at) {
+    auto decl = *program.decl;
+    auto word = mir::owned(program.types.words[0]);
+
+    auto address = editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
+                                                           recordType, field));
+
+    return editor.resultOf(*editor.addLoad(at, editor.use(*address, UseKind::Inspect), word,
+                                           conventionFor(decl, word), false));
+}
+
+static void iterStoreWordAt(Editor& editor, Value* self, DeclPtr<mir::Type> recordType, U16 field,
+                            Value* value, LocationId at) {
+    auto address = editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
+                                                           recordType, field));
+
+    editor.addStore(at, editor.use(*address, UseKind::Inspect), editor.use(*value, UseKind::Consume));
+}
+
+/*
+ * A **chain word** turned into the link address it names - `$inner`, `$up` and `$down` read, which
+ * is the one place delegation's representation is not simply an address.
+ *
+ * A chain word holds either the address of a link that lives in a **heap block** - every level below
+ * the root is boxed, and a block never moves - or, with **bit zero set**, `field << 1 | 1`: the
+ * index of one of *this* record's own link members.
+ *
+ * The second reading is what makes a suspended delegating object relocatable, and it is the only
+ * link in the chain that needs one. `let moved = it`, an argument taken by `->`, a `return` and a
+ * store into a field all relocate the record a consumer holds, and the design's §6 is that a record
+ * moves with whatever holds it - so an absolute address into the root's own link member, which is
+ * what J60 stored, named where the object used to be from the next step onwards. Naming the field
+ * instead is resolved against whatever `self` the step was entered with, so a root that has moved
+ * finds its own link exactly where it now is.
+ *
+ * **The invariant that makes one reading enough**: the only word that ever enters the chain with the
+ * tag set is `$self.$down`, written by this record's own step about one of this record's own fields,
+ * and read by `f$walk` and `f$erased.step` with that same `self` in hand. Every other value pushed -
+ * a level's tagged answer, minus its tag - is an address inside a block. So a tagged word in `$inner`
+ * or in a level's `$up` always names a field of the **root**, and is resolved against the root.
+ *
+ * `@heap` placement of the link member was the alternative and is J60's own suggestion; it costs an
+ * allocation and a free per level entered, which is the number §6.3's second bullet exists to bring
+ * *down*. This costs one compare and one branch-free select per chain word read, and nothing at all
+ * to a producer that does not delegate.
+ */
+static Value* iterLinkAddress(mir::Program& program, Editor& editor, Value* self,
+                              DeclPtr<mir::Type> recordType, Value* word, LocationId at) {
+    auto decl = *program.decl;
+    auto& record = *(mir::RecordType*)decl[recordType];
+    auto held = mir::owned(program.types.words[0]);
+    auto truth = mir::owned(mir::booleanType(program));
+    auto resolved = word;
+
+    // One select per link member the record has, which is one in every producer the corpus holds:
+    // a level is suspended inside exactly one region, so at most one of these can be the live
+    // reading - but which one is a fact about the index and a compare against the word is cheaper
+    // than recovering it.
+    for(auto field: record.fields.contents(decl)) {
+        if(field.occurrence.type != record.linkType) continue;
+
+        auto named = editor.addConst(at, mir::intConstant(held.type,
+                                                          (U64(field.index) << 1) | 1));
+
+        auto is = editor.resultOf(*editor.addBinary(at, mir::BinaryOp::Eq,
+                                                    editor.use(*word, UseKind::Inspect),
+                                                    editor.use(*editor.resultOf(*named),
+                                                               UseKind::Inspect),
+                                                    truth, conventionFor(decl, truth)));
+
+        auto own = editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
+                                                           recordType, field.index));
+
+        auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                       editor.use(*own, UseKind::Inspect), held,
+                                                       conventionFor(decl, held)));
+
+        resolved = editor.resultOf(*editor.addSelect(at, editor.use(*is, UseKind::Inspect),
+                                                     editor.use(*number, UseKind::Inspect),
+                                                     editor.use(*resolved, UseKind::Inspect),
+                                                     held, conventionFor(decl, held)));
+    }
+
+    return resolved;
+}
+
+// Whether a word is nonzero, which is what every test in the two bodies below is.
+static Value* iterNonZero(mir::Program& program, Editor& editor, Value* word, LocationId at) {
+    auto decl = *program.decl;
+    auto zero = editor.addConst(at, mir::intConstant(program.types.words[0], 0));
+    auto truth = mir::owned(mir::booleanType(program));
+
+    return editor.resultOf(*editor.addBinary(at, mir::BinaryOp::Ne,
+                                             editor.use(*word, UseKind::Inspect),
+                                             editor.use(*editor.resultOf(*zero), UseKind::Inspect),
+                                             truth, conventionFor(decl, truth)));
+}
+
+/*
+ * `f$erased.step` - the **raw** shim, and the one function that ever writes a step's third row -
+ * Design-Iterator-Objects.md §6.3, built 2026-09-16.
+ *
+ *      %more = f$step($env, $sent, $cancel)
+ *      just:  %down = load $env.$down
+ *             if %down != 0: store $env.$down <- 0; return link($env, %down) | 1
+ *             return <where the item is>
+ *      nothing: return null
+ *
+ * `f$erased` and this differ in those three lines and nothing else. **Which shim a pair names is how
+ * the third row is kept off every channel with no use for it**: a delegable box's pair names this
+ * one and is stepped only by a trampoline, and every pair a consumer holds - and every box a
+ * non-delegating region builds - names `f$erased`, which cannot answer it. So a step that never
+ * delegates pays nothing at all for delegation existing, which is the reason this row is a member of
+ * the record rather than a wider answer on the step.
+ *
+ * The **low bit** is free because a link is a field of a record and is word-aligned, which is the
+ * same test `funTeardown` makes of a pair's environment word one construct over.
+ */
+static bool emitIterErasedRaw(Context& context, mir::Program& program, SsaArena& arena,
+                              mir::Function& function) {
+    auto decl = *program.decl;
+    auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+    auto& step = *decl[record.producerStep];
+    auto at = function.source;
+
+    Editor editor(context, program, arena, function);
+    auto entry = editor.currentBlock();
+
+    for(auto argumentPointer: function.args.contents(decl)) {
+        auto& declared = *decl[argumentPointer];
+        editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+    }
+
+    auto self = (*arena)[entry->argumentAt(*arena, 0)];
+    auto sent = (*arena)[entry->argumentAt(*arena, 1)];
+    auto cancel = (*arena)[entry->argumentAt(*arena, 2)];
+
+    mir::CallSite site;
+    site.target = record.producerStep;
+    site.through = mir::CallThrough::Declaration;
+
+    Use arguments[3] = {
+        editor.use(*self, UseKind::Borrow),
+        editor.use(*sent, UseKind::Consume),
+        editor.use(*cancel, UseKind::Consume),
+    };
+
+    auto more = editor.addCall(at, site, Use(), arguments, 3, step.result,
+                               conventionFor(decl, step.result), true);
+
+    auto just = editor.addBlock(StringId());
+    auto nothing = editor.addBlock(StringId());
+
+    editor.addBranch(at, editor.use(*editor.resultOf(*more), UseKind::Inspect), *just, *nothing,
+                     nullptr, 0);
+
+    editor.setBlock(*just);
+    editor.setRegion(just->region);
+
+    auto down = iterWordAt(program, editor, self, function.generatedRecord, record.downField, at);
+
+    auto entered = editor.addBlock(StringId());
+    auto handed = editor.addBlock(StringId());
+
+    editor.addBranch(at, editor.use(*iterNonZero(program, editor, down, at), UseKind::Inspect),
+                     *entered, *handed, nullptr, 0);
+
+    editor.setBlock(*entered);
+    editor.setRegion(entered->region);
+
+    auto word = mir::owned(program.types.words[0]);
+    auto clear = editor.addConst(at, mir::intConstant(word.type, 0));
+
+    iterStoreWordAt(editor, self, function.generatedRecord, record.downField,
+                    editor.resultOf(*clear), at);
+
+    /*
+     * The link this level has entered, **resolved** before it crosses the boundary: what the step
+     * wrote into `$down` names a field of this record (`iterLinkAddress`), and the trampoline that
+     * reads this answer holds a different `self` and could not resolve it. An address into this
+     * record is safe to hand out because a delegable box never moves - it is a heap block, which is
+     * what `RecordType::producerRaw`'s own comment says a pair naming this shim always is.
+     */
+    auto reached = iterLinkAddress(program, editor, self, function.generatedRecord, down, at);
+
+    auto one = editor.addConst(at, mir::intConstant(word.type, 1));
+    auto tagged = editor.addBinary(at, mir::BinaryOp::Or, editor.use(*reached, UseKind::Inspect),
+                                   editor.use(*editor.resultOf(*one), UseKind::Inspect), word,
+                                   conventionFor(decl, word));
+
+    auto answer = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                   editor.use(*editor.resultOf(*tagged),
+                                                              UseKind::Inspect),
+                                                   function.result,
+                                                   conventionFor(decl, function.result)));
+
+    Use answerEntered[1] = { editor.use(*answer, UseKind::Consume) };
+    editor.addReturn(at, answerEntered, 1);
+
+    editor.setBlock(*handed);
+    editor.setRegion(handed->region);
+
+    Use answerJust[1] = { editor.use(*iterSlotAddress(program, editor, function, self, at),
+                                     UseKind::Consume) };
+    editor.addReturn(at, answerJust, 1);
+
+    editor.setBlock(*nothing);
+    editor.setRegion(nothing->region);
+
+    Use answerNone[1] = { editor.use(*iterNoItem(program, editor, function, at), UseKind::Consume) };
+    editor.addReturn(at, answerNone, 1);
+
+    editor.seal();
+    return true;
+}
+
+/*
+ * `f$obj` - the **witness's "make an object" entry**, Design-Iterator-Objects.md §6.4.
+ *
+ *      fn f$obj(<the constructor's parameters>) -> iter(Y)
+ *
+ *      %r = alloc frame f.Iter
+ *      store %r <- f$new(<the parameters>)
+ *      return fun.value f$erased.heap inspect %r
+ *
+ * One per selected instance member, and it is what a body compiled **once** calls where a body
+ * compiled per substitution would have built the record itself. The record is the instance's, so the
+ * cell is the instance's; what the caller holds is the two words every erased object is.
+ *
+ * The block is `emitFunValue`'s, exactly as a boxed nest's is (`convertStepNest`) and as an object
+ * at an owning position is (`adaptIterValue`): the frame local is where `f$new` writes and the shim's
+ * `environmentStorage` is what moves the bytes into a heap block with the record's teardown in front
+ * of them. So nothing here allocates by name, and the pair a witness hands back is released by the
+ * same `funTeardown` that releases any other.
+ */
+static bool emitIterObject(Context& context, mir::Program& program, SsaArena& arena,
+                           mir::Function& function) {
+    auto decl = *program.decl;
+    auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+    auto& make = *decl[record.producerNew];
+    auto at = function.source;
+
+    Editor editor(context, program, arena, function);
+    auto entry = editor.currentBlock();
+
+    for(auto argumentPointer: function.args.contents(decl)) {
+        auto& declared = *decl[argumentPointer];
+        editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+    }
+
+    SmallArray<Use, 8> arguments;
+
+    for(U32 i = 0; i < function.args.size() && i < make.args.size(); i++) {
+        auto& declared = *decl[make.args.get(decl, U16(i))];
+
+        // The same pair `convertStepNest` reads of an embedded region's capture - what the
+        // constructor's position takes, said as a use.
+        auto kind = UseKind::Consume;
+
+        switch(mir::argumentMode(declared.occurrence.contract, mir::SourceKind::Result)) {
+            case mir::UseMode::BorrowShared:
+            case mir::UseMode::BorrowUnique:
+                kind = UseKind::Borrow;
+                break;
+            case mir::UseMode::Inspect:
+                kind = UseKind::Inspect;
+                break;
+            default:
+                kind = UseKind::Consume;
+                break;
+        }
+
+        /*
+         * And the **bytes** the constructor's position takes, which is a load where this signature
+         * holds a reference and the field holds a copy - `convertStepNest`'s own adaptation, made
+         * here for the same reason: this function's parameters are the class member's and the
+         * constructor's are the record's, and a call boundary is where the two are reconciled.
+         */
+        auto value = (*arena)[entry->argumentAt(*arena, i)];
+
+        if(isReferenceValue(layoutFor(context, program), value->occurrence) &&
+           !isReferenceValue(layoutFor(context, program), declared.occurrence)) {
+            auto held = mir::owned(declared.occurrence.type);
+            value = editor.resultOf(*editor.addLoad(at, editor.use(*value, UseKind::Inspect), held,
+                                                    conventionFor(decl, held), false));
+        }
+
+        arguments.push(editor.use(*value, kind));
+    }
+
+    mir::CallSite making;
+    making.target = record.producerNew;
+    making.through = mir::CallThrough::Declaration;
+
+    auto built = editor.resultOf(*editor.addCall(at, making, Use(), arguments.pointer(),
+                                                 arguments.size(), make.result,
+                                                 conventionFor(decl, make.result), true));
+
+    auto storage = mir::owned(function.generatedRecord);
+    auto local = editor.resultOf(*editor.addAlloc(at, storage, mir::StorageClass::Frame));
+
+    editor.addStore(at, editor.use(*local, UseKind::Inspect), editor.use(*built, UseKind::Consume));
+
+    Use environment = editor.use(*local, UseKind::Inspect);
+    auto pair = editor.resultOf(*editor.addFunValue(at, record.producerBox, &environment,
+                                                    function.result,
+                                                    conventionFor(decl, function.result)));
+
+    Use answer[1] = { editor.use(*pair, UseKind::Consume) };
+    editor.addReturn(at, answer, 1);
+
+    editor.seal();
+    return true;
+}
+
+/*
+ * `f$walk` - the **trampoline**, §6.3, and the whole of what delegation costs a consumer.
+ *
+ *      loop:  %at = link($self, load $self.$inner)
+ *             if %at == 0:  %more = f$step($self, ...)      -- this record is the innermost
+ *                           if !%more: return null
+ *                           %down = load $self.$down; if %down: push(%down); goto loop
+ *                           return <where this record's item is>
+ *             %p = <the pair at %at>($sent, $cancel)        -- the innermost, stepped directly
+ *             if %p == 0:   $self.$inner = load %at.$up; goto loop
+ *             if %p & 1:    push(%p - 1); goto loop
+ *             return %p
+ *
+ *      push(%link):  store link($self, %link).$up <- load $self.$inner
+ *                    store $self.$inner <- %link
+ *
+ * `link` is `iterLinkAddress`: a chain word is an address inside a heap block, or - tagged - one of
+ * `$self`'s own link members, which is what keeps the chain good when the **root is moved** while it
+ * is suspended. It is stored untagged into `$inner` and into a level's `$up`, so the reading travels
+ * with the word rather than being decided where it is written.
+ *
+ * **A step is O(1) in the depth of the chain**, which is what §6.3 asks for: the levels between the
+ * root and the leaf are not entered at all, because a level that delegates has nothing to run
+ * between its child's item and its own hand-over. What each level still costs is the allocation its
+ * box is, once, when it is entered.
+ *
+ * The chain is **intrusive**, through the link each level's parent holds it by
+ * (`RecordType::linkType`). A stack the root grew was the alternative: the levels of a cycle are
+ * several record types of several sizes, so the root would be keeping an array of pairs it has to
+ * grow - an allocation and a library role inside a generated body - where the chain word is one word
+ * in storage the level above already owns, already initializes and already frees.
+ *
+ * Nothing here owns anything. `$inner` and `$up` name links the levels above them own, and a level
+ * is released by the level that built it - the box is dropped where the region it belongs to is left,
+ * which is `stepCancelField` and is unchanged. So a teardown of the whole object is still one drop
+ * of the root record and still recurses down the chain on the machine's stack rather than on this
+ * loop.
+ */
+static bool emitIterWalk(Context& context, mir::Program& program, SsaArena& arena,
+                         mir::Function& function) {
+    auto decl = *program.decl;
+    auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+    auto& step = *decl[record.producerStep];
+    auto at = function.source;
+    auto link = record.linkType;
+
+    Editor editor(context, program, arena, function);
+    auto entry = editor.currentBlock();
+
+    for(auto argumentPointer: function.args.contents(decl)) {
+        auto& declared = *decl[argumentPointer];
+        editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+    }
+
+    auto self = (*arena)[entry->argumentAt(*arena, 0)];
+    auto sent = (*arena)[entry->argumentAt(*arena, 1)];
+    auto cancel = (*arena)[entry->argumentAt(*arena, 2)];
+
+    auto word = mir::owned(program.types.words[0]);
+    auto held = mir::borrowed(link, mir::Access::Unique);
+
+    auto loop = editor.addBlock(StringId());
+    auto own = editor.addBlock(StringId());
+    auto inner = editor.addBlock(StringId());
+    auto nothing = editor.addBlock(StringId());
+
+    /*
+     * The pushed link arrives as a block argument, which is the one value this loop carries: the
+     * two places that push - this record's own step and a level below it - have found it in two
+     * different words and everything after that is one piece of code.
+     */
+    auto push = editor.addBlock(StringId());
+    editor.addBlockArgument(*push, word, conventionFor(decl, word));
+
+    editor.addJump(at, *loop, nullptr, 0);
+
+    editor.setBlock(*loop);
+    editor.setRegion(loop->region);
+
+    auto innermost = iterWordAt(program, editor, self, function.generatedRecord, record.innerField, at);
+
+    editor.addBranch(at, editor.use(*iterNonZero(program, editor, innermost, at), UseKind::Inspect),
+                     *inner, *own, nullptr, 0);
+
+    // This record is the innermost level there is, so the step is its own - the ordinary call, and
+    // the one place `f$step`'s `Bool` is still read as a `Bool`.
+    editor.setBlock(*own);
+    editor.setRegion(own->region);
+
+    mir::CallSite site;
+    site.target = record.producerStep;
+    site.through = mir::CallThrough::Declaration;
+
+    Use arguments[3] = {
+        editor.use(*self, UseKind::Borrow),
+        editor.use(*sent, UseKind::Consume),
+        editor.use(*cancel, UseKind::Consume),
+    };
+
+    auto more = editor.addCall(at, site, Use(), arguments, 3, step.result,
+                               conventionFor(decl, step.result), true);
+
+    auto answered = editor.addBlock(StringId());
+
+    editor.addBranch(at, editor.use(*editor.resultOf(*more), UseKind::Inspect), *answered, *nothing,
+                     nullptr, 0);
+
+    editor.setBlock(*answered);
+    editor.setRegion(answered->region);
+
+    auto down = iterWordAt(program, editor, self, function.generatedRecord, record.downField, at);
+
+    auto handed = editor.addBlock(StringId());
+    auto entered = editor.addBlock(StringId());
+
+    editor.addBranch(at, editor.use(*iterNonZero(program, editor, down, at), UseKind::Inspect),
+                     *entered, *handed, nullptr, 0);
+
+    // Entered a child of its own: clear the word the step wrote - nothing else reads it - and push.
+    editor.setBlock(*entered);
+    editor.setRegion(entered->region);
+
+    auto clear = editor.addConst(at, mir::intConstant(word.type, 0));
+    iterStoreWordAt(editor, self, function.generatedRecord, record.downField,
+                    editor.resultOf(*clear), at);
+
+    Use pushed[1] = { editor.use(*down, UseKind::Consume) };
+    editor.addJump(at, *push, pushed, 1);
+
+    editor.setBlock(*handed);
+    editor.setRegion(handed->region);
+
+    Use answerOwn[1] = { editor.use(*iterSlotAddress(program, editor, function, self, at),
+                                    UseKind::Consume) };
+    editor.addReturn(at, answerOwn, 1);
+
+    /*
+     * The innermost level, stepped **through its pair** - `CallThrough::Value` against the signature
+     * `IterType::step` carries, which is the same call a boxed nest makes. The three rows it may
+     * answer are what this loop is for.
+     */
+    editor.setBlock(*inner);
+    editor.setRegion(inner->region);
+
+    // The chain word resolved - it names a link in a block, or one of this record's own members
+    // (`iterLinkAddress`), and after a move of the object the second is the only good reading.
+    auto named = iterLinkAddress(program, editor, self, function.generatedRecord, innermost, at);
+
+    auto reached = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                    editor.use(*named, UseKind::Inspect), held,
+                                                    conventionFor(decl, held)));
+
+    auto& shape = *(mir::RecordType*)decl[link];
+    auto boxType = shape.field(decl, 0).occurrence.type;
+    auto& iterated = *(mir::IterType*)decl[boxType];
+
+    auto slot = editor.resultOf(*editor.addFieldAddress(at, editor.use(*reached, UseKind::Inspect),
+                                                        link, 0));
+
+    auto borrowed = mir::borrowed(boxType, mir::Access::Unique);
+    auto pair = editor.resultOf(*editor.addLoad(at, editor.use(*slot, UseKind::Inspect), borrowed,
+                                                conventionFor(decl, borrowed), false));
+
+    mir::CallSite through;
+    through.target = nullptr;
+    through.through = mir::CallThrough::Value;
+
+    auto result = mir::owned(program.types.pointerType(iterated.handover.type));
+
+    Use stepping[2] = {
+        editor.use(*sent, UseKind::Consume),
+        editor.use(*cancel, UseKind::Consume),
+    };
+
+    auto found = editor.resultOf(*editor.addCall(at, through, editor.use(*pair, UseKind::Inspect),
+                                                 stepping, 2, result, conventionFor(decl, result),
+                                                 true));
+
+    auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                   editor.use(*found, UseKind::Inspect), word,
+                                                   conventionFor(decl, word)));
+
+    auto alive = editor.addBlock(StringId());
+    auto pop = editor.addBlock(StringId());
+
+    editor.addBranch(at, editor.use(*iterNonZero(program, editor, number, at), UseKind::Inspect),
+                     *alive, *pop, nullptr, 0);
+
+    editor.setBlock(*alive);
+    editor.setRegion(alive->region);
+
+    // The third row - `f$erased.step`'s tagged link, which is the one thing an item's address cannot
+    // be. The tag is cleared by subtracting it rather than masking, because it was set by an `or` on
+    // a word that had it clear.
+    auto one = editor.addConst(at, mir::intConstant(word.type, 1));
+    auto tag = editor.addBinary(at, mir::BinaryOp::And, editor.use(*number, UseKind::Inspect),
+                                editor.use(*editor.resultOf(*one), UseKind::Inspect), word,
+                                conventionFor(decl, word));
+
+    auto deeper = editor.addBlock(StringId());
+    auto item = editor.addBlock(StringId());
+
+    editor.addBranch(at, editor.use(*iterNonZero(program, editor, editor.resultOf(*tag), at),
+                                    UseKind::Inspect), *deeper, *item, nullptr, 0);
+
+    editor.setBlock(*deeper);
+    editor.setRegion(deeper->region);
+
+    auto bare = editor.addBinary(at, mir::BinaryOp::Sub, editor.use(*number, UseKind::Inspect),
+                                 editor.use(*editor.resultOf(*one), UseKind::Inspect), word,
+                                 conventionFor(decl, word));
+
+    Use below[1] = { editor.use(*editor.resultOf(*bare), UseKind::Consume) };
+    editor.addJump(at, *push, below, 1);
+
+    editor.setBlock(*item);
+    editor.setRegion(item->region);
+
+    Use answerItem[1] = { editor.use(*found, UseKind::Consume) };
+    editor.addReturn(at, answerItem, 1);
+
+    // The level ran out, so the one above it is the innermost again - and the level above it is what
+    // the chain word says. Releasing the child is *its* business, and it does it on its next step.
+    editor.setBlock(*pop);
+    editor.setRegion(pop->region);
+
+    auto up = editor.resultOf(*editor.addFieldAddress(at, editor.use(*reached, UseKind::Inspect),
+                                                      link, 1));
+
+    auto above = editor.resultOf(*editor.addLoad(at, editor.use(*up, UseKind::Inspect), word,
+                                                 conventionFor(decl, word), false));
+
+    iterStoreWordAt(editor, self, function.generatedRecord, record.innerField, above, at);
+    editor.addJump(at, *loop, nullptr, 0);
+
+    // One level pushed - the chain word written from what `$inner` says now, and `$inner` moved down.
+    editor.setBlock(*push);
+    editor.setRegion(push->region);
+
+    auto below2 = (*arena)[push->argumentAt(*arena, 0)];
+
+    // Resolved to write `$up` through, and pushed **raw**: what goes into `$inner` is the word as it
+    // arrived, so that a level named by one of this record's own fields stays named that way.
+    auto pushedAt = iterLinkAddress(program, editor, self, function.generatedRecord, below2, at);
+
+    auto chain = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                  editor.use(*pushedAt, UseKind::Inspect), held,
+                                                  conventionFor(decl, held)));
+
+    auto parent = iterWordAt(program, editor, self, function.generatedRecord, record.innerField, at);
+
+    auto chainUp = editor.resultOf(*editor.addFieldAddress(at, editor.use(*chain, UseKind::Inspect),
+                                                           link, 1));
+
+    editor.addStore(at, editor.use(*chainUp, UseKind::Inspect),
+                    editor.use(*parent, UseKind::Consume));
+
+    iterStoreWordAt(editor, self, function.generatedRecord, record.innerField, below2, at);
+    editor.addJump(at, *loop, nullptr, 0);
+
+    editor.setBlock(*nothing);
+    editor.setRegion(nothing->region);
+
+    Use answerNone[1] = { editor.use(*iterNoItem(program, editor, function, at), UseKind::Consume) };
+    editor.addReturn(at, answerNone, 1);
+
+    editor.seal();
+    return true;
+}
+
+/*
+ * `f$erased` - the one function an erased `{step, block}` pair is called across, §3.4.
+ *
+ *      fn f$erased(&$env: f.Iter, $sent: S, $cancel: Bool) -> %Y
+ *
+ *      %more = f$step($env, $sent, $cancel)
+ *      branch %more -> just -> nothing
+ *      just:     return <where the item is>
+ *      nothing:  return null
+ *
+ * **An address rather than a `Bool` and a slot**, which is the one thing erasure changes about a
+ * step: a pair carries no record for the consumer to read a field out of, so what comes back has to
+ * be the address the field would have been read at. A lending producer's slot already holds one and
+ * every other slot is the value, which is `emitIterStepper`'s own two cases - the difference is only
+ * that the consumer of *this* answer cannot tell them apart and does not need to.
+ *
+ * Shaped as a **lifted lambda**, with the environment first and exclusive, because that is what
+ * makes the erased value a closure: `emitFunValue` places the record in the frame or in a heap block
+ * with its teardown in front of it, and `funTeardown` releases it from a site that cannot name the
+ * producer. `resolve_mir/resolve_object.cpp`'s `iterErasedStep` is where the signature is declared.
+ */
+static bool emitIterErasedStep(Context& context, mir::Program& program, SsaArena& arena,
+                               mir::Function& function) {
+    auto decl = *program.decl;
+    auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+    auto& step = *decl[record.producerStep];
+    auto at = function.source;
+
+    Editor editor(context, program, arena, function);
+    auto entry = editor.currentBlock();
+
+    for(auto argumentPointer: function.args.contents(decl)) {
+        auto& declared = *decl[argumentPointer];
+        editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+    }
+
+    auto self = (*arena)[entry->argumentAt(*arena, 0)];
+    auto sent = (*arena)[entry->argumentAt(*arena, 1)];
+    auto cancel = (*arena)[entry->argumentAt(*arena, 2)];
+
+    /*
+     * A **delegating** record's pair is its trampoline - §6.3, and the two signatures already agree.
+     *
+     * `f$walk` answers where the item is, which is what this shim answers, so what a consumer holds
+     * over such a record is one call rather than a step and an adaptation. What must *not* be here
+     * is `f$step`: an object whose step may say "I entered a child" is one only a trampoline can
+     * read, and the pair a consumer holds is the one channel that has to stay two rows wide.
+     */
+    if(record.producerWalk) {
+        auto& walk = *decl[record.producerWalk];
+
+        mir::CallSite through;
+        through.target = record.producerWalk;
+        through.through = mir::CallThrough::Declaration;
+
+        Use walking[3] = {
+            editor.use(*self, UseKind::Borrow),
+            editor.use(*sent, UseKind::Consume),
+            editor.use(*cancel, UseKind::Consume),
+        };
+
+        auto answered = editor.addCall(at, through, Use(), walking, 3, walk.result,
+                                       conventionFor(decl, walk.result), true);
+
+        Use forwarded[1] = { editor.use(*editor.resultOf(*answered), UseKind::Consume) };
+        editor.addReturn(at, forwarded, 1);
+        editor.seal();
+        return true;
+    }
+
+    mir::CallSite site;
+    site.target = record.producerStep;
+    site.through = mir::CallThrough::Declaration;
+
+    Use arguments[3] = {
+        editor.use(*self, UseKind::Borrow),
+        editor.use(*sent, UseKind::Consume),
+        editor.use(*cancel, UseKind::Consume),
+    };
+
+    auto more = editor.addCall(at, site, Use(), arguments, 3, step.result,
+                               conventionFor(decl, step.result), true);
+
+    auto just = editor.addBlock(StringId());
+    auto nothing = editor.addBlock(StringId());
+
+    editor.addBranch(at, editor.use(*editor.resultOf(*more), UseKind::Inspect), *just, *nothing,
+                     nullptr, 0);
+
+    editor.setBlock(*just);
+    editor.setRegion(just->region);
+
+    /*
+     * The address at the **result's** own type, which is the one place the two pointers differ.
+     *
+     * A window slot holds the descriptor, so the field's address is a `%ArrayView(a)` where the
+     * protocol says `%Array(a)`; everything else lines up already. One bitcast covers both and
+     * lowers to nothing, which is what `addressOf`'s own retype does one tier up.
+     */
+    Use answerJust[1] = { editor.use(*iterSlotAddress(program, editor, function, self, at),
+                                     UseKind::Consume) };
+    editor.addReturn(at, answerJust, 1);
+
+    editor.setBlock(*nothing);
+    editor.setRegion(nothing->region);
+
+    Use answerNone[1] = { editor.use(*iterNoItem(program, editor, function, at), UseKind::Consume) };
+    editor.addReturn(at, answerNone, 1);
+
+    editor.seal();
+    return true;
+}
+
+/*
+ * `Iterate`'s two members for the **erased** type - one pair for the whole program, §3.4.
+ *
+ *      %at = <the pair>(<what the pass answered>, False)
+ *      branch %at != null -> just -> nothing
+ *
+ * The step is an indirect call through `$self` itself, which is the pair: a borrow of an
+ * address-only value *is* its address, and that is what the two words are read out of. So the member
+ * names no producer and no record - which is the whole of what the erased form buys - and what it
+ * knows is the protocol its type carries.
+ *
+ * `next` sends the fall-out row and `resume(v)` sends `Proceed(v)`, exactly as the concrete steppers
+ * do. There is no index to test here, so the check `emitIterStepper` makes about `next()` on a
+ * suspended resuming object has no counterpart: an erased object's index is inside the block and the
+ * step is the only thing that can see it.
+ */
+static bool emitErasedStepper(Context& context, mir::Program& program, SsaArena& arena,
+                              mir::Function& function, bool resuming) {
+    auto decl = *program.decl;
+    auto& iterated = *(mir::IterType*)decl[function.generatedRecord];
+    auto at = function.source;
+
+    Editor editor(context, program, arena, function);
+    auto entry = editor.currentBlock();
+
+    for(auto argumentPointer: function.args.contents(decl)) {
+        auto& declared = *decl[argumentPointer];
+        editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+    }
+
+    auto self = (*arena)[entry->argumentAt(*arena, 0)];
+
+    // What the pass answered, at the type the step takes - `Outcome(R, exit)` where the producer
+    // asked for a value, and the bare signal where it did not. `emitIterStepper` builds the same
+    // pair for the concrete form.
+    auto held = mir::owned(iterated.sent);
+    Use answer;
+
+    if(decl[iterated.sent]->kind == mir::Type::Record) {
+        auto& wrapper = *(mir::RecordType*)decl[iterated.sent];
+
+        if(resuming) {
+            auto value = (*arena)[entry->argumentAt(*arena, 1)];
+            Use component[1] = { editor.use(*value, UseKind::Consume) };
+            auto built = editor.addAggregate(at, 0, component, 1, held, conventionFor(decl, held));
+            answer = editor.use(*editor.resultOf(*built), UseKind::Consume);
+        } else {
+            auto row = editor.addConst(at, mir::intConstant(program.types.exitCode(), 0));
+            Use component[1] = { editor.use(*editor.resultOf(*row), UseKind::Consume) };
+            auto exit = wrapper.cons.get(decl, 1).index;
+            auto built = editor.addAggregate(at, exit, component, 1, held, conventionFor(decl, held));
+            answer = editor.use(*editor.resultOf(*built), UseKind::Consume);
+        }
+    } else {
+        auto row = editor.addConst(at, mir::intConstant(program.types.exitCode(), 0));
+        answer = editor.use(*editor.resultOf(*row), UseKind::Consume);
+    }
+
+    auto stop = editor.addConst(at, mir::truthConstant(program, false));
+
+    /*
+     * The step, through the pair - `CallThrough::Value` with the object itself as the target.
+     *
+     * The signature the call is checked against is the one the type carries (`IterType::step`),
+     * which is what makes this a call and not a leap: both ends read one declaration of what a step
+     * is, and the shim on the other side was declared from the same three fields.
+     */
+    mir::CallSite site;
+    site.target = nullptr;
+    site.through = mir::CallThrough::Value;
+
+    auto answered = mir::owned(program.types.pointerType(iterated.handover.type));
+
+    Use arguments[2] = { answer, editor.use(*editor.resultOf(*stop), UseKind::Consume) };
+    auto found = editor.resultOf(*editor.addCall(at, site, editor.use(*self, UseKind::Inspect),
+                                                 arguments, 2, answered,
+                                                 conventionFor(decl, answered), true));
+
+    // ... and whether there is anything there, which for an address is the one value an item cannot
+    // have. Compared as a number because a comparison is over integers; the bitcast is free.
+    auto word = mir::owned(program.types.words[0]);
+    auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                   editor.use(*found, UseKind::Inspect), word,
+                                                   conventionFor(decl, word)));
+
+    auto zero = editor.addConst(at, mir::intConstant(word.type, 0));
+    auto truth = mir::owned(mir::booleanType(program));
+
+    auto more = editor.addBinary(at, mir::BinaryOp::Ne, editor.use(*number, UseKind::Inspect),
+                                 editor.use(*editor.resultOf(*zero), UseKind::Inspect), truth,
+                                 conventionFor(decl, truth));
+
+    auto just = editor.addBlock(StringId());
+    auto nothing = editor.addBlock(StringId());
+
+    editor.addBranch(at, editor.use(*editor.resultOf(*more), UseKind::Inspect), *just, *nothing,
+                     nullptr, 0);
+
+    editor.setBlock(*just);
+    editor.setRegion(just->region);
+
+    /*
+     * And what is **at** that address for a window hand-over: the descriptor's two words, not the
+     * container - `iter(T)$item` reads the same slot the same way, and `emitIterStepper` has the
+     * record's own field to read it off. Loading `Array(a)` here instead would be loading an owning
+     * container out of a slot that holds a borrow of one.
+     */
+    auto stored = iterated.handover.type;
+
+    if(iterated.window) {
+        if(auto view = mir::viewRecordOf(context, program, iterated.handover)) stored = view;
+    }
+
+    return answerItem(context, program, editor, function, found, stored, iterated.window, *nothing,
+                      at);
+}
+
+static bool emitIterStepper(Context& context, mir::Program& program, SsaArena& arena,
+                            mir::Function& function, bool resuming) {
+    auto decl = *program.decl;
+    auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+    auto& step = *decl[record.producerStep];
+    auto at = function.source;
+
+    Editor editor(context, program, arena, function);
+    auto entry = editor.currentBlock();
+
+    for(auto argumentPointer: function.args.contents(decl)) {
+        auto& declared = *decl[argumentPointer];
+        editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+    }
+
+    auto self = (*arena)[entry->argumentAt(*arena, 0)];
+
+    /*
+     * What the pass answered, at the type the step takes - the exit signal for a plain producer, and
+     * `Outcome(R, exit)` where the producer declared `<- R`.
+     */
+    auto sent = decl[step.args.get(decl, 1)]->occurrence;
+    Use answer;
+
+    auto resumes = decl[sent.type]->kind == mir::Type::Record &&
+                   ((mir::RecordType*)decl[sent.type])->cons.size() > 1;
+
+    /*
+     * `next()` on a resuming object at a **suspend** index - the check the class can make.
+     *
+     * The producer asked for a value and this member has none to send, so what a step here would be
+     * is a pass that answered nothing. Index zero is the honest case and the finished index is a
+     * second `next()` after the end, so what is refused is everything between them.
+     *
+     * `checkCondition` and not a branch of its own, for the reason `lib/Core/Check.yana` gives: what
+     * a failed check *does* is a policy the library owns, and a build with `-check-locations` gets
+     * the located form through the same substitution every other check gets it through. It is rooted
+     * for this function by `summary.cpp`, which is where a generated body's edges are drawn.
+     */
+    if(!resuming && resumes) {
+        if(auto guard = program.roles.function(intrinsic::Known::checkCondition)) {
+            auto index = editor.resultOf(*editor.addFieldAddress(
+                at, editor.use(*self, UseKind::Inspect), function.generatedRecord, 0));
+
+            auto counter = mir::owned(program.types.exitCode());
+            auto loaded = editor.resultOf(*editor.addLoad(at, editor.use(*index, UseKind::Inspect),
+                                                          counter, conventionFor(decl, counter),
+                                                          false));
+
+            auto fresh = editor.addConst(at, mir::intConstant(counter.type, 0));
+            auto done = editor.addConst(at, mir::intConstant(counter.type, kIterFinished));
+
+            auto answer = mir::owned(mir::booleanType(program));
+
+            auto started = editor.addBinary(at, mir::BinaryOp::Ne,
+                                            editor.use(*loaded, UseKind::Inspect),
+                                            editor.use(*editor.resultOf(*fresh), UseKind::Inspect),
+                                            answer, conventionFor(decl, answer));
+
+            auto running = editor.addBinary(at, mir::BinaryOp::Ne,
+                                            editor.use(*loaded, UseKind::Inspect),
+                                            editor.use(*editor.resultOf(*done), UseKind::Inspect),
+                                            answer, conventionFor(decl, answer));
+
+            // A `select` rather than a bitwise `and`: the conjunction is over two truths and
+            // `OpCategory::Bits` is about integers, so this is the branch-free spelling that says so.
+            auto no = editor.addConst(at, mir::truthConstant(program, false));
+            auto suspended = editor.addSelect(at,
+                                              editor.use(*editor.resultOf(*started), UseKind::Inspect),
+                                              editor.use(*editor.resultOf(*running), UseKind::Inspect),
+                                              editor.use(*editor.resultOf(*no), UseKind::Inspect),
+                                              answer, conventionFor(decl, answer));
+
+            mir::CallSite check;
+            check.target = guard;
+            check.through = mir::CallThrough::Declaration;
+
+            Use failed[1] = { editor.use(*editor.resultOf(*suspended), UseKind::Borrow) };
+            auto& guarding = *decl[guard];
+            editor.addCall(at, check, Use(), failed, 1, guarding.result,
+                           conventionFor(decl, guarding.result), false);
+        }
+    }
+
+    if(resumes) {
+        auto& wrapper = *(mir::RecordType*)decl[sent.type];
+        auto held = mir::owned(sent.type);
+
+        if(resuming) {
+            // `Proceed(v)` - the pass ended with `continue v`, which is what `resume(v)` means.
+            auto value = (*arena)[entry->argumentAt(*arena, 1)];
+            Use component[1] = { editor.use(*value, UseKind::Consume) };
+            auto built = editor.addAggregate(at, 0, component, 1, held, conventionFor(decl, held));
+            answer = editor.use(*editor.resultOf(*built), UseKind::Consume);
+        } else {
+            auto row = editor.addConst(at, mir::intConstant(program.types.exitCode(), 0));
+            Use component[1] = { editor.use(*editor.resultOf(*row), UseKind::Consume) };
+            auto exit = wrapper.cons.get(decl, 1).index;
+            auto built = editor.addAggregate(at, exit, component, 1, held, conventionFor(decl, held));
+            answer = editor.use(*editor.resultOf(*built), UseKind::Consume);
+        }
+    } else {
+        auto row = editor.addConst(at, mir::intConstant(program.types.exitCode(), 0));
+        answer = editor.use(*editor.resultOf(*row), UseKind::Consume);
+    }
+
+    auto stop = editor.addConst(at, mir::truthConstant(program, false));
+
+    auto just = editor.addBlock(StringId());
+    auto nothing = editor.addBlock(StringId());
+
+    /*
+     * A **delegating** record is stepped through its trampoline, and what comes back is an address
+     * rather than a `Bool` - §6.3, and it is the erased form's own answer read here.
+     *
+     * The item a delegating object hands over is the innermost level's and is not in this record's
+     * slot at all, so what the class's member borrows is where the step said it is. That is
+     * `emitErasedStepper`'s tail exactly, which is why both end in `answerItem`.
+     */
+    if(record.producerWalk) {
+        auto& walk = *decl[record.producerWalk];
+
+        mir::CallSite through;
+        through.target = record.producerWalk;
+        through.through = mir::CallThrough::Declaration;
+
+        Use walking[3] = {
+            editor.use(*self, UseKind::Borrow),
+            answer,
+            editor.use(*editor.resultOf(*stop), UseKind::Consume),
+        };
+
+        auto found = editor.resultOf(*editor.addCall(at, through, Use(), walking, 3, walk.result,
+                                                     conventionFor(decl, walk.result), true));
+
+        auto word = mir::owned(program.types.words[0]);
+        auto number = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Bitcast,
+                                                       editor.use(*found, UseKind::Inspect), word,
+                                                       conventionFor(decl, word)));
+
+        editor.addBranch(at, editor.use(*iterNonZero(program, editor, number, at), UseKind::Inspect),
+                         *just, *nothing, nullptr, 0);
+
+        editor.setBlock(*just);
+        editor.setRegion(just->region);
+
+        auto& iterated = *(mir::RecordType*)decl[record.linkType];
+        auto& protocol = *(mir::IterType*)decl[iterated.field(decl, 0).occurrence.type];
+
+        return answerItem(context, program, editor, function, found, protocol.handover.type,
+                          protocol.window, *nothing, at);
+    }
+
+    mir::CallSite site;
+    site.target = record.producerStep;
+    site.through = mir::CallThrough::Declaration;
+
+    Use arguments[3] = {
+        editor.use(*self, UseKind::Borrow),
+        answer,
+        editor.use(*editor.resultOf(*stop), UseKind::Consume),
+    };
+
+    auto more = editor.addCall(at, site, Use(), arguments, 3, step.result,
+                               conventionFor(decl, step.result), true);
+
+    editor.addBranch(at, editor.use(*editor.resultOf(*more), UseKind::Inspect), *just, *nothing,
+                     nullptr, 0);
+
+    /*
+     * The item, out of the slot - a field of the record here, and the address the erased step
+     * answered there. `answerItem` is the same tail either way.
+     *
+     * A **lending** producer's slot holds the value's address, so what is carried is the pointer in
+     * it; every other slot holds the value, so what is carried is the slot's own address. The record
+     * keeps the item either way, which is what makes the loan true - and what makes `$held`
+     * load-bearing, since nothing here takes.
+     */
+    editor.setBlock(*just);
+    editor.setRegion(just->region);
+
+    auto item = record.field(decl, 1).occurrence;
+    auto lends = decl[item.type]->kind == mir::Type::Pointer;
+
+    auto slot = editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
+                                                        function.generatedRecord, 1));
+
+    if(lends) {
+        auto through = mir::owned(item.type);
+        slot = editor.resultOf(*editor.addLoad(at, editor.use(*slot, UseKind::Inspect), through,
+                                               conventionFor(decl, through), false));
+    }
+
+    return answerItem(context, program, editor, function, slot, item.type, record.slotWindow,
+                      *nothing, at);
+}
+
+/*
+ * `Just(<the item>)` on one block and `Nothing` on the other - the tail both steppers end with.
+ *
+ * Shared between the concrete form, where the item is a field of the record in hand, and the erased
+ * one, where it is the address the step answered - which is the whole of what erasure changes at
+ * this boundary. `slot` is where the item is and `stored` is what is at it; everything below reads
+ * the *result's* own schema, because what says the payload position is a reference is the signature
+ * rather than anything about the subject.
+ */
+static bool answerItem(Context& context, mir::Program& program, Editor& editor,
+                       mir::Function& function, Value* slot, DeclPtr<mir::Type> stored, bool window,
+                       Block& nothing, LocationId at) {
+    auto decl = *program.decl;
+    auto& answered = *(mir::RecordType*)decl[function.result.type];
+
+    // The **declared** result and not `owned(type)`: the shape is what says the payload position is
+    // a reference, and an aggregate built without it is one whose component is checked against the
+    // member the record would have had.
+    auto held = function.result;
+
+    // Which constructor carries the item, and which carries nothing - by what each one holds rather
+    // than by its position, so that the order `lib/Core` writes them in is not a second fact here.
+    U16 someIndex = 0;
+    U16 noneIndex = 0;
+
+    for(auto constructor: answered.cons.contents(decl)) {
+        if(constructor.count) someIndex = constructor.index;
+        else noneIndex = constructor.index;
+    }
+
+    /*
+     * The address, said as the **loan** it stands for - `represent`, which moves no bytes.
+     *
+     * A raw `%Y` and a `source'Y` are the same eight bytes and the occurrence is the only thing that
+     * says which they are, so without this the component would be checked against the payload's own
+     * type and reported as a pointer where a value was declared. `f$item` makes the same pair at a
+     * result, where a call boundary tolerates it silently; an aggregate is held to its position.
+     */
+    auto payload = mir::aggregateComponent(decl, function.result.type, someIndex, 0).type;
+    auto position = decl[function.result.shape]->slots.get(decl, 0);
+    mir::Occurrence borrowed { payload, decl[position]->contract, nullptr };
+
+    auto finish = [&](Value* shown) {
+        Use carried[1] = { editor.use(*shown, UseKind::Inspect) };
+        auto some = editor.addAggregate(at, someIndex, carried, 1, held, conventionFor(decl, held));
+
+        Use answerJust[1] = { editor.use(*editor.resultOf(*some), UseKind::Consume) };
+        editor.addReturn(at, answerJust, 1);
+
+        editor.setBlock(nothing);
+        editor.setRegion(nothing.region);
+
+        auto none = editor.addAggregate(at, noneIndex, nullptr, 0, held, conventionFor(decl, held));
+        Use answerNone[1] = { editor.use(*editor.resultOf(*none), UseKind::Consume) };
+        editor.addReturn(at, answerNone, 1);
+
+        editor.seal();
+    };
+
+    /*
+     * A **window** in the slot, which is the one shape that needs no derivation at all - the record
+     * already holds the two words (`RecordType::slotWindow`), so what the position takes is what is
+     * in the field rather than something built out of an owner's address.
+     */
+    if(window) {
+        auto loaded = editor.resultOf(*editor.addLoad(at, editor.use(*slot, UseKind::Inspect),
+                                                      mir::owned(stored),
+                                                      conventionFor(decl, mir::owned(stored)),
+                                                      false));
+
+        finish(editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Represent,
+                                                editor.use(*loaded, UseKind::Inspect), borrowed,
+                                                conventionFor(decl, borrowed))));
+        return true;
+    }
+
+    // The slot's contents said as the **whole-value** loan they are, which manifests as exactly the
+    // address in hand. `f$item` makes the same pair at a result.
+    mir::Occurrence owner { payload, mir::slotContract(borrowed.contract.access(), 0), nullptr };
+    auto shown = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Represent,
+                                                 editor.use(*slot, UseKind::Inspect), owner,
+                                                 conventionFor(decl, owner)));
+
+    /*
+     * And the **window**, where the item has one: a borrowed `String` is that string's descriptor
+     * rather than its address, so what the position takes is two words derived from the owner. The
+     * same derivation `deriveView` makes for a specialization, called here because a generated body
+     * has no node for that walk to find - `summary.cpp` is where the member is kept reachable.
+     */
+    if(mir::needsViewDerivation(decl, program, owner, borrowed)) {
+        auto target = mir::viewMember(context, program, payload, borrowed.contract.access(), at);
+
+        if(!target || !decl[target]->reachable) {
+            context.diagnostics.error(
+                "internal: no derivation is reachable for a window onto an object's item"_v, at);
+            return false;
+        }
+
+        mir::CallSite derivation;
+        derivation.target = target;
+        derivation.through = mir::CallThrough::Declaration;
+
+        Use owned[1] = { editor.use(*shown, UseKind::Borrow) };
+        shown = editor.resultOf(*editor.addCall(at, derivation, Use(), owned, 1, borrowed,
+                                               conventionFor(decl, borrowed), true));
+    }
+
+    finish(shown);
+    return true;
+}
+
+/*
+ * One generated body - see `StepPlan` for the step, which is the one that reads a body it did not
+ * build.
+ */
+static bool convertGenerated(Context& context, mir::Program& program, Converted& into,
+                             Scratch& scratch, Array<Outline>& outlines, mir::Function& function) {
+    auto decl = *program.decl;
+
+    if(function.generated == mir::Function::Generated::IterNew) {
+        return emitIterNew(context, program, into.arena, function);
+    }
+
+    if(function.generated == mir::Function::Generated::IterDrop) {
+        return emitIterDrop(context, program, into.arena, function);
+    }
+
+    /*
+     * `f$item` - the lent value's address, out of the slot and answered as a borrow of it.
+     *
+     * Two instructions, and the declaration is where the work is: the result occurrence is a loan
+     * rooted in the record's origin slot, and a loan of a value that is not trivially copyable
+     * manifests as its address - which is exactly what the slot holds.
+     */
+    if(function.generated == mir::Function::Generated::IterItem) {
+        auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+        auto at = function.source;
+
+        Editor editor(context, program, into.arena, function);
+        auto entry = editor.currentBlock();
+
+        auto& declared = *decl[function.args.get(decl, 0)];
+        editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+
+        /*
+         * A **delegating** record's item is where the trampoline said it is - §6.3, and the
+         * signature has a second parameter to say so (`iterItem`). The same body `iter(T)$item` has:
+         * the address arrives and the result is it, read as the loan of the object the signature
+         * declares.
+         */
+        if(function.args.size() > 1) {
+            for(auto argumentPointer: function.args.contents(decl)) {
+                auto& taken = *decl[argumentPointer];
+                if(taken.index == 0) continue;
+                editor.addBlockArgument(*entry, taken.occurrence, conventionFor(decl, taken.occurrence));
+            }
+
+            auto address = (*into.arena)[entry->argumentAt(*into.arena, 1)];
+
+            Use where[1] = { editor.use(*address, UseKind::Consume) };
+            editor.addReturn(at, where, 1);
+            editor.seal();
+            return true;
+        }
+
+        auto self = (*into.arena)[entry->argumentAt(*into.arena, 0)];
+        auto slot = editor.resultOf(*editor.addFieldAddress(
+            at, editor.use(*self, UseKind::Inspect), function.generatedRecord, 1));
+
+        /*
+         * At the **pointer's own** occurrence, which is the one place a load has to be an
+         * instruction: a value that lives in storage *is* its address, so a load whose result is
+         * declared a loan lowers to nothing at all - and what is in this field is a reference to
+         * somebody else's storage rather than the storage itself. `lower/README.md`'s note about a
+         * continuation's environment is the same sentence about the same shape.
+         *
+         * The result is handed back at the *declared* occurrence, which manifests as exactly this
+         * pointer - which is what makes the two the same eight bytes and the signature the only
+         * thing that says what they mean.
+         */
+        auto held = mir::owned(record.field(decl, 1).occurrence.type);
+        auto loaded = editor.addLoad(at, editor.use(*slot, UseKind::Inspect), held,
+                                     conventionFor(decl, held), false);
+
+        Use answer[1] = { editor.use(*editor.resultOf(*loaded), UseKind::Consume) };
+        editor.addReturn(at, answer, 1);
+        editor.seal();
+        return true;
+    }
+
+    /*
+     * `f$take` - the item moved out of the slot, and `$held` cleared beside it.
+     *
+     * A load that consumes and a store of `False`, which is the whole of it. What it is *for* is the
+     * declaration: a `for` reading the field itself would move out of a path it uses again on the
+     * back edge, and only the step knows the slot is refilled.
+     */
+    if(function.generated == mir::Function::Generated::IterTake) {
+        auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+        auto at = function.source;
+
+        Editor editor(context, program, into.arena, function);
+        auto entry = editor.currentBlock();
+
+        auto& declared = *decl[function.args.get(decl, 0)];
+        editor.addBlockArgument(*entry, declared.occurrence, conventionFor(decl, declared.occurrence));
+
+        auto self = (*into.arena)[entry->argumentAt(*into.arena, 0)];
+        auto fieldAt = [&](U16 index) {
+            return editor.resultOf(*editor.addFieldAddress(at, editor.use(*self, UseKind::Inspect),
+                                                           function.generatedRecord, index));
+        };
+
+        auto held = mir::owned(record.field(decl, 1).occurrence.type);
+        auto loaded = editor.addLoad(at, editor.use(*fieldAt(1), UseKind::Inspect), held,
+                                     conventionFor(decl, held), false);
+
+        auto taken = editor.addConst(at, mir::truthConstant(program, false));
+        editor.addStore(at, editor.use(*fieldAt(record.heldField), UseKind::Inspect),
+                        editor.use(*editor.resultOf(*taken), UseKind::Consume));
+
+        Use answer[1] = { editor.use(*editor.resultOf(*loaded), UseKind::Consume) };
+        editor.addReturn(at, answer, 1);
+        editor.seal();
+        return true;
+    }
+
+    if(function.generated == mir::Function::Generated::IterNext) {
+        return emitIterStepper(context, program, into.arena, function, false);
+    }
+
+    if(function.generated == mir::Function::Generated::IterResume) {
+        return emitIterStepper(context, program, into.arena, function, true);
+    }
+
+    // The erased form's three - the step a pair is called across, and `Iterate`'s two members for
+    // it. See their definitions, and §3.4.
+    if(function.generated == mir::Function::Generated::IterObject) {
+        return emitIterObject(context, program, into.arena, function);
+    }
+
+    if(function.generated == mir::Function::Generated::IterWalk) {
+        return emitIterWalk(context, program, into.arena, function);
+    }
+
+    if(function.generated == mir::Function::Generated::IterErasedRaw) {
+        return emitIterErasedRaw(context, program, into.arena, function);
+    }
+
+    if(function.generated == mir::Function::Generated::IterErasedStep) {
+        return emitIterErasedStep(context, program, into.arena, function);
+    }
+
+    if(function.generated == mir::Function::Generated::IterErasedNext) {
+        return emitErasedStepper(context, program, into.arena, function, false);
+    }
+
+    if(function.generated == mir::Function::Generated::IterErasedResume) {
+        return emitErasedStepper(context, program, into.arena, function, true);
+    }
+
+    /*
+     * `iter(T)$item` - the address the erased step answered, said as the loan of the object it is.
+     *
+     * Nothing at all in the ordinary case: the result is handed back at the *declared* occurrence,
+     * which manifests as exactly the pointer that arrived, and the signature is the only thing that
+     * says what it means. `f$item` makes the same pair out of a field read one tier over.
+     *
+     * The one exception is a hand-over that is a **window**: a `source'[a]` is the descriptor's two
+     * words rather than an address, so what is at the pointer is loaded and restated as the view it
+     * is. `emitIterStepper`'s window branch reads the same slot the same way.
+     */
+    if(function.generated == mir::Function::Generated::IterErasedItem) {
+        auto& iterated = *(mir::IterType*)decl[function.generatedRecord];
+        auto at = function.source;
+
+        Editor editor(context, program, into.arena, function);
+        auto entry = editor.currentBlock();
+
+        for(auto argumentPointer: function.args.contents(decl)) {
+            auto& declared = *decl[argumentPointer];
+            editor.addBlockArgument(*entry, declared.occurrence,
+                                    conventionFor(decl, declared.occurrence));
+        }
+
+        auto address = (*into.arena)[entry->argumentAt(*into.arena, 1)];
+        auto found = address;
+
+        if(iterated.window) {
+            auto view = mir::viewRecordOf(context, program, function.result);
+            auto stored = mir::owned(view ? view : iterated.handover.type);
+
+            auto loaded = editor.resultOf(*editor.addLoad(at, editor.use(*address,
+                                                                        UseKind::Inspect),
+                                                          stored, conventionFor(decl, stored),
+                                                          false));
+
+            found = editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Represent,
+                                                     editor.use(*loaded, UseKind::Inspect),
+                                                     function.result,
+                                                     conventionFor(decl, function.result)));
+        }
+
+        /*
+         * A **window** is handed back as the loan it is and not consumed, which is the one thing the
+         * two shapes do not share: what the ordinary case returns is the pointer that arrived, owned
+         * and therefore consumable, and what the window case returns is the descriptor restated at
+         * this signature's own `source'[a]` - a guaranteed value, which has no obligation for a
+         * `return` to take over.
+         */
+        auto kind = found->convention == Convention::Owned ? UseKind::Consume : UseKind::Inspect;
+
+        Use answer[1] = { editor.use(*found, kind) };
+        editor.addReturn(at, answer, 1);
+        editor.seal();
+        return true;
+    }
+
+    auto& record = *(mir::RecordType*)decl[function.generatedRecord];
+    auto& producer = *decl[function.generatedFrom];
+    auto& owner = mir::bodyOwnerOf(decl, producer);
+    auto mir = *program.mir;
+    auto& body = *mir[owner.mir];
+
+    StepPlan plan;
+    plan.record = &record;
+    plan.continuationArg = owner.continuationArg;
+
+    for(U32 i = 0; i < body.locals.size(); i++) {
+        plan.localField.push(StepPlan::kNoField);
+        plan.localRun.push(0);
+        plan.localBorrow.push(0);
+    }
+
+    /*
+     * Which region each node opened, for the nested traversals - the record's entry names the
+     * `lens.call` and what the conversion has in hand at an edge is the region.
+     */
+    for(U32 i = 0; i < body.regions.size(); i++) {
+        plan.nestOf.push(StepPlan::kNoField);
+        plan.nestAdvance.push(nullptr);
+        plan.nestBoxed.push(nullptr);
+        plan.nestDelegate.push(0);
+        plan.delegateResume.push(nullptr);
+    }
+
+    U32 nested = 0;
+
+    for(U32 j = 0; j < record.payloadLocals.size(); j++) {
+        auto member = record.payloadLocals.get(decl, j);
+
+        // And which field it lives in, read rather than derived: since slot sharing there are more
+        // entries than fields - `RecordType::payloadFields`.
+        auto field = U32(record.payloadFields.get(decl, j));
+
+        // A node index with the high bit set is a **value** - see `kIterValueMember`.
+        if(member & 0x80000000u) {
+            plan.spillValue.push(member & ~0x80000000u);
+            plan.spillField.push(field);
+            plan.spillEntry.push(j);
+            continue;
+        }
+
+        // And one with the nest bit is a **nested traversal**, whose payload is the `lens.call` that
+        // opened the region rather than a local - `RecordType::kNestMember`, §3.2's first step.
+        if(member & mir::RecordType::kNestMember) {
+            auto& call = (mir::NodeLensCall&)*body.node(mir, NodeId(member &
+                                                                    ~mir::RecordType::kNestMember));
+            plan.nestOf[call.region.index] = field;
+            plan.nestFields.push(U16(field));
+
+            // And whether it is a **box** - the k-th nest member is `nestBoxed`'s k-th entry, which
+            // is what the mint's own list is indexed by (`RecordType::nestBoxed`).
+            auto shim = nested < record.nestBoxed.size() ? record.nestBoxed.get(decl, nested)
+                                                         : DeclPtr<mir::Function>(nullptr);
+
+            plan.nestBoxed[call.region.index] = shim;
+            plan.nestFieldBoxed.push(shim);
+
+            // And whether it **delegates**, read off the same k-th entry - `RecordType::nestDelegates`.
+            if(nested < record.nestDelegates.size() && record.nestDelegates.get(decl, nested)) {
+                plan.nestDelegate[call.region.index] = 1;
+            }
+
+            nested++;
+            continue;
+        }
+
+        // And the bit beside it says the field holds the member's **run** - `@heap` on the binding,
+        // `RecordType::kHeapMember`. The step reaches the value through the pointer and the exits
+        // free it.
+        if(member & mir::RecordType::kHeapMember) {
+            plan.localRun[member & ~mir::RecordType::kHeapMember] = 1;
+            plan.runFields.push(U16(field));
+        }
+
+        // And the bit below it says the field holds a **loan's** address - written where the
+        // binding is established, read at every use.
+        if(member & mir::RecordType::kBorrowMember) {
+            plan.localBorrow[member & ~mir::RecordType::kBorrowMember] = 1;
+        }
+
+        plan.localField[member & ~(mir::RecordType::kHeapMember |
+                                   mir::RecordType::kBorrowMember)] = field;
+    }
+
+    /*
+     * Which nodes are the hand-overs, and which is the read of the continuation parameter one goes
+     * through - the same walk `iterSiteTypeOf` made to find the payload, made again here rather than
+     * carried, because what it produces is dense over node IDs and dies with the body.
+     */
+    for(U32 i = 0; i < body.nodes.size(); i++) {
+        auto& node = *body.node(mir, NodeId(i));
+        auto reads = false;
+
+        if(node.kind == mir::Node::Read) {
+            auto place = body.place(mir, ((mir::NodeRead&)node).place.placeId());
+            reads = place->kind == mir::Place::Local &&
+                    body.local(mir, LocalId(place->payload))->parameter == plan.continuationArg;
+        }
+
+        plan.readsContinuation.push(reads ? 1 : 0);
+    }
+
+    for(U32 i = 0; i < body.nodes.size(); i++) {
+        auto& node = *body.node(mir, NodeId(i));
+        auto isYield = false;
+
+        if(node.kind == mir::Node::Call) {
+            auto& call = (mir::NodeCall&)node;
+            isYield = call.callsValue() && call.target.source() == mir::SourceKind::Result &&
+                      plan.readsContinuation[call.target.nodeId().index];
+        }
+
+        plan.yieldOf.push(isYield ? plan.yields : StepPlan::kNotAYield);
+        if(isYield) plan.yields++;
+    }
+
+
+    for(U32 i = 0; i < plan.yields; i++) plan.resume.push(nullptr);
+
+    Editor editor(context, program, into.arena, function);
+    Conversion conversion(context, program, into.arena, producer, function, editor, scratch,
+                          outlines, nullptr);
+
+    conversion.stepping = &plan;
+    return conversion.run();
+}
 
 } // namespace
 
@@ -3372,6 +6938,30 @@ bool convertProgram(Context& context, mir::Program& program, Converted& into) {
 
             converted &= lifted.run();
         }
+    }
+
+    /*
+     * And the bodies this stage did not build - an iterator object's constructor, step and teardown,
+     * `Function::Generated`.
+     *
+     * After every ordinary function, because a step is a second reading of a producer's body and the
+     * producer's own conversion is what put its specialization in a settled state. They contribute no
+     * outlines of their own: a step **embeds** every region the producer opens (`convertStepNest`) -
+     * a `for x in g(...)` and a lens over part of the producer's own body alike - and what it cannot
+     * embed is refused at the mint. That is why the planner does not run for a step at all, and is
+     * the answer to §6.6's second question: a lens region whose continuation contains no `yield`
+     * would have been an ordinary outlined call, and it is a member with one hand-over instead. One
+     * shape for one construct beats two, and it is what keeps the record's layout the same whether
+     * or not a `yield` happens to be written inside the region.
+     */
+    Array<Outline> none;
+
+    for(auto functionPointer: functions) {
+        auto function = decl[functionPointer];
+        if(!function->reachable) continue;
+        if(function->generated == mir::Function::Generated::None) continue;
+
+        converted &= convertGenerated(context, program, into, scratch, none, *function);
     }
 
     /*

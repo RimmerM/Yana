@@ -229,6 +229,9 @@ bool Resolver::declareCallerFill(Function& function, Arg& declared, const ast::A
  * Asked once for the whole program rather than once per position, exactly as `checkTextDefaults`
  * asks it: the answer is the same for all of them, and a library declaring no `stringLiteral` is one
  * diagnostic and not one per assertion in it.
+ *
+ * And **drains**, on the same terms: the pass runs a second time for a program that deferred a
+ * record's fields behind a declaration path, so an entry left behind would be reported twice.
  */
 void Resolver::checkCallerTexts() {
     if(!pendingCallerTexts.size()) return;
@@ -251,6 +254,8 @@ void Resolver::checkCallerTexts() {
                 typeText(context, decl(), pending.type));
         }
     }
+
+    pendingCallerTexts.clear();
 }
 
 /*

@@ -329,9 +329,27 @@ YANA_MIR_INST( Jump,         NodeJump,         "jump"_v,         kMirTerminator 
  * body means "give me the next element" and `break` means "stop" - so the two are one edge in the
  * caller's control flow and two rows of the exit signal below it.
  *
- * `continue` has no row: ending an iteration *is* falling out, so it is an ordinary `Jump`.
+ * A bare `continue` has no row: ending an iteration *is* falling out, so it is an ordinary `Jump`.
+ * `continue v` is the row below, because a value is what a `Jump` has nowhere to put.
  */
 YANA_MIR_INST( Break,        NodeJump,         "break"_v,        kMirTerminator )
+
+/*
+ * `continue v` out of a pass of an `iter fn` declared `-> (Y <- R)` - Design-Iterator-Objects.md
+ * §2.5, and the fourth row of §10.1's exits.
+ *
+ * Falling out with something to say, which is why it is a kind rather than an edge argument: the
+ * block on the far side is the caller's rejoin and takes no parameters - it is another function's
+ * block once the region is outlined - so a value travelling out cannot be one of its arguments. It
+ * is the continuation's **result**, and the conversion is where that becomes literal: the outlined
+ * function returns `Proceed(v)` where a `Jump` returns `Proceed({})` and a `Break` returns
+ * `Exit(kExitBreak)`.
+ *
+ * The operand is checked against `Continuation::resume` - the declaration under the call's
+ * substitution - for the reason the hand-over is checked against `Continuation::handover`: the
+ * callee is opaque here and the region is what a later reader has instead of it.
+ */
+YANA_MIR_INST( Resume,       NodeResume,       "resume"_v,       kMirTerminator )
 YANA_MIR_INST( LensCall,     NodeLensCall,     "lens.call"_v,    kMirTerminator )
 
 /*

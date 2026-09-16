@@ -1485,10 +1485,15 @@ struct Inliner {
             }
 
             /*
-             * A multi-way branch - the cases and one argument list, which `makeSwitch` gives to
-             * every edge. The per-edge form `makeBranchEdges` exists for is not needed here: a
-             * `switch` is built by the recognizer with one list and `promote` places a block
-             * argument where slots meet, which is a *branch* shape.
+             * A multi-way branch - the cases, the fallback, and **each edge's own** argument list.
+             *
+             * This used to read one list off the fallback and give it to every edge, on the reading
+             * that a `switch` is built with one and that `promote`'s block argument is a *branch*
+             * shape. It is not: `promote` places an argument where a slot's writes meet and pushes
+             * the operand onto the arms that reach that block, and a `switch`'s arms are as much a
+             * place for those to meet as a branch's. `cfg.cpp`'s `cloneTerminator` had the same bug
+             * and the fix is the same one - `makeSwitchEdges`, which is to `makeSwitch` what
+             * `makeBranchEdges` is to `makeBranch`.
              */
             case Inst::Switch: {
                 auto& written = (InstSwitch&)from;
@@ -1497,20 +1502,28 @@ struct Inliner {
 
                 SmallArray<I64, 16> values;
                 SmallArray<Block*, 16> targets;
+                SmallArray<Size, 16> counts;
+                SmallArray<Use, 16> operands;
 
                 for(Size i = 0; i < count; i++) {
                     values.push(items[i].value);
                     targets.push(mapBlock(clone, items[i].edge.target));
+
+                    SmallArray<Use, 8> own;
+                    mapUses(clone, items[i].edge.arguments, own);
+
+                    for(auto used: own) operands.push(used);
+                    counts.push(own.size());
                 }
 
                 SmallArray<Use, 8> arguments;
                 mapUses(clone, written.fallback.arguments, arguments);
 
                 editor.replaceTerminator(into,
-                    editor.makeSwitch(at, mapUse(clone, written.selector), values.pointer(),
-                                      targets.pointer(), count,
-                                      *mapBlock(clone, written.fallback.target),
-                                      arguments.pointer(), arguments.size()));
+                    editor.makeSwitchEdges(at, mapUse(clone, written.selector), values.pointer(),
+                                           targets.pointer(), counts.pointer(), operands.pointer(),
+                                           count, *mapBlock(clone, written.fallback.target),
+                                           arguments.pointer(), arguments.size()));
                 return;
             }
 

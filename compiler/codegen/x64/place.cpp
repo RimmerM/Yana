@@ -2497,7 +2497,18 @@ static void promoteIntoRegions(Placer& a, const Array<LiveId>& candidates, const
 
             auto& into = phiLoops[Size(a.out.webOf[result.liveId()])];
 
-            for(auto h = loops.header[BlockIndex(block->index)]; h != kNullBlock; h = loops.parent[h]) {
+            /*
+             * Bounded, for `LoopInfo::contains`' reason and in its words: `parent` points strictly
+             * outward for the properly nested loops a reducible CFG produces, and an **irreducible**
+             * one is the single shape that can close the chain into a cycle. An iterator object's
+             * step is where one arrives - the dispatch jumps into the middle of a loop the producer
+             * wrote, so a loop with a nested traversal inside it has two entries - and an unbounded
+             * walk there is a compiler that does not stop.
+             */
+            auto steps = Size(0);
+
+            for(auto h = loops.header[BlockIndex(block->index)];
+                h != kNullBlock && steps <= blockList.size(); h = loops.parent[h], steps++) {
                 auto seen = false;
                 for(auto already: into) seen = seen || already == h;
 
@@ -2530,7 +2541,10 @@ static void promoteIntoRegions(Placer& a, const Array<LiveId>& candidates, const
         for(auto& read: reads) {
             auto block = BlockIndex(a.base[blockList[read.span]]->index);
 
-            for(auto h = loops.header[block]; h != kNullBlock; h = loops.parent[h]) {
+            auto steps = Size(0);
+
+            for(auto h = loops.header[block]; h != kNullBlock && steps <= blockList.size();
+                h = loops.parent[h], steps++) {
                 auto& region = candidateFor(h);
 
                 // A definition inside the region is worth the store it no longer makes - a homeless

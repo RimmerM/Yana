@@ -303,6 +303,25 @@ struct Editor {
     Inst* addSwitch(LocationId source, Use selector, const I64* values, Block* const* targets,
                     Size count, Block& fallback, const Use* arguments, Size argumentCount);
 
+    /*
+     * And the per-edge form, which is to `makeSwitch` exactly what `makeBranchEdges` is to
+     * `makeBranch` - and is needed for the same reason it is.
+     *
+     * A `switch` is *built* with one list shared by every arm, because that is what a value live
+     * before it means. `promote` then places a block argument where a slot's writes meet and pushes
+     * the operand onto **the arms that reach that block**, so a standing `switch` may carry a
+     * different list on every edge - which is what a pass copying one has to preserve. Copying the
+     * fallback's list onto the cases instead was a wrong answer twice over: the counts disagree and
+     * the builder says so, and where they happen to agree the case edge would silently hand its
+     * target the fallback's value.
+     *
+     * `counts` is one length per case and `arguments` their lists laid end to end, in case order.
+     * The fallback's is passed separately, because it is the one edge that is not a case.
+     */
+    Inst* makeSwitchEdges(LocationId source, Use selector, const I64* values, Block* const* targets,
+                          const Size* counts, const Use* arguments, Size count, Block& fallback,
+                          const Use* fallbackArguments, Size fallbackCount);
+
     Inst* makeUnreachable(LocationId source);
 
     Value* resultOf(Inst& inst, Size index = 0);

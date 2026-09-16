@@ -30,8 +30,7 @@ bb0:
 
 fn inFrame(id: I32 [shared call]) -> I32 {
   local g: Guard
-  local inFrame.lambda.env: inFrame.lambda.env
-  local f: (I32) -> I32 [owned here shape8 .0=shared call]
+  local f: inFrame.lambda.env
 
 bb0:
   %0: I32 = read copy.trivial (id)
@@ -39,15 +38,12 @@ bb0:
   write.init borrow.unique (g) take %1
   %3: Guard [shared slot 0] = read borrow.shared (g) loan0
   %4: inFrame.lambda.env = aggregate.inFrame.lambda.env borrow.shared %3 roots.0{0}
-  write.init borrow.unique (inFrame.lambda.env) take %4
-  %6: inFrame.lambda.env [shared call] = read borrow.shared (inFrame.lambda.env) loan1 roots.0{0}
-  %7: (I32) -> I32 [owned here shape8 .0=shared call] = fun.value inFrame.lambda inspect %6 roots.0{0, 1}
-  write.init borrow.unique (f) take %7
-  %9: (I32) -> I32 [shared call shape8 .0=shared call] = read borrow.shared (f) loan2 roots.0{0, 1}
-  %10: I32 = const 10
-  %11: I32 = call inspect %9 borrow.shared %10
+  write.init borrow.unique (f) take %4
+  %6: inFrame.lambda.env = read copy.trivial (f) roots.0{0}
+  %7: I32 = const 10
+  %8: I32 = call borrow.shared %6 borrow.shared %7
   drop (g)
-  return take %11
+  return take %8
 }
 
 fn handedOff(id: I32 [shared call]) -> I32 {
@@ -86,7 +82,7 @@ bb0:
   return take %10
 }
 
-fn inFrame.lambda(inFrame.lambda.env: inFrame.lambda.env [unique call], x: I32 [shared call]) -> I32 {
+fn inFrame.lambda(inFrame.lambda.env: inFrame.lambda.env [shared call], x: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (x)
   %1: I32 = read copy.trivial (inFrame.lambda.env.g.id)

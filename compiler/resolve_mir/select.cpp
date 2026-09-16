@@ -8,7 +8,8 @@ namespace mir {
 // answered wherever a requirement is discharged, not only where a caller entered. See the
 // definition, where the group and what "no" means for it are argued.
 static Maybe<bool> structuralAnswer(Program& program, DeclBase base, DeclPtr<Class> klass,
-                                    const DeclPtr<Type>* args, Size count);
+                                    const DeclPtr<Type>* args, Size count,
+                                    SmallArray<DeclPtr<Type>, 4>& resolved);
 
 namespace {
 
@@ -353,16 +354,45 @@ struct Selector {
          * and no context it could lead back through. The match names no instance, which is sound
          * because these classes declare no members.
          */
-        if(auto answer = structuralAnswer(program, base, klass, args, count)) {
+        SmallArray<DeclPtr<Type>, 4> resolved;
+
+        if(auto answer = structuralAnswer(program, base, klass, args, count, resolved)) {
             if(answer.unwrap()) {
                 into.instance = nullptr;
                 into.bindings.clear();
                 into.arguments.clear();
-                for(Size i = 0; i < count; i++) into.arguments.push(args[i]);
+
+                // The **resolved** list and not the query, because a structural class may still have
+                // a determined position to fill in: `Call(f -> shape)` reads the shape off the
+                // subject, which is exactly what a matched head's determined positions are read off.
+                for(Size i = 0; i < count; i++) into.arguments.push(resolved[i]);
                 return true;
             }
 
             if(report) {
+                /*
+                 * `Call` says what its subject can be *called as*, so a refusal there is a signature
+                 * mismatch and not a missing classification - a lambda whose body answered a
+                 * different result is the shape an author actually writes. Named separately for
+                 * that reason: the sentence below is right about the other four rows and would send
+                 * this one's author looking for an instance to declare.
+                 */
+                if(base[klass]->role == intrinsic::Known::call && count == 2) {
+                    auto shape = callableShapeOf(program, nullptr, args[0]);
+
+                    if(shape) {
+                        context.diagnostics.error(
+                            "this position calls a %@ as %@, and calling one means %@"_v, source,
+                            typeText(context, base, args[0]), typeText(context, base, args[1]),
+                            typeText(context, base, shape));
+                    } else {
+                        context.diagnostics.error("%@ is not something that can be called"_v,
+                                                  source, typeText(context, base, args[0]));
+                    }
+
+                    return false;
+                }
+
                 context.diagnostics.error("%@ does not hold - it is a classification the compiler makes from the type rather than one a program declares"_v,
                                           source, appliedClassText(context, base, klass, args, count));
             }
@@ -645,11 +675,67 @@ struct Selector {
  * a program whose library does not declare it leaves behind - so there is no test for it here.
  */
 static Maybe<bool> structuralAnswer(Program& program, DeclBase base, DeclPtr<Class> klass,
-                                    const DeclPtr<Type>* args, Size count) {
-    if(!klass || count != 1 || !args[0]) return Nothing();
+                                    const DeclPtr<Type>* args, Size count,
+                                    SmallArray<DeclPtr<Type>, 4>& resolved) {
+    if(!klass || !count || !args[0]) return Nothing();
 
     auto role = base[klass]->role;
     if(!isStructuralClass(role)) return Nothing();
+
+    // Every row but `Call` is a class of one, and the query is its own answer.
+    resolved.clear();
+    for(Size i = 0; i < count; i++) resolved.push(args[i]);
+
+    /*
+     * **What a value may be called as** - `Call(f -> shape)`, Design-Iterator-Objects.md §2.3.
+     *
+     * Two answers and one refusal, all read off the subject. A **site type** names the code it is
+     * called through, so its shape is the `(A) -> B` the erased form would have had; a **function
+     * type** *is* a signature, and a value of one is called through the pair - which is the erased
+     * instance the design asks for, spelled as the identity rather than as a generated row. Anything
+     * else is not callable, and a `Call` requirement over it is the message a call would have given.
+     *
+     * A **variable** falls through to the table and thence to the enclosing signature's own clauses,
+     * which is `trivialCopy`'s rule and is here for the same reason: what a body may do with its own
+     * parameter is what its signature promised, not what one substitution turned out to be.
+     *
+     * A determined position the caller also supplied is *not* compared here - `Selector::match` does
+     * that for a declared head and `dischargeRequirement` does it for this one, against the shape
+     * this answers with.
+     */
+    if(role == intrinsic::Known::call) {
+        if(count != 2) return Nothing();
+        if(base[args[0]]->kind == Type::Variable) return Nothing();
+
+        DeclPtr<Type> shape = nullptr;
+
+        if(base[args[0]]->kind == Type::Fun) {
+            shape = args[0];
+        } else if(base[args[0]]->kind == Type::Record) {
+            auto& record = *(RecordType*)base[args[0]];
+            if(record.lambda) shape = record.lambdaShape;
+        }
+
+        if(!shape) return Just(false);
+
+        /*
+         * The determined position the caller also supplied, compared rather than overwritten - which
+         * is `Selector::match`'s rule for a declared head, said here because there is no head.
+         *
+         * This is what refuses a lambda whose shape is not the one the constraint states: a `Call(f,
+         * (&I32) -> {})` position filled by a lambda whose body answers an `I32` is a signature
+         * mismatch, and it has to be caught at the call because the *body* took its result from
+         * itself. Answering `Just(false)` rather than falling through to the table is the whole
+         * point of a structural class: there is no instance a program could declare that would make
+         * it hold.
+         */
+        if(args[1] && !sameType(args[1], shape)) return Just(false);
+
+        resolved[1] = shape;
+        return Just(true);
+    }
+
+    if(count != 1) return Nothing();
 
     switch(role) {
         case intrinsic::Known::atomicValue:   return Just(isAtomicValue(base, args[0]));
@@ -688,6 +774,59 @@ static Maybe<bool> structuralAnswer(Program& program, DeclBase base, DeclPtr<Cla
     // wrong.
     assertTrue(false);
     return Nothing();
+}
+
+// The argument is in select.h, beside the declaration.
+DeclPtr<Type> callableShapeOf(Program& program, DeclPtr<GenContext> gen, DeclPtr<Type> type) {
+    if(!type) return nullptr;
+
+    auto base = *program.decl;
+
+    if(base[type]->kind == Type::Fun) return type;
+
+    if(base[type]->kind == Type::Record) {
+        auto& record = *(RecordType*)base[type];
+        return record.lambda ? record.lambdaShape : nullptr;
+    }
+
+    if(base[type]->kind != Type::Variable || !gen) return nullptr;
+
+    auto klass = program.roles.klass(intrinsic::Known::call);
+    if(!klass) return nullptr;
+
+    for(auto requirement: base[gen]->classes.contents(base)) {
+        if(requirement.klass != klass || requirement.args.size() != 2) continue;
+        if(requirement.args.get(base, 0) != type) continue;
+
+        return requirement.args.get(base, 1);
+    }
+
+    return nullptr;
+}
+
+// The argument is in select.h, beside the declaration. The same walk `callableShapeOf` makes, asked
+// for the position rather than for the shape - one loop written twice would be two answers about
+// which cell a call dispatches through, which nothing at run time would say was wrong.
+bool callWitnessRequirement(Program& program, DeclPtr<GenContext> gen, DeclPtr<Type> type,
+                            U16& into) {
+    if(!type || !gen) return false;
+
+    auto base = *program.decl;
+    auto klass = program.roles.klass(intrinsic::Known::call);
+    if(!klass) return false;
+
+    U16 index = 0;
+    for(auto requirement: base[gen]->classes.contents(base)) {
+        if(requirement.klass == klass && requirement.args.size() == 2 &&
+           requirement.args.get(base, 0) == type) {
+            into = index;
+            return true;
+        }
+
+        index++;
+    }
+
+    return false;
 }
 
 bool selectInstance(Context& context, Program& program, DeclPtr<Class> klass,

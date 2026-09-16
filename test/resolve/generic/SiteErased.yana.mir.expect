@@ -1,0 +1,222 @@
+module ResolveTest
+
+data Big {a: I64, b: I64, c: I64}
+
+data main.lambda.env {}
+
+data main.lambda'2.env {}
+
+fn once(g: f [shared call], x: I32 [shared call]) -> I32 {
+  form erased
+  slot #0 type f
+  slot #1 class Call(f, (I32) -> I32)
+bb0:
+  %0: f [shared call] = read borrow.shared (g) loan0
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = call borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn twiceOver(g: f [shared call], x: I32 [shared call]) -> I32 {
+  form erased
+  slot #0 type f
+  slot #1 class Call(f, (I32) -> I32)
+bb0:
+  %0: f [shared call] = read borrow.shared (g) loan0
+  %1: f [shared call] = read borrow.shared (g) loan1
+  %2: I32 = read copy.trivial (x)
+  %3: I32 = call borrow.shared %1 borrow.shared %2
+  %4: I32 = call borrow.shared %0 borrow.shared %3
+  return take %4
+}
+
+fn apply(g: f [shared call], x: a [shared call]) -> a {
+  form erased
+  slot #0 type f
+  slot #1 type a
+  slot #2 class Call(f, (a) -> a)
+bb0:
+  %0: f [shared call] = read borrow.shared (g) loan0
+  %1: a [shared call] = read borrow.shared (x) loan1
+  %2: a = call borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn firstOf(g: f [shared call], x: I32 [shared call]) -> I64 {
+  form erased
+  slot #0 type f
+  slot #1 class Call(f, (I32) -> Big)
+  local local2: Big
+
+bb0:
+  %0: f [shared call] = read borrow.shared (g) loan0
+  %1: I32 = read copy.trivial (x)
+  %2: Big = call borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (local2) take %2
+  %4: I64 = read copy.trivial (local2.a)
+  return take %4
+}
+
+fn bump(g: f [shared call], x: I32 [unique call]) -> {} {
+  form erased
+  slot #0 type f
+  slot #1 class Call(f, (&I32) -> {})
+bb0:
+  %0: f [shared call] = read borrow.shared (g) loan0
+  %1: I32 [unique call] = read borrow.unique (x) loan1
+  %2: {} = call borrow.shared %0 borrow.unique %1
+  return
+}
+
+fn onceSelected(g: f [shared call], x: I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type f
+  slot #1 class Call(f, (I32) -> I32)
+bb0:
+  %0: f [shared call] = read borrow.shared (g) loan0
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = call borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn addOne(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn blow(x: I32 [shared call]) -> Big {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I64 = convert inspect %0
+  %2: I64 = const 0
+  %3: I64 = const 0
+  %4: Big = aggregate.Big take %1 take %2 take %3
+  return take %4
+}
+
+fn inc(x: I32 [unique call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 7
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (x) take %2
+  return
+}
+
+fn main() -> I32 {
+  local named: (I32) -> I32 [owned here shape8 .0=unique call]
+  local closure: main.lambda.env
+  local & total: I32
+  local widened: main.lambda'2.env
+  local wide: I64
+  local narrowed: I32
+  local building: (I32) -> Big [owned here shape8 .0=unique call]
+  local first: I64
+  local shrunk: I32
+  local & counter: I32
+  local writing: (&I32) -> {} [owned here shape8 .0=unique call]
+
+bb0:
+  %0: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value addOne
+  write.init borrow.unique (named) take %0
+  %2: main.lambda.env = aggregate.main.lambda.env
+  write.init borrow.unique (closure) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (total) take %4
+  %6: I32 [unique call] = read borrow.unique (total) loan0
+  %7: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (named) loan1
+  %8: I32 = const 1
+  %9: I32 = call once((I32) -> I32) borrow.shared %7 borrow.shared %8
+  %10: {} = call +=(I32) borrow.unique %6 borrow.shared %9
+  %11: I32 [unique call] = read borrow.unique (total) loan2
+  %12: main.lambda.env = read copy.trivial (closure)
+  %13: I32 = const 2
+  %14: I32 = call once(main.lambda.env) borrow.shared %12 borrow.shared %13
+  %15: {} = call +=(I32) borrow.unique %11 borrow.shared %14
+  %16: I32 [unique call] = read borrow.unique (total) loan3
+  %17: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (named) loan4
+  %18: I32 = const 1
+  %19: I32 = call twiceOver((I32) -> I32) borrow.shared %17 borrow.shared %18
+  %20: {} = call +=(I32) borrow.unique %16 borrow.shared %19
+  %21: I32 [unique call] = read borrow.unique (total) loan5
+  %22: main.lambda.env = read copy.trivial (closure)
+  %23: I32 = const 2
+  %24: I32 = call twiceOver(main.lambda.env) borrow.shared %22 borrow.shared %23
+  %25: {} = call +=(I32) borrow.unique %21 borrow.shared %24
+  %26: I32 [unique call] = read borrow.unique (total) loan6
+  %27: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (named) loan7
+  %28: I32 = const 10
+  %29: I32 = call apply((I32) -> I32, I32) borrow.shared %27 borrow.shared %28
+  %30: {} = call +=(I32) borrow.unique %26 borrow.shared %29
+  %31: main.lambda'2.env = aggregate.main.lambda'2.env
+  write.init borrow.unique (widened) take %31
+  %33: main.lambda'2.env = read copy.trivial (widened)
+  %34: I32 = const 5
+  %35: I64 = convert inspect %34
+  %36: I64 = call apply(main.lambda'2.env, I64) borrow.shared %33 borrow.shared %35
+  write.init borrow.unique (wide) take %36
+  %38: I64 = read copy.trivial (wide)
+  %39: I32 = convert inspect %38
+  write.init borrow.unique (narrowed) take %39
+  %41: I32 [unique call] = read borrow.unique (total) loan8
+  %42: I32 = read copy.trivial (narrowed)
+  %43: {} = call +=(I32) borrow.unique %41 borrow.shared %42
+  %44: (I32) -> Big [owned here shape8 .0=unique call] = fun.value blow
+  write.init borrow.unique (building) take %44
+  %46: (I32) -> Big [shared call shape8 .0=unique call] = read borrow.shared (building) loan9
+  %47: I32 = const 4
+  %48: I64 = call firstOf((I32) -> Big) borrow.shared %46 borrow.shared %47
+  write.init borrow.unique (first) take %48
+  %50: I64 = read copy.trivial (first)
+  %51: I32 = convert inspect %50
+  write.init borrow.unique (shrunk) take %51
+  %53: I32 [unique call] = read borrow.unique (total) loan10
+  %54: I32 = read copy.trivial (shrunk)
+  %55: {} = call +=(I32) borrow.unique %53 borrow.shared %54
+  %56: I32 = const 0
+  write.init borrow.unique (counter) take %56
+  %58: (&I32) -> {} [owned here shape8 .0=unique call] = fun.value inc
+  write.init borrow.unique (writing) take %58
+  %60: (&I32) -> {} [shared call shape8 .0=unique call] = read borrow.shared (writing) loan11
+  %61: I32 [unique call] = read borrow.unique (counter) loan12
+  %62: {} = call bump((&I32) -> {}) borrow.shared %60 borrow.unique %61
+  %63: I32 [unique call] = read borrow.unique (total) loan13
+  %64: I32 = read copy.trivial (counter)
+  %65: {} = call +=(I32) borrow.unique %63 borrow.shared %64
+  %66: I32 [unique call] = read borrow.unique (total) loan14
+  %67: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (named) loan15
+  %68: I32 = const 1
+  %69: I32 = call onceSelected((I32) -> I32) borrow.shared %67 borrow.shared %68
+  %70: main.lambda.env = read copy.trivial (closure)
+  %71: I32 = const 2
+  %72: I32 = call onceSelected(main.lambda.env) borrow.shared %70 borrow.shared %71
+  %73: I32 = add inspect %69 inspect %72
+  %74: {} = call +=(I32) borrow.unique %66 borrow.shared %73
+  %75: I32 = read copy.trivial (total)
+  return take %75
+}
+
+fn main.lambda(main.lambda.env: main.lambda.env [shared call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 3
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [shared call], t: I64 [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (t)
+  %1: I64 = const 100
+  %2: I64 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn onceSelected((I32) -> I32)(g: (I32) -> I32 [shared call], x: I32 [shared call]) -> I32 = <onceSelected at (I32) -> I32>
+
+fn onceSelected(main.lambda)(g: main.lambda.env [shared call], x: I32 [shared call]) -> I32 = <onceSelected at main.lambda.env>
+
+entry main

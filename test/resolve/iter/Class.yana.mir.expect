@@ -1,0 +1,403 @@
+module ResolveTest
+
+data Cmd = Keep | Skip
+
+data Held {id: I32} drop authored
+
+data Parser(l) {lexer: l, packed: I32} drop derived reclaim derived
+
+data lexing.Iter {$index: I32, $slot: I32, n: I32, $yielded: I32, i: I32}
+
+data Parser(lexing.Iter) {lexer: lexing.Iter, packed: I32} of Parser
+
+data lent.Iter {$index: I32, $slot: %Held, n: I32, i: I32, h: Held} drop authored
+
+data owning.Iter {$index: I32, $slot: Held, n: I32, i: I32, $held: Bool} drop authored
+
+instance Drop(Held): Held.drop
+
+instance Iterate(lexing.Iter, I32, Cmd): lexing$next, lexing$resume
+
+instance Drop(lent.Iter): lent$drop
+
+instance Iterate(lent.Iter, Held, {}): lent$next, lent$resume
+
+instance Drop(owning.Iter): owning$drop
+
+instance Iterate(owning.Iter, Held, {}): owning$next, owning$resume
+
+let & trace: I32 = 0
+
+lens fn lexing(n: I32 [shared call], $body: (I32) -> Outcome(Cmd, I32) [shared call]) -> I32 {
+  local & $yielded: I32
+  local & i: I32
+  local local4: Outcome(Cmd, I32)
+  local c: Cmd
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (n)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %40: I32 = read copy.trivial ($yielded)
+  return take %40
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: (I32) -> Outcome(Cmd, I32) [shared call] = read borrow.shared ($body) loan0
+  %11: Outcome(Cmd, I32) = call inspect %10 borrow.shared %9
+  write.init borrow.unique (local4) take %11
+  %13: U8 = read copy.trivial (local4.#)
+  %14: U8 = const 1
+  %15: Bool = eq inspect %13 inspect %14
+  branch inspect %15 -> bb5 -> bb4
+
+bb4:
+  %21: Cmd = read copy.trivial (local4.Proceed)
+  jump -> bb7(take %21)
+
+bb5:
+  %17: I32 = read copy.trivial (local4.Exit)
+  write.assign borrow.unique ($yielded) take %17
+  jump -> bb6
+
+bb6:
+  jump -> bb2
+
+bb7(%22: Cmd):
+  write.init borrow.unique (c) take %22
+  %25: U8 = read copy.trivial (c.#)
+  %26: U8 = const 1
+  %27: Bool = eq inspect %25 inspect %26
+  branch inspect %27 -> bb10 -> bb8
+
+bb8:
+  %33: I32 = read copy.trivial (i)
+  %34: I32 = const 1
+  %35: I32 = add inspect %33 inspect %34
+  write.assign borrow.unique (i) take %35
+  jump -> bb9
+
+bb9:
+  jump -> bb1
+
+bb10:
+  %29: I32 = read copy.trivial (i)
+  %30: I32 = const 2
+  %31: I32 = add inspect %29 inspect %30
+  write.assign borrow.unique (i) take %31
+  jump -> bb9
+}
+
+fn Held.drop(value: Held) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (value.id)
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (global trace) take %4
+  return
+}
+
+lens fn lent(n: I32 [shared call], $body: (Held) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & i: I32
+  local h: Held
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 1
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (n)
+  %7: Bool = le inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %25: I32 = read copy.trivial ($yielded)
+  return take %25
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: Held = aggregate.Held take %9
+  write.init borrow.unique (h) take %10
+  %12: Held [shared call] = read borrow.shared (h) loan0
+  %13: (Held) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %14: I32 = call inspect %13 borrow.shared %12
+  drop (h)
+  %15: I32 = const 0
+  %16: Bool = eq inspect %14 inspect %15
+  write.assign borrow.unique ($yielded) take %14
+  branch inspect %16 -> bb4 -> bb5
+
+bb4:
+  %20: I32 = read copy.trivial (i)
+  %21: I32 = const 1
+  %22: I32 = add inspect %20 inspect %21
+  write.assign borrow.unique (i) take %22
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+lens fn owning(n: I32 [shared call], $body: (->Held) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 1
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (n)
+  %7: Bool = le inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %23: I32 = read copy.trivial ($yielded)
+  return take %23
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: Held = aggregate.Held take %9
+  %11: (->Held) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %12: I32 = call inspect %11 take %10
+  %13: I32 = const 0
+  %14: Bool = eq inspect %12 inspect %13
+  write.assign borrow.unique ($yielded) take %12
+  branch inspect %14 -> bb4 -> bb5
+
+bb4:
+  %18: I32 = read copy.trivial (i)
+  %19: I32 = const 1
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (i) take %20
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+fn Parser.advance(self: Parser(l) [unique call]) -> Bool {
+  form specialized
+  slot #0 type l
+  slot #1 class Iterate(l, I32, Cmd)
+  local local1: Maybe(I32) [owned here shape2 .0=shared slot 0]
+  local t: I32
+
+bb0:
+  %0: l [unique slot 0] = read borrow.unique (self.lexer) loan0
+  %1: Cmd = const Keep
+  %2: Maybe(I32) [owned here shape2 .0=shared slot 0] = call resume(l, I32, Cmd) borrow.unique %0 take %1 roots.0{0}
+  write.init borrow.unique (local1) take %2
+  %4: U8 = read copy.trivial (local1.#)
+  %5: U8 = const 1
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %21: Bool = const False
+  return take %21
+
+bb3:
+  %8: I32 = read copy.trivial (local1.Just)
+  write.init borrow.unique (t) take %8
+  %10: I32 = read copy.trivial (self.packed)
+  %11: I32 = const 10
+  %12: I32 = mul inspect %10 inspect %11
+  %13: I32 = read copy.trivial (t)
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = const 1
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (self.packed) take %16
+  %18: Bool = const True
+  return take %18
+}
+
+fn parsed() -> I32 {
+  local lexer: lexing.Iter
+  local & parser: Parser(lexing.Iter)
+
+bb0:
+  %0: I32 = const 4
+  %1: lexing.Iter = call lexing$new take %0
+  write.init borrow.unique (lexer) take %1
+  %3: lexing.Iter = read copy.trivial (lexer)
+  %4: I32 = const 0
+  %5: Parser(lexing.Iter) = aggregate.Parser take %3 take %4
+  write.init borrow.unique (parser) take %5
+  jump -> bb1
+
+bb1:
+  %8: Parser(lexing.Iter) [unique call] = read borrow.unique (parser) loan0
+  %9: Bool = call Parser.advance(lexing.Iter) borrow.unique %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  %13: I32 = read copy.trivial (parser.packed)
+  return take %13
+
+bb3:
+  %11: {} = const {}
+  jump -> bb1
+}
+
+fn drain(it: s [unique call]) -> I32 {
+  form erased
+  slot #0 type s
+  slot #1 class Iterate(s, Held, {})
+  local & sum: I32
+  local local2: Maybe(Held) [owned here shape2 .0=shared slot 0]
+  local h: Held [shared slot 0]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  jump -> bb1
+
+bb1:
+  %3: s [unique slot 0] = read borrow.unique (it) loan0
+  %4: Maybe(Held) [owned here shape2 .0=shared slot 0] = call next(s, Held, {}) borrow.unique %3 roots.0{0}
+  write.init borrow.unique (local2) take %4
+  %6: U8 = read copy.trivial (local2.#)
+  %7: U8 = const 1
+  %8: Bool = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  %19: I32 = read copy.trivial (sum)
+  return take %19
+
+bb3:
+  %10: Held [shared slot 0] = read borrow.shared (local2.Just) loan1 roots{0}
+  write.init borrow.unique (h) borrow.shared %10
+  %12: I32 = read copy.trivial (sum)
+  %13: I32 = const 10
+  %14: I32 = mul inspect %12 inspect %13
+  %15: I32 = read copy.trivial (h.id)
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (sum) take %16
+  jump -> bb1
+}
+
+fn lentDrain() -> I32 {
+  local & it: lent.Iter
+  local sum: I32
+
+bb0:
+  %0: I32 = const 0
+  write.assign borrow.unique (global trace) take %0
+  %2: I32 = const 3
+  %3: lent.Iter = call lent$new take %2
+  write.init borrow.unique (it) take %3
+  %5: lent.Iter [unique call] = read borrow.unique (it) loan0
+  %6: I32 = call drain(lent.Iter) borrow.unique %5
+  drop (it)
+  write.init borrow.unique (sum) take %6
+  %8: I32 = read copy.trivial (sum)
+  %9: I32 = const 1000
+  %10: I32 = mul inspect %8 inspect %9
+  %11: I32 = read copy.trivial (global trace)
+  %12: I32 = add inspect %10 inspect %11
+  return take %12
+}
+
+fn owningDrain() -> I32 {
+  local & it: owning.Iter
+  local sum: I32
+
+bb0:
+  %0: I32 = const 0
+  write.assign borrow.unique (global trace) take %0
+  %2: I32 = const 3
+  %3: owning.Iter = call owning$new take %2
+  write.init borrow.unique (it) take %3
+  %5: owning.Iter [unique call] = read borrow.unique (it) loan0
+  %6: I32 = call drain(owning.Iter) borrow.unique %5
+  drop (it)
+  write.init borrow.unique (sum) take %6
+  %8: I32 = read copy.trivial (sum)
+  %9: I32 = const 1000
+  %10: I32 = mul inspect %8 inspect %9
+  %11: I32 = read copy.trivial (global trace)
+  %12: I32 = add inspect %10 inspect %11
+  return take %12
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+
+bb0:
+  %0: I32 = call parsed
+  write.init borrow.unique (a) take %0
+  %2: I32 = call lentDrain
+  write.init borrow.unique (b) take %2
+  %4: I32 = call owningDrain
+  write.init borrow.unique (c) take %4
+  %6: I32 = read copy.trivial (a)
+  %7: I32 = read copy.trivial (b)
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = read copy.trivial (c)
+  %10: I32 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn lexing$new(n: I32) -> lexing.Iter = <no body>
+
+fn lexing$step($self: lexing.Iter [unique call], $resume: Outcome(Cmd, I32), $cancel: Bool) -> Bool = <no body>
+
+fn lexing$next($self: lexing.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn lexing$resume($self: lexing.Iter [unique slot 0], $v: Cmd) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn lent$new(n: I32) -> lent.Iter = <no body>
+
+fn lent$step($self: lent.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn lent$drop($self: lent.Iter) -> {} = <no body>
+
+fn lent$item($self: lent.Iter [shared slot 0]) -> Held [shared slot 0] = <no body>
+
+fn lent$next($self: lent.Iter [unique slot 0]) -> Maybe(Held) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn lent$resume($self: lent.Iter [unique slot 0], $v: {}) -> Maybe(Held) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn owning$new(n: I32) -> owning.Iter = <no body>
+
+fn owning$step($self: owning.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn owning$drop($self: owning.Iter) -> {} = <no body>
+
+fn owning$take($self: owning.Iter [unique call]) -> Held = <no body>
+
+fn owning$next($self: owning.Iter [unique slot 0]) -> Maybe(Held) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn owning$resume($self: owning.Iter [unique slot 0], $v: {}) -> Maybe(Held) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn Parser.advance(lexing.Iter)(self: Parser(lexing.Iter) [unique call]) -> Bool = <Parser.advance at lexing.Iter>
+
+entry main

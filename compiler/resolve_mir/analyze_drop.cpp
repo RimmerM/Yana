@@ -269,9 +269,9 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
              * A lender cannot become due *before* the value that borrows from it, because every use of
              * the borrower keeps the lender live through its loans. It can become due at the *same*
              * position, and then index order would release the lender while the borrower's teardown
-             * is still to run. For an external iterator's handle that teardown is not nothing: it
-             * resumes the producer to cancel it, and the producer's own teardown may reach what the
-             * handle lent it. A frame closure also borrows, and owes no teardown, so it keeps its place.
+             * is still to run. For an **iterator object** that teardown is not nothing: it steps the
+             * producer with a cancel request, and the producer's own teardown may reach what the
+             * object was lent. A frame closure also borrows, and owes no teardown, so it keeps its place.
              */
             auto borrowsWithTeardown = [&](MovePathId id) {
                 if(path(id).parent.valid()) return false;

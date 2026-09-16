@@ -714,10 +714,16 @@ struct CfgCleaner {
             }
 
             /*
-             * A multi-way branch - the cases, the fallback, and the one argument list they share.
+             * A multi-way branch - the cases, the fallback, and **each edge's own** argument list.
              *
-             * One list read off the fallback, on the same terms `makeBranch` supplies one to both of
-             * a branch's edges: every edge of a `switch` carries what was live before it.
+             * Read per edge for the reason the branch case above is, and it is the same reason: a
+             * `switch` is built with one list every arm shares, and `promote` then places a block
+             * argument where a slot's writes meet and pushes the operand onto only the arms that
+             * reach that block. So a standing `switch` routinely carries different lists, and this
+             * read one off the fallback and handed it to every case - which the builder refuses
+             * where the counts differ and which would silently re-route a value where they do not.
+             * An iterator object's step dispatch is where it was found: three arms into the
+             * producer's body, one of them writing a frame slot the others do not.
              */
             case Inst::Switch: {
                 auto& written = (InstSwitch&)from;
@@ -726,19 +732,30 @@ struct CfgCleaner {
 
                 SmallArray<I64, 16> values;
                 SmallArray<Block*, 16> targets;
+                SmallArray<Size, 16> counts;
+                SmallArray<Use, 16> operands;
 
                 for(Size i = 0; i < count; i++) {
                     values.push(items[i].value);
                     targets.push(opt.base[items[i].edge.target]);
+
+                    Size own = 0;
+                    for(auto used: items[i].edge.arguments.contents(opt.base)) {
+                        operands.push(used);
+                        own++;
+                    }
+
+                    counts.push(own);
                 }
 
                 SmallArray<Use, 4> arguments;
                 for(auto used: written.fallback.arguments.contents(opt.base)) arguments.push(used);
 
-                return editor.makeSwitch(from.source, written.selector, values.pointer(),
-                                         targets.pointer(), count,
-                                         *opt.base[written.fallback.target], arguments.pointer(),
-                                         arguments.size());
+                return editor.makeSwitchEdges(from.source, written.selector, values.pointer(),
+                                              targets.pointer(), counts.pointer(),
+                                              operands.pointer(), count,
+                                              *opt.base[written.fallback.target],
+                                              arguments.pointer(), arguments.size());
             }
 
             default:

@@ -1,0 +1,21 @@
+-- The resume channel through the *shipping* stage, which reads both ends of it and implements
+-- neither.
+--
+-- `test/resolve/lens/Resume.yana` is the same surface through `compiler/resolve_mir`, where it is
+-- built. What this file holds is the pair of refusals that keeps the two stages honest: the
+-- declaration says `<- R` and the consumer says `continue v`, and each is named by what is missing
+-- rather than by which stage is missing it - AGENTS.md's "refuses by name, saying what is missing".
+
+iter fn walk(n: Int) -> (Int <- Int):
+    yield n
+
+fn consumer(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    while s < n:
+        s = s + 1
+        continue s
+
+    return s
+
+fn main() -> Int = 0

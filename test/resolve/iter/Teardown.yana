@@ -1,0 +1,134 @@
+{-
+   Dropping an object **mid-iteration** - `doc/inflight/Design-Iterator-Objects.md` §3.3.
+
+   # resolver: ownership
+
+   A record dropped while it is suspended runs the teardown of exactly what is live at its index, and
+   runs it once. There is nothing built for that: the record's `Drop` member steps it with a *cancel*
+   request, the producer's own `yield` reads the answer and takes the departure it already had,
+   `emitDeparture` leaves the loops, the statements below them run, and drop elaboration releases
+   every local that is still live. So "the teardown is shared across indices" is what converting one
+   body once does.
+
+   Which is the property this file asserts, and it asserts it by **comparing the two forms**: every
+   producer below is run once as `for x in f()` and once as an object, and the trace of what each
+   released is the same number. A teardown that ran twice, or released a payload member that was
+   never written, would be a different one.
+-}
+
+let &trace = 0 :: Int
+
+data Note {id: Int}
+
+instance Drop(Note):
+    fn drop(->value: Note):
+        trace = trace * 10 + value.id
+
+-- Two hand-overs with an owner live across each, and nothing to depart to: the statements below a
+-- `yield` are both the cleanup and the rest of the pass - J49 §4's last paragraph.
+iter fn straight() -> Int:
+    let a = Note {id: 1}
+    yield 10
+    let b = Note {id: 2}
+    yield 20
+
+-- A loop, so a departure leaves it and the trailing statements run.
+iter fn looped() -> Int:
+    let a = Note {id: 1}
+
+    for i in 0..3:
+        let b = Note {id: 2 + i}
+        yield i
+
+-- A captured argument the producer owns, released whether or not it ever ran.
+iter fn holding(->n: Note) -> Int:
+    yield n.id
+    yield n.id + 1
+
+fn internalBreak() -> Int:
+    trace = 0
+
+    for x in straight():
+        break
+
+    return trace
+
+fn objectBreak() -> Int:
+    trace = 0
+    let &it = straight()
+
+    for x in it:
+        break
+
+    return trace
+
+fn internalLoop() -> Int:
+    trace = 0
+
+    for x in looped():
+        if x == 1 then break
+
+    return trace
+
+fn objectLoop() -> Int:
+    trace = 0
+    let &it = looped()
+
+    for x in it:
+        if x == 1 then break
+
+    return trace
+
+fn internalRanOut() -> Int:
+    trace = 0
+
+    for x in looped():
+        {}
+
+    return trace
+
+fn objectRanOut() -> Int:
+    trace = 0
+    let &it = looped()
+
+    for x in it:
+        {}
+
+    return trace
+
+-- An object whose first step never happens releases its captured arguments and **nothing else** -
+-- §2.6, and the index-zero arm of the step.
+fn neverStarted() -> Int:
+    trace = 0
+    let held = holding(Note {id: 7})
+    return trace
+
+-- ... and the same producer run to its end, which releases the same argument once.
+fn ranToEnd() -> Int:
+    trace = 0
+    let &it = holding(Note {id: 7})
+
+    for x in it:
+        {}
+
+    return trace
+
+fn main() -> Int:
+    let a = internalBreak()
+    let b = objectBreak()
+    let c = internalLoop()
+    let d = objectLoop()
+    let e = internalRanOut()
+    let f = objectRanOut()
+    let g = neverStarted()
+    let h = ranToEnd()
+
+    -- The two forms **agree**, which is the property this file exists for: a teardown that ran
+    -- twice, or one that released a payload member the producer never wrote, is a different number
+    -- on one side of each pair.
+    if a != b then return -1
+    if c != d then return -2
+    if e != f then return -3
+
+    -- 12 + 123 + 1234 + 700 + 7.
+    return a + c + e + g * 100 + h

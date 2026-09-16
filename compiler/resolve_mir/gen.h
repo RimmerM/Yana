@@ -428,13 +428,26 @@ bool classProves(Context& context, Program& program, DeclPtr<Class> have,
  */
 U16 classWitnessCount(DeclBase base, DeclPtr<Class> klass);
 
+// How many of one class's own members are written `iter fn`, which is the size of its object-maker
+// region - Design-Iterator-Objects.md §6.4.
+U16 classObjectCount(DeclBase base, DeclPtr<Class> klass);
+
+// Where in that region one member's entry is - how many members written `iter fn` come before it.
+U16 classObjectIndex(DeclBase base, DeclPtr<Class> klass, U16 member);
+
 /*
  * Which class and which of its members flat index `at` names, in the order above.
  *
  * The reader's half of the layout: the lowering has a flat index and needs the *declared* signature
  * behind it to build a thunk, and only the walk knows which class that index fell into.
+ *
+ * `object` says the slot is that member's **"make an object" entry** rather than the member itself -
+ * §6.4. The member index is the declared one either way, so a reader that has no use for objects
+ * reads the pair it always read; what differs is which signature the thunk is built against, and
+ * `Function::iterObject` is where that one is.
  */
-bool classWitnessAt(DeclBase base, DeclPtr<Class> klass, U16 at, DeclPtr<Class>& into, U16& member);
+bool classWitnessAt(DeclBase base, DeclPtr<Class> klass, U16 at, DeclPtr<Class>& into, U16& member,
+                    bool& object);
 
 /*
  * `classProves` with the **offset** the proof lands at - where `want`'s members start in `have`'s
@@ -509,6 +522,17 @@ Contract substitutedContract(DeclBase base, Program& program, DeclPtr<Type> decl
  */
 DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> type,
                              const Substitution& with);
+
+/*
+ * The erased `iter(T)` for one protocol, interned - Design-Iterator-Objects.md §3.4.
+ *
+ * `record` false mints the type and records nothing, which is what a **signature** written over a
+ * class's own variables wants: `chunks$obj(self: c) -> iter('[a]')` is a shape for a thunk to be
+ * built against and not a protocol any value has, so the `Iterate` instance that would step one
+ * would be a blanket instance over a class whose whole job is to say which step to call.
+ */
+DeclPtr<Type> erasedIterTypeOf(Context& context, Program& program, const Occurrence& handover,
+                               DeclPtr<Type> resume, LocationId source, bool record);
 
 // The same for a whole occurrence. The contract and the interior shape are qualification rather than
 // structure and pass through unchanged - what a value is borrowed *as* does not depend on what its

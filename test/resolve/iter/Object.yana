@@ -1,0 +1,269 @@
+{-
+   Iterator **objects** - `doc/inflight/Design-Iterator-Objects.md` §3, stage 3's state record.
+
+   # resolver: ownership
+
+   An `iter fn` whose call result is kept is not called at all. `let it = f(...)` builds a record
+   holding a resume index, the hand-over slot, the captured arguments and whatever the producer keeps
+   live across a `yield`; `f$step` is the producer's own body converted a second time, and steps it.
+   There is no stack, no allocation and no handle - `test/resolve/fiber/External.yana` is the other
+   thing, and it is stage 4's to replace.
+
+   Stepping needs `let &it`, exactly as the stack handle does: a step writes the record, and `&` is
+   how an author says a binding may be written through. A plain `let it` still builds one, holds it
+   and drops it, which is what `unstarted` below is.
+
+   The `.ssa.expect` beside this file is where the records themselves are: each one prints its
+   members and, per payload member, which `yield`s keep it alive.
+
+   `it.next()` and `it.resume(v)` go through `class Iterate`, whose item is **borrowed from the
+   object** - `Maybe(source'item)`. So what a step gives back is read where it is taken rather than
+   kept in a binding, and a second step while the first item is live is the loan checker's ordinary
+   refusal; `Class.yana` is the class on its own terms and `Reject.Lend.yana` is that refusal in both
+   spellings. `Capture.yana`, `Heap.yana` and `Library.yana` are the captures, the placement and the
+   library's own producers.
+-}
+
+let &trace = 0 :: Int
+
+iter fn upTo(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+-- An owning hand-over: the loop variable takes what it is given rather than borrowing it.
+iter fn doubled(n: Int) -> ->Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i * 2
+        i = i + 1
+
+data Held {id: Int}
+
+instance Drop(Held):
+    fn drop(->value: Held):
+        trace = trace * 10 + value.id
+
+-- A **lending** hand-over: `Held` owes a teardown and the convention borrows, so the slot holds the
+-- value's address and the loop variable is a borrow rooted in the object.
+iter fn lent(n: Int) -> Held:
+    let &i = 1 :: Int
+
+    while i <= n:
+        let h = Held {id: i}
+        yield h
+        i = i + 1
+
+data Cmd = Keep | Skip
+
+-- A resume channel, whose passes hand a command back - §2.5, and what `it.resume(v)` answers.
+iter fn steps(n: Int) -> (Int <- Cmd):
+    let &i = 0 :: Int
+
+    while i < n:
+        let c = yield i
+        if c is Skip then i = i + 2 else i = i + 1
+
+{-
+   `let it = f()` stepped by hand - §2.1's fifth row, through `Iterate`'s `next`.
+
+   The code before the first `yield` runs at the *first step* and not at the call (§2.6), which is
+   what `unstarted` below asserts and what this one relies on: the object is built, and nothing of
+   `upTo`'s body has happened until `next` is asked.
+-}
+fn stepped() -> Int:
+    let &it = upTo(3)
+    let &packed = 0 :: Int
+
+    while it.next() is Just(x):
+        packed = packed * 10 + (x + 1)
+
+    return packed
+
+-- §1.4's zip: two objects of one producer, interleaved. Each carries its own state, so neither
+-- notices the other - which is the whole of what a record buys over a shared frame.
+fn zipped() -> Int:
+    let &left = upTo(3)
+    let &right = doubled(3)
+    let &packed = 0 :: Int
+
+    while left.next() is Just(a) && right.next() is Just(b):
+        packed = packed * 100 + a * 10 + b
+
+    return packed
+
+{-
+   An object whose first step never happens runs **none** of the producer's body - §2.6.
+
+   `upTo` writes nothing observable, so the assertion is `lent`'s: its body makes a `Held` before its
+   first `yield`, and a record dropped at index zero releases its captured arguments and stops. A
+   trace of `0` is that.
+-}
+fn unstarted() -> Int:
+    trace = 0
+    let held = lent(3)
+    return trace
+
+-- A record copied part-way through, and the two copies stepped independently - §3.3. Every member of
+-- `upTo.Iter` is trivially copyable, so `copy` is the bytes and the record needs no `Copy` instance.
+fn copied() -> Int:
+    let &first = upTo(4)
+    let &packed = 0 :: Int
+
+    if first.next() is Just(a) then packed = a + 1
+    if first.next() is Just(b) then packed = packed * 10 + b + 1
+
+    let &second = copy(first)
+
+    while first.next() is Just(c):
+        packed = packed * 10 + c + 1
+
+    while second.next() is Just(d):
+        packed = packed * 10 + d + 1
+
+    return packed
+
+{-
+   `for x in it` over a held object, under the producer's own hand-over convention - §2.1's fourth
+   row, built directly against the site type rather than through `Iterate`.
+
+   A **lending** producer's loop variable is a borrow rooted in the record (`f$item`'s signature), so
+   the drop of each value happens on the *next* step - which is what §2.6's "a lent value lives until
+   the next step" means and what the trace shows.
+-}
+fn lentLoop() -> Int:
+    trace = 0
+    let &it = lent(3)
+
+    for h in it:
+        trace = trace * 10 + h.id + 5
+
+    return trace
+
+-- The same loop over an owning hand-over, where the loop variable takes the value.
+fn takenLoop() -> Int:
+    let &it = doubled(4)
+    let &packed = 0 :: Int
+
+    for v in it:
+        packed = packed * 10 + v + 1
+
+    return packed
+
+{-
+   `break` leaves the object **suspended**, and a second `for` carries on from where it stopped.
+
+   The record is the author's, so leaving the loop leaves it where it was - which is the same
+   sentence `resolveExternalFor` makes about a handle the author holds, and is what separates
+   stepping by hand from a traversal the loop owns.
+-}
+fn brokeAndResumed() -> Int:
+    let &it = upTo(6)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+        if x == 1 then break
+
+    for y in it:
+        packed = packed * 10 + y + 1
+
+    return packed
+
+{-
+   `it.resume(v)` on an `iter fn ... -> (Y <- R)` - §2.5's object row.
+
+   `resume` is the universal stepper for a resuming producer: at index zero the value it carries is
+   never read, so the first step is one too. `it.next()` is **refused** on one of these -
+   `Reject.Object.yana` holds the message - because a pass that answers nothing is not what a
+   producer asking for a value meant.
+
+   The answer is `Maybe(source'Int)`, a loan of the object, so it is read where it is taken rather
+   than kept in a binding: `let &seen = it.resume(...)` would hold a borrow of `it` across the next
+   step, which is the refusal `Reject.Lend.yana` shows.
+-}
+fn resumed() -> Int:
+    let &it = steps(8)
+    let &packed = 0 :: Int
+    let &send = Keep
+    let &going = True
+
+    while going:
+        if it.resume(send) is Just(x):
+            packed = packed * 10 + x + 1
+            send = if x == 1 then Skip else Keep
+        else:
+            going = False
+
+    return packed
+
+data Cursor {at: Int}
+
+{-
+   A captured argument the object **borrows exclusively** - the lexer's own shape, §2.4's
+   `iter fn lex(&source: Source)`.
+
+   The record holds the lender's address rather than a copy of it, so the producer's writes are the
+   caller's; and `f$new`'s signature publishes the loan, so the borrow lasts as long as the object
+   does and the lender cannot be written from outside it in the meantime.
+-}
+iter fn advancing(&cursor: Cursor, n: Int) -> Int:
+    let &k = 0 :: Int
+
+    while k < n:
+        cursor.at = cursor.at + 1
+        yield cursor.at
+        k = k + 1
+
+fn lending() -> Int:
+    let &cursor = Cursor {at: 10}
+    let &it = advancing(cursor, 3)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 100 + x
+
+    return packed * 100 + cursor.at
+
+data Parser(l) {lexer: l, packed: Int}
+
+{-
+   A body generic in its lexer, constrained by `Iterate` - §2.3's example.
+
+   The record stores the object **inline** at its real size and steps it with a direct call, which is
+   what the class is for: a specialization sees the site type and the call goes straight to
+   `steps$resume`.
+-}
+fn (Iterate(l, Int, Cmd)) Parser.advance(&self: Parser(l)) -> Bool:
+    if self.lexer.resume(Keep) is Just(t):
+        self.packed = self.packed * 10 + t + 1
+        return True
+
+    return False
+
+fn parsed() -> Int:
+    let lexer = steps(4)
+    let &parser = Parser {lexer: lexer, packed: 0}
+
+    while parser.advance():
+        {}
+
+    return parser.packed
+
+fn main() -> Int:
+    let a = stepped()
+    let b = zipped()
+    let c = unstarted()
+    let d = copied()
+    let e = lentLoop()
+    let f = takenLoop()
+    let g = brokeAndResumed()
+    let h = resumed()
+    let i = parsed()
+    let j = lending()
+
+    -- 123 + 1224 + 0 + 123434 + 617283 + 1357 + 123456 + 1245678 + 1234 + 11121313.
+    return a + b + c + d + e + f + g + h + i + j

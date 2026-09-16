@@ -490,6 +490,17 @@ struct Lowering {
     HashMap<U64, LowerPtr<LowerFunction>> boxTeardowns;
     HashMap<U64, LowerPtr<LowerFunction>> thunks;
     HashMap<U64, LowerPtr<LowerGlobal>> witnesses;
+
+    /*
+     * The `Call` requirement's one-cell tables and their entries, keyed on the pair each is about -
+     * the concrete subject, and which of the promised positions the calling body erased.
+     *
+     * Tables of their own because neither holds an instance's members: `witnesses`' key is built out
+     * of exactly those, and `thunks`' name is the callee's symbol, which is not an identity here at
+     * all - one closure reached at two promises is two entries and one symbol.
+     */
+    HashMap<U64, LowerPtr<LowerGlobal>> callWitnesses;
+    HashMap<U64, LowerPtr<LowerFunction>> callThunks;
     HashMap<U64, LowerPtr<LowerGlobal>> properties;
 
     // A function value's code word, interned on the declaration it stands for - `fun.cpp`. A
@@ -590,6 +601,28 @@ struct Lowering {
 
     LowerPtr<LowerGlobal> witnessFor(DeclPtr<mir::Class> klass, mir::GenWitness witness,
                                      LocationId source);
+
+    /*
+     * The one-cell table a **`Call`** requirement's slot points at - `CallThrough::CallWitness`,
+     * Design-Iterator-Objects.md §4.
+     *
+     * Not `witnessFor` with a case in it, because the two are filled from different things: an
+     * ordinary witness is an *instance*'s member list, and there is no instance here at all. What
+     * goes in the cell is read off the subject - a site type's lifted function, or a shim over the
+     * pair - and the promise it is built against is the constraint's own written signature.
+     */
+    LowerPtr<LowerGlobal> callWitnessFor(DeclPtr<mir::Type> declaredSubject,
+                                         DeclPtr<mir::Type> declaredShape, mir::GenWitness witness,
+                                         LocationId source);
+
+    // The entry a `Call` witness holds - `callWitnessFor`, where the two subjects are argued.
+    LowerPtr<LowerFunction> callThunkFor(DeclPtr<mir::Type> subject, DeclPtr<mir::Function> named,
+                                         U64 mask, const mir::Occurrence* declared, Size count,
+                                         const mir::Occurrence& declaredResult, LocationId source);
+
+    U64 erasedSignatureMask(const mir::Occurrence* declared, Size count,
+                            const mir::Occurrence& declaredResult);
+    String callSubjectText(DeclPtr<mir::Type> subject, U64 mask);
     LowerPtr<LowerGlobal> propertyWitnessFor(DeclPtr<mir::Type> subject, U16 field,
                                              LocationId source);
     void writePropertySlot(LowerGlobal& table, U32 offset, DeclPtr<mir::Type> subject, U16 field,

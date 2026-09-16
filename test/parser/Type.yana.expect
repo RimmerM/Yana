@@ -742,9 +742,143 @@ Module
 |       `-ArrType 
 |         |-ConType Int
 |         `-LitExpr 4
+|-AliasDecl X 
+| `-ArrType <inferred count> 
+|   `-FunType 
+|     |-Arg <anonymous>
+|     | `-ConType Int
+|     `-ConType Bool
+|-AliasDecl X 
+| `-SiteType lex.Iter
+|-AliasDecl X 
+| `-SiteType lex.Iter
+|   `-ConType I32
+|-AliasDecl X 
+| `-SiteType tokens.Result
+|-AliasDecl X 
+| `-SiteType Lex.lex.Iter
+|-AliasDecl X 
+| `-TupType 
+|   |-Field x
+|   | `-SharedType src' 
+|   |   `-SiteType lex.Iter
+|   |-Field y
+|   | `-BorrowType 
+|   |   `-SiteType lex.Iter
+|   `-Field z
+|     `-PtrType 
+|       `-SiteType lex.Iter
+|-AliasDecl X 
+| `-ArrType 
+|   `-SiteType lex.Iter
+|     |-GenType a
+|     `-GenType b
+|-AliasDecl X 
+| `-AppType 
+|   |-ConType Holder
+|   `-SiteType lex.Iter
+|-AliasDecl X 
+| `-FunType 
+|   |-Arg <anonymous>
+|   | `-SiteType lex.Iter
+|   `-SiteType tokens.Result
+|-AliasDecl X 
+| `-IterType
+|   `-ConType Int
+|-AliasDecl X 
+| `-IterType ->
+|   `-ConType Int
+|-AliasDecl X 
+| `-IterType
+|   `-SharedType 
+|     `-ConType Int
+|-AliasDecl X 
+| `-IterType
+|   |-ConType Token
+|   `-ConType LexCommand
+|-AliasDecl X 
+| `-IterType ->
+|   |-ConType Token
+|   `-ConType LexCommand
+|-AliasDecl X 
+| `-IterType
+|   |-ConType Int
+|   `-ConType Error
+|-AliasDecl X 
+| `-IterType
+|   |-ConType Token
+|   |-ConType LexCommand
+|   `-ConType Error
+|-AliasDecl X 
+| `-TupType 
+|   |-Field x
+|   | `-IterType
+|   |   `-ConType Int
+|   |-Field y
+|   | `-BorrowType 
+|   |   `-IterType
+|   |     `-ConType Int
+|   `-Field z
+|     `-PtrType 
+|       `-IterType
+|         `-ConType Int
+|-AliasDecl X 
+| `-ArrType 
+|   `-IterType
+|     `-ConType Int
+|-AliasDecl X 
+| `-AppType 
+|   |-ConType Holder
+|   `-IterType
+|     `-ConType Int
+|-AliasDecl X 
+| `-FunType 
+|   |-Arg <anonymous>
+|   | `-IterType
+|   |   `-ConType Int
+|   `-IterType
+|     `-ConType Bool
+|-AliasDecl X 
+| `-SharedType src' 
+|   `-IterType
+|     `-ConType Int
+|-AliasDecl X 
+| `-BorrowType src' 
+|   `-IterType
+|     `-ConType Int
+|-AliasDecl X 
+| `-SharedType src' 
+|   `-IterType
+|     |-ConType Token
+|     `-ConType LexCommand
+|-AliasDecl X 
+| `-AppType 
+|   |-ConType Pair
+|   |-SharedType left' 
+|   | `-IterType
+|   |   `-ConType Int
+|   `-SharedType right' 
+|     `-IterType
+|       `-ConType Int
+|-AliasDecl X 
+| `-TupType 
+|   `-Field it
+|     `-SharedType src' 
+|       `-IterType
+|         `-ConType Int
+|-AliasDecl X 
+| `-SharedType src' 
+|   `-FunType <iter> 
+|     |-Arg <anonymous>
+|     | `-ConType Int
+|     `-ConType Bool
+|-AliasDecl X 
+| `-FunType <iter> 
+|   |-Arg <anonymous>
+|   | `-ConType Int
+|   `-ConType Bool
 `-AliasDecl X 
-  `-ArrType <inferred count> 
-    `-FunType 
-      |-Arg <anonymous>
-      | `-ConType Int
-      `-ConType Bool
+  `-FunType <lens> 
+    |-Arg <anonymous>
+    | `-ConType Int
+    `-ConType Bool

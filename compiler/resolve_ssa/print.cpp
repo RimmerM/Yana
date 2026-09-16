@@ -164,8 +164,10 @@ struct Printer {
                 auto& call = (InstCall&)value;
 
                 // A call through a value names no declaration - the callee is the first use, which
-                // the use walk above has already printed.
-                if(call.through != mir::CallThrough::Value) {
+                // the use walk above has already printed. A `Call` witness names none either: what
+                // it dispatches to is a cell the caller filled, and the value is its first argument.
+                if(call.through != mir::CallThrough::Value &&
+                   call.through != mir::CallThrough::CallWitness) {
                     writer.writeString(" "_v);
                     name(decl[call.callee]->symbol);
                 }
@@ -497,6 +499,137 @@ struct Printer {
                 }
 
                 writer.writeString("\n"_v);
+            }
+
+            /*
+             * The **iterator site types** this module minted, and what keeps each member alive -
+             * Design-Iterator-Objects.md §7 stage 3's inspection output.
+             *
+             * Here rather than in the MIR dump because it is a fact about the *transform*: the MIR
+             * dump prints the record as an ordinary `data`, which is what it is, and this is the
+             * question an author has about one - "why is this in my record". A member with no
+             * `yield`s listed is the index, the slot or a captured argument, which live for the
+             * object's whole life; one with a list is a payload member, and the list is the
+             * hand-overs it has to survive.
+             *
+             * `#` is a value the producer keeps across a hand-over that no name in its body reaches -
+             * a counted `for`'s own bound, and the like. Two names on one line are **slot sharing**:
+             * members whose live ranges never meet share a field, and the `across` list is then the
+             * union of theirs - which is what says why one field survives two hand-overs that no
+             * single local of the producer does.
+             *
+             * `$held` is the one member after the payload and carries no `across` list: it is not
+             * something the producer keeps but the record's own note about the slot, so it is read
+             * out of `heldField` rather than out of `payloadYields`.
+             */
+            for(auto recordPointer: module->records.contents(decl)) {
+                auto record = decl[recordPointer];
+                if(!record->producer) continue;
+
+                // `lens` where the producer is one, which is the same distinction the record's own
+                // name makes (`.Lens` against `.Iter`): both are site types and only one of them is
+                // something a consumer ever steps.
+                writer.writeString(record->lensSite ? "\nlens "_v : "\niter "_v);
+                name(record->name);
+                writer.writeString(" of "_v);
+                name(decl[record->producer]->name);
+                writer.writeString(" {\n"_v);
+
+                for(auto field: record->fields.contents(decl)) {
+                    writer.writeString("  "_v);
+                    if(field.name == StringId()) writer.writeString("#"_v);
+                    else name(field.name);
+
+                    writer.writeString(": "_v);
+                    mir::printType(writer, context, decl, field.occurrence.type);
+
+                    /*
+                     * And **how** the member is held, where the type alone does not say it: three
+                     * kinds of field are a pointer and a reader asking "why is this in my record"
+                     * is asking which of them this is - and a fourth word, `nested`, which is the
+                     * one payload member the producer's body does not name at all: a region the
+                     * producer runs over part of its own body, whose whole state the outer record
+                     * keeps. `for x in g(...)` and `withLock(m):` are both that, and which of the
+                     * two it is is the member's own type - `g.Iter` against `withLock.Lens`.
+                     */
+                    if(field.index >= 2 && field.index < record->payloadFirst) {
+                        auto kind = record->captureKinds.get(decl, field.index - 2);
+                        if(kind == mir::RecordType::kCaptureAddress) writer.writeString(" lent"_v);
+                        else if(kind == 2) writer.writeString(" window"_v);
+                    }
+
+                    /*
+                     * The payload proper - which is every field past `payloadFirst` except the three
+                     * that come after it and are not members: `$held`, and delegation's `$down` and
+                     * `$inner`, which are the record's own notes about its slot and its chain rather
+                     * than anything the producer keeps across a hand-over.
+                     */
+                    if(field.index >= record->payloadFirst && field.index != record->heldField &&
+                       field.index != record->downField && field.index != record->innerField) {
+                        // Every entry in this field, which is one unless they share - see above.
+                        for(U32 j = 0; j < record->payloadLocals.size(); j++) {
+                            if(record->payloadFields.get(decl, j) != field.index) continue;
+
+                            auto member = record->payloadLocals.get(decl, j);
+                            if(member & mir::RecordType::kHeapMember) writer.writeString(" placed"_v);
+                            if(member & mir::RecordType::kBorrowMember) writer.writeString(" borrowed"_v);
+                            if(member & mir::RecordType::kNestMember) {
+                                writer.writeString(" nested"_v);
+
+                                // And whether the child is **boxed** - §6.3's recursion, where the
+                                // member holds the erased form rather than the child's own record.
+                                // The field's type says it, and the word is here so that the
+                                // inspection reads as the record does rather than as the type list.
+                                if(decl[field.occurrence.type]->kind == mir::Type::Iter) {
+                                    writer.writeString(" boxed"_v);
+                                }
+
+                                /*
+                                 * And whether the level **delegates** - §6.3's `yield from`, where
+                                 * the member is the link rather than the bare pair and the consumer
+                                 * steps the child directly. Always boxed, so the two words read as
+                                 * one statement about the same member.
+                                 */
+                                if(record->linkType &&
+                                   field.occurrence.type == record->linkType) {
+                                    writer.writeString(" boxed delegated"_v);
+                                }
+                            }
+                        }
+
+                        writer.writeString(" across"_v);
+
+                        auto listed = false;
+
+                        for(U32 y = 0; y < record->handovers; y++) {
+                            auto keeps = false;
+
+                            for(U32 j = 0; j < record->payloadLocals.size() && !keeps; j++) {
+                                if(record->payloadFields.get(decl, j) != field.index) continue;
+                                keeps = record->keepsAcross(decl, j, y);
+                            }
+
+                            if(!keeps) continue;
+
+                            writer.writeString(" "_v);
+                            uint(y);
+                            listed = true;
+                        }
+
+                        /*
+                         * An **empty** list, which one kind of member has: a `@heap`-placed local is
+                         * a member because of where it lives and not because anything reads it after
+                         * a hand-over, so a producer that only touches it before the first `yield`
+                         * keeps it across none of them. Said rather than left as a bare `across`,
+                         * which reads as a list the printer failed to write.
+                         */
+                        if(!listed) writer.writeString(" none"_v);
+                    }
+
+                    writer.writeString("\n"_v);
+                }
+
+                writer.writeString("}\n"_v);
             }
 
             for(auto functionPointer: module->functions.contents(decl)) {

@@ -520,6 +520,14 @@ captured nothing and a lambda that captured five things differ only in what the 
 so a call site holding one never has to know which of the three it is - which is what lets a
 function type be a type rather than a family of them.
 
+Since 2026-09-15 the pair is what a **position** asks for rather than what a lambda *is*: a lambda's
+own value is its environment record, and only a position stating `(A) -> B` builds these two words -
+`resolve_mir/README.md`'s site-type section, and `doc/inflight/Design-Iterator-Objects.md` §4.
+Nothing in this file changed for it and nothing had to: a call through a site type reaches the
+lifted function with the record's address as argument zero, which is an ordinary direct call by the
+time SSA sees it, because the conversion prepends the environment to the argument list. What this
+file is still the whole of is the erased form.
+
 That uniformity costs a **thunk** for the plain case, because a declaration has its own convention
 and something has to absorb the environment argument. `funThunkFor` builds one per declaration, and
 it is a forwarding call: unlike `erase.cpp`'s witness thunk it adapts no positions, since a function
@@ -539,7 +547,12 @@ say": a generic environment for a body compiled once, a capture environment for 
 function value can never want both, because a lambda over an erased body reaches it through a thunk
 that supplies the generic environment out of its own captures - so `CallThrough::Value` fills the
 same leading argument `CallThrough::Declaration` does for an erased callee, and the call lowering
-has one shape for four call forms.
+has one shape for five call forms.
+
+`CallThrough::CallWitness` is the fifth and is what the slot's meaning *decides*: an erased body
+calling a value its `Call` constraint typed reaches a synthesized entry, and the entry is called the
+way everything reached through a cell is - so argument zero is the caller's, and the value the entry
+is about travels in the ordinary argument list. See "The erased ABI lives at the bottom".
 
 It is not trivially copyable, and that is a different question from the teardown: a closure may hold
 an exclusive loan of a capture, so duplicating the bytes would be a second exclusive capability over
@@ -584,6 +597,16 @@ and a `loads`.
 `Shapes::noEnvironment`, which is every closure whose lambda the compiler can see and every plain
 function named as a value. `ClosureTeardown.yana`'s `direct` and `either` have no teardown anywhere
 in them.
+
+**An erased iterator object goes through all three of these unchanged**, and that is the whole of
+what `iter(T)` costs the lowering - `doc/inflight/Design-Iterator-Objects.md` §3.4, built 2026-09-16.
+It is the same pair: the code word is the producer's step shim (`f$erased` or `f$erased.heap`, which
+is which being the position's answer rather than the lambda's), the environment word is the state
+record, and `emitClosureBlock`'s `[teardown][captures]` header is §3.4's `[teardown][payload]`. So
+`funTeardown` releases one, `funEnvironmentBias` biases one, and a frame-placed one owes nothing -
+which needed `holdsNoOwnedEnvironment` to read `mir::Type::Iter` beside `Type::Fun`, and was one
+call per scope exit until it did. `manifest.h`'s shape assertion takes the kind for the same reason:
+the closure shape names a position a pair already has.
 
 **What is not built**: an inliner that removes the allocation when a heap-placed closure is built and
 consumed in one block. The call could be devirtualized by store forwarding, but `allocateHeap` and
@@ -750,6 +773,28 @@ instance's witness table points at the first instance's member: invisible in a d
 entry is a relocation, and invisible in a run wherever the two types share a layout. Witness tables
 are interned on the same pair, for the reason descriptors are - two environments naming one instance
 should name one table.
+
+**A `Call` requirement is the one witness with no instance behind it**, since 2026-09-16 (J58) -
+Design-Iterator-Objects.md §4. `Call(f, S)` is a *structural* class: it is answered from the subject,
+declares no members and has no row in the instance table, so there was nothing for a caller to fill
+and a body compiled once that called through it was refused. The cell is synthesized now, one per
+requirement, and what goes in it is read off the subject exactly as `structuralAnswer` reads whether
+the class holds: a **site type** names its code in its type, so the entry calls that lifted lambda and
+the value's storage is the environment it already takes as argument zero; a **function type** names
+none, so the entry splits the pair at `funCodeOffset`/`funEnvOffset` and calls through it. Everything
+either side of that one instruction is `thunkFor`'s own adaptation, which is why `callThunkFor` is a
+sibling of it rather than a flag on it - `thunkFor` reads the convention, the hidden result pointer
+and every parameter manifestation off a `mir::Function`, and half of those come off the *shape* here.
+
+The value travels as argument **zero** of the ordinary list rather than in the environment word,
+because that word is where an erased callee's own generic environment goes. And the entry and its
+table are interned on the pair the boundary *is* - the concrete subject, and a bitmask of which
+promised positions the calling body erased - rather than on the constraint's written type, which is
+the mistake the paragraph above already records one tier over: `thunkFor` names a thunk after its
+callee's symbol, so one closure reached at `(a) -> a` and at `(I32) -> I32` is two entries with one
+name, and `LowerModule::addFunction` hands back the function that already has it. The mask is a
+complete identity because `structuralAnswer` compares the constraint's shape against the subject's
+for equality - a position the promise did not erase *is* the subject's own position.
 
 **A descriptor's teardown pointer is never null.** A type with nothing to run points at the module's
 one empty function, so a drop in an erased body is one indirect call rather than a load, a test and a

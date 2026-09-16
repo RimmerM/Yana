@@ -156,3 +156,25 @@ YANA_MIR_TYPE( Vector,   VectorType,   "vector"_v  )
  * counter and a sequential flag in one program.
  */
 YANA_MIR_TYPE( Atomic,   AtomicType,   "atomic"_v  )
+
+/*
+ * `iter(T)` - the **erased** iterator object, Design-Iterator-Objects.md §2.2 and §3.4.
+ *
+ * The site type's erased form, exactly as `Fun` is a closure's: a value of this type is the pair
+ * `{step, block}`, where `block` is the state record placed in the frame that built it or in a heap
+ * block whose header holds its teardown. A step is an indirect call across the pair. So everything
+ * below `resolve_mir` treats it as a function value - `manifestNative` answers the same two words,
+ * the drop is the same tag test - and the kind exists to keep the two apart *above* that line: an
+ * `iter(T)` cannot be called and a `(A) -> B` cannot be stepped, and neither can silently stand in
+ * for the other.
+ *
+ * **Structural**, like `Fun` and for the same reason: nothing declares one. It interns on the whole
+ * protocol - the hand-over occurrence, what a `yield` evaluates to and the step's own signature - so
+ * `iter(I32)` written in two files is one handle and `sameType` stays a comparison.
+ *
+ * A kind rather than a flag on `FunType`, because the forty-odd readers of `Type::Fun` would then
+ * each have to remember to ask: a call through a value, a lambda at a position, a witness cell and a
+ * thunk all mean "callable", and an iterator object is not one. A kind makes every one of those say
+ * no by construction.
+ */
+YANA_MIR_TYPE( Iter,     IterType,     "iterator"_v )

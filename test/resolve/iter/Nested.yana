@@ -1,0 +1,307 @@
+{-
+   A **nested traversal** inside a producer built as an object -
+   `doc/inflight/Design-Iterator-Objects.md` §3.2's first step.
+
+   # resolver: ownership
+
+   `for x in g(...)` written inside an `iter fn` is a `lens.call` opening a region whose blocks are
+   the loop body. In the continuation-passing form those blocks become a function of their own and
+   `g` calls it; in a **step** there is nowhere to call from - the outer producer is suspended rather
+   than running - so `g.Iter` becomes a payload member of the outer record and the region's blocks
+   are *embedded* in the outer step, with the member stepped where the callee used to call.
+
+   Four things follow, and all four are what this file runs:
+
+    - the `lens.call` becomes "initialize the member", and every block of the region that falls out
+      asks the member for its next element;
+    - `break` out of a child pass - which is also what a departure out of the *outer* object emits,
+      since a departure leaves the loops the `yield` was written in - **cancels the child** and
+      resumes where the region rejoins;
+    - a `yield` inside a nested pass suspends the outer object with the child suspended inside it, so
+      everything the child's blocks name that is live across it is in the outer payload;
+    - the outer object's teardown cancels a suspended child exactly once, on every path;
+    - a nested producer that declared `<- {}` nests like any other, which is the exemption read one
+      level in: the channel carries nothing, so the pass answers on the ordinary fall-out edge and the
+      region has no resume edge for the embedding to find nowhere to put.
+
+   Asserted the way `Teardown.yana` asserts its own property: every producer here is run once as
+   `for x in f(...)` and once as an object, and the two answer the same number. A child stepped
+   twice, a child cancelled twice, or a payload member the embedding forgot is a different number on
+   one side of a pair.
+-}
+
+let &trace = 0 :: Int
+
+data Note {id: Int}
+
+instance Drop(Note):
+    fn drop(->value: Note):
+        trace = trace * 10 + value.id
+
+iter fn digits(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+-- The shape itself: one nest, one hand-over inside it.
+iter fn doubled(n: Int) -> Int:
+    for v in digits(n):
+        yield v * 2
+
+-- And **two levels**, which is the same rule applied to a producer that is already an object: the
+-- middle record holds the innermost one and the outer holds the middle.
+iter fn tripled(n: Int) -> Int:
+    for v in doubled(n):
+        yield v + 1
+
+{-
+   A **lending** child - a hand-over the consumer may only look at, so the child's slot holds where
+   the value is and the embedding reads it through `g$item`.
+
+   `Note` owes a teardown, so it is not trivially copyable and an unqualified `-> Note` lends it. The
+   value the `yield` names is a local of the child, which is what puts it in the child's own record
+   and makes the address one the outer step may still read after the child suspended.
+-}
+iter fn notes(n: Int) -> Note:
+    let &i = 0 :: Int
+
+    while i < n:
+        let held = Note {id: i + 1}
+        yield held
+        i = i + 1
+
+iter fn sumNotes(n: Int) -> Int:
+    for note in notes(n):
+        yield note.id
+
+{-
+   `break` out of a child pass, with the producer carrying on afterwards.
+
+   The region is left by the row that stops the child, so the member is cancelled there and control
+   resumes at the region's destination - which here is the `yield` below the loop rather than the end
+   of the producer. A child cancelled twice would run `notes`' own cleanup twice and show in `trace`.
+-}
+iter fn stopEarly(n: Int) -> Int:
+    for note in notes(n):
+        if note.id == 3 then break
+        yield note.id
+
+    yield 9
+
+{-
+   A `yield` **inside** a nested pass, with a traced owner live across it.
+
+   `mark` owes a teardown, so it is live at every exit whatever else reads it - which is the seed the
+   payload walk uses - and it therefore crosses the hand-over inside the child's region. What that
+   proves is that the liveness walked the region's blocks and the `Many` back edge at all: without
+   the back edge the pass after this one would see a member nothing kept.
+-}
+iter fn keeping(n: Int) -> Int:
+    for v in digits(n):
+        let mark = Note {id: v + 1}
+        yield v
+
+{-
+   A **held object** stepped inside a producer, which is the same shape with no initialization: the
+   member is the local the producer bound, `for v in inner` is an ordinary loop in the producer's own
+   region, and what the outer record holds is the child's whole state because the local crosses a
+   hand-over.
+-}
+iter fn viaHeld(n: Int) -> Int:
+    let &inner = digits(n)
+
+    for v in inner:
+        yield v * 3
+
+{-
+   A nested producer with a **unit resume channel**, in both spellings of the exemption.
+
+   `<- {}` is a channel that carries nothing, so a pass of one need not answer - and what "need not
+   answer" compiles to is the fall-out edge the non-resuming form already takes. That had been a
+   `Proceed({})` on a resume edge instead, which an embedded region has nowhere to send: nesting one
+   of these inside an object was "internal: a `continue` with a value leaves a continuation for
+   somewhere other than where it rejoins", for both falling off the end of the pass (`unitNest`) and
+   writing the bare word (`unitNestWritten`). A non-unit channel is still refused by name where the
+   nest is collected, and `Reject.Nested.yana` holds that message.
+
+   `mir::resumesWithValue` is the rule the producer's own step and the erased shim now share, and
+   `iter/Resume.yana` is where the same correction is asserted at the top level.
+-}
+iter fn nothingBack(n: Int) -> (Int <- {}):
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+iter fn unitNest(n: Int) -> Int:
+    for v in nothingBack(n):
+        yield v * 2
+
+iter fn unitNestWritten(n: Int) -> Int:
+    for v in nothingBack(n):
+        yield v * 2
+        continue
+
+fn loopUnitNest(n: Int) -> Int:
+    let &packed = 0 :: Int
+    for v in unitNest(n): packed = packed * 10 + v
+    return packed
+
+fn objectUnitNest(n: Int) -> Int:
+    let &it = unitNest(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed
+
+fn loopUnitWritten(n: Int) -> Int:
+    let &packed = 0 :: Int
+    for v in unitNestWritten(n): packed = packed * 10 + v
+    return packed
+
+fn objectUnitWritten(n: Int) -> Int:
+    let &it = unitNestWritten(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed
+
+fn loopDoubled(n: Int) -> Int:
+    let &packed = 0 :: Int
+    for v in doubled(n): packed = packed * 10 + v
+    return packed
+
+fn objectDoubled(n: Int) -> Int:
+    let &it = doubled(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed
+
+fn loopTripled(n: Int) -> Int:
+    let &packed = 0 :: Int
+    for v in tripled(n): packed = packed * 10 + v
+    return packed
+
+fn objectTripled(n: Int) -> Int:
+    let &it = tripled(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed
+
+fn loopNotes(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in sumNotes(n): packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn objectNotes(n: Int) -> Int:
+    trace = 0
+    let &it = sumNotes(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn loopStopped(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in stopEarly(n): packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn objectStopped(n: Int) -> Int:
+    trace = 0
+    let &it = stopEarly(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn loopKeeping(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in keeping(n): packed = packed * 10 + v
+    return packed * 10000 + trace
+
+fn objectKeeping(n: Int) -> Int:
+    trace = 0
+    let &it = keeping(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 10000 + trace
+
+fn loopHeld(n: Int) -> Int:
+    let &packed = 0 :: Int
+    for v in viaHeld(n): packed = packed * 10 + v
+    return packed
+
+fn objectHeld(n: Int) -> Int:
+    let &it = viaHeld(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed
+
+{-
+   The outer object dropped with a **child suspended inside it**, against the same producer left by a
+   `break` in the internal form.
+
+   Both leave `keeping` in the middle of a pass of `digits`, with `mark` live: the internal form's
+   `break` takes the producer's departure path, and the object's teardown enters the step with a
+   cancel request and takes the same one. So the two release the same notes, in the same order, and
+   the child is cancelled once on each.
+-}
+fn internalAbandoned(n: Int) -> Int:
+    trace = 0
+
+    for v in keeping(n):
+        if v == 1 then break
+
+    return trace
+
+fn objectAbandoned(n: Int) -> Int:
+    trace = 0
+    let &it = keeping(n)
+
+    for v in it:
+        if v == 1 then break
+
+    return trace
+
+-- And an object abandoned at index zero, which has entered no nested traversal at all: the member
+-- holds the finished index `f$new` wrote, so the cancellation reaches it and does nothing.
+fn neverEntered() -> Int:
+    trace = 0
+    let held = keeping(3)
+    return trace
+
+fn main() -> Int:
+    let a = loopDoubled(4)
+    let b = objectDoubled(4)
+    let c = loopTripled(4)
+    let d = objectTripled(4)
+    let e = loopNotes(3)
+    let f = objectNotes(3)
+    let g = loopStopped(4)
+    let h = objectStopped(4)
+    let i = loopKeeping(3)
+    let j = objectKeeping(3)
+    let k = loopHeld(4)
+    let l = objectHeld(4)
+    let m = internalAbandoned(3)
+    let n = objectAbandoned(3)
+    let o = loopUnitNest(4)
+    let p = objectUnitNest(4)
+    let q = loopUnitWritten(4)
+    let r = objectUnitWritten(4)
+
+    -- The two forms **agree**, which is what this file exists for.
+    checkCondition(a != b)
+    checkCondition(c != d)
+    checkCondition(e != f)
+    checkCondition(g != h)
+    checkCondition(i != j)
+    checkCondition(k != l)
+    checkCondition(m != n)
+    checkCondition(o != p)
+    checkCondition(q != r)
+    checkCondition(neverEntered() != 0)
+
+    return a + c + e + g + i + k + m + o + q

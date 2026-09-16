@@ -9,6 +9,7 @@ struct ParseRegion;
 struct Decl;
 struct Expr;
 struct Type;
+struct SiteType;
 struct Pat;
 struct Constraint;
 struct TupArg;
@@ -105,6 +106,7 @@ struct Literal {
 
 struct FunType;
 struct AppType;
+struct IterType;
 
 struct Type {
     enum Kind: U8 {
@@ -168,6 +170,47 @@ struct Type {
          * slot rather than for a type.
          */
         Loan,
+
+        /*
+         * A **declaration path** in type position - `f.Iter`, `f.Iter(a, b)`, `f.Result`,
+         * `Lex.lex.Iter`, Design-Iterator-Objects.md §2.4.
+         *
+         * The one type whose head is a *value* name: what it refers to is a type that declaration
+         * publishes rather than one anybody wrote. §2.4's rule is that a lowercase name is a type
+         * variable only when it stands alone, so `a` is a `Gen` and `a.Iter` is one of these and
+         * the two never overlap.
+         *
+         * A kind of its own rather than a `Con` whose name happens to have a lowercase segment.
+         * The head and the member are two names and not one - the head is looked up among the
+         * module's *functions*, under the import rules a call goes through, and the member selects
+         * which of the declaration's published types is meant - so fusing them into one interned
+         * name would make every lookup re-split it and would give `Lex.lex.Iter` a spelling that a
+         * qualified type name could collide with. `App` is not it either: a site type takes its
+         * arguments at the *declaration*, which is what `f.Iter(a, b)` binds, and a base that is
+         * already a path would have to be a node of this kind anyway.
+         *
+         * It is what pushed `kind` to five bits. `Pat` and `Expr` already number their locations in
+         * fewer bits than this did, so the bit came out of `source` and `ast::Type` did not grow.
+         */
+        Site,
+
+        /*
+         * `iter(T)`, `iter(->T)`, `iter('T)`, `iter(Y <- R)`, `iter(T | E)` - the **erased** form of
+         * an iterator object, Design-Iterator-Objects.md §2.2 and §3.4.
+         *
+         * An ordinary type and not a result decoration, which is what stage 4 changed: it was read
+         * only after `->`, by a production of its own, and a declaration written with it was an
+         * *external iterator* rather than a function whose result happens to be an object. So it
+         * moves here, where every position that takes a type takes it - a field, a parameter, a
+         * function value's result, a class member's result - and `-> iter(T)` becomes one of them
+         * rather than the only one.
+         *
+         * `iter` is a **hard keyword**, so there is nothing to look ahead for: a type position that
+         * begins with it is this and can be nothing else. The payload is out of line for `Site`'s
+         * reason - the hand-over, its convention and the two channels beside it are four fields and
+         * the union is wide enough for two.
+         */
+        Iter,
     };
 
     struct MapPayload {
@@ -231,6 +274,13 @@ struct Type {
         ParsePtr<FunType> fun;
         ParsePtr<AppType> app;
 
+        // `Kind::Site` - the declaration path, out of line for `ArrInferred`'s reason: the payload
+        // is three fields and the union every `ast::Type` carries is wide enough for two.
+        ParsePtr<SiteType> site;
+
+        // `Kind::Iter` - the erased `iter(...)`, out of line for the same reason.
+        ParsePtr<IterType> iterated;
+
         // `Kind::Lit` - the integer literal a lane count is written as.
         ParsePtr<Expr> lit;
 
@@ -243,8 +293,27 @@ struct Type {
     };
 
     ParsePtr<AttrList> attributes;
-    LocationId source: 28;
-    Kind kind: 4;
+
+    // Twenty-seven bits and not twenty-eight since `Kind::Site`: the enumeration is eighteen rows
+    // and needs five. A location fits in fewer here than `Pat` (27) and `Expr` (26) already give
+    // one, so the bit comes out of this word rather than out of a second one.
+    LocationId source: 27;
+    Kind kind: 5;
+};
+
+/*
+ * `f.Iter`, `f.Iter(a, b)`, `f.Result` - the payload of `Type::Site`, where the kind is argued.
+ *
+ * `head` is the value name the path starts at, qualified exactly as it was written (`Lex.lex` is
+ * one name of two segments, which is what the lexer fuses); `member` is the single uppercase name
+ * after the dot. `args` is what a site type's declaration is applied at and is empty for the bare
+ * form - the arguments bind the *declaration's* type parameters rather than a head's, which is why
+ * they live here rather than in an `AppType` over this node.
+ */
+struct SiteType {
+    StringId head;
+    StringId member;
+    ParseList<Type> args;
 };
 
 /*
@@ -277,6 +346,20 @@ struct IterProtocol {
 // Written out rather than defaulted per field, because `Decl::fun` holds one of these inside an
 // anonymous union and a member with a default initializer would delete the union's constructors.
 inline IterProtocol noProtocol() { return IterProtocol { nullptr, nullptr, BindType::Borrow }; }
+
+/*
+ * `iter(...)` - the payload of `Type::Iter`, where the kind is argued.
+ *
+ * The same three channels a traversal's result declares, read by the same production
+ * (`parseProtocolBody`): what is handed over and under which convention, what a `yield` evaluates
+ * to, and how the traversal ends. One grammar for both spellings is the point - an author who knows
+ * what `iter fn f() -> (Y <- R)` says knows what `iter(Y <- R)` says.
+ */
+struct IterType {
+    Type yielded;
+    BindType bind;
+    IterProtocol protocol;
+};
 
 struct FunType {
     ParseList<ArgDecl> args;
@@ -466,6 +549,16 @@ struct Expr {
         ParsePtr<Expr> ret;
         ParsePtr<Expr> yield;
         ParsePtr<Expr> breakValue; // nullable
+
+        /*
+         * `continue v` - what the pass hands back to the iterator it is a pass of, and null for a
+         * bare `continue`.
+         *
+         * A second nullable operand rather than a kind of its own, for the reason `break` has one:
+         * the two are one statement with an optional value, and which of them can carry one is a
+         * question about the loop rather than about the spelling. Design-Iterator-Objects.md §2.5.
+         */
+        ParsePtr<Expr> continueValue; // nullable
         ParsePtr<FunExpr> fun;
         ParseList<MapArg> map;
         ParseList<Expr> arr;
@@ -926,21 +1019,6 @@ struct Decl {
             bool implicitReturn;
             FunKind kind;
 
-            /*
-             * `-> iter(...)` - Analysis-External-Iterators.md §2.1's external iterator.
-             *
-             * A flag beside `kind` rather than a fourth `FunKind`, and the document is what says so:
-             * an external constructor is an ordinary function whose *result* is an iterator, so what
-             * is different about it is the result and not the way it is called. `kind` stays `Plain`
-             * and every rule about a traversal - the continuation parameter, the `yield` that is a
-             * call of it, the call site that splits its own block - goes on asking `kind` and goes on
-             * getting the same answer it always did.
-             *
-             * `ret`, `retBind` and `protocol` say the rest: what is handed over, under which
-             * convention, what a `yield` evaluates to and how the traversal ends. They are read the
-             * same way for both spellings, which is the whole reason one grammar reads both.
-             */
-            bool external;
         } fun;
     };
 

@@ -1,0 +1,699 @@
+module ResolveTest
+
+data Parser {lexer: lex.Iter, total: I32}
+
+data Defaulted {lexer: lex.Iter, limit: I32 = 6, tag: String = "d"} reclaim derived
+
+data Counter {at: I32}
+
+data Scan {cursor: 0'advancing.Iter, seen: I32} shape2
+
+data Adder {step: held.lambda.env, base: I32}
+
+data lex.Iter {$index: I32, $slot: I32, limit: I32, at: I32}
+
+data advancing.Iter {$index: I32, $slot: I32, c: %Counter, limit: I32} shape9
+
+data held.lambda.env {n: I32}
+
+data twice(I32).Iter {$index: I32, $slot: I32, x: I32}
+
+data twice(F64).Iter {$index: I32, $slot: F64, x: F64}
+
+instance Iterate(lex.Iter, I32, {}): lex$next, lex$resume
+
+instance Iterate(advancing.Iter, I32, {}): advancing$next, advancing$resume
+
+instance Iterate(twice(I32).Iter, I32, {}): twice(I32)$next, twice(I32)$resume
+
+instance Iterate(twice(F64).Iter, F64, {}): twice(F64)$next, twice(F64)$resume
+
+let string'143: [CodeUnit *1] = "d"
+
+lens fn lex(limit: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & at: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (at) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (at)
+  %6: I32 = read copy.trivial (limit)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %22: I32 = read copy.trivial ($yielded)
+  return take %22
+
+bb3:
+  %9: I32 = read copy.trivial (at)
+  %10: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %11: I32 = call inspect %10 borrow.shared %9
+  %12: I32 = const 0
+  %13: Bool = eq inspect %11 inspect %12
+  write.assign borrow.unique ($yielded) take %11
+  branch inspect %13 -> bb4 -> bb5
+
+bb4:
+  %17: I32 = read copy.trivial (at)
+  %18: I32 = const 1
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (at) take %19
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+fn parse(limit: I32 [shared call]) -> I32 {
+  local it: lex.Iter
+  local & p: Parser
+  local & packed: I32
+  local & cursor: lex.Iter
+  local x: I32
+
+bb0:
+  %0: I32 = read copy.trivial (limit)
+  %1: lex.Iter = call lex$new take %0
+  write.init borrow.unique (it) take %1
+  %3: lex.Iter = read copy.trivial (it)
+  %4: I32 = const 0
+  %5: Parser = aggregate.Parser take %3 take %4
+  write.init borrow.unique (p) take %5
+  %7: I32 = const 0
+  write.init borrow.unique (packed) take %7
+  %9: lex.Iter = read copy.trivial (p.lexer)
+  write.init borrow.unique (cursor) take %9
+  jump -> bb1
+
+bb1:
+  %12: lex.Iter [unique call] = read borrow.unique (cursor) loan0
+  %13: I32 = const 0
+  %14: Bool = const False
+  %15: Bool = call lex$step borrow.unique %12 take %13 take %14
+  branch inspect %15 -> bb3 -> bb2
+
+bb2:
+  %28: I32 = read copy.trivial (packed)
+  write.assign borrow.unique (p.total) take %28
+  %30: I32 = read copy.trivial (p.total)
+  return take %30
+
+bb3:
+  %17: I32 = read copy.trivial (cursor.$slot)
+  write.init borrow.unique (x) take %17
+  %19: I32 = read copy.trivial (packed)
+  %20: I32 = const 10
+  %21: I32 = mul inspect %19 inspect %20
+  %22: I32 = read copy.trivial (x)
+  %23: I32 = const 1
+  %24: I32 = add inspect %22 inspect %23
+  %25: I32 = add inspect %21 inspect %24
+  write.assign borrow.unique (packed) take %25
+  jump -> bb1
+}
+
+fn defaulted(n: I32 [shared call]) -> I32 {
+  local it: lex.Iter
+  local & d: Defaulted
+  local & cursor: lex.Iter
+  local x: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: lex.Iter = call lex$new take %0
+  write.init borrow.unique (it) take %1
+  %3: lex.Iter = read copy.trivial (it)
+  %4: I32 = const 6
+  %5: String = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %6: Defaulted = aggregate.Defaulted take %3 take %4 take %5
+  write.init borrow.unique (d) take %6
+  %8: lex.Iter = read copy.trivial (d.lexer)
+  write.init borrow.unique (cursor) take %8
+  jump -> bb1
+
+bb1:
+  %11: lex.Iter [unique call] = read borrow.unique (cursor) loan0
+  %12: I32 = const 0
+  %13: Bool = const False
+  %14: Bool = call lex$step borrow.unique %11 take %12 take %13
+  branch inspect %14 -> bb3 -> bb2
+
+bb2:
+  %23: I32 = read copy.trivial (d.limit)
+  drop (d)
+  return take %23
+
+bb3:
+  %16: I32 = read copy.trivial (cursor.$slot)
+  write.init borrow.unique (x) take %16
+  %18: I32 = read copy.trivial (d.limit)
+  %19: I32 = read copy.trivial (x)
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (d.limit) take %20
+  jump -> bb1
+}
+
+lens fn twice(x: a [shared call], $body: (a) -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class TrivialCopy(a)
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial ($yielded)
+  %3: I32 = const 0
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb1 -> bb2
+
+bb1:
+  %6: a = read copy.trivial (x)
+  %7: (a) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %8: I32 = call inspect %7 borrow.shared %6
+  write.assign borrow.unique ($yielded) take %8
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %12: I32 = read copy.trivial ($yielded)
+  %13: I32 = const 0
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb4 -> bb5
+
+bb4:
+  %16: a = read copy.trivial (x)
+  %17: (a) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %18: I32 = call inspect %17 borrow.shared %16
+  write.assign borrow.unique ($yielded) take %18
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %22: I32 = read copy.trivial ($yielded)
+  return take %22
+}
+
+lens fn advancing(c: Counter [unique call], limit: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  jump -> bb1
+
+bb1:
+  %3: I32 = read copy.trivial (c.at)
+  %4: I32 = read copy.trivial (limit)
+  %5: Bool = lt inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb2
+
+bb2:
+  %20: I32 = read copy.trivial ($yielded)
+  return take %20
+
+bb3:
+  %7: I32 = read copy.trivial (c.at)
+  %8: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %9: I32 = call inspect %8 borrow.shared %7
+  %10: I32 = const 0
+  %11: Bool = eq inspect %9 inspect %10
+  write.assign borrow.unique ($yielded) take %9
+  branch inspect %11 -> bb4 -> bb5
+
+bb4:
+  %15: I32 = read copy.trivial (c.at)
+  %16: I32 = const 1
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (c.at) take %17
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+fn scanned() -> I32 {
+  local & c: Counter
+  local & it: advancing.Iter [owned here shape9 .2.*=unique slot 0]
+  local & s: Scan
+  local & packed: I32
+  local & cursor: advancing.Iter
+  local x: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: Counter = aggregate.Counter take %0
+  write.init borrow.unique (c) take %1
+  %3: Counter [unique call] = read borrow.unique (c) loan0
+  %4: I32 = const 3
+  %5: advancing.Iter [owned here shape9 .2.*=unique slot 0] = call advancing$new borrow.unique %3 take %4 roots.0{0}
+  write.init borrow.unique (it) take %5
+  %7: advancing.Iter [shared slot 0 shape9 .2.*=unique slot 0] = read borrow.shared (it) loan1 roots.0{0}
+  %8: I32 = const 0
+  %9: Scan = aggregate.Scan borrow.shared %7 take %8 roots.0{0, 1}
+  write.init borrow.unique (s) take %9
+  %11: I32 = const 0
+  write.init borrow.unique (packed) take %11
+  %13: advancing.Iter = read copy.trivial (s.cursor) roots{0, 1}
+  write.init borrow.unique (cursor) take %13
+  jump -> bb1
+
+bb1:
+  %16: advancing.Iter [unique call] = read borrow.unique (cursor) loan2 roots{0, 1}
+  %17: I32 = const 0
+  %18: Bool = const False
+  %19: Bool = call advancing$step borrow.unique %16 take %17 take %18
+  branch inspect %19 -> bb3 -> bb2
+
+bb2:
+  %32: I32 = read copy.trivial (packed)
+  write.assign borrow.unique (s.seen) take %32
+  %34: I32 = read copy.trivial (s.seen)
+  return take %34
+
+bb3:
+  %21: I32 = read copy.trivial (cursor.$slot)
+  write.init borrow.unique (x) take %21
+  %23: I32 = read copy.trivial (packed)
+  %24: I32 = const 10
+  %25: I32 = mul inspect %23 inspect %24
+  %26: I32 = read copy.trivial (x)
+  %27: I32 = const 1
+  %28: I32 = add inspect %26 inspect %27
+  %29: I32 = add inspect %25 inspect %28
+  write.assign borrow.unique (packed) take %29
+  jump -> bb1
+}
+
+fn held(n: I32 [shared call]) -> held.lambda.env {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: held.lambda.env = aggregate.held.lambda.env take %0
+  return take %1
+}
+
+fn useHeld(a: Adder [shared call]) -> I32 {
+bb0:
+  %0: held.lambda.env = read copy.trivial (a.step)
+  %1: I32 = const 5
+  %2: I32 = call borrow.shared %0 borrow.shared %1
+  %3: I32 = read copy.trivial (a.base)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn measured() -> I32 {
+  local lexTraits: TypeTraits(lex.Iter)
+  local heldTraits: TypeTraits(held.lambda.env)
+
+bb0:
+  %0: Size = metric size lex.Iter
+  %1: Size = metric align lex.Iter
+  %2: Size = metric stride lex.Iter
+  %3: Bool = metric trivial.copy lex.Iter
+  %4: Bool = metric has.teardown lex.Iter
+  %5: TypeTraits(lex.Iter) = aggregate.TypeTraits take %0 take %1 take %2 take %3 take %4
+  write.init borrow.unique (lexTraits) take %5
+  %7: Size = metric size held.lambda.env
+  %8: Size = metric align held.lambda.env
+  %9: Size = metric stride held.lambda.env
+  %10: Bool = metric trivial.copy held.lambda.env
+  %11: Bool = metric has.teardown held.lambda.env
+  %12: TypeTraits(held.lambda.env) = aggregate.TypeTraits take %7 take %8 take %9 take %10 take %11
+  write.init borrow.unique (heldTraits) take %12
+  %14: Size = read copy.trivial (lexTraits.size)
+  %15: Size = const 0
+  %16: Bool = eq inspect %14 inspect %15
+  branch inspect %16 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %21: Bool = read copy.trivial (heldTraits.trivialCopy)
+  %22: Bool = not inspect %21
+  branch inspect %22 -> bb6 -> bb4
+
+bb3:
+  %18: I32 = const 1
+  return take %18
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %27: I32 = const 0
+  return take %27
+
+bb6:
+  %24: I32 = const 2
+  return take %24
+}
+
+fn main() -> I32 {
+  local & sum: I32
+  local & it: lex.Iter
+  local & a: twice(I32).Iter
+  local x: I32
+  local & b: twice(F64).Iter
+  local y: F64
+  local & d: digits.Iter
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (sum)
+  %3: I32 = const 3
+  %4: I32 = call parse borrow.shared %3
+  %5: I32 = add inspect %2 inspect %4
+  write.assign borrow.unique (sum) take %5
+  %7: I32 = const 3
+  %8: lex.Iter = call tokens borrow.shared %7
+  write.init borrow.unique (it) take %8
+  %10: I32 = read copy.trivial (sum)
+  %11: lex.Iter [unique call] = read borrow.unique (it) loan0
+  %12: I32 = call drain borrow.unique %11
+  %13: I32 = add inspect %10 inspect %12
+  write.assign borrow.unique (sum) take %13
+  %15: twice(I32).Iter = call ints
+  write.init borrow.unique (a) take %15
+  jump -> bb1
+
+bb1:
+  %18: twice(I32).Iter [unique call] = read borrow.unique (a) loan1
+  %19: I32 = const 0
+  %20: Bool = const False
+  %21: Bool = call twice(I32)$step borrow.unique %18 take %19 take %20
+  branch inspect %21 -> bb3 -> bb2
+
+bb2:
+  %30: twice(F64).Iter = call reals
+  write.init borrow.unique (b) take %30
+  jump -> bb4
+
+bb3:
+  %23: I32 = read copy.trivial (a.$slot)
+  write.init borrow.unique (x) take %23
+  %25: I32 = read copy.trivial (sum)
+  %26: I32 = read copy.trivial (x)
+  %27: I32 = add inspect %25 inspect %26
+  write.assign borrow.unique (sum) take %27
+  jump -> bb1
+
+bb4:
+  %33: twice(F64).Iter [unique call] = read borrow.unique (b) loan2
+  %34: I32 = const 0
+  %35: Bool = const False
+  %36: Bool = call twice(F64)$step borrow.unique %33 take %34 take %35
+  branch inspect %36 -> bb6 -> bb5
+
+bb5:
+  %56: I32 = read copy.trivial (sum)
+  %57: I32 = call scanned
+  %58: I32 = add inspect %56 inspect %57
+  write.assign borrow.unique (sum) take %58
+  %60: I32 = read copy.trivial (sum)
+  %61: I32 = const 10
+  %62: held.lambda.env = call held borrow.shared %61
+  %63: I32 = const 2
+  %64: Adder = aggregate.Adder take %62 take %63
+  %65: I32 = call useHeld borrow.shared %64
+  %66: I32 = add inspect %60 inspect %65
+  write.assign borrow.unique (sum) take %66
+  %68: I32 = const 123
+  %69: digits.Iter = call theDigits borrow.shared %68
+  write.init borrow.unique (d) take %69
+  %71: I32 = read copy.trivial (sum)
+  %72: digits.Iter [unique call] = read borrow.unique (d) loan3
+  %73: I32 = call digitsOf borrow.unique %72
+  %74: I32 = add inspect %71 inspect %73
+  write.assign borrow.unique (sum) take %74
+  %76: I32 = read copy.trivial (sum)
+  %77: I32 = const 3
+  %78: I32 = call defaulted borrow.shared %77
+  %79: I32 = add inspect %76 inspect %78
+  write.assign borrow.unique (sum) take %79
+  %81: I32 = read copy.trivial (sum)
+  %82: I32 = call measured
+  %83: I32 = add inspect %81 inspect %82
+  return take %83
+
+bb6:
+  %38: F64 = read copy.trivial (b.$slot)
+  write.init borrow.unique (y) take %38
+  %40: I32 = read copy.trivial (sum)
+  %41: F64 = read copy.trivial (y)
+  %42: F64 = const 0.25
+  %43: Bool = gt inspect %41 inspect %42
+  branch inspect %43 -> bb9(take %40) -> bb7(take %40)
+
+bb7(%44: I32):
+  %48: I32 = const 0
+  jump -> bb8(take %48, take %44)
+
+bb8(%49: I32, %50: I32):
+  %53: I32 = add inspect %50 inspect %49
+  write.assign borrow.unique (sum) take %53
+  jump -> bb4
+
+bb9(%45: I32):
+  %47: I32 = const 1
+  jump -> bb8(take %47, take %45)
+}
+
+fn lex$new(limit: I32) -> lex.Iter = <no body>
+
+fn lex$step($self: lex.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn lex$next($self: lex.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn lex$resume($self: lex.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn advancing$new(c: Counter [unique slot 0], limit: I32) -> advancing.Iter [owned here shape9 .2.*=unique slot 0] = <no body>
+
+fn advancing$step($self: advancing.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn advancing$next($self: advancing.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn advancing$resume($self: advancing.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn held.lambda(held.lambda.env: held.lambda.env [shared call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (held.lambda.env.n)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn tokens(limit: I32 [shared call]) -> lex.Iter {
+  local it: lex.Iter
+
+bb0:
+  %0: I32 = read copy.trivial (limit)
+  %1: lex.Iter = call lex$new take %0
+  write.init borrow.unique (it) take %1
+  %3: lex.Iter = read copy.trivial (it)
+  return take %3
+}
+
+fn drain(it: lex.Iter [unique call]) -> I32 {
+  local & packed: I32
+  local x: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (packed) take %0
+  jump -> bb1
+
+bb1:
+  %3: lex.Iter [unique call] = read borrow.unique (it) loan0
+  %4: I32 = const 0
+  %5: Bool = const False
+  %6: Bool = call lex$step borrow.unique %3 take %4 take %5
+  branch inspect %6 -> bb3 -> bb2
+
+bb2:
+  %19: I32 = read copy.trivial (packed)
+  return take %19
+
+bb3:
+  %8: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (x) take %8
+  %10: I32 = read copy.trivial (packed)
+  %11: I32 = const 10
+  %12: I32 = mul inspect %10 inspect %11
+  %13: I32 = read copy.trivial (x)
+  %14: I32 = const 1
+  %15: I32 = add inspect %13 inspect %14
+  %16: I32 = add inspect %12 inspect %15
+  write.assign borrow.unique (packed) take %16
+  jump -> bb1
+}
+
+lens fn twice(I32)(x: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <twice at I32>
+
+fn twice(I32)$new(x: I32) -> twice(I32).Iter = <no body>
+
+fn twice(I32)$step($self: twice(I32).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn twice(I32)$next($self: twice(I32).Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn twice(I32)$resume($self: twice(I32).Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn ints() -> twice(I32).Iter {
+  local it: twice(I32).Iter
+
+bb0:
+  %0: I32 = const 7
+  %1: twice(I32).Iter = call twice(I32)$new take %0
+  write.init borrow.unique (it) take %1
+  %3: twice(I32).Iter = read copy.trivial (it)
+  return take %3
+}
+
+lens fn twice(F64)(x: F64 [shared call], $body: (F64) -> I32 [shared call]) -> I32 = <twice at F64>
+
+fn twice(F64)$new(x: F64) -> twice(F64).Iter = <no body>
+
+fn twice(F64)$step($self: twice(F64).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn twice(F64)$next($self: twice(F64).Iter [unique slot 0]) -> Maybe(F64) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn twice(F64)$resume($self: twice(F64).Iter [unique slot 0], $v: {}) -> Maybe(F64) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn reals() -> twice(F64).Iter {
+  local it: twice(F64).Iter
+
+bb0:
+  %0: F64 = const 0.5
+  %1: twice(F64).Iter = call twice(F64)$new take %0
+  write.init borrow.unique (it) take %1
+  %3: twice(F64).Iter = read copy.trivial (it)
+  return take %3
+}
+
+fn digitsOf(it: digits.Iter [unique call]) -> I32 {
+  local & packed: I32
+  local d: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (packed) take %0
+  jump -> bb1
+
+bb1:
+  %3: digits.Iter [unique call] = read borrow.unique (it) loan0
+  %4: I32 = const 0
+  %5: Bool = const False
+  %6: Bool = call digits$step borrow.unique %3 take %4 take %5
+  branch inspect %6 -> bb3 -> bb2
+
+bb2:
+  %17: I32 = read copy.trivial (packed)
+  return take %17
+
+bb3:
+  %8: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (d) take %8
+  %10: I32 = read copy.trivial (packed)
+  %11: I32 = const 10
+  %12: I32 = mul inspect %10 inspect %11
+  %13: I32 = read copy.trivial (d)
+  %14: I32 = add inspect %12 inspect %13
+  write.assign borrow.unique (packed) take %14
+  jump -> bb1
+}
+module Lexing
+
+data digits.Iter {$index: I32, $slot: I32, n: I32, rest: I32}
+
+instance Iterate(digits.Iter, I32, {}): digits$next, digits$resume
+
+lens fn digits(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & rest: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  write.init borrow.unique (rest) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (rest)
+  %6: I32 = const 0
+  %7: Bool = gt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %24: I32 = read copy.trivial ($yielded)
+  return take %24
+
+bb3:
+  %9: I32 = read copy.trivial (rest)
+  %10: I32 = const 10
+  %11: I32 = rem inspect %9 inspect %10
+  %12: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %13: I32 = call inspect %12 borrow.shared %11
+  %14: I32 = const 0
+  %15: Bool = eq inspect %13 inspect %14
+  write.assign borrow.unique ($yielded) take %13
+  branch inspect %15 -> bb4 -> bb5
+
+bb4:
+  %19: I32 = read copy.trivial (rest)
+  %20: I32 = const 10
+  %21: I32 = div inspect %19 inspect %20
+  write.assign borrow.unique (rest) take %21
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+lens fn private(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %4: I32 = call inspect %3 borrow.shared %2
+  write.assign borrow.unique ($yielded) take %4
+  %6: I32 = read copy.trivial ($yielded)
+  return take %6
+}
+
+fn digits$new(n: I32) -> digits.Iter = <no body>
+
+fn digits$step($self: digits.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn digits$next($self: digits.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn digits$resume($self: digits.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn theDigits(n: I32 [shared call]) -> digits.Iter {
+  local it: digits.Iter
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: digits.Iter = call digits$new take %0
+  write.init borrow.unique (it) take %1
+  %3: digits.Iter = read copy.trivial (it)
+  return take %3
+}
+
+entry main

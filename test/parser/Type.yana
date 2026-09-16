@@ -189,3 +189,55 @@ alias X = [Int *_]
 alias X = [[Int *_] *_]
 alias X = { x: [Int *_], y: &[Int *4] }
 alias X = [(Int) -> Bool *_]
+
+-- Declaration paths - Design-Iterator-Objects.md §2.4. The head is a *value* name, which is what
+-- separates `lex.Iter` from a qualified type name: a lowercase segment before the last is one the
+-- lexer does not fuse into a `ConID`, so `Lex.lex.Iter` is one VarID, a dot and a ConID.
+alias X = lex.Iter
+alias X = lex.Iter(I32)
+alias X = tokens.Result
+alias X = Lex.lex.Iter
+alias X = { x: src'lex.Iter, y: &lex.Iter, z: %lex.Iter }
+alias X = [lex.Iter(a, b)]
+alias X = Holder(lex.Iter)
+alias X = (lex.Iter) -> tokens.Result
+
+-- The erased `iter(...)` - Design-Iterator-Objects.md §2.2. An ordinary type since stage 4, so it
+-- parses everywhere one does; the three channels inside the brackets are the same grammar a
+-- traversal's result writes, and the convention on the hand-over belongs to the protocol.
+alias X = iter(Int)
+alias X = iter(->Int)
+alias X = iter('Int)
+alias X = iter(Token <- LexCommand)
+alias X = iter(->Token <- ->LexCommand)
+alias X = iter(Int | Error)
+alias X = iter(Token <- LexCommand | Error)
+
+-- ... and in every position a type stands in, which is what moving it out of the result grammar
+-- bought: a field, a sigil, an array, a type argument and a function type's two ends.
+alias X = { x: iter(Int), y: &iter(Int), z: %iter(Int) }
+alias X = [iter(Int)]
+alias X = Holder(iter(Int))
+alias X = (iter(Int)) -> iter(Bool)
+
+-- ... including **under a group**, which is the position the list above was missing: `startsType`
+-- enumerates what may follow a `'` and had never been told about `iter`, so `src'iter(Int)` read as
+-- the bare group `src'` and then as a bracket that ended nothing, and said "expected ')'". The
+-- composition is the ordinary one - the group qualifies the occurrence and the protocol is the type
+-- under it, the same way `src'[Int]` is a window in a group - and the two spellings of a capability
+-- beside it fold as they do everywhere else.
+alias X = src'iter(Int)
+alias X = &src'iter(Int)
+alias X = src'iter(Token <- LexCommand)
+alias X = Pair(left'iter(Int), right'iter(Int))
+alias X = { it: src'iter(Int) }
+
+-- And the *function* reading of the word under a group, told apart by the same one token: this is a
+-- traversal's function type in group `src`, not a protocol.
+alias X = src'(iter (Int) -> Bool)
+
+-- The one form that is *not* this: `iter (A) -> B` is the function type of a traversal, told apart
+-- by what follows the bracket group and by nothing else. `parseType`'s `hasIterResultArrow` is the
+-- one token of lookahead that decides.
+alias X = iter (Int) -> Bool
+alias X = lens (Int) -> Bool

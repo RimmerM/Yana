@@ -1,0 +1,190 @@
+{-
+   `continue v` over an **object** - `doc/inflight/Design-Iterator-Objects.md` §2.5's last two rows,
+   and stage 5's "the step argument for the record".
+
+   # resolver: ownership
+
+   J49 built the resume channel for the internal form: a pass that ends with `continue v` answers the
+   producer's `yield` with `v`, and what travels is `Outcome(R, exit)`. An object's step is handed
+   that same value, so a `for` over a held object carries it on the loop's own **back edge** rather
+   than out of a continuation region - there is no callee here, because the producer's frame is a
+   record in this function.
+
+   Five claims, and `main` checks each:
+
+    - `it.resume(v)` over a **site type**, which is `Iterate`'s second member at a concrete record;
+    - `it.resume(v)` over an **erased** `iter(Y <- R)`, which is the same member reached through the
+      pair;
+    - `for x in it` over a held object whose producer declared `<- R`: the first pass calls `next`
+      and each `continue v` calls `resume(v)`;
+    - `R = {}` is the exemption - a pass may fall off its end, because there is one answer and no
+      reason to make an author write it, **including through the erased `iter(Y)`**, which is where
+      the two halves of the rule had to be made to agree;
+    - `break` leaves the object **suspended**, which is what makes a second `for` over one a
+      departure rather than a continuation: the pass that has not run cannot answer the `yield` the
+      producer is waiting at, so entering it again is `next()` on a suspended resuming object and is
+      checked at run time exactly as `next()` is.
+
+   `iter/Reject.Resume.yana` holds the two refusals: a pass that falls off its end where `R` is not
+   `{}`, and a bare `continue` in the same place.
+-}
+
+data Cmd = Keep | Skip
+
+iter fn steps(n: Int) -> (Int <- Cmd):
+    let &i = 0 :: Int
+
+    while i < n:
+        let c = yield i
+        if c is Skip then i = i + 2 else i = i + 1
+
+-- A producer whose passes answer `{}`, which is the exemption: nothing has to be written.
+iter fn plain(n: Int) -> (Int <- {}):
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+fn erased(n: Int) -> iter(Int <- Cmd) = steps(n)
+
+-- `it.resume(v)` at a **concrete** site type, which is the built spelling J49 left behind.
+fn byHand(n: Int) -> Int:
+    let &it = steps(n)
+    let &packed = 0 :: Int
+    let &send = Keep
+    let &going = True
+
+    while going:
+        if it.resume(send) is Just(x):
+            packed = packed * 10 + x + 1
+            send = if x == 1 then Skip else Keep
+        else:
+            going = False
+
+    return packed
+
+-- ... and through the **pair**, where the member names no producer at all.
+fn byHandErased(n: Int) -> Int:
+    let &it = erased(n)
+    let &packed = 0 :: Int
+    let &send = Keep
+    let &going = True
+
+    while going:
+        if it.resume(send) is Just(x):
+            packed = packed * 10 + x + 1
+            send = if x == 1 then Skip else Keep
+        else:
+            going = False
+
+    return packed
+
+-- `for x in it` over a resuming object: the entry edge is the fall-out row and each `continue v` is
+-- `Proceed(v)` on the back edge.
+fn byLoop(n: Int) -> Int:
+    let &it = steps(n)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+        if x == 1: continue Skip
+        continue Keep
+
+    return packed
+
+-- The same loop over an erased object, whose step is reached through the pair.
+fn byLoopErased(n: Int) -> Int:
+    let &it = erased(n)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+        if x == 1: continue Skip
+        continue Keep
+
+    return packed
+
+{-
+   `<- {}` through the **erased** form, which is the one place the exemption was only half stated.
+
+   A unit channel carries nothing, so there is no `Outcome({}, exit)` for a row to go in - and
+   `erasedIterTypeOf` had always said so, deriving a shim's incoming type as "the wrapper where the
+   producer asked for a value and the bare exit signal where it did not". The producer's own step was
+   declared the other way, wrapping any channel at all, so `plain`'s step took `Outcome({}, I32)`
+   while the only thing that ever called it through a pair passed the bare signal: reaching one of
+   these through `iter(Int)` was "internal: call to plain$step supplies argument 1 of type I32, and it
+   declares Outcome({}, I32)". `mir::resumesWithValue` is the one rule both sides read now, and a
+   `<- {}` producer therefore compiles to exactly what a non-resuming one does.
+
+   The protocol is `iter(Int)` and not `iter(Int <- {})`, which is the same statement from the
+   consumer's side: the erased type interns on the resume type, and a channel carrying `{}` is a
+   channel carrying nothing.
+-}
+fn unitErased(n: Int) -> iter(Int) = plain(n)
+
+fn unitThroughPair(n: Int) -> Int:
+    let &it = unitErased(n)
+    let &packed = 0 :: Int
+
+    while it.next() is Just(x):
+        packed = packed * 10 + x + 1
+
+    return packed
+
+-- And the same object stepped by a `for`, which is the loop form of the row above.
+fn unitPairLooped(n: Int) -> Int:
+    let &it = unitErased(n)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+
+    return packed
+
+-- `R = {}`, where a pass may fall off its end.
+fn unitPasses(n: Int) -> Int:
+    let &it = plain(n)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+
+    return packed
+
+{-
+   `break` leaves the object **suspended**, which is the row that separates a held object from a
+   traversal the loop owns.
+
+   The producer is then waiting at a `yield` for an answer no pass has run to give, so a second `for`
+   over it is `next()` on a suspended resuming object - refused where the site type is written out
+   and checked at run time here, which is why this function does not write one. What it asserts is
+   the index: the object is still the author's, and dropping it cancels the producer from where it
+   stopped.
+-}
+fn brokeAndHeld(n: Int) -> Int:
+    let &it = steps(n)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+        if x == 1: break
+        continue Keep
+
+    -- Answered by hand, which is the spelling a suspended resuming object has: the pass that broke
+    -- owes the `yield` a value and `resume` is what supplies it.
+    if it.resume(Skip) is Just(y): packed = packed * 10 + y + 1
+
+    return packed
+
+fn main() -> Int:
+    if byHand(8) != 1245678 then return 1
+    if byHandErased(8) != 1245678 then return 2
+    if byLoop(8) != 1245678 then return 3
+    if byLoopErased(8) != 1245678 then return 4
+    if unitPasses(3) != 123 then return 5
+    if brokeAndHeld(6) != 124 then return 6
+    if unitThroughPair(3) != 123 then return 7
+    if unitPairLooped(3) != 123 then return 8
+
+    return 0

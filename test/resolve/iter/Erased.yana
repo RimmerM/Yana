@@ -1,0 +1,234 @@
+{-
+   The erased `iter(T)` - `doc/inflight/Design-Iterator-Objects.md` §2.2 and §3.4.
+
+   # resolver: ownership
+
+   A site type keeps the producer's record inline and calls its step directly; `iter(T)` is what a
+   position states when it does not want to know which producer it is holding. What a value of one
+   *is* is the closure pair: the step as the code word, and the state record placed in the frame that
+   built it or in a heap block whose header holds its teardown - which is `resolve_ssa/lower/fun.cpp`
+   unchanged, because an erased object **is** a closure over its own record.
+
+   Seven claims, and `main` answers the first five as one number with the last two as checks:
+
+    - `iter(T)` as a **field type**, held in a record and stepped through the field (`Holder`);
+    - as a **function's result**, which is §2.2's `fn tokens(...) -> iter(Token) = lex(...)`;
+    - as a **class member's** result, dispatched through an instance (`Source`);
+    - a **lending** erased object, whose item is a loan rooted in the handle (`guards`);
+    - `for x in it` over one, through the same step the class's members call (`looped`);
+    - **placement**: an owning position allocates and a borrowing one does not, which the allocator's
+      own bump pointer is read back to assert;
+    - as an **origin-labelled parameter**, `&it: src'iter(Int)` - `'` and the protocol compose the way
+      they do on any other type, and the group is what says the loan is the caller's (`counted`).
+
+   § Where a lending erased object keeps its value
+
+   In the payload, exactly as a site-typed one does - the slot is a member of the record, which is
+   inside the block. What the step answers is the **address** the slot names, and `iter(T)$item` is
+   the signature that turns it into a loan of the handle: `fn iter(T)$item(self: source'iter(T), $at:
+   %Y) -> source'Y`, whose body is nothing at all. So the borrow is rooted in the one word the
+   consumer holds, the block is what it reaches through, and stepping or dropping the object while
+   the item is live is the loan checker's ordinary refusal - the same sentence `f$item` makes about a
+   record, with one more indirection under it.
+-}
+
+import Native
+
+let &trace = 0 :: Int
+
+data Guard {id: Int}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+iter fn upTo(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+-- A lending hand-over: `Guard` owes a teardown and the convention borrows, so the slot holds the
+-- value's address and what a consumer gets is a loan of the object it came out of.
+iter fn guards(n: Int) -> Guard:
+    let &i = 1 :: Int
+
+    while i <= n:
+        let g = Guard {id: i}
+        yield g
+        i = i + 1
+
+-- §2.2's common shape: an ordinary function whose body runs when it is called and whose result is an
+-- object somebody else built. The `return` is an owning position, so the record moves into a block.
+fn tokens(n: Int) -> iter(Int) = upTo(n)
+
+-- `iter(T)` as a **field type**, which a site type cannot be here: `Holder` says what it holds
+-- without naming a producer, so two producers fill one declaration.
+data Holder {it: iter(Int), packed: Int}
+
+fn heldInField(n: Int) -> Int:
+    let &h = Holder {it: tokens(n), packed: 0}
+
+    while h.it.next() is Just(x):
+        h.packed = h.packed * 10 + x + 1
+
+    return h.packed
+
+-- ... and as a **class member's** result, which is what §6.4's "producers the compiler cannot see
+-- into" is for: the instance decides which producer, and the caller sees the protocol.
+class Sourced(s):
+  fn stream(self: s) -> iter(Int)
+
+data Counted {to: Int}
+
+instance Sourced(Counted):
+    fn stream(self: Counted) -> iter(Int) = upTo(self.to)
+
+fn (Sourced(s)) drained(source: s) -> Int:
+    let &it = stream(source)
+    let &packed = 0 :: Int
+
+    while it.next() is Just(x):
+        packed = packed * 10 + x + 1
+
+    return packed
+
+-- A **lending** erased object, stepped by hand: the item is a loan of the handle, so it is read
+-- where it is taken and released on the next step.
+fn lending(n: Int) -> Int:
+    trace = 0
+    let &it = guards(n) :: iter(Guard)
+
+    while it.next() is Just(g):
+        trace = trace * 10 + g.id + 5
+
+    return trace
+
+{-
+   An erased object **dropped part-way through**, in both placements - which is the one thing the
+   tag bit is for.
+
+   A **frame**-placed pair carries the block's address with its low bit clear, so `teardown(fun)`
+   does nothing at all and what releases the producer is the frame's own drop of the record. A
+   **heap**-placed one carries the bit set, so the same function calls the word at offset zero -
+   which is the closure block's teardown, which runs the record's generated `Drop`, which steps the
+   producer with `$cancel`. Either way a producer suspended with a `Guard` live releases exactly it,
+   and the heap one does it from a site that cannot name the producer at all.
+
+   Read *after* the frame that held the object returns, because the teardown runs where the object
+   dies: the number is what the release left behind, plus what the one pass saw.
+-}
+fn heldGuards(n: Int) -> iter(Guard) = guards(n)
+
+fn startedOnFrame(n: Int) -> Int:
+    let &it = guards(n) :: iter(Guard)
+    if it.next() is Just(g) then return g.id
+    return 0
+
+fn startedOnHeap(n: Int) -> Int:
+    let &it = heldGuards(n)
+    if it.next() is Just(g) then return g.id
+    return 0
+
+fn abandoned(n: Int) -> Int:
+    trace = 0
+    let onFrame = startedOnFrame(n)
+    let framedTrace = trace
+
+    trace = 0
+    let onHeap = startedOnHeap(n)
+
+    return ((framedTrace * 10 + onFrame) * 10 + trace) * 10 + onHeap
+
+-- `for x in it` over an erased object - the same loop the concrete form gets, over a step reached
+-- through the pair rather than named.
+fn looped(n: Int) -> Int:
+    let &it = tokens(n)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+
+    return packed
+
+{-
+   Placement, asserted by the allocator's own bump pointer - `ownership/ClosureEscape.yana`'s idiom.
+
+   A **borrowing** position keeps the record where it is and points the pair at it, so the whole
+   round allocates nothing; an **owning** one moves it into a block and the drop hands the block
+   back, so the pointer is where it started once the round is over. Both are read from `heapNext`,
+   which is the one thing a counter cannot fake.
+-}
+fn framed(n: Int) -> Int:
+    let &it = upTo(n) :: iter(Int)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+
+    return packed
+
+{-
+   `iter(T)` under a group - `src'iter(Int)`, which is the composition `parser/Type.yana` writes as an
+   alias and this resolves.
+
+   A protocol in an origin-labelled position is nothing new to this stage: the group qualifies the
+   root occurrence and the protocol is the type under it, exactly as `src'[Int]` is a window in a
+   group. What it was, up to J62, was a *parse* error - `startsType` had never been taught `iter`, so
+   the `'` was read as a bare group and the brackets after it as the end of an argument list. Which
+   is why this row is here as well as in the parser corpus: nothing in the language refused it, and
+   nothing reached the refusal either.
+
+   `&` because stepping writes the handle's resume index, and the step's own `&self` is what asks.
+-}
+fn counted(&it: src'iter(Int)) -> Int:
+    let &packed = 0 :: Int
+
+    while it.next() is Just(x):
+        packed = packed * 10 + x + 1
+
+    return packed
+
+fn main() -> Int:
+    -- A **borrowing** position: the record is this frame's local and the pair points at it, so
+    -- nothing is allocated at all and the pointer does not move from cold.
+    let cold = bitcast(heapNext) :: Size
+
+    let &i = 0 :: Int
+    while i < 50:
+        if framed(3) != 123 then return 1
+        i = i + 1
+
+    if (bitcast(heapNext) :: Size) != cold then return 2
+
+    {-
+       And an **owning** one, which allocates a block per object and hands every one of them back.
+
+       The mark is taken after one round rather than from cold, because the first allocation of a
+       program is what asks the allocator for a page and every one after it comes out of the free
+       list: what is being asserted is that the blocks come back, and a pointer that never moved
+       again is exactly that. `ownership/ClosureEscape.yana` reads the same number for the same
+       reason and needs no warm-up only because its own rounds start warm.
+    -}
+    if heldInField(3) != 123 then return 3
+    if looped(4) != 1234 then return 4
+
+    let mark = bitcast(heapNext) :: Size
+
+    let &j = 0 :: Int
+    while j < 50:
+        if heldInField(3) != 123 then return 5
+        if looped(4) != 1234 then return 6
+        j = j + 1
+
+    if (bitcast(heapNext) :: Size) != mark then return 7
+
+    if drained(Counted {to: 3}) != 123 then return 8
+    if lending(3) != 617283 then return 9
+    if abandoned(3) != 1111 then return 10
+
+    let &labelled = upTo(4) :: iter(Int)
+    if counted(labelled) != 1234 then return 11
+
+    return 0

@@ -139,9 +139,11 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::BindType parseResultBind();
     bool hasProtocolSeparator();
 
-    // `-> iter(...)` and the three channels the two protocol spellings share - see the definitions.
-    Maybe<ast::Type> parseExternalIter(ast::FunKind kind, bool& external, ast::BindType& bind,
-                                       ast::IterProtocol& protocol);
+    // `iter(A) -> B` against `iter(T)` - see the definition.
+    bool hasIterResultArrow();
+
+    // The three channels the two protocol spellings share - `-> (Y <- R | E)` on a traversal, and
+    // `iter(Y <- R | E)` in any type position. See the definitions.
     ast::Type parseProtocolBody(ast::BindType& bind, ast::IterProtocol& protocol);
     Maybe<ast::Type> parseIterProtocol(ast::FunKind kind, ast::BindType& bind,
                                        ast::IterProtocol& protocol);
@@ -173,6 +175,11 @@ struct Parser: BasicParser<Lexer, Token> {
     // `v'a` and `v'`, once the label is in hand - see the definition.
     ast::Type parseLabelledType(StringId name, const WithLocation& location,
                                ast::ParsePtr<ast::AttrList> attributes);
+
+    // `f.Iter`, `f.Iter(a, b)`, `f.Result` - a declaration path, once the head has been eaten and a
+    // `.` is what follows it. See the definition.
+    ast::Type parseSiteType(StringId head, const WithLocation& location,
+                            ast::ParsePtr<ast::AttrList> attributes);
 
     // One capability-or-origin sigil applied to a type - see the definition, which is where the rule
     // that `&('T)` and `&'T` are one type lives.

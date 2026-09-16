@@ -1,0 +1,70 @@
+{-
+   What the erased `iter(T)` cannot be, each refused **by name** -
+   `doc/inflight/Design-Iterator-Objects.md` §2.2, §6.4 and §6.6.
+
+   # resolver: ownership
+
+   `iter(T)` is a type and not a declaration kind, which is what most of these are about: a function
+   whose *result* is one is an ordinary function, so the mistakes are the ones an author makes by
+   reading it as a producer. The rest are the gaps §6.6 lists and the entries stage 6 owes.
+-}
+
+iter fn upTo(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+-- §2.2 - a `yield` in a function that *answers* an object. Its body runs when it is called, so
+-- there is no continuation for a value to go to.
+fn produced(n: Int) -> iter(Int):
+    yield n
+
+{-
+   §6.6's first gap - an object's step would need a terminal failure on it.
+
+   Written in a **body** rather than on a signature, and only because a fixture holds a list: a
+   refusal in a `fn` header stops the declaration pass, and then none of the body refusals below it
+   is reached to be listed. The message is the same in both positions.
+-}
+fn channel(n: Int) -> Int:
+    let &it = upTo(n) :: iter(Int | Int)
+    return 0
+
+-- The type is interned on the protocol it steps, so a body compiled once cannot write one at a
+-- variable it binds: the instance that steps it is generated at the protocol.
+@generic fn (a) inside(x: a) -> Int:
+    let &it = nothing(x)
+    return 0
+
+iter fn (a) nothing(x: a) -> a:
+    yield x
+
+-- A call whose result no position keeps, which is the same refusal a site type gets and is why
+-- `iter(T)` changes nothing about it: there is no object here for a type to erase.
+fn asStatement(n: Int) -> Int:
+    upTo(n)
+    return 0
+
+{-
+   §6.4 - a class member's own object at a **protocol the declaration leaves open**.
+
+   A member written `iter fn` and reached at a type variable is built since 2026-09-16 (J61): the
+   class's witness carries an entry that makes one, and `iter/Witness.yana` runs it four ways over
+   two classes. What is left is the same sentence this file's `inside` makes one construct over -
+   the erased type is interned on what it hands over and the instance that steps it is generated at
+   that protocol, so a body compiled once cannot hold one whose *item* is a variable it binds.
+
+   `Chunked(c, a)` is that case and `Chunked(c, Int)` is not, which is the one thing an author has to
+   change: the class's item parameter is what the requirement has to pin.
+-}
+@generic
+fn (Chunked(c, a)) chunkedOpen(xs: c) -> Int:
+    let it = chunks(xs)
+    return 0
+
+-- §6.3's recursive traversal used to be a row here and is **built** since 2026-09-16: the child is
+-- a boxed `iter(Y)` rather than a record inside a record. `iter/Recursion.yana` is where it went.
+
+fn main() -> Int = asStatement(1) + inside(1) + chunkedOpen([1] :: [Int *1]) + channel(1)

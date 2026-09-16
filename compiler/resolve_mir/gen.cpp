@@ -70,12 +70,38 @@ bool classProves(Context& context, Program& program, DeclPtr<Class> have,
     return false;
 }
 
+U16 classObjectCount(DeclBase base, DeclPtr<Class> klass) {
+    if(!klass) return 0;
+
+    /*
+     * The members that **have** an entry, and not the members that could - `Function::iterObject` is
+     * made at the first call that builds an object of one, so a class no body objectifies has the
+     * witness table it had before §6.4 existed. See `Resolver::iterObjectMember`.
+     */
+    auto count = U16(0);
+    for(auto member: base[klass]->members.contents(base)) {
+        if(base[member]->iterObject) count++;
+    }
+
+    return count;
+}
+
+U16 classObjectIndex(DeclBase base, DeclPtr<Class> klass, U16 member) {
+    auto at = U16(0);
+
+    for(U16 i = 0; i < base[klass]->members.size() && i < member; i++) {
+        if(base[base[klass]->members.get(base, i)]->iterObject) at++;
+    }
+
+    return at;
+}
+
 // The arguments in gen.h, where the layout is stated. Recursive on the same terms `classProves` is:
 // a cycle cannot be built, so the declaration order bounds the walk.
 U16 classWitnessCount(DeclBase base, DeclPtr<Class> klass) {
     if(!klass) return 0;
 
-    auto count = U16(base[klass]->members.size());
+    auto count = U16(base[klass]->members.size() + classObjectCount(base, klass));
     for(auto super: base[klass]->superclasses.contents(base)) {
         count = U16(count + classWitnessCount(base, super.klass));
     }
@@ -83,8 +109,11 @@ U16 classWitnessCount(DeclBase base, DeclPtr<Class> klass) {
     return count;
 }
 
-bool classWitnessAt(DeclBase base, DeclPtr<Class> klass, U16 at, DeclPtr<Class>& into, U16& member) {
+bool classWitnessAt(DeclBase base, DeclPtr<Class> klass, U16 at, DeclPtr<Class>& into, U16& member,
+                    bool& object) {
     if(!klass) return false;
+
+    object = false;
 
     auto own = U16(base[klass]->members.size());
     if(at < own) {
@@ -94,9 +123,38 @@ bool classWitnessAt(DeclBase base, DeclPtr<Class> klass, U16 at, DeclPtr<Class>&
     }
 
     at = U16(at - own);
+
+    /*
+     * The **object-maker** region - one entry per member written `iter fn`, in member order, and
+     * Design-Iterator-Objects.md §6.4's "make an object" entry.
+     *
+     * A region of its own rather than a second cell beside each member, for the reason the
+     * superclasses are one: a flat table is read by an offset, and a layout that interleaved two
+     * kinds would make every declared member's index depend on how many members before it happened
+     * to be producers. Every class that declares no `iter fn` therefore has the table it had.
+     */
+    auto objects = classObjectCount(base, klass);
+    if(at < objects) {
+        for(U16 i = 0; i < own; i++) {
+            if(!base[base[klass]->members.get(base, i)]->iterObject) continue;
+            if(at == 0) {
+                into = klass;
+                member = i;
+                object = true;
+                return true;
+            }
+
+            at = U16(at - 1);
+        }
+
+        return false;
+    }
+
+    at = U16(at - objects);
+
     for(auto super: base[klass]->superclasses.contents(base)) {
         auto count = classWitnessCount(base, super.klass);
-        if(at < count) return classWitnessAt(base, super.klass, at, into, member);
+        if(at < count) return classWitnessAt(base, super.klass, at, into, member, object);
         at = U16(at - count);
     }
 
@@ -118,7 +176,7 @@ bool classWitnessPath(Context& context, Program& program, DeclPtr<Class> have,
     // The same substitution `classProves` makes, and the same reason it is here rather than
     // precomputed - see that function.
     Substitution with { base[have]->gen, (DeclPtr<Type>*)haveArgs, haveCount };
-    auto at = U16(base[have]->members.size());
+    auto at = U16(base[have]->members.size() + classObjectCount(base, have));
 
     for(auto super: base[have]->superclasses.contents(base)) {
         SmallArray<DeclPtr<Type>, 4> arguments;
@@ -481,16 +539,16 @@ DeclPtr<Type> closeFunPosition(Context& context, Program& program, DeclPtr<Type>
  * body to point at - `Function::lens` says its body is resolved into its caller - so there is no
  * code word for a value of it to hold. Milestone 7's CPS lowering is what gives it one.
  *
- * An **external iterator** is refused for the opposite reason: it has a body, and calling that body
- * is not what calling the declaration means. A call builds a handle (`constructIter`), and a value
- * whose calls ran the producer on the caller's stack would be the ABI confusion §1.2 is written
- * against.
+ * An **`iter fn`** is refused for the same reason a lens is, one kind over: what its body is
+ * compiled into is a continuation-passing traversal and a state record's step, and neither is a
+ * function a value could point at. `iter(T)` is the value form and it is a *type* rather than a
+ * function type - see `mir::IterType`.
  */
 DeclPtr<Type> funTypeOf(Context& context, Program& program, DeclPtr<Function> function) {
     auto base = *program.decl;
     auto& declared = *base[function];
 
-    if(isGeneric(base, declared.gen) || declared.lens || declared.externalIterator) return nullptr;
+    if(isGeneric(base, declared.gen) || declared.lens || declared.iterator) return nullptr;
 
     /*
      * A lifted lambda's **environment** is argument zero and is not one of the type's positions.
@@ -911,6 +969,79 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
     }
 }
 
+/*
+ * The erased `iter(T)` for one protocol - Design-Iterator-Objects.md §3.4, and the interning half of
+ * what `Resolver::erasedIterTypeOf` used to be.
+ *
+ * Here rather than on the resolver since J61: a class member declared `-> [a]` has an object type of
+ * `iter('[a]')`, and substituting `a := Int` is a protocol minted from `substituteType` - which the
+ * ownership walk, the specializer and the lowering all reach and none of which can see a resolver.
+ * What the split states is that the *type* needs nothing but the protocol, exactly as J55's own
+ * comment says, and that the instance which steps it is a declaration somebody has to make.
+ *
+ * `record` is false where the caller wants the type alone - a **signature**'s result, written over a
+ * class's own variables, which is a protocol no value ever has and therefore one no instance should
+ * be made for. Every other caller records the mint, and the resolver drains what it recorded.
+ */
+DeclPtr<Type> erasedIterTypeOf(Context& context, Program& program, const Occurrence& handover,
+                               DeclPtr<Type> resume, LocationId source, bool record) {
+    auto base = *program.decl;
+    auto resumed = resume ? resume : program.types.unit;
+
+    /*
+     * What a step is handed - J49's two wrappers read at the erased boundary: `Outcome(R, exit)`
+     * where the producer asked for a value and the bare exit signal where it did not. Derived rather
+     * than keyed on, because two protocols that agree on the resume type agree on this.
+     */
+    auto sent = program.types.exitCode();
+
+    if(base[resumed]->kind != Type::Unit) {
+        DeclPtr<Type> arguments[2] = { resumed, program.types.exitCode() };
+        auto wrapper = instantiateRecord(context, program,
+                                         program.roles.record(intrinsic::Known::outcome),
+                                         arguments, 2, source);
+        if(!wrapper) return nullptr;
+
+        sent = wrapper;
+    }
+
+    // `(sent, Bool) -> %Y` - where the item is, and null when the producer is done. See
+    // `Resolver::erasedIterTypeOf`, where the answer being an address is argued.
+    auto pointer = program.types.pointerType(handover.type);
+
+    FunParam params[2] = { FunParam { owned(sent) },
+                           FunParam { owned(booleanType(program)) } };
+
+    auto step = program.types.funType(base, params, 2, owned(pointer));
+    auto window = handover.contract.form() == AccessForm::View;
+    auto type = program.types.iterType(base, handover, resumed, sent, step, window);
+
+    if(!record) return type;
+
+    for(auto& known: program.erasedIters) {
+        if(known.type == type) return type;
+    }
+
+    /*
+     * A protocol first seen **below the resolver**, which has nowhere for its instance to come from.
+     *
+     * Refused by name rather than left as a type nothing can step: the pass that makes an `Iterate`
+     * instance is the resolver's, so a mint reaching this walk after it has finished would produce a
+     * value `next()` cannot be called on and a diagnostic much further down about a missing instance.
+     * Nothing in the corpus reaches it; what would is a substitution in the lowering producing a
+     * protocol no body ever wrote.
+     */
+    if(program.erasedItersClosed) {
+        context.diagnostics.error(
+            "an iterator object of %@ is first needed after the program's declarations are settled, and the instance that steps one is a declaration - write the type out in a signature, or `@specialize` the declaration that reaches it"_v,
+            source, typeText(context, base, handover.type));
+        return nullptr;
+    }
+
+    program.erasedIters.push(Program::ErasedIter { type, handover, resumed, source, true });
+    return type;
+}
+
 DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> type,
                              const Substitution& with) {
     if(!type || with.isEmpty()) return type;
@@ -1038,6 +1169,26 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
             if(content == atomic.content) return type;
 
             return makeAtomicType(context, program, content, kNullLocation);
+        }
+        /*
+         * An **erased iterator object** substitutes through its protocol and is minted again -
+         * §6.4's half of the witness entry, and the arm J58 named as the piece that is not local.
+         *
+         * A class member declared `iter fn chunks(self: c) -> [a]` has an object type of
+         * `iter('[a]')`, written over the class's own variables; what a caller holding
+         * `Chunked(c, Int)` gets is `iter('[Int]')`, and this is where the second is derived from the
+         * first. The type is interned on the protocol, so re-minting is a lookup wherever the
+         * protocol has been seen before and a new entry on the resolver's queue where it has not.
+         */
+        case Type::Iter: {
+            auto& iterated = *(IterType*)base[type];
+
+            auto handover = substituteOccurrence(context, program, iterated.handover, with);
+            auto resume = substituteType(context, program, iterated.resume, with);
+
+            if(handover == iterated.handover && resume == iterated.resume) return type;
+
+            return erasedIterTypeOf(context, program, handover, resume, kNullLocation, true);
         }
         case Type::Record: {
             auto& record = *(RecordType*)base[type];

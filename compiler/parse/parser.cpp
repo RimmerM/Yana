@@ -383,12 +383,15 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
     ast::ParsePtr<ast::Type> ret = nullptr;
     auto retBind = ast::BindType::Borrow;
     auto protocol = ast::noProtocol();
-    auto external = false;
 
     if(maybe(Token::opArrowR)) {
-        if(auto yielded = parseExternalIter(funKind, external, retBind, protocol)) {
-            ret = heap(yielded.unwrap());
-        } else if(auto yielded = parseIterProtocol(funKind, retBind, protocol)) {
+        /*
+         * `-> (Y <- R | E)` is the *traversal's* protocol and is read here, because the brackets
+         * mean something else in any other position. `-> iter(T)` is **not** read here since stage
+         * 4: it is an ordinary type (`ast::Type::Iter`) and arrives through `parseType` like every
+         * other result, which is what makes a function returning an object an ordinary function.
+         */
+        if(auto yielded = parseIterProtocol(funKind, retBind, protocol)) {
             ret = heap(yielded.unwrap());
         } else {
             retBind = parseResultBind();
@@ -474,7 +477,6 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
             .body = body,
             .implicitReturn = implicitReturn,
             .kind = funKind,
-            .external = external,
         },
         .attributes = ::move(attributes),
         .source = source,
@@ -999,7 +1001,21 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
 
         return makeExpr(Break, breakValue, body ? heap(body.unwrap()) : nullptr, location);
     } else if(maybe(Token::kwContinue)) {
-        return makeExpr(Continue, var, StringId(), location);
+        /*
+         * `continue v` - read exactly as `break v` is, and for the same reason: the value is
+         * optional and the end of the statement is what says there is none.
+         *
+         * Which loops accept one is not a question the grammar can answer - it is the callee's
+         * `-> (Y <- R)` - so the parser reads the operand wherever it is written and the resolvers
+         * are where it means something or is refused (Design-Iterator-Objects.md §2.5).
+         */
+        Maybe<ast::Expr> resumed;
+        if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) {
+            resumed = Just(parseExpr());
+        }
+
+        return makeExpr(Continue, continueValue, resumed ? heap(resumed.unwrap()) : nullptr,
+                        location);
     } else if(token.type == Token::opArrowR) {
         /*
          * `->x` - the disposal statement, and the third position `->` appears in.
@@ -1779,6 +1795,29 @@ template<class F> void Parser::scanAhead(F&& look) {
  * `|` after the result type begins a pattern-match body, and reading on past the `)` would take one
  * of those for a failure channel.
  */
+/*
+ * Whether the `iter` standing here opens a function **type** rather than an erased object.
+ *
+ * One token of lookahead past the bracket group: `iter(A) -> B` is a traversal's function type and
+ * `iter(T)` is the object `fn f() -> iter(T)` answers. The scan is the cheapest thing that tells
+ * them apart, and it is exact - the group is balanced by construction, so what follows it is the
+ * whole of the question.
+ */
+bool Parser::hasIterResultArrow() {
+    auto found = false;
+
+    scanAhead([&](Token::Type type, U32 depth, bool first) {
+        // The `iter` itself, and the bracket it opens - neither is the answer.
+        if(first || depth != 0) return false;
+        if(type == Token::ParenL) return false;
+
+        found = type == Token::opArrowR;
+        return true;
+    });
+
+    return found;
+}
+
 bool Parser::hasProtocolSeparator() {
     auto found = false;
 
@@ -1817,34 +1856,6 @@ Maybe<ast::Type> Parser::parseIterProtocol(ast::FunKind kind, ast::BindType& bin
     if(!hasProtocolSeparator()) return Nothing();
 
     eat();
-    return Just(parseProtocolBody(bind, protocol));
-}
-
-/*
- * `-> iter([conv] Y <- [conv] R | E)` - the **external** iterator, §2.1's third row.
- *
- * The same three channels inside the same brackets, under a word that says the result is a value
- * rather than a traversal. `iter` is a hard keyword and one may not stand at the head of a type, so
- * there is nothing here to look ahead for: a result position beginning with it is this and can be
- * nothing else, which is the difference from the bracket form above.
- *
- * Answers nothing having consumed nothing where the result is an ordinary type, and refuses the word
- * on a declaration that is already a traversal - `iter fn f() -> iter(T)` is two answers to the
- * question of who drives the loop, and the author has to pick one.
- */
-Maybe<ast::Type> Parser::parseExternalIter(ast::FunKind kind, bool& external, ast::BindType& bind,
-                                           ast::IterProtocol& protocol) {
-    if(token.type != Token::kwIter) return Nothing();
-
-    eat();
-
-    if(kind != ast::FunKind::Plain) {
-        error("a traversal already hands its values to a loop body, so its result is what it hands over - write `iter fn f() -> T` or `fn f() -> iter(T)`, not both"_v);
-    }
-
-    expect(Token::ParenL, "expected '(' after `iter` in a result type"_v);
-    external = true;
-
     return Just(parseProtocolBody(bind, protocol));
 }
 
@@ -2691,6 +2702,20 @@ ast::Type Parser::parseType() {
     parseAttributes(attributeList, true);
     auto attributes = attributeList.isNotEmpty() ? heap(attributeList) : nullptr;
 
+    /*
+     * `iter(T)` against `iter(A) -> B` - the one place the erased object's grammar meets a type that
+     * was already spelled with the word.
+     *
+     * A function *type* may be a traversal's - `fn (gen: iter (Int) -> a)` in
+     * `test/parser/Lens.yana` - so the brackets after `iter` are an argument list there and a
+     * protocol here, and what tells them apart is what follows the group. One token of lookahead
+     * past the matching bracket, which is what `hasIterResultArrow` is; the alternative would have
+     * been a second word for one of the two readings, and the design asks for this spelling.
+     */
+    if(token.type == Token::kwIter && !hasIterResultArrow()) {
+        return parseAType(location, attributes);
+    }
+
     auto funKind = parseFunKind();
     auto hasArgs = false;
     ast::ParseList<ast::ArgDecl> args;
@@ -2716,6 +2741,10 @@ ast::Type Parser::parseType() {
                 eat();
                 return parseLabelledType(name, location, attributes);
             }
+
+            // `f.Iter` - a declaration path, which is the one type whose head is a value name. See
+            // `parseSiteType`, where the absence of lookahead is argued.
+            if(isVar && token.type == Token::opDot) return parseSiteType(name, location, attributes);
 
             auto base = isVar ? makeType(Gen, name, name, location, nullptr) : makeType(Con, name, name, location, nullptr);
             ast::ParseList<ast::Type> app;
@@ -2785,6 +2814,12 @@ ast::Type Parser::parseType() {
  * and not here reads as `v'` followed by a parse error rather than silently changing what an
  * existing `v'a` means. `%` and `*` are VarSym rather than reserved lexemes, which is why they are
  * tested by identity here exactly as they are there.
+ *
+ * `iter` is one token covering two of those branches - the erased protocol `iter(T)` and a
+ * traversal's function type `iter (A) -> B`, told apart by `hasIterResultArrow` further down - and
+ * both are types, so the marker accepts either and the branch that follows decides which. It is the
+ * token this list had already been wrong about: `it: src'iter(Int)` was "expected ')'", which is the
+ * failure the paragraph above predicts for a branch added to `parseAType` and not to this switch.
  */
 bool Parser::startsType() const {
     switch(token.type) {
@@ -2797,6 +2832,7 @@ bool Parser::startsType() const {
         case Token::Quote:
         case Token::OriginLabel:
         case Token::kwYield:
+        case Token::kwIter:
             return true;
         case Token::VarSym:
             return token.data.id == checkedRefId || token.data.id == rawPtrId;
@@ -2839,6 +2875,47 @@ ast::Type Parser::parseLabelledType(StringId name, const WithLocation& location,
     if(!startsType()) return makeType(Loan, name, name, location, attributes);
 
     return applySigil(false, name, true, parseAType(location, nullptr), location, attributes);
+}
+
+/*
+ * `f.Iter`, `f.Iter(a, b)`, `f.Result` - Design-Iterator-Objects.md §2.4's declaration path.
+ *
+ * Reached with the head already eaten and the cursor on the `.`, from the two name branches that
+ * read a `VarID` in type position - `parseType`'s and `parseAType`'s. Two callers and one body for
+ * `parseLabelledType`'s reason: a rule written into one of those branches and not the other is a
+ * form that parses in a field and not in an alias.
+ *
+ * **No lookahead is needed to commit.** A lowercase name in type position is a type variable, and
+ * nothing a variable can be followed by is a dot - so the `.` decides on its own, and what comes
+ * after it is required to be a constructor name rather than tested for.
+ *
+ * The arguments are **parenthesized or absent**, which is where this departs from `parseType`'s
+ * name branch: that one accepts `Maybe Int` without brackets because the head is the whole type,
+ * and here the head is a path whose member has already been named, so an adjacent type reads as the
+ * next thing in whatever list the path is standing in rather than as an argument of it.
+ */
+ast::Type Parser::parseSiteType(StringId head, const WithLocation& location,
+                                ast::ParsePtr<ast::AttrList> attributes) {
+    eat();
+
+    if(token.type != Token::ConID) {
+        error("a declaration path names a type the declaration publishes, as in `lex.Iter` or `tokens.Result` - the name after the dot is capitalized"_v);
+        return makeType(Error, name, StringId(), location, attributes);
+    }
+
+    auto member = token.data.id;
+    eat();
+
+    ast::ParseList<ast::Type> args;
+    if(token.type == Token::ParenL) {
+        parens([&] {
+            sepBy1([&] {
+                args.push(arena, parseTypeApplicationArg());
+            }, Token::Comma);
+        });
+    }
+
+    return makeType(Site, site, heap(ast::SiteType { head, member, args }), location, attributes);
 }
 
 /*
@@ -2979,6 +3056,10 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
             return parseLabelledType(name, location, attributes);
         }
 
+        // The same declaration path the full grammar reads - `s'lex.Iter` and `%lex.Iter` arrive
+        // here rather than there, which is why it is one function.
+        if(isVar && token.type == Token::opDot) return parseSiteType(name, location, attributes);
+
         auto base = isVar ? makeType(Gen, name, name, location, nullptr) : makeType(Con, name, name, location, nullptr);
 
         if(token.type == Token::ParenL) {
@@ -2995,6 +3076,27 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
             base.attributes = attributes;
             return base;
         }
+    } else if(maybe(Token::kwIter)) {
+        /*
+         * `iter(...)` - the erased iterator object, `ast::Type::Iter`.
+         *
+         * Here rather than in `parseType` for `parseLabelledType`'s reason, which is the division
+         * that file's own note warns about: a rule written into `parseType` alone parses in a field
+         * and not in an alias, and this one has to parse everywhere a type does - `%iter(I32)`,
+         * `[iter(I32)]`, a type argument, and a function value's result all arrive through here.
+         *
+         * `iter` is a hard keyword and one may not stand at the head of a type, so there is nothing
+         * to look ahead for. The brackets are required: the protocol lives inside them, which is
+         * what keeps a `|` here from being read as a pattern-match body.
+         */
+        auto bind = ast::BindType::Borrow;
+        auto protocol = ast::noProtocol();
+
+        expect(Token::ParenL, "expected '(' after `iter` in a type"_v);
+        auto yielded = parseProtocolBody(bind, protocol);
+
+        return makeType(Iter, iterated, heap(ast::IterType { yielded, bind, protocol }), location,
+                        attributes);
     } else if(token.type == Token::BraceL) {
         return parseTupleType(location, attributes);
     } else if(token.type == Token::BracketL) {

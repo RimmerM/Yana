@@ -344,8 +344,29 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
                     : writable  ? Access::Unique
                                 : Access::Shared;
 
-        auto value = resolveValue(builder, *parse[binding.content], nullptr,
-                                  bindingRequest(access, writable));
+        /*
+         * `let it = f(...)` over an `iter fn` - the first of the positions that build an **object**,
+         * `doc/inflight/Design-Iterator-Objects.md` §2.1.
+         *
+         * A token around the initializer rather than a second walk of it, because what the object
+         * form changes is one line of the call - what happens to the arguments once they are
+         * prepared - and everything above that line is the ordinary call this statement already
+         * resolves. `finishCall` is where it is read, and `checkCallable` is what stops refusing an
+         * iterator while it is set.
+         *
+         * Set for **every** initializer and not only one whose own callee is an iterator, because
+         * the two questions are answered in two places: `checkCallable` has the declaration and
+         * cannot tell which call it is looking at, and `finishCall` has the position. So an iterator
+         * written *inside* an initializer gets past the first and is named by the second, with the
+         * message that says which positions keep one.
+         */
+        auto initializer = parse[binding.content];
+        Node* value = nullptr;
+
+        {
+            ObjectScope object(*this, initializer->source);
+            value = resolveValue(builder, *initializer, nullptr, bindingRequest(access, writable));
+        }
 
         if(!value) {
             // The name is in scope from here whether or not it has storage - see `Binding`. Pushed
@@ -1261,7 +1282,7 @@ template<class F>
 bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& called,
                             Continuation::Multiplicity multiplicity, StringId name,
                             LocationId nameSource, ast::ParseList<ast::Alt> alternatives,
-                            F&& inside, OverloadChoice* chosen) {
+                            F&& inside, OverloadChoice* chosen, bool reyield) {
     auto& written = *parse[call.app];
     auto source = call.source;
     auto& callee = *called.function;
@@ -1447,6 +1468,29 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
 
     builder.body.region(builder.base(), region)->handover = handover;
 
+    /*
+     * And the other two halves of the protocol, for the same reason and read the same way: the
+     * callee is opaque from here on, so what a `continue v` fills and what the continuation answers
+     * with are facts the *region* has to carry.
+     *
+     * `answer` is `Function::continuationResult` under the call's substitution - the exit signal for
+     * everything that declared no `<- R`, and `Outcome(R, exit)` for what did. `resume` is empty
+     * there and is what `resolveExit` asks the loop for.
+     */
+    Occurrence resume;
+    if(callee.resume.type) resume = substituteOccurrence(context, program, callee.resume, with);
+
+    {
+        auto& continuation = *builder.body.region(builder.base(), region);
+        continuation.answer = substituteOccurrence(context, program, callee.continuationResult, with);
+        continuation.resume = resume;
+
+        // And whether the pass is nothing but a re-yield - the caller's reading of the source, which
+        // is the one thing about this region the blocks below cannot be asked for. See
+        // `Continuation::reyield`.
+        continuation.reyield = reyield;
+    }
+
     auto handed = builder.addBlockArgument(*entry, handover, source);
 
     builder.addLensCall(source, callee, region, *entry, arguments.pointer(), arguments.size(), with,
@@ -1487,7 +1531,31 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
     builder.leaveRegion();
     heldFloor = outerHeld;
 
-    if(fellOut) builder.addJump(source, *join, nullptr, 0);
+    /*
+     * Falling off the end of the extent - the implicit `continue`, and the one place a resume
+     * channel makes it a mistake.
+     *
+     * A pass of a resuming iterator owes an answer, so running off its end is a pass with nothing to
+     * send: it is refused, and named at the call rather than at the last statement because what is
+     * missing is the whole pass's obligation and not one line of it. The one exception is `R = {}`,
+     * where there is exactly one answer and no reason to make an author write it - the same
+     * exemption a `yield` with a unit hand-over already has.
+     *
+     * And that exemption is the **fall-out edge**, not a `Proceed({})` on the resume edge: a unit
+     * channel has no `Outcome({}, exit)` for the continuation to answer with - `resumesWithValue` -
+     * so there is nowhere to put a row. Which is right rather than merely consistent: the producer's
+     * `yield` reads the bare signal and falling out is what it reads as "carry on".
+     */
+    if(fellOut) {
+        if(resume.type && decl()[resume.type]->kind != Type::Unit) {
+            context.diagnostics.error(
+                "%@ hands back %@ on each pass, so every path through this loop's body has to end with `continue v`"_v,
+                source, context.findName(callee.name), typeText(context, decl(), resume.type));
+            builder.addUnreachable(source);
+        } else {
+            builder.addJump(source, *join, nullptr, 0);
+        }
+    }
 
     /*
      * The alternative, in the caller's own region and reaching the join the same way the
@@ -1542,6 +1610,20 @@ void Resolver::resolveExtent(Builder& builder, const Extent& extent) {
 }
 
 /*
+ * What `$yielded` holds, which is the continuation's answer only where nothing wraps it.
+ *
+ * A **resuming** iterator is where the two come apart: its continuation answers `Outcome(R, exit)`
+ * and what this storage is for is the exit row alone - the value half is the `yield`'s own result
+ * and is consumed where the `yield` stands, so parking it here would be an owner nothing reads.
+ * `finish` and the bare `return` in a cleanup both answer with what is in here, and for an iterator
+ * that is the signal `Function::result` declares either way.
+ */
+static Occurrence yieldedOccurrence(Program& program, Function& function) {
+    if(function.resume.type) return owned(program.types.exitCode());
+    return function.continuationResult;
+}
+
+/*
  * `yield` - a call of the continuation, and nothing else.
  *
  * The `yield` form's desugaring (`declareContinuation`) is what makes this ordinary: `lens fn f(a)
@@ -1555,21 +1637,31 @@ void Resolver::resolveExtent(Builder& builder, const Extent& extent) {
  * it is gone is the milestone: a lens is a function, its body is walked once, and which lowering a
  * call gets is the conversion's choice rather than the resolver's.
  */
-void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
+Node* Resolver::resolveYield(Builder& builder, ast::Expr& expr, bool valued) {
     auto function = currentFunction;
 
-    // A producer's `yield` is a hand-over across a stack switch rather than a call of anything this
-    // frame holds - resolve_iter.cpp.
-    if(function && function->externalIterator && continuationLocal) {
-        resolveExternalYield(builder, expr, *function);
-        return;
-    }
-
     if(!function || !function->lens || !continuationLocal) {
+        /*
+         * A `yield` in a function whose **result** is an object - §2.2's own refusal, and the one
+         * mistake this form invites.
+         *
+         * `fn tokens(&s: Source) -> iter(Token)` is an ordinary function: its body runs when it is
+         * called and what it answers is an object somebody else produced. A `yield` in it is the
+         * author writing the producer where they meant to name one, so the message points at
+         * `iter fn` rather than at the two kinds a `yield` does belong to.
+         */
+        if(function && function->result.type &&
+           decl()[function->result.type]->kind == Type::Iter) {
+            context.diagnostics.error(
+                "%@ answers an iterator object rather than being one, so its body runs when it is called and has no continuation to hand a value to - write `iter fn %@` to make it a producer, or return an object some `iter fn` built"_v,
+                expr.source, context.findName(function->name), context.findName(function->name));
+            return nullptr;
+        }
+
         context.diagnostics.error(
             "`yield` hands a value to a lens's continuation, and this is not inside a `lens fn` or an `iter fn`"_v,
             expr.source);
-        return;
+        return nullptr;
     }
 
     /*
@@ -1587,11 +1679,11 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
     if(function->iterator && guardYields) {
         auto standing = readPlace(builder, expr.source, *builder.localPlace(*yieldedLocal),
                                   inspectRequest());
-        if(!standing) return;
+        if(!standing) return nullptr;
 
         auto zero = builder.addConst(expr.source, intConstant(program.types.exitCode(), 0));
         auto going = applyBinary(builder, expr.source, BinaryOp::Eq, *standing, *zero);
-        if(!going) return;
+        if(!going) return nullptr;
 
         auto handing = builder.addBlock(StringId());
         skipped = builder.addBlock(StringId());
@@ -1609,21 +1701,21 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
 
     if(expr.yield) {
         value = resolveValue(builder, *parse[expr.yield], handover.type, wanted);
-        if(!value) return;
+        if(!value) return nullptr;
 
         value = adaptToView(builder, *value, handover, expr.source);
-        if(!value) return;
+        if(!value) return nullptr;
 
         value = coerce(builder, *value, handover.type, expr.source, "a handed-over value"_v,
                        handover.contract.access());
-        if(!value) return;
+        if(!value) return nullptr;
     } else if(decl()[handover.type]->kind == Type::Unit) {
         value = builder.addConst(expr.source, unitConstant(program.types.unit));
     } else {
         context.diagnostics.error("%@ hands over %@, so this `yield` needs a value"_v, expr.source,
                                   context.findName(function->name),
                                   typeText(context, decl(), handover.type));
-        return;
+        return nullptr;
     }
 
     /*
@@ -1642,7 +1734,7 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
      * moment the argument is a move.
      */
     value = holdBorrowed(builder, *value, wanted, handover.type, expr.source);
-    if(!value) return;
+    if(!value) return nullptr;
 
     /*
      * The continuation, read out of the parameter it is.
@@ -1654,20 +1746,47 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
      */
     auto continuation = readPlace(builder, expr.source,
                                   *builder.localPlace(*continuationLocal), inspectRequest());
-    if(!continuation) return;
+    if(!continuation) return nullptr;
 
     Node* argument = value;
-    auto answer = builder.addCallValue(expr.source, *continuation, &argument, 1);
-    if(!answer) return;
+    auto answer = builder.addCallValue(expr.source, *continuation, valueType(*continuation),
+                                       &argument, 1);
+    if(!answer) return nullptr;
 
     if(!function->iterator) {
         builder.addWrite(expr.source, *builder.localPlace(*yieldedLocal), *answer, Destination::Init);
-        return;
+        return nullptr;
     }
 
     // Counted so that `handoverCall` can tell whether the region it just built could have departed
     // at all - a departure is a `yield`'s doing, and there is no other way to set `$yielded`.
     handovers++;
+
+    // `-> (Y <- R)` - the answer is a wrapper rather than the bare signal, so the test below becomes
+    // a match and the `yield` has a value. Everything above is the same call.
+    //
+    // `resumesWithValue`, because a `<- {}` channel has no wrapper to match on - `declareContinuation`
+    // does not build one, for the reason that predicate states. Such a `yield` takes the signal path
+    // below and answers the unit its channel carries, which is what `unitYield` is for.
+    if(resumesWithValue(decl(), *function)) return resumeYield(builder, expr, *answer, skipped);
+
+    /*
+     * What a `yield` answers on the signal path: nothing, or the **unit** a `<- {}` channel carries.
+     *
+     * A producer that declared a channel has a `yield` that is a value form whatever the channel
+     * holds, so `let u = yield i` at `<- {}` binds the one value of `{}` rather than being refused
+     * for having no value - and a non-resuming producer's `yield` stays a statement, which is what
+     * `resolve_expr.cpp`'s `Yield` arm refuses in a value position.
+     *
+     * A lambda rather than a flag tested at the two exits, because the constant has to be built in
+     * whichever block the walk below has ended in. And only where the position asked - `valued` - so
+     * that a `yield` written as a statement, which is every one of them in the corpus, builds nothing
+     * for an answer nobody reads.
+     */
+    auto unitYield = [&]() -> Node* {
+        if(!valued || !function->resume.type) return nullptr;
+        return builder.addConst(expr.source, unitConstant(program.types.unit));
+    };
 
     /*
      * The iterator half: what came back says whether to carry on.
@@ -1694,21 +1813,26 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
     if(!departureFallsThrough(builder)) {
         auto zero = builder.addConst(expr.source, intConstant(program.types.exitCode(), 0));
         going = applyBinary(builder, expr.source, BinaryOp::Eq, *answer, *zero);
-        if(!going) return;
+        if(!going) return nullptr;
     }
 
     builder.addWrite(expr.source, *builder.localPlace(*yieldedLocal), *answer, Destination::Assign);
 
-    if(!going && !skipped) return;
+    if(!going && !skipped) return unitYield();
 
     auto next = builder.addBlock(StringId());
 
     if(!going) {
+        // No loop to leave and no region to fall out of, so the trailing statements are both the
+        // rest of the pass and the cleanup - `recordDeparture`, where that reading is argued.
+        recordDeparture(builder, *next);
+
         builder.addJump(expr.source, *next, nullptr, 0);
         builder.setBlock(*skipped);
         builder.addJump(expr.source, *next, nullptr, 0);
     } else {
         auto leaving = builder.addBlock(StringId());
+        recordDeparture(builder, *leaving);
         builder.addBranch(expr.source, builder.resultOf(*going, UseMode::Inspect), *next, *leaving,
                           nullptr, 0);
 
@@ -1724,6 +1848,107 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
     }
 
     builder.setBlock(*next);
+    return unitYield();
+}
+
+/*
+ * The iterator half of a **resuming** `yield` - Design-Iterator-Objects.md §2.5.
+ *
+ * The same call one line up, and a match instead of a comparison: the continuation answers
+ * `Outcome(R, exit)`, so `Proceed(r)` is the pass having ended with `continue r` and is the
+ * fall-through with `r` as this expression's value, and `Exit(code)` is the pass having left and is
+ * the departure the bare signal already was.
+ *
+ * **The departure always branches here**, where a non-resuming `yield` skips the test wherever
+ * `departureFallsThrough` says the answer cannot change where control goes. It can here, and for a
+ * reason the signal did not have: the statements below a `yield` are the ones that read its value,
+ * so a departed pass may not run them. Where the iterator has a loop or an enclosing region the
+ * departure leaves it exactly as before; where it has neither, the departure is the end of the
+ * producer and `finish` answers with `$yielded` - which is the same exit the trailing statements
+ * would have reached, minus the statements. It is not a refusal and so is not in
+ * `Reject.Resume.yana`: it is the one observable difference a resume channel makes to a producer
+ * with nothing to leave, and `Resume.yana`'s `twoSteps` - `wholeTrail` against `brokenTrail` - is
+ * where it is asserted.
+ *
+ * Null having reported. A `yield` whose value nothing reads is this function's answer discarded,
+ * which is what `resolveStatement` does with it.
+ */
+Node* Resolver::resumeYield(Builder& builder, ast::Expr& expr, Node& answer, Block* skipped) {
+    auto function = currentFunction;
+
+    /*
+     * The wrapper in storage of its own, because both arms **project** it - `hold`, which is the
+     * same temporary `?` makes for the same reason.
+     *
+     * A payload is a field of a sum and a field needs a place, and the arms read different ones: the
+     * shell owes nothing afterwards because the field the other arm would have read was never
+     * moved out.
+     */
+    auto held = hold(builder, answer, expr.source);
+    if(!held) return nullptr;
+
+    auto exiting = outcomeIsExit(builder, *held, expr.source);
+    if(!exiting) return nullptr;
+
+    // What the enclosing expression is holding, threaded onto the one edge that reaches the far
+    // side - `yield` is a value form here, so `sum = sum + (yield i)` has a left operand to carry.
+    Carry carry(*this, expr.source);
+
+    auto proceeding = builder.addBlock(StringId());
+    auto leaving = builder.addBlock(StringId());
+
+    builder.addBranch(expr.source, builder.resultOf(*exiting, UseMode::Inspect), *leaving,
+                      *proceeding, nullptr, 0);
+
+    /*
+     * The departure: the exit row out of the wrapper, into the storage the bare signal writes.
+     *
+     * Two blocks rather than one because the *guarded* arm above has no wrapper to read - a `yield`
+     * skipped because the consumer is already gone is a departure that has happened, and what it
+     * still owes is to leave. So the projection is here and the leaving is below it.
+     */
+    builder.setBlock(*leaving);
+
+    auto code = outcomePayload(builder, *held, kOutcomeExit, expr.source);
+    if(!code) return nullptr;
+
+    builder.addWrite(expr.source, *builder.localPlace(*yieldedLocal), *code, Destination::Assign);
+
+    auto departing = builder.addBlock(StringId());
+    builder.addJump(expr.source, *departing, nullptr, 0);
+
+    if(skipped) {
+        builder.setBlock(*skipped);
+        builder.addJump(expr.source, *departing, nullptr, 0);
+    }
+
+    builder.setBlock(*departing);
+    recordDeparture(builder, *departing);
+    emitDeparture(builder, expr.source);
+
+    // And the answer, which is what the pass sent. Owned out of the wrapper's own storage, so a
+    // resume value the declaration *takes* is this frame's to release and one it borrows is a loan
+    // of the consumer's - the convention the position declared, read at the read.
+    builder.setBlock(*proceeding);
+
+    auto resumed = outcomePayload(builder, *held, kOutcomeProceed, expr.source);
+    if(!resumed) return nullptr;
+
+    auto next = builder.addBlock(StringId());
+    auto merged = builder.addBlockArgument(*next, function->resume, expr.source);
+    carry.declare(builder, *next);
+
+    SmallArray<Operand, 8> arguments;
+    arguments.push(builder.resultOf(*resumed,
+                                    argumentMode(function->resume.contract, SourceKind::Result)));
+    carry.edge(builder, arguments);
+
+    builder.addJump(expr.source, *next, arguments.pointer(), arguments.size());
+
+    builder.setBlock(*next);
+    carry.arrive(builder, *next, 1);
+
+    return merged;
 }
 
 /*
@@ -2051,7 +2276,11 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
         // always was, null included, and `m[k] = v` reaching `insertAt` depends on it. A path is
         // split only where the walk answered, since there the hint is what the split is *for*.
         if(!subscript.fixed && (steps.isEmpty() || expected)) {
-            value = resolveValue(builder, written.value, expected, requestOf(ownedContract()));
+            {
+                ObjectScope object(*this, written.value.source);
+                value = resolveValue(builder, written.value, expected, requestOf(ownedContract()));
+            }
+
             if(!value) return;
 
             /*
@@ -2095,7 +2324,14 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
         return;
     }
 
+    /*
+     * An **assignment into existing storage** keeps what an `iter fn` call answers - §2.1's third
+     * row, and the one of the four positions whose destination already has a type: `it = lex(s)`
+     * over a `let &it = lex(s)` is the same record written a second time.
+     */
     if(!value) {
+        ObjectScope object(*this, written.value.source);
+
         value = resolveValue(builder, written.value, place->occurrence.type,
                              requestOf(ownedContract()));
         if(!value) return;
@@ -2264,6 +2500,20 @@ void Resolver::resolveExit(Builder& builder, ast::Expr& expr) {
     }
 
     /*
+     * `continue v` - Design-Iterator-Objects.md §2.5, and the one exit that carries something.
+     *
+     * The loop it names is the innermost, exactly as a bare `continue` does, so the three refusals
+     * below are three readings of one question - has *this* loop anywhere to send a value? A `while`
+     * and a counted `for` never have; a `for` over an iterator has one exactly where that iterator
+     * declared `-> (Y <- R)`. The enclosing loops are mentioned rather than searched, because
+     * finding one further out and sending the value there is the rule `continue` does not have.
+     */
+    if(!leaving && expr.continueValue) {
+        if(!resumeExit(builder, expr, loop)) builder.addUnreachable(expr.source);
+        return;
+    }
+
+    /*
      * The loop that *is* a continuation region - `for x in items(xs)`.
      *
      * Both exits leave the region for the block the caller carries on at, and what tells them apart
@@ -2272,17 +2522,195 @@ void Resolver::resolveExit(Builder& builder, ast::Expr& expr) {
      * `Builder::addBreak`.
      */
     if(loop.leavesRegion) {
-        if(leaving) builder.addBreak(expr.source, loop.exit);
-        else builder.addJump(expr.source, loop.again, nullptr, 0);
+        if(leaving) {
+            builder.addBreak(expr.source, loop.exit);
+            return;
+        }
 
+        /*
+         * A **bare** `continue` out of a resuming pass, which is the same mistake falling off the
+         * end of one is and is reported in the same words.
+         *
+         * `R = {}` is the exemption: there is one answer and no reason to make an author write it,
+         * which is the same exemption a `yield` with a unit hand-over has - and it takes the ordinary
+         * fall-out edge below for the reason `handoverCall` states, since a unit channel leaves the
+         * continuation answering the bare signal with no row to carry a value in.
+         */
+        auto region = builder.body.region(builder.base(), loop.region);
+
+        if(region && region->resume.type &&
+           decl()[region->resume.type]->kind != Type::Unit) {
+            context.diagnostics.error(
+                "this loop's iterator hands back %@ on each pass, so every path through the body has to end with `continue v`"_v,
+                expr.source, typeText(context, decl(), region->resume.type));
+            builder.addUnreachable(expr.source);
+            return;
+        }
+
+        builder.addJump(expr.source, loop.again, nullptr, 0);
         return;
     }
 
     SmallArray<Operand, 8> arguments;
+
+    /*
+     * A bare `continue` out of a pass of a `for` over a **held object** whose producer asked for a
+     * value - the same mistake falling off the end of one is, and reported in the same words.
+     *
+     * `R = {}` is the exemption, exactly as it is one row up for the continuation-passing form:
+     * there is one answer and no reason to make an author write it. `break` takes no such argument
+     * at all, because it goes to the exit and leaves the object suspended.
+     */
+    if(!leaving && loop.sent) {
+        if(decl()[loop.resume.type]->kind != Type::Unit) {
+            context.diagnostics.error(
+                "this loop's iterator hands back %@ on each pass, so every path through the body has to end with `continue v`"_v,
+                expr.source, typeText(context, decl(), loop.resume.type));
+            builder.addUnreachable(expr.source);
+            return;
+        }
+
+        auto unitValue = builder.addConst(expr.source, unitConstant(program.types.unit));
+        Node* only = unitValue;
+        auto wrapped = unitValue ? builder.addAggregate(expr.source, loop.sent, loop.proceedCon,
+                                                        &only, 1)
+                                 : nullptr;
+
+        if(!wrapped) {
+            builder.addUnreachable(expr.source);
+            return;
+        }
+
+        arguments.push(builder.resultOf(*wrapped, argumentMode(ownedContract(),
+                                                               SourceKind::Result)));
+    }
+
     loop.carry->edge(builder, arguments);
 
     builder.addJump(expr.source, leaving ? loop.exit : loop.again, arguments.pointer(),
                     arguments.size());
+}
+
+// Whether anything enclosing this loop is a `for` over a resuming iterator - read only to choose
+// between two messages, so the region's own declaration is not consulted: a `continue v` written in
+// a plain loop is the same mistake whichever traversal is outside it.
+static bool outermostResumingLoop(Loop* loops) {
+    for(auto frame = loops; frame; frame = frame->outer) {
+        if(frame->leavesRegion || frame->sent) return true;
+    }
+
+    return false;
+}
+
+/*
+ * `continue v` - the value half, and the three refusals §2.5's table asks for.
+ *
+ * What decides is the *innermost* loop and what its region declares, which is one question read
+ * three ways: a loop that is not a continuation region has no callee to send anything to, a
+ * continuation region whose callee declared no `<- R` has one that asked for nothing, and only the
+ * third row accepts. Written as a function of the loop frame rather than as a search, because
+ * "`continue` means the innermost loop" is the rule being enforced and a walk outwards would be the
+ * rule it is not.
+ *
+ * The value goes through the ordinary argument steps - the position's own type as the hint, the view
+ * adaptation, the conversion, and the temporary a lending position needs - because the resume
+ * position *is* an argument: it fills a declared slot, and `Node::Resume` hands it over under
+ * `argumentMode` exactly as a call does.
+ */
+bool Resolver::resumeExit(Builder& builder, ast::Expr& expr, Loop& loop) {
+    auto& written = *parse[expr.continueValue];
+
+    /*
+     * A `for` over a **held object** - §2.5's last row, and the one loop that answers a `continue v`
+     * without being a continuation region.
+     *
+     * The value travels on the loop's own back edge rather than out of the region, because the
+     * producer's frame is a record in *this* function: there is no callee to return to, so what
+     * `continue v` means here is "step the object with `Proceed(v)`", which is the same sentence
+     * `it.resume(v)` makes at the same object.
+     */
+    if(loop.sent) {
+        auto wanted = requestOf(loop.resume);
+
+        auto value = resolveValue(builder, written, loop.resume.type, wanted);
+        if(!value) return false;
+
+        value = adaptToView(builder, *value, loop.resume, expr.source);
+        if(!value) return false;
+
+        value = coerce(builder, *value, loop.resume.type, expr.source, "a resume value"_v,
+                       loop.resume.contract.access());
+        if(!value) return false;
+
+        Node* only = value;
+        auto wrapped = builder.addAggregate(expr.source, loop.sent, loop.proceedCon, &only, 1);
+        if(!wrapped) return false;
+
+        SmallArray<Operand, 8> arguments;
+        arguments.push(builder.resultOf(*wrapped, argumentMode(ownedContract(),
+                                                               SourceKind::Result)));
+
+        loop.carry->edge(builder, arguments);
+        builder.addJump(expr.source, loop.again, arguments.pointer(), arguments.size());
+        return true;
+    }
+
+    if(!loop.leavesRegion) {
+        // A `while`, or a counted `for`. The enclosing resuming loop is named where there is one,
+        // because that is the mistake this spelling is usually made out of - the value was meant for
+        // the pass and `continue` cannot reach past the loop it is written in.
+        context.diagnostics.error(outermostResumingLoop(loop.outer)
+            ? "`continue` means the innermost loop, and this one is a plain loop with nothing to send a value to - end the pass with `break` or restructure so the `continue v` is written in the `for` that runs the iterator"_v
+            : "this loop has nothing to send a value to - only a `for` running an `iter fn` declared `-> (Y <- R)` answers a `continue v`"_v,
+            expr.source);
+        return false;
+    }
+
+    auto region = builder.body.region(builder.base(), loop.region);
+    auto resume = region ? region->resume : Occurrence();
+
+    if(!resume.type) {
+        context.diagnostics.error(
+            "this `for` runs an iterator that declared no `<- R`, so its passes hand nothing back - a `continue` here carries no value"_v,
+            expr.source);
+        return false;
+    }
+
+    /*
+     * `continue {}` at a `<- {}` channel - declared, and carrying nothing.
+     *
+     * Its own sentence because the message above would be false: the iterator *did* declare a
+     * channel, and what it declared has one value. There is no `Outcome({}, exit)` for a row to go
+     * in (`resumesWithValue`), and a pass of such a producer is the one that need not answer at all,
+     * so the fix is to delete the word rather than to change the declaration.
+     */
+    if(decl()[resume.type]->kind == Type::Unit) {
+        context.diagnostics.error(
+            "this `for` runs an iterator declared `<- {}`, whose passes hand back the one value there is - write `continue` on its own, or nothing at all"_v,
+            expr.source);
+        return false;
+    }
+
+    auto wanted = requestOf(resume);
+
+    auto value = resolveValue(builder, written, resume.type, wanted);
+    if(!value) return false;
+
+    value = adaptToView(builder, *value, resume, expr.source);
+    if(!value) return false;
+
+    value = coerce(builder, *value, resume.type, expr.source, "a resume value"_v,
+                   resume.contract.access());
+    if(!value) return false;
+
+    // The temporary a lending position needs, on `resolveYield`'s terms one channel over: a
+    // convention that lends leaves this frame owing the value's teardown, and a node result has no
+    // place for one to name.
+    value = holdBorrowed(builder, *value, wanted, resume.type, expr.source);
+    if(!value) return false;
+
+    builder.addResume(expr.source, loop.exit, *value, resume);
+    return true;
 }
 
 /*
@@ -2322,6 +2750,23 @@ bool Resolver::departureFallsThrough(Builder& builder) {
  * the trailing ones and control simply carries on. That is not a fourth case: it is this one with
  * nothing to leave, and `departureFallsThrough` is what lets a caller skip asking.
  */
+/*
+ * Where a departure carries on, remembered for the one reader that cannot see it afterwards -
+ * `Body::departures`, and `resolve_object.cpp`'s teardown rule.
+ *
+ * Recorded here rather than recovered by the mint, because what a departure edge *is* is a fact
+ * about the shape this function emits and not one the CFG states: the guard's false arm, the exit
+ * row's block, and - where there is nothing to leave - the block the two paths rejoin in are three
+ * spellings of one thing, and a reader matching on terminators would be re-deriving the emission.
+ *
+ * Only an iterator's. A `lens fn`'s departure is its continuation ending, which is the construct
+ * rather than a path, and a record holding a lens member owes a teardown by the rule above this one.
+ */
+void Resolver::recordDeparture(Builder& builder, Block& at) {
+    if(!currentFunction || !currentFunction->iterator) return;
+    builder.body.departures.push(builder.arena(), at.index.index);
+}
+
 void Resolver::emitDeparture(Builder& builder, LocationId source) {
     if(auto loop = outermostLoopIn(loops, builder.region())) {
         if(loop->leavesRegion) {
@@ -2367,6 +2812,7 @@ void Resolver::resumeDeparture(Builder& builder, LocationId source) {
                       nullptr, 0);
 
     builder.setBlock(*leaving);
+    recordDeparture(builder, *leaving);
     emitDeparture(builder, source);
 
     builder.setBlock(*next);
@@ -2406,6 +2852,45 @@ void Resolver::resolveFor(Builder& builder, ast::Expr& expr) {
 }
 
 /*
+ * Whether a `for`'s body is **nothing but a re-yield** of what it was handed - `for x in g(...):
+ * yield x`, Design-Iterator-Objects.md §6.3 and open question 3's answer.
+ *
+ * Asked of the source rather than of the blocks, because the blocks are the departure guard's as
+ * well as the hand-over's: `guardYields` turns one written `yield` into five of them, so a walk that
+ * recovered "the author wrote exactly this" from the CFG would be that emission read backwards.
+ * What the flag on the region records is what the author wrote, and that is the condition a level
+ * has to meet to be skippable at all - see `Continuation::reyield`.
+ *
+ * A single statement, a name for the item, and a `yield` of that name. `{ yield x }` written with a
+ * block and `yield x` written on the line are the same program, which is what the `Multi` and
+ * `Nested` peels are for.
+ */
+static bool bodyOnlyReyields(ast::ParseBase parse, ast::ForExpr& loop) {
+    if(loop.pat.kind != ast::Pat::Var) return false;
+
+    auto body = &loop.body;
+
+    for(;;) {
+        if(body->kind == ast::Expr::Nested) { body = parse[body->nested]; continue; }
+
+        if(body->kind == ast::Expr::Multi) {
+            if(body->multi.size() != 1) return false;
+            body = body->multi.contents(parse).pointerAt(0);
+            continue;
+        }
+
+        break;
+    }
+
+    if(body->kind != ast::Expr::Yield || !body->yield) return false;
+
+    auto handed = parse[body->yield];
+    while(handed->kind == ast::Expr::Nested) handed = parse[handed->nested];
+
+    return handed->kind == ast::Expr::Var && handed->var == loop.pat.var;
+}
+
+/*
  * `for pat in f(...)` - Analysis-Lens.md §7.3, and the same call `resolveLensCall` makes.
  *
  * An iterator's continuation is the loop body, so the whole of what is different from a lens call
@@ -2426,9 +2911,10 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
         return;
     }
 
-    // `for x in f(...)` where `f` answers `iter(T)`, and `for x in handle` - a loop the consumer
-    // drives, which shares nothing below. resolve_iter.cpp; false where the source is neither.
-    if(resolveExternalFor(builder, expr, loop)) return;
+    // `for x in it` over an **object** the author holds - a state record, or the erased `iter(T)`
+    // that is a block behind a pair. A loop the consumer drives, which shares nothing below:
+    // resolve_object.cpp, and false where the source is neither.
+    if(resolveObjectFor(builder, expr, loop)) return;
 
     /*
      * Which iterator the loop runs, by name - written `items(xs)` or `xs.items()`, which are one
@@ -2505,6 +2991,8 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
      * declaration hands over with `->` - is the pattern's own rule and not a second one written
      * here. Bound inside the region rather than at the call, because the names belong to the body.
      */
+    auto reyields = bodyOnlyReyields(parse, loop);
+
     handoverCall(builder, loop.from, callee, Continuation::Many,
                  named ? loop.pat.var : StringId(), loop.pat.source, loop.alts,
                  [&](ContinuationId region, Block& join, Local& bound) {
@@ -2517,7 +3005,7 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
         }
 
         resolveStatement(builder, loop.body);
-    }, chosen ? &chosen : nullptr);
+    }, chosen ? &chosen : nullptr, reyields);
 }
 
 /*
@@ -2912,7 +3400,7 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         // which `checkHandover` reports over the whole body rather than at this one statement,
         // because it is a fact about the path and not about the `return`.
         auto value = readPlace(builder, expr.source, *builder.localPlace(*yieldedLocal),
-                               requestOf(function.continuationResult));
+                               requestOf(yieldedOccurrence(program, function)));
 
         if(!value) {
             builder.addUnreachable(expr.source);
@@ -2938,8 +3426,17 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
     // The result's own interior shape travels with it - `-> Maybe('v)` is a construction whose
     // payload position is a reference, and the expression filling it is the only thing that can be
     // told so. Null for every result whose value owns what is inside it.
-    auto value = resolveValue(builder, *parse[expr.ret], function.result.type,
-                              requestOf(function.result));
+    //
+    // A **`return`** keeps what an `iter fn` call answers - §2.1's third row, and §2.2's
+    // `fn tokens(&s: Source) -> lex.Iter = lex(s)` is what it is for.
+    auto& returned = *parse[expr.ret];
+    Node* value = nullptr;
+
+    {
+        ObjectScope object(*this, returned.source);
+        value = resolveValue(builder, returned, function.result.type, requestOf(function.result));
+    }
+
     if(!value) {
         if(!builder.isTerminated()) builder.addUnreachable(expr.source);
         return;
@@ -3111,7 +3608,22 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
 
         auto global = decl()[pointer];
         auto notConstant = false;
+
+        /*
+         * §6.5 - a site type's layout asked for before any body is read. See
+         * `Resolver::readingConstant`.
+         *
+         * Only where the module has no program point. At one, this call is a *probe*: an
+         * initializer it cannot reduce becomes a dynamic global and runs as a statement of the entry
+         * sequence, which is a body like any other and is exactly the position §6.5 points an author
+         * at. Refusing there would refuse the working spelling for the shape of the failing one.
+         *
+         * Set and cleared around the one call rather than through `ConstantScope`, because what it
+         * covers is conditional and nothing between the two lines can leave.
+         */
+        readingConstant = !startup;
         auto constant = resolveConstant(*parse[binding.content], nullptr, &notConstant);
+        readingConstant = false;
 
         /*
          * A **string**, whose value is the one thing here that cannot be settled yet - at the root
@@ -3656,10 +4168,16 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     if(function.lens) {
         // The *continuation's* answer and not the function's - `Function::continuationResult`. The
         // two differ exactly where the traversal can fail, and what is parked here is what the
-        // `yield` was handed back, which the failure exit never produces.
+        // `yield` was handed back, which the failure exit never produces. A **resuming** iterator is
+        // the one kind whose continuation answers more than this storage holds - see
+        // `yieldedOccurrence`.
         yieldedLocal = builder.addLocal(context.addUnqualifiedName("$yielded", 8),
-                                        function.continuationResult, function.source,
+                                        yieldedOccurrence(program, function), function.source,
                                         function.iterator);
+
+        // And on the body, where §6.3's delegation finds it: a level that delegates never runs the
+        // `yield` that writes this, so its step writes it instead - see `Body::yieldedLocal`.
+        if(yieldedLocal) builder.body.yieldedLocal = yieldedLocal->index;
     }
 
     auto& expr = *parse[written.body];
@@ -3689,8 +4207,16 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     if(written.implicitReturn) {
         // `fn f(...) = expr` answers `expr`. A unit-returning one still evaluates it, and what it
         // returns is nothing rather than the value.
-        auto value = resolveValue(builder, expr, (unit || infer) ? nullptr : function.result.type,
-                                  unit ? inspectRequest() : requestOf(function.result));
+        //
+        // The `return`'s token, for the same reason: `fn tokens(&s: Source) -> lex.Iter = lex(s)`
+        // is §2.2's common shape and it is the `=` form that an author writes it in.
+        Node* value = nullptr;
+
+        {
+            ObjectScope object(*this, expr.source);
+            value = resolveValue(builder, expr, (unit || infer) ? nullptr : function.result.type,
+                                 unit ? inspectRequest() : requestOf(function.result));
+        }
 
         // Settled before anything reads it, and before the `ret` below is checked against it. A
         // second demand from inside this very body is what the cycle guard caught, so by here the
@@ -3999,7 +4525,7 @@ void Resolver::finish(Builder& builder, Function& function, bool unit, LocationI
          */
         if(yieldedLocal) {
             auto value = readPlace(builder, source, *builder.localPlace(*yieldedLocal),
-                                   requestOf(function.continuationResult));
+                                   requestOf(yieldedOccurrence(program, function)));
 
             if(!value) {
                 builder.addUnreachable(source);

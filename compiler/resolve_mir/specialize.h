@@ -262,6 +262,17 @@ struct CallSite {
     // Set where `target` is a generic compiled once, which is the one direct call that hands
     // something over besides its arguments.
     DeclPtr<GenEnvironment> environment = nullptr;
+
+    /*
+     * A call through a **site type**: `target` is the lifted function and the value the node calls
+     * through is its **environment**, argument zero - Design-Iterator-Objects.md §4.
+     *
+     * A direct call in every respect that matters below - one declaration, one convention, one entry
+     * in the reachability walk - and the one thing it does not share with an ordinary one is where
+     * the first argument comes from, which is what this says. The conversion is where it is spent;
+     * SSA has no such form, because by then the environment is the first of the arguments.
+     */
+    bool siteCall = false;
 };
 
 /*
@@ -278,16 +289,20 @@ struct CallRequest {
     LocationId source = kNullLocation;
     U16 genCallable = 0xffff;
     bool callsValue = false;
+
+    // The type of the value a call through one goes through - `NodeCall::targetType`, which is what
+    // tells a **site type** from a function type once the enclosing substitution is applied.
+    DeclPtr<Type> targetType = nullptr;
 };
 
 inline CallRequest callRequestOf(NodeCall& node) {
     return CallRequest { node.callee, &node.typeArguments, node.source, node.genCallable,
-                         node.callsValue() };
+                         node.callsValue(), node.targetType };
 }
 
 inline CallRequest callRequestOf(NodeLensCall& node) {
     return CallRequest { node.callee, &node.typeArguments, node.source, NodeCall::kNoCallable,
-                         false };
+                         false, nullptr };
 }
 
 void callTarget(Context& context, Program& program, Function& enclosing, CallRequest node,

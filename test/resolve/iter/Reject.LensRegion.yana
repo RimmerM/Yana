@@ -1,0 +1,65 @@
+{-
+   What a **lens region** inside an object's producer still cannot be, each refused by name -
+   `doc/inflight/Design-Iterator-Objects.md` §6.6 and §6.1.
+
+   # resolver: ownership
+
+   `iter/LensRegion.yana` is the accepting side: `withLock(m):` written inside an `iter fn` is a
+   payload member holding the lens's own site type, and the region's blocks are embedded in the outer
+   step. Everything here is a shape that embedding has no answer for, and every one of them still
+   compiles as `for x in f(...)` - what is missing is the object, not the lens.
+-}
+
+let &trace = 0 :: Int
+
+{-
+   A **skipping** lens - `| E` one level in, which is the one row §6.6 lists that is about the step's
+   answer rather than about its blocks.
+
+   A step answers a `Bool`: whether the member handed something over. For a transparent lens that is
+   the whole protocol - `True` at the `yield` and `False` once the cleanup has run - and a skipping
+   one needs a third row, because "it handed nothing over" and "it failed with `e`" are two different
+   things for the region's caller to do. That third row is a terminal failure on the step, which is
+   the same thing `| E` on an object as a whole is refused for.
+-}
+lens fn maybeGuard(n: Int) -> (Int | Int):
+    if n > 0:
+        trace = trace + 1
+        yield n
+        trace = trace + 2
+    else:
+        return 0 - n
+
+iter fn skipping(n: Int) -> Int:
+    let x = maybeGuard(n) | reason -> trace = trace + reason in:
+        yield x
+
+{-
+   §6.1's first shape, said about a lens: the producer lends the region storage the object itself
+   holds.
+
+   The lens's record keeps the address it was lent, and a record moves with whatever holds it - so a
+   move of the outer object leaves the lens pointing at where the value used to be. `@heap` on the
+   binding is the way out §6.1 names, exactly as it is for a nested traversal over the producer's own
+   container, and lending it a parameter is the other.
+-}
+lens fn bump(x: &Int) -> Int:
+    x = x + 1
+    yield x
+    x = x + 1
+
+iter fn overOwn() -> Int:
+    let &mine = 1 :: Int
+
+    bump(mine):
+        yield mine
+
+fn skipped() -> Int:
+    let it = skipping(3)
+    return 0
+
+fn owning() -> Int:
+    let it = overOwn()
+    return 0
+
+fn main() -> Int = skipped() + owning()

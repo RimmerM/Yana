@@ -533,20 +533,61 @@ struct Verifier {
         Occurrence target;
         if(!occurrenceOf(written.target, target)) return;
 
-        if(!target.type || decl[target.type]->kind != Type::Fun) {
+        /*
+         * The signature, which a **site type** names and a function type is - see
+         * `Builder::addCallValue`, which reads it the same way and in the same order.
+         *
+         * The node's own `targetType` is checked against the operand rather than trusted, because
+         * it is a copy: `callTarget` reads it without the body in hand, so the one thing this tier
+         * can say about it is that the two still agree.
+         */
+        auto record = target.type && decl[target.type]->kind == Type::Record
+            ? (RecordType*)decl[target.type] : nullptr;
+
+        /*
+         * An **erased iterator object** names its step signature and is deliberately not callable
+         * (`callableShapeOf` answers nothing for one), so it is read here rather than there: what a
+         * step is is one declaration both ends read, and what a call *means* is a different
+         * question the kind exists to keep separate.
+         */
+        auto signature = target.type && decl[target.type]->kind == Type::Iter
+            ? ((IterType*)decl[target.type])->step
+            : callableShapeOf(program, body.gen, target.type);
+
+        if(!signature || decl[signature]->kind != Type::Fun) {
             report(node.source, "internal: a call through a value whose type is %@"_v,
                    typeText(context, decl, target.type));
             return;
         }
 
-        // `Inspect` and nothing else - `addCallValue` says why: a call reads two words out of the
-        // pair and takes neither the value nor what it holds.
-        if(written.target.mode() != UseMode::Inspect) {
-            report(node.source, "internal: a call reads its callee as %@ rather than inspecting it"_v,
-                   useModeName(written.target.mode()));
+        if(written.targetType != target.type) {
+            report(node.source,
+                   "internal: a call through a value records %@ as its callee's type, and it is %@"_v,
+                   typeText(context, decl, written.targetType),
+                   typeText(context, decl, target.type));
         }
 
-        auto& shape = *(FunType*)decl[target.type];
+        /*
+         * What is done to the callee - `addCallValue`'s rule, restated.
+         *
+         * Through a **pair**, `Inspect` and nothing else: a call reads two words out of it and takes
+         * neither the value nor what it holds. Through a **site type**, the value is argument zero
+         * of the lifted function, so what it is handed over as is what that parameter declares.
+         */
+        auto envParameter = record
+            ? &decl[decl[record->lambda]->args.get(decl, 0)]->occurrence : nullptr;
+
+        auto callee = envParameter
+            ? argumentMode(envParameter->contract, written.target.source())
+            : decl[target.type]->kind == Type::Fun ||
+              decl[target.type]->kind == Type::Iter ? UseMode::Inspect : UseMode::BorrowShared;
+
+        if(written.target.mode() != callee) {
+            report(node.source, "internal: a call reads its callee as %@ rather than as %@"_v,
+                   useModeName(written.target.mode()), useModeName(callee));
+        }
+
+        auto& shape = *(FunType*)decl[signature];
         if(written.arguments.size() != shape.params.size()) {
             report(node.source, "internal: a call through %@ supplies %@ arguments"_v,
                    typeText(context, decl, target.type), written.arguments.size());

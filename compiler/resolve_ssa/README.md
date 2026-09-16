@@ -53,7 +53,7 @@ paths is actually decided.
 **A `Guaranteed` value does not carry a loan identity, and that is a decision rather than a gap.**
 It used to hold a `LoanId`, on the argument that "may not outlive the loan it depends on" is a rule
 with no term to check against - which is true, and is the shape lenses, yielded borrows, values live
-across a suspension and external iterator handles all need. What made the field unusable is §8.8: an
+across a suspension and iterator objects all need. What made the field unusable is §8.8: an
 OMIR loan id is dense within one MIR body, and that region is released after conversion, so a value
 holding one would name a table that no longer exists. When this tier needs loan identity it gets a
 table of its own, minted by the conversion out of what the loan analysis already proved; until then
@@ -423,6 +423,11 @@ The rules the destructive half keeps, each stated once beside the operation in `
   branch is live on both sides of it. `makeBranchEdges` states each edge's own, and is what a pass
   rebuilding a branch that already exists takes: since promotion places a block argument where one
   slot's writes meet, the two arms of a branch routinely declare different ones.
+  **The same is true of a `switch`**, which took until 2026-09-16 (J56) to find: `makeSwitch` pushes
+  one list onto every arm and `promote` pushes an operand onto only the arms that reach the block,
+  so `makeSwitchEdges` is what `cfg.cpp`'s merge and `inline.cpp`'s clone take. Both read the
+  *fallback's* list and gave it to every case until an iterator object's step dispatch - the first
+  three-armed `switch` here over a body that writes frame slots - asserted inside the builder.
 - **A pass places an instruction in front of another, never at the end of a block.** `setBlock` is
   the building form and appends; every block a *pass* sees already has a terminator, so `append`
   would refuse all of them. `setInsertBefore` is the cursor, and what it is for is the fold: a
@@ -465,6 +470,16 @@ one into a function of its own - so what arrives here is an ordinary call and an
 what it answered. A row here is what the *embed* lowering will need, and it is a row rather than a
 mechanism because the rule below already holds of it.
 
+**Except in a step**, since J53: an iterator object's step **embeds** every region the producer opens
+rather than outlining it - a `for x in g(...)` and, since J56, a lens over part of the producer's own
+body - because the outer producer is suspended rather than running and there is no frame for the
+callee to hand control back into. The region's blocks become the step's own, so a step
+is one scope over the producer's whole body - `Conversion::inScope` answers true for every block
+there - and what the region's three exits mean is mapped where `convertLensCall` maps them, with the
+destinations being blocks of this body rather than a discriminant the caller tests. That is still not
+a third region *kind*: the regions are `mir::Continuation`'s and the rule below is what says the
+mapping is total.
+
 The rule: a block may be entered only from its own region or, **at that region's entry**, from its
 parent, and may leave only to its own region or to an ancestor. `Continuation::entry` is the first
 block made inside the region and is recorded when it is made; without it, "entered from its parent"
@@ -490,10 +505,11 @@ entry is unreachable is unreachable entirely.
 
 **What a continuation still is not.** The result contract and the yield/resume relation both live one
 tier up, on `mir::Continuation`, where a lens call is still a region: what a continuation receives is
-what the callee declared, and control entering at `entry` and coming back at `destination` is the
-whole of the relation. What is missing is the multi-resume form - `Y <- R`, where a yield evaluates to
-what the consumer handed back and the region is re-entered where it left off - which arrives with
-`iter fn`.
+what the callee declared, control entering at `entry` and coming back at `destination` is the whole
+of the relation, and since 2026-09-15 `resume` and `answer` are the other two halves - what a pass
+hands back and what the continuation answers with. So the multi-resume form `Y <- R` is *there*, and
+it is one more fact on the region rather than a second kind of region: the region is re-entered at
+its entry the way a `Many` one always was, and what the resume value changed is the answer's type.
 
 ## Outlining a continuation
 
@@ -528,6 +544,22 @@ mean the loop is over and where it was over is the same block, so a row the call
 costs the caller nothing - and adding a row below is a change to the callee alone. `mir::Node::Break`
 is what emits the third: the same edge to the same block as falling out, under a kind that says it is
 the last one.
+
+**`<- R` is where the signal stops being a bare number**, and it is the one change to this lowering
+Design-Iterator-Objects.md §2.5 needed. Where the region's callee declared a resume channel, the
+outlined function answers `Outcome(R, exit)` instead of the `I32`: `emitExit` wraps the row it was
+going to return in `Exit(...)` and `mir::Node::Resume` - `continue v` - answers `Proceed(v)`, which
+is the only exit that carries anything. `Planner::plan` reads the type off `Continuation::answer`
+rather than rebuilding it, because interning a record is not something this tier does.
+
+Two things about that are worth stating. **The caller's side does not move**: what a consumer's
+`lens.call` reads back is the *iterator's* result, which is still the signal or the `| E` wrapper, so
+every test in `convertLensCall` is the one it was. And **the record is address-only**, so what the
+lifted function really returns is the hidden result pointer the lowering gives any record result -
+see `lower/README.md`. A resuming pass therefore costs one store and one load of a discriminant per
+step over a non-resuming one, and `test/resolve/lens/Resume.yana.ssa.opt.expect` is where that is
+visible: the flattening below folds the call away entirely and leaves one loop, and the wrapper's
+store-then-load round trip survives it, because promotion does not promote an address-only value.
 
 The environment is `resolve_lambda.cpp`'s shape one tier down and for the same reason: a continuation
 *is* a closure over the caller's frame. One record of borrowed fields holding the addresses of the
@@ -567,6 +599,257 @@ Three things about it are worth knowing before changing one:
   result is a loan is no instruction, because a value that lives in storage *is* its address; a field
   that *holds* a reference is the one place that is not true, and the occurrence is what tells the
   lowering which of the two this is.
+
+## An iterator object's step, which is the same body read differently
+
+`doc/inflight/Design-Iterator-Objects.md` §3.2, built 2026-09-15. `StepPlan` and the `stepping` field
+on `Conversion` are the fourth shape a conversion takes, beside a function of its own, an outlined
+continuation and a graft - and the only one that changes what the *body means* rather than where it
+is emitted.
+
+    fn f$step(&self: f.Iter, $resume: A, $cancel: Bool) -> Bool
+
+Three things are read differently and **nothing else is**. Everything between two hand-overs is the
+producer's own code, converted exactly as the continuation-passing form converts it, reading the same
+drop points and the same loans.
+
+| In the MIR body | In the step |
+| --- | --- |
+| a parameter's local | a field of `self` - the captured argument, or the pointer in it |
+| a local live across some `yield` | a field of `self` - the payload |
+| every other local | an ordinary `alloc`, in the step's own frame |
+| `read ($body)` | nothing at all; a `yield` is not a call here |
+| the call through it - the `yield` | write the slot, write the index, `return True` |
+| ... and the value that call produced | the step's `$resume` argument, in the resume block |
+| `return` | write the *finished* index, `return False` |
+| the entry block | reached from the dispatch, which switches on the index |
+| a `lens.call` - a `for` over a traversal, or a lens | initialize the member, then step it - see below |
+
+**The step's argument is the continuation's answer, unchanged.** J49 made an iterator's continuation
+answer the exit signal, or `Outcome(R, exit)` under `<- R`; that value is what a step is handed, at
+the same type, and it is what lets one function serve three callers - `next()` passes "fall out",
+`resume(v)` passes `Proceed(v)`, and the **teardown** passes "leave". So the producer's own departure
+path is the record's teardown with nothing added to it: `resolveYield`'s test reads the argument,
+`emitDeparture` walks out of the loops, the statements below them run, and drop elaboration releases
+every local that is still live. §3.3's "the teardown is shared across indices" is not something built
+here - it is what converting one body once already does.
+
+`$cancel` is the one thing the answer cannot carry. A record at index zero has run *none* of the
+producer's body (§2.6), so entering it to cancel has to release the captured arguments and stop
+rather than start; it is a parameter rather than a reserved index because the index says where the
+producer is and this says what is being asked of it.
+
+**A caller that sends a *row* has to send it at the type the producer declared**, and `exitRow` is
+the one place that is written. Three of the generated callers choose a row rather than passing a
+consumer's value - the teardown's "leave", a nested member's "fall out", and the cancellation of a
+suspended child - and each of them wrote the bare exit signal, which is right for a plain producer
+and is the wrong type where `<- R` makes the step's parameter `Outcome(R, exit)`. The teardown is the
+one that mattered, because owning anything is what gives a record a teardown at all: every resuming
+producer with a growable array or a `String` in it failed to compile with `internal: call to g$step
+supplies argument 1 of type I32, and it declares Outcome(Cmd, I32)`.
+`../../doc/progress/2026-09-16-J57-object-defects.md` §2 is the account and
+`test/resolve/iter/ResumeOwned.yana` is the fixture.
+
+**Values crossing a hand-over are spilled.** A counted `for` hands its bound and its step along its
+own back edge as block arguments, so the block a `yield` sits in has values live across it that no
+local names - and splitting that block leaves a resume block naming a value nothing on the way in
+defines. `RecordType::payloadLocals` carries them as node indices with the high bit set, and
+`RecordType::keepsAcross` says which hand-overs each has to survive; the store is at the `yield` and
+the reload replaces what the conversion holds for the value from the resume block on. Two limits are
+held at the *mint* rather than met here: such a value must be trivially copyable, because the drop
+elaboration the producer's body carries knows nothing about a field this transform invented; and
+every block naming it has to be converted after the `yield`'s own, because the conversion emits
+blocks in index order - a spill *none* of whose hand-overs the conversion reaches before the value
+exists is left out of the record entirely, which is where J51's "a member that is never written"
+went.
+
+**Which field a payload entry lives in is read and not derived.** Slot sharing (§3.2's third step)
+puts two members whose live ranges never meet in one field, so there are more entries than fields and
+`RecordType::payloadFields` is the map - `StepPlan::localField` and `spillField` are filled from it
+rather than from `payloadFirst + j`. Nothing else in the step changes: the storage walk asks which
+field a local is in and gets an answer, and two locals that share one are two locals whose lifetimes
+say the answer may be the same.
+
+**The dispatch is emitted last**, because the blocks a `yield` resumes at are made while the body is
+converted - so the switch that names them cannot be written before it. Below three cases it is a
+chain of comparisons rather than a `switch`, which is the IR's own rule and is what a producer with
+one `yield` gets.
+
+**`$held` is the slot's own note**, where the hand-over owns something with a teardown: the step sets
+it as it writes and releases the previous contents first, and its exits - the producer's `return` and
+the cancellation of a record at index zero - release whatever is still there. Every consumer that
+*takes* clears it: `f$take` for a `for`, and nothing else, because the class borrows.
+
+**A region is embedded, not outlined** - §3.2's first step, since J53 for a traversal and J56 for a
+lens, and the fifth shape this conversion takes:
+
+      %child = g$new(...)              -- the member, initialized where the call was
+      store %child -> self.$g
+      jump advance
+
+    advance:
+      %more = g$step(&self.$g, fallOut, False)
+      branch %more -> obtain -> <the region's destination>
+
+    obtain:
+      %item = <the child's slot, under g's own convention>
+      jump <the region's entry>(%item)
+
+`convertStepNest` is the call site and `convertEdge` is the rest of it. Falling out of the region is
+the pass ending, which here asks the member for its next element rather than answering a
+discriminant, so the edge goes to `advance`; `break` - which is also what a **departure** out of the
+outer object emits, since `emitDeparture` leaves the loops the `yield` was written in - cancels the
+child and resumes at the region's destination; and a `return` or a departure propagates outward
+unchanged. A `yield` written inside the region needs nothing of its own: it writes the *outer*
+record's slot and index exactly as one written anywhere else does, and the child stays suspended in
+its field.
+
+**A lens region is that picture unchanged**, which is what §6.6 asked and did not settle. J53 read a
+`Once` region as a different mapping of the same three exits, because a lens's continuation runs once
+and an iterator's runs per element. It is the same mapping. A lens hands over exactly once on every
+path (`checkHandover`), so the member's step answers `True` at its `yield` and, stepped again, runs
+the code after it - the cleanup - and answers `False`. `advance` entered a second time is therefore
+exactly "run the cleanup", and the `False` arm it already has is exactly "carry on at the region's
+destination". The block that loops for an iterator is the block that releases for a lens, and nothing
+in `convertStepNest` or `convertEdge` distinguishes the two multiplicities.
+
+A **departure** takes the same edge: a `yield` inside a lens region whose consumer has left jumps to
+the region's destination (`emitDeparture`), which is a plain `Jump` and therefore the fall-out arm, so
+the lens releases on the way past exactly as it does in the continuation-passing form. A `break`
+written *inside* a lens region is refused one tier up, so the `break` arm belongs to a `Many` region.
+
+**A lens region whose continuation contains no `yield` is embedded too**, which is §6.6's second
+question answered by choosing. Such a region is an ordinary outlined call in the CPS form and a step
+cannot plan one - the planner runs for a body this stage builds and a step is a second reading of
+somebody else's, which is why `convertProgram` hands a generated body an empty outline list. Running
+the planner for a step's yield-free regions was the alternative; embedding them is one shape for one
+construct, and it is what keeps a site type's layout the same whether or not a `yield` happens to be
+written inside the region.
+
+**A boxed child is built here and released here** - §6.3's recursion, built 2026-09-16 (J59). Where
+the member is an erased `iter(Y)` rather than the child's record (`RecordType::nestBoxed`), the three
+lines above become four: `g$new` into a local of *this* step, one `fun.value` over it - which the
+lowering relocates into a heap block with the child's teardown in front of it, exactly as it places a
+lambda's environment - and the pair stored into the member. `advance` then steps the pair rather than
+the record: `CallThrough::Value` against the signature `IterType::step` carries, whose answer is
+**where the item is** rather than a `Bool` and a slot, so the loop test is the one value an address
+cannot have. That indirect call, once per level between the root and the leaf, was the O(depth) cost
+§6.3 states until delegation was built; the allocation is one per level *entered*, which for a
+producer with two regions means a block even for a child that yields nothing.
+
+**A delegating child is not stepped here at all** - §6.3's `yield from`, built 2026-09-16 (J60), and
+where the member's pass is nothing but `yield x` over a child in this producer's own cycle. The four
+lines above become: `g$new` into a local, the pair into the member's **link**
+(`RecordType::linkType`, which is the pair beside one word of chain), *which member it is* into
+`$down`, and the level suspended at an index of its own. There is no `advance`, and the region's
+blocks are not converted at all (`inScope`) - they are a hand-over of the item and nothing else, and
+the consumer is about to take that item from the child directly. `delegateResume` is where the level
+comes back once the child has run out: it writes what the consumer answered into `guardYields`' own
+local - which nothing else would, since the `yield` that normally writes it is a block this level no
+longer runs - and then releases the box and carries on where the region rejoins.
+
+**The guard also decides whether the level delegates at all.** A departure runs the producer's code
+below its loops, and that code may open the very region it is leaving: `marked`'s walk of its right
+subtree is written after the `yield`s, so a consumer's `break` five elements in still enters it. A
+level that delegated there would suspend with nobody left to step it, so where `$yielded` is set the
+region builds its child with the **ordinary** shim instead of the raw one, steps it once and releases
+it - which is exactly what the region's own blocks do when the guard is set, and is what makes the
+delegating and non-delegating forms release the same levels in the same order.
+
+The trampoline itself is `f$walk` (`emitIterWalk`), which is what every consumer of a delegating
+object steps through: it loads `$inner`, steps that level's pair directly, pushes when the answer is a
+tagged link, pops through the link's chain word when the answer is null, and steps this record's own
+`f$step` when `$inner` is zero. Nothing in it owns anything - a level is still released by the level
+that built it - so a teardown is still one drop of the root record recursing on the machine's stack.
+
+**A chain word is resolved and not simply dereferenced** - `iterLinkAddress`, built 2026-09-16 (J61).
+With bit zero clear it is the address of a link inside a heap block; with bit zero set it is
+`field << 1 | 1`, one of the reader's own link members, and the address is derived from the `self`
+the step was entered with. That is what lets a suspended delegating object be **moved**: every level
+below the root is boxed and a block never moves, so the root's own link is the one address in the
+chain a relocation could invalidate, and naming it as a member rather than an address is what makes a
+`let moved = it`, a `->` argument, a `return` and a store into a field all keep the walk. Only
+`$self.$down` ever carries the tag, so a tagged word always names a field of the root;
+`emitIterErasedRaw` resolves before it answers, because that address crosses to another record's
+trampoline.
+
+A boxed level is ended by **dropping the pair**, which is one instruction that runs everything: the
+tag bit is tested, the block's header is the child record's own `Drop`, that is its step entered with
+a cancel request, and the block is handed back - so the recursion down the chain is the machine's.
+The **empty pair** `f$new` writes in its place is what makes it idempotent, and it is the box's answer
+to the finished index below: a function value whose environment word is null has the tag bit clear, so
+a drop that meets it does nothing, and the code word is the real shim so the value is never one that
+could be stepped into nothing. The same pair is written back after every release, because a box is
+released where its region runs out, where a `break` leaves it, and again at the producer's `return`,
+and a second free is not the no-op a second cancel is.
+
+**`f$obj` is the witness's "make an object" entry** (`emitIterObject`), built 2026-09-16 (J61) -
+Design-Iterator-Objects.md §6.4, and the one generated body that is not part of a step. It is `g$new`
+into a frame local and one `fun.value` over it, which `emitFunValue` relocates into a heap block with
+the record's teardown in front of it - `adaptIterValue`'s own pair at an owning position, made inside
+a generated body because it is declared after the drop elaboration has run. Its parameters are the
+*class member's*, so a call built against the class's declaration reaches it directly where the
+subject is concrete, and the two lines that adapt each one to the constructor's position are
+`convertStepNest`'s own.
+
+**Cancelling a child is its own step entered with a cancel request**, and it is idempotent because
+`f$new` writes the **finished** index into every nested member: a child that was never entered, one
+that ran out and one that was already cancelled are all a call that does nothing. So the outer
+object's teardown cancels a suspended child exactly once on every path without a flag beside the
+member - `stepCancelNests` runs at the producer's `return`, which is exhaustion and the departure a
+cancellation takes, and `convertEdge` runs one at the `break` that leaves a region early. For a lens
+member that call *is* the release: the step entered with "leave" is what its `yield` reads as the
+consumer being gone, so `emitDeparture` walks out of whatever loops the `yield` was in and the
+statements below them are the cleanup. `stepCancelNests` walks the fields in reverse, which is body
+order reversed, so a region opened inside another is ended inside it.
+
+**What the child handed over is read under the child's own convention** - `g$item` where it lends,
+`g$take` where it carries a `$held` flag, and a copy of the slot otherwise - and then adapted to the
+occurrence the region's entry declared: a **window** is derived from the owner by the same member
+`emitIterStepper` calls, and anything else is a `represent`, which moves no bytes. Two adaptations a
+call boundary would have made silently are made by hand here, because a store is not a call: the
+child's constructor takes its captures by the record's conventions rather than the lens call's, and a
+`yield` whose value is a reference - `xs[i]` inside a *generic* producer answers `source'a` - is
+loaded into a slot that holds bytes.
+
+A **boxed** child answers an address and nothing else, so its item is two rows rather than three
+(`stepBoxItem`): a position that is itself a reference takes the address as it stands, and one that
+takes the value loads through it. A window hand-over is the one the box has no row for and is refused
+at the mint. A child held **inline** whose own record delegates answers an address too - the region
+steps it through `f$walk` rather than through `f$step`, because a delegating record's step may answer
+"I entered a child" and only the trampoline knows what to do with that - so the two arms differ in how
+the step is reached and read the item the same way.
+
+**A `@heap`-placed payload member lives in a run of its own** (§6.1) and the field holds its pointer:
+`f$new` allocates one per placed member for the object's whole life, the step reaches the value
+through the pointer, and the step's exits free it. That is what makes the self-borrow refusal's
+advice work - a borrow into a run does not care that the record moved - and it is why such a record
+owes a teardown whatever its members are.
+
+Four more generated bodies sit beside it in `convertProgram`, none of which reads a MIR body:
+`f$new` allocates the record, stores the index at zero and stores the captured arguments (a record
+with an untouched payload is a shape MIR has no write for, which is why the body exists at all - and
+it is an ordinary inlinable body since J52, the `@noinline` J51 gave it having been a mitigation for
+`opt/place.cpp`'s carrier walk rather than for anything the memory passes do); `f$drop` is one call
+of the step with `$cancel` and `Exit(kExitLeave)` at whichever of the two types the step declares,
+storing its subject into a
+slot of its own the way every authored teardown does - and it is the record's *whole* release, which
+is why `resolve_mir`'s classification gives a site record no derived `Reclaim` beside it; `f$item` loads the lent value's address out of
+the slot and `f$take` moves the value out of it. `f$next` and `f$resume` are `Iterate`'s two members -
+a step call, the item **borrowed** out of the slot, and the `Maybe` around it. The borrow is where
+the work is: the payload position is a reference, so what is carried is the slot's address said as
+the loan it stands for, or - where the item has a window, as a `String` does - two words derived from
+it through the same member `deriveView` calls, kept reachable by `summary.cpp` because a generated
+body has no node for that walk to find. `f$next` on a **resuming** producer also checks the index:
+`next()` means "I have nothing to send", which at a suspend index is a pass that answered nothing and
+is a `checkCondition` rather than a silent end.
+
+**A load of a field that holds a reference has to be an instruction**, and both `f$item` and the
+by-address capture are the places that bit again: a value that lives in storage *is* its address, so
+a load whose result is *declared* a loan lowers to nothing at all and what comes back is the field's
+address rather than what is in it. Both load at the field's own `%T` and hand the result on under the
+occurrence that says what it means - which is the same note this file already makes about a
+continuation's environment.
 
 ## What the verifier costs
 

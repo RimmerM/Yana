@@ -117,7 +117,7 @@ fn main() -> I32 {
   local a: I32
   local local2: (I32) -> I32 [owned here shape8 .0=unique call]
   local b: I32
-  local f: (I32) -> I32 [owned here shape8 .0=unique call]
+  local f: main.lambda'2.env
   local c: I32
   local local6: (I32) -> I32 [owned here shape8 .0=unique call]
   local d: I32
@@ -145,21 +145,21 @@ bb0:
   %9: I32 = const 20
   %10: I32 = call apply borrow.shared %8 borrow.shared %9
   write.init borrow.unique (b) take %10
-  %12: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value main.lambda'2
+  %12: main.lambda'2.env = aggregate.main.lambda'2.env
   write.init borrow.unique (f) take %12
-  %14: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (f) loan2
+  %14: main.lambda'2.env = read copy.trivial (f)
   %15: I32 = const 5
-  %16: I32 = call inspect %14 borrow.shared %15
+  %16: I32 = call borrow.shared %14 borrow.shared %15
   write.init borrow.unique (c) take %16
   %18: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value main.lambda'3
   write.init borrow.unique (local6) take %18
-  %20: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local6) loan3
+  %20: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local6) loan2
   %21: I32 = const 1
   %22: I32 = call twice borrow.shared %20 borrow.shared %21
   write.init borrow.unique (d) take %22
   %24: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value main.lambda'4
   write.init borrow.unique (g) take %24
-  %26: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (g) loan4
+  %26: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (g) loan3
   %27: I32 = const 4
   %28: I32 = call inspect %26 borrow.shared %27
   write.init borrow.unique (e) take %28
@@ -167,7 +167,7 @@ bb0:
   %31: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value main.lambda'5
   %32: Step = aggregate.Step take %30 take %31
   write.init borrow.unique (step) take %32
-  %34: Step [shared call] = read borrow.shared (step) loan5
+  %34: Step [shared call] = read borrow.shared (step) loan4
   %35: I32 = const 6
   %36: I32 = call runStep borrow.shared %34 borrow.shared %35
   drop (step)
@@ -175,20 +175,20 @@ bb0:
   %38: I32 = const 1
   %39: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value main.lambda'6
   write.init borrow.unique (local12) take %39
-  %41: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local12) loan6
+  %41: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local12) loan5
   %42: I32 = call twiceGeneric(I32) borrow.shared %41 borrow.shared %38
   write.init borrow.unique (i) take %42
   %44: (->Array(I32)) -> I32 [owned here shape8 .0=unique call] = fun.value consume
   write.init borrow.unique (local14) take %44
-  %46: (->Array(I32)) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local14) loan7
+  %46: (->Array(I32)) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local14) loan6
   %47: I32 = call run borrow.shared %46
   write.init borrow.unique (j) take %47
   %49: I32 = const 100
   write.init borrow.unique (counter) take %49
   %51: (&I32) -> {} [owned here shape8 .0=unique call] = fun.value main.lambda'7
   write.init borrow.unique (local17) take %51
-  %53: (&I32) -> {} [shared call shape8 .0=unique call] = read borrow.shared (local17) loan8
-  %54: I32 [unique call] = read borrow.unique (counter) loan9
+  %53: (&I32) -> {} [shared call shape8 .0=unique call] = read borrow.shared (local17) loan7
+  %54: I32 [unique call] = read borrow.unique (counter) loan8
   %55: {} = call runOn borrow.shared %53 borrow.unique %54
   %56: I32 = read copy.trivial (a)
   %57: I32 = read copy.trivial (b)
@@ -218,7 +218,7 @@ bb0:
   return take %2
 }
 
-fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [unique call], x: I32 [shared call]) -> I32 {
+fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [shared call], x: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (x)
   %1: I32 = read copy.trivial (x)

@@ -90,6 +90,14 @@ static DeclPtr<Type> privateTypeIn(DeclBase base, DeclPtr<Type> type) {
             return privateTypeIn(base, function.result.type);
         }
 
+        // An erased iterator object hands out what its protocol names, and nothing else: the block
+        // behind it is the producer's and has no spelling here at all.
+        case Type::Iter: {
+            auto& iterated = *(IterType*)base[type];
+            if(auto found = privateTypeIn(base, iterated.handover.type)) return found;
+            return privateTypeIn(base, iterated.resume);
+        }
+
         // The element, which is the only thing a `[T *n]` can be a way to hand out. The count is a
         // number and names no declaration.
         case Type::Array:

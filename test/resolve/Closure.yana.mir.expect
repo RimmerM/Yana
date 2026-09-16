@@ -61,20 +61,20 @@ bb0:
 }
 
 fn colonBodies(x: I32 [shared call]) -> I32 {
-  local inferred: (I32) -> I32 [owned here shape8 .0=unique call]
+  local inferred: colonBodies.lambda.env
   local local2: (I32) -> I32 [owned here shape8 .0=unique call]
 
 bb0:
-  %0: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value colonBodies.lambda
+  %0: colonBodies.lambda.env = aggregate.colonBodies.lambda.env
   write.init borrow.unique (inferred) take %0
   %2: (I32) -> I32 [owned here shape8 .0=unique call] = fun.value colonBodies.lambda'2
   write.init borrow.unique (local2) take %2
   %4: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local2) loan0
   %5: I32 = read copy.trivial (x)
   %6: I32 = call named borrow.shared %4 borrow.shared %5
-  %7: (I32) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (inferred) loan1
+  %7: colonBodies.lambda.env = read copy.trivial (inferred)
   %8: I32 = read copy.trivial (x)
-  %9: I32 = call inspect %7 borrow.shared %8
+  %9: I32 = call borrow.shared %7 borrow.shared %8
   %10: I32 = add inspect %6 inspect %9
   return take %10
 }
@@ -166,7 +166,7 @@ bb0:
   return take %4
 }
 
-fn colonBodies.lambda(colonBodies.lambda.env: colonBodies.lambda.env [unique call], n: I32 [shared call]) -> I32 {
+fn colonBodies.lambda(colonBodies.lambda.env: colonBodies.lambda.env [shared call], n: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (n)
   %1: I32 = const 2

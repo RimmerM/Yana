@@ -1,0 +1,382 @@
+{-
+   A **lens region** inside a producer built as an object -
+   `doc/inflight/Design-Iterator-Objects.md` §3.2's first step and §6.6.
+
+   # resolver: ownership
+
+   `withLock(m):` written inside an `iter fn` is the same `lens.call` a `for x in g(...)` is, opening
+   a `Once` region rather than a `Many` one. So it is the same payload member and the same embedding:
+   the lens's own site type - `guard.Lens` - lives in a field of the outer record, the region's
+   blocks become the outer step's own, and a `yield` written inside the region suspends the outer
+   object with the lens **open**, its state in the member.
+
+   What §6.6 asked and this answers is what falling out of the region means. J53 read it as a
+   different mapping of the same three exits, because a lens's continuation runs once and an
+   iterator's runs per element. It is the same mapping: the member's step answers `True` at the
+   lens's one `yield` and `False` when stepped again, having run the code after it - so the block
+   that loops for an iterator is the block that releases for a lens, and its `False` arm is where the
+   region rejoins either way.
+
+   The cleanup therefore runs on every path out of the region, and each is a producer below:
+
+    - **falling out**, once, and then the region's destination - `guarded`, `keeping`, `inside`;
+    - a **departure** - the consumer's `break` or `return` - which jumps to the region's destination
+      and so takes that same edge on the way past, `onBreak` and `onReturn`;
+    - the outer object's **teardown** while it is suspended inside the region, which cancels the
+      member exactly as `stepCancelNests` cancels a nested traversal - `abandoned`;
+    - and a continuation with no `yield` in it at all, which is embedded like the rest rather than
+      outlined - `quiet`.
+
+   Asserted the way `Nested.yana` asserts its own property: every producer is run once as
+   `for x in f(...)` and once as an object, and the two answer the same number. A lens acquired
+   twice, released twice, or not released at all is a different number on one side of a pair.
+-}
+
+let &trace = 0 :: Int
+
+data Note {id: Int}
+
+instance Drop(Note):
+    fn drop(->value: Note):
+        trace = trace * 10 + value.id
+
+{-
+   The `withLock` shape: an acquisition, the caller's block, a release.
+
+   `1` is the acquisition and `2` the release, so a trace reads as a sequence of scopes: `12` is one
+   scope opened and closed and `1` on its own is a lock that was never given back.
+-}
+lens fn guard(n: Int) -> Int:
+    trace = trace * 10 + 1
+    yield n * 2
+    trace = trace * 10 + 2
+
+iter fn digits(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+-- The shape itself: one hand-over inside the region, and what the lens handed over read in it.
+iter fn guarded(n: Int) -> Int:
+    guard(n):
+        yield n
+
+{-
+   A `Drop`-traced local **live across the `yield`** inside the region.
+
+   `mark` is read below the hand-over, so it is a payload member of the outer record and not of the
+   lens's: what the region's blocks name belongs to the producer whose step embeds them. Releasing it
+   before the lens's own cleanup is the order both forms have to agree on.
+-}
+iter fn keeping(n: Int) -> Int:
+    guard(n):
+        let mark = Note {id: 4}
+        yield n
+        trace = trace * 10 + mark.id
+
+{-
+   A nested **`for`** inside the lens region, with a `yield` in it - the two members side by side.
+
+   `guard.Lens` is one field and `digits.Iter` is another, and a suspension inside the inner loop
+   leaves both open: the lens at its `yield` and the traversal at its own. The `yield 8` below the
+   region is what says the region really did rejoin at its destination.
+-}
+iter fn inside(n: Int) -> Int:
+    guard(n):
+        for v in digits(n):
+            yield v
+
+    yield 8
+
+-- The **flat** spelling, whose extent is derived rather than written (`flatExtent`) - the same
+-- construct after `hoistBlockLenses`, and therefore the same member.
+iter fn flat(n: Int) -> Int:
+    let x = guard(n)
+    yield x
+
+-- And the **bare** one, where nothing is bound at all and the extent is the rest of the block.
+iter fn bare(n: Int) -> Int:
+    guard(n)
+    yield n
+
+{-
+   A lens region **inside a lens region**, which is the ordering claim: the two members are two
+   fields and the inner one is released first.
+
+   `stepCancelNests` walks the fields in reverse, which is body order reversed, so a region opened
+   inside another is ended inside it on a departure as well as on the way out. `1 3 4 2` is the trace
+   of a scope inside a scope and `1 3 2 4` would be the fields walked the other way.
+-}
+lens fn inner(n: Int) -> Int:
+    trace = trace * 10 + 3
+    yield n
+    trace = trace * 10 + 4
+
+iter fn twoDeep(n: Int) -> Int:
+    guard(n):
+        inner(n):
+            yield n
+
+{-
+   And a lens that is a **class member**, selected at the concrete receiver.
+
+   §6.4 refuses an object of a *class's* declaration, because which body it would step is the
+   instance's. A region is not that question: at the concrete argument the instance is decided, so
+   `collectIterNests` resolves the call the way every other reader resolves one and mints the site
+   type of the body that answers. J53 §1.5 made the same point about a nested `chunks(self)`.
+-}
+class Scoped(a):
+    lens fn enter(self: a) -> Int
+
+instance Scoped(Int):
+    lens fn enter(self: Int) -> Int:
+        trace = trace * 10 + 6
+        yield self
+        trace = trace * 10 + 7
+
+iter fn viaClass(n: Int) -> Int:
+    enter(n):
+        yield n
+
+{-
+   A lens whose continuation contains **no `yield`**, which J53 listed as the second half of §6.6.
+
+   In the continuation-passing form this is an ordinary outlined call, and a step cannot plan one -
+   the outlining is for a body this stage builds and a step is a second reading of somebody else's.
+   So it is embedded like every other region instead: one member, stepped twice, with the region's
+   blocks in between. That the record has a field for it either way is what keeps a site type's
+   layout a property of the producer rather than of what the optimizer did.
+-}
+iter fn quiet(n: Int) -> Int:
+    guard(n):
+        trace = trace * 10 + 5
+
+    yield n
+
+fn loopGuarded(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in guarded(n): packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn objectGuarded(n: Int) -> Int:
+    trace = 0
+    let &it = guarded(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn loopKeeping(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in keeping(n): packed = packed * 10 + v
+    return packed * 100000 + trace
+
+fn objectKeeping(n: Int) -> Int:
+    trace = 0
+    let &it = keeping(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 100000 + trace
+
+fn loopInside(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in inside(n): packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn objectInside(n: Int) -> Int:
+    trace = 0
+    let &it = inside(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn loopFlat(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in flat(n): packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn objectFlat(n: Int) -> Int:
+    trace = 0
+    let &it = flat(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn loopBare(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in bare(n): packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn objectBare(n: Int) -> Int:
+    trace = 0
+    let &it = bare(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 1000 + trace
+
+fn loopQuiet(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in quiet(n): packed = packed * 10 + v
+    return packed * 10000 + trace
+
+fn objectQuiet(n: Int) -> Int:
+    trace = 0
+    let &it = quiet(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 10000 + trace
+
+{-
+   The consumer leaving early, from inside the region - `break` and `return`.
+
+   Both are a **departure**: the `yield` sees an answer that is not "fall out", `emitDeparture` walks
+   out of the loops it was written in and then jumps to the region's destination, which is the edge
+   the embedding turns into one more step of the member. So the lens releases on the way past exactly
+   as it does when the continuation ends by itself.
+
+   The trace is read by the *caller* rather than beside the `return`, which is not fastidiousness: a
+   local object is dropped at the earliest point on the path where it is dead, so an object's
+   teardown runs before the statements below a `return` and the internal form's producer is still
+   running there. That is a property of drop placement rather than of lens regions, and reading the
+   answer where both forms have finished is what keeps this fixture about the thing it is about.
+-}
+iter fn stopping(n: Int) -> Int:
+    guard(n):
+        for v in digits(n):
+            yield v
+
+    yield 8
+
+fn loopTwoDeep(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in twoDeep(n): packed = packed * 10 + v
+    return packed * 10000 + trace
+
+fn objectTwoDeep(n: Int) -> Int:
+    trace = 0
+    let &it = twoDeep(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 10000 + trace
+
+fn loopClass(n: Int) -> Int:
+    trace = 0
+    let &packed = 0 :: Int
+    for v in viaClass(n): packed = packed * 10 + v
+    return packed * 100 + trace
+
+fn objectClass(n: Int) -> Int:
+    trace = 0
+    let &it = viaClass(n)
+    let &packed = 0 :: Int
+    for v in it: packed = packed * 10 + v
+    return packed * 100 + trace
+
+fn loopBreak(n: Int):
+    trace = 0
+    for v in stopping(n):
+        if v == 1 then break
+
+fn objectBreak(n: Int):
+    trace = 0
+    let &it = stopping(n)
+
+    for v in it:
+        if v == 1 then break
+
+fn loopReturn(n: Int):
+    trace = 0
+
+    for v in stopping(n):
+        if v == 1 then return
+
+fn objectReturn(n: Int):
+    trace = 0
+    let &it = stopping(n)
+
+    for v in it:
+        if v == 1 then return
+
+{-
+   And the outer object **torn down while suspended inside the region**, which is the path no
+   consumer writes.
+
+   `it` goes out of scope holding a record whose index is a `yield` inside the lens region, so its
+   teardown is the step entered with a cancel request: the producer's departure path runs, the region
+   is left through its destination, and the member is stepped once more there. The lens releases once
+   and only once, which is what `f$new` writing the finished index into every region member buys -
+   the `stepCancelNests` at the producer's own `return` then finds a member that is already over.
+-}
+fn abandoned(n: Int) -> Int:
+    trace = 0
+
+    if True:
+        let &it = stopping(n)
+
+        for v in it:
+            if v == 1 then break
+
+    return trace
+
+-- An object abandoned at index zero, which has entered no region at all: the member holds the
+-- finished index `f$new` wrote, so the cancellation reaches it and does nothing. No acquisition ran,
+-- so nothing may be released.
+fn neverEntered() -> Int:
+    trace = 0
+    let held = guarded(3)
+    return trace
+
+fn main() -> Int:
+    let a = loopGuarded(3)
+    let b = objectGuarded(3)
+    let c = loopKeeping(3)
+    let d = objectKeeping(3)
+    let e = loopInside(3)
+    let f = objectInside(3)
+    let g = loopFlat(3)
+    let h = objectFlat(3)
+    let i = loopBare(3)
+    let j = objectBare(3)
+    let k = loopQuiet(3)
+    let l = objectQuiet(3)
+    let q = loopTwoDeep(3)
+    let r = objectTwoDeep(3)
+    let s = loopClass(3)
+    let t = objectClass(3)
+
+    loopBreak(3)
+    let m = trace
+    objectBreak(3)
+    let n = trace
+
+    loopReturn(3)
+    let o = trace
+    objectReturn(3)
+    let p = trace
+
+    -- The two forms **agree**, which is what this file exists for.
+    checkCondition(a != b)
+    checkCondition(c != d)
+    checkCondition(e != f)
+    checkCondition(g != h)
+    checkCondition(i != j)
+    checkCondition(k != l)
+    checkCondition(q != r)
+    checkCondition(s != t)
+    checkCondition(m != n)
+    checkCondition(o != p)
+
+    -- Every scope that was opened was closed: a trace of acquisitions and releases ends in `2`.
+    checkCondition(m % 10 != 2)
+    checkCondition(abandoned(3) % 10 != 2)
+    checkCondition(neverEntered() != 0)
+
+    return a + c + e + g + i + k + m + o + q + s + abandoned(3)

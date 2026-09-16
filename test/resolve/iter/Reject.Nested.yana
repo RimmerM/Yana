@@ -1,0 +1,84 @@
+{-
+   What a **nested traversal** inside an object's producer still cannot be, each refused by name -
+   `doc/inflight/Design-Iterator-Objects.md` §3.2's first step, §6.1, §6.3 and §6.6.
+
+   # resolver: ownership
+
+   `iter/Nested.yana` is the accepting side: `for x in g(...)` inside a producer is a payload member
+   holding `g.Iter` and the region's blocks are embedded in the outer step. Everything here is a
+   shape that embedding has no answer for, and every one of them still compiles as
+   `for x in f(...)` - what is missing is the object, not the traversal.
+-}
+
+let &trace = 0 :: Int
+
+iter fn plain(n: Int) -> Int:
+    yield n
+    yield n + 1
+
+{-
+   §6.6's "Lenses as objects" used to be two rows here and is **built** since 2026-09-16: a lens
+   region is a payload member holding the lens's own site type, in both readings - one whose
+   continuation contains a `yield` and one whose continuation does not. `iter/LensRegion.yana` runs
+   them and `iter/Reject.LensRegion.yana` holds what a lens region still cannot be, which is a
+   skipping one and one lent the object's own storage.
+-}
+
+-- §6.6's `| E`, one level in: the alternative is a block of the outer producer reached from inside
+-- the callee, and what the step would read is a terminal failure on the child's own step.
+iter fn failingChild(n: Int) -> (Int | Int):
+    yield n
+    return 0
+
+iter fn overFailing(n: Int) -> Int:
+    for v in failingChild(n):
+        yield v
+    | reason:
+        trace = trace + reason
+
+-- And a child whose passes hand a value back: the step embeds the region and steps the member with
+-- "fall out", and carrying a value into a nested pass is a second edge.
+iter fn resumingChild(n: Int) -> (Int <- Int):
+    let a = yield n
+    yield a
+
+iter fn overResuming(n: Int) -> Int:
+    for v in resumingChild(n):
+        yield v
+        continue v
+
+{-
+   §6.3's recursion used to be a row here and is **built** since 2026-09-16: a child a mint is
+   already inside is held as an erased `iter(Y)` rather than as its own record, so the outer record
+   has a finite size and the level lives in a heap block built where the region is entered.
+   `iter/Recursion.yana` is where it went - direct recursion, mutual recursion, a `break` deep in the
+   walk and an object abandoned inside one.
+
+   What is still impossible is a producer whose body **holds** an object of one that is minting it,
+   which is a record inside a record however many levels round the cycle it is;
+   `Reject.Object.yana`'s `recursive` is that shape meeting its own body while it is still being
+   read.
+-}
+
+-- §6.1's first shape, one level in: the child borrows storage the object itself holds, so a move of
+-- the object leaves the child pointing at where the value used to be. `iter/Heap.yana` is the
+-- accepting side, where `@heap` puts the container in a run that does not move.
+iter fn overOwn() -> Int:
+    let mine = [1, 2, 3]
+
+    for v in items(mine):
+        yield v
+
+fn failing() -> Int:
+    let it = overFailing(3)
+    return 0
+
+fn resuming() -> Int:
+    let it = overResuming(3)
+    return 0
+
+fn owning() -> Int:
+    let it = overOwn()
+    return 0
+
+fn main() -> Int = failing() + resuming() + owning()

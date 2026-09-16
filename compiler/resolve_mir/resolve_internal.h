@@ -12,6 +12,44 @@
 
 namespace mir {
 
+// The liveness one iterator object's payload comes out of - `resolve_object.cpp`, where it is the
+// walk rather than a declaration. Declared here because `Resolver::checkObjectBody` takes one.
+struct LiveAcross;
+
+/*
+ * One **region** a producer built as an object runs over part of its own body -
+ * Design-Iterator-Objects.md §3.2's first step, `resolve_object.cpp`.
+ *
+ * `for x in g(...)` written inside an `iter fn` is a `lens.call` opening a `Many` region whose
+ * blocks are the loop body, and `withLock(m):` is the same node opening a `Once` one. An object of
+ * the outer producer holds the callee's site type as a payload member and its step embeds those
+ * blocks, so what has to travel from the mint to the record is the three things below: which node
+ * initializes the member, which region its blocks are, and the site type the member holds.
+ *
+ * The multiplicity is not one of them: it is on the region and the conversion reads it from there.
+ *
+ * `boxed` is §6.3's recursion: a child that reaches the producer this nest belongs to, directly or
+ * through a cycle, cannot be a record inside a record. The member then holds the **erased** `iter(Y)`
+ * - a heap-placed closure over the child's own record - and `record` is that protocol rather than a
+ * site type, with `boxed` naming the producer whose record the box holds.
+ */
+struct IterNest {
+    U32 node = 0;
+    ContinuationId region;
+    DeclPtr<Type> record = nullptr;
+    DeclPtr<Function> boxed = nullptr;
+
+    /*
+     * Whether the level **delegates** - §6.3's `yield from`, and always a boxed nest.
+     *
+     * The region is the re-yield shape over a child in this producer's own recursion cycle, so
+     * entering it suspends this level rather than looping over the child: the member holds the link
+     * (`RecordType::linkType`) instead of the bare pair, the step answers the third row, and the
+     * consumer's trampoline steps the child directly from then on.
+     */
+    bool delegate = false;
+};
+
 struct Resolver;
 struct TypeArguments;
 struct OverloadChoice;
@@ -335,16 +373,21 @@ struct LambdaFrame {
     bool thunk = false;
 
     /*
-     * Whether this lambda's environment is **heap-placed** - D17, and the one bit every decision
-     * below hangs off.
+     * Whether this lambda's environment **owns what it captured** - D17's consumed capture, and the
+     * one bit every decision below hangs off.
      *
      * Decided from the position the lambda fills, before the body walk, because `captureKindOf`
      * needs it at the moment a field is appended: an owning position takes a consumed capture and a
-     * borrowing one takes a loan, and the two are different fields of a different record. It is
-     * `selectStorage`'s answer rather than a bool of this file's own, so that the ranking of where
-     * an object goes stays in one place - see `analyze_escape.cpp`.
+     * borrowing one takes a loan, and the two are different fields of a different record.
+     *
+     * It used to be `environmentStorage != Frame` and is not any more, because site types split the
+     * two facts apart (Design-Iterator-Objects.md §4). Owning the captures is a statement about the
+     * *record*; a heap block with a teardown header in front of it is a statement about the
+     * **pair**, and a site-typed value has no pair - it is stored inline in whatever holds it, and
+     * its captures are released by that record's own derived teardown. So a closure stored in a
+     * field consumes what it captured and allocates nothing, which is the case this split buys.
      */
-    bool heap = false;
+    bool owns = false;
 };
 
 
@@ -760,6 +803,23 @@ struct Loop {
      * that stops the iterator. Everywhere else the two are edges to two different blocks.
      */
     bool leavesRegion;
+
+    /*
+     * A `for` over a held **object** whose producer declared `-> (Y <- R)` - §2.5's last row, and
+     * the one loop that is not a continuation region and still answers a `continue v`.
+     *
+     * `sent` is the step's own `$resume` parameter type - `Outcome(R, exit)` - and it is the
+     * header's first block argument, so the back edge is where the pass's answer travels.
+     * `resume` is what the author writes after `continue`, which is the `Proceed` field of it.
+     * Both null on every other loop, and `resume.type` is what the exits test.
+     *
+     * A field of the loop rather than of the region, because the region is the *consumer's* here:
+     * the producer's frame is a record in this function, so there is no callee for `Continuation`
+     * to be asked about - which is exactly what makes this row a separate one.
+     */
+    Occurrence resume;
+    DeclPtr<Type> sent = nullptr;
+    U16 proceedCon = 0;
 };
 
 /*
@@ -1142,40 +1202,116 @@ struct Resolver {
     Local* yieldedLocal = nullptr;
 
     /*
-     * The entries synthesized for external iterators so far - `iterEntry`.
+     * The site types minted so far, keyed by the producer **specialization** - §3's one record per
+     * (`iter fn`, substitution).
      *
-     * One per producer, per tuple of what the call captured, per instantiation, because each of the
-     * three changes the body: which parameters arrive by address, and at which types. `arguments` is
-     * the instantiation interned as a tuple, so that the whole key is three handles compared by
-     * identity. A flat list because a program has a handful of them.
+     * An array and a linear scan, for `iterEntries`' reason: a program has a handful of producers
+     * used as objects, and the key is one pointer comparison.
      */
-    struct IterEntry {
-        DeclPtr<Function> callee = nullptr;
-        DeclPtr<Type> captured = nullptr;
-        DeclPtr<Type> arguments = nullptr;
-        DeclPtr<Function> entry = nullptr;
-
-        // The call site's half - `iterConstructor`, built on first use for the same key and the same
-        // `carried`: what the arguments refer to inside them, as one interned shape over the tuple.
-        // Two calls of one entry can differ there - a closure and a plain function at one position -
-        // and a constructor publishes exactly what its call carries, so each gets its own row.
-        DeclPtr<Function> constructor = nullptr;
-        DeclPtr<OwnershipSchema> carried = nullptr;
+    struct IterSite {
+        DeclPtr<Function> producer = nullptr;
+        DeclPtr<Type> record = nullptr;
+        DeclPtr<Function> make = nullptr;
+        DeclPtr<Function> step = nullptr;
     };
 
-    // How one argument travels into a producer's captured tuple - `constructIter`.
-    enum class IterCapture : U8 {
-        Value,      // owned, or a copy made for the call
-        View,       // a view, as its view record
-        Address,    // any other loan, as the address of what it borrows
+    Array<IterSite> iterSites;
+
+    /*
+     * The erased types whose `Iterate` instance has been generated, and the step shims minted for
+     * each site type - `erasedIterTypeOf` and `iterErasedStep`.
+     *
+     * Arrays and linear scans, for `iterSites`' reason: a program has a handful of erased protocols
+     * and at most two shims per producer, and the key is one pointer comparison.
+     */
+    struct ErasedStep {
+        DeclPtr<Type> record = nullptr;
+        DeclPtr<Function> step = nullptr;
+        bool heap = false;
+
+        // Whether this is the **raw** shim - the one a delegable box's pair names, which answers the
+        // third row a trampoline reads and that no other consumer of a pair ever sees. See
+        // `RecordType::producerRaw`.
+        bool raw = false;
     };
 
-    Array<IterEntry> iterEntries;
+    Array<ErasedStep> erasedSteps;
 
-    // Whether the argument being prepared fills an external iterator's position - see
-    // `prepareArgument`, where an owned value then stays owned. Set by `resolveArguments` around one
-    // preparation at a time.
-    bool producerArguments = false;
+    // And the item members, keyed by the erased type rather than by a site type - see
+    // `iterErasedItem`. The same row type, because the question is the same one.
+    Array<ErasedStep> erasedItems;
+
+    /*
+     * The site types being minted right now - the guard §6.3's recursion meets when the body is
+     * already read.
+     *
+     * `Function::bodyState` catches a producer that builds an object of itself while its *body* is
+     * being resolved; a nested traversal is minted long after every body is read, so a producer that
+     * nests itself would meet a cache entry that is not there yet and recur without end. The stack
+     * is what says "this one is already on the way", and it is a stack rather than a flag because a
+     * nest three deep is three mints in progress at once.
+     */
+    SmallArray<DeclPtr<Function>, 8> iterMinting;
+
+    /*
+     * And the producers a mint has found to be in a **cycle** - §6.3's delegation, built 2026-09-16.
+     *
+     * Every producer on `iterMinting` from the one a box was made for upward, recorded when the box
+     * is made: that span *is* the cycle the back edge closed. It is what a re-yield region asks
+     * before it decides to delegate, and asking it is why `evens` delegates at all - the box lands
+     * on `odds`' edge, so `evens`' own region over `odds` is not boxed and would otherwise look like
+     * an ordinary nest. A level a trampoline may skip has to be reachable *as a pair*, so a region
+     * that delegates is boxed whether or not it was the back edge.
+     *
+     * Read only during minting, and only downward in the same walk that fills it: a mint that has
+     * finished has a record, and a record's own members are what say what it holds.
+     */
+    Array<DeclPtr<Function>> iterCyclic;
+
+    /*
+     * The **boxed** nest members waiting for the record they hold - §6.3, and `RecordType::nestBoxed`
+     * is where each one lands.
+     *
+     * A boxed member's field is the protocol `iter(Y)`, so what the step has to be told is which
+     * producer's record the box is over and which shim its pair is called across - and neither
+     * exists while the member is being made: `walkA` mints `walkB` inside its own mint, so `walkB`'s
+     * box over `walkA` is decided before `walkA.Iter` is a type. The entry is therefore recorded
+     * here and filled by `completeBoxedNests`, once every record in the program has been minted.
+     */
+    struct BoxedNest {
+        DeclPtr<RecordType> record = nullptr;
+        U32 entry = 0;
+        DeclPtr<Function> producer = nullptr;
+        DeclPtr<Type> erased = nullptr;
+        LocationId source = kNullLocation;
+
+        // And whether the member **delegates**, which decides which of the child's two shims its
+        // pair names: the raw one, which may answer the third row, or `f$erased`, which may not.
+        bool delegate = false;
+    };
+
+    Array<BoxedNest> boxedNests;
+
+    /*
+     * The AST of every written function, paired with `writtenFunctions` by position.
+     *
+     * `inferringDecls` is the same pairing for the declarations whose result their own body decides,
+     * and this is it for the rest - `demandBody` is the one reader, and the reason there are two
+     * lists is that `requireResult` asks by function and gets there through `Function::written`.
+     */
+    Array<ast::Decl*> writtenFunctionDecls;
+
+    /*
+     * The expression whose `iter fn` call builds an **object**, and null everywhere else -
+     * `ObjectScope`, which is the only thing that sets it.
+     *
+     * A source position rather than a flag, because the flag's answer is not precise enough: it is
+     * set around a whole expression, and an iterator call written *inside* one is not an
+     * object-forming position - `f(g(...))` at an `iter fn` `g` keeps the object `g` builds and
+     * `h(g(...))` where `h` is one too builds one object and refuses the other. `checkCallable`
+     * reads the flag - it has only the declaration - and `finishCall` reads the position.
+     */
+    LocationId objectCallSource = kNullLocation;
 
     /*
      * Whether an iterator's `yield` has to ask whether the consumer already left - `resolveYield`.
@@ -1362,6 +1498,32 @@ struct Resolver {
      * reach those without reaching this.
      */
     DeclPtr<Type> resolveTypeArgument(ast::Type& written, DeclPtr<GenContext> head, Size position);
+
+    /*
+     * `f.Iter`, `f.Iter(a, b)`, `f.Result` - a declaration path, resolve_sig.cpp.
+     *
+     * The type a *declaration* publishes, which for this stage is the two site types §2.4 names:
+     * the state record an `iter fn` compiles to, and the concrete result of a function whose result
+     * is one. Both go through the functions a use site already goes through - `iterSiteTypeOf` for
+     * the first and `requireResult` for the second - so a field written `lexer: lex.Iter` and a
+     * `let it = lex(src)` beside it name one record rather than two that happen to agree.
+     */
+    DeclPtr<Type> resolveSiteType(ast::Type& type);
+    DeclPtr<Type> siteTypeArguments(ast::SiteType& path, Function& declared, LocationId source,
+                                    SmallArray<DeclPtr<Type>, 4>& into);
+
+    /*
+     * Whether a written type is being read for a **constant** - §6.5.
+     *
+     * A site type's layout is a fact about a body that the transform has not run on yet, and a
+     * constant is resolved before any of them; `[U8 *(traits() :: TypeTraits(lex.Iter)).size]` is
+     * the shape that asks for it. A flag for `readingFieldType`'s reason - the position that knows
+     * is one entry point and the position that reports is one arm of a recursive walk - and it is
+     * set by the three positions a constant is *required* in rather than by `resolveConstant`,
+     * which is also used as a probe: a form that is not a constant is ordinary code in a body, and
+     * refusing a type inside one would report a mistake nobody made.
+     */
+    bool readingConstant = false;
 
     /*
      * A written type in a position that classifies a *value* - a parameter, a result, a field.
@@ -1684,6 +1846,10 @@ struct Resolver {
 
     void declareGlobals(ast::Decl& declaration);
     void declareFields(ast::Decl& declaration, Size& next);
+
+    // The same walk, into a record named directly rather than taken off `writtenRecords`' cursor -
+    // what the deferred pass calls. See `Resolver::pendingSiteFields`.
+    void declareFieldsOf(ast::Decl& declaration, DeclPtr<RecordType> record);
 
     /*
      * The parameters of one generic head - the one reading of them, for all three declarations that
@@ -2055,25 +2221,133 @@ struct Resolver {
     bool declareContinuation(Function& function, Function* inherited,
                              const Substitution& inheritedWith, LocationId source);
     DeclPtr<RecordType> declareOutcome(Function& function, DeclPtr<Type> failure, LocationId source);
+    DeclPtr<RecordType> declareResume(Function& function, LocationId source);
 
     /*
-     * `fn f(...) -> iter(T)` - Analysis-External-Iterators.md §2.1, in resolve_iter.cpp.
+     * The **state record** - `doc/inflight/Design-Iterator-Objects.md` §3, in resolve_object.cpp.
      *
-     * The declaration's one appended parameter; the handle a call builds instead of calling; the
-     * function a producer's stack starts at; and the two statements that mean something different
-     * inside and around one - `for` over a handle, and `yield` in a producer.
+     * `iterSiteTypeOf` is the one function that mints `f.Iter`, one per (producer, substitution);
+     * `f.Iter` written in type position calls the same one (`resolveSiteType`). `constructIterObject` is what a
+     * position that keeps an iterator call's result builds instead of a call, and `resolveObjectFor`
+     * is `for x in it` over an object the author holds.
+     *
+     * The **erased** `iter(T)` is below them - `erasedIterTypeOf` mints the type, `iterErasedStep`
+     * is the function a `{step, block}` pair is called across, and `adaptIterValue` is where a site
+     * type reaches a position that stated one (§3.4).
      */
-    bool declareIterHandle(Function& function, LocationId source);
-    Node* constructIter(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
-                        TypeArguments& typeArguments, LocationId source);
-    DeclPtr<Function> iterEntry(Function& callee, const Substitution& with, DeclPtr<Type> captured,
-                                LocationId source);
-    DeclPtr<Function> iterConstructor(Function& callee, const Substitution& with, DeclPtr<Type> captured,
-                                      DeclPtr<Function> entry, const SmallArray<IterCapture, 8>& kinds,
-                                      const SmallArray<DeclPtr<OwnershipSchema>, 8>& shapes,
-                                      LocationId source);
-    bool resolveExternalFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop);
-    void resolveExternalYield(Builder& builder, ast::Expr& expr, Function& function);
+    DeclPtr<Type> iterSiteTypeOf(Function& declared, const Substitution& with, LocationId source);
+    DeclPtr<Type> mintIterSite(Function& producer, Function& owner, Body& body, LiveAcross& live,
+                               const U32* isYield, Array<IterNest>& nests, LocationId source);
+    bool collectIterNests(Function& producer, Body& body, Array<IterNest>& into, LocationId source);
+    DeclPtr<Function> generatedFor(DeclPtr<Module> module, StringId base, StringView suffix,
+                                   Function::Generated kind, DeclPtr<Type> record,
+                                   DeclPtr<Function> from, LocationId source);
+    DeclPtr<Function> iterGenerated(Function& producer, RecordType& record, StringView suffix,
+                                    Function::Generated kind);
+    DeclPtr<Function> iterConstruction(Function& producer, RecordType& record);
+    DeclPtr<Function> iterStep(Function& producer, RecordType& record);
+    DeclPtr<Function> iterWalk(Function& producer, RecordType& record, const Occurrence& handover);
+    DeclPtr<Type> iterLinkTypeOf(DeclPtr<Type> erased, LocationId source);
+    bool iterTeardown(Function& producer, RecordType& record, LocationId source);
+    /*
+     * What is being made steppable - the subject of a generated `instance Iterate(s, item, resume)`.
+     *
+     * Five fields because the two subjects differ in exactly those: a site type is named after its
+     * producer and carries the record its steppers read, and the erased `iter(T)` is named after
+     * itself and carries neither. Passed as a struct rather than as five parameters because every
+     * one of them is about *which* subject and none of them is about the protocol.
+     */
+    struct IterateSubject {
+        DeclPtr<Type> type = nullptr;
+        DeclPtr<Module> module = nullptr;
+        StringId base;
+        DeclPtr<Type> record = nullptr;
+        DeclPtr<Function> from = nullptr;
+        Function::Generated next = Function::Generated::None;
+        Function::Generated resume = Function::Generated::None;
+    };
+
+    bool iterateInstanceFor(const IterateSubject& subject, const Occurrence& handover,
+                            DeclPtr<Type> resume, LocationId source);
+    bool iterIterateInstance(Function& producer, RecordType& record, const Occurrence& handover,
+                             LocationId source);
+    bool iterItem(Function& producer, RecordType& record, const Occurrence& handover,
+                  LocationId source);
+    bool iterTake(Function& producer, RecordType& record, const Occurrence& handover);
+    bool refuseNextOnResuming(Function& callee, const Substitution& with, LocationId source);
+    bool checkObjectBody(Function& producer, Body& body, const LiveAcross& live,
+                         const U32* isYield, LocationId source);
+    Node* constructIterObject(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                              TypeArguments& typeArguments, LocationId source);
+    Node* stepIterObject(Builder& builder, Place& object, RecordType& site, Node* resume,
+                         bool cancel, LocationId source);
+    bool resolveObjectFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop);
+
+    /*
+     * The erased `iter(T)` - §3.4. `erasedIterTypeOf` is the one function that mints one, from a
+     * written type and from a position that adapts an object to it alike; `iterErasedStep` is the
+     * step a pair is called across, and `adaptIterValue` is the conversion point.
+     */
+    DeclPtr<Type> erasedIterTypeOf(const Occurrence& handover, DeclPtr<Type> resume,
+                                   LocationId source);
+    bool erasedIterateInstance(Program::ErasedIter& pending);
+    bool completeErasedIterates();
+
+    /*
+     * The witness's **"make an object" entry** - §6.4, and the two halves it is built in.
+     *
+     * `iterObjectMember` is the declaration side and runs on demand, at the first call that builds
+     * an object of the member: the member gets a companion *signature* whose result is `iter(T)` at
+     * the class's own variables (`Function::iterObject`). Nothing is minted for it - a protocol over
+     * a class's variables is a shape for a thunk and not one any value has - and a class no body
+     * objectifies grows no slot at all, which is what keeps every other witness table unchanged.
+     *
+     * `objectMaker` is the instance side and runs on demand, from `fillClassWitness` through
+     * `Program::IterObjects`: the reachability walk is what discovers the argument lists a witness is
+     * filled at, and the record it builds is the selected member's own site type.
+     */
+    DeclPtr<Function> iterObjectMember(Function& member);
+    DeclPtr<Function> objectMaker(DeclPtr<Function> member, DeclPtr<Function> entry,
+                                  LocationId source);
+
+    /*
+     * The hook itself, held rather than inherited: a `Resolver` is brace-initialized, and a base
+     * class is what would stop it being.
+     */
+    struct ObjectHook: Program::IterObjects {
+        Resolver* resolver = nullptr;
+
+        DeclPtr<Function> objectMaker(DeclPtr<Function> member, DeclPtr<Function> entry,
+                                      LocationId source) override {
+            return resolver->objectMaker(member, entry, source);
+        }
+    };
+
+    ObjectHook objectHook;
+
+
+    /*
+     * Every boxed nest member given the child it holds - §6.3, and the one pass that has to run
+     * after the last object in the program has been minted. See `Resolver::BoxedNest`.
+     */
+    bool completeBoxedNests();
+    DeclPtr<Function> iterErasedStep(RecordType& site, DeclPtr<Type> erased, bool heap,
+                                     bool raw,
+                                     LocationId source);
+    DeclPtr<Function> iterErasedItem(DeclPtr<Type> erased, LocationId source);
+    bool resolveErasedFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop, Place& place,
+                          IterType& iterated);
+    Node* adaptIterValue(Builder& builder, Node& value, RecordType& site, DeclPtr<Type> erased,
+                         bool heap, LocationId source);
+
+    /*
+     * A callee's body, built now - `requireResult`'s mechanism asked of any declaration.
+     *
+     * The site type's payload is a fact about the producer's MIR, so a `let it = f(...)` above `f`
+     * in the file has to be able to make it exist. `Function::bodyState` is the same three-colour
+     * guard it is there, and `Reading` is the recursion §6.3 boxes.
+     */
+    bool demandBody(Function& callee);
 
     /*
      * One signature - a `fn`, a class member, an instance member.
@@ -2088,7 +2362,75 @@ struct Resolver {
                                Function* inherited = nullptr,
                                Substitution inheritedWith = Substitution {});
 
-    void declareFunction(ast::Decl& declaration);
+    /*
+     * One written `fn` header.
+     *
+     * `slot` is where the two position-joined lists are written - appended for the ordinary
+     * declaration, and the index the first pass reserved for a header that had to wait. See
+     * `deferSignature`, which is the whole of why a slot exists.
+     */
+    static constexpr Size kNoSignatureSlot = ~Size(0);
+    void declareFunction(ast::Decl& declaration, Size slot = kNoSignatureSlot);
+
+    /*
+     * The headers that name a **declaration path** - `f.Iter`, `f.Result` - and therefore have to
+     * wait for every other declaration, Design-Iterator-Objects.md §2.4.
+     *
+     * A path names a type built out of somebody else's body, and `demandBody` can only build one
+     * once every function in the program is a name with a signature behind it. Reading such a header
+     * in the ordinary pass would make it resolve or not depending on whether the producer happens to
+     * be written above it, which is the order dependence `resolveAliasTargets` exists to remove for
+     * an alias and `requireResult` for an inferred result. So they are collected here and read again
+     * immediately after `declare`, with the slot each reserved in `writtenFunctions` filled then.
+     *
+     * `declarationsReady` is the same fact asked from the other side: every position read *before*
+     * that drain - a record's fields, an alias target, a constant - is one no body exists for yet,
+     * and `resolveSiteType` refuses a path there by name rather than reporting the producer as a
+     * name nothing declares.
+     */
+    struct PendingSiteSignature {
+        ast::Decl* declaration = nullptr;
+        DeclPtr<Module> module = nullptr;
+        U16 file = 0;
+        Size slot = 0;
+    };
+
+    // And the `data` declarations, on the same terms - `deferFields`. A field of a site type is the
+    // shape §2.4 leads with, and a record's fields are read one phase earlier than a signature.
+    struct PendingSiteFields {
+        ast::Decl* declaration = nullptr;
+        DeclPtr<RecordType> record = nullptr;
+        DeclPtr<Module> module = nullptr;
+        U16 file = 0;
+    };
+
+    Array<PendingSiteSignature> pendingSiteSignatures;
+    Array<PendingSiteFields> pendingSiteFields;
+    bool declarationsReady = false;
+    bool deferSignature(ast::Decl& declaration);
+    bool deferFields(ast::Decl& declaration, DeclPtr<RecordType> record);
+    void resolveSiteSignatures();
+
+    /*
+     * Whether anything waited at all - what `resolveProgram` asks before it moves the passes a
+     * demanded body needs ahead of the drain.
+     *
+     * The drain reads a *body*, and a body may only be resolved once every type is classified and
+     * every global has the type its initializer gave it - the third and fourth points of the pass
+     * order above `resolveProgram`. Reading one before that is silent rather than wrong-looking: a
+     * read of an untyped global answers null and the statement it was in disappears, and an
+     * unclassified `String` reads as trivially copyable and the body is built over a copy that does
+     * not exist. Both were live defects until 2026-09-16 -
+     * `../../doc/progress/2026-09-16-J57-object-defects.md` §1.
+     *
+     * Asked rather than assumed, so that a program that writes no declaration path runs the passes
+     * in exactly the order it ran them in before - which is what keeps the reordering to the
+     * programs that need it.
+     */
+    bool hasDeferredSitePaths() const {
+        return pendingSiteSignatures.size() != 0 || pendingSiteFields.size() != 0;
+    }
+    DeclPtr<Type> resolveErasedIterType(ast::Type& type);
 
     /*
      * resolve_class.cpp - the things that are selected.
@@ -2570,17 +2912,27 @@ struct Resolver {
     // symbol a dump shows, and the refusals, which name the construct rather than what it becomes.
     enum class LiftKind: U8 { Lambda, Thunk };
 
+    // `erase` is whether the **position** asked for the `(A) -> B` pair; where it did not, the value
+    // is the environment record itself - the site type of Design-Iterator-Objects.md §4.
     Node* liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* args, ast::Expr& body,
                        bool implicitReturn, DeclPtr<Type> hint, LocationId source, LiftKind kind,
-                       bool owningPosition);
+                       bool owningPosition, bool erase);
 
     // The position a lambda that typed its own parameters stands at - see the definition, where the
     // one rule this stage has for a lambda at a position that states nothing is argued.
     DeclPtr<Type> writtenLambdaPosition(ast::FunExpr& written, LocationId source);
 
     void resolveLiftedBody(Function& lifted, ast::Expr& body, bool implicitReturn, bool thunk,
-                           LocationId source);
-    Node* buildEnvironment(Builder& builder, LambdaFrame& frame, LocationId source);
+                           bool owns, LocationId source);
+    Node* buildEnvironment(Builder& builder, LambdaFrame& frame, LocationId source, bool site);
+
+    // A site-typed value at a position that asked for the erased `(A) -> B` - the pair, built where
+    // the erasure happens rather than where the lambda was written. See resolve_lambda.cpp.
+    Node* adaptSiteValue(Builder& builder, Node& value, RecordType& site, LocationId source);
+    RecordType* objectSiteOf(DeclPtr<Type> type);
+
+    // The site type a value of this type is one of, or null - a record a lambda was lifted into.
+    RecordType* siteTypeOf(DeclPtr<Type> type);
 
     // A name the innermost lambda's body said and its enclosing function bound, as the place the
     // lambda reads it through. Null where the name is not one, which is what lets `resolvePlace`
@@ -3157,6 +3509,10 @@ struct Resolver {
      * to have happened before the jump - and which type to widen to is only known once every
      * alternative has been seen. That ordering is the whole reason this runs where it does.
      */
+    // Site-typed arms of a merge that do not agree, erased in their own blocks - see the definition.
+    void eraseSiteArms(Builder& builder, SmallArray<Block*, 8>& ends, SmallArray<Node*, 8>& values,
+                       LocationId source);
+
     Node* mergeArms(Builder& builder, Block& join, SmallArray<Block*, 8>& ends,
                     SmallArray<Node*, 8>& values, LocationId source);
 
@@ -3400,7 +3756,7 @@ struct Resolver {
     bool handoverCall(Builder& builder, ast::Expr& call, const NamedCall& called,
                       Continuation::Multiplicity multiplicity, StringId name,
                       LocationId nameSource, ast::ParseList<ast::Alt> alternatives, F&& inside,
-                      OverloadChoice* chosen = nullptr);
+                      OverloadChoice* chosen = nullptr, bool reyield = false);
 
     /*
      * `| e -> ...` beside a call of a traversal that declared `| E` - the skip path's own code.
@@ -3426,10 +3782,31 @@ struct Resolver {
     void resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop);
     void resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop);
     void resolveExit(Builder& builder, ast::Expr& expr);
+
+    // `continue v` - the value half of the above, and where §2.5's three refusals are. False having
+    // reported, which is what makes the caller close the block as unreachable.
+    bool resumeExit(Builder& builder, ast::Expr& expr, Loop& loop);
     Node* resolveStatements(Builder& builder, ast::ParseList<ast::Expr> statements, U32 from,
                             U32 to, DeclPtr<Type> hint, bool wantValue, Request wanted);
 
-    void resolveYield(Builder& builder, ast::Expr& expr);
+    /*
+     * `yield e` - the hand-over, and what the pass sent back where the declaration has a `<- R`.
+     *
+     * Answers the resume value for a resuming iterator and null everywhere else, which is what makes
+     * `yield` both a statement and a value form with one walk: a position that wants a value asks
+     * for one, and `resolveStatement` discards what comes back. Null having reported is the same
+     * answer, and the caller cannot tell them apart because there is nothing for it to do
+     * differently - a body that reported is abandoned either way.
+     */
+    // `valued` is whether the position asked for a value, which only a `<- {}` channel's `yield` has
+    // any use for - see the definition's `unitYield`. False from `resolveStatement`, so a hand-over
+    // whose answer nothing reads builds no constant for it.
+    Node* resolveYield(Builder& builder, ast::Expr& expr, bool valued = false);
+
+    // The wrapper half of the above, split out because it is the only part a `<- R` changes:
+    // `Outcome(R, exit)` matched instead of the bare signal compared. `skipped` is the guarded arm,
+    // which has no wrapper to read and joins at the departure.
+    Node* resumeYield(Builder& builder, ast::Expr& expr, Node& answer, Block* skipped);
 
     /*
      * Where an iterator carries on once its consumer has left - `doc/spec/lenses.md`'s cleanup rule.
@@ -3442,6 +3819,7 @@ struct Resolver {
      * simply carries on - `departureFallsThrough` is that case, asked before a test is emitted for
      * an answer that cannot change control flow.
      */
+    void recordDeparture(Builder& builder, Block& at);
     void emitDeparture(Builder& builder, LocationId source);
     bool departureFallsThrough(Builder& builder);
 
@@ -3669,18 +4047,27 @@ struct Resolver {
      * this, and so does `::` - which is what makes an implicit widening and a written one the same
      * program. See the file, where the rule is argued.
      *
-     * `access` is what the position asked for, and it is here for one case: a converted value is one
-     * this frame just made, so a position the callee writes *through* cannot take one. Owned by
-     * default, since that is what every position with nothing to say is.
+     * `access` is what the position asked for, and it is here for two: a converted value is one this
+     * frame just made, so a position the callee writes *through* cannot take one, and an iterator
+     * object reaching `iter(T)` reads it to place the record. Owned by default, since that is what
+     * every position with nothing to say is.
+     *
+     * `establishes` is `Request::establishes` and unsays the first of those without touching the
+     * second - a `let &x = e` declares the storage rather than writing back through somebody's, so
+     * there is nobody for the conversion to throw a write away from. It travels beside the access
+     * rather than replacing it because the placement question still wants the exclusive answer: `let
+     * &it = lex(s) :: iter(Token)` puts the record in the frame and points the pair at it, and
+     * collapsing the access to `Owned` to get past the refusal would have moved it to the heap.
      */
     Node* convertValue(Builder& builder, Node& value, DeclPtr<Type> to, LocationId source,
-                       bool implicit, StringView what, Access access = Access::Owned);
+                       bool implicit, StringView what, Access access = Access::Owned,
+                       bool establishes = false);
 
     // The implicit half, named for what a reader of a call site is doing: checking a value against
     // the type a position declared, and widening it where the language says that happens on its own.
     Node* coerce(Builder& builder, Node& value, DeclPtr<Type> expected, LocationId source,
-                 StringView what, Access access = Access::Owned) {
-        return convertValue(builder, value, expected, source, true, what, access);
+                 StringView what, Access access = Access::Owned, bool establishes = false) {
+        return convertValue(builder, value, expected, source, true, what, access, establishes);
     }
 
     // Whether the program declares a conversion of this kind between the pair, asked without
@@ -3984,6 +4371,59 @@ struct GenScope {
 
     Resolver& resolver;
     DeclPtr<GenContext> outer;
+};
+
+/*
+ * A position that **requires** a constant, for the length of reading one - `Resolver::readingConstant`,
+ * where §6.5's refusal is argued.
+ *
+ * Three of them and no more: the count of a `[T *n]`, a global's initializer, and a field or
+ * parameter default. Restored rather than cleared for `GenScope`'s reason - a default is read while
+ * a `data` head is being declared, and a flag left standing would refuse a site type in the next
+ * field of the same record.
+ */
+struct ConstantScope {
+    explicit ConstantScope(Resolver& resolver):
+        resolver(resolver), outer(resolver.readingConstant)
+    {
+        resolver.readingConstant = true;
+    }
+
+    ~ConstantScope() { resolver.readingConstant = outer; }
+
+    ConstantScope(const ConstantScope&) = delete;
+    ConstantScope& operator = (const ConstantScope&) = delete;
+
+    Resolver& resolver;
+    bool outer;
+};
+
+/*
+ * A position that **keeps** an iterator call's result, for the length of resolving what fills it -
+ * `Resolver::objectCallSource`, and `doc/inflight/Design-Iterator-Objects.md` §2.1's second row.
+ *
+ * Five of them: a `let` initializer, a field of a construction, a call argument, a `return` value -
+ * the `=` body's implicit one included - and the right-hand side of an assignment. Each sets the
+ * *expression's* own source, which is what tells the position's own call from an iterator call
+ * written inside it - `finishCall` compares, and an inner one is refused by name.
+ *
+ * Restored rather than cleared, for `ConstantScope`'s reason: an argument is resolved inside a
+ * `let` whose own token is still standing, and clearing would make the nesting decide the answer.
+ */
+struct ObjectScope {
+    ObjectScope(Resolver& resolver, LocationId source):
+        resolver(resolver), outer(resolver.objectCallSource)
+    {
+        resolver.objectCallSource = source;
+    }
+
+    ~ObjectScope() { resolver.objectCallSource = outer; }
+
+    ObjectScope(const ObjectScope&) = delete;
+    ObjectScope& operator = (const ObjectScope&) = delete;
+
+    Resolver& resolver;
+    LocationId outer;
 };
 
 } // namespace mir

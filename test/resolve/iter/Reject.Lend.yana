@@ -1,0 +1,98 @@
+{-
+   What a **lending** object's value refuses - `doc/inflight/Design-Iterator-Objects.md` §3.3, and
+   §2.6's "a lent value lives until the next step".
+
+   # resolver: ownership
+
+   Nothing here is a rule of its own. A producer whose hand-over lends keeps the value in the record
+   and the slot holds its address, so what a consumer is given is a borrow **rooted in the object** -
+   `f$item`'s signature says so. Every refusal below is the loan checker's ordinary one: the next
+   step needs the record whole.
+
+   `test/resolve/fiber/Reject.Lend.yana` said the same thing about the stack handle, through
+   `LentIter.current`'s signature; it is gone with the handle (2026-09-16) and this file is what it
+   was superseded by rather than what it was rewritten into - every claim it made is one of these,
+   and the class half below is one it could not make at all.
+
+   **And through the class it is the same refusal**, which is what the borrowing `Iterate` is for:
+   `next(&self: source's) -> Maybe(source'item)` roots the answer in the object, so a body that holds
+   what one step gave it across the next is refused by the rule that refuses `for h in it: for g in
+   it`. That is §3.3 stated once and enforced in both spellings, rather than a rule of the feature's
+   own - which is why this file holds a concrete `for` and a class-generic body side by side.
+-}
+
+data Held {id: Int}
+
+instance Drop(Held):
+    fn drop(->value: Held): {}
+
+iter fn lent(n: Int) -> Held:
+    let &i = 1 :: Int
+
+    while i <= n:
+        let h = Held {id: i}
+        yield h
+        i = i + 1
+
+-- Stepping the object again from inside the loop whose variable borrows it.
+fn stepInsideLoop() -> Int:
+    let &kept = 0 :: Int
+    let &it = lent(3)
+
+    for h in it:
+        for g in it:
+            kept = kept + g.id + h.id
+
+    return kept
+
+-- And borrowing the object exclusively while a value it lent is still live, which is what any
+-- second step is.
+fn writeWhileLent() -> Int:
+    let &kept = 0 :: Int
+    let &it = lent(3)
+
+    for h in it:
+        let &other = it
+        kept = kept + h.id
+
+    return kept
+
+{-
+   The same thing a body compiled once says, where `it` is a type variable and the only thing known
+   about it is that it steps.
+
+   `held` is a loan of the object, so the second `next()` is a second exclusive borrow of something
+   already borrowed. No message of this feature's is involved: the constraint gives the body the
+   class's signature and the signature is what publishes the origin.
+-}
+fn (Iterate(s, Held, {})) twoAtOnce(&it: s) -> Int:
+    let &kept = 0 :: Int
+
+    if it.next() is Just(held):
+        if it.next() is Just(second):
+            kept = held.id + second.id
+
+    return kept
+
+fn throughClass() -> Int:
+    let &it = lent(3)
+    return twoAtOnce(it)
+
+-- And keeping one past the step that replaces it, which is the same fact said about a binding.
+fn (Iterate(s, Held, {})) keptPastStep(&it: s) -> Int:
+    let &kept = 0 :: Int
+    let seen = it.next()
+
+    if it.next() is Just(second):
+        kept = second.id
+
+    if seen is Just(first):
+        kept = kept + first.id
+
+    return kept
+
+fn holding() -> Int:
+    let &it = lent(3)
+    return keptPastStep(it)
+
+fn main() -> Int = stepInsideLoop() + writeWhileLent() + throughClass() + holding()

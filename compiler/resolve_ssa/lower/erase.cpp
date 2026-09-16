@@ -791,16 +791,28 @@ LowerPtr<LowerGlobal> Lowering::witnessFor(DeclPtr<mir::Class> klass, mir::GenWi
         // signature and shares its thunk with a table built for the superclass directly.
         DeclPtr<mir::Class> owner = nullptr;
         U16 member = 0;
-        if(!mir::classWitnessAt(decl, klass, U16(slot), owner, member)) continue;
+        auto object = false;
+        if(!mir::classWitnessAt(decl, klass, U16(slot), owner, member, object)) continue;
 
+        /*
+         * And which **signature** that slot promises - the member's, or the "make an object" entry's
+         * beside it where the member is written `iter fn` (Design-Iterator-Objects.md §6.4).
+         *
+         * The two are one mechanism from here down: a promise is a position list and a result, the
+         * thunk adapts the erased boundary to what the concrete function takes, and what differs is
+         * only that this one's result is `iter(T)` where the member's is a record no signature could
+         * name. `Function::iterObject` is where the declaration is.
+         */
         auto declared = decl[owner]->members.get(decl, member);
+        if(object) declared = decl[declared]->iterObject;
+        if(!declared) continue;
 
         SmallArray<mir::Occurrence, 4> positions;
         for(auto argument: decl[declared]->args.contents(decl)) {
             positions.push(decl[argument]->occurrence);
         }
 
-        auto promise = (U64(owner.offset) << 32) | U64(member);
+        auto promise = (U64(owner.offset) << 32) | U64(member) | (object ? (U64(1) << 63) : 0);
         auto thunk = thunkFor(promise, concrete, positions.pointer(), positions.size(),
                               decl[declared]->result, source);
         if(!thunk) continue;
@@ -808,6 +820,300 @@ LowerPtr<LowerGlobal> Lowering::witnessFor(DeclPtr<mir::Class> klass, mir::GenWi
         addPointer(*table, slot * kSlotBytes, thunk, nullptr);
     }
 
+    return handle;
+}
+
+
+/*
+ * The one-cell table a `Call(f, S)` requirement's slot points at - Design-Iterator-Objects.md §4,
+ * and the half stage 1 left out.
+ *
+ * `Call` is **structural**: it is answered from the subject, declares no members and has no row in
+ * the instance table, so there is no member list for a caller to fill and no instance to select. A
+ * body compiled once still has to get the code from somewhere, and this is where it comes from - one
+ * cell holding a function that takes the value's storage as its first argument.
+ *
+ * Two subjects and one entry, which is `structuralAnswer`'s own division read at the other end. A
+ * **site type** names its code in its type, so the entry calls that lifted function directly and the
+ * storage is the environment it already takes as argument zero. A **function type** names no code at
+ * all - the pair carries it - so the entry splits the pair first. Both are `callThunkFor`, because
+ * what differs between them is one instruction and everything either side of it is the same
+ * boundary.
+ *
+ * Interned on the pair the cell *is*: the concrete subject, and which of the promised positions this
+ * body erased. Not on the constraint's written type, which is what it was first and is wrong in the
+ * direction that matters - two generics stating `(a) -> a` and `(I32) -> I32` over one closure need
+ * two entries, and two stating the same shape at two declarations need one. The mask says exactly
+ * that and the type does not.
+ */
+LowerPtr<LowerGlobal> Lowering::callWitnessFor(DeclPtr<mir::Type> declaredSubject,
+                                               DeclPtr<mir::Type> declaredShape,
+                                               mir::GenWitness witness, LocationId source) {
+    if(!declaredShape || decl[declaredShape]->kind != mir::Type::Fun || !witness.type) {
+        context.diagnostics.error("internal: a `Call` requirement with no signature to call through"_v,
+                                  source);
+        return nullptr;
+    }
+
+    /*
+     * The promised positions: the value's storage, then the shape's own.
+     *
+     * Position zero is written at the *declared subject* - the type variable - so it manifests as
+     * the address every erased position does, which is exactly what both entries want: a lifted
+     * lambda takes its environment by address, and a pair is two words at one.
+     */
+    auto& shape = *(mir::FunType*)decl[declaredShape];
+
+    SmallArray<mir::Occurrence, 4> positions;
+    positions.push(mir::Occurrence {
+        declaredSubject, mir::borrowedContract(mir::Access::Unique), nullptr });
+    for(auto param: shape.params.contents(decl)) positions.push(param.occurrence);
+
+    auto mask = erasedSignatureMask(positions.pointer(), positions.size(), shape.result);
+
+    auto key = mir::InternKey().mix(witness.type.offset).mix(mask).hash;
+    if(auto found = callWitnesses.getValue(key)) return found.unwrap();
+
+    auto table = addTable(erasedName(String("witness(Call(") + callSubjectText(witness.type, mask) +
+                                     String("))")),
+                          kSlotBytes);
+
+    auto handle = table - lower;
+    callWitnesses.add(key, handle);
+
+    auto named = witness.functions.size() ? witness.functions.get(decl, 0)
+                                          : DeclPtr<mir::Function>(nullptr);
+
+    auto thunk = callThunkFor(witness.type, named, mask, positions.pointer(), positions.size(),
+                              shape.result, source);
+
+    if(thunk) addPointer(*table, 0, thunk, nullptr);
+    return handle;
+}
+
+/*
+ * Which positions of one promised signature are reached through a descriptor - the identity a `Call`
+ * entry is interned and named by.
+ *
+ * A bit per position and the top bit for the result. That is a *complete* identity for the boundary,
+ * because `structuralAnswer` compares the constraint's shape against the subject's for equality: a
+ * position the promise did not erase is the subject's own position, so two promises that erase the
+ * same set of positions over one subject are the same adaptation instruction for instruction.
+ */
+U64 Lowering::erasedSignatureMask(const mir::Occurrence* declared, Size count,
+                                  const mir::Occurrence& declaredResult) {
+    U64 mask = 0;
+
+    for(Size i = 0; i < count && i < 63; i++) {
+        if(erasedPosition(decl, declared[i])) mask |= U64(1) << i;
+    }
+
+    if(erasedPosition(decl, declaredResult)) mask |= U64(1) << 63;
+    return mask;
+}
+
+// What a `Call` entry is called in the image - the subject by the one name that is unique for it,
+// with the mask that says which of its positions this promise erased. A lambda's record carries a
+// unique symbol and a function type is interned, so no two subjects spell the same thing.
+String Lowering::callSubjectText(DeclPtr<mir::Type> subject, U64 mask) {
+    auto text = decl[subject]->kind == mir::Type::Record
+        ? String(context.findName(((mir::RecordType*)decl[subject])->name))
+        : mir::typeText(context, decl, subject);
+
+    if(!mask) return text;
+
+    auto digits = String();
+    for(auto bits = mask; bits; bits >>= 4) {
+        auto digit = U32(bits & 0xf);
+        char one[2] = { char(digit < 10 ? '0' + digit : 'a' + (digit - 10)), 0 };
+        digits = String(one) + digits;
+    }
+
+    return text + String(" erased ") + digits;
+}
+
+/*
+ * The entry a `Call` witness holds - `thunkFor` with the callee read off the *subject* instead of
+ * named by a class.
+ *
+ * A sibling rather than a flag on that function, and the reason is the two lines they do not share.
+ * Its callee is always a declaration, so the convention, the hidden result pointer and every
+ * parameter manifestation come off a `mir::Function`; here the callee may be a **word of the value**,
+ * and then all four come off the *shape* instead. And its name is the callee's symbol, which is not
+ * an identity for this entry at all: one closure reached at two promises is two entries and one
+ * symbol, and `LowerModule::addFunction` hands back the function that already has that name.
+ *
+ * Built in the lower IR for `thunkFor`'s reason: there is no value here whose life it decides.
+ */
+LowerPtr<LowerFunction> Lowering::callThunkFor(DeclPtr<mir::Type> subject,
+                                               DeclPtr<mir::Function> named, U64 mask,
+                                               const mir::Occurrence* declared, Size count,
+                                               const mir::Occurrence& declaredResult,
+                                               LocationId source) {
+    auto key = mir::InternKey().mix(subject.offset).mix(mask).hash;
+    if(auto found = callThunks.getValue(key)) return found.unwrap();
+
+    /*
+     * The callee's own positions and result - the lifted lambda's, with its environment at position
+     * zero, or the pair's shape, whose positions start where the storage ends.
+     */
+    auto callee = named ? decl[named] : nullptr;
+    auto pair = named ? nullptr : (mir::FunType*)decl[subject];
+
+    auto bound = [&](Size i) {
+        return named ? decl[callee->args.get(decl, U32(i))]->occurrence
+                     : pair->params.get(decl, U32(i - 1)).occurrence;
+    };
+
+    auto concreteResultOccurrence = named ? callee->result : pair->result;
+
+    LowerPtr<LowerFunction> target = nullptr;
+    if(named) {
+        auto found = functions.getValue(named.offset);
+        if(!found) {
+            context.diagnostics.error(
+                "internal: a `Call` witness names a function that was not lowered"_v, source);
+            return nullptr;
+        }
+
+        target = found.unwrap();
+        assertTrue(callee->args.size() == count);
+    } else {
+        assertTrue(pair->params.size() + 1 == count);
+    }
+
+    auto function = to.addFunction(
+        erasedName(String("thunk(Call(") + callSubjectText(subject, mask) + String("))")));
+
+    auto handle = function - lower;
+    callThunks.add(key, handle);
+
+    // The environment, first and unused - `thunkFor`'s own parameter, for its own reason: everything
+    // reached through a cell is called the same way, whether or not the callee wants one.
+    function->addArg(lower, StringId(), LowerType::Pointer);
+
+    auto erasedResult = manifestNative(layout, declaredResult);
+    auto concreteResult = manifestNative(layout, concreteResultOccurrence);
+
+    LowerPtr<LowerValue> resultPlace = nullptr;
+    if(erasedResult.inMemory) {
+        resultPlace = &function->addArg(lower, StringId(), LowerType::Pointer)->result - lower;
+    }
+
+    SmallArray<LowerPtr<LowerValue>, 8> incoming;
+    for(Size i = 0; i < count; i++) {
+        incoming.push(&function->addArg(lower, StringId(),
+                                        manifestNative(layout, declared[i]).type)->result - lower);
+    }
+
+    auto returns = !erasedResult.inMemory && decl[declaredResult.type]->kind != mir::Type::Unit;
+    if(returns) function->returnTypes.push(to.arena, erasedResult.type);
+
+    auto block = function->addBlock(lower, StringId());
+
+    /*
+     * The code, and what goes in front of the arguments.
+     *
+     * A lifted lambda takes its environment as argument zero, exactly as a specialized site call
+     * passes it, so the storage travels in the ordinary list and there is no environment word. A
+     * pair is split into the two offsets `CallThrough::Value` reads at a call site, and its
+     * environment word is the leading argument the code was compiled to take.
+     */
+    LowerPtr<LowerValue> code = nullptr;
+    LowerPtr<LowerValue> environment = nullptr;
+    auto first = Size(0);
+
+    if(named) {
+        code = ((LowerInstSingle*)block->addInst(lower, new (to.arena) LowerInstFun(
+            callee->symbol, target)))->created().ptr - lower;
+    } else {
+        code = wordAt(*block, incoming[0], layout.target.funCodeOffset(), LowerType::Pointer,
+                      layout.target.pointerSize);
+        environment = wordAt(*block, incoming[0], layout.target.funEnvOffset(), LowerType::Pointer,
+                             layout.target.pointerSize);
+        first = 1;
+    }
+
+    // Each argument, from the promised form into the one the callee was compiled at - `thunkFor`'s
+    // loop, which is the same adaptation and the same one direction it ever needs.
+    SmallArray<LowerPtr<LowerValue>, 8> passed;
+    for(Size i = first; i < count; i++) {
+        auto position = bound(i);
+
+        if(!erasedPosition(decl, declared[i]) || arrivesAsAddress(layout, position)) {
+            passed.push(incoming[i]);
+            continue;
+        }
+
+        auto manifest = manifestNative(layout, position);
+
+        auto loaded = block->addInst(lower, new (to.arena) LowerInstLoad(
+            incoming[i], StringId(), manifest.type, manifest.size, manifest.isSigned));
+
+        passed.push(((LowerInstSingle*)loaded)->created().ptr - lower);
+    }
+
+    /*
+     * A result the *callee* returns in memory needs storage, and a promise that returns in memory
+     * already has the caller's - which is `thunkFor`'s landing-pad question with one arm more: the
+     * two ends can disagree in either direction here, because the promise erased its result or the
+     * subject's own result is a record.
+     */
+    auto hidden = concreteResult.inMemory ? 1u : 0u;
+    LowerPtr<LowerValue> place = resultPlace;
+
+    if(hidden && !place) {
+        auto size = block->addInst(lower, new (to.arena) LowerImm(
+            StringId(), LowerType::Int64, U64(concreteResult.size)));
+
+        auto storage = block->addInst(lower, new (to.arena) LowerInstAlloca(
+            StringId(), ((LowerInstSingle*)size)->created().ptr - lower,
+            concreteResult.align ? concreteResult.align : 1));
+
+        place = ((LowerInstSingle*)storage)->created().ptr - lower;
+    }
+
+    auto created = concreteResult.inMemory ||
+                   decl[concreteResultOccurrence.type]->kind == mir::Type::Unit ? 0u : 1u;
+
+    auto convention = named ? lower[target]->callType : kDefaultCallType;
+    auto leading = 1u + (environment ? 1u : 0u) + hidden;
+
+    auto result = call(lower, to, *block, created, passed.size() + leading, convention,
+                       [&](LowerInstCall* built) {
+        for(Size i = 0; i < created; i++) {
+            new (built->created().ptr + i) LowerValue(built, concreteResult.type, StringId());
+        }
+
+        built->used()[0] = code;
+
+        Size index = 1;
+        if(environment) built->used()[index++] = environment;
+        if(hidden) built->used()[index++] = place;
+        for(Size i = 0; i < passed.size(); i++) built->used()[index++] = passed[i];
+    });
+
+    // The two directions the ends can differ about the result, each one instruction: a register
+    // answer stored into the promised storage, and a memory answer a register promise reads back.
+    if(created && erasedResult.inMemory) {
+        block->addInst(lower, new (to.arena) LowerInstStore(
+            resultPlace, result->created().ptr - lower, concreteResult.size));
+    }
+
+    auto returned = LowerPtr<LowerValue>(nullptr);
+
+    if(returns) {
+        if(created) {
+            returned = result->created().ptr - lower;
+        } else {
+            auto loaded = block->addInst(lower, new (to.arena) LowerInstLoad(
+                place, StringId(), erasedResult.type, erasedResult.size, erasedResult.isSigned));
+
+            returned = ((LowerInstSingle*)loaded)->created().ptr - lower;
+        }
+    }
+
+    emitReturn(*block, &returned, returns ? 1u : 0u);
     return handle;
 }
 
@@ -1022,10 +1328,25 @@ LowerPtr<LowerGlobal> Lowering::environmentFor(DeclPtr<mir::GenEnvironment> envi
                 writeNumber(*table, offset, slotBytes(layout, numbering->slots.get(decl, index)),
                             witness.constant);
                 break;
-            case mir::GenSlotKind::Class:
-                addPointer(*table, offset, nullptr,
-                           witnessFor(numbering->slots.get(decl, index).klass, witness, source));
+            case mir::GenSlotKind::Class: {
+                auto row = numbering->slots.get(decl, index);
+
+                /*
+                 * `Call(f, S)` - one synthesized cell rather than an instance's member list, since
+                 * the class is structural and declares nothing. The promise is the constraint's own
+                 * written shape, which is what says which of its positions this body erased.
+                 */
+                if(row.klass && decl[row.klass]->role == intrinsic::Known::call &&
+                   row.args.size() == 2) {
+                    addPointer(*table, offset, nullptr,
+                               callWitnessFor(row.args.get(decl, 0), row.args.get(decl, 1), witness,
+                                              source));
+                    break;
+                }
+
+                addPointer(*table, offset, nullptr, witnessFor(row.klass, witness, source));
                 break;
+            }
 
             /*
              * Where the field is, or how to reach it - `PropertyForm`, decided by what the

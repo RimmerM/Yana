@@ -1,0 +1,73 @@
+{-
+   What a **site type** and the `Call` constraint refuse - `doc/inflight/Design-Iterator-Objects.md`
+   §4, stage 1.
+
+   # resolver: ownership
+
+   `generic/SiteType.yana` is the half that compiles. These are the three the *resolver* answers, and
+   each is a statement the constraint makes rather than a limit of the machinery:
+
+    - a value the constraint says nothing about is not callable, because what a body may do with its
+      own type parameter is what its signature promised and not what one substitution turned out to
+      be;
+    - `Call` is answered **from the type** and never from a declaration, so a closure whose body
+      decided a different result does not fit a position that stated one - and the message names both
+      shapes, because there is no instance an author could write that would make it hold;
+    - a type that is not callable at all answers no `Call`, and the call is where that is said.
+
+   One more is elsewhere, because a different pass answers: `Reject.ClosureEscape.yana`'s `viaLocal`
+   is a site-typed closure adapted at a `return`, which is the ownership analysis' answer and stands
+   behind resolution's error checkpoint. A body compiled **once** that calls through the constraint
+   was a fourth and is `SiteErased.yana` since 2026-09-16: the witness's one cell is synthesized.
+-}
+
+fn (Call(f, (I32) -> I32)) apply(g: f, x: I32) -> I32 = g(x)
+
+-- A value at a type parameter the signature promised nothing about. `g(x)` is not a call here, and
+-- what the author has to add is the clause - which is the whole of what the constraint buys.
+fn (a.tag: I32) unconstrained(g: a, x: I32) -> I32 = g(x)
+
+{-
+   A closure whose shape is not the one the position states.
+
+   Bound first, deliberately: written *at* the argument the lambda takes its header from the `Call`
+   clause on that position's variable, so the result is checked as a returned value and the message
+   is about the body. A `let` has no such position, so the lambda's own header decides and what
+   disagrees is the *type* - which is the answer `Call` gives and the one shape the constraint can
+   report on its own.
+-}
+fn wrongShape() -> I32:
+    let g = (x: I32) -> x > 1
+    return apply(g, 4)
+
+-- A type nothing can be called as. `Call` holds for a function type and for a lambda's own type and
+-- for nothing else, which is a fold over the type rather than a row somebody may add.
+fn notCallable() -> I32 = apply(7 :: I32, 4)
+
+{-
+   A site-typed closure **read back out of storage** and then erased.
+
+   The pair carries its environment, and what a borrow of the record offers is somebody else's
+   storage with somebody else's extent - so there is nowhere for the pair to point that outlives the
+   position. Copying the record instead would be a second closure over one set of captures, dropping
+   independently, which is why this is a refusal rather than a copy. A closure whose captures are all
+   trivially copyable *is* read as a copy and adapts, which is `ownership/SiteAdapt.yana`; what is
+   refused is the one that owes a teardown. Calling it in place needs none of this - that is
+   `SiteType.yana`'s `go`, and it is what the site type is for.
+-}
+data Held {v: I32}
+
+instance Drop(Held):
+    fn drop(->value: Held):
+        return
+
+data Box(f) {run: f}
+
+fn erasedFromField() -> I32:
+    let h = Held {v: 4}
+    let b = Box {run: (x: I32) -> x + h.v}
+    return apply2(b.run, 3)
+
+fn apply2(f: (I32) -> I32, v: I32) -> I32 = f(v)
+
+fn main() -> I32 = 0

@@ -51,9 +51,16 @@ namespace mir {
  * An **owned** position is fine - a converted value is a fresh owner, which is what `->` asks for -
  * and a **shared** one is fine because a borrow of a temporary is an ordinary thing this stage
  * already builds a frame slot for.
+ *
+ * `establishes` is the fourth answer and the one the exclusive case turns on: there is a `&` that
+ * has no caller behind it. `let &total = n :: I64` asks for exclusive access to storage **it is
+ * declaring**, which `Request::establishes` is the bit for, so the widened `I64` is that storage and
+ * nothing is written back anywhere. Refusing it reported "what the callee wrote would be thrown
+ * away" of a statement with no callee in it, and since `::` is the only way to name a type in a
+ * `let`, that refused every converting `let &` in the language.
  */
-static bool conversionFillsPosition(Access access) {
-    return access != Access::Unique;
+static bool conversionFillsPosition(Access access, bool establishes) {
+    return access != Access::Unique || establishes;
 }
 
 /*
@@ -217,9 +224,60 @@ Node* Resolver::refuseConversion(DeclPtr<Type> to, DeclPtr<Type> from, LocationI
  *     every reader of it will be looking at.
  */
 Node* Resolver::convertValue(Builder& builder, Node& value, DeclPtr<Type> to, LocationId source,
-                             bool implicit, StringView what, Access access) {
+                             bool implicit, StringView what, Access access, bool establishes) {
     auto from = valueType(value);
     if(sameType(from, to)) return &value;
+
+    /*
+     * A **site type** reaching the erased `(A) -> B` - Design-Iterator-Objects.md §2.3, and the
+     * language's second implicit adaptation beside a container reaching a view position.
+     *
+     * Here rather than beside the `Widen` ladder because it is not a conversion in that sense at
+     * all: nothing is computed, and what changes is the *representation* the position holds - the
+     * record becomes a pair over storage, exactly as an owner becomes a window. It is at the top of
+     * this function for the same reason `adaptToWindow` runs before it: a value that adapts never
+     * reaches the question of which class relates two types, and the message about there being no
+     * such class would name a synthesized record the author never wrote.
+     *
+     * One shape and no widening: the site type's own `(A) -> B` and nothing else. A position wanting
+     * a different function type is a mismatch reported below, naming both, which is what a lambda at
+     * the wrong arity has always been told.
+     */
+    if(auto site = siteTypeOf(from); site && to && decl()[to]->kind == Type::Fun &&
+                                     sameType(site->lambdaShape, to)) {
+        return adaptSiteValue(builder, value, *site, source);
+    }
+
+    /*
+     * And an **iterator object** reaching the erased `iter(T)` - §3.4, the same adaptation one kind
+     * over.
+     *
+     * The protocols are compared as occurrences rather than as types, because that is what the
+     * erased form is interned on: `iter(T)` and `iter(->T)` are two protocols and a consumer of one
+     * may not be handed the other. A site type whose protocol does not match falls through to the
+     * mismatch below, which names both.
+     *
+     * The **position** decides the placement and nothing else does, which is the one thing that
+     * differs from a closure: a lambda's is settled where the lambda is written, because its capture
+     * conventions depend on it, and an object's captures were settled at its own construction. So an
+     * owning position moves the record into a heap block and a borrowing one points at the frame
+     * local, and §3.4's "must not copy the payload at a borrowing position" is that read backwards.
+     */
+    if(auto site = objectSiteOf(from); site && to && decl()[to]->kind == Type::Iter) {
+        auto& want = *(IterType*)decl()[to];
+        auto& producer = *decl()[site->producer];
+        auto& declaring = bodyOwnerOf(decl(), producer);
+        auto with = substitutionOf(decl(), producer);
+
+        auto handover = substituteOccurrence(context, program, declaring.handover, with);
+        auto resume = declaring.resume.type
+            ? substituteType(context, program, declaring.resume.type, with)
+            : program.types.unit;
+
+        if(handover == want.handover && sameType(resume, want.resume)) {
+            return adaptIterValue(builder, value, *site, to, access == Access::Owned, source);
+        }
+    }
 
     /*
      * A `@bits(n)` destination is reached in two steps, and that is `doc/spec/repr.md`'s own model
@@ -233,9 +291,10 @@ Node* Resolver::convertValue(Builder& builder, Node& value, DeclPtr<Type> to, Lo
      * `@bits(4) U32` converts nothing and still cannot fill a position the callee writes back.
      */
     if(auto canonical = canonicalInt(decl(), to); canonical != to) {
-        if(!conversionFillsPosition(access)) return refuseConversion(to, from, source, what);
+        if(!conversionFillsPosition(access, establishes)) return refuseConversion(to, from, source, what);
 
-        auto made = convertValue(builder, value, canonical, source, implicit, what, access);
+        auto made = convertValue(builder, value, canonical, source, implicit, what, access,
+                                 establishes);
         if(!made) return nullptr;
 
         return builder.addConvert(source, *made, to);
@@ -250,7 +309,7 @@ Node* Resolver::convertValue(Builder& builder, Node& value, DeclPtr<Type> to, Lo
          * because the conversion *exists* and saying "must be I64, and this is I32" would send the
          * author to add the widening they cannot have.
          */
-        if(!conversionFillsPosition(access)) return refuseConversion(to, from, source, what);
+        if(!conversionFillsPosition(access, establishes)) return refuseConversion(to, from, source, what);
 
         // A widened refinement is the `convert` node itself rather than a call of `widen`, because
         // there is no instance to call: see `refinesInteger`. The width seam is what makes it mean

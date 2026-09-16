@@ -828,6 +828,22 @@ bool Resolver::selectOverload(Builder& builder, ast::AppExpr& written, const Ove
             // width the call then has to convert away from.
             if(undecidedLiteral(argument.value, literals[index])) continue;
 
+            /*
+             * An **argument** keeps what an `iter fn` call answers - §2.1's third row, on the same
+             * terms `resolveArguments` states it for the single-callee path and with this argument's
+             * own source as the token.
+             *
+             * Here and not only there because the two walks resolve the arguments of a call, and only
+             * one of them had the token: `absorb(upTo(3))` built an object where `absorb` named one
+             * declaration and was "upTo is an iterator, and what keeps an object of one is a `let`, a
+             * field, an argument, a `return` or an assignment" the moment a second declaration of the
+             * name existed. Nothing about selection is affected - the object's type is the producer's
+             * site type either way, and what the set agrees about is a `Request`.
+             *
+             * A deferred position is skipped above rather than given one, exactly as it is there.
+             */
+            ObjectScope object(*this, argument.value.source);
+
             values[index] = resolveValue(builder, argument.value, nullptr, requests[index]);
             if(!values[index]) return false;
         }

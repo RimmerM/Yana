@@ -1,0 +1,28 @@
+{-
+   A producer in a module of its own, for `iter/Name.yana`'s path through an import -
+   Design-Iterator-Objects.md §2.4's "across a module boundary".
+
+   Two declarations and the difference between them is `pub`: a site type is named through the
+   ordinary lookup, so what an importer may write `Lexing.digits.Iter` about is exactly what it may
+   call, and `private` is what `Reject.Name.yana` names to show it.
+-}
+
+module Lexing
+
+-- The digits of `n`, most significant last. An object of this is `digits.Iter` here and
+-- `Lexing.digits.Iter` anywhere that imports it.
+pub iter fn digits(n: I32) -> I32:
+    let &rest = n
+
+    while rest > 0:
+        yield rest % 10
+        rest = rest / 10
+
+-- Not exported, so a path to its object type is the same "not in scope" a call of it would be.
+iter fn private(n: I32) -> I32:
+    yield n
+
+-- The same object built here, so that an importer can write the result type this answers.
+pub fn theDigits(n: I32) -> digits.Iter:
+    let it = digits(n)
+    return it

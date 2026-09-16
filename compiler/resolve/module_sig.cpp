@@ -479,14 +479,6 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
      * The rewritten stage implements it; carrying it here is the next milestone's, so what this owes
      * in the meantime is to say so at the declaration.
      */
-    // `-> iter(...)` - the external form of the same protocol, for the same reason: read as `-> T`
-    // it would compile a producer as a function that runs once and returns what it yielded first.
-    if(decl.fun.external) {
-        module.context.diagnostics.error(
-            "`-> iter(...)` declares an external iterator, which this resolver does not implement yet"_v,
-            decl.source);
-    }
-
     if(decl.fun.protocol.failure || decl.fun.protocol.resume) {
         auto which = decl.fun.protocol.failure ? "a failure channel"_v : "a resume value"_v;
         module.context.diagnostics.error(

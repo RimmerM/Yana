@@ -1,0 +1,359 @@
+{-
+   `continue v` and the `<- R` resume channel - Design-Iterator-Objects.md §2.5, stage 5.
+
+   # resolver: ownership
+
+   An `iter fn f(...) -> (Y <- R)` is an iterator whose `yield` **evaluates to an `R`**: the pass the
+   consumer wrote answers with `continue v`, and the value travels back down the same channel the
+   hand-over travels up. What makes that one mechanism rather than two is the wrapper: the
+   continuation answers `Outcome(R, exit)` instead of the bare exit signal, `Proceed(r)` is a pass
+   that ended with `continue r`, and `Exit(code)` is a pass that left - which is `declareOutcome`'s
+   `| E` wrapper turned round, on the other channel.
+
+   So a declaration with both channels has one wrapper on each and neither is inside the other.
+   `guarded` below is that case: its continuation answers `Outcome(Int, exit)` and the *function*
+   answers `Outcome(exit, Trouble)`, and the consumer's `|` arm is unchanged.
+
+   Three things are worth watching here rather than in the goldens.
+
+   **A departure never answers.** `break` and `return` are `Exit` rows, so the `yield` that asked has
+   no value to hand on - and the producer's cleanup runs on the way out exactly as it does for an
+   iterator with no resume channel. `heldBroken` and `heldLeft` count that with a `Drop`.
+
+   **Except where there is nothing to leave.** `twoSteps` has no loop and no enclosing region, so the
+   statements below its `yield`s are both its cleanup *and* the code that reads the answers - and a
+   pass that left has no answer for them. `brokenTrail` is what that costs: the trailing statements
+   do not run, where a non-resuming producer's would. It is the one observable difference a resume
+   channel makes to a producer, and it is here rather than in `Reject.Resume.yana` because it is not
+   a refusal.
+
+   **The value is the producer's.** Both readable conventions - a plain `<- R` and `-> ->R` - put an
+   owned `R` in the producer's hands, because the wrapper's `Proceed` field is an owned position.
+   `owning` is the one that carries a teardown, and `gone` counts it: the consumer built a `Command`
+   per pass and the *producer* released each one.
+-}
+
+data Box {value: Int}
+
+let &gone = 0 :: Int
+
+instance Drop(Box):
+    fn drop(->value: Box):
+        gone = gone + 1
+
+let &trail = 0 :: Int
+
+data Step = Again | Skip | Twice
+
+{-
+   The headline: a producer whose `yield` answers a command and acts on it.
+
+   The `match` on what came back is ordinary code - the resume value is a local of the producer like
+   any other, which is the whole point of the channel being a value rather than a protocol.
+-}
+iter fn walk(n: Int) -> (Int <- Step):
+    let &i = 0 :: Int
+
+    while i < n:
+        let cmd = yield i
+
+        match cmd:
+            Again -> i = i + 1
+            Skip  -> i = i + 2
+            Twice -> i = i + 3
+
+    trail = trail + 1
+
+-- A pass ending in `continue v`, which is the first row of §2.5's table.
+fn skipping(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in walk(n):
+        s = s * 10 + x
+        continue Skip
+
+    return s
+
+-- `continue v` part-way through a pass, which is the same thing: it ends the pass wherever it stands.
+fn partWay(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in walk(n):
+        if x > 2:
+            continue Twice
+
+        s = s * 10 + x
+        continue Again
+
+    return s
+
+-- `break` - the pass leaves, the `yield` never answers, and the producer's trailing line still runs.
+fn broken(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in walk(n):
+        if x > 2:
+            break
+
+        s = s * 10 + x
+        continue Again
+
+    return s
+
+-- `return` - the leave row, carried out through the producer's frame to this function's own result.
+fn leaving(n: Int) -> Int:
+    for x in walk(n):
+        if x > 2:
+            return x * 100
+
+        continue Again
+
+    return 0
+
+{-
+   `R = {}` - the one resume type a pass need not write an answer for.
+
+   Both spellings work and mean `Proceed({})`: falling off the end of a pass, and a bare `continue`.
+   That is the same exemption a `yield` with a unit hand-over has, and it is what keeps `<- {}` from
+   being a channel an author has to service by hand.
+-}
+iter fn nothingBack(n: Int) -> (Int <- {}):
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+fn units(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in nothingBack(n):
+        s = s * 10 + x
+
+    return s
+
+fn unitsWritten(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in nothingBack(n):
+        s = s * 10 + x
+        continue
+
+    return s
+
+{-
+   Two resuming passes, nested: an adaptor that is a pass of one iterator and the producer of
+   another.
+
+   It needs nothing of its own. The inner `for`'s body is a region of this function's blocks, so its
+   `continue c` sends on what this function's own `yield` was handed - which is a resume value
+   travelling through two frames with no rule per frame.
+-}
+iter fn doubled(n: Int) -> (Int <- Step):
+    for a in walk(n):
+        let c = yield a * 10
+        continue c
+
+fn throughTwo(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in doubled(n):
+        s = s + x
+        continue Again
+
+    return s
+
+-- ... and a `break` through both frames, which is the departure leaving one region per rejoin:
+-- `doubled`'s `yield` stops, the `for` over `walk` is the region it was written in and is ended by
+-- the row that stops an iterator, and `resumeDeparture` asks again where that rejoins.
+fn throughTwoBroken(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in doubled(n):
+        if x > 10:
+            break
+
+        s = s + x
+        continue Again
+
+    return s
+
+{-
+   A producer with nothing to depart to - the case the header calls out.
+
+   Two `yield`s, no loop and no enclosing region, so `guardYields` is on and a departure has nowhere
+   to go. `wholeTrail` runs both trailing statements; `brokenTrail` runs neither, because the pass
+   that left has no answer for them to read.
+-}
+iter fn twoSteps(a: Int, b: Int) -> (Int <- Int):
+    let first = yield a
+    trail = trail + first
+    let second = yield b + first
+    trail = trail + second * 100
+
+fn wholeTrail() -> Int:
+    trail = 0
+    let &s = 0 :: Int
+
+    for x in twoSteps(1, 2):
+        s = s * 10 + x
+        continue 3
+
+    return s * 10000 + trail
+
+fn brokenTrail() -> Int:
+    trail = 0
+    let &s = 0 :: Int
+
+    for x in twoSteps(1, 2):
+        s = s * 10 + x
+        break
+
+    return s * 10000 + trail
+
+{-
+   A `Drop`-instrumented value live in the producer across the consumer's departure.
+
+   `b` is live across every `yield` and is released once on both paths - the ordinary drop
+   elaboration on the ordinary departure edge, with nothing written about resume values. `trail`
+   traces the cleanup line, which runs on both.
+-}
+iter fn holding(n: Int) -> (Int <- Int):
+    let b = Box {value: n}
+    let &i = 0 :: Int
+
+    while i < n:
+        let step = yield i + b.value
+        i = i + step
+
+    trail = trail + 1000
+
+fn heldBroken(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in holding(n):
+        if x > n:
+            break
+
+        s = s * 10 + x
+        continue 1
+
+    return s
+
+fn heldLeft(n: Int) -> Int:
+    for x in holding(n):
+        if x > n + 1:
+            return x * 7
+
+        continue 1
+
+    return 0
+
+{-
+   `-> ->R` - the resume value written as a hand-over, and the one that carries a teardown.
+
+   The producer owns what the pass sent, so the `Command`'s `Box` is released by *it* rather than by
+   the consumer that built it - which is what `gone` counts. A plain `<- R` means the same thing
+   here: the wrapper's `Proceed` field is an owned position, so what physically travels is the value,
+   and a lend of a trivially copyable type is the copy it always was.
+-}
+data Command {code: Int, box: Box}
+
+iter fn owning(n: Int) -> (Int <- ->Command):
+    let &i = 0 :: Int
+
+    while i < n:
+        let c = yield i
+        i = i + c.code
+
+fn owned(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in owning(n):
+        s = s * 10 + x
+        continue Command {code: 2, box: Box {value: 0}}
+
+    return s
+
+{-
+   ... and kept across the *next* `yield`, which is the shape §3.4 of
+   Analysis-External-Iterators.md warns about for a lent resume value.
+
+   It needs no rule here, and that is the point of the fixture: what the producer holds is its own,
+   so the value outlives the step that delivered it because it was handed over rather than lent. The
+   `Note` is linear, it is live across the `yield` that replaces it, and the assignment releases the
+   one it replaces - which `gone` counts.
+-}
+data Note {mark: Int, box: Box}
+
+iter fn keeping(n: Int) -> (Int <- ->Note):
+    let &held = Note {mark: 0, box: Box {value: 0}}
+    let &i = 0 :: Int
+
+    while i < n:
+        let note = yield i + held.mark
+        held = note
+        i = i + 1
+
+fn kept(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in keeping(n):
+        s = s * 10 + x
+        continue Note {mark: 5, box: Box {value: 0}}
+
+    return s
+
+{-
+   `| E` beside `<- R` - the two wrappers, one on each channel.
+
+   The continuation answers `Outcome(Int, exit)` and the function answers `Outcome(exit, Trouble)`,
+   and nothing at either end has to know about the other: the alternative runs where the traversal
+   failed, exactly as it does for a skipping iterator with no resume channel.
+-}
+data Trouble = TooFar
+
+iter fn guarded(n: Int) -> (Int <- Int | Trouble):
+    let &i = 0 :: Int
+
+    while i < n:
+        if i > 4:
+            return TooFar
+
+        let step = yield i
+        i = i + step
+
+fn guardedSum(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in guarded(n):
+        s = s * 10 + x
+        continue 1
+    | else:
+        s = s + 7
+
+    return s
+
+fn main() -> Int:
+    gone = 0
+    trail = 0
+
+    let a = skipping(6)       -- 0, 2, 4                              -> 24
+    let b = partWay(6)        -- 0, 1, 2 then `continue Twice` past 3 -> 12
+    let c = broken(6)         -- 0, 1, 2 then `break`                 -> 12
+    let d = leaving(6)        -- 300
+    let e = units(4)          -- 0, 1, 2, 3                           -> 123
+    let f = unitsWritten(4)   -- the same, written                    -> 123
+    let g = throughTwo(4)     -- 0 + 10 + 20 + 30                     -> 60
+    let p = throughTwoBroken(4) -- 0 + 10, then a `break` through two frames -> 10
+    let h = wholeTrail()      -- 15, and 3 + 300                      -> 150303
+    let i = brokenTrail()     -- 1, and neither trailing statement    -> 10000
+    trail = 0
+    let j = heldBroken(3)     -- 3, then broken; one Box released
+    let k = heldLeft(3)       -- 35, by `return`; one more Box
+    let l = owned(5)          -- 0, 2, 4 -> 24, and three Commands released by the producer
+    let m = kept(4)           -- 0, 6, 7, 8 -> 678, and five `Note`s released by the producer
+    let n = guardedSum(3)     -- 0, 1, 2                              -> 12
+    let o = guardedSum(9)     -- 0, 1, 2, 3, 4 then `TooFar`          -> 1241
+
+    return a + b + c + d + e + f + g + h + i + j + k + l + n + o + m + p + gone * 100000 + trail

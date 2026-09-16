@@ -34,8 +34,8 @@ bb0:
 }
 
 fn either(pick: I32 [shared call], a: I32 [shared call], b: I32 [shared call]) -> I32 {
-  local either.lambda.env: either.lambda.env
-  local either.lambda'2.env: either.lambda'2.env
+  local local3: either.lambda.env
+  local local4: either.lambda'2.env
   local f: (I32) -> I32 [owned here shape8 .0=shared call]
 
 bb0:
@@ -45,10 +45,10 @@ bb0:
   branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  %9: I32 = read copy.trivial (b)
-  %10: either.lambda'2.env = aggregate.either.lambda'2.env take %9
-  write.init borrow.unique (either.lambda'2.env) take %10
-  %12: either.lambda'2.env [shared call] = read borrow.shared (either.lambda'2.env) loan1
+  %6: I32 = read copy.trivial (b)
+  %7: either.lambda'2.env = aggregate.either.lambda'2.env take %6
+  write.init borrow.unique (local4) take %7
+  %12: either.lambda'2.env [shared call] = read borrow.shared (local4) loan1
   %13: (I32) -> I32 [owned here shape8 .0=shared call] = fun.value either.lambda'2 inspect %12 roots.0{1}
   jump -> bb2(take %13)
 
@@ -62,10 +62,10 @@ bb2(%14: (I32) -> I32 [owned here shape8 .0=shared call]):
 bb3:
   %4: I32 = read copy.trivial (a)
   %5: either.lambda.env = aggregate.either.lambda.env take %4
-  write.init borrow.unique (either.lambda.env) take %5
-  %7: either.lambda.env [shared call] = read borrow.shared (either.lambda.env) loan0
-  %8: (I32) -> I32 [owned here shape8 .0=shared call] = fun.value either.lambda inspect %7 roots.0{0}
-  jump -> bb2(take %8)
+  write.init borrow.unique (local3) take %5
+  %9: either.lambda.env [shared call] = read borrow.shared (local3) loan0
+  %10: (I32) -> I32 [owned here shape8 .0=shared call] = fun.value either.lambda inspect %9 roots.0{0}
+  jump -> bb2(take %10)
 }
 
 fn escaping(amount: I32 [shared call]) -> (I32) -> I32 {
@@ -127,7 +127,7 @@ bb0:
   return take %2
 }
 
-fn either.lambda(either.lambda.env: either.lambda.env [unique call], x: I32 [shared call]) -> I32 {
+fn either.lambda(either.lambda.env: either.lambda.env [shared call], x: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (x)
   %1: I32 = read copy.trivial (either.lambda.env.a)
@@ -135,7 +135,7 @@ bb0:
   return take %2
 }
 
-fn either.lambda'2(either.lambda'2.env: either.lambda'2.env [unique call], x: I32 [shared call]) -> I32 {
+fn either.lambda'2(either.lambda'2.env: either.lambda'2.env [shared call], x: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (x)
   %1: I32 = read copy.trivial (either.lambda'2.env.b)

@@ -152,8 +152,9 @@ is the most valuable thing either of them can say. The directive costs that comp
 worth writing only for a program the old stage genuinely cannot compile - which every fixture in that
 directory is, and which is worth re-checking before adding one.
 
-`resolve/loans/`, `resolve/lens/` and `resolve/generic/` are filing of the same kind, one family of
-the rewrite's fixtures each - the borrow grid, the continuation cases, and the generics. A fixture in
+`resolve/loans/`, `resolve/lens/`, `resolve/iter/` and `resolve/generic/` are filing of the same
+kind, one family of the rewrite's fixtures each - the borrow grid, the continuation cases, the
+iterator objects, and the generics. A fixture in
 one of them carries the directive only when it needs to, and a fixture both stages compile stays in
 the shared corpus instead - `resolve/Identity.yana` is the generics one, filed apart from
 `resolve/generic/` because agreeing about the answer is worth more than being filed together.

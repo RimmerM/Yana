@@ -135,7 +135,7 @@ Node* Resolver::forceDeferred(Builder& builder, Local& local, LocationId source)
     auto thunk = readDeferred(builder, local, source);
     if(!thunk) return nullptr;
 
-    return builder.addCallValue(source, *thunk, nullptr, 0);
+    return builder.addCallValue(source, *thunk, valueType(*thunk), nullptr, 0);
 }
 
 Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, Access access) {
@@ -1305,7 +1305,7 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
          * storage arrives here. What the author has to change is not the position but the value, and
          * the general message below would send them to the position.
          */
-        if(lambdaFrames.size() && lambdaFrames[lambdaFrames.size() - 1].heap) {
+        if(lambdaFrames.size() && lambdaFrames[lambdaFrames.size() - 1].owns) {
             context.diagnostics.error(
                 "this closure leaves the frame it was written in, so it owns what it captured - and %@ is storage this function borrows rather than owns"_v,
                 source, placeText(context, decl(), builder.base(), builder.body, place));
@@ -1541,8 +1541,19 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
                                    program.shapes.under(destination,
                                                         PathStep::field(field.index)) };
 
-        auto value = resolveValue(builder, argument.value, typeArguments.hint(declaredType),
-                                  requestOf(member));
+        /*
+         * A **field initializer** keeps what an `iter fn` call answers - §2.1's third row, and the
+         * position `data Parser(l) {lexer: l}` exists for: the field is at a type variable, the call
+         * builds `lex.Iter`, and `bind` below is what makes the record's argument that type.
+         */
+        Node* value = nullptr;
+
+        {
+            ObjectScope object(*this, argument.value.source);
+            value = resolveValue(builder, argument.value, typeArguments.hint(declaredType),
+                                 requestOf(member));
+        }
+
         if(!value) { ok = false; continue; }
 
         typeArguments.bind(declaredType, valueType(*value));
@@ -2178,8 +2189,19 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
     }
 
     switch(expr.kind) {
-        case ast::Expr::Nested:
-            return resolveValue(builder, *parse[expr.nested], hint, wanted);
+        case ast::Expr::Nested: {
+            /*
+             * Brackets are not a position - `(f(...))` keeps what `f(...)` answers, so the token
+             * that says "this position holds an iterator object" has to follow the value through
+             * them. See `ObjectScope`, whose token is a source position precisely so that it can be
+             * pointed at the expression that is actually filling the position.
+             */
+            auto& inner = *parse[expr.nested];
+            ObjectScope object(*this, objectCallSource == expr.source ? inner.source
+                                                                      : objectCallSource);
+
+            return resolveValue(builder, inner, hint, wanted);
+        }
 
         /*
          * A name that is a **const parameter** of the enclosing signature - `n` in
@@ -2283,6 +2305,52 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             return builder.addConst(expr.source, unitConstant(program.types.unit));
         }
 
+        /*
+         * `yield e` in a position that wants a value - `let step = yield i`.
+         *
+         * Only a **resuming** iterator has one to give (Design-Iterator-Objects.md §2.5), so this is
+         * two answers rather than one: the `yield` of a `-> (Y <- R)` is a value form and every other
+         * traversal's is a statement. Here rather than in `resolveStatement` alone, because the two
+         * are one walk - the branch the wrapper needs is the same branch either way, and the value is
+         * what comes out of it.
+         *
+         * **Refused here rather than left to the position**, which is the correction J62 makes. This
+         * used to hand straight to `resolveYield` on the reasoning that its null answer would be
+         * reported by whatever wanted the value, "as it reports any expression that produced
+         * nothing" - and nothing reports that. `let step = yield i` in an iterator with no resume
+         * channel resolved to no value with no diagnostic, and the statement holding it was dropped:
+         * `i = i + step` ceased to exist and the producer looped forever handing over the same
+         * element. Which is the failure mode a written site type had once and §6 of
+         * `test/bench/findings.md` called the dangerous kind - source that should be refused is
+         * accepted, a statement vanishes, and nothing says so.
+         *
+         * Before the call rather than after it, because `resolveYield` has already built the
+         * hand-over by the time it answers: the arm below is the one that knows the position wanted a
+         * value, and it is the only one that can say so. The refusals `resolveYield` makes about
+         * where a `yield` may appear at all are left to it - a `yield` outside a traversal is not a
+         * question about the resume channel - which is what the guard tests for.
+         */
+        case ast::Expr::Yield: {
+            auto traversal = currentFunction;
+
+            if(traversal && traversal->lens && continuationLocal && !traversal->resume.type) {
+                if(traversal->iterator) {
+                    context.diagnostics.error(
+                        "%@ declares no resume channel, so its `yield` hands a value over and answers nothing - write its result `-> (%@ <- R)` for a `yield` that evaluates to what the consumer sent back"_v,
+                        expr.source, context.findName(traversal->name),
+                        typeText(context, decl(), traversal->handover.type));
+                } else {
+                    context.diagnostics.error(
+                        "a `lens fn` hands over once, so its `yield` is a statement and has no value - only an `iter fn` declared `-> (Y <- R)` has one"_v,
+                        expr.source);
+                }
+
+                return nullptr;
+            }
+
+            return resolveYield(builder, expr, true);
+        }
+
         case ast::Expr::Con: {
             // A nullary constructor of a concrete enum is a value rather than a construction - see
             // `resolveConstructorConstant`, which answers `Nothing` for everything else.
@@ -2362,13 +2430,37 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
                 if(!made) return nullptr;
 
                 return convertValue(builder, *made, type, expr.source, false,
-                                    "an ascribed value"_v);
+                                    "an ascribed value"_v, asked.access, asked.establishes);
             }
+
+            /*
+             * `f(...) :: T` keeps what `f(...)` answers, exactly as brackets do - so the object
+             * token follows the value through the ascription. `let &it = lex(s) :: iter(Token)` is
+             * the spelling that needs it: what fills the `let` is the call, and what says which
+             * form it takes is the type written beside it.
+             */
+            ObjectScope object(*this, objectCallSource == expr.source ? ascription.target.source
+                                                                      : objectCallSource);
 
             auto value = resolveValue(builder, ascription.target, type, asked);
             if(!value) return nullptr;
 
-            return convertValue(builder, *value, type, expr.source, false, "an ascribed value"_v);
+            /*
+             * The position's own convention travels with it, which is what decides where an adapted
+             * value's storage goes - `iter(T)` and `(A) -> B` both read it. An ascription states a
+             * type and never a position, so what it hands on is the *surrounding* position's
+             * answer rather than the owned default.
+             *
+             * **Both halves of it**, and the second is what stops the first refusing ordinary code.
+             * An exclusive position is one a conversion cannot fill, and a `let &x = e :: T` is an
+             * exclusive position that is *declaring* its storage - `Request::establishes` - so the
+             * converted value is what fills it and there is nothing behind it to write back to. With
+             * the access alone, `let &total = n :: I64` was refused for a widening, and `::` is the
+             * only way to write a type in a `let`. The array arm above passes the same pair, because
+             * the two arms differing is how this was missed.
+             */
+            return convertValue(builder, *value, type, expr.source, false, "an ascribed value"_v,
+                                asked.access, asked.establishes);
         }
 
         /*
@@ -2493,7 +2585,27 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& target,
                                  LocationId source) {
     auto type = valueType(target);
-    if(!type || decl()[type]->kind != Type::Fun) {
+
+    /*
+     * A **site type**, whose signature is the lambda's and whose call is a direct one -
+     * Design-Iterator-Objects.md §4, built 2026-09-15.
+     *
+     * The same walk with one thing read differently: the shape comes from the record rather than
+     * from the value's own type, because a site type *names* a signature where a function type *is*
+     * one. Everything after that line - the arity, the positions, the conversions, the carried
+     * origins - is the same statement about the same shape, which is what makes calling a closure
+     * inline and calling a pair one construct rather than two.
+     *
+     * What the node records is the target's type, and `callTarget` is where the difference is spent:
+     * a site type answers the lifted function and a function type answers "through the value". So a
+     * body written over a type variable holds one node and both answers, which is what lets a record
+     * generic in its callback be specialized at either.
+     */
+    auto site = siteTypeOf(type);
+    auto signature = callableShapeOf(program, currentFunction ? currentFunction->gen : nullptr,
+                                     type);
+
+    if(!signature || decl()[signature]->kind != Type::Fun) {
         context.diagnostics.error("this is %@, which is not something that can be called"_v,
                                   written.callee.source, typeText(context, decl(), type));
         return nullptr;
@@ -2511,10 +2623,21 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
      *
      * A function value with nothing to release keeps its node, which is `holdBorrowed`'s own test
      * and the reason the common case costs nothing.
+     *
+     * At a **site type** the request is the environment parameter's rather than an inspection. The
+     * pair is read and not held to - a call takes two words out of it - and a site type *is* the
+     * storage the callee reads its captures out of, so it is handed over the way that parameter asks
+     * for it, which for an owner this expression made means the same frame slot a borrowing argument
+     * of any other record gets.
      */
-    auto& callee = *holdBorrowed(builder, target, inspectRequest(), type, source);
+    auto envParameter = site ? &decl()[decl()[site->lambda]->args.get(decl(), 0)]->occurrence
+                             : nullptr;
 
-    auto& shape = *(FunType*)decl()[type];
+    auto& callee = *holdBorrowed(builder, target,
+                                 envParameter ? requestOf(*envParameter) : inspectRequest(),
+                                 type, source);
+
+    auto& shape = *(FunType*)decl()[signature];
     if(written.args.size() != shape.params.size()) {
         context.diagnostics.error("this takes %@ arguments and %@ were written"_v, source,
                                   U64(shape.params.size()), U64(written.args.size()));
@@ -2544,7 +2667,7 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
         arguments.push(value);
     }
 
-    return builder.addCallValue(source, callee, arguments.pointer(), arguments.size());
+    return builder.addCallValue(source, callee, signature, arguments.pointer(), arguments.size());
 }
 
 /*
@@ -2613,12 +2736,12 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
 
     auto type = funTypeOf(context, program, found);
     if(!type) {
-        // A generic function and a lens are two of what `funTypeOf` declines, and they decline for
-        // one reason: neither names a single body a value could point at. An external iterator is
-        // the third, and names a body whose calls are not what calling it means.
-        unsupported(source, callee.lens               ? "a value of a lens"_v :
-                            callee.externalIterator   ? "a value of an external iterator"_v
-                                                      : "a value of a generic function"_v);
+        // A generic function, a lens and an `iter fn` are what `funTypeOf` declines, and they
+        // decline for one reason: none of them names a single body a value could point at. An
+        // iterator's value form is `iter(T)`, which is a type rather than a function type.
+        unsupported(source, callee.lens     ? "a value of a lens"_v :
+                            callee.iterator ? "a value of an `iter fn` - write `iter(T)`"_v
+                                            : "a value of a generic function"_v);
         return nullptr;
     }
 
@@ -3782,18 +3905,6 @@ Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
                                  parameter.occurrence.shape };
     auto wanted = requestOf(position);
 
-    /*
-     * An **owned** value at a lent position of an external iterator stays owned - `constructIter`.
-     *
-     * Lending a temporary means holding it until the end of the statement, and a producer runs long
-     * after that. So the value is given to the handle instead, and the entry lends it to the
-     * producer from there: what a normal call would have borrowed for its duration, the handle keeps
-     * for its own. A named local still arrives as a loan, because `resolveValue` was asked for one.
-     */
-    if(producerArguments && !position.contract.isOwned() && valueOccurrence(value).contract.isOwned()) {
-        return coerce(builder, value, expected, source, "an argument"_v, Access::Owned);
-    }
-
     // A container reaching a view position - the one implicit adaptation, and it happens before
     // the type check because what it produces is what the position asked for.
     auto adapted = adaptToView(builder, value, position, source);
@@ -3856,15 +3967,24 @@ void Resolver::recordCallee(LocationId nameSource, DeclPtr<Function> callee,
 Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
                            TypeArguments& typeArguments, DeclPtr<Type> hint, LocationId source) {
     /*
-     * `f(...)` where `f` answers `iter(T)` - a handle built, and no call of `f` at all.
+     * `f(...)` over an `iter fn` at a position that **keeps** the result - the **state record**,
+     * resolve_object.cpp, and §2.1's third row.
      *
-     * Here, after the arguments were prepared against the declared parameters, because that is the
-     * whole of what the two kinds of call share: what the arguments are and how each one arrived.
-     * What happens to them is `constructIter`'s, and it is first so that the result hint below is
-     * never matched against the producer's own `{}`.
+     * Beside the handle above and for its reason: the arguments are what the two share, and what is
+     * done with them is what differs. The source position is what separates the position's own call
+     * from an iterator call written *inside* the expression filling it - `checkCallable` admits
+     * both, because it has only the declaration, and this is where the five are told apart. See
+     * `ObjectScope`, which is what sets the token.
      */
-    if(callee.externalIterator) {
-        return constructIter(builder, callee, arguments, typeArguments, source);
+    if(callee.iterator) {
+        if(source == objectCallSource) {
+            return constructIterObject(builder, callee, arguments, typeArguments, source);
+        }
+
+        context.diagnostics.error(
+            "%@ is an iterator, and what keeps an object of one is a `let`, a field, an argument, a `return` or an assignment - this call's result is not kept by any of them"_v,
+            source, context.findName(callee.name));
+        return nullptr;
     }
 
     /*
@@ -3897,6 +4017,10 @@ Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*,
     }
 
     if(!dischargeRequirements(callee, typeArguments, source)) return nullptr;
+
+    // `it.next()` on an object whose passes owe it a value - refused where the site type is written
+    // out, and checked at run time through the class. See `refuseNextOnResuming`.
+    if(!refuseNextOnResuming(callee, typeArguments.with(), source)) return nullptr;
 
     // A member of an instance the compiler generated, at a concrete call - the node it computes,
     // in place of the call. See `expandProvidedCall`.
@@ -5231,21 +5355,28 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
             expectedType = typeArguments.resultHint(declared, callee.result.type, hint);
         }
 
-        auto value = parameter.lazy
-            ? resolveDeferred(builder, argument.value, typeArguments.expected(declared))
-            : resolveValue(builder, argument.value, expectedType, wanted);
+        /*
+         * An **argument** keeps what an `iter fn` call answers - §2.1's third row.
+         *
+         * The token is this argument's own source, so `f(lex(s))` builds an object and hands it over
+         * while `f(g(lex(s)))` builds one for `g`'s parameter and refuses the outer position by
+         * name. A `@lazy` position does not get one: what fills it is a thunk, and an object built
+         * inside a thunk is one the deferred call builds when it runs.
+         */
+        Node* value = nullptr;
+
+        if(parameter.lazy) {
+            value = resolveDeferred(builder, argument.value, typeArguments.expected(declared));
+        } else {
+            ObjectScope object(*this, argument.value.source);
+            value = resolveValue(builder, argument.value, expectedType, wanted);
+        }
 
         if(!value) return false;
-
-        // Set around the preparation only, and not around `resolveValue` above: a call nested in
-        // the argument is prepared for its own callee.
-        auto outerProducer = producerArguments;
-        producerArguments = callee.externalIterator;
 
         into[position] = prepareArgument(builder, *value, parameter, typeArguments,
                                          argument.value.source);
 
-        producerArguments = outerProducer;
         return into[position] != nullptr;
     };
 
@@ -5635,6 +5766,18 @@ bool Resolver::checkCallable(Function& callee, LocationId source, bool traversal
     // what was wanted: a `for` selects among the iterators of a name (`CandidateKind::Iterator`) and
     // then hands the winner the loop body. Everything above it is asked there too.
     if(callee.lens && !traversal) {
+        /*
+         * ... and not where the result is being **kept**, which is the object form -
+         * `doc/inflight/Design-Iterator-Objects.md` §2.1's second row.
+         *
+         * The token is set around a `let`'s initializer alone, so what it admits is an iterator call
+         * written anywhere inside one - and which of those is the `let`'s own call is `finishCall`'s
+         * question, asked by source position, because that is where the answer is needed. An
+         * iterator nested inside the initializer is refused there, by the message that names the
+         * positions stage 4 adds.
+         */
+        if(callee.iterator && objectCallSource != kNullLocation) return true;
+
         // An iterator's continuation is a loop body and nothing else, so the lens spellings are the
         // wrong advice for one. Every lens call form sends an iterator here - see `lensCallee` - and
         // the words are the shipping stage's, so both stages refuse it alike.
@@ -6620,6 +6763,58 @@ void Resolver::joinArmLoans(Builder& builder, SmallArray<Block*, 8>& ends,
     if(standing) builder.setBlock(*standing);
 }
 
+/*
+ * Two arms answering two **site types**, which is one closure written twice -
+ * Design-Iterator-Objects.md §2.3.
+ *
+ * `let f = if c then (x: Int) -> x + a else (x: Int) -> x * b` is two lambdas, so it is two records,
+ * and a merge has one occurrence that every edge supplies. There is no join over two layouts and
+ * there should not be one: what the author wrote is a value that is *either* closure, which is what
+ * the erased pair is for. So a site type crossing a merge that does not agree with the other arms is
+ * adapted here, in the arm's own block, exactly as the widenings below are.
+ *
+ * Only where they disagree. Two arms answering the *same* site type are one closure reached two
+ * ways - which today is only a lambda bound before the branch - and erasing them would spend an
+ * allocation and an indirect call on a merge that already has one type.
+ *
+ * This is the one adaptation no position asks for, and the reason it is not one is that a merge has
+ * no position: the alternatives are judged against each other. `mergeArms` reports what is left over
+ * as an ordinary type mismatch, which is what a lambda and a number in two arms still is.
+ */
+void Resolver::eraseSiteArms(Builder& builder, SmallArray<Block*, 8>& ends,
+                             SmallArray<Node*, 8>& values, LocationId source) {
+    DeclPtr<Type> first = nullptr;
+    auto sites = 0u;
+    auto differ = false;
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(!values[i]) continue;
+
+        auto answered = valueType(*values[i]);
+        if(siteTypeOf(answered)) sites++;
+
+        if(!first) first = answered;
+        else differ = differ || !sameType(first, answered);
+    }
+
+    if(!sites || !differ) return;
+
+    auto standing = builder.currentBlock();
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(!values[i]) continue;
+
+        auto site = siteTypeOf(valueType(*values[i]));
+        if(!site) continue;
+
+        builder.setBlock(*ends[i]);
+        values[i] = adaptSiteValue(builder, *values[i], *site, source);
+        ends[i] = builder.currentBlock();
+    }
+
+    if(standing) builder.setBlock(*standing);
+}
+
 Node* Resolver::mergeArms(Builder& builder, Block& join, SmallArray<Block*, 8>& ends,
                           SmallArray<Node*, 8>& values, LocationId source) {
     /*
@@ -6632,6 +6827,8 @@ Node* Resolver::mergeArms(Builder& builder, Block& join, SmallArray<Block*, 8>& 
      * the one that is reported, and it is nulled rather than allowed to move the answer - so a
      * third alternative is still judged against what the ones before it agreed on.
      */
+    eraseSiteArms(builder, ends, values, source);
+
     DeclPtr<Type> merged = nullptr;
 
     for(Size i = 0; i < values.size(); i++) {

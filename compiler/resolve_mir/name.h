@@ -328,6 +328,19 @@ DeclPtr<Function> findFunction(Context& context, Program& program, DeclPtr<Modul
 bool hasFunctionName(Context& context, Program& program, DeclPtr<Module> from, StringId name);
 
 /*
+ * The declaration a name stands for when it is written as the head of a **path** rather than called
+ * - `lex` in `lex.Iter`, Design-Iterator-Objects.md §2.4.
+ *
+ * `hasFunctionName`'s traversal with the answer kept: arity is what a call has and a path has none,
+ * so what this asks the module's tables is "a function of this name", which is the one question
+ * `Program::functionNamed` answers. Null where nothing in scope declares one, and an ambiguity
+ * between two imports is reported here the way it is for any other name - a path is a *use* of a
+ * name and not a probe.
+ */
+DeclPtr<Function> findDeclaredFunction(Context& context, Program& program, DeclPtr<Module> from,
+                                       StringId name, LocationId source);
+
+/*
  * The fixity an operator has here, and the fallback where nothing in scope declares one.
  *
  * An `infixl`/`infixr` declaration is looked up through the imports like any other name, so an

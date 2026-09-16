@@ -249,8 +249,8 @@ struct ArgumentSet {
 /*
  * How much frame an activation of this function needs, including everything it calls.
  *
- * `boundedStack: bool` was the shape this replaces, and it could not publish the one thing an
- * external iterator needs: the number. A resumable frame has to be *allocated* by whoever starts it,
+ * `boundedStack: bool` was the shape this replaces, and it could not publish the one thing a fiber
+ * needs: the number. A resumable frame has to be *allocated* by whoever starts it,
  * and "bounded" without a bound tells the allocator nothing - so a consumer with a bool would have
  * gone and computed the bytes itself, which is the second answer the summary exists to prevent.
  *
@@ -371,8 +371,8 @@ struct Summary {
 
     /*
      * How much frame an activation needs, itself and everything it calls - `StackBound`. What a
-     * stack depth check, a region reservation and an external iterator's child stack all need, and
-     * what recursion is the boundary of.
+     * stack depth check, a region reservation and a fiber's child stack all need, and what recursion
+     * is the boundary of.
      *
      * **The bound is `isBounded()` and the bytes are zero**, which is Analysis-External-Iterators
      * §4.5's own split rather than a gap: "the resolver can validate that the call graph is bounded,
@@ -823,16 +823,26 @@ DeclAttribute findAttribute(StringView name);
  *  - `ClassSlot` loads it out of the class witness the caller supplied, at a member position.
  *  - `FunctionSlot` loads it out of the function slot one `f: (a) -> b` requirement numbers.
  *  - `Value` reads it out of a **function value** the body holds - `NodeCall::target`.
+ *  - `CallWitness` loads it out of the **`Call` requirement's** witness, over the value's storage -
+ *    Design-Iterator-Objects.md §4, and what stage 1 left out.
  *
  * The fourth row is what makes a function value a value rather than a fifth kind of call: everything
  * else about the node is unchanged, and where the callee comes from is the question this enum was
  * already the answer to.
+ *
+ * The fifth is the same node read in a body compiled **once**. `Call(f, S)` is structural and
+ * declares no members, so what a caller fills for it is not an instance's member list: it is one
+ * synthesized cell holding the code to call the value's storage through, which is a site type's
+ * lifted function or a shim over the pair. The value therefore travels as argument **zero** rather
+ * than in the environment word - the environment word is where an erased callee's own generic
+ * environment goes, and a witness entry is reached through it.
  */
 enum class CallThrough: U8 {
     Declaration,
     ClassSlot,
     FunctionSlot,
     Value,
+    CallWitness,
 };
 
 StringView callThroughName(CallThrough through);
@@ -1169,11 +1179,29 @@ struct Function {
     Occurrence handover;
 
     /*
+     * `<- R` - what a *resuming* `iter fn`'s `yield` evaluates to, and empty on every other
+     * function.
+     *
+     * Design-Iterator-Objects.md §2.5. The value travels the other way down the same channel the
+     * hand-over travels up, so it is resolved at `Position::Handover` like the hand-over is: an
+     * unqualified spelling lends for the producer's step, `&` lends exclusively and `->` consumes.
+     * Its presence is what turns the continuation's answer into `Outcome(R, exit)` - see
+     * `continuationResult` below, which is where the two are related.
+     *
+     * An occurrence rather than a flag plus a type, because every reader of it - the `yield`, the
+     * `continue v` at the consumer and the region the call opens - needs the convention as well.
+     */
+    Occurrence resume;
+
+    /*
      * What the **continuation** answers with, which is not what the function returns.
      *
      * They are the same type for every lens that cannot fail - a transparent lens returns whatever
-     * its continuation answered, which is `$r` - and they come apart exactly at `| E`: the
-     * continuation still answers the exit signal, and the *function* answers that or a failure.
+     * its continuation answered, which is `$r` - and they come apart at the two channels that carry
+     * something the exit signal cannot. `| E` wraps what the **function** answers
+     * (`Proceed(exit) | Exit(reason)`) and leaves the continuation's answer alone; `<- R` wraps what
+     * the **continuation** answers (`Proceed(r) | Exit(exit)`) and leaves the function's alone. So a
+     * declaration with both has one wrapper on each channel and neither is inside the other.
      * Recorded rather than derived from `result`, because a reader that had to undo the wrapper
      * would be a second statement of which half of it means "the continuation ran".
      *
@@ -1402,6 +1430,44 @@ struct Function {
     U16 classMember = 0;
 
     /*
+     * `chunks$obj` - the **signature** of this class member's "make an object" entry, and null on
+     * every declaration that is not a class member written `iter fn`.
+     *
+     * Design-Iterator-Objects.md §6.4. A member written `iter fn` cannot be *called* through a
+     * witness: what a call to one produces is a record minted per instance, and a body compiled once
+     * has no substitution to mint it under. What it can be handed is the **erased** form, so the
+     * witness grows a second entry per such member whose result is `iter(T)` at the class's own
+     * variables - one declaration for the whole class, against which the lowering builds the thunk,
+     * and one generated body per instance behind it (`Function::Generated::IterObject`).
+     *
+     * A signature with no body, exactly as the member beside it is: there is nothing for the *class*
+     * to do, and what fills the slot is the instance's.
+     */
+    DeclPtr<Function> iterObject = nullptr;
+
+    /*
+     * And the flag on the companion itself - true on a `chunks$obj`, false on everything else.
+     *
+     * What it decides is one number: which **slot** of the requirement's witness a call to this
+     * reaches, since the object-makers are a region after the declared members
+     * (`classWitnessCount`). A flag rather than comparing the declaration against the class's member
+     * list, because the answer is a property of the declaration and the comparison is a walk.
+     */
+    bool objectEntry = false;
+
+    /*
+     * `f$obj` over **this** function's own site type - the body behind one witness cell, memoized on
+     * the selected instance member it was made for.
+     *
+     * Here rather than in a table on the resolver, and that is what makes the entry survive the
+     * resolver: a specialized call reaches its maker from `callTarget` during the SSA conversion,
+     * which is after `resolveProgram` has returned and `Program::iterObjects` is gone. The
+     * reachability walk has been through every such call already, so what conversion finds is what
+     * that walk left here.
+     */
+    DeclPtr<Function> iterMaker = nullptr;
+
+    /*
      * Which member of which generated instance this is - `provided.def`'s row and the class's
      * member index - or `Count` for every function an author wrote.
      *
@@ -1540,23 +1606,6 @@ struct Function {
     bool iterator = false;
 
     /*
-     * `fn f(...) -> iter(T)` - Analysis-External-Iterators.md §2.1's external iterator.
-     *
-     * Deliberately **not** `lens`, and that is the whole difference between the two kinds: an
-     * internal traversal runs the consumer's body from inside itself and the continuation is a
-     * parameter, while this one runs on a stack of its own and hands values back across a switch. So
-     * none of the `yield`-form desugaring applies - there is no continuation, no step signal and no
-     * departure - and the flag is what every rule about a lens goes on not matching.
-     *
-     * What it shares with a lens is the *shape* of the declaration: `handover` is what the body
-     * hands over, and `continuationArg` names the parameter the desugaring appended - the pointer to
-     * the producer's `IterBlock`, here, rather than the loop body. Sharing that field is what keeps
-     * `writtenArity`, every arity check and every call site from having to learn about a second
-     * hidden parameter. `resolve_iter.cpp` is the rest.
-     */
-    bool externalIterator = false;
-
-    /*
      * Which form this generic body is compiled in - `GenForm`, decided by `selectGenForms`.
      *
      * Written by `@specialize` or `@generic` and otherwise measured. Meaningless on a function that
@@ -1592,6 +1641,80 @@ struct Function {
      * missing teardown that is silent all the way to the machine. `adaptToView` is the one reader.
      */
     bool derivation = false;
+
+    /*
+     * A function whose body **this stage does not build** - the three an iterator object needs,
+     * `doc/inflight/Design-Iterator-Objects.md` §3 and `resolve_mir/resolve_object.cpp`.
+     *
+     * `IterStep` is the one that matters: it is the producer's own MIR body converted a second time,
+     * so there is no second body here to hold and `resolve_ssa/convert.cpp` is where it is emitted.
+     * `IterNew` is the construction - a record with its captured arguments in it and its payload
+     * untouched, which is a shape MIR cannot state because every write it has initializes something.
+     *
+     * A kind rather than a flag, because what reads it is a switch: the conversion emits one body
+     * per kind, and a kind added without a case is a link error rather than a function with no body.
+     */
+    enum class Generated: U8 {
+        None, IterNew, IterStep, IterDrop, IterNext, IterResume, IterItem, IterTake,
+
+        /*
+         * And the three the **erased** `iter(T)` needs - §3.4, built 2026-09-16.
+         *
+         * `IterErasedStep` is the one function a `{step, block}` pair is called across: it takes the
+         * block as its environment, steps the producer and answers where the item is, or null. The
+         * two below it are `Iterate`'s members for the erased type, and what makes them one pair for
+         * the whole program rather than one per producer is that they call through the value rather
+         * than naming a step.
+         *
+         * `generatedRecord` is the site type for `IterErasedStep` and the **erased type** for the
+         * other two, which is what each body needs and is why the field is a `Type` rather than a
+         * `RecordType`.
+         */
+        IterErasedStep, IterErasedNext, IterErasedResume, IterErasedItem,
+
+        /*
+         * And the two **delegation** adds - §6.3, built 2026-09-16.
+         *
+         * `IterWalk` is the trampoline a consumer of a delegating object steps through: it holds the
+         * innermost level in `$inner` and steps it directly, so a step is O(1) in the depth of the
+         * chain rather than one call per level. It answers *where the item is* rather than a `Bool`,
+         * because the item it hands back belongs to whichever level produced it.
+         *
+         * `IterErasedRaw` is the shim a **delegable box** points at, and it is the only place the
+         * third row of a step's answer is ever written: it is `IterErasedStep` with one branch added,
+         * which reads the `$down` member the step wrote and answers the child's link with the low bit
+         * set. Two shims rather than one because the consumer-facing pair must never answer that row
+         * - a trampoline is the one caller that knows what to do with it.
+         */
+        IterWalk, IterErasedRaw,
+
+        /*
+         * And the one the **witness's "make an object" entry** is - §6.4, built 2026-09-16 (J61).
+         *
+         * `chunks$obj(self) -> iter([a])`: `g$new` into a frame local and one `fun.value` over it,
+         * which `emitFunValue` relocates into a heap block with its teardown in front of it. One per
+         * selected instance member, because the record it builds is that instance's; the *signature*
+         * a caller is checked against is the class's own (`Function::iterObject`), which is what a
+         * body compiled once holds instead of a substitution.
+         *
+         * No AST, for the reason none of the rows above has one: the body is made after the
+         * declarations are settled - the reachability walk is what discovers which argument lists a
+         * witness is filled at - and a body written as source at that point would have missed the
+         * drop elaboration every MIR body goes through.
+         */
+        IterObject,
+    };
+    Generated generated = Generated::None;
+
+    /*
+     * The site type such a function serves, and the producer whose body it is read out of.
+     *
+     * `generatedFrom` is the **specialization**, so `bodyOwnerOf` and `substitutionOf` answer for it
+     * exactly as they do for any call target - and it is what `markReachable` follows, because a
+     * generated body has no MIR for the edge walk to read and calls whatever the producer calls.
+     */
+    DeclPtr<Type> generatedRecord = nullptr;
+    DeclPtr<Function> generatedFrom = nullptr;
 
     // Set for a function the program can reach. Reachability starts at the entry for a program and
     // at the exported declarations for a library, and nothing unreached is converted or lowered.
@@ -2119,6 +2242,63 @@ struct Program {
      */
     TestRegistry tests;
 
+    /*
+     * Every erased `iter(T)` this program has minted, and whether the `Iterate` instance that steps
+     * it has been made - Design-Iterator-Objects.md §3.4.
+     *
+     * Here rather than on the resolver since J61, and the move is what the witness's "make an
+     * object" entry needed: `substituteType` is a free function reached from the ownership walk, the
+     * lowering and the specializer as well as from a call, and a member declared `-> [a]` substituted
+     * at `a := Int` is a **protocol** being minted from one of those places. The interning is the
+     * type table's either way; what had to move is the list of instances still owed.
+     *
+     * `ready` is what says a mint may make its instance on the spot - see
+     * `Resolver::completeErasedIterates`, where the pass order is argued. `closed` is set when the
+     * resolver is done: a protocol first seen after that has nowhere for its instance to come from,
+     * and is refused by name rather than left as a type nothing can step.
+     */
+    struct ErasedIter {
+        DeclPtr<Type> type = nullptr;
+        Occurrence handover;
+        DeclPtr<Type> resume = nullptr;
+        LocationId source = kNullLocation;
+        bool pending = false;
+    };
+
+    Array<ErasedIter> erasedIters;
+    bool erasedItersReady = false;
+    bool erasedItersClosed = false;
+
+    /*
+     * How a walk that cannot see the resolver makes an **object** of a class member - §6.4's witness
+     * entry, and the one thing about it that is not a layout.
+     *
+     * A witness is filled by the reachability walk, at argument lists only that walk discovers, and
+     * what the entry holds is a function over the *instance's* own state record - which is minted
+     * from the instance's body and therefore is the resolver's to make. `specialize.cpp` holds
+     * neither, so the resolver leaves this behind it for the length of one compilation.
+     *
+     * A hook rather than a `Resolver*` so that the dependency is the one call it is: `decl.h` knows
+     * nothing about resolution and the interface says exactly what a witness needs.
+     */
+    struct IterObjects {
+        virtual ~IterObjects() = default;
+
+        /*
+         * The `f$obj` for one selected instance member - `chunks$obj(self) -> iter([a])`, built over
+         * that member's own site type. Null where the object could not be made, which has reported.
+         *
+         * `entry` is the class-side signature the maker has to accept (`Function::iterObject`), and
+         * it is passed rather than derived because a **specialization** does not carry which of its
+         * parameters is the continuation: what it says is how many of the member's positions a call
+         * that builds an object writes.
+         */
+        virtual DeclPtr<Function> objectMaker(DeclPtr<Function> member, DeclPtr<Function> entry,
+                                              LocationId source) = 0;
+    };
+
+    IterObjects* iterObjects = nullptr;
+
     Module* addModule(StringId name);
 
     /*
@@ -2611,5 +2791,29 @@ DeclPtr<Type> viewRecordOf(Context& context, Program& program, const Occurrence&
 // The record a field of this occurrence is looked up on: the view where there is one, else the
 // type itself - which is null where that is not a record at all.
 DeclPtr<Type> fieldRecordOf(Context& context, Program& program, const Occurrence& occurrence);
+
+/*
+ * Whether this traversal's `yield` **evaluates to something** - `<- R` at an `R` that is not `{}`.
+ *
+ * `Function::resume` says a channel was declared and this says the channel carries a value, which
+ * are two questions because `-> (Y <- {})` is a legal and tested spelling: the design's own
+ * exemption is that a pass over such a producer need not write `continue v`, since there is one
+ * answer and no reason to make an author write it. A unit channel therefore has nothing for the
+ * `Outcome(R, exit)` wrapper to hold and nothing for a `yield` to match on.
+ *
+ * One function because three places have to agree and two of them did not. `erasedIterTypeOf` has
+ * always derived the erased step's incoming type by this rule - "`Outcome(R, exit)` where the
+ * producer asked for a value and the bare exit signal where it did not" - while `declareContinuation`
+ * built the wrapper for any channel at all and `resolveYield` matched on any channel at all. So a
+ * producer declared `-> (Int <- {})` had a step taking `Outcome({}, exit)` and an erased shim calling
+ * it with the bare signal, and reaching one through `iter(Int)` was "internal: call to plain$step
+ * supplies argument 1 of type I32, and it declares Outcome({}, I32)".
+ *
+ * The several sites that already spell the pair out by hand - a `continue` with no value, the
+ * departure checks, `summary.cpp`'s reachability - are asking this same question and were right to.
+ */
+inline bool resumesWithValue(DeclBase base, const Function& function) {
+    return function.resume.type && base[function.resume.type]->kind != Type::Unit;
+}
 
 } // namespace mir

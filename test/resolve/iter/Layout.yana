@@ -1,0 +1,110 @@
+{-
+   The record's layout does not depend on the optimizer - §3.2's last sentence, asserted.
+
+   # resolver: ownership
+
+   "The optimizer still inlines a step whose site type it knows, so the field is a representation and
+   not a call the machine must make, **and the layout does not depend on `-opt`**." That last clause
+   is a promise about where the transform lives rather than about what it produces: the record is
+   minted in `resolve_mir`, out of the producer's own MIR and a liveness over it, before any body has
+   been converted and long before `compiler/opt` has run. Nothing the optimizer does can reach it.
+
+   Two things make that checkable from inside a program:
+
+    - every size here is `sizeOf` of a **value**, which is a metric the lowering answers from the
+      record's fields - so a size that moved with a flag would be a different record;
+    - `.run.expect` beside a fixture is compiled **twice** by the driver, once as usual and once with
+      `-no-ir-opt`, and the two answers are compared. So the `-no-ir-opt` half of the claim is what
+      this fixture asserts every time the suite runs, without a second golden.
+
+   The inlining-budget half - `-inline none` against `-inline speed` - is not something a fixture can
+   vary, so it is a run this file is the subject of rather than the assertion:
+   `doc/progress/2026-09-15-J52-nested-objects.md` records the four levels against these four
+   producers and they agree to the byte.
+
+   The producers are chosen so that every way a member can be held is in the answer: a value capture,
+   a window, a `@heap`-placed member with a borrow of it, a shared field, and a hand-over slot that
+   owns something with a teardown.
+-}
+
+import Native
+
+data Cell {value: Int}
+
+instance Drop(Cell):
+    fn drop(->value: Cell): {}
+
+-- A value capture and one counter: `$index`, `$slot`, `n`, `i`.
+iter fn plain(n: Int) -> Int:
+    let &i = 0 :: Int
+    while i < n:
+        yield i
+        i = i + 1
+
+-- A **window** capture, which is the descriptor's two words in the record - and a bounds-checked
+-- read, which is what keeps the step off the inliner's budget.
+iter fn over(xs: [Int]) -> Int:
+    let &i = 0 :: Int
+    while i < length(xs):
+        yield xs[i]
+        i = i + 1
+
+-- A `@heap` placement and a borrow of it, which are the two pointer members - `Heap.yana` is what
+-- runs them and this is what measures them.
+iter fn placed(n: Int) -> Int:
+    let @heap base = Cell {value: n}
+    let held = base
+
+    yield held.value
+    yield base.value + held.value
+
+-- Two phases with a counter each, which is one field - `Sharing.yana` is where that claim is made
+-- and this is where it is asked not to move under a flag.
+iter fn shared(n: Int) -> Int:
+    let &a = 0 :: Int
+    while a < n:
+        yield a
+        a = a + 1
+
+    let &b = 0 :: Int
+    while b < n:
+        yield b + 1
+        b = b + 1
+
+{-
+   The four sizes, packed into one number.
+
+   Each object is built and measured and never stepped: §2.6 says a call runs none of the producer,
+   so what is in hand is the record and nothing else. `placed` is the one that owes something - it
+   allocates a run at construction - so its object is stepped to exhaustion before it goes out of
+   scope rather than being dropped at index zero, which is the same run either way but is the path
+   `Teardown.yana` does not already cover here.
+-}
+fn sizes() -> Size:
+    let xs = [1, 2, 3]
+
+    let &a = plain(0)
+    let &b = over(xs)
+    let &c = placed(1)
+    let &d = shared(0)
+
+    let packed = sizeOf(a) * 1000000 + sizeOf(b) * 10000 + sizeOf(c) * 100 + sizeOf(d)
+
+    for _ in c:
+        {}
+
+    return packed
+
+fn main() -> Int:
+    {-
+       plain 16 - `$index`, `$slot`, `n`, `i`, four `I32`s.
+       over 28 - two `I32`s, the window's own two-word descriptor at eight, and the counter.
+       placed 28 - three `I32`s, then the run's pointer and the borrow of it at eight.
+       shared 16 - three `I32`s and one field for the two counters, where the sum would be five.
+
+       Every one of these is the same under `-no-ir-opt`, which is what the driver's second run of a
+       fixture with a `.run.expect` checks, and the same at every `-inline` level.
+    -}
+    if sizes() != 16282816 then return 1
+
+    return 0

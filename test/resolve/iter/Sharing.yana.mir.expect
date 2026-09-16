@@ -1,0 +1,1716 @@
+module ResolveTest
+
+data phases.Iter {$index: I32, $slot: I32, n: I32, a+b: I32}
+
+data arms.Iter {$index: I32, $slot: I32, n: I32, first+second: I32}
+
+data fifty.Iter {$index: I32, $slot: I32, n: I32, a: I32, b: I32, c: I32}
+
+data few.Iter {$index: I32, $slot: I32, n: I32, a: I32, b: I32, c: I32}
+
+instance Iterate(phases.Iter, I32, {}): phases$next, phases$resume
+
+instance Iterate(arms.Iter, I32, {}): arms$next, arms$resume
+
+instance Iterate(fifty.Iter, I32, {}): fifty$next, fifty$resume
+
+instance Iterate(few.Iter, I32, {}): few$next, few$resume
+
+lens fn phases(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & a: I32
+  local & b: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (a) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (a)
+  %6: I32 = read copy.trivial (n)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %29: I32 = const 0
+  write.init borrow.unique (b) take %29
+  jump -> bb8
+
+bb3:
+  %9: I32 = read copy.trivial ($yielded)
+  %10: I32 = const 0
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb4 -> bb5
+
+bb4:
+  %13: I32 = read copy.trivial (a)
+  %14: I32 = const 2
+  %15: I32 = mul inspect %13 inspect %14
+  %16: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %17: I32 = call inspect %16 borrow.shared %15
+  %18: I32 = const 0
+  %19: Bool = eq inspect %17 inspect %18
+  write.assign borrow.unique ($yielded) take %17
+  branch inspect %19 -> bb6 -> bb7
+
+bb5:
+  jump -> bb7
+
+bb6:
+  %24: I32 = read copy.trivial (a)
+  %25: I32 = const 1
+  %26: I32 = add inspect %24 inspect %25
+  write.assign borrow.unique (a) take %26
+  jump -> bb1
+
+bb7:
+  jump -> bb2
+
+bb8:
+  %32: I32 = read copy.trivial (b)
+  %33: I32 = read copy.trivial (n)
+  %34: Bool = lt inspect %32 inspect %33
+  branch inspect %34 -> bb10 -> bb9
+
+bb9:
+  %58: I32 = read copy.trivial ($yielded)
+  return take %58
+
+bb10:
+  %36: I32 = read copy.trivial ($yielded)
+  %37: I32 = const 0
+  %38: Bool = eq inspect %36 inspect %37
+  branch inspect %38 -> bb11 -> bb12
+
+bb11:
+  %40: I32 = read copy.trivial (b)
+  %41: I32 = const 3
+  %42: I32 = mul inspect %40 inspect %41
+  %43: I32 = const 1
+  %44: I32 = add inspect %42 inspect %43
+  %45: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %46: I32 = call inspect %45 borrow.shared %44
+  %47: I32 = const 0
+  %48: Bool = eq inspect %46 inspect %47
+  write.assign borrow.unique ($yielded) take %46
+  branch inspect %48 -> bb13 -> bb14
+
+bb12:
+  jump -> bb14
+
+bb13:
+  %53: I32 = read copy.trivial (b)
+  %54: I32 = const 1
+  %55: I32 = add inspect %53 inspect %54
+  write.assign borrow.unique (b) take %55
+  jump -> bb8
+
+bb14:
+  jump -> bb9
+}
+
+lens fn arms(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local first: I32
+  local second: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: Bool = gt inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %32: I32 = read copy.trivial (n)
+  %33: I32 = const 4
+  %34: I32 = mul inspect %32 inspect %33
+  write.init borrow.unique (second) take %34
+  %36: I32 = read copy.trivial ($yielded)
+  %37: I32 = const 0
+  %38: Bool = eq inspect %36 inspect %37
+  branch inspect %38 -> bb10 -> bb11
+
+bb2:
+  %60: I32 = read copy.trivial ($yielded)
+  return take %60
+
+bb3:
+  %6: I32 = read copy.trivial (n)
+  %7: I32 = const 7
+  %8: I32 = mul inspect %6 inspect %7
+  write.init borrow.unique (first) take %8
+  %10: I32 = read copy.trivial ($yielded)
+  %11: I32 = const 0
+  %12: Bool = eq inspect %10 inspect %11
+  branch inspect %12 -> bb4 -> bb5
+
+bb4:
+  %14: I32 = read copy.trivial (first)
+  %15: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %16: I32 = call inspect %15 borrow.shared %14
+  write.assign borrow.unique ($yielded) take %16
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %20: I32 = read copy.trivial ($yielded)
+  %21: I32 = const 0
+  %22: Bool = eq inspect %20 inspect %21
+  branch inspect %22 -> bb7 -> bb8
+
+bb7:
+  %24: I32 = read copy.trivial (first)
+  %25: I32 = const 1
+  %26: I32 = add inspect %24 inspect %25
+  %27: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %28: I32 = call inspect %27 borrow.shared %26
+  write.assign borrow.unique ($yielded) take %28
+  jump -> bb9
+
+bb8:
+  jump -> bb9
+
+bb9:
+  jump -> bb2
+
+bb10:
+  %40: I32 = read copy.trivial (second)
+  %41: (I32) -> I32 [shared call] = read borrow.shared ($body) loan2
+  %42: I32 = call inspect %41 borrow.shared %40
+  write.assign borrow.unique ($yielded) take %42
+  jump -> bb12
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %46: I32 = read copy.trivial ($yielded)
+  %47: I32 = const 0
+  %48: Bool = eq inspect %46 inspect %47
+  branch inspect %48 -> bb13 -> bb14
+
+bb13:
+  %50: I32 = read copy.trivial (second)
+  %51: I32 = const 2
+  %52: I32 = add inspect %50 inspect %51
+  %53: (I32) -> I32 [shared call] = read borrow.shared ($body) loan3
+  %54: I32 = call inspect %53 borrow.shared %52
+  write.assign borrow.unique ($yielded) take %54
+  jump -> bb15
+
+bb14:
+  jump -> bb15
+
+bb15:
+  jump -> bb2
+}
+
+lens fn few(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local a: I32
+  local b: I32
+  local c: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  write.init borrow.unique (a) take %2
+  %4: I32 = read copy.trivial (n)
+  %5: I32 = const 2
+  %6: I32 = mul inspect %4 inspect %5
+  write.init borrow.unique (b) take %6
+  %8: I32 = read copy.trivial (n)
+  %9: I32 = const 3
+  %10: I32 = mul inspect %8 inspect %9
+  write.init borrow.unique (c) take %10
+  %12: I32 = read copy.trivial ($yielded)
+  %13: I32 = const 0
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb1 -> bb2
+
+bb1:
+  %16: I32 = read copy.trivial (a)
+  %17: I32 = read copy.trivial (b)
+  %18: I32 = add inspect %16 inspect %17
+  %19: I32 = read copy.trivial (c)
+  %20: I32 = add inspect %18 inspect %19
+  %21: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %22: I32 = call inspect %21 borrow.shared %20
+  write.assign borrow.unique ($yielded) take %22
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %26: I32 = read copy.trivial ($yielded)
+  %27: I32 = const 0
+  %28: Bool = eq inspect %26 inspect %27
+  branch inspect %28 -> bb4 -> bb5
+
+bb4:
+  %30: I32 = read copy.trivial (a)
+  %31: I32 = read copy.trivial (b)
+  %32: I32 = add inspect %30 inspect %31
+  %33: I32 = read copy.trivial (c)
+  %34: I32 = add inspect %32 inspect %33
+  %35: I32 = const 1
+  %36: I32 = add inspect %34 inspect %35
+  %37: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %38: I32 = call inspect %37 borrow.shared %36
+  write.assign borrow.unique ($yielded) take %38
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %42: I32 = read copy.trivial ($yielded)
+  return take %42
+}
+
+lens fn fifty(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local a: I32
+  local b: I32
+  local c: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  write.init borrow.unique (a) take %2
+  %4: I32 = read copy.trivial (n)
+  %5: I32 = const 2
+  %6: I32 = mul inspect %4 inspect %5
+  write.init borrow.unique (b) take %6
+  %8: I32 = read copy.trivial (n)
+  %9: I32 = const 3
+  %10: I32 = mul inspect %8 inspect %9
+  write.init borrow.unique (c) take %10
+  %12: I32 = read copy.trivial ($yielded)
+  %13: I32 = const 0
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb1 -> bb2
+
+bb1:
+  %16: I32 = read copy.trivial (a)
+  %17: I32 = read copy.trivial (b)
+  %18: I32 = add inspect %16 inspect %17
+  %19: I32 = read copy.trivial (c)
+  %20: I32 = add inspect %18 inspect %19
+  %21: I32 = const 0
+  %22: I32 = add inspect %20 inspect %21
+  %23: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %24: I32 = call inspect %23 borrow.shared %22
+  write.assign borrow.unique ($yielded) take %24
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %28: I32 = read copy.trivial ($yielded)
+  %29: I32 = const 0
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb4 -> bb5
+
+bb4:
+  %32: I32 = read copy.trivial (a)
+  %33: I32 = read copy.trivial (b)
+  %34: I32 = add inspect %32 inspect %33
+  %35: I32 = read copy.trivial (c)
+  %36: I32 = add inspect %34 inspect %35
+  %37: I32 = const 1
+  %38: I32 = add inspect %36 inspect %37
+  %39: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %40: I32 = call inspect %39 borrow.shared %38
+  write.assign borrow.unique ($yielded) take %40
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %44: I32 = read copy.trivial ($yielded)
+  %45: I32 = const 0
+  %46: Bool = eq inspect %44 inspect %45
+  branch inspect %46 -> bb7 -> bb8
+
+bb7:
+  %48: I32 = read copy.trivial (a)
+  %49: I32 = read copy.trivial (b)
+  %50: I32 = add inspect %48 inspect %49
+  %51: I32 = read copy.trivial (c)
+  %52: I32 = add inspect %50 inspect %51
+  %53: I32 = const 2
+  %54: I32 = add inspect %52 inspect %53
+  %55: (I32) -> I32 [shared call] = read borrow.shared ($body) loan2
+  %56: I32 = call inspect %55 borrow.shared %54
+  write.assign borrow.unique ($yielded) take %56
+  jump -> bb9
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %60: I32 = read copy.trivial ($yielded)
+  %61: I32 = const 0
+  %62: Bool = eq inspect %60 inspect %61
+  branch inspect %62 -> bb10 -> bb11
+
+bb10:
+  %64: I32 = read copy.trivial (a)
+  %65: I32 = read copy.trivial (b)
+  %66: I32 = add inspect %64 inspect %65
+  %67: I32 = read copy.trivial (c)
+  %68: I32 = add inspect %66 inspect %67
+  %69: I32 = const 3
+  %70: I32 = add inspect %68 inspect %69
+  %71: (I32) -> I32 [shared call] = read borrow.shared ($body) loan3
+  %72: I32 = call inspect %71 borrow.shared %70
+  write.assign borrow.unique ($yielded) take %72
+  jump -> bb12
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %76: I32 = read copy.trivial ($yielded)
+  %77: I32 = const 0
+  %78: Bool = eq inspect %76 inspect %77
+  branch inspect %78 -> bb13 -> bb14
+
+bb13:
+  %80: I32 = read copy.trivial (a)
+  %81: I32 = read copy.trivial (b)
+  %82: I32 = add inspect %80 inspect %81
+  %83: I32 = read copy.trivial (c)
+  %84: I32 = add inspect %82 inspect %83
+  %85: I32 = const 4
+  %86: I32 = add inspect %84 inspect %85
+  %87: (I32) -> I32 [shared call] = read borrow.shared ($body) loan4
+  %88: I32 = call inspect %87 borrow.shared %86
+  write.assign borrow.unique ($yielded) take %88
+  jump -> bb15
+
+bb14:
+  jump -> bb15
+
+bb15:
+  %92: I32 = read copy.trivial ($yielded)
+  %93: I32 = const 0
+  %94: Bool = eq inspect %92 inspect %93
+  branch inspect %94 -> bb16 -> bb17
+
+bb16:
+  %96: I32 = read copy.trivial (a)
+  %97: I32 = read copy.trivial (b)
+  %98: I32 = add inspect %96 inspect %97
+  %99: I32 = read copy.trivial (c)
+  %100: I32 = add inspect %98 inspect %99
+  %101: I32 = const 5
+  %102: I32 = add inspect %100 inspect %101
+  %103: (I32) -> I32 [shared call] = read borrow.shared ($body) loan5
+  %104: I32 = call inspect %103 borrow.shared %102
+  write.assign borrow.unique ($yielded) take %104
+  jump -> bb18
+
+bb17:
+  jump -> bb18
+
+bb18:
+  %108: I32 = read copy.trivial ($yielded)
+  %109: I32 = const 0
+  %110: Bool = eq inspect %108 inspect %109
+  branch inspect %110 -> bb19 -> bb20
+
+bb19:
+  %112: I32 = read copy.trivial (a)
+  %113: I32 = read copy.trivial (b)
+  %114: I32 = add inspect %112 inspect %113
+  %115: I32 = read copy.trivial (c)
+  %116: I32 = add inspect %114 inspect %115
+  %117: I32 = const 6
+  %118: I32 = add inspect %116 inspect %117
+  %119: (I32) -> I32 [shared call] = read borrow.shared ($body) loan6
+  %120: I32 = call inspect %119 borrow.shared %118
+  write.assign borrow.unique ($yielded) take %120
+  jump -> bb21
+
+bb20:
+  jump -> bb21
+
+bb21:
+  %124: I32 = read copy.trivial ($yielded)
+  %125: I32 = const 0
+  %126: Bool = eq inspect %124 inspect %125
+  branch inspect %126 -> bb22 -> bb23
+
+bb22:
+  %128: I32 = read copy.trivial (a)
+  %129: I32 = read copy.trivial (b)
+  %130: I32 = add inspect %128 inspect %129
+  %131: I32 = read copy.trivial (c)
+  %132: I32 = add inspect %130 inspect %131
+  %133: I32 = const 7
+  %134: I32 = add inspect %132 inspect %133
+  %135: (I32) -> I32 [shared call] = read borrow.shared ($body) loan7
+  %136: I32 = call inspect %135 borrow.shared %134
+  write.assign borrow.unique ($yielded) take %136
+  jump -> bb24
+
+bb23:
+  jump -> bb24
+
+bb24:
+  %140: I32 = read copy.trivial ($yielded)
+  %141: I32 = const 0
+  %142: Bool = eq inspect %140 inspect %141
+  branch inspect %142 -> bb25 -> bb26
+
+bb25:
+  %144: I32 = read copy.trivial (a)
+  %145: I32 = read copy.trivial (b)
+  %146: I32 = add inspect %144 inspect %145
+  %147: I32 = read copy.trivial (c)
+  %148: I32 = add inspect %146 inspect %147
+  %149: I32 = const 8
+  %150: I32 = add inspect %148 inspect %149
+  %151: (I32) -> I32 [shared call] = read borrow.shared ($body) loan8
+  %152: I32 = call inspect %151 borrow.shared %150
+  write.assign borrow.unique ($yielded) take %152
+  jump -> bb27
+
+bb26:
+  jump -> bb27
+
+bb27:
+  %156: I32 = read copy.trivial ($yielded)
+  %157: I32 = const 0
+  %158: Bool = eq inspect %156 inspect %157
+  branch inspect %158 -> bb28 -> bb29
+
+bb28:
+  %160: I32 = read copy.trivial (a)
+  %161: I32 = read copy.trivial (b)
+  %162: I32 = add inspect %160 inspect %161
+  %163: I32 = read copy.trivial (c)
+  %164: I32 = add inspect %162 inspect %163
+  %165: I32 = const 9
+  %166: I32 = add inspect %164 inspect %165
+  %167: (I32) -> I32 [shared call] = read borrow.shared ($body) loan9
+  %168: I32 = call inspect %167 borrow.shared %166
+  write.assign borrow.unique ($yielded) take %168
+  jump -> bb30
+
+bb29:
+  jump -> bb30
+
+bb30:
+  %172: I32 = read copy.trivial ($yielded)
+  %173: I32 = const 0
+  %174: Bool = eq inspect %172 inspect %173
+  branch inspect %174 -> bb31 -> bb32
+
+bb31:
+  %176: I32 = read copy.trivial (a)
+  %177: I32 = read copy.trivial (b)
+  %178: I32 = add inspect %176 inspect %177
+  %179: I32 = read copy.trivial (c)
+  %180: I32 = add inspect %178 inspect %179
+  %181: I32 = const 10
+  %182: I32 = add inspect %180 inspect %181
+  %183: (I32) -> I32 [shared call] = read borrow.shared ($body) loan10
+  %184: I32 = call inspect %183 borrow.shared %182
+  write.assign borrow.unique ($yielded) take %184
+  jump -> bb33
+
+bb32:
+  jump -> bb33
+
+bb33:
+  %188: I32 = read copy.trivial ($yielded)
+  %189: I32 = const 0
+  %190: Bool = eq inspect %188 inspect %189
+  branch inspect %190 -> bb34 -> bb35
+
+bb34:
+  %192: I32 = read copy.trivial (a)
+  %193: I32 = read copy.trivial (b)
+  %194: I32 = add inspect %192 inspect %193
+  %195: I32 = read copy.trivial (c)
+  %196: I32 = add inspect %194 inspect %195
+  %197: I32 = const 11
+  %198: I32 = add inspect %196 inspect %197
+  %199: (I32) -> I32 [shared call] = read borrow.shared ($body) loan11
+  %200: I32 = call inspect %199 borrow.shared %198
+  write.assign borrow.unique ($yielded) take %200
+  jump -> bb36
+
+bb35:
+  jump -> bb36
+
+bb36:
+  %204: I32 = read copy.trivial ($yielded)
+  %205: I32 = const 0
+  %206: Bool = eq inspect %204 inspect %205
+  branch inspect %206 -> bb37 -> bb38
+
+bb37:
+  %208: I32 = read copy.trivial (a)
+  %209: I32 = read copy.trivial (b)
+  %210: I32 = add inspect %208 inspect %209
+  %211: I32 = read copy.trivial (c)
+  %212: I32 = add inspect %210 inspect %211
+  %213: I32 = const 12
+  %214: I32 = add inspect %212 inspect %213
+  %215: (I32) -> I32 [shared call] = read borrow.shared ($body) loan12
+  %216: I32 = call inspect %215 borrow.shared %214
+  write.assign borrow.unique ($yielded) take %216
+  jump -> bb39
+
+bb38:
+  jump -> bb39
+
+bb39:
+  %220: I32 = read copy.trivial ($yielded)
+  %221: I32 = const 0
+  %222: Bool = eq inspect %220 inspect %221
+  branch inspect %222 -> bb40 -> bb41
+
+bb40:
+  %224: I32 = read copy.trivial (a)
+  %225: I32 = read copy.trivial (b)
+  %226: I32 = add inspect %224 inspect %225
+  %227: I32 = read copy.trivial (c)
+  %228: I32 = add inspect %226 inspect %227
+  %229: I32 = const 13
+  %230: I32 = add inspect %228 inspect %229
+  %231: (I32) -> I32 [shared call] = read borrow.shared ($body) loan13
+  %232: I32 = call inspect %231 borrow.shared %230
+  write.assign borrow.unique ($yielded) take %232
+  jump -> bb42
+
+bb41:
+  jump -> bb42
+
+bb42:
+  %236: I32 = read copy.trivial ($yielded)
+  %237: I32 = const 0
+  %238: Bool = eq inspect %236 inspect %237
+  branch inspect %238 -> bb43 -> bb44
+
+bb43:
+  %240: I32 = read copy.trivial (a)
+  %241: I32 = read copy.trivial (b)
+  %242: I32 = add inspect %240 inspect %241
+  %243: I32 = read copy.trivial (c)
+  %244: I32 = add inspect %242 inspect %243
+  %245: I32 = const 14
+  %246: I32 = add inspect %244 inspect %245
+  %247: (I32) -> I32 [shared call] = read borrow.shared ($body) loan14
+  %248: I32 = call inspect %247 borrow.shared %246
+  write.assign borrow.unique ($yielded) take %248
+  jump -> bb45
+
+bb44:
+  jump -> bb45
+
+bb45:
+  %252: I32 = read copy.trivial ($yielded)
+  %253: I32 = const 0
+  %254: Bool = eq inspect %252 inspect %253
+  branch inspect %254 -> bb46 -> bb47
+
+bb46:
+  %256: I32 = read copy.trivial (a)
+  %257: I32 = read copy.trivial (b)
+  %258: I32 = add inspect %256 inspect %257
+  %259: I32 = read copy.trivial (c)
+  %260: I32 = add inspect %258 inspect %259
+  %261: I32 = const 15
+  %262: I32 = add inspect %260 inspect %261
+  %263: (I32) -> I32 [shared call] = read borrow.shared ($body) loan15
+  %264: I32 = call inspect %263 borrow.shared %262
+  write.assign borrow.unique ($yielded) take %264
+  jump -> bb48
+
+bb47:
+  jump -> bb48
+
+bb48:
+  %268: I32 = read copy.trivial ($yielded)
+  %269: I32 = const 0
+  %270: Bool = eq inspect %268 inspect %269
+  branch inspect %270 -> bb49 -> bb50
+
+bb49:
+  %272: I32 = read copy.trivial (a)
+  %273: I32 = read copy.trivial (b)
+  %274: I32 = add inspect %272 inspect %273
+  %275: I32 = read copy.trivial (c)
+  %276: I32 = add inspect %274 inspect %275
+  %277: I32 = const 16
+  %278: I32 = add inspect %276 inspect %277
+  %279: (I32) -> I32 [shared call] = read borrow.shared ($body) loan16
+  %280: I32 = call inspect %279 borrow.shared %278
+  write.assign borrow.unique ($yielded) take %280
+  jump -> bb51
+
+bb50:
+  jump -> bb51
+
+bb51:
+  %284: I32 = read copy.trivial ($yielded)
+  %285: I32 = const 0
+  %286: Bool = eq inspect %284 inspect %285
+  branch inspect %286 -> bb52 -> bb53
+
+bb52:
+  %288: I32 = read copy.trivial (a)
+  %289: I32 = read copy.trivial (b)
+  %290: I32 = add inspect %288 inspect %289
+  %291: I32 = read copy.trivial (c)
+  %292: I32 = add inspect %290 inspect %291
+  %293: I32 = const 17
+  %294: I32 = add inspect %292 inspect %293
+  %295: (I32) -> I32 [shared call] = read borrow.shared ($body) loan17
+  %296: I32 = call inspect %295 borrow.shared %294
+  write.assign borrow.unique ($yielded) take %296
+  jump -> bb54
+
+bb53:
+  jump -> bb54
+
+bb54:
+  %300: I32 = read copy.trivial ($yielded)
+  %301: I32 = const 0
+  %302: Bool = eq inspect %300 inspect %301
+  branch inspect %302 -> bb55 -> bb56
+
+bb55:
+  %304: I32 = read copy.trivial (a)
+  %305: I32 = read copy.trivial (b)
+  %306: I32 = add inspect %304 inspect %305
+  %307: I32 = read copy.trivial (c)
+  %308: I32 = add inspect %306 inspect %307
+  %309: I32 = const 18
+  %310: I32 = add inspect %308 inspect %309
+  %311: (I32) -> I32 [shared call] = read borrow.shared ($body) loan18
+  %312: I32 = call inspect %311 borrow.shared %310
+  write.assign borrow.unique ($yielded) take %312
+  jump -> bb57
+
+bb56:
+  jump -> bb57
+
+bb57:
+  %316: I32 = read copy.trivial ($yielded)
+  %317: I32 = const 0
+  %318: Bool = eq inspect %316 inspect %317
+  branch inspect %318 -> bb58 -> bb59
+
+bb58:
+  %320: I32 = read copy.trivial (a)
+  %321: I32 = read copy.trivial (b)
+  %322: I32 = add inspect %320 inspect %321
+  %323: I32 = read copy.trivial (c)
+  %324: I32 = add inspect %322 inspect %323
+  %325: I32 = const 19
+  %326: I32 = add inspect %324 inspect %325
+  %327: (I32) -> I32 [shared call] = read borrow.shared ($body) loan19
+  %328: I32 = call inspect %327 borrow.shared %326
+  write.assign borrow.unique ($yielded) take %328
+  jump -> bb60
+
+bb59:
+  jump -> bb60
+
+bb60:
+  %332: I32 = read copy.trivial ($yielded)
+  %333: I32 = const 0
+  %334: Bool = eq inspect %332 inspect %333
+  branch inspect %334 -> bb61 -> bb62
+
+bb61:
+  %336: I32 = read copy.trivial (a)
+  %337: I32 = read copy.trivial (b)
+  %338: I32 = add inspect %336 inspect %337
+  %339: I32 = read copy.trivial (c)
+  %340: I32 = add inspect %338 inspect %339
+  %341: I32 = const 20
+  %342: I32 = add inspect %340 inspect %341
+  %343: (I32) -> I32 [shared call] = read borrow.shared ($body) loan20
+  %344: I32 = call inspect %343 borrow.shared %342
+  write.assign borrow.unique ($yielded) take %344
+  jump -> bb63
+
+bb62:
+  jump -> bb63
+
+bb63:
+  %348: I32 = read copy.trivial ($yielded)
+  %349: I32 = const 0
+  %350: Bool = eq inspect %348 inspect %349
+  branch inspect %350 -> bb64 -> bb65
+
+bb64:
+  %352: I32 = read copy.trivial (a)
+  %353: I32 = read copy.trivial (b)
+  %354: I32 = add inspect %352 inspect %353
+  %355: I32 = read copy.trivial (c)
+  %356: I32 = add inspect %354 inspect %355
+  %357: I32 = const 21
+  %358: I32 = add inspect %356 inspect %357
+  %359: (I32) -> I32 [shared call] = read borrow.shared ($body) loan21
+  %360: I32 = call inspect %359 borrow.shared %358
+  write.assign borrow.unique ($yielded) take %360
+  jump -> bb66
+
+bb65:
+  jump -> bb66
+
+bb66:
+  %364: I32 = read copy.trivial ($yielded)
+  %365: I32 = const 0
+  %366: Bool = eq inspect %364 inspect %365
+  branch inspect %366 -> bb67 -> bb68
+
+bb67:
+  %368: I32 = read copy.trivial (a)
+  %369: I32 = read copy.trivial (b)
+  %370: I32 = add inspect %368 inspect %369
+  %371: I32 = read copy.trivial (c)
+  %372: I32 = add inspect %370 inspect %371
+  %373: I32 = const 22
+  %374: I32 = add inspect %372 inspect %373
+  %375: (I32) -> I32 [shared call] = read borrow.shared ($body) loan22
+  %376: I32 = call inspect %375 borrow.shared %374
+  write.assign borrow.unique ($yielded) take %376
+  jump -> bb69
+
+bb68:
+  jump -> bb69
+
+bb69:
+  %380: I32 = read copy.trivial ($yielded)
+  %381: I32 = const 0
+  %382: Bool = eq inspect %380 inspect %381
+  branch inspect %382 -> bb70 -> bb71
+
+bb70:
+  %384: I32 = read copy.trivial (a)
+  %385: I32 = read copy.trivial (b)
+  %386: I32 = add inspect %384 inspect %385
+  %387: I32 = read copy.trivial (c)
+  %388: I32 = add inspect %386 inspect %387
+  %389: I32 = const 23
+  %390: I32 = add inspect %388 inspect %389
+  %391: (I32) -> I32 [shared call] = read borrow.shared ($body) loan23
+  %392: I32 = call inspect %391 borrow.shared %390
+  write.assign borrow.unique ($yielded) take %392
+  jump -> bb72
+
+bb71:
+  jump -> bb72
+
+bb72:
+  %396: I32 = read copy.trivial ($yielded)
+  %397: I32 = const 0
+  %398: Bool = eq inspect %396 inspect %397
+  branch inspect %398 -> bb73 -> bb74
+
+bb73:
+  %400: I32 = read copy.trivial (a)
+  %401: I32 = read copy.trivial (b)
+  %402: I32 = add inspect %400 inspect %401
+  %403: I32 = read copy.trivial (c)
+  %404: I32 = add inspect %402 inspect %403
+  %405: I32 = const 24
+  %406: I32 = add inspect %404 inspect %405
+  %407: (I32) -> I32 [shared call] = read borrow.shared ($body) loan24
+  %408: I32 = call inspect %407 borrow.shared %406
+  write.assign borrow.unique ($yielded) take %408
+  jump -> bb75
+
+bb74:
+  jump -> bb75
+
+bb75:
+  %412: I32 = read copy.trivial ($yielded)
+  %413: I32 = const 0
+  %414: Bool = eq inspect %412 inspect %413
+  branch inspect %414 -> bb76 -> bb77
+
+bb76:
+  %416: I32 = read copy.trivial (a)
+  %417: I32 = read copy.trivial (b)
+  %418: I32 = add inspect %416 inspect %417
+  %419: I32 = read copy.trivial (c)
+  %420: I32 = add inspect %418 inspect %419
+  %421: I32 = const 25
+  %422: I32 = add inspect %420 inspect %421
+  %423: (I32) -> I32 [shared call] = read borrow.shared ($body) loan25
+  %424: I32 = call inspect %423 borrow.shared %422
+  write.assign borrow.unique ($yielded) take %424
+  jump -> bb78
+
+bb77:
+  jump -> bb78
+
+bb78:
+  %428: I32 = read copy.trivial ($yielded)
+  %429: I32 = const 0
+  %430: Bool = eq inspect %428 inspect %429
+  branch inspect %430 -> bb79 -> bb80
+
+bb79:
+  %432: I32 = read copy.trivial (a)
+  %433: I32 = read copy.trivial (b)
+  %434: I32 = add inspect %432 inspect %433
+  %435: I32 = read copy.trivial (c)
+  %436: I32 = add inspect %434 inspect %435
+  %437: I32 = const 26
+  %438: I32 = add inspect %436 inspect %437
+  %439: (I32) -> I32 [shared call] = read borrow.shared ($body) loan26
+  %440: I32 = call inspect %439 borrow.shared %438
+  write.assign borrow.unique ($yielded) take %440
+  jump -> bb81
+
+bb80:
+  jump -> bb81
+
+bb81:
+  %444: I32 = read copy.trivial ($yielded)
+  %445: I32 = const 0
+  %446: Bool = eq inspect %444 inspect %445
+  branch inspect %446 -> bb82 -> bb83
+
+bb82:
+  %448: I32 = read copy.trivial (a)
+  %449: I32 = read copy.trivial (b)
+  %450: I32 = add inspect %448 inspect %449
+  %451: I32 = read copy.trivial (c)
+  %452: I32 = add inspect %450 inspect %451
+  %453: I32 = const 27
+  %454: I32 = add inspect %452 inspect %453
+  %455: (I32) -> I32 [shared call] = read borrow.shared ($body) loan27
+  %456: I32 = call inspect %455 borrow.shared %454
+  write.assign borrow.unique ($yielded) take %456
+  jump -> bb84
+
+bb83:
+  jump -> bb84
+
+bb84:
+  %460: I32 = read copy.trivial ($yielded)
+  %461: I32 = const 0
+  %462: Bool = eq inspect %460 inspect %461
+  branch inspect %462 -> bb85 -> bb86
+
+bb85:
+  %464: I32 = read copy.trivial (a)
+  %465: I32 = read copy.trivial (b)
+  %466: I32 = add inspect %464 inspect %465
+  %467: I32 = read copy.trivial (c)
+  %468: I32 = add inspect %466 inspect %467
+  %469: I32 = const 28
+  %470: I32 = add inspect %468 inspect %469
+  %471: (I32) -> I32 [shared call] = read borrow.shared ($body) loan28
+  %472: I32 = call inspect %471 borrow.shared %470
+  write.assign borrow.unique ($yielded) take %472
+  jump -> bb87
+
+bb86:
+  jump -> bb87
+
+bb87:
+  %476: I32 = read copy.trivial ($yielded)
+  %477: I32 = const 0
+  %478: Bool = eq inspect %476 inspect %477
+  branch inspect %478 -> bb88 -> bb89
+
+bb88:
+  %480: I32 = read copy.trivial (a)
+  %481: I32 = read copy.trivial (b)
+  %482: I32 = add inspect %480 inspect %481
+  %483: I32 = read copy.trivial (c)
+  %484: I32 = add inspect %482 inspect %483
+  %485: I32 = const 29
+  %486: I32 = add inspect %484 inspect %485
+  %487: (I32) -> I32 [shared call] = read borrow.shared ($body) loan29
+  %488: I32 = call inspect %487 borrow.shared %486
+  write.assign borrow.unique ($yielded) take %488
+  jump -> bb90
+
+bb89:
+  jump -> bb90
+
+bb90:
+  %492: I32 = read copy.trivial ($yielded)
+  %493: I32 = const 0
+  %494: Bool = eq inspect %492 inspect %493
+  branch inspect %494 -> bb91 -> bb92
+
+bb91:
+  %496: I32 = read copy.trivial (a)
+  %497: I32 = read copy.trivial (b)
+  %498: I32 = add inspect %496 inspect %497
+  %499: I32 = read copy.trivial (c)
+  %500: I32 = add inspect %498 inspect %499
+  %501: I32 = const 30
+  %502: I32 = add inspect %500 inspect %501
+  %503: (I32) -> I32 [shared call] = read borrow.shared ($body) loan30
+  %504: I32 = call inspect %503 borrow.shared %502
+  write.assign borrow.unique ($yielded) take %504
+  jump -> bb93
+
+bb92:
+  jump -> bb93
+
+bb93:
+  %508: I32 = read copy.trivial ($yielded)
+  %509: I32 = const 0
+  %510: Bool = eq inspect %508 inspect %509
+  branch inspect %510 -> bb94 -> bb95
+
+bb94:
+  %512: I32 = read copy.trivial (a)
+  %513: I32 = read copy.trivial (b)
+  %514: I32 = add inspect %512 inspect %513
+  %515: I32 = read copy.trivial (c)
+  %516: I32 = add inspect %514 inspect %515
+  %517: I32 = const 31
+  %518: I32 = add inspect %516 inspect %517
+  %519: (I32) -> I32 [shared call] = read borrow.shared ($body) loan31
+  %520: I32 = call inspect %519 borrow.shared %518
+  write.assign borrow.unique ($yielded) take %520
+  jump -> bb96
+
+bb95:
+  jump -> bb96
+
+bb96:
+  %524: I32 = read copy.trivial ($yielded)
+  %525: I32 = const 0
+  %526: Bool = eq inspect %524 inspect %525
+  branch inspect %526 -> bb97 -> bb98
+
+bb97:
+  %528: I32 = read copy.trivial (a)
+  %529: I32 = read copy.trivial (b)
+  %530: I32 = add inspect %528 inspect %529
+  %531: I32 = read copy.trivial (c)
+  %532: I32 = add inspect %530 inspect %531
+  %533: I32 = const 32
+  %534: I32 = add inspect %532 inspect %533
+  %535: (I32) -> I32 [shared call] = read borrow.shared ($body) loan32
+  %536: I32 = call inspect %535 borrow.shared %534
+  write.assign borrow.unique ($yielded) take %536
+  jump -> bb99
+
+bb98:
+  jump -> bb99
+
+bb99:
+  %540: I32 = read copy.trivial ($yielded)
+  %541: I32 = const 0
+  %542: Bool = eq inspect %540 inspect %541
+  branch inspect %542 -> bb100 -> bb101
+
+bb100:
+  %544: I32 = read copy.trivial (a)
+  %545: I32 = read copy.trivial (b)
+  %546: I32 = add inspect %544 inspect %545
+  %547: I32 = read copy.trivial (c)
+  %548: I32 = add inspect %546 inspect %547
+  %549: I32 = const 33
+  %550: I32 = add inspect %548 inspect %549
+  %551: (I32) -> I32 [shared call] = read borrow.shared ($body) loan33
+  %552: I32 = call inspect %551 borrow.shared %550
+  write.assign borrow.unique ($yielded) take %552
+  jump -> bb102
+
+bb101:
+  jump -> bb102
+
+bb102:
+  %556: I32 = read copy.trivial ($yielded)
+  %557: I32 = const 0
+  %558: Bool = eq inspect %556 inspect %557
+  branch inspect %558 -> bb103 -> bb104
+
+bb103:
+  %560: I32 = read copy.trivial (a)
+  %561: I32 = read copy.trivial (b)
+  %562: I32 = add inspect %560 inspect %561
+  %563: I32 = read copy.trivial (c)
+  %564: I32 = add inspect %562 inspect %563
+  %565: I32 = const 34
+  %566: I32 = add inspect %564 inspect %565
+  %567: (I32) -> I32 [shared call] = read borrow.shared ($body) loan34
+  %568: I32 = call inspect %567 borrow.shared %566
+  write.assign borrow.unique ($yielded) take %568
+  jump -> bb105
+
+bb104:
+  jump -> bb105
+
+bb105:
+  %572: I32 = read copy.trivial ($yielded)
+  %573: I32 = const 0
+  %574: Bool = eq inspect %572 inspect %573
+  branch inspect %574 -> bb106 -> bb107
+
+bb106:
+  %576: I32 = read copy.trivial (a)
+  %577: I32 = read copy.trivial (b)
+  %578: I32 = add inspect %576 inspect %577
+  %579: I32 = read copy.trivial (c)
+  %580: I32 = add inspect %578 inspect %579
+  %581: I32 = const 35
+  %582: I32 = add inspect %580 inspect %581
+  %583: (I32) -> I32 [shared call] = read borrow.shared ($body) loan35
+  %584: I32 = call inspect %583 borrow.shared %582
+  write.assign borrow.unique ($yielded) take %584
+  jump -> bb108
+
+bb107:
+  jump -> bb108
+
+bb108:
+  %588: I32 = read copy.trivial ($yielded)
+  %589: I32 = const 0
+  %590: Bool = eq inspect %588 inspect %589
+  branch inspect %590 -> bb109 -> bb110
+
+bb109:
+  %592: I32 = read copy.trivial (a)
+  %593: I32 = read copy.trivial (b)
+  %594: I32 = add inspect %592 inspect %593
+  %595: I32 = read copy.trivial (c)
+  %596: I32 = add inspect %594 inspect %595
+  %597: I32 = const 36
+  %598: I32 = add inspect %596 inspect %597
+  %599: (I32) -> I32 [shared call] = read borrow.shared ($body) loan36
+  %600: I32 = call inspect %599 borrow.shared %598
+  write.assign borrow.unique ($yielded) take %600
+  jump -> bb111
+
+bb110:
+  jump -> bb111
+
+bb111:
+  %604: I32 = read copy.trivial ($yielded)
+  %605: I32 = const 0
+  %606: Bool = eq inspect %604 inspect %605
+  branch inspect %606 -> bb112 -> bb113
+
+bb112:
+  %608: I32 = read copy.trivial (a)
+  %609: I32 = read copy.trivial (b)
+  %610: I32 = add inspect %608 inspect %609
+  %611: I32 = read copy.trivial (c)
+  %612: I32 = add inspect %610 inspect %611
+  %613: I32 = const 37
+  %614: I32 = add inspect %612 inspect %613
+  %615: (I32) -> I32 [shared call] = read borrow.shared ($body) loan37
+  %616: I32 = call inspect %615 borrow.shared %614
+  write.assign borrow.unique ($yielded) take %616
+  jump -> bb114
+
+bb113:
+  jump -> bb114
+
+bb114:
+  %620: I32 = read copy.trivial ($yielded)
+  %621: I32 = const 0
+  %622: Bool = eq inspect %620 inspect %621
+  branch inspect %622 -> bb115 -> bb116
+
+bb115:
+  %624: I32 = read copy.trivial (a)
+  %625: I32 = read copy.trivial (b)
+  %626: I32 = add inspect %624 inspect %625
+  %627: I32 = read copy.trivial (c)
+  %628: I32 = add inspect %626 inspect %627
+  %629: I32 = const 38
+  %630: I32 = add inspect %628 inspect %629
+  %631: (I32) -> I32 [shared call] = read borrow.shared ($body) loan38
+  %632: I32 = call inspect %631 borrow.shared %630
+  write.assign borrow.unique ($yielded) take %632
+  jump -> bb117
+
+bb116:
+  jump -> bb117
+
+bb117:
+  %636: I32 = read copy.trivial ($yielded)
+  %637: I32 = const 0
+  %638: Bool = eq inspect %636 inspect %637
+  branch inspect %638 -> bb118 -> bb119
+
+bb118:
+  %640: I32 = read copy.trivial (a)
+  %641: I32 = read copy.trivial (b)
+  %642: I32 = add inspect %640 inspect %641
+  %643: I32 = read copy.trivial (c)
+  %644: I32 = add inspect %642 inspect %643
+  %645: I32 = const 39
+  %646: I32 = add inspect %644 inspect %645
+  %647: (I32) -> I32 [shared call] = read borrow.shared ($body) loan39
+  %648: I32 = call inspect %647 borrow.shared %646
+  write.assign borrow.unique ($yielded) take %648
+  jump -> bb120
+
+bb119:
+  jump -> bb120
+
+bb120:
+  %652: I32 = read copy.trivial ($yielded)
+  %653: I32 = const 0
+  %654: Bool = eq inspect %652 inspect %653
+  branch inspect %654 -> bb121 -> bb122
+
+bb121:
+  %656: I32 = read copy.trivial (a)
+  %657: I32 = read copy.trivial (b)
+  %658: I32 = add inspect %656 inspect %657
+  %659: I32 = read copy.trivial (c)
+  %660: I32 = add inspect %658 inspect %659
+  %661: I32 = const 40
+  %662: I32 = add inspect %660 inspect %661
+  %663: (I32) -> I32 [shared call] = read borrow.shared ($body) loan40
+  %664: I32 = call inspect %663 borrow.shared %662
+  write.assign borrow.unique ($yielded) take %664
+  jump -> bb123
+
+bb122:
+  jump -> bb123
+
+bb123:
+  %668: I32 = read copy.trivial ($yielded)
+  %669: I32 = const 0
+  %670: Bool = eq inspect %668 inspect %669
+  branch inspect %670 -> bb124 -> bb125
+
+bb124:
+  %672: I32 = read copy.trivial (a)
+  %673: I32 = read copy.trivial (b)
+  %674: I32 = add inspect %672 inspect %673
+  %675: I32 = read copy.trivial (c)
+  %676: I32 = add inspect %674 inspect %675
+  %677: I32 = const 41
+  %678: I32 = add inspect %676 inspect %677
+  %679: (I32) -> I32 [shared call] = read borrow.shared ($body) loan41
+  %680: I32 = call inspect %679 borrow.shared %678
+  write.assign borrow.unique ($yielded) take %680
+  jump -> bb126
+
+bb125:
+  jump -> bb126
+
+bb126:
+  %684: I32 = read copy.trivial ($yielded)
+  %685: I32 = const 0
+  %686: Bool = eq inspect %684 inspect %685
+  branch inspect %686 -> bb127 -> bb128
+
+bb127:
+  %688: I32 = read copy.trivial (a)
+  %689: I32 = read copy.trivial (b)
+  %690: I32 = add inspect %688 inspect %689
+  %691: I32 = read copy.trivial (c)
+  %692: I32 = add inspect %690 inspect %691
+  %693: I32 = const 42
+  %694: I32 = add inspect %692 inspect %693
+  %695: (I32) -> I32 [shared call] = read borrow.shared ($body) loan42
+  %696: I32 = call inspect %695 borrow.shared %694
+  write.assign borrow.unique ($yielded) take %696
+  jump -> bb129
+
+bb128:
+  jump -> bb129
+
+bb129:
+  %700: I32 = read copy.trivial ($yielded)
+  %701: I32 = const 0
+  %702: Bool = eq inspect %700 inspect %701
+  branch inspect %702 -> bb130 -> bb131
+
+bb130:
+  %704: I32 = read copy.trivial (a)
+  %705: I32 = read copy.trivial (b)
+  %706: I32 = add inspect %704 inspect %705
+  %707: I32 = read copy.trivial (c)
+  %708: I32 = add inspect %706 inspect %707
+  %709: I32 = const 43
+  %710: I32 = add inspect %708 inspect %709
+  %711: (I32) -> I32 [shared call] = read borrow.shared ($body) loan43
+  %712: I32 = call inspect %711 borrow.shared %710
+  write.assign borrow.unique ($yielded) take %712
+  jump -> bb132
+
+bb131:
+  jump -> bb132
+
+bb132:
+  %716: I32 = read copy.trivial ($yielded)
+  %717: I32 = const 0
+  %718: Bool = eq inspect %716 inspect %717
+  branch inspect %718 -> bb133 -> bb134
+
+bb133:
+  %720: I32 = read copy.trivial (a)
+  %721: I32 = read copy.trivial (b)
+  %722: I32 = add inspect %720 inspect %721
+  %723: I32 = read copy.trivial (c)
+  %724: I32 = add inspect %722 inspect %723
+  %725: I32 = const 44
+  %726: I32 = add inspect %724 inspect %725
+  %727: (I32) -> I32 [shared call] = read borrow.shared ($body) loan44
+  %728: I32 = call inspect %727 borrow.shared %726
+  write.assign borrow.unique ($yielded) take %728
+  jump -> bb135
+
+bb134:
+  jump -> bb135
+
+bb135:
+  %732: I32 = read copy.trivial ($yielded)
+  %733: I32 = const 0
+  %734: Bool = eq inspect %732 inspect %733
+  branch inspect %734 -> bb136 -> bb137
+
+bb136:
+  %736: I32 = read copy.trivial (a)
+  %737: I32 = read copy.trivial (b)
+  %738: I32 = add inspect %736 inspect %737
+  %739: I32 = read copy.trivial (c)
+  %740: I32 = add inspect %738 inspect %739
+  %741: I32 = const 45
+  %742: I32 = add inspect %740 inspect %741
+  %743: (I32) -> I32 [shared call] = read borrow.shared ($body) loan45
+  %744: I32 = call inspect %743 borrow.shared %742
+  write.assign borrow.unique ($yielded) take %744
+  jump -> bb138
+
+bb137:
+  jump -> bb138
+
+bb138:
+  %748: I32 = read copy.trivial ($yielded)
+  %749: I32 = const 0
+  %750: Bool = eq inspect %748 inspect %749
+  branch inspect %750 -> bb139 -> bb140
+
+bb139:
+  %752: I32 = read copy.trivial (a)
+  %753: I32 = read copy.trivial (b)
+  %754: I32 = add inspect %752 inspect %753
+  %755: I32 = read copy.trivial (c)
+  %756: I32 = add inspect %754 inspect %755
+  %757: I32 = const 46
+  %758: I32 = add inspect %756 inspect %757
+  %759: (I32) -> I32 [shared call] = read borrow.shared ($body) loan46
+  %760: I32 = call inspect %759 borrow.shared %758
+  write.assign borrow.unique ($yielded) take %760
+  jump -> bb141
+
+bb140:
+  jump -> bb141
+
+bb141:
+  %764: I32 = read copy.trivial ($yielded)
+  %765: I32 = const 0
+  %766: Bool = eq inspect %764 inspect %765
+  branch inspect %766 -> bb142 -> bb143
+
+bb142:
+  %768: I32 = read copy.trivial (a)
+  %769: I32 = read copy.trivial (b)
+  %770: I32 = add inspect %768 inspect %769
+  %771: I32 = read copy.trivial (c)
+  %772: I32 = add inspect %770 inspect %771
+  %773: I32 = const 47
+  %774: I32 = add inspect %772 inspect %773
+  %775: (I32) -> I32 [shared call] = read borrow.shared ($body) loan47
+  %776: I32 = call inspect %775 borrow.shared %774
+  write.assign borrow.unique ($yielded) take %776
+  jump -> bb144
+
+bb143:
+  jump -> bb144
+
+bb144:
+  %780: I32 = read copy.trivial ($yielded)
+  %781: I32 = const 0
+  %782: Bool = eq inspect %780 inspect %781
+  branch inspect %782 -> bb145 -> bb146
+
+bb145:
+  %784: I32 = read copy.trivial (a)
+  %785: I32 = read copy.trivial (b)
+  %786: I32 = add inspect %784 inspect %785
+  %787: I32 = read copy.trivial (c)
+  %788: I32 = add inspect %786 inspect %787
+  %789: I32 = const 48
+  %790: I32 = add inspect %788 inspect %789
+  %791: (I32) -> I32 [shared call] = read borrow.shared ($body) loan48
+  %792: I32 = call inspect %791 borrow.shared %790
+  write.assign borrow.unique ($yielded) take %792
+  jump -> bb147
+
+bb146:
+  jump -> bb147
+
+bb147:
+  %796: I32 = read copy.trivial ($yielded)
+  %797: I32 = const 0
+  %798: Bool = eq inspect %796 inspect %797
+  branch inspect %798 -> bb148 -> bb149
+
+bb148:
+  %800: I32 = read copy.trivial (a)
+  %801: I32 = read copy.trivial (b)
+  %802: I32 = add inspect %800 inspect %801
+  %803: I32 = read copy.trivial (c)
+  %804: I32 = add inspect %802 inspect %803
+  %805: I32 = const 49
+  %806: I32 = add inspect %804 inspect %805
+  %807: (I32) -> I32 [shared call] = read borrow.shared ($body) loan49
+  %808: I32 = call inspect %807 borrow.shared %806
+  write.assign borrow.unique ($yielded) take %808
+  jump -> bb150
+
+bb149:
+  jump -> bb150
+
+bb150:
+  %812: I32 = read copy.trivial ($yielded)
+  return take %812
+}
+
+fn phasesRuns() -> I32 {
+  local & it: phases.Iter
+  local & packed: I32
+  local x: I32
+
+bb0:
+  %0: I32 = const 3
+  %1: phases.Iter = call phases$new take %0
+  write.init borrow.unique (it) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (packed) take %3
+  jump -> bb1
+
+bb1:
+  %6: phases.Iter [unique call] = read borrow.unique (it) loan0
+  %7: I32 = const 0
+  %8: Bool = const False
+  %9: Bool = call phases$step borrow.unique %6 take %7 take %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  %20: I32 = read copy.trivial (packed)
+  return take %20
+
+bb3:
+  %11: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (x) take %11
+  %13: I32 = read copy.trivial (packed)
+  %14: I32 = const 10
+  %15: I32 = mul inspect %13 inspect %14
+  %16: I32 = read copy.trivial (x)
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (packed) take %17
+  jump -> bb1
+}
+
+fn armsRuns() -> I32 {
+  local & yes: arms.Iter
+  local & no: arms.Iter
+  local & packed: I32
+  local x: I32
+  local x: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: arms.Iter = call arms$new take %0
+  write.init borrow.unique (yes) take %1
+  %3: I32 = const 0
+  %4: arms.Iter = call arms$new take %3
+  write.init borrow.unique (no) take %4
+  %6: I32 = const 0
+  write.init borrow.unique (packed) take %6
+  jump -> bb1
+
+bb1:
+  %9: arms.Iter [unique call] = read borrow.unique (yes) loan0
+  %10: I32 = const 0
+  %11: Bool = const False
+  %12: Bool = call arms$step borrow.unique %9 take %10 take %11
+  branch inspect %12 -> bb3 -> bb2
+
+bb2:
+  jump -> bb4
+
+bb3:
+  %14: I32 = read copy.trivial (yes.$slot)
+  write.init borrow.unique (x) take %14
+  %16: I32 = read copy.trivial (packed)
+  %17: I32 = const 10
+  %18: I32 = mul inspect %16 inspect %17
+  %19: I32 = read copy.trivial (x)
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (packed) take %20
+  jump -> bb1
+
+bb4:
+  %24: arms.Iter [unique call] = read borrow.unique (no) loan1
+  %25: I32 = const 0
+  %26: Bool = const False
+  %27: Bool = call arms$step borrow.unique %24 take %25 take %26
+  branch inspect %27 -> bb6 -> bb5
+
+bb5:
+  %38: I32 = read copy.trivial (packed)
+  return take %38
+
+bb6:
+  %29: I32 = read copy.trivial (no.$slot)
+  write.init borrow.unique (x) take %29
+  %31: I32 = read copy.trivial (packed)
+  %32: I32 = const 10
+  %33: I32 = mul inspect %31 inspect %32
+  %34: I32 = read copy.trivial (x)
+  %35: I32 = add inspect %33 inspect %34
+  write.assign borrow.unique (packed) take %35
+  jump -> bb4
+}
+
+fn fiftyRuns() -> I32 {
+  local & it: fifty.Iter
+  local & sum: I32
+  local x: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: fifty.Iter = call fifty$new take %0
+  write.init borrow.unique (it) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (sum) take %3
+  jump -> bb1
+
+bb1:
+  %6: fifty.Iter [unique call] = read borrow.unique (it) loan0
+  %7: I32 = const 0
+  %8: Bool = const False
+  %9: Bool = call fifty$step borrow.unique %6 take %7 take %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  %18: I32 = read copy.trivial (sum)
+  return take %18
+
+bb3:
+  %11: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (x) take %11
+  %13: I32 = read copy.trivial (sum)
+  %14: I32 = read copy.trivial (x)
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (sum) take %15
+  jump -> bb1
+}
+
+fn sizes() -> I32 {
+  local built: phases.Iter
+  local armed: arms.Iter
+  local fewer: few.Iter
+  local fiftied: fifty.Iter
+  local phasesSize: Size
+  local armsSize: Size
+  local fewSize: Size
+  local fiftySize: Size
+
+bb0:
+  %0: I32 = const 0
+  %1: phases.Iter = call phases$new take %0
+  write.init borrow.unique (built) take %1
+  %3: I32 = const 1
+  %4: arms.Iter = call arms$new take %3
+  write.init borrow.unique (armed) take %4
+  %6: I32 = const 0
+  %7: few.Iter = call few$new take %6
+  write.init borrow.unique (fewer) take %7
+  %9: I32 = const 0
+  %10: fifty.Iter = call fifty$new take %9
+  write.init borrow.unique (fiftied) take %10
+  %12: phases.Iter = read copy.trivial (built)
+  %13: Size = call sizeOf(phases.Iter) borrow.shared %12
+  write.init borrow.unique (phasesSize) take %13
+  %15: arms.Iter = read copy.trivial (armed)
+  %16: Size = call sizeOf(arms.Iter) borrow.shared %15
+  write.init borrow.unique (armsSize) take %16
+  %18: few.Iter = read copy.trivial (fewer)
+  %19: Size = call sizeOf(few.Iter) borrow.shared %18
+  write.init borrow.unique (fewSize) take %19
+  %21: fifty.Iter = read copy.trivial (fiftied)
+  %22: Size = call sizeOf(fifty.Iter) borrow.shared %21
+  write.init borrow.unique (fiftySize) take %22
+  %24: Size = read copy.trivial (fewSize)
+  %25: Size = read copy.trivial (fiftySize)
+  %26: Bool = ne inspect %24 inspect %25
+  branch inspect %26 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %31: Size = read copy.trivial (phasesSize)
+  %32: Size = const 16
+  %33: Bool = ne inspect %31 inspect %32
+  branch inspect %33 -> bb6 -> bb4
+
+bb3:
+  %28: I32 = const 1
+  return take %28
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %38: Size = read copy.trivial (armsSize)
+  %39: Size = const 16
+  %40: Bool = ne inspect %38 inspect %39
+  branch inspect %40 -> bb9 -> bb7
+
+bb6:
+  %35: I32 = const 2
+  return take %35
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %45: Size = read copy.trivial (fewSize)
+  %46: Size = const 24
+  %47: Bool = ne inspect %45 inspect %46
+  branch inspect %47 -> bb12 -> bb10
+
+bb9:
+  %42: I32 = const 3
+  return take %42
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %52: I32 = const 0
+  return take %52
+
+bb12:
+  %49: I32 = const 4
+  return take %49
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call sizes
+  %1: I32 = const 0
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = call phasesRuns
+  %8: I32 = const 24147
+  %9: Bool = ne inspect %7 inspect %8
+  branch inspect %9 -> bb6 -> bb4
+
+bb3:
+  %4: I32 = call sizes
+  return take %4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %14: I32 = call armsRuns
+  %15: I32 = const 7802
+  %16: Bool = ne inspect %14 inspect %15
+  branch inspect %16 -> bb9 -> bb7
+
+bb6:
+  %11: I32 = const 5
+  return take %11
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %21: I32 = call fiftyRuns
+  %22: I32 = const 1525
+  %23: Bool = ne inspect %21 inspect %22
+  branch inspect %23 -> bb12 -> bb10
+
+bb9:
+  %18: I32 = const 6
+  return take %18
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %28: I32 = const 0
+  return take %28
+
+bb12:
+  %25: I32 = const 7
+  return take %25
+}
+
+fn phases$new(n: I32) -> phases.Iter = <no body>
+
+fn phases$step($self: phases.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn phases$next($self: phases.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn phases$resume($self: phases.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn arms$new(n: I32) -> arms.Iter = <no body>
+
+fn arms$step($self: arms.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn arms$next($self: arms.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn arms$resume($self: arms.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn fifty$new(n: I32) -> fifty.Iter = <no body>
+
+fn fifty$step($self: fifty.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn fifty$next($self: fifty.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn fifty$resume($self: fifty.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn few$new(n: I32) -> few.Iter = <no body>
+
+fn few$step($self: few.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn few$next($self: few.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn few$resume($self: few.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+entry main

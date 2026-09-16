@@ -46,6 +46,14 @@ static bool namesLocalType(DeclBase base, DeclPtr<Module> module, DeclPtr<Type> 
             return namesLocalType(base, module, function.result.type);
         }
 
+        // An erased iterator object reaches whatever its protocol names, on the same terms: the
+        // block is the producer's and is nobody's declaration.
+        case Type::Iter: {
+            auto& iterated = *(IterType*)base[type];
+            if(namesLocalType(base, module, iterated.handover.type)) return true;
+            return namesLocalType(base, module, iterated.resume);
+        }
+
         // `instance Show([MyType *4])` is placed by its element, which is the only declaration a
         // fixed array names - the count is a number and the array itself is nobody's declaration.
         case Type::Array:

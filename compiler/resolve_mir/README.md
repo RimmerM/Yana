@@ -470,10 +470,92 @@ a **consumed** capture asked for at a *borrowing* position, which is a callback 
 something; a `&` capture at an *owning* one, which is the one refusal D17 added rather than removed -
 the block outlives the frame and a loan into it would dangle, and nothing downstream catches it
 because a value that owns its environment carries no origin; a capture of a binding this function
-only borrows; a merge of a capturing and a non-capturing lambda; and a closure written at a borrowing
-position and *then* sent to an owning one (`let f = ...; return f`), which is the environment placed
-on the frame before anything asked it to leave. `generic/Reject.Closure.yana` and
-`generic/Reject.ClosureEscape.yana` are the two lists, split by which pass answers.
+only borrows; and a closure written at a borrowing position and *then* sent to an owning one
+(`let f = ...; return f`), which is the environment placed on the frame before anything asked it to
+leave. `generic/Reject.Closure.yana` and `generic/Reject.ClosureEscape.yana` are the two lists, split
+by which pass answers. A merge of a capturing and a non-capturing lambda was on this list and is not
+any more - see the site-type section below, where a merge erases both arms instead.
+
+### A closure is its own type, and the pair is what a position asks for - site types, 2026-09-15
+
+`doc/inflight/Design-Iterator-Objects.md` §4, stage 1. Everything above still happens and one thing
+in front of it changed: **the value of a lambda expression is the environment record**, typed by the
+record `liftFunction` already minted, with the lifted function and its `(A) -> B` written onto it
+(`RecordType::lambda` and `lambdaShape`). The pair is then what a *position* asks for rather than
+what a lambda is.
+
+**Which positions ask** is `Request::declared` and the hint together: a position whose declared type
+is a function type is asking, and everything else - a `let`, a field at a type variable, an argument
+the record is generic in - is not. Two questions and not one because a *generic* position states a
+function type and offers no hint at all: `fn map(->value: m, f: (a) -> b)` leaves the parameters open
+until the class's arguments are bound, so `TypeArguments::hint` answers null there and the
+declaration is what has to travel. Where the position asks, the adaptation is at the lambda and the
+emitted code is what it was; where it does not, the record is the value and `convertValue` adapts it
+at the first position that does - the language's second implicit adaptation, beside a container
+reaching a view (`adaptSiteValue`).
+
+**A call through a site-typed value is a direct call.** `f(3)` on a `let`-bound lambda and `s.run(3)`
+on a field of a generic record are both `NodeCall::callsValue`, and what separates them from a call
+through a pair is the target's *type*: `callTarget` answers the lifted function for a site type and
+`CallThrough::Value` for a `Fun`, under the enclosing substitution, so one node in a generic body has
+both answers and the specialization picks. The environment is argument zero and the node holds it
+separately (`NodeCall::target`) because a node cannot hold two argument lists; the SSA conversion
+prepends it, so nothing below MIR has a form of its own - `CallSite::siteCall` is the one bit, spent
+in one place. `CallThrough::CallWitness` leads with the same operand for a different reason (below),
+and the conversion prepends it the same way. The MIR summary's `eachCallArgument` shifts by the same one, which is what keeps a
+lambda's `mutates` row aligned with what the caller actually lent.
+
+**`Call(f -> shape)` is what licenses it in a generic body.** A structural class with no members,
+declared in `lib/Core` and claimed with `@builtin(call)`: `Call(T, ?)` is a fold over `T` - a site
+type names its code, a function type is its own signature, and nothing else is callable - so there is
+no instance table to grow per lambda and no `instance Call(...)` a program may write. The shape is a
+whole function type rather than an argument list and a result, which is what carries `&` and `->`
+into the body. `fn (Call(f, (I32) -> I32)) go(s: Step(f), x: I32) = s.run(x)` is the headline:
+`generic/SiteType.yana`'s `go(counted.lambda.env)` reads the capture inline out of the record and
+makes no call at all, where the same record written `run: (I32) -> I32` allocates a block, carries a
+teardown and calls through the pair.
+
+**Owning the captures and placing the environment on the heap came apart.** They were one bit, and a
+site-typed closure needs the first without the second: a closure at an *owning* position consumes
+what it captured (`LambdaFrame::owns`, which is what `captureKindOf` reads), and where it keeps its
+site type there is no block, no `[teardown][captures]` header and no `funEnvironmentBias` - the
+record is stored inline in whatever holds it and released by that record's own derived teardown.
+`environmentStorage` stays the *pair's* question and is `Frame` for every lambda that keeps its type.
+
+**A merge is the one adaptation no position asks for.** `let f = if c then l1 else l2` is two lambdas
+and therefore two records, and a merge has one occurrence every edge supplies; the alternatives are
+judged against each other rather than against a position, so `eraseSiteArms` adapts site-typed arms
+that do not agree, in their own blocks, before the join. Two arms answering the *same* site type are
+left alone.
+
+**The environment parameter is declared shared** on a lambda that keeps its site type, and exclusive
+while its body is walked. The exclusive form is what a `&` capture needs - `fieldPlace` narrows a
+unique external field reached through a shared record - and what a *caller* can supply is a shared
+borrow, because a plain `let` is not writable. Weakening it afterwards is sound for the reason the
+narrowing is conservative here: the record is never written by the lifted body, and a `&` capture
+writes through the loan the environment took, whose exclusivity is held against the enclosing frame
+rather than against holders of the closure.
+
+**A body compiled once calls through the constraint too**, since 2026-09-16 (J58), and that is the
+one cell a *structural* class has. `Call` declares no members, so there was no witness for the code
+and `@generic` on such a body was refused; what the compiler synthesizes now is one entry, filled by
+`fillClassWitness` from the subject alone - `CallThrough::CallWitness`. A **site type** names its code
+in its type, so the entry calls that lifted lambda and the value's storage is the environment it
+already takes as argument zero; a **function type** names none, so the entry splits the pair and
+calls through it. The value travels as argument zero either way and not in the environment word,
+because that word is where an erased *callee's* own generic environment goes, and an entry has a
+generic signature of its own. `callWitnessFor` builds the one-cell table and `callThunkFor` the
+entry, and both are interned on the pair the boundary *is*: the concrete subject, and a bitmask of
+which promised positions this body erased. Not on the constraint's written type, which is wrong in
+the direction that matters - one closure reached at `(a) -> a` and at `(I32) -> I32` is two entries
+with one callee symbol, and `LowerModule::addFunction` hands back the function that already has that
+name.
+
+Refused by name still, and each is a statement rather than a gap: a value at a type parameter the
+signature promised nothing about; a closure whose shape is not the one the constraint states (`Call`
+is answered from the type, so there is no instance that would make it hold); and a type that is not
+callable at all. `generic/SiteType.yana`, `generic/SiteErased.yana`, `generic/Reject.SiteType.yana`
+and `ownership/SiteAdapt.yana` are the fixtures, and the first two are the two forms of one program.
 
 A **`@lazy` parameter** is the same lift with no written parameter list. `doc/spec/functions.md`'s
 sentence - "the argument expression compiles to a nullary thunk over the caller's frame" - is the
@@ -2099,7 +2181,9 @@ shape of the type rather than from a declaration, which `selectInstance` asks be
 members (`checkRoles` holds a claimant to it), which is what licenses an answer with no instance
 behind it, and no program may write an instance of one: the family is what a target performs
 indivisibly, and a program saying otherwise about its own type would be claiming an instruction that
-does not exist.
+does not exist. `TrivialCopy`, `TrivialSink` and - since 2026-09-15 - **`Call`** are the others, and
+`Call` is the one with a *determined* position to fill in: `structuralAnswer` reads the shape off the
+subject and writes it back, which is what `Selector::match` does for a declared head.
 
 `Native.atomicAt` is **not** implemented, and it is the library's spelling rather than the stage that
 blocks it: the declaration is the one signature in `lib/` still written with the `return` marker, and
@@ -3008,7 +3092,7 @@ per origin-carrying local and it buys the property every one of those mappings r
 the value read out of it have the same position count, so a whole read moves position `i` to position
 `i` and only a projection renumbers.
 
-This is the axis a generic borrowing record, a yielded value and an external iterator handle all
+This is the axis a generic borrowing record, a yielded value and an iterator object all
 need, because distinct result slots have to keep distinct lifetime relationships - and it was a
 documented false rejection until it existed: `separateLenders` is an accepting case in `Schemas.yana`
 now and was a golden error in `Reject.Overlap.yana`.
@@ -3512,6 +3596,39 @@ That is also why an `iter fn` has no `return` and no exactly-once rule. Falling 
 out*, which is the fall-out row emitted by `finish`, and an iterator that yields nothing is a filter
 that accepted nothing.
 
+**`<- R` is the one thing that changes what the continuation answers**, and nothing else.
+Design-Iterator-Objects.md §2.5: an `iter fn f(...) -> (Y <- R)` is one whose `yield` *evaluates to*
+an `R`, because the pass the consumer wrote ends with `continue v`. A bare `I32` has nowhere to put
+that, so `declareContinuation` gives such an iterator `Outcome(R, exit)` - `declareOutcome`'s wrapper
+turned round, on the other channel - and `resolveYield` matches on it instead of comparing: `Proceed(r)`
+is a pass that ended with `continue r` and is the fall-through with `r` as the expression's value,
+`Exit(code)` is a pass that left and is the departure the bare signal already was.
+
+So the two wrappers a traversal can have are **one per channel and neither inside the other**. `| E`
+wraps what the *function* answers, because a reason is something the exit signal cannot carry;
+`<- R` wraps what the *continuation* answers, for the same reason one level in. `Function::result`
+of a resuming iterator is the bare signal, so its consumer's call site is unchanged - which is what
+keeps `<- R` a fact about the producer and its passes rather than about everything that calls one.
+
+`$yielded` stays the exit code either way (`yieldedOccurrence`): what it is for is the row a
+departure left, and the value half of the wrapper is consumed where the `yield` stands.
+
+**A departure from a resuming `yield` always branches**, where a non-resuming one skips the test
+wherever `departureFallsThrough` says the answer cannot change where control goes. It can here: the
+statements below a `yield` are the ones that read its value, so a pass that left may not run them.
+Where the iterator has a loop or an enclosing region the departure leaves it exactly as before;
+where it has neither, the departure is the end of the producer and `finish` answers with `$yielded`.
+That is the one observable difference a resume channel makes to a producer, it is a difference in
+what the *cleanup* does, and `Resume.yana`'s `brokenTrail` is where it is asserted rather than hoped
+for.
+
+**`&R` is refused** and the reason is representational: what travels is `Outcome(R, exit)`'s
+`Proceed` field, and a record field is an owned position. An exclusive borrow living in one would
+need the qualified type argument `Outcome('R, exit)` under a loan whose extent is the producer's
+*step*, and there is no such extent here. A plain `<- R` is therefore requalified to owned at the
+declaration, which makes it and `-> ->R` the same thing - honest for every type whose loan is
+physically a copy, and reported at the `continue v` for every type whose is not.
+
 ### What a `for` binds, and how a pattern reaches it
 
 The hand-over lands in one local of the continuation whatever the loop wrote, so a pattern on a `for`
@@ -3584,6 +3701,530 @@ was this waypoint's own bug: a value moved in a loop body looked dead afterwards
 Only a `Jump` gets the back edge. A `break` leaves the same block for the same target and does not
 come back, which is the whole of what `Node::Break` is for - see below.
 
+### An iterator as an object - the state record
+
+`doc/inflight/Design-Iterator-Objects.md` §3, built 2026-09-15 in `resolve_object.cpp`. **Externality
+follows use**: `for x in f(...)` is the continuation-passing form above and `let it = f(...)` is the
+same declaration compiled as a *record*, and the declaration has one signature either way.
+
+    iter fn upTo(n: Int) -> Int:      data upTo.Iter {$index: I32, $slot: I32,
+        let &i = 0 :: Int                             n: I32, i: I32}
+        while i < n:
+            yield i                   fn upTo$step(&self: upTo.Iter, $resume: I32,
+            i = i + 1                              $cancel: Bool) -> Bool
+
+The record is `f.Iter`, minted by `iterSiteTypeOf` one per (producer, substitution) - the iterator's
+half of `RecordType::lambda`, with `producer` and `producerStep` where a closure has `lambda` and
+`lambdaShape`. Stage 2's `f.Iter` in type position will call the same function. Field order is the
+design's: the resume index, the hand-over slot, the captured arguments, then the payload.
+
+**The payload is a fact about the producer's MIR body**, so minting one *demands that body*:
+`demandBody` is `requireResult`'s mechanism asked of any declaration, and `Function::bodyState` is
+the same three-colour guard - `Reading` is a producer whose body **holds** an object of itself, which
+is a record inside a record and is refused. (A producer that *nests* a `for` over itself is §6.3's
+recursion and is **boxed** rather than refused - see the nest members below.) The alternative - a shell now and the payload in a pass after the
+bodies - needs "has a teardown" and "is `Copy`" answerable before the payload exists, and both are
+answers *about* the payload.
+
+**And a body may only be demanded once the program is in a state a body may be resolved in**, which
+is the rule the deferred-signature pass broke and is worth stating on its own, because both halves of
+it fail silently rather than loudly. The pass order above `resolveProgram` names them: every global
+holds the type its initializer gave it, and every type is classified. A read of a global with no type
+answers null and takes its **statement** with it - so `after += 1` below a `yield` disappeared from a
+producer whose `f.Iter` was written in any header in the module, with no diagnostic and a `for` that
+still terminated - and an unclassified record reads as trivially copyable, which came out as
+`internal: read copies its read source trivially, and its type is not` at the first `String` in such
+a producer. So `resolveSiteSignatures` runs the passes a body needs *first*, and only for a program
+that deferred something (`Resolver::hasDeferredSitePaths`), which is what keeps the order identical
+for every program that writes no declaration path. A `data` whose field is a path is then filled
+after the classification rather than before it, so the record it fills is re-folded and the program
+re-classified (`reclassifyTypes`) - what holds one was folded from an answer with no fields in it.
+`../../doc/progress/2026-09-16-J57-object-defects.md` §1 is the account, and
+`test/resolve/iter/Signature.yana` is the fixture.
+
+`LiveAcross` is the analysis: a backward fixpoint over the producer's blocks with one bit per local
+**and one per node result**. Both, and the second is not a refinement - a counted `for` hands its
+bound and its step along its own back edge as block arguments, so a `yield` inside one has values
+live across it that no local names, and the step spills them into the record beside the locals. A
+write of the **whole** of a local is a definition and kills it; a write into a *field* of one is a
+use, because what the record holds elsewhere survives it. (Walking every operand as a use after the
+kill was J50's, and it made every local live from the block that first writes it - which cost a
+member per `$yielded` and made two locals in two arms of a producer never share a field.) Two things
+the walk does that a plain liveness would not:
+
+- **an owner that owes a teardown is live at every exit**, whether or not anything reads it. Where
+  its drop actually goes is `analyze_drop.cpp`'s answer and does not exist yet, so the conservative
+  seed is the rule: `let a = Note {...}` before a `yield` with nothing below it is dead by a walk
+  over reads and alive by the ownership analysis', and a step-frame slot for it would be released on
+  a later step than the one that filled it.
+- **the `Continuation::Many` back edge is walked**, since J53. A `for x in g(...)` inside the producer
+  is a region whose blocks fall out to say "give me the next element", and the loop is a fact about
+  the region rather than an edge (`Analysis::forEachSuccessor` states the same thing for the
+  analyses). Without it a local written in a nested pass and read on the next one would be dead
+  across the `yield` that suspends the outer object inside that pass. `meetSuccessors` is the one
+  function both this fixpoint and the interference replay read it through, because an edge one of
+  them follows and the other does not would colour two live members disjoint.
+
+**Two members whose live ranges never meet are one field** - §3.2's third step, since J52. The payload
+is gathered as a list of *entries* before any field is made, `LiveAcross::interference` answers which
+pairs are live at one point at once, and a greedy walk in body order gives each entry the first field
+whose occupants it does not meet. The interference is over the **whole body** and not only at the
+hand-overs, which is the one thing the design's sentence does not say and the thing that decides
+whether the answer is sound: a payload member is the local's *storage* for its whole life rather than
+a spill written at a `yield`, so "disjoint at every `yield`" would let one arm's `let` clobber what
+the other arm is still reading. A definition counts as occupancy beside liveness, because a write
+into a shared field is a clobber whether or not anything reads what it wrote.
+
+Sharing is refused between entries whose field occurrence differs at all - the type *and* its interior
+positions - because the field is laid out once and the members are stored through it under their own
+occurrences; "compatible layout" would be the target's answer and this is decided once per program.
+A `@heap`-placed member never shares, because its field is a run's address allocated once by `f$new`
+and freed once at the exits.
+
+`RecordType::payloadFields` is what came of it: the entry list is longer than the field list, so a
+member's field is read rather than derived from its position. A shared field is **named after all of
+its occupants** - `a+b`, with `#` for a value the producer never named - which is what keeps the
+inspection output correct without any reader having to reach the producer's locals; the `across` list
+beside it is the union of theirs.
+
+`RecordType::payloadYields` is a **bitmap** rather than a word for the same pass's reason: a producer
+may hand over from as many places as it likes, where thirty-two was a refusal by name before. What a
+record grows with is what is live across a hand-over at once, which is §5's "fifty `yield`s over
+three locals is four words" - `test/resolve/iter/Sharing.yana` asserts it by `sizeOf`.
+
+**How a captured argument travels** is decided from the *parameter's declaration* and not from the
+argument, because the record is a property of the producer. `IterCaptureKind` has three rows:
+
+| | |
+| --- | --- |
+| `Value` | an owned parameter, or a shared loan of a trivially copyable whole value that publishes no origin |
+| `Address` | every other loan - the field holds the lender's pointer and publishes an origin under it |
+| `View` | a window - the field holds the descriptor's own two words, and publishes the pointer *inside* them |
+
+A **shared** loan of something that is not trivially copyable is an `Address` since J51, and what
+settles the layout question J50 refused it over is `f$new`'s parameter: an occurrence in a published
+origin is reached through storage whatever its type would otherwise say, so the argument arrives as
+an address and the field holds one. The same slot is what keeps the lender borrowed while the object
+lives - which is what the stack handle's own constructor did through `iterConstructor`, before that
+half of the feature was removed (2026-09-16).
+
+A **window**'s field carries no origin of its own, and that pairing was tried the other way first: a
+field whose contract publishes a slot is a reference to `isReferenceValue` and a view record to
+`manifestNative`, and the two then disagree by one indirection - the reader loads the descriptor's
+first word and treats it as the descriptor. So the loan sits at the pointer inside the descriptor,
+`field(k)/pointee`, which is provenance rather than a member taken away.
+
+A payload member is a pointer field in two further cases, and the `.ssa` dump names both: `placed` is
+`@heap` on the producer's binding (§6.1, below), and `borrowed` is a local that is a **loan** reached
+through an address - a second name for storage rather than a second object, written where the binding
+is established and read at every use, because a value cached at the step's entry is the contents from
+before that write and one cached at the write never reaches the resume blocks the dispatch enters
+directly.
+
+**Which of the three a payload member is, is `captureKindOf` again**, asked of the local's own
+occurrence rather than of a parameter's, and it has to be the same question: what the step does with
+the member is decided by `aliasesLender` one tier down, so a member whose occurrence *is* an address
+needs a pointer field and no storage of its own, and one whose occurrence is bytes needs a field
+those bytes fit in. A **window** the producer holds across a hand-over - the `for` variable over a
+traversal that hands over `[a]` - is therefore the view record owned outright, exactly as a captured
+window is, and carries no origin: a captured one is lent by the caller and `f$new` binds the loan,
+and this one is built by the producer out of storage the object already keeps borrowed. Asking the
+question twice with two rules is how `for chunk in chunks(self)` came to store a two-word descriptor
+into a pointer field and read it back as one.
+
+**A region the producer runs over part of its own body is a payload member too** - §3.2's first step,
+since J53, and the fourth word the `.ssa` dump prints: `nested`. `for x in g(...)` written inside the
+producer is a `lens.call` opening a `Many` region whose blocks are the loop body, and the member holds
+`g.Iter` itself, minted **recursively** at the substitution the call binds. Three things follow:
+
+- **which body the call reaches is `callTarget`'s answer**, not the node's callee. `items` nests
+  `chunks(self)`, which is a class member, and at the concrete container the instance is decided - so
+  §6.4's refusal does not stand in the way, since the declaration it is about is the class's and the
+  one minted is the instance's. The site type is minted from the *generic* the target specializes and
+  the arguments it bound, because a specialization carries parameters and a result and not the
+  declaration flags a producer is recognized by.
+- **the recursion guard is a stack**, `Resolver::iterMinting`, and since J59 it is the **trigger**
+  rather than a refusal. `Function::bodyState` catches a producer that builds an object of itself
+  while its body is being *resolved*; a nested traversal is minted long after every body is read, so
+  a producer that nests itself would find a cache entry that is not there yet and recur without end.
+  A child already on that stack is §6.3's recursion, and what the member holds is the erased
+  `iter(Y)` instead of the child's record - see **A recursive child is boxed** below.
+- **what the child borrows is republished on the field.** `spansOn.Iter` holds the address of `lines`'
+  own `text`, so the outer record inherits that origin requirement the moment it holds one as a
+  field - and `foldRecordSchema` refuses a field whose *type* carries a schema the record never named
+  while accepting one whose *occurrence* names it. The child's positions are prefixed with the field's
+  index and renumbered onto the outer record's own sets: a nested traversal is handed the producer's
+  parameter, whose capture already published one. A traversal over the producer's **own** payload is
+  §6.1's self-borrow and is refused by name unless the binding is `@heap`, where the container lives
+  in a run the record only points at and the position gets a set of its own.
+
+**A lens region is the same member**, since J56 and 2026-09-16, which is §6.6's answer. `withLock(m):`
+inside a producer opens a `Once` region rather than a `Many` one, and everything above is written on a
+`lens fn` as well: `Function::handover`, `continuationArg`, the liveness and the payload. So
+`iterSiteTypeOf` mints for either kind - `assertTrue(declared.lens)` where it used to say `iterator` -
+and `collectIterNests` takes both multiplicities. The record is spelled `f.Lens` rather than `f.Iter`
+and carries `RecordType::lensSite`, read off the **declaration** because `specializeFunction` copies
+`lens` and not `iterator`; three readers ask it, and the `Iterate` instance is the one thing a lens
+site type does not get, because nothing iterates a lens.
+
+A lens's substitution carries one argument no written argument decided - `$r`, which `handoverCall`
+binds to the exit signal - so `withLock` is generic here even where its header is not, and the record
+is one per binding of it exactly as a generic `iter fn`'s is one per element type.
+
+**A record holding a lens member always owes a teardown**, which is the one rule the lens half added.
+A lens's cleanup is the construct and owes nothing by any member's type - `guard.Lens` is three
+trivially copyable words - so without it an object abandoned inside the region would have no `Drop`
+instance and the release would never run. Forcing the obligation is also what stops `copy(it)`: two
+records with one open scope between them would release it twice. It is the constant-true case of the
+**departure** rule below, which is the same question asked of any producer.
+
+What a region still cannot be is a **skipping** one - `| E`, whether it is an iterator's failure or a
+lens's - because a step answers a `Bool` and "handed nothing over" and "failed with `e`" are one
+answer; a `Many` region whose passes hand a value back; and a callee this stage cannot name a body
+for. `test/resolve/iter/Reject.Nested.yana` and `Reject.LensRegion.yana` hold the messages.
+
+#### A recursive child is boxed
+
+§6.3, built 2026-09-16 (J59). A child a mint is **already inside** - `walk` nesting `walk`, or
+`evens` nesting `odds` nesting `evens` - has no finite record inside its parent's, so
+`collectIterNests` mints the erased `iter(Y)` for it instead of a site type and records the producer
+on the nest. The member is then two words over a heap block, the outer record is finite, and
+`IterNest::boxed` is what says so.
+
+Four things follow and each is somewhere else:
+
+- **the cycle is `iterMinting`**, asked before `iterSiteTypeOf` is entered rather than inside it, so
+  that the mint is never entered for a producer already on the stack. It catches a mutual cycle as
+  readily as a direct one, and the box lands on the cycle's **back edge** - plus, since J60, on every
+  edge a **delegating** region opens, because a level a trampoline steps has to be reachable as a
+  pair. `iterCyclic` is what the second question is asked of: the span of `iterMinting` a back edge
+  closed, recorded where the box is made and read where a re-yield region decides.
+- **what the child borrows is checked against the declarations**, not renumbered onto the outer
+  record's origin sets. An erased type carries no positions, so there is nothing to prefix - and the
+  question the renumbering answers is asked instead of the child's own parameters: a position that
+  travels as an address or as a window has to be filled from the outer producer's parameter, from an
+  `@heap` binding, or from a local the outer record itself holds by address. Everything else is
+  §6.1's self-borrow one indirection over, and is refused by name.
+- **the child's record is filled in a pass of its own**, `completeBoxedNests`, which runs after the
+  last object in the program has been minted. The member's field is a protocol, so the record the
+  step has to build is not something its type says; `RecordType::nestBoxed` says it instead, holding
+  the `g$erased.heap` shim the pair's code word is - one handle, because a shim carries the record it
+  steps. The delay is mutual recursion: `walkB`'s box over `walkA` is decided while `walkA.Iter` is
+  still being built.
+- **the record always owes a teardown**, forced for `@heap`'s reason said about an allocation the
+  record is the only owner of. Two records sharing one block would hand it back twice, which is what
+  stops `copy(it)` as well.
+
+A window hand-over through a box is refused by name: a concrete child's slot holds the descriptor and
+the step reads the field, where a box answers an address and what is at it is the descriptor rather
+than the owner. A region that *chose* to box because it delegates falls back to the inline member
+instead of reporting, since it compiled that way before. `test/resolve/iter/Recursion.yana` is the
+accepting side and `test/bench/iter/depth.py` is what it costs.
+
+#### A re-yield over a boxed child delegates
+
+§6.3, built 2026-09-16 (J60), and it is the answer to open question 3: **the re-yield shape alone**.
+`for x in g(...): yield x` and nothing else in the pass is a level with nothing of its own between
+the child's item and the consumer's, so the level need not be entered at all - the object the
+consumer holds steps the innermost level directly and a step is O(1) in the depth.
+
+The trigger is two structural questions and neither is a heuristic. `Continuation::reyield` is what
+the *source* said, recorded by `handoverCall` because `guardYields` turns one written `yield` into
+five blocks and reading the shape back out of the CFG would be that emission read backwards; and
+`iterCyclic` says the child is in this producer's own recursion cycle, without which the chain is one
+level and skipping it buys nothing.
+
+Four things the member grows, and each is one field:
+
+| | |
+| --- | --- |
+| `RecordType::linkType` | `{$pair: iter(Y), $up: %Word}` - what a delegating nest member holds instead of the bare pair. The two are **adjacent** because the trampoline is handed one address and has to find both the pair it steps next and the level it goes back to. Interned as a tuple, so every level of a cycle hands over one shape however many record types it is |
+| `RecordType::downField` | `$down` - the step's **third answer**. A level writes *which of its own link members* it entered here and returns `True` as it would for a hand-over |
+| `RecordType::innerField` | `$inner` - the trampoline's own state, the innermost level or zero for "this record is it" |
+| `RecordType::producerWalk` | `f$walk` - the trampoline every consumer of a delegating object steps through |
+
+**The third row is a member rather than a wider answer, and that is the whole of why it is free.**
+`f$step` still answers a `Bool` and the erased pair still answers an address or null; exactly one
+function reads `$down` - `f$erased.step` (`RecordType::producerRaw`), the shim a **delegable box's**
+pair names - and it answers the link with the low bit set. Every pair a consumer holds, and every box
+an ordinary region builds, names `f$erased` instead, which cannot answer that row. So no channel a
+non-delegating step is read through changed width and no consumer of one grew a test; the interleaved
+zip measured the same before and after (`test/bench/iter/findings.md` §2). A stack the root grew was
+the alternative for the chain and the levels rule it out: `evens.Iter` and `odds.Iter` are two record
+types of two sizes.
+
+**A chain word has two readings**, and the second is what lets a suspended delegating object be
+*moved* - built 2026-09-16 (J61), and it closes the one hazard J60 left. With bit zero clear it is
+the address of a link inside a heap block, which never moves; with bit zero set it is
+`field << 1 | 1`, one of the reader's own link members, resolved against whatever `self` the step was
+entered with (`ssa::iterLinkAddress`). The root's own link is the one link in a chain that lives in
+storage a consumer can relocate - `let moved = it`, an argument taken by `->`, a `return`, a store
+into a field - and an absolute address into it named where the object used to be from the next step
+onwards. Exactly one tagged value ever enters the chain, `$self.$down`, written by this record's own
+step about one of its own fields, so a tagged word always names a field of the **root** and is always
+resolved against the root; `f$erased.step` resolves before it answers, because that address crosses
+to a trampoline holding a different `self`. `@heap` placement of the link member was the alternative
+and costs an allocation per level entered; this costs one compare and one select per chain word read.
+
+**Two producers keep the non-delegating form and neither is refused**: one whose hand-over *owns*
+something with a teardown, because `f$take` clears a flag in the record whose slot the value came out
+of and a delegated item comes out of another record's; and a **resuming** one, because the trampoline
+hands the consumer's answer to the innermost level in a loop and `Outcome(R, exit)` may be handed over
+once. `mintIterSite` clears every `IterNest::delegate` for both.
+
+**Four functions have no body here**, which is `Function::Generated`:
+
+| | |
+| --- | --- |
+| `f$new` | the construction - a record with its captured arguments in it and its payload untouched, which is a shape MIR has no write for, since every write it has initializes something |
+| `f$step` | the producer's own body read a second time - `resolve_ssa/convert.cpp` |
+| `f$drop` | one call of the step with `$cancel`, and the member of a generated `instance Drop(f.Iter)` |
+| `f$item` | the lent value, borrowed from the record - a *signature*, whose result is rooted in `self` so that the next step is refused while the value is live. A **delegating** record has one whatever its hand-over is, with a second parameter saying *where*: the item belongs to whichever level produced it and is not in this record's slot at all |
+
+`f$take` joins them where the hand-over **owns** something with a teardown - the item moved out of
+the slot and `$held` cleared in one body, because a `for` reading the field itself would move out of
+a path its own back edge names again and only the step knows the slot is refilled.
+
+`f$next` and `f$resume` join them for **every** producer: they are the members of a generated
+`instance Iterate(f.Iter, Y, R)`, `lib/Core`'s class for a body that does not know which producer it
+is holding. The class **borrows** the item - `next(&self: source's) -> Maybe(source'item)` - which is
+what makes one signature serve a lending producer and an owning one, and the three pieces that needs
+are all generated: the instantiation `Maybe(Y)`, the origin slot on `self`, and the schema binding
+the payload position to it. §3.3's stepping rule is then the loan checker's ordinary refusal rather
+than a rule of this feature's, in both spellings.
+
+**`f$new` is an ordinary body again** since J52, and the `@noinline` J51 put on it was a mitigation
+for somebody else's bug. Its result really is deliberately half-initialized - the captured arguments
+stored and the payload left as it was - and nothing in the memory passes ever answered a read of an
+unwritten member: `forwardMemory` forwards out of a store it can see, and a member with none is a
+load that stays a load. What miscompiled was `placeRuns`, whose carrier walk taints *through storage*
+every value a read of a slot the run pointer was stored into may answer with - so a whole-record
+store of a captured window made `$index` a carrier and the step's `eq($index, 0)` read as the
+allocator's refusal test. `opt/place.cpp`'s `reloaded` is the fix and `test/resolve/iter/Inline.yana`
+is the fixture.
+
+**`$held`** is the flag beside them: the last field of a record whose hand-over owns something with a
+teardown, set by the step as it writes, cleared by the consumer that takes, and read by the step's
+exits - which is what lets an object hand over a `String` at all.
+
+**A record owes nothing where every member is trivially copyable**, which is the common producer and
+is what makes `copy(it)` two independent streams for free. Where a member is not, the generated
+`Drop` instance is what every walk that already asks what a type owes then finds - `classifyRecord`,
+`analyze_drop.cpp`, `reachTeardown`, `Lowering::emitTeardown` - and the teardown is keyed on the
+index rather than derived field-wise, because a derived walk would release payload members that were
+never written. Such a record is **not** `Copy`: a derived copy has the same problem and needs the
+same index-keyed shape.
+
+**And it owes no `Reclaim` at all**, which is where a site record differs from every other type with
+an authored `Drop` (`own.cpp`, since 2026-09-16). Elsewhere the two halves are independent - the
+authored drop is an *effect* and the derived reclaim hands the members' allocations back, so
+`Pool.drop` prints and the caller reclaims the `Array` - and here the drop *is* the release: the
+cancel step takes the producer's departure path, where the elaboration already placed a full drop of
+everything live. A field-wise reclaim afterwards frees each array and string member a second time,
+once per field, including a temporary whose bytes are a second copy of a member that moved out of it.
+It corrupted the allocator rather than trapping, so what died was the next `@heap` binding in the
+program - `iter/Lending.yana` and `iter/Library.yana` had it and passed.
+`../../doc/progress/2026-09-16-J57-object-defects.md` §2 is the account.
+
+**Four things make a record owe one**, and the fourth is a walk rather than a field:
+
+| | |
+| --- | --- |
+| a member whose type is linear | the ordinary case |
+| a `@heap`-placed payload member | a pointer owes nothing by its type while what it reaches is this record's run |
+| a **lens** member | a lens's cleanup is the construct and no member's type says so |
+| a **departure** that does anything | `departureHasEffect`, below |
+
+`Body::departures` is what the last one reads: one block per `yield`, recorded by `recordDeparture`
+where `emitDeparture` is emitted rather than recovered from the CFG afterwards, because the guard's
+false arm, the exit row's block and - where there is nothing to leave - the block the two paths
+rejoin in are three spellings of one thing. The mint walks forward from each and asks whether
+anything with an **effect** is reachable: a call that is not the `yield` itself, a machine operation,
+or a write to anything but the producer's own owned local.
+
+It is deliberately not "a statement below a `yield`", which is the crude reading J56 §4 declined: a
+departure leaves the **loops**, so the loop body under the hand-over is not on this path and every
+producer in `iter/Object.yana` stays `Copy`. What it closes is that the two forms are observationally
+identical - `for x in noisy(3): break` runs the statements below the loop in the internal form, and
+an object of `noisy` abandoned at the same point ran nothing, because the record owed nothing and so
+had no teardown to be entered through. `iter/Abandon.yana` runs both forms of the same producer and
+asserts they agree. The walk over-approximates where a departure inside a nested region rejoins a
+block the ordinary path also reaches, which is the safe direction: an extra teardown is a cancel step
+that does nothing.
+
+`for x in it` over a held record is `resolveObjectFor`: an ordinary loop in the consumer's own
+region, because the producer's frame *is* the record and is here. It is built directly against the
+site type rather than through `Iterate`, which is what lets it honour the producer's declared
+convention - the loop variable takes the value through `f$take` where the producer wrote `-> ->T` and
+borrows through `f$item` where it lends. **Leaving does not finish the object**: the record is the
+author's, so a `break` leaves it suspended and a second `for` carries on from the index it left. The
+source may be any **name, or path of fields over one** since stage 4, which is `namesStorage`: a
+subscript is a *call* of an accessor, and resolving one to find out whether its element happens to be
+an object would emit it into a block this walk may then decline to build.
+
+A producer that declared `-> (Y <- R)` makes the header take one more block argument - the step's own
+`$resume` parameter, `Outcome(R, exit)` - so the entry edge supplies the fall-out row, each
+`continue v` supplies `Proceed(v)` on the back edge, and a pass that falls off its end is refused
+unless `R` is `{}`. That is §2.5's last row, and `Loop::sent` is what `resolveExit` and `resumeExit`
+read to build it. Entering such a loop over an object that is *already suspended* is `next()` on one,
+so the same `checkCondition` guard `f$next` emits is written in front of the loop.
+
+`objectCallSource` is the one thing the call site needed, and it is a source position rather than a
+flag because the question is asked in two places: `checkCallable` has only the declaration and stops
+refusing an iterator while one of the five keeping positions is being resolved, and `finishCall` has
+the position and is what separates that position's own call from an iterator written inside it.
+`ObjectScope` is what sets it, at a `let` initializer, a field of a construction, a call argument, a
+`return` value - the `=` body's implicit one included - and the right-hand side of an assignment; it
+follows the value through brackets and through a `::`, because neither is a position.
+
+### The erased `iter(T)`
+
+`doc/inflight/Design-Iterator-Objects.md` §2.2 and §3.4, built 2026-09-16 in `resolve_object.cpp`
+(`erasedIterTypeOf`, `iterErasedStep`, `adaptIterValue`). **An erased iterator object is a closure
+over its own state record**, which is the whole of the implementation: `mir::IterType` is a kind of
+its own so that nothing treats it as callable, and everything below `resolve_mir` sees the same two
+words a `Fun` is - `manifestNative` answers the pair, `funTeardown` releases it, and `emitFunValue`
+places the record in the frame or in a heap block with its teardown in front of it.
+
+| | |
+| --- | --- |
+| `mir::IterType` | the protocol - the hand-over occurrence, the resume type, the step's own `$sent` type and the `(sent, Bool) -> %Y` signature the pair is called across. Interned on the first three, so `iter(I32)` written anywhere is one handle |
+| `f$erased`, `f$erased.heap` | the step, shaped as a **lifted lambda**: the record is argument zero, and which of the two a position gets is what decides where the record goes. Over a **delegating** record its body is one call of `f$walk`, which already answers what this signature answers |
+| `f$erased.step` | the **raw** shim, and only a delegable box's pair names one. `f$erased` with one branch added: it reads `$down`, and where a level has entered a child it answers that child's link with the low bit set. The one place a step's third row is ever written, and only a trampoline ever steps one - see §6.3's delegation |
+| `f$walk` | the **trampoline**, and only a delegating record has one. It holds the innermost level in `$inner` and steps it directly, so a step is O(1) in the depth rather than one call per level |
+| `iter(T)$next`, `iter(T)$resume` | `Iterate`'s members for the erased type - one pair for the whole program, because they call *through* the value rather than naming a step |
+| `iter(T)$item` | the address a step answered, said as the loan of the handle it is - `f$item`'s twin, whose body is nothing at all |
+
+**The step answers an address rather than a `Bool` and a slot**, and that is the one thing erasure
+changes about a step: a pair carries no record for the consumer to read a field out of, so what comes
+back is the address the slot would have been read at, or null. `emitIterStepper` and
+`emitErasedStepper` differ in exactly that line and share `answerItem` for the rest - and so does
+`emitIterStepper` over a **delegating** record, which calls `f$walk` and reads the address it
+answered, because the item belongs to whichever level produced it.
+
+**A third row exists and is not on this channel.** §6.3's delegation needs a level to be able to say
+"I have entered a child", and it says it in a word of the record that `f$erased.step` reads and
+clears rather than in the answer - so a pair a consumer holds is still two rows wide and a step that
+never delegates is unchanged down to the instruction. What that shape cannot carry is `| E`, whose
+failure has to reach *every* consumer; §6.6 says what that still needs.
+
+**The tag bit is the closure's**, unchanged: a heap-placed block's address carries bit zero and
+`teardown(fun)` is what tests it, so a frame-placed pair owes nothing and the frame's own drop of the
+record is what releases the producer. Which of the two a position gets is `wanted.access ==
+Access::Owned`, which is the same question `liftFunction` asks of a lambda - and the one thing that
+differs from a closure is *when* it is asked: a lambda's placement is settled where the lambda is
+written, because its capture conventions depend on it, and an object's captures were settled at its
+own construction.
+
+`completeErasedIterates` is a pass beside `resolveSiteSignatures` and for its reason: a written
+`iter(T)` is resolved in the field pass and in the header pass, and `lib/Core`'s `Iterate` may not be
+a declaration at either - so the *type* is minted where it is read, which needs nothing, and the
+instance that steps it waits until every declaration is in.
+
+### An object of a class member
+
+`doc/inflight/Design-Iterator-Objects.md` §6.4, built 2026-09-16 (J58) in `constructIterObject`. The
+declaration a call to a class member names is the **class's**, which is a signature and not a body -
+so there is nothing to mint a record out of, and the mint used to refuse every one of them. At a
+*concrete* subject there is nothing to refuse: selection decides the instance, and the object is that
+body's own site type.
+
+So `constructIterObject` selects before it mints - `selectInstance` then `instanceMember`, then
+`iterSiteTypeOf` over the generic the member specializes and the arguments it bound. That is the same
+two lines `collectIterNests` already ran for a nested `for x in chunks(self)` (J53), moved to the
+position a `let` writes, which is why the two agree by construction rather than by agreement: a held
+object of `chunks(xs)` and a nested one are one record.
+
+What `iterSiteTypeOf` still refuses on `Function::klass` is the path written in **type** position -
+`walk.Iter` at a class member names a record per instance and this path names none. The test is about
+the *substitution* rather than the declaration, so a member the class gave a **default** body is
+minted like any other generic producer: what an instance that left the member out runs is that body
+specialized at its own type.
+
+**And through erased dispatch it is the witness's "make an object" entry**, built 2026-09-16 (J61).
+A body compiled once holds a descriptor rather than a type, so what it calls is a cell on the class's
+witness that makes the object for it:
+
+- **the layout.** `classWitnessCount` puts one slot per member written `iter fn` in a region *after*
+  the declared members, the way a superclass's members are already a range. `classWitnessAt` reports
+  which of the two a flat index is, and `classObjectIndex` is where in the region a member's entry
+  sits. The region is counted from `Function::iterObject` rather than from `Function::iterator`, so a
+  class whose producer no body objectifies grows **no slot at all** - which is what keeps every
+  witness table in the corpus unchanged;
+- **the class-side signature**, `Function::iterObject` - `chunks$obj(self: c) -> iter('[a])` over the
+  class's own context, made on demand by `Resolver::iterObjectMember` at the first call that builds
+  an object of the member. Its result type is minted **unrecorded** (`erasedIterTypeOf`'s `record`
+  argument is false): a protocol over a class's variables is a shape for a thunk and not one any
+  value has, so no `Iterate` instance is owed for it;
+- **the body**, `Function::Generated::IterObject`, one per selected instance member and made by
+  `Resolver::objectMaker` through `Program::IterObjects`. `emitIterObject` is `g$new` into a frame
+  local and one `fun.value` over it - `adaptIterValue`'s pair at an owning position, written inside a
+  generated body because this is made after the drop elaboration has run and a MIR body would be one
+  nothing placed a release into. It is memoized on `Function::iterMaker` of the member it was made
+  for, because the SSA conversion asks for it again after the resolver is gone;
+- **the one pass it is on the wrong side of.** A witness is filled by the reachability walk, so a
+  record minted here is minted after `completeBoxedNests` - which gives every boxed nest member the
+  shim its pair is called across. `objectMaker` drains that pass again for whatever its own mint
+  reached, idempotently, which is what lets a **recursive** class member be objectified at all;
+- **the routing.** `callTarget` sends a call naming an entry (`Function::objectEntry`) to
+  `offset + members + classObjectIndex(...)` in an erased body, and straight to the instance's maker
+  where the subject is concrete - so a `@specialize`d body and a body compiled once run one function.
+
+**What is still refused by name** is a protocol the enclosing declaration leaves open:
+`Chunked(c, a)` rather than `Chunked(c, Int)`. The erased type is interned on what it hands over and
+the instance that steps one is generated at that protocol, so an item that is still a variable after
+the requirement's substitution has nothing to step it. A member declared `-> iter(T)` remains an
+ordinary function and an ordinary answer; `iter/Witness.yana` runs every form beside the others and
+`iter/Reject.Erased.yana` holds the message.
+
+### Naming a site type - `f.Iter` and `f.Result`
+
+`doc/inflight/Design-Iterator-Objects.md` §2.4, built 2026-09-16 in `resolve_sig.cpp`
+(`resolveSiteType`). A **declaration path** is the one type whose head is a *value* name: `lex.Iter`
+is the object type of `iter fn lex`, `lex.Iter(I32)` is that type at written arguments, and
+`tokens.Result` is the concrete result of a function that answers one. `ast::Type::Site` is the AST
+kind, which is what pushed `Type::kind` to five bits.
+
+**It reaches the same mint a `let` reaches.** `iterSiteTypeOf` is one function caching one record per
+(producer, substitution), so a field written `lexer: lex.Iter` and a `let it = lex(limit)` beside it
+name one record and `Parser {lexer: it}` is an ordinary construction. That is the whole point of the
+path, and it is the reason there is no table of published names anywhere: the type is not published,
+it is *minted*, and a path is a second caller of the mint.
+
+**Two positions had to be moved to a later pass, and only for declarations that write one.** A site
+type is made out of a producer's own MIR, so a path can only be resolved once every declaration in
+the program is a name with a signature behind it - which the declaration pass finishes and the field
+pass does not. So `deferSignature` holds back a `fn` header that names a path and `deferFields` holds
+back a `data`, and `resolveSiteSignatures` reads both again immediately after `declare`, folding each
+deferred record's schema a second time. What that buys is that a path does not resolve or fail
+depending on whether the producer happens to be written above it - the property `resolveAliasTargets`
+gives an alias and `requireResult` an inferred result. Nothing that writes no path is deferred, so
+the pass is a no-op for every other program.
+
+What is **refused by name**, and each is a position rather than a shape:
+
+- an **alias target**, which stands for its target everywhere the target could stand and so has no
+  later pass to be read in;
+- a **constant** - `Resolver::readingConstant`, set by the three positions that require one - which
+  is §6.5's refusal, now reachable because the path is what makes a site type's layout askable at
+  all. `traits() :: TypeTraits(lex.Iter)` in a *body* works and is what the message points at;
+- a path at a **variable the enclosing declaration binds**, which is `constructIterObject`'s refusal
+  said about the type: a site type has no parameters, so `twice.Iter(a)` names a record decided per
+  specialization.
+
+**A site type is exported with the declaration it is minted from.** Nothing writes `pub` on a minted
+record and it is not a name a lookup can reach, so `RecordType::exported` is set at the mint from the
+producer - or, for a closure's environment, from the function the lambda was written in. Without it a
+`pub fn` answering an object leaked a type that was private only because nobody had declared it.
+
+**Diagnostics print a site type by its path and the dumps keep the symbol.** `typeText` spells a
+record with `producer` as `lex.Iter(I32)` and one with `lambda` as `<fn>.lambda`; `printType` and the
+`.mir`/`.ssa` goldens keep `RecordType::name`, which is the unique symbol (`twice(I32).Iter`,
+`held.lambda.env`) that a descriptor, a teardown symbol and the reachability walk are keyed by. A
+name *composed out of* a type follows `typeText`, which is why a specialization at a closure is
+`apply(main.lambda)` rather than `apply(main.lambda.env)` - one type spelled one way, which is the
+rule `vectorText` is already under.
+
 ### Traversals that can fail, and the second lens-call kind
 
 `lens fn f(...) -> (T | E)` and `iter fn f(...) -> (T | E)` declare a **failure channel**
@@ -3635,9 +4276,11 @@ and `resolveAlternative` see a list and never ask where it came from.
 
 `Skipping.yana`, `Skipping.Types.yana`, `Skipping.Flat.yana`, `Skipping.Syntax.yana`,
 `Skipping.Nested.yana`, `Reject.Skipping.yana` and `Reject.Protocol.yana` are the fixtures - `Skipping.Types.yana` is the conventions: an owned
-hand-over, an exclusive one, an owned reason both bound and discarded. Not implemented: `<- R`, the
-resume channel, which needs the wrapper turned round; and a failure type the signature is generic in,
-since `declareOutcome` builds a concrete record.
+hand-over, an exclusive one, an owned reason both bound and discarded. `<- R`, the wrapper turned
+round, arrived 2026-09-15 and is the section above plus `Resume.yana`; the two channels compose
+without either knowing about the other, which `Resume.yana`'s `guarded` is the worked example of.
+Not implemented: a failure type the signature is generic in, since `declareOutcome` builds a
+concrete record.
 
 ### What the continuation's parameter is rooted in
 
@@ -3709,6 +4352,7 @@ Both exits go to the block the caller carries on at, and what tells them apart i
 | Written | Node | Row |
 | --- | --- | --- |
 | the body's end, and `continue` | `Jump` | fall-out - ask the iterator for the next element |
+| `continue v` | `Resume` | fall-out, **with the pass's answer** - `Proceed(v)` |
 | `break` | `Break` | stop the iterator; the caller treats it as the loop being over |
 | `return` | `Return` | leave, which every frame in between propagates |
 
@@ -3716,6 +4360,23 @@ Both exits go to the block the caller carries on at, and what tells them apart i
 it adds. The call site's test is therefore `== kExitLeave` rather than `!= kExitFallOut`: `break` is a
 third row the *callee* acts on and the caller does not, so adding a row below is a change to the
 callee alone.
+
+`Node::Resume` is the one that does **not** share it, and for a reason worth reading: the block on
+the far side takes no parameters - it is the caller's rejoin, reached the same way by falling out and
+by `break` - so a value leaving on that edge cannot be one of its arguments. It is the continuation's
+*result*, so it is an operand of the node. What it is checked against is `Continuation::resume`, the
+callee's declaration under the call's substitution, for the reason the hand-over is checked against
+`Continuation::handover`: from the caller's blocks the callee is opaque and the region is what a
+later reader has instead of it.
+
+`resumeExit` is the value half, and §2.5's three refusals are three readings of one question - has
+*this* loop anywhere to send a value? A loop that is not a continuation region has no callee to send
+to; a region whose callee declared no `<- R` has one that asked for nothing; and only the third row
+accepts. Written as a function of the innermost loop frame rather than as a search outwards, because
+"`continue` means the innermost loop" is the rule being enforced and a walk outwards would be the
+rule it is not. Falling off the end of a pass is the same obligation unmet and is reported at the
+call, since what is missing is the whole pass's rather than one line's; `R = {}` is the one exemption,
+and it covers a bare `continue` too.
 
 A `break` or `continue` whose loop is outside the continuation it is written in is refused by name.
 That is a fourth row plus a target, and the two rows there are today are falling out and `return`.
@@ -3845,8 +4506,13 @@ because the continuation is a region of that function's own blocks; `continue` *
 the ordinary rule on an ordinary edge, which is what makes a scoped-acquisition API correct on an
 early return with nothing written at either site.
 
+`continue v` is the fourth exit and is falling out with something to say - see the table above and
+Design-Iterator-Objects.md §2.5. It is a row rather than a target, which is why it composes with the
+three: the block it leaves for is the one falling out leaves for, and what is added travels in the
+*answer* rather than on the edge.
+
 What is not built is `break` or `continue` naming a loop **further out than the continuation** - a
-fourth row plus a target, where the two rows there are today are falling out and `return`.
+fifth row plus a target, where the rows there are today are falling out, `continue v` and `return`.
 
 A **`return` in the lens's own body** is the one narrowing rather than an addition. A lens answers
 what its continuation answered, so it has no value of its own to write: `return e` is refused, and a

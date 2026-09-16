@@ -6,7 +6,7 @@ bb0:
   return take %0
 }
 
-fn next(n: I32 [shared call]) -> I32 {
+fn next'2(n: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (n)
   %1: I32 = const 1
@@ -31,7 +31,7 @@ bb2:
   %9: I32 = read copy.trivial (acc)
   write.init borrow.unique (held) take %9
   %11: I32 = read copy.trivial (acc)
-  %12: I32 = call next borrow.shared %11
+  %12: I32 = call next'2 borrow.shared %11
   write.assign borrow.unique (acc) take %12
   %14: I32 = read copy.trivial (held)
   %15: I32 = const 100
@@ -42,7 +42,7 @@ bb2:
 
 bb3:
   %4: I32 = read copy.trivial (acc)
-  %5: I32 = call next borrow.shared %4
+  %5: I32 = call next'2 borrow.shared %4
   write.assign borrow.unique (acc) take %5
   jump -> bb2
 }
@@ -74,7 +74,7 @@ bb2:
 
 bb3:
   %4: I32 = read copy.trivial (acc)
-  %5: I32 = call next borrow.shared %4
+  %5: I32 = call next'2 borrow.shared %4
   write.assign borrow.unique (acc) take %5
   jump -> bb2
 }

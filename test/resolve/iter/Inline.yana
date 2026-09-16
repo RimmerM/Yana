@@ -1,0 +1,103 @@
+{-
+   The step and the constructor, expanded into the consumer - §3.2's "the optimizer still inlines a
+   step whose site type it knows", and J51 §8's reproduction kept as the fixture it should have been.
+
+   # resolver: ownership
+
+   Two things are asserted here and the `.ssa.opt.expect` beside this file is where both are read.
+
+   **The step is inlined where the site type is written out.** `for x in it` over a concrete
+   `f.Iter` is a call of `f$step` per pass, and a step is an ordinary function - so a consumer whose
+   producer is small enough for the budget comes out of the optimizer with the producer's own body in
+   it and no call at all. `counted` is that consumer: its `.ssa.opt` has no call of any kind, and
+   what stands where the call was is the record's dispatch - the load of `$index` and the two `eq`
+   tests the chain came out as - at the head of the loop, with the producer's own `while` below it.
+
+   What the optimizer did **not** do is fold that dispatch away. The entry edge into the loop knows
+   the index is zero and the back edge knows which `yield` it came from, but the two meet at a block
+   argument and the index is read out of the record rather than carried on the edge - so the `switch`
+   is a real test per pass. Removing it is jump threading over storage, which this stage does not
+   have; the record's `switch` is the thing to look at if the step's cost is ever measured.
+
+   `picking$step` is **not** inlined, and that is the budget rather than a limit of this: the body
+   carries a bounds check and its abort arm, which is what `windowByFor` and `windowByHand` show.
+   §3.2's claim is that the layout does not depend on whether the step was expanded, and `Layout.yana`
+   is where that is asserted; this file is what the expansion looks like when it happens.
+
+   **`f$new` is inlinable**, which it was not between J51 and J52. `windowByFor` below is J51 §8's
+   four-line reproduction: it answered `0` with the optimizer and `456` without, under both backends,
+   and the reading at the time was that a record `f$new` leaves half-initialized cannot be forwarded
+   field-wise inside a caller. That was wrong. `forwardMemory` never answered a read of an unwritten
+   member - it forwards out of a store it can see, and a member with none is a load that stays one.
+
+   What miscompiled was `placeRuns`. Its carrier walk taints, *through storage*, every value a read
+   of a slot the run pointer was stored into may answer with, because containment is a proof and has
+   to over-approximate; the refusal rewrite then read that same set and folded `eq($index, 0)` to
+   `False`, having decided the resume index was the allocator's answer. The fresh arm of the dispatch
+   became unreachable and the loop never ran, which is why the accumulator came back at its initial
+   value and why a `print` inside the loop made it go away. `opt/place.cpp`'s `reloaded` is the
+   distinction that was missing: a carrier reached through memory is a proof obligation and not a
+   fact, so a rewrite may not read it.
+
+   It needs the array literal, which is what puts a run pointer inside the record in the first place:
+   `picking` captures a window, `f$new` stores the descriptor and then the record whole, and the
+   whole-record store is what carried the taint into `$index`.
+-}
+
+-- J51 §8, unchanged: the producer whose captured window is what the run pointer travels in.
+iter fn picking(xs: [Int], n: Int) -> Int:
+    let &i = 0 :: Int
+    while i < n:
+        yield xs[i]
+        i = i + 1
+
+fn windowByFor() -> Int:
+    let xs = [4, 5, 6, 7]
+    let &it = picking(xs, 3)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x
+
+    return packed
+
+{-
+   The same producer stepped by hand, which is the other half of the reproduction.
+
+   `next()` on a record the caller holds is a call of `f$step` behind a `Maybe`, so what the golden
+   shows here is whether the optimizer sees through the wrapper as well as through the step.
+-}
+fn windowByHand() -> Int:
+    let xs = [1, 2, 3, 4]
+    let &it = picking(xs, 4)
+    let &packed = 0 :: Int
+
+    while it.next() is Just(x):
+        packed = packed * 10 + x
+
+    return packed
+
+-- A producer with no bounds check in it, which is what fits the budget - so this is the consumer
+-- whose step is gone from the golden and whose loop is the producer's own.
+iter fn counting(to: Int) -> Int:
+    let &i = 0 :: Int
+    while i < to:
+        yield i * 2
+        i = i + 1
+
+fn counted() -> Int:
+    let &it = counting(4)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x
+
+    return packed
+
+fn main() -> Int:
+    -- 456 with the optimizer and without it, which is the whole of J51 §8.
+    if windowByFor() != 456 then return 1
+    if windowByHand() != 1234 then return 2
+    if counted() != 246 then return 3
+
+    return 0

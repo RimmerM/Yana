@@ -86,7 +86,7 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
      *
      * A **function value** is a code word and an environment word whether or not the environment is
      * somebody else's storage, so the closure shape (`mir::Shapes::closure`) names a position that
-     * is already there. A **raw pointer** is one address whether or not the storage it names belongs
+     * is already there - and an **erased iterator object** is the same pair, so it answers here too. A **raw pointer** is one address whether or not the storage it names belongs
      * to a published origin, so `%source'a` names the pointee and changes nothing physical either -
      * which is Analysis-Lens.md §12.2's whole claim, that an interior position is a statement about
      * *provenance* and not about layout.
@@ -97,7 +97,8 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
      * have - `Maybe(a'T)` against `Maybe(T)`, which arrives with generic application and *would*
      * change a layout.
      */
-    if(logical.kind == mir::Type::Fun || logical.kind == mir::Type::Pointer) {
+    if(logical.kind == mir::Type::Fun || logical.kind == mir::Type::Pointer ||
+       logical.kind == mir::Type::Iter) {
         assertTrue(mir::Shapes::isEmpty(occurrence.shape) ||
                    base[occurrence.shape]->slots.size() == 1);
     } else {
@@ -201,7 +202,10 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
          * and the call that reads it back - go through `funCodeOffset`/`funEnvOffset`, and all
          * three derive from the target's pointer width.
          */
+        // ... and an erased iterator object, which is the same pair: the step, and the block it
+        // steps. See `mir::IterType`, where the representation is argued.
         case mir::Type::Fun:
+        case mir::Type::Iter:
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), layout.target.funSize(),
                                    layout.target.pointerAlign, false, true };
 

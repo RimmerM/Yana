@@ -1,0 +1,58 @@
+{-
+   An object whose captured argument refers to storage of its own - a function value, a closure.
+
+   # resolver: ownership
+
+   The fixture `test/resolve/fiber/Captured.yana` became when the stack handle was removed, and the
+   claim carried over unchanged: `f$new`'s signature publishes each lent argument's interior
+   positions at the record's own slot, so a closure's captures stay borrowed for as long as the
+   object exists. The handle said the same thing through `iterConstructor`; what differs is that the
+   captures now live in a record the consumer holds rather than in a block above a stack.
+
+   Three claims, packed into the one number `main` answers:
+
+    - a plain function value travels into the producer and is called there (`twice`);
+    - a closure capturing a local by reading it does too (`add`);
+    - a closure that **writes** a local it captured runs inside the step, and the write is seen by
+      the frame that owns the local once the object is gone (`hits`).
+
+   **The lambdas are ascribed, and that is the one thing the rewrite had to add.** A closure keeps
+   its site type until a position asks for the erased pair (§2.3), and an object built from a call
+   holds a borrowing argument by *address* - so the argument has to be a name, and a name bound to a
+   site-typed closure is one whose environment is a local of this frame rather than a pair. `::
+   (Size) -> Size` is the position asking, written where the `let` is: the closure is erased there,
+   the pair is what the name holds, and what the record borrows is the pair. Writing the lambda at
+   the call instead is refused as a temporary, which is `iter/Reject.Object.yana`'s message.
+
+   `iter/Reject.Captured.yana` holds what the object's loan on a captured local refuses.
+-}
+
+fn twice(n: Size) -> Size = n * 2
+
+iter fn mapped(f: (Size) -> Size, n: Size) -> Size:
+    for i in 1..=n:
+        yield f(i)
+
+fn main() -> Size:
+    let &n = 0 :: Size
+    let &plain = mapped(twice, 3)
+
+    for v in plain:
+        n += v
+
+    let base = 10 :: Size
+    let add = ((i: Size): base + i) :: (Size) -> Size
+    let &reading = mapped(add, 2)
+
+    for v in reading:
+        n += v
+
+    let &hits = 0 :: Size
+    let writing = ((i: Size): hits = hits + 1; i) :: (Size) -> Size
+    let &counted = mapped(writing, 2)
+
+    for v in counted:
+        n += v
+
+    -- (2 + 4 + 6) + (11 + 12) + (1 + 2) = 38, and two hits.
+    return n * 10 + hits

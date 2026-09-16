@@ -1,0 +1,66 @@
+{-
+   A producer that **lends** what it yields, as an object - `doc/inflight/Design-Iterator-Objects.md`
+   §3.3, and the fixture `test/resolve/fiber/Lend.yana` became when the stack handle was removed.
+
+   # resolver: ownership
+
+   A hand-over that borrows at a type with a teardown keeps the value in the record and puts its
+   *address* in the slot, so what the consumer gets is a loan rooted in the object and the value is
+   released on the **next step** (§2.6). The stack handle kept it in the producer's frame across a
+   context switch and said the same thing; what is different is only where the bytes are.
+
+   Four claims, packed into the one number `main` answers:
+
+    - a lent **temporary the producer built** lives in the record until the next step (`words`);
+    - a lent **local** is shown twice and released once, by the pass that owns it (`guards`,
+      `trace`);
+    - a `for` over a held lending object borrows each value from the object (`ids`);
+    - `next()` steps one by hand, each value dead before the next step (`n`).
+
+   `iter/Reject.Lend.yana` is the other half: what a lent value keeps the consumer from doing.
+-}
+
+let &trace = 0 :: Size
+
+data Guard {id: Size}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+-- A hand-over that **owns**, so the consumer takes each string.
+iter fn words(prefix: String) -> ->String:
+    for i in 1..=3:
+        yield "{prefix}{i}"
+
+-- And one that lends: `Guard` owes a teardown, so the slot holds the value's address and the loop
+-- variable is a borrow rooted in the object.
+iter fn guards() -> Guard:
+    let g = Guard {id: 5}
+    yield g
+    yield g
+
+fn main() -> Size:
+    let &n = 0 :: Size
+    let &spelling = words("ab")
+
+    for w in spelling:
+        n += length(w)
+
+    let &c = guards()
+    let &ids = 0 :: Size
+
+    for g in c:
+        ids += g.id
+
+    let &h = words("x")
+
+    while True:
+        let w = h.next()
+        if w is Just(s):
+            n += length(s)
+        else:
+            break
+
+    -- Each claim in its own decimal field, least significant last.
+    return (trace * 100 + ids) * 100 + n

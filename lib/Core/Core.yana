@@ -669,6 +669,61 @@ pub class Drop(a):
 @builtin(trivialSink) pub class TrivialSink(a)
 
 {-
+   What a value may be **called** as.
+
+   `fn (Call(f, (Int) -> Int)) run(g: f, x: Int) -> Int = g(x)` is the shape, and the call inside it
+   writes no member name: the constraint says `f` is callable and the second parameter says with
+   what, so `g(x)` is checked against that signature exactly as a call through a written
+   `(Int) -> Int` position is.
+
+   **The shape is a whole function type** rather than an argument list and a result, and that is the
+   whole content of the second parameter: `Call(f, (&Buffer, ->Token) -> Bool)` states the parameter
+   conventions, and a body that only knew the argument *types* would have nowhere to write `&` or
+   `->`. What follows is that one `f` has one shape, which is what the dependency says.
+
+   No instance of it is ever written and none may be: it holds for a type exactly when the compiler
+   can see what calling a value of it means, which is a fold over the type - a lambda's environment
+   record names the code it is called through, and a function type is its own signature. So it joins
+   `TrivialCopy` and `TrivialSink` above as a class a *signature* constrains by and nothing declares.
+
+   Which of the two the subject is decides what the call costs, and the type is what says so: a
+   lambda's own type is a **direct** call with the closure's storage as its first argument, and
+   `(A) -> B` is a call through the pair. A generic body written against this constraint accepts
+   either, and the specialization is what picks.
+-}
+@builtin(call) pub class Call(f -> shape)
+
+{-
+   Stepping an **iterator object** - Design-Iterator-Objects.md §2.3, and the second half of what a
+   site type is for.
+
+   An `iter fn` whose call result is kept compiles to a *state record*: the resume index, the
+   hand-over slot, the captured arguments and whatever the producer keeps live across a `yield`. This
+   is what a body that does not know which producer it is holding says about one, so that a record
+   generic in its lexer stores it inline and steps it with a direct call:
+
+       data Parser(l) {lexer: l, current: Token}
+       fn (Iterate(l, Token, LexCommand)) Parser.advance(&self: Parser(l)): ...
+
+   `next` starts the object and runs it to its next hand-over; `resume` does the same and answers the
+   `yield` with a value, which is what `iter fn f(...) -> (Y <- R)` declares. A producer with no
+   resume channel has `resume = {}` and the two members mean the same thing.
+
+   **The item is borrowed from the object**, which is what makes this one class for every producer:
+   the object keeps a hand-over slot, and what a body compiled once holds between two steps is a loan
+   of it. `source'` is the whole of the statement - the result is rooted in `self`, so stepping the
+   object, moving it or dropping it while the item is live is the loan checker's ordinary refusal,
+   which is the same statement the erased `iter(T)` makes one representation over.
+
+   A **concrete** `for x in it` still honours whatever the producer declared, and that is the reason
+   the two spellings both exist: a `-> ->T` producer hands its consumer the value, and this class
+   cannot say "by value for some producers and by loan for others" in one signature.
+-}
+@builtin(iterate) pub class Iterate(s -> item, resume):
+  fn next(&self: source's) -> Maybe(source'item)
+  fn resume(&self: source's, ->v: resume) -> Maybe(source'item)
+
+{-
    Exchanging the contents of storage.
 
    `->` takes a value out of a place and leaves it empty, which is why it needs the place to be one

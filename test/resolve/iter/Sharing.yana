@@ -1,0 +1,232 @@
+{-
+   Slot sharing - `doc/inflight/Design-Iterator-Objects.md` §3.2's third step, and §5's size claim.
+
+   # resolver: ownership
+
+   A payload member is the local's **storage**, not a spill written at a hand-over, so two of them
+   share one field exactly where neither is written while the other is live. That is the whole of
+   what makes a record "the largest live-across-`yield` set" rather than the sum of its locals, and
+   it is what the numbers below assert: each producer here is written so that the sum is visibly
+   larger than the maximum, and each is asked its own `sizeOf`.
+
+   Three claims, one per producer:
+
+    - **`phases`** - two loops, one after the other, each with a counter of its own. The two
+      counters never meet, so they are one field and the record is the size of a producer with one
+      of them. `a+b` in the `.ssa` dump is what a shared field looks like: the field is named after
+      every member in it and the `across` list beside it is the union of theirs.
+    - **`arms`** - two arms of an `if`, each holding its own value across its own `yield`. Nothing
+      here is a loop, so the sharing is over the branch structure rather than over a sequence.
+    - **`fifty`** - §5's own sentence: "the number of `yield`s changes neither form's time... fifty
+      `yield`s over three locals is four words". Fifty hand-overs over three locals, asked its size,
+      against `few`, which is the same three locals over two. **The two are the same size**, which
+      is the claim: what a record grows with is what is live across a hand-over, and not how many
+      hand-overs there are. Fifty was a refusal before this - `payloadYields` was a word and the
+      mint said so by name - and is a bitmap now. §5's "four words" counts the producer's own three
+      locals and the resume index and leaves out the hand-over slot and the captured argument; the
+      six here are those five plus `n`.
+
+   `sizeOf` is asked of the **value** here, which is `traitsOf`'s form - the library's wrapper over
+   `traits()`, taking one. Asking about the *type* works too since stage 2, and
+   `iter/Name.yana`'s `measured` is where `traits() :: TypeTraits(lex.Iter)` is run.
+
+   The `.run.expect` beside this file is what pins the sizes, and it is checked twice - the driver
+   compiles every fixture with a run expectation a second time under `-no-ir-opt` and compares - so
+   the opt-independence §3.2 promises is asserted here as well as in `Layout.yana`.
+-}
+
+import Native
+
+{-
+   Two phases, and one field for the two counters.
+
+   `a` is live from its own `let` to the end of the first loop and `b` from its own to the end of
+   the second, and the second `let` is below everything the first is live at - including the
+   departure path out of the first loop, which is what a `break` in the consumer takes. So the
+   interference is empty and the record holds one `I32` where the sum would hold two.
+
+   `$yielded` is not a member of this record and was one before J52: it is written in the resume
+   block - the step's own `$resume` argument, stored the instant the step comes back - and read
+   further down the same step, so it never crosses a suspension at all.
+-}
+iter fn phases(n: Int) -> Int:
+    let &a = 0 :: Int
+    while a < n:
+        yield a * 2
+        a = a + 1
+
+    let &b = 0 :: Int
+    while b < n:
+        yield b * 3 + 1
+        b = b + 1
+
+{-
+   Two arms, each with a value it keeps across its own hand-over.
+
+   Nothing here is a loop, so the sharing is over the branch structure rather than over a sequence:
+   neither arm's local is so much as written on the other's path, and the two are one field.
+
+   Both are computed from the parameter rather than written as literals, because a `let` bound to a
+   constant is a *value* of the producer's body and not a local of it - and a value is a member only
+   where it crosses a hand-over the conversion has already reached.
+-}
+iter fn arms(n: Int) -> Int:
+    if n > 0:
+        let first = n * 7
+        yield first
+        yield first + 1
+    else:
+        let second = n * 4
+        yield second
+        yield second + 2
+
+{-
+   §5's producer: three locals, and as many hand-overs as fit on a page.
+
+   Written out rather than looped, because what the claim is about is the *count* of hand-over sites
+   in the body - fifty separate `yield`s in the MIR, which is what a body with fifty of them written
+   out has. `few` is the same three locals over two hand-overs, and the assertion is that the two
+   records are the same size.
+-}
+iter fn few(n: Int) -> Int:
+    let a = n
+    let b = n * 2
+    let c = n * 3
+
+    yield a + b + c
+    yield a + b + c + 1
+
+iter fn fifty(n: Int) -> Int:
+    let a = n
+    let b = n * 2
+    let c = n * 3
+
+    yield a + b + c + 0
+    yield a + b + c + 1
+    yield a + b + c + 2
+    yield a + b + c + 3
+    yield a + b + c + 4
+    yield a + b + c + 5
+    yield a + b + c + 6
+    yield a + b + c + 7
+    yield a + b + c + 8
+    yield a + b + c + 9
+    yield a + b + c + 10
+    yield a + b + c + 11
+    yield a + b + c + 12
+    yield a + b + c + 13
+    yield a + b + c + 14
+    yield a + b + c + 15
+    yield a + b + c + 16
+    yield a + b + c + 17
+    yield a + b + c + 18
+    yield a + b + c + 19
+    yield a + b + c + 20
+    yield a + b + c + 21
+    yield a + b + c + 22
+    yield a + b + c + 23
+    yield a + b + c + 24
+    yield a + b + c + 25
+    yield a + b + c + 26
+    yield a + b + c + 27
+    yield a + b + c + 28
+    yield a + b + c + 29
+    yield a + b + c + 30
+    yield a + b + c + 31
+    yield a + b + c + 32
+    yield a + b + c + 33
+    yield a + b + c + 34
+    yield a + b + c + 35
+    yield a + b + c + 36
+    yield a + b + c + 37
+    yield a + b + c + 38
+    yield a + b + c + 39
+    yield a + b + c + 40
+    yield a + b + c + 41
+    yield a + b + c + 42
+    yield a + b + c + 43
+    yield a + b + c + 44
+    yield a + b + c + 45
+    yield a + b + c + 46
+    yield a + b + c + 47
+    yield a + b + c + 48
+    yield a + b + c + 49
+
+-- The sum of everything `phases` hands over, which is what says the shared field carries both
+-- counters and not one of them twice: 0 2 4 then 1 4 7.
+fn phasesRuns() -> Int:
+    let &it = phases(3)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x
+
+    return packed
+
+fn armsRuns() -> Int:
+    let &yes = arms(1)
+    let &no = arms(0)
+    let &packed = 0 :: Int
+
+    for x in yes:
+        packed = packed * 10 + x
+
+    for x in no:
+        packed = packed * 10 + x
+
+    return packed
+
+fn fiftyRuns() -> Int:
+    let &it = fifty(1)
+    let &sum = 0 :: Int
+
+    for x in it:
+        sum = sum + x
+
+    return sum
+
+{-
+   The sizes, in bytes, of the four records - which is the assertion this file exists for.
+
+   Each is a fresh object that is never stepped, because §2.6 says a call runs none of the producer:
+   what is measured is the record's layout and nothing else. Every one of these records is trivially
+   copyable, so there is nothing to release either.
+
+   Each is bound by a `let` before it is measured, because `let it = f(...)` is the one position
+   that builds an object - an argument is stage 4's, and `sizeOf(phases(0))` is one.
+-}
+fn sizes() -> Int:
+    let built = phases(0)
+    let armed = arms(1)
+    let fewer = few(0)
+    let fiftied = fifty(0)
+
+    let phasesSize = sizeOf(built)
+    let armsSize = sizeOf(armed)
+    let fewSize = sizeOf(fewer)
+    let fiftySize = sizeOf(fiftied)
+
+    -- The claim: fifty hand-overs cost exactly what two do over the same three locals.
+    if fewSize != fiftySize then return 1
+
+    -- `$index`, `$slot`, `n` and one shared counter - four `I32`s, where the sum of the locals
+    -- would be five.
+    if phasesSize != 16 then return 2
+
+    -- `$index`, `$slot`, `n` and one shared arm value, against five members unshared.
+    if armsSize != 16 then return 3
+
+    -- `$index`, `$slot`, `n`, `a`, `b`, `c` - and nothing for the forty-nine further `yield`s.
+    if fewSize != 24 then return 4
+
+    return 0
+
+fn main() -> Int:
+    if sizes() != 0 then return sizes()
+
+    -- 0 2 4 1 4 7, then 7 8 for the first arm and 0 2 for the second, then the fifty.
+    if phasesRuns() != 24147 then return 5
+    if armsRuns() != 7802 then return 6
+    if fiftyRuns() != 1525 then return 7
+
+    return 0

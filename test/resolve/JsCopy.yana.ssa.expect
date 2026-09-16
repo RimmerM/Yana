@@ -6,7 +6,7 @@ bb0:
   return consume %0
 }
 
-fn next(n: I32 [shared call]) -> I32 {
+fn next'2(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
@@ -34,7 +34,7 @@ bb2:
   %6: I32 trivial = load inspect %2
   store inspect %3 consume %6
   %7: I32 trivial = load inspect %2
-  %8: I32 trivial = call next borrow %7
+  %8: I32 trivial = call next'2 borrow %7
   store inspect %2 consume %8
   %9: I32 trivial = load inspect %3
   %10: I32 trivial = const 100
@@ -45,7 +45,7 @@ bb2:
 
 bb3:
   %14: I32 trivial = load inspect %2
-  %15: I32 trivial = call next borrow %14
+  %15: I32 trivial = call next'2 borrow %14
   store inspect %2 consume %15
   jump -> bb2
 }
@@ -78,7 +78,7 @@ bb2:
 
 bb3:
   %14: I32 trivial = load inspect %2
-  %15: I32 trivial = call next borrow %14
+  %15: I32 trivial = call next'2 borrow %14
   store inspect %2 consume %15
   jump -> bb2
 }

@@ -720,8 +720,11 @@ LowerBlock* Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> addre
      * A site that can see which lambda this is does not reach here at all: `ownershipOfOccurrence`
      * answers "nothing to release" for a value carrying `Shapes::closure`, so a frame-placed
      * closure's drop is never emitted rather than emitted and folded.
+     *
+     * An **erased iterator object** is the same two words over the same block, so it is released the
+     * same way and by the same function - see `mir::IterType`, where the representation is argued.
      */
-    if(decl[type]->kind == mir::Type::Fun) {
+    if(decl[type]->kind == mir::Type::Fun || decl[type]->kind == mir::Type::Iter) {
         assertTrue(childDrop == childReclaim);
 
         auto callee = funTeardown(source);
@@ -2801,6 +2804,22 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 case mir::CallThrough::ClassSlot: {
                     auto slot = requirementSlot(mir::GenSlotKind::Class, written.requirement);
                     callee = witnessMember(block, slotPointer(block, slot), written.member);
+                    environment = noEnvironment(block);
+                    break;
+                }
+
+                /*
+                 * A value the `Call` requirement typed - the same two loads, at the one cell the
+                 * compiler synthesizes for a structural class (`CallThrough::CallWitness`).
+                 *
+                 * The value itself is argument **zero** and is already in the list, put there by
+                 * the conversion exactly as a site type's environment is. It cannot ride in the
+                 * environment word: that word is where an erased callee's own generic environment
+                 * goes, and what the cell holds here is a thunk with a generic signature of its own.
+                 */
+                case mir::CallThrough::CallWitness: {
+                    auto slot = requirementSlot(mir::GenSlotKind::Class, written.requirement);
+                    callee = witnessMember(block, slotPointer(block, slot), 0);
                     environment = noEnvironment(block);
                     break;
                 }

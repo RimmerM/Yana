@@ -25,84 +25,72 @@ main<complex>(): I32 {
     %v_1 = alloca 8, 8: Ptr
     %v_2 = alloca 8, 8: Ptr
     %v_3 = alloca 8, 8: Ptr
-    %v_4 = alloca 8, 8: Ptr
-    %v_5 = alloca 20, 8: Ptr
-    %v_6 = alloca 8, 8: Ptr
-    %v_7 = alloca 4, 4: Ptr
-    %v_8 = alloca 8, 8: Ptr
+    %v_4 = alloca 20, 8: Ptr
+    %v_5 = alloca 8, 8: Ptr
+    %v_6 = alloca 4, 4: Ptr
+    %v_7 = alloca 8, 8: Ptr
     store %v_1, 0, 8
-    %v_9 = load %v_1, 8: Ptr
-    %v_10 = call_complex main.lambda, %v_9, 10: I32
-    store %v_2, 0, 8
-    %v_11 = load %v_2, 8: Ptr
-    %v_12 = call_complex main.lambda'2, %v_11, 5: I32
+    %v_8 = load %v_1, 8: Ptr
+    %v_9 = call_complex main.lambda, %v_8, 10: I32
     %main.lambda'3 = fun main.lambda'3: Ptr
+    store %v_2, 0, 8
+    %v_10 = load %v_2, 8: Ptr
+    %v_11 = call_complex %main.lambda'3, %v_10, 1: I32
+    %v_12 = load %v_2, 8: Ptr
+    %v_13 = call_complex %main.lambda'3, %v_12, %v_11: I32
     store %v_3, 0, 8
-    %v_13 = load %v_3, 8: Ptr
-    %v_14 = call_complex %main.lambda'3, %v_13, 1: I32
-    %v_15 = load %v_3, 8: Ptr
-    %v_16 = call_complex %main.lambda'3, %v_15, %v_14: I32
-    store %v_4, 0, 8
-    %v_17 = load %v_4, 8: Ptr
-    %v_18 = call_complex main.lambda'4, %v_17, 4: I32
-    %v_19 = add %v_5, 16: Ptr
-    store %v_19, 2, 4
-    store %v_5, main.lambda'5, 8
-    %v_20 = add %v_5, 8: Ptr
-    store %v_20, 0, 8
-    %v_21 = load %v_5, 8: Ptr
-    %v_22 = load %v_20, 8: Ptr
-    %v_23 = call_complex %v_21, %v_22, 6: I32
-    %v_24 = add %v_5, 16: Ptr
-    %v_25 = loads %v_24, 4: I32
-    %v_26 = imul %v_23, %v_25: I32
-    call_complex teardown(fun), %v_5
+    %v_14 = load %v_3, 8: Ptr
+    %v_15 = call_complex main.lambda'4, %v_14, 4: I32
+    %v_16 = add %v_4, 16: Ptr
+    store %v_16, 2, 4
+    store %v_4, main.lambda'5, 8
+    %v_17 = add %v_4, 8: Ptr
+    store %v_17, 0, 8
+    %v_18 = load %v_4, 8: Ptr
+    %v_19 = load %v_17, 8: Ptr
+    %v_20 = call_complex %v_18, %v_19, 6: I32
+    %v_21 = add %v_4, 16: Ptr
+    %v_22 = loads %v_21, 4: I32
+    %v_23 = imul %v_20, %v_22: I32
+    call_complex teardown(fun), %v_4
     %main.lambda'6 = fun main.lambda'6: Ptr
-    store %v_6, 0, 8
-    %v_27 = load %v_6, 8: Ptr
-    %v_28 = call_complex %main.lambda'6, %v_27, 1: I32
-    %v_29 = load %v_6, 8: Ptr
-    %v_30 = call_complex %main.lambda'6, %v_29, %v_28: I32
-    %v_31 = alloca 16, 8: Ptr
-    %v_32 = alloca 12, 4: Ptr
-    store %v_31, %v_32, 8
-    %v_33 = add %v_31, 8: Ptr
+    store %v_5, 0, 8
+    %v_24 = load %v_5, 8: Ptr
+    %v_25 = call_complex %main.lambda'6, %v_24, 1: I32
+    %v_26 = load %v_5, 8: Ptr
+    %v_27 = call_complex %main.lambda'6, %v_26, %v_25: I32
+    %v_28 = alloca 16, 8: Ptr
+    %v_29 = alloca 12, 4: Ptr
+    store %v_28, %v_29, 8
+    %v_30 = add %v_28, 8: Ptr
+    store %v_30, 3, 4
+    %v_31 = add %v_28, 12: Ptr
+    store %v_31, 3, 4
+    store %v_29, 1, 4
+    %v_32 = add %v_29, 4: Ptr
+    store %v_32, 2, 4
+    %v_33 = add %v_29, 8: Ptr
     store %v_33, 3, 4
-    %v_34 = add %v_31, 12: Ptr
-    store %v_34, 3, 4
-    store %v_32, 1, 4
-    %v_35 = add %v_32, 4: Ptr
-    store %v_35, 2, 4
-    %v_36 = add %v_32, 8: Ptr
-    store %v_36, 3, 4
-    call_complex Array(a).reclaim(I32), %v_31
-    store %v_7, 100, 4
-    store %v_8, 0, 8
-    %v_37 = load %v_8, 8: Ptr
-    call_complex main.lambda'7, %v_37, %v_7
-    %v_38 = add %v_10, 40: I32
-    %v_39 = add %v_38, %v_12: I32
-    %v_40 = add %v_39, %v_16: I32
-    %v_41 = add %v_40, %v_18: I32
-    %v_42 = add %v_41, %v_26: I32
-    %v_43 = add %v_42, %v_30: I32
-    %v_44 = add %v_43, 3: I32
-    %v_45 = loads %v_7, 4: I32
-    %v_46 = add %v_44, %v_45: I32
-    ret %v_46
+    call_complex Array(a).reclaim(I32), %v_28
+    store %v_6, 100, 4
+    store %v_7, 0, 8
+    %v_34 = load %v_7, 8: Ptr
+    call_complex main.lambda'7, %v_34, %v_6
+    %v_35 = add %v_9, 65: I32
+    %v_36 = add %v_35, %v_13: I32
+    %v_37 = add %v_36, %v_15: I32
+    %v_38 = add %v_37, %v_23: I32
+    %v_39 = add %v_38, %v_27: I32
+    %v_40 = add %v_39, 3: I32
+    %v_41 = loads %v_6, 4: I32
+    %v_42 = add %v_40, %v_41: I32
+    ret %v_42
   }
 }
 
 main.lambda<complex>(%main.lambda.env: Ptr, %x: I32): I32 {
   b_0 {
     %v_1 = add %x, 1: I32
-    ret %v_1
-  }
-}
-
-main.lambda'2<complex>(%main.lambda'2.env: Ptr, %x: I32): I32 {
-  b_0 {
-    %v_1 = imul %x, %x: I32
     ret %v_1
   }
 }

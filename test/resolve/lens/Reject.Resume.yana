@@ -1,0 +1,111 @@
+{-
+   Every refusing row of Design-Iterator-Objects.md §2.5's table.
+
+   # resolver: ownership
+
+   They are all one question asked of the loop a `continue` is written in - has *this* loop anywhere
+   to send a value? - and the answers differ only in why not. The declaration-level refusals a
+   resume channel has are `Reject.Protocol.yana`'s: a `<- R` on a lens, an exclusive `<- &R`, and one
+   on a class member.
+-}
+
+iter fn walk(n: Int) -> (Int <- Int):
+    let &i = 0 :: Int
+
+    while i < n:
+        let step = yield i
+        i = i + step
+
+iter fn plain(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+iter fn nothing(n: Int) -> (Int <- {}):
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+-- A pass that falls off its end. It owes an answer and has none; `<- {}` is the one exemption, and
+-- `Resume.yana`'s `units` is where it is asserted.
+fn fallsOff(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in walk(n):
+        s = s + x
+
+    return s
+
+-- A bare `continue`, which is the same mistake written down.
+fn bare(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in walk(n):
+        s = s + x
+        continue
+
+    return s
+
+-- `continue v` in a `while`, which has nothing to send a value to.
+fn inWhile(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        i = i + 1
+        continue 2
+
+    return i
+
+-- ... and in a counted `for`, which is the same loop by another spelling.
+fn inCounted(n: Int) -> Int:
+    for i in 0 .. n:
+        continue 2
+
+    return n
+
+-- A plain loop nested *inside* a resuming pass. `continue` means the innermost loop, so the value
+-- has nowhere to go even though there is a resuming `for` one level out.
+fn nestedPlain(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in walk(n):
+        let &j = 0 :: Int
+
+        while j < 2:
+            continue 1
+
+        continue 1
+
+    return s
+
+-- A `for` over an iterator that declared no `<- R`: its passes hand nothing back.
+fn noChannel(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in plain(n):
+        continue 3
+
+    return s
+
+{-
+   And `continue {}` at a `<- {}` channel, which is the row the other two messages are wrong about.
+
+   The iterator *did* declare a channel, so "declared no `<- R`" would be false; what its channel
+   carries is the one value of `{}`, so there is no `Outcome({}, exit)` for a row to travel in and a
+   pass of one need not answer at all - `Resume.yana`'s `units` is the accepting side. So the advice
+   is to delete the word rather than to change either end.
+-}
+fn unitWritten(n: Int) -> Int:
+    let &s = 0 :: Int
+
+    for x in nothing(n):
+        s = s + x
+        continue {}
+
+    return s
+
+fn main() -> Int = 0

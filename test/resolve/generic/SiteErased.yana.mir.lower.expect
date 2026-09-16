@@ -1,0 +1,342 @@
+@image$base = []
+@environment(once((I32) -> I32)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor((I32) -> I32) = [16, 0, 0, 30, 0, 0, 0, 0]
+@witness(Call((I32) -> I32 erased 1)) = [0, 0, 0, 0]
+@environment(once(main.lambda)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(main.lambda) = [0, 0, 0, 1, 0, 0, 0, 0]
+@witness(Call(main.lambda.env erased 1)) = [0, 0, 0, 0]
+@environment(twiceOver((I32) -> I32)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(twiceOver(main.lambda)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(apply((I32) -> I32, I32)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(I32) = [4, 0, 0, 13, 0, 0, 0, 0]
+@witness(Call((I32) -> I32 erased 8000000000000003)) = [0, 0, 0, 0]
+@environment(apply(main.lambda'2, I64)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(main.lambda'2) = [0, 0, 0, 1, 0, 0, 0, 0]
+@descriptor(I64) = [8, 0, 0, 29, 0, 0, 0, 0]
+@witness(Call(main.lambda'2.env erased 8000000000000003)) = [0, 0, 0, 0]
+@environment(firstOf((I32) -> Big)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor((I32) -> Big) = [16, 0, 0, 30, 0, 0, 0, 0]
+@witness(Call((I32) -> Big erased 1)) = [0, 0, 0, 0]
+@environment(bump((&I32) -> {})) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor((&I32) -> {}) = [16, 0, 0, 30, 0, 0, 0, 0]
+@witness(Call((&I32) -> {} erased 1)) = [0, 0, 0, 0]
+
+once<complex>(%v_0: Ptr, %g: Ptr, %x: I32): I32 {
+  b_1 {
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = add %v_4, @image$base: Ptr
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = sext %v_6: I64
+    %v_8 = add %v_7, @image$base: Ptr
+    %v_9 = call_complex %v_8, 0, %g, %x: I32
+    ret %v_9
+  }
+}
+
+twiceOver<complex>(%v_0: Ptr, %g: Ptr, %x: I32): I32 {
+  b_1 {
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = add %v_4, @image$base: Ptr
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = sext %v_6: I64
+    %v_8 = add %v_7, @image$base: Ptr
+    %v_9 = call_complex %v_8, 0, %g, %x: I32
+    %v_10 = add %v_0, 4: Ptr
+    %v_11 = loads %v_10, 4: I32
+    %v_12 = sext %v_11: I64
+    %v_13 = add %v_12, @image$base: Ptr
+    %v_14 = loads %v_13, 4: I32
+    %v_15 = sext %v_14: I64
+    %v_16 = add %v_15, @image$base: Ptr
+    %v_17 = call_complex %v_16, 0, %g, %v_9: I32
+    ret %v_17
+  }
+}
+
+apply<complex>(%v_0: Ptr, %v_1: Ptr, %g: Ptr, %x: Ptr) {
+  b_2 {
+    %v_3 = add %v_0, 8: Ptr
+    %v_4 = loads %v_3, 4: I32
+    %v_5 = sext %v_4: I64
+    %v_6 = add %v_5, @image$base: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    %v_9 = add %v_8, @image$base: Ptr
+    %v_10 = add %v_0, 4: Ptr
+    %v_11 = loads %v_10, 4: I32
+    %v_12 = sext %v_11: I64
+    %v_13 = add %v_12, @image$base: Ptr
+    %v_14 = load %v_13, 4: I64
+    %v_15 = and %v_14, 16777215: I64
+    %v_16 = alloca %v_15, 16: Ptr
+    call_complex %v_9, 0, %v_16, %g, %x
+    %v_17 = add %v_0, 4: Ptr
+    %v_18 = loads %v_17, 4: I32
+    %v_19 = sext %v_18: I64
+    %v_20 = add %v_19, @image$base: Ptr
+    %v_21 = load %v_20, 4: I64
+    %v_22 = and %v_21, 16777215: I64
+    copy %v_1, %v_16, %v_22
+    ret 
+  }
+}
+
+firstOf<complex>(%v_0: Ptr, %g: Ptr, %x: I32): I64 {
+  b_1 {
+    %v_2 = alloca 24, 8: Ptr
+    %v_3 = add %v_0, 4: Ptr
+    %v_4 = loads %v_3, 4: I32
+    %v_5 = sext %v_4: I64
+    %v_6 = add %v_5, @image$base: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    %v_9 = add %v_8, @image$base: Ptr
+    call_complex %v_9, 0, %v_2, %g, %x
+    %v_10 = loads %v_2, 8: I64
+    ret %v_10
+  }
+}
+
+bump<complex>(%v_0: Ptr, %g: Ptr, %x: Ptr) {
+  b_1 {
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = add %v_4, @image$base: Ptr
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = sext %v_6: I64
+    %v_8 = add %v_7, @image$base: Ptr
+    call_complex %v_8, 0, %g, %x
+    ret 
+  }
+}
+
+addOne<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = add %x, 1: I32
+    ret %v_1
+  }
+}
+
+blow<complex>(%v_0: Ptr, %x: I32) {
+  b_1 {
+    %v_2 = sext %x: I64
+    store %v_0, %v_2, 8
+    %v_3 = add %v_0, 8: Ptr
+    store %v_3, 0, 8
+    %v_4 = add %v_0, 16: Ptr
+    store %v_4, 0, 8
+    ret 
+  }
+}
+
+inc<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    %v_2 = add %v_1, 7: I32
+    store %x, %v_2, 4
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = alloca 1, 1: Ptr
+    %v_3 = alloca 1, 1: Ptr
+    %v_4 = alloca 16, 8: Ptr
+    %v_5 = alloca 4, 4: Ptr
+    %v_6 = alloca 16, 8: Ptr
+    store %v_1, funvalue(addOne), 8
+    %v_7 = add %v_1, 8: Ptr
+    store %v_7, 0, 8
+    %v_8 = call_complex once, @environment(once((I32) -> I32)), %v_1, 1: I32
+    %v_9 = alloca 1, 1: Ptr
+    copy %v_9, %v_2, 0
+    %v_10 = call_complex once, @environment(once(main.lambda)), %v_9, 2: I32
+    %v_11 = add %v_8, %v_10: I32
+    %v_12 = call_complex twiceOver, @environment(twiceOver((I32) -> I32)), %v_1, 1: I32
+    %v_13 = add %v_11, %v_12: I32
+    %v_14 = alloca 1, 1: Ptr
+    copy %v_14, %v_2, 0
+    %v_15 = call_complex twiceOver, @environment(twiceOver(main.lambda)), %v_14, 2: I32
+    %v_16 = add %v_13, %v_15: I32
+    %v_17 = alloca 4, 4: Ptr
+    store %v_17, 10, 4
+    %v_18 = alloca 4, 4: Ptr
+    call_complex apply, @environment(apply((I32) -> I32, I32)), %v_18, %v_1, %v_17
+    %v_19 = loads %v_18, 4: I32
+    %v_20 = add %v_16, %v_19: I32
+    %v_21 = alloca 1, 1: Ptr
+    copy %v_21, %v_3, 0
+    %v_22 = alloca 8, 8: Ptr
+    store %v_22, 5, 8
+    %v_23 = alloca 8, 8: Ptr
+    call_complex apply, @environment(apply(main.lambda'2, I64)), %v_23, %v_21, %v_22
+    %v_24 = loads %v_23, 8: I64
+    %v_25 = sext %v_24: I32
+    %v_26 = add %v_20, %v_25: I32
+    store %v_4, funvalue(blow), 8
+    %v_27 = add %v_4, 8: Ptr
+    store %v_27, 0, 8
+    %v_28 = call_complex firstOf, @environment(firstOf((I32) -> Big)), %v_4, 4: I64
+    %v_29 = sext %v_28: I32
+    %v_30 = add %v_26, %v_29: I32
+    store %v_5, 0, 4
+    store %v_6, funvalue(inc), 8
+    %v_31 = add %v_6, 8: Ptr
+    store %v_31, 0, 8
+    call_complex bump, @environment(bump((&I32) -> {})), %v_6, %v_5
+    %v_32 = loads %v_5, 4: I32
+    %v_33 = add %v_30, %v_32: I32
+    %v_34 = add %v_33, 8: I32
+    ret %v_34
+  }
+}
+
+main.lambda<complex>(%main.lambda.env: Ptr, %x: I32): I32 {
+  b_0 {
+    %v_1 = imul %x, 3: I32
+    ret %v_1
+  }
+}
+
+main.lambda'2<complex>(%main.lambda'2.env: Ptr, %t: I64): I64 {
+  b_0 {
+    %v_1 = add %t, 100: I64
+    ret %v_1
+  }
+}
+
+funvalue(addOne)<complex>(%v_0: Ptr, %v_1: I32): I32 {
+  b_2 {
+    %v_3 = call_complex addOne, %v_1: I32
+    ret %v_3
+  }
+}
+
+teardown((I32) -> I32)<complex>(%v_0: Ptr) {
+  b_1 {
+    call_complex teardown(fun), %v_0
+    ret 
+  }
+}
+
+teardown(fun)<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = add %v_0, 8: Ptr
+    %v_3 = load %v_2, 8: I64
+    %v_4 = and %v_3, 1: I64
+    %v_5 = cmp_eq %v_4, 0: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    %v_8 = bitcast %v_3: Ptr
+    %v_9 = sub %v_8, 1: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    call_complex %v_10, %v_9
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+thunk(Call((I32) -> I32 erased 1))<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: I32): I32 {
+  b_3 {
+    %v_4 = load %v_1, 8: Ptr
+    %v_5 = add %v_1, 8: Ptr
+    %v_6 = load %v_5, 8: Ptr
+    %v_7 = call_complex %v_4, %v_6, %v_2: I32
+    ret %v_7
+  }
+}
+
+teardown()<complex>(%v_0: Ptr) {
+  b_1 {
+    ret 
+  }
+}
+
+thunk(Call(main.lambda.env erased 1))<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: I32): I32 {
+  b_3 {
+    %v_4 = call_complex main.lambda, %v_1, %v_2: I32
+    ret %v_4
+  }
+}
+
+thunk(Call((I32) -> I32 erased 8000000000000003))<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr, %v_3: Ptr) {
+  b_4 {
+    %v_5 = load %v_2, 8: Ptr
+    %v_6 = add %v_2, 8: Ptr
+    %v_7 = load %v_6, 8: Ptr
+    %v_8 = loads %v_3, 4: I32
+    %v_9 = call_complex %v_5, %v_7, %v_8: I32
+    store %v_1, %v_9, 4
+    ret 
+  }
+}
+
+thunk(Call(main.lambda'2.env erased 8000000000000003))<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr, %v_3: Ptr) {
+  b_4 {
+    %v_5 = loads %v_3, 8: I64
+    %v_6 = call_complex main.lambda'2, %v_2, %v_5: I64
+    store %v_1, %v_6, 8
+    ret 
+  }
+}
+
+funvalue(blow)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: I32) {
+  b_3 {
+    call_complex blow, %v_1, %v_2
+    ret 
+  }
+}
+
+teardown((I32) -> Big)<complex>(%v_0: Ptr) {
+  b_1 {
+    call_complex teardown(fun), %v_0
+    ret 
+  }
+}
+
+thunk(Call((I32) -> Big erased 1))<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr, %v_3: I32) {
+  b_4 {
+    %v_5 = load %v_2, 8: Ptr
+    %v_6 = add %v_2, 8: Ptr
+    %v_7 = load %v_6, 8: Ptr
+    call_complex %v_5, %v_7, %v_1, %v_3
+    ret 
+  }
+}
+
+funvalue(inc)<complex>(%v_0: Ptr, %v_1: Ptr) {
+  b_2 {
+    call_complex inc, %v_1
+    ret 
+  }
+}
+
+teardown((&I32) -> {})<complex>(%v_0: Ptr) {
+  b_1 {
+    call_complex teardown(fun), %v_0
+    ret 
+  }
+}
+
+thunk(Call((&I32) -> {} erased 1))<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr) {
+  b_3 {
+    %v_4 = load %v_1, 8: Ptr
+    %v_5 = add %v_1, 8: Ptr
+    %v_6 = load %v_5, 8: Ptr
+    call_complex %v_4, %v_6, %v_2
+    ret 
+  }
+}
+

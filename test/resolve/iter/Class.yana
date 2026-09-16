@@ -1,0 +1,125 @@
+{-
+   `class Iterate(s -> item, resume)` - stepping an object from a body that does not know which
+   producer it holds, `doc/inflight/Design-Iterator-Objects.md` §2.3.
+
+   # resolver: ownership
+
+       fn next(&self: source's) -> Maybe(source'item)
+       fn resume(&self: source's, ->v: resume) -> Maybe(source'item)
+
+   The item is **borrowed from the object**, which is what makes this one class for every producer:
+   the record keeps the hand-over slot, and what a body compiled once holds between two steps is a
+   loan of it. Three generated pieces say so - the instantiation `Maybe(Y)`, the origin slot on
+   `self`, and the schema binding the payload position to it - and `iter(T)$item` makes the same
+   statement about the erased form, one indirection out.
+
+   What the loan buys is §3.3's stepping rule for nothing: the result is rooted in `self`, so
+   stepping, moving or dropping the object while the item is live is the loan checker's ordinary
+   refusal. `Reject.Class.yana` is that half.
+
+   A **concrete** `for x in it` still honours what the producer declared - `takenLoop` in Object.yana
+   moves out of the slot at `-> ->T` - and that is why both spellings exist: one signature cannot say
+   "by value for some producers and by loan for others".
+-}
+
+let &trace = 0 :: Int
+
+data Cmd = Keep | Skip
+
+-- A producer whose passes hand a value back, which is what `resume` answers.
+iter fn lexing(n: Int) -> (Int <- Cmd):
+    let &i = 0 :: Int
+
+    while i < n:
+        let c = yield i
+        if c is Skip then i = i + 2 else i = i + 1
+
+data Held {id: Int}
+
+instance Drop(Held):
+    fn drop(->value: Held):
+        trace = trace * 10 + value.id
+
+{-
+   A **lending** producer - `Held` owes a teardown and the hand-over borrows, so the slot holds the
+   value's address. J50 gave one of these no instance of the class at all; the borrowing form gives
+   it the same instance every other producer has, and `f$next` hands back what the slot points at
+   rather than a copy of it.
+-}
+iter fn lent(n: Int) -> Held:
+    let &i = 1 :: Int
+
+    while i <= n:
+        let h = Held {id: i}
+        yield h
+        i = i + 1
+
+-- And an **owning** one, whose slot holds the value and whose `$held` flag says so. A generic body
+-- borrows it out of the record either way, and the record drops what the consumer did not take.
+iter fn owning(n: Int) -> ->Held:
+    let &i = 1 :: Int
+
+    while i <= n:
+        yield Held {id: i}
+        i = i + 1
+
+data Parser(l) {lexer: l, packed: Int}
+
+{-
+   The design's `Parser` - a body generic in its lexer, stepping a **field**.
+
+   The record stores the object inline at its real size and the call goes straight to `lexing$resume`
+   once the body is specialized, which is what the class is for: a witness with two cells, and no
+   handle, stack or allocation anywhere.
+-}
+fn (Iterate(l, Int, Cmd)) Parser.advance(&self: Parser(l)) -> Bool:
+    if self.lexer.resume(Keep) is Just(t):
+        self.packed = self.packed * 10 + t + 1
+        return True
+
+    return False
+
+fn parsed() -> Int:
+    let lexer = lexing(4)
+    let &parser = Parser {lexer: lexer, packed: 0}
+
+    while parser.advance():
+        {}
+
+    return parser.packed
+
+{-
+   The same body over two site types with different hand-over conventions - one lending, one owning -
+   which is the whole point of the borrowing signature.
+
+   `sum` reads the item through the loan and never takes it, so the record still owes what is in its
+   slot: an owning producer's step drops the previous item as it writes the next, and its teardown
+   drops the last. The trace is that order, and it is the same order the lending producer's own
+   locals are released in.
+-}
+fn (Iterate(s, Held, {})) drain(&it: s) -> Int:
+    let &sum = 0 :: Int
+
+    while it.next() is Just(h):
+        sum = sum * 10 + h.id
+
+    return sum
+
+fn lentDrain() -> Int:
+    trace = 0
+    let &it = lent(3)
+    let sum = drain(it)
+    return sum * 1000 + trace
+
+fn owningDrain() -> Int:
+    trace = 0
+    let &it = owning(3)
+    let sum = drain(it)
+    return sum * 1000 + trace
+
+fn main() -> Int:
+    let a = parsed()
+    let b = lentDrain()
+    let c = owningDrain()
+
+    return a + b + c

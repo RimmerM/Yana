@@ -1,0 +1,150 @@
+{-
+   Iterator objects stepped by hand and by `for` - `doc/inflight/Design-Iterator-Objects.md` §2.1,
+   and the fixture `test/resolve/fiber/External.yana` became when the stack handle was removed.
+
+   # resolver: ownership
+
+   Every claim that file made about `fn f(...) -> iter(T)` is made here about an `iter fn` used as an
+   **object**, which is what stage 4 replaced it with. Six of them, packed into the one number `main`
+   answers:
+
+    - a `for` over a call runs a producer to its end, with an argument copied into it (`sum`);
+    - two objects are stepped **alternately by hand** - §1.4's distinction, and the one thing an
+      internal `for` cannot do (`pairs`);
+    - an object that never ran still releases the owned argument it captured (`trace`);
+    - an object suspended with a `Guard` live is **cancelled** where it is dropped, releasing exactly
+      what the index says is there (`trace`);
+    - an object the author holds survives a `break`, and a second `for` carries on where the first
+      stopped (`part`);
+    - a lent local is **borrowed by the object**, exclusively or shared, for as long as the object
+      exists - so a producer may write through `&total`, and a `Guard` it only reads is dropped once,
+      by its owner, after the object is gone (`sum`, `trace`).
+
+   **One claim of that file's is gone and cannot come back**: a lent *temporary* kept alive by the
+   handle. A handle captured such a value into its own block and lent it to the producer from there;
+   a record holds a borrowing parameter by address, so an object built over a temporary would hold
+   the address of storage the statement is about to drop. `constructIterObject` refuses it by name
+   and `iter/Reject.Object.yana` is where that message lives - bind the value to a name first, which
+   is what `prefix` does below.
+-}
+
+let &trace = 0 :: Size
+
+data Guard {id: Size}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+iter fn squares(n: Size) -> Size:
+    for i in 1..=n:
+        yield i * i
+
+iter fn evens() -> Size:
+    for i in 0..4:
+        yield i * 2
+
+iter fn odds() -> Size:
+    for i in 0..4:
+        yield i * 2 + 1
+
+-- Suspended with a `Guard` live, and cancelled where the object is dropped.
+iter fn guarded() -> Size:
+    let g = Guard {id: 7}
+
+    for i in 0..10:
+        yield i + g.id
+
+-- An owned argument, released by the producer when it runs and by the object's teardown when it
+-- never does.
+iter fn holding(->g: Guard) -> Size:
+    yield g.id
+
+-- A plain parameter at a `String`, so the argument arrives as a view the record keeps.
+iter fn words(prefix: String) -> ->String:
+    for i in 1..=3:
+        yield "{prefix}{i}"
+
+-- Lent exclusively: the producer writes through the loan the object holds.
+iter fn counting(&total: Size) -> Size:
+    for i in 1..=3:
+        total = total + i
+        yield total
+
+-- Lent shared, and neither a view nor a copy: travels by address under the object's loan.
+iter fn watching(g: Guard) -> Size:
+    yield g.id
+    yield g.id * 2
+
+fn main() -> Size:
+    let &sum = 0 :: Size
+    for v in squares(5):
+        sum += v
+
+    let &left = evens()
+    let &right = odds()
+    let &pairs = 0 :: Size
+
+    while True:
+        let a = left.next()
+        if a is Nothing then break
+
+        let b = right.next()
+        if b is Nothing then break
+
+        if a is Just(x):
+            if b is Just(y):
+                pairs += x * 10 + y
+
+    let &firstTwo = 0 :: Size
+    let &stopped = squares(100)
+
+    for v in stopped:
+        firstTwo += v
+        if v >= 4 then break
+
+    let &abandoned = guarded()
+    for v in abandoned:
+        if v >= 7 then break
+
+    let unused = holding(Guard {id: 100})
+
+    let &ran = holding(Guard {id: 1000})
+    for v in ran:
+        sum += 0
+
+    let &c = squares(4)
+    let &part = 0 :: Size
+
+    for v in c:
+        part += v
+        if v == 4 then break
+
+    for v in c:
+        part += v * 10
+
+    let &prefix = "w" :: String
+    let &joined = "" :: String
+    let &spelling = words(prefix)
+
+    for w in spelling:
+        joined = joined ++ w ++ "."
+
+    let &total = 0 :: Size
+    let &running = 0 :: Size
+    let &stepping = counting(total)
+
+    for v in stepping:
+        running += v
+
+    let g = Guard {id: 3}
+    let &seen = watching(g)
+
+    for v in seen:
+        running += v
+
+    sum += running + total
+
+    -- Each claim in its own decimal field, least significant last.
+    return ((((trace * 100 + length(joined)) * 1000 + part) * 100 + firstTwo) * 1000 + pairs) * 100 +
+           sum

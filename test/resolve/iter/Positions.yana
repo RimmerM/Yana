@@ -1,0 +1,165 @@
+{-
+   Every position that keeps an iterator object - `doc/inflight/Design-Iterator-Objects.md` §2.1's
+   third row, and stage 4's first item.
+
+   # resolver: ownership
+
+   `let it = f(...)` was the one position that built one; there are five now, and each is the same
+   call with the same arguments prepared the same way - what differs is only where the record lands
+   and what type the position asked for. Five claims, and `main` checks each:
+
+    - a **field initializer**, at a field generic in what it holds (`Parser`) and at one written
+      `f.Iter` (`Scan`);
+    - an **argument**, owned by the callee (`drain`) and borrowed from a name (`peek`);
+    - a **`return`**, in both body forms - `= f(...)` and `return f(...)`;
+    - an **assignment into existing storage**, which is the one position whose destination already
+      has a type;
+    - `for x in <a field>` and `for x in <an argument>`, which J54 §8 recorded as the limit a `let`
+      hid: `resolveObjectFor` takes any name or path of fields over one, and what decides which loan
+      the loop takes is the step's own `&self`.
+
+   What is **not** a position stays refused by name - `f(...):` with a block, `let x = f(...) in:`
+   and a bare `f(...)` statement - and `iter/Reject.Object.yana` is where those messages live.
+
+   § An argument of an **overloaded** call
+
+   The same row, and it was one walk short. A call whose name reaches several declarations resolves
+   its arguments in `selectOverload` rather than in `resolveArguments`, because what a candidate wants
+   is not known until one is chosen - and only the second of those two walks carried the token that
+   says an argument keeps an object. So `drain(upTo(3))` compiled and `absorb(upTo(3))` did not, with
+   the difference being that a second `absorb` existed somewhere in the program. `overloaded` below is
+   that call, with the second declaration a class member of the same name and arity.
+-}
+
+iter fn upTo(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+-- A field the record is **generic** in, which is §2.3's `data Parser(l) {lexer: l}`: the call
+-- decides the type and the record stores the object inline at its real size.
+data Parser(l) {lexer: l, packed: Int}
+
+-- ... and one written out, which is J54's path naming the same record by construction.
+data Scan {cursor: upTo.Iter, packed: Int}
+
+fn (Iterate(l, Int, {})) Parser.advance(&self: Parser(l)) -> Bool:
+    if self.lexer.next() is Just(x):
+        self.packed = self.packed * 10 + x + 1
+        return True
+
+    return False
+
+-- A **field initializer**, filled by the call rather than by a `let` in between.
+fn intoGenericField(n: Int) -> Int:
+    let &p = Parser {lexer: upTo(n), packed: 0}
+
+    while p.advance():
+        {}
+
+    return p.packed
+
+{-
+   The same, at a field written `upTo.Iter` - and the loop is `for x in <a field>`, which is the
+   traversal J54 §8 said needed a `let` first.
+-}
+fn intoWrittenField(n: Int) -> Int:
+    let &s = Scan {cursor: upTo(n), packed: 0}
+
+    for x in s.cursor:
+        s.packed = s.packed * 10 + x + 1
+
+    return s.packed
+
+-- An **argument** the callee owns, and `for x in <an argument>` inside it.
+fn drain(->it: upTo.Iter) -> Int:
+    let &held = it
+    let &packed = 0 :: Int
+
+    for x in held:
+        packed = packed * 10 + x + 1
+
+    return packed
+
+-- And one it only borrows, stepped through the name the caller lent.
+fn peek(&it: upTo.Iter) -> Int:
+    if it.next() is Just(x) then return x + 1
+    return 0
+
+fn asArgument(n: Int) -> Int:
+    let &held = upTo(n)
+    let first = peek(held)
+    return first * 10000 + drain(upTo(n))
+
+{-
+   An argument of a call whose name reaches **more than one** declaration.
+
+   The set is a class member and a plain function, which is how two declarations of one name and
+   arity are written: the module refuses two plain ones outright. Selection is unaffected by the token
+   - the object's type is the producer's site type whichever candidate wins, and what the set agrees
+   about before any argument is resolved is a `Request` - so the only thing this row asserts is that
+   the argument of an overloaded call is the same position as the argument of any other call.
+-}
+data Tag {v: I32}
+
+class Absorbing(s):
+    fn absorb(self: s) -> I32
+
+instance Absorbing(Tag):
+    fn absorb(self: Tag) -> I32 = self.v
+
+fn absorb(&it: upTo.Iter) -> I32:
+    let &packed = 0 :: I32
+
+    while it.next() is Just(x):
+        packed = packed * 10 + x + 1
+
+    return packed
+
+fn overloaded(n: I32) -> I32:
+    let tagged = absorb(Tag {v: 7})
+    return tagged * 10000 + absorb(upTo(n))
+
+-- A **`return`**, in the `=` form and in the block form. Both are the same position.
+fn tokens(n: Int) -> upTo.Iter = upTo(n)
+
+fn tokensBlock(n: Int) -> upTo.Iter:
+    return upTo(n)
+
+fn fromReturn(n: Int) -> Int:
+    let &a = tokens(n)
+    let &b = tokensBlock(n)
+    let &packed = 0 :: Int
+
+    for x in a:
+        packed = packed * 10 + x + 1
+
+    for y in b:
+        packed = packed * 10 + y + 1
+
+    return packed
+
+-- An **assignment into existing storage**, which is the position whose destination already has a
+-- type: the second object replaces the first, and dropping the first is the ordinary assignment.
+fn byAssignment(n: Int) -> Int:
+    let &it = upTo(1)
+    it = upTo(n)
+
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+
+    return packed
+
+fn main() -> Int:
+    if intoGenericField(3) != 123 then return 1
+    if intoWrittenField(3) != 123 then return 2
+    if asArgument(3) != 10123 then return 3
+    if fromReturn(3) != 123123 then return 4
+    if byAssignment(3) != 123 then return 5
+    if overloaded(3) != 70123 then return 6
+
+    return 0

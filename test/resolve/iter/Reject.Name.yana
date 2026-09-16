@@ -1,0 +1,127 @@
+{-
+   What a **declaration path** cannot name, each refused by name -
+   `doc/inflight/Design-Iterator-Objects.md` §2.4 and §6.5.
+
+   # resolver: ownership
+
+   A path is `f.Iter` or `f.Result` and nothing else, and what it reaches has to be a declaration
+   that publishes the one the author wrote. Three families here:
+
+   | | |
+   | --- | --- |
+   | the head | a name nothing declares, a global, a producer another module keeps private |
+   | the member | a name that is neither, `.Iter` at a function that is not an `iter fn`, `.Result` at one that is |
+   | the position | an alias target and a constant, both read before any declaration has a body |
+
+   The **position** family is the one worth reading. A site type is minted out of a producer's own
+   MIR, so a path can only be resolved once every declaration is a name with a signature behind it -
+   which is what a signature and a body have and what a record's fields and an alias target do not.
+   A `data` is answered by reading its fields a second time after the declaration pass, which is why
+   `iter/Name.yana`'s `Parser` compiles; an alias has no such pass and says so.
+-}
+
+import Native
+import Lexing
+
+iter fn lex(limit: I32) -> I32:
+    let &at = 0 :: I32
+
+    while at < limit:
+        yield at
+        at = at + 1
+
+iter fn (TrivialCopy(a)) twice(x: a) -> a:
+    yield x
+    yield x
+
+fn plain(x: I32) = x + 1
+
+lens fn around():
+    yield {}
+
+let counter = 4
+
+-- An **alias target**, which is read one phase before any function is declared. The `data` beside it
+-- is answered by a second pass and this is not: an alias stands for its target everywhere the target
+-- could stand, so deferring one would defer every position that names it.
+alias Tokens = lex.Iter
+
+{-
+   §6.5 - a site type's size in a **constant** position.
+
+   The record's layout is a fact about a body, and a constant is settled before any body is read. So
+   the answer would depend on which declaration the pass happened to reach first, which is exactly
+   the kind of order dependence this stage refuses rather than resolves. `iter/Name.yana`'s
+   `measured` is the position that works.
+-}
+data Padded {pad: [U8 *(traits() :: TypeTraits(lex.Iter)).size]}
+
+{-
+   A producer that captured a loan publishes an **origin**, and a record holding one has to say
+   whose storage it is - which is the rule for a field of any borrowed type and not one of this
+   feature's. `iter/Name.yana`'s `Scan` writes `src'advancing.Iter` and is accepted.
+-}
+data Counter {at: I32}
+
+iter fn advancing(&c: Counter, limit: I32) -> I32:
+    while c.at < limit:
+        yield c.at
+        c.at = c.at + 1
+
+data Scan {cursor: advancing.Iter}
+
+-- The head: a name nothing declares, and one that is a global rather than a function.
+fn missing(v: nowhere.Iter) -> I32 = 0
+fn global(v: counter.Iter) -> I32 = 0
+
+-- And one another module declares without `pub`. A path is a *use* of a name, so it is the same
+-- "not in scope" a call of it would be - `Lexing.digits` beside it is exported and works.
+fn hidden(v: Lexing.private.Iter) -> I32 = 0
+
+-- The member: neither of the two a declaration publishes.
+fn wrongMember(v: lex.Thing) -> I32 = 0
+
+-- `.Iter` at a function that has no object type. The message names what the declaration *is*,
+-- because a plain function and a `lens fn` are fixed differently.
+fn notIter(v: plain.Iter) -> I32 = 0
+fn lensIter(v: around.Iter) -> I32 = 0
+
+-- And `.Result` at an `iter fn`, whose result is the exit signal rather than what it hands over.
+fn iterResult(v: lex.Result) -> I32 = 0
+
+-- `.Result` at a function whose result has a name of its own. A path to `I32` would be a second
+-- spelling for a type that already has one.
+fn plainResult(v: plain.Result) -> I32 = 0
+
+-- The arguments, which bind the declaration's own type parameters.
+fn tooMany(v: lex.Iter(I32)) -> I32 = 0
+fn tooFew(v: twice.Iter) -> I32 = 0
+
+{-
+   A path at a variable the enclosing declaration binds.
+
+   A site type has no parameters: it is minted from one producer read under one substitution, and a
+   body compiled once has no substitution to mint it under. The same sentence `let it = f(...)`
+   inside a generic body gets (`Reject.Object.yana`), said about the type rather than about the
+   construction.
+-}
+fn (a) inGeneric(v: twice.Iter(a)) -> I32 = 0
+
+{-
+   And one row that is about **what else this module reports**, not about a path at all.
+
+   A module holding a path runs the declaration groups early, so that the bodies a path demands see
+   the same program every other body does - and a global's initializer is code, which was being run
+   against declarations that had already failed. `Broken` is refused for its field type and then
+   `Broken {slot: 1}` was refused a second time for having no field of that name, which is a sentence
+   about a declaration that plainly writes one. The list beside this file is the assertion: one error
+   here and not two.
+
+   Written in this file because the trigger is the path above it - the same module without one stops
+   at the checkpoint and never resolves the initializer at all, which is the behaviour this restores.
+-}
+data Broken {slot: NoSuchType}
+
+let &initialized = Broken {slot: 1}
+
+fn main() -> I32 = 0

@@ -302,6 +302,9 @@ static void collectCalls(ast::ParseBase parse, ast::Expr expr, DefaultCallList& 
         case ast::Expr::Break:
             walkPointer(expr.breakValue);
             break;
+        case ast::Expr::Continue:
+            walkPointer(expr.continueValue);
+            break;
         case ast::Expr::Is:
             walk(parse[expr.is]->value);
             break;

@@ -128,6 +128,36 @@ DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, intrin
                                       DeclPtr<Type> type, InstanceMatch* into = nullptr);
 
 /*
+ * **What calling a value of this type means**, as the signature the call is checked against - the
+ * one function three tiers ask, Design-Iterator-Objects.md §2.3.
+ *
+ * Three answers and one absence. A **function type** is its own signature, and a value of one is
+ * called through the pair. A **site type** names the code it is called through, so its signature is
+ * the `(A) -> B` its erased form would have had and the call is direct. A **type variable** has
+ * whatever the enclosing signature promised about it - the `Call(f, S)` clause, which is the whole
+ * of what that constraint buys a body. Null is "not callable", which is the message a call gives.
+ *
+ * One function rather than the pair of tests spelled at each reader, because the readers are the
+ * resolver, the MIR verifier and the erasability check, and a call that three tiers disagree about
+ * the shape of is a call whose arguments were bound against one signature and checked against
+ * another. `gen` is null wherever the question is not being asked inside a generic body, which makes
+ * the variable arm answer nothing rather than having to be guarded at each site.
+ */
+DeclPtr<Type> callableShapeOf(Program& program, DeclPtr<GenContext> gen, DeclPtr<Type> type);
+
+/*
+ * Which declared class requirement of `gen` is the `Call(type, S)` a body compiled **once**
+ * dispatches through - the index into `GenContext::classes`, which is also the schema's class-group
+ * position (`freezeSchema` numbers them in that order).
+ *
+ * The cell behind it is synthesized rather than an instance's member list, because `Call` is
+ * structural and declares none - see `CallThrough::CallWitness`. Three readers and one walk: the
+ * erasability check admits the call, `callTarget` resolves it, and the reachability marks the slot.
+ */
+bool callWitnessRequirement(Program& program, DeclPtr<GenContext> gen, DeclPtr<Type> type,
+                            U16& into);
+
+/*
  * Whether this role's class is one the compiler answers from the shape of the type - the
  * **structural** classes, `structuralAnswer` in select.cpp being where each is answered.
  *
@@ -139,7 +169,8 @@ DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, intrin
  */
 inline bool isStructuralClass(intrinsic::Known role) {
     return role == intrinsic::Known::atomicValue || role == intrinsic::Known::atomicInteger
-        || role == intrinsic::Known::trivialCopy || role == intrinsic::Known::trivialSink;
+        || role == intrinsic::Known::trivialCopy || role == intrinsic::Known::trivialSink
+        || role == intrinsic::Known::call;
 }
 
 } // namespace mir

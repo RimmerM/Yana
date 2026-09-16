@@ -1,0 +1,59 @@
+{-
+   §6.1 - the producer's own storage, addressed across a `yield`.
+
+   # resolver: ownership
+
+   The one thing a state record cannot do rather than merely do expensively: a record moves with
+   whatever holds it, because every move here is bytewise, so a borrow into its own bytes points at
+   where the value used to be. The line is drawn by **representation** and not by type - a view of
+   heap-owned contents names storage that does not move with the record - so what is refused is a
+   borrow of a *payload* member and an `addressOf` of one, each named where it is taken.
+
+   `@heap` on the binding is the way out and every message says so: the bytes then live in a run that
+   does not move, so the record stays movable at one visible allocation. **That advice now works** -
+   `test/resolve/iter/Heap.yana` is these two producers with the attribute written on, and it runs
+   them after moving the object. J50's note that "a heap-placed payload member has nowhere to put its
+   pointer" is what changed: the member's field holds the run's address, `f$new` allocates it and the
+   record's teardown frees it.
+
+   What `for x in f(...)` does with these is unchanged - a continuation runs on the producer's own
+   frame, and there is nothing there to move.
+
+   `Cell` owes a teardown so that `let held = base` is a **borrow** rather than a copy: a trivially
+   copyable value is duplicated at a plain binding, which is the whole of why the rule is about
+   representation.
+-}
+
+import Native
+
+data Cell {value: Int}
+
+instance Drop(Cell):
+    fn drop(->value: Cell): {}
+
+-- A borrow of a local the producer keeps across a `yield`, which is a borrow into the record.
+iter fn selfBorrowed(n: Int) -> Int:
+    let base = Cell {value: n}
+    let held = base
+
+    yield held.value
+    yield base.value + held.value
+
+-- The raw address of one, which no later rule catches: the loan checker sees where an `addressOf` is
+-- taken and nothing at all once the address is an integer.
+iter fn addressed(n: Int) -> Int:
+    let base = Cell {value: n}
+    let at = addressOf(base)
+
+    yield n
+    yield base.value + 1
+
+fn borrowing() -> Int:
+    let it = selfBorrowed(3)
+    return 0
+
+fn addressing() -> Int:
+    let it = addressed(3)
+    return 0
+
+fn main() -> Int = borrowing() + addressing()

@@ -260,6 +260,21 @@ struct Request {
      * frame that owns it - see `bindsOwnStorage`.
      */
     bool establishes = false;
+
+    /*
+     * The **type the position declared**, where it declared one - null for a `let`, a condition, an
+     * operand, and for every request built out of a bare contract.
+     *
+     * One reader, and it asks the one question `hint` cannot answer: a lambda keeps its site type
+     * unless the position asked for the erased `(A) -> B`, and a *generic* position asks for one
+     * while having no hint to offer - `TypeArguments::hint` answers null wherever the position's
+     * parameters are still open, which `fn map(->value: m, f: (a) -> b)` is. So what has to travel
+     * is the declaration and not what the call site has managed to infer.
+     *
+     * Last in the struct because the brace-initialized form above names the first four positionally,
+     * and a field inserted among them is a silent reinterpretation of every one of those calls.
+     */
+    DeclPtr<Type> declared = nullptr;
 };
 
 // What a declared position - a parameter, a result, a record field - asks for. Its own contract,
@@ -609,6 +624,7 @@ inline Occurrence requalified(const Occurrence& occurrence, Contract contract) {
 inline Request requestOf(const Occurrence& occurrence) {
     auto request = requestOf(occurrence.contract);
     request.shape = occurrence.shape;
+    request.declared = occurrence.type;
     return request;
 }
 

@@ -862,6 +862,19 @@ struct NodeCall: NodeResult {
      */
     Operand target;
 
+    /*
+     * The target's type as this body writes it - null on every call that names a declaration.
+     *
+     * A copy of what the operand already says, and it is here because the readers that need it do
+     * not have the body: `callTarget` is asked by reachability, by the summary walk and by the
+     * conversion, and what it has to answer is whether this is a call through a **site type**, whose
+     * code the type names (`RecordType::lambda`). In a generic body the type is the enclosing
+     * signature's own variable, so the answer is the *substitution's* and not the node's - which is
+     * the same shape `typeArguments` is in, and is why this is a type of this body's world rather
+     * than a resolved callee.
+     */
+    DeclPtr<Type> targetType = nullptr;
+
     bool callsValue() const { return callee == nullptr; }
 
     /*
@@ -957,6 +970,25 @@ struct NodeJump: Node {
     Edge to;
 
     template<class F> void eachOperand(MirBase, F&&) {}
+    template<class F> void eachEdge(MirBase, F&& f) { f(to); }
+};
+
+/*
+ * `continue v` - a `Jump` out of a continuation region with the pass's answer on it.
+ *
+ * The value is an operand of the *node* and not of the edge, because the edge's target declares no
+ * parameters: it is the block the caller carries on at, reached the same way by falling out and by
+ * `break`. `OperandRole::Argument` is what it fills - the resume position the region declares - and
+ * it is handed over under `argumentMode` like every other declared slot, so a resume value the
+ * declaration takes is a move here and the pass owes nothing afterwards.
+ */
+struct NodeResume: Node {
+    NodeResume(LocationId source, Operand value): Node(Resume, source), value(value) {}
+
+    Edge to;
+    Operand value;
+
+    template<class F> void eachOperand(MirBase, F&& f) { f(value, OperandRole::Argument); }
     template<class F> void eachEdge(MirBase, F&& f) { f(to); }
 };
 

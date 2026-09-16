@@ -149,6 +149,28 @@ struct RunPlacement {
     IndexSet carries;
     IndexSet within;
 
+    /*
+     * Which of the carriers were reached **through storage** - `reread`, and the one distinction
+     * the two questions this walk answers do not share.
+     *
+     * Containment is a proof and has to over-approximate: a pointer stored into a slot may come
+     * back out of *any* read of that slot, so `reread` taints every load under it and the answer is
+     * only ever "this may still be the address". The refusal rewrite is the opposite kind of claim -
+     * it replaces a comparison with a constant - so it may only read carriers the walk is *sure*
+     * about, which is the ones it reached without passing through memory.
+     *
+     * Without the distinction a whole-record store of anything holding a run pointer taints every
+     * field of that record, and `eq(field, 0)` on an unrelated integer field then reads as the
+     * allocator's refusal test and folds to `False`. An iterator object's `$index` is what found it:
+     * `f$new` stores the captured window - which carries the run - and the record whole, so the
+     * step's `switch` on the resume index compared a "carrier" against zero. J52 is the account.
+     */
+    IndexSet reloaded;
+
+    // Whether the value the worklist is following arrived through storage, which is what `taint`
+    // writes into `reloaded`. A field rather than a parameter because `reread` recurses.
+    bool throughStorage = false;
+
     // The same allocations as a list, because the loop rule walks them and a set answers only
     // membership. Filled beside `within` and cleared with it.
     Array<SsaPtr<Value>> holders;
@@ -232,6 +254,7 @@ struct RunPlacement {
         if(!value || carries[value->id.index]) return;
 
         carries.set(value->id.index, true);
+        if(throughStorage) reloaded.set(value->id.index, true);
         pending.push(value - base());
     }
 
@@ -290,9 +313,17 @@ struct RunPlacement {
                     return true;
                 }
 
-                // An equality against zero is the refusal test - see `refusals`. Order comparisons
-                // and equalities against anything else are sinks like any other and say nothing.
-                if(category == mir::OpCategory::Equality && isRefusalTest(binary, value)) {
+                /*
+                 * An equality against zero is the refusal test - see `refusals`. Order comparisons
+                 * and equalities against anything else are sinks like any other and say nothing.
+                 *
+                 * And only where this carrier is the pointer rather than something a read of
+                 * storage *may* have answered with - `reloaded`, where the reason is written. A
+                 * carrier that came back out of memory is a proof obligation and not a fact, so
+                 * folding a comparison of one is reading the wrong set.
+                 */
+                if(category == mir::OpCategory::Equality && !reloaded[value.id.index] &&
+                   isRefusalTest(binary, value)) {
                     refusals.push(&user - base());
                 }
 
@@ -441,6 +472,17 @@ struct RunPlacement {
      * may not fail in. It is `Contained`'s own recursion with the admission replaced by a taint.
      */
     void reread(Value& address) {
+        // Everything this reaches is a carrier by way of memory - see `reloaded`. Saved and
+        // restored rather than set, because this recurses and its caller may be following a value
+        // that came through storage already.
+        auto saved = throughStorage;
+        throughStorage = true;
+
+        rereadFrom(address);
+        throughStorage = saved;
+    }
+
+    void rereadFrom(Value& address) {
         for(auto userPointer: address.uses(base())) {
             auto& user = *base()[userPointer];
 
@@ -455,7 +497,7 @@ struct RunPlacement {
                     // `Contained` recurses through for the same reason.
                     for(Size i = 0; i < user.results.size(); i++) {
                         auto result = base()[user.results.get(base(), i)];
-                        if(result->convention == Convention::Guaranteed) reread(*result);
+                        if(result->convention == Convention::Guaranteed) rereadFrom(*result);
                     }
 
                     break;
@@ -464,7 +506,7 @@ struct RunPlacement {
                 case Inst::ElementAddress:
                 case Inst::Unary:
                     for(Size i = 0; i < user.results.size(); i++) {
-                        reread(*base()[user.results.get(base(), i)]);
+                        rereadFrom(*base()[user.results.get(base(), i)]);
                     }
 
                     break;
@@ -485,17 +527,25 @@ struct RunPlacement {
     bool inFrame(Value& pointer) {
         carries.reset(opt.body->values.size());
         within.reset(opt.body->values.size());
+        reloaded.reset(opt.body->values.size());
         pending.clear();
 
+        throughStorage = false;
         taint(&pointer);
 
         while(pending.size()) {
             auto value = base()[pending.pop().unwrap()];
 
+            // What this carrier is followed as - see `reloaded`. A value reached through storage
+            // hands that on to everything derived from it.
+            throughStorage = reloaded[value->id.index];
+
             for(auto userPointer: value->uses(base())) {
                 if(!admits(*base()[userPointer], *value)) return false;
             }
         }
+
+        throughStorage = false;
 
         return true;
     }

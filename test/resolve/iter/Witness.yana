@@ -1,0 +1,423 @@
+{-
+   An object of a **class member** - `doc/inflight/Design-Iterator-Objects.md` §6.4, stage 6.
+
+   # resolver: ownership
+
+   Two halves, and they are two mechanisms rather than one written twice.
+
+   **At a concrete subject the instance is decided**, so there is nothing to erase: `let it =
+   walk(Tree {...})` selects the instance exactly as an ordinary call does and keeps that body's own
+   site type, `walk.Iter` of the *instance's* `walk`. That is the same selection `items` already made
+   of `chunks(self)` one construct in (J53), moved to the position a `let` writes - which is why the
+   refusal that used to stand at the mint is gone.
+
+   **Through erased dispatch the member answers `iter(T)`**, which is a class member returning an
+   object rather than being one (§2.2). The witness holds an ordinary function, the position states
+   the erased form, and a body compiled once steps it through the compiler-provided `Iterate` of
+   `iter(Int)`.
+
+   **And a member written `iter fn` is reached at a type variable too** since 2026-09-16 (J61), which
+   is §3.4's last sentence and §6.4's entry: the class's witness grows one cell per such member
+   holding a function that *makes* an object of the selected instance and hands back the erased pair.
+   The refusal that stood here - "a body compiled once would need a witness entry that makes one,
+   which is not built yet" - is gone. What is still refused is a protocol the enclosing declaration
+   leaves open, since the type is interned on what it hands over; `Reject.Erased.yana` holds that
+   message.
+-}
+
+let &trace = 0 :: Int
+
+data Tree {size: Int}
+data Row {width: Int}
+
+{-
+   § A class member that is a producer
+
+   `walk` is an `iter fn` and each instance writes one. Every use below is at a *named* subject, so
+   each call selects a body and mints that body's record.
+-}
+class Walks(s):
+  iter fn walk(self: s) -> Int
+
+instance Walks(Tree):
+    iter fn walk(self: Tree) -> Int:
+        yield self.size
+        yield self.size * 2
+
+instance Walks(Row):
+    iter fn walk(self: Row) -> Int:
+        for i in 0..self.width:
+            yield i
+
+-- A held object of an instance's producer, stepped by a `for`. The record is the instance's, so the
+-- two instances below are two records and not one dispatch.
+fn treeTotal(t: Tree) -> Int:
+    let &it = walk(t)
+    let &total = 0
+
+    for x in it:
+        total += x
+
+    return total
+
+fn rowTotal(r: Row) -> Int:
+    let &it = walk(r)
+    let &total = 0
+
+    for x in it:
+        total += x
+
+    return total
+
+-- And by hand, which is the same object and the same step.
+fn firstOf(t: Tree) -> Int:
+    let &it = walk(t)
+
+    if it.next() is Just(x):
+        return x
+
+    return -1
+
+-- The receiver spelling, which is the same call: `x.f(y)` is `f(x, y)` for a class member too.
+fn dotted(r: Row) -> Int:
+    let &it = r.walk()
+    let &total = 0
+
+    for x in it:
+        total += x * 2
+
+    return total
+
+{-
+   § A class member whose *result* is an object
+
+   `iter(Int)` is an ordinary result type, so `steps` is an ordinary function - and that is what a
+   body compiled **once** can call, because what comes back is a pair rather than a record minted per
+   substitution. The two instances answer objects of two different producers and the erased type is
+   the same.
+-}
+class Streams(s):
+  fn steps(self: s) -> iter(Int)
+
+iter fn countUp(to: Int) -> Int:
+    for i in 0..to:
+        trace += 1
+        yield i
+
+iter fn countDown(from: Int) -> Int:
+    let &i = from
+
+    while i > 0:
+        i -= 1
+        trace += 1
+        yield i
+
+instance Streams(Tree):
+    fn steps(self: Tree) -> iter(Int) = countUp(self.size)
+
+instance Streams(Row):
+    fn steps(self: Row) -> iter(Int) = countDown(self.width)
+
+-- A body compiled **once**: `s` is a type descriptor, `steps` is a witness cell, and what the cell
+-- answers is the erased pair the `for` steps through `Iterate(iter(Int), ...)`.
+@generic
+fn (Streams(s)) sumOf(subject: s) -> Int:
+    let &it = steps(subject)
+    let &total = 0
+
+    for x in it:
+        total += x
+
+    return total
+
+-- The same member selected rather than dispatched, which has to answer the same numbers.
+@specialize
+fn (Streams(s)) sumOfSelected(subject: s) -> Int:
+    let &it = steps(subject)
+    let &total = 0
+
+    for x in it:
+        total += x
+
+    return total
+
+
+{-
+   § The witness's **"make an object"** entry - §6.4, and the half stage 6 is named after
+
+   `walk` above is written `iter fn`, so a call to it produces a record minted per instance and a
+   body compiled once has no substitution to mint one under. What the witness holds for it is a
+   second cell - a function over the selected instance's own state record that builds one and hands
+   back the erased pair - and the four bodies below are the four ways a consumer holds what comes
+   back. All four are read against the concrete answers above, because the entry is not allowed to
+   change one.
+-}
+data Held(i) {walk: i, packed: Int}
+
+-- By a `for`, which steps the pair directly.
+@generic
+fn (Walks(s)) objectByFor(subject: s) -> Int:
+    let &it = walk(subject)
+    let &total = 0 :: Int
+
+    for x in it:
+        total += x
+
+    return total
+
+-- By `next()`, which steps it through the compiler-provided `Iterate` of `iter(Int)`.
+@generic
+fn (Walks(s)) objectByNext(subject: s) -> Int:
+    let &it = walk(subject)
+    let &total = 0 :: Int
+    let &more = True
+
+    while more:
+        if it.next() is Just(x) then total += x
+        else more = False
+
+    return total
+
+-- And **stored into a field**, which is the position §2.1 calls a field initializer: the record is
+-- generic in what it holds, so the field is the erased pair at its real size.
+@generic
+fn (Walks(s)) objectByField(subject: s) -> Int:
+    let &h = Held {walk: walk(subject), packed: 0}
+
+    for x in h.walk:
+        h.packed += x
+
+    return h.packed
+
+-- And the same call **specialized**, which reaches the same cell without a witness in between: the
+-- instance is decided here, so the call names that instance's maker directly.
+@specialize
+fn (Walks(s)) objectSelected(subject: s) -> Int:
+    let &it = walk(subject)
+    let &total = 0 :: Int
+
+    for x in it:
+        total += x
+
+    return total
+
+{-
+   § A member the class gave a **default** body
+
+   An instance that leaves an `iter fn` member out runs the class's own body specialized at its own
+   type, and that is the producer the entry has to mint from. `iterSiteTypeOf` refused every producer
+   carrying a class - which was right about a *path* and wrong here - so the test is now about
+   whether the substitution decided the class's arguments.
+-}
+class Paces(p):
+  fn stride(self: p) -> Int
+
+  iter fn paces(self: p) -> Int:
+    let n = stride(self)
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i * 2
+        i = i + 1
+
+data Step {size: Int}
+
+instance Paces(Step):
+    fn stride(self: Step) -> Int = self.size
+
+@generic
+fn (Paces(p)) paceTotal(subject: p) -> Int:
+    let &it = paces(subject)
+    let &total = 0 :: Int
+
+    for x in it:
+        total += x
+
+    return total
+
+fn paceConcrete(subject: Step) -> Int:
+    let &total = 0 :: Int
+
+    for x in paces(subject):
+        total += x
+
+    return total
+
+{-
+   § A member that is **recursive**, objectified through the entry
+
+   §6.3's boxed levels are filled by a pass that runs when the last object in the program has been
+   minted, and a witness is filled by the reachability walk - which is after it. So the entry drains
+   that pass again for whatever its own mint reached, and a class member that walks a tree through
+   itself is an object like any other: `walk` below delegates, so a step of the object reaches the
+   innermost level directly whatever the depth is.
+-}
+data Branch = Leaf | Node {left: Branch, right: Branch, value: Int}
+
+class Walkers(t):
+  iter fn descend(self: t) -> Int
+
+instance Walkers(Branch):
+    iter fn descend(self: Branch) -> Int:
+        if self is Branch.Node {left, right, value}:
+            for x in descend(left):
+                yield x
+
+            yield value
+
+            for x in descend(right):
+                yield x
+
+fn branch(depth: Int, base: Int) -> Branch:
+    if depth == 0 then return Branch.Leaf
+
+    return Branch.Node {left: branch(depth - 1, base * 2), right: branch(depth - 1, base * 2 + 1),
+                        value: base}
+
+@generic
+fn (Walkers(t)) descendTotal(subject: t) -> Int:
+    let &it = descend(subject)
+    let &total = 0 :: Int
+
+    for x in it:
+        total += x
+
+    return total
+
+fn descendConcrete(subject: Branch) -> Int:
+    let &total = 0 :: Int
+
+    for x in descend(subject):
+        total += x
+
+    return total
+
+{-
+   § A member whose **item type mentions the class variable** - `Chunked.chunks`
+
+   `class Chunked(c -> a): iter fn chunks(self: c) -> [a]` is `lib/Core`'s own, and the entry's
+   result type is `iter('[a])` written over the class's variables. What a caller holding
+   `Chunked(c, Int)` gets is `iter('[Int])`, and deriving the second from the first is the
+   `Type::Iter` arm `substituteType` grew for this - the piece J58 named as the one that is not
+   local, because substitution is reached from the ownership walk and from the lowering as well as
+   from a call.
+
+   The item is a **window**, so what the step answers is a loan of the object and stepping it again
+   while a chunk is live is the loan checker's ordinary refusal. Run over two instances - `[a *n]`
+   and `[a]` - which is two records behind one erased type.
+-}
+@generic
+fn (Chunked(c, Int)) chunkedByFor(xs: c) -> Int:
+    let &it = chunks(xs)
+    let &total = 0 :: Int
+
+    for chunk in it:
+        for i in 0..length(chunk):
+            total += chunk[i]
+
+    return total
+
+@generic
+fn (Chunked(c, Int)) chunkedByNext(xs: c) -> Int:
+    let &it = chunks(xs)
+    let &total = 0 :: Int
+    let &more = True
+
+    while more:
+        if it.next() is Just(chunk):
+            for i in 0..length(chunk):
+                total += chunk[i]
+        else:
+            more = False
+
+    return total
+
+@generic
+fn (Chunked(c, Int)) chunkedByField(xs: c) -> Int:
+    let &h = Held {walk: chunks(xs), packed: 0}
+
+    for chunk in h.walk:
+        for i in 0..length(chunk):
+            h.packed += chunk[i]
+
+    return h.packed
+
+@specialize
+fn (Chunked(c, Int)) chunkedSelected(xs: c) -> Int:
+    let &it = chunks(xs)
+    let &total = 0 :: Int
+
+    for chunk in it:
+        for i in 0..length(chunk):
+            total += chunk[i]
+
+    return total
+
+-- And the same walk at a concrete subject, which is the internal `for` and mints no object at all.
+fn chunkedConcrete(xs: [Int]) -> Int:
+    let &total = 0 :: Int
+
+    for chunk in chunks(xs):
+        for i in 0..length(chunk):
+            total += chunk[i]
+
+    return total
+
+fn main() -> Int:
+    let tree = Tree {size: 3}
+    let row = Row {width: 4}
+
+    -- 3 + 6, then 0 + 1 + 2 + 3, then 3, then twice 0 + 1 + 2 + 3.
+    let concrete = treeTotal(tree) + rowTotal(row) + firstOf(tree) + dotted(row)
+
+    -- 0 + 1 + 2 through the witness, then 3 + 2 + 1 + 0, and the same two selected.
+    let erased = sumOf(tree) + sumOf(row)
+    let selected = sumOfSelected(tree) + sumOfSelected(row)
+
+    {-
+       § The witness entry's four doors, against the concrete answers
+
+       `treeTotal` and `rowTotal` mint the instance's record at a named subject; the four below reach
+       the same producer through the entry and get the erased pair. Asserted as equalities rather
+       than as a golden, which is `iter/Nested.yana`'s idiom: an entry that built the wrong record,
+       or one whose block was never handed back, answers a different number here.
+    -}
+    let treeAnswer = treeTotal(tree)
+    let rowAnswer = rowTotal(row)
+
+    checkCondition(objectByFor(tree) != treeAnswer)
+    checkCondition(objectByNext(tree) != treeAnswer)
+    checkCondition(objectByField(tree) != treeAnswer)
+    checkCondition(objectSelected(tree) != treeAnswer)
+
+    checkCondition(objectByFor(row) != rowAnswer)
+    checkCondition(objectByNext(row) != rowAnswer)
+    checkCondition(objectByField(row) != rowAnswer)
+    checkCondition(objectSelected(row) != rowAnswer)
+
+    -- And a member the class gave a default body, which is the producer an instance that left it
+    -- out runs.
+    checkCondition(paceTotal(Step {size: 4}) != paceConcrete(Step {size: 4}))
+
+    -- And a **recursive** member, whose boxed levels are filled by a pass the witness fill is on the
+    -- wrong side of.
+    let walked = branch(3, 1)
+    checkCondition(descendTotal(walked) != descendConcrete(walked))
+
+    -- And `Chunked.chunks`, whose item type is the class's own variable, over two instances.
+    let fixed = [1, 2, 3] :: [Int *3]
+    let window = [4, 5, 6, 7]
+
+    let chunked = chunkedConcrete(window)
+
+    checkCondition(chunkedByFor(window) != chunked)
+    checkCondition(chunkedByNext(window) != chunked)
+    checkCondition(chunkedByField(window) != chunked)
+    checkCondition(chunkedSelected(window) != chunked)
+
+    checkCondition(chunkedByFor(fixed) != 6)
+    checkCondition(chunkedByNext(fixed) != 6)
+    checkCondition(chunkedByField(fixed) != 6)
+    checkCondition(chunkedSelected(fixed) != 6)
+
+    return concrete * 10000 + erased * 100 + selected + trace

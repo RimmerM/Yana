@@ -582,6 +582,39 @@ static bool fillClassWitness(Context& context, Program& program, DeclPtr<Class> 
                              GenWitness& into) {
     auto base = *program.decl;
 
+    /*
+     * `Call(f, S)` - the one witness whose contents no instance supplies, because the class is
+     * structural and declares no members (§4).
+     *
+     * What goes in the single cell is decided from the subject exactly as `structuralAnswer` decides
+     * whether the class holds at all: a **site type** names the code it is called through, so the
+     * cell is its lifted function; a **function type** is a pair, so the code is a word of the value
+     * and the cell is a shim the lowering writes over it - there is no declaration to name, and the
+     * null is what says so. `witnessFor` is where the table is built, and it keys on the type for
+     * that reason: two `Fun` subjects both leave the cell unnamed here and are two different shims.
+     */
+    if(count == 2 && args[0] && base[klass]->role == intrinsic::Known::call) {
+        into.type = args[0];
+
+        /*
+         * A **site type**'s lifted function is a declaration and goes in the list, which is also the
+         * only thing that keeps it: in a body compiled once nothing names the lambda, so this is the
+         * edge the reachability walk follows to convert it. A **function type** names none - the
+         * code is a word of the value - so the list stays empty and the cell is a shim.
+         *
+         * Empty rather than a null entry, because every reader of a witness's function list roots,
+         * holds or counts what is in it, and a null would be a declaration pointer at offset zero.
+         */
+        if(base[args[0]]->kind == Type::Record) {
+            auto& record = *(RecordType*)base[args[0]];
+            if(record.lambda && record.lambdaShape) {
+                into.functions.push(program.decl, record.lambda);
+            }
+        }
+
+        return true;
+    }
+
     InstanceMatch found;
     if(!selectInstance(context, program, klass, (DeclPtr<Type>*)args, count, source, true, found)) {
         return false;
@@ -593,6 +626,40 @@ static bool fillClassWitness(Context& context, Program& program, DeclPtr<Class> 
         if(!reached) return false;
 
         into.functions.push(program.decl, reached);
+    }
+
+    /*
+     * And the **"make an object"** entry of every member written `iter fn` - §6.4, and the region
+     * `classWitnessCount` puts after the declared members.
+     *
+     * A member declared `iter fn` cannot be called through a witness at all: what a call to one
+     * produces is a state record minted per instance, and a body compiled once has no substitution
+     * to mint it under. What it can be handed is the erased form, so what goes in the cell is a
+     * function over *this instance's* record that builds one and hands back the pair.
+     *
+     * Through `Program::IterObjects` because the record is minted from the instance's own body,
+     * which is the resolver's to read - see the hook, where the split is argued. A program that
+     * declares no `iter fn` member reaches none of this and its tables are what they were.
+     */
+    for(U16 member = 0; member < members; member++) {
+        if(!base[base[klass]->members.get(base, member)]->iterObject) continue;
+
+        auto reached = instanceMember(context, program, found, member, source);
+        if(!reached) return false;
+
+        if(!program.iterObjects) {
+            context.diagnostics.error(
+                "internal: a witness of %@ needs an object of %@ and nothing can make one here"_v,
+                source, appliedClassText(context, base, klass, (DeclPtr<Type>*)args, count),
+                context.findName(base[reached]->name));
+            return false;
+        }
+
+        auto make = program.iterObjects->objectMaker(
+            reached, base[base[klass]->members.get(base, member)]->iterObject, source);
+        if(!make) return false;
+
+        into.functions.push(program.decl, make);
     }
 
     // The superclasses, at what this class's head says they are applied to - `classProves`'
@@ -878,6 +945,7 @@ void callTarget(Context& context, Program& program, Function& enclosing, CallReq
     into.target = node.callee;
     into.through = CallThrough::Declaration;
     into.environment = nullptr;
+    into.siteCall = false;
 
     /*
      * A call through a function **value** names no declaration and reaches nothing from here.
@@ -885,8 +953,57 @@ void callTarget(Context& context, Program& program, Function& enclosing, CallReq
      * What runs is whatever the pair the body is holding points at, and whoever *made* that pair is
      * what reached it - a `fun.value` node names its declaration and the reachability walk follows
      * that edge. Drawing one here would be drawing it from a node with no callee to name.
+     *
+     * Unless the value is a **site type**, which is the case that decision existed to leave open -
+     * Design-Iterator-Objects.md §4. There the code *is* named, by the type, so this is an ordinary
+     * direct call whose first argument the node holds separately; and the edge the paragraph above
+     * says cannot be drawn is drawn here, which is what keeps a lambda nothing built a pair for
+     * reachable. Answered under the enclosing substitution, because in a generic body the target's
+     * type is that body's own variable and which of the two forms the call is, is the
+     * specialization's answer rather than the node's.
      */
     if(node.callsValue) {
+        auto target = node.targetType;
+
+        if(target) {
+            target = substituteType(context, program, target, substitutionOf(base, enclosing));
+        }
+
+        if(target && base[target]->kind == Type::Record) {
+            auto& record = *(RecordType*)base[target];
+
+            if(record.lambda && record.lambdaShape) {
+                into.target = record.lambda;
+                into.through = CallThrough::Declaration;
+                into.siteCall = true;
+                return;
+            }
+        }
+
+        /*
+         * A value the **`Call` constraint** typed, in a body compiled once - §4's remaining half.
+         *
+         * The type is still a variable here, because a substitution that closed it would have taken
+         * one of the two arms above; what says how to call it is the constraint, and what a caller
+         * filled for that constraint is one synthesized cell. So this is a witness dispatch with no
+         * member list behind it: `callWitnessRequirement` finds which declared requirement the cell
+         * belongs to, `fillClassWitness` puts the code in it, and the value travels as argument zero
+         * (`CallThrough::CallWitness`).
+         *
+         * Below the site-type arm rather than beside it, because the two are the same question asked
+         * of a closed type and an open one: a specialization takes the arm above with the code named
+         * by the type, and the erased form takes this one with the code named by the witness.
+         */
+        if(enclosing.form == GenForm::Erased && target && base[target]->kind == Type::Variable) {
+            U16 requirement = 0;
+            if(callWitnessRequirement(program, bodyOwnerOf(base, enclosing).gen, target, requirement)) {
+                into.through = CallThrough::CallWitness;
+                into.requirement = requirement;
+                into.member = 0;
+                return;
+            }
+        }
+
         into.through = CallThrough::Value;
         return;
     }
@@ -961,6 +1078,21 @@ void callTarget(Context& context, Program& program, Function& enclosing, CallReq
             // requirement is the class and the superclass's range plus it where it is not. One
             // number and not a path, because the table is flattened - `classRequirementSlot`.
             into.member = U16(offset + callee.classMember);
+
+            /*
+             * Or the member's **"make an object"** entry, which is a slot of its own in the region
+             * after the declared members - Design-Iterator-Objects.md §6.4, `classWitnessCount`.
+             *
+             * This is the whole of what a body compiled once does differently about an object of a
+             * class member: the call is the ordinary class dispatch, and what it reaches is the cell
+             * that makes one rather than the cell that is the producer - which has no signature,
+             * because what a call to it produces is a record minted per instance.
+             */
+            if(callee.objectEntry) {
+                into.member = U16(offset + base[callee.klass]->members.size() +
+                                  classObjectIndex(base, callee.klass, callee.classMember));
+            }
+
             return;
         }
     }
@@ -1001,7 +1133,38 @@ void callTarget(Context& context, Program& program, Function& enclosing, CallReq
             return;
         }
 
-        into.target = instanceMember(context, program, found, callee.classMember, node.source);
+        auto reached = instanceMember(context, program, found, callee.classMember, node.source);
+
+        /*
+         * And the **object** of that member where this is the entry that makes one - §6.4, the same
+         * cell a witness holds, reached directly because the instance is decided here.
+         *
+         * A body specialized at a concrete subject calls the instance's `f$obj` and gets the erased
+         * pair, which is the same value the witness hands a body compiled once. That the two forms
+         * answer one value is the point: a `@specialize` on the declaration is advice about code
+         * size, and `iter/Witness.yana` asserts it changes no answer.
+         */
+        if(reached && callee.objectEntry) {
+            /*
+             * Made once and kept on the member (`Function::iterMaker`), because this is asked twice
+             * from two tiers: the reachability walk reaches every call in a reachable body, and the
+             * SSA conversion asks again - by which point `resolveProgram` has returned and there is
+             * nothing left to make one with. The first ask is what the second reads.
+             */
+            if(base[reached]->iterMaker) {
+                reached = base[reached]->iterMaker;
+            } else if(program.iterObjects) {
+                reached = program.iterObjects->objectMaker(
+                    reached, DeclPtr<Function>(&callee - base), node.source);
+            } else {
+                context.diagnostics.error(
+                    "internal: an object of %@ is needed and nothing can make one here"_v,
+                    node.source, context.findName(base[reached]->name));
+                return;
+            }
+        }
+
+        into.target = reached;
         return;
     }
 
@@ -1256,6 +1419,26 @@ static bool erasableCall(Context& context, Program& program, Function& function,
         }
 
         if(isConcreteType(decl, signature)) return true;
+
+        /*
+         * A call the **`Call` constraint** typed, which is the one shape an open signature does not
+         * stop - Design-Iterator-Objects.md §4, built 2026-09-16.
+         *
+         * The paragraph above is about a signature nothing decided; here the shape *is* decided, and
+         * `Call(f, (I32) -> I32)` states it in full - which is exactly what the erased ABI needs and
+         * a bare `(I32) -> r` does not have. What was missing was the other half, the witness: a
+         * zero-member class has an empty table, so there was no cell for the code. There is one now,
+         * synthesized rather than declared - `CallThrough::CallWitness` - and it holds a site type's
+         * lifted function or a shim over the pair, with the value's storage as argument zero.
+         *
+         * A requirement of *this* signature and not of some enclosing one, which is the whole of the
+         * test: what a caller fills is a slot of this context's numbering, so a shape read off a
+         * variable this declaration does not bind has no cell anywhere.
+         */
+        if(signature && decl[signature]->kind == Type::Variable) {
+            U16 requirement = 0;
+            if(callWitnessRequirement(program, body.gen, signature, requirement)) return true;
+        }
 
         if(report) {
             context.diagnostics.error(

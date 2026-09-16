@@ -1,0 +1,532 @@
+module ResolveTest
+
+let & after: I32 = 0
+
+let string: [CodeUnit *3] = "at "
+
+let string'2: [CodeUnit *4] = " of "
+
+let string'145: [CodeUnit *3] = "abc"
+
+let string'146: [CodeUnit *5] = "hello"
+
+iter shared.Iter of shared {
+  $index: I32
+  $slot: I32
+  source: StringView window
+  n: I32
+  p: I32 across 0
+}
+
+iter counted.Iter of counted {
+  $index: I32
+  $slot: I32
+  n: I32
+  p: I32 across 0
+}
+
+iter owning.Iter of owning {
+  $index: I32
+  $slot: I32
+  source: String
+  n: I32
+  p: I32 across 0
+  #: String across 0
+  #: String across 0
+  #: String across 0
+  note: String across 0
+}
+
+fn counted(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
+
+fn owning(source: String, n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
+
+fn shared(source: String [shared call view], n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %counted.Iter address = alloc frame counted.Iter
+  %1: %I32 address = alloc frame I32
+  %2: %owning.Iter address = alloc frame owning.Iter
+  %3: %I32 address = alloc frame I32
+  %4: %String address = alloc frame String
+  %5: %shared.Iter address = alloc frame shared.Iter [owned here shape9 .2.0.*=shared slot 0]
+  %6: %Holder address = alloc frame Holder
+  %7: %shared.Iter address = alloc frame shared.Iter
+  %8: %I32 address = alloc frame I32
+  %9: I32 trivial = const 0
+  %10: %I32 address = global.addr after
+  store inspect %10 consume %9
+  %11: I32 trivial = const 3
+  %12: counted.Iter trivial = call counted$new consume %11
+  store inspect %0 consume %12
+  jump -> bb1
+
+bb1:
+  %13: counted.Iter [unique call] guaranteed from{%0} = load inspect %0
+  %14: I32 trivial = const 0
+  %15: Bool trivial = const False
+  %16: Bool trivial = call counted$step borrow %13 consume %14 consume %15
+  branch inspect %16 -> bb3 -> bb2
+
+bb2:
+  %17: I32 trivial = const 2
+  %18: owning.Iter owned = call scanner borrow %17
+  store inspect %2 consume %18
+  jump -> bb4
+
+bb3:
+  %19: %I32 address = field.addr .$slot inspect %0
+  %20: I32 trivial = load inspect %19
+  store inspect %1 consume %20
+  jump -> bb1
+
+bb4:
+  %21: owning.Iter [unique call] guaranteed from{%2} = load inspect %2
+  %22: I32 trivial = const 0
+  %23: Bool trivial = const False
+  %24: Bool trivial = call owning$step borrow %21 consume %22 consume %23
+  branch inspect %24 -> bb6 -> bb5
+
+bb5:
+  drop owning.Iter inspect %2
+  %25: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 5, ownsHeap: 0}, length: 5}}
+  store inspect %4 consume %25
+  %26: String [shared call] guaranteed from{%4} = load inspect %4
+  %27: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %26
+  %28: I32 trivial = const 2
+  %29: shared.Iter [owned here shape9 .2.0.*=shared slot 0] trivial = call shared$new borrow %27 consume %28
+  store inspect %5 consume %29
+  %30: shared.Iter [shared slot 0 shape9 .2.0.*=shared slot 0] guaranteed from{%4, %5} = load inspect %5
+  %31: I32 trivial = const 0
+  %32: Holder trivial = aggregate.Holder borrow %30 consume %31
+  store inspect %6 consume %32
+  %33: %shared.Iter address = field.addr .cursor inspect %6
+  %34: %shared.Iter address = load inspect %33
+  %35: shared.Iter trivial = copy inspect %34
+  store inspect %7 consume %35
+  jump -> bb7
+
+bb6:
+  %36: %I32 address = field.addr .$slot inspect %2
+  %37: I32 trivial = load inspect %36
+  store inspect %3 consume %37
+  jump -> bb4
+
+bb7:
+  %38: shared.Iter [unique call] guaranteed from{%4, %5, %7} = load inspect %7
+  %39: I32 trivial = const 0
+  %40: Bool trivial = const False
+  %41: Bool trivial = call shared$step borrow %38 consume %39 consume %40
+  branch inspect %41 -> bb9 -> bb8
+
+bb8:
+  drop String inspect %4
+  %42: %I32 address = global.addr after
+  %43: I32 trivial = load inspect %42
+  %44: %I32 address = field.addr .seen inspect %6
+  store inspect %44 consume %43
+  %45: %I32 address = field.addr .seen inspect %6
+  %46: I32 trivial = load inspect %45
+  return consume %46
+
+bb9:
+  %47: %I32 address = field.addr .$slot inspect %7
+  %48: I32 trivial = load inspect %47
+  store inspect %8 consume %48
+  %49: %I32 address = global.addr after
+  %50: I32 [unique call] guaranteed = load inspect %49
+  %51: I32 trivial = load inspect %8
+  call +=(I32) borrow %50 borrow %51
+  jump -> bb7
+}
+
+fn shared$new(source: String [shared slot 0 view], n: I32) -> shared.Iter [owned here shape9 .2.0.*=shared slot 0] {
+bb0(%0: String [shared slot 0 view] guaranteed, %1: I32 trivial):
+  %2: %shared.Iter address = alloc frame shared.Iter
+  %3: I32 trivial = const 0
+  %4: %I32 address = field.addr .$index inspect %2
+  store inspect %4 consume %3
+  %5: StringView trivial = represent inspect %0
+  %6: %StringView address = field.addr .source inspect %2
+  store inspect %6 consume %5
+  %7: %I32 address = field.addr .n inspect %2
+  store inspect %7 consume %1
+  %8: shared.Iter trivial = load inspect %2
+  return consume %8
+}
+
+fn shared$step($self: shared.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
+bb0(%0: shared.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
+  %3: %StringView address = field.addr .source inspect %0
+  %4: %I32 address = field.addr .n inspect %0
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = field.addr .p inspect %0
+  %34: %I32 address = field.addr .$index inspect %0
+  %35: I32 trivial = load inspect %34
+  %36: I32 trivial = const 0
+  %37: Bool trivial = eq inspect %35 inspect %36
+  branch inspect %37 -> bb1 -> bb11
+
+bb1:
+  branch inspect %2 -> bb10 -> bb3
+
+bb2:
+  %33: Bool trivial = const False
+  return consume %33
+
+bb3:
+  %7: I32 trivial = const 0
+  store inspect %5 consume %7
+  %8: I32 trivial = const 0
+  store inspect %6 consume %8
+  jump -> bb4
+
+bb4:
+  %9: I32 trivial = load inspect %6
+  %10: I32 trivial = load inspect %4
+  %11: Bool trivial = lt inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb5
+
+bb5:
+  %12: I32 trivial = load inspect %5
+  %13: %I32 address = field.addr .$index inspect %0
+  %14: I32 trivial = const 2147483647
+  store inspect %13 consume %14
+  %15: Bool trivial = const False
+  return consume %15
+
+bb6:
+  %16: String [shared call view] guaranteed from{%3} = load inspect %3
+  %17: Size trivial = call String.length borrow %16
+  %18: I32 trivial = convert inspect %17
+  %19: I32 trivial = load inspect %6
+  %20: I32 trivial = add inspect %18 inspect %19
+  %21: %I32 address = field.addr .$slot inspect %0
+  store inspect %21 borrow %20
+  %22: %I32 address = field.addr .$index inspect %0
+  %23: I32 trivial = const 1
+  store inspect %22 consume %23
+  %24: Bool trivial = const True
+  return consume %24
+
+bb7:
+  %27: I32 trivial = load inspect %6
+  %28: I32 trivial = const 1
+  %29: I32 trivial = add inspect %27 inspect %28
+  store inspect %6 consume %29
+  jump -> bb4
+
+bb8:
+  jump -> bb5
+
+bb9:
+  %25: I32 trivial = const 0
+  %26: Bool trivial = eq inspect %1 inspect %25
+  store inspect %5 consume %1
+  branch inspect %26 -> bb7 -> bb8
+
+bb10:
+  %30: %I32 address = field.addr .$index inspect %0
+  %31: I32 trivial = const 2147483647
+  store inspect %30 consume %31
+  %32: Bool trivial = const False
+  return consume %32
+
+bb11:
+  %38: I32 trivial = const 1
+  %39: Bool trivial = eq inspect %35 inspect %38
+  branch inspect %39 -> bb9 -> bb2
+}
+
+fn shared$next($self: shared.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn shared$resume($self: shared.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn counted$new(n: I32) -> counted.Iter {
+bb0(%0: I32 trivial):
+  %1: %counted.Iter address = alloc frame counted.Iter
+  %2: I32 trivial = const 0
+  %3: %I32 address = field.addr .$index inspect %1
+  store inspect %3 consume %2
+  %4: %I32 address = field.addr .n inspect %1
+  store inspect %4 consume %0
+  %5: counted.Iter trivial = load inspect %1
+  return consume %5
+}
+
+fn counted$step($self: counted.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
+bb0(%0: counted.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
+  %3: %I32 address = field.addr .n inspect %0
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = field.addr .p inspect %0
+  %32: %I32 address = field.addr .$index inspect %0
+  %33: I32 trivial = load inspect %32
+  %34: I32 trivial = const 0
+  %35: Bool trivial = eq inspect %33 inspect %34
+  branch inspect %35 -> bb1 -> bb11
+
+bb1:
+  branch inspect %2 -> bb10 -> bb3
+
+bb2:
+  %31: Bool trivial = const False
+  return consume %31
+
+bb3:
+  %6: I32 trivial = const 0
+  store inspect %4 consume %6
+  %7: I32 trivial = const 0
+  store inspect %5 consume %7
+  jump -> bb4
+
+bb4:
+  %8: I32 trivial = load inspect %5
+  %9: I32 trivial = load inspect %3
+  %10: Bool trivial = lt inspect %8 inspect %9
+  branch inspect %10 -> bb6 -> bb5
+
+bb5:
+  %11: I32 trivial = load inspect %4
+  %12: %I32 address = field.addr .$index inspect %0
+  %13: I32 trivial = const 2147483647
+  store inspect %12 consume %13
+  %14: Bool trivial = const False
+  return consume %14
+
+bb6:
+  %15: I32 trivial = load inspect %5
+  %16: %I32 address = field.addr .$slot inspect %0
+  store inspect %16 borrow %15
+  %17: %I32 address = field.addr .$index inspect %0
+  %18: I32 trivial = const 1
+  store inspect %17 consume %18
+  %19: Bool trivial = const True
+  return consume %19
+
+bb7:
+  %22: %I32 address = global.addr after
+  %23: I32 [unique call] guaranteed = load inspect %22
+  %24: I32 trivial = const 1
+  call +=(I32) borrow %23 borrow %24
+  %25: I32 trivial = load inspect %5
+  %26: I32 trivial = const 1
+  %27: I32 trivial = add inspect %25 inspect %26
+  store inspect %5 consume %27
+  jump -> bb4
+
+bb8:
+  jump -> bb5
+
+bb9:
+  %20: I32 trivial = const 0
+  %21: Bool trivial = eq inspect %1 inspect %20
+  store inspect %4 consume %1
+  branch inspect %21 -> bb7 -> bb8
+
+bb10:
+  %28: %I32 address = field.addr .$index inspect %0
+  %29: I32 trivial = const 2147483647
+  store inspect %28 consume %29
+  %30: Bool trivial = const False
+  return consume %30
+
+bb11:
+  %36: I32 trivial = const 1
+  %37: Bool trivial = eq inspect %33 inspect %36
+  branch inspect %37 -> bb9 -> bb2
+}
+
+fn counted$next($self: counted.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn counted$resume($self: counted.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn make(n: I32 [shared call]) -> counted.Iter = <no body>
+
+fn owning$new(source: String, n: I32) -> owning.Iter {
+bb0(%0: String owned, %1: I32 trivial):
+  %2: %owning.Iter address = alloc frame owning.Iter
+  %3: I32 trivial = const 0
+  %4: %I32 address = field.addr .$index inspect %2
+  store inspect %4 consume %3
+  %5: %String address = field.addr .source inspect %2
+  store inspect %5 consume %0
+  %6: %I32 address = field.addr .n inspect %2
+  store inspect %6 consume %1
+  %7: owning.Iter owned = load inspect %2
+  return consume %7
+}
+
+fn owning$step($self: owning.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
+bb0(%0: owning.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
+  %3: %String address = field.addr .source inspect %0
+  %4: %I32 address = field.addr .n inspect %0
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = field.addr .p inspect %0
+  %7: %String address = field.addr . inspect %0
+  %8: %String address = field.addr . inspect %0
+  %9: %String address = field.addr . inspect %0
+  %10: %String address = field.addr .note inspect %0
+  %11: %Bool address = alloc frame Bool
+  %12: Bool trivial = const True
+  store inspect %11 consume %12
+  %71: %I32 address = field.addr .$index inspect %0
+  %72: I32 trivial = load inspect %71
+  %73: I32 trivial = const 0
+  %74: Bool trivial = eq inspect %72 inspect %73
+  branch inspect %74 -> bb1 -> bb13
+
+bb1:
+  branch inspect %2 -> bb12 -> bb3
+
+bb2:
+  %70: Bool trivial = const False
+  return consume %70
+
+bb3:
+  %13: I32 trivial = const 0
+  store inspect %5 consume %13
+  %14: I32 trivial = const 0
+  store inspect %6 consume %14
+  jump -> bb4
+
+bb4:
+  %15: I32 trivial = load inspect %6
+  %16: I32 trivial = load inspect %4
+  %17: Bool trivial = lt inspect %15 inspect %16
+  branch inspect %17 -> bb6 -> bb5
+
+bb5:
+  %18: Bool trivial = load inspect %11
+  branch inspect %18 -> bb9 -> bb10
+
+bb6:
+  %24: I32 trivial = load inspect %6
+  %25: %I32 address = field.addr .$slot inspect %0
+  store inspect %25 borrow %24
+  %26: %I32 address = field.addr .$index inspect %0
+  %27: I32 trivial = const 1
+  store inspect %26 consume %27
+  %28: Bool trivial = const True
+  return consume %28
+
+bb7:
+  %31: Size trivial = const 7
+  %32: I32 trivial = load inspect %6
+  %33: Maybe(Size) trivial = call I32.showBound borrow %32
+  %34: Size trivial = call formatBound borrow %33
+  %35: Size trivial = add inspect %31 inspect %34
+  %36: String [shared call] guaranteed from{%3} = load inspect %3
+  %37: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %36
+  %38: Maybe(Size) trivial = call String.showBound borrow %37
+  %39: Size trivial = call formatBound borrow %38
+  %40: Size trivial = add inspect %35 inspect %39
+  %41: String owned = call String.ofCapacity borrow %40
+  store inspect %7 consume %41
+  %42: String [unique call] guaranteed from{%7} = load inspect %7
+  %43: String owned = const String {units: Array {run: Run {items: &string, capacity: 3, ownsHeap: 0}, length: 3}}
+  store inspect %8 consume %43
+  %44: String [shared slot 0] guaranteed from{%8} = load inspect %8
+  %45: String [shared slot 0 view] guaranteed from{%8} = call String.view borrow %44
+  call String.push borrow %42 borrow %45
+  drop String inspect %8
+  %46: I32 trivial = load inspect %6
+  %47: String [unique call] guaranteed from{%7} = load inspect %7
+  call I32.show borrow %46 borrow %47
+  %48: String [unique call] guaranteed from{%7} = load inspect %7
+  %49: String owned = const String {units: Array {run: Run {items: &string'2, capacity: 4, ownsHeap: 0}, length: 4}}
+  store inspect %9 consume %49
+  %50: String [shared slot 0] guaranteed from{%9} = load inspect %9
+  %51: String [shared slot 0 view] guaranteed from{%9} = call String.view borrow %50
+  call String.push borrow %48 borrow %51
+  drop String inspect %9
+  %52: String [shared call] guaranteed from{%3} = load inspect %3
+  %53: String [unique call] guaranteed from{%7} = load inspect %7
+  %54: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %52
+  call String.show borrow %54 borrow %53
+  %55: String owned = load inspect %7
+  store inspect %10 consume %55
+  %56: %I32 address = global.addr after
+  %57: I32 [unique call] guaranteed = load inspect %56
+  %58: String [shared call] guaranteed from{%10} = load inspect %10
+  %59: String [shared slot 0 view] guaranteed from{%10} = call String.view borrow %58
+  %60: Size trivial = call String.length borrow %59
+  drop String inspect %10
+  %61: I32 trivial = convert inspect %60
+  call +=(I32) borrow %57 borrow %61
+  %62: I32 trivial = load inspect %6
+  %63: I32 trivial = const 1
+  %64: I32 trivial = add inspect %62 inspect %63
+  store inspect %6 consume %64
+  jump -> bb4
+
+bb8:
+  drop String inspect %3
+  %65: Bool trivial = const False
+  store inspect %11 consume %65
+  jump -> bb5
+
+bb9 cleanup:
+  drop String inspect %3
+  jump -> bb10
+
+bb10:
+  %19: Bool trivial = const False
+  store inspect %11 consume %19
+  %20: I32 trivial = load inspect %5
+  %21: %I32 address = field.addr .$index inspect %0
+  %22: I32 trivial = const 2147483647
+  store inspect %21 consume %22
+  %23: Bool trivial = const False
+  return consume %23
+
+bb11:
+  %29: I32 trivial = const 0
+  %30: Bool trivial = eq inspect %1 inspect %29
+  store inspect %5 consume %1
+  branch inspect %30 -> bb7 -> bb8
+
+bb12:
+  %66: %String address = field.addr .source inspect %0
+  drop String inspect %66
+  %67: %I32 address = field.addr .$index inspect %0
+  %68: I32 trivial = const 2147483647
+  store inspect %67 consume %68
+  %69: Bool trivial = const False
+  return consume %69
+
+bb13:
+  %75: I32 trivial = const 1
+  %76: Bool trivial = eq inspect %72 inspect %75
+  branch inspect %76 -> bb11 -> bb2
+}
+
+fn owning$drop($self: owning.Iter) -> {} {
+bb0(%0: owning.Iter owned):
+  %1: %owning.Iter address = alloc frame owning.Iter
+  store inspect %1 consume %0
+  %2: owning.Iter [unique call] guaranteed = load inspect %1
+  %3: I32 trivial = const 1
+  %4: Bool trivial = const True
+  %5: Bool trivial = call owning$step borrow %2 consume %3 consume %4
+  return
+}
+
+fn owning$next($self: owning.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn owning$resume($self: owning.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn scanner(n: I32 [shared call]) -> owning.Iter {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %owning.Iter address = alloc frame owning.Iter
+  store inspect %1 borrow %0
+  %3: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 3, ownsHeap: 0}, length: 3}}
+  %4: I32 trivial = load inspect %1
+  %5: owning.Iter owned = call owning$new consume %3 consume %4
+  store inspect %2 consume %5
+  %6: owning.Iter owned = load inspect %2
+  return consume %6
+}
+
+entry main

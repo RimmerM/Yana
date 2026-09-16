@@ -1,0 +1,828 @@
+module ResolveTest
+
+data Cell {value: I32} drop authored
+
+data Buffer {slots: [U8 *8]}
+
+data Plain {value: I32}
+
+data selfBorrowed.Iter {$index: I32, $slot: I32, n: I32, base: %Cell, held: %Cell} drop authored
+
+data addressed.Iter {$index: I32, $slot: I32, n: I32, base: %Cell} drop authored
+
+data bytes'2.Iter {$index: I32, $slot: I32, n: I32, buffer: %Buffer, i: I32} drop authored
+
+data bytesByItems.Iter {$index: I32, $slot: I32, $items: items([U8 *8], U8).Iter}
+
+data heapedItems.Iter {$index: I32, $slot: I32, : Array(I32), mine: %Array(I32), $items: items(Array(I32), I32).Iter} shape13 drop authored
+
+data placedEarly.Iter {$index: I32, $slot: I32, n: I32, base: %Plain} drop authored
+
+instance Drop(Cell): Cell.drop
+
+instance Drop(selfBorrowed.Iter): selfBorrowed$drop
+
+instance Iterate(selfBorrowed.Iter, I32, {}): selfBorrowed$next, selfBorrowed$resume
+
+instance Drop(addressed.Iter): addressed$drop
+
+instance Iterate(addressed.Iter, I32, {}): addressed$next, addressed$resume
+
+instance Drop(bytes'2.Iter): bytes'2$drop
+
+instance Iterate(bytes'2.Iter, I32, {}): bytes'2$next, bytes'2$resume
+
+instance Iterate(bytesByItems.Iter, I32, {}): bytesByItems$next, bytesByItems$resume
+
+instance Drop(heapedItems.Iter): heapedItems$drop
+
+instance Iterate(heapedItems.Iter, I32, {}): heapedItems$next, heapedItems$resume
+
+instance Drop(placedEarly.Iter): placedEarly$drop
+
+instance Iterate(placedEarly.Iter, I32, {}): placedEarly$next, placedEarly$resume
+
+fn Cell.drop(value: Cell) -> {} {
+bb0:
+  %0: {} = const {}
+  return
+}
+
+lens fn selfBorrowed(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local base: Cell heap
+  local held: Cell [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: Cell = aggregate.Cell take %2
+  write.init borrow.unique (base) take %3
+  %5: Cell [shared call] = read borrow.shared (base) loan0
+  write.init borrow.unique (held) borrow.shared %5
+  %7: I32 = read copy.trivial ($yielded)
+  %8: I32 = const 0
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb1 -> bb2
+
+bb1:
+  %11: I32 = read copy.trivial (held.value)
+  %12: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %13: I32 = call inspect %12 borrow.shared %11
+  write.assign borrow.unique ($yielded) take %13
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %17: I32 = read copy.trivial ($yielded)
+  %18: I32 = const 0
+  %19: Bool = eq inspect %17 inspect %18
+  branch inspect %19 -> bb4 -> bb5
+
+bb4:
+  %21: I32 = read copy.trivial (base.value)
+  %22: I32 = read copy.trivial (held.value)
+  drop (base)
+  %23: I32 = add inspect %21 inspect %22
+  %24: (I32) -> I32 [shared call] = read borrow.shared ($body) loan2
+  %25: I32 = call inspect %24 borrow.shared %23
+  write.assign borrow.unique ($yielded) take %25
+  jump -> bb6
+
+bb5:
+  drop (base)
+  jump -> bb6
+
+bb6:
+  %29: I32 = read copy.trivial ($yielded)
+  return take %29
+}
+
+lens fn addressed(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local base: Cell heap
+  local at: %Cell [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: Cell = aggregate.Cell take %2
+  write.init borrow.unique (base) take %3
+  %5: Cell [shared slot 0] = read borrow.shared (base) loan0
+  %6: %Cell [owned here shape6 .*=shared slot 0] = address inspect %5 roots.0{0}
+  write.init borrow.unique (at) take %6
+  %8: I32 = read copy.trivial ($yielded)
+  %9: I32 = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb1 -> bb2
+
+bb1:
+  %12: I32 = read copy.trivial (n)
+  %13: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %14: I32 = call inspect %13 borrow.shared %12
+  write.assign borrow.unique ($yielded) take %14
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %18: I32 = read copy.trivial ($yielded)
+  %19: I32 = const 0
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb4 -> bb5
+
+bb4:
+  %22: I32 = read copy.trivial (base.value)
+  drop (base)
+  %23: I32 = const 1
+  %24: I32 = add inspect %22 inspect %23
+  %25: (I32) -> I32 [shared call] = read borrow.shared ($body) loan2
+  %26: I32 = call inspect %25 borrow.shared %24
+  write.assign borrow.unique ($yielded) take %26
+  jump -> bb6
+
+bb5:
+  drop (base)
+  jump -> bb6
+
+bb6:
+  %30: I32 = read copy.trivial ($yielded)
+  return take %30
+}
+
+fn fill(b: Buffer [unique call]) -> {} {
+  local & i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (i) take %0
+  jump -> bb1
+
+bb1:
+  %3: I32 = read copy.trivial (i)
+  %4: I32 = const 8
+  %5: Bool = lt inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb2
+
+bb2:
+  return
+
+bb3:
+  %7: I32 = read copy.trivial (i)
+  %8: Size = convert inspect %7
+  %9: USize = const 8
+  %10: USize = bitcast inspect %8
+  %11: Bool = ge inspect %10 inspect %9
+  %12: {} = call checkCondition borrow.shared %11
+  %13: I32 = read copy.trivial (i)
+  %14: I32 = const 65
+  %15: I32 = add inspect %13 inspect %14
+  %16: U8 = convert inspect %15
+  write.assign borrow.unique (b.slots[...]) take %16
+  %18: I32 = read copy.trivial (i)
+  %19: I32 = const 1
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (i) take %20
+  jump -> bb1
+}
+
+lens fn bytes'2(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & buffer: Buffer heap
+  local & i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: U8 = const 0
+  %3: [U8 *8] = aggregate.0 take %2 take %2 take %2 take %2 take %2 take %2 take %2 take %2
+  %4: Buffer = aggregate.Buffer take %3
+  write.init borrow.unique (buffer) take %4
+  %6: Buffer [unique call] = read borrow.unique (buffer) loan0
+  %7: {} = call fill borrow.unique %6
+  %8: I32 = const 0
+  write.init borrow.unique (i) take %8
+  jump -> bb1
+
+bb1:
+  %11: I32 = read copy.trivial (i)
+  %12: I32 = read copy.trivial (n)
+  %13: Bool = lt inspect %11 inspect %12
+  branch inspect %13 -> bb3 -> bb2
+
+bb2:
+  %35: I32 = read copy.trivial ($yielded)
+  return take %35
+
+bb3:
+  %15: I32 = read copy.trivial (i)
+  %16: Size = convert inspect %15
+  %17: USize = const 8
+  %18: USize = bitcast inspect %16
+  %19: Bool = ge inspect %18 inspect %17
+  %20: {} = call checkCondition borrow.shared %19
+  %21: U8 = read copy.trivial (buffer.slots[...])
+  %22: I32 = convert inspect %21
+  %23: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %24: I32 = call inspect %23 borrow.shared %22
+  %25: I32 = const 0
+  %26: Bool = eq inspect %24 inspect %25
+  write.assign borrow.unique ($yielded) take %24
+  branch inspect %26 -> bb4 -> bb5
+
+bb4:
+  %30: I32 = read copy.trivial (i)
+  %31: I32 = const 1
+  %32: I32 = add inspect %30 inspect %31
+  write.assign borrow.unique (i) take %32
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+fn borrowing() -> I32 {
+  local & it: selfBorrowed.Iter
+  local & packed: I32
+  local v: I32
+
+bb0:
+  %0: I32 = const 3
+  %1: selfBorrowed.Iter = call selfBorrowed$new take %0
+  write.init borrow.unique (it) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (packed) take %3
+  jump -> bb1
+
+bb1:
+  %6: selfBorrowed.Iter [unique call] = read borrow.unique (it) loan0
+  %7: I32 = const 0
+  %8: Bool = const False
+  %9: Bool = call selfBorrowed$step borrow.unique %6 take %7 take %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  drop (it)
+  %20: I32 = read copy.trivial (packed)
+  return take %20
+
+bb3:
+  %11: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (v) take %11
+  %13: I32 = read copy.trivial (packed)
+  %14: I32 = const 10
+  %15: I32 = mul inspect %13 inspect %14
+  %16: I32 = read copy.trivial (v)
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (packed) take %17
+  jump -> bb1
+}
+
+fn addressing() -> I32 {
+  local & it: addressed.Iter
+  local & packed: I32
+  local v: I32
+
+bb0:
+  %0: I32 = const 4
+  %1: addressed.Iter = call addressed$new take %0
+  write.init borrow.unique (it) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (packed) take %3
+  jump -> bb1
+
+bb1:
+  %6: addressed.Iter [unique call] = read borrow.unique (it) loan0
+  %7: I32 = const 0
+  %8: Bool = const False
+  %9: Bool = call addressed$step borrow.unique %6 take %7 take %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  drop (it)
+  %20: I32 = read copy.trivial (packed)
+  return take %20
+
+bb3:
+  %11: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (v) take %11
+  %13: I32 = read copy.trivial (packed)
+  %14: I32 = const 10
+  %15: I32 = mul inspect %13 inspect %14
+  %16: I32 = read copy.trivial (v)
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (packed) take %17
+  jump -> bb1
+}
+
+fn placedAndMoved() -> I32 {
+  local & it: bytes'2.Iter object0
+  local & packed: I32
+  local local2: Maybe(I32) [owned here shape2 .0=shared slot 0]
+  local first: I32
+  local & moved: bytes'2.Iter object0
+  local b: I32
+
+bb0:
+  %0: I32 = const 4
+  %1: bytes'2.Iter = call bytes'2$new take %0
+  write.init borrow.unique (it) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (packed) take %3
+  %5: bytes'2.Iter [unique slot 0] = read borrow.unique (it) loan0
+  %6: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(bytes'2.Iter, I32, {}) borrow.unique %5 roots.0{0}
+  write.init borrow.unique (local2) take %6
+  %8: U8 = read copy.trivial (local2.#)
+  %9: U8 = const 1
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %20: bytes'2.Iter = read take (it)
+  write.init borrow.unique (moved) take %20
+  jump -> bb4
+
+bb3:
+  %12: I32 = read copy.trivial (local2.Just)
+  write.init borrow.unique (first) take %12
+  %14: I32 = read copy.trivial (first)
+  %15: I32 = const 65
+  %16: I32 = sub inspect %14 inspect %15
+  write.assign borrow.unique (packed) take %16
+  jump -> bb2
+
+bb4:
+  %23: bytes'2.Iter [unique call] = read borrow.unique (moved) loan1
+  %24: I32 = const 0
+  %25: Bool = const False
+  %26: Bool = call bytes'2$step borrow.unique %23 take %24 take %25
+  branch inspect %26 -> bb6 -> bb5
+
+bb5:
+  drop (moved)
+  %39: I32 = read copy.trivial (packed)
+  return take %39
+
+bb6:
+  %28: I32 = read copy.trivial (moved.$slot)
+  write.init borrow.unique (b) take %28
+  %30: I32 = read copy.trivial (packed)
+  %31: I32 = const 100
+  %32: I32 = mul inspect %30 inspect %31
+  %33: I32 = read copy.trivial (b)
+  %34: I32 = add inspect %32 inspect %33
+  %35: I32 = const 65
+  %36: I32 = sub inspect %34 inspect %35
+  write.assign borrow.unique (packed) take %36
+  jump -> bb4
+}
+
+fn fillSlots(b: [U8 *8] [unique call]) -> {} {
+  local & i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (i) take %0
+  jump -> bb1
+
+bb1:
+  %3: I32 = read copy.trivial (i)
+  %4: I32 = const 8
+  %5: Bool = lt inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb2
+
+bb2:
+  return
+
+bb3:
+  %7: I32 = read copy.trivial (i)
+  %8: Size = convert inspect %7
+  %9: USize = const 8
+  %10: USize = bitcast inspect %8
+  %11: Bool = ge inspect %10 inspect %9
+  %12: {} = call checkCondition borrow.shared %11
+  %13: I32 = read copy.trivial (i)
+  %14: I32 = const 65
+  %15: I32 = add inspect %13 inspect %14
+  %16: U8 = convert inspect %15
+  write.assign borrow.unique (b[...]) take %16
+  %18: I32 = read copy.trivial (i)
+  %19: I32 = const 1
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (i) take %20
+  jump -> bb1
+}
+
+lens fn bytesByItems($body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & buffer: [U8 *8]
+  local b: U8 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: U8 = const 0
+  %3: [U8 *8] = aggregate.0 take %2 take %2 take %2 take %2 take %2 take %2 take %2 take %2
+  write.init borrow.unique (buffer) take %3
+  %5: [U8 *8] [unique call] = read borrow.unique (buffer) loan0
+  %6: {} = call fillSlots borrow.unique %5
+  %7: [U8 *8] = read copy.trivial (buffer)
+  lens.call items([U8 *8], U8) borrow.shared %7 -> bb2
+
+bb1:
+  %21: I32 = read copy.trivial ($yielded)
+  return take %21
+
+bb2(%8: U8 [shared call]) handover(U8 [shared call]) many -> bb1:
+  write.init borrow.unique (b) borrow.shared %8
+  %11: U8 = read copy.trivial (b)
+  %12: I32 = convert inspect %11
+  %13: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %14: I32 = call inspect %13 borrow.shared %12
+  %15: I32 = const 0
+  %16: Bool = eq inspect %14 inspect %15
+  write.assign borrow.unique ($yielded) take %14
+  branch inspect %16 -> bb3 -> bb4
+
+bb3 handover(U8 [shared call]) many:
+  jump -> bb1
+
+bb4 handover(U8 [shared call]) many:
+  break -> bb1
+}
+
+lens fn heapedItems($body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local2: Array(I32) heap object2
+  local mine: Array(I32) heap object2
+  local v: I32 [shared call]
+  flag (mine) = gone
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 1
+  %3: I32 = const 2
+  %4: I32 = const 3
+  %5: %I32 = run.slots I32 *3
+  %6: Size = bitcast inspect %5
+  %7: Size = const 0
+  %8: Bool = eq inspect %6 inspect %7
+  %9: {} = call checkCondition borrow.shared %8
+  %10: @bits(30) U32 = const 3
+  %11: @bits(2) U32 = const 1
+  %12: Run(I32) = aggregate.Run take %5 take %10 take %11
+  %13: @bits(30) U32 = const 3
+  %14: Array(I32) = aggregate.Array take %12 take %13
+  write.init borrow.unique (local2) take %14
+  %16: Size = const 0
+  write.init borrow.unique ([%%5][0]) take %2
+  %18: Size = const 1
+  write.init borrow.unique ([%%5][1]) take %3
+  %20: Size = const 2
+  write.init borrow.unique ([%%5][2]) take %4
+  %22: Array(I32) = read take (local2)
+  write.init borrow.unique (mine) take %22
+  flag (mine) = held
+  %24: Array(I32) [shared call] = read borrow.shared (mine) loan0
+  %25: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %24 roots{0}
+  lens.call items(Array(I32), I32) borrow.shared %25 -> bb2
+
+bb1:
+  drop.maybe (mine)
+  %38: I32 = read copy.trivial ($yielded)
+  flag (mine) = gone
+  return take %38
+
+bb2(%26: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (v) borrow.shared %26
+  %29: I32 = read copy.trivial (v)
+  %30: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %31: I32 = call inspect %30 borrow.shared %29
+  %32: I32 = const 0
+  %33: Bool = eq inspect %31 inspect %32
+  write.assign borrow.unique ($yielded) take %31
+  branch inspect %33 -> bb3 -> bb4
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb1
+
+bb4 handover(I32 [shared call]) many:
+  drop (mine)
+  break -> bb1
+  flag (mine) = gone
+}
+
+fn walkingBytes() -> I32 {
+  local & it: bytesByItems.Iter
+  local & packed: I32
+  local b: I32
+
+bb0:
+  %0: bytesByItems.Iter = call bytesByItems$new
+  write.init borrow.unique (it) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (packed) take %2
+  jump -> bb1
+
+bb1:
+  %5: bytesByItems.Iter [unique call] = read borrow.unique (it) loan0
+  %6: I32 = const 0
+  %7: Bool = const False
+  %8: Bool = call bytesByItems$step borrow.unique %5 take %6 take %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  %21: I32 = read copy.trivial (packed)
+  return take %21
+
+bb3:
+  %10: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (b) take %10
+  %12: I32 = read copy.trivial (packed)
+  %13: I32 = const 10
+  %14: I32 = mul inspect %12 inspect %13
+  %15: I32 = read copy.trivial (b)
+  %16: I32 = add inspect %14 inspect %15
+  %17: I32 = const 65
+  %18: I32 = sub inspect %16 inspect %17
+  write.assign borrow.unique (packed) take %18
+  jump -> bb1
+}
+
+fn walkingHeaped() -> I32 {
+  local & it: heapedItems.Iter
+  local & packed: I32
+  local v: I32
+
+bb0:
+  %0: heapedItems.Iter = call heapedItems$new
+  write.init borrow.unique (it) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (packed) take %2
+  jump -> bb1
+
+bb1:
+  %5: heapedItems.Iter [unique call] = read borrow.unique (it) loan0
+  %6: I32 = const 0
+  %7: Bool = const False
+  %8: Bool = call heapedItems$step borrow.unique %5 take %6 take %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  drop (it)
+  %19: I32 = read copy.trivial (packed)
+  return take %19
+
+bb3:
+  %10: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (v) take %10
+  %12: I32 = read copy.trivial (packed)
+  %13: I32 = const 10
+  %14: I32 = mul inspect %12 inspect %13
+  %15: I32 = read copy.trivial (v)
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (packed) take %16
+  jump -> bb1
+}
+
+fn peek(p: Plain [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (p.value)
+  return take %0
+}
+
+lens fn placedEarly(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local base: Plain heap
+  local seen: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: Plain = aggregate.Plain take %2
+  write.init borrow.unique (base) take %3
+  %5: Plain = read copy.trivial (base)
+  %6: I32 = call peek borrow.shared %5
+  write.init borrow.unique (seen) take %6
+  %8: I32 = read copy.trivial ($yielded)
+  %9: I32 = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb1 -> bb2
+
+bb1:
+  %12: I32 = read copy.trivial (seen)
+  %13: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %14: I32 = call inspect %13 borrow.shared %12
+  write.assign borrow.unique ($yielded) take %14
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %18: I32 = read copy.trivial ($yielded)
+  %19: I32 = const 0
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb4 -> bb5
+
+bb4:
+  %22: I32 = read copy.trivial (n)
+  %23: I32 = const 1
+  %24: I32 = add inspect %22 inspect %23
+  %25: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %26: I32 = call inspect %25 borrow.shared %24
+  write.assign borrow.unique ($yielded) take %26
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %30: I32 = read copy.trivial ($yielded)
+  return take %30
+}
+
+fn stepping(n: I32 [shared call]) -> I32 {
+  local & it: placedEarly.Iter
+  local & packed: I32
+  local v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: placedEarly.Iter = call placedEarly$new take %0
+  write.init borrow.unique (it) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (packed) take %3
+  jump -> bb1
+
+bb1:
+  %6: placedEarly.Iter [unique call] = read borrow.unique (it) loan0
+  %7: I32 = const 0
+  %8: Bool = const False
+  %9: Bool = call placedEarly$step borrow.unique %6 take %7 take %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  drop (it)
+  %20: I32 = read copy.trivial (packed)
+  return take %20
+
+bb3:
+  %11: I32 = read copy.trivial (it.$slot)
+  write.init borrow.unique (v) take %11
+  %13: I32 = read copy.trivial (packed)
+  %14: I32 = const 10
+  %15: I32 = mul inspect %13 inspect %14
+  %16: I32 = read copy.trivial (v)
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (packed) take %17
+  jump -> bb1
+}
+
+fn placedOnce() -> I32 {
+  local first: I32
+  local cold: Size
+  local & i: I32
+
+bb0:
+  %0: I32 = const 3
+  %1: I32 = call stepping borrow.shared %0
+  write.init borrow.unique (first) take %1
+  %3: %U8 = read copy.trivial (global heapNext)
+  %4: Size = bitcast inspect %3
+  write.init borrow.unique (cold) take %4
+  %6: I32 = const 0
+  write.init borrow.unique (i) take %6
+  jump -> bb1
+
+bb1:
+  %9: I32 = read copy.trivial (i)
+  %10: I32 = const 50
+  %11: Bool = lt inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb2
+
+bb2:
+  %26: %U8 = read copy.trivial (global heapNext)
+  %27: Size = bitcast inspect %26
+  %28: Size = read copy.trivial (cold)
+  %29: Bool = ne inspect %27 inspect %28
+  branch inspect %29 -> bb9 -> bb7
+
+bb3:
+  %13: I32 = const 3
+  %14: I32 = call stepping borrow.shared %13
+  %15: I32 = const 34
+  %16: Bool = ne inspect %14 inspect %15
+  branch inspect %16 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %21: I32 = read copy.trivial (i)
+  %22: I32 = const 1
+  %23: I32 = add inspect %21 inspect %22
+  write.assign borrow.unique (i) take %23
+  jump -> bb1
+
+bb6:
+  %18: I32 = const 1
+  return take %18
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %34: I32 = read copy.trivial (first)
+  return take %34
+
+bb9:
+  %31: I32 = const 2
+  return take %31
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call placedOnce
+  %1: I32 = call borrowing
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call addressing
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call placedAndMoved
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call walkingBytes
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call walkingHeaped
+  %10: I32 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn selfBorrowed$new(n: I32) -> selfBorrowed.Iter = <no body>
+
+fn selfBorrowed$step($self: selfBorrowed.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn selfBorrowed$drop($self: selfBorrowed.Iter) -> {} = <no body>
+
+fn selfBorrowed$next($self: selfBorrowed.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn selfBorrowed$resume($self: selfBorrowed.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn addressed$new(n: I32) -> addressed.Iter = <no body>
+
+fn addressed$step($self: addressed.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn addressed$drop($self: addressed.Iter) -> {} = <no body>
+
+fn addressed$next($self: addressed.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn addressed$resume($self: addressed.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn bytes'2$new(n: I32) -> bytes'2.Iter = <no body>
+
+fn bytes'2$step($self: bytes'2.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn bytes'2$drop($self: bytes'2.Iter) -> {} = <no body>
+
+fn bytes'2$next($self: bytes'2.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn bytes'2$resume($self: bytes'2.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn bytesByItems$new() -> bytesByItems.Iter = <no body>
+
+fn bytesByItems$step($self: bytesByItems.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn bytesByItems$next($self: bytesByItems.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn bytesByItems$resume($self: bytesByItems.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn heapedItems$new() -> heapedItems.Iter = <no body>
+
+fn heapedItems$step($self: heapedItems.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn heapedItems$drop($self: heapedItems.Iter) -> {} = <no body>
+
+fn heapedItems$next($self: heapedItems.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn heapedItems$resume($self: heapedItems.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn placedEarly$new(n: I32) -> placedEarly.Iter = <no body>
+
+fn placedEarly$step($self: placedEarly.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn placedEarly$drop($self: placedEarly.Iter) -> {} = <no body>
+
+fn placedEarly$next($self: placedEarly.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn placedEarly$resume($self: placedEarly.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+entry main

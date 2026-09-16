@@ -10,8 +10,10 @@ namespace {
  *
  * An exhaustive switch and not a `return false`, for the reason `hasTeardown` is written the same
  * way: the answer is empty today and the first kind that changes it is exactly the kind that would
- * otherwise be added without anyone deciding. An external iterator's `yield` is milestone 9 and is
- * what turns a row here into a `true`; `lens.call` is not one, because a lens call is a call - what
+ * otherwise be added without anyone deciding. A `yield` across a **stack switch** - a fiber's, which
+ * is what `lib/Fiber` keeps the switch for - is what turns a row here into a `true`; an iterator
+ * object's step is an ordinary call and is not one, and neither is `lens.call`, because a lens call
+ * is a call - what
  * suspends is what the callee does, which is `maySuspend` on it and is what the edge walk reads.
  *
  * A *call* is deliberately false here. Whether calling something suspends is the callee's published
@@ -66,6 +68,7 @@ static bool suspendsAt(Node& node) {
         case Node::Return:
         case Node::Jump:
         case Node::Break:
+        case Node::Resume:
         case Node::LensCall:
         case Node::LensTry:
         case Node::Branch:
@@ -298,15 +301,31 @@ struct Interprocedural {
     void markReachable() {
         Size next = 0;
 
-        auto root = [&](DeclPtr<Function> function) {
+        /*
+         * Two questions rather than one: **walk this body's edges**, and **emit this function**.
+         *
+         * They used to be the same question and one caller needs them apart. An iterator object's
+         * step has no body here and calls whatever the producer calls, so the producer's body is
+         * what the edge walk has to read - and a producer nothing else calls is not itself in the
+         * image, since the object form is the only one anything runs. Rooting it for its edges *and*
+         * for itself left its continuation-passing form in the image with nothing calling it.
+         *
+         * `reachable` is set here rather than at the drain, so that a body already queued for its
+         * edges becomes emitted the moment a real call reaches it.
+         */
+        auto mark = [&](DeclPtr<Function> function, bool emit) {
             auto entry = indexOf.add(function.offset);
             if(!entry.existed) {
                 *entry.value = U32(reached.size());
                 reached.push(function);
             }
 
+            if(emit) decl[function]->reachable = true;
             return *entry.value;
         };
+
+        auto root = [&](DeclPtr<Function> function) { return mark(function, true); };
+        auto rootBody = [&](DeclPtr<Function> function) { return mark(function, false); };
 
         /*
          * The allocator, where the program has a `@box` anywhere - `Program::usesBoxes` - or asks
@@ -417,7 +436,198 @@ struct Interprocedural {
             auto caller = U32(next);
             program.discoveringFrom = reached[next];
             auto function = decl[reached[next++]];
-            function->reachable = true;
+
+            /*
+             * A body this stage did not build - an iterator object's step, whose blocks are the
+             * *producer's* and are converted a second time (`Function::generated`).
+             *
+             * There is no MIR here for the edge walk below to read, and what the step calls is
+             * whatever the producer calls - so the producer's body is walked. **For its edges
+             * only**: what runs is the step, and a producer nothing else calls has no
+             * continuation-passing form in the image. A `for x in f(...)` anywhere is an ordinary
+             * call and marks it emitted through `root`, so a producer used both ways is still one
+             * body of each.
+             */
+            if(function->generatedFrom) rootBody(function->generatedFrom);
+
+            // And the **step**, which is the one of the four such bodies the other three call. The
+            // edge is in a body this stage did not build, so there is nothing for the walk below to
+            // read it out of.
+            /*
+             * The **erased** steppers name no record at all: what they carry is the `iter(T)` they
+             * step, and what they call is the pair. So the block below is for the concrete four,
+             * and the kind test is what separates them - `Function::generatedRecord` holds a site
+             * type there and a protocol here.
+             */
+            if(function->generatedRecord && decl[function->generatedRecord]->kind == Type::Record) {
+                auto& site = *(RecordType*)decl[function->generatedRecord];
+                if(site.producerStep) root(site.producerStep);
+
+                /*
+                 * And the **trampoline** where the record has one - §6.3. Every generated body over
+                 * a delegating record calls it instead of the step, and the call is the conversion's
+                 * rather than anything a walk here can read out of MIR.
+                 */
+                if(site.producerWalk) root(site.producerWalk);
+
+                /*
+                 * And what the **"make an object" entry** calls - §6.4, `Generated::IterObject`.
+                 *
+                 * Three edges and none of them is in any body: the constructor it calls, the heap
+                 * shim its `fun.value` names, and what the **block** owes - whose header is this
+                 * record's own `Drop`, written by the lowering. The last is the same argument the
+                 * boxed nest below makes about the same pair, made here because this one is built
+                 * by a generated body rather than by a step.
+                 */
+                if(function->generated == Function::Generated::IterObject) {
+                    if(site.producerNew) root(site.producerNew);
+                    if(site.producerBox) root(site.producerBox);
+
+                    reachTeardown(function->generatedRecord,
+                                  [&](DeclPtr<Function> target) { root(target); });
+                }
+
+                /*
+                 * And the check `f$next` makes of a **resuming** object's index - the one call in a
+                 * generated body that is not one of the four, and the one the reachability walk
+                 * could not otherwise see. `emitIterStepper` is where it is emitted and says why.
+                 */
+                if(function->generated == Function::Generated::IterNext && site.producer) {
+                    auto& declaring = bodyOwnerOf(decl, *decl[site.producer]);
+
+                    if(declaring.resume.type && decl[declaring.resume.type]->kind != Type::Unit) {
+                        if(auto guard = program.roles.function(intrinsic::Known::checkCondition)) {
+                            root(guard);
+                        }
+                    }
+                }
+
+                /*
+                 * And a **nested traversal**'s four - §3.2's first step, `RecordType::kNestMember`.
+                 *
+                 * The outer producer's step builds the child, steps it, reads its item out and
+                 * cancels it, and every one of those calls is emitted by the *conversion*: there is
+                 * no node in any body here for the edge walk to read them out of, exactly as there
+                 * is none for the step the record names. So the member's own type is what they are
+                 * rooted from.
+                 */
+                if(function->generated == Function::Generated::IterStep ||
+                   function->generated == Function::Generated::IterWalk) {
+                    U32 nest = 0;
+
+                    for(U32 j = 0; j < site.payloadLocals.size(); j++) {
+                        auto member = site.payloadLocals.get(decl, j);
+                        if(!(member & RecordType::kNestMember)) continue;
+
+                        auto held = site.field(decl, site.payloadFields.get(decl, j)).occurrence.type;
+
+                        /*
+                         * A **boxed** child - §6.3's recursion, where the member is the protocol
+                         * `iter(Y)` and the record behind it is named by `RecordType::nestBoxed`.
+                         *
+                         * The shim is what the pair's code word is, so it is rooted here for the
+                         * reason the other four are: the outer step builds the box and steps it, and
+                         * there is no node in any body for the edge walk to read that out of. The
+                         * child's own constructor and step are rooted through the shim's record,
+                         * which is the same four calls one indirection over.
+                         */
+                        auto shim = nest < site.nestBoxed.size() ? site.nestBoxed.get(decl, nest)
+                                                                 : DeclPtr<Function>(nullptr);
+                        nest++;
+
+                        // A **delegating** member is the link rather than the bare pair, so what
+                        // names the child is the link's first field - `RecordType::linkType`.
+                        auto delegates = held == site.linkType;
+
+                        if(delegates) {
+                            held = ((RecordType*)decl[held])->field(decl, 0).occurrence.type;
+                        }
+
+                        if(decl[held]->kind != Type::Record) {
+                            if(!shim) continue;
+
+                            root(shim);
+                            held = decl[shim]->generatedRecord;
+                            if(!held || decl[held]->kind != Type::Record) continue;
+                        }
+
+                        auto& child = *(RecordType*)decl[held];
+
+                        /*
+                         * And what the **box** owes - §6.3, and the one place a boxed level's own
+                         * teardown can be found.
+                         *
+                         * A level is ended by dropping the pair, whose block header is the child
+                         * record's `Drop` - and that header is a function the *lowering* writes, so
+                         * there is no node anywhere for the edge walk to read the edge out of. It is
+                         * the same argument `fun.value` makes about a heap-placed environment's
+                         * captures, made here because this pair is built by the conversion.
+                         */
+                        if(shim) reachTeardown(held, [&](DeclPtr<Function> target) { root(target); });
+
+                        // And the **ordinary** shim beside the raw one where the member delegates:
+                        // the departure path builds its box with that one, and the call is the
+                        // conversion's - see `RecordType::producerBox`.
+                        if(delegates && child.producerBox) root(child.producerBox);
+
+                        if(child.producerNew) root(child.producerNew);
+                        if(child.producerStep) root(child.producerStep);
+
+                        // And its **trampoline** where it has one: a region over a delegating child
+                        // steps it through that rather than through its step, whether the member
+                        // holds the child inline or in a box - see `convertStepNest`.
+                        if(child.producerWalk) root(child.producerWalk);
+                        if(child.producerItem) root(child.producerItem);
+                        if(child.producerTake) root(child.producerTake);
+
+                        /*
+                         * And the window a nested hand-over may be adapted through - `chunks` hands
+                         * over `[a]`, which the region's entry receives as the descriptor. The same
+                         * derivation `Iterate`'s members are rooted for, one boundary over.
+                         */
+                        auto item = child.field(decl, 1).occurrence.type;
+                        if(decl[item]->kind == Type::Pointer) item = ((PointerType*)decl[item])->to;
+
+                        if(hasViewFor(decl, program, item, Access::Shared)) {
+                            if(auto member = viewMember(context, program, item, Access::Shared,
+                                                        kNullLocation)) {
+                                root(member);
+                            }
+                        }
+                    }
+                }
+
+            }
+
+            /*
+             * The **view derivation** `Iterate`'s members need where the item has one -
+             * `hasViewFor`, the same question `rootViewDerivations` asks of a specialization.
+             *
+             * A borrowed `String` item is that string's window, so `f$next` builds one out of the
+             * slot; the member it calls is a body the resolver never named, and neither this
+             * function's own MIR (there is none) nor the conversion (which may not mint one) can
+             * keep it. Shared only, which is the access `Maybe(source'item)` declares.
+             *
+             * All four steppers, the erased pair included: what differs between them is where the
+             * item comes from, and this is about what its type asks for on the way out.
+             */
+            auto stepper = function->generated == Function::Generated::IterNext ||
+                           function->generated == Function::Generated::IterResume ||
+                           function->generated == Function::Generated::IterErasedNext ||
+                           function->generated == Function::Generated::IterErasedResume;
+
+            if(stepper && function->result.type) {
+                auto& answered = *(RecordType*)decl[function->result.type];
+
+                for(auto held: answered.fields.contents(decl)) {
+                    if(!hasViewFor(decl, program, held.occurrence.type, Access::Shared)) continue;
+                    if(auto member = viewMember(context, program, held.occurrence.type,
+                                                Access::Shared, kNullLocation)) {
+                        root(member);
+                    }
+                }
+            }
+
             if(!function->mir) continue;
 
             rootViewDerivations(*function, [&](DeclPtr<Function> target) { root(target); });
@@ -509,8 +719,14 @@ struct Interprocedural {
                  * A call through a value runs whatever flows to the value's type - resolved after
                  * the walk, when every construction site is known. The operand is a result or a
                  * place, and either carries the occurrence the type is read off.
+                 *
+                 * Unless the value is a **site type**, whose code the type names: there is one
+                 * callee, `callTarget` answered it, and the edge below is the ordinary direct one.
+                 * That edge is the only thing keeping a lambda nothing built a pair for in the
+                 * program at all, which is why it is drawn here rather than left to the flow set.
                  */
-                if(request.callsValue) {
+                if(request.callsValue && !site.siteCall &&
+                   site.through != CallThrough::CallWitness) {
                     auto& call = *(NodeCall*)node;
                     valueCalls.push(ValueCall { caller, U32(occurrenceOf(body, call.target).type.offset) });
                     markOpaque(caller);
@@ -526,9 +742,10 @@ struct Interprocedural {
                  * of the member, which is a signature with no body. What *this* body records is
                  * that it reads the slot, which is the half of the answer the caller cannot see.
                  */
-                if(site.through == CallThrough::ClassSlot || site.through == CallThrough::FunctionSlot) {
-                    auto kind = site.through == CallThrough::ClassSlot ? GenSlotKind::Class
-                                                                       : GenSlotKind::Function;
+                if(site.through == CallThrough::ClassSlot || site.through == CallThrough::FunctionSlot ||
+                   site.through == CallThrough::CallWitness) {
+                    auto kind = site.through == CallThrough::FunctionSlot ? GenSlotKind::Function
+                                                                         : GenSlotKind::Class;
                     markSlot(*function, requirementSlotOf(*function, kind, site.requirement));
                 }
 
@@ -2003,15 +2220,32 @@ struct Interprocedural {
         group(madeStart, madeOrder, [](const CallEdge& site) { return site.caller; });
     }
 
-    // The arguments of one call, in the callee's own position order - `mapArguments` normalized them
-    // there, so position i of the list is parameter i of the declaration.
+    /*
+     * The arguments of one call, in the **callee's** own position order - `mapArguments` normalized
+     * them there, so position i of the list is parameter i of the declaration.
+     *
+     * With one shift, and it is the whole of what a **site call** costs this pass. A call through a
+     * site type reaches a lifted function whose parameter zero is the *environment*, and the node
+     * holds that separately because which form the call is, is the substitution's answer rather than
+     * the node's (`NodeCall::target`, and the conversion is where it is prepended for good). So the
+     * target is position zero here too - without it a lambda that writes through its second
+     * parameter would have its `mutates` row read against the caller's *first* argument, which is
+     * the environment, and the write through what the caller actually lent would be invisible.
+     *
+     * Only where a call edge exists, which is what makes the test "calls a value" rather than
+     * anything narrower: a call through a **pair** names no callee, so `markOpaque` has already put
+     * its caller at the top of every lattice and no site of it is ever walked here.
+     */
     template<class F> void eachCallArgument(Body& body, NodeId id, F&& f) {
         auto node = body.node(mir, id);
 
         if(node->kind == Node::Call) {
             auto& call = *(NodeCall*)node;
             auto items = call.arguments.contents(mir);
-            for(Size i = 0; i < items.size(); i++) f(U32(i), items[i]);
+            auto shift = call.callsValue() ? 1u : 0u;
+
+            if(shift) f(0, call.target);
+            for(Size i = 0; i < items.size(); i++) f(U32(i + shift), items[i]);
             return;
         }
 
@@ -2190,7 +2424,7 @@ struct Interprocedural {
      * registers are decided after register allocation. So what this pass publishes is the
      * **eligibility** half - `StackBound::isBounded()` - and the byte count stays zero, which is
      * `plus` waiting for the backend term rather than a number this tier invented. A fake byte count
-     * would be worse than none: an external iterator's child stack would be reserved from it.
+     * would be worse than none: a fiber's child stack would be reserved from it.
      *
      * The lattice is what makes that honest rather than lossy. `unbounded` is the top and it is what
      * recursion, an indirect call and a separately compiled callee all give; a bounded answer with no

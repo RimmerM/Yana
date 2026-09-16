@@ -1,0 +1,245 @@
+{-
+   `@heap` on a producer's own storage - `doc/inflight/Design-Iterator-Objects.md` §6.1's second fix,
+   and the accepting side of `Reject.Borrow.yana`.
+
+   # resolver: ownership
+
+   A record moves with whatever holds it, because every move here is bytewise - so a borrow into its
+   own bytes, or an address taken of one of them, points at where the value used to be. `@heap` is
+   the way out the refusal names: the member then lives in a run of its own that does not move, and
+   the record holds its **pointer**.
+
+   Three things follow, and all three are what this file runs:
+
+    - `f$new` allocates one run per placed member, for the object's whole life, so the record owes a
+      free whatever its members are - which is also what stops `copy(it)` on one.
+    - the step reaches the value through the pointer, exactly as it reaches a capture held by
+      address;
+    - a **borrow** of a placed member is a payload member too, held as its address and written where
+      the producer's own binding is established. A value cached at the step's entry would be the
+      contents from before that write, and one cached at the write would not reach the resume blocks
+      the dispatch enters directly - so it is read at every use.
+
+   The record is printed in the `.ssa.expect` beside this file, where `placed` and `borrowed` are the
+   two words that say which of the three a pointer member is.
+
+   § A placed member is a member because of where it lives
+
+   And not because of what crosses a hand-over, which is the fourth thing and the one this file used
+   to assume rather than assert. The payload is otherwise "every local live across some `yield`", and
+   `@heap` is orthogonal to that: a producer may place a value, hand out its address, and then read
+   the local only before its first `yield`. `placedEarly` is that shape, and `placedOnce` reads the
+   allocator's bump pointer around fifty rounds of it.
+
+   Left out of the payload, the local was an ordinary frame slot of the **step** - and a step's frame
+   is entered once per element, so the allocation landed in the dispatch block and happened per step
+   call, with no `free` in the module at all. Nothing above caught it because every producer here
+   authors a `Drop`, and a teardown forces a local into the record by the other route.
+-}
+
+import Native
+
+data Cell {value: Int}
+
+instance Drop(Cell):
+    fn drop(->value: Cell): {}
+
+-- §6.1's first shape, honoured: a borrow of the producer's own storage, held across a `yield`.
+iter fn selfBorrowed(n: Int) -> Int:
+    let @heap base = Cell {value: n}
+    let held = base
+
+    yield held.value
+    yield base.value + held.value
+
+-- And its second: a raw address, which no later rule catches once it is an integer.
+iter fn addressed(n: Int) -> Int:
+    let @heap base = Cell {value: n}
+    let at = addressOf(base)
+
+    yield n
+    yield base.value + 1
+
+data Buffer {slots: [U8 *8]}
+
+fn fill(&b: Buffer):
+    let &i = 0 :: Int
+
+    while i < 8:
+        b.slots[i] = truncate(i + 65)
+        i = i + 1
+
+{-
+   §6.1's `bytes()`, walked by index.
+
+   The buffer is the producer's own storage and lives in a run, so an object of this may be moved
+   between two steps and the next step still finds it. `bytesByItems` below is the same example
+   written the way the design writes it - with a nested `for b in items(buffer)` - which arrived with
+   §3.2's first step.
+-}
+iter fn bytes(n: Int) -> Int:
+    let @heap &buffer = Buffer {slots: ([0] :: [U8 *8])}
+    fill(buffer)
+
+    let &i = 0 :: Int
+
+    while i < n:
+        yield buffer.slots[i] :: Int
+        i = i + 1
+
+fn borrowing() -> Int:
+    let &it = selfBorrowed(3)
+    let &packed = 0 :: Int
+
+    for v in it:
+        packed = packed * 10 + v
+
+    return packed
+
+fn addressing() -> Int:
+    let &it = addressed(4)
+    let &packed = 0 :: Int
+
+    for v in it:
+        packed = packed * 10 + v
+
+    return packed
+
+{-
+   Stepped **after the object was relocated**, which is the property the placement buys.
+
+   `let &->moved = it` consumes the object into a second name, so the record's bytes travel; what the
+   placed member holds is a pointer into a run that did not travel, and the borrow the producer
+   established before the move is still a borrow of the same value. One step is taken first, so what
+   moves is a record suspended past index zero with its run already allocated.
+
+   Within one frame, which is where the placement question is: a signature may name `bytes.Iter`
+   since stage 2 (`iter/Name.yana`), and what a run-holding member needs asserted is that the record's
+   bytes may move while the run does not.
+-}
+fn placedAndMoved() -> Int:
+    let &it = bytes(4)
+    let &packed = 0 :: Int
+
+    if it.next() is Just(first):
+        packed = first - 65
+
+    let &->moved = it
+
+    for b in moved:
+        packed = packed * 100 + b - 65
+
+    return packed
+
+fn fillSlots(&b: [U8 *8]):
+    let &i = 0 :: Int
+
+    while i < 8:
+        b[i] = truncate(i + 65)
+        i = i + 1
+
+{-
+   §6.1's `bytes()` as the design writes it - `for b in items(buffer)` inside the producer, which is
+   a nested traversal and therefore a payload member holding `items(...).Iter`.
+
+   **A fixed array is not a self-borrow**, and that is worth stating because the design's example
+   reads as though it must be. `items(self: c)` takes its container by a shared loan, and a loan of a
+   trivially copyable whole value is physically a **copy** (`IterCaptureKind::Value`) - so what the
+   child's record holds is the eight bytes, not a pointer into the outer one, and the refusal has
+   nothing to fire on. `@heap` is not needed here and would buy nothing.
+
+   `heapedItems` below is the shape that really is one.
+-}
+iter fn bytesByItems() -> Int:
+    let &buffer = [0] :: [U8 *8]
+    fillSlots(buffer)
+
+    for b in items(buffer):
+        yield b :: Int
+
+{-
+   And the self-borrow §6.1 draws, with the fix it names.
+
+   An `Array(Int)` is not trivially copyable, so `items(mine)` borrows it and the child's record
+   holds the lender's address - which, for a local of the producer, is an address *into the outer
+   record*. Without `@heap` that is refused by name (`Reject.Nested.yana`'s `overOwn`); with it the
+   container lives in a run of its own that the record only points at, so the child's borrow survives
+   the object moving and the position gets an origin set of the outer record's own.
+-}
+iter fn heapedItems() -> Int:
+    let @heap mine = [1, 2, 3]
+
+    for v in items(mine):
+        yield v
+
+fn walkingBytes() -> Int:
+    let &it = bytesByItems()
+    let &packed = 0 :: Int
+
+    for b in it:
+        packed = packed * 10 + b - 65
+
+    return packed
+
+fn walkingHeaped() -> Int:
+    let &it = heapedItems()
+    let &packed = 0 :: Int
+
+    for v in it:
+        packed = packed * 10 + v
+
+    return packed
+
+{-
+   A placed local the producer reads only **before** its first hand-over.
+
+   `Plain` authors no `Drop` on purpose: a teardown is the other thing that makes a local a payload
+   member, so a type that owes one would mask the question this producer asks. `peek` is `@noinline`
+   for the same kind of reason - a read the optimizer can fold away is a local that was never live -
+   and it takes the value by a shared loan so that the placement is what the address comes from.
+-}
+data Plain {value: Int}
+
+@noinline
+fn peek(p: Plain) -> Int = p.value
+
+iter fn placedEarly(n: Int) -> Int:
+    let @heap base = Plain {value: n}
+    let seen = peek(base)
+
+    yield seen
+    yield n + 1
+
+fn stepping(n: Int) -> Int:
+    let &it = placedEarly(n)
+    let &packed = 0 :: Int
+
+    for v in it:
+        packed = packed * 10 + v
+
+    return packed
+
+{-
+   One run per object and one free per object, read off the allocator rather than counted.
+
+   The mark is taken after a first round, because the first allocation of a program is what asks for
+   a page and every one after it comes out of the free list - `iter/Erased.yana`'s placement check
+   states the same thing at more length. What fifty rounds then assert is that the bump pointer did
+   not move: a run allocated per step call and never freed moves it by fifty times three.
+-}
+fn placedOnce() -> Int:
+    let first = stepping(3)
+
+    let cold = bitcast(heapNext) :: Size
+
+    let &i = 0 :: Int
+    while i < 50:
+        if stepping(3) != 34 then return 1
+        i = i + 1
+
+    if (bitcast(heapNext) :: Size) != cold then return 2
+
+    return first
+
+fn main() -> Int = placedOnce() + borrowing() + addressing() + placedAndMoved() +
+                   walkingBytes() + walkingHeaped()

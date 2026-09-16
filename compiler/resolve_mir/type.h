@@ -10,6 +10,7 @@ namespace mir {
 struct Module;
 struct GenContext;
 struct Program;
+struct Function;
 
 /*
  * A logical type - Analysis-Borrows-Revised.md §1.1.
@@ -753,6 +754,343 @@ struct RecordType: Type {
     bool local = false;
 
     /*
+     * A **site type**: the lifted function a value of this record is the environment of, and the
+     * shape calling one has - `doc/inflight/Design-Iterator-Objects.md` §4, built 2026-09-15.
+     *
+     * A lambda's environment record already existed (`resolve_lambda.cpp`); what these two fields
+     * add is that the *code* is known from the type, so a value of one can be called without a
+     * `{code, env}` pair ever being built. `lambda` is argument zero's own callee and `lambdaShape`
+     * is the `(A) -> B` the erased form has - the position's type with the result the body decided
+     * written in, which is what `closeFunPosition` answers and what an adaptation produces.
+     *
+     * Two fields rather than one, because the shape is not derivable from the declaration: a lifted
+     * function's first parameter is the environment, so `funTypeOf` of it would answer a signature
+     * one position longer than anything a program may write. Deriving it by dropping that parameter
+     * is the same fact stated twice, and the position is where it came from.
+     *
+     * Null on every other record. An **instantiation** of a generic record never carries one - a
+     * site type has no parameters, since a lambda in a generic body is refused - so `instantiate`
+     * has nothing to copy.
+     */
+    DeclPtr<Function> lambda = nullptr;
+    DeclPtr<Type> lambdaShape = nullptr;
+
+    /*
+     * An **iterator site type**: the `iter fn` a value of this record is the suspended state of, and
+     * the step function that advances it - `doc/inflight/Design-Iterator-Objects.md` §3, built
+     * 2026-09-15.
+     *
+     * The iterator's half of `lambda` above, and it is two handles for the same reason that one is:
+     * the code is known from the type, so `it.next()` is a direct call and no handle, no stack and
+     * no allocation is involved. `producer` is the declaration the author wrote and is what a
+     * diagnostic names; `producerStep` is the function `resolve_ssa` converts the producer's body
+     * into a second time, and is null until `convertProgram` has made it - nothing in `resolve_mir`
+     * calls it, because the call it emits names the record and the *lowering* resolves it.
+     *
+     * `producer` is the **specialization**, never the generic: one `iter fn` generic in `a` has one
+     * site type per argument list, so what the record names is the declaration whose body would be
+     * converted at those types - `bodyOwnerOf` and `substitutionOf` are what read it back, exactly
+     * as they do for any other call target.
+     *
+     * Null on every other record, and never copied by `instantiate`: a site type has no parameters
+     * of its own, since a construction inside a generic body is refused.
+     */
+    DeclPtr<Function> producer = nullptr;
+    DeclPtr<Function> producerStep = nullptr;
+
+    /*
+     * `f$new` - the construction, kept here as well as on the resolver's own `iterSites`.
+     *
+     * The call site finds it by asking the resolver; a **nested** traversal cannot, because what
+     * builds the child is the outer producer's step and that is emitted one tier down, where
+     * `iterSites` does not exist. So the handle lives on the type beside the other four, which is
+     * also what lets the reachability walk root a child's constructor from the outer record.
+     */
+    DeclPtr<Function> producerNew = nullptr;
+
+    /*
+     * The lent value, borrowed from the record - `f$item`, and null for a producer that hands over by
+     * value.
+     *
+     * A declaration rather than a field read, because what it is for is its **signature**: the result
+     * is rooted in the record, so the next step needs the record whole and is refused while the item
+     * is live. `iter(T)$item` makes the same statement about the erased form, where what it is
+     * handed is the address a step answered rather than a field of a record in hand.
+     */
+    DeclPtr<Function> producerItem = nullptr;
+
+    /*
+     * `f$take` - the item **moved** out of the slot, and null unless the record carries `$held`.
+     *
+     * A declaration for the reason `f$item` is one, said about a move rather than a loan: a `for`
+     * that reads the field directly takes the value out of a path the analysis then sees used again
+     * on the back edge, because nothing in MIR says that the next step refills it. A call hides the
+     * move inside a body whose `&self` says only that the record was written - which is what the
+     * step itself already says - and clears `$held` in the same place, so the two facts cannot come
+     * apart.
+     */
+    DeclPtr<Function> producerTake = nullptr;
+
+    /*
+     * Where the payload starts, and what the three fixed members are - the field order §3.1 states.
+     *
+     * `$index` is field 0, `$slot` is field 1, the captured arguments are `[2, payload)` and the
+     * payload is `[payload, fields.size())`. A count rather than a second list, because the fields
+     * *are* the list and a member's identity is its index in it.
+     */
+    U16 payloadFirst = 0;
+
+    /*
+     * `$held` - the flag that says whether the slot still holds a value the record owes, or zero
+     * where it never does.
+     *
+     * Only an **owning** hand-over of a type with a teardown needs one: the slot then holds a value
+     * the consumer will take, and the index cannot say whether it has - a record suspended at a
+     * `yield` looks the same whether the item was moved out of the slot or left in it. So the step
+     * sets the flag as it writes, every consumer that takes clears it, and the teardown drops the
+     * slot where it is still set.
+     *
+     * At the **end** of the field list rather than beside the index, which is the one place §3.1's
+     * order is not followed: `$index` is 0, `$slot` is 1 and capture `i` is `2 + i` in five walks
+     * across two tiers, and a flag threaded through the middle would renumber all of them to say
+     * something no walk but the hand-over's reads. `payloadLocals` stays parallel to the fields from
+     * `payloadFirst` because the flag comes after the payload rather than before it.
+     */
+    U16 heldField = 0;
+
+    /*
+     * Whether `$slot` holds a **window** - the descriptor's own two words, where the producer hands
+     * over `[a]` or a shared `String`.
+     *
+     * The third thing a slot can hold, beside the value and a lent value's address, and it is its own
+     * row for `IterCaptureKind::View`'s reason exactly: a window is already a value, so what the
+     * record keeps is its bytes, and the address of a window is the address of two words that belong
+     * to whoever built them. Storing the *lender's* address there instead is what made
+     * `iter fn chunks(self: [a]) -> [a]` hand its consumer a descriptor laid out as an owner.
+     *
+     * A flag rather than a comparison against `viewRecordOf`, because three readers ask it - the
+     * `for` over a held object, `Iterate`'s steppers and the nested traversal's item - and a
+     * re-derivation is how the field and the reader come to disagree about what is in it.
+     */
+    bool slotWindow = false;
+
+    /*
+     * Whether the producer is a **`lens fn`** rather than an `iter fn` - a one-hand-over site type,
+     * minted for a lens region a producer runs over part of its own body
+     * (`doc/inflight/Design-Iterator-Objects.md` §6.6, built 2026-09-16).
+     *
+     * A flag rather than `Function::iterator` read off `producer`, because `producer` is the
+     * *specialization* and `specializeFunction` does not carry that marker (J53 §1.5). Three
+     * readers ask it and each would otherwise ask the generic: `typeText` spells the record
+     * `around.Lens` instead of `around.Iter`, the mint declines to generate an `Iterate` instance
+     * for something no consumer iterates, and the step conversion reads it to say whether falling
+     * out of the embedded region is the next element or the lens's cleanup.
+     */
+    bool lensSite = false;
+
+    /*
+     * How each captured argument travels - `resolve_object.cpp`'s `IterCaptureKind`, one entry per
+     * written parameter of the producer.
+     *
+     * Recorded rather than re-derived, for `RecordType::lambdaShape`'s reason: the decision is made
+     * once, at the mint, out of the parameter's declared contract, and the step conversion has to
+     * make the *same* one - a second reading of one contract is how the field and the storage the
+     * step gives the producer's local come to disagree about whether the record holds the value or
+     * its address.
+     */
+    DeclList<U8, false> captureKinds;
+
+    // The one row of `IterCaptureKind` the other tier has to name: the field holds the lender's
+    // address rather than the value's own bytes, which is what decides whether the step's storage
+    // for that local is the field or what is in it. Spelled here rather than repeated as a literal,
+    // since `resolve_ssa` cannot see the enumeration and a bare `!= 0` was wrong the moment a third
+    // kind arrived.
+    static constexpr U8 kCaptureAddress = 1;
+
+    /*
+     * Which local of the producer's body each payload member is, and which `yield`s keep it alive.
+     *
+     * Parallel entries, one per payload member: the first is what the step conversion reads to give
+     * a local its storage; the second is one bit per `yield`, in the order they appear in the body,
+     * and is what the `.ssa.expect` dump and `yana explain` print - §7 stage 3's item 5.
+     *
+     * A **bitmap** and not a word, since J52. `payloadYields` is flat - `payloadYieldWords` words for
+     * entry 0, then as many for entry 1 - because a list of lists here would be an allocation per
+     * member for a set whose usual size is one bit. What the width bought is the design's own
+     * headline: §5 says fifty `yield`s over three locals is four words, and a thirty-two bit mask
+     * made fifty `yield`s a refusal rather than a record.
+     */
+    DeclList<U32, false> payloadLocals;
+    DeclList<U64, false> payloadYields;
+
+    // How many hand-overs the producer has, and how many words of `payloadYields` each member
+    // therefore owns. Both are on the record because every reader of the bitmap needs them and
+    // neither can be recovered from the producer without walking its body again.
+    U16 handovers = 0;
+    U16 payloadYieldWords = 0;
+
+    // Whether hand-over `handover` keeps payload entry `entry` alive - the one question the bitmap
+    // answers, asked by the step conversion, the `.ssa` dump and `yana explain`.
+    bool keepsAcross(DeclBase decl, U32 entry, U32 handover) {
+        if(handover >= handovers) return false;
+
+        auto word = payloadYields.get(decl, Size(entry) * payloadYieldWords + handover / 64);
+        return (word >> (handover % 64)) & 1;
+    }
+
+    /*
+     * And which **field** each of those entries lives in - §3.2's third step, slot sharing.
+     *
+     * Parallel to the two lists above and no longer derivable from `payloadFirst`, which is the
+     * whole of what sharing changed here: two members whose live ranges never meet are one field,
+     * so the payload is the largest set at once rather than the sum and the entry list is longer
+     * than the field list. A field an entry does not own is named by an earlier entry, and the
+     * field's *name* is that first member's - the dump prints the rest beside it.
+     *
+     * A list rather than a count for the reason `payloadLocals` is one: the step's storage walk asks
+     * "which field is this local in" and the constructor asks "which field is this run's pointer
+     * in", and neither may re-derive the answer from a position.
+     */
+    DeclList<U16, false> payloadFields;
+
+    /*
+     * The **boxed** nest members - Design-Iterator-Objects.md §6.3's recursion, built 2026-09-16.
+     *
+     * One entry per `kNestMember` payload entry, in payload order: the `g$erased.heap` shim the
+     * member's pair points at, or null where the member holds the child's own record inline. A boxed
+     * member is the one thing about a nest the field's *type* cannot say - the field is the protocol
+     * `iter(Y)` rather than a record - so the child the step has to build is named here, and the
+     * shim's own `generatedRecord` is that record.
+     *
+     * Filled by `completeBoxedNests` rather than by the mint, and the delay is mutual recursion:
+     * `walkA` mints `walkB` inside itself, so when `walkB`'s member boxes `walkA` there is no
+     * `walkA.Iter` yet. Every record in the program is minted by the time that pass runs.
+     */
+    DeclList<DeclPtr<Function>, false> nestBoxed;
+
+    /*
+     * And which of them **delegate** - Design-Iterator-Objects.md §6.3's `yield from`, built
+     * 2026-09-16.
+     *
+     * One entry per nest member, in payload order, beside `nestBoxed`: 1 where the region is the
+     * re-yield shape over a child in this producer's own recursion cycle, so that entering it is a
+     * suspension of this level rather than a loop that steps the child. Such a member's field is not
+     * the protocol `iter(Y)` but `linkType` - the pair beside one word of chain - because the level
+     * the consumer's trampoline has to come back to is the one *above* the child, and that word is
+     * the only place there is to say which.
+     *
+     * A list rather than a bit on `nestBoxed`'s entry for that list's reason: the step's conversion
+     * asks both questions of one region and neither is derivable from the other - a boxed member may
+     * be stepped here (a pass that does more than re-yield) and a delegating one is always boxed.
+     */
+    DeclList<U8, false> nestDelegates;
+
+    /*
+     * `f$walk` - the **trampoline**, and null on a record with no delegating nest.
+     *
+     * What every consumer of a delegating object steps through: `f$next`, `f$resume`, the `for` over
+     * a held record and the erased shim all call this rather than `f$step`, because a step of one of
+     * these records may answer "I have entered a child" and only this function knows what to do with
+     * that. It answers where the item is - the erased step's own channel - since the item it hands
+     * back is the innermost level's and is not in this record's slot at all.
+     */
+    DeclPtr<Function> producerWalk = nullptr;
+
+    /*
+     * `f$erased.step` - the **raw** shim a delegable box's pair points at, and null everywhere else.
+     *
+     * `f$erased` answers two rows and this answers three. A box built for a delegating region is
+     * stepped only by a trampoline, so its pair names this; a box built for any other region, and
+     * every pair a consumer holds, names `f$erased` - which is what keeps the third row off every
+     * channel that has no use for it, and is why a non-delegating step costs nothing at all.
+     */
+    DeclPtr<Function> producerRaw = nullptr;
+
+    /*
+     * `f$erased.heap` - the ordinary heap shim over this record, kept beside the raw one so that a
+     * delegating region can reach both.
+     *
+     * A delegating level builds its child with the raw shim on the path it delegates on and with
+     * this one on the path it does **not** - the departure, where the consumer is gone and the child
+     * has to be stepped here or not at all. Null until something has asked for the shim.
+     */
+    DeclPtr<Function> producerBox = nullptr;
+
+    /*
+     * `{iter(Y), %Word}` - what a **delegating** nest member holds, and null on every other record.
+     *
+     * The child's pair and one word naming the level above it, in that order and adjacent, because a
+     * trampoline that has just been handed the address of one of these has to find both from it: the
+     * pair is what it steps and the word is where it goes back to when that level runs out. Interned
+     * as a tuple, so every level of a cycle - which is several record types and several sizes - hands
+     * over one shape.
+     */
+    DeclPtr<Type> linkType = nullptr;
+
+    /*
+     * `$down` and `$inner`, the two words delegation adds to a record that has one - both zero where
+     * it has none.
+     *
+     * `$down` is the step's **third answer**: a level that has just entered a delegable child writes
+     * *which of its own link members* it entered here and returns `True` as it would for a hand-over,
+     * and `f$erased.step` is the one reader - it clears the word, resolves it against its own `self`
+     * and answers the address with the low bit set. A member rather than a second result, because
+     * that is the one form of the third row that costs a step which never delegates nothing at all:
+     * no existing channel changes width and no existing consumer grows a test.
+     *
+     * `$inner` is the trampoline's own state - the innermost level, or zero for "this record is the
+     * innermost". It is a word rather than a pointer because nothing owns what it names: the level it
+     * points at is owned by the level above it, all the way up to this record.
+     *
+     * **A chain word has two readings**, and the second is what lets a suspended delegating object be
+     * *moved* - `let moved = it`, an argument taken by `->`, a `return`, a store into a field. With
+     * bit zero clear it is the address of a link inside a heap block, which never moves; with bit
+     * zero set it is `field << 1 | 1`, one of the reader's own link members, resolved against
+     * whatever `self` the step was entered with. The root's own link is the one link in a chain that
+     * lives in storage a consumer can relocate, and an absolute address into it was left naming where
+     * the object used to be - J60's own revisit item. `ssa::iterLinkAddress` is the resolution and
+     * the invariant that makes one tagged reading enough.
+     */
+    U16 downField = 0;
+    U16 innerField = 0;
+
+    /*
+     * The bit in a `payloadLocals` entry that says the field holds the member's **run address**
+     * rather than its bytes - `@heap` on the producer's binding, Design-Iterator-Objects.md §6.1.
+     *
+     * Named here rather than written as a literal in `resolve_ssa`, for `kCaptureAddress`'s reason:
+     * the step's storage walk and the constructor both read it and neither can see the enumeration
+     * the mint keeps. The high bit beside it is `kIterValueMember`, which is the mint's own and says
+     * the entry is a node rather than a local.
+     */
+    static constexpr U32 kHeapMember = 0x40000000;
+
+    /*
+     * And the bit that says the field holds the member's **address** because the member is a loan.
+     *
+     * `let held = base` inside a producer is a second name for storage rather than a second object,
+     * and what the record has to carry across a hand-over is which storage. The lender is one the
+     * refusal in `checkObjectBody` has already vouched for - `@heap`, or a parameter - so the
+     * address stays good while the object moves.
+     */
+    static constexpr U32 kBorrowMember = 0x20000000;
+
+    /*
+     * And the bit that says the payload member is a **nested traversal** - `for x in g(...)` written
+     * inside the producer, Design-Iterator-Objects.md §3.2's first step.
+     *
+     * The field holds `g.Iter` itself: the outer object keeps the child's whole state, so a `yield`
+     * written inside the nested pass suspends the outer object with the child suspended inside it.
+     * The entry's payload is the **node** index of the `lens.call` that opened the region rather
+     * than a local, because a nested traversal is not something the producer's body names - which is
+     * the same reading `kIterValueMember` gives a value that crosses a hand-over without a name.
+     *
+     * A nested member never shares a field: it is live from the call that initializes it to the
+     * exit that cancels it, and a shared field would be one child's state read as another's.
+     */
+    static constexpr U32 kNestMember = 0x10000000;
+
+    /*
      * The native layout, memoized by `ssa::reprOf` - and the one thing on a type that *is* a cache.
      *
      * Null until the walk has run. What it buys is the nesting: a record holding a record asks for
@@ -807,6 +1145,42 @@ struct FunType: Type {
     // and the interning key each walk them by index against a second list of the same length.
     DeclList<FunParam, false> params;
     Occurrence result;
+};
+
+/*
+ * `iter(T)` - the erased iterator object, see type.def.
+ *
+ * Four facts and they are one statement about a step. `handover` is what a step hands the consumer,
+ * at the convention the producer declared - which is what separates `iter(T)` from `iter(->T)` and
+ * is why the type carries an occurrence rather than a bare type. `resume` is what a `yield`
+ * evaluates to (`{}` where nothing was written) and `sent` is what the step's first argument
+ * therefore is - `Outcome(R, exit)` where there is a resume channel and the bare exit signal where
+ * there is not, which is J49's pair of wrappers read at the erased boundary.
+ *
+ * `step` is the **function type the pair is called across**: `(sent, Bool) -> %Y`, answering where
+ * the item is and null when the producer is done. A field rather than a derivation, because it is
+ * what `addCallValue` needs at every step site and what the value's two words are manifested from -
+ * a second derivation is how a call and a layout come to disagree about a signature.
+ *
+ * Two rows, and it stayed two when §6.3's delegation added a third thing a level can say. A pair a
+ * consumer holds names `f$erased`, which answers these two; a pair a **delegable box** holds names
+ * `f$erased.step`, which may also answer a child's link with the low bit set - and only a trampoline
+ * ever steps one of those. So the signature is one signature and which shim is behind it is what
+ * decides whether the third row can arrive at all.
+ *
+ * `lends` and `window` are what the *slot* holds, carried here because the step's answer is an
+ * address either way and the consumer has to know what it points at: a lending producer's answer is
+ * the value's own address, a window producer's is a descriptor's, and everything else is the slot.
+ * `RecordType::slotWindow` is the same question asked of a site type.
+ */
+struct IterType: Type {
+    IterType(): Type(Iter) {}
+
+    Occurrence handover;
+    DeclPtr<Type> resume = nullptr;
+    DeclPtr<Type> sent = nullptr;
+    DeclPtr<Type> step = nullptr;
+    bool window = false;
 };
 
 /*
@@ -1072,6 +1446,18 @@ struct Types {
     DeclPtr<Type> funType(DeclBase base, const FunParam* params, Size count, const Occurrence& result);
 
     /*
+     * `iter(T)` - interned on the whole protocol, for `funType`'s reason: nothing declares one, so
+     * two spellings that describe the same steps have to be one handle.
+     *
+     * The key is the hand-over occurrence, the resume type and the step signature. `sent` and
+     * `window` are derived from those three at the mint rather than keyed on - two protocols that
+     * agree on all three agree on both - which keeps the key the same three fields `sameType`
+     * compares.
+     */
+    DeclPtr<Type> iterType(DeclBase base, const Occurrence& handover, DeclPtr<Type> resume,
+                           DeclPtr<Type> sent, DeclPtr<Type> step, bool window);
+
+    /*
      * `[T *n]` - interned on the element and the count, so `[I32 *4]` written in two signatures is
      * one handle and `sameType` stays a comparison.
      *
@@ -1112,6 +1498,9 @@ private:
     // The same arrangement for function types, which intern on their whole shape rather than on a
     // declaration - see `funType`.
     HashMap<U64, DeclPtr<Type>> functions;
+
+    // And for the erased iterator objects, on the same terms - see `iterType`.
+    HashMap<U64, DeclPtr<Type>> iterators;
 
     // The same arrangement again, keyed on the element handle and the count - a length, or the
     // handle of the variable standing in for one.
@@ -1744,7 +2133,8 @@ inline Contract fieldContract(DeclBase base, DeclPtr<OwnershipSchema> shape,
  * second word is a member of the pair, and either shape is a position that takes it away. A
  * frame-placed closure owes nothing because the environment is a local of the function that built
  * it; a plain function value owes nothing because the word is null; and a heap-placed closure
- * carries no shape at all and owes its block.
+ * carries no shape at all and owes its block. An erased iterator object is the same three readings
+ * of the same two words.
  *
  * Its own function rather than an arm of `qualifiesInterior` because the two answers differ in the
  * other half: a record whose member was replaced by a borrow is trivially copyable, and a function
@@ -1752,7 +2142,14 @@ inline Contract fieldContract(DeclBase base, DeclPtr<OwnershipSchema> shape,
  */
 inline bool holdsNoOwnedEnvironment(DeclBase base, const Occurrence& occurrence) {
     if(!occurrence.shape) return false;
-    if(base[occurrence.type]->kind != Type::Fun) return false;
+
+    // ... and an **erased iterator object**, which is the same pair over the same word - a
+    // frame-placed one points at a record this function owns, and the drop that would test the tag
+    // and do nothing is not emitted at all. See `mir::IterType`.
+    if(base[occurrence.type]->kind != Type::Fun &&
+       base[occurrence.type]->kind != Type::Iter) {
+        return false;
+    }
 
     for(auto slotPointer: base[occurrence.shape]->slots.contents(base)) {
         auto& slot = *base[slotPointer];

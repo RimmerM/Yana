@@ -1,0 +1,211 @@
+module ResolveTest
+
+data mapped.Iter {$index: I32, $slot: Size, f: %(Size) -> Size, n: Size, : Size, : Size, : Size} shape9
+
+data main.lambda.env {base: Size}
+
+data main.lambda'2.env {hits: &0'Size} shape4
+
+instance Iterate(mapped.Iter, Size, {}): mapped$next, mapped$resume
+
+fn twice(n: Size [shared call]) -> Size {
+bb0:
+  %0: Size = read copy.trivial (n)
+  %1: Size = const 2
+  %2: Size = mul inspect %0 inspect %1
+  return take %2
+}
+
+lens fn mapped(f: (Size) -> Size [shared call], n: Size [shared call], $body: (Size) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local4: Size
+  local i: Size
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Size = read copy.trivial (n)
+  %3: Size = const 1
+  %4: Size = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: Size, %6: Size):
+  %13: Size = read copy.trivial (local4)
+  %14: Bool = le inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: Size, %8: Size):
+  %31: Size = read copy.trivial (local4)
+  %32: Size = sub inspect %7 inspect %31
+  %33: Bool = ge inspect %32 inspect %8
+  branch inspect %33 -> bb7(take %7, take %8) -> bb3(take %7, take %8)
+
+bb3(%9: Size, %10: Size):
+  %41: I32 = read copy.trivial ($yielded)
+  return take %41
+
+bb4(%15: Size, %16: Size):
+  %18: Size = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: (Size) -> Size [shared call] = read borrow.shared (f) loan0
+  %21: Size = read copy.trivial (i)
+  %22: Size = call inspect %20 borrow.shared %21
+  %23: (Size) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %24: I32 = call inspect %23 borrow.shared %22
+  %25: I32 = const 0
+  %26: Bool = eq inspect %24 inspect %25
+  write.assign borrow.unique ($yielded) take %24
+  branch inspect %26 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+
+bb7(%34: Size, %35: Size):
+  %37: Size = read copy.trivial (local4)
+  %38: Size = add inspect %37 inspect %35
+  write.assign borrow.unique (local4) take %38
+  jump -> bb1(take %34, take %35)
+}
+
+fn main() -> Size {
+  local & n: Size
+  local local1: (Size) -> Size [owned here shape8 .0=unique call]
+  local & plain: mapped.Iter [owned here shape9 .2.*=shared slot 0]
+  local v: Size
+  local base: Size
+  local main.lambda.env: main.lambda.env
+  local add: (Size) -> Size [owned here shape10 .0=shared call]
+  local & reading: mapped.Iter [owned here shape9 .2.*=shared slot 0]
+  local v: Size
+  local & hits: Size
+  local main.lambda'2.env: main.lambda'2.env
+  local writing: (Size) -> Size [owned here shape10 .0=shared call]
+  local & counted: mapped.Iter [owned here shape9 .2.*=shared slot 0]
+  local v: Size
+
+bb0:
+  %0: Size = const 0
+  write.init borrow.unique (n) take %0
+  %2: (Size) -> Size [owned here shape8 .0=unique call] = fun.value twice
+  write.init borrow.unique (local1) take %2
+  %4: (Size) -> Size [shared call shape8 .0=unique call] = read borrow.shared (local1) loan0
+  %5: Size = const 3
+  %6: mapped.Iter [owned here shape9 .2.*=shared slot 0] = call mapped$new borrow.shared %4 take %5 roots.0{0}
+  write.init borrow.unique (plain) take %6
+  jump -> bb1
+
+bb1:
+  %9: mapped.Iter [unique call shape9 .2.*=shared slot 0] = read borrow.unique (plain) loan1 roots.0{0}
+  %10: I32 = const 0
+  %11: Bool = const False
+  %12: Bool = call mapped$step borrow.unique %9 take %10 take %11
+  branch inspect %12 -> bb3 -> bb2
+
+bb2:
+  %20: Size = const 10
+  write.init borrow.unique (base) take %20
+  %22: Size = const 10
+  %23: main.lambda.env = aggregate.main.lambda.env take %22
+  write.init borrow.unique (main.lambda.env) take %23
+  %25: main.lambda.env [shared call] = read borrow.shared (main.lambda.env) loan3
+  %26: (Size) -> Size [owned here shape10 .0=shared call] = fun.value main.lambda inspect %25 roots.0{3}
+  write.init borrow.unique (add) take %26
+  %28: (Size) -> Size [shared call shape10 .0=shared call] = read borrow.shared (add) loan4 roots.0{3}
+  %29: Size = const 2
+  %30: mapped.Iter [owned here shape9 .2.*=shared slot 0] = call mapped$new borrow.shared %28 take %29 roots.0{3, 4}
+  write.init borrow.unique (reading) take %30
+  jump -> bb4
+
+bb3:
+  %14: Size = read copy.trivial (plain.$slot)
+  write.init borrow.unique (v) take %14
+  %16: Size [unique call] = read borrow.unique (n) loan2
+  %17: Size = read copy.trivial (v)
+  %18: {} = call +=(Size) borrow.unique %16 borrow.shared %17
+  jump -> bb1
+
+bb4:
+  %33: mapped.Iter [unique call shape9 .2.*=shared slot 0] = read borrow.unique (reading) loan5 roots.0{3, 4}
+  %34: I32 = const 0
+  %35: Bool = const False
+  %36: Bool = call mapped$step borrow.unique %33 take %34 take %35
+  branch inspect %36 -> bb6 -> bb5
+
+bb5:
+  %44: Size = const 0
+  write.init borrow.unique (hits) take %44
+  %46: Size [unique slot 0] = read borrow.unique (hits) loan7
+  %47: main.lambda'2.env = aggregate.main.lambda'2.env borrow.unique %46 roots.0{7}
+  write.init borrow.unique (main.lambda'2.env) take %47
+  %49: main.lambda'2.env [shared call] = read borrow.shared (main.lambda'2.env) loan8 roots.0{7}
+  %50: (Size) -> Size [owned here shape10 .0=shared call] = fun.value main.lambda'2 inspect %49 roots.0{7, 8}
+  write.init borrow.unique (writing) take %50
+  %52: (Size) -> Size [shared call shape10 .0=shared call] = read borrow.shared (writing) loan9 roots.0{7, 8}
+  %53: Size = const 2
+  %54: mapped.Iter [owned here shape9 .2.*=shared slot 0] = call mapped$new borrow.shared %52 take %53 roots.0{7, 8, 9}
+  write.init borrow.unique (counted) take %54
+  jump -> bb7
+
+bb6:
+  %38: Size = read copy.trivial (reading.$slot)
+  write.init borrow.unique (v) take %38
+  %40: Size [unique call] = read borrow.unique (n) loan6
+  %41: Size = read copy.trivial (v)
+  %42: {} = call +=(Size) borrow.unique %40 borrow.shared %41
+  jump -> bb4
+
+bb7:
+  %57: mapped.Iter [unique call shape9 .2.*=shared slot 0] = read borrow.unique (counted) loan10 roots.0{7, 8, 9}
+  %58: I32 = const 0
+  %59: Bool = const False
+  %60: Bool = call mapped$step borrow.unique %57 take %58 take %59
+  branch inspect %60 -> bb9 -> bb8
+
+bb8:
+  %68: Size = read copy.trivial (n)
+  %69: Size = const 10
+  %70: Size = mul inspect %68 inspect %69
+  %71: Size = read copy.trivial (hits)
+  %72: Size = add inspect %70 inspect %71
+  return take %72
+
+bb9:
+  %62: Size = read copy.trivial (counted.$slot)
+  write.init borrow.unique (v) take %62
+  %64: Size [unique call] = read borrow.unique (n) loan11
+  %65: Size = read copy.trivial (v)
+  %66: {} = call +=(Size) borrow.unique %64 borrow.shared %65
+  jump -> bb7
+}
+
+fn mapped$new(f: (Size) -> Size [shared slot 0], n: Size) -> mapped.Iter [owned here shape9 .2.*=shared slot 0] = <no body>
+
+fn mapped$step($self: mapped.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn mapped$next($self: mapped.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn mapped$resume($self: mapped.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn main.lambda(main.lambda.env: main.lambda.env [unique call], i: Size [shared call]) -> Size {
+bb0:
+  %0: Size = read copy.trivial (main.lambda.env.base)
+  %1: Size = read copy.trivial (i)
+  %2: Size = add inspect %0 inspect %1
+  return take %2
+}
+
+fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [unique call], i: Size [shared call]) -> Size {
+bb0:
+  %0: Size = read copy.trivial (main.lambda'2.env.hits)
+  %1: Size = const 1
+  %2: Size = add inspect %0 inspect %1
+  write.assign borrow.unique (main.lambda'2.env.hits) take %2
+  %4: Size = read copy.trivial (i)
+  return take %4
+}
+
+entry main

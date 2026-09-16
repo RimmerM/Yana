@@ -1,0 +1,3 @@
+34:13: error: overFailing runs a nested traversal that can fail, and an object's step has no terminal failure to hand it - `| E` on an object is not built yet; `for x in overFailing(...)` still compiles it the other way
+46:13: error: overResuming runs a nested traversal whose passes hand a value back, and an object's step does not carry one into a nested pass yet
+69:13: error: overOwn runs a nested traversal over storage the object itself holds, and a record moves with whatever holds it - so the child's borrow would point at where the value used to be; write `@heap` on the binding, or traverse a parameter instead

@@ -1,0 +1,131 @@
+{-
+   **An abandoned object runs the producer's cleanup** - the hole
+   `../../../doc/progress/2026-09-16-J56-lens-regions.md` §4 wrote down and
+   `...-J57-object-defects.md` §3 closed.
+
+   # resolver: ownership
+
+   "A consumer that leaves ends the iterator's **loops** - control resumes after the outermost loop
+   the `yield` was in - so statements below them are cleanup and run on both paths" is the language's
+   rule, and the internal form gets it for nothing: the `yield` tests what the continuation answered
+   and takes the departure. An **object** abandoned at the same point only runs it if the record has
+   a teardown at all, and a record owed one when its *members* did - so a producer whose cleanup
+   writes a global and whose state is two integers had no `Drop` instance, was never entered to
+   cancel, and printed nothing.
+
+   The rule now is a **walk**: a site type owes a teardown where anything with an effect is reachable
+   from a `yield`'s departure (`Body::departures`, `departureHasEffect`). The crude reading J56
+   declined - "any statement below a `yield`" - would have taken `Copy` away from most of this
+   corpus, and the difference is the loop: a departure leaves it, so `i = i + 1` under the hand-over
+   is not on this path and `iter/Object.yana`'s producers stay copyable.
+
+   Every claim here is **the two forms against each other**, which is the property that was broken:
+   the same producer run as `for x in f()` and as an object, abandoned at the same point, has to
+   leave the same trace.
+-}
+
+let &trace = 0 :: I32
+
+-- J56 §4's eight lines. The cleanup is below the loop and owes nothing by any member's type.
+iter fn noisy(n: I32) -> I32:
+    let &i = 0 :: I32
+
+    while i < n:
+        yield i
+        i = i + 1
+
+    trace = trace * 10 + 9
+
+-- Nothing below the loop at all, which is the producer that must stay free: no teardown, no `Drop`
+-- instance, and `copy(it)` still derivable.
+iter fn quiet(n: I32) -> I32:
+    let &i = 0 :: I32
+
+    while i < n:
+        yield i
+        i = i + 1
+
+fn internalBreak() -> I32:
+    trace = 0
+
+    for v in noisy(3):
+        break
+
+    return trace
+
+fn objectBreak() -> I32:
+    trace = 0
+    let &it = noisy(3)
+
+    for v in it:
+        break
+
+    return trace
+
+fn internalRanOut() -> I32:
+    trace = 0
+
+    for v in noisy(3):
+        {}
+
+    return trace
+
+fn objectRanOut() -> I32:
+    trace = 0
+    let &it = noisy(3)
+
+    for v in it:
+        {}
+
+    return trace
+
+-- An object abandoned without a loop over it at all - built, stepped once by hand, and dropped.
+fn objectStepped() -> I32:
+    trace = 0
+    let &it = noisy(3)
+
+    if it.next() is Just(v): trace = trace + 0
+
+    return trace
+
+-- ... and one that was never started, which departs from nowhere: the cleanup is below a loop the
+-- producer has not entered, so index zero releases the captures and stops.
+fn objectFresh() -> I32:
+    trace = 0
+    let it = noisy(3)
+
+    return trace
+
+{-
+   The producer that owes nothing is still **copyable**, which is what stops the rule from being
+   "any statement below a `yield`".
+
+   `copy(it)` is refused for a record with a teardown - two of them would cancel one producer twice -
+   so this compiling at all is the assertion.
+-}
+fn copied() -> I32:
+    let &it = quiet(3)
+    let &jt = copy(it)
+    let &packed = 0 :: I32
+
+    for x in it:
+        packed = packed * 10 + x + 1
+
+    for y in jt:
+        packed = packed * 10 + y + 1
+
+    return packed
+
+fn main() -> I32:
+    -- The two forms agree, which is the whole of this file.
+    if internalBreak() != objectBreak() then return 1
+    if internalRanOut() != objectRanOut() then return 2
+
+    -- And what they agree on is that the cleanup ran.
+    if objectBreak() != 9 then return 3
+    if objectStepped() != 9 then return 4
+    if objectFresh() != 0 then return 5
+
+    if copied() != 123123 then return 6
+
+    return 0

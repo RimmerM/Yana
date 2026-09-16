@@ -1,0 +1,164 @@
+{-
+   The library's own iterators, held as objects - which is what stage 3 was for.
+
+   # resolver: ownership
+
+   Each traversal here is run twice, once as `for x in f(...)` and once as `let it = f(...)` stepped
+   by hand, and the assertion is that the two answer the same number. What each one needed is the
+   gap it closed:
+
+   | | |
+   | --- | --- |
+   | `pairs(m)` | a **shared** loan of a `Map`, held as the lender's address |
+   | `words(t)` | a **window** capture, and `$held` for an owning hand-over of a `String` |
+   | `items(xs)` | a **nested traversal** - `for chunk in chunks(self)` - whose child hands over a window |
+   | `lines(t)`, `splitOn(t, c)` | the same nest over `spansOn`, with an owning `->String` hand-over above it |
+
+   The last three are §3.2's first step and arrived with J53. All three run another traversal inside
+   their own body, so the child's site type is a **payload member** of the outer record and the
+   region's blocks are embedded in the outer step - `iter/Nested.yana` is where that mechanism is
+   asserted shape by shape, and this file is the library actually doing it.
+
+   `items` is the one that exercises every row of it at once: `chunks` is a **class member** selected
+   at the concrete container, it hands over `[a]` - a window, which the child's slot holds as the
+   descriptor's own two words - and `items` reads `chunk[i]` through `Index`, which answers a
+   reference the outer slot has to load the item out of.
+-}
+
+fn pairsByFor() -> Int:
+    let m = ["a": 1, "b": 2, "c": 3]
+    let &it = pairs(m)
+    let &sum = 0 :: Int
+
+    for e in it:
+        sum = sum * 10 + e.value
+
+    return sum
+
+fn pairsByLoop() -> Int:
+    let m = ["a": 1, "b": 2, "c": 3]
+    let &sum = 0 :: Int
+
+    for e in pairs(m):
+        sum = sum * 10 + e.value
+
+    return sum
+
+fn wordsByFor() -> Size:
+    let text = "alpha beta  gamma"
+    let &it = words(text)
+    let &total = 0 :: Size
+
+    for w in it:
+        total = total * 10 + length(w)
+
+    return total
+
+fn wordsByLoop() -> Size:
+    let text = "alpha beta  gamma"
+    let &total = 0 :: Size
+
+    for w in words(text):
+        total = total * 10 + length(w)
+
+    return total
+
+-- And through the class, where the item is a **window** onto the object's slot rather than a copy
+-- of it: `Maybe(source'String)`'s payload is two words derived from what the record holds.
+fn wordsByNext() -> Size:
+    let text = "alpha beta  gamma"
+    let &it = words(text)
+    let &total = 0 :: Size
+
+    while it.next() is Just(w):
+        total = total * 10 + length(w)
+
+    return total
+
+{-
+   The three that waited on a nested traversal, each run both ways.
+
+   `items(xs)` nests `chunks(self)`, `lines(t)` and `splitOn(t, c)` both nest `spansOn(text, on)`,
+   and the child is a member of the outer record in each. What the pairs below assert is the same
+   thing every pair in this file asserts: the object and the loop answer the same number.
+-}
+fn itemsByFor() -> Int:
+    let xs = [1, 2, 3, 4]
+    let &it = items(xs)
+    let &packed = 0 :: Int
+
+    for v in it:
+        packed = packed * 10 + v
+
+    return packed
+
+fn itemsByLoop() -> Int:
+    let xs = [1, 2, 3, 4]
+    let &packed = 0 :: Int
+
+    for v in items(xs):
+        packed = packed * 10 + v
+
+    return packed
+
+fn linesByFor() -> Size:
+    let text = "a\nbb\nccc"
+    let &it = lines(text)
+    let &packed = 0 :: Size
+
+    for l in it:
+        packed = packed * 10 + length(l)
+
+    return packed
+
+fn linesByLoop() -> Size:
+    let text = "a\nbb\nccc"
+    let &packed = 0 :: Size
+
+    for l in lines(text):
+        packed = packed * 10 + length(l)
+
+    return packed
+
+fn splitByFor() -> Size:
+    let text = "a,bb,ccc"
+    let &it = splitOn(text, 44)
+    let &packed = 0 :: Size
+
+    for part in it:
+        packed = packed * 10 + length(part)
+
+    return packed
+
+fn splitByLoop() -> Size:
+    let text = "a,bb,ccc"
+    let &packed = 0 :: Size
+
+    for part in splitOn(text, 44):
+        packed = packed * 10 + length(part)
+
+    return packed
+
+fn main() -> Int:
+    let a = pairsByFor()
+    let b = pairsByLoop()
+    let c = wordsByFor()
+    let d = wordsByLoop()
+    let e = wordsByNext()
+
+    checkCondition(a != b)
+    checkCondition(c != d)
+    checkCondition(c != e)
+
+    let f = itemsByFor()
+    let g = itemsByLoop()
+    let h = linesByFor()
+    let i = linesByLoop()
+    let j = splitByFor()
+    let k = splitByLoop()
+
+    checkCondition(f != g)
+    checkCondition(h != i)
+    checkCondition(j != k)
+
+    return a + truncate(c) + f + truncate(h) + truncate(j)

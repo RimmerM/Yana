@@ -1,0 +1,227 @@
+{-
+   **Naming a site type** - `doc/inflight/Design-Iterator-Objects.md` §2.4, stage 2.
+
+   # resolver: ownership
+
+   A site type is a type the compiler makes up out of a body, and until now there was no way to
+   *write* one: `let it = lex(3)` built the record and every position that wanted to say what it held
+   had to be generic in it. `lex.Iter` is that record named from its declaration, and `tokens.Result`
+   is the concrete result of a function that answers one.
+
+   The property the whole path exists for is that there is **one record**. A field written
+   `lexer: lex.Iter` and a `let it = lex(limit)` beside it go through the same minting function
+   (`iterSiteTypeOf`, one per producer and substitution), so `Parser {lexer: it}` below is an
+   ordinary construction rather than a conversion between two types that happen to agree.
+
+   What each part of this file is:
+
+   | | |
+   | --- | --- |
+   | `Parser` | a non-generic record with a field of a site type, built and stepped through the field |
+   | `tokens` | a function whose declared result is one, and `drain` its `.Result` |
+   | `twice.Iter(I32)`, `twice.Iter(F64)` | a generic producer at two instantiations, which are two records |
+   | `Scan` | a field `src'advancing.Iter` - a producer that captured a loan publishes an origin, and a record holding it names one |
+   | `useHeld` | `held.Result` at a **closure**, which is §7's "a non-generic record names one with `f.Result`" |
+   | `Lexing.digits.Iter` | a path through an imported module, found by the ordinary lookup |
+   | `measured` | `traits()` of a written site type, which works in a body and is §6.5's refusal in a constant |
+   | `Defaulted` | a **default** on a field of a record whose fields a path deferred - J62's ordering |
+
+   A record's fields and an alias target are read before any declaration has a body, so a path is
+   refused there and `Reject.Name.yana` holds that message with the rest. A *signature* that writes
+   one waits for the whole declaration pass instead, which is what makes `drain` below - written
+   above the `lex` it names - resolve at all.
+-}
+
+import Native
+import Lexing
+
+{-
+   §2.4's headline, in the shape a parser holds a lexer.
+
+   `lex` captures its argument by value, so its record refers to nobody's storage and the field is
+   an ordinary owned one. The `Scan` further down is the other half of that sentence.
+-}
+iter fn lex(limit: I32) -> I32:
+    let &at = 0 :: I32
+
+    while at < limit:
+        yield at
+        at = at + 1
+
+data Parser {lexer: lex.Iter, total: I32}
+
+{-
+   The field filled from a `let`, and stepped **through the field**.
+
+   `let &cursor = p.lexer` is what a step needs and what a `for` over a held object takes: the loop
+   writes the record, so the borrow is exclusive and nothing else may read `p` while it is live -
+   which is why the total is accumulated beside the parser and written back after.
+-}
+fn parse(limit: I32) -> I32:
+    let it = lex(limit)
+    let &p = Parser {lexer: it, total: 0}
+    let &packed = 0 :: I32
+
+    let &cursor = p.lexer
+    for x in cursor:
+        packed = packed * 10 + (x + 1)
+
+    p.total = packed
+    return p.total
+
+{-
+   A **default** on a field beside a path, which is a question about the phase order rather than
+   about site types.
+
+   A `data` naming `f.Iter` has its whole field list deferred past the declaration walk - the type
+   does not exist until the producer's signature is resolved - so the defaults on its *other* fields
+   are queued by that later pass. The drain that resolves them was latched to the first walk, so
+   there was nothing in the queue when it ran and nothing ran when the queue was filled: every
+   default on such a record silently ceased to be one, and `Defaulted {lexer: it}` was "Defaulted
+   leaves out limit, which has no default". A record with no path in it was unaffected, which is why
+   nothing in the corpus said so. `resolve.cpp`'s `drainDeclarationQueues` is the split.
+
+   Both kinds of default, because they are two queues drained in sequence: a constant expression the
+   record's own head is in scope for, and a string, which waits on `String` being declared.
+-}
+data Defaulted {lexer: lex.Iter, limit: I32 = 2 * 3, tag: String = "d"}
+
+fn defaulted(n: I32) -> I32:
+    let it = lex(n)
+    let &d = Defaulted {lexer: it}
+
+    let &cursor = d.lexer
+    for x in cursor:
+        d.limit = d.limit + x
+
+    return d.limit
+
+-- A function whose declared result is a site type. The object is built by the one position that
+-- builds one - a `let` - and handed back, which a result of the record's own type accepts.
+fn tokens(limit: I32) -> lex.Iter:
+    let it = lex(limit)
+    return it
+
+{-
+   `f.Result` - the concrete result of a function, here the same record `lex.Iter` names.
+
+   Written **above** `tokens` on purpose: a header naming a path is read after every declaration, so
+   where the producer is written is not something the reader has to know.
+-}
+fn drain(&it: tokens.Result) -> I32:
+    let &packed = 0 :: I32
+
+    for x in it:
+        packed = packed * 10 + (x + 1)
+
+    return packed
+
+-- A generic producer. Its site type is minted per set of type arguments, so the two paths below are
+-- two records - one holding an `I32` and one an `F64`.
+iter fn (TrivialCopy(a)) twice(x: a) -> a:
+    yield x
+    yield x
+
+fn ints() -> twice.Iter(I32):
+    let it = twice(7 :: I32)
+    return it
+
+fn reals() -> twice.Iter(F64):
+    let it = twice(0.5 :: F64)
+    return it
+
+{-
+   A producer that **captured a loan**, and a record that holds one.
+
+   `&c` travels as the lender's address, so `advancing.Iter` publishes an origin slot - and a field
+   holding it has to say whose storage it is, exactly as a field of any other borrowed type does.
+   `src'advancing.Iter` is that statement, and `Reject.Name.yana` holds the unqualified spelling.
+-}
+data Counter {at: I32}
+
+iter fn advancing(&c: Counter, limit: I32) -> I32:
+    while c.at < limit:
+        yield c.at
+        c.at = c.at + 1
+
+data Scan {cursor: src'advancing.Iter, seen: I32}
+
+fn scanned() -> I32:
+    let &c = Counter {at: 0}
+    let &it = advancing(c, 3)
+    let &s = Scan {cursor: it, seen: 0}
+    let &packed = 0 :: I32
+
+    let &cursor = s.cursor
+    for x in cursor:
+        packed = packed * 10 + (x + 1)
+
+    s.seen = packed
+    return s.seen
+
+{-
+   The **closure** half of §2.4 - §7's required test, "a non-generic record names one with
+   `f.Result`".
+
+   A lambda at an inferred result keeps its site type (J48), so `held`'s result is the environment
+   record and `held.Result` is the only spelling there is for it: a position written `(I32) -> I32`
+   is the position that asked for the erased pair.
+-}
+fn held(n: I32) = (x: I32) -> x + n
+
+data Adder {step: held.Result, base: I32}
+
+fn useHeld(a: Adder) -> I32 = a.step(5) + a.base
+
+-- A path **through an imported module**, resolved by the ordinary lookup and subject to `pub` -
+-- `Reject.Name.yana` names the private producer beside it.
+fn digitsOf(&it: Lexing.digits.Iter) -> I32:
+    let &packed = 0 :: I32
+
+    for d in it:
+        packed = packed * 10 + d
+
+    return packed
+
+{-
+   §6.5's other side: `traits()` of a *written* site type in a **body** works, and it is only a
+   constant position that cannot have it.
+
+   The numbers are not asserted - a record's size is `iter/Sharing.yana`'s subject - but the record
+   having a layout at all is the claim here, since the path is the only way to ask about one without
+   a value in hand.
+-}
+fn measured() -> I32:
+    let lexTraits = traits() :: TypeTraits(lex.Iter)
+    let heldTraits = traits() :: TypeTraits(held.Result)
+
+    if lexTraits.size == 0 then return 1
+    if !heldTraits.trivialCopy then return 2
+
+    return 0
+
+fn main() -> I32:
+    let &sum = 0 :: I32
+
+    sum = sum + parse(3)
+
+    let &it = tokens(3)
+    sum = sum + drain(it)
+
+    let &a = ints()
+    for x in a:
+        sum = sum + x
+
+    let &b = reals()
+    for y in b:
+        sum = sum + (if y > 0.25 then 1 else 0)
+
+    sum = sum + scanned()
+    sum = sum + useHeld(Adder {step: held(10), base: 2})
+
+    let &d = Lexing.theDigits(123)
+    sum = sum + digitsOf(d)
+
+    sum = sum + defaulted(3)
+
+    return sum + measured()

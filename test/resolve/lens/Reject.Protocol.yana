@@ -3,16 +3,27 @@
 
    # resolver: ownership
 
-   Both are declaration-level, so they are here rather than in `Reject.Skipping.yana`: a signature
-   this stage cannot represent stops the declaration, and the body rules that file asserts never get
-   asked.
+   Every one is declaration-level, so they are here rather than in `Reject.Skipping.yana`: a
+   signature this stage cannot represent stops the declaration, and the body rules that file asserts
+   never get asked. The refusals a resuming iterator's *body and consumer* answer are
+   `Reject.Resume.yana`'s.
 -}
 
--- `<- R`, the resume channel. Analysis-External-Iterators.md §2.1 gives it to an external iterator;
--- for an internal lens it is what the continuation answers *besides* the exit signal, which needs
--- both to travel back - the same wrapper `| E` introduces, turned round.
+-- `<- R` on a **lens**. The channel is built for an `iter fn` - Design-Iterator-Objects.md §2.5,
+-- `test/resolve/lens/Resume.yana` - and a lens hands over once, so there is no second step for a
+-- value to answer. Lenses as objects are §6.6's undecided question and are what would give it one.
 lens fn resuming() -> (Int <- Int):
     yield 1
+
+-- `<- &R` - an exclusive lend, which the wrapper cannot carry: what travels is `Outcome(R, exit)`'s
+-- `Proceed` field, and a record field is an owned position.
+iter fn lending(n: Int) -> (Int <- &Int):
+    yield n
+
+-- `<- R` on a class member, for `declareOutcome`'s reason one level on: the protocol is the class's,
+-- and comparing a third channel in `checkMemberSignature` is work this stage has not done.
+class Commanded(c):
+    iter fn walk(self: c) -> (Int <- Int)
 
 -- A failure type the signature is generic in. `declareOutcome` builds a concrete record, so a
 -- failure of `a` would be a generic one with no context to instantiate it through.

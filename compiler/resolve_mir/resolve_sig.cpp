@@ -1749,6 +1749,30 @@ DeclPtr<RecordType> Resolver::declareOutcome(Function&, DeclPtr<Type> failure, L
 }
 
 /*
+ * `Proceed(r) | Exit(exit)` - what a *resuming* iterator's continuation answers with.
+ *
+ * `declareOutcome`'s wrapper turned round, which is exactly what Design-Iterator-Objects.md §2.5
+ * asks for: the failure channel wraps what the **function** answers because a reason is something
+ * the exit signal cannot carry, and the resume channel wraps what the **continuation** answers for
+ * the same reason one level in. The same `Outcome(a, e)` serves both, at the other argument order -
+ * `Proceed` is the row that means "the pass ended normally", and here that row is the one that
+ * carries the value.
+ *
+ * So a declaration with both channels has one wrapper on each and neither is inside the other:
+ * `Function::continuationResult` is `Outcome(R, exit)` and `Function::result` is
+ * `Outcome(exit, E)`.
+ */
+DeclPtr<RecordType> Resolver::declareResume(Function& function, LocationId source) {
+    DeclPtr<Type> arguments[2] = { function.resume.type, program.types.exitCode() };
+
+    auto type = instantiateRecord(context, program, program.roles.record(intrinsic::Known::outcome),
+                                  arguments, 2, source);
+    if(!type) return nullptr;
+
+    return DeclPtr<RecordType>((RecordType*)decl()[type] - *program.decl);
+}
+
+/*
  * The `yield` form's desugaring - Analysis-Lens.md §5.2, and Analysis-IR.md §11.4's W-A.
  *
  *      lens fn f(a) -> P        declares      fn ($r) f(a, body: (P) -> $r) -> $r
@@ -1803,6 +1827,14 @@ bool Resolver::declareContinuation(Function& function, Function* inherited,
                                                            inherited->continuationResult,
                                                            inheritedWith);
         function.result = substituteOccurrence(context, program, inherited->result, inheritedWith);
+
+        // And the resume channel with them, for the same reason: what a member's `yield` evaluates
+        // to is the class's statement rather than the implementation's. `<- R` on a class member is
+        // refused at the declaration today, so this is the shape rather than a path that runs.
+        if(inherited->resume.type) {
+            function.resume = substituteOccurrence(context, program, inherited->resume,
+                                                   inheritedWith);
+        }
     } else {
         /*
          * Fixed, for the three kinds that have something of their own to say about it, and a
@@ -1824,6 +1856,26 @@ bool Resolver::declareContinuation(Function& function, Function* inherited,
         function.continuationResult = owned(variable ? variable : program.types.exitCode());
 
         /*
+         * `<- R` - the one thing that changes what the *continuation* answers rather than what the
+         * function does.
+         *
+         * A pass that ended with `continue v` has a value to send back as well as the fact that it
+         * ended, and the exit signal is an `I32` with nowhere to put one - so the answer becomes the
+         * wrapper above and the `yield` matches on it. Only an iterator reaches here with one, which
+         * `declareSignature` is where it is refused for a lens.
+         *
+         * `resumesWithValue` and not the bare presence of the channel, which is the rule
+         * `erasedIterTypeOf` has always used and this did not: `<- {}` carries nothing, so wrapping
+         * the signal in `Outcome({}, exit)` gave a step an incoming type no shim would ever build.
+         */
+        if(resumesWithValue(decl(), function)) {
+            auto wrapper = declareResume(function, source);
+            if(!wrapper) return false;
+
+            function.continuationResult = owned(asBase<Type>(wrapper));
+        }
+
+        /*
          * What the *function* answers, which is the continuation's answer only where nothing else
          * can happen to it - `Function::continuationResult`.
          *
@@ -1834,6 +1886,13 @@ bool Resolver::declareContinuation(Function& function, Function* inherited,
          */
         if(function.failure) {
             function.result = owned(asBase<Type>(declareOutcome(function, function.failure, source)));
+        } else if(resumesWithValue(decl(), function)) {
+            // A resuming iterator answers its consumer with the bare signal, exactly as it did
+            // before it had a resume channel: what the wrapper above changed is the *inbound* answer
+            // and nothing the consumer's call site sees. Asked the same way as the wrapper, so that
+            // a unit channel - where there is no wrapper - falls to the line below and answers the
+            // continuation's own type, which is that signal spelled once instead of twice.
+            function.result = owned(program.types.exitCode());
         } else {
             function.result = function.continuationResult;
         }
@@ -1886,30 +1945,10 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
         return nullptr;
     }
 
-    /*
-     * `-> iter(T)` - an ordinary function whose result is a handle, and two shapes it cannot take.
-     *
-     * A **class member** would need a witness table entry for an entry function that is synthesized
-     * per call site and per instantiation - §4.7's erased form, which is not here. An **`=` body**
-     * is refused in the lens's words, because a producer hands over with `yield` too.
-     */
-    if(written.external && (classContext || inherited)) {
-        unsupported(declaration.source, "an external iterator as a class member"_v);
-        return nullptr;
-    }
-
-    if(written.external && written.implicitReturn) {
-        context.diagnostics.error(
-            "an external iterator hands over with `yield`, so its body is a block rather than one expression"_v,
-            declaration.source);
-        return nullptr;
-    }
-
     auto function = new (program.decl) Function(name, here());
     function->source = declaration.source;
     function->lens = lens;
     function->iterator = iterator;
-    function->externalIterator = written.external;
     function->form = readGenForm(declaration);
     readInlineAttribute(declaration, function->alwaysInline, function->inlineHint,
                         function->noInline, function->legacySse);
@@ -2092,7 +2131,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
          * holds it, and that one was refused as well.
          */
         if(recording(context) && !classContext && !inherited) {
-            auto handsOver = lens || written.external;
+            auto handsOver = lens;
             auto& outgoing = handsOver ? function->handover : function->result;
             outgoing = owned(written.ret ? nullptr : program.types.unit);
 
@@ -2119,7 +2158,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * and is refused rather than silently dropped - which would be right today and wrong the moment
      * the two spellings differ, with nothing to say when.
      */
-    if(!lens && !written.external && written.retBind != ast::BindType::Borrow) {
+    if(!lens && written.retBind != ast::BindType::Borrow) {
         unsupported(declaration.source, "a written result convention"_v);
         return nullptr;
     }
@@ -2134,7 +2173,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * *labelled* slot no parameter published is reported there rather than silently becoming a
      * fresh one. The anonymous group is the one that elides - `promoteLoanCandidates`.
      */
-    auto handsOver = lens || written.external;
+    auto handsOver = lens;
     auto position = handsOver ? Position::Handover : Position::Result;
     auto& outgoing = handsOver ? function->handover : function->result;
 
@@ -2175,18 +2214,82 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     function->originSlots = slots.count();
 
     /*
-     * `<- R` - the resume channel, which this stage parses and does not implement.
+     * `<- R` - the resume channel, and the whole of what makes an iterator *resuming*.
      *
-     * Analysis-External-Iterators.md §6.1 rejects it for *external* iteration's own reason, and for
-     * an internal lens the reason it is not here yet is a different one: a continuation that answers
-     * a value as well as the exit signal needs both to travel back, which is the same wrapper `| E`
-     * introduces turned round - `Outcome(R, exit)` in place of the bare signal. Refused by name
-     * rather than dropped, because a resume type silently ignored is a `yield` whose value is
-     * garbage.
+     * Design-Iterator-Objects.md §2.5: `yield y` in such a body evaluates to an `R`, a pass of the
+     * consumer's `for` ends with `continue v`, and what travels back is the wrapper
+     * `declareContinuation` builds - `Outcome(R, exit)` in place of the bare signal, which is
+     * `declareOutcome`'s turned round. Resolved at `Position::Handover` for the reason the
+     * hand-over is: it is a binding position, so an unqualified spelling lends for the producer's
+     * step, `&` lends exclusively and `->` consumes, and a slot it names has to have been published
+     * by a parameter.
+     *
+     * Three shapes are refused rather than built, each because the channel has no other end there:
+     *
+     *  - a **`lens fn`**, whose one hand-over would make the wrapper a cost with nothing to say -
+     *    and whose use as an *object* is §6.6's undecided question, which is what would give a lens
+     *    a second step to answer;
+     *  - an **external** iterator (`-> iter(T)`), whose step is a stack switch rather than a call,
+     *    so the answer would have to cross it - §4.7's form and not this one;
+     *  - a **class member**, for `declareOutcome`'s reason one level on: the protocol is the class's
+     *    and `checkMemberSignature` compares the hand-over and the failure type, so a third channel
+     *    to compare is work this stage has not done rather than something the shape prevents.
      */
     if(written.protocol.resume) {
-        unsupported(parse[written.protocol.resume]->source, "a `<- R` resume value"_v);
-        return nullptr;
+        if(!iterator) {
+            context.diagnostics.error(
+                "only an `iter fn` can take a `<- R` resume value - a `lens fn` hands over once, so there is no second step for a value to answer"_v,
+                parse[written.protocol.resume]->source);
+            return nullptr;
+        }
+
+        if(classContext || inherited) {
+            unsupported(parse[written.protocol.resume]->source,
+                        "a `<- R` resume channel on a class member"_v);
+            return nullptr;
+        }
+
+        Occurrence writtenResume;
+        auto outerResume = elisionSubject;
+        elisionSubject = function;
+        auto resumeOk = resolveOccurrence(*parse[written.protocol.resume],
+                                          written.protocol.resumeBind, Position::Handover, slots,
+                                          writtenResume);
+        elisionSubject = outerResume;
+
+        if(!resumeOk) return nullptr;
+
+        /*
+         * `<- &R` - an **exclusive** lend, which is the one convention the wrapper cannot carry.
+         *
+         * What travels is `Outcome(R, exit)`'s `Proceed` field, and a record field is an owned
+         * position: an exclusive borrow living in one would need the qualified type argument
+         * `Outcome('R, exit)` - Analysis-Borrows-Revised.md §2.4 - under a loan whose extent is the
+         * *producer's step*, and this stage has no such extent. Refused by name rather than read as
+         * a lend that is really a copy, which is the one reading a `&` can never have. Read off the
+         * resolved contract and not off the sigil, because `&` belongs to the *type* here -
+         * `parseResultBind` reads only the `->`.
+         */
+        if(writtenResume.contract.access() == Access::Unique) {
+            unsupported(parse[written.protocol.resume]->source,
+                        "an exclusive `<- &R` resume value"_v);
+            return nullptr;
+        }
+
+        /*
+         * And **owned**, whatever the sigil said.
+         *
+         * The two readable conventions meet here rather than staying apart, because the position the
+         * value physically fills is the wrapper's field and that field owns what it holds. `->R`
+         * says so; a plain spelling means "lent for the producer's step", and what a lend of a
+         * trivially copyable type physically *is* is a copy - which is the same sentence
+         * `resolveYield` makes about a lending hand-over one channel over. So a plain `<- R` of a
+         * type whose loan is not a copy is reported at the `continue v` that tries to fill it, by
+         * the ordinary rule about a borrowed place filling a position that consumes, rather than
+         * here: whether a type copies is `classifyTypes`' answer and does not exist yet.
+         */
+        function->resume = requalified(writtenResume, ownedContract());
+        function->originSlots = slots.count();
     }
 
     /*
@@ -2206,12 +2309,6 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
          * the reason a `<- R` is - a failure channel silently dropped is an iterator that ends
          * successfully when it did not.
          */
-        if(written.external) {
-            unsupported(parse[written.protocol.failure]->source,
-                        "an external iterator's `| E` failure channel"_v);
-            return nullptr;
-        }
-
         if(!lens) {
             context.diagnostics.error(
                 "only a `lens fn` or an `iter fn` can fail with `| E` - a plain function says so in its result type"_v,
@@ -2249,10 +2346,6 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     if(lens && !declareContinuation(*function, inherited, inheritedWith, declaration.source)) {
         return nullptr;
     }
-
-    // And the external form's, which is the same sentence about the other iterator kind: one
-    // appended parameter, and nothing below this line knows there was a protocol in the result.
-    if(written.external && !declareIterHandle(*function, declaration.source)) return nullptr;
 
     /*
      * The signature is what binds the variables, so nothing after it may introduce one.
@@ -2356,15 +2449,250 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     return function;
 }
 
-void Resolver::declareFunction(ast::Decl& declaration) {
+/*
+ * Whether a written type is, or holds, a **declaration path** - `f.Iter`, `f.Result`.
+ *
+ * A syntactic walk and deliberately not a resolution: what it decides is *when* the signature
+ * holding it is read (see `Resolver::pendingSiteSignatures`), which has to be decided before any
+ * name in it is looked up. Total over the kinds rather than a list of the interesting ones, so that
+ * a kind added to `ast::Type` and not to this walk is a missing case here rather than a signature
+ * silently read in the wrong pass - the switch has no `default:` for exactly that.
+ */
+static bool namesSitePath(ast::ParseBase base, ast::Type& type) {
+    switch(type.kind) {
+        case ast::Type::Site:
+            return true;
+        case ast::Type::Error:
+        case ast::Type::Unit:
+        case ast::Type::Con:
+        case ast::Type::Gen:
+        case ast::Type::Lit:
+        case ast::Type::Loan:
+            return false;
+        case ast::Type::Ptr:
+        case ast::Type::Ref:
+            return namesSitePath(base, *base[type.to]);
+        case ast::Type::Borrow:
+        case ast::Type::Shared:
+            return namesSitePath(base, *base[type.ref.to]);
+        case ast::Type::Arr:
+        case ast::Type::ArrInferred:
+            return namesSitePath(base, *base[type.arr.type]);
+        case ast::Type::Iter: {
+            // `iter(lex.Iter)` is a protocol over a path, which is as good a reason to defer the
+            // signature as a bare one: what decides is whether a *name* in the type needs every
+            // declaration to be in, and each channel is a type like any other.
+            auto& iterated = *base[type.iterated];
+            if(namesSitePath(base, iterated.yielded)) return true;
+            if(iterated.protocol.resume && namesSitePath(base, *base[iterated.protocol.resume])) {
+                return true;
+            }
+
+            return iterated.protocol.failure &&
+                   namesSitePath(base, *base[iterated.protocol.failure]);
+        }
+        case ast::Type::Map:
+            return namesSitePath(base, *base[type.map.from]) ||
+                   namesSitePath(base, *base[type.map.to]);
+        case ast::Type::Tup:
+            for(auto field: type.tup.fields.contents(base)) {
+                if(namesSitePath(base, field.type)) return true;
+            }
+
+            return false;
+        case ast::Type::App: {
+            auto& application = *base[type.app];
+            if(namesSitePath(base, application.base)) return true;
+
+            for(auto argument: application.args.contents(base)) {
+                if(namesSitePath(base, argument)) return true;
+            }
+
+            return false;
+        }
+        case ast::Type::Fun: {
+            auto& written = *base[type.fun];
+            for(auto argument: written.args.contents(base)) {
+                if(namesSitePath(base, argument.type)) return true;
+            }
+
+            if(namesSitePath(base, written.ret)) return true;
+            if(written.protocol.resume && namesSitePath(base, *base[written.protocol.resume])) {
+                return true;
+            }
+
+            return written.protocol.failure &&
+                   namesSitePath(base, *base[written.protocol.failure]);
+        }
+    }
+
+    return false;
+}
+
+/*
+ * The same question asked of a whole `fn` header - every position of it that is a type.
+ *
+ * The defaults are left out because a default is an *expression*: what it may name is a constant,
+ * and §6.5 refuses a declaration path in one wherever it is written.
+ */
+static bool signatureNamesSitePath(ast::ParseBase base, ast::Decl& declaration) {
+    auto& written = declaration.fun;
+
+    for(auto argument: written.args.contents(base)) {
+        if(argument.type && namesSitePath(base, *base[argument.type])) return true;
+    }
+
+    if(written.ret && namesSitePath(base, *base[written.ret])) return true;
+    if(written.protocol.resume && namesSitePath(base, *base[written.protocol.resume])) return true;
+
+    return written.protocol.failure && namesSitePath(base, *base[written.protocol.failure]);
+}
+
+/*
+ * The same question asked of a `data` - every type any of its constructors writes.
+ *
+ * A constructor's content is one written type: a tuple for the braced form, and the type itself for
+ * the one-payload form. Both go through the same walk, which is what makes `data Held {it: f.Iter}`
+ * and `data Held(f.Iter)` one answer.
+ */
+static bool dataNamesSitePath(ast::ParseBase base, ast::Decl& declaration) {
+    for(auto constructor: declaration.data.cons.contents(base)) {
+        if(constructor.content && namesSitePath(base, *base[constructor.content])) return true;
+    }
+
+    return false;
+}
+
+/*
+ * Whether this record's fields have to wait - `Resolver::pendingSiteFields`.
+ *
+ * `deferSignature`'s sentence about a `data`. A field of a site type is the shape §2.4 leads with -
+ * `data Compiler {parser: lex.Iter}` - and the pass that reads fields runs before any function is
+ * even a name, so the record is read a second time immediately after `declare` and its schema is
+ * folded again there.
+ *
+ * What it does **not** defer is anything else about the record: the shell, its name, its generic
+ * head and its place in the module's list are all made where they always were, so a type position
+ * naming this record between the two passes gets the handle it always got. What such a position
+ * would see is a record with no fields yet, which is the one cost - and it is the same cost
+ * `completeInstantiations` already pays for a field whose type is declared further down.
+ */
+bool Resolver::deferFields(ast::Decl& declaration, DeclPtr<RecordType> record) {
+    if(declarationsReady) return false;
+    if(!dataNamesSitePath(parse, declaration)) return false;
+
+    pendingSiteFields.push(PendingSiteFields {
+        &declaration, record, here(), current->activeFile
+    });
+
+    return true;
+}
+
+/*
+ * Whether this declaration's signature has to wait - `Resolver::pendingSiteSignatures`.
+ *
+ * A path names a type built out of somebody else's **body**, and a body can only be demanded once
+ * every declaration in the program is a name with a signature behind it. So a header that writes one
+ * is read in a second pass over the same files, and what it buys is that the answer does not depend
+ * on where in the program the producer was written - which is the property `resolveAliasTargets`
+ * exists to give an alias and `requireResult` to give an inferred result.
+ */
+bool Resolver::deferSignature(ast::Decl& declaration) {
+    if(declarationsReady) return false;
+    if(!signatureNamesSitePath(parse, declaration)) return false;
+
+    pendingSiteSignatures.push(PendingSiteSignature {
+        &declaration, here(), current->activeFile, writtenFunctions.size()
+    });
+
+    // The two lists are joined to the body pass by *position* (see `writtenFunctions`), so the slot
+    // is taken now and filled by the drain rather than appended out of order.
+    writtenFunctions.push(nullptr);
+    writtenFunctionDecls.push(nullptr);
+    return true;
+}
+
+/*
+ * The headers that waited, once every other declaration is in - see `deferSignature`.
+ *
+ * In declaration order, which is the one thing left that an author can see: a deferred header naming
+ * *another* deferred header's `.Result` is read after it where it is written after it, and reports
+ * where it is written before. That is the same rule a module-level constant reading another global
+ * is already under, and it is the only order dependence a declaration path has left.
+ */
+void Resolver::resolveSiteSignatures() {
+    declarationsReady = true;
+
+    /*
+     * The records first, because a signature may hold one by name and a field may not hold a
+     * signature at all: what a deferred field needs is a *body*, which every declaration can now
+     * supply, and what a deferred header needs is every type - including these.
+     *
+     * The schema is folded per record here rather than by a second `foldSchemas` over the program:
+     * the pass that folds every record has already run, and what these have that it could not see is
+     * their own fields. `foldRecordSchema` assigns the schema rather than adding to it, so folding
+     * one twice is folding it once with more in hand.
+     *
+     * And the **classification** again, for the same sentence one property over. This pass now runs
+     * after `classifyTypes` rather than before it - a demanded body may not be resolved against
+     * unclassified types - so each of these records was folded with no fields at all and came out
+     * owing nothing. Clearing the flag and folding it again is the per-record half; the whole-program
+     * half is below, because what *holds* one of these was folded from that same empty answer.
+     */
+    auto filled = pendingSiteFields.size() != 0;
+
+    for(auto& pending: pendingSiteFields) {
+        ModuleScope scope(*this, pending.module, pending.file);
+        declareFieldsOf(*pending.declaration, pending.record);
+
+        auto& record = *decl()[pending.record];
+        breakRecordLayout(context, program, record);
+        foldRecordSchema(context, program, record);
+    }
+
+    pendingSiteFields.clear();
+
+    for(auto& pending: pendingSiteSignatures) {
+        ModuleScope scope(*this, pending.module, pending.file);
+        declareFunction(*pending.declaration, pending.slot);
+    }
+
+    pendingSiteSignatures.clear();
+
+    // The whole-program fold, once, and only where a `data` wrote a path - see `reclassifyTypes`.
+    if(filled && program.typesClassified) reclassifyTypes(context, program);
+}
+
+void Resolver::declareFunction(ast::Decl& declaration, Size slot) {
+    // A header naming `f.Iter` or `f.Result` waits for every other declaration - see
+    // `deferSignature`, which is what takes the slot this pass would have appended.
+    if(deferSignature(declaration)) return;
+
+    // Where the two position-joined lists are written. Appending for the ordinary declaration and
+    // filling a slot the first pass reserved for a deferred one, which is what keeps `resolveBodies`
+    // walking one list against the file's own declaration order.
+    auto record = [&](DeclPtr<Function> pointer, ast::Decl* written) {
+        if(slot == kNoSignatureSlot) {
+            writtenFunctions.push(pointer);
+            writtenFunctionDecls.push(written);
+            return;
+        }
+
+        writtenFunctions[slot] = pointer;
+        writtenFunctionDecls[slot] = written;
+    };
+
     auto function = declareSignature(declaration, declaration.fun.name);
     if(!function) {
-        writtenFunctions.push(nullptr);
+        record(nullptr, nullptr);
         return;
     }
 
     auto pointer = function - *program.decl;
-    writtenFunctions.push(pointer);
+
+    // The AST beside the signature, so that a body can be demanded rather than waited for - see
+    // `Resolver::demandBody`, which is what an iterator object's payload needs of its producer.
+    record(pointer, &declaration);
     recordDefinition(context, functionSymbol(decl(), pointer));
 
     // `@test`, which adds this declaration to the suite rather than setting a flag on it - see
@@ -2411,6 +2739,324 @@ void Resolver::declareFunction(ast::Decl& declaration) {
         context.diagnostics.error("this module already declares a plain %@ taking %@ arguments - a name may have one, beside any number of class functions"_v,
                                   declaration.source, context.findName(function->name),
                                   U64(conflict));
+    }
+}
+
+/*
+ * Whether a type is a site type, or holds one - what `f.Result` is allowed to name.
+ *
+ * Design-Iterator-Objects.md §2.4: "`f`'s result is a site type or contains one". The two rows of
+ * `RecordType` that make a record one are `lambda`/`lambdaShape` and `producer`, and either is an
+ * answer on its own; the walk below is what makes `-> Maybe(f.Iter)` and `-> {items: g.Iter}` count
+ * as well, which they must, since what makes the path worth writing is that the type has no other
+ * spelling.
+ *
+ * Depth-bounded rather than marked, because a record may hold itself behind a `@box` and this is
+ * asked once per written path: what a deeper nesting would buy is a spelling nobody writes, and the
+ * refusal below names the result either way.
+ */
+static bool holdsSiteType(DeclBase base, DeclPtr<Type> type, U32 depth = 0) {
+    if(!type || depth > 8) return false;
+
+    switch(base[type]->kind) {
+        case Type::Record: {
+            auto& record = *(RecordType*)base[type];
+            if(record.producer || (record.lambda && record.lambdaShape)) return true;
+
+            for(auto argument: record.arguments.contents(base)) {
+                if(holdsSiteType(base, argument, depth + 1)) return true;
+            }
+
+            for(auto field: record.fields.contents(base)) {
+                if(holdsSiteType(base, field.occurrence.type, depth + 1)) return true;
+            }
+
+            return false;
+        }
+        case Type::Pointer:
+            return holdsSiteType(base, ((PointerType*)base[type])->to, depth + 1);
+        case Type::Array:
+            return holdsSiteType(base, ((ArrayType*)base[type])->element, depth + 1);
+        default:
+            // A function type is the *erased* form of a closure and deliberately not one of these:
+            // a position that states `(A) -> B` is the position that asked for the pair, so naming
+            // it `f.Result` would hand back a type the declaration does not have.
+            return false;
+    }
+}
+
+/*
+ * What a declaration is, for a message about a path written at the wrong kind of one.
+ *
+ * The three kinds a `fn` header can declare, in the words the header uses - so the refusal reads
+ * back what the author wrote rather than describing a flag.
+ */
+static StringView functionKindName(const Function& declared) {
+    if(declared.iterator) return "an `iter fn`"_v;
+    if(declared.lens) return "a `lens fn`"_v;
+    return "an ordinary `fn`"_v;
+}
+
+// The two members a declaration publishes. Functions rather than constants because
+// `Context::nameHash` is not a constant expression - the same reason `grantingOrigin` above is one.
+static StringId iterMember() { return Context::nameHash("Iter", 4); }
+static StringId resultMember() { return Context::nameHash("Result", 6); }
+
+/*
+ * The arguments of `f.Iter(a, b)`, bound to the declaration's own type parameters.
+ *
+ * The declaration's and not a head's, which is the whole reason `Type::Site` holds them rather than
+ * an `AppType` over it: what `f.Iter(I32)` says is *which `f`*, so the list is the one
+ * `specializeFunction` takes and the arity is the one the `fn` header declared.
+ *
+ * Concrete, and that is J50's refusal seen from the type side. A site type has no parameters of its
+ * own - it is minted from one producer read under one substitution - so a path at a variable of the
+ * enclosing declaration would be a record that has to exist before the substitution that decides it.
+ * `constructIterObject` refuses the same shape at a `let` with the same advice, which is what keeps
+ * the two spellings of one object under one rule.
+ */
+DeclPtr<Type> Resolver::siteTypeArguments(ast::SiteType& path, Function& declared,
+                                          LocationId source,
+                                          SmallArray<DeclPtr<Type>, 4>& into) {
+    auto parameters = isGeneric(decl(), declared.gen) ? decl()[declared.gen]->variables.size() : 0;
+    auto written = path.args.size();
+
+    if(written != parameters) {
+        // The words `instantiateRecord` uses for the same mistake one grammar over, because it is
+        // the same mistake: a head applied to the wrong number of arguments.
+        if(!parameters) {
+            context.diagnostics.error("%@ takes no type arguments and this path names %@"_v, source,
+                                      context.findName(declared.name), U64(written));
+        } else {
+            context.diagnostics.error("%@ takes %@ type arguments and this path names %@"_v, source,
+                                      context.findName(declared.name), U64(parameters),
+                                      U64(written));
+        }
+
+        return nullptr;
+    }
+
+    for(auto argument: path.args.contents(parse)) {
+        auto resolved = resolveTypeArgument(argument, declared.gen, into.size());
+        if(!resolved) return nullptr;
+
+        if(!isConcreteType(decl(), resolved)) {
+            context.diagnostics.error(
+                "%@'s object type is minted per set of type arguments, so a path at a variable this declaration binds names a record that does not exist yet - write the arguments out, or `@specialize` whatever decides them"_v,
+                argument.source, context.findName(declared.name));
+            return nullptr;
+        }
+
+        into.push(resolved);
+    }
+
+    // A sentinel rather than a bool, so that the caller's `if(!...)` reads the way every other
+    // resolution in this file does. `unit` is never a site type and is never handed on.
+    return program.types.unit;
+}
+
+/*
+ * `f.Iter`, `f.Iter(a, b)`, `f.Result` - Design-Iterator-Objects.md §2.4, in type position.
+ *
+ * The one thing this function does that is not lookup: it reaches the *same* minting function a
+ * `let it = f(...)` reaches. A field written `lexer: lex.Iter` and a `let it = lex(src)` therefore
+ * name one record, because `iterSiteTypeOf` caches one per (producer, substitution) and both
+ * spellings ask it - which is the property the whole path exists for and the reason none of this
+ * lives in a table of published names.
+ *
+ * `f.Result` is the other half and needs no new mechanism either: what a declaration's result *is*
+ * is `requireResult`'s answer, which is the same demand a caller makes of an `=` body. What it adds
+ * is the refusal - a result with no site type in it has a spelling already, and a path to it would
+ * be a second name for `I32`.
+ */
+/*
+ * `iter(T)` in type position - Design-Iterator-Objects.md §2.2, and the erased form's whole grammar.
+ *
+ * The three channels are read by the same rules a traversal's result is read by, which is the point
+ * of one grammar: the hand-over is a **binding** position, so it defaults to a borrow and `->` is
+ * what makes a consumer own what it takes; `<- R` is what a `yield` evaluates to; and `| E` is
+ * refused by name, because an object needs a terminal failure on its step and that is §6.6's first
+ * gap.
+ *
+ * The **slot scope is local**, and that is the one place this differs from a signature: an origin
+ * written inside the brackets says the item is somebody else's, which is what every erased object
+ * already says - `Iterate`'s `next` roots its answer in the object - so there is nothing outside the
+ * type for a label to name. `iter(src'T)` is therefore `iter('T)` with a name nobody reads, which is
+ * a spelling rather than a second meaning.
+ */
+DeclPtr<Type> Resolver::resolveErasedIterType(ast::Type& type) {
+    auto& written = *parse[type.iterated];
+
+    if(written.protocol.failure) {
+        unsupported(parse[written.protocol.failure]->source,
+                    "a `| E` failure channel on an iterator object"_v);
+        return nullptr;
+    }
+
+    SlotScope slots;
+    Occurrence handover;
+
+    if(!resolveOccurrence(written.yielded, written.bind, Position::Handover, slots, handover)) {
+        return nullptr;
+    }
+
+    DeclPtr<Type> resume = nullptr;
+    if(written.protocol.resume) {
+        resume = resolveType(*parse[written.protocol.resume]);
+        if(!resume) return nullptr;
+    }
+
+    /*
+     * A protocol written at a variable the enclosing declaration binds - refused, and for
+     * `constructIterObject`'s reason one tier over.
+     *
+     * The erased type is interned on its protocol and the instance that steps it is generated at
+     * that protocol, so `iter(a)` inside a body compiled once would name one instance serving every
+     * substitution - which is a blanket instance the compiler wrote, over a class whose whole job is
+     * to say which step to call. Specializing is always available and is what `Auto` chooses.
+     */
+    auto open = genContext && (mentionsContext(decl(), handover.type, genContext) ||
+                               mentionsContext(decl(), resume, genContext));
+
+    if(open) {
+        context.diagnostics.error(
+            "an iterator object's type is interned on the protocol it steps, so one cannot be written at a type variable the declaration binds - write the type out, or `@specialize` the declaration"_v,
+            type.source);
+        return nullptr;
+    }
+
+    return erasedIterTypeOf(handover, resume, type.source);
+}
+
+DeclPtr<Type> Resolver::resolveSiteType(ast::Type& type) {
+    auto& path = *parse[type.site];
+
+    /*
+     * §6.5 - a site type's size in a **constant** position, now that the path makes it reachable.
+     *
+     * The record is minted from a body, and a constant is resolved before any body is: the demand
+     * would build the producer in the middle of the declaration pass that is reading the constant,
+     * with the answer decided by which declaration the pass happened to reach first. Refused by
+     * name, which is §6.5's own instruction, and the advice is the position that does work.
+     */
+    if(readingConstant) {
+        context.diagnostics.error(
+            "a declaration path names a type built out of a body, and a constant is settled before any body is read - ask for its layout in a body instead, as in `let t = traits() :: TypeTraits(%@.%@)`"_v,
+            type.source, context.findName(path.head), context.findName(path.member));
+        return nullptr;
+    }
+
+    /*
+     * A position read **before** every declaration is in - a record's field, an alias target.
+     *
+     * A signature that writes a path waits for the whole declaration pass (`deferSignature`), and a
+     * body runs long after it; these two do not, and cannot: a field's type is what the record's
+     * schema, its layout and its ownership are folded from, and all three are settled before any
+     * function has a signature, never mind a body. Reported as the position rather than as "no
+     * function named lex", which is what the lookup would otherwise say about a declaration that is
+     * plainly there.
+     */
+    if(!declarationsReady) {
+        context.diagnostics.error(
+            "a declaration path names a type built out of a body, and a record's fields and an alias target are read before any declaration has one - write the path in a signature or a body, or make the field generic in what it holds, as in `data Parser(l) {lexer: l}`"_v,
+            type.source);
+        return nullptr;
+    }
+
+    auto found = findDeclaredFunction(context, program, here(), path.head, type.source);
+    if(!found) {
+        /*
+         * A **global** of the name, which is the one other thing a lowercase name can be. Said
+         * apart from "nothing declares this", because what an author has to change differs: a
+         * global publishes no type at all, and a typo is a typo.
+         */
+        if(findGlobal(context, program, here(), path.head, type.source)) {
+            context.diagnostics.error(
+                "%@ is a global, and a declaration path names a type a *function* publishes - `f.Iter` for an `iter fn` and `f.Result` for a function whose result is one"_v,
+                type.source, context.findName(path.head));
+            return nullptr;
+        }
+
+        context.diagnostics.error("no function named %@ is in scope here"_v, type.source,
+                                  context.findName(path.head));
+        return nullptr;
+    }
+
+    auto& declared = *decl()[found];
+    recordReference(context, type.source, functionSymbol(decl(), found));
+
+    /*
+     * Which member, and whether the declaration has one - **before** the arguments are counted.
+     *
+     * Order matters here and the reason is a `lens fn`: one binds a type variable of its own for
+     * what its continuation answers, so `around.Iter` counted first reads as an arity mistake and
+     * says nothing about the thing that is actually wrong with it.
+     */
+    auto wantsIter = path.member == iterMember();
+
+    if(!wantsIter && path.member != resultMember()) {
+        context.diagnostics.error(
+            "a declaration publishes `Iter` - an `iter fn`'s object type - and `Result`, and %@ is neither"_v,
+            type.source, context.findName(path.member));
+        return nullptr;
+    }
+
+    /*
+     * A producer, and nothing else. Named as what the declaration *is* rather than as what it is
+     * not, because the two ways to be wrong here - a plain function, and a `lens fn` - are fixed
+     * differently and the header is where either is written.
+     */
+    if(wantsIter && !declared.iterator) {
+        context.diagnostics.error("`.Iter` is the object type of an `iter fn`, and %@ is %@"_v,
+                                  type.source, context.findName(declared.name),
+                                  functionKindName(declared));
+        return nullptr;
+    }
+
+    /*
+     * And an `iter fn` has a hand-over rather than a result, so `.Result` on one would name the exit
+     * signal. Pointed at the member that means what the author asked for.
+     */
+    if(!wantsIter && declared.iterator) {
+        context.diagnostics.error(
+            "%@ is an `iter fn`, so what it hands over is not its result - `%@.Iter` is its object type"_v,
+            type.source, context.findName(declared.name), context.findName(declared.name));
+        return nullptr;
+    }
+
+    SmallArray<DeclPtr<Type>, 4> arguments;
+    if(!siteTypeArguments(path, declared, type.source, arguments)) return nullptr;
+
+    Substitution with { declared.gen, arguments.pointer(), arguments.size() };
+
+    if(wantsIter) {
+        // The same function `let it = f(...)` calls, which is the whole point - see the note above.
+        return iterSiteTypeOf(declared, with, type.source);
+    }
+
+    {
+        auto target = found;
+        if(with.count) {
+            target = specializeFunction(context, program, found, arguments.pointer(),
+                                        arguments.size(), type.source);
+            if(!target) return nullptr;
+        }
+
+        // The body, where the result is the body's answer - the same demand a caller makes, so that
+        // `fn tokens(...) = lex(s)` written below its use still names the record it builds.
+        if(!requireResult(*decl()[target], type.source)) return nullptr;
+
+        auto result = decl()[target]->result.type;
+        if(!result) return nullptr;
+
+        if(!holdsSiteType(decl(), result)) {
+            context.diagnostics.error(
+                "%@'s result is %@, which has a name of its own - `.Result` is for a result the compiler made up, such as a closure or an `iter fn`'s object"_v,
+                type.source, context.findName(declared.name), typeText(context, decl(), result));
+            return nullptr;
+        }
+
+        return result;
     }
 }
 

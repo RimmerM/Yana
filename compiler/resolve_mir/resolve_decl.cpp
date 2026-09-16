@@ -1253,6 +1253,21 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
     auto pointer = writtenRecords[next++];
     if(!pointer) return;
 
+    // A `data` naming `f.Iter` in one of its fields waits for every declaration - `deferFields`,
+    // where the reason is. The slot in `writtenRecords` is consumed either way, so the pairing this
+    // pass is joined to the next by is unaffected.
+    if(deferFields(declaration, pointer)) return;
+
+    declareFieldsOf(declaration, pointer);
+}
+
+/*
+ * One `data`'s constructors and fields, into the record shell `declareTypes` made.
+ *
+ * Split from the walk above so that the drain has an entry point that is not driven by
+ * `writtenRecords`' cursor - see `Resolver::pendingSiteFields`.
+ */
+void Resolver::declareFieldsOf(ast::Decl& declaration, DeclPtr<RecordType> pointer) {
     auto record = decl()[pointer];
 
     // The record's own ownership schema scope - §5.11. A `data` declaration is a scope exactly as a

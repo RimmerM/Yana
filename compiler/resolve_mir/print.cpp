@@ -119,6 +119,22 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
             printType(writer, context, base, fun.result.type);
             break;
         }
+        case Type::Iter: {
+            // The protocol as it is written - `typeText` spells the same thing, so a dump and a
+            // message name one type one way.
+            auto& iterated = (IterType&)value;
+            writer.writeString("iter("_v);
+            writer.writeString(conventionMark(iterated.handover.contract, Access::Shared));
+            printType(writer, context, base, iterated.handover.type);
+
+            if(iterated.resume && base[iterated.resume]->kind != Type::Unit) {
+                writer.writeString(" <- "_v);
+                printType(writer, context, base, iterated.resume);
+            }
+
+            writer.writeString(")"_v);
+            break;
+        }
         case Type::Record: {
             auto& record = (RecordType&)value;
 
@@ -852,6 +868,15 @@ struct Printer {
         if(region->kind == Continuation::Handover) {
             writer.writeString("("_v);
             printOccurrence(writer, context, decl, region->handover);
+
+            // `<- R`, where the callee declared one. Printed only there, so a region of an ordinary
+            // traversal is the line it always was - and a `resume` node below it has a declaration
+            // in the dump to be read against.
+            if(region->resume.type) {
+                writer.writeString(" <- "_v);
+                printOccurrence(writer, context, decl, region->resume);
+            }
+
             writer.writeString(")"_v);
         }
 

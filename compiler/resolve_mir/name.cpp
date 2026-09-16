@@ -238,6 +238,16 @@ bool hasFunctionName(Context& context, Program& program, DeclPtr<Module> from, S
     return bool(found);
 }
 
+// See the declaration. `hasFunctionName`'s walk, with the declaration kept rather than reduced to a
+// bool, and with the ambiguity report on because a path is a use of the name.
+DeclPtr<Function> findDeclaredFunction(Context& context, Program& program, DeclPtr<Module> from,
+                                       StringId name, LocationId source) {
+    return *search<DeclPtr<Function>>(context, program, from, name, source,
+                                      [&](DeclPtr<Module> in, NameRef reference) {
+        return program.functionNamed(in, reference.rest());
+    });
+}
+
 Fixity findFixity(Context& context, Program& program, DeclPtr<Module> from, StringId name) {
     /*
      * The traversal, used only to get the same module order everything else has.

@@ -1,0 +1,287 @@
+{-
+   A **recursive** traversal built as an object - `doc/inflight/Design-Iterator-Objects.md` §6.3.
+
+   # resolver: ownership
+
+   `for x in walk(child)` written inside `walk` has no finite record: a member holding the child's
+   own site type would be a record containing itself. So the member holds the **erased** `iter(Y)`
+   instead - two words over a heap block with the child's teardown in front of it - and everything
+   else about the nest is `iter/Nested.yana`'s: the region's blocks are embedded in the outer step,
+   the exits are the same three, and a `yield` written inside the pass suspends the outer object with
+   the child suspended inside it.
+
+   Three things differ from a concrete nest and all three are what this file runs:
+
+    - the child is built at the **call**, not in `f$new`, so the member is an empty pair until the
+      region is entered and every path out of the object has to cope with that;
+    - a level is ended by **releasing the box** rather than by stepping it with a cancel request -
+      one `drop` of the pair, which runs the child's own teardown and hands the block back, and
+      therefore runs the teardown of every level below it;
+    - a step goes through the pair, once per level between the root and the leaf - which was the
+      O(depth) cost §6.3 states until **delegation** was built (2026-09-16), and is now what a level
+      whose pass does more than re-yield still costs. `iter/Delegation.yana` is where the trigger and
+      a non-delegating pass beside it are run; every producer in *this* file is the re-yield shape,
+      so every one of them delegates, and what this file asserts is the boxing underneath it - the
+      levels built, the levels released and the blocks handed back.
+
+   The cycle is what decides the box, and it is a cycle rather than a self-reference: `evens` and
+   `odds` below reach each other. Which edge is cut was the back edge alone until delegation, which
+   needs every level of a delegating chain to be reachable as a pair - so a re-yield region over a
+   producer in the cycle is boxed whether or not it closed it, and `evens.Iter` holds a box of
+   `odds.Iter` where it used to hold the record inline.
+
+   Asserted the way `iter/Nested.yana` asserts its own property: every producer here is run once as
+   `for x in f(...)` and once as an object, and the two answer the same number. What a level released
+   twice, a level never released, or a box the embedding forgot would do is show as a different
+   number on one side of a pair - or, for the allocation, as a bump pointer that moved.
+-}
+
+import Native
+
+let &trace = 0 :: Int
+let &made = 0 :: Int
+
+data Mark {id: Int}
+
+instance Drop(Mark):
+    fn drop(->value: Mark):
+        trace = trace * 10 + value.id
+
+fn mark(id: Int) -> Mark:
+    made = made + 1
+    return Mark {id: id}
+
+data Tree = Leaf | Node {left: Tree, right: Tree, value: Int}
+
+-- A full binary tree whose values are the heap numbering, so an in-order walk of depth 3 is
+-- 4, 2, 5, 1, 6, 3, 7 and a wrong order is a different number rather than a passing test.
+fn build(depth: Int, base: Int) -> Tree:
+    if depth == 0 then return Tree.Leaf
+
+    return Tree.Node {left: build(depth - 1, base * 2), right: build(depth - 1, base * 2 + 1),
+                      value: base}
+
+-- And a degenerate one, which is the shape the depth benchmark measures: every node's right child is
+-- a leaf, so the walk is `n` levels deep rather than `log n`.
+fn chain(length: Int, base: Int) -> Tree:
+    if length == 0 then return Tree.Leaf
+    return Tree.Node {left: chain(length - 1, base + 1), right: Tree.Leaf, value: base}
+
+{-
+   **Direct** recursion: the producer nests a `for` over itself, twice.
+
+   Two regions and therefore two members, each an `iter(Int)` - so the record is the captured
+   subtree, the values live across the hand-over, and two pairs, whatever the tree's depth is.
+-}
+iter fn walk(t: Tree) -> Int:
+    if t is Tree.Node {left, right, value}:
+        for x in walk(left):
+            yield x
+
+        yield value
+
+        for x in walk(right):
+            yield x
+
+{-
+   **Mutual** recursion, and what it shows is that a cycle is a cycle however many records it is.
+
+   `evens` nests `odds` and `odds` nests `evens`, so the mint of `evens` reaches `odds` with nothing
+   on the stack and the mint of `odds` then reaches `evens`, which *is* on the stack. The back edge
+   is what makes the record finite; **delegation** then boxes the other edge too, because a level a
+   consumer's trampoline steps directly has to be reachable as a pair. The two records are still two
+   different sizes, which is what the chain being intrusive is for.
+-}
+iter fn evens(t: Tree) -> Int:
+    if t is Tree.Node {left, right, value}:
+        for x in odds(left):
+            yield x
+
+        yield value * 10
+
+        for x in odds(right):
+            yield x
+
+iter fn odds(t: Tree) -> Int:
+    if t is Tree.Node {left, right, value}:
+        for x in evens(left):
+            yield x
+
+        yield value
+
+        for x in evens(right):
+            yield x
+
+{-
+   A level that **owns** something, so that leaving one is visible.
+
+   `Mark` owes a teardown and `mark` counts what it made, so the two numbers say what the departure
+   path did: `made` is how many levels were entered and `trace` is the order they were released in.
+   A level released twice is a longer trace than `made`, and one never released is a shorter one.
+-}
+iter fn marked(t: Tree) -> Int:
+    if t is Tree.Node {left, right, value}:
+        for x in marked(left):
+            yield x
+
+        let m = mark(value)
+        yield value
+        yield m.id * 100
+
+        for x in marked(right):
+            yield x
+
+fn loopWalk(t: Tree) -> Int:
+    let &packed = 0 :: Int
+    for x in walk(t): packed = packed * 10 + x
+    return packed
+
+fn objectWalk(t: Tree) -> Int:
+    let &it = walk(t)
+    let &packed = 0 :: Int
+    for x in it: packed = packed * 10 + x
+    return packed
+
+fn loopMutual(t: Tree) -> Int:
+    let &packed = 0 :: Int
+    for x in evens(t): packed = packed * 10 + x
+    return packed
+
+fn objectMutual(t: Tree) -> Int:
+    let &it = evens(t)
+    let &packed = 0 :: Int
+    for x in it: packed = packed * 10 + x
+    return packed
+
+{-
+   A `break` **deep in the walk**, which is a departure out of every level between the root and the
+   leaf at once.
+
+   The consumer stops at the fifth element, which is inside the left subtree's right subtree: three
+   levels are suspended and every one of them has a `Mark` in it. What ends them is one drop of the
+   root's box, and `made` against the length of `trace` is what says each was released exactly once.
+
+   `for x in marked(t)` below is the same departure through the continuation-passing form, so the two
+   numbers are the same statement made twice - which is what makes this an equality rather than a
+   golden.
+-}
+fn loopBroken(t: Tree, stop: Int) -> Int:
+    trace = 0
+    made = 0
+
+    let &packed = 0 :: Int
+    let &seen = 0 :: Int
+
+    for x in marked(t):
+        packed = packed * 10 + x
+        seen = seen + 1
+        if seen == stop then break
+
+    return packed * 10000000 + made * 1000000 + trace
+
+fn objectBroken(t: Tree, stop: Int) -> Int:
+    trace = 0
+    made = 0
+
+    let &it = marked(t)
+    let &packed = 0 :: Int
+    let &seen = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x
+        seen = seen + 1
+        if seen == stop then break
+
+    return packed * 10000000 + made * 1000000 + trace
+
+{-
+   And an object **abandoned** mid-walk rather than broken out of - the same three suspended levels,
+   ended by the record's own teardown instead of by an edge the step emitted.
+
+   The `for` leaves the object suspended (§2.1: leaving does not finish it), so what releases the
+   boxes is the drop of `it` at the end of this function. The count is read after that has happened,
+   which is what the second call is for.
+-}
+fn abandonedWalk(t: Tree, stop: Int) -> Int:
+    trace = 0
+    made = 0
+
+    let &it = marked(t)
+    let &packed = 0 :: Int
+    let &seen = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x
+        seen = seen + 1
+        if seen == stop then break
+
+    return packed
+
+fn abandoned(t: Tree, stop: Int) -> Int:
+    let packed = abandonedWalk(t, stop)
+    return packed * 10000000 + made * 1000000 + trace
+
+-- A level the consumer never enters at all: the object is built and dropped without a step, so every
+-- boxed member is still the empty pair `f$new` wrote and the teardown releases nothing.
+fn neverEntered(t: Tree) -> Int:
+    trace = 0
+    made = 0
+
+    let held = walk(t)
+    return made * 10 + trace
+
+{-
+   **The boxes come back**, read from the allocator's own bump pointer - `iter/Erased.yana`'s idiom.
+
+   One allocation per level *entered* is what §6.3 says an object of a recursive traversal costs, and
+   what this asserts is the other half: every one of them is handed back, on the path that runs out
+   and on the path that is left early. A level freed twice would not show here - it would show as a
+   walk that answers a different number - and a level never freed moves the pointer every round.
+
+   The mark is taken after one warm round, for `Erased.yana`'s reason: the first allocation of a
+   program asks the allocator for a page and every one after it comes out of the free list.
+-}
+fn rounds(t: Tree, deep: Tree, expected: Int, broken: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < 20:
+        if objectWalk(t) != expected then return 1
+        if objectBroken(t, 5) != broken then return 2
+        if objectWalk(deep) != loopWalk(deep) then return 3
+        i = i + 1
+
+    return 0
+
+fn main() -> Int:
+    let t = build(3, 1)
+    let deep = chain(6, 1)
+
+    let a = loopWalk(t)
+    let b = objectWalk(t)
+    let c = loopMutual(t)
+    let d = objectMutual(t)
+    let e = loopBroken(t, 5)
+    let f = objectBroken(t, 5)
+    let g = loopWalk(deep)
+    let h = objectWalk(deep)
+
+    -- The two forms **agree**, which is what this file exists for.
+    checkCondition(a != b)
+    checkCondition(c != d)
+    checkCondition(e != f)
+    checkCondition(g != h)
+
+    -- An abandoned object releases what a `break` releases, which is the same three levels reached
+    -- through the record's teardown instead of through the step's own edge.
+    checkCondition(abandoned(t, 5) != f)
+
+    -- And an object nothing stepped releases nothing at all.
+    checkCondition(neverEntered(t) != 0)
+
+    checkCondition(rounds(t, deep, b, f) != 0)
+
+    let mark = bitcast(heapNext) :: Size
+    checkCondition(rounds(t, deep, b, f) != 0)
+    checkCondition((bitcast(heapNext) :: Size) != mark)
+
+    return a + c + g

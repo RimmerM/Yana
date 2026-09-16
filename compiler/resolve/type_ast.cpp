@@ -1426,6 +1426,31 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env, LoanGrou
             // where a type argument is so that `Store(kept', a)` parses, and this is what it means
             // anywhere else. See ast::Type::Loan.
             return errorType(module, type.source, "a loan group is not a type - a trailing tick is a type argument only where the declaration declared a loan slot there"_v);
+        case ast::Type::Site:
+            /*
+             * `f.Iter` and `f.Result` - Design-Iterator-Objects.md §2.4, and the one place this
+             * stage says so.
+             *
+             * What a declaration path names is a type the *compiler* makes up from a body - a
+             * closure's environment record, an `iter fn`'s state record - and neither exists here:
+             * a lambda is a `{code, env}` pair and an iterator object is a handle onto a separately
+             * mapped stack. So the grammar parses everywhere and this is what it means in the stage
+             * that has no such type, said by name rather than as "not available in this milestone",
+             * which would describe the calendar rather than the missing thing.
+             */
+            return errorType(module, type.source,
+                             "a declaration path names a type built out of a body - a closure's environment, or an `iter fn`'s object - and this resolver has neither; compile with `-resolver ownership`"_v);
+        case ast::Type::Iter:
+            /*
+             * `iter(T)` - Design-Iterator-Objects.md §2.2, and the one place this stage says so.
+             *
+             * The erased form is a block this stage does not build: an iterator object here is a
+             * handle onto a separately mapped stack, and `-> iter(T)` named an *external iterator*
+             * rather than a result type. Refused by name, as the declaration side already was - the
+             * message names the missing thing rather than the milestone.
+             */
+            return errorType(module, type.source,
+                             "`iter(T)` is an iterator object, which this resolver does not build - compile with `-resolver ownership`"_v);
         default:
             return errorType(module, type.source, "type is not available in this milestone"_v);
     }

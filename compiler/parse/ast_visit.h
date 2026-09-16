@@ -43,7 +43,6 @@ void visitChildren(ParseBase base, Expr& expr, F&& visit) {
     switch(expr.kind) {
         case Expr::Error:
         case Expr::Var:
-        case Expr::Continue:
         case Expr::Lit:
             return;
 
@@ -177,6 +176,9 @@ void visitChildren(ParseBase base, Expr& expr, F&& visit) {
             return;
         case Expr::Break:
             maybe(expr.breakValue);
+            return;
+        case Expr::Continue:
+            maybe(expr.continueValue);
             return;
         case Expr::Is:
             visit(base[expr.is]->value);

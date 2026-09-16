@@ -288,8 +288,45 @@ struct Continuation {
      */
     Occurrence handover;
 
+    /*
+     * `<- R` - what a pass of this region sends back when it ends with `continue v`, and empty for
+     * every region whose callee declared no resume channel.
+     *
+     * The declaration's, under the call's substitution, for `handover`'s reason and the same one:
+     * the callee is opaque here, so what a `continue v` is checked against has to be on the region.
+     * `resolveExit` is what reads it - the loop frame names the region and the region says whether
+     * the loop has anywhere to send a value.
+     */
+    Occurrence resume;
+
+    /*
+     * What the continuation **answers**, which is the exit signal until there is a resume channel.
+     *
+     * `Outcome(R, exit)` where there is one - Design-Iterator-Objects.md §2.5 - and this is where
+     * `resolve_ssa` reads it: the outlined continuation's result type is this, and a conversion that
+     * had to rebuild the wrapper would be interning a record at a tier that resolves nothing. Empty
+     * on every region that is not a hand-over.
+     */
+    Occurrence answer;
+
     Kind kind = Body;
     Multiplicity multiplicity = Once;
+
+    /*
+     * Whether the pass is **nothing but a re-yield** - `for x in g(...): yield x` and no other
+     * statement, Design-Iterator-Objects.md §6.3 and open question 3's answer.
+     *
+     * Written by the call site rather than read back out of the blocks, and the difference matters:
+     * the blocks a `for` body becomes are the departure guard's five as well as the hand-over's one,
+     * so recovering "the author wrote exactly `yield x`" from the CFG would be a second reading of
+     * `guardYields`' own emission. What the flag says is what the source said.
+     *
+     * It is only ever asked of a region an iterator object **embeds** (`collectIterNests`), where it
+     * is what makes the level skippable: a level that does nothing between the child's item and its
+     * own hand-over has nothing for a step to enter, so a consumer's trampoline may step the child
+     * directly and come back to this level only when the child runs out.
+     */
+    bool reyield = false;
 };
 
 /*
@@ -396,6 +433,41 @@ struct Body {
      * pointed at while it is open and filled in twice, at its entry and at its destination.
      */
     RegionArray<MirRegion, MirPtr<Continuation>> regions;
+
+    /*
+     * Where a **departure** continues, one entry per `yield` that has one - `Resolver::emitDeparture`,
+     * and the question an iterator object's teardown asks of it.
+     *
+     * A consumer that leaves ends the iterator's loops and runs whatever is written below them, and
+     * the internal form gets that for nothing: the `yield` tests what the continuation answered and
+     * takes this edge. An **object** abandoned at the same point only runs it if the record has a
+     * teardown at all, and a record owes one when its members do - so a producer that owns nothing
+     * and prints on the way out was observationally different in the two forms until 2026-09-16
+     * (`../../doc/progress/2026-09-16-J56-lens-regions.md` §4). What closes it is this list: the mint
+     * walks forward from each entry and gives the record a teardown where anything with an effect is
+     * reachable.
+     *
+     * The block a departure *continues in* rather than the `yield`'s own, which is what makes the
+     * walk say what it means: the statements between the two are the ones a departed pass skips.
+     * Where a departure falls through - no loop to leave and no region to fall out of - the entry is
+     * the block the hand-over's two paths rejoin in, because the trailing statements are then both
+     * the rest of the pass and the cleanup.
+     *
+     * Empty for every body that is not an `iter fn`'s, and empty for one whose `yield`s are all in
+     * the continuation-passing form's caller - nothing but the mint reads it.
+     */
+    RegionArray<MirRegion, U32> departures;
+
+    /*
+     * `$yielded` - the local a traversal's departure guard lives in, and invalid for every body that
+     * is not a `lens fn`'s or an `iter fn`'s (`guardYields`).
+     *
+     * Recorded rather than recovered, and the one reader is §6.3's delegation: a level that delegates
+     * never runs its own `yield x`, so nothing writes the guard for it - and the code after the
+     * region reads the guard to decide whether the consumer has left. So the step writes it where the
+     * hand-over would have, which needs the local by name.
+     */
+    LocalId yieldedLocal;
 
     bool sealed = false;
 

@@ -531,6 +531,28 @@ struct Classifier {
         }
 
         /*
+         * An **iterator object**'s release is its step, and the step releases the storage too -
+         * `resolve_mir/resolve_object.cpp`, §3.3's teardown by index.
+         *
+         * Every other authored `Drop` is an *effect* and the derived `Reclaim` beside it is what
+         * hands the members' allocations back: `Pool.drop` prints and the caller reclaims the
+         * `Array` it held. A site record is the one type for which that division is wrong twice
+         * over. Its drop is the producer's own departure path, so the `drop Array(I32)` the
+         * elaboration placed there is a **full** release - the run is already handed back - and a
+         * field-wise walk afterwards frees it a second time. And which members are even *written* is
+         * the resume index, so the walk would reclaim a payload member the producer never reached,
+         * or a temporary whose bytes are a second copy of a member it did.
+         *
+         * `data holder.Iter {#: Array(I32), xs: Array(I32), ...}` abandoned after one hand-over was
+         * three frees of one run - the step's, and one per field - and it corrupted the allocator
+         * rather than trapping, so the next `@heap` binding in the program died instead of this one.
+         * See `../../doc/progress/2026-09-16-J57-object-defects.md` §2.
+         */
+        if(record.producer && result.drop == TeardownKind::Authored) {
+            result.reclaim = TeardownKind::None;
+        }
+
+        /*
          * An authored `Copy` subtracts `TrivialCopy` - `doc/spec/ownership.md`'s "an authored `Copy`
          * subtracts `TrivialCopy`".
          *
@@ -897,6 +919,12 @@ bool classifyTypes(Context& context, Program& program) {
     // been seen, which a diagnostic does not change.
     program.typesClassified = true;
     return ok;
+}
+
+bool reclassifyTypes(Context& context, Program& program) {
+    Classifier classifier { context, program, *program.decl };
+    classifier.eachRecord([&](RecordType& record) { record.classified = false; });
+    return classifier.run();
 }
 
 bool classifyRecord(Context& context, Program& program, RecordType& record) {

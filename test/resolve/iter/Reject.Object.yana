@@ -1,0 +1,174 @@
+{-
+   What an iterator object cannot be yet, each refused **by name** -
+   `doc/inflight/Design-Iterator-Objects.md` §6.4 and §6.6, and the positions stage 4 adds.
+
+   # resolver: ownership
+
+   Everything here compiles as `for x in f(...)`, which is the sentence each message ends with where
+   the shape has that other reading: what is missing is the object, not the traversal.
+-}
+
+iter fn plain(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+-- §6.6 - an object needs a terminal failure on its step.
+iter fn failing(n: Int) -> (Int | Int):
+    yield n
+    return 0
+
+{-
+   §6.6's `@lazy` is not here, and that is worth saying: a deferred argument is refused on an
+   `iter fn` at the *declaration* - "an iterator resolves its arguments before it hands over" -
+   long before an object of one could be built. `test/resolve/lens/Reject.Iterator.yana` is where
+   that message is. The mint checks for one anyway, as the backstop for the day the declaration
+   admits it.
+-}
+
+{-
+   A producer that **holds** an object of itself, which is a record inside a record and has no size.
+
+   Not §6.3's recursion: a `for x in recursive(n - 1)` is a nested traversal and is *boxed* one
+   erased `iter(T)` per level since 2026-09-16 (`iter/Recursion.yana`). A `let` is a member at the
+   child's own site type, and no indirection the mint could add would be one the author asked for -
+   so this is the one shape of the cycle that stays impossible rather than costly.
+
+   Met while the body is still being **read**, which is the difference from the nest: the mint demands
+   the producer's body and finds it in `Reading`.
+-}
+iter fn recursive(n: Int) -> Int:
+    yield n
+
+    if n > 0:
+        let inner = recursive(n - 1)
+        yield n
+
+{-
+   §3.2's nested traversal is **not** here any more: `for x in plain(n)` inside a producer is a field
+   of the outer record since J53, and `iter/Nested.yana` is where it is asserted. What is still
+   refused of that shape - a nested traversal that can fail or hands a value back, and a child lent
+   the object's own storage - is `iter/Reject.Nested.yana`; §6.3's recursion is built and is
+   `iter/Recursion.yana`.
+-}
+
+fn field() -> Int:
+    let it = failing(3)
+    return 0
+
+fn recursed() -> Int:
+    let it = recursive(3)
+    return 0
+
+{-
+   A class member at a **concrete** subject is no longer here: since 2026-09-16 selection decides the
+   instance and the object is that body's own record - `iter/Witness.yana`. What is still refused is
+   the same call in a body compiled once, which `iter/Reject.Erased.yana` holds beside §6.4's other
+   half.
+-}
+
+{-
+   A **temporary at a borrowing parameter**, which an object cannot take - the one shape of stage 4's
+   positions that is still refused, and the reason is the record rather than the position.
+
+   A normal call lends what the caller made for the duration of the statement; an object outlives it,
+   so the record would hold the address of storage that is already gone. A capture that owns where
+   the parameter borrows is a second `IterCaptureKind` and is not built, so the argument has to be a
+   name - `iter/Callback.yana` is where the same shape runs with one.
+
+   Every other position stage 4 added *works*: `iter/Positions.yana` runs a field initializer, an
+   argument, a `return` and an assignment, and `iter/Name.yana` runs a field written `f.Iter`.
+-}
+data Cursor {at: Int}
+
+iter fn advancing(&cursor: Cursor, n: Int) -> Int:
+    cursor.at = cursor.at + n
+    yield cursor.at
+
+fn positions(n: Int) -> Int:
+    let &it = advancing(Cursor {at: 0}, n)
+    return 0
+
+-- A construction inside a body compiled **once**: a site type is minted per set of type arguments,
+-- and a body at a type variable has no substitution to mint one under. `@generic` is what makes the
+-- body erased; `Auto` would specialize it, which is always available and is what the message says.
+iter fn (a) echo(x: a) -> a:
+    yield x
+
+@generic fn (a) inside(x: a) -> Int:
+    let it = echo(x)
+    return 0
+
+fn outside() -> Int = inside(3)
+
+{-
+   What the *record* still cannot hold, and what a consumer still cannot ask of one.
+
+   J50 refused four shapes here and three of them are built - a **view** as a captured argument, a
+   **shared** loan of something not trivially copyable, and `-> ->T` at a `T` that owes a teardown -
+   so `test/resolve/iter/Capture.yana` is where they are now run. What is left is the resume value,
+   and beside it are the two refusals the new shapes needed.
+-}
+
+data Owned {id: Int}
+
+instance Drop(Owned):
+    fn drop(->value: Owned): {}
+
+-- A resume value the step's own parameter would owe a teardown for, on the paths that never reach a
+-- `yield`: index zero runs the producer from the start and never reads it, the finished index
+-- returns without reading it, and a `yield` written without a binding drops the answer on the floor.
+iter fn resuming(n: Int) -> (Int <- Owned):
+    let c = yield n
+    yield n + 1
+
+{-
+   A **lending** hand-over of something that is not a name.
+
+   The slot holds where the value is, and an expression handed over directly has no local for the
+   record to keep it in - so the address would be one into a step frame that returns before the
+   consumer reads it. Reached through a hand-over with **interior positions**: `Cell('Int)` lends
+   because its fields are references whatever its own type's layout says, and it is trivially
+   copyable, so nothing holds it in a temporary the way a `Drop` value is held. Binding it to a name
+   is what the message asks for and is what `Capture.yana`'s `paired` does.
+-}
+data Cell(v) {value: v}
+
+iter fn unnamed(xs: [Int], n: Int) -> Cell('Int):
+    let &i = 0 :: Int
+
+    while i < n:
+        yield Cell {value: xs[i]}
+        i = i + 1
+
+data Cmd = Keep | Skip
+
+-- And `next()` on a producer whose passes hand a value back. `next` means "I have nothing to send",
+-- which at index zero is honest and at a suspend index is a pass that answered nothing. Refused here
+-- because the site type is written out; through the class it is the index that says so, and
+-- `f$next` checks it.
+iter fn stepping(n: Int) -> (Int <- Cmd):
+    let &i = 0 :: Int
+
+    while i < n:
+        let c = yield i
+        if c is Skip then i = i + 2 else i = i + 1
+
+fn resumes() -> Int:
+    let it = resuming(3)
+    return 0
+
+fn unnaming() -> Int:
+    let xs = [1, 2, 3]
+    let it = unnamed(xs, 3)
+    return 0
+
+fn nexting() -> Int:
+    let &it = stepping(4)
+    if it.next() is Just(x) then return x
+    return 0
+
+fn main() -> Int = field() + recursed() + positions(1) + outside() +
+                   resumes() + unnaming() + nexting()

@@ -164,8 +164,8 @@ bb0:
 
 fn ownedStaysAtItsEdges(pick: I32 [shared call]) -> I32 {
   local g: Guard
-  local ownedStaysAtItsEdges.lambda.env: ownedStaysAtItsEdges.lambda.env
-  local ownedStaysAtItsEdges.lambda'2.env: ownedStaysAtItsEdges.lambda'2.env
+  local local2: ownedStaysAtItsEdges.lambda.env
+  local local3: ownedStaysAtItsEdges.lambda'2.env
   local f: (I32) -> I32 [owned here shape9 .0=shared call]
 
 bb0:
@@ -178,11 +178,11 @@ bb0:
   branch inspect %5 -> bb3 -> bb1
 
 bb1:
-  %12: Guard [shared slot 0] = read borrow.shared (g) loan2
-  %13: ownedStaysAtItsEdges.lambda'2.env = aggregate.ownedStaysAtItsEdges.lambda'2.env borrow.shared %12 roots.0{2}
-  write.init borrow.unique (ownedStaysAtItsEdges.lambda'2.env) take %13
-  %15: ownedStaysAtItsEdges.lambda'2.env [shared call] = read borrow.shared (ownedStaysAtItsEdges.lambda'2.env) loan3 roots.0{2}
-  %16: (I32) -> I32 [owned here shape9 .0=shared call] = fun.value ownedStaysAtItsEdges.lambda'2 inspect %15 roots.0{2, 3}
+  %9: Guard [shared slot 0] = read borrow.shared (g) loan1
+  %10: ownedStaysAtItsEdges.lambda'2.env = aggregate.ownedStaysAtItsEdges.lambda'2.env borrow.shared %9 roots.0{1}
+  write.init borrow.unique (local3) take %10
+  %15: ownedStaysAtItsEdges.lambda'2.env [shared call] = read borrow.shared (local3) loan3 roots.0{1}
+  %16: (I32) -> I32 [owned here shape9 .0=shared call] = fun.value ownedStaysAtItsEdges.lambda'2 inspect %15 roots.0{1, 3}
   jump -> bb2(take %16)
 
 bb2(%17: (I32) -> I32 [owned here shape9 .0=shared call]):
@@ -196,10 +196,10 @@ bb2(%17: (I32) -> I32 [owned here shape9 .0=shared call]):
 bb3:
   %7: Guard [shared slot 0] = read borrow.shared (g) loan0
   %8: ownedStaysAtItsEdges.lambda.env = aggregate.ownedStaysAtItsEdges.lambda.env borrow.shared %7 roots.0{0}
-  write.init borrow.unique (ownedStaysAtItsEdges.lambda.env) take %8
-  %10: ownedStaysAtItsEdges.lambda.env [shared call] = read borrow.shared (ownedStaysAtItsEdges.lambda.env) loan1 roots.0{0}
-  %11: (I32) -> I32 [owned here shape9 .0=shared call] = fun.value ownedStaysAtItsEdges.lambda inspect %10 roots.0{0, 1}
-  jump -> bb2(take %11)
+  write.init borrow.unique (local2) take %8
+  %12: ownedStaysAtItsEdges.lambda.env [shared call] = read borrow.shared (local2) loan2 roots.0{0}
+  %13: (I32) -> I32 [owned here shape9 .0=shared call] = fun.value ownedStaysAtItsEdges.lambda inspect %12 roots.0{0, 2}
+  jump -> bb2(take %13)
 }
 
 fn main() -> I32 {
@@ -248,7 +248,7 @@ bb0:
   return take %3
 }
 
-fn ownedStaysAtItsEdges.lambda(ownedStaysAtItsEdges.lambda.env: ownedStaysAtItsEdges.lambda.env [unique call], x: I32 [shared call]) -> I32 {
+fn ownedStaysAtItsEdges.lambda(ownedStaysAtItsEdges.lambda.env: ownedStaysAtItsEdges.lambda.env [shared call], x: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (x)
   %1: I32 = read copy.trivial (ownedStaysAtItsEdges.lambda.env.g.id)
@@ -256,7 +256,7 @@ bb0:
   return take %2
 }
 
-fn ownedStaysAtItsEdges.lambda'2(ownedStaysAtItsEdges.lambda'2.env: ownedStaysAtItsEdges.lambda'2.env [unique call], x: I32 [shared call]) -> I32 {
+fn ownedStaysAtItsEdges.lambda'2(ownedStaysAtItsEdges.lambda'2.env: ownedStaysAtItsEdges.lambda'2.env [shared call], x: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (x)
   %1: I32 = read copy.trivial (ownedStaysAtItsEdges.lambda'2.env.g.id)

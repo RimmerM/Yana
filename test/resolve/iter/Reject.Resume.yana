@@ -1,0 +1,74 @@
+{-
+   What a pass of a `for` over a **resuming** held object owes - §2.5's second and third rows, at the
+   spelling stage 5's last clause added.
+
+   # resolver: ownership
+
+   A producer that declared `-> (Y <- R)` is suspended at a `yield` waiting for a value, so a pass
+   that ends without supplying one has answered nothing - which is the same mistake in both
+   spellings, and is reported in the same words as it is for the continuation-passing form. `R = {}`
+   is the exemption, and `iter/Resume.yana`'s `unitPasses` is where that runs.
+
+   And the mistake from the other side: a `yield` **read as a value** where the declaration asked for
+   nothing back. The two belong together because they are the same channel missing at its two ends -
+   a pass with no value to send, and a producer with no value to receive.
+
+   That second one used to compile, with no diagnostic at all, and drop the statement holding it: the
+   `yield` answered no value, the expression around it answered none, and `i = i + step` was gone from
+   the MIR. The producer then handed over the same element forever. `resolve_expr.cpp`'s `Yield` arm
+   is where it is refused now, and the arm's own comment is why it is refused there rather than left
+   to the position that wanted the value.
+-}
+
+data Cmd = Keep | Skip
+
+iter fn steps(n: Int) -> (Int <- Cmd):
+    let &i = 0 :: Int
+
+    while i < n:
+        let c = yield i
+        if c is Skip then i = i + 2 else i = i + 1
+
+-- A pass that falls off its end.
+fn fellOff() -> Int:
+    let &it = steps(4)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+
+    return packed
+
+-- And a bare `continue`, which is the same path written out.
+fn bareContinue() -> Int:
+    let &it = steps(4)
+    let &packed = 0 :: Int
+
+    for x in it:
+        packed = packed * 10 + x + 1
+        continue
+
+    return packed
+
+{-
+   A `yield` read as a value, in an iterator that declared no channel to answer with.
+
+   Written as a `let` because that is the position the defect arrived in, and the one that hid it: an
+   initializer with no value takes its whole statement, so the loop below lost its only increment
+   without the binding being reported as untyped or the statement as unreachable.
+-}
+iter fn plain(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        let step = yield i
+        i = i + step
+
+-- And a `lens fn`, which cannot declare one at all - a different sentence for the same position,
+-- because "declare `<- R`" is advice a lens cannot take (`lens/Reject.Resume.yana` is that refusal
+-- at the signature).
+lens fn once(n: Int) -> Int:
+    let step = yield n
+    yield n + 1
+
+fn main() -> Int = fellOff() + bareContinue()

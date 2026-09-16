@@ -1,0 +1,92 @@
+{-
+   What an object's loans refuse - an iterator object borrows what it was lent for as long as it
+   exists, the way a closure borrows what it captured.
+
+   # resolver: ownership
+
+   The fixture `test/resolve/fiber/Reject.External.yana` became when the stack handle was removed.
+   Nothing here is a rule of this feature's own: `f$new`'s signature publishes every lent argument,
+   so the loan lasts as long as the object and every message below is the loan checker's ordinary
+   one. The handle made the same statement through `iterConstructor`, which is why the six claims
+   carried over one for one - only the escape cases name a different type, since what leaves the
+   frame is now a site type rather than a handle record.
+-}
+
+iter fn counting(&total: Size) -> Size:
+    total = total + 1
+    yield total
+
+iter fn reading(text: String) -> Size:
+    yield length(text)
+
+-- Written while the object that borrows it exclusively is still to be stepped.
+fn writeWhileLent() -> Size:
+    let &total = 0 :: Size
+    let &c = counting(total)
+    total = 5
+
+    let &sum = 0 :: Size
+    for v in c:
+        sum += v
+
+    return sum
+
+-- Assigned while an object that reads it is still live.
+fn replaceWhileRead() -> Size:
+    let &text = "abc" :: String
+    let &c = reading(text)
+    text = "d"
+
+    let &sum = 0 :: Size
+    for v in c:
+        sum += v
+
+    return sum
+
+-- An object over a local cannot leave the frame that lent it.
+fn escapes() -> counting.Iter:
+    let &total = 0 :: Size
+    return counting(total)
+
+iter fn apply(f: () -> Size) -> Size:
+    yield f()
+
+iter fn grow(f: () -> {}) -> Size:
+    f()
+    yield 1
+
+-- An argument that refers to storage of its own: the object keeps what the closure captured, so
+-- writing it while the object is still to be stepped is refused as writing a lent local is.
+fn writeWhileCaptured() -> Size:
+    let &x = 5 :: Size
+    let step = ((): x + 1) :: () -> Size
+    let &c = apply(step)
+    x = 7
+
+    let &sum = 0 :: Size
+    for v in c:
+        sum += v
+
+    return sum
+
+-- The same for a closure that writes what it captured, which the object keeps borrowed exclusively.
+-- A `String`, because copying a trivially copyable value out through an exclusive loan is allowed.
+fn borrowWhileCapturedMut() -> Size:
+    let &text = "ab" :: String
+    let step = ((): text = "abc") :: () -> {}
+    let &c = grow(step)
+    let seen = length(text)
+
+    let &sum = 0 :: Size
+    for v in c:
+        sum += v
+
+    return sum + seen
+
+-- And an object holding such a closure cannot leave the frame whose local it captured.
+fn escapesCaptured() -> apply.Iter:
+    let &x = 5 :: Size
+    let step = ((): x + 1) :: () -> Size
+    return apply(step)
+
+fn main() -> Size = writeWhileLent() + replaceWhileRead() + writeWhileCaptured() + borrowWhileCapturedMut()

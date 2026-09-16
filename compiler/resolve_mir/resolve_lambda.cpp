@@ -7,9 +7,15 @@ namespace mir {
  * Lambdas and closures - `doc/spec/functions.md`'s Closures, and Analysis-IR.md §11.4's G7b.
  *
  * A lambda is **lifted**: it becomes an ordinary function of this module with one parameter in front
- * of the ones the author wrote, and the expression becomes a `fun.value` naming it. That is the
- * whole of the construct, and everything below answers one of two questions about it - what the
- * extra parameter holds, and how long the storage behind it lives.
+ * of the ones the author wrote, and the expression becomes the **environment record** that parameter
+ * holds - its *site type*, `doc/inflight/Design-Iterator-Objects.md` §4, with the lifted function
+ * written onto the record so that a call through a value of one is a direct call. The `{code, env}`
+ * pair is what a position stating `(A) -> B` asks for, and `adaptSiteValue` is where it is built.
+ *
+ * That is the whole of the construct, and everything below answers one of two questions about it -
+ * what the extra parameter holds, and how long the storage behind it lives. Both are the same
+ * questions they were before the value stopped being the pair: where the position *does* ask, the
+ * adaptation stands at the lambda and what is emitted is unchanged.
  *
  * **What it holds.** The captures, as a record synthesized while the body is walked. A capture is
  * not found by a scan: it is a name the body says that the *enclosing* function bound, so the body
@@ -39,6 +45,13 @@ namespace mir {
  * bounded by its call, which is what passing a callback is. The alternative was to decide it from
  * the ownership analysis, which knows more - and cannot be asked, because the *capture conventions*
  * depend on the answer and they are settled while the body is walked.
+ *
+ * Owning the captures and putting the environment in a block are **two facts**, and site types are
+ * what split them: `LambdaFrame::owns` is the position's convention and is what `captureKindOf`
+ * reads, and `Function::environmentStorage` is the *pair's* question. A closure that keeps its site
+ * type owns what it captured and is stored inline in whatever holds it, released by that record's
+ * own derived teardown - so there is no block, no header and no `funEnvironmentBias`, and a direct
+ * call hands the lifted function the record's own address.
  *
  * **The conventions come from the binding**, which is what the spec says and what this does not get
  * to choose per use site: `&` is captured by exclusive borrow, and anything else by an independent
@@ -149,7 +162,7 @@ Place* Resolver::findCapture(Builder& builder, StringId name) {
 
     if(!outer) return nullptr;
 
-    auto kind = captureKindOf(decl(), *outer, frame.heap);
+    auto kind = captureKindOf(decl(), *outer, frame.owns);
 
     /*
      * A **borrow** into a heap-placed environment, which is the one thing the placement cannot fix.
@@ -163,7 +176,7 @@ Place* Resolver::findCapture(Builder& builder, StringId name) {
      * borrow at either placement (a copy cannot satisfy writing through), and everything else at a
      * heap environment is a copy or a consumed capture.
      */
-    if(frame.heap && kind == CaptureKind::Unique) {
+    if(frame.owns && kind == CaptureKind::Unique) {
         context.diagnostics.error(
             "a closure that leaves this frame owns what it captured, and %@ is declared `&` - writing through a capture is a borrow of storage this frame is about to lose"_v,
             frame.lifted->source, context.findName(name));
@@ -242,8 +255,15 @@ bool Resolver::isCapture(Builder& builder, Place& place) {
  * After the body has been walked, because that is when the field list is complete. Nothing was
  * emitted into this builder while the lambda was resolved - a lifted body is a body of its own, with
  * its own blocks - so the point the lambda stood at is still where this builder is.
+ *
+ * `site` asks for the record **as the value** rather than for the word a pair carries - the site
+ * type of `doc/inflight/Design-Iterator-Objects.md` §4. The two differ in one step and not in what
+ * is built: a pair needs storage to point at, and the record *is* the value, so the aggregate is
+ * handed back and whatever binds it mints the storage. Adapting one to a pair later is
+ * `adaptSiteValue`, which is this function's last five lines standing where the erasure happens.
  */
-Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationId source) {
+Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationId source,
+                                 bool site) {
     auto pointer = frame.lifted->environment;
     auto& environment = *(RecordType*)decl()[pointer];
 
@@ -277,7 +297,7 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
      * the teardown in front of the block; both are checked at the far end rather than here, because
      * the far end is where a release would have to be emitted.
      */
-    assertTrue(frame.heap || !hasTeardown(decl(), pointer));
+    assertTrue(frame.owns || !hasTeardown(decl(), pointer));
 
     SmallArray<Node*, 4> components;
 
@@ -303,6 +323,17 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
     if(!value) return nullptr;
 
     /*
+     * The **site type**'s value, which is the record and nothing around it.
+     *
+     * No local, because there is nothing here that needs one: what a frame environment's local
+     * exists for is a pair to point at, and a value whose type says which code runs points at
+     * nothing. Whoever binds it mints the storage - a `let` from its own occurrence, a record field
+     * from the aggregate it is a component of - which is what makes a closure a value that can be
+     * stored inline rather than a value that refers to a slot somebody had to keep.
+     */
+    if(site) return value;
+
+    /*
      * The storage, as a **local** of this frame.
      *
      * A place and not a value at either placement, because the record is built field by field and a
@@ -324,9 +355,95 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
      * it is that loan which ties the value to this frame. A heap environment has no such tie by
      * construction, so the read is a relocation and the value it produces is the pair's own.
      */
-    if(frame.heap) return readPlace(builder, source, *place, bindingRequest(Access::Owned));
+    if(frame.lifted->environmentStorage != StorageClass::Frame) {
+        return readPlace(builder, source, *place, bindingRequest(Access::Owned));
+    }
 
     return readPlace(builder, source, *place, Request { Access::Shared, true });
+}
+
+/*
+ * The site type a value of this type is one of - Design-Iterator-Objects.md §2.3.
+ *
+ * One test in one function rather than the pair of them spelled at each of the five readers, because
+ * what "is a site type" means is a fact about the record and the readers are in four files: the
+ * call, the adaptation, `callTarget` and both verifiers. `lambdaShape` is what separates a finished
+ * site type from the environment record of a lambda that was erased where it stood - see
+ * `liftFunction`, where the one case with no record at all is argued.
+ */
+RecordType* Resolver::siteTypeOf(DeclPtr<Type> type) {
+    if(!type || decl()[type]->kind != Type::Record) return nullptr;
+
+    auto record = (RecordType*)decl()[type];
+    return record->lambda && record->lambdaShape ? record : nullptr;
+}
+
+/*
+ * The same test for an **iterator object's** site type - §3.4's adaptation and the `for` over a
+ * held object both ask it.
+ *
+ * `producer` and `producerStep` are the pair `lambda`/`lambdaShape` is: the declaration a diagnostic
+ * names, and the function that advances it. A record with the first and not the second is one whose
+ * mint reported, which is a record no position may adapt.
+ */
+RecordType* Resolver::objectSiteOf(DeclPtr<Type> type) {
+    if(!type || decl()[type]->kind != Type::Record) return nullptr;
+
+    auto record = (RecordType*)decl()[type];
+    return record->producer && record->producerStep ? record : nullptr;
+}
+
+/*
+ * A site-typed value where the position asked for `(A) -> B` - **the** conversion point, and the
+ * whole of what moving the adaptation out of the lambda meant.
+ *
+ * What it builds is what `liftFunction` used to build in place: the pair, over a frame local where
+ * the environment stays here and over the heap block where the value owns it. Which of the two is
+ * still the *lambda's* answer and not this position's - `environmentStorage` was selected from the
+ * position the lambda was written at, because the capture conventions depend on it and are settled
+ * while the body is walked (see the note at the top of this file). So a closure written at a
+ * borrowing position and adapted at an owning one is a frame environment reaching a place it may not
+ * go, and what refuses it is the loan the pair carries: `checkCarriedOrigins` at the position, or
+ * `reportEnvironmentEscape` at a `return`, which are the messages that refused it before.
+ *
+ * The **storage** comes from `hold`, which is the frame slot a borrowing argument already gets. A
+ * record with no fields needs none of it: the word is null, which is exactly the value a named
+ * function as a value produces, and the empty aggregate the site path built has nothing in it for
+ * anything to point at.
+ */
+Node* Resolver::adaptSiteValue(Builder& builder, Node& value, RecordType& site, LocationId source) {
+    auto lambda = site.lambda;
+    auto heap = decl()[lambda]->environmentStorage != StorageClass::Frame;
+
+    Node* held = nullptr;
+
+    if(site.fields.size()) {
+        auto place = valueOccurrence(value).contract.isOwned()
+            ? hold(builder, value, source)
+            : nullptr;
+
+        /*
+         * A value that is already a borrow has nowhere of its own to be, and there is nothing this
+         * position can do about it: the pair would refer to storage whose extent is somebody else's
+         * loan. Refused by name rather than by building a copy, because a copy of an environment is
+         * a second closure over the same captures and the two would drop independently.
+         */
+        if(!place) {
+            context.diagnostics.error(
+                "this closure is borrowed here, and a function value carries its environment - bind it where the lambda is written, or write the lambda at this position"_v,
+                source);
+            return nullptr;
+        }
+
+        builder.body.local(builder.base(), LocalId(place->payload))->environment = true;
+
+        held = heap ? readPlace(builder, source, *place, bindingRequest(Access::Owned))
+                    : readPlace(builder, source, *place, Request { Access::Shared, true });
+
+        if(!held) return nullptr;
+    }
+
+    return builder.addFunValue(source, lambda, site.lambdaShape, held, heap);
 }
 
 /*
@@ -337,7 +454,7 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
  * after the walk, because the environment it accumulated is what the caller builds next.
  */
 void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implicitReturn, bool thunk,
-                                 LocationId source) {
+                                 bool owns, LocationId source) {
     // The same mark an ordinary body takes - `ErrorMark`, and `finish` is what reads it.
     ErrorMark mark(context, parseErrors);
     Builder builder(context, program, lifted);
@@ -345,7 +462,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
     LambdaFrame frame;
     frame.lifted = &lifted;
     frame.thunk = thunk;
-    frame.heap = lifted.environmentStorage != StorageClass::Frame;
+    frame.owns = owns;
     frame.outerFloor = bindingFloor;
     frame.floor = U32(bindings.size());
     frame.captureFloor = U32(captures.size());
@@ -557,6 +674,29 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
         return nullptr;
     }
 
+    auto positionalHint = hint;
+
+    /*
+     * A position at a **type variable the signature said is callable** - `Call(f, S)`, and the one
+     * place a lambda takes its header from something that is not a function type.
+     *
+     * `fn (Call(f, (&I32) -> {})) lends(g: f, ...)` states the whole signature and states it of a
+     * variable, so the position knows what the lambda's parameters and result are and does *not*
+     * want the pair. Reading the shape off the constraint is what lets a `:`-bodied lambda - one
+     * whose result is `{}` and whose body is a statement - stand at such a position at all: without
+     * it the header comes from `writtenLambdaPosition`, whose result is open, and a statement body
+     * has nothing to decide one from.
+     *
+     * The variable's **own** context is the one asked, which is the callee's rather than this body's:
+     * `VariableType::owner` is what a variable belongs to, and the clause that promised this is the
+     * clause on the declaration the argument is filling.
+     */
+    if((!hint || decl()[hint]->kind != Type::Fun) && wanted.declared &&
+       decl()[wanted.declared]->kind == Type::Variable) {
+        hint = callableShapeOf(program, ((VariableType*)decl()[wanted.declared])->owner,
+                               wanted.declared);
+    }
+
     if(!hint || decl()[hint]->kind != Type::Fun) {
         hint = writtenLambdaPosition(written, expr.source);
 
@@ -567,6 +707,30 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
             return nullptr;
         }
     }
+
+    /*
+     * Whether the **position** asked for the erased `(A) -> B` - §4's conversion point, seen from
+     * the side that knows where the lambda was written.
+     *
+     * A position that states a function type is asking for the pair right here, so the adaptation
+     * happens at the lambda exactly as it did before site types existed. A position that states
+     * something else - a `let`, a field at a type variable, a constructor argument the record is
+     * generic in - is not asking, and the value it gets is the environment record itself. That is
+     * the whole of what "a lambda keeps its site type until a position asks for the erased form"
+     * means in code: there is one adaptation and two places it can stand, and which one it stands
+     * at is what the position said.
+     *
+     * Two things are asked and not one, because a position can state a function type and offer no
+     * *hint*: `map(value, f: (a) -> b)` at a class member has its parameters still open, so
+     * `TypeArguments::hint` answers null and the lambda writes its own header. `Request::declared`
+     * is the declaration itself, which is what says the position wants a pair even where nothing has
+     * yet decided which one.
+     */
+    auto erasesAt = [&](DeclPtr<Type> at) {
+        return at && decl()[at]->kind == Type::Fun;
+    };
+
+    auto erase = erasesAt(positionalHint) || erasesAt(wanted.declared);
 
     auto& shape = *(FunType*)decl()[hint];
 
@@ -582,7 +746,7 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
      * a receiver that outlives this frame is exactly what a heap-placed environment is for.
      */
     return liftFunction(builder, &written.args, written.body, written.implicitReturn, hint,
-                        expr.source, LiftKind::Lambda, wanted.access == Access::Owned);
+                        expr.source, LiftKind::Lambda, wanted.access == Access::Owned, erase);
 }
 
 /*
@@ -599,7 +763,7 @@ Node* Resolver::resolveThunk(Builder& builder, ast::Expr& body, DeclPtr<Type> hi
     // Never an owning position: `declareDeferred` rewrites a `@lazy` parameter to a shared,
     // call-bounded `() -> T`, so a thunk's environment is a local of the caller's frame by
     // construction and there is nothing here to rank.
-    return liftFunction(builder, nullptr, body, true, hint, source, LiftKind::Thunk, false);
+    return liftFunction(builder, nullptr, body, true, hint, source, LiftKind::Thunk, false, true);
 }
 
 /*
@@ -673,7 +837,7 @@ Node* Resolver::defaultThunk(Builder& builder, Function& callee, Arg& parameter,
  */
 Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* args, ast::Expr& body,
                              bool implicitReturn, DeclPtr<Type> hint, LocationId source,
-                             LiftKind kind, bool owningPosition) {
+                             LiftKind kind, bool owningPosition, bool erase) {
     auto lambda = kind == LiftKind::Lambda;
     auto what = lambda ? "a lambda"_v : "a `@lazy` argument"_v;
 
@@ -725,6 +889,11 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     auto environment = program.types.recordType(envName, here(), source);
     auto environmentPointer = asBase<Type>(DeclPtr<RecordType>(environment - *program.decl));
 
+    // `pub` on the function the lambda was written in - the same rule an `iter fn`'s state record is
+    // under, and for the same reason: `f.Result` is the only spelling this record has, so what may
+    // name it is what may name `f`. See `mintIterSite`, where the argument is written out.
+    environment->exported = currentFunction->exported;
+
     auto lifted = new (program.decl) Function(name, here());
     lifted->source = source;
     lifted->environment = environmentPointer;
@@ -739,9 +908,18 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
      * later is a case in that function rather than a second rule here. The finding is the position's
      * convention, which `checkCarriedOrigins`' own condition is: an owned position claims the value
      * is the receiver's, and a value that refers to this frame may not be.
+     *
+     * **Only where the position erases**, since site types - Design-Iterator-Objects.md §4. A block
+     * with a teardown header in front of it is what a *pair* needs to find its teardown at a site
+     * that cannot name the lambda; a site-typed value is stored inline in whatever holds it and its
+     * captures are released by that record's own derived teardown, so there is nothing to allocate
+     * and nothing to skip. The *capture* conventions still come from `owningPosition` alone
+     * (`LambdaFrame::owns`), which is what keeps a closure in a record field owning what it
+     * captured. Merging the two is what the split undoes: `funEnvironmentBias` biases the entry
+     * block of a heap-placed lambda, and a direct call hands it the record's own address.
      */
     Placement asked;
-    asked.outlivesFrame = owningPosition;
+    asked.outlivesFrame = owningPosition && erase;
     lifted->environmentStorage = selectStorage(asked);
 
     // What tells the *MIR* reachability walk the allocator is needed - `usesHeapPlacement`, the
@@ -820,7 +998,7 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     current->records.push(program.decl, DeclPtr<RecordType>(environment - *program.decl));
     current->functions.push(program.decl, DeclPtr<Function>(lifted - *program.decl));
 
-    resolveLiftedBody(*lifted, body, implicitReturn, !lambda, source);
+    resolveLiftedBody(*lifted, body, implicitReturn, !lambda, owningPosition, source);
 
     /*
      * The environment, where the body turned out to name anything.
@@ -844,16 +1022,66 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
      */
     if(!capturing) lifted->environmentStorage = StorageClass::Frame;
 
-    if(capturing) held = buildEnvironment(builder, frame, source);
+    /*
+     * Which of the two the environment record is built for, and the one case it is not built at all.
+     *
+     * A **site**-typed value is the record, so it is always built - an empty one for a lambda that
+     * captured nothing, because a site type is what makes a closure uniform in a generic body and a
+     * record that only sometimes exists would not be. A value the position is erasing needs the
+     * record only where there is something in it: the pair's word is null otherwise, which is the
+     * value a named function produces and is what `Shapes::noEnvironment` says of it.
+     */
+    if(!erase || capturing) held = buildEnvironment(builder, frame, source, !erase);
 
     captures.resize(frame.captureFloor);
     lambdaFrames.resize(U32(lambdaFrames.size() - 1));
 
-    if(capturing && !held) return nullptr;
+    if((!erase || capturing) && !held) return nullptr;
 
     // The position, with the result the body decided written into it - see `closeFunPosition`. It is
     // `hint` itself wherever the position was already closed, which is every lambda but a G7c one.
     auto type = closeFunPosition(context, program, hint, lifted->result.type);
+
+    /*
+     * The record is now a **site type**: the code is known from it, so a value of one is called
+     * directly and only an erasing position builds a pair. Written after the body because the shape
+     * is not settled until then - G7c's open result is decided by what the body answered.
+     *
+     * Set on the erasing path too, where nothing reads it yet. It is one fact about the record and
+     * not a mode the record is in, and a field filled on one of two paths is the kind of thing a
+     * later reader gets wrong; the one case with no record to write it on is the lambda that
+     * captured nothing at an erasing position, whose record was never finished.
+     */
+    if(!erase) {
+        environment->lambda = DeclPtr<Function>(lifted - *program.decl);
+        environment->lambdaShape = type;
+
+        /*
+         * And the environment parameter **weakened to a shared borrow**, which is what a caller has
+         * to be able to supply.
+         *
+         * It is declared exclusive while the body is walked, and that is the whole of what the
+         * exclusive form is for: `fieldPlace` narrows a unique external field to a shared view when
+         * the record was reached sharedly, so a `&` capture read through a shared environment would
+         * be read-only and the spec's written case would be unreachable. What the *declaration*
+         * says is a different question - it is what a caller hands over - and `let f = lambda; f(3)`
+         * has only a shared borrow to give, because a plain binding is not writable.
+         *
+         * Weakening it is sound for the reason the narrowing is conservative here in the first
+         * place: the record is never written by the lifted body. A `&` capture writes through the
+         * *loan the environment took*, whose exclusivity runs for the closure's whole extent and is
+         * held against the enclosing frame rather than against holders of the closure. So two shared
+         * borrows of one site record write the same storage the one loan already excludes everybody
+         * else from.
+         *
+         * Done after the walk because that is where the body is finished, and left off the erasing
+         * path because there a caller never holds the record at all - what it holds is the pair.
+         */
+        auto& envParameter = *decl()[lifted->args.get(decl(), 0)];
+        envParameter.occurrence = borrowed(lifted->environment, Access::Shared);
+    }
+
+    if(!erase) return held;
 
     return builder.addFunValue(source, DeclPtr<Function>(lifted - *program.decl), type, held,
                                lifted->environmentStorage != StorageClass::Frame);

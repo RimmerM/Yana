@@ -1,0 +1,2270 @@
+module ResolveTest
+
+iter phases.Iter of phases {
+  $index: I32
+  $slot: I32
+  n: I32
+  a+b: I32 across 0 1
+}
+
+iter arms.Iter of arms {
+  $index: I32
+  $slot: I32
+  n: I32
+  first+second: I32 across 0 2
+}
+
+iter fifty.Iter of fifty {
+  $index: I32
+  $slot: I32
+  n: I32
+  a: I32 across 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48
+  b: I32 across 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48
+  c: I32 across 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48
+}
+
+iter few.Iter of few {
+  $index: I32
+  $slot: I32
+  n: I32
+  a: I32 across 0
+  b: I32 across 0
+  c: I32 across 0
+}
+
+fn phases(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
+
+fn arms(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
+
+fn few(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
+
+fn fifty(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
+
+fn phasesRuns() -> I32 {
+bb0:
+  %0: %phases.Iter address = alloc frame phases.Iter
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 3
+  %4: phases.Iter trivial = call phases$new consume %3
+  store inspect %0 consume %4
+  %5: I32 trivial = const 0
+  store inspect %1 consume %5
+  jump -> bb1
+
+bb1:
+  %6: phases.Iter [unique call] guaranteed from{%0} = load inspect %0
+  %7: I32 trivial = const 0
+  %8: Bool trivial = const False
+  %9: Bool trivial = call phases$step borrow %6 consume %7 consume %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  %10: I32 trivial = load inspect %1
+  return consume %10
+
+bb3:
+  %11: %I32 address = field.addr .$slot inspect %0
+  %12: I32 trivial = load inspect %11
+  store inspect %2 consume %12
+  %13: I32 trivial = load inspect %1
+  %14: I32 trivial = const 10
+  %15: I32 trivial = mul inspect %13 inspect %14
+  %16: I32 trivial = load inspect %2
+  %17: I32 trivial = add inspect %15 inspect %16
+  store inspect %1 consume %17
+  jump -> bb1
+}
+
+fn armsRuns() -> I32 {
+bb0:
+  %0: %arms.Iter address = alloc frame arms.Iter
+  %1: %arms.Iter address = alloc frame arms.Iter
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: I32 trivial = const 1
+  %6: arms.Iter trivial = call arms$new consume %5
+  store inspect %0 consume %6
+  %7: I32 trivial = const 0
+  %8: arms.Iter trivial = call arms$new consume %7
+  store inspect %1 consume %8
+  %9: I32 trivial = const 0
+  store inspect %2 consume %9
+  jump -> bb1
+
+bb1:
+  %10: arms.Iter [unique call] guaranteed from{%0} = load inspect %0
+  %11: I32 trivial = const 0
+  %12: Bool trivial = const False
+  %13: Bool trivial = call arms$step borrow %10 consume %11 consume %12
+  branch inspect %13 -> bb3 -> bb2
+
+bb2:
+  jump -> bb4
+
+bb3:
+  %14: %I32 address = field.addr .$slot inspect %0
+  %15: I32 trivial = load inspect %14
+  store inspect %3 consume %15
+  %16: I32 trivial = load inspect %2
+  %17: I32 trivial = const 10
+  %18: I32 trivial = mul inspect %16 inspect %17
+  %19: I32 trivial = load inspect %3
+  %20: I32 trivial = add inspect %18 inspect %19
+  store inspect %2 consume %20
+  jump -> bb1
+
+bb4:
+  %21: arms.Iter [unique call] guaranteed from{%1} = load inspect %1
+  %22: I32 trivial = const 0
+  %23: Bool trivial = const False
+  %24: Bool trivial = call arms$step borrow %21 consume %22 consume %23
+  branch inspect %24 -> bb6 -> bb5
+
+bb5:
+  %25: I32 trivial = load inspect %2
+  return consume %25
+
+bb6:
+  %26: %I32 address = field.addr .$slot inspect %1
+  %27: I32 trivial = load inspect %26
+  store inspect %4 consume %27
+  %28: I32 trivial = load inspect %2
+  %29: I32 trivial = const 10
+  %30: I32 trivial = mul inspect %28 inspect %29
+  %31: I32 trivial = load inspect %4
+  %32: I32 trivial = add inspect %30 inspect %31
+  store inspect %2 consume %32
+  jump -> bb4
+}
+
+fn fiftyRuns() -> I32 {
+bb0:
+  %0: %fifty.Iter address = alloc frame fifty.Iter
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 1
+  %4: fifty.Iter trivial = call fifty$new consume %3
+  store inspect %0 consume %4
+  %5: I32 trivial = const 0
+  store inspect %1 consume %5
+  jump -> bb1
+
+bb1:
+  %6: fifty.Iter [unique call] guaranteed from{%0} = load inspect %0
+  %7: I32 trivial = const 0
+  %8: Bool trivial = const False
+  %9: Bool trivial = call fifty$step borrow %6 consume %7 consume %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  %10: I32 trivial = load inspect %1
+  return consume %10
+
+bb3:
+  %11: %I32 address = field.addr .$slot inspect %0
+  %12: I32 trivial = load inspect %11
+  store inspect %2 consume %12
+  %13: I32 trivial = load inspect %1
+  %14: I32 trivial = load inspect %2
+  %15: I32 trivial = add inspect %13 inspect %14
+  store inspect %1 consume %15
+  jump -> bb1
+}
+
+fn sizes() -> I32 {
+bb0:
+  %0: %phases.Iter address = alloc frame phases.Iter
+  %1: %arms.Iter address = alloc frame arms.Iter
+  %2: %few.Iter address = alloc frame few.Iter
+  %3: %fifty.Iter address = alloc frame fifty.Iter
+  %4: %Size address = alloc frame Size
+  %5: %Size address = alloc frame Size
+  %6: %Size address = alloc frame Size
+  %7: %Size address = alloc frame Size
+  %8: I32 trivial = const 0
+  %9: phases.Iter trivial = call phases$new consume %8
+  store inspect %0 consume %9
+  %10: I32 trivial = const 1
+  %11: arms.Iter trivial = call arms$new consume %10
+  store inspect %1 consume %11
+  %12: I32 trivial = const 0
+  %13: few.Iter trivial = call few$new consume %12
+  store inspect %2 consume %13
+  %14: I32 trivial = const 0
+  %15: fifty.Iter trivial = call fifty$new consume %14
+  store inspect %3 consume %15
+  %16: phases.Iter trivial = copy inspect %0
+  %17: Size trivial = call sizeOf(phases.Iter) borrow %16
+  store inspect %4 consume %17
+  %18: arms.Iter trivial = copy inspect %1
+  %19: Size trivial = call sizeOf(arms.Iter) borrow %18
+  store inspect %5 consume %19
+  %20: few.Iter trivial = copy inspect %2
+  %21: Size trivial = call sizeOf(few.Iter) borrow %20
+  store inspect %6 consume %21
+  %22: fifty.Iter trivial = copy inspect %3
+  %23: Size trivial = call sizeOf(fifty.Iter) borrow %22
+  store inspect %7 consume %23
+  %24: Size trivial = load inspect %6
+  %25: Size trivial = load inspect %7
+  %26: Bool trivial = ne inspect %24 inspect %25
+  branch inspect %26 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %27: Size trivial = load inspect %4
+  %28: Size trivial = const 16
+  %29: Bool trivial = ne inspect %27 inspect %28
+  branch inspect %29 -> bb6 -> bb4
+
+bb3:
+  %30: I32 trivial = const 1
+  return consume %30
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %31: Size trivial = load inspect %5
+  %32: Size trivial = const 16
+  %33: Bool trivial = ne inspect %31 inspect %32
+  branch inspect %33 -> bb9 -> bb7
+
+bb6:
+  %34: I32 trivial = const 2
+  return consume %34
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %35: Size trivial = load inspect %6
+  %36: Size trivial = const 24
+  %37: Bool trivial = ne inspect %35 inspect %36
+  branch inspect %37 -> bb12 -> bb10
+
+bb9:
+  %38: I32 trivial = const 3
+  return consume %38
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %39: I32 trivial = const 0
+  return consume %39
+
+bb12:
+  %40: I32 trivial = const 4
+  return consume %40
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call sizes
+  %1: I32 trivial = const 0
+  %2: Bool trivial = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %3: I32 trivial = call phasesRuns
+  %4: I32 trivial = const 24147
+  %5: Bool trivial = ne inspect %3 inspect %4
+  branch inspect %5 -> bb6 -> bb4
+
+bb3:
+  %6: I32 trivial = call sizes
+  return consume %6
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %7: I32 trivial = call armsRuns
+  %8: I32 trivial = const 7802
+  %9: Bool trivial = ne inspect %7 inspect %8
+  branch inspect %9 -> bb9 -> bb7
+
+bb6:
+  %10: I32 trivial = const 5
+  return consume %10
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %11: I32 trivial = call fiftyRuns
+  %12: I32 trivial = const 1525
+  %13: Bool trivial = ne inspect %11 inspect %12
+  branch inspect %13 -> bb12 -> bb10
+
+bb9:
+  %14: I32 trivial = const 6
+  return consume %14
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %15: I32 trivial = const 0
+  return consume %15
+
+bb12:
+  %16: I32 trivial = const 7
+  return consume %16
+}
+
+fn phases$new(n: I32) -> phases.Iter {
+bb0(%0: I32 trivial):
+  %1: %phases.Iter address = alloc frame phases.Iter
+  %2: I32 trivial = const 0
+  %3: %I32 address = field.addr .$index inspect %1
+  store inspect %3 consume %2
+  %4: %I32 address = field.addr .n inspect %1
+  store inspect %4 consume %0
+  %5: phases.Iter trivial = load inspect %1
+  return consume %5
+}
+
+fn phases$step($self: phases.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
+bb0(%0: phases.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
+  %3: %I32 address = field.addr .n inspect %0
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = field.addr .a+b inspect %0
+  %6: %I32 address = field.addr .a+b inspect %0
+  %56: %I32 address = field.addr .$index inspect %0
+  %57: I32 trivial = load inspect %56
+  switch [0, 1, 2] inspect %57 -> bb1 -> bb18 -> bb19 -> bb2
+
+bb1:
+  branch inspect %2 -> bb20 -> bb3
+
+bb2:
+  %55: Bool trivial = const False
+  return consume %55
+
+bb3:
+  %7: I32 trivial = const 0
+  store inspect %4 consume %7
+  %8: I32 trivial = const 0
+  store inspect %5 consume %8
+  jump -> bb4
+
+bb4:
+  %9: I32 trivial = load inspect %5
+  %10: I32 trivial = load inspect %3
+  %11: Bool trivial = lt inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb5
+
+bb5:
+  %12: I32 trivial = const 0
+  store inspect %6 consume %12
+  jump -> bb11
+
+bb6:
+  %13: I32 trivial = load inspect %4
+  %14: I32 trivial = const 0
+  %15: Bool trivial = eq inspect %13 inspect %14
+  branch inspect %15 -> bb7 -> bb8
+
+bb7:
+  %16: I32 trivial = load inspect %5
+  %17: I32 trivial = const 2
+  %18: I32 trivial = mul inspect %16 inspect %17
+  %19: %I32 address = field.addr .$slot inspect %0
+  store inspect %19 borrow %18
+  %20: %I32 address = field.addr .$index inspect %0
+  %21: I32 trivial = const 1
+  store inspect %20 consume %21
+  %22: Bool trivial = const True
+  return consume %22
+
+bb8:
+  jump -> bb10
+
+bb9:
+  %25: I32 trivial = load inspect %5
+  %26: I32 trivial = const 1
+  %27: I32 trivial = add inspect %25 inspect %26
+  store inspect %5 consume %27
+  jump -> bb4
+
+bb10:
+  jump -> bb5
+
+bb11:
+  %28: I32 trivial = load inspect %6
+  %29: I32 trivial = load inspect %3
+  %30: Bool trivial = lt inspect %28 inspect %29
+  branch inspect %30 -> bb13 -> bb12
+
+bb12:
+  %31: I32 trivial = load inspect %4
+  %32: %I32 address = field.addr .$index inspect %0
+  %33: I32 trivial = const 2147483647
+  store inspect %32 consume %33
+  %34: Bool trivial = const False
+  return consume %34
+
+bb13:
+  %35: I32 trivial = load inspect %4
+  %36: I32 trivial = const 0
+  %37: Bool trivial = eq inspect %35 inspect %36
+  branch inspect %37 -> bb14 -> bb15
+
+bb14:
+  %38: I32 trivial = load inspect %6
+  %39: I32 trivial = const 3
+  %40: I32 trivial = mul inspect %38 inspect %39
+  %41: I32 trivial = const 1
+  %42: I32 trivial = add inspect %40 inspect %41
+  %43: %I32 address = field.addr .$slot inspect %0
+  store inspect %43 borrow %42
+  %44: %I32 address = field.addr .$index inspect %0
+  %45: I32 trivial = const 2
+  store inspect %44 consume %45
+  %46: Bool trivial = const True
+  return consume %46
+
+bb15:
+  jump -> bb17
+
+bb16:
+  %49: I32 trivial = load inspect %6
+  %50: I32 trivial = const 1
+  %51: I32 trivial = add inspect %49 inspect %50
+  store inspect %6 consume %51
+  jump -> bb11
+
+bb17:
+  jump -> bb12
+
+bb18:
+  %23: I32 trivial = const 0
+  %24: Bool trivial = eq inspect %1 inspect %23
+  store inspect %4 consume %1
+  branch inspect %24 -> bb9 -> bb10
+
+bb19:
+  %47: I32 trivial = const 0
+  %48: Bool trivial = eq inspect %1 inspect %47
+  store inspect %4 consume %1
+  branch inspect %48 -> bb16 -> bb17
+
+bb20:
+  %52: %I32 address = field.addr .$index inspect %0
+  %53: I32 trivial = const 2147483647
+  store inspect %52 consume %53
+  %54: Bool trivial = const False
+  return consume %54
+}
+
+fn phases$next($self: phases.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn phases$resume($self: phases.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn arms$new(n: I32) -> arms.Iter {
+bb0(%0: I32 trivial):
+  %1: %arms.Iter address = alloc frame arms.Iter
+  %2: I32 trivial = const 0
+  %3: %I32 address = field.addr .$index inspect %1
+  store inspect %3 consume %2
+  %4: %I32 address = field.addr .n inspect %1
+  store inspect %4 consume %0
+  %5: arms.Iter trivial = load inspect %1
+  return consume %5
+}
+
+fn arms$step($self: arms.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
+bb0(%0: arms.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
+  %3: %I32 address = field.addr .n inspect %0
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = field.addr .first+second inspect %0
+  %6: %I32 address = field.addr .first+second inspect %0
+  %61: %I32 address = field.addr .$index inspect %0
+  %62: I32 trivial = load inspect %61
+  switch [0, 1, 2, 3, 4] inspect %62 -> bb1 -> bb19 -> bb20 -> bb21 -> bb22 -> bb2
+
+bb1:
+  branch inspect %2 -> bb23 -> bb3
+
+bb2:
+  %60: Bool trivial = const False
+  return consume %60
+
+bb3:
+  %7: I32 trivial = const 0
+  store inspect %4 consume %7
+  %8: I32 trivial = load inspect %3
+  %9: I32 trivial = const 0
+  %10: Bool trivial = gt inspect %8 inspect %9
+  branch inspect %10 -> bb6 -> bb4
+
+bb4:
+  %11: I32 trivial = load inspect %3
+  %12: I32 trivial = const 4
+  %13: I32 trivial = mul inspect %11 inspect %12
+  store inspect %6 consume %13
+  %14: I32 trivial = load inspect %4
+  %15: I32 trivial = const 0
+  %16: Bool trivial = eq inspect %14 inspect %15
+  branch inspect %16 -> bb13 -> bb14
+
+bb5:
+  %17: I32 trivial = load inspect %4
+  %18: %I32 address = field.addr .$index inspect %0
+  %19: I32 trivial = const 2147483647
+  store inspect %18 consume %19
+  %20: Bool trivial = const False
+  return consume %20
+
+bb6:
+  %21: I32 trivial = load inspect %3
+  %22: I32 trivial = const 7
+  %23: I32 trivial = mul inspect %21 inspect %22
+  store inspect %5 consume %23
+  %24: I32 trivial = load inspect %4
+  %25: I32 trivial = const 0
+  %26: Bool trivial = eq inspect %24 inspect %25
+  branch inspect %26 -> bb7 -> bb8
+
+bb7:
+  %27: I32 trivial = load inspect %5
+  %28: %I32 address = field.addr .$slot inspect %0
+  store inspect %28 borrow %27
+  %29: %I32 address = field.addr .$index inspect %0
+  %30: I32 trivial = const 1
+  store inspect %29 consume %30
+  %31: Bool trivial = const True
+  return consume %31
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %32: I32 trivial = load inspect %4
+  %33: I32 trivial = const 0
+  %34: Bool trivial = eq inspect %32 inspect %33
+  branch inspect %34 -> bb10 -> bb11
+
+bb10:
+  %35: I32 trivial = load inspect %5
+  %36: I32 trivial = const 1
+  %37: I32 trivial = add inspect %35 inspect %36
+  %38: %I32 address = field.addr .$slot inspect %0
+  store inspect %38 borrow %37
+  %39: %I32 address = field.addr .$index inspect %0
+  %40: I32 trivial = const 2
+  store inspect %39 consume %40
+  %41: Bool trivial = const True
+  return consume %41
+
+bb11:
+  jump -> bb12
+
+bb12:
+  jump -> bb5
+
+bb13:
+  %42: I32 trivial = load inspect %6
+  %43: %I32 address = field.addr .$slot inspect %0
+  store inspect %43 borrow %42
+  %44: %I32 address = field.addr .$index inspect %0
+  %45: I32 trivial = const 3
+  store inspect %44 consume %45
+  %46: Bool trivial = const True
+  return consume %46
+
+bb14:
+  jump -> bb15
+
+bb15:
+  %47: I32 trivial = load inspect %4
+  %48: I32 trivial = const 0
+  %49: Bool trivial = eq inspect %47 inspect %48
+  branch inspect %49 -> bb16 -> bb17
+
+bb16:
+  %50: I32 trivial = load inspect %6
+  %51: I32 trivial = const 2
+  %52: I32 trivial = add inspect %50 inspect %51
+  %53: %I32 address = field.addr .$slot inspect %0
+  store inspect %53 borrow %52
+  %54: %I32 address = field.addr .$index inspect %0
+  %55: I32 trivial = const 4
+  store inspect %54 consume %55
+  %56: Bool trivial = const True
+  return consume %56
+
+bb17:
+  jump -> bb18
+
+bb18:
+  jump -> bb5
+
+bb19:
+  store inspect %4 consume %1
+  jump -> bb9
+
+bb20:
+  store inspect %4 consume %1
+  jump -> bb12
+
+bb21:
+  store inspect %4 consume %1
+  jump -> bb15
+
+bb22:
+  store inspect %4 consume %1
+  jump -> bb18
+
+bb23:
+  %57: %I32 address = field.addr .$index inspect %0
+  %58: I32 trivial = const 2147483647
+  store inspect %57 consume %58
+  %59: Bool trivial = const False
+  return consume %59
+}
+
+fn arms$next($self: arms.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn arms$resume($self: arms.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn fifty$new(n: I32) -> fifty.Iter {
+bb0(%0: I32 trivial):
+  %1: %fifty.Iter address = alloc frame fifty.Iter
+  %2: I32 trivial = const 0
+  %3: %I32 address = field.addr .$index inspect %1
+  store inspect %3 consume %2
+  %4: %I32 address = field.addr .n inspect %1
+  store inspect %4 consume %0
+  %5: fifty.Iter trivial = load inspect %1
+  return consume %5
+}
+
+fn fifty$step($self: fifty.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
+bb0(%0: fifty.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
+  %3: %I32 address = field.addr .n inspect %0
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = field.addr .a inspect %0
+  %6: %I32 address = field.addr .b inspect %0
+  %7: %I32 address = field.addr .c inspect %0
+  %724: %I32 address = field.addr .$index inspect %0
+  %725: I32 trivial = load inspect %724
+  switch [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50] inspect %725 -> bb1 -> bb154 -> bb155 -> bb156 -> bb157 -> bb158 -> bb159 -> bb160 -> bb161 -> bb162 -> bb163 -> bb164 -> bb165 -> bb166 -> bb167 -> bb168 -> bb169 -> bb170 -> bb171 -> bb172 -> bb173 -> bb174 -> bb175 -> bb176 -> bb177 -> bb178 -> bb179 -> bb180 -> bb181 -> bb182 -> bb183 -> bb184 -> bb185 -> bb186 -> bb187 -> bb188 -> bb189 -> bb190 -> bb191 -> bb192 -> bb193 -> bb194 -> bb195 -> bb196 -> bb197 -> bb198 -> bb199 -> bb200 -> bb201 -> bb202 -> bb203 -> bb2
+
+bb1:
+  branch inspect %2 -> bb204 -> bb3
+
+bb2:
+  %723: Bool trivial = const False
+  return consume %723
+
+bb3:
+  %8: I32 trivial = const 0
+  store inspect %4 consume %8
+  %9: I32 trivial = load inspect %3
+  store inspect %5 consume %9
+  %10: I32 trivial = load inspect %3
+  %11: I32 trivial = const 2
+  %12: I32 trivial = mul inspect %10 inspect %11
+  store inspect %6 consume %12
+  %13: I32 trivial = load inspect %3
+  %14: I32 trivial = const 3
+  %15: I32 trivial = mul inspect %13 inspect %14
+  store inspect %7 consume %15
+  %16: I32 trivial = load inspect %4
+  %17: I32 trivial = const 0
+  %18: Bool trivial = eq inspect %16 inspect %17
+  branch inspect %18 -> bb4 -> bb5
+
+bb4:
+  %19: I32 trivial = load inspect %5
+  %20: I32 trivial = load inspect %6
+  %21: I32 trivial = add inspect %19 inspect %20
+  %22: I32 trivial = load inspect %7
+  %23: I32 trivial = add inspect %21 inspect %22
+  %24: I32 trivial = const 0
+  %25: I32 trivial = add inspect %23 inspect %24
+  %26: %I32 address = field.addr .$slot inspect %0
+  store inspect %26 borrow %25
+  %27: %I32 address = field.addr .$index inspect %0
+  %28: I32 trivial = const 1
+  store inspect %27 consume %28
+  %29: Bool trivial = const True
+  return consume %29
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %30: I32 trivial = load inspect %4
+  %31: I32 trivial = const 0
+  %32: Bool trivial = eq inspect %30 inspect %31
+  branch inspect %32 -> bb7 -> bb8
+
+bb7:
+  %33: I32 trivial = load inspect %5
+  %34: I32 trivial = load inspect %6
+  %35: I32 trivial = add inspect %33 inspect %34
+  %36: I32 trivial = load inspect %7
+  %37: I32 trivial = add inspect %35 inspect %36
+  %38: I32 trivial = const 1
+  %39: I32 trivial = add inspect %37 inspect %38
+  %40: %I32 address = field.addr .$slot inspect %0
+  store inspect %40 borrow %39
+  %41: %I32 address = field.addr .$index inspect %0
+  %42: I32 trivial = const 2
+  store inspect %41 consume %42
+  %43: Bool trivial = const True
+  return consume %43
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %44: I32 trivial = load inspect %4
+  %45: I32 trivial = const 0
+  %46: Bool trivial = eq inspect %44 inspect %45
+  branch inspect %46 -> bb10 -> bb11
+
+bb10:
+  %47: I32 trivial = load inspect %5
+  %48: I32 trivial = load inspect %6
+  %49: I32 trivial = add inspect %47 inspect %48
+  %50: I32 trivial = load inspect %7
+  %51: I32 trivial = add inspect %49 inspect %50
+  %52: I32 trivial = const 2
+  %53: I32 trivial = add inspect %51 inspect %52
+  %54: %I32 address = field.addr .$slot inspect %0
+  store inspect %54 borrow %53
+  %55: %I32 address = field.addr .$index inspect %0
+  %56: I32 trivial = const 3
+  store inspect %55 consume %56
+  %57: Bool trivial = const True
+  return consume %57
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %58: I32 trivial = load inspect %4
+  %59: I32 trivial = const 0
+  %60: Bool trivial = eq inspect %58 inspect %59
+  branch inspect %60 -> bb13 -> bb14
+
+bb13:
+  %61: I32 trivial = load inspect %5
+  %62: I32 trivial = load inspect %6
+  %63: I32 trivial = add inspect %61 inspect %62
+  %64: I32 trivial = load inspect %7
+  %65: I32 trivial = add inspect %63 inspect %64
+  %66: I32 trivial = const 3
+  %67: I32 trivial = add inspect %65 inspect %66
+  %68: %I32 address = field.addr .$slot inspect %0
+  store inspect %68 borrow %67
+  %69: %I32 address = field.addr .$index inspect %0
+  %70: I32 trivial = const 4
+  store inspect %69 consume %70
+  %71: Bool trivial = const True
+  return consume %71
+
+bb14:
+  jump -> bb15
+
+bb15:
+  %72: I32 trivial = load inspect %4
+  %73: I32 trivial = const 0
+  %74: Bool trivial = eq inspect %72 inspect %73
+  branch inspect %74 -> bb16 -> bb17
+
+bb16:
+  %75: I32 trivial = load inspect %5
+  %76: I32 trivial = load inspect %6
+  %77: I32 trivial = add inspect %75 inspect %76
+  %78: I32 trivial = load inspect %7
+  %79: I32 trivial = add inspect %77 inspect %78
+  %80: I32 trivial = const 4
+  %81: I32 trivial = add inspect %79 inspect %80
+  %82: %I32 address = field.addr .$slot inspect %0
+  store inspect %82 borrow %81
+  %83: %I32 address = field.addr .$index inspect %0
+  %84: I32 trivial = const 5
+  store inspect %83 consume %84
+  %85: Bool trivial = const True
+  return consume %85
+
+bb17:
+  jump -> bb18
+
+bb18:
+  %86: I32 trivial = load inspect %4
+  %87: I32 trivial = const 0
+  %88: Bool trivial = eq inspect %86 inspect %87
+  branch inspect %88 -> bb19 -> bb20
+
+bb19:
+  %89: I32 trivial = load inspect %5
+  %90: I32 trivial = load inspect %6
+  %91: I32 trivial = add inspect %89 inspect %90
+  %92: I32 trivial = load inspect %7
+  %93: I32 trivial = add inspect %91 inspect %92
+  %94: I32 trivial = const 5
+  %95: I32 trivial = add inspect %93 inspect %94
+  %96: %I32 address = field.addr .$slot inspect %0
+  store inspect %96 borrow %95
+  %97: %I32 address = field.addr .$index inspect %0
+  %98: I32 trivial = const 6
+  store inspect %97 consume %98
+  %99: Bool trivial = const True
+  return consume %99
+
+bb20:
+  jump -> bb21
+
+bb21:
+  %100: I32 trivial = load inspect %4
+  %101: I32 trivial = const 0
+  %102: Bool trivial = eq inspect %100 inspect %101
+  branch inspect %102 -> bb22 -> bb23
+
+bb22:
+  %103: I32 trivial = load inspect %5
+  %104: I32 trivial = load inspect %6
+  %105: I32 trivial = add inspect %103 inspect %104
+  %106: I32 trivial = load inspect %7
+  %107: I32 trivial = add inspect %105 inspect %106
+  %108: I32 trivial = const 6
+  %109: I32 trivial = add inspect %107 inspect %108
+  %110: %I32 address = field.addr .$slot inspect %0
+  store inspect %110 borrow %109
+  %111: %I32 address = field.addr .$index inspect %0
+  %112: I32 trivial = const 7
+  store inspect %111 consume %112
+  %113: Bool trivial = const True
+  return consume %113
+
+bb23:
+  jump -> bb24
+
+bb24:
+  %114: I32 trivial = load inspect %4
+  %115: I32 trivial = const 0
+  %116: Bool trivial = eq inspect %114 inspect %115
+  branch inspect %116 -> bb25 -> bb26
+
+bb25:
+  %117: I32 trivial = load inspect %5
+  %118: I32 trivial = load inspect %6
+  %119: I32 trivial = add inspect %117 inspect %118
+  %120: I32 trivial = load inspect %7
+  %121: I32 trivial = add inspect %119 inspect %120
+  %122: I32 trivial = const 7
+  %123: I32 trivial = add inspect %121 inspect %122
+  %124: %I32 address = field.addr .$slot inspect %0
+  store inspect %124 borrow %123
+  %125: %I32 address = field.addr .$index inspect %0
+  %126: I32 trivial = const 8
+  store inspect %125 consume %126
+  %127: Bool trivial = const True
+  return consume %127
+
+bb26:
+  jump -> bb27
+
+bb27:
+  %128: I32 trivial = load inspect %4
+  %129: I32 trivial = const 0
+  %130: Bool trivial = eq inspect %128 inspect %129
+  branch inspect %130 -> bb28 -> bb29
+
+bb28:
+  %131: I32 trivial = load inspect %5
+  %132: I32 trivial = load inspect %6
+  %133: I32 trivial = add inspect %131 inspect %132
+  %134: I32 trivial = load inspect %7
+  %135: I32 trivial = add inspect %133 inspect %134
+  %136: I32 trivial = const 8
+  %137: I32 trivial = add inspect %135 inspect %136
+  %138: %I32 address = field.addr .$slot inspect %0
+  store inspect %138 borrow %137
+  %139: %I32 address = field.addr .$index inspect %0
+  %140: I32 trivial = const 9
+  store inspect %139 consume %140
+  %141: Bool trivial = const True
+  return consume %141
+
+bb29:
+  jump -> bb30
+
+bb30:
+  %142: I32 trivial = load inspect %4
+  %143: I32 trivial = const 0
+  %144: Bool trivial = eq inspect %142 inspect %143
+  branch inspect %144 -> bb31 -> bb32
+
+bb31:
+  %145: I32 trivial = load inspect %5
+  %146: I32 trivial = load inspect %6
+  %147: I32 trivial = add inspect %145 inspect %146
+  %148: I32 trivial = load inspect %7
+  %149: I32 trivial = add inspect %147 inspect %148
+  %150: I32 trivial = const 9
+  %151: I32 trivial = add inspect %149 inspect %150
+  %152: %I32 address = field.addr .$slot inspect %0
+  store inspect %152 borrow %151
+  %153: %I32 address = field.addr .$index inspect %0
+  %154: I32 trivial = const 10
+  store inspect %153 consume %154
+  %155: Bool trivial = const True
+  return consume %155
+
+bb32:
+  jump -> bb33
+
+bb33:
+  %156: I32 trivial = load inspect %4
+  %157: I32 trivial = const 0
+  %158: Bool trivial = eq inspect %156 inspect %157
+  branch inspect %158 -> bb34 -> bb35
+
+bb34:
+  %159: I32 trivial = load inspect %5
+  %160: I32 trivial = load inspect %6
+  %161: I32 trivial = add inspect %159 inspect %160
+  %162: I32 trivial = load inspect %7
+  %163: I32 trivial = add inspect %161 inspect %162
+  %164: I32 trivial = const 10
+  %165: I32 trivial = add inspect %163 inspect %164
+  %166: %I32 address = field.addr .$slot inspect %0
+  store inspect %166 borrow %165
+  %167: %I32 address = field.addr .$index inspect %0
+  %168: I32 trivial = const 11
+  store inspect %167 consume %168
+  %169: Bool trivial = const True
+  return consume %169
+
+bb35:
+  jump -> bb36
+
+bb36:
+  %170: I32 trivial = load inspect %4
+  %171: I32 trivial = const 0
+  %172: Bool trivial = eq inspect %170 inspect %171
+  branch inspect %172 -> bb37 -> bb38
+
+bb37:
+  %173: I32 trivial = load inspect %5
+  %174: I32 trivial = load inspect %6
+  %175: I32 trivial = add inspect %173 inspect %174
+  %176: I32 trivial = load inspect %7
+  %177: I32 trivial = add inspect %175 inspect %176
+  %178: I32 trivial = const 11
+  %179: I32 trivial = add inspect %177 inspect %178
+  %180: %I32 address = field.addr .$slot inspect %0
+  store inspect %180 borrow %179
+  %181: %I32 address = field.addr .$index inspect %0
+  %182: I32 trivial = const 12
+  store inspect %181 consume %182
+  %183: Bool trivial = const True
+  return consume %183
+
+bb38:
+  jump -> bb39
+
+bb39:
+  %184: I32 trivial = load inspect %4
+  %185: I32 trivial = const 0
+  %186: Bool trivial = eq inspect %184 inspect %185
+  branch inspect %186 -> bb40 -> bb41
+
+bb40:
+  %187: I32 trivial = load inspect %5
+  %188: I32 trivial = load inspect %6
+  %189: I32 trivial = add inspect %187 inspect %188
+  %190: I32 trivial = load inspect %7
+  %191: I32 trivial = add inspect %189 inspect %190
+  %192: I32 trivial = const 12
+  %193: I32 trivial = add inspect %191 inspect %192
+  %194: %I32 address = field.addr .$slot inspect %0
+  store inspect %194 borrow %193
+  %195: %I32 address = field.addr .$index inspect %0
+  %196: I32 trivial = const 13
+  store inspect %195 consume %196
+  %197: Bool trivial = const True
+  return consume %197
+
+bb41:
+  jump -> bb42
+
+bb42:
+  %198: I32 trivial = load inspect %4
+  %199: I32 trivial = const 0
+  %200: Bool trivial = eq inspect %198 inspect %199
+  branch inspect %200 -> bb43 -> bb44
+
+bb43:
+  %201: I32 trivial = load inspect %5
+  %202: I32 trivial = load inspect %6
+  %203: I32 trivial = add inspect %201 inspect %202
+  %204: I32 trivial = load inspect %7
+  %205: I32 trivial = add inspect %203 inspect %204
+  %206: I32 trivial = const 13
+  %207: I32 trivial = add inspect %205 inspect %206
+  %208: %I32 address = field.addr .$slot inspect %0
+  store inspect %208 borrow %207
+  %209: %I32 address = field.addr .$index inspect %0
+  %210: I32 trivial = const 14
+  store inspect %209 consume %210
+  %211: Bool trivial = const True
+  return consume %211
+
+bb44:
+  jump -> bb45
+
+bb45:
+  %212: I32 trivial = load inspect %4
+  %213: I32 trivial = const 0
+  %214: Bool trivial = eq inspect %212 inspect %213
+  branch inspect %214 -> bb46 -> bb47
+
+bb46:
+  %215: I32 trivial = load inspect %5
+  %216: I32 trivial = load inspect %6
+  %217: I32 trivial = add inspect %215 inspect %216
+  %218: I32 trivial = load inspect %7
+  %219: I32 trivial = add inspect %217 inspect %218
+  %220: I32 trivial = const 14
+  %221: I32 trivial = add inspect %219 inspect %220
+  %222: %I32 address = field.addr .$slot inspect %0
+  store inspect %222 borrow %221
+  %223: %I32 address = field.addr .$index inspect %0
+  %224: I32 trivial = const 15
+  store inspect %223 consume %224
+  %225: Bool trivial = const True
+  return consume %225
+
+bb47:
+  jump -> bb48
+
+bb48:
+  %226: I32 trivial = load inspect %4
+  %227: I32 trivial = const 0
+  %228: Bool trivial = eq inspect %226 inspect %227
+  branch inspect %228 -> bb49 -> bb50
+
+bb49:
+  %229: I32 trivial = load inspect %5
+  %230: I32 trivial = load inspect %6
+  %231: I32 trivial = add inspect %229 inspect %230
+  %232: I32 trivial = load inspect %7
+  %233: I32 trivial = add inspect %231 inspect %232
+  %234: I32 trivial = const 15
+  %235: I32 trivial = add inspect %233 inspect %234
+  %236: %I32 address = field.addr .$slot inspect %0
+  store inspect %236 borrow %235
+  %237: %I32 address = field.addr .$index inspect %0
+  %238: I32 trivial = const 16
+  store inspect %237 consume %238
+  %239: Bool trivial = const True
+  return consume %239
+
+bb50:
+  jump -> bb51
+
+bb51:
+  %240: I32 trivial = load inspect %4
+  %241: I32 trivial = const 0
+  %242: Bool trivial = eq inspect %240 inspect %241
+  branch inspect %242 -> bb52 -> bb53
+
+bb52:
+  %243: I32 trivial = load inspect %5
+  %244: I32 trivial = load inspect %6
+  %245: I32 trivial = add inspect %243 inspect %244
+  %246: I32 trivial = load inspect %7
+  %247: I32 trivial = add inspect %245 inspect %246
+  %248: I32 trivial = const 16
+  %249: I32 trivial = add inspect %247 inspect %248
+  %250: %I32 address = field.addr .$slot inspect %0
+  store inspect %250 borrow %249
+  %251: %I32 address = field.addr .$index inspect %0
+  %252: I32 trivial = const 17
+  store inspect %251 consume %252
+  %253: Bool trivial = const True
+  return consume %253
+
+bb53:
+  jump -> bb54
+
+bb54:
+  %254: I32 trivial = load inspect %4
+  %255: I32 trivial = const 0
+  %256: Bool trivial = eq inspect %254 inspect %255
+  branch inspect %256 -> bb55 -> bb56
+
+bb55:
+  %257: I32 trivial = load inspect %5
+  %258: I32 trivial = load inspect %6
+  %259: I32 trivial = add inspect %257 inspect %258
+  %260: I32 trivial = load inspect %7
+  %261: I32 trivial = add inspect %259 inspect %260
+  %262: I32 trivial = const 17
+  %263: I32 trivial = add inspect %261 inspect %262
+  %264: %I32 address = field.addr .$slot inspect %0
+  store inspect %264 borrow %263
+  %265: %I32 address = field.addr .$index inspect %0
+  %266: I32 trivial = const 18
+  store inspect %265 consume %266
+  %267: Bool trivial = const True
+  return consume %267
+
+bb56:
+  jump -> bb57
+
+bb57:
+  %268: I32 trivial = load inspect %4
+  %269: I32 trivial = const 0
+  %270: Bool trivial = eq inspect %268 inspect %269
+  branch inspect %270 -> bb58 -> bb59
+
+bb58:
+  %271: I32 trivial = load inspect %5
+  %272: I32 trivial = load inspect %6
+  %273: I32 trivial = add inspect %271 inspect %272
+  %274: I32 trivial = load inspect %7
+  %275: I32 trivial = add inspect %273 inspect %274
+  %276: I32 trivial = const 18
+  %277: I32 trivial = add inspect %275 inspect %276
+  %278: %I32 address = field.addr .$slot inspect %0
+  store inspect %278 borrow %277
+  %279: %I32 address = field.addr .$index inspect %0
+  %280: I32 trivial = const 19
+  store inspect %279 consume %280
+  %281: Bool trivial = const True
+  return consume %281
+
+bb59:
+  jump -> bb60
+
+bb60:
+  %282: I32 trivial = load inspect %4
+  %283: I32 trivial = const 0
+  %284: Bool trivial = eq inspect %282 inspect %283
+  branch inspect %284 -> bb61 -> bb62
+
+bb61:
+  %285: I32 trivial = load inspect %5
+  %286: I32 trivial = load inspect %6
+  %287: I32 trivial = add inspect %285 inspect %286
+  %288: I32 trivial = load inspect %7
+  %289: I32 trivial = add inspect %287 inspect %288
+  %290: I32 trivial = const 19
+  %291: I32 trivial = add inspect %289 inspect %290
+  %292: %I32 address = field.addr .$slot inspect %0
+  store inspect %292 borrow %291
+  %293: %I32 address = field.addr .$index inspect %0
+  %294: I32 trivial = const 20
+  store inspect %293 consume %294
+  %295: Bool trivial = const True
+  return consume %295
+
+bb62:
+  jump -> bb63
+
+bb63:
+  %296: I32 trivial = load inspect %4
+  %297: I32 trivial = const 0
+  %298: Bool trivial = eq inspect %296 inspect %297
+  branch inspect %298 -> bb64 -> bb65
+
+bb64:
+  %299: I32 trivial = load inspect %5
+  %300: I32 trivial = load inspect %6
+  %301: I32 trivial = add inspect %299 inspect %300
+  %302: I32 trivial = load inspect %7
+  %303: I32 trivial = add inspect %301 inspect %302
+  %304: I32 trivial = const 20
+  %305: I32 trivial = add inspect %303 inspect %304
+  %306: %I32 address = field.addr .$slot inspect %0
+  store inspect %306 borrow %305
+  %307: %I32 address = field.addr .$index inspect %0
+  %308: I32 trivial = const 21
+  store inspect %307 consume %308
+  %309: Bool trivial = const True
+  return consume %309
+
+bb65:
+  jump -> bb66
+
+bb66:
+  %310: I32 trivial = load inspect %4
+  %311: I32 trivial = const 0
+  %312: Bool trivial = eq inspect %310 inspect %311
+  branch inspect %312 -> bb67 -> bb68
+
+bb67:
+  %313: I32 trivial = load inspect %5
+  %314: I32 trivial = load inspect %6
+  %315: I32 trivial = add inspect %313 inspect %314
+  %316: I32 trivial = load inspect %7
+  %317: I32 trivial = add inspect %315 inspect %316
+  %318: I32 trivial = const 21
+  %319: I32 trivial = add inspect %317 inspect %318
+  %320: %I32 address = field.addr .$slot inspect %0
+  store inspect %320 borrow %319
+  %321: %I32 address = field.addr .$index inspect %0
+  %322: I32 trivial = const 22
+  store inspect %321 consume %322
+  %323: Bool trivial = const True
+  return consume %323
+
+bb68:
+  jump -> bb69
+
+bb69:
+  %324: I32 trivial = load inspect %4
+  %325: I32 trivial = const 0
+  %326: Bool trivial = eq inspect %324 inspect %325
+  branch inspect %326 -> bb70 -> bb71
+
+bb70:
+  %327: I32 trivial = load inspect %5
+  %328: I32 trivial = load inspect %6
+  %329: I32 trivial = add inspect %327 inspect %328
+  %330: I32 trivial = load inspect %7
+  %331: I32 trivial = add inspect %329 inspect %330
+  %332: I32 trivial = const 22
+  %333: I32 trivial = add inspect %331 inspect %332
+  %334: %I32 address = field.addr .$slot inspect %0
+  store inspect %334 borrow %333
+  %335: %I32 address = field.addr .$index inspect %0
+  %336: I32 trivial = const 23
+  store inspect %335 consume %336
+  %337: Bool trivial = const True
+  return consume %337
+
+bb71:
+  jump -> bb72
+
+bb72:
+  %338: I32 trivial = load inspect %4
+  %339: I32 trivial = const 0
+  %340: Bool trivial = eq inspect %338 inspect %339
+  branch inspect %340 -> bb73 -> bb74
+
+bb73:
+  %341: I32 trivial = load inspect %5
+  %342: I32 trivial = load inspect %6
+  %343: I32 trivial = add inspect %341 inspect %342
+  %344: I32 trivial = load inspect %7
+  %345: I32 trivial = add inspect %343 inspect %344
+  %346: I32 trivial = const 23
+  %347: I32 trivial = add inspect %345 inspect %346
+  %348: %I32 address = field.addr .$slot inspect %0
+  store inspect %348 borrow %347
+  %349: %I32 address = field.addr .$index inspect %0
+  %350: I32 trivial = const 24
+  store inspect %349 consume %350
+  %351: Bool trivial = const True
+  return consume %351
+
+bb74:
+  jump -> bb75
+
+bb75:
+  %352: I32 trivial = load inspect %4
+  %353: I32 trivial = const 0
+  %354: Bool trivial = eq inspect %352 inspect %353
+  branch inspect %354 -> bb76 -> bb77
+
+bb76:
+  %355: I32 trivial = load inspect %5
+  %356: I32 trivial = load inspect %6
+  %357: I32 trivial = add inspect %355 inspect %356
+  %358: I32 trivial = load inspect %7
+  %359: I32 trivial = add inspect %357 inspect %358
+  %360: I32 trivial = const 24
+  %361: I32 trivial = add inspect %359 inspect %360
+  %362: %I32 address = field.addr .$slot inspect %0
+  store inspect %362 borrow %361
+  %363: %I32 address = field.addr .$index inspect %0
+  %364: I32 trivial = const 25
+  store inspect %363 consume %364
+  %365: Bool trivial = const True
+  return consume %365
+
+bb77:
+  jump -> bb78
+
+bb78:
+  %366: I32 trivial = load inspect %4
+  %367: I32 trivial = const 0
+  %368: Bool trivial = eq inspect %366 inspect %367
+  branch inspect %368 -> bb79 -> bb80
+
+bb79:
+  %369: I32 trivial = load inspect %5
+  %370: I32 trivial = load inspect %6
+  %371: I32 trivial = add inspect %369 inspect %370
+  %372: I32 trivial = load inspect %7
+  %373: I32 trivial = add inspect %371 inspect %372
+  %374: I32 trivial = const 25
+  %375: I32 trivial = add inspect %373 inspect %374
+  %376: %I32 address = field.addr .$slot inspect %0
+  store inspect %376 borrow %375
+  %377: %I32 address = field.addr .$index inspect %0
+  %378: I32 trivial = const 26
+  store inspect %377 consume %378
+  %379: Bool trivial = const True
+  return consume %379
+
+bb80:
+  jump -> bb81
+
+bb81:
+  %380: I32 trivial = load inspect %4
+  %381: I32 trivial = const 0
+  %382: Bool trivial = eq inspect %380 inspect %381
+  branch inspect %382 -> bb82 -> bb83
+
+bb82:
+  %383: I32 trivial = load inspect %5
+  %384: I32 trivial = load inspect %6
+  %385: I32 trivial = add inspect %383 inspect %384
+  %386: I32 trivial = load inspect %7
+  %387: I32 trivial = add inspect %385 inspect %386
+  %388: I32 trivial = const 26
+  %389: I32 trivial = add inspect %387 inspect %388
+  %390: %I32 address = field.addr .$slot inspect %0
+  store inspect %390 borrow %389
+  %391: %I32 address = field.addr .$index inspect %0
+  %392: I32 trivial = const 27
+  store inspect %391 consume %392
+  %393: Bool trivial = const True
+  return consume %393
+
+bb83:
+  jump -> bb84
+
+bb84:
+  %394: I32 trivial = load inspect %4
+  %395: I32 trivial = const 0
+  %396: Bool trivial = eq inspect %394 inspect %395
+  branch inspect %396 -> bb85 -> bb86
+
+bb85:
+  %397: I32 trivial = load inspect %5
+  %398: I32 trivial = load inspect %6
+  %399: I32 trivial = add inspect %397 inspect %398
+  %400: I32 trivial = load inspect %7
+  %401: I32 trivial = add inspect %399 inspect %400
+  %402: I32 trivial = const 27
+  %403: I32 trivial = add inspect %401 inspect %402
+  %404: %I32 address = field.addr .$slot inspect %0
+  store inspect %404 borrow %403
+  %405: %I32 address = field.addr .$index inspect %0
+  %406: I32 trivial = const 28
+  store inspect %405 consume %406
+  %407: Bool trivial = const True
+  return consume %407
+
+bb86:
+  jump -> bb87
+
+bb87:
+  %408: I32 trivial = load inspect %4
+  %409: I32 trivial = const 0
+  %410: Bool trivial = eq inspect %408 inspect %409
+  branch inspect %410 -> bb88 -> bb89
+
+bb88:
+  %411: I32 trivial = load inspect %5
+  %412: I32 trivial = load inspect %6
+  %413: I32 trivial = add inspect %411 inspect %412
+  %414: I32 trivial = load inspect %7
+  %415: I32 trivial = add inspect %413 inspect %414
+  %416: I32 trivial = const 28
+  %417: I32 trivial = add inspect %415 inspect %416
+  %418: %I32 address = field.addr .$slot inspect %0
+  store inspect %418 borrow %417
+  %419: %I32 address = field.addr .$index inspect %0
+  %420: I32 trivial = const 29
+  store inspect %419 consume %420
+  %421: Bool trivial = const True
+  return consume %421
+
+bb89:
+  jump -> bb90
+
+bb90:
+  %422: I32 trivial = load inspect %4
+  %423: I32 trivial = const 0
+  %424: Bool trivial = eq inspect %422 inspect %423
+  branch inspect %424 -> bb91 -> bb92
+
+bb91:
+  %425: I32 trivial = load inspect %5
+  %426: I32 trivial = load inspect %6
+  %427: I32 trivial = add inspect %425 inspect %426
+  %428: I32 trivial = load inspect %7
+  %429: I32 trivial = add inspect %427 inspect %428
+  %430: I32 trivial = const 29
+  %431: I32 trivial = add inspect %429 inspect %430
+  %432: %I32 address = field.addr .$slot inspect %0
+  store inspect %432 borrow %431
+  %433: %I32 address = field.addr .$index inspect %0
+  %434: I32 trivial = const 30
+  store inspect %433 consume %434
+  %435: Bool trivial = const True
+  return consume %435
+
+bb92:
+  jump -> bb93
+
+bb93:
+  %436: I32 trivial = load inspect %4
+  %437: I32 trivial = const 0
+  %438: Bool trivial = eq inspect %436 inspect %437
+  branch inspect %438 -> bb94 -> bb95
+
+bb94:
+  %439: I32 trivial = load inspect %5
+  %440: I32 trivial = load inspect %6
+  %441: I32 trivial = add inspect %439 inspect %440
+  %442: I32 trivial = load inspect %7
+  %443: I32 trivial = add inspect %441 inspect %442
+  %444: I32 trivial = const 30
+  %445: I32 trivial = add inspect %443 inspect %444
+  %446: %I32 address = field.addr .$slot inspect %0
+  store inspect %446 borrow %445
+  %447: %I32 address = field.addr .$index inspect %0
+  %448: I32 trivial = const 31
+  store inspect %447 consume %448
+  %449: Bool trivial = const True
+  return consume %449
+
+bb95:
+  jump -> bb96
+
+bb96:
+  %450: I32 trivial = load inspect %4
+  %451: I32 trivial = const 0
+  %452: Bool trivial = eq inspect %450 inspect %451
+  branch inspect %452 -> bb97 -> bb98
+
+bb97:
+  %453: I32 trivial = load inspect %5
+  %454: I32 trivial = load inspect %6
+  %455: I32 trivial = add inspect %453 inspect %454
+  %456: I32 trivial = load inspect %7
+  %457: I32 trivial = add inspect %455 inspect %456
+  %458: I32 trivial = const 31
+  %459: I32 trivial = add inspect %457 inspect %458
+  %460: %I32 address = field.addr .$slot inspect %0
+  store inspect %460 borrow %459
+  %461: %I32 address = field.addr .$index inspect %0
+  %462: I32 trivial = const 32
+  store inspect %461 consume %462
+  %463: Bool trivial = const True
+  return consume %463
+
+bb98:
+  jump -> bb99
+
+bb99:
+  %464: I32 trivial = load inspect %4
+  %465: I32 trivial = const 0
+  %466: Bool trivial = eq inspect %464 inspect %465
+  branch inspect %466 -> bb100 -> bb101
+
+bb100:
+  %467: I32 trivial = load inspect %5
+  %468: I32 trivial = load inspect %6
+  %469: I32 trivial = add inspect %467 inspect %468
+  %470: I32 trivial = load inspect %7
+  %471: I32 trivial = add inspect %469 inspect %470
+  %472: I32 trivial = const 32
+  %473: I32 trivial = add inspect %471 inspect %472
+  %474: %I32 address = field.addr .$slot inspect %0
+  store inspect %474 borrow %473
+  %475: %I32 address = field.addr .$index inspect %0
+  %476: I32 trivial = const 33
+  store inspect %475 consume %476
+  %477: Bool trivial = const True
+  return consume %477
+
+bb101:
+  jump -> bb102
+
+bb102:
+  %478: I32 trivial = load inspect %4
+  %479: I32 trivial = const 0
+  %480: Bool trivial = eq inspect %478 inspect %479
+  branch inspect %480 -> bb103 -> bb104
+
+bb103:
+  %481: I32 trivial = load inspect %5
+  %482: I32 trivial = load inspect %6
+  %483: I32 trivial = add inspect %481 inspect %482
+  %484: I32 trivial = load inspect %7
+  %485: I32 trivial = add inspect %483 inspect %484
+  %486: I32 trivial = const 33
+  %487: I32 trivial = add inspect %485 inspect %486
+  %488: %I32 address = field.addr .$slot inspect %0
+  store inspect %488 borrow %487
+  %489: %I32 address = field.addr .$index inspect %0
+  %490: I32 trivial = const 34
+  store inspect %489 consume %490
+  %491: Bool trivial = const True
+  return consume %491
+
+bb104:
+  jump -> bb105
+
+bb105:
+  %492: I32 trivial = load inspect %4
+  %493: I32 trivial = const 0
+  %494: Bool trivial = eq inspect %492 inspect %493
+  branch inspect %494 -> bb106 -> bb107
+
+bb106:
+  %495: I32 trivial = load inspect %5
+  %496: I32 trivial = load inspect %6
+  %497: I32 trivial = add inspect %495 inspect %496
+  %498: I32 trivial = load inspect %7
+  %499: I32 trivial = add inspect %497 inspect %498
+  %500: I32 trivial = const 34
+  %501: I32 trivial = add inspect %499 inspect %500
+  %502: %I32 address = field.addr .$slot inspect %0
+  store inspect %502 borrow %501
+  %503: %I32 address = field.addr .$index inspect %0
+  %504: I32 trivial = const 35
+  store inspect %503 consume %504
+  %505: Bool trivial = const True
+  return consume %505
+
+bb107:
+  jump -> bb108
+
+bb108:
+  %506: I32 trivial = load inspect %4
+  %507: I32 trivial = const 0
+  %508: Bool trivial = eq inspect %506 inspect %507
+  branch inspect %508 -> bb109 -> bb110
+
+bb109:
+  %509: I32 trivial = load inspect %5
+  %510: I32 trivial = load inspect %6
+  %511: I32 trivial = add inspect %509 inspect %510
+  %512: I32 trivial = load inspect %7
+  %513: I32 trivial = add inspect %511 inspect %512
+  %514: I32 trivial = const 35
+  %515: I32 trivial = add inspect %513 inspect %514
+  %516: %I32 address = field.addr .$slot inspect %0
+  store inspect %516 borrow %515
+  %517: %I32 address = field.addr .$index inspect %0
+  %518: I32 trivial = const 36
+  store inspect %517 consume %518
+  %519: Bool trivial = const True
+  return consume %519
+
+bb110:
+  jump -> bb111
+
+bb111:
+  %520: I32 trivial = load inspect %4
+  %521: I32 trivial = const 0
+  %522: Bool trivial = eq inspect %520 inspect %521
+  branch inspect %522 -> bb112 -> bb113
+
+bb112:
+  %523: I32 trivial = load inspect %5
+  %524: I32 trivial = load inspect %6
+  %525: I32 trivial = add inspect %523 inspect %524
+  %526: I32 trivial = load inspect %7
+  %527: I32 trivial = add inspect %525 inspect %526
+  %528: I32 trivial = const 36
+  %529: I32 trivial = add inspect %527 inspect %528
+  %530: %I32 address = field.addr .$slot inspect %0
+  store inspect %530 borrow %529
+  %531: %I32 address = field.addr .$index inspect %0
+  %532: I32 trivial = const 37
+  store inspect %531 consume %532
+  %533: Bool trivial = const True
+  return consume %533
+
+bb113:
+  jump -> bb114
+
+bb114:
+  %534: I32 trivial = load inspect %4
+  %535: I32 trivial = const 0
+  %536: Bool trivial = eq inspect %534 inspect %535
+  branch inspect %536 -> bb115 -> bb116
+
+bb115:
+  %537: I32 trivial = load inspect %5
+  %538: I32 trivial = load inspect %6
+  %539: I32 trivial = add inspect %537 inspect %538
+  %540: I32 trivial = load inspect %7
+  %541: I32 trivial = add inspect %539 inspect %540
+  %542: I32 trivial = const 37
+  %543: I32 trivial = add inspect %541 inspect %542
+  %544: %I32 address = field.addr .$slot inspect %0
+  store inspect %544 borrow %543
+  %545: %I32 address = field.addr .$index inspect %0
+  %546: I32 trivial = const 38
+  store inspect %545 consume %546
+  %547: Bool trivial = const True
+  return consume %547
+
+bb116:
+  jump -> bb117
+
+bb117:
+  %548: I32 trivial = load inspect %4
+  %549: I32 trivial = const 0
+  %550: Bool trivial = eq inspect %548 inspect %549
+  branch inspect %550 -> bb118 -> bb119
+
+bb118:
+  %551: I32 trivial = load inspect %5
+  %552: I32 trivial = load inspect %6
+  %553: I32 trivial = add inspect %551 inspect %552
+  %554: I32 trivial = load inspect %7
+  %555: I32 trivial = add inspect %553 inspect %554
+  %556: I32 trivial = const 38
+  %557: I32 trivial = add inspect %555 inspect %556
+  %558: %I32 address = field.addr .$slot inspect %0
+  store inspect %558 borrow %557
+  %559: %I32 address = field.addr .$index inspect %0
+  %560: I32 trivial = const 39
+  store inspect %559 consume %560
+  %561: Bool trivial = const True
+  return consume %561
+
+bb119:
+  jump -> bb120
+
+bb120:
+  %562: I32 trivial = load inspect %4
+  %563: I32 trivial = const 0
+  %564: Bool trivial = eq inspect %562 inspect %563
+  branch inspect %564 -> bb121 -> bb122
+
+bb121:
+  %565: I32 trivial = load inspect %5
+  %566: I32 trivial = load inspect %6
+  %567: I32 trivial = add inspect %565 inspect %566
+  %568: I32 trivial = load inspect %7
+  %569: I32 trivial = add inspect %567 inspect %568
+  %570: I32 trivial = const 39
+  %571: I32 trivial = add inspect %569 inspect %570
+  %572: %I32 address = field.addr .$slot inspect %0
+  store inspect %572 borrow %571
+  %573: %I32 address = field.addr .$index inspect %0
+  %574: I32 trivial = const 40
+  store inspect %573 consume %574
+  %575: Bool trivial = const True
+  return consume %575
+
+bb122:
+  jump -> bb123
+
+bb123:
+  %576: I32 trivial = load inspect %4
+  %577: I32 trivial = const 0
+  %578: Bool trivial = eq inspect %576 inspect %577
+  branch inspect %578 -> bb124 -> bb125
+
+bb124:
+  %579: I32 trivial = load inspect %5
+  %580: I32 trivial = load inspect %6
+  %581: I32 trivial = add inspect %579 inspect %580
+  %582: I32 trivial = load inspect %7
+  %583: I32 trivial = add inspect %581 inspect %582
+  %584: I32 trivial = const 40
+  %585: I32 trivial = add inspect %583 inspect %584
+  %586: %I32 address = field.addr .$slot inspect %0
+  store inspect %586 borrow %585
+  %587: %I32 address = field.addr .$index inspect %0
+  %588: I32 trivial = const 41
+  store inspect %587 consume %588
+  %589: Bool trivial = const True
+  return consume %589
+
+bb125:
+  jump -> bb126
+
+bb126:
+  %590: I32 trivial = load inspect %4
+  %591: I32 trivial = const 0
+  %592: Bool trivial = eq inspect %590 inspect %591
+  branch inspect %592 -> bb127 -> bb128
+
+bb127:
+  %593: I32 trivial = load inspect %5
+  %594: I32 trivial = load inspect %6
+  %595: I32 trivial = add inspect %593 inspect %594
+  %596: I32 trivial = load inspect %7
+  %597: I32 trivial = add inspect %595 inspect %596
+  %598: I32 trivial = const 41
+  %599: I32 trivial = add inspect %597 inspect %598
+  %600: %I32 address = field.addr .$slot inspect %0
+  store inspect %600 borrow %599
+  %601: %I32 address = field.addr .$index inspect %0
+  %602: I32 trivial = const 42
+  store inspect %601 consume %602
+  %603: Bool trivial = const True
+  return consume %603
+
+bb128:
+  jump -> bb129
+
+bb129:
+  %604: I32 trivial = load inspect %4
+  %605: I32 trivial = const 0
+  %606: Bool trivial = eq inspect %604 inspect %605
+  branch inspect %606 -> bb130 -> bb131
+
+bb130:
+  %607: I32 trivial = load inspect %5
+  %608: I32 trivial = load inspect %6
+  %609: I32 trivial = add inspect %607 inspect %608
+  %610: I32 trivial = load inspect %7
+  %611: I32 trivial = add inspect %609 inspect %610
+  %612: I32 trivial = const 42
+  %613: I32 trivial = add inspect %611 inspect %612
+  %614: %I32 address = field.addr .$slot inspect %0
+  store inspect %614 borrow %613
+  %615: %I32 address = field.addr .$index inspect %0
+  %616: I32 trivial = const 43
+  store inspect %615 consume %616
+  %617: Bool trivial = const True
+  return consume %617
+
+bb131:
+  jump -> bb132
+
+bb132:
+  %618: I32 trivial = load inspect %4
+  %619: I32 trivial = const 0
+  %620: Bool trivial = eq inspect %618 inspect %619
+  branch inspect %620 -> bb133 -> bb134
+
+bb133:
+  %621: I32 trivial = load inspect %5
+  %622: I32 trivial = load inspect %6
+  %623: I32 trivial = add inspect %621 inspect %622
+  %624: I32 trivial = load inspect %7
+  %625: I32 trivial = add inspect %623 inspect %624
+  %626: I32 trivial = const 43
+  %627: I32 trivial = add inspect %625 inspect %626
+  %628: %I32 address = field.addr .$slot inspect %0
+  store inspect %628 borrow %627
+  %629: %I32 address = field.addr .$index inspect %0
+  %630: I32 trivial = const 44
+  store inspect %629 consume %630
+  %631: Bool trivial = const True
+  return consume %631
+
+bb134:
+  jump -> bb135
+
+bb135:
+  %632: I32 trivial = load inspect %4
+  %633: I32 trivial = const 0
+  %634: Bool trivial = eq inspect %632 inspect %633
+  branch inspect %634 -> bb136 -> bb137
+
+bb136:
+  %635: I32 trivial = load inspect %5
+  %636: I32 trivial = load inspect %6
+  %637: I32 trivial = add inspect %635 inspect %636
+  %638: I32 trivial = load inspect %7
+  %639: I32 trivial = add inspect %637 inspect %638
+  %640: I32 trivial = const 44
+  %641: I32 trivial = add inspect %639 inspect %640
+  %642: %I32 address = field.addr .$slot inspect %0
+  store inspect %642 borrow %641
+  %643: %I32 address = field.addr .$index inspect %0
+  %644: I32 trivial = const 45
+  store inspect %643 consume %644
+  %645: Bool trivial = const True
+  return consume %645
+
+bb137:
+  jump -> bb138
+
+bb138:
+  %646: I32 trivial = load inspect %4
+  %647: I32 trivial = const 0
+  %648: Bool trivial = eq inspect %646 inspect %647
+  branch inspect %648 -> bb139 -> bb140
+
+bb139:
+  %649: I32 trivial = load inspect %5
+  %650: I32 trivial = load inspect %6
+  %651: I32 trivial = add inspect %649 inspect %650
+  %652: I32 trivial = load inspect %7
+  %653: I32 trivial = add inspect %651 inspect %652
+  %654: I32 trivial = const 45
+  %655: I32 trivial = add inspect %653 inspect %654
+  %656: %I32 address = field.addr .$slot inspect %0
+  store inspect %656 borrow %655
+  %657: %I32 address = field.addr .$index inspect %0
+  %658: I32 trivial = const 46
+  store inspect %657 consume %658
+  %659: Bool trivial = const True
+  return consume %659
+
+bb140:
+  jump -> bb141
+
+bb141:
+  %660: I32 trivial = load inspect %4
+  %661: I32 trivial = const 0
+  %662: Bool trivial = eq inspect %660 inspect %661
+  branch inspect %662 -> bb142 -> bb143
+
+bb142:
+  %663: I32 trivial = load inspect %5
+  %664: I32 trivial = load inspect %6
+  %665: I32 trivial = add inspect %663 inspect %664
+  %666: I32 trivial = load inspect %7
+  %667: I32 trivial = add inspect %665 inspect %666
+  %668: I32 trivial = const 46
+  %669: I32 trivial = add inspect %667 inspect %668
+  %670: %I32 address = field.addr .$slot inspect %0
+  store inspect %670 borrow %669
+  %671: %I32 address = field.addr .$index inspect %0
+  %672: I32 trivial = const 47
+  store inspect %671 consume %672
+  %673: Bool trivial = const True
+  return consume %673
+
+bb143:
+  jump -> bb144
+
+bb144:
+  %674: I32 trivial = load inspect %4
+  %675: I32 trivial = const 0
+  %676: Bool trivial = eq inspect %674 inspect %675
+  branch inspect %676 -> bb145 -> bb146
+
+bb145:
+  %677: I32 trivial = load inspect %5
+  %678: I32 trivial = load inspect %6
+  %679: I32 trivial = add inspect %677 inspect %678
+  %680: I32 trivial = load inspect %7
+  %681: I32 trivial = add inspect %679 inspect %680
+  %682: I32 trivial = const 47
+  %683: I32 trivial = add inspect %681 inspect %682
+  %684: %I32 address = field.addr .$slot inspect %0
+  store inspect %684 borrow %683
+  %685: %I32 address = field.addr .$index inspect %0
+  %686: I32 trivial = const 48
+  store inspect %685 consume %686
+  %687: Bool trivial = const True
+  return consume %687
+
+bb146:
+  jump -> bb147
+
+bb147:
+  %688: I32 trivial = load inspect %4
+  %689: I32 trivial = const 0
+  %690: Bool trivial = eq inspect %688 inspect %689
+  branch inspect %690 -> bb148 -> bb149
+
+bb148:
+  %691: I32 trivial = load inspect %5
+  %692: I32 trivial = load inspect %6
+  %693: I32 trivial = add inspect %691 inspect %692
+  %694: I32 trivial = load inspect %7
+  %695: I32 trivial = add inspect %693 inspect %694
+  %696: I32 trivial = const 48
+  %697: I32 trivial = add inspect %695 inspect %696
+  %698: %I32 address = field.addr .$slot inspect %0
+  store inspect %698 borrow %697
+  %699: %I32 address = field.addr .$index inspect %0
+  %700: I32 trivial = const 49
+  store inspect %699 consume %700
+  %701: Bool trivial = const True
+  return consume %701
+
+bb149:
+  jump -> bb150
+
+bb150:
+  %702: I32 trivial = load inspect %4
+  %703: I32 trivial = const 0
+  %704: Bool trivial = eq inspect %702 inspect %703
+  branch inspect %704 -> bb151 -> bb152
+
+bb151:
+  %705: I32 trivial = load inspect %5
+  %706: I32 trivial = load inspect %6
+  %707: I32 trivial = add inspect %705 inspect %706
+  %708: I32 trivial = load inspect %7
+  %709: I32 trivial = add inspect %707 inspect %708
+  %710: I32 trivial = const 49
+  %711: I32 trivial = add inspect %709 inspect %710
+  %712: %I32 address = field.addr .$slot inspect %0
+  store inspect %712 borrow %711
+  %713: %I32 address = field.addr .$index inspect %0
+  %714: I32 trivial = const 50
+  store inspect %713 consume %714
+  %715: Bool trivial = const True
+  return consume %715
+
+bb152:
+  jump -> bb153
+
+bb153:
+  %716: I32 trivial = load inspect %4
+  %717: %I32 address = field.addr .$index inspect %0
+  %718: I32 trivial = const 2147483647
+  store inspect %717 consume %718
+  %719: Bool trivial = const False
+  return consume %719
+
+bb154:
+  store inspect %4 consume %1
+  jump -> bb6
+
+bb155:
+  store inspect %4 consume %1
+  jump -> bb9
+
+bb156:
+  store inspect %4 consume %1
+  jump -> bb12
+
+bb157:
+  store inspect %4 consume %1
+  jump -> bb15
+
+bb158:
+  store inspect %4 consume %1
+  jump -> bb18
+
+bb159:
+  store inspect %4 consume %1
+  jump -> bb21
+
+bb160:
+  store inspect %4 consume %1
+  jump -> bb24
+
+bb161:
+  store inspect %4 consume %1
+  jump -> bb27
+
+bb162:
+  store inspect %4 consume %1
+  jump -> bb30
+
+bb163:
+  store inspect %4 consume %1
+  jump -> bb33
+
+bb164:
+  store inspect %4 consume %1
+  jump -> bb36
+
+bb165:
+  store inspect %4 consume %1
+  jump -> bb39
+
+bb166:
+  store inspect %4 consume %1
+  jump -> bb42
+
+bb167:
+  store inspect %4 consume %1
+  jump -> bb45
+
+bb168:
+  store inspect %4 consume %1
+  jump -> bb48
+
+bb169:
+  store inspect %4 consume %1
+  jump -> bb51
+
+bb170:
+  store inspect %4 consume %1
+  jump -> bb54
+
+bb171:
+  store inspect %4 consume %1
+  jump -> bb57
+
+bb172:
+  store inspect %4 consume %1
+  jump -> bb60
+
+bb173:
+  store inspect %4 consume %1
+  jump -> bb63
+
+bb174:
+  store inspect %4 consume %1
+  jump -> bb66
+
+bb175:
+  store inspect %4 consume %1
+  jump -> bb69
+
+bb176:
+  store inspect %4 consume %1
+  jump -> bb72
+
+bb177:
+  store inspect %4 consume %1
+  jump -> bb75
+
+bb178:
+  store inspect %4 consume %1
+  jump -> bb78
+
+bb179:
+  store inspect %4 consume %1
+  jump -> bb81
+
+bb180:
+  store inspect %4 consume %1
+  jump -> bb84
+
+bb181:
+  store inspect %4 consume %1
+  jump -> bb87
+
+bb182:
+  store inspect %4 consume %1
+  jump -> bb90
+
+bb183:
+  store inspect %4 consume %1
+  jump -> bb93
+
+bb184:
+  store inspect %4 consume %1
+  jump -> bb96
+
+bb185:
+  store inspect %4 consume %1
+  jump -> bb99
+
+bb186:
+  store inspect %4 consume %1
+  jump -> bb102
+
+bb187:
+  store inspect %4 consume %1
+  jump -> bb105
+
+bb188:
+  store inspect %4 consume %1
+  jump -> bb108
+
+bb189:
+  store inspect %4 consume %1
+  jump -> bb111
+
+bb190:
+  store inspect %4 consume %1
+  jump -> bb114
+
+bb191:
+  store inspect %4 consume %1
+  jump -> bb117
+
+bb192:
+  store inspect %4 consume %1
+  jump -> bb120
+
+bb193:
+  store inspect %4 consume %1
+  jump -> bb123
+
+bb194:
+  store inspect %4 consume %1
+  jump -> bb126
+
+bb195:
+  store inspect %4 consume %1
+  jump -> bb129
+
+bb196:
+  store inspect %4 consume %1
+  jump -> bb132
+
+bb197:
+  store inspect %4 consume %1
+  jump -> bb135
+
+bb198:
+  store inspect %4 consume %1
+  jump -> bb138
+
+bb199:
+  store inspect %4 consume %1
+  jump -> bb141
+
+bb200:
+  store inspect %4 consume %1
+  jump -> bb144
+
+bb201:
+  store inspect %4 consume %1
+  jump -> bb147
+
+bb202:
+  store inspect %4 consume %1
+  jump -> bb150
+
+bb203:
+  store inspect %4 consume %1
+  jump -> bb153
+
+bb204:
+  %720: %I32 address = field.addr .$index inspect %0
+  %721: I32 trivial = const 2147483647
+  store inspect %720 consume %721
+  %722: Bool trivial = const False
+  return consume %722
+}
+
+fn fifty$next($self: fifty.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn fifty$resume($self: fifty.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn few$new(n: I32) -> few.Iter {
+bb0(%0: I32 trivial):
+  %1: %few.Iter address = alloc frame few.Iter
+  %2: I32 trivial = const 0
+  %3: %I32 address = field.addr .$index inspect %1
+  store inspect %3 consume %2
+  %4: %I32 address = field.addr .n inspect %1
+  store inspect %4 consume %0
+  %5: few.Iter trivial = load inspect %1
+  return consume %5
+}
+
+fn few$step($self: few.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool {
+bb0(%0: few.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
+  %3: %I32 address = field.addr .n inspect %0
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = field.addr .a inspect %0
+  %6: %I32 address = field.addr .b inspect %0
+  %7: %I32 address = field.addr .c inspect %0
+  %50: %I32 address = field.addr .$index inspect %0
+  %51: I32 trivial = load inspect %50
+  switch [0, 1, 2] inspect %51 -> bb1 -> bb10 -> bb11 -> bb2
+
+bb1:
+  branch inspect %2 -> bb12 -> bb3
+
+bb2:
+  %49: Bool trivial = const False
+  return consume %49
+
+bb3:
+  %8: I32 trivial = const 0
+  store inspect %4 consume %8
+  %9: I32 trivial = load inspect %3
+  store inspect %5 consume %9
+  %10: I32 trivial = load inspect %3
+  %11: I32 trivial = const 2
+  %12: I32 trivial = mul inspect %10 inspect %11
+  store inspect %6 consume %12
+  %13: I32 trivial = load inspect %3
+  %14: I32 trivial = const 3
+  %15: I32 trivial = mul inspect %13 inspect %14
+  store inspect %7 consume %15
+  %16: I32 trivial = load inspect %4
+  %17: I32 trivial = const 0
+  %18: Bool trivial = eq inspect %16 inspect %17
+  branch inspect %18 -> bb4 -> bb5
+
+bb4:
+  %19: I32 trivial = load inspect %5
+  %20: I32 trivial = load inspect %6
+  %21: I32 trivial = add inspect %19 inspect %20
+  %22: I32 trivial = load inspect %7
+  %23: I32 trivial = add inspect %21 inspect %22
+  %24: %I32 address = field.addr .$slot inspect %0
+  store inspect %24 borrow %23
+  %25: %I32 address = field.addr .$index inspect %0
+  %26: I32 trivial = const 1
+  store inspect %25 consume %26
+  %27: Bool trivial = const True
+  return consume %27
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %28: I32 trivial = load inspect %4
+  %29: I32 trivial = const 0
+  %30: Bool trivial = eq inspect %28 inspect %29
+  branch inspect %30 -> bb7 -> bb8
+
+bb7:
+  %31: I32 trivial = load inspect %5
+  %32: I32 trivial = load inspect %6
+  %33: I32 trivial = add inspect %31 inspect %32
+  %34: I32 trivial = load inspect %7
+  %35: I32 trivial = add inspect %33 inspect %34
+  %36: I32 trivial = const 1
+  %37: I32 trivial = add inspect %35 inspect %36
+  %38: %I32 address = field.addr .$slot inspect %0
+  store inspect %38 borrow %37
+  %39: %I32 address = field.addr .$index inspect %0
+  %40: I32 trivial = const 2
+  store inspect %39 consume %40
+  %41: Bool trivial = const True
+  return consume %41
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %42: I32 trivial = load inspect %4
+  %43: %I32 address = field.addr .$index inspect %0
+  %44: I32 trivial = const 2147483647
+  store inspect %43 consume %44
+  %45: Bool trivial = const False
+  return consume %45
+
+bb10:
+  store inspect %4 consume %1
+  jump -> bb6
+
+bb11:
+  store inspect %4 consume %1
+  jump -> bb9
+
+bb12:
+  %46: %I32 address = field.addr .$index inspect %0
+  %47: I32 trivial = const 2147483647
+  store inspect %46 consume %47
+  %48: Bool trivial = const False
+  return consume %48
+}
+
+fn few$next($self: few.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn few$resume($self: few.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+entry main

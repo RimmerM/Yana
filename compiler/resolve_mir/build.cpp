@@ -824,23 +824,6 @@ Node* Builder::addRepresent(LocationId source, Node& record, Occurrence view) {
     return append(node);
 }
 
-/*
- * A view, as the owned view record it is laid out as - `addRepresent` read backwards.
- *
- * For a view that has to be *stored* where no loan can be stated: an external iterator's captured
- * tuple, whose type is a field of `IterBlock` and so may not refer to storage it does not name.
- * The two words are copied as a value, and the loan the view held is not carried with them; whoever
- * stores the record has to state that loan elsewhere, which `iterConstructor`'s signature does.
- */
-Node* Builder::addViewRecord(LocationId source, Node& view) {
-    auto record = viewRecordOf(context, program, valueOccurrence(view));
-    assertTrue(record != nullptr);
-
-    auto node = new (arena()) NodeUnary(source, UnaryOp::Represent, resultOf(view, UseMode::Inspect));
-    node->occurrence = owned(record);
-    return append(node);
-}
-
 Node* Builder::addConvert(LocationId source, Node& value, DeclPtr<Type> to) {
     return addRetype(source, UnaryOp::Convert, value, to);
 }
@@ -1136,13 +1119,51 @@ Node* Builder::addVecIota(LocationId source, DeclPtr<Type> vector) {
  * address and the environment pointer - and the environment stays the value's, which is the same
  * relationship `Take` would have got wrong in both directions.
  */
-Node* Builder::addCallValue(LocationId source, Node& target, Node* const* arguments, Size count) {
-    auto& shape = *(FunType*)declBase()[valueType(target)];
+Node* Builder::addCallValue(LocationId source, Node& target, DeclPtr<Type> signature,
+                            Node* const* arguments, Size count) {
+    /*
+     * The signature the call was checked against, handed in rather than read back off the value -
+     * `callableShapeOf`, and the whole of what makes this node three calls instead of one.
+     *
+     * A function type *is* its signature, a **site type** names one, and a *type variable* has
+     * whatever the enclosing `Call(f, S)` clause promised. Only the first of those can be read from
+     * the value, so the resolver passes what it checked the arguments against and this reads the
+     * modes and the result off exactly that.
+     */
+    auto type = valueType(target);
+    auto record = declBase()[type]->kind == Type::Record ? (RecordType*)declBase()[type] : nullptr;
+    auto& shape = *(FunType*)declBase()[signature];
+
     assertTrue(count == shape.params.size());
 
     auto node = new (arena()) NodeCall(source, nullptr);
     node->occurrence = shape.result;
-    node->target = resultOf(target, UseMode::Inspect);
+
+    /*
+     * What is done to the callee, and it is the one thing the two forms differ on.
+     *
+     * Through a **pair**, `Inspect`: a call reads two words out of it and takes neither the value
+     * nor what it holds. Through a **site type**, the environment is argument zero of the lifted
+     * function, so it is handed over exactly as that parameter declares - `argumentMode`, the same
+     * rule every other argument is under, which is what lets the conversion prepend this operand to
+     * the argument list and have both verifiers check it as an ordinary one.
+     *
+     * Through a **type variable** the answer is the site type's, because that is the one the
+     * specialization has to satisfy: a borrow of the value either way, which at a pair is the
+     * address of its two words and at a site type is the address of the record. The pair's own
+     * `Inspect` is kept where the type says a pair, so that nothing already written moves.
+     */
+    auto envParameter = record
+        ? &declBase()[declBase()[record->lambda]->args.get(declBase(), 0)]->occurrence
+        : nullptr;
+
+    node->target = resultOf(target, envParameter
+        ? argumentMode(envParameter->contract, SourceKind::Result)
+        : declBase()[type]->kind == Type::Fun ||
+          declBase()[type]->kind == Type::Iter ? UseMode::Inspect
+                                               : UseMode::BorrowShared);
+
+    node->targetType = type;
     node->arguments.reserve(arena(), count);
 
     for(Size i = 0; i < count; i++) {
@@ -1451,6 +1472,15 @@ Node* Builder::addJump(LocationId source, Block& target, const Operand* argument
 Node* Builder::addBreak(LocationId source, Block& target) {
     auto node = new (arena()) NodeJump(source);
     node->kind = Node::Break;
+    fillEdge(node->to, target, nullptr, 0);
+    return append(node);
+}
+
+Node* Builder::addResume(LocationId source, Block& target, Node& value,
+                         const Occurrence& resume) {
+    auto node = new (arena()) NodeResume(source,
+                                         resultOf(value, argumentMode(resume.contract,
+                                                                      SourceKind::Result)));
     fillEdge(node->to, target, nullptr, 0);
     return append(node);
 }

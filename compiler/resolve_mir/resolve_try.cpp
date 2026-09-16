@@ -308,7 +308,8 @@ Node* Resolver::resolveTry(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint
             auto proceeded = outcomePayload(builder, *held, kOutcomeProceed, source);
             if(!proceeded || !armHint) return proceeded;
 
-            return coerce(builder, *proceeded, armHint, source, "a value"_v, wanted.access);
+            return coerce(builder, *proceeded, armHint, source, "a value"_v, wanted.access,
+                          wanted.establishes);
         });
 }
 

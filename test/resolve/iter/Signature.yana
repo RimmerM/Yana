@@ -1,0 +1,114 @@
+{-
+   **A site type written in a signature reads the producer's body**, and the program has to be
+   finished before it does - `doc/inflight/Design-Iterator-Objects.md` §2.4, and
+   `../../../doc/progress/2026-09-16-J57-object-defects.md` §1.
+
+   # resolver: ownership
+
+   `f.Iter` in a header is minted out of `f`'s own MIR, so the pass that reads a deferred header
+   (`resolveSiteSignatures`) demands a body - and until 2026-09-16 it demanded one *before* the
+   program was in a state a body may be resolved in. The pass order above `resolveProgram` names the
+   two things it was missing, and each of them fails silently rather than loudly:
+
+   | | |
+   | --- | --- |
+   | every global holds the type its initializer gave it | a read of an untyped global answers null and takes its statement with it |
+   | every type is classified | an unclassified record reads as trivially copyable, and the body is built over a copy that does not exist |
+
+   So writing `-> counted.Iter` **anywhere in the module** deleted `after += 1` from `counted`'s body
+   with no diagnostic - the object still advanced and yielded the right values - and a `String`
+   anywhere inside such a producer came out as `internal: read copies its read source trivially, and
+   its type is not`. Both were found by writing the compiler's own lexer as an `iter fn`
+   (`test/bench/lexer/findings.md` §6).
+
+   What this file asserts is that the three shapes do what they say:
+
+   | | |
+   | --- | --- |
+   | `make` | the reduction - a **global** counted below a `yield`, with the declaration that used to delete it |
+   | `owning`, `scanner` | a producer that **owns a `String`**, named in a result, with a format string below its `yield` |
+   | `shared`, `Holder` | a producer that **borrows** one, named in a **field** - which publishes an origin, so the field writes `src'` |
+
+   The answer is what ran: `main` returns the counter, so a statement that disappeared is a different
+   number rather than a passing test.
+-}
+
+let &after = 0 :: I32
+
+-- The reduction. The statement below the `yield` is a global's, which is the one an unfinished
+-- module answers null for.
+iter fn counted(n: I32) -> I32:
+    let &p = 0 :: I32
+
+    while p < n:
+        yield p
+        after += 1
+        p = p + 1
+
+-- Delete this declaration and the program used to become correct, which is what made the defect
+-- worth a fixture of its own: nothing else about the module changes.
+fn make(n: I32) -> counted.Iter:
+    let it = counted(n)
+    return it
+
+{-
+   A producer that **owns** a `String` and builds one below its hand-over.
+
+   The capture is by value - `->source` - so the record refers to nobody's storage and the result
+   position can name it without an origin. Both halves used to report the internal error: the
+   capture's own read, and the format string's.
+-}
+iter fn owning(->source: String, n: I32) -> I32:
+    let &p = 0 :: I32
+
+    while p < n:
+        yield p
+        let note = "at {p} of {source}"
+        after += truncate(length(note))
+        p = p + 1
+
+fn scanner(n: I32) -> owning.Iter:
+    let it = owning("abc", n)
+    return it
+
+{-
+   And one that **borrows** a `String`, named in a field.
+
+   A shared loan travels as the lender's address, so `shared.Iter` publishes an origin and a field
+   holding it says whose storage it is - the same rule `iter/Name.yana`'s `Scan` is under. A
+   *result* cannot say it: `fn f(source: String) -> source'shared.Iter` is `no parameter publishes
+   the origin source`, which is where the origin half of §2.4 still stops.
+-}
+iter fn shared(source: String, n: I32) -> I32:
+    let &p = 0 :: I32
+
+    while p < n:
+        yield truncate(length(source)) + p
+        p = p + 1
+
+data Holder {cursor: src'shared.Iter, seen: I32}
+
+fn main() -> I32:
+    after = 0
+
+    -- 3, one per hand-over, and 0 for every version of this compiler that read the body too early.
+    let &jt = counted(3)
+    for y in jt:
+        {}
+
+    -- 22 - `"at 0 of abc"` and `"at 1 of abc"`, eleven bytes each.
+    let &kt = scanner(2)
+    for y in kt:
+        {}
+
+    -- 11 - `length("hello")` twice, plus the hand-over's own index.
+    let text = "hello"
+    let &lt = shared(text, 2)
+    let &h = Holder {cursor: lt, seen: 0}
+
+    let &cursor = h.cursor
+    for y in cursor:
+        after += y
+
+    h.seen = after
+    return h.seen

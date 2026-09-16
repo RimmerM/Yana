@@ -34,6 +34,10 @@ fn n() = while a -> break a
 -- while, compact bare continue.
 fn o() = while a -> continue
 
+-- for, compact `continue` carrying a value - the resume channel's other end, read exactly as
+-- `break a` is. Design-Iterator-Objects.md §2.5.
+fn o2() = while a -> continue a + 1
+
 -- for, block form with break and continue.
 fn p():
   for x in xs:

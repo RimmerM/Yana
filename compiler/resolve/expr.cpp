@@ -1166,6 +1166,20 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
         case ast::Expr::Break:
         case ast::Expr::Continue: {
             /*
+             * `continue v` - the resume channel's other end, and this stage has no channel.
+             *
+             * Refused by name and in one message, wherever it is written: what a value handed back
+             * would answer is the `<- R` this stage already refuses at the declaration
+             * (`module_sig.cpp`), so accepting it here would be binding one end of a protocol whose
+             * other end does not exist. Nothing else about `continue` changes.
+             */
+            if(expr.kind == ast::Expr::Continue && expr.continueValue) {
+                context.diagnostics.error("`continue` carrying a value answers an `iter fn` declared `-> (Y <- R)`, and this resolver does not implement the `<- R` resume channel - build with `-resolver ownership`"_v,
+                                          expr.source);
+                return nullptr;
+            }
+
+            /*
              * A `for` loop's body is lifted, so the loop these leave is not one this function has a
              * block for: it is the call in the enclosing frame, and leaving it is a value returned
              * to the iterator - Analysis-Lens.md §7.3's step signal. Which value depends on what

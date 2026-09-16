@@ -118,6 +118,21 @@ bool classifyTypes(Context& context, Program& program);
 bool classifyRecord(Context& context, Program& program, RecordType& record);
 
 /*
+ * The same fold again, over every record, for the one pass that can add a **field** after it ran.
+ *
+ * `resolveSiteSignatures` fills a `data` whose field is a declaration path - `data Parser {lexer:
+ * lex.Iter}` - and it has to run after the classification rather than before it, because minting
+ * `lex.Iter` reads `lex`'s body and a body may not be resolved against unclassified types
+ * (`../../doc/progress/2026-09-16-J57-object-defects.md` §1). Re-folding the one record is not
+ * enough: whatever *holds* it was folded from an answer that had no fields in it.
+ *
+ * So the flag is cleared everywhere and the pass is run a second time. It is the same pass over more
+ * fields, which is the same argument `foldRecordSchema` makes about being run twice - and it costs a
+ * fold of the program only where a `data` wrote a path, which is what the one caller checks.
+ */
+bool reclassifyTypes(Context& context, Program& program);
+
+/*
  * Where every record's external positions sit - Analysis-IR.md §5.11's ownership schema.
  *
  * A separate pass from `classifyTypes`, and *before* signatures rather than beside ownership,
