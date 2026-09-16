@@ -96,7 +96,7 @@ pub fn readOptions(arguments: [String]) -> Options:
     let &options = defaultOptions()
     let &i = 0 :: Size
 
-    while i < length(arguments) && length(options.complaint) == (0 :: Size):
+    while i < length(arguments) && length(options.complaint) == 0:
         let argument = arguments[i]
         i = i + 1
 
@@ -144,7 +144,7 @@ pub fn readOptions(arguments: [String]) -> Options:
             -- takes. A word starting with `-` is not: an unrecognized switch is a mistake, and
             -- taking it for a filter would silently run nothing.
             _:
-                if length(argument) > (0 :: Size) && argument.unit(0) == "-":
+                if length(argument) > 0 && argument.unit(0) == "-":
                     complain(options, "unknown switch {argument}")
                 else:
                     options.filter = copy(argument)
@@ -170,7 +170,7 @@ pub fn readOptions(arguments: [String]) -> Options:
    is what the two cross-checks above used to carry and what every caller kept forgetting.
 -}
 fn complain(&options: Options, ->why: String):
-    if length(options.complaint) == (0 :: Size) then options.complaint = why
+    if length(options.complaint) == 0 then options.complaint = why
 
 -- `auto`, `always` or `never`, and nothing else. A value this does not know is refused rather than
 -- taken for `auto`, on the same terms an unrecognized switch is: `--color yes` doing nothing is how
@@ -233,6 +233,6 @@ fn readCount(&options: Options, value: String, switch: String) -> Int:
    run still divide the work between them.
 -}
 pub fn selects(options: Options, name: String) -> Bool:
-    if length(options.only) > (0 :: Size) then return name == options.only
-    if length(options.filter) == (0 :: Size) then return True
+    if length(options.only) > 0 then return name == options.only
+    if length(options.filter) == 0 then return True
     return String.contains(name, options.filter)

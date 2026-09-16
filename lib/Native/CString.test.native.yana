@@ -36,7 +36,7 @@ let letter = 65 :: U8
         let &n = 0 :: Size
 
         while n <= 200:
-            setMemory(buffer, 0 :: U8, span)
+            setMemory(buffer, 0, span)
             setMemory(buffer + at, letter, n)
 
             if cStringLength(buffer + at) != n then bad = bad + 1
@@ -69,7 +69,7 @@ let letter = 65 :: U8
     while n <= 64:
         let start = region + page - n - 1
         setMemory(start, letter, n)
-        store(region + page - 1, 0 :: U8)
+        store(region + page - 1, 0)
 
         if cStringLength(start) != n then bad = bad + 1
         n = n + 1
@@ -81,7 +81,7 @@ let letter = 65 :: U8
 -- at and the one a scan written as a do-while would answer one for.
 @test fn emptyCString():
     let buffer = allocateHeap(64)
-    setMemory(buffer, 0 :: U8, 64)
+    setMemory(buffer, 0, 64)
     checkEqual(cStringLength(buffer), 0)
     freeHeap(buffer)
 
@@ -198,7 +198,7 @@ lens fn chosenReference(text: String, inline: Bool) -> %yield'U8:
 
     if inline:
         copyMemory(base, stringBytes(text), length(text))
-        store(base + length(text), 0 :: U8)
+        store(base + length(text), 0)
 
     yield if inline then base else stringBytes(spilled)
 

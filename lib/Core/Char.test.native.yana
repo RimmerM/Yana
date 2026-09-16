@@ -23,7 +23,7 @@ fn bytesText(bytes: [U8]) -> String:
     let table8 = bytesText(elements([0x61 :: U8, 0xF1, 0x80, 0x80, 0xE1, 0x80, 0xC2, 0x62, 0x80, 0x63, 0x80, 0xBF, 0x64]))
     checkEqual(charNumbers(table8), "97 65533 65533 65533 98 65533 99 65533 65533 100")
     checkEqual(charNumbersBackwards(table8), charNumbers(table8))
-    checkEqual(countChars(table8), 10 :: Size)
+    checkEqual(countChars(table8), 10)
     checkEqual(boundaryMismatches(table8), 0)
 
     -- Table 3-9: overlong forms are refused at the second byte, so every byte is its own replacement.
@@ -56,8 +56,8 @@ fn bytesText(bytes: [U8]) -> String:
     checkEqual(charNumbers(cut), "97 65533")
     checkEqual(charNumbersBackwards(cut), "97 65533")
     check(!isCharBoundary(cut, 2))
-    checkEqual(floorCharBoundary(cut, 3), 1 :: Size)
-    checkEqual(ceilCharBoundary(cut, 2), 4 :: Size)
+    checkEqual(floorCharBoundary(cut, 3), 1)
+    checkEqual(ceilCharBoundary(cut, 2), 4)
 
     let long = bytesText(elements([0xF0 :: U8, 0x9F, 0x98, 0x80, 0x80, 0x80]))
     checkEqual(charNumbers(long), "128512 65533 65533")

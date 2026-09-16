@@ -198,11 +198,11 @@ pub fn openConsole(options: Options, ->title: String, total: Size, reporting: Bo
 -}
 fn announce(terminal: Terminal, title: String, total: Size):
     let &word = "tests" :: String
-    if total == (1 :: Size) then word = "test"
+    if total == 1 then word = "test"
 
     let count = terminal.bolded("{total}")
 
-    if length(title) > (0 :: Size):
+    if length(title) > 0:
         let named = terminal.paint(boldColored(Cyan), title)
         print("\n{named}  {count} {word}\n\n")
     else:
@@ -229,18 +229,18 @@ pub fn Console.caseBegan(&self: Console, name: String):
 
     -- The first case is always drawn, so a run that is over inside one frame still showed something.
     let now = monotonicNanos()
-    if self.ran > (0 :: Size) && now - self.painted < frameNanos() then return
+    if self.ran > 0 && now - self.painted < frameNanos() then return
     self.painted = now
 
     let wheel = self.status.spinner()
-    let counted = "{self.ran + (1 :: Size)}/{self.total}"
+    let counted = "{self.ran + 1}/{self.total}"
 
     -- Half the width for the bar, at most twenty columns, and none at all on a narrow terminal:
     -- what the line is for is the name, and everything else gives way to it.
     let &line = "{wheel}  {counted}  " :: String
     let used = displayWidth(line) + displayWidth(name)
 
-    if self.terminal.columns > used + (24 :: Size):
+    if self.terminal.columns > used + 24:
         let bar = self.terminal.bar(self.ran, self.total, 20)
         let shown = self.terminal.dimmed(bar)
         line = "{wheel}  {counted}  {shown}  "
@@ -300,7 +300,7 @@ pub fn Console.caseFailed(&self: Console, name: String, nanos: I64, why: String)
     self.failures ++= "  {mark}  {named}\n"
 
     let detail = currentDetail()
-    if length(detail) > (0 :: Size):
+    if length(detail) > 0:
         self.failures ++= indented(detail, "      ")
     else:
         let quiet = self.terminal.dimmed(why)
@@ -364,7 +364,7 @@ fn Console.tally(&self: Console, name: String, nanos: I64, outcome: Outcome):
     let count = length(self.tallies)
     let &at = count
 
-    if count > (0 :: Size) && self.tallies[count - 1].name == owner:
+    if count > 0 && self.tallies[count - 1].name == owner:
         at = count - 1
     else:
         for i in 0 .. count:
@@ -403,7 +403,7 @@ lens fn moduleOf(name: String) -> String:
    it took, and what happened.
 -}
 fn Console.moduleTable(self: Console) -> String:
-    if length(self.tallies) == (0 :: Size) then return ""
+    if length(self.tallies) == 0 then return ""
 
     let g = self.terminal.glyphs()
     let &table = newTable(self.terminal, RuleFrame)
@@ -415,16 +415,16 @@ fn Console.moduleTable(self: Console) -> String:
     table.addColumn("result")
 
     for row in items(self.tallies):
-        if row.failed > (0 :: Size):
+        if row.failed > 0:
             table.addStyled(copy(g.fail), boldColored(Red))
-        else if row.passed == (0 :: Size) && row.skipped > (0 :: Size):
+        else if row.passed == 0 && row.skipped > 0:
             table.addStyled(copy(g.skip), colored(Yellow))
         else:
             table.addStyled(copy(g.pass), colored(Green))
 
         table.add(copy(row.name))
         table.addStyled(durationText(row.nanos, self.terminal.unicode), dimStyle())
-        table.addStyled(tallyText(row), if row.failed > (0 :: Size) then boldColored(Red) else colored(Green))
+        table.addStyled(tallyText(row), if row.failed > 0 then boldColored(Red) else colored(Green))
 
     return "{table.render()}\n"
 
@@ -434,14 +434,14 @@ fn Console.moduleTable(self: Console) -> String:
 fn tallyText(row: ModuleTally) -> String:
     let &text = "" :: String
 
-    if row.failed > (0 :: Size) then text ++= "{row.failed} failed"
+    if row.failed > 0 then text ++= "{row.failed} failed"
 
-    if row.passed > (0 :: Size):
-        if length(text) > (0 :: Size) then text ++= ", "
+    if row.passed > 0:
+        if length(text) > 0 then text ++= ", "
         text ++= "{row.passed} passed"
 
-    if row.skipped > (0 :: Size):
-        if length(text) > (0 :: Size) then text ++= ", "
+    if row.skipped > 0:
+        if length(text) > 0 then text ++= ", "
         text ++= "{row.skipped} skipped"
 
     return text
@@ -474,30 +474,30 @@ pub fn Console.close(&self: Console, stale: Int, note: String):
     let &out = String.ofCapacity(2048)
 
     if self.perCase:
-        if self.results.rowCount() > (0 :: Size):
+        if self.results.rowCount() > 0:
             self.results.indent = 2
             out.push("{self.results.render()}\n")
     else:
         out.push(self.moduleTable())
 
     -- Moved rather than copied: this is the last read of the field, and `close` ends the console.
-    if length(self.failures) > (0 :: Size) then out.push(exchange(self.failures, ""))
+    if length(self.failures) > 0 then out.push(exchange(self.failures, ""))
 
     -- The counts, in the order they matter: what went wrong, then what did not, then what was not
     -- asked. A part that is zero is left out rather than printed as a zero, so the ordinary line is
     -- "12 passed" and the width of the line says something on its own.
     let &parts = "" :: String
-    if self.failed > (0 :: Size) then parts ++= self.terminal.paint(boldColored(Red), "{self.failed} failed")
+    if self.failed > 0 then parts ++= self.terminal.paint(boldColored(Red), "{self.failed} failed")
 
-    if self.passed > (0 :: Size):
-        if length(parts) > (0 :: Size) then parts ++= ", "
+    if self.passed > 0:
+        if length(parts) > 0 then parts ++= ", "
         parts ++= self.terminal.inColor(Green, "{self.passed} passed")
 
-    if self.skipped > (0 :: Size):
-        if length(parts) > (0 :: Size) then parts ++= ", "
+    if self.skipped > 0:
+        if length(parts) > 0 then parts ++= ", "
         parts ++= self.terminal.inColor(Yellow, "{self.skipped} skipped")
 
-    if length(parts) == (0 :: Size) then parts ++= self.terminal.dimmed("nothing ran")
+    if length(parts) == 0 then parts ++= self.terminal.dimmed("nothing ran")
 
     let took = self.terminal.dimmed("in {durationText(elapsed, self.terminal.unicode)}")
     let g = self.terminal.glyphs()
@@ -514,8 +514,8 @@ pub fn Console.close(&self: Console, stale: Int, note: String):
     print("{out}")
 
 fn Console.verdictMark(self: Console, g: Glyphs) -> String:
-    if self.failed > (0 :: Size) then return self.terminal.paint(boldColored(Red), g.fail)
-    if self.passed == (0 :: Size) then return self.terminal.inColor(Yellow, g.skip)
+    if self.failed > 0 then return self.terminal.paint(boldColored(Red), g.fail)
+    if self.passed == 0 then return self.terminal.inColor(Yellow, g.skip)
     return self.terminal.paint(boldColored(Green), g.pass)
 
 {-
@@ -526,7 +526,7 @@ fn Console.verdictMark(self: Console, g: Glyphs) -> String:
    no name rather than an arbitrary one of them.
 -}
 pub fn sharedModule(cases: [Case], selected: [Size]) -> String:
-    if length(selected) == (0 :: Size) then return ""
+    if length(selected) == 0 then return ""
 
     let name = cases[selected[0]].moduleName
     for i in 1 .. length(selected):
@@ -586,7 +586,7 @@ pub fn indented(text: String, margin: String) -> String:
     -- `line` is what `lines` hands over - an `iter fn` whose yield type is `->String` gives the part
     -- away - and it is pushed on the same terms.
     for line in lines(text):
-        if length(line) > (0 :: Size):
+        if length(line) > 0:
             out.push(margin)
             out.push(line)
             out.push("\n")

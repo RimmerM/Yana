@@ -118,7 +118,7 @@ pub fn allocateHeap(size: Size) -> %U8:
         setWindowFreeHead(sizeClass, *(bitcast(reused) :: %(%U8)))
         return reused
 
-    let blockSize = (16 :: Size) `shl` sizeClass
+    let blockSize = 16 `shl` sizeClass
     if heapWindowNext + blockSize > heapWindowLimit then return null()
 
     let block = heapWindowNext

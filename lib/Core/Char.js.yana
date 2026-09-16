@@ -44,14 +44,14 @@ pub fn isCharBoundary(text: String, at: Size) -> Bool:
 
 pub fn floorCharBoundary(text: String, at: Size) -> Size:
     let count = length(text)
-    if at <= (0 :: Size) then return 0
+    if at <= 0 then return 0
     if at >= count then return count
 
     return if isCharBoundary(text, at) then at else at - 1
 
 pub fn ceilCharBoundary(text: String, at: Size) -> Size:
     let count = length(text)
-    if at <= (0 :: Size) then return 0
+    if at <= 0 then return 0
     if at >= count then return count
 
     return if isCharBoundary(text, at) then at else at + 1

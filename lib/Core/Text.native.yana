@@ -76,7 +76,7 @@ instance Chunked(String, CodeUnit):
 pub fn findAscii(self: String, unit: CodeUnit, from: Size = 0) -> Maybe(Size):
     let count = length(self)
     let &begin = from
-    if begin < (0 :: Size) then begin = 0
+    if begin < 0 then begin = 0
     if begin >= count then return Nothing
 
     return match indexOf(slice(allUnits(self), begin, count), unit):
@@ -102,14 +102,14 @@ pub fn countAscii(self: String, unit: CodeUnit) -> Int = occurrences(self, unit)
 -}
 pub fn findLastAscii(self: String, unit: CodeUnit) -> Maybe(Size):
     let count = length(self)
-    if count <= (0 :: Size) then return Nothing
+    if count <= 0 then return Nothing
 
     let window = allUnits(self)
     let width = vectorBytes
     let sought = splat(unit) :: Vec(CodeUnit)
     let &at = count - width
 
-    while at >= (0 :: Size):
+    while at >= 0:
         if any(loadVector(window, at) .== sought):
             let &j = at + width - 1
 
@@ -120,7 +120,7 @@ pub fn findLastAscii(self: String, unit: CodeUnit) -> Maybe(Size):
         at = at - width
 
     let &head = at + width
-    while head > (0 :: Size):
+    while head > 0:
         head = head - 1
         if window[head] == unit then return Just(head)
 
@@ -155,8 +155,8 @@ pub fn findLastAscii(self: String, unit: CodeUnit) -> Maybe(Size):
 pub fn findAsciiAny(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Size):
     let count = length(self)
     let &begin = from
-    if begin < (0 :: Size) then begin = 0
-    if begin >= count || length(units) == (0 :: Size) then return Nothing
+    if begin < 0 then begin = 0
+    if begin >= count || length(units) == 0 then return Nothing
 
     let window = slice(allUnits(self), begin, count)
     let span = length(window)
@@ -192,9 +192,9 @@ pub fn findAsciiAny(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Si
 pub fn findAsciiNone(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Size):
     let count = length(self)
     let &begin = from
-    if begin < (0 :: Size) then begin = 0
+    if begin < 0 then begin = 0
     if begin >= count then return Nothing
-    if length(units) == (0 :: Size) then return Just(begin)
+    if length(units) == 0 then return Just(begin)
 
     let window = slice(allUnits(self), begin, count)
     let span = length(window)
@@ -314,9 +314,9 @@ pub fn String.find(haystack: String, needle: String, from: Size = 0) -> Maybe(Si
     let inner = length(needle)
 
     let &at = from
-    if at < (0 :: Size) then at = 0
+    if at < 0 then at = 0
     if at > outer then at = outer
-    if inner == (0 :: Size) then return Just(at)
+    if inner == 0 then return Just(at)
     if at + inner > outer then return Nothing
 
     -- The needle is not sliced and the haystack is, which is the asymmetry `startsWith` above states
@@ -372,7 +372,7 @@ pub fn String.find(haystack: String, needle: String, from: Size = 0) -> Maybe(Si
 pub fn String.findLast(haystack: String, needle: String) -> Maybe(Size):
     let outer = length(haystack)
     let inner = length(needle)
-    if inner == (0 :: Size) then return Just(outer)
+    if inner == 0 then return Just(outer)
     if inner > outer then return Nothing
 
     let &best = Nothing :: Maybe(Size)
@@ -419,7 +419,7 @@ pub fn String.findLast(haystack: String, needle: String) -> Maybe(Size):
 pub fn toLowerAscii(text: String) -> String:
     let count = length(text)
     let &out = String.ofCapacity(count)
-    if count <= (0 :: Size) then return out
+    if count <= 0 then return out
 
     out.units.length = truncate(count) :: Count
 
@@ -428,9 +428,9 @@ pub fn toLowerAscii(text: String) -> String:
     let width = vectorBytes
     let last = count - width
 
-    let low = splat(64 :: I8) :: Vec(I8)
-    let high = splat(91 :: I8) :: Vec(I8)
-    let bias = splat(32 :: I8) :: Vec(I8)
+    let low = splat(64) :: Vec(I8)
+    let high = splat(91) :: Vec(I8)
+    let bias = splat(32) :: Vec(I8)
     let &i = 0 :: Size
 
     while i <= last:
@@ -448,7 +448,7 @@ pub fn toLowerAscii(text: String) -> String:
 pub fn toUpperAscii(text: String) -> String:
     let count = length(text)
     let &out = String.ofCapacity(count)
-    if count <= (0 :: Size) then return out
+    if count <= 0 then return out
 
     out.units.length = truncate(count) :: Count
 
@@ -457,9 +457,9 @@ pub fn toUpperAscii(text: String) -> String:
     let width = vectorBytes
     let last = count - width
 
-    let low = splat(96 :: I8) :: Vec(I8)
-    let high = splat(123 :: I8) :: Vec(I8)
-    let bias = splat(32 :: I8) :: Vec(I8)
+    let low = splat(96) :: Vec(I8)
+    let high = splat(123) :: Vec(I8)
+    let bias = splat(32) :: Vec(I8)
     let &i = 0 :: Size
 
     while i <= last:
@@ -493,11 +493,11 @@ pub fn toUpperAscii(text: String) -> String:
    without, against Tritium's 4.8 - and the rest of the distance was the identity slice above.
 -}
 @inline fn loweredUnits(block: Vec(I8)) -> Vec(I8):
-    let low = splat(64 :: I8) :: Vec(I8)
-    let high = splat(91 :: I8) :: Vec(I8)
+    let low = splat(64) :: Vec(I8)
+    let high = splat(91) :: Vec(I8)
     let letters = and(block .> low, block .< high)
 
-    return select(letters, block + (splat(32 :: I8) :: Vec(I8)), block)
+    return select(letters, block + (splat(32) :: Vec(I8)), block)
 
 @inline fn signedUnits(from: [CodeUnit], at: Size) -> Vec(I8) =
     bitcast(loadVector(from, at)) :: Vec(I8)
@@ -627,12 +627,12 @@ pub fn compareAsciiCase(left: String, right: String) -> Ordering:
 -}
 pub fn isAllAscii(text: String) -> Bool:
     let count = length(text)
-    if count <= (0 :: Size) then return True
+    if count <= 0 then return True
 
     let window = allUnits(text)
     let width = vectorBytes
     let last = count - width
-    let limit = splat(127 :: CodeUnit) :: Vec(CodeUnit)
+    let limit = splat(127) :: Vec(CodeUnit)
     let &i = 0 :: Size
 
     while i <= last:

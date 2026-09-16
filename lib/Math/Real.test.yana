@@ -182,8 +182,8 @@ fn nearFloat(got: Float, want: Float) -> Bool:
        `scaleByExponent` puts one back; if the wide scratch pair were the narrow one, each would
        come back a truncated low half and none of the three would be close.
     -}
-    let oneDouble = splat(1.0 :: Double) :: Vec(F64)
-    let twoAndAHalf = splat(2.5 :: Double) :: Vec(F64)
+    let oneDouble = splat(1.0) :: Vec(F64)
+    let twoAndAHalf = splat(2.5) :: Vec(F64)
 
     check(nearDouble(lane(exponentOf(twoAndAHalf), 0), 1.0))
     check(nearDouble(lane(significandOf(twoAndAHalf), 0), 1.25))

@@ -57,7 +57,7 @@ pub fn decodeChar(text: String, at: Size) -> {Char, Size}:
     if lead < 0x80 then return {Char(lead), at + 1}
 
     let {need, bits} = leadBits(lead)
-    if need == (0 :: Size) then return {replacementChar, at + 1}
+    if need == 0 then return {replacementChar, at + 1}
 
     let count = length(text)
     let end = at + 1 + need
@@ -86,7 +86,7 @@ pub fn decodeChar(text: String, at: Size) -> {Char, Size}:
 fn sequenceStart(text: String, at: Size) -> Size:
     let &start = at
     let &limit = at - 3
-    if limit < (0 :: Size) then limit = 0
+    if limit < 0 then limit = 0
 
     while start > limit && isContinuation(String.unit(text, start)):
         start = start - 1
@@ -129,7 +129,7 @@ pub fn isCharBoundary(text: String, at: Size) -> Bool:
 
 pub fn floorCharBoundary(text: String, at: Size) -> Size:
     let count = length(text)
-    if at <= (0 :: Size) then return 0
+    if at <= 0 then return 0
     if at >= count then return count
     if !isContinuation(String.unit(text, at)) then return at
 
@@ -138,7 +138,7 @@ pub fn floorCharBoundary(text: String, at: Size) -> Size:
 
 pub fn ceilCharBoundary(text: String, at: Size) -> Size:
     let count = length(text)
-    if at <= (0 :: Size) then return 0
+    if at <= 0 then return 0
     if at >= count then return count
     if !isContinuation(String.unit(text, at)) then return at
 

@@ -27,12 +27,12 @@ import Test
 
     -- Not the zero the declaration was written as, which is the whole statement: no line of the
     -- library put a number there, and every use below reads what the compiler decided.
-    checkNotEqual(page, (0 :: Size))
+    checkNotEqual(page, 0)
 
     -- A page, and the shape of one. 4096 is the floor rather than the value - the role is defined as
     -- the smallest granularity the target guarantees, and a target whose kernel maps in 16K units
     -- answers 16384 here without a line of this changing.
-    checkAtLeast(page, (4096 :: Size))
+    checkAtLeast(page, 4096)
     check(isPowerOf2(page))
 
     -- And it is a constant, not storage: `alignUp` over it is a mask against a literal by the time
@@ -60,10 +60,10 @@ import Test
        never past the language's own ceiling of sixty-four.
     -}
     let width = vectorBytes
-    checkNotEqual(width, (0 :: Size))
+    checkNotEqual(width, 0)
     check(isPowerOf2(width))
-    checkAtLeast(width, (16 :: Size))
-    checkAtMost(width, (64 :: Size))
+    checkAtLeast(width, 16)
+    checkAtMost(width, 64)
 
     -- And it is the byte vector's lane count, which is the identity every use of it relies on: the
     -- six copy rungs are written over bytes and reach for a whole register at a time.

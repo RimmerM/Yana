@@ -66,7 +66,7 @@ pub fn requireAgree(label: String, ways: [Way], @caller ->at: Site) -> Test:
 pub fn disagreementOf(label: String, ways: [Way]) -> Maybe(String):
     let count = length(ways)
 
-    if count < (2 :: Size):
+    if count < 2:
         return Just("{label}: agree needs at least two ways and got {count} - one way agreeing with itself asserts nothing")
 
     let &answers = [] :: [String]
@@ -98,7 +98,7 @@ pub fn disagreementOf(label: String, ways: [Way]) -> Maybe(String):
             let size = groupSize(leader, g)
             if size > largest then largest = size
 
-    if groups <= (1 :: Size) then return Nothing
+    if groups <= 1 then return Nothing
 
     -- Smallest group first, so the odd one out is the first thing in the sentence. Ties keep the
     -- order the ways were written in, which is what makes the line the same on every run.
@@ -129,7 +129,7 @@ fn namesOfGroup(ways: [Way], leader: [Size], of: Size) -> String:
     let &shown = 0 :: Size
     for i in 0 .. length(leader):
         if leader[i] == of:
-            if shown > (0 :: Size):
+            if shown > 0:
                 if shown + 1 == size then text ++= " and " else text ++= ", "
 
             text ++= "`{ways[i].name}`"

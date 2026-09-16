@@ -282,6 +282,6 @@ pub lens fn withPathCString(path: String) -> %yield'U8:
 
     let base = bitcast(valuesMut(buffer)) :: %U8
     copyMemory(base, stringBytes(path), count)
-    store(base + count, 0 :: U8)
+    store(base + count, 0)
 
     yield base

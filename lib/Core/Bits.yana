@@ -548,7 +548,7 @@ pub class Magnitude(a -> w):
 -- into itself, so the type that is already as wide as its answer has no rung to ask for.
 fn (Widen(a, Int)) narrowMagnitude(value: a) -> U32:
     let wide = widen(value) :: Int
-    return if wide < 0 then (0 :: U32) - (bitcast(wide) :: U32) else bitcast(wide) :: U32
+    return if wide < 0 then 0 - (bitcast(wide) :: U32) else bitcast(wide) :: U32
 
 fn (Widen(a, Int)) narrowIsNegative(value: a) -> Bool = (widen(value) :: Int) < 0
 
@@ -587,14 +587,14 @@ instance Magnitude(I16, U32):
 
 instance Magnitude(I32, U32):
     fn magnitude(value: I32) -> U32 =
-        if value < 0 then (0 :: U32) - (bitcast(value) :: U32) else bitcast(value) :: U32
+        if value < 0 then 0 - (bitcast(value) :: U32) else bitcast(value) :: U32
 
     fn isNegative(value: I32) -> Bool = value < 0
     fn fromMagnitude(size: U32, negative: Bool) -> Maybe(I32) = fittedValue(size, negative)
 
 instance Magnitude(I64, U64):
     fn magnitude(value: I64) -> U64 =
-        if value < 0 then (0 :: U64) - (bitcast(value) :: U64) else bitcast(value) :: U64
+        if value < 0 then 0 - (bitcast(value) :: U64) else bitcast(value) :: U64
 
     fn isNegative(value: I64) -> Bool = value < 0
     fn fromMagnitude(size: U64, negative: Bool) -> Maybe(I64) = fittedValue(size, negative)
@@ -605,7 +605,7 @@ instance Magnitude(I64, U64):
 instance Magnitude(WideInt, U64):
     fn magnitude(value: WideInt) -> U64:
         let wide = widen(value) :: Long
-        return if wide < 0 then (0 :: U64) - (bitcast(wide) :: U64) else bitcast(wide) :: U64
+        return if wide < 0 then 0 - (bitcast(wide) :: U64) else bitcast(wide) :: U64
 
     fn isNegative(value: WideInt) -> Bool = value < 0
     fn fromMagnitude(size: U64, negative: Bool) -> Maybe(WideInt) = fittedValue(size, negative)
@@ -614,7 +614,7 @@ instance Magnitude(WideInt, U64):
 -- sixty-four bits natively and thirty-two on JavaScript, which is what the index itself is.
 instance Magnitude(Size, USize):
     fn magnitude(value: Size) -> USize =
-        if value < 0 then (0 :: USize) - (bitcast(value) :: USize) else bitcast(value) :: USize
+        if value < 0 then 0 - (bitcast(value) :: USize) else bitcast(value) :: USize
 
     fn isNegative(value: Size) -> Bool = value < 0
     fn fromMagnitude(size: USize, negative: Bool) -> Maybe(Size) = fittedValue(size, negative)

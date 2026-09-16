@@ -20,23 +20,23 @@ fn offsetIn(text: String, part: String) -> Size =
     let part = text.slice(5, 8)
 
     checkEqual(part, "age")
-    checkEqual(offsetIn(text, part), 5 :: Size)
+    checkEqual(offsetIn(text, part), 5)
 
 -- A clamped or empty range is still a window inside the text, never a pointer past either end.
 @test fn clampedSliceStaysInside():
     let text = copy("name,age,city")
 
-    checkEqual(offsetIn(text, text.slice(0 - 5, 4)), 0 :: Size)
+    checkEqual(offsetIn(text, text.slice(0 - 5, 4)), 0)
     checkEqual(offsetIn(text, text.slice(20, 30)), length(text))
-    checkEqual(offsetIn(text, text.slice(9, 4)), 9 :: Size)
-    checkEqual(length(text.slice(9, 4)), 0 :: Size)
+    checkEqual(offsetIn(text, text.slice(9, 4)), 9)
+    checkEqual(length(text.slice(9, 4)), 0)
 
 @test fn trimSharesUnits():
     let text = copy("  hello  ")
 
-    checkEqual(offsetIn(text, trimAscii(text)), 2 :: Size)
-    checkEqual(offsetIn(text, trimStartAscii(text)), 2 :: Size)
-    checkEqual(offsetIn(text, trimEndAscii(text)), 0 :: Size)
+    checkEqual(offsetIn(text, trimAscii(text)), 2)
+    checkEqual(offsetIn(text, trimStartAscii(text)), 2)
+    checkEqual(offsetIn(text, trimEndAscii(text)), 0)
 
 @test fn splitPartsShareUnits():
     let text = copy("a,bb,ccc")
@@ -49,9 +49,9 @@ fn offsetIn(text: String, part: String) -> Size =
     let lined = copy("one\r\ntwo\nthree")
     let &at = 0 :: Int
     for line in lines(lined):
-        if at == 0 then checkEqual(offsetIn(lined, line), 0 :: Size)
-        if at == 1 then checkEqual(offsetIn(lined, line), 5 :: Size)
-        if at == 2 then checkEqual(offsetIn(lined, line), 9 :: Size)
+        if at == 0 then checkEqual(offsetIn(lined, line), 0)
+        if at == 1 then checkEqual(offsetIn(lined, line), 5)
+        if at == 2 then checkEqual(offsetIn(lined, line), 9)
         at = at + 1
 
     checkEqual(at, 3)
@@ -63,9 +63,9 @@ fn offsetIn(text: String, part: String) -> Size =
     for word in wordsAscii(text):
         push(offsets, offsetIn(text, word))
 
-    checkEqual(length(offsets), 2 :: Size)
-    checkEqual(offsets[0], 2 :: Size)
-    checkEqual(offsets[1], 8 :: Size)
+    checkEqual(length(offsets), 2)
+    checkEqual(offsets[0], 2)
+    checkEqual(offsets[1], 8)
 
 -- A kept part is a `copy`, which is the one place a split allocates, and it is its own storage.
 @test fn copiedPartIsIndependent():
@@ -76,4 +76,4 @@ fn offsetIn(text: String, part: String) -> Size =
         push(kept, copy(part))
 
     checkEqual(kept[1], "right")
-    check(offsetIn(text, kept[1]) != (5 :: Size))
+    check(offsetIn(text, kept[1]) != 5)

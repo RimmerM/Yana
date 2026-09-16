@@ -15,7 +15,7 @@ import Native
 @platform(native) pub fn String.slice(text: source'String, from: Size, to: Size) -> source'String:
     let count = length(text)
     let &start = from
-    if start < (0 :: Size) then start = 0
+    if start < 0 then start = 0
     if start > count then start = count
 
     let &end = to

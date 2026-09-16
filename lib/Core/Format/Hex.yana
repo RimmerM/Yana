@@ -204,7 +204,7 @@ instance ShowWith(HexBytesStyle, [U8]):
     fn showBoundWith(subject: HexFormat) -> Maybe(Size):
         let value = subject.style :: HexBytesStyle
         let count = length(subject.value)
-        if count <= (0 :: Size) then return Just(0)
+        if count <= 0 then return Just(0)
 
         return Just(count + count + (if value.separator != 0 then count - 1 else 0))
 

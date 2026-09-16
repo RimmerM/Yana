@@ -80,11 +80,11 @@ let billennium = 1000000000000000 :: I64
 -- job and it is not in this port. Asserted through the sink, since that is how a fixture with no
 -- string goldens gets at the characters.
 @test fn shown():
-    let &sink = String.ofCapacity(64 :: Size)
+    let &sink = String.ofCapacity(64)
     show(seconds(1), sink)
     checkEqual(length(sink), 7)         -- "1000000"
 
-    let &other = String.ofCapacity(64 :: Size)
+    let &other = String.ofCapacity(64)
     show(epoch(), other)
     checkEqual(length(other), 1)        -- "0"
 

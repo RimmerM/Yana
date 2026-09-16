@@ -30,7 +30,7 @@ import Native
 -}
 pub fn pushHex(bytes: [U8], &to: String):
     let n = length(bytes)
-    if n <= (0 :: Size) then return
+    if n <= 0 then return
 
     String.reserve(to, n + n)
 
@@ -42,15 +42,15 @@ pub fn pushHex(bytes: [U8], &to: String):
     let source = bytes.items
     let target = to.units.run.items + start
 
-    let nibble = splat(15 :: U8) :: Vec(U8, 16)
-    let nine = splat(9 :: U8) :: Vec(U8, 16)
+    let nibble = splat(15) :: Vec(U8, 16)
+    let nine = splat(9) :: Vec(U8, 16)
     let digit = splat("0" :: U8) :: Vec(U8, 16)
     let letter = splat(("a" - 10) :: U8) :: Vec(U8, 16)
 
     let &i = 0 :: Size
     while i + 16 <= n:
         let block = vectorAt(source + i) :: Vec(U8, 16)
-        let high = (block `shr` (splat(4 :: U8) :: Vec(U8, 16))) `and` nibble
+        let high = (block `shr` (splat(4) :: Vec(U8, 16))) `and` nibble
         let low = block `and` nibble
         let highText = high + select(high .> nine, letter, digit)
         let lowText = low + select(low .> nine, letter, digit)

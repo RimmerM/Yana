@@ -106,14 +106,14 @@ pub fn recordAt(site: Site, claim: String, detail: String):
     -- Built once and framed twice: the stream prefixes the ordinal so that a parent can tie the line
     -- to a `begin`, and the console does not because it is already under the name of the case.
     let &claimed = "{site.file}:{site.line}:{site.column}"
-    if length(sectionLabels) > (0 :: Size) then claimed ++= "  [{sectionLabels}]"
+    if length(sectionLabels) > 0 then claimed ++= "  [{sectionLabels}]"
     claimed ++= "  {claim}"
 
     let &line = "fail  {ordinal} {claimed}\n"
-    if length(detail) > (0 :: Size) then line ++= "      {detail}\n"
+    if length(detail) > 0 then line ++= "      {detail}\n"
 
     caseDetail ++= "{claimed}\n"
-    if length(detail) > (0 :: Size) then caseDetail ++= "  {detail}\n"
+    if length(detail) > 0 then caseDetail ++= "  {detail}\n"
 
     reportLine(line)
 

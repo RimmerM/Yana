@@ -14,7 +14,7 @@ pub fn trimStartAscii(text: String) -> String:
 
 pub fn trimEndAscii(text: String) -> String:
     let &end = length(text)
-    while end > (0 :: Size) && isSpace(text.unit(end - 1)):
+    while end > 0 && isSpace(text.unit(end - 1)):
         end = end - 1
 
     return text.slice(0, end)
@@ -47,7 +47,7 @@ pub fn trimStartUnicode(text: String) -> String:
 pub fn trimEndUnicode(text: String) -> String:
     let &end = length(text)
 
-    while end > (0 :: Size):
+    while end > 0:
         let {char, start} = decodeCharBefore(text, end)
         if !isSpaceUnicode(char) then break
         end = start
@@ -82,7 +82,7 @@ pub iter fn splitOnText(text: String, on: String) -> ->String:
     let count = length(text)
     let step = length(on)
 
-    if step == (0 :: Size):
+    if step == 0:
         yield copy(text)
     else:
         let &start = 0 :: Size

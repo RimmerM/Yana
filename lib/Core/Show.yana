@@ -158,7 +158,7 @@ let decimalPairs = "000102030405060708091011121314151617181920212223242526272829
 fn showSigned(value: Long, &to: String):
     if value < 0:
         String.pushUnit(to, "-")
-        pushUnsigned((0 :: U64) - (bitcast(value) :: U64), to)
+        pushUnsigned(0 - (bitcast(value) :: U64), to)
     else:
         pushUnsigned(bitcast(value) :: U64, to)
 
@@ -180,7 +180,7 @@ fn showSigned(value: Long, &to: String):
 @platform(native) fn showSigned32(value: I32, &to: String):
     if value < 0:
         String.pushUnit(to, "-")
-        pushUnsigned32((0 :: U32) - (bitcast(value) :: U32), to)
+        pushUnsigned32(0 - (bitcast(value) :: U32), to)
     else:
         pushUnsigned32(bitcast(value) :: U32, to)
 

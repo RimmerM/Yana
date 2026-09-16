@@ -178,7 +178,7 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
 
 @platform(native) let infinityBits = 9218868437227405312 :: U64
 @platform(native) fn signBitOf(negative: Bool) -> U64 =
-    if negative then (1 :: U64) `shl` wideCount(63) else 0
+    if negative then 1 `shl` wideCount(63) else 0
 
 {-
    Ryu's inverse - `FloatRead.cpp`, and the same tables run the other way.
@@ -276,7 +276,7 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
         let infinite = 1.0 / 0.0
         return if scanned.negative then -infinite else infinite
 
-    let &digits = String.ofCapacity(32 :: Size)
+    let &digits = String.ofCapacity(32)
     pushUnsigned(scanned.mantissa, digits)
     String.pushUnit(digits, "e")
 

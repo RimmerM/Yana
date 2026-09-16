@@ -150,7 +150,7 @@ fn digitValue(unit: Int, radix: Int) -> Int:
 -- note on it, and note that its answer when nothing is set is the lane count, which is what makes a
 -- window of nothing but digits fall out as "all of them".
 @platform(native) fn digitRunOf(offset: Vec(U8, 16), available: Int) -> Int:
-    let run = firstSet(offset .> (splat(9 :: U8) :: Vec(U8, 16)))
+    let run = firstSet(offset .> (splat(9) :: Vec(U8, 16)))
     return if run < available then run else available
 
 {-
@@ -169,8 +169,8 @@ fn digitValue(unit: Int, radix: Int) -> Int:
 @platform(native) fn eightDigitsOf(offset: Vec(U8, 16)) -> U64:
     let spread = interleaveLow(offset, zero() :: Vec(U8, 16))
     let asPairs = bitcast(spread) :: Vec(U32, 4)
-    let pairs = (asPairs `and` (splat(65535 :: U32) :: Vec(U32, 4))) * (splat(10 :: U32) :: Vec(U32, 4)) +
-                (asPairs `shr` (splat(16 :: U32) :: Vec(U32, 4)))
+    let pairs = (asPairs `and` (splat(65535) :: Vec(U32, 4))) * (splat(10) :: Vec(U32, 4)) +
+                (asPairs `shr` (splat(16) :: Vec(U32, 4)))
 
     return (widen(lane(pairs, 0)) :: U64) * 1000000 + (widen(lane(pairs, 1)) :: U64) * 10000 +
            (widen(lane(pairs, 2)) :: U64) * 100 + (widen(lane(pairs, 3)) :: U64)

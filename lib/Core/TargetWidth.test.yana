@@ -18,7 +18,7 @@ import Test
 
 -- `show` into a local sink, and how many units it wrote.
 fn (Show(a)) targetWidthUnits(value: a) -> Size:
-    let &sink = String.ofCapacity(64 :: Size)
+    let &sink = String.ofCapacity(64)
     show(value, sink)
     return length(sink)
 
@@ -29,7 +29,7 @@ fn (Show(a)) targetWidthBound(value: a) -> Size = match showBound(value):
 
 -- The text of a value, which is what the round trip below reads back.
 fn (Show(a)) targetWidthText(value: a) -> String:
-    let &sink = String.ofCapacity(64 :: Size)
+    let &sink = String.ofCapacity(64)
     show(value, sink)
     return sink
 
@@ -119,7 +119,7 @@ fn targetWidthReadUnit(text: String) -> Int:
     checkEqual((truncate(length(sizes)) :: Int), 40)
     check(!containsKey(sizes, 40 :: Size))
 
-    match find(sizes, 7 :: Size):
+    match find(sizes, 7):
         Just(v) -> checkEqual(v, 7)
         Nothing -> check(False)
 
@@ -134,11 +134,11 @@ fn targetWidthReadUnit(text: String) -> Int:
 
     -- And one code unit, whose eight or sixteen bits are a whole draw of the 32-bit fold either way.
     let &units = emptyMap() :: Map(CodeUnit, Int)
-    insert(units, 65 :: CodeUnit, 1)
-    insert(units, 97 :: CodeUnit, 2)
+    insert(units, 65, 1)
+    insert(units, 97, 2)
     check(!containsKey(units, 98 :: CodeUnit))
 
-    match find(units, 97 :: CodeUnit):
+    match find(units, 97):
         Just(v) -> checkEqual(v, 2)
         Nothing -> check(False)
 
@@ -164,11 +164,11 @@ fn targetWidthReadUnit(text: String) -> Int:
        check in that module. The two claims below are one line each and say exactly which is which.
     -}
     let bits = wordBits
-    checkNotEqual(bits, (0 :: Size))
+    checkNotEqual(bits, 0)
 
     -- The word is one of the two the language admits, and a power of two either way.
-    checkAtLeast(bits, (32 :: Size))
-    checkAtMost(bits, (64 :: Size))
+    checkAtLeast(bits, 32)
+    checkAtMost(bits, 64)
     check(isPowerOf2(bits))
 
     -- The source spelling it replaces, which is what pins its meaning: the width of `USize`, not of
@@ -177,12 +177,12 @@ fn targetWidthReadUnit(text: String) -> Int:
     checkEqual(bits, bitcast(bitWidth(maxValue() :: USize)) :: Size)
 
     -- And the trap, stated as a claim rather than as a comment: `bitWidth` of a *value* is not this.
-    checkEqual(bitWidth(1 :: USize), (1 :: USize))
+    checkEqual(bitWidth(1 :: USize), 1)
     checkNotEqual(bitcast(bitWidth(1 :: USize)) :: Size, bits)
 
     -- The top bit of a word, which is the arithmetic a body needing this number is doing: the shift
     -- is in range at either width, and nothing below it is set.
     let high = bitcast(bits - 1) :: USize
-    let top = (1 :: USize) `shl` high
-    checkEqual(top `shr` high, (1 :: USize))
+    let top = 1 `shl` high
+    checkEqual(top `shr` high, 1)
     checkEqual(top, (maxValue() :: USize) - ((maxValue() :: USize) `shr` 1))

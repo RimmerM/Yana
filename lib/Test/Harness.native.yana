@@ -108,7 +108,7 @@ pub fn runShards(cases: [Case], options: Options) -> Int:
                 -- the aggregate and whatever the shard was still inside when it died.
                 let &arguments = ["--shard", "{i}/{options.jobs}", "-q", "--allow-empty"]
 
-                if length(options.filter) > (0 :: Size):
+                if length(options.filter) > 0:
                     push(arguments, "--filter")
                     push(arguments, copy(options.filter))
 
@@ -150,7 +150,7 @@ pub fn runShards(cases: [Case], options: Options) -> Int:
                 -- said. §1.2 is precisely this line not existing.
                 let mark = terminal.paint(boldColored(Red), "FAIL")
 
-                if length(report.unfinished) > (0 :: Size):
+                if length(report.unfinished) > 0:
                     failed = failed + 1
                     let why = withComplaint("the shard running it {describeStop(outcome)}", said)
                     print("  {mark} {report.unfinished}: {why}\n")
@@ -158,7 +158,7 @@ pub fn runShards(cases: [Case], options: Options) -> Int:
                     failed = failed + 1
                     print("  {mark} shard {j}: it did not finish inside the timeout\n")
 
-            if length(cases) == (0 :: Size) then return 1
+            if length(cases) == 0 then return 1
 
             let g = terminal.glyphs()
             let across = terminal.dimmed("across {options.jobs} shards")
@@ -191,7 +191,7 @@ fn passSnapshotFlags(&arguments: Array(String), options: Options):
     if options.update then push(arguments, "--update")
     if options.noUpdate then push(arguments, "--no-update")
 
-    if length(options.snapshotDir) > (0 :: Size):
+    if length(options.snapshotDir) > 0:
         push(arguments, "--snapshot-dir")
         push(arguments, copy(options.snapshotDir))
 
@@ -356,7 +356,7 @@ fn verdictOf(name: String, aborts: Bool, stop: ChildStop, report: ChildReport, s
         if stop.signal != 0 then return Err(withComplaint("it was expected to abort and was killed by signal {stop.signal} instead", said))
         return Err(withComplaint("it was expected to abort and returned {stop.status} instead", said))
 
-    if length(report.unfinished) > (0 :: Size):
+    if length(report.unfinished) > 0:
         return Err(withComplaint("it {describeStop(stop)} while running {report.unfinished}", said))
 
     if report.failedClaims > 0 then return Err("{report.failedClaims} of its claims did not hold")
@@ -378,7 +378,7 @@ fn verdictOf(name: String, aborts: Bool, stop: ChildStop, report: ChildReport, s
    whatever the *case* chose to print rather than anything about why it failed.
 -}
 fn withComplaint(->verdict: String, said: String) -> String =
-    if length(said) == (0 :: Size) then verdict else "{verdict} - it said: {said}"
+    if length(said) == 0 then verdict else "{verdict} - it said: {said}"
 
 fn describeStop(stop: ChildStop) -> String:
     if stop.timedOut then return "was killed after the timeout"

@@ -59,8 +59,8 @@ fn ordered(buffer: %U8, at: Size, to: Size, count: Size, differ: Size, by: Int) 
         store(buffer + to + differ, truncate((7 + differ + by) :: Size) :: U8)
 
     if count >= 0:
-        store(buffer + at + count, 255 :: U8)
-        store(buffer + to + count, 0 :: U8)
+        store(buffer + at + count, 255)
+        store(buffer + to + count, 0)
 
     let order = compareMemory(buffer + at, buffer + to, count)
     if order == LT then return 0 - 1

@@ -19,17 +19,17 @@
 import Test
 
 fn floatShown(value: Double) -> String:
-    let &sink = String.ofCapacity(32 :: Size)
+    let &sink = String.ofCapacity(32)
     show(value, sink)
     return sink
 
 fn shownNarrow(value: Float) -> String:
-    let &sink = String.ofCapacity(32 :: Size)
+    let &sink = String.ofCapacity(32)
     show(value, sink)
     return sink
 
 fn shownFixed(value: Double, decimals: Size) -> String:
-    let &sink = String.ofCapacity(64 :: Size)
+    let &sink = String.ofCapacity(64)
     showFixed(value, decimals, sink)
     return sink
 
@@ -176,10 +176,10 @@ fn narrowBound(value: Float) -> Size = match showBound(value):
 @test fn bounds():
 
     checkEqual(floatBound(1.0), 26)
-    checkEqual(narrowBound(1.0 :: Float), 18)
+    checkEqual(narrowBound(1.0), 18)
     checkAtMost(length(floatShown(0.0 - 1.2345678901234567e-7)), floatBound(1.0))
     checkAtMost(length(floatShown(0.0 - 1.7976931348623157e308)), floatBound(1.0))
-    checkAtMost(length(shownNarrow(0.0 - 1.2345678e-7 :: Float)), narrowBound(1.0 :: Float))
+    checkAtMost(length(shownNarrow(0.0 - 1.2345678e-7 :: Float)), narrowBound(1.0))
 
 
 {-
@@ -193,7 +193,7 @@ fn narrowBound(value: Float) -> Size = match showBound(value):
    expected string could have been written for.
 -}
 fn roundTrips(value: Double) -> Bool:
-    let &text = String.ofCapacity(32 :: Size)
+    let &text = String.ofCapacity(32)
     show(value, text)
 
     let &at = 0 :: Size
@@ -202,7 +202,7 @@ fn roundTrips(value: Double) -> Bool:
         Err(_) -> return False
 
 fn roundTripsNarrow(value: Float) -> Bool:
-    let &text = String.ofCapacity(32 :: Size)
+    let &text = String.ofCapacity(32)
     show(value, text)
 
     let &at = 0 :: Size

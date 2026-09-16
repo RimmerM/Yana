@@ -25,7 +25,7 @@ import File
 let &stream = 0 :: Size
 
 fn reportStream() -> Size:
-    if stream != (0 :: Size) then return stream
+    if stream != 0 then return stream
 
     -- The probe. A count of zero writes nothing on a descriptor that is open and reports on one
     -- that is not, so this costs one syscall and never disturbs the stream it is asking about.
@@ -42,7 +42,7 @@ fn reportStream() -> Size:
    a terminal has no 3, prints its failures and its count, and still writes the stream to standard
    error so that a crash is attributable.
 -}
-pub fn reportIsPrivate() -> Bool = reportStream() == (3 :: Size)
+pub fn reportIsPrivate() -> Bool = reportStream() == 3
 
 -- Whether the stream lands where `print` does. Never, here: the stream is descriptor 3 or standard
 -- error and `print` is standard output, so the two reports of §5.5 cannot interleave on this target

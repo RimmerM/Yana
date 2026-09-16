@@ -81,11 +81,11 @@ pub fn qualifiedName(self: Case) -> String = "{self.moduleName}.{self.name}"
 pub fn runMain(cases: [Case]) -> Int:
     let options = readOptions(runnerArguments())
 
-    if length(options.complaint) > (0 :: Size):
+    if length(options.complaint) > 0:
         print("{options.complaint}\n")
         return 2
 
-    if length(cases) == (0 :: Size):
+    if length(cases) == 0:
         print("no tests: a build that discovered no cases is a failure, not a pass\n")
         return 1
 
@@ -116,7 +116,7 @@ pub fn runMain(cases: [Case]) -> Int:
 
         return 0
 
-    if length(selected) == (0 :: Size) && !options.allowEmpty:
+    if length(selected) == 0 && !options.allowEmpty:
         print("no tests matched, which is a failure rather than a pass - pass --allow-empty if it is not\n")
         return 1
 
@@ -137,7 +137,7 @@ pub fn runMain(cases: [Case]) -> Int:
    suite that crashes is run with, and quietly declining it would answer a question nobody asked.
 -}
 fn runSelected(cases: [Case], selected: [Size], options: Options) -> Int:
-    if options.jobs > 1 && length(options.only) == (0 :: Size) then return runShards(cases, options)
+    if options.jobs > 1 && length(options.only) == 0 then return runShards(cases, options)
 
     {-
        **A process whose report has a channel of its own prints nothing else.**
@@ -150,7 +150,7 @@ fn runSelected(cases: [Case], selected: [Size], options: Options) -> Int:
        `--only` is the same fact from the other side: it is what the harness re-executes with, and a
        run narrowed to one case is a child whatever its descriptors say.
     -}
-    let silent = length(options.only) > (0 :: Size) || reportIsPrivate()
+    let silent = length(options.only) > 0 || reportIsPrivate()
 
     {-
        Whether this process is the one a child was asked for.
@@ -162,7 +162,7 @@ fn runSelected(cases: [Case], selected: [Size], options: Options) -> Int:
        for a child. That is not a hypothetical: it is a fork bomb, and it is what the first version
        of this line was.
     -}
-    let isOneCase = length(options.only) > (0 :: Size)
+    let isOneCase = length(options.only) > 0
 
     {-
        Where this run reports to a person - §5.5 and `Console.yana`.

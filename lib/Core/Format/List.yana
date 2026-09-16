@@ -75,7 +75,7 @@ instance (Show(a)) Show(Joined(a)):
     fn showBound(value: Joined(a)) -> Maybe(Size):
         let items = value.value
         let count = length(items)
-        if count <= (0 :: Size) then return Just(0)
+        if count <= 0 then return Just(0)
 
         let &total = length(value.separator) * (count - 1)
         for i in 0 .. count:

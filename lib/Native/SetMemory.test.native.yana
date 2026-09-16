@@ -48,11 +48,11 @@ fn holds(buffer: %U8, at: Size, count: Size, value: U8) -> Int:
     let &count = 0 :: Size
 
     while count <= 200:
-        setMemoryFill(buffer, span, 0 :: U8)
+        setMemoryFill(buffer, span, 0)
         setMemory(buffer, painted, count)
 
         bad = bad + holds(buffer, 0, count, painted)
-        bad = bad + holds(buffer, count, span - count, 0 :: U8)
+        bad = bad + holds(buffer, count, span - count, 0)
 
         count = count + 1
 

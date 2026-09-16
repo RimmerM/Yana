@@ -280,7 +280,7 @@ instance Monoid(String):
 @platform(js) pub fn String.slice(text: String, from: Size, to: Size) -> String:
     let count = length(text)
     let &start = from
-    if start < (0 :: Size) then start = 0
+    if start < 0 then start = 0
 
     let &end = to
     if end > count then end = count
@@ -401,7 +401,7 @@ instance Hash(String):
 -- A string with room for `capacity` units and nothing in it yet. The run is the allocation; the
 -- length is zero until something appends.
 @platform(native) @builtin(stringOfCapacity) pub fn String.ofCapacity(capacity: Size) -> String =
-    String {units: Array {run: newRun(capacity), length: (0 :: Count)}}
+    String {units: Array {run: newRun(capacity), length: 0}}
 
 @platform(js) @builtin(stringOfCapacity) pub fn String.ofCapacity(capacity: Size) -> String = ""
 

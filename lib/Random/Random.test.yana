@@ -123,11 +123,11 @@ let pinnedSeed = 20260824
 
     -- And their ranges, which go through the same unbiased draw the `Int` one does.
     for j in 0 .. 200:
-        let byte = between(rng, 10 :: U8, 20 :: U8)
+        let byte = between(rng, 10 :: U8, 20)
         checkAtLeast(byte, 10)
         checkLess(byte, 20)
 
-        let short = between(rng, 1000 :: U16, 1001 :: U16)
+        let short = between(rng, 1000 :: U16, 1001)
         checkEqual(short, 1000)
 
     -- One bit, and both values of it appear.
@@ -358,7 +358,7 @@ let pinnedSeed = 20260824
         checkAtLeast(value, -2.5)
         checkLess(value, -0.5)
 
-        let single = between(rng, 100.0 :: Float, 200.0 :: Float)
+        let single = between(rng, 100.0 :: Float, 200.0)
         checkAtLeast(single, 100.0)
         checkLess(single, 200.0)
 

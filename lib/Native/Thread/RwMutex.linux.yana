@@ -49,7 +49,7 @@ let readerBlocked = 0xC0000000 :: U32
 
 pub data RwMutex {state: Atomic(U32)}
 
-pub fn rwMutex() -> RwMutex = RwMutex {state: atomic(0 :: U32)}
+pub fn rwMutex() -> RwMutex = RwMutex {state: atomic(0)}
 
 -- How many readers hold it, right now. Advisory, like every unsynchronized observation.
 pub fn readerCount(self: RwMutex) -> U32 = self.state.load(LoadRelaxed) `and` readerMask

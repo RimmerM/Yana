@@ -268,7 +268,7 @@ fn scaleDigits(digits: String, pointAt: Int, decimals: Int, &scaled: String) -> 
     let carry = keep < count && String.unit(digits, keep :: Size) >= "5"
 
     -- The kept digits, and then the zeros that a `decimals` reaching past the end asks for.
-    let &kept = String.ofCapacity(48 :: Size)
+    let &kept = String.ofCapacity(48)
     let &i = 0 :: Int
 
     while i < keep:
@@ -334,7 +334,7 @@ pub fn showFixed(value: Double, decimals: Size, &to: String):
     if writeSpecial(value, to) then return
 
     let magnitude = magnitudeOf(value)
-    let &digits = String.ofCapacity(24 :: Size)
+    let &digits = String.ofCapacity(24)
     let &pointAt = 1 :: Int
 
     -- Zero has no shortest decimal to ask for - Ryu is defined on a non-zero value - so it is the
@@ -348,7 +348,7 @@ pub fn showFixed(value: Double, decimals: Size, &to: String):
         pointAt = count + shortest.exponent
 
     let places = truncate(if decimals < 0 then 0 else decimals) :: Int
-    let &scaled = String.ofCapacity(48 :: Size)
+    let &scaled = String.ofCapacity(48)
     let width = scaleDigits(digits, pointAt, places, scaled)
 
     writeScaled(scaled, width, places, to)

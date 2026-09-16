@@ -28,27 +28,27 @@ import Test
    rule is one rule.
 -}
 @test fn width():
-    checkEqual(displayWidth("case"), 4 :: Size)
-    checkEqual(displayWidth(""), 0 :: Size)
+    checkEqual(displayWidth("case"), 4)
+    checkEqual(displayWidth(""), 0)
 
     -- Three bytes natively and one unit on JavaScript, and one column on both.
-    checkEqual(displayWidth("─"), 1 :: Size)
-    checkEqual(displayWidth("─────"), 5 :: Size)
-    checkEqual(displayWidth("✓ ok"), 4 :: Size)
-    checkEqual(displayWidth("aé€😀"), 4 :: Size)
+    checkEqual(displayWidth("─"), 1)
+    checkEqual(displayWidth("─────"), 5)
+    checkEqual(displayWidth("✓ ok"), 4)
+    checkEqual(displayWidth("aé€😀"), 4)
 
     -- What painting adds is invisible to a width, which is what lets a painted cell align with an
     -- unpainted one.
     let rich = richTerminal()
-    checkEqual(displayWidth(rich.inColor(Green, "pass")), 4 :: Size)
-    checkEqual(displayWidth(rich.paint(boldColored(Red), "x")), 1 :: Size)
+    checkEqual(displayWidth(rich.inColor(Green, "pass")), 4)
+    checkEqual(displayWidth(rich.paint(boldColored(Red), "x")), 1)
 
 -- Padding is measured in columns for the same reason, and text that is already too wide is answered
 -- rather than cut - the cut is `clipTo`, which the caller asks for.
 @test fn padding():
-    checkEqual(displayWidth(padRight("ab", 5)), 5 :: Size)
-    checkEqual(displayWidth(padLeft("ab", 5)), 5 :: Size)
-    checkEqual(displayWidth(padCenter("ab", 6)), 6 :: Size)
+    checkEqual(displayWidth(padRight("ab", 5)), 5)
+    checkEqual(displayWidth(padLeft("ab", 5)), 5)
+    checkEqual(displayWidth(padCenter("ab", 6)), 6)
 
     checkEqual(padRight("ab", 5), "ab   ")
     checkEqual(padLeft("ab", 5), "   ab")
@@ -69,13 +69,13 @@ import Test
     checkEqual(clipTo("abcdefgh", 5, "~"), "abcd~")
     checkEqual(clipTo("abc", 5, "~"), "abc")
 
-    checkEqual(displayWidth(clipTo("──────", 3, "~")), 3 :: Size)
+    checkEqual(displayWidth(clipTo("──────", 3, "~")), 3)
     checkEqual(clipTo("aé€😀bc", 4, "~"), "aé€~")
     checkEqual(clipTo("😀😀😀", 2, "~"), "😀~")
 
     let rich = richTerminal()
     let painted = rich.inColor(Green, "abcdefgh")
-    checkAtMost(displayWidth(clipTo(painted, 4, "~")), 4 :: Size)
+    checkAtMost(displayWidth(clipTo(painted, 4, "~")), 4)
 
 {-
    What a stream that takes no colour receives.
@@ -122,7 +122,7 @@ import Test
     let flatLines = linesOf(flat)
 
     checkEqual(length(wideLines), length(flatLines))
-    checkEqual(length(flatLines), 4 :: Size)
+    checkEqual(length(flatLines), 4)
 
     for line in 0 .. length(flatLines):
         section("line {line}")
@@ -173,7 +173,7 @@ fn renderedTable(terminal: Terminal) -> String:
     table.addColumn("b")
     table.add("one")
 
-    checkEqual(table.rowCount(), 1 :: Size)
+    checkEqual(table.rowCount(), 1)
     checkEqual(table.render(), "a    b\none\n")
 
 {-
@@ -186,8 +186,8 @@ fn renderedTable(terminal: Terminal) -> String:
 @test fn barAndSpinner():
     let rich = richTerminal()
 
-    checkEqual(displayWidth(rich.bar(0, 10, 20)), 20 :: Size)
-    checkEqual(displayWidth(rich.bar(10, 10, 20)), 20 :: Size)
+    checkEqual(displayWidth(rich.bar(0, 10, 20)), 20)
+    checkEqual(displayWidth(rich.bar(10, 10, 20)), 20)
     checkEqual(rich.bar(0, 0, 20), "")
 
     let half = rich.bar(5, 10, 4)

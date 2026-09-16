@@ -41,7 +41,7 @@ pub fn detectErrorTerminal() -> Terminal = terminalOn(2)
 
 fn terminalOn(handle: Size) -> Terminal:
     let &into = WindowSize {}
-    let attached = readWindowSize(handle, into) == (0 :: Size)
+    let attached = readWindowSize(handle, into) == 0
 
     let &out = plainTerminal()
     out.interactive = attached
@@ -53,9 +53,9 @@ fn terminalOn(handle: Size) -> Terminal:
     -- not set the size reports - and eighty otherwise. Eighty is not a guess: it is what every
     -- terminal that cannot say defaults to, and what every tool that has to pick one picks.
     out.columns = declaredColumns()
-    if attached && into.columns > (0 :: U16) then out.columns = into.columns :: Size
+    if attached && into.columns > 0 then out.columns = into.columns :: Size
 
-    if attached && into.rows > (0 :: U16) then out.rows = into.rows :: Size
+    if attached && into.rows > 0 then out.rows = into.rows :: Size
 
     return out
 
@@ -81,7 +81,7 @@ fn depthFor(attached: Bool) -> ColorDepth:
     if variable("NO_COLOR") is Just(_) then return NoColor
 
     let name = variable("TERM") ?? ""
-    if length(name) == (0 :: Size) || name == "dumb" then return NoColor
+    if length(name) == 0 || name == "dumb" then return NoColor
 
     return BrightColor
 
@@ -98,8 +98,8 @@ fn depthFor(attached: Bool) -> ColorDepth:
 -}
 fn encodingIsUnicode() -> Bool:
     let &locale = variable("LC_ALL") ?? ""
-    if length(locale) == (0 :: Size) then locale = variable("LC_CTYPE") ?? ""
-    if length(locale) == (0 :: Size) then locale = variable("LANG") ?? ""
+    if length(locale) == 0 then locale = variable("LC_CTYPE") ?? ""
+    if length(locale) == 0 then locale = variable("LANG") ?? ""
 
     return String.contains(locale, "UTF-8") || String.contains(locale, "UTF8")
         || String.contains(locale, "utf-8") || String.contains(locale, "utf8")
@@ -108,7 +108,7 @@ fn encodingIsUnicode() -> Bool:
 -- that is not a terminal at all - which is where a caller that pipes into `less` sets it.
 fn declaredColumns() -> Size:
     let text = variable("COLUMNS") ?? ""
-    if length(text) == (0 :: Size) then return 80
+    if length(text) == 0 then return 80
 
     let &at = 0 :: Size
     match read(text, at) :: Result(ReadError, Int):

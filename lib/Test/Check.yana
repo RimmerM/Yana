@@ -74,7 +74,7 @@ pub fn requireTrue(held: Bool, @lazy note: String = "",
 -- synthesized, or a `held` that was itself defaulted. "check failed" alone is worse than useless,
 -- so the site is what the report has and the claim says so rather than showing an empty backtick.
 fn claimOf(text: String) -> String =
-    if length(text) == (0 :: Size) then "check failed" else "check failed: {text}"
+    if length(text) == 0 then "check failed" else "check failed: {text}"
 
 {-
    The two values, which is what `check` gives up and this buys.
@@ -220,12 +220,12 @@ pub fn (Show(e), Show(a)) requireErr(value: Result(e, a), @caller ->at: Site) ->
 -}
 pub fn (Length(c)) checkEmpty(container: c, @caller ->at: Site):
     let count = length(container)
-    if count == (0 :: Size) then return
+    if count == 0 then return
     record(Failure {site: at, claim: "expected an empty container, got {count} elements", detail: ""})
 
 pub fn (Length(c)) requireEmpty(container: c, @caller ->at: Site) -> Test:
     let count = length(container)
-    if count == (0 :: Size) then return Ok({})
+    if count == 0 then return Ok({})
     return failing(Failure {site: at, claim: "expected an empty container, got {count} elements", detail: ""})
 
 pub fn (Chunked(c, a), Eq(a), Show(a)) checkContains(container: c, element: a, @caller ->at: Site):

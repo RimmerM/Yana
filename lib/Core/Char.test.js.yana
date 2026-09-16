@@ -21,7 +21,7 @@ fn unitsText(units: [U16]) -> String:
     let text = unitsText(elements([0xDC00 :: U16, 0x61, 0xD83D, 0x62, 0xD83D, 0xDE00, 0xD800]))
     checkEqual(charNumbers(text), "65533 97 65533 98 128512 65533")
     checkEqual(charNumbersBackwards(text), charNumbers(text))
-    checkEqual(countChars(text), 6 :: Size)
+    checkEqual(countChars(text), 6)
     checkEqual(boundaryMismatches(text), 0)
 
     -- Two high surrogates in a row are two replacements, and so are two low ones.
@@ -31,5 +31,5 @@ fn unitsText(units: [U16]) -> String:
     checkEqual(boundaryMismatches(doubled), 0)
 
     check(!isCharBoundary("😀", 1))
-    checkEqual(floorCharBoundary("😀", 1), 0 :: Size)
-    checkEqual(ceilCharBoundary("😀", 1), 2 :: Size)
+    checkEqual(floorCharBoundary("😀", 1), 0)
+    checkEqual(ceilCharBoundary("😀", 1), 2)

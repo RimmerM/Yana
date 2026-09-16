@@ -74,7 +74,7 @@ let &pruneStale = False
    frames down still lands where the run was told to put it.
 -}
 pub fn configureSnapshots(options: Options):
-    if length(options.snapshotDir) > (0 :: Size) then snapshotRoot = copy(options.snapshotDir)
+    if length(options.snapshotDir) > 0 then snapshotRoot = copy(options.snapshotDir)
 
     updateMode = if:
         options.noUpdate -> 2
@@ -331,7 +331,7 @@ fn firstDifference(expected: String, actual: String) -> String:
     let &number = 1 :: Int
     let &answer = "" :: String
 
-    while length(answer) == (0 :: Size):
+    while length(answer) == 0:
         let hasExpected = e < length(expected)
         let hasActual = a < length(actual)
 

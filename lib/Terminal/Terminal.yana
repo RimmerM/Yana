@@ -154,7 +154,7 @@ fn colorCode(depth: ColorDepth, color: Color) -> Int:
     return code - 60
 
 fn addCode(&codes: String, code: Int):
-    if length(codes) > (0 :: Size) then codes ++= ";"
+    if length(codes) > 0 then codes ++= ";"
     codes ++= "{code}"
 
 {-
@@ -200,7 +200,7 @@ pub fn Terminal.sequenceFor(self: Terminal, style: Style) -> String:
 -}
 pub fn Terminal.paint(self: Terminal, style: Style, text: String) -> String:
     let codes = self.sequenceFor(style)
-    if length(codes) == (0 :: Size) || length(text) == (0 :: Size) then return copy(text)
+    if length(codes) == 0 || length(text) == 0 then return copy(text)
     return "\x1b[{codes}m{text}\x1b[0m"
 
 pub fn Terminal.inColor(self: Terminal, color: Color, text: String) -> String =
@@ -440,7 +440,7 @@ pub fn Terminal.spinner(self: Terminal, tick: Size) -> String =
    something is still running is the one thing a progress bar must not do.
 -}
 pub fn Terminal.bar(self: Terminal, done: Size, total: Size, width: Size) -> String:
-    if total == (0 :: Size) || width == (0 :: Size) then return ""
+    if total == 0 || width == 0 then return ""
 
     let g = self.glyphs()
     let &filled = (done * width) / total
@@ -516,7 +516,7 @@ pub fn Table.addStyled(&self: Table, ->text: String, style: Style):
 
 pub fn Table.rowCount(self: Table) -> Size:
     let wide = length(self.columns)
-    if wide == (0 :: Size) then return 0
+    if wide == 0 then return 0
     return (length(self.cells) + wide - 1) / wide
 
 -- How wide each column has to be: the widest of its heading and every cell under it, measured in
@@ -609,7 +609,7 @@ fn headerRow(table: Table) -> [String]:
 -}
 pub fn Table.render(self: Table) -> String:
     let wide = length(self.columns)
-    if wide == (0 :: Size) then return ""
+    if wide == 0 then return ""
 
     let g = self.terminal.glyphs()
     let widths = columnWidths(self)
@@ -677,7 +677,7 @@ pub fn Status.update(&self: Status, text: String):
     -- One column short of the width, because a line that exactly fills the last column wraps on
     -- terminals that place the cursor before scrolling and does not on those that scroll first.
     let &room = 1 :: Size
-    if self.terminal.columns > (1 :: Size) then room = self.terminal.columns - 1
+    if self.terminal.columns > 1 then room = self.terminal.columns - 1
 
     let line = self.terminal.clip(text, room)
     let erase = self.terminal.eraseLine()

@@ -19,7 +19,7 @@ import Test
 fn charNumbers(text: String) -> String:
     let &out = ""
     for c in chars(text):
-        if length(out) > (0 :: Size) then out.push(" ")
+        if length(out) > 0 then out.push(" ")
         out.push("{c.0}")
 
     return out
@@ -30,9 +30,9 @@ fn charNumbersBackwards(text: String) -> String:
     let &out = ""
     let &at = length(text)
 
-    while at > (0 :: Size):
+    while at > 0:
         let {char, start} = decodeCharBefore(text, at)
-        if length(out) > (0 :: Size) then out = " " ++ out
+        if length(out) > 0 then out = " " ++ out
         out = "{char.0}" ++ out
         at = start
 
@@ -66,10 +66,10 @@ fn boundaryMismatches(text: String) -> Int:
 @test fn decodingValidText():
     checkEqual(charNumbers("aé€😀z"), "97 233 8364 128512 122")
     checkEqual(charNumbersBackwards("aé€😀z"), "97 233 8364 128512 122")
-    checkEqual(countChars("aé€😀z"), 5 :: Size)
+    checkEqual(countChars("aé€😀z"), 5)
 
     checkEqual(charNumbers(""), "")
-    checkEqual(countChars(""), 0 :: Size)
+    checkEqual(countChars(""), 0)
 
 -- The offsets `charOffsets` hands out are the encoded lengths added up, and they end at `length`.
 @test fn charOffsetsAreEncodedLengths():
@@ -89,15 +89,15 @@ fn boundaryMismatches(text: String) -> Int:
 
     let {atEnd, afterEnd} = decodeChar(text, 2)
     checkEqual(atEnd, replacementChar)
-    checkEqual(afterEnd, 2 :: Size)
+    checkEqual(afterEnd, 2)
 
     let {beforeStart, stillStart} = decodeCharBefore(text, 0)
     checkEqual(beforeStart, replacementChar)
-    checkEqual(stillStart, 0 :: Size)
+    checkEqual(stillStart, 0)
 
     let {first, second} = decodeChar(text, 0)
     checkEqual(first, "a" :: Char)
-    checkEqual(second, 1 :: Size)
+    checkEqual(second, 1)
 
 @test fn charBoundaries():
     checkEqual(boundaryMismatches("aé€😀z"), 0)
@@ -105,8 +105,8 @@ fn boundaryMismatches(text: String) -> Int:
     checkEqual(boundaryMismatches(""), 0)
 
     -- Outside the text an offset rounds to the nearer end, and is not a boundary itself.
-    checkEqual(floorCharBoundary("abc", -4), 0 :: Size)
-    checkEqual(ceilCharBoundary("abc", 9), 3 :: Size)
+    checkEqual(floorCharBoundary("abc", -4), 0)
+    checkEqual(ceilCharBoundary("abc", 9), 3)
     check(!isCharBoundary("abc", 4))
     check(!isCharBoundary("abc", -1))
 
@@ -169,12 +169,12 @@ fn boundaryMismatches(text: String) -> Int:
     checkEqual("{face}", "😀")
 
     -- The widening rungs, at a parameter and at an ascription.
-    checkEqual(c :: U32, 233 :: U32)
-    checkEqual(c :: Long, 233 :: Long)
+    checkEqual(c :: U32, 233)
+    checkEqual(c :: Long, 233)
     checkEqual(widenedToInt(c), 233)
 
     -- The narrowing ones keep the low bits, which is the unit only for ASCII.
-    checkEqual(truncate("A" :: Char) :: U8, 65 :: U8)
+    checkEqual(truncate("A" :: Char) :: U8, 65)
     checkEqual(truncate("A" :: Char) :: CodeUnit, "A" :: CodeUnit)
     checkEqual(truncate(Char(0x20AC)) :: U16, 0x20AC :: U16)
 
