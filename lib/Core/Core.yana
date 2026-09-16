@@ -231,6 +231,13 @@ pub class FromInt(a = Int):
 pub class FromDecimal(a = Float):
   fn fromDecimal(value: Double) -> a
 
+-- What a string literal converts through, on the same terms: `","` is a `String` where nothing asks
+-- for anything else, and a `CodeUnit`, a `Char` or any other instance where the position does. The
+-- instances and the compile-time check on which literals each type accepts are in `Char.yana`.
+@builtin(fromText)
+pub class FromText(a = String):
+  fn fromText(value: String) -> a
+
 -- The bodies below are class defaults: an instance that writes `==` has `!=` already, and one
 -- that writes `compare` has all four comparisons. What each class still asks of an instance is the
 -- one primitive operation everything else is derived from, which is why there is no choice of

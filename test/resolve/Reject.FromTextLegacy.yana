@@ -1,0 +1,19 @@
+{-
+   `Reject.FromText.yana` in the shipping stage - the same literals, refused in the same words.
+
+   The acceptance table and its messages are `compiler/intrinsic/text.h`'s and both stages report
+   through it, so this fixture is what holds the shipping stage to it: a literal one stage folded and
+   the other refused would be one program with two answers.
+-}
+
+fn main() -> Int:
+    let two = "ab" :: Char
+    let none = "" :: CodeUnit
+    let latin = "é" :: U8
+    let unit = "é" :: CodeUnit
+    let signed = "é" :: I8
+    let astral = "😀" :: U16
+    let high = "가" :: I16
+    let surrogate = "\xD800" :: Char
+    let wide = "\xDFFF" :: U32
+    return 0

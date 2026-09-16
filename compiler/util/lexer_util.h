@@ -214,6 +214,9 @@ U32 parseEscapedLiteral(const char*& p, const char* m, Diag& diag) {
             return parseIntSequence<8>(p, m, parseOctit, 16, 0xffffffff, diag);
         default:
             if(isDigit(c)) {
+                // The switch consumed the escape's first digit, and it is part of the number:
+                // `\123` is 123 and not 23.
+                p--;
                 return parseIntSequence<10>(p, m, parseDigit, 10, 0xffffffff, diag);
             } else {
                 diag.warning("Unknown escape sequence"_v, nullptr);

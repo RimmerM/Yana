@@ -181,7 +181,7 @@ fn copyingBlocks(root: String) -> Result(FileError, Int):
 
     let &text = String.ofCapacity(100000)
     for at in 0 .. 100000:
-        String.pushUnit(text, 97 + (at % 26))
+        String.pushUnit(text, "a" + (at % 26))
 
     writeWholeFile(source, text)?
     checkEqual(pathSize(source)?, 100000)

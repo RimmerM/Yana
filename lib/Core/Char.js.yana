@@ -1,0 +1,19 @@
+import Native
+
+{-
+   The first character of a host string, for `FromText`'s run-time conversions.
+
+   A surrogate pair joins into its code point; a lone surrogate, and an empty string, are U+FFFD.
+   Part 6's decoder replaces this when it lands.
+-}
+@platform(js) fn firstCharOf(text: String) -> U32:
+    let count = length(text)
+    if count == 0 then return 0xFFFD
+
+    let lead = bitcast(hostCharCodeAt(text, 0)) :: U32
+    if lead < 0xD800 || lead > 0xDFFF then return lead
+    if lead > 0xDBFF || count < 2 then return 0xFFFD
+
+    let trail = bitcast(hostCharCodeAt(text, 1)) :: U32
+    if trail < 0xDC00 || trail > 0xDFFF then return 0xFFFD
+    return 0x10000 + ((lead - 0xD800) `shl` 10) + (trail - 0xDC00)

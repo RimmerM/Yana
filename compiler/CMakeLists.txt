@@ -45,6 +45,7 @@ set(INTRINSIC_SOURCE_FILES
     intrinsic/primitive.def
     intrinsic/primitive.h
     intrinsic/convert.h
+    intrinsic/text.h
 )
 
 add_library(YanaIntrinsic ${INTRINSIC_SOURCE_FILES})

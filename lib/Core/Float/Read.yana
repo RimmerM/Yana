@@ -28,7 +28,7 @@ import Native
 -- infinity and 2 for a NaN, which are the two `show` writes and which therefore have to read back.
 data Scanned {stop: Size, mantissa: U64, exponent: Int, digits: Int, negative: Bool, special: Int}
 
-fn lowerAscii(unit: Int) -> Int = if unit >= 65 && unit <= 90 then unit + 32 else unit
+fn lowerAscii(unit: Int) -> Int = if unit >= "A" && unit <= "Z" then unit + 32 else unit
 
 {-
    The extent and the pieces of a decimal number at `from`, or nothing where there is not one.
@@ -51,10 +51,10 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
 
     if at < units:
         let unit = String.unit(text, at)
-        if unit == 45:
+        if unit == "-":
             negative = True
             at = at + 1
-        else if unit == 43:
+        else if unit == "+":
             at = at + 1
 
     -- `Inf` and `NaN`, which are what `show` writes and are matched in either case. Three units and
@@ -65,11 +65,11 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
         let second = lowerAscii(String.unit(text, at + 1))
         let third = lowerAscii(String.unit(text, at + 2))
 
-        if first == 105 && second == 110 && third == 102:
+        if first == "i" && second == "n" && third == "f":
             return Just(Scanned {stop: at + 3, mantissa: 0, exponent: 0, digits: 0,
                                  negative: negative, special: 1})
 
-        if first == 110 && second == 97 && third == 110:
+        if first == "n" && second == "a" && third == "n":
             return Just(Scanned {stop: at + 3, mantissa: 0, exponent: 0, digits: 0,
                                  negative: negative, special: 2})
 
@@ -107,7 +107,7 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
 
         let unit = String.unit(text, at)
 
-        if unit == 46:
+        if unit == ".":
             if afterPoint then break
             afterPoint = True
         else:
@@ -137,16 +137,16 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
     if at < units:
         let unit = String.unit(text, at)
 
-        if unit == 101 || unit == 69:
+        if unit == "e" || unit == "E":
             let &probe = at + 1
             let &negativeExponent = False
 
             if probe < units:
                 let sign = String.unit(text, probe)
-                if sign == 45:
+                if sign == "-":
                     negativeExponent = True
                     probe = probe + 1
-                else if sign == 43:
+                else if sign == "+":
                     probe = probe + 1
 
             let &value = 0 :: Int
@@ -280,10 +280,10 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
 
     let &digits = String.ofCapacity(32 :: Size)
     pushUnsigned(scanned.mantissa, digits)
-    String.pushUnit(digits, 101)
+    String.pushUnit(digits, "e")
 
     if scanned.exponent < 0:
-        String.pushUnit(digits, 45)
+        String.pushUnit(digits, "-")
         pushUnsigned(wideCount(-scanned.exponent), digits)
     else:
         pushUnsigned(wideCount(scanned.exponent), digits)

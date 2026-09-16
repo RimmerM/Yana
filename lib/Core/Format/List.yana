@@ -112,9 +112,9 @@ instance (Show(a)) Show(Joined(a)):
 -}
 instance (Show(a)) Show([a]):
     fn show(value: [a], &to: String):
-        String.pushUnit(to, 91)
+        String.pushUnit(to, "[")
         show(Joined {value: value, separator: ", "} :: Joined(a), to)
-        String.pushUnit(to, 93)
+        String.pushUnit(to, "]")
 
     fn showBound(value: [a]) -> Maybe(Size) =
         match showBound(Joined {value: value, separator: ", "} :: Joined(a)):

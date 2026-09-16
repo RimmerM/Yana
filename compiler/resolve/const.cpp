@@ -823,10 +823,54 @@ Global* stringLiteralBytes(Module& module, StringId text, LocationId source) {
  * string is one value that only a source literal produces, so it stays text here and becomes text
  * there; a native string is two words describing bytes, so it is built out of them.
  */
+bool isCharacterType(Module& module, TypePtr type) {
+    auto character = module.program.knownRecords[Size(intrinsic::Known::character)];
+    return character && type && (Type*)(*module.types)[character] - *module.types == type;
+}
+
+bool checkTextChar(Module& module, const intrinsic::LiteralChars& chars, TypePtr target, LocationId source) {
+    auto global = *module.types;
+    auto isCharacter = isCharacterType(module, target);
+
+    intrinsic::Numeric integer;
+    if(!isCharacter) integer = ((IntType*)global[target])->numeric();
+
+    auto refusal = intrinsic::checkLiteralChar(chars, isCharacter ? nullptr : &integer);
+    if(refusal == intrinsic::CharRefusal::None) return true;
+
+    intrinsic::reportCharRefusal(refusal, chars, describeType(module.context, global, target),
+                                 [&](auto format, auto&&... arguments) {
+        module.context.diagnostics.error(format, source, arguments...);
+    });
+
+    return false;
+}
+
 static ConstantPtr stringConstant(Module& module, const ast::Expr& expr, TypePtr expected, StringView what,
                                   bool staticForm) {
     auto& context = module.context;
     auto global = *module.types;
+
+    /*
+     * `separator: CodeUnit = ","` - a literal at an integer or a `Char`, which folds to the code point
+     * once `checkTextChar` has accepted it. Not gated on the class, which `Core`'s own field defaults
+     * are read before: the fold is the compiler's whatever the library says a run-time conversion is.
+     */
+    auto isCharacter = isCharacterType(module, expected);
+    if(expected && (isInteger(global, expected) || isCharacter)) {
+        auto content = context.findName(expr.lit.s);
+        auto chars = intrinsic::literalChars(content.text(), content.size());
+        if(!checkTextChar(module, chars, expected, expr.source)) return nullptr;
+
+        if(!isCharacter) return scalarConstant(module, expected, reduceToWidth(*(IntType*)global[expected], chars.first));
+
+        auto record = (RecordType*)global[expected];
+        auto value = makeConst(module, expected, ConstKind::Construct);
+        value->index = 0;
+        value->children.push(module.arena,
+                             scalarConstant(module, record->constructors.get(global, 0).content, chars.first));
+        return value - *module.arena;
+    }
 
     if(expected && global[expected]->kind != Type::String) {
         context.diagnostics.error("%@ is written as a string, but the position it is in has type %@"_v,

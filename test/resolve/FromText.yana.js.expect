@@ -1,0 +1,60 @@
+"use strict";
+// Core
+function firstCharOf(text) {
+  var v73 = text.length;
+  if (v73 === 0) {
+    return 65533;
+  } else {
+    var lead = text.charCodeAt(0) >>> 0;
+    if (lead < 55296 | lead > 57343) {
+      return lead;
+    } else {
+      if (lead > 56319 | v73 < 2) {
+        return 65533;
+      } else {
+        var trail = text.charCodeAt(1) >>> 0;
+        if (trail < 56320 | trail > 57343) {
+          return 65533;
+        } else {
+          return ((lead - 55296 << 10 >>> 0) + 65536 >>> 0) + (trail - 56320 >>> 0) >>> 0;
+        }
+      }
+    }
+  }
+}
+
+// ResolveTest
+function classify(unit) {
+  var v24;
+  if (unit >= 97 & unit <= 122) {
+    v24 = 1;
+  } else {
+    v24 = unit >= 48 & unit <= 57 ? 2 : unit === 44 ? 3 : 0;
+  }
+  return v24;
+}
+
+function countUnit(text, wanted) {
+  var count = 0;
+  var i = 0;
+  while (i < text.length) {
+    if (text.charCodeAt(i) === wanted) {
+      count = count + 1 | 0;
+    }
+    i = i + 1 | 0;
+  }
+  return count;
+}
+
+function main() {
+  var score = (((Math.imul(classify(113), 10) + 8 | 0) + Math.imul(classify(53), 100) | 0) + Math.imul(classify(44), 1000) | 0) + Math.imul(countUnit("a,b,c", 44), 10000) | 0;
+  if (firstCharOf("x") === 120) {
+    if ("x" === "x") {
+      score = score + 100000 | 0;
+    }
+  }
+  var v187 = score + 1000000 | 0;
+  score = v187;
+  return v187;
+}
+main();

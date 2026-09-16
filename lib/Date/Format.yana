@@ -90,12 +90,12 @@ pub data ZoneStyle
 -}
 pub data DateStyle {
     order: DateOrder = YearMonthDay,
-    dateSeparator: CodeUnit = 45,
+    dateSeparator: CodeUnit = "-",
     month: MonthStyle = MonthNumber,
     weekday: WeekdayStyle = NoWeekday,
-    between: CodeUnit = 84,
+    between: CodeUnit = "T",
     time: TimeDetail = Seconds,
-    timeSeparator: CodeUnit = 58,
+    timeSeparator: CodeUnit = ":",
     zone: ZoneStyle = NoZone
 }
 
@@ -105,10 +105,10 @@ pub alias DateFormat = Formatted(DateStyle, Date)
 
 -- Every setting by name, for a format the presets below do not cover. The defaults are ISO-8601's,
 -- so what a caller writes is the difference from it rather than the whole of a format.
-pub fn dateStyle(order: DateOrder = YearMonthDay, dateSeparator: CodeUnit = 45,
+pub fn dateStyle(order: DateOrder = YearMonthDay, dateSeparator: CodeUnit = "-",
                  month: MonthStyle = MonthNumber, weekday: WeekdayStyle = NoWeekday,
-                 between: CodeUnit = 84, time: TimeDetail = Seconds,
-                 timeSeparator: CodeUnit = 58, zone: ZoneStyle = NoZone) -> DateStyle =
+                 between: CodeUnit = "T", time: TimeDetail = Seconds,
+                 timeSeparator: CodeUnit = ":", zone: ZoneStyle = NoZone) -> DateStyle =
     DateStyle {order: order, dateSeparator: dateSeparator, month: month, weekday: weekday,
                between: between, time: time, timeSeparator: timeSeparator, zone: zone}
 
@@ -143,8 +143,8 @@ pub fn iso8601CompactStyle() -> DateStyle =
 -- `Sat, 29 Aug 2026 12:00:00 GMT` - RFC 7231 §7.1.1.1's one legal HTTP date, which is RFC 5322's
 -- with the zone fixed and the day always two digits.
 pub fn httpStyle() -> DateStyle =
-    {isoStyle() | order: DayMonthYear, dateSeparator: 32, month: MonthAbbrev,
-                  weekday: WeekdayAbbrev, between: 32, zone: ZoneUtcName}
+    {isoStyle() | order: DayMonthYear, dateSeparator: " ", month: MonthAbbrev,
+                  weekday: WeekdayAbbrev, between: " ", zone: ZoneUtcName}
 
 -- `2026-08-29` and `12:00:00`, which are the two halves asked for on their own often enough to name.
 pub fn dateOnlyStyle() -> DateStyle = {isoStyle() | time: NoTime}
@@ -165,10 +165,10 @@ pub fn timeOnlyStyle() -> DateStyle = {isoStyle() | order: NoDate}
    `Core/Format.yana` states the rule and this is the file it points at.
 -}
 -- Every setting by name, for a format the presets do not cover - `dateStyle`'s arguments, applied.
-pub fn Date.format(value: 'Date, order: DateOrder = YearMonthDay, dateSeparator: CodeUnit = 45,
+pub fn Date.format(value: 'Date, order: DateOrder = YearMonthDay, dateSeparator: CodeUnit = "-",
                    month: MonthStyle = MonthNumber, weekday: WeekdayStyle = NoWeekday,
-                   between: CodeUnit = 84, time: TimeDetail = Seconds,
-                   timeSeparator: CodeUnit = 58, zone: ZoneStyle = NoZone) -> DateFormat =
+                   between: CodeUnit = "T", time: TimeDetail = Seconds,
+                   timeSeparator: CodeUnit = ":", zone: ZoneStyle = NoZone) -> DateFormat =
     Formatted {value: value, style: dateStyle(order, dateSeparator, month, weekday, between,
                                               time, timeSeparator, zone)}
 
@@ -292,11 +292,11 @@ fn pushTimePart(style: DateStyle, date: Date, &to: String):
     -- The fraction, whose separator is a point in every format that has one.
     match style.time:
         Millis:
-            String.pushUnit(to, 46)
+            String.pushUnit(to, ".")
             pushFixed((widen(date.micros) :: Long) / 1000, 3, to)
 
         Micros:
-            String.pushUnit(to, 46)
+            String.pushUnit(to, ".")
             pushFixed(widen(date.micros) :: Long, 6, to)
 
         _: {}
@@ -310,7 +310,7 @@ fn pushZonePart(style: DateStyle, date: Date, &to: String):
         ZoneUtcName: String.push(to, " GMT")
 
         ZoneZulu:
-            if minutes == 0 then String.pushUnit(to, 90)
+            if minutes == 0 then String.pushUnit(to, "Z")
             else pushOffset(minutes, True, to)
 
         ZoneOffset: pushOffset(minutes, False, to)
@@ -319,11 +319,11 @@ fn pushZonePart(style: DateStyle, date: Date, &to: String):
 -- `+02:00` or `-0530`. The sign is the offset's own and is written for zero too, which is what every
 -- format that asks for an offset rather than for `Z` expects.
 fn pushOffset(minutes: Int, colon: Bool, &to: String):
-    if minutes < 0 then String.pushUnit(to, 45) else String.pushUnit(to, 43)
+    if minutes < 0 then String.pushUnit(to, "-") else String.pushUnit(to, "+")
 
     let size = if minutes < 0 then -minutes else minutes
     pushFixed((widen(size) :: Long) / 60, 2, to)
-    if colon then String.pushUnit(to, 58)
+    if colon then String.pushUnit(to, ":")
     pushFixed((widen(size) :: Long) % 60, 2, to)
 
 instance ShowWith(DateStyle, Date):
@@ -533,7 +533,7 @@ fn timeSuffix(unit: TimeUnit) -> String = match unit:
    component.
 -}
 fn showClock(micros: I64, negative: Bool, decimals: Size, &to: String):
-    if negative then String.pushUnit(to, 45)
+    if negative then String.pushUnit(to, "-")
 
     let days = micros / 86400000000
     let hours = (micros / 3600000000) % 24
@@ -547,22 +547,22 @@ fn showClock(micros: I64, negative: Bool, decimals: Size, &to: String):
 
     if days != 0:
         show(days, to)
-        String.pushUnit(to, 100)
+        String.pushUnit(to, "d")
         started = True
 
     if started || hours != 0:
         show(hours, to)
-        String.pushUnit(to, 104)
+        String.pushUnit(to, "h")
         started = True
 
     if started || minutes != 0:
         show(minutes, to)
-        String.pushUnit(to, 109)
+        String.pushUnit(to, "m")
 
     show(seconds, to)
 
     if decimals > 0:
-        String.pushUnit(to, 46)
+        String.pushUnit(to, ".")
 
         -- The fraction, truncated to the places asked for rather than rounded: a duration that
         -- reads as shorter than it is, is the direction a reader can act on.
@@ -575,7 +575,7 @@ fn showClock(micros: I64, negative: Bool, decimals: Size, &to: String):
 
         show(with(scaled, numberStyle(digits: decimals)), to)
 
-    String.pushUnit(to, 115)
+    String.pushUnit(to, "s")
 
 {-
    And the scaled form, which is one number and a unit.
@@ -591,7 +591,7 @@ fn showClock(micros: I64, negative: Bool, decimals: Size, &to: String):
    significant figures.
 -}
 fn showScaled(size: I64, negative: Bool, divisor: I64, suffix: String, decimals: Size, &to: String):
-    if negative then String.pushUnit(to, 45)
+    if negative then String.pushUnit(to, "-")
 
     let &whole = size / divisor
     let rest = size % divisor
@@ -631,11 +631,11 @@ fn showScaled(size: I64, negative: Bool, divisor: I64, suffix: String, decimals:
     show(whole, to)
 
     if places > 0:
-        String.pushUnit(to, 46)
+        String.pushUnit(to, ".")
 
         let &at = power / 10
         while at > 0:
-            String.pushUnit(to, 48 + (truncate((frac / at) % 10) :: Int))
+            String.pushUnit(to, "0" + (truncate((frac / at) % 10) :: Int))
             at = at / 10
 
     String.push(to, suffix)
@@ -737,7 +737,7 @@ fn readFieldDigits(text: String, &at: Size, digits: Size, exact: Bool) -> Result
     let &seen = 0 :: Size
 
     while seen < digits && cursor < units && isDigit(String.unit(text, cursor)):
-        value = value * 10 + (widen(String.unit(text, cursor) - 48) :: Long)
+        value = value * 10 + (widen(String.unit(text, cursor) - "0") :: Long)
         cursor = cursor + 1
         seen = seen + 1
 
@@ -810,7 +810,7 @@ fn skipWeekday(text: String, &at: Size):
 
     if cursor == at then return
 
-    while cursor < units && (String.unit(text, cursor) == 44 || String.unit(text, cursor) == 32):
+    while cursor < units && (String.unit(text, cursor) == "," || String.unit(text, cursor) == " "):
         cursor = cursor + 1
 
     at = cursor
@@ -828,12 +828,12 @@ fn readZoneField(text: String, &at: Size, style: ZoneStyle) -> Result(ReadError,
     let units = length(text)
     let &cursor = at
 
-    if cursor < units && String.unit(text, cursor) == 32 then cursor = cursor + 1
+    if cursor < units && String.unit(text, cursor) == " " then cursor = cursor + 1
     if cursor >= units then return Err(NoDigits)
 
     let unit = toLowerUnit(String.unit(text, cursor))
 
-    if unit == 122:
+    if unit == "z":
         at = cursor + 1
         return Ok(0)
 
@@ -841,13 +841,13 @@ fn readZoneField(text: String, &at: Size, style: ZoneStyle) -> Result(ReadError,
         at = cursor + 3
         return Ok(0)
 
-    if unit != 43 && unit != 45 then return Err(NoDigits)
+    if unit != "+" && unit != "-" then return Err(NoDigits)
 
-    let negative = unit == 45
+    let negative = unit == "-"
     cursor = cursor + 1
 
     let hours = readFieldDigits(text, cursor, 2, True)?
-    if cursor < units && String.unit(text, cursor) == 58 then cursor = cursor + 1
+    if cursor < units && String.unit(text, cursor) == ":" then cursor = cursor + 1
     let minutes = readFieldDigits(text, cursor, 2, True)?
 
     let total = hours * 60 + minutes
@@ -920,7 +920,7 @@ fn readTimePart(text: String, &at: Size, detail: TimeDetail, separator: CodeUnit
 -- The sub-second part, whose separator is a point in every format that has one. Absent is not an
 -- error: a whole number of seconds is a legal reading of a format that admits a fraction.
 fn readFraction(text: String, &at: Size, &date: Date) -> Result(ReadError, {}):
-    if at >= length(text) || String.unit(text, at) != 46 then return Ok({})
+    if at >= length(text) || String.unit(text, at) != "." then return Ok({})
 
     let &cursor = at + 1
     let digits = readFieldDigits(text, cursor, 6, False)?
@@ -990,9 +990,9 @@ instance ReadWith(DateStyle, Date):
    about dates on their own.
 -}
 pub fn Date.readFormat(from: String, &at: Size, order: DateOrder = YearMonthDay,
-                       dateSeparator: CodeUnit = 45, month: MonthStyle = MonthNumber,
-                       weekday: WeekdayStyle = NoWeekday, between: CodeUnit = 84,
-                       time: TimeDetail = Seconds, timeSeparator: CodeUnit = 58,
+                       dateSeparator: CodeUnit = "-", month: MonthStyle = MonthNumber,
+                       weekday: WeekdayStyle = NoWeekday, between: CodeUnit = "T",
+                       time: TimeDetail = Seconds, timeSeparator: CodeUnit = ":",
                        zone: ZoneStyle = NoZone) -> Result(ReadError, Date) =
     readWith(dateStyle(order, dateSeparator, month, weekday, between, time, timeSeparator, zone),
              from, at)
@@ -1067,7 +1067,7 @@ instance ReadWith(IntervalStyle, Interval):
     let &any = False
 
     let &negative = False
-    if cursor < units && String.unit(from, cursor) == 45:
+    if cursor < units && String.unit(from, cursor) == "-":
         negative = True
         cursor = cursor + 1
 
@@ -1076,7 +1076,7 @@ instance ReadWith(IntervalStyle, Interval):
         let &seen = 0 :: Size
 
         while cursor < units && isDigit(String.unit(from, cursor)) && seen < 18:
-            value = value * 10 + (widen(String.unit(from, cursor) - 48) :: Long)
+            value = value * 10 + (widen(String.unit(from, cursor) - "0") :: Long)
             cursor = cursor + 1
             seen = seen + 1
 
@@ -1086,12 +1086,12 @@ instance ReadWith(IntervalStyle, Interval):
         -- belongs to - so `4.5s` is one component rather than two.
         let &micros = 0 :: I64
 
-        if cursor < units && String.unit(from, cursor) == 46:
+        if cursor < units && String.unit(from, cursor) == ".":
             cursor = cursor + 1
             let &places = 0 :: Size
 
             while cursor < units && isDigit(String.unit(from, cursor)) && places < 6:
-                micros = micros * 10 + (widen(String.unit(from, cursor) - 48) :: Long)
+                micros = micros * 10 + (widen(String.unit(from, cursor) - "0") :: Long)
                 cursor = cursor + 1
                 places = places + 1
 
@@ -1108,16 +1108,16 @@ instance ReadWith(IntervalStyle, Interval):
         -- `ms`, `us` and `ns` are two units where `d`, `h`, `m` and `s` are one, so a following `s`
         -- is what separates the minutes from the milliseconds. It is consumed only for the three
         -- letters that take one, so `4s` is still one component and `1m30s` is still two.
-        if (letter == 109 || letter == 117 || letter == 110)
-           && cursor < units && toLowerUnit(String.unit(from, cursor)) == 115:
+        if (letter == "m" || letter == "u" || letter == "n")
+           && cursor < units && toLowerUnit(String.unit(from, cursor)) == "s":
             cursor = cursor + 1
             any = True
 
             -- Nanoseconds are below what an `Interval` holds, so the count is divided into
             -- microseconds and the fraction of one is gone - `Date.yana`'s `nanos` exactly.
             total = total + (if:
-                letter == 110 -> value / 1000
-                letter == 117 -> value
+                letter == "n" -> value / 1000
+                letter == "u" -> value
                 else          -> value * 1000 + micros / 1000)
 
             continue
@@ -1128,10 +1128,10 @@ instance ReadWith(IntervalStyle, Interval):
         -- as well: `micros` is the fraction in millionths, so a unit worth `M` microseconds
         -- contributes `micros * M / 1000000` of them.
         match letter:
-            100 -> total = total + value * 86400000000 + micros * 86400
-            104 -> total = total + value * 3600000000 + micros * 3600
-            109 -> total = total + value * 60000000 + micros * 60
-            115 -> total = total + value * 1000000 + micros
+            "d" -> total = total + value * 86400000000 + micros * 86400
+            "h" -> total = total + value * 3600000000 + micros * 3600
+            "m" -> total = total + value * 60000000 + micros * 60
+            "s" -> total = total + value * 1000000 + micros
             _ -> return Err(NoDigits)
 
     if !any then return Err(NoDigits)

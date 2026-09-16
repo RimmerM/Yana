@@ -144,7 +144,7 @@ pub fn readOptions(arguments: [String]) -> Options:
             -- takes. A word starting with `-` is not: an unrecognized switch is a mistake, and
             -- taking it for a filter would silently run nothing.
             _:
-                if length(argument) > (0 :: Size) && argument.unit(0) == 45:
+                if length(argument) > (0 :: Size) && argument.unit(0) == "-":
                     complain(options, "unknown switch {argument}")
                 else:
                     options.filter = copy(argument)
@@ -202,7 +202,7 @@ fn readShard(&options: Options, value: String):
     match read(value, at) :: Result(ReadError, Int):
         Err(_) -> complain(options, "--shard takes <index>/<count>, as in --shard 0/8")
         Ok(index):
-            if at >= length(value) || value.unit(at) != 47:
+            if at >= length(value) || value.unit(at) != "/":
                 complain(options, "--shard takes <index>/<count>, as in --shard 0/8")
             else:
                 at = at + 1

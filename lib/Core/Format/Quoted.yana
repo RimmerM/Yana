@@ -35,7 +35,7 @@ module Core
 
    One setting, and it is which unit delimits: `"` is JSON's and is the default, and `'` is what a
    diagnostic quoting an identifier wants. Whichever it is gets a backslash in front of it inside the
-   text and the other one does not, so `quoted(text, quote: 39)` writes `'he said "hi"'` with one
+   text and the other one does not, so `quoted(text, quote: "'")` writes `'he said "hi"'` with one
    escape rather than three.
 
    A scalar, like every other style in this directory, for `Core/Format.yana`'s reason: provenance is
@@ -43,25 +43,25 @@ module Core
    one.
 -}
 pub data QuoteStyle {
-    quote: CodeUnit = 34
+    quote: CodeUnit = "\""
 }
 
 pub alias QuotedFormat = Formatted(QuoteStyle, String)
 
-pub fn quoteStyle(quote: CodeUnit = 34) -> QuoteStyle = QuoteStyle {quote: quote}
+pub fn quoteStyle(quote: CodeUnit = "\"") -> QuoteStyle = QuoteStyle {quote: quote}
 
 -- The formatter, written as a record literal rather than through `with` for the reason
 -- `Core/Format.yana` states: `with` takes its style as `'s`, and a constructor building its own
 -- style would be handing back a root into its own frame.
-pub fn quoted(value: 'String, quote: CodeUnit = 34) -> QuotedFormat =
+pub fn quoted(value: 'String, quote: CodeUnit = "\"") -> QuotedFormat =
     Formatted {value: value, style: quoteStyle(quote)}
 
 -- `\uXXXX`, which is the escape for everything the short spellings do not cover. Lower case, because
 -- that is what every emitter writes and what `hexUnitCased` answers by default; a reader takes
 -- either.
 fn pushUnitEscape(&to: String, unit: Int):
-    String.pushUnit(to, 92)
-    String.pushUnit(to, 117)
+    String.pushUnit(to, "\\")
+    String.pushUnit(to, "u")
     String.pushUnit(to, hexUnitCased((unit `shr` 12) `and` 15, False))
     String.pushUnit(to, hexUnitCased((unit `shr` 8) `and` 15, False))
     String.pushUnit(to, hexUnitCased((unit `shr` 4) `and` 15, False))
@@ -71,11 +71,11 @@ fn pushUnitEscape(&to: String, unit: Int):
 -- A table rather than a `match` chain would be six loads to save five compares over a range the
 -- branch predictor sees once per string.
 fn shortEscape(unit: Int) -> Int:
-    if unit == 8 then return 98
-    if unit == 9 then return 116
-    if unit == 10 then return 110
-    if unit == 12 then return 102
-    if unit == 13 then return 114
+    if unit == "\b" then return "b"
+    if unit == "\t" then return "t"
+    if unit == "\n" then return "n"
+    if unit == "\f" then return "f"
+    if unit == "\r" then return "r"
     return 0
 
 instance ShowWith(QuoteStyle, String):
@@ -90,15 +90,15 @@ instance ShowWith(QuoteStyle, String):
             let unit = String.unit(text, i)
             let short = shortEscape(unit)
 
-            if unit == quote || unit == 92:
-                String.pushUnit(to, 92)
+            if unit == quote || unit == "\\":
+                String.pushUnit(to, "\\")
                 String.pushUnit(to, unit)
             else if short != 0:
-                String.pushUnit(to, 92)
+                String.pushUnit(to, "\\")
                 String.pushUnit(to, short)
             -- Everything else below a space, and the delete unit, which is unprintable and is what
             -- a terminal would act on rather than show.
-            else if unit < 32 || unit == 127 then pushUnitEscape(to, unit)
+            else if unit < " " || unit == "\x7f" then pushUnitEscape(to, unit)
             else String.pushUnit(to, unit)
 
         String.pushUnit(to, quote)
@@ -154,7 +154,7 @@ instance ReadWith(QuoteStyle, String):
             at = cursor + 1
             return Ok(text)
 
-        if unit != 92:
+        if unit != "\\":
             String.pushUnit(text, unit)
             cursor = cursor + 1
             continue
@@ -167,13 +167,13 @@ instance ReadWith(QuoteStyle, String):
         cursor = cursor + 2
 
         match letter:
-            98 -> String.pushUnit(text, 8)
-            102 -> String.pushUnit(text, 12)
-            110 -> String.pushUnit(text, 10)
-            114 -> String.pushUnit(text, 13)
-            116 -> String.pushUnit(text, 9)
-            47 -> String.pushUnit(text, 47)
-            117:
+            "b" -> String.pushUnit(text, "\b")
+            "f" -> String.pushUnit(text, "\f")
+            "n" -> String.pushUnit(text, "\n")
+            "r" -> String.pushUnit(text, "\r")
+            "t" -> String.pushUnit(text, "\t")
+            "/" -> String.pushUnit(text, "/")
+            "u":
                 -- `\uXXXX`, which is exactly four digits: fewer is not a shorter escape but a
                 -- malformed one, since nothing says where it would stop.
                 if cursor + 4 > units then return Err(OutOfRange)
@@ -191,13 +191,13 @@ instance ReadWith(QuoteStyle, String):
                 -- here as themselves, which is what makes `\"` and `\\` need no arm of their own.
                 -- An unknown letter is refused rather than passed through: `\q` is a text somebody
                 -- got wrong, and reading it as `q` would hide that.
-                if letter != quote && letter != 92 then return Err(OutOfRange)
+                if letter != quote && letter != "\\" then return Err(OutOfRange)
                 String.pushUnit(text, letter)
 
     -- The units ran out before the closing quote did.
     return Err(OutOfRange)
 
-pub fn readQuoted(from: String, &at: Size, quote: CodeUnit = 34) -> Result(ReadError, String) =
+pub fn readQuoted(from: String, &at: Size, quote: CodeUnit = "\"") -> Result(ReadError, String) =
     readWith(quoteStyle(quote), from, at)
 
 {-

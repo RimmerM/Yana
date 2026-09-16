@@ -81,7 +81,7 @@ let decimalPairs = "000102030405060708091011121314151617181920212223242526272829
         buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
     else:
         at = at - 1
-        buffer[at] = truncate(48 + rest) :: CodeUnit
+        buffer[at] = truncate("0" + rest) :: CodeUnit
 
     String.appendUnits(to, values(buffer) + at, 20 - at)
 
@@ -136,7 +136,7 @@ let decimalPairs = "000102030405060708091011121314151617181920212223242526272829
         buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
     else:
         at = at - 1
-        buffer[at] = truncate(48 + rest) :: CodeUnit
+        buffer[at] = truncate("0" + rest) :: CodeUnit
 
     String.appendUnits(to, values(buffer) + at, 10 - at)
 
@@ -157,7 +157,7 @@ let decimalPairs = "000102030405060708091011121314151617181920212223242526272829
 -}
 fn showSigned(value: Long, &to: String):
     if value < 0:
-        String.pushUnit(to, 45)
+        String.pushUnit(to, "-")
         pushUnsigned((0 :: U64) - (bitcast(value) :: U64), to)
     else:
         pushUnsigned(bitcast(value) :: U64, to)
@@ -179,7 +179,7 @@ fn showSigned(value: Long, &to: String):
 -}
 @platform(native) fn showSigned32(value: I32, &to: String):
     if value < 0:
-        String.pushUnit(to, 45)
+        String.pushUnit(to, "-")
         pushUnsigned32((0 :: U32) - (bitcast(value) :: U32), to)
     else:
         pushUnsigned32(bitcast(value) :: U32, to)

@@ -81,6 +81,12 @@ bool ExprResolver::literalFits(TypePtr literal, TypePtr target) {
     if(!target) return false;
     if(global[target]->kind == Type::Error) return true;
 
+    // Through a shared borrow, which is where `materializeLiteral` builds it - so `joined(parts, "-")`
+    // at `separator: 'String` fits for the reason its build succeeds.
+    if(isBorrow(global, target) && !((BorrowType*)global[target])->mut) {
+        return literalFits(literal, ((BorrowType*)global[target])->to);
+    }
+
     // A type variable has no instances to look at. What answers for it is a requirement of the
     // enclosing function - declared, like the `FromInt(a)` that `Num(a)` implies through its
     // superclass, or recorded by this call the way an undeclared `Ord(a)` is recorded by a
@@ -135,6 +141,37 @@ ModulePtr<Value> ExprResolver::materializeLiteral(ModulePtr<Value> value, TypePt
     if(global[target]->kind == Type::Error) return failed();
 
     auto integral = local[value]->kind == Value::ConstInt;
+
+    /*
+     * A string literal of one code point that nothing decided until now - `resolveText`'s literal
+     * variable. The number it holds is the code point, so an integer or a `Char` checks and folds it,
+     * and anything else is the text again: a `String` where the default took it, and the `fromText`
+     * call at a program's own type.
+     */
+    if(integral && isTextLiteral(valueType(value))) {
+        auto point = U32(((ConstInt*)local[value])->value);
+
+        if(isInteger(global, target) || isCharacterType(module, target)) {
+            intrinsic::LiteralChars chars;
+            chars.count = 1;
+            chars.first = point;
+            return textCharValue(source, target, chars);
+        }
+
+        const U32 points[] = { point };
+        auto cursor = points;
+        char buffer[5];
+        auto end = Unicode::utf32PointToUtf8(cursor, points + 1, buffer, buffer + 5);
+        auto length = Size(end - buffer);
+
+        auto stored = (char*)context.stringArena.alloc(length);
+        copyMem(buffer, stored, length);
+
+        auto text = resolveString(source, context.addUnqualifiedName(stored, length));
+        if(!text || global[target]->kind == Type::String) return text;
+
+        return textConversion(source, target, text);
+    }
 
     // A primitive target is the literal itself. Taking it directly rather than through the
     // instance keeps the common path to one constant, and is the same shortcut a literal written

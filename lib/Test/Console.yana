@@ -392,7 +392,7 @@ fn Console.tally(&self: Console, name: String, nanos: I64, outcome: Outcome):
 -}
 lens fn moduleOf(name: String) -> String:
     let &end = length(name)
-    if findLastAscii(name, 46) is Just(at) then end = at
+    if findLastAscii(name, ".") is Just(at) then end = at
     yield name.slice(0, end)
 
 {-

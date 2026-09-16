@@ -2816,6 +2816,30 @@ struct Resolver {
      */
     Node* literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool negative);
 
+    /*
+     * What a string literal is at a position - Implementation-String.md part 1.1, and `FromText`.
+     *
+     * `Text` is the `String` it always was, and also the answer wherever nothing converts one, so
+     * that a mismatch is still reported by the ordinary conversion. `Integer` and `Character` are
+     * the compiler's own targets, where the literal is checked to be one code point the type means
+     * the same thing by and folds to a constant. `Conversion` is a declared instance or a variable
+     * of the enclosing signature, where the literal is the `fromText` call it is everywhere else.
+     */
+    enum class TextTarget: U8 { Text, Integer, Character, Conversion };
+
+    TextTarget textTarget(DeclPtr<Type> type);
+
+    // The one code point a literal at `Integer` or `Character` stands for, reported and unset where
+    // the text is not one the type accepts; a constant of the type where it is.
+    Constant textCharConstant(StringId written, DeclPtr<Type> type, TextTarget target,
+                              LocationId source);
+    Constant textCodePoint(StringId written, DeclPtr<Type> type, TextTarget target,
+                           LocationId source);
+
+    // A string literal in a value position at a type `textTarget` did not answer `Text` for.
+    Node* textConversionValue(Builder& builder, StringId written, DeclPtr<Type> type,
+                              TextTarget target, LocationId source);
+
     // `"abc"` as a value - the three records spelled out. See the definition, in text.cpp.
     Constant stringConstant(StringId written, LocationId source);
 

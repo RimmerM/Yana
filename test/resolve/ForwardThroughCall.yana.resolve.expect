@@ -1575,16 +1575,16 @@ fn built(%n: I32) -> I32 {
     %text = alloc : String
     init %text, %v1
     %v4 = load %text : String
-    %v5 = copy ResolveTest.literal$3 : String
     %v6 = move %text : String
-    %v7 = move %local2 : String
-    %v8 = call Append(String).++, %v6, %v7 : String
-    assign %text, %v8
-    %v10 = load %text : String
-    %v11 = call Length(String).length, %v10 : Size
+    %v7 = copy ResolveTest.literal$3 : String
+    %v8 = move %local2 : String
+    %v9 = call Append(String).++, %v6, %v8 : String
+    assign %text, %v9
+    %v11 = load %text : String
+    %v12 = call Length(String).length, %v11 : Size
     drop %text via Reclaim(String).reclaim
-    %v12 = cast %v11 : I32
-    ret %v12
+    %v13 = cast %v12 : I32
+    ret %v13
 }
 
 fn inLaterBlock(%n: I32) -> I32 {
@@ -1597,22 +1597,22 @@ fn inLaterBlock(%n: I32) -> I32 {
 
   b1:
     %v8 = load %text : String
-    %v9 = copy ResolveTest.literal$5 : String
     %v10 = move %text : String
-    %v11 = move %local2 : String
-    %v12 = call Append(String).++, %v10, %v11 : String
-    assign %text, %v12
+    %v11 = copy ResolveTest.literal$5 : String
+    %v12 = move %local2 : String
+    %v13 = call Append(String).++, %v10, %v12 : String
+    assign %text, %v13
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v16 = load %text : String
-    %v17 = call Length(String).length, %v16 : Size
+    %v17 = load %text : String
+    %v18 = call Length(String).length, %v17 : Size
     drop %text via Reclaim(String).reclaim
-    %v18 = cast %v17 : I32
-    ret %v18
+    %v19 = cast %v18 : I32
+    ret %v19
 }
 
 fn inLoop(%n: I32) -> I32 {
@@ -1629,8 +1629,8 @@ fn inLoop(%n: I32) -> I32 {
     je %v9, b3, b2
 
   b2:
-    %v33 = load %total : I32
-    ret %v33
+    %v34 = load %total : I32
+    ret %v34
 
   b3:
     %v11 = load %i : I32
@@ -1638,21 +1638,21 @@ fn inLoop(%n: I32) -> I32 {
     %text = alloc : String
     init %text, %v12
     %v15 = load %text : String
-    %v16 = copy ResolveTest.literal$7 : String
     %v17 = move %text : String
-    %v18 = move %local4 : String
-    %v19 = call Append(String).++, %v17, %v18 : String
-    assign %text, %v19
-    %v21 = load %total : I32
-    %v22 = load %text : String
-    %v23 = call Length(String).length, %v22 : Size
+    %v18 = copy ResolveTest.literal$7 : String
+    %v19 = move %local4 : String
+    %v20 = call Append(String).++, %v17, %v19 : String
+    assign %text, %v20
+    %v22 = load %total : I32
+    %v23 = load %text : String
+    %v24 = call Length(String).length, %v23 : Size
     drop %text via Reclaim(String).reclaim
-    %v24 = cast %v23 : I32
-    %v25 = add %v21, %v24 : I32
-    assign %total, %v25
-    %v27 = load %i : I32
-    %v30 = add %v27, 1 : I32
-    assign %i, %v30
+    %v25 = cast %v24 : I32
+    %v26 = add %v22, %v25 : I32
+    assign %total, %v26
+    %v28 = load %i : I32
+    %v31 = add %v28, 1 : I32
+    assign %i, %v31
     jmp b1
 }
 

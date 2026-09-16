@@ -8,6 +8,7 @@
 #include "../intrinsic/primitive.h"
 #include "fold.h"
 #include "select.h"
+#include "../intrinsic/text.h"
 
 namespace mir {
 
@@ -1973,6 +1974,25 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
             return type ? textConstant(type, expr.lit.s) : Constant();
         }
 
+        /*
+         * `separator: CodeUnit = ","` - a literal at a type it converts to, which in a constant
+         * position has to be one that folds. A declared `fromText` is a call with a body, refused
+         * in the words the number's refusal below uses and for its reason.
+         */
+        switch(auto target = textTarget(hint)) {
+            case TextTarget::Integer:
+            case TextTarget::Character:
+                return textCharConstant(expr.lit.s, hint, target, expr.source);
+            case TextTarget::Conversion:
+                context.diagnostics.error(
+                    "a literal of %@ is a call of its %@ instance rather than a constant, and this position needs a constant"_v,
+                    expr.source, typeText(context, decl(), hint),
+                    context.findName(decl()[program.roles.klass(intrinsic::Known::fromText)]->name));
+                return Constant();
+            case TextTarget::Text:
+                break;
+        }
+
         pendingTextDefaults.push(PendingTextDefault { hint, expr.source });
         return textConstant(hint, expr.lit.s);
     }
@@ -2067,6 +2087,133 @@ DeclPtr<Type> Resolver::textType(LocationId source) {
 }
 
 /*
+ * See the declaration. Asked of every string literal that has a position, so the common answer is
+ * the cheap one: a `String` position is `Text` on one comparison and never reaches a selection.
+ *
+ * **The compiler's own targets are recognized by kind and by role, not by instance.** A field
+ * default is resolved before the classes have their members, so asking `FromText` there would answer
+ * "no instance" for `CodeUnit` in exactly the position where `separator: CodeUnit = ","` needs a
+ * constant - and the answer does not depend on it: an integer or a `Char` literal is a constant
+ * whatever the library says its run-time conversion is (`lib/Core/Char.yana`, where that is stated).
+ * A refinement is asked through, on `canonicalInt`'s terms, and `foldLiteral` narrows the constant
+ * to the refinement's normal form.
+ *
+ * Anything else converts only where the class has an instance to call - the enclosing signature's
+ * requirement at a variable, or a declared instance at a concrete type - and is otherwise `Text`,
+ * which leaves the ordinary conversion to report `String` against the position as it always did.
+ */
+Resolver::TextTarget Resolver::textTarget(DeclPtr<Type> type) {
+    if(!type) return TextTarget::Text;
+
+    auto text = program.roles.record(intrinsic::Known::string);
+    if(text && type.offset == text.offset) return TextTarget::Text;
+
+    if(decl()[canonicalInt(decl(), type)]->kind == Type::Int) return TextTarget::Integer;
+
+    auto character = program.roles.record(intrinsic::Known::character);
+    if(character && type.offset == character.offset) return TextTarget::Character;
+
+    auto klass = program.roles.klass(intrinsic::Known::fromText);
+    if(!klass || !decl()[klass]->members.size()) return TextTarget::Text;
+
+    if(!isConcreteType(decl(), type)) {
+        if(decl()[type]->kind != Type::Variable) return TextTarget::Text;
+
+        auto enclosing = currentFunction ? currentFunction->gen : nullptr;
+        return satisfiesRequirement(context, program, enclosing, klass, &type, 1)
+                   ? TextTarget::Conversion : TextTarget::Text;
+    }
+
+    InstanceMatch found;
+    return selectInstance(context, program, klass, &type, 1, kNullLocation, false, found)
+               ? TextTarget::Conversion : TextTarget::Text;
+}
+
+/*
+ * See the declaration - part 1.1's acceptance table, and the fold. The table and its words are
+ * `intrinsic/text.h`'s, shared with the shipping stage so that the two accept the same literals.
+ *
+ * What is refused is reported at the literal and answers unset, so a position is not also told that
+ * a `String` does not fit it.
+ */
+Constant Resolver::textCharConstant(StringId written, DeclPtr<Type> type, TextTarget target,
+                                    LocationId source) {
+    auto value = textCodePoint(written, type, target, source);
+    if(!value.isSet() || target != TextTarget::Character) return value;
+
+    return program.aggregateConstant(type, 0, &value, 1);
+}
+
+/*
+ * The checked code point itself - `textCharConstant` without the record around a `Char`, which is
+ * what a value position builds as a construction instead.
+ */
+Constant Resolver::textCodePoint(StringId written, DeclPtr<Type> type, TextTarget target,
+                                 LocationId source) {
+    auto text = context.findName(written);
+    auto chars = intrinsic::literalChars(text.text(), text.size());
+
+    intrinsic::Numeric integer;
+    auto isInteger = target == TextTarget::Integer;
+    if(isInteger) integer = ((IntType*)decl()[canonicalInt(decl(), type)])->numeric();
+
+    auto refusal = intrinsic::checkLiteralChar(chars, isInteger ? &integer : nullptr);
+    if(refusal != intrinsic::CharRefusal::None) {
+        intrinsic::reportCharRefusal(refusal, chars, typeText(context, decl(), type),
+                                     [&](auto format, auto&&... arguments) {
+            context.diagnostics.error(format, source, arguments...);
+        });
+
+        return Constant();
+    }
+
+    if(target == TextTarget::Integer) return foldLiteral(decl(), type, chars.first, double(chars.first));
+
+    // The one field of a `Char` - the `U32` the declaration says it is.
+    auto& record = *(RecordType*)decl()[type];
+    auto arm = record.cons.get(decl(), 0);
+    return intConstant(record.field(decl(), arm.first).occurrence.type, chars.first);
+}
+
+/*
+ * See the declaration. The constant where the target is the compiler's, and the call where it is not
+ * - `literalNode`'s two answers for a number, with the text as the argument.
+ *
+ * A `Char` is built as the construction it is rather than placed as an aggregate constant: a record
+ * in a value position is storage, and `resolveAggregateConstant` is where why this stage folds none
+ * is written down. The field is still the constant, so what a dump shows is one `const` and the
+ * aggregate over it.
+ */
+Node* Resolver::textConversionValue(Builder& builder, StringId written, DeclPtr<Type> type,
+                                    TextTarget target, LocationId source) {
+    if(target != TextTarget::Conversion) {
+        auto value = textCodePoint(written, type, target, source);
+        if(!value.isSet()) return nullptr;
+
+        if(target == TextTarget::Integer) return builder.addConst(source, value);
+
+        auto component = builder.addConst(source, value);
+        return builder.addAggregate(source, type, 0, &component, 1);
+    }
+
+    auto& callee = *decl()[decl()[program.roles.klass(intrinsic::Known::fromText)]->members.get(decl(), 0)];
+    auto& parameter = *decl()[callee.args.get(decl(), 0)];
+
+    TypeArguments typeArguments(*this, callee.gen);
+    typeArguments.bind(callee.result.type, type);
+
+    auto argument = textValue(builder, written, source);
+    if(!argument) return nullptr;
+
+    auto prepared = prepareArgument(builder, *argument, parameter, typeArguments, source);
+    if(!prepared) return nullptr;
+
+    SmallArray<Node*, 8> arguments;
+    arguments.push(prepared);
+    return finishCall(builder, callee, arguments, typeArguments, nullptr, source);
+}
+
+/*
  * The **bytes** of a string literal, as a constant global of `[CodeUnit *n]`.
  *
  * One of the two things about a literal that are the compiler's, and the one that is the same
@@ -2149,6 +2296,10 @@ Node* Resolver::literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         if(negative) {
             context.diagnostics.error("a string cannot be negated"_v, expr.source);
             return nullptr;
+        }
+
+        if(auto target = textTarget(hint); target != TextTarget::Text) {
+            return textConversionValue(builder, expr.lit.s, hint, target, expr.source);
         }
 
         return textValue(builder, expr.lit.s, expr.source);

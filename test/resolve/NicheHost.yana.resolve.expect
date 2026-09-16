@@ -1764,11 +1764,11 @@ fn ownedText(%n: I32) -> Maybe(String) {
     %v12 = copy ResolveTest.literal$5 : String
     %v13 = move %local2 : String
     %v14 = call opaqueText, %v13 : String
-    %v15 = copy ResolveTest.literal$7 : String
     %v16 = move %local3 : String
-    %v17 = move %local4 : String
-    %v18 = call Append(String).++, %v16, %v17 : String
-    aggregate %local1.discriminant = 1, %local1@Just = %v18
+    %v17 = copy ResolveTest.literal$7 : String
+    %v18 = move %local4 : String
+    %v19 = call Append(String).++, %v16, %v18 : String
+    aggregate %local1.discriminant = 1, %local1@Just = %v19
     ret %v10
 }
 
@@ -1905,34 +1905,34 @@ fn genericFold() -> I32 {
     %v0 = copy ResolveTest.literal$19 : String
     %v1 = alloc : Maybe(String)
     aggregate %local1.discriminant = 1, %local1@Just = %v0
-    %v4 = copy ResolveTest.literal$21 : String
-    %v5 = move %local1 : Maybe(String)
-    %v6 = move %local2 : String
-    %v7 = call passThrough(String), %v5, %v6 : String
-    %some = call codeOf, %v7 : I32
+    %v5 = copy ResolveTest.literal$21 : String
+    %v6 = move %local1 : Maybe(String)
+    %v7 = move %local2 : String
+    %v8 = call passThrough(String), %v6, %v7 : String
+    %some = call codeOf, %v8 : I32
     drop %local3 via Reclaim(String).reclaim
-    %v9 = copy ResolveTest.literal$23 : String
-    %v10 = alloc : Maybe(String)
-    aggregate %local5.discriminant = 1, %local5@Just = %v9
-    %v13 = copy ResolveTest.literal$25 : String
-    %v14 = move %local5 : Maybe(String)
-    %v15 = move %local6 : String
-    %v16 = call passThrough(String), %v14, %v15 : String
-    %empty = call codeOf, %v16 : I32
+    %v10 = copy ResolveTest.literal$23 : String
+    %v11 = alloc : Maybe(String)
+    aggregate %local5.discriminant = 1, %local5@Just = %v10
+    %v15 = copy ResolveTest.literal$25 : String
+    %v16 = move %local5 : Maybe(String)
+    %v17 = move %local6 : String
+    %v18 = call passThrough(String), %v16, %v17 : String
+    %empty = call codeOf, %v18 : I32
     drop %local7 via Reclaim(String).reclaim
-    %v18 = alloc : Maybe(String)
+    %v20 = alloc : Maybe(String)
     init %local8.discriminant, 0
-    %v21 = copy ResolveTest.literal$27 : String
-    %v22 = move %local8 : Maybe(String)
-    %v23 = move %local9 : String
-    %v24 = call passThrough(String), %v22, %v23 : String
-    %none = call codeOf, %v24 : I32
+    %v24 = copy ResolveTest.literal$27 : String
+    %v25 = move %local8 : Maybe(String)
+    %v26 = move %local9 : String
+    %v27 = call passThrough(String), %v25, %v26 : String
+    %none = call codeOf, %v27 : I32
     drop %local10 via Reclaim(String).reclaim
-    %v28 = mul %empty, 10 : I32
-    %v29 = add %some, %v28 : I32
-    %v32 = mul %none, 100 : I32
-    %v33 = add %v29, %v32 : I32
-    ret %v33
+    %v31 = mul %empty, 10 : I32
+    %v32 = add %some, %v31 : I32
+    %v35 = mul %none, 100 : I32
+    %v36 = add %v32, %v35 : I32
+    ret %v36
 }
 
 fn main() -> I32 {

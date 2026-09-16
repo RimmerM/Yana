@@ -118,7 +118,7 @@ import Test
 @test fn grouping():
     checkEqual("{grouped(1234567)}", "1,234,567")
     checkEqual("{grouped(-1234567)}", "-1,234,567")
-    checkEqual("{grouped(1234567, separator: 32)}", "1 234 567")
+    checkEqual("{grouped(1234567, separator: " ")}", "1 234 567")
 
     -- Fewer digits than a group is no separator at all, and exactly one group is too.
     checkEqual("{grouped(12)}", "12")
@@ -126,9 +126,9 @@ import Test
     checkEqual("{grouped(1234)}", "1,234")
 
     -- The group is four digits outside base ten, which is the nibble every hexadecimal reader sees.
-    checkEqual("{hex(48879, group: 95)}", "beef")
-    checkEqual("{hex(48879, digits: 8, group: 95)}", "0000_beef")
-    checkEqual("{binary(5, digits: 8, group: 95)}", "0000_0101")
+    checkEqual("{hex(48879, group: "_")}", "beef")
+    checkEqual("{hex(48879, digits: 8, group: "_")}", "0000_beef")
+    checkEqual("{binary(5, digits: 8, group: "_")}", "0000_0101")
 
 @test fn fixedDecimals():
     checkEqual("{fixed(3.14159)}", "3.14")
@@ -158,7 +158,7 @@ import Test
         checkAtMost(length("{octal(n)}"), bound(octal(n)))
         checkAtMost(length("{grouped(n)}"), bound(grouped(n)))
         checkAtMost(length("{number(n, digits: 12, plus: True)}"), bound(number(n, digits: 12, plus: True)))
-        checkAtMost(length("{binary(n, digits: 40, group: 95)}"), bound(binary(n, digits: 40, group: 95)))
+        checkAtMost(length("{binary(n, digits: 40, group: "_")}"), bound(binary(n, digits: 40, group: "_")))
 
     -- The widest of each sign, where the bound is tightest against the truth.
     let low = -9223372036854775808 :: I64

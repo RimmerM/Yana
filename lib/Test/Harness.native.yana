@@ -328,7 +328,7 @@ fn collectComplaint(path: String) -> String:
     -- Windows of `text` until the one line is found, and one copy of that line.
     let said = trim(text)
     let &end = length(said)
-    if findAscii(said, 10) is Just(at) then end = at
+    if findAscii(said, "\n") is Just(at) then end = at
 
     return copy(trimEnd(said.slice(0, end)))
 

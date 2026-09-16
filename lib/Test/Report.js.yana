@@ -31,7 +31,7 @@ pub fn reportLine(text: String):
     -- The one code unit this has to look at. Slicing a `String` is not in the portable surface, so
     -- the trim is a rebuild - which on this target is a host string concatenation and is what every
     -- other string operation here already is.
-    if text.unit(count - 1) != 10:
+    if text.unit(count - 1) != "\n":
         hostLog(text)
         return
 

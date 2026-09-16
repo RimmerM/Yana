@@ -1,4 +1,5 @@
 #include "resolve_internal.h"
+#include "../intrinsic/text.h"
 
 namespace mir {
 
@@ -80,18 +81,35 @@ bool Resolver::acceptsType(DeclPtr<Type> from, DeclPtr<Type> to, LocationId sour
  * decides - and leaving it unbuilt until one has is what turns "no + accepts these" into a
  * selection.
  *
- * A string and a `True` are not this: they have a type of their own before anything asks. A negation
- * of a number is, since the sign folds into the constant, and so is a parenthesized one - both are
- * unwrapped by the same walk that will build it.
+ * A `True` is not this: it has a type of its own before anything asks. A negation of a number is,
+ * since the sign folds into the constant, and so is a parenthesized one - both are unwrapped by the
+ * same walk that will build it.
+ *
+ * **A string is this where it is one code point**, which is `FromText`'s half of the same rule:
+ * `"," == unit` is a `CodeUnit` comparison only if the literal waits for the other operand. A longer
+ * literal is left a `String` of its own, because no compiler-known target accepts one and holding
+ * every string back would reorder the constants of every call that writes one - the cost J8 measured
+ * for numbers - to serve only a program's own `FromText` instance, which a position still reaches.
+ * A negated string is not deferred, so that `literalValue` reports it where it stands.
  */
 bool Resolver::undecidedLiteral(ast::Expr& expr, intrinsic::Known& role) {
     if(expr.kind == ast::Expr::Nested) return undecidedLiteral(*parse[expr.nested], role);
 
     if(expr.kind == ast::Expr::Prefix && isNegation(context, parse, expr)) {
-        return undecidedLiteral(parse[expr.prefix]->on, role);
+        auto& on = parse[expr.prefix]->on;
+        return !isStringLiteral(on) && undecidedLiteral(on, role);
     }
 
     if(!ast::isLiteral(expr)) return false;
+
+    if(isStringLiteral(expr)) {
+        if(!program.roles.klass(intrinsic::Known::fromText)) return false;
+        auto text = context.findName(expr.lit.s);
+        if(!intrinsic::isOneCharText(text.text(), text.size())) return false;
+
+        role = intrinsic::Known::fromText;
+        return true;
+    }
 
     switch(ast::Literal::Kind(expr.kind - ast::Expr::Lit)) {
         case ast::Literal::Int:

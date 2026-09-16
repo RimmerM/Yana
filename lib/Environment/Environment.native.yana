@@ -85,5 +85,5 @@ fn matchVariable(entry: %U8, name: String) -> Maybe(String):
     for i in 0 .. count:
         if *(entry + i) != (truncate(String.unit(name, i)) :: U8) then return Nothing
 
-    if *(entry + count) != (61 :: U8) then return Nothing
+    if *(entry + count) != ("=" :: U8) then return Nothing
     return Just(stringFromCString(entry + count + 1))

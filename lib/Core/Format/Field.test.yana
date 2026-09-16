@@ -20,9 +20,9 @@ import Test
     checkEqual("{padded("abc", 6, padding: Balanced)}", " abc  ")
 
 @test fn fillUnits():
-    checkEqual("{padded(7, 4, fill: 48)}", "0007")
-    checkEqual("{padded("x", 4, padding: Trailing, fill: 46)}", "x...")
-    checkEqual("{padded("x", 5, padding: Balanced, fill: 45)}", "--x--")
+    checkEqual("{padded(7, 4, fill: "0")}", "0007")
+    checkEqual("{padded("x", 4, padding: Trailing, fill: ".")}", "x...")
+    checkEqual("{padded("x", 5, padding: Balanced, fill: "-")}", "--x--")
 
 @test fn columnsThatDoNotFit():
     -- A width at or below the rendering's own is the rendering, whole. Nothing is clipped, in any
@@ -40,7 +40,7 @@ import Test
 -}
 @test fn overFormatters():
     checkEqual("{padded(hex(255, digits: 4), 8)}", "    00ff")
-    checkEqual("{padded(hex(255, digits: 4), 8, fill: 48)}", "000000ff")
+    checkEqual("{padded(hex(255, digits: 4), 8, fill: "0")}", "000000ff")
     checkEqual("{padded(fixed(3.14159, decimals: 2), 8)}", "    3.14")
     checkEqual("{padded(grouped(1234567), 12, padding: Trailing)}", "1,234,567   ")
 

@@ -597,6 +597,7 @@ void definePreludeLookups(Program& program, Module& core) {
      */
     program.coreClasses.fromInt = knownClass(program, Known::fromInt);
     program.coreClasses.fromDecimal = knownClass(program, Known::fromDecimal);
+    program.coreClasses.fromText = knownClass(program, Known::fromText);
     program.coreClasses.widen = knownClass(program, Known::widen);
     program.coreClasses.narrow = knownClass(program, Known::narrow);
     program.coreClasses.truth = knownClass(program, Known::truth);

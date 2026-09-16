@@ -76,19 +76,19 @@ import Native
 -- Whether it is an ASCII unit at all, which is the one predicate the rest are only meaningful under.
 pub fn isAscii(unit: Int) -> Bool = unit >= 0 && unit < 128
 
-pub fn isDigit(unit: Int) -> Bool = unit >= 48 && unit <= 57
-pub fn isUpper(unit: Int) -> Bool = unit >= 65 && unit <= 90
-pub fn isLower(unit: Int) -> Bool = unit >= 97 && unit <= 122
+pub fn isDigit(unit: Int) -> Bool = unit >= "0" && unit <= "9"
+pub fn isUpper(unit: Int) -> Bool = unit >= "A" && unit <= "Z"
+pub fn isLower(unit: Int) -> Bool = unit >= "a" && unit <= "z"
 pub fn isAlpha(unit: Int) -> Bool = isUpper(unit) || isLower(unit)
 pub fn isAlphaNum(unit: Int) -> Bool = isAlpha(unit) || isDigit(unit)
 
 -- Space, tab, newline, vertical tab, form feed and carriage return - the six `isspace` answers `True`
 -- for in the C locale, and the set `trim` and `words` are written against. 9 to 13 is contiguous, so
 -- this is two comparisons and not six.
-pub fn isSpace(unit: Int) -> Bool = unit == 32 || (unit >= 9 && unit <= 13)
+pub fn isSpace(unit: Int) -> Bool = unit == " " || (unit >= "\t" && unit <= "\r")
 
-pub fn isControl(unit: Int) -> Bool = (unit >= 0 && unit < 32) || unit == 127
-pub fn isPrintable(unit: Int) -> Bool = unit >= 32 && unit < 127
+pub fn isControl(unit: Int) -> Bool = (unit >= 0 && unit < " ") || unit == "\x7f"
+pub fn isPrintable(unit: Int) -> Bool = unit >= " " && unit < "\x7f"
 
 
 -- One unit's case, changed only when it is a letter. The bias is 32 in both directions because the

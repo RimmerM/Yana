@@ -242,7 +242,7 @@ pub fn joinPath(dir: String, name: String) -> String:
 
     if length(dir) > 0:
         String.push(joined, dir)
-        if String.unit(dir, length(dir) - 1) != 47 then String.pushUnit(joined, 47)
+        if String.unit(dir, length(dir) - 1) != "/" then String.pushUnit(joined, "/")
 
     String.push(joined, name)
 
@@ -594,11 +594,11 @@ fn parentOf(path: String) -> Size:
     let &at = length(path) - 1
 
     -- A trailing separator names the same directory, so it is not the one to cut at.
-    while at > 0 && String.unit(path, at) == 47:
+    while at > 0 && String.unit(path, at) == "/":
         at = at - 1
 
     while at > 0:
-        if String.unit(path, at) == 47 then return at
+        if String.unit(path, at) == "/" then return at
         at = at - 1
 
     return 0
@@ -756,10 +756,10 @@ fn isSelfOrParent(record: %DirectoryRecord, count: Size) -> Bool:
     if count > 2 || count == 0 then return False
 
     let from = nameStart(record)
-    if *from != 46 then return False
+    if *from != "." then return False
     if count == 1 then return True
 
-    return *(from + 1) == 46
+    return *(from + 1) == "."
 
 {-
    ==========================================================================================

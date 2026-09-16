@@ -1,0 +1,27 @@
+{-
+   Every string literal the acceptance table of Implementation-String.md part 1.1 refuses.
+
+   # resolver: ownership
+
+   The rule is one code point that means the same thing as a unit of the encoding the type's width
+   names. So an eight-bit type and `CodeUnit` take ASCII alone - `"é" :: U8` would be Latin-1's
+   `0xE9` and not the character, and `"é" :: CodeUnit` would be a different number on each target -
+   a sixteen-bit type takes one BMP scalar value it can hold, and nothing takes a surrogate or more
+   than one character. Each refusal is reported at the literal, once, with no second report that a
+   `String` does not fit the position.
+
+   The constant position at a type whose instance is a program's own is `Reject.FromTextDefault.yana`,
+   since a declaration's refusal ends resolution before any body is read.
+-}
+
+fn main() -> Int:
+    let two = "ab" :: Char
+    let none = "" :: CodeUnit
+    let latin = "é" :: U8
+    let unit = "é" :: CodeUnit
+    let signed = "é" :: I8
+    let astral = "😀" :: U16
+    let high = "가" :: I16
+    let surrogate = "\xD800" :: Char
+    let wide = "\xDFFF" :: U32
+    return 0

@@ -70,13 +70,13 @@ pub data Aligned(a) {
     value: 'a,
     width: Size,
     padding: Padding = Leading,
-    fill: CodeUnit = 32
+    fill: CodeUnit = " "
 }
 
 -- The constructor, which is what a call site writes. `padded(x, 12)` right-aligns in twelve units;
 -- the two other placements and a different fill unit are named arguments, since a call site reading
 -- `padded(name, 12, Trailing)` says less than `padded(name, 12, padding: Trailing)` does.
-pub fn (Show(a)) padded(value: 'a, width: Size, padding: Padding = Leading, fill: CodeUnit = 32) -> Aligned(a) =
+pub fn (Show(a)) padded(value: 'a, width: Size, padding: Padding = Leading, fill: CodeUnit = " ") -> Aligned(a) =
     Aligned {value: value, width: width, padding: padding, fill: fill}
 
 -- `count` fill units, and nothing at all for a count that is not positive - which is the ordinary

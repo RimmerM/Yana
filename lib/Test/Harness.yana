@@ -83,6 +83,6 @@ pub fn readReport(text: String) -> ChildReport:
    name and the rest of the line: a qualified name has no spaces in it, so there is nothing after it
    to stop before.
 -}
-fn nameOfBegin(line: String) -> String = match findAscii(line, 32, 6):
+fn nameOfBegin(line: String) -> String = match findAscii(line, " ", 6):
     Nothing -> ""
     Just(space) -> copy(trimStart(line.slice(space, length(line))))

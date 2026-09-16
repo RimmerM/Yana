@@ -116,8 +116,8 @@ pub fn octalStyle(digits: Size = 0) -> NumberStyle =
 
 -- Thousands separators, which is the one decimal setting a program asks for by name often enough to
 -- deserve one. A comma by default, because that is what an English-language report wants; a space
--- (32) is the SI form and an apostrophe (39) the one C++ writes.
-pub fn groupedStyle(separator: CodeUnit = 44) -> NumberStyle =
+-- is the SI form and an apostrophe the one C++ writes.
+pub fn groupedStyle(separator: CodeUnit = ",") -> NumberStyle =
     {decimalStyle() | group: separator}
 
 {-
@@ -149,7 +149,7 @@ pub fn (Magnitude(a, w)) binary(value: 'a, digits: Size = 0,
 pub fn (Magnitude(a, w)) octal(value: 'a, digits: Size = 0) -> NumberFormat(a) =
     Formatted {value: value, style: octalStyle(digits)}
 
-pub fn (Magnitude(a, w)) grouped(value: 'a, separator: CodeUnit = 44) -> NumberFormat(a) =
+pub fn (Magnitude(a, w)) grouped(value: 'a, separator: CodeUnit = ",") -> NumberFormat(a) =
     Formatted {value: value, style: groupedStyle(separator)}
 
 {-
@@ -180,7 +180,7 @@ pub fn (Magnitude(a, w)) grouped(value: 'a, separator: CodeUnit = 44) -> NumberF
 -- One digit's unit. The lower-case form is `hexUnit` in `Format/Hex.yana`, which every radix here
 -- shares - a digit above nine only happens above base ten, and the alphabet is the same one.
 fn digitUnit(digit: Int, upper: Bool) -> Int
-  | {<10, _}   -> 48 + digit
+  | {<10, _}   -> "0" + digit
   | {_,  True} -> 55 + digit
   | _          -> 87 + digit
 
@@ -233,8 +233,8 @@ instance (Magnitude(a, w), Bounded(a), Bits(w), Ord(w), TrivialCopy(w), Narrow(w
         -}
         let radix = truncate(valueOf(style.radix)) :: w
 
-        if isNegative(subject.value) then String.pushUnit(to, 45)
-        else if style.plus then String.pushUnit(to, 43)
+        if isNegative(subject.value) then String.pushUnit(to, "-")
+        else if style.plus then String.pushUnit(to, "+")
 
         let size = magnitude(subject.value)
         let count = digitCount(size, radix)
@@ -324,7 +324,7 @@ pub fn fixed(value: 'Double, decimals: Size = 2, plus: Bool = False) -> FloatFor
 instance ShowWith(FixedStyle, Double):
     fn showWith(subject: FloatFormat, &to: String):
         -- The sign `showFixed` writes is the value's own, so this only adds the one it will not.
-        if subject.style.plus && subject.value >= 0.0 then String.pushUnit(to, 43)
+        if subject.style.plus && subject.value >= 0.0 then String.pushUnit(to, "+")
         showFixed(subject.value, subject.style.decimals, to)
 
     {-
@@ -460,10 +460,10 @@ instance (Magnitude(a, w), DigitRun(w), Bounded(w), Integral(w), Ord(w), Trivial
 
         if start < units:
             let unit = String.unit(from, start)
-            if unit == 45:
+            if unit == "-":
                 negative = True
                 start = start + 1
-            else if unit == 43:
+            else if unit == "+":
                 start = start + 1
 
         let base = valueOf(style.radix)
@@ -546,10 +546,10 @@ instance ShowWith(PercentStyle, Double):
         let share = subject.value :: Double
 
         -- The sign `showFixed` writes is the value's own, so this only adds the one it will not.
-        if subject.style.plus && share >= 0.0 then String.pushUnit(to, 43)
+        if subject.style.plus && share >= 0.0 then String.pushUnit(to, "+")
 
         showFixed(share * 100.0, subject.style.decimals, to)
-        String.pushUnit(to, 37)
+        String.pushUnit(to, "%")
 
     -- `FixedStyle`'s bound, read off the scaled magnitude for its reason, and two more units for the
     -- sign and the `%`. The comparison is against `1e16` rather than `1e18` because the value is

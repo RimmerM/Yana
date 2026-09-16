@@ -44,8 +44,8 @@ fn oneUnitText(unit: Int) -> String:
 -- The delimiter is a setting, and only the one in force is escaped: a `"` inside a single-quoted
 -- text is itself, which is the whole reason the field exists.
 @test fn quotedDelimiter():
-    checkEqual("{quoted("say \"hi\"", quote: 39)}", "'say \"hi\"'")
-    checkEqual("{quoted("it's", quote: 39)}", "'it\\'s'")
+    checkEqual("{quoted("say \"hi\"", quote: "'")}", "'say \"hi\"'")
+    checkEqual("{quoted("it's", quote: "'")}", "'it\\'s'")
 
 @test fn quotedReading():
     let &at = 0 :: Size

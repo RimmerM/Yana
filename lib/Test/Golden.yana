@@ -255,7 +255,7 @@ fn portableName(name: String) -> String:
 
     for i in 0 .. length(name):
         let unit = name.unit(i)
-        out.pushUnit(if isAlphaNum(unit) || unit == 45 || unit == 95 then unit else 95)
+        out.pushUnit(if isAlphaNum(unit) || unit == "-" || unit == "_" then unit else "_")
 
     return out
 
@@ -366,7 +366,7 @@ fn lineDifference(number: Int, one: String, two: String) -> String =
 fn takeLine(text: String, &at: Size) -> String:
     let &end = at
 
-    while end < length(text) && text.unit(end) != 10:
+    while end < length(text) && text.unit(end) != "\n":
         end = end + 1
 
     let line = copy(text.slice(at, end))

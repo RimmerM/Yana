@@ -1,6 +1,7 @@
 #pragma once
 
 #include "module.h"
+#include "../intrinsic/text.h"
 
 /*
  * Constant evaluation.
@@ -149,6 +150,17 @@ Global* stringLiteralBytes(Module& module, StringId text, LocationId source);
  * string layout rather than anything an author wrote.
  */
 ConstantPtr nativeStringConstant(Module& module, LocationId source, StringId text, StringView what);
+
+/*
+ * A string literal at an integer or a `Char` - Implementation-String.md part 1.1, whose table and
+ * words are `intrinsic/text.h`'s. Shared by the constant form and `ExprResolver::textCharValue`, so
+ * that a field default and an expression accept the same literals.
+ *
+ * `isCharacterType` is whether `type` is the record `@builtin(character)` names. `checkTextChar`
+ * answers whether `target` accepts `chars`, having reported at `source` where it does not.
+ */
+bool isCharacterType(Module& module, TypePtr type);
+bool checkTextChar(Module& module, const intrinsic::LiteralChars& chars, TypePtr target, LocationId source);
 
 // What a construction leaves out of field `field` takes instead, or null where the declaration
 // wrote no default for it. One scan, shared by the expression form and the constant form, so that

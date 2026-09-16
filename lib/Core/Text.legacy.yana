@@ -58,10 +58,10 @@ pub iter fn splitOnText(text: String, on: String) -> ->String:
 pub iter fn lines(text: String) -> ->String:
     let count = length(text)
 
-    for {from, to} in spansOn(text, 10):
+    for {from, to} in spansOn(text, "\n"):
         if from < count:
             let &end = to
-            if end > from && text.unit(end - 1) == 13 then end = end - 1
+            if end > from && text.unit(end - 1) == "\r" then end = end - 1
 
             yield text.slice(from, end)
 

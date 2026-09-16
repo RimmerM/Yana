@@ -523,6 +523,89 @@ ModulePtr<Value> ExprResolver::resolveDecimal(LocationId source, TypePtr target,
 }
 
 /*
+ * See the declaration. The ownership stage's `textTarget` is the same decision, and the table and its
+ * words are `intrinsic/text.h`'s, so the two stages accept the same literals.
+ *
+ * **Limited where the ownership stage is not**: a literal of several code points converts only where
+ * the position already names the type, since a literal variable here holds a number and a longer
+ * text is not one. `unit == ","` is the form the variable exists for, and it has one code point by
+ * construction.
+ */
+ModulePtr<Value> ExprResolver::resolveText(LocationId source, TypePtr target, StringId text) {
+    if(!module.coreClasses.fromText) return resolveString(source, text);
+    if(target && (isLiteral(global, target) || global[target]->kind == Type::Error)) target = nullptr;
+
+    auto content = context.findName(text);
+    auto chars = intrinsic::literalChars(content.text(), content.size());
+
+    if(!target) {
+        if(chars.malformed || chars.count != 1) return resolveString(source, text);
+        return constant<ConstInt>(source, literalVariable(module.coreClasses.fromText), chars.first);
+    }
+
+    if(global[target]->kind == Type::String) return resolveString(source, text);
+    if(isInteger(global, target) || isCharacterType(module, target)) return textCharValue(source, target, chars);
+
+    // A program's own instance, or the enclosing signature's requirement. Anything else is left to
+    // the ordinary conversion, which reports a `String` against the position as it always has.
+    auto converts = isGeneric(global, target)
+        ? global[target]->kind == Type::Gen && functionGen(global, function) != nullptr
+        : findInstance(module, module.coreClasses.fromText, { &target, 1 }) != nullptr;
+
+    auto string = resolveString(source, text);
+    if(!converts || !string) return string;
+
+    return textConversion(source, target, string);
+}
+
+bool ExprResolver::isTextLiteral(TypePtr literal) {
+    if(!module.coreClasses.fromText || !literal || !isLiteral(global, literal)) return false;
+    return ((LiteralType*)global[literal])->classes.contents(global).containsValue(module.coreClasses.fromText);
+}
+
+ModulePtr<Value> ExprResolver::textCharValue(LocationId source, TypePtr target, const intrinsic::LiteralChars& chars) {
+    if(!checkTextChar(module, chars, target, source)) return constant<ConstInt>(source, module.scalar.error, 0);
+    if(!isCharacterType(module, target)) return makeInt(source, target, chars.first);
+
+    // `Char(value)`, built the way `resolveConstruct` builds a payload carried whole.
+    auto record = (RecordType*)global[target];
+    auto content = record->constructors.get(global, 0).content;
+    auto value = makeInt(source, content, chars.first);
+
+    auto result = allocate(target, source);
+    auto root = placeFor(result, source);
+
+    if(!buildSumAggregate(root, target, 0, nullptr, value, source)) {
+        initialize(project(root, ProjectionKind::Downcast, 0), value, source);
+    }
+
+    return result;
+}
+
+ModulePtr<Value> ExprResolver::textConversion(LocationId source, TypePtr target, ModulePtr<Value> text) {
+    auto typeClass = module.coreClasses.fromText;
+    ResolvedArg args[] = { text };
+
+    ClassFunRef reference { typeClass, global[typeClass]->functions.get(global, 0).name, 0 };
+    ClassMatch match;
+
+    if(matchClassFun(reference, { args, 1 }, {}, target, match)) {
+        if(match.instance) {
+            if(local[match.instance]->functions.get(local, match.index)) {
+                return emitInstanceCall(module, match.instance, toBuffer(match.instanceArgs), match.index,
+                                        { args, 1 }, source);
+            }
+        } else if(isGeneric(global, target)) {
+            return emitGenericDispatch(match, { args, 1 }, source, StringId());
+        }
+    }
+
+    context.diagnostics.error("no instance of %@ for %@ - this literal cannot be written as that type"_v, source,
+                              context.findName(global[typeClass]->name), describeType(context, global, target));
+    return constant<ConstInt>(source, module.scalar.error, 0);
+}
+
+/*
  * A string literal - Implementation-String.md part 9, which is the one point a `String` is authored
  * rather than built up through the API.
  *
@@ -908,7 +991,7 @@ ModulePtr<Value> ExprResolver::resolveLiteral(const ast::Expr& expr, TypePtr tar
         case ast::Literal::Double:
             return resolveDecimal(expr.source, target, expr.lit.d());
         case ast::Literal::String:
-            return resolveString(expr.source, expr.lit.s);
+            return resolveText(expr.source, target, expr.lit.s);
         case ast::Literal::Bool:
             return makeInt(expr.source, module.scalar.bool_, expr.lit.b ? 1 : 0);
         default:

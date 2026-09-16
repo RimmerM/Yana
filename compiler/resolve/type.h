@@ -1772,6 +1772,12 @@ struct ScalarTypes {
 struct CoreClasses {
     GlobalPtr<TypeClass> fromInt = nullptr;
     GlobalPtr<TypeClass> fromDecimal = nullptr;
+
+    // What a string literal converts through where the position is not a `String` -
+    // Implementation-String.md part 1.1. Optional: a library without it has literals that are only
+    // strings.
+    GlobalPtr<TypeClass> fromText = nullptr;
+
     GlobalPtr<TypeClass> widen = nullptr;
     GlobalPtr<TypeClass> narrow = nullptr;
     GlobalPtr<TypeClass> truth = nullptr;

@@ -121,21 +121,21 @@ fn hexReference(bytes: [U8]) -> String:
 
     checkEqual("{hexBytes(bytes)}", "deadbeef")
     checkEqual("{hexBytes(bytes, upper: True)}", "DEADBEEF")
-    checkEqual("{hexBytes(bytes, separator: 58)}", "de:ad:be:ef")
-    checkEqual("{hexBytes(bytes, upper: True, separator: 32)}", "DE AD BE EF")
+    checkEqual("{hexBytes(bytes, separator: ":")}", "de:ad:be:ef")
+    checkEqual("{hexBytes(bytes, upper: True, separator: " ")}", "DE AD BE EF")
 
     -- Empty is not a separator case: there is no pair for one to go between.
     let &none = [] :: [U8]
-    checkEqual("{hexBytes(elements(none), separator: 58)}", "")
+    checkEqual("{hexBytes(elements(none), separator: ":")}", "")
 
     -- One byte, which is the other end of the same question.
-    checkEqual("{hexBytes(elements([1 :: U8]), separator: 58)}", "01")
+    checkEqual("{hexBytes(elements([1 :: U8]), separator: ":")}", "01")
 
 @test fn hexFormatBounds():
     let &bytes = [] :: [U8]
     for n in 0 .. 24:
         let plain = hexBytes(elements(bytes))
-        let spaced = hexBytes(elements(bytes), separator: 58)
+        let spaced = hexBytes(elements(bytes), separator: ":")
 
         checkAtMost(length("{plain}"), bound(plain))
         checkAtMost(length("{spaced}"), bound(spaced))
@@ -179,14 +179,14 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
     check((readAll(hexBytesStyle(), "deadbeef") :: Result(ReadError, Array(U8))) is Ok(_))
     check((readAll(hexBytesStyle(), "deadbeef ") :: Result(ReadError, Array(U8))) is Err(_))
     check((readAll(hexBytesStyle(), "dead beef") :: Result(ReadError, Array(U8))) is Err(_))
-    check((readAll(hexBytesStyle(separator: 58), "de:ad") :: Result(ReadError, Array(U8))) is Ok(_))
+    check((readAll(hexBytesStyle(separator: ":"), "de:ad") :: Result(ReadError, Array(U8))) is Ok(_))
 
 @test fn hexRoundTrips():
     let bytes = [0 :: U8, 1, 15, 16, 127, 128, 254, 255]
 
     checkEqual(readShownBytes("{hexBytes(elements(bytes))}"), "{hexBytes(elements(bytes))}@16")
     checkEqual(readShownBytes("{hexBytes(elements(bytes), upper: True)}"), "{hexBytes(elements(bytes))}@16")
-    checkEqual(readShownBytes("{hexBytes(elements(bytes), separator: 58)}", 58),
+    checkEqual(readShownBytes("{hexBytes(elements(bytes), separator: ":")}", ":"),
                "{hexBytes(elements(bytes))}@23")
 
     -- And through the whole-string form, which is `hexOf` read backwards.

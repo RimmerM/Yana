@@ -1,0 +1,66 @@
+{-
+   A string literal at a type other than `String` - Implementation-String.md part 1.1.
+
+   A literal converts through `FromText` exactly as a number converts through `FromInt`: where
+   nothing asks for anything else it is a `String`, and where the position is an integer or a `Char`
+   it is checked to be one code point the type means the same thing by and folds to a constant.
+   Nothing here converts at run time, which the lowered dump shows as immediates.
+
+   Each form the plan names is here once: a unit compared with a literal on either side, a literal
+   range in a pattern, an ascribed `Char`, `.0` arithmetic against a literal, an argument at a declared
+   unit position, a constant position, and a generic body whose `FromText(a)` requirement makes the
+   literal the call it is everywhere else.
+
+   `Reject.FromText.yana` is every refusal of the acceptance table.
+-}
+
+fn classify(unit: CodeUnit) -> Int:
+    return match unit:
+        "a" ..= "z" -> 1
+        "0" ..= "9" -> 2
+        "," -> 3
+        _ -> 0
+
+fn digitValue(c: Char) -> U32 = c.0 - "0"
+
+fn countUnit(text: String, wanted: Int) -> Int:
+    let &count = 0
+    let &i = 0 :: Size
+    while i < length(text):
+        if text.unit(i) == wanted then count = count + 1
+        i = i + 1
+    return count
+
+data Separators {field: CodeUnit = ",", line: Char = "\n"}
+
+fn (FromText(a)) convert() -> a = "x"
+
+fn main() -> Int:
+    let comma = "," :: CodeUnit
+    let e = "é" :: Char
+    let wide = "😀" :: U32
+    let bmp = "€" :: U16
+    let seven = "7" :: Char
+    let separators = Separators {}
+
+    let &score = 0
+    if comma == "," then score = score + 1
+    if "," == comma then score = score + 1
+    if e.0 == 0xE9 then score = score + 1
+    if wide == 0x1F600 then score = score + 1
+    if bmp == 0x20AC then score = score + 1
+    if digitValue(seven) == 7 then score = score + 1
+    if separators.field == "," && separators.line.0 == 10 then score = score + 1
+    if e == "é" && seven < e then score = score + 1
+
+    score = score + classify("q") * 10 + classify("5") * 100 + classify(",") * 1000
+    score = score + countUnit("a,b,c", ",") * 10000
+
+    let converted = convert() :: Char
+    let text = convert() :: String
+    if converted.0 == 120 && text == "x" then score = score + 100000
+
+    -- A decimal escape is all of its digits: `\44` is the comma, not `\4`.
+    if ("\44" :: CodeUnit) == "," then score = score + 1000000
+
+    return score

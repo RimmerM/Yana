@@ -119,9 +119,9 @@ instance ShowWith(Base64Style, [U8]):
         String.pushUnit(to, String.unit(alphabet, ((word `shr` 12) `and` 63) :: Size))
 
         if left == 2 then String.pushUnit(to, String.unit(alphabet, ((word `shr` 6) `and` 63) :: Size))
-        else if subject.style.pad then String.pushUnit(to, 61)
+        else if subject.style.pad then String.pushUnit(to, "=")
 
-        if subject.style.pad then String.pushUnit(to, 61)
+        if subject.style.pad then String.pushUnit(to, "=")
 
     -- Exact for a padded run and generous by one or two units for an unpadded one, which is the
     -- direction a bound is allowed to be wrong in. A runtime value, like `Show(String)`'s.
@@ -175,7 +175,7 @@ fn base64Padding(text: String, from: Size, held: Int) -> Size:
     let &at = from
     let &filled = held
 
-    while filled < 4 && at < units && String.unit(text, at) == 61:
+    while filled < 4 && at < units && String.unit(text, at) == "=":
         at = at + 1
         filled = filled + 1
 
@@ -242,9 +242,9 @@ pub fn readBase64(from: String, &at: Size) -> Result(ReadError, [U8]) =
    than a preference.
 -}
 pub fn base64Value(unit: Int) -> Int:
-    if unit >= 65 && unit <= 90 then return unit - 65
-    if unit >= 97 && unit <= 122 then return unit - 71
-    if unit >= 48 && unit <= 57 then return unit + 4
-    if unit == 43 || unit == 45 then return 62
-    if unit == 47 || unit == 95 then return 63
+    if unit >= "A" && unit <= "Z" then return unit - "A"
+    if unit >= "a" && unit <= "z" then return unit - "a" + 26
+    if unit >= "0" && unit <= "9" then return unit - "0" + 52
+    if unit == "+" || unit == "-" then return 62
+    if unit == "/" || unit == "_" then return 63
     return -1

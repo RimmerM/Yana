@@ -178,6 +178,25 @@ YANA_KNOWN_ROLE( fromInt,     Entity::Class, 1,    1,      0,      false,   Pres
 YANA_KNOWN_ROLE( fromDecimal, Entity::Class, 1,    1,      0,      false,   Presence::Required )
 
 /*
+ * What a **string** literal converts through, and the one code point it can stand for -
+ * `lib/Core/Core.yana`'s `class FromText(a = String)` and `lib/Core/Char.yana`'s
+ * `alias qualified Char = U32`. Implementation-String.md part 1.1.
+ *
+ * `"," :: CodeUnit` and `"é" :: Char` are literals both stages fold to a constant of the position's
+ * type, after checking that the text is one code point the type means the same thing by
+ * (`intrinsic/text.h`) - which is why the compiler has to name `Char` at all: its constant is a record of one field,
+ * and the check for it is "any scalar value" where an eight-bit integer's is "ASCII". One
+ * constructor with one field, stated so that the fold can build it by position. The row is
+ * `character` rather than the type's own name, which is a C++ keyword.
+ *
+ * `Optional` for both. A library without them is one in which a string literal is a `String` and
+ * nothing else, which is what every literal was before these rows.
+ */
+//              role      entity          arity members payload teardown presence
+YANA_KNOWN_ROLE( fromText,  Entity::Class,  1,    1,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( character, Entity::Record, 0,   1,      1,      false,   Presence::Optional )
+
+/*
  * The truth type - `lib/Core/Core.yana`'s `data Bool = False | True`.
  *
  * An **ordinary declared enum**, and the whole of what this row buys is that the compiler can name

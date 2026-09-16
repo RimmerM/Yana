@@ -129,34 +129,33 @@ fn wordParts(text: String) -> String:
 @test fn unitSearch():
     let line = "name,age,city"
 
-    -- 44 is a comma. The first one is at index four in either encoding, because everything before it
-    -- is ASCII.
-    checkEqual(found(findAscii(line, 44)), 4)
-    checkEqual(found(findAscii(line, 44, 5)), 8)
-    checkEqual(found(findAscii(line, 44, 9)), 0 - 1)
-    checkEqual(found(findLastAscii(line, 44)), 8)
+    -- The first comma is at index four in either encoding, because everything before it is ASCII.
+    checkEqual(found(findAscii(line, ",")), 4)
+    checkEqual(found(findAscii(line, ",", 5)), 8)
+    checkEqual(found(findAscii(line, ",", 9)), 0 - 1)
+    checkEqual(found(findLastAscii(line, ",")), 8)
 
-    checkEqual(countAscii(line, 44), 2)
-    check(containsAscii(line, 44))
+    checkEqual(countAscii(line, ","), 2)
+    check(containsAscii(line, ","))
 
-    -- 33 is `!`, which is not there. The absent case is a `Nothing` rather than a sentinel index.
-    checkEqual(found(findAscii(line, 33)), 0 - 1)
-    checkEqual(found(findLastAscii(line, 33)), 0 - 1)
-    check(!containsAscii(line, 33))
+    -- `!` is not there. The absent case is a `Nothing` rather than a sentinel index.
+    checkEqual(found(findAscii(line, "!")), 0 - 1)
+    checkEqual(found(findLastAscii(line, "!")), 0 - 1)
+    check(!containsAscii(line, "!"))
 
     -- The first unit and the last, which are the two indices an off-by-one shows up in.
-    checkEqual(found(findAscii(line, 110)), 0)
-    checkEqual(found(findLastAscii(line, 121)), 12)
+    checkEqual(found(findAscii(line, "n")), 0)
+    checkEqual(found(findLastAscii(line, "y")), 12)
 
     -- An offset past the end and one before the beginning, which are the two ways a resumed search
     -- is asked something it has to clamp rather than trust.
-    checkEqual(found(findAscii(line, 110, 13)), 0 - 1)
-    checkEqual(found(findAscii(line, 110, 99)), 0 - 1)
-    checkEqual(found(findAscii(line, 110, 0 - 4)), 0)
+    checkEqual(found(findAscii(line, "n", 13)), 0 - 1)
+    checkEqual(found(findAscii(line, "n", 99)), 0 - 1)
+    checkEqual(found(findAscii(line, "n", 0 - 4)), 0)
 
-    checkEqual(found(findAscii("", 44)), 0 - 1)
-    checkEqual(found(findLastAscii("", 44)), 0 - 1)
-    checkEqual(countAscii("", 44), 0)
+    checkEqual(found(findAscii("", ",")), 0 - 1)
+    checkEqual(found(findLastAscii("", ",")), 0 - 1)
+    checkEqual(countAscii("", ","), 0)
 
 {-
    The same three questions over a text long enough to have whole vector blocks *and* a tail in every
@@ -170,18 +169,18 @@ fn wordParts(text: String) -> String:
     let text = "---!" ++ repeated("-", 16) ++ "!" ++ repeated("-", 23) ++ "!" ++ repeated("-", 3)
 
     checkEqual(truncate(length(text)) :: Int, 48)
-    checkEqual(found(findAscii(text, 33)), 3)
-    checkEqual(found(findAscii(text, 33, 4)), 20)
-    checkEqual(found(findAscii(text, 33, 21)), 44)
-    checkEqual(found(findAscii(text, 33, 45)), 0 - 1)
-    checkEqual(found(findLastAscii(text, 33)), 44)
-    checkEqual(countAscii(text, 33), 3)
+    checkEqual(found(findAscii(text, "!")), 3)
+    checkEqual(found(findAscii(text, "!", 4)), 20)
+    checkEqual(found(findAscii(text, "!", 21)), 44)
+    checkEqual(found(findAscii(text, "!", 45)), 0 - 1)
+    checkEqual(found(findLastAscii(text, "!")), 44)
+    checkEqual(countAscii(text, "!"), 3)
 
     -- And with nothing in the tail at all, so that the backward walk's head-shorter-than-a-block
     -- path is the one that answers.
     let early = "!" ++ repeated("-", 40)
-    checkEqual(found(findLastAscii(early, 33)), 0)
-    checkEqual(found(findAscii(early, 33)), 0)
+    checkEqual(found(findLastAscii(early, "!")), 0)
+    checkEqual(found(findAscii(early, "!")), 0)
 
 {-
    ==========================================================================================
@@ -193,7 +192,7 @@ fn wordParts(text: String) -> String:
    signature takes, where `[a, b] :: [CodeUnit]` would allocate one per call.
 -}
 @test fn unitSetSearch():
-    let punctuation = [44 :: CodeUnit, 59, 58] :: [CodeUnit *3]
+    let punctuation = ["," :: CodeUnit, ";", ":"] :: [CodeUnit *3]
     let line = "one two;three:four,five"
 
     checkEqual(found(findAsciiAny(line, punctuation)), 7)
@@ -203,8 +202,8 @@ fn wordParts(text: String) -> String:
 
     -- A set of one is the same answer as the single-unit search, which is what makes the two
     -- interchangeable at a call site that grows a second delimiter later.
-    let comma = [44 :: CodeUnit] :: [CodeUnit *1]
-    checkEqual(found(findAsciiAny(line, comma)), found(findAscii(line, 44)))
+    let comma = ["," :: CodeUnit] :: [CodeUnit *1]
+    checkEqual(found(findAsciiAny(line, comma)), found(findAscii(line, ",")))
 
     checkEqual(found(findAsciiAny("nothing here", punctuation)), 0 - 1)
     checkEqual(found(findAsciiAny("", punctuation)), 0 - 1)
@@ -213,7 +212,7 @@ fn wordParts(text: String) -> String:
     checkEqual(found(findAsciiAny(line, [] :: [CodeUnit])), 0 - 1)
 
 @test fn unitSetInverse():
-    let spaceAndTab = [32 :: CodeUnit, 9] :: [CodeUnit *2]
+    let spaceAndTab = [" " :: CodeUnit, "\t"] :: [CodeUnit *2]
 
     checkEqual(found(findAsciiNone("   \t abc", spaceAndTab)), 5)
     checkEqual(found(findAsciiNone("abc", spaceAndTab)), 0)

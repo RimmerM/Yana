@@ -4,6 +4,7 @@
 #include "name.h"
 #include "place.h"
 #include "../parse/ast.h"
+#include "const.h"
 
 /*
  * The AST -> IR translation for one function body.
@@ -1184,6 +1185,24 @@ struct ExprResolver {
 
     // A string literal, per target - see Implementation-String.md part 9 and ConstString.
     ModulePtr<Value> resolveString(LocationId source, StringId text);
+
+    /*
+     * A string literal at a position - Implementation-String.md part 1.1, `FromText`. A `String`
+     * where nothing converts one; a checked constant at an integer or a `Char`; the `fromText` call
+     * at any other type with an instance. With no position a literal of one code point is a literal
+     * variable, as a number is, so that `unit == ","` is decided by the other operand.
+     */
+    ModulePtr<Value> resolveText(LocationId source, TypePtr target, StringId text);
+
+    // Whether a literal variable is a string literal's - one whose classes include `FromText`.
+    bool isTextLiteral(TypePtr literal);
+
+    // The one code point `chars` is, as a constant of an integer or `Char` target - reported and null
+    // where the target does not accept it.
+    ModulePtr<Value> textCharValue(LocationId source, TypePtr target, const intrinsic::LiteralChars& chars);
+
+    // `fromText(text)` at `target`, through the class, or null having reported that there is none.
+    ModulePtr<Value> textConversion(LocationId source, TypePtr target, ModulePtr<Value> text);
 
     /*
      * An `Array(a)` holding exactly these values, with no expression behind them.

@@ -1988,20 +1988,20 @@ fn main() -> Size {
     je %v129, b21, b22
 
   b20:
-    %v143 = load %text : Cursor(String)
-    %v144 = borrow_mut %text : &Cursor(String)
-    call Cursor.close(String), %v144
+    %v144 = load %text : Cursor(String)
+    %v145 = borrow_mut %text : &Cursor(String)
+    call Cursor.close(String), %v145
     drop_derived %text via reclaim$Cursor(String)
-    %v146 = load %sum : Size
-    %v149 = mul %v146, 100000 : Size
-    %v150 = load %pairs : Size
-    %v153 = mul %v150, 100 : Size
-    %v154 = add %v149, %v153 : Size
-    %v155 = load %joined : String
-    %v156 = call Length(String).length, %v155 : Size
+    %v147 = load %sum : Size
+    %v150 = mul %v147, 100000 : Size
+    %v151 = load %pairs : Size
+    %v154 = mul %v151, 100 : Size
+    %v155 = add %v150, %v154 : Size
+    %v156 = load %joined : String
+    %v157 = call Length(String).length, %v156 : Size
     drop %joined via Reclaim(String).reclaim
-    %v157 = add %v154, %v156 : Size
-    ret %v157
+    %v158 = add %v155, %v157 : Size
+    ret %v158
 
   b21:
     %w = load %local19@Just : String
@@ -2011,11 +2011,11 @@ fn main() -> Size {
     %v134 = move %joined : String
     %v135 = move %local20 : String
     %v136 = call Append(String).++, %v134, %v135 : String
-    %v137 = copy ResolveTest.literal$5 : String
     %v138 = move %local21 : String
-    %v139 = move %local22 : String
-    %v140 = call Append(String).++, %v138, %v139 : String
-    assign %joined, %v140
+    %v139 = copy ResolveTest.literal$5 : String
+    %v140 = move %local22 : String
+    %v141 = call Append(String).++, %v138, %v140 : String
+    assign %joined, %v141
     jmp b19
 
   b22:

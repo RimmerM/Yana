@@ -128,7 +128,7 @@ instance (Magnitude(a, w), Show(w), Bounded(w), Integral(w), Ord(w), TrivialCopy
         let base = truncate(if style.binary then 1024 else 1000) :: w
         let size = magnitude(subject.value)
 
-        if isNegative(subject.value) then String.pushUnit(to, 45)
+        if isNegative(subject.value) then String.pushUnit(to, "-")
 
         {-
            The scale, as an exponent and the divisor built from it together.
@@ -261,17 +261,17 @@ instance (Magnitude(a, w), Show(w), Bounded(w), Integral(w), Ord(w), TrivialCopy
         show(whole, to)
 
         if places > 0:
-            String.pushUnit(to, 46)
+            String.pushUnit(to, ".")
 
             -- Most significant first, out of the power the places were counted into - the same
             -- running-divisor shape `Format/Number.yana`'s digit loop uses, and for the same reason:
             -- leading zeros are digits at their positions rather than a run in front of them.
             let &at = power / 10
             while at > 0:
-                String.pushUnit(to, 48 + (truncate((frac / at) % 10) :: Int))
+                String.pushUnit(to, "0" + (truncate((frac / at) % 10) :: Int))
                 at = at / 10
 
-        String.pushUnit(to, 32)
+        String.pushUnit(to, " ")
         String.push(to, scaleSuffix(step, style.binary))
 
     {-

@@ -540,6 +540,9 @@ void declareNewtype(Module& module, ast::Decl& decl) {
     auto record = declareRecordType(module, decl.alias.type, {}, false, decl.exported, decl.source);
     if(!record) return;
 
+    // `@builtin(character)` is the one role a newtype claims - `Char`, which a string literal folds to.
+    readKnownRecordRole(module, decl, record - *module.types);
+
     declareConstructor(module, *record, decl.alias.type.name, 0, false, decl.source);
 }
 
@@ -1497,7 +1500,10 @@ void checkBuiltinPlacement(Module& module, const ast::Decl& decl) {
             return;
         }
 
-        if(findKnownRole(name, intrinsic::Entity::Record) && decl.kind != ast::Decl::Data) {
+        // A newtype is a `data` declaration under another spelling - `alias qualified Char = U32` is
+        // a record of one field, and `declareNewtype` reads its role.
+        auto isNewtype = decl.kind == ast::Decl::Alias && decl.qualified;
+        if(findKnownRole(name, intrinsic::Entity::Record) && decl.kind != ast::Decl::Data && !isNewtype) {
             context.diagnostics.error("`@builtin` is written on a `data` declaration - this role names a type the compiler builds values of"_v,
                                       attributeSource);
         }

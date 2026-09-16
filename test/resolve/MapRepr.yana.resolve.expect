@@ -3413,17 +3413,17 @@ fn touchString(%m: Map(String, I32)) -> I32 {
   b0:
     %n = alloc : I32
     init %n, 0
-    %v4 = copy ResolveTest.literal$1 : String
     %v5 = borrow %m : 'Map(String, I32)
-    %v6 = call find(String, I32), %v5, %v4 : Maybe('I32)
+    %v6 = copy ResolveTest.literal$1 : String
+    %v7 = call find(String, I32), %v5, %v6 : Maybe('I32)
     drop %local2 via Reclaim(String).reclaim
-    %v7 = load %local3.discriminant : I32
-    %v9 = cmp_eq %v7, 1 : Bool
-    je %v9, b2, b1
+    %v8 = load %local3.discriminant : I32
+    %v10 = cmp_eq %v8, 1 : Bool
+    je %v10, b2, b1
 
   b1:
-    %v18 = sub 0, 1 : I32
-    assign %n, %v18
+    %v19 = sub 0, 1 : I32
+    assign %n, %v19
     jmp b3
 
   b2:
@@ -3433,8 +3433,8 @@ fn touchString(%m: Map(String, I32)) -> I32 {
     jmp b3
 
   b3:
-    %v22 = load %n : I32
-    ret %v22
+    %v23 = load %n : I32
+    ret %v23
 }
 
 fn main() -> I32 {
@@ -3449,18 +3449,18 @@ fn main() -> I32 {
     %b = alloc : Map(String, I32)
     init %b, %v10
     %v13 = load %b : Map(String, I32)
-    %v14 = copy ResolveTest.literal$3 : String
-    %v17 = borrow_mut %b : &Map(String, I32)
-    %v18 = move %local5 : String
-    %v19 = call insert(String, I32), %v17, %v18, 6 : Maybe(I32)
-    %v20 = load %a : Map(I32, I32)
-    %v21 = call touchInt, %v20 : I32
+    %v16 = copy ResolveTest.literal$3 : String
+    %v18 = borrow_mut %b : &Map(String, I32)
+    %v19 = move %local5 : String
+    %v20 = call insert(String, I32), %v18, %v19, 6 : Maybe(I32)
+    %v21 = load %a : Map(I32, I32)
+    %v22 = call touchInt, %v21 : I32
     drop_derived %a via reclaim$Map(I32, I32)
-    %v22 = load %b : Map(String, I32)
-    %v23 = call touchString, %v22 : I32
+    %v23 = load %b : Map(String, I32)
+    %v24 = call touchString, %v23 : I32
     drop_derived %b via reclaim$Map(String, I32)
-    %v24 = add %v21, %v23 : I32
-    ret %v24
+    %v25 = add %v22, %v24 : I32
+    ret %v25
 }
 
 fn reclaim$Map(I32, I32)(%value: Map(I32, I32)) -> () {

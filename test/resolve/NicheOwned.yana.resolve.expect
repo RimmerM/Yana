@@ -12,13 +12,13 @@ let ResolveTest.string$0: String = "a"
 
 let ResolveTest.literal$1: String = "a" {String(Array(Run(&ResolveTest.string$0, 1, 0), 1))}
 
-let ResolveTest.string$2: String = "b"
+let ResolveTest.string$2: String = <none>
 
-let ResolveTest.literal$3: String = "b" {String(Array(Run(&ResolveTest.string$2, 1, 0), 1))}
+let ResolveTest.literal$3: String = "" {String(Array(Run(&ResolveTest.string$2, 0, 0), 0))}
 
-let ResolveTest.string$4: String = <none>
+let ResolveTest.string$4: String = "b"
 
-let ResolveTest.literal$5: String = "" {String(Array(Run(&ResolveTest.string$4, 0, 0), 0))}
+let ResolveTest.literal$5: String = "b" {String(Array(Run(&ResolveTest.string$4, 1, 0), 1))}
 
 let ResolveTest.string$6: String = <none>
 
@@ -1775,19 +1775,19 @@ fn built(%n: I32) -> String {
     je %v6, b1, b2
 
   b1:
-    %v8 = copy ResolveTest.literal$3 : String
+    %v10 = copy ResolveTest.literal$5 : String
     jmp b3
 
   b2:
-    %v9 = copy ResolveTest.literal$5 : String
+    %v9 = copy ResolveTest.literal$3 : String
     jmp b3
 
   b3:
-    %v12 = phi [b1, %v8], [b2, %v9] : String
-    %v13 = move %local1 : String
-    %v14 = move %local4 : String
-    %v15 = call Append(String).++, %v13, %v14 : String
-    ret %v15
+    %v13 = phi [b1, %v10], [b2, %v9] : String
+    %v14 = move %local1 : String
+    %v15 = move %local4 : String
+    %v16 = call Append(String).++, %v14, %v15 : String
+    ret %v16
 }
 
 fn codeOf(%s: String) -> I32 {
@@ -1801,19 +1801,19 @@ fn codeOf(%s: String) -> I32 {
     jmp b9
 
   b2:
-    %v5 = copy ResolveTest.literal$9 : String
-    %v6 = call Eq(String).==, %s, %v5 : Bool
+    %v6 = copy ResolveTest.literal$9 : String
+    %v7 = call Eq(String).==, %s, %v6 : Bool
     drop %local2 via Reclaim(String).reclaim
-    je %v6, b3, b4
+    je %v7, b3, b4
 
   b3:
     jmp b8
 
   b4:
-    %v9 = copy ResolveTest.literal$11 : String
-    %v10 = call Eq(String).==, %s, %v9 : Bool
+    %v10 = copy ResolveTest.literal$11 : String
+    %v11 = call Eq(String).==, %s, %v10 : Bool
     drop %local3 via Reclaim(String).reclaim
-    je %v10, b5, b6
+    je %v11, b5, b6
 
   b5:
     jmp b7
@@ -1822,16 +1822,16 @@ fn codeOf(%s: String) -> I32 {
     jmp b7
 
   b7:
-    %v16 = phi [b5, 3], [b6, 4] : I32
+    %v17 = phi [b5, 3], [b6, 4] : I32
     jmp b8
 
   b8:
-    %v19 = phi [b3, 2], [b7, %v16] : I32
+    %v20 = phi [b3, 2], [b7, %v17] : I32
     jmp b9
 
   b9:
-    %v22 = phi [b1, 1], [b8, %v19] : I32
-    ret %v22
+    %v23 = phi [b1, 1], [b8, %v20] : I32
+    ret %v23
 }
 
 fn codeIn(%m: Maybe(String)) -> I32 {
