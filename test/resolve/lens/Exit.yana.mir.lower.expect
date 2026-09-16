@@ -1,50 +1,5 @@
 mut @log = [0, 0, 0, 0]
 
-insideArm<complex>(%x: I32): I32 {
-  b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = cmp_igt %x, 0: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    ret 7
-  }
-
-  b_3 {
-    %v_5 = loads @log, 4: I32
-    %v_6 = add %v_5, 1: I32
-    store @log, %v_6, 4
-    %v_7 = cmp_igt %x, 100: I32
-    je %v_7, b_8, b_9
-  }
-
-  b_10 {
-    %v_11 = loads %v_1, 4: I32
-    ret %v_11
-  }
-
-  b_12 {
-    %v_13 = phi [b_9, 0], [b_8, 1]: I32
-    %v_14 = loads @log, 4: I32
-    %v_15 = add %v_14, 100: I32
-    store @log, %v_15, 4
-    je %v_13, b_10, b_4
-  }
-
-  b_9 {
-    %v_16 = loads @log, 4: I32
-    %v_17 = add %v_16, 1000: I32
-    store @log, %v_17, 4
-    jmp b_12
-  }
-
-  b_8 {
-    store %v_1, 0, 4
-    jmp b_12
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     store @log, 0, 4
@@ -78,10 +33,11 @@ main<complex>(): I32 {
     %v_19 = loads @log, 4: I32
     %v_20 = add %v_19, 100: I32
     store @log, %v_20, 4
-    %v_21 = call_complex insideArm, 3: I32
-    %v_22 = call_complex insideArm, 18446744073709551615: I32
+    %v_21 = loads @log, 4: I32
+    %v_22 = add %v_21, 1: I32
+    store @log, %v_22, 4
     %v_23 = loads @log, 4: I32
-    %v_24 = add %v_23, 1: I32
+    %v_24 = add %v_23, 1000: I32
     store @log, %v_24, 4
     %v_25 = loads @log, 4: I32
     %v_26 = add %v_25, 100: I32
@@ -96,69 +52,71 @@ main<complex>(): I32 {
     %v_32 = add %v_31, 1: I32
     store @log, %v_32, 4
     %v_33 = loads @log, 4: I32
-    %v_34 = add %v_33, 1: I32
+    %v_34 = add %v_33, 100: I32
     store @log, %v_34, 4
     %v_35 = loads @log, 4: I32
-    %v_36 = add %v_35, 100: I32
+    %v_36 = add %v_35, 1: I32
     store @log, %v_36, 4
     %v_37 = loads @log, 4: I32
-    %v_38 = add %v_37, 100: I32
+    %v_38 = add %v_37, 1: I32
     store @log, %v_38, 4
     %v_39 = loads @log, 4: I32
-    %v_40 = add %v_39, 1: I32
+    %v_40 = add %v_39, 100: I32
     store @log, %v_40, 4
-    jmp b_41
-  }
-
-  b_42 {
-    %v_43 = cmp_ilt %v_44, 5: I32
-    je %v_43, b_41, b_45
-  }
-
-  b_45 {
-    jmp b_46
-  }
-
-  b_41 {
-    %v_47 = phi [b_42, %v_44], [b_0, 0]: I32
-    %v_44 = add %v_47, 1: I32
-    %v_48 = cmp_eq %v_44, 2: I32
-    je %v_48, b_49, b_42
-  }
-
-  b_49 {
-    %v_50 = imul %v_44, 1000: I32
-    jmp b_46
+    %v_41 = loads @log, 4: I32
+    %v_42 = add %v_41, 100: I32
+    store @log, %v_42, 4
+    %v_43 = loads @log, 4: I32
+    %v_44 = add %v_43, 1: I32
+    store @log, %v_44, 4
+    jmp b_45
   }
 
   b_46 {
-    %v_51 = phi [b_45, %v_44], [b_49, %v_50]: I32
-    %v_52 = loads @log, 4: I32
-    %v_53 = add %v_52, 100: I32
-    store @log, %v_53, 4
-    %v_54 = loads @log, 4: I32
-    store @log, 0, 4
+    %v_47 = cmp_ilt %v_48, 5: I32
+    je %v_47, b_45, b_49
+  }
+
+  b_49 {
+    jmp b_50
+  }
+
+  b_45 {
+    %v_51 = phi [b_46, %v_48], [b_0, 0]: I32
+    %v_48 = add %v_51, 1: I32
+    %v_52 = cmp_eq %v_48, 2: I32
+    je %v_52, b_53, b_46
+  }
+
+  b_53 {
+    jmp b_50
+  }
+
+  b_50 {
+    %v_54 = phi [b_49, %v_48], [b_53, 2000]: I32
     %v_55 = loads @log, 4: I32
-    %v_56 = add %v_55, 5: I32
+    %v_56 = add %v_55, 100: I32
     store @log, %v_56, 4
     %v_57 = loads @log, 4: I32
-    %v_58 = add 3, %v_57: I32
     store @log, 0, 4
-    %v_59 = loads @log, 4: I32
-    %v_60 = add %v_59, 5: I32
-    store @log, %v_60, 4
-    %v_61 = loads @log, 4: I32
-    %v_62 = add %v_61, 1000: I32
-    store @log, %v_62, 4
-    %v_63 = loads @log, 4: I32
-    %v_64 = add 3, %v_63: I32
-    %v_65 = add 17, %v_21: I32
-    %v_66 = add %v_65, %v_22: I32
-    %v_67 = add %v_66, 25: I32
-    %v_68 = add %v_67, %v_51: I32
-    %v_69 = add %v_68, %v_54: I32
-    %v_70 = add %v_69, %v_58: I32
-    %v_71 = add %v_70, %v_64: I32
+    %v_58 = loads @log, 4: I32
+    %v_59 = add %v_58, 5: I32
+    store @log, %v_59, 4
+    %v_60 = loads @log, 4: I32
+    %v_61 = add 3, %v_60: I32
+    store @log, 0, 4
+    %v_62 = loads @log, 4: I32
+    %v_63 = add %v_62, 5: I32
+    store @log, %v_63, 4
+    %v_64 = loads @log, 4: I32
+    %v_65 = add %v_64, 1000: I32
+    store @log, %v_65, 4
+    %v_66 = loads @log, 4: I32
+    %v_67 = add 3, %v_66: I32
+    %v_68 = add 56, %v_54: I32
+    %v_69 = add %v_68, %v_57: I32
+    %v_70 = add %v_69, %v_61: I32
+    %v_71 = add %v_70, %v_67: I32
     ret %v_71
   }
 }

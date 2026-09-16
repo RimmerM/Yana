@@ -280,6 +280,18 @@ StringView unaryOpName(UnaryOp op);
 OpCategory binaryCategory(BinaryOp op);
 UnaryCategory unaryCategory(UnaryOp op);
 
+/*
+ * Whether an operation answers `Bool` about its two operands rather than a value of their type -
+ * `Equality` or `Order`, which is the whole of the rule and is why it is here rather than restated
+ * by each reader.
+ *
+ * Four of them were stating it: the verifier's result-type check, the folder's two rows, and
+ * `opt/place.cpp`'s reading of a pointer comparison as a sink rather than as a carrier. Which
+ * categories those are is a fact about `op.def` and about nothing else, so a category added to the
+ * table is a line changed here instead of four sites to find.
+ */
+bool isComparison(BinaryOp op);
+
 // What each does to a value narrower than its register - see `WidthEffect`. Read by the seam in
 // `resolve_ssa/lower/width.cpp` and by nothing else, because nowhere else is a register known.
 WidthEffect binaryWidthEffect(BinaryOp op);

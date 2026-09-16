@@ -134,10 +134,6 @@ const mir::Constant* constantOf(OptContext& opt, Value* value) {
 
 namespace {
 
-Value* valueOf(OptContext& opt, Use used) {
-    return used.isSet() ? opt.base[used.value()] : nullptr;
-}
-
 // Whether one operand is exactly this number at its own type.
 bool isConstantValue(OptContext& opt, Use used, U64 wanted) {
     auto found = constantValueOf(opt, valueOf(opt, used));
@@ -147,6 +143,55 @@ bool isConstantValue(OptContext& opt, Use used, U64 wanted) {
 bool isFloatValue(OptContext& opt, Use used, F64 wanted) {
     auto found = constantFloatOf(opt, valueOf(opt, used));
     return found && found.unwrap() == wanted;
+}
+
+/*
+ * The signedness two operands are ordered at, from the **operand** type - which is the question the
+ * result type says nothing about, since it is `Bool`.
+ *
+ * `foldableIntWidths` rather than `factsOf`, because what a comparison needs from the type is its
+ * signedness and not a width to compute at: each constant already holds at the guaranteed width,
+ * `constantValueOf` hands both back extended to sixty-four bits by that type's own sign rule, and
+ * comparing those two patterns is comparing the two numbers. So this is one of the folds a
+ * target-answered width needs no trial run for - and asking `factsOf` outside one would have
+ * answered nothing about the sign and read a negative `Size` as a large positive one.
+ *
+ * A type with no width at all answers unsigned, which is right for the one kind that reaches here
+ * without one. A payload-free enum has no width and needs none: `constantValueOf` reads such a
+ * constant as its **constructor index**, which is a small non-negative number, and
+ * `OpCategory::Equality` is the only category that admits one - an enum orders through `Ordering`
+ * and a `compare` call, never through `lt` at the enum itself. So the two indices are compared
+ * unsigned and `@value(n)` cannot move the answer, since an index and the number stored for it are
+ * a bijection. That is what makes `compare(a, b) == LT` fold, which is where every default `Ord`
+ * writes ends up once its instance has been selected.
+ */
+bool compareSignedness(OptContext& opt, DeclPtr<mir::Type> type) {
+    auto facts = foldableIntWidths(opt, type);
+    return facts && facts.unwrap().narrow.isSigned;
+}
+
+/*
+ * One arithmetic run at one width, over two numbers a caller is holding.
+ *
+ * The shared evaluator with this tier's two conventions either side of it: the operands are masked on
+ * the way in because a signed narrow value arrives sign-extended and `evaluateBinary` reads its
+ * operands as the low `bits` of their patterns - `fold_arith.h` says so - and the answer is put into
+ * this tier's normal form on the way out.
+ *
+ * Two readers, and the same three lines either way: `Folder::foldBinary` writes the answer into the
+ * IR, and `binaryOfConstants` hands it back to a caller that has no constant in the IR to fold.
+ */
+Maybe<U64> evaluateAtWidth(BinaryOp op, const IntFacts& facts, U64 left, U64 right) {
+    LowerInst::Kind kind;
+    U64 result;
+
+    if(!mir::arithKind(op, facts.isSigned, kind)) return Nothing();
+    if(!evaluateBinary(kind, left & maskOf(facts.bits), right & maskOf(facts.bits), facts.bits,
+                       result)) {
+        return Nothing();
+    }
+
+    return Just(narrowToWidth(result, facts));
 }
 
 /*
@@ -282,11 +327,6 @@ struct Folder {
         return op == BinaryOp::Eq || op == BinaryOp::Ge || op == BinaryOp::Le;
     }
 
-    static bool isComparison(BinaryOp op) {
-        auto category = mir::binaryCategory(op);
-        return category == mir::OpCategory::Equality || category == mir::OpCategory::Order;
-    }
-
     /*
      * A select of two constants, compared against a third - the shape a widened boolean is tested in.
      *
@@ -418,32 +458,9 @@ struct Folder {
             return constant(resultType(), compareFloat(binary.op, left.unwrap(), right.unwrap()) ? 1 : 0);
         }
 
-        /*
-         * The signedness the two patterns are ordered at, and nothing where there is none.
-         *
-         * A payload-free enum has no width and needs none: `constantValueOf` reads such a constant as
-         * its **constructor index**, which is a small non-negative number, and `OpCategory::Equality`
-         * is the only category that admits one - an enum orders through `Ordering` and a `compare`
-         * call, never through `lt` at the enum itself. So the two indices are compared unsigned and
-         * `@value(n)` cannot move the answer, since an index and the number stored for it are a
-         * bijection.
-         *
-         * That is what makes `compare(a, b) == LT` fold, which is where every default `Ord` writes
-         * ends up once its instance has been selected.
-         */
-        /*
-         * `foldableIntWidths` rather than `factsOf`, because what a comparison needs from the type
-         * is its **signedness** and not a width to compute at.
-         *
-         * The ordering of two constants is the same on every target: each already holds at the
-         * guaranteed width, `constantValueOf` hands both back extended to sixty-four bits by that
-         * type's own sign rule, and comparing those two patterns is comparing the two numbers. So
-         * this is one of the folds a target-answered width needs no trial run for - and asking
-         * `factsOf` outside one would have answered nothing about the sign and read a negative
-         * `Size` as a large positive one.
-         */
-        auto facts = foldableIntWidths(opt, operandType);
-        auto isSigned = facts && facts.unwrap().narrow.isSigned;
+        // The signedness the two patterns are ordered at - `compareSignedness`, which is where the
+        // reading is argued and which `binaryOfConstants` asks the same question through.
+        auto isSigned = compareSignedness(opt, operandType);
 
         // The select rule ahead of the both-constants read, because its operand is a select rather
         // than a constant and the read below would end the walk before it was reached.
@@ -529,18 +546,11 @@ struct Folder {
         auto zero = [&] { return wrap(0); };
         auto all = narrowToWidth(~U64(0), facts);
 
-        // Both known: the shared evaluator, at the declared width. The operands are masked on the way
-        // in because a signed narrow value arrives sign-extended and that evaluator reads its
-        // operands as the low `bits` of their patterns - `fold_arith.h` says so - and the answer is
-        // put into this tier's normal form on the way out.
+        // Both known: the shared evaluator at the declared width - `evaluateAtWidth`, which is where
+        // the two conventions around it are written and which `binaryOfConstants` runs through too.
         if(left && right) {
-            LowerInst::Kind kind;
-            U64 result;
-
-            if(arithKind(binary.op, facts.isSigned, kind) &&
-               evaluateBinary(kind, left.unwrap() & maskOf(facts.bits),
-                              right.unwrap() & maskOf(facts.bits), facts.bits, result)) {
-                return wrap(result);
+            if(auto folded = evaluateAtWidth(binary.op, facts, left.unwrap(), right.unwrap())) {
+                return constant(type, folded.unwrap());
             }
         }
 
@@ -1133,12 +1143,39 @@ struct Folder {
             case Inst::Unary: {
                 auto& unary = (InstUnary&)inst;
 
-                // The two crossings are decided ahead of the integer gate, because neither is
-                // arithmetic: a conversion that computes nothing has no width to wrap at, and a
-                // reinterpretation would be admitted by `foldableInt` and then declined again for a
+                // A reinterpretation is decided ahead of the integer gate, because it is not
+                // arithmetic: `foldableInt` would admit it and then it would be declined again for a
                 // different reason.
                 if(unary.op == UnaryOp::Bitcast) return foldBitcast(unary);
-                if(unary.op == UnaryOp::Convert) return foldConvert(unary);
+
+                /*
+                 * A conversion is decided ahead of it in part, and §J63 is where "in part" was read
+                 * back.
+                 *
+                 * The identity and the two float crossings compute nothing and have no width to wrap
+                 * at, which is what this arm was written for. The **integer to integer** one does
+                 * have one - it puts the source into the result's width, through `factsOf` and
+                 * `narrowToWidth` - and running it outside `foldAtWidths` meant `factsOf` was asked
+                 * with no run in progress and declined every target-answered result. So
+                 * `convert (const 5) :: Size` folded nowhere, and that one instruction is what stood
+                 * between every string literal and its own length: `stringLiteral` widens the count
+                 * to a `Size` on the way into the view record, and a length that is a `convert`
+                 * rather than a number is a length no branch above a use can be decided by.
+                 *
+                 * Through the width rule, so the answer is written down only where the two widths
+                 * agree. For a literal that always holds: `mir::integerHolds` is what made it a value
+                 * of the type on every target before it was ever written down.
+                 */
+                if(unary.op == UnaryOp::Convert) {
+                    if(typeOf(unary.value) == resultType()) return operand(unary.value);
+
+                    if(foldableFloat(opt, resultType()) || foldableFloat(opt, typeOf(unary.value))) {
+                        return foldConvert(unary);
+                    }
+
+                    return foldAtWidths([&](const IntFacts&) { return foldConvert(unary); },
+                                        resultType());
+                }
 
                 /*
                  * `byteSwap(byteSwap(x))` is `x` - the one identity of this operation, and ahead of
@@ -1166,7 +1203,7 @@ struct Folder {
 
             case Inst::Binary: {
                 auto& binary = (InstBinary&)inst;
-                if(isComparison(binary.op)) return foldCompare(binary);
+                if(mir::isComparison(binary.op)) return foldCompare(binary);
 
                 // Ahead of the integer gate, because a floating result has no `IntFacts` and the gate
                 // would end the walk before the arithmetic below is reached.
@@ -1261,6 +1298,40 @@ Maybe<F64> constantFloatOf(OptContext& opt, Value* value) {
     auto width = foldableFloat(opt, constant->type);
 
     return Just(width && width.unwrap() == 32 ? F64(F32(value64)) : value64);
+}
+
+Maybe<U64> binaryOfConstants(OptContext& opt, InstBinary& binary, U64 left, U64 right) {
+    if(!binary.results.size() || !binary.lhs.isSet()) return Nothing();
+
+    auto operandType = opt.base[binary.lhs.value()]->type();
+    auto resultType = opt.base[binary.results.get(opt.base, 0)]->type();
+
+    if(mir::isComparison(binary.op)) {
+        // A float is not ordered by its pattern, and this reads patterns. `foldCompare` is where the
+        // other six live.
+        if(foldableFloat(opt, operandType)) return Nothing();
+
+        auto isSigned = compareSignedness(opt, operandType);
+        return Just(U64(mir::compareIntegers(binary.op, left, right, isSigned) ? 1 : 0));
+    }
+
+    if(foldableFloat(opt, resultType)) return Nothing();
+
+    auto widths = foldableIntWidths(opt, resultType);
+    if(!widths) return Nothing();
+
+    // One run at one width, through the rule `Folder::foldBinary` writes its answer with.
+    auto at = [&](IntFacts facts) { return evaluateAtWidth(binary.op, facts, left, right); };
+
+    auto narrow = at(widths.unwrap().narrow);
+    if(!widths.unwrap().differ()) return narrow;
+
+    // And the width rule: a target-answered type answers only where both widths agree - `IntWidths`
+    // in `pass.h` is where what that buys and what it costs are set out.
+    auto wide = at(IntFacts { widths.unwrap().wide, widths.unwrap().narrow.isSigned });
+    if(!narrow || !wide || narrow.unwrap() != wide.unwrap()) return Nothing();
+
+    return narrow;
 }
 
 Value* makeConstant(OptContext& opt, Inst& at, DeclPtr<mir::Type> type, U64 value) {

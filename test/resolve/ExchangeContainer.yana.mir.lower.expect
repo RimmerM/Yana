@@ -130,41 +130,6 @@ swapElements<complex>(): I32 {
   }
 }
 
-assignElement<complex>(): I32 {
-  b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 16, 8: Ptr
-    call_complex counted, %v_2, 3
-    %v_3 = alloca 16, 8: Ptr
-    call_complex counted, %v_3, 8
-    %v_4 = alloca 32, 8: Ptr
-    store %v_1, %v_4, 8
-    %v_5 = add %v_1, 8: Ptr
-    store %v_5, 2, 4
-    %v_6 = add %v_1, 12: Ptr
-    store %v_6, 2, 4
-    copy %v_4, %v_2, 16
-    %v_7 = add %v_4, 16: Ptr
-    copy %v_7, %v_3, 16
-    %v_8 = alloca 16, 8: Ptr
-    call_complex counted, %v_8, 6
-    call_complex Array(a).reclaim(I32), %v_4
-    copy %v_4, %v_8, 16
-    %v_9 = add %v_4, 12: Ptr
-    %v_10 = load %v_9, 4: I32
-    %v_11 = cast %v_10: I64
-    %v_12 = sext %v_11: I32
-    %v_13 = imul %v_12, 10: I32
-    %v_14 = add %v_4, 28: Ptr
-    %v_15 = load %v_14, 4: I32
-    %v_16 = cast %v_15: I64
-    %v_17 = sext %v_16: I32
-    call_complex Array(a).reclaim(Array(I32)), %v_1
-    %v_18 = add %v_13, %v_17: I32
-    ret %v_18
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -262,10 +227,38 @@ main<complex>(): I32 {
   }
 
   b_54 {
-    %v_55 = call_complex assignElement: I32
-    %v_56 = cmp_neq %v_55, 68: I32
-    %v_57 = select %v_56, 18446744073709551611, 1: I32
-    ret %v_57
+    %v_55 = alloca 16, 8: Ptr
+    %v_56 = alloca 16, 8: Ptr
+    call_complex counted, %v_56, 3
+    %v_57 = alloca 16, 8: Ptr
+    call_complex counted, %v_57, 8
+    %v_58 = alloca 32, 8: Ptr
+    store %v_55, %v_58, 8
+    %v_59 = add %v_55, 8: Ptr
+    store %v_59, 2, 4
+    %v_60 = add %v_55, 12: Ptr
+    store %v_60, 2, 4
+    copy %v_58, %v_56, 16
+    %v_61 = add %v_58, 16: Ptr
+    copy %v_61, %v_57, 16
+    %v_62 = alloca 16, 8: Ptr
+    call_complex counted, %v_62, 6
+    call_complex Array(a).reclaim(I32), %v_58
+    copy %v_58, %v_62, 16
+    %v_63 = add %v_58, 12: Ptr
+    %v_64 = load %v_63, 4: I32
+    %v_65 = cast %v_64: I64
+    %v_66 = sext %v_65: I32
+    %v_67 = imul %v_66, 10: I32
+    %v_68 = add %v_58, 28: Ptr
+    %v_69 = load %v_68, 4: I32
+    %v_70 = cast %v_69: I64
+    %v_71 = sext %v_70: I32
+    call_complex Array(a).reclaim(Array(I32)), %v_55
+    %v_72 = add %v_67, %v_71: I32
+    %v_73 = cmp_neq %v_72, 68: I32
+    %v_74 = select %v_73, 18446744073709551611, 1: I32
+    ret %v_74
   }
 
   b_53 {

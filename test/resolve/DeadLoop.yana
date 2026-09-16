@@ -163,6 +163,78 @@ fn nested(rows: Int, columns: Int) -> Int:
     return total
 
 {-
+   And the other loop question in that file: a loop the entry edge's own numbers say is never
+   entered - `unenteredLoops`, which proves the opposite thing to everything above it.
+
+   Every refusal this file has recorded so far is a refusal about what the body *does*, and none of
+   them applies here: the three below call, write a global, carry a value out and leave by two
+   different exits, and the one that goes, goes anyway. What is being proved is that none of it
+   happens, so what the body is made of is not a question.
+
+   `visits` is what makes that a number rather than a claim about the IR. A loop wrongly removed
+   leaves it at zero and a loop wrongly kept raises it, and `main` weights it like everything else -
+   so the `.run.expect` and the optimized-against-unoptimized comparison catch a fold in either
+   direction, which the answers alone would not: `neverRuns` returns the same thing whether or not
+   the pass fires, and that is exactly the point of it.
+-}
+
+let &visits = 0 :: Int
+
+{-
+   The shape, with every refusal above it present at once.
+
+   `i` starts at ten against a bound of four, so the header's test is false the first time it is
+   asked and the induction does the rest. The body writes a global, the `break` is a second way out,
+   and `i` is read below the loop - which are conditions 2, 1 and 3 of the pass above, all three
+   failing. The loop still goes.
+-}
+fn neverRuns(stop: Int) -> Int:
+    let &i = 10
+    let &total = 0
+
+    while i < 4:
+        visits = visits + 1
+        total = total + i
+        if i == stop then break
+        i = i + 1
+
+    return total + i
+
+{-
+   The mirror, and it is the reason the pass asks which arm the answer selects rather than only
+   whether there is one.
+
+   The test holds on the way in, which says the body runs once and nothing more - the second visit is
+   decided by what the latch hands over, and that is not a number anything here holds. So the branch
+   keeps its condition and the loop keeps its body; `visits` counts the turns, and the answer is the
+   sum the loop accumulated rather than the one it started with.
+-}
+fn entersOnce(stop: Int) -> Int:
+    let &i = 0
+    let &total = 0
+
+    while i < 4:
+        visits = visits + 1
+        total = total + i
+        if i == stop then break
+        i = i + 1
+
+    return total + i
+
+-- And the entry operand that is not a number at all. The header's argument arrives from a parameter,
+-- so there is nothing to compute the test over and the loop stays whatever the bound is.
+fn unknownStart(from: Int) -> Int:
+    let &i = from
+    let &total = 0
+
+    while i < 4:
+        visits = visits + 1
+        total = total + i
+        i = i + 1
+
+    return total + i
+
+{-
    The first shape phase 8 measured and did not keep: a zero test a dominating branch already
    decided.
 
@@ -207,4 +279,5 @@ fn main() -> Int =
     counted(4, 3) * 2 + accumulates(5) * 3 + survives(6) * 5 + owning(4) * 7 +
     escapes(9, 4) * 11 + nested(3, 4) * 13 + guarded(84, 4) * 17 +
     (truncate(widened(6, 9)) :: Int) * 19 + live * 23 +
-    deadFor(4, 3) * 29 + forAccumulates(5) * 31 + forBreaks(9, 4) * 37
+    deadFor(4, 3) * 29 + forAccumulates(5) * 31 + forBreaks(9, 4) * 37 +
+    neverRuns(2) * 41 + entersOnce(2) * 43 + unknownStart(1) * 47 + visits * 53

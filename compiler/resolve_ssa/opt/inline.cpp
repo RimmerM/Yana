@@ -534,6 +534,38 @@ struct Inliner {
 
     Array<SsaPtr<Inst>> pending;
 
+    static constexpr U8 kUnset = 0;
+    static constexpr U8 kNumber = 1;
+    static constexpr U8 kUnknown = 2;
+
+    /*
+     * What one of the callee's values holds under the site's constants.
+     *
+     * One row rather than two arrays in step: the state and the number are read and written together
+     * at every one of the four places below, and a pair of parallel arrays is a pair every caller has
+     * to index identically.
+     */
+    struct SiteValue {
+        U64 number = 0;
+        U8 state = kUnset;
+    };
+
+    /*
+     * The scratch the two weighings walk over, held here rather than declared inside them.
+     *
+     * Both run **per call site** - `shouldInline` weighs the callee at every one of them - so a
+     * local array is an allocation and a free per call in the program. Everything below is cleared
+     * on the way in and keeps its buffer, which is one allocation per body for the whole pass.
+     *
+     * Two orders rather than one because they are two walks: `sizeOf` measures the callee as
+     * written and `sizeAtSite` measures what the site's constants leave of it, and `shouldInline`
+     * asks the first and then the second.
+     */
+    Array<U32> sizeOrder;
+    Array<U32> siteOrder;
+    Array<SiteValue> siteFacts;
+    IndexSet siteLive;
+
     SsaBase base() { return opt.base; }
     DeclBase decl() { return opt.decl; }
 
@@ -582,40 +614,301 @@ struct Inliner {
      */
     U32 sizeOf(mir::Function& function) {
         auto body = base()[function.ssa];
-
-        Array<U32> order;
-        reversePostorder(base(), *body, order);
+        reversePostorder(base(), *body, sizeOrder);
 
         U32 size = 0;
+        for(auto index: sizeOrder) size += weighBlock(*body->block(base(), BlockId(index)));
 
-        for(auto index: order) {
-            auto block = body->block(base(), BlockId(index));
+        return size;
+    }
 
-            for(auto pointer: block->instructions(base())) {
-                switch(base()[pointer]->kind) {
-                    case Inst::Const:
-                    case Inst::Alloc:
-                    case Inst::FieldAddress:
-                    case Inst::ElementAddress:
-                    case Inst::Return:
-                    case Inst::Jump:
-                    case Inst::Branch:
-                    case Inst::Unreachable:
-                        break;
+    /*
+     * What the callee weighs **as the site's constants leave it** - the term J63 added, and the one
+     * the file comment above used to name as missing.
+     *
+     * ## Why a second size
+     *
+     * `sizeOf` measures the callee as written, which is the right number for a site that knows
+     * nothing about it and the wrong one for a site that decides half of it. The shape this exists
+     * for is a **ladder**: a library body that dispatches on a count, written for a count nobody
+     * knows, whose every threshold folds where the count is a literal.
+     *
+     * `compareMemory` in `lib/Native/Memory.native.yana` is the case. It weighs **149** at
+     * `CodeUnit`, which is above every budget in the table and above the ceiling at two of the three
+     * levels, and at a five-unit string literal what survives the copy is about twenty-five: both
+     * vector loops have entry tests that are false at that count, `unenteredLoops` writes them down
+     * and `cleanCfg` takes the bodies, and what is left is the one tail the length selects. A
+     * `match` over string literals is a chain of those calls, and refusing every one of them on the
+     * strength of a body nobody will emit is what left `compareMemory` at 10.95% of the lexer's x64
+     * profile and absent from its LLVM one.
+     *
+     * The mirror of it is already here: `isBlockMoveLadder` **refuses** `copyMemory` where the count
+     * is not constant, on the reading that a copy buys nothing when no threshold folds. This is that
+     * sentence read the other way round, and generally rather than by declaration.
+     *
+     * ## The estimate
+     *
+     * Conditional constant propagation over the callee's own blocks, seeded with the constants the
+     * site passes - a block is measured only where it is reachable under those. Optimistic and
+     * iterated, which is what makes a **loop** come out right: the body of a loop whose header test
+     * the entry edge decides false is never marked reachable, so the latch never is either, so the
+     * back edge never contributes to the header's arguments and the answer stands. That is
+     * `unenteredLoops`' proof arrived at from the other end, and the estimate is honest exactly
+     * because the pass that will do the work is the one it models.
+     *
+     * Nothing is written and nothing is cached: this runs only for a callee the flat budget has
+     * already declined and only where the site passes a constant at all, which over the corpus is a
+     * handful of sites per program.
+     *
+     * **What it does not model** is the folding a constant enables *inside* a block - an address
+     * that becomes an immediate, a comparison that becomes a jump. So the answer is an over-estimate
+     * of the residue, which is the direction an inliner's estimate should err in.
+     */
+    U32 sizeAtSite(InstCall& call, mir::Function& function) {
+        auto body = base()[function.ssa];
+        if(!body) return ~U32(0);
 
-                    /*
-                     * A multi-way branch is **not** free, and it is not one instruction either: it
-                     * expands to a comparison and a branch per case unless the backend finds a table
-                     * for it. Understating it is how the inliner admits a body that then explodes.
-                     */
-                    case Inst::Switch:
-                        size += U32(((InstSwitch&)*base()[pointer]).cases.size());
-                        break;
+        auto entry = base()[body->entry];
+        if(entry->argumentCount() != call.arguments.size()) return ~U32(0);
 
-                    default:
-                        size++;
-                        break;
+        // Nothing to estimate where the site knows nothing. Asked first, because everything below it
+        // allocates.
+        auto supplied = false;
+        for(Size i = 0; i < call.arguments.size(); i++) {
+            auto used = call.arguments.get(base(), i);
+            if(used.isSet() && constantValueOf(opt, base()[used.value()])) supplied = true;
+        }
+
+        if(!supplied) return ~U32(0);
+
+        reversePostorder(base(), *body, siteOrder);
+
+        // The two lattices, both of which only ever fall: a block becomes reachable and stays so, and
+        // a value goes from unset to a number to unknown. That is what makes the sweep below
+        // terminate without a worklist.
+        auto& facts = siteFacts;
+        auto& live = siteLive;
+
+        facts.clear();
+        for(U32 i = 0, values = U32(body->values.size()); i < values; i++) facts.push(SiteValue());
+
+        live.reset(U32(body->blocks.size()));
+        live.set(entry->index.index, true);
+
+        for(Size i = 0; i < entry->argumentCount(); i++) {
+            auto& fact = facts[base()[entry->argumentAt(base(), i)]->id.index];
+            auto used = call.arguments.get(base(), i);
+            auto found = used.isSet() ? constantValueOf(opt, base()[used.value()]) : Nothing();
+
+            fact.state = found ? kNumber : kUnknown;
+            if(found) fact.number = found.unwrap();
+        }
+
+        for(U32 round = 0; round < kSiteRounds; round++) {
+            auto moved = false;
+            for(auto index: siteOrder) {
+                if(!live[index]) continue;
+                if(sweepBlock(*body->block(base(), BlockId(index)), live, facts,
+                              index == entry->index.index)) {
+                    moved = true;
                 }
+            }
+
+            if(!moved) break;
+        }
+
+        U32 size = 0;
+        for(auto index: siteOrder) {
+            if(!live[index]) continue;
+            size += weighBlock(*body->block(base(), BlockId(index)), &facts);
+        }
+
+        return size;
+    }
+
+    /*
+     * How many times the sweep above is run over the block list.
+     *
+     * Three, and the first one answers every shape this exists for: a straight-line ladder settles in
+     * one pass, and a loop whose body never becomes reachable settles in one too, because the latch
+     * it would have heard from is never visited. What the second and third buy is a value that
+     * becomes *unknown* late - a merge whose second predecessor turned out reachable - and lowering
+     * one can only shrink the live set, never grow it. A cap rather than a fixpoint because this is
+     * an estimate, and one a round short is one that over-estimates.
+     */
+    static constexpr U32 kSiteRounds = 3;
+
+    // The number a value holds under the site's constants, reading the table first and the IR second
+    // - a `Const` defined in a block the sweep has not reached is still that constant.
+    Maybe<U64> numberOf(Array<SiteValue>& facts, Use used) {
+        if(!used.isSet()) return Nothing();
+
+        auto value = base()[used.value()];
+        auto index = value->id.index;
+
+        if(index < facts.size() && facts[index].state == kNumber) return Just(facts[index].number);
+        if(index < facts.size() && facts[index].state == kUnknown) return Nothing();
+
+        return constantValueOf(opt, value);
+    }
+
+    // One value lowered, and whether that moved the lattice.
+    bool lower(Array<SiteValue>& facts, U32 index, Maybe<U64> found) {
+        auto& fact = facts[index];
+        auto want = found ? kNumber : kUnknown;
+        if(fact.state == want && (!found || fact.number == found.unwrap())) return false;
+
+        // Never back up the lattice: a value that has been unknown stays unknown, which is what makes
+        // the rounds terminate.
+        if(fact.state == kUnknown) return false;
+
+        fact.state = want;
+        if(found) fact.number = found.unwrap();
+
+        return true;
+    }
+
+    /*
+     * One block under the site's constants: its arguments answered by its reachable predecessors, its
+     * instructions folded where both operands are numbers, and the successors its terminator can
+     * actually reach marked live.
+     */
+    bool sweepBlock(Block& block, IndexSet& live, Array<SiteValue>& facts, bool isEntry) {
+        auto moved = false;
+
+        // The entry's arguments are the site's and are not answered by an edge - there is none.
+        if(!isEntry) {
+            for(Size i = 0; i < block.argumentCount(); i++) {
+                auto index = base()[block.argumentAt(base(), i)]->id.index;
+                Maybe<U64> agreed = Nothing();
+                auto any = false;
+                auto differ = false;
+
+                for(auto pointer: block.incoming(base())) {
+                    auto from = base()[pointer];
+                    if(!live[from->index.index]) continue;
+
+                    auto end = from->terminator(base());
+                    if(!end) { differ = true; continue; }
+
+                    forEachEdge(base(), *end, [&](Edge& edge) {
+                        if(!edge.target || base()[edge.target] != &block) return;
+                        if(i >= edge.arguments.size()) { differ = true; return; }
+
+                        auto found = numberOf(facts, edge.arguments.get(base(), i));
+                        if(!found) { differ = true; return; }
+
+                        if(!any) { agreed = found; any = true; }
+                        else if(agreed.unwrap() != found.unwrap()) differ = true;
+                    });
+                }
+
+                if(differ || !any) moved |= lower(facts, index, Nothing());
+                else moved |= lower(facts, index, agreed);
+            }
+        }
+
+        for(auto pointer: block.instructions(base())) {
+            auto& inst = *base()[pointer];
+            if(isTerminator(inst.kind)) continue;
+            if(!inst.results.size()) continue;
+
+            auto result = base()[inst.results.get(base(), 0)];
+            auto index = result->id.index;
+
+            if(inst.kind == Inst::Const) {
+                moved |= lower(facts, index, constantValueOf(opt, result));
+                continue;
+            }
+
+            if(inst.kind == Inst::Binary && inst.results.size() == 1) {
+                auto& binary = (InstBinary&)inst;
+                auto left = numberOf(facts, binary.lhs);
+                auto right = numberOf(facts, binary.rhs);
+
+                if(left && right) {
+                    moved |= lower(facts, index,
+                                   binaryOfConstants(opt, binary, left.unwrap(), right.unwrap()));
+                    continue;
+                }
+            }
+
+            for(auto resultPointer: inst.results.contents(base())) {
+                moved |= lower(facts, base()[resultPointer]->id.index, Nothing());
+            }
+        }
+
+        auto end = block.terminator(base());
+        if(!end) return moved;
+
+        // A branch whose condition the site's constants decide reaches one arm; everything else
+        // reaches all of its edges.
+        Block* only = nullptr;
+        if(end->kind == Inst::Branch) {
+            auto& branch = (InstBranch&)*end;
+            if(auto decided = numberOf(facts, branch.condition)) {
+                auto& arm = decided.unwrap() ? branch.whenTrue : branch.whenFalse;
+                if(arm.target) only = base()[arm.target];
+            }
+        }
+
+        forEachEdge(base(), *end, [&](Edge& edge) {
+            if(!edge.target) return;
+
+            auto target = base()[edge.target];
+            if(only && target != only) return;
+            if(live[target->index.index]) return;
+
+            live.set(target->index.index, true);
+            moved = true;
+        });
+
+        return moved;
+    }
+
+    /*
+     * What one block weighs, by the rule `sizeOf` states - the two callers share it so that a residue
+     * and a whole are measured the same way and the two numbers are comparable.
+     *
+     * `decided` is the site estimate's table or null. An instruction whose result the propagation
+     * came out with a number for is one the folder will replace with a `Const`, and a `Const` is
+     * already free above - so counting it would price the arithmetic a constant argument removes as
+     * though it were still there, which is most of what this estimate is for. `compareMemory`'s
+     * preamble is four such instructions and its two loop bounds are two more.
+     */
+    U32 weighBlock(Block& block, Array<SiteValue>* decided = nullptr) {
+        U32 size = 0;
+
+        for(auto pointer: block.instructions(base())) {
+            auto& inst = *base()[pointer];
+            if(decided && inst.results.size() == 1) {
+                auto index = base()[inst.results.get(base(), 0)]->id.index;
+                if(index < decided->size() && (*decided)[index].state == kNumber) continue;
+            }
+
+            switch(base()[pointer]->kind) {
+                case Inst::Const:
+                case Inst::Alloc:
+                case Inst::FieldAddress:
+                case Inst::ElementAddress:
+                case Inst::Return:
+                case Inst::Jump:
+                case Inst::Branch:
+                case Inst::Unreachable:
+                    break;
+
+                /*
+                 * A multi-way branch is **not** free, and it is not one instruction either: it
+                 * expands to a comparison and a branch per case unless the backend finds a table for
+                 * it. Understating it is how the inliner admits a body that then explodes.
+                 */
+                case Inst::Switch:
+                    size += U32(((InstSwitch&)*base()[pointer]).cases.size());
+                    break;
+
+                default:
+                    size++;
+                    break;
             }
         }
 
@@ -921,7 +1214,29 @@ struct Inliner {
         if(!limits.ceiling) return false;
 
         auto size = sizeOf(*callee);
-        if(size > limits.ceiling) return false;
+
+        /*
+         * And the same two numbers asked of the **site** - §J63, and `sizeAtSite` is where the whole
+         * argument is.
+         *
+         * `size` is the body as written, which is the right number for a site that knows nothing
+         * about it. Where the site passes constants the callee's own control flow reads, what gets
+         * copied is smaller than that - a ladder handed a literal count is one arm and no ladder -
+         * and the two numbers the copy is measured by are the two that are about what gets copied.
+         * The three below are not: the sole call site, the cold-only callee and the hint are each a
+         * statement about the **declaration** having a reason to be copied, so each keeps reading
+         * the size of the declaration.
+         *
+         * Asked only where the flat budget has already declined, so a callee that was going to be
+         * copied anyway pays nothing for this.
+         */
+        auto weighed = size;
+        if(size > limits.budget) {
+            auto residue = sizeAtSite(call, *callee);
+            if(residue < weighed) weighed = residue;
+        }
+
+        if(weighed > limits.ceiling) return false;
 
         /*
          * The **sole call site**, which is a move rather than a copy: the callee's last reference
@@ -1014,7 +1329,31 @@ struct Inliner {
          */
         if(cold) return size <= kColdBudget || solelyReferenced() || coldOnlyCallee();
 
-        if(size <= limits.budget) return true;
+        if(weighed <= limits.budget) return true;
+
+        /*
+         * And the residue weighed at `soleBudget`, which is the hint's number read for the hint's own
+         * sentence: *there is a reason to copy this body that the body itself does not show*. A site
+         * whose constants delete most of a callee is exactly that reason, and it is a better one than
+         * an attribute, because the pass computed it rather than being told.
+         *
+         * Gated on `limits.hints` for the same reason the two attributes below are: this is the row
+         * that asks for bytes in exchange for time, which is the trade `InlineLevel::Size` declines.
+         * `weighed < size` is what keeps it from being a second reading of the flat budget - a callee
+         * the site decides nothing about is one this has nothing to say about.
+         *
+         * **Measured over `test/resolve`'s 442 executables and `test/bench/lexer`**, at `balanced`:
+         *
+         *     no site estimate        1,740,032 bytes    idiom/hand x64 32.44 ns/token
+         *     residue at `budget`     1,739,056          32.43
+         *     residue at `soleBudget` 1,748,808          30.98
+         *
+         * So the flat budget reading is a small size win on its own and the `soleBudget` one is
+         * **4.5% of the lexer's x64 time for 0.56% of its size**, which is the trade this level's
+         * name promises. The LLVM rows do not move, and should not: that backend performs this
+         * estimate itself, so what the copy buys there is already bought.
+         */
+        if(limits.hints && weighed < size && weighed <= limits.soleBudget) return true;
 
         // A link of a chain, at `soleBudget` and for the same sentence the hint is weighed by: there
         // is a reason to copy this body that the body itself does not show. Gated on the chain's own

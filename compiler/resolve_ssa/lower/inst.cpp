@@ -450,7 +450,17 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
              * replaces wrote every byte, padding included; zeroing first is what keeps that true,
              * and it is strictly cheaper than the copy, which wrote those bytes *and* read them.
              */
-            if(padded) zeroStorage(block, place - lower, manifest.size);
+            /*
+             * Unless the producer writes every byte, which a **duplicate** does: `Inst::Copy` is a
+             * block move of the whole manifestation, padding included, and is exactly what the
+             * store it is replacing would have performed. An aggregate is the case the rule is for,
+             * because it fills field by field and leaves the bits between them at whatever the slot
+             * last held.
+             */
+            if(padded && ssa[value.definer]->kind != Inst::Copy) {
+                zeroStorage(block, place - lower, manifest.size);
+            }
+
             return place - lower;
         }
 
@@ -1924,12 +1934,27 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 break;
             }
 
-            auto storage = frameStorage(block, result->occurrence);
+            /*
+             * `storageFor` rather than `frameStorage`, which is the whole of J65's copy elision.
+             *
+             * A duplicate is a producer of a memory value like any other, and the destination it is
+             * going to be copied into is a place it can be built in directly - so `let token =
+             * step(..)` is one block copy into the local rather than a temporary, a copy into it and
+             * a copy out of it. The four conditions in `destinationFor` are what makes that sound
+             * here as everywhere else, and the one that matters for a duplicate is `shared`: a copy
+             * whose *source* is rooted in the destination's allocation is a copy onto itself, and it
+             * is declined there rather than tested again here.
+             *
+             * It was `frameStorage` only because the two consumers this began with - a `return` and
+             * an aggregate component - are not the ones a duplicate meets. The `store` destination
+             * is, and it is the one the driver loop of `test/bench/lexer` spends a third of itself
+             * on.
+             */
+            auto storage = storageFor(block, *result);
 
             block.addInst(lower, new (to.arena) LowerInstCopy(
                 storage, address - lower, sizeValue(block, result->occurrence)));
 
-            values.add(result->id.index, storage);
             break;
         }
         case Inst::Aggregate: {

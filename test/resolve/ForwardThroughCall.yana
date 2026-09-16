@@ -65,10 +65,23 @@ fn inLoop(n: Int) -> Int:
     return total
 
 fn main() -> Int:
-    -- Once first, so every size class these strings reach has been mapped and the free lists are
-    -- warm. Everything measured after this is reuse rather than growth.
+    -- Once each first, so every size class these strings reach has been mapped and the free lists
+    -- are warm. Everything measured after this is reuse rather than growth.
+    --
+    -- **Each**, and not `built` alone, which is what it used to be. The three functions do not
+    -- request the same classes: `placeRuns` answers each of them on its own body, so a run one of
+    -- them keeps in its frame is a class the heap never sees from that function - and a warm-up
+    -- that ran only the first then left the other two to seed their own classes against a
+    -- `heapNext` already written down. That is a placement decision showing through an assertion
+    -- about a redirect, which is not what this file is for; warming all three makes the assertion
+    -- say what it means, that every measured call released what it took.
     let warm = built(7)
+    let warmLater = inLaterBlock(7) + inLaterBlock(0 - 1)
+    let warmLoop = inLoop(3)
     let settled = heapNext
+
+    if warmLater != 8 then return -9
+    if warmLoop != 12 then return -10
 
     -- The length, which is what a redirect that wrote the wrong bytes changes, and the heap pointer,
     -- which is what a redirect that lost a release changes.
@@ -83,9 +96,10 @@ fn main() -> Int:
     if inLoop(3) != 12 then return -6
     if !(heapNext == settled) then return -7
 
-    -- And that the calls really ran rather than being folded away: two from `built`, two from
-    -- `inLaterBlock` and three from `inLoop`.
-    if tags != 7 then return -8
+    -- And that the calls really ran rather than being folded away: six per round - one from
+    -- `built`, two from `inLaterBlock` and three from `inLoop` - over the warm round and the
+    -- measured one.
+    if tags != 12 then return -8
 
     -- "n=7!" is four units.
     return warm

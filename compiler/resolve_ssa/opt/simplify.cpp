@@ -219,10 +219,37 @@ struct Simplifier {
         if(!record->definer) return false;
 
         auto made = opt.base[record->definer];
+
+        /*
+         * **Through the `represent`**, which is §J63 and is the step that makes this rule reach a
+         * string literal at all.
+         *
+         * `"alias"` arrives as `stringLiteral(units, length)` inlined: the two words are built as a
+         * `StringView` aggregate and then restated as the `String` occurrence a shared position
+         * holds - `mir::UnaryOp::Represent`, which moves no byte and whose lowering answers the
+         * operand's address. So `length(s)` on the literal is a field read of an aggregate with one
+         * instruction standing between them, and that instruction is not a barrier: the bytes the
+         * projection names are the bytes the aggregate built.
+         *
+         * `field.record` is the record the *occurrence* manifests as (`mir::fieldRecordOf`, which
+         * the converter looked the index up through), so across a represent it is already the view
+         * record rather than the represented type - `StringView` and not `String`. That it is the
+         * record the aggregate built is checked below rather than assumed, because a field index
+         * means nothing except against the declaration it indexes.
+         */
+        auto built = record;
+        if(made->kind == Inst::Unary && ((InstUnary&)*made).op == mir::UnaryOp::Represent) {
+            built = opt.base[((InstUnary&)*made).value.value()];
+            if(!built->definer) return false;
+
+            made = opt.base[built->definer];
+        }
+
         if(made->kind != Inst::Aggregate) return false;
+        if(field.record != built->occurrence.type) return false;
 
         auto& aggregate = (InstAggregate&)*made;
-        if(!readOnlyRecord(*record)) return false;
+        if(!readOnlyRecord(*built, 0)) return false;
 
         /*
          * Which constructor's fields the components are, which is the same question the lowering
@@ -303,11 +330,25 @@ struct Simplifier {
         return true;
     }
 
-    // The aggregate's storage read and nothing else - see above. A linear walk of two short use
-    // lists, which is what an aggregate nothing stores into has.
-    bool readOnlyRecord(Value& record) {
+    /*
+     * The aggregate's storage read and nothing else - see above. A linear walk of two short use
+     * lists, which is what an aggregate nothing stores into has.
+     *
+     * A `represent` is a second **name** for the storage rather than a use of it, so it is followed
+     * rather than refused, and what has to be read-only is everything reached through it. One level
+     * is what the shape needs - a view record is restated once and the restatement is what the field
+     * addresses hang off - and the bound is what keeps this a walk of two short lists.
+     */
+    bool readOnlyRecord(Value& record, U32 depth) {
         for(auto pointer: record.uses(opt.base)) {
             auto user = opt.base[pointer];
+
+            if(user->kind == Inst::Unary && ((InstUnary&)*user).op == mir::UnaryOp::Represent) {
+                auto restated = depth < 2 ? soleResult(*user) : nullptr;
+                if(!restated || !readOnlyRecord(*restated, depth + 1)) return false;
+                continue;
+            }
+
             if(user->kind != Inst::FieldAddress) return false;
             if(((InstFieldAddress&)*user).property != InstFieldAddress::kNoProperty) return false;
 

@@ -2,6 +2,8 @@ let image$base: () = <none>
 
 let &live: I32 = 0
 
+let &visits: I32 = 0
+
 fn checkFailed() -> () {
   b0:
     call abortProcess
@@ -335,6 +337,127 @@ fn nested(%rows: I32, %columns: I32) -> I32 {
     jmp b4
 }
 
+fn neverRuns(%stop: I32) -> I32 {
+  b0:
+    %i = alloc : I32
+    init %i, 10
+    %total = alloc : I32
+    init %total, 0
+    jmp b1
+
+  b1:
+    %v10 = load %i : I32
+    %v13 = cmp_lt %v10, 4 : Bool
+    je %v13, b3, b2
+
+  b2:
+    %v35 = load %total : I32
+    %v36 = load %i : I32
+    %v37 = add %v35, %v36 : I32
+    ret %v37
+
+  b3:
+    %v15 = load visits : I32
+    %v18 = add %v15, 1 : I32
+    assign visits, %v18
+    %v20 = load %total : I32
+    %v21 = load %i : I32
+    %v22 = add %v20, %v21 : I32
+    assign %total, %v22
+    %v24 = load %i : I32
+    %v25 = cmp_eq %v24, %stop : Bool
+    je %v25, b4, b5
+
+  b4:
+    jmp b2
+
+  b5:
+    jmp b6
+
+  b6:
+    %v29 = load %i : I32
+    %v32 = add %v29, 1 : I32
+    assign %i, %v32
+    jmp b1
+}
+
+fn entersOnce(%stop: I32) -> I32 {
+  b0:
+    %i = alloc : I32
+    init %i, 0
+    %total = alloc : I32
+    init %total, 0
+    jmp b1
+
+  b1:
+    %v10 = load %i : I32
+    %v13 = cmp_lt %v10, 4 : Bool
+    je %v13, b3, b2
+
+  b2:
+    %v35 = load %total : I32
+    %v36 = load %i : I32
+    %v37 = add %v35, %v36 : I32
+    ret %v37
+
+  b3:
+    %v15 = load visits : I32
+    %v18 = add %v15, 1 : I32
+    assign visits, %v18
+    %v20 = load %total : I32
+    %v21 = load %i : I32
+    %v22 = add %v20, %v21 : I32
+    assign %total, %v22
+    %v24 = load %i : I32
+    %v25 = cmp_eq %v24, %stop : Bool
+    je %v25, b4, b5
+
+  b4:
+    jmp b2
+
+  b5:
+    jmp b6
+
+  b6:
+    %v29 = load %i : I32
+    %v32 = add %v29, 1 : I32
+    assign %i, %v32
+    jmp b1
+}
+
+fn unknownStart(%from: I32) -> I32 {
+  b0:
+    %i = alloc : I32
+    init %i, %from
+    %total = alloc : I32
+    init %total, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : I32
+    %v11 = cmp_lt %v8, 4 : Bool
+    je %v11, b3, b2
+
+  b2:
+    %v28 = load %total : I32
+    %v29 = load %i : I32
+    %v30 = add %v28, %v29 : I32
+    ret %v30
+
+  b3:
+    %v13 = load visits : I32
+    %v16 = add %v13, 1 : I32
+    assign visits, %v16
+    %v18 = load %total : I32
+    %v19 = load %i : I32
+    %v20 = add %v18, %v19 : I32
+    assign %total, %v20
+    %v22 = load %i : I32
+    %v25 = add %v22, 1 : I32
+    assign %i, %v25
+    jmp b1
+}
+
 fn guarded(%x: I32, %d: I32) -> I32 {
   b0:
     %v4 = cmp_ne %d, 0 : Bool
@@ -422,7 +545,19 @@ fn main() -> I32 {
     %v73 = call forBreaks, 9, 4 : I32
     %v76 = mul %v73, 37 : I32
     %v77 = add %v70, %v76 : I32
-    ret %v77
+    %v79 = call neverRuns, 2 : I32
+    %v82 = mul %v79, 41 : I32
+    %v83 = add %v77, %v82 : I32
+    %v85 = call entersOnce, 2 : I32
+    %v88 = mul %v85, 43 : I32
+    %v89 = add %v83, %v88 : I32
+    %v91 = call unknownStart, 1 : I32
+    %v94 = mul %v91, 47 : I32
+    %v95 = add %v89, %v94 : I32
+    %v96 = load visits : I32
+    %v99 = mul %v96, 53 : I32
+    %v100 = add %v95, %v99 : I32
+    ret %v100
 }
 
 fn Drop(Held).drop(%self: Held) -> () {

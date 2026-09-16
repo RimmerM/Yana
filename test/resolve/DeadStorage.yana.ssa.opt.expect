@@ -137,25 +137,18 @@ bb0(%0: String owned):
   %17: I32 trivial = convert inspect %16
   %18: Size trivial = convert inspect %17
   %19: StringView trivial = aggregate.StringView consume %14 consume %18
-  %20: String [shared slot 0 view] guaranteed = represent inspect %19
-  %8: %Size address = field.addr .length inspect %20
-  %9: Size trivial = load inspect %8
   drop String inspect %1
-  %5: I32 trivial = convert inspect %9
+  %5: I32 trivial = convert inspect %18
   return consume %5
 }
 
 fn handed() -> I32 {
 bb0:
-  %19: %CodeUnit trivial = const &string'143
-  %21: I32 trivial = const 6
-  %13: Size trivial = convert inspect %21
-  %14: StringView trivial = aggregate.StringView consume %19 consume %13
-  %15: String [shared slot 0 view] guaranteed = represent inspect %14
-  %16: %Size address = field.addr .length inspect %15
-  %17: Size trivial = load inspect %16
-  %18: I32 trivial = convert inspect %17
-  return consume %18
+  %16: %CodeUnit trivial = const &string'143
+  %19: Size trivial = const 6
+  %14: StringView trivial = aggregate.StringView consume %16 consume %19
+  %20: I32 trivial = const 6
+  return consume %20
 }
 
 fn main() -> I32 {
@@ -186,30 +179,22 @@ bb0:
   %66: Pair trivial = aggregate.Pair consume %64 consume %65
   %67: Pair trivial = aggregate.Pair consume %14 consume %14
   %70: %CodeUnit trivial = const &string'143
-  %71: I32 trivial = const 6
-  %72: Size trivial = convert inspect %71
-  %73: StringView trivial = aggregate.StringView consume %70 consume %72
-  %74: String [shared slot 0 view] guaranteed = represent inspect %73
-  %75: %Size address = field.addr .length inspect %74
-  %76: Size trivial = load inspect %75
-  %77: I32 trivial = convert inspect %76
+  %71: Size trivial = const 6
+  %72: StringView trivial = aggregate.StringView consume %70 consume %71
+  %74: I32 trivial = const 0
+  %75: I32 trivial = const 0
+  %76: Pair trivial = aggregate.Pair consume %74 consume %75
+  %77: I32 trivial = const 0
   %78: I32 trivial = const 0
-  %79: I32 trivial = const 0
-  %80: Pair trivial = aggregate.Pair consume %78 consume %79
-  %81: I32 trivial = const 0
-  %82: I32 trivial = const 0
-  %83: Pair trivial = aggregate.Pair consume %81 consume %82
-  %84: Nested trivial = aggregate.Nested consume %80 consume %83
-  %93: I32 trivial = const 8
-  %97: I32 trivial = const 150
+  %79: Pair trivial = aggregate.Pair consume %77 consume %78
+  %80: Nested trivial = aggregate.Nested consume %76 consume %79
+  %97: I32 trivial = const 164
   %98: I32 trivial = add inspect %53 inspect %97
-  %29: I32 trivial = add inspect %98 inspect %77
-  %31: I32 trivial = add inspect %29 inspect %93
   %32: %I32 address = global.addr live
   %33: I32 trivial = load inspect %32
   %34: I32 trivial = const 1000
   %35: I32 trivial = mul inspect %33 inspect %34
-  %36: I32 trivial = add inspect %31 inspect %35
+  %36: I32 trivial = add inspect %98 inspect %35
   %37: %I32 address = global.addr trace
   %38: I32 trivial = load inspect %37
   %39: I32 trivial = add inspect %36 inspect %38

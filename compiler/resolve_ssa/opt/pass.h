@@ -220,6 +220,25 @@ inline bool isFoldableFloat(F64 value) { return value == value && value - value 
  */
 Value* makeConstant(OptContext& opt, Inst& at, DeclPtr<mir::Type> type, U64 value);
 
+/*
+ * What one binary instruction answers for two known operands - the folder's own two rows, asked from
+ * outside it and over numbers a caller is holding rather than over constants standing in the IR.
+ *
+ * Both rows, because the callers want both: a comparison at the **operand** type's signedness, which
+ * is the question the result type (`Bool`) says nothing about, and the arithmetic at the **result**
+ * type's width, through the width rule - the answer is written down only where a target-answered
+ * type's two widths agree, exactly as `Folder::foldAtWidths` requires of a fold that is written into
+ * the IR. A float operand is declined rather than read as a pattern, which is the one way reading
+ * either row as an integer would be wrong.
+ *
+ * Two callers, and neither has a constant to hand the folder. `opt/loop.cpp`'s `unenteredLoops`
+ * holds the number a header's argument arrives as and wants the header's own test answered over it;
+ * `opt/inline.cpp`'s `sizeAtSite` holds the numbers a call site passes and wants the callee's own
+ * arithmetic answered over those. Writing either one's own evaluator would have been a second
+ * statement of how this stage orders and computes two patterns.
+ */
+Maybe<U64> binaryOfConstants(OptContext& opt, InstBinary& binary, U64 left, U64 right);
+
 // The same, for a constant that is not a number - a `map` arm's string, float or record.
 Value* makeConstantValue(OptContext& opt, Inst& at, const mir::Constant& constant);
 Value* makeFloatConstant(OptContext& opt, Inst& at, DeclPtr<mir::Type> type, F64 value);
@@ -285,6 +304,24 @@ bool materializedAtUse(OptContext& opt, Inst& inst);
 // The one result an instruction has, or null where it has none or several. Shared for the same
 // reason as the four above: every rewrite that stands one value in for another opens with it.
 Value* soleResult(OptContext& opt, Inst& inst);
+
+/*
+ * The value an operand names, or null where the slot is empty.
+ *
+ * `Use` is a value and a mode, and an unset one is how every optional operand is spelled - a
+ * `return` with nothing to hand back, a `map` with no fallback. So "read the operand and say whether
+ * there was one" is the first line of most of the walks in this directory, and it was written out in
+ * six of them.
+ */
+inline Value* valueOf(OptContext& opt, Use used) {
+    return used.isSet() ? opt.base[used.value()] : nullptr;
+}
+
+// One block of the body by index, which is what every walk over a `Loops` entry's bit set needs:
+// those name blocks by index and the region names them by pointer.
+inline Block* blockAt(OptContext& opt, U32 index) {
+    return opt.body->block(opt.base, BlockId(index));
+}
 
 /*
  * The passes.
@@ -402,6 +439,16 @@ void convertSelects(OptContext& opt);
 // false at its header - `opt/loop.cpp`. It deletes nothing: `cleanCfg`, immediately below it in the
 // round, is what removes the body a constant test has stranded.
 void deadLoops(OptContext& opt);
+
+/*
+ * A loop the entry edge's own numbers say is never entered, its header test written down as the
+ * answer it has - `opt/loop.cpp`, beside `deadLoops` and proving the opposite thing. That one asks
+ * whether running the body would matter; this asks whether it runs at all, and therefore admits a
+ * body with effects and with as many ways out as it likes.
+ *
+ * It deletes nothing either, for the same reason and to the same pass.
+ */
+void unenteredLoops(OptContext& opt);
 
 /*
  * The second of two identical computations answered by the first, over the whole dominator tree -

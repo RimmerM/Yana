@@ -1148,11 +1148,15 @@ static bool lendsWithin(SsaBase base, Loan& inner, Loan& outer) {
     return true;
 }
 
-void Editor::replaceAllUses(Value& from, Value& to) {
+/*
+ * The two rules a substitution owes, asserted rather than checked - the note on `replaceAllUses` is
+ * where each of them is argued.
+ *
+ * One function because both substitutions owe them: what makes a pair substitutable is a property of
+ * the pair, and how many readers are being pointed at `to` says nothing about it.
+ */
+static void assertSubstitutable(SsaBase base, Value& from, Value& to) {
     assertTrue(&from != &to);
-
-    // The two rules, asserted rather than checked - the note on the declaration is where each of
-    // them is argued.
     assertTrue(isTracked(from.convention) == isTracked(to.convention));
 
     auto borrowed = from.convention == Convention::Guaranteed;
@@ -1160,9 +1164,12 @@ void Editor::replaceAllUses(Value& from, Value& to) {
 
     if(borrowed) {
         assertTrue(to.loan != nullptr);
-        assertTrue(to.loan == from.loan ||
-                   lendsWithin(base(), *base()[to.loan], *base()[from.loan]));
+        assertTrue(to.loan == from.loan || lendsWithin(base, *base[to.loan], *base[from.loan]));
     }
+}
+
+void Editor::replaceAllUses(Value& from, Value& to) {
+    assertSubstitutable(base(), from, to);
 
     auto replaced = &from - base();
     auto with = &to - base();
@@ -1186,6 +1193,44 @@ void Editor::replaceAllUses(Value& from, Value& to) {
     }
 
     repointStorage(replaced, with);
+
+    markValues();
+    markChanged();
+}
+
+/*
+ * One reader repointed, and the use list kept balanced by counting rather than by walking twice.
+ *
+ * `mapUses` rewrites every slot in one pass and says how many it rewrote, which is exactly how many
+ * entries this instruction owns in `from`'s list - `verifyBody` checks the two against each other,
+ * so an instruction naming a value twice holds two entries and owes two moves. `dropUse` removes one
+ * entry per call and asserts on a list that has none, so miscounting here is loud rather than a use
+ * count that quietly never balances again.
+ *
+ * No `repointStorage`: `from` still exists and its other readers still hold it, so the loan it lends
+ * through has not moved. That is the whole of what this drops against `replaceAllUses`.
+ */
+void Editor::replaceUsesIn(Inst& user, Value& from, Value& to) {
+    assertSubstitutable(base(), from, to);
+
+    auto replaced = &from - base();
+    auto with = &to - base();
+    Size moved = 0;
+
+    mapUses(base(), user, [&](Use used) {
+        if(used.value() != replaced) return used;
+
+        moved++;
+        return Use(with, used.kind());
+    });
+
+    if(!moved) return;
+
+    auto pointer = &user - base();
+    for(Size i = 0; i < moved; i++) {
+        dropUse(from, user);
+        to.useList.push(arena, pointer);
+    }
 
     markValues();
     markChanged();

@@ -851,706 +851,742 @@ main<complex>(): I32 {
 
   b_118 {
     %v_119 = phi [b_116, 0], [b_120, %v_121]: I32
-    %v_122 = call_complex outer$step, %v_117, 0, 0: I32
-    je %v_122, b_120, b_123
+    %v_122 = add %v_117, 96: Ptr
+    %v_123 = load %v_122, 8: Ptr
+    %v_124 = add %v_117, 104: Ptr
+    %v_125 = loads %v_124, 4: I32
+    %v_126 = cmp_eq %v_125, 0: I32
+    je %v_126, b_127, b_128
   }
 
-  b_123 {
-    call_complex outer$drop, %v_117
-    %v_124 = cmp_neq %v_119, %v_8: I32
-    je %v_124, b_72, b_125
+  b_128 {
+    %v_129 = cmp_eq %v_125, 1: I32
+    je %v_129, b_130, b_131
   }
 
-  b_120 {
-    %v_126 = add %v_117, 108: Ptr
-    %v_127 = loads %v_126, 4: I32
-    %v_128 = imul %v_119, 10: I32
-    %v_129 = sub %v_127, 1000: I32
-    %v_121 = add %v_128, %v_129: I32
-    jmp b_118
+  b_127 {
+    %v_132 = alloca 92, 8: Ptr
+    call_complex pass$new, %v_132, %v_123
+    copy %v_117, %v_132, 92
+    jmp b_130
   }
 
-  b_125 {
-    %v_130 = alloca 96, 8: Ptr
-    store @trace, 0, 4
-    store @made, 0, 4
-    call_complex marked$new, %v_130, %v_1
+  b_130 {
+    %v_133 = call_complex pass$walk, %v_117, 0, 0: Ptr
+    %v_134 = bitcast %v_133: I64
+    %v_135 = cmp_neq %v_134, 0: I32
+    je %v_135, b_120, b_136
+  }
+
+  b_136 {
+    %v_137 = call_complex pass$step, %v_117, 1, 1: I32
+    store %v_124, 2147483647, 4
     jmp b_131
   }
 
   b_131 {
-    %v_132 = phi [b_125, 0], [b_133, %v_134]: I32
-    %v_135 = phi [b_125, 0], [b_133, %v_136]: I32
-    %v_137 = call_complex marked$walk, %v_130, 0, 0: Ptr
-    %v_138 = bitcast %v_137: I64
-    %v_139 = cmp_neq %v_138, 0: I32
-    je %v_139, b_140, b_141
+    call_complex outer$drop, %v_117
+    %v_138 = cmp_neq %v_119, %v_8: I32
+    je %v_138, b_72, b_139
   }
 
-  b_140 {
-    %v_142 = call_complex marked$item, %v_130, %v_137: Ptr
-    %v_143 = imul %v_132, 10: I32
-    %v_144 = loads %v_142, 4: I32
-    %v_134 = add %v_143, %v_144: I32
-    %v_136 = add %v_135, 1: I32
-    %v_145 = cmp_eq %v_136, 5: I32
-    je %v_145, b_146, b_133
+  b_120 {
+    %v_140 = loads %v_133, 4: I32
+    %v_141 = loads @visits, 4: I32
+    %v_142 = add %v_141, 1: I32
+    store @visits, %v_142, 4
+    %v_143 = add %v_140, 1000: I32
+    %v_144 = add %v_117, 108: Ptr
+    store %v_144, %v_143, 4
+    store %v_124, 1, 4
+    %v_145 = loads %v_144, 4: I32
+    %v_146 = imul %v_119, 10: I32
+    %v_147 = sub %v_145, 1000: I32
+    %v_121 = add %v_146, %v_147: I32
+    jmp b_118
   }
 
-  b_133 {
-    jmp b_131
-  }
-
-  b_146 {
-    call_complex marked$drop, %v_130
-    jmp b_141
-  }
-
-  b_141 {
-    %v_147 = phi [b_131, %v_132], [b_146, %v_134]: I32
-    %v_148 = phi [b_131, 1], [b_146, 0]: I32
-    je %v_148, b_149, b_150
+  b_139 {
+    %v_148 = alloca 96, 8: Ptr
+    store @trace, 0, 4
+    store @made, 0, 4
+    call_complex marked$new, %v_148, %v_1
+    jmp b_149
   }
 
   b_149 {
-    call_complex marked$drop, %v_130
-    jmp b_150
-  }
-
-  b_150 {
-    %v_151 = imul %v_147, 10000000: I32
-    %v_152 = loads @made, 4: I32
-    %v_153 = imul %v_152, 1000000: I32
-    %v_154 = add %v_151, %v_153: I32
-    %v_155 = loads @trace, 4: I32
-    %v_156 = add %v_154, %v_155: I32
-    %v_157 = cmp_neq %v_156, %v_52: I32
-    je %v_157, b_72, b_158
+    %v_150 = phi [b_139, 0], [b_151, %v_152]: I32
+    %v_153 = phi [b_139, 0], [b_151, %v_154]: I32
+    %v_155 = call_complex marked$walk, %v_148, 0, 0: Ptr
+    %v_156 = bitcast %v_155: I64
+    %v_157 = cmp_neq %v_156, 0: I32
+    je %v_157, b_158, b_159
   }
 
   b_158 {
-    %v_159 = alloca 96, 8: Ptr
-    store @trace, 0, 4
-    store @made, 0, 4
-    call_complex marked$new, %v_159, %v_1
-    call_complex marked$drop, %v_159
-    %v_160 = loads @made, 4: I32
-    %v_161 = imul %v_160, 10: I32
-    %v_162 = loads @trace, 4: I32
-    %v_163 = add %v_161, %v_162: I32
-    %v_164 = cmp_neq %v_163, 0: I32
-    je %v_164, b_72, b_165
+    %v_160 = call_complex marked$item, %v_148, %v_155: Ptr
+    %v_161 = imul %v_150, 10: I32
+    %v_162 = loads %v_160, 4: I32
+    %v_152 = add %v_161, %v_162: I32
+    %v_154 = add %v_153, 1: I32
+    %v_163 = cmp_eq %v_154, 5: I32
+    je %v_163, b_164, b_151
   }
 
-  b_165 {
-    %v_166 = alloca 52, 8: Ptr
-    call_complex descend$new, %v_166, 5
-    jmp b_167
+  b_151 {
+    jmp b_149
+  }
+
+  b_164 {
+    call_complex marked$drop, %v_148
+    jmp b_159
+  }
+
+  b_159 {
+    %v_165 = phi [b_149, %v_150], [b_164, %v_152]: I32
+    %v_166 = phi [b_149, 1], [b_164, 0]: I32
+    je %v_166, b_167, b_168
   }
 
   b_167 {
-    %v_168 = phi [b_165, 0], [b_169, %v_170]: I32
-    %v_171 = call_complex descend$walk, %v_166, 0, 0: Ptr
-    %v_172 = bitcast %v_171: I64
-    %v_173 = cmp_neq %v_172, 0: I32
-    je %v_173, b_169, b_174
+    call_complex marked$drop, %v_148
+    jmp b_168
   }
 
-  b_174 {
-    call_complex descend$drop, %v_166
-    %v_175 = alloca 4, 4: Ptr
-    store %v_175, 0, 4
-    %v_176 = alloca 8, 8: Ptr
-    store %v_176, %v_175, 8
-    %v_177 = alloca 16, 8: Ptr
-    store %v_177, loopDescend.cont, 8
-    %v_178 = add %v_177, 8: Ptr
-    store %v_178, %v_176, 8
-    %v_179 = call_complex descend, 5, %v_177: I32
-    %v_180 = loads %v_175, 4: I32
-    %v_181 = cmp_neq %v_168, %v_180: I32
-    je %v_181, b_72, b_182
+  b_168 {
+    %v_169 = imul %v_165, 10000000: I32
+    %v_170 = loads @made, 4: I32
+    %v_171 = imul %v_170, 1000000: I32
+    %v_172 = add %v_169, %v_171: I32
+    %v_173 = loads @trace, 4: I32
+    %v_174 = add %v_172, %v_173: I32
+    %v_175 = cmp_neq %v_174, %v_52: I32
+    je %v_175, b_72, b_176
   }
 
-  b_169 {
-    %v_183 = call_complex descend$item, %v_166, %v_171: Ptr
-    %v_184 = imul %v_168, 10: I32
-    %v_185 = loads %v_183, 4: I32
-    %v_170 = add %v_184, %v_185: I32
-    jmp b_167
+  b_176 {
+    %v_177 = alloca 96, 8: Ptr
+    store @trace, 0, 4
+    store @made, 0, 4
+    call_complex marked$new, %v_177, %v_1
+    call_complex marked$drop, %v_177
+    %v_178 = loads @made, 4: I32
+    %v_179 = imul %v_178, 10: I32
+    %v_180 = loads @trace, 4: I32
+    %v_181 = add %v_179, %v_180: I32
+    %v_182 = cmp_neq %v_181, 0: I32
+    je %v_182, b_72, b_183
   }
 
-  b_182 {
-    %v_186 = alloca 52, 8: Ptr
-    %v_187 = alloca 8, 8: Ptr
-    call_complex descend$new, %v_186, 5
-    jmp b_188
+  b_183 {
+    %v_184 = alloca 52, 8: Ptr
+    call_complex descend$new, %v_184, 5
+    jmp b_185
   }
 
-  b_189 {
-    jmp b_190
+  b_185 {
+    %v_186 = phi [b_183, 0], [b_187, %v_188]: I32
+    %v_189 = call_complex descend$walk, %v_184, 0, 0: Ptr
+    %v_190 = bitcast %v_189: I64
+    %v_191 = cmp_neq %v_190, 0: I32
+    je %v_191, b_187, b_192
   }
 
-  b_190 {
-    %v_191 = phi [b_189, %v_192], [b_193, %v_194]: I32
-    %v_195 = call_complex descend$walk, %v_186, 0, 0: Ptr
-    %v_196 = bitcast %v_195: I64
-    %v_197 = cmp_neq %v_196, 0: I32
-    je %v_197, b_193, b_198
-  }
-
-  b_198 {
-    call_complex descend$drop, %v_186
-    %v_199 = cmp_neq %v_191, %v_168: I32
+  b_192 {
+    call_complex descend$drop, %v_184
+    %v_193 = alloca 4, 4: Ptr
+    store %v_193, 0, 4
+    %v_194 = alloca 8, 8: Ptr
+    store %v_194, %v_193, 8
+    %v_195 = alloca 16, 8: Ptr
+    store %v_195, loopDescend.cont, 8
+    %v_196 = add %v_195, 8: Ptr
+    store %v_196, %v_194, 8
+    %v_197 = call_complex descend, 5, %v_195: I32
+    %v_198 = loads %v_193, 4: I32
+    %v_199 = cmp_neq %v_186, %v_198: I32
     je %v_199, b_72, b_200
   }
 
-  b_193 {
-    %v_201 = call_complex descend$item, %v_186, %v_195: Ptr
-    %v_202 = imul %v_191, 10: I32
+  b_187 {
+    %v_201 = call_complex descend$item, %v_184, %v_189: Ptr
+    %v_202 = imul %v_186, 10: I32
     %v_203 = loads %v_201, 4: I32
-    %v_194 = add %v_202, %v_203: I32
-    jmp b_190
-  }
-
-  b_188 {
-    %v_204 = phi [b_205, %v_192], [b_182, 0]: I32
-    %v_206 = phi [b_205, %v_207], [b_182, 0]: I32
-    %v_208 = call_complex descend$walk, %v_186, 0, 0: Ptr
-    %v_209 = bitcast %v_208: I64
-    %v_210 = cmp_neq %v_209, 0: I32
-    je %v_210, b_211, b_212
-  }
-
-  b_212 {
-    %v_213 = alloca 8, 8: Ptr
-    store %v_213, 0, 8
-    jmp b_214
-  }
-
-  b_211 {
-    %v_215 = alloca 8, 8: Ptr
-    store %v_215, %v_208, 8
-    jmp b_214
-  }
-
-  b_214 {
-    %v_216 = phi [b_212, %v_213], [b_211, %v_215]: Ptr
-    copy %v_187, %v_216, 8
-    %v_217 = load %v_187, 8: I64
-    %v_218 = cmp_neq %v_217, 0: I32
-    je %v_218, b_219, b_220
-  }
-
-  b_220 {
-    jmp b_205
-  }
-
-  b_219 {
-    %v_221 = bitcast %v_217: Ptr
-    %v_222 = loads %v_221, 4: I32
-    %v_223 = imul %v_204, 10: I32
-    %v_224 = add %v_223, %v_222: I32
-    jmp b_205
-  }
-
-  b_205 {
-    %v_192 = phi [b_220, %v_204], [b_219, %v_224]: I32
-    %v_207 = add %v_206, 1: I32
-    %v_225 = cmp_ilt %v_207, 3: I32
-    je %v_225, b_188, b_189
+    %v_188 = add %v_202, %v_203: I32
+    jmp b_185
   }
 
   b_200 {
-    %v_226 = alloca 52, 8: Ptr
-    %v_227 = alloca 8, 8: Ptr
-    call_complex descend$new, %v_226, 5
-    jmp b_228
+    %v_204 = alloca 52, 8: Ptr
+    %v_205 = alloca 8, 8: Ptr
+    call_complex descend$new, %v_204, 5
+    jmp b_206
   }
 
-  b_229 {
-    jmp b_230
+  b_207 {
+    jmp b_208
+  }
+
+  b_208 {
+    %v_209 = phi [b_207, %v_210], [b_211, %v_212]: I32
+    %v_213 = call_complex descend$walk, %v_204, 0, 0: Ptr
+    %v_214 = bitcast %v_213: I64
+    %v_215 = cmp_neq %v_214, 0: I32
+    je %v_215, b_211, b_216
+  }
+
+  b_216 {
+    call_complex descend$drop, %v_204
+    %v_217 = cmp_neq %v_209, %v_186: I32
+    je %v_217, b_72, b_218
+  }
+
+  b_211 {
+    %v_219 = call_complex descend$item, %v_204, %v_213: Ptr
+    %v_220 = imul %v_209, 10: I32
+    %v_221 = loads %v_219, 4: I32
+    %v_212 = add %v_220, %v_221: I32
+    jmp b_208
+  }
+
+  b_206 {
+    %v_222 = phi [b_223, %v_210], [b_200, 0]: I32
+    %v_224 = phi [b_223, %v_225], [b_200, 0]: I32
+    %v_226 = call_complex descend$walk, %v_204, 0, 0: Ptr
+    %v_227 = bitcast %v_226: I64
+    %v_228 = cmp_neq %v_227, 0: I32
+    je %v_228, b_229, b_230
   }
 
   b_230 {
-    %v_231 = phi [b_229, %v_232], [b_233, %v_234]: I32
-    %v_235 = call_complex descend$walk, %v_226, 0, 0: Ptr
-    %v_236 = bitcast %v_235: I64
-    %v_237 = cmp_neq %v_236, 0: I32
-    je %v_237, b_233, b_238
+    %v_231 = alloca 8, 8: Ptr
+    store %v_231, 0, 8
+    jmp b_232
+  }
+
+  b_229 {
+    %v_233 = alloca 8, 8: Ptr
+    store %v_233, %v_226, 8
+    jmp b_232
+  }
+
+  b_232 {
+    %v_234 = phi [b_230, %v_231], [b_229, %v_233]: Ptr
+    copy %v_205, %v_234, 8
+    %v_235 = load %v_205, 8: I64
+    %v_236 = cmp_neq %v_235, 0: I32
+    je %v_236, b_237, b_238
   }
 
   b_238 {
-    call_complex descend$drop, %v_226
-    %v_239 = cmp_neq %v_231, %v_168: I32
-    je %v_239, b_72, b_240
+    jmp b_223
   }
 
-  b_233 {
-    %v_241 = call_complex descend$item, %v_226, %v_235: Ptr
-    %v_242 = imul %v_231, 10: I32
-    %v_243 = loads %v_241, 4: I32
-    %v_234 = add %v_242, %v_243: I32
-    jmp b_230
+  b_237 {
+    %v_239 = bitcast %v_235: Ptr
+    %v_240 = loads %v_239, 4: I32
+    %v_241 = imul %v_222, 10: I32
+    %v_242 = add %v_241, %v_240: I32
+    jmp b_223
   }
 
-  b_228 {
-    %v_244 = phi [b_245, %v_246], [b_200, 0]: I32
-    %v_247 = phi [b_245, %v_232], [b_200, 0]: I32
-    %v_248 = call_complex descend$walk, %v_226, 0, 0: Ptr
-    %v_249 = bitcast %v_248: I64
-    %v_250 = cmp_neq %v_249, 0: I32
-    je %v_250, b_251, b_252
+  b_223 {
+    %v_210 = phi [b_238, %v_222], [b_237, %v_242]: I32
+    %v_225 = add %v_224, 1: I32
+    %v_243 = cmp_ilt %v_225, 3: I32
+    je %v_243, b_206, b_207
   }
 
-  b_253 {
-    %v_254 = bitcast %v_255: Ptr
-    %v_256 = loads %v_254, 4: I32
-    %v_257 = imul %v_247, 10: I32
-    %v_258 = add %v_257, %v_256: I32
-    jmp b_245
+  b_218 {
+    %v_244 = alloca 52, 8: Ptr
+    %v_245 = alloca 8, 8: Ptr
+    call_complex descend$new, %v_244, 5
+    jmp b_246
   }
 
-  b_245 {
-    %v_232 = phi [b_259, %v_247], [b_253, %v_258]: I32
-    %v_246 = add %v_244, 1: I32
-    %v_260 = cmp_ilt %v_246, 3: I32
-    je %v_260, b_228, b_229
+  b_247 {
+    jmp b_248
   }
 
-  b_240 {
-    %v_261 = alloca 52, 8: Ptr
-    %v_262 = alloca 8, 8: Ptr
-    %v_263 = alloca 56, 8: Ptr
-    call_complex descend$new, %v_261, 5
-    jmp b_264
+  b_248 {
+    %v_249 = phi [b_247, %v_250], [b_251, %v_252]: I32
+    %v_253 = call_complex descend$walk, %v_244, 0, 0: Ptr
+    %v_254 = bitcast %v_253: I64
+    %v_255 = cmp_neq %v_254, 0: I32
+    je %v_255, b_251, b_256
   }
 
-  b_265 {
-    copy %v_263, %v_261, 52
-    %v_266 = add %v_263, 52: Ptr
-    store %v_266, %v_267, 4
-    call_complex descend$new, %v_261, 99
-    call_complex descend$drop, %v_261
-    jmp b_268
+  b_256 {
+    call_complex descend$drop, %v_244
+    %v_257 = cmp_neq %v_249, %v_186: I32
+    je %v_257, b_72, b_258
   }
 
-  b_268 {
-    %v_269 = call_complex descend$walk, %v_263, 0, 0: Ptr
-    %v_270 = bitcast %v_269: I64
-    %v_271 = cmp_neq %v_270, 0: I32
-    je %v_271, b_272, b_273
+  b_251 {
+    %v_259 = call_complex descend$item, %v_244, %v_253: Ptr
+    %v_260 = imul %v_249, 10: I32
+    %v_261 = loads %v_259, 4: I32
+    %v_252 = add %v_260, %v_261: I32
+    jmp b_248
   }
 
-  b_273 {
-    %v_274 = add %v_263, 52: Ptr
-    %v_275 = loads %v_274, 4: I32
-    call_complex descend$drop, %v_263
-    %v_276 = cmp_neq %v_275, %v_168: I32
-    je %v_276, b_72, b_277
+  b_246 {
+    %v_262 = phi [b_263, %v_264], [b_218, 0]: I32
+    %v_265 = phi [b_263, %v_250], [b_218, 0]: I32
+    %v_266 = call_complex descend$walk, %v_244, 0, 0: Ptr
+    %v_267 = bitcast %v_266: I64
+    %v_268 = cmp_neq %v_267, 0: I32
+    je %v_268, b_269, b_270
   }
 
-  b_272 {
-    %v_278 = call_complex descend$item, %v_263, %v_269: Ptr
-    %v_279 = add %v_263, 52: Ptr
-    %v_280 = loads %v_279, 4: I32
-    %v_281 = imul %v_280, 10: I32
-    %v_282 = loads %v_278, 4: I32
-    %v_283 = add %v_281, %v_282: I32
-    store %v_279, %v_283, 4
-    jmp b_268
+  b_271 {
+    %v_272 = bitcast %v_273: Ptr
+    %v_274 = loads %v_272, 4: I32
+    %v_275 = imul %v_265, 10: I32
+    %v_276 = add %v_275, %v_274: I32
+    jmp b_263
   }
 
-  b_264 {
-    %v_284 = phi [b_285, %v_267], [b_240, 0]: I32
-    %v_286 = phi [b_285, %v_287], [b_240, 0]: I32
-    %v_288 = call_complex descend$walk, %v_261, 0, 0: Ptr
-    %v_289 = bitcast %v_288: I64
-    %v_290 = cmp_neq %v_289, 0: I32
-    je %v_290, b_291, b_292
+  b_263 {
+    %v_250 = phi [b_277, %v_265], [b_271, %v_276]: I32
+    %v_264 = add %v_262, 1: I32
+    %v_278 = cmp_ilt %v_264, 3: I32
+    je %v_278, b_246, b_247
   }
 
-  b_292 {
-    %v_293 = alloca 8, 8: Ptr
-    store %v_293, 0, 8
-    jmp b_294
+  b_258 {
+    %v_279 = alloca 52, 8: Ptr
+    %v_280 = alloca 8, 8: Ptr
+    %v_281 = alloca 56, 8: Ptr
+    call_complex descend$new, %v_279, 5
+    jmp b_282
+  }
+
+  b_283 {
+    copy %v_281, %v_279, 52
+    %v_284 = add %v_281, 52: Ptr
+    store %v_284, %v_285, 4
+    call_complex descend$new, %v_279, 99
+    call_complex descend$drop, %v_279
+    jmp b_286
+  }
+
+  b_286 {
+    %v_287 = call_complex descend$walk, %v_281, 0, 0: Ptr
+    %v_288 = bitcast %v_287: I64
+    %v_289 = cmp_neq %v_288, 0: I32
+    je %v_289, b_290, b_291
   }
 
   b_291 {
-    %v_295 = alloca 8, 8: Ptr
-    store %v_295, %v_288, 8
-    jmp b_294
+    %v_292 = add %v_281, 52: Ptr
+    %v_293 = loads %v_292, 4: I32
+    call_complex descend$drop, %v_281
+    %v_294 = cmp_neq %v_293, %v_186: I32
+    je %v_294, b_72, b_295
   }
 
-  b_294 {
-    %v_296 = phi [b_292, %v_293], [b_291, %v_295]: Ptr
-    copy %v_262, %v_296, 8
-    %v_297 = load %v_262, 8: I64
-    %v_298 = cmp_neq %v_297, 0: I32
-    je %v_298, b_299, b_300
+  b_290 {
+    %v_296 = call_complex descend$item, %v_281, %v_287: Ptr
+    %v_297 = add %v_281, 52: Ptr
+    %v_298 = loads %v_297, 4: I32
+    %v_299 = imul %v_298, 10: I32
+    %v_300 = loads %v_296, 4: I32
+    %v_301 = add %v_299, %v_300: I32
+    store %v_297, %v_301, 4
+    jmp b_286
   }
 
-  b_300 {
-    jmp b_285
+  b_282 {
+    %v_302 = phi [b_303, %v_285], [b_258, 0]: I32
+    %v_304 = phi [b_303, %v_305], [b_258, 0]: I32
+    %v_306 = call_complex descend$walk, %v_279, 0, 0: Ptr
+    %v_307 = bitcast %v_306: I64
+    %v_308 = cmp_neq %v_307, 0: I32
+    je %v_308, b_309, b_310
   }
 
-  b_299 {
-    %v_301 = bitcast %v_297: Ptr
-    %v_302 = loads %v_301, 4: I32
-    %v_303 = imul %v_284, 10: I32
-    %v_304 = add %v_303, %v_302: I32
-    jmp b_285
-  }
-
-  b_285 {
-    %v_267 = phi [b_300, %v_284], [b_299, %v_304]: I32
-    %v_287 = add %v_286, 1: I32
-    %v_305 = cmp_ilt %v_287, 3: I32
-    je %v_305, b_264, b_265
-  }
-
-  b_277 {
-    %v_306 = alloca 92, 8: Ptr
-    %v_307 = alloca 8, 8: Ptr
-    call_complex pass$new, %v_306, %v_1
-    jmp b_308
+  b_310 {
+    %v_311 = alloca 8, 8: Ptr
+    store %v_311, 0, 8
+    jmp b_312
   }
 
   b_309 {
-    %v_310 = alloca 92, 8: Ptr
-    copy %v_310, %v_306, 92
-    jmp b_311
+    %v_313 = alloca 8, 8: Ptr
+    store %v_313, %v_306, 8
+    jmp b_312
   }
 
-  b_311 {
-    %v_312 = phi [b_309, %v_313], [b_314, %v_315]: I32
-    %v_316 = call_complex pass$walk, %v_310, 0, 0: Ptr
-    %v_317 = bitcast %v_316: I64
-    %v_318 = cmp_neq %v_317, 0: I32
-    je %v_318, b_314, b_319
+  b_312 {
+    %v_314 = phi [b_310, %v_311], [b_309, %v_313]: Ptr
+    copy %v_280, %v_314, 8
+    %v_315 = load %v_280, 8: I64
+    %v_316 = cmp_neq %v_315, 0: I32
+    je %v_316, b_317, b_318
   }
 
-  b_319 {
-    call_complex pass$drop, %v_310
-    %v_320 = cmp_neq %v_312, %v_11: I32
-    je %v_320, b_72, b_321
+  b_318 {
+    jmp b_303
   }
 
-  b_314 {
-    %v_322 = call_complex pass$item, %v_310, %v_316: Ptr
-    %v_323 = imul %v_312, 10: I32
-    %v_324 = loads %v_322, 4: I32
-    %v_315 = add %v_323, %v_324: I32
-    jmp b_311
+  b_317 {
+    %v_319 = bitcast %v_315: Ptr
+    %v_320 = loads %v_319, 4: I32
+    %v_321 = imul %v_302, 10: I32
+    %v_322 = add %v_321, %v_320: I32
+    jmp b_303
   }
 
-  b_308 {
-    %v_325 = phi [b_326, %v_313], [b_277, 0]: I32
-    %v_327 = phi [b_326, %v_328], [b_277, 0]: I32
-    %v_329 = call_complex pass$walk, %v_306, 0, 0: Ptr
-    %v_330 = bitcast %v_329: I64
-    %v_331 = cmp_neq %v_330, 0: I32
-    je %v_331, b_332, b_333
+  b_303 {
+    %v_285 = phi [b_318, %v_302], [b_317, %v_322]: I32
+    %v_305 = add %v_304, 1: I32
+    %v_323 = cmp_ilt %v_305, 3: I32
+    je %v_323, b_282, b_283
   }
 
-  b_333 {
-    %v_334 = alloca 8, 8: Ptr
-    store %v_334, 0, 8
-    jmp b_335
+  b_295 {
+    %v_324 = alloca 92, 8: Ptr
+    %v_325 = alloca 8, 8: Ptr
+    call_complex pass$new, %v_324, %v_1
+    jmp b_326
+  }
+
+  b_327 {
+    %v_328 = alloca 92, 8: Ptr
+    copy %v_328, %v_324, 92
+    jmp b_329
+  }
+
+  b_329 {
+    %v_330 = phi [b_327, %v_331], [b_332, %v_333]: I32
+    %v_334 = call_complex pass$walk, %v_328, 0, 0: Ptr
+    %v_335 = bitcast %v_334: I64
+    %v_336 = cmp_neq %v_335, 0: I32
+    je %v_336, b_332, b_337
+  }
+
+  b_337 {
+    call_complex pass$drop, %v_328
+    %v_338 = cmp_neq %v_330, %v_11: I32
+    je %v_338, b_72, b_339
   }
 
   b_332 {
-    %v_336 = alloca 8, 8: Ptr
-    store %v_336, %v_329, 8
-    jmp b_335
-  }
-
-  b_335 {
-    %v_337 = phi [b_333, %v_334], [b_332, %v_336]: Ptr
-    copy %v_307, %v_337, 8
-    %v_338 = load %v_307, 8: I64
-    %v_339 = cmp_neq %v_338, 0: I32
-    je %v_339, b_340, b_341
-  }
-
-  b_341 {
-    jmp b_326
-  }
-
-  b_340 {
-    %v_342 = bitcast %v_338: Ptr
-    %v_343 = loads %v_342, 4: I32
-    %v_344 = imul %v_325, 10: I32
-    %v_345 = add %v_344, %v_343: I32
-    jmp b_326
+    %v_340 = call_complex pass$item, %v_328, %v_334: Ptr
+    %v_341 = imul %v_330, 10: I32
+    %v_342 = loads %v_340, 4: I32
+    %v_333 = add %v_341, %v_342: I32
+    jmp b_329
   }
 
   b_326 {
-    %v_313 = phi [b_341, %v_325], [b_340, %v_345]: I32
-    %v_328 = add %v_327, 1: I32
-    %v_346 = cmp_ilt %v_328, 2: I32
-    je %v_346, b_308, b_309
-  }
-
-  b_321 {
-    store @trace, 0, 4
-    store @made, 0, 4
-    %v_347 = alloca 56, 8: Ptr
-    %v_348 = alloca 8, 8: Ptr
-    %v_349 = alloca 60, 8: Ptr
-    call_complex markedDescend$new, %v_347, 4
-    jmp b_350
+    %v_343 = phi [b_344, %v_331], [b_295, 0]: I32
+    %v_345 = phi [b_344, %v_346], [b_295, 0]: I32
+    %v_347 = call_complex pass$walk, %v_324, 0, 0: Ptr
+    %v_348 = bitcast %v_347: I64
+    %v_349 = cmp_neq %v_348, 0: I32
+    je %v_349, b_350, b_351
   }
 
   b_351 {
-    copy %v_349, %v_347, 56
-    %v_352 = add %v_349, 56: Ptr
-    store %v_352, %v_353, 4
-    call_complex markedDescend$new, %v_347, 0
-    call_complex markedDescend$drop, %v_347
-    jmp b_354
-  }
-
-  b_354 {
-    %v_355 = phi [b_351, 0], [b_356, %v_357]: I32
-    %v_358 = call_complex markedDescend$walk, %v_349, 0, 0: Ptr
-    %v_359 = bitcast %v_358: I64
-    %v_360 = cmp_neq %v_359, 0: I32
-    je %v_360, b_361, b_362
-  }
-
-  b_361 {
-    %v_363 = call_complex markedDescend$item, %v_349, %v_358: Ptr
-    %v_364 = add %v_349, 56: Ptr
-    %v_365 = loads %v_364, 4: I32
-    %v_366 = imul %v_365, 10: I32
-    %v_367 = loads %v_363, 4: I32
-    %v_368 = add %v_366, %v_367: I32
-    store %v_364, %v_368, 4
-    %v_357 = add %v_355, 1: I32
-    %v_369 = cmp_eq %v_357, 5: I32
-    je %v_369, b_362, b_356
-  }
-
-  b_356 {
-    jmp b_354
-  }
-
-  b_362 {
-    %v_370 = add %v_349, 56: Ptr
-    %v_371 = loads %v_370, 4: I32
-    call_complex markedDescend$drop, %v_349
-    %v_372 = imul %v_371, 10000000: I32
-    %v_373 = loads @made, 4: I32
-    %v_374 = imul %v_373, 1000000: I32
-    %v_375 = add %v_372, %v_374: I32
-    %v_376 = loads @trace, 4: I32
-    %v_377 = add %v_375, %v_376: I32
-    store @trace, 0, 4
-    store @made, 0, 4
-    %v_378 = alloca 56, 8: Ptr
-    %v_379 = alloca 8, 8: Ptr
-    call_complex markedDescend$new, %v_378, 4
-    jmp b_380
+    %v_352 = alloca 8, 8: Ptr
+    store %v_352, 0, 8
+    jmp b_353
   }
 
   b_350 {
-    %v_381 = phi [b_382, %v_353], [b_321, 0]: I32
-    %v_383 = phi [b_382, %v_384], [b_321, 0]: I32
-    %v_385 = call_complex markedDescend$walk, %v_347, 0, 0: Ptr
-    %v_386 = bitcast %v_385: I64
-    %v_387 = cmp_neq %v_386, 0: I32
-    je %v_387, b_388, b_389
+    %v_354 = alloca 8, 8: Ptr
+    store %v_354, %v_347, 8
+    jmp b_353
   }
 
-  b_389 {
-    %v_390 = alloca 8, 8: Ptr
-    store %v_390, 0, 8
-    jmp b_391
+  b_353 {
+    %v_355 = phi [b_351, %v_352], [b_350, %v_354]: Ptr
+    copy %v_325, %v_355, 8
+    %v_356 = load %v_325, 8: I64
+    %v_357 = cmp_neq %v_356, 0: I32
+    je %v_357, b_358, b_359
   }
 
-  b_388 {
-    %v_392 = alloca 8, 8: Ptr
-    store %v_392, %v_385, 8
-    jmp b_391
+  b_359 {
+    jmp b_344
   }
 
-  b_391 {
-    %v_393 = phi [b_389, %v_390], [b_388, %v_392]: Ptr
-    copy %v_348, %v_393, 8
-    %v_394 = load %v_348, 8: I64
-    %v_395 = cmp_neq %v_394, 0: I32
-    je %v_395, b_396, b_397
+  b_358 {
+    %v_360 = bitcast %v_356: Ptr
+    %v_361 = loads %v_360, 4: I32
+    %v_362 = imul %v_343, 10: I32
+    %v_363 = add %v_362, %v_361: I32
+    jmp b_344
   }
 
-  b_397 {
-    jmp b_382
+  b_344 {
+    %v_331 = phi [b_359, %v_343], [b_358, %v_363]: I32
+    %v_346 = add %v_345, 1: I32
+    %v_364 = cmp_ilt %v_346, 2: I32
+    je %v_364, b_326, b_327
   }
 
-  b_396 {
-    %v_398 = bitcast %v_394: Ptr
-    %v_399 = loads %v_398, 4: I32
-    %v_400 = imul %v_381, 10: I32
-    %v_401 = add %v_400, %v_399: I32
-    jmp b_382
+  b_339 {
+    store @trace, 0, 4
+    store @made, 0, 4
+    %v_365 = alloca 56, 8: Ptr
+    %v_366 = alloca 8, 8: Ptr
+    %v_367 = alloca 60, 8: Ptr
+    call_complex markedDescend$new, %v_365, 4
+    jmp b_368
   }
 
-  b_382 {
-    %v_353 = phi [b_397, %v_381], [b_396, %v_401]: I32
-    %v_384 = add %v_383, 1: I32
-    %v_402 = cmp_ilt %v_384, 3: I32
-    je %v_402, b_350, b_351
+  b_369 {
+    copy %v_367, %v_365, 56
+    %v_370 = add %v_367, 56: Ptr
+    store %v_370, %v_371, 4
+    call_complex markedDescend$new, %v_365, 0
+    call_complex markedDescend$drop, %v_365
+    jmp b_372
   }
 
-  b_403 {
-    jmp b_404
+  b_372 {
+    %v_373 = phi [b_369, 0], [b_374, %v_375]: I32
+    %v_376 = call_complex markedDescend$walk, %v_367, 0, 0: Ptr
+    %v_377 = bitcast %v_376: I64
+    %v_378 = cmp_neq %v_377, 0: I32
+    je %v_378, b_379, b_380
   }
 
-  b_404 {
-    %v_405 = phi [b_403, %v_406], [b_407, %v_408]: I32
-    %v_409 = phi [b_403, 0], [b_407, %v_410]: I32
-    %v_411 = call_complex markedDescend$walk, %v_378, 0, 0: Ptr
-    %v_412 = bitcast %v_411: I64
+  b_379 {
+    %v_381 = call_complex markedDescend$item, %v_367, %v_376: Ptr
+    %v_382 = add %v_367, 56: Ptr
+    %v_383 = loads %v_382, 4: I32
+    %v_384 = imul %v_383, 10: I32
+    %v_385 = loads %v_381, 4: I32
+    %v_386 = add %v_384, %v_385: I32
+    store %v_382, %v_386, 4
+    %v_375 = add %v_373, 1: I32
+    %v_387 = cmp_eq %v_375, 5: I32
+    je %v_387, b_380, b_374
+  }
+
+  b_374 {
+    jmp b_372
+  }
+
+  b_380 {
+    %v_388 = add %v_367, 56: Ptr
+    %v_389 = loads %v_388, 4: I32
+    call_complex markedDescend$drop, %v_367
+    %v_390 = imul %v_389, 10000000: I32
+    %v_391 = loads @made, 4: I32
+    %v_392 = imul %v_391, 1000000: I32
+    %v_393 = add %v_390, %v_392: I32
+    %v_394 = loads @trace, 4: I32
+    %v_395 = add %v_393, %v_394: I32
+    store @trace, 0, 4
+    store @made, 0, 4
+    %v_396 = alloca 56, 8: Ptr
+    %v_397 = alloca 8, 8: Ptr
+    call_complex markedDescend$new, %v_396, 4
+    jmp b_398
+  }
+
+  b_368 {
+    %v_399 = phi [b_400, %v_371], [b_339, 0]: I32
+    %v_401 = phi [b_400, %v_402], [b_339, 0]: I32
+    %v_403 = call_complex markedDescend$walk, %v_365, 0, 0: Ptr
+    %v_404 = bitcast %v_403: I64
+    %v_405 = cmp_neq %v_404, 0: I32
+    je %v_405, b_406, b_407
+  }
+
+  b_407 {
+    %v_408 = alloca 8, 8: Ptr
+    store %v_408, 0, 8
+    jmp b_409
+  }
+
+  b_406 {
+    %v_410 = alloca 8, 8: Ptr
+    store %v_410, %v_403, 8
+    jmp b_409
+  }
+
+  b_409 {
+    %v_411 = phi [b_407, %v_408], [b_406, %v_410]: Ptr
+    copy %v_366, %v_411, 8
+    %v_412 = load %v_366, 8: I64
     %v_413 = cmp_neq %v_412, 0: I32
     je %v_413, b_414, b_415
   }
 
-  b_414 {
-    %v_416 = call_complex markedDescend$item, %v_378, %v_411: Ptr
-    %v_417 = imul %v_405, 10: I32
-    %v_418 = loads %v_416, 4: I32
-    %v_408 = add %v_417, %v_418: I32
-    %v_410 = add %v_409, 1: I32
-    %v_419 = cmp_eq %v_410, 5: I32
-    je %v_419, b_420, b_407
-  }
-
-  b_407 {
-    jmp b_404
-  }
-
-  b_420 {
-    call_complex markedDescend$drop, %v_378
-    jmp b_415
-  }
-
   b_415 {
-    %v_421 = phi [b_404, %v_405], [b_420, %v_408]: I32
-    %v_422 = phi [b_404, 1], [b_420, 0]: I32
-    je %v_422, b_423, b_424
+    jmp b_400
   }
 
-  b_423 {
-    call_complex markedDescend$drop, %v_378
-    jmp b_424
+  b_414 {
+    %v_416 = bitcast %v_412: Ptr
+    %v_417 = loads %v_416, 4: I32
+    %v_418 = imul %v_399, 10: I32
+    %v_419 = add %v_418, %v_417: I32
+    jmp b_400
   }
 
-  b_424 {
-    %v_425 = imul %v_421, 10000000: I32
-    %v_426 = loads @made, 4: I32
-    %v_427 = imul %v_426, 1000000: I32
-    %v_428 = add %v_425, %v_427: I32
-    %v_429 = loads @trace, 4: I32
-    %v_430 = add %v_428, %v_429: I32
-    %v_431 = cmp_neq %v_377, %v_430: I32
-    je %v_431, b_72, b_432
+  b_400 {
+    %v_371 = phi [b_415, %v_399], [b_414, %v_419]: I32
+    %v_402 = add %v_401, 1: I32
+    %v_420 = cmp_ilt %v_402, 3: I32
+    je %v_420, b_368, b_369
   }
 
-  b_380 {
-    %v_433 = phi [b_434, %v_406], [b_362, 0]: I32
-    %v_435 = phi [b_434, %v_436], [b_362, 0]: I32
-    %v_437 = call_complex markedDescend$walk, %v_378, 0, 0: Ptr
-    %v_438 = bitcast %v_437: I64
-    %v_439 = cmp_neq %v_438, 0: I32
-    je %v_439, b_440, b_441
+  b_421 {
+    jmp b_422
   }
 
-  b_441 {
-    %v_442 = alloca 8, 8: Ptr
-    store %v_442, 0, 8
-    jmp b_443
-  }
-
-  b_440 {
-    %v_444 = alloca 8, 8: Ptr
-    store %v_444, %v_437, 8
-    jmp b_443
-  }
-
-  b_443 {
-    %v_445 = phi [b_441, %v_442], [b_440, %v_444]: Ptr
-    copy %v_379, %v_445, 8
-    %v_446 = load %v_379, 8: I64
-    %v_447 = cmp_neq %v_446, 0: I32
-    je %v_447, b_448, b_449
-  }
-
-  b_449 {
-    jmp b_434
-  }
-
-  b_448 {
-    %v_450 = bitcast %v_446: Ptr
-    %v_451 = loads %v_450, 4: I32
-    %v_452 = imul %v_433, 10: I32
-    %v_453 = add %v_452, %v_451: I32
-    jmp b_434
-  }
-
-  b_434 {
-    %v_406 = phi [b_449, %v_433], [b_448, %v_453]: I32
-    %v_436 = add %v_435, 1: I32
-    %v_454 = cmp_ilt %v_436, 3: I32
-    je %v_454, b_380, b_403
+  b_422 {
+    %v_423 = phi [b_421, %v_424], [b_425, %v_426]: I32
+    %v_427 = phi [b_421, 0], [b_425, %v_428]: I32
+    %v_429 = call_complex markedDescend$walk, %v_396, 0, 0: Ptr
+    %v_430 = bitcast %v_429: I64
+    %v_431 = cmp_neq %v_430, 0: I32
+    je %v_431, b_432, b_433
   }
 
   b_432 {
-    %v_455 = call_complex rounds, %v_1, %v_2, %v_11, %v_52: I32
-    %v_456 = cmp_neq %v_455, 0: I32
-    je %v_456, b_72, b_457
+    %v_434 = call_complex markedDescend$item, %v_396, %v_429: Ptr
+    %v_435 = imul %v_423, 10: I32
+    %v_436 = loads %v_434, 4: I32
+    %v_426 = add %v_435, %v_436: I32
+    %v_428 = add %v_427, 1: I32
+    %v_437 = cmp_eq %v_428, 5: I32
+    je %v_437, b_438, b_425
   }
 
-  b_457 {
-    %v_458 = load @heapNext, 8: Ptr
-    %v_459 = bitcast %v_458: I64
-    %v_460 = call_complex rounds, %v_1, %v_2, %v_11, %v_52: I32
-    call_complex teardown(Tree), %v_1
-    call_complex teardown(Tree), %v_2
-    %v_461 = cmp_neq %v_460, 0: I32
-    je %v_461, b_72, b_462
+  b_425 {
+    jmp b_422
   }
 
-  b_462 {
-    %v_463 = load @heapNext, 8: Ptr
-    %v_464 = bitcast %v_463: I64
-    %v_465 = cmp_neq %v_464, %v_459: I32
-    je %v_465, b_72, b_466
+  b_438 {
+    call_complex markedDescend$drop, %v_396
+    jmp b_433
+  }
+
+  b_433 {
+    %v_439 = phi [b_422, %v_423], [b_438, %v_426]: I32
+    %v_440 = phi [b_422, 1], [b_438, 0]: I32
+    je %v_440, b_441, b_442
+  }
+
+  b_441 {
+    call_complex markedDescend$drop, %v_396
+    jmp b_442
+  }
+
+  b_442 {
+    %v_443 = imul %v_439, 10000000: I32
+    %v_444 = loads @made, 4: I32
+    %v_445 = imul %v_444, 1000000: I32
+    %v_446 = add %v_443, %v_445: I32
+    %v_447 = loads @trace, 4: I32
+    %v_448 = add %v_446, %v_447: I32
+    %v_449 = cmp_neq %v_395, %v_448: I32
+    je %v_449, b_72, b_450
+  }
+
+  b_398 {
+    %v_451 = phi [b_452, %v_424], [b_380, 0]: I32
+    %v_453 = phi [b_452, %v_454], [b_380, 0]: I32
+    %v_455 = call_complex markedDescend$walk, %v_396, 0, 0: Ptr
+    %v_456 = bitcast %v_455: I64
+    %v_457 = cmp_neq %v_456, 0: I32
+    je %v_457, b_458, b_459
+  }
+
+  b_459 {
+    %v_460 = alloca 8, 8: Ptr
+    store %v_460, 0, 8
+    jmp b_461
+  }
+
+  b_458 {
+    %v_462 = alloca 8, 8: Ptr
+    store %v_462, %v_455, 8
+    jmp b_461
+  }
+
+  b_461 {
+    %v_463 = phi [b_459, %v_460], [b_458, %v_462]: Ptr
+    copy %v_397, %v_463, 8
+    %v_464 = load %v_397, 8: I64
+    %v_465 = cmp_neq %v_464, 0: I32
+    je %v_465, b_466, b_467
+  }
+
+  b_467 {
+    jmp b_452
   }
 
   b_466 {
-    %v_467 = add %v_8, %v_23: I32
-    %v_468 = add %v_467, %v_58: I32
-    ret %v_468
+    %v_468 = bitcast %v_464: Ptr
+    %v_469 = loads %v_468, 4: I32
+    %v_470 = imul %v_451, 10: I32
+    %v_471 = add %v_470, %v_469: I32
+    jmp b_452
   }
 
-  b_259 {
-    %v_469 = phi [b_252, %v_470], [b_251, %v_471]: Ptr
-    copy %v_227, %v_469, 8
-    %v_255 = load %v_227, 8: I64
-    %v_472 = cmp_neq %v_255, 0: I32
-    je %v_472, b_253, b_245
+  b_452 {
+    %v_424 = phi [b_467, %v_451], [b_466, %v_471]: I32
+    %v_454 = add %v_453, 1: I32
+    %v_472 = cmp_ilt %v_454, 3: I32
+    je %v_472, b_398, b_421
   }
 
-  b_252 {
-    %v_470 = alloca 8, 8: Ptr
-    store %v_470, 0, 8
-    jmp b_259
+  b_450 {
+    %v_473 = call_complex rounds, %v_1, %v_2, %v_11, %v_52: I32
+    %v_474 = cmp_neq %v_473, 0: I32
+    je %v_474, b_72, b_475
   }
 
-  b_251 {
-    %v_471 = alloca 8, 8: Ptr
-    store %v_471, %v_248, 8
-    jmp b_259
+  b_475 {
+    %v_476 = load @heapNext, 8: Ptr
+    %v_477 = bitcast %v_476: I64
+    %v_478 = call_complex rounds, %v_1, %v_2, %v_11, %v_52: I32
+    call_complex teardown(Tree), %v_1
+    call_complex teardown(Tree), %v_2
+    %v_479 = cmp_neq %v_478, 0: I32
+    je %v_479, b_72, b_480
+  }
+
+  b_480 {
+    %v_481 = load @heapNext, 8: Ptr
+    %v_482 = bitcast %v_481: I64
+    %v_483 = cmp_neq %v_482, %v_477: I32
+    je %v_483, b_72, b_484
+  }
+
+  b_484 {
+    %v_485 = add %v_8, %v_23: I32
+    %v_486 = add %v_485, %v_58: I32
+    ret %v_486
+  }
+
+  b_277 {
+    %v_487 = phi [b_270, %v_488], [b_269, %v_489]: Ptr
+    copy %v_245, %v_487, 8
+    %v_273 = load %v_245, 8: I64
+    %v_490 = cmp_neq %v_273, 0: I32
+    je %v_490, b_271, b_263
+  }
+
+  b_270 {
+    %v_488 = alloca 8, 8: Ptr
+    store %v_488, 0, 8
+    jmp b_277
+  }
+
+  b_269 {
+    %v_489 = alloca 8, 8: Ptr
+    store %v_489, %v_266, 8
+    jmp b_277
   }
 }
 
@@ -2313,83 +2349,35 @@ outer$new<complex>(%v_0: Ptr, %t: Ptr) {
   }
 }
 
-outer$step<complex>(%$self: Ptr, %$resume: I32, %$cancel: I32): I32 {
-  b_0 {
-    %v_1 = add %$self, 96: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = add %$self, 104: Ptr
-    %v_4 = loads %v_3, 4: I32
-    %v_5 = cmp_eq %v_4, 0: I32
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    je %$cancel, b_8, b_9
-  }
-
-  b_10 {
-    ret 0
-  }
-
-  b_9 {
-    %v_11 = alloca 92, 8: Ptr
-    call_complex pass$new, %v_11, %v_2
-    copy %$self, %v_11, 92
-    jmp b_12
-  }
-
-  b_13 {
-    %v_14 = call_complex pass$step, %$self, 1, 1: I32
-    store %v_3, 2147483647, 4
-    ret 0
-  }
-
-  b_15 {
-    %v_16 = call_complex pass$step, %$self, 1, 1: I32
-    jmp b_13
-  }
-
-  b_12 {
-    %v_17 = call_complex pass$walk, %$self, 0, 0: Ptr
-    %v_18 = bitcast %v_17: I64
-    %v_19 = cmp_neq %v_18, 0: I32
-    je %v_19, b_20, b_13
-  }
-
-  b_20 {
-    %v_21 = loads %v_17, 4: I32
-    %v_22 = loads @visits, 4: I32
-    %v_23 = add %v_22, 1: I32
-    store @visits, %v_23, 4
-    %v_24 = add %v_21, 1000: I32
-    %v_25 = add %$self, 108: Ptr
-    store %v_25, %v_24, 4
-    store %v_3, 1, 4
-    ret 1
-  }
-
-  b_26 {
-    %v_27 = cmp_eq %$resume, 0: I32
-    je %v_27, b_12, b_15
-  }
-
-  b_8 {
-    store %v_3, 2147483647, 4
-    ret 0
-  }
-
-  b_7 {
-    %v_28 = cmp_eq %v_4, 1: I32
-    je %v_28, b_26, b_10
-  }
-}
-
 outer$drop<complex>(%$self: Ptr) {
   b_0 {
     %v_1 = alloca 112, 8: Ptr
     copy %v_1, %$self, 112
-    %v_2 = call_complex outer$step, %v_1, 1, 1: I32
+    %v_2 = add %v_1, 104: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = cmp_eq %v_3, 0: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_7 {
     ret 
+  }
+
+  b_6 {
+    %v_8 = cmp_eq %v_3, 1: I32
+    je %v_8, b_9, b_7
+  }
+
+  b_9 {
+    %v_10 = call_complex pass$step, %v_1, 1, 1: I32
+    %v_11 = call_complex pass$step, %v_1, 1, 1: I32
+    store %v_2, 2147483647, 4
+    jmp b_7
+  }
+
+  b_5 {
+    store %v_2, 2147483647, 4
+    jmp b_7
   }
 }
 

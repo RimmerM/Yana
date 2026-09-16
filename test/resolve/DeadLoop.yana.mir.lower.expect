@@ -1,4 +1,5 @@
 mut @live = [0, 0, 0, 0]
+mut @visits = [0, 0, 0, 0]
 
 Held.drop<complex>(%self: Ptr) {
   b_0 {
@@ -160,7 +161,67 @@ main<complex>(): I32 {
     %v_72 = phi [b_61, 0], [b_71, 4]: I32
     %v_73 = imul %v_72, 37: I32
     %v_74 = add %v_60, %v_73: I32
-    ret %v_74
+    %v_75 = add %v_74, 410: I32
+    jmp b_76
+  }
+
+  b_76 {
+    %v_77 = phi [b_69, 0], [b_78, %v_79]: I32
+    %v_80 = phi [b_69, 0], [b_78, %v_81]: I32
+    %v_82 = cmp_ilt %v_77, 4: I32
+    je %v_82, b_83, b_84
+  }
+
+  b_83 {
+    %v_85 = loads @visits, 4: I32
+    %v_86 = add %v_85, 1: I32
+    store @visits, %v_86, 4
+    %v_81 = add %v_80, %v_77: I32
+    %v_87 = cmp_eq %v_77, 2: I32
+    je %v_87, b_88, b_78
+  }
+
+  b_78 {
+    %v_79 = add %v_77, 1: I32
+    jmp b_76
+  }
+
+  b_88 {
+    jmp b_84
+  }
+
+  b_84 {
+    %v_89 = phi [b_76, %v_80], [b_88, %v_81]: I32
+    %v_90 = add %v_89, %v_77: I32
+    %v_91 = imul %v_90, 43: I32
+    %v_92 = add %v_75, %v_91: I32
+    jmp b_93
+  }
+
+  b_94 {
+    %v_95 = cmp_ilt %v_96, 4: I32
+    je %v_95, b_93, b_97
+  }
+
+  b_97 {
+    %v_98 = add %v_99, %v_96: I32
+    %v_100 = imul %v_98, 47: I32
+    %v_101 = add %v_92, %v_100: I32
+    %v_102 = loads @visits, 4: I32
+    %v_103 = imul %v_102, 53: I32
+    %v_104 = add %v_101, %v_103: I32
+    ret %v_104
+  }
+
+  b_93 {
+    %v_105 = phi [b_94, %v_96], [b_84, 1]: I32
+    %v_106 = phi [b_94, %v_99], [b_84, 0]: I32
+    %v_107 = loads @visits, 4: I32
+    %v_108 = add %v_107, 1: I32
+    store @visits, %v_108, 4
+    %v_99 = add %v_106, %v_105: I32
+    %v_96 = add %v_105, 1: I32
+    jmp b_94
   }
 }
 

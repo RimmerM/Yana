@@ -5,63 +5,38 @@ let string'143: [CodeUnit *5] = "hello"
 fn litLen(n: Size [shared call]) -> Size {
 bb0(%0: Size trivial):
   %24: %CodeUnit trivial = const &string'143
-  %26: I32 trivial = const 5
-  %21: Size trivial = convert inspect %26
-  %22: StringView trivial = aggregate.StringView consume %24 consume %21
-  %23: String [shared slot 0 view] guaranteed = represent inspect %22
-  %11: %Size address = field.addr .length inspect %23
-  %12: Size trivial = load inspect %11
-  %8: Size trivial = add inspect %12 inspect %0
+  %27: Size trivial = const 5
+  %22: StringView trivial = aggregate.StringView consume %24 consume %27
+  %8: Size trivial = add inspect %27 inspect %0
   return consume %8
 }
 
 fn twice(n: Size [shared call]) -> Size {
 bb0(%0: Size trivial):
   %9: %CodeUnit trivial = const &string'143
-  %10: I32 trivial = const 5
-  %11: Size trivial = convert inspect %10
-  %12: StringView trivial = aggregate.StringView consume %9 consume %11
-  %13: String [shared slot 0 view] guaranteed = represent inspect %12
-  %14: %Size address = field.addr .length inspect %13
-  %15: Size trivial = load inspect %14
-  %16: Size trivial = add inspect %15 inspect %0
+  %10: Size trivial = const 5
+  %11: StringView trivial = aggregate.StringView consume %9 consume %10
+  %12: Size trivial = add inspect %10 inspect %0
   %5: Size trivial = const 1
   %6: Size trivial = add inspect %0 inspect %5
-  %17: %CodeUnit trivial = const &string'143
-  %18: I32 trivial = const 5
-  %19: Size trivial = convert inspect %18
-  %20: StringView trivial = aggregate.StringView consume %17 consume %19
-  %21: String [shared slot 0 view] guaranteed = represent inspect %20
-  %22: %Size address = field.addr .length inspect %21
-  %23: Size trivial = load inspect %22
-  %24: Size trivial = add inspect %23 inspect %6
-  %8: Size trivial = add inspect %16 inspect %24
+  %13: %CodeUnit trivial = const &string'143
+  %14: Size trivial = const 5
+  %15: StringView trivial = aggregate.StringView consume %13 consume %14
+  %16: Size trivial = add inspect %14 inspect %6
+  %8: Size trivial = add inspect %12 inspect %16
   return consume %8
 }
 
 fn main() -> I32 {
 bb0:
-  %0: Size trivial = const 3
   %3: %CodeUnit trivial = const &string'143
-  %4: I32 trivial = const 5
-  %5: Size trivial = convert inspect %4
-  %6: StringView trivial = aggregate.StringView consume %3 consume %5
-  %7: String [shared slot 0 view] guaranteed = represent inspect %6
-  %8: %Size address = field.addr .length inspect %7
-  %9: Size trivial = load inspect %8
-  %10: Size trivial = add inspect %9 inspect %0
-  %22: Size trivial = const 4
-  %13: %CodeUnit trivial = const &string'143
-  %14: I32 trivial = const 5
-  %15: Size trivial = convert inspect %14
-  %16: StringView trivial = aggregate.StringView consume %13 consume %15
-  %17: String [shared slot 0 view] guaranteed = represent inspect %16
-  %18: %Size address = field.addr .length inspect %17
-  %19: Size trivial = load inspect %18
-  %20: Size trivial = add inspect %19 inspect %22
-  %21: Size trivial = add inspect %10 inspect %20
-  %2: I32 trivial = convert inspect %21
-  return consume %2
+  %4: Size trivial = const 5
+  %5: StringView trivial = aggregate.StringView consume %3 consume %4
+  %9: %CodeUnit trivial = const &string'143
+  %10: Size trivial = const 5
+  %11: StringView trivial = aggregate.StringView consume %9 consume %10
+  %18: I32 trivial = const 17
+  return consume %18
 }
 
 entry main

@@ -6,6 +6,8 @@ instance Drop(Held): Held.drop
 
 let & live: I32 = 0
 
+let & visits: I32 = 0
+
 fn Held.drop(self: Held) -> {} {
 bb0:
   %0: I32 = read copy.trivial (global live)
@@ -371,6 +373,147 @@ bb6:
   jump -> bb4
 }
 
+fn neverRuns(stop: I32 [shared call]) -> I32 {
+  local & i: I32
+  local & total: I32
+
+bb0:
+  %0: I32 = const 10
+  write.init borrow.unique (i) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (total) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = const 4
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %28: I32 = read copy.trivial (total)
+  %29: I32 = read copy.trivial (i)
+  %30: I32 = add inspect %28 inspect %29
+  return take %30
+
+bb3:
+  %9: I32 = read copy.trivial (global visits)
+  %10: I32 = const 1
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (global visits) take %11
+  %13: I32 = read copy.trivial (total)
+  %14: I32 = read copy.trivial (i)
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (total) take %15
+  %17: I32 = read copy.trivial (i)
+  %18: I32 = read copy.trivial (stop)
+  %19: Bool = eq inspect %17 inspect %18
+  branch inspect %19 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %23: I32 = read copy.trivial (i)
+  %24: I32 = const 1
+  %25: I32 = add inspect %23 inspect %24
+  write.assign borrow.unique (i) take %25
+  jump -> bb1
+
+bb6:
+  jump -> bb2
+}
+
+fn entersOnce(stop: I32 [shared call]) -> I32 {
+  local & i: I32
+  local & total: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (i) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (total) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = const 4
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %28: I32 = read copy.trivial (total)
+  %29: I32 = read copy.trivial (i)
+  %30: I32 = add inspect %28 inspect %29
+  return take %30
+
+bb3:
+  %9: I32 = read copy.trivial (global visits)
+  %10: I32 = const 1
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (global visits) take %11
+  %13: I32 = read copy.trivial (total)
+  %14: I32 = read copy.trivial (i)
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (total) take %15
+  %17: I32 = read copy.trivial (i)
+  %18: I32 = read copy.trivial (stop)
+  %19: Bool = eq inspect %17 inspect %18
+  branch inspect %19 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %23: I32 = read copy.trivial (i)
+  %24: I32 = const 1
+  %25: I32 = add inspect %23 inspect %24
+  write.assign borrow.unique (i) take %25
+  jump -> bb1
+
+bb6:
+  jump -> bb2
+}
+
+fn unknownStart(from: I32 [shared call]) -> I32 {
+  local & i: I32
+  local & total: I32
+
+bb0:
+  %0: I32 = read copy.trivial (from)
+  write.init borrow.unique (i) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (total) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = const 4
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %22: I32 = read copy.trivial (total)
+  %23: I32 = read copy.trivial (i)
+  %24: I32 = add inspect %22 inspect %23
+  return take %24
+
+bb3:
+  %9: I32 = read copy.trivial (global visits)
+  %10: I32 = const 1
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (global visits) take %11
+  %13: I32 = read copy.trivial (total)
+  %14: I32 = read copy.trivial (i)
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (total) take %15
+  %17: I32 = read copy.trivial (i)
+  %18: I32 = const 1
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (i) take %19
+  jump -> bb1
+}
+
 fn guarded(x: I32 [shared call], d: I32 [shared call]) -> I32 {
   local quotient: I32
 
@@ -510,7 +653,26 @@ bb0:
   %63: I32 = const 37
   %64: I32 = mul inspect %62 inspect %63
   %65: I32 = add inspect %59 inspect %64
-  return take %65
+  %66: I32 = const 2
+  %67: I32 = call neverRuns borrow.shared %66
+  %68: I32 = const 41
+  %69: I32 = mul inspect %67 inspect %68
+  %70: I32 = add inspect %65 inspect %69
+  %71: I32 = const 2
+  %72: I32 = call entersOnce borrow.shared %71
+  %73: I32 = const 43
+  %74: I32 = mul inspect %72 inspect %73
+  %75: I32 = add inspect %70 inspect %74
+  %76: I32 = const 1
+  %77: I32 = call unknownStart borrow.shared %76
+  %78: I32 = const 47
+  %79: I32 = mul inspect %77 inspect %78
+  %80: I32 = add inspect %75 inspect %79
+  %81: I32 = read copy.trivial (global visits)
+  %82: I32 = const 53
+  %83: I32 = mul inspect %81 inspect %82
+  %84: I32 = add inspect %80 inspect %83
+  return take %84
 }
 
 entry main

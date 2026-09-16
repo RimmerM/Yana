@@ -241,26 +241,38 @@ fn main() -> I32 {
 bb0:
   %121: %Held address = alloc frame Held
   %124: %Held address = alloc frame Held
-  %176: I32 trivial = const 35
   %15: I32 trivial = const 0
-  %16: I32 trivial = call nested borrow %15
-  %17: I32 trivial = const 3
-  %18: I32 trivial = mul inspect %16 inspect %17
-  %19: I32 trivial = add inspect %176 inspect %18
+  %134: %Held address = alloc frame Held
+  %135: %I32 address = global.addr live
+  %136: I32 trivial = load inspect %135
+  %137: I32 trivial = const 1
+  %138: I32 trivial = add inspect %136 inspect %137
+  %139: %I32 address = global.addr live
+  store inspect %139 consume %138
+  %140: Held owned = aggregate.Held consume %15
+  store inspect %134 consume %140
+  jump -> bb15
+
+bb15 cleanup:
+  drop Held inspect %134
+  jump -> bb16
+
+bb16:
+  %264: I32 trivial = const 35
   %21: I32 trivial = const 3
   %22: I32 trivial = call nested borrow %21
   %23: I32 trivial = const 5
   %24: I32 trivial = mul inspect %22 inspect %23
-  %25: I32 trivial = add inspect %19 inspect %24
+  %25: I32 trivial = add inspect %264 inspect %24
   %27: I32 trivial = const 6
   %28: I32 trivial = call nested borrow %27
   %29: I32 trivial = const 7
   %30: I32 trivial = mul inspect %28 inspect %29
   %31: I32 trivial = add inspect %25 inspect %30
-  %221: I32 trivial = const 769
-  %222: I32 trivial = add inspect %31 inspect %221
+  %259: I32 trivial = const 769
+  %260: I32 trivial = add inspect %31 inspect %259
   %111: I32 trivial = const 1000
-  %112: I32 trivial = mul inspect %222 inspect %111
+  %112: I32 trivial = mul inspect %260 inspect %111
   %113: %I32 address = global.addr trace
   %114: I32 trivial = load inspect %113
   %115: I32 trivial = const 10

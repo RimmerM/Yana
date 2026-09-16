@@ -1659,98 +1659,123 @@ fn inLoop(%n: I32) -> I32 {
 fn main() -> I32 {
   b0:
     %warm = call built, 7 : I32
+    %v3 = call inLaterBlock, 7 : I32
+    %v8 = sub 0, 1 : I32
+    %v9 = call inLaterBlock, %v8 : I32
+    %warmLater = add %v3, %v9 : I32
+    %warmLoop = call inLoop, 3 : I32
     %settled = load heapNext : %U8
-    %v4 = call built, 7 : I32
-    %v5 = cmp_ne %v4, %warm : Bool
-    je %v5, b1, b2
+    %v16 = cmp_ne %warmLater, 8 : Bool
+    je %v16, b1, b2
 
   b1:
-    ret -1
+    ret -9
 
   b2:
     jmp b3
 
   b3:
-    %v10 = load heapNext : %U8
-    %v11 = cmp_eq %v10, %settled : Bool
-    %v13 = xor %v11, True : Bool
-    je %v13, b4, b5
+    %v23 = cmp_ne %warmLoop, 12 : Bool
+    je %v23, b4, b5
 
   b4:
-    ret -2
+    ret -10
 
   b5:
     jmp b6
 
   b6:
-    %v19 = call inLaterBlock, 7 : I32
-    %v22 = cmp_ne %v19, 4 : Bool
-    je %v22, b7, b8
+    %v29 = call built, 7 : I32
+    %v30 = cmp_ne %v29, %warm : Bool
+    je %v30, b7, b8
 
   b7:
-    ret -3
+    ret -1
 
   b8:
     jmp b9
 
   b9:
-    %v31 = sub 0, 1 : I32
-    %v32 = call inLaterBlock, %v31 : I32
-    %v35 = cmp_ne %v32, 4 : Bool
-    je %v35, b10, b11
+    %v35 = load heapNext : %U8
+    %v36 = cmp_eq %v35, %settled : Bool
+    %v38 = xor %v36, True : Bool
+    je %v38, b10, b11
 
   b10:
-    ret -4
+    ret -2
 
   b11:
     jmp b12
 
   b12:
-    %v40 = load heapNext : %U8
-    %v41 = cmp_eq %v40, %settled : Bool
-    %v43 = xor %v41, True : Bool
-    je %v43, b13, b14
+    %v44 = call inLaterBlock, 7 : I32
+    %v47 = cmp_ne %v44, 4 : Bool
+    je %v47, b13, b14
 
   b13:
-    ret -5
+    ret -3
 
   b14:
     jmp b15
 
   b15:
-    %v49 = call inLoop, 3 : I32
-    %v52 = cmp_ne %v49, 12 : Bool
-    je %v52, b16, b17
+    %v56 = sub 0, 1 : I32
+    %v57 = call inLaterBlock, %v56 : I32
+    %v60 = cmp_ne %v57, 4 : Bool
+    je %v60, b16, b17
 
   b16:
-    ret -6
+    ret -4
 
   b17:
     jmp b18
 
   b18:
-    %v57 = load heapNext : %U8
-    %v58 = cmp_eq %v57, %settled : Bool
-    %v60 = xor %v58, True : Bool
-    je %v60, b19, b20
+    %v65 = load heapNext : %U8
+    %v66 = cmp_eq %v65, %settled : Bool
+    %v68 = xor %v66, True : Bool
+    je %v68, b19, b20
 
   b19:
-    ret -7
+    ret -5
 
   b20:
     jmp b21
 
   b21:
-    %v65 = load tags : I32
-    %v68 = cmp_ne %v65, 7 : Bool
-    je %v68, b22, b23
+    %v74 = call inLoop, 3 : I32
+    %v77 = cmp_ne %v74, 12 : Bool
+    je %v77, b22, b23
 
   b22:
-    ret -8
+    ret -6
 
   b23:
     jmp b24
 
   b24:
+    %v82 = load heapNext : %U8
+    %v83 = cmp_eq %v82, %settled : Bool
+    %v85 = xor %v83, True : Bool
+    je %v85, b25, b26
+
+  b25:
+    ret -7
+
+  b26:
+    jmp b27
+
+  b27:
+    %v90 = load tags : I32
+    %v93 = cmp_ne %v90, 12 : Bool
+    je %v93, b28, b29
+
+  b28:
+    ret -8
+
+  b29:
+    jmp b30
+
+  b30:
     ret %warm
 }

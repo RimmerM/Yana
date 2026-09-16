@@ -1256,9 +1256,8 @@ struct Verifier {
              */
             case Inst::Binary: {
                 auto& binary = (InstBinary&)inst;
-                auto category = mir::binaryCategory(binary.op);
 
-                if(category == mir::OpCategory::Equality || category == mir::OpCategory::Order) {
+                if(mir::isComparison(binary.op)) {
                     auto lanes = mir::vectorLanes(decl, typeOf(binary.lhs));
                     if(!lanes) break;
                     if(mir::isMaskType(decl, type) && mir::vectorLanes(decl, type) == lanes) break;

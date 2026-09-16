@@ -421,6 +421,22 @@ struct Editor {
     void replaceAllUses(Value& from, Value& to);
 
     /*
+     * The same substitution narrowed to **one reader** - every slot a single instruction names
+     * `from` through, exchanged for `to`, and every other reader left alone.
+     *
+     * The two conventions above are asserted here too and for the same reasons: what makes a
+     * substitution sound is a property of the pair, not of how many users it is applied to. What
+     * this drops is only the sweep, so a caller that wants the whole use list still writes
+     * `replaceAllUses` and gets the loan repointing with it - a single-reader rewrite has no
+     * lender to move, because `from` still exists and its other readers still hold it.
+     *
+     * `opt/cfg.cpp`'s `decideBranchConditions` is the caller: a value one arm of a branch has
+     * decided is that constant in the blocks that arm alone reaches and is still itself everywhere
+     * else, so "every use in these blocks" is the rewrite and "every use" is not.
+     */
+    void replaceUsesIn(Inst& user, Value& from, Value& to);
+
+    /*
      * One instruction moved, by unlink and relink and **never by a remove followed by an add**.
      *
      * The operands already name the instruction, so re-adding registers every use a second time -
@@ -506,7 +522,7 @@ struct Editor {
      * Separate from `replaceTerminator`, which keeps the arguments of an edge present on both sides
      * *over whatever the caller supplied*: that rule is what makes folding a branch into a jump safe
      * without knowing what the target was being handed, and this is the edit that means the
-     * opposite. `opt/cfg.cpp`'s `decideBranchConditions` is the caller.
+     * opposite. `opt/select.cpp`, placing the operands of an edge it has just built, is the caller.
      */
     void setEdgeArgument(Inst& terminator, Size arm, Size position, Use value);
 

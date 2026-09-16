@@ -33,6 +33,11 @@ OpCategory binaryCategory(BinaryOp op) {
     return OpCategory::Arith;
 }
 
+bool isComparison(BinaryOp op) {
+    auto category = binaryCategory(op);
+    return category == OpCategory::Equality || category == OpCategory::Order;
+}
+
 UnaryCategory unaryCategory(UnaryOp op) {
     switch(op) {
 #define YANA_MIR_UNOP(kind, mnemonic, category, width) case UnaryOp::kind: return category;

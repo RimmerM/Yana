@@ -144,132 +144,171 @@ bb3:
 fn main() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
-  %1: %%U8 address = alloc frame %U8
-  %2: I32 trivial = const 7
-  %3: I32 trivial = call built borrow %2
-  store inspect %0 consume %3
-  %4: %%U8 address = global.addr heapNext
-  %5: %U8 trivial = load inspect %4
-  store inspect %1 consume %5
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %%U8 address = alloc frame %U8
+  %4: I32 trivial = const 7
+  %5: I32 trivial = call built borrow %4
+  store inspect %0 consume %5
   %6: I32 trivial = const 7
-  %7: I32 trivial = call built borrow %6
-  %8: I32 trivial = load inspect %0
-  %9: Bool trivial = ne inspect %7 inspect %8
-  branch inspect %9 -> bb3 -> bb1
+  %7: I32 trivial = call inLaterBlock borrow %6
+  %8: I32 trivial = const 0
+  %9: I32 trivial = const 1
+  %10: I32 trivial = sub inspect %8 inspect %9
+  %11: I32 trivial = call inLaterBlock borrow %10
+  %12: I32 trivial = add inspect %7 inspect %11
+  store inspect %1 consume %12
+  %13: I32 trivial = const 3
+  %14: I32 trivial = call inLoop borrow %13
+  store inspect %2 consume %14
+  %15: %%U8 address = global.addr heapNext
+  %16: %U8 trivial = load inspect %15
+  store inspect %3 consume %16
+  %17: I32 trivial = load inspect %1
+  %18: I32 trivial = const 8
+  %19: Bool trivial = ne inspect %17 inspect %18
+  branch inspect %19 -> bb3 -> bb1
 
 bb1:
   jump -> bb2
 
 bb2:
-  %10: %%U8 address = global.addr heapNext
-  %11: %U8 trivial = load inspect %10
-  %12: %U8 trivial = load inspect %1
-  %13: Bool trivial = eq inspect %11 inspect %12
-  %14: Bool trivial = not inspect %13
-  branch inspect %14 -> bb6 -> bb4
+  %20: I32 trivial = load inspect %2
+  %21: I32 trivial = const 12
+  %22: Bool trivial = ne inspect %20 inspect %21
+  branch inspect %22 -> bb6 -> bb4
 
 bb3:
-  %15: I32 trivial = const -1
-  return consume %15
+  %23: I32 trivial = const -9
+  return consume %23
 
 bb4:
   jump -> bb5
 
 bb5:
-  %16: I32 trivial = const 7
-  %17: I32 trivial = call inLaterBlock borrow %16
-  %18: I32 trivial = const 4
-  %19: Bool trivial = ne inspect %17 inspect %18
-  branch inspect %19 -> bb9 -> bb7
+  %24: I32 trivial = const 7
+  %25: I32 trivial = call built borrow %24
+  %26: I32 trivial = load inspect %0
+  %27: Bool trivial = ne inspect %25 inspect %26
+  branch inspect %27 -> bb9 -> bb7
 
 bb6:
-  %20: I32 trivial = const -2
-  return consume %20
+  %28: I32 trivial = const -10
+  return consume %28
 
 bb7:
   jump -> bb8
 
 bb8:
-  %21: I32 trivial = const 0
-  %22: I32 trivial = const 1
-  %23: I32 trivial = sub inspect %21 inspect %22
-  %24: I32 trivial = call inLaterBlock borrow %23
-  %25: I32 trivial = const 4
-  %26: Bool trivial = ne inspect %24 inspect %25
-  branch inspect %26 -> bb12 -> bb10
+  %29: %%U8 address = global.addr heapNext
+  %30: %U8 trivial = load inspect %29
+  %31: %U8 trivial = load inspect %3
+  %32: Bool trivial = eq inspect %30 inspect %31
+  %33: Bool trivial = not inspect %32
+  branch inspect %33 -> bb12 -> bb10
 
 bb9:
-  %27: I32 trivial = const -3
-  return consume %27
+  %34: I32 trivial = const -1
+  return consume %34
 
 bb10:
   jump -> bb11
 
 bb11:
-  %28: %%U8 address = global.addr heapNext
-  %29: %U8 trivial = load inspect %28
-  %30: %U8 trivial = load inspect %1
-  %31: Bool trivial = eq inspect %29 inspect %30
-  %32: Bool trivial = not inspect %31
-  branch inspect %32 -> bb15 -> bb13
+  %35: I32 trivial = const 7
+  %36: I32 trivial = call inLaterBlock borrow %35
+  %37: I32 trivial = const 4
+  %38: Bool trivial = ne inspect %36 inspect %37
+  branch inspect %38 -> bb15 -> bb13
 
 bb12:
-  %33: I32 trivial = const -4
-  return consume %33
+  %39: I32 trivial = const -2
+  return consume %39
 
 bb13:
   jump -> bb14
 
 bb14:
-  %34: I32 trivial = const 3
-  %35: I32 trivial = call inLoop borrow %34
-  %36: I32 trivial = const 12
-  %37: Bool trivial = ne inspect %35 inspect %36
-  branch inspect %37 -> bb18 -> bb16
+  %40: I32 trivial = const 0
+  %41: I32 trivial = const 1
+  %42: I32 trivial = sub inspect %40 inspect %41
+  %43: I32 trivial = call inLaterBlock borrow %42
+  %44: I32 trivial = const 4
+  %45: Bool trivial = ne inspect %43 inspect %44
+  branch inspect %45 -> bb18 -> bb16
 
 bb15:
-  %38: I32 trivial = const -5
-  return consume %38
+  %46: I32 trivial = const -3
+  return consume %46
 
 bb16:
   jump -> bb17
 
 bb17:
-  %39: %%U8 address = global.addr heapNext
-  %40: %U8 trivial = load inspect %39
-  %41: %U8 trivial = load inspect %1
-  %42: Bool trivial = eq inspect %40 inspect %41
-  %43: Bool trivial = not inspect %42
-  branch inspect %43 -> bb21 -> bb19
+  %47: %%U8 address = global.addr heapNext
+  %48: %U8 trivial = load inspect %47
+  %49: %U8 trivial = load inspect %3
+  %50: Bool trivial = eq inspect %48 inspect %49
+  %51: Bool trivial = not inspect %50
+  branch inspect %51 -> bb21 -> bb19
 
 bb18:
-  %44: I32 trivial = const -6
-  return consume %44
+  %52: I32 trivial = const -4
+  return consume %52
 
 bb19:
   jump -> bb20
 
 bb20:
-  %45: %I32 address = global.addr tags
-  %46: I32 trivial = load inspect %45
-  %47: I32 trivial = const 7
-  %48: Bool trivial = ne inspect %46 inspect %47
-  branch inspect %48 -> bb24 -> bb22
+  %53: I32 trivial = const 3
+  %54: I32 trivial = call inLoop borrow %53
+  %55: I32 trivial = const 12
+  %56: Bool trivial = ne inspect %54 inspect %55
+  branch inspect %56 -> bb24 -> bb22
 
 bb21:
-  %49: I32 trivial = const -7
-  return consume %49
+  %57: I32 trivial = const -5
+  return consume %57
 
 bb22:
   jump -> bb23
 
 bb23:
-  %50: I32 trivial = load inspect %0
-  return consume %50
+  %58: %%U8 address = global.addr heapNext
+  %59: %U8 trivial = load inspect %58
+  %60: %U8 trivial = load inspect %3
+  %61: Bool trivial = eq inspect %59 inspect %60
+  %62: Bool trivial = not inspect %61
+  branch inspect %62 -> bb27 -> bb25
 
 bb24:
-  %51: I32 trivial = const -8
-  return consume %51
+  %63: I32 trivial = const -6
+  return consume %63
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %64: %I32 address = global.addr tags
+  %65: I32 trivial = load inspect %64
+  %66: I32 trivial = const 12
+  %67: Bool trivial = ne inspect %65 inspect %66
+  branch inspect %67 -> bb30 -> bb28
+
+bb27:
+  %68: I32 trivial = const -7
+  return consume %68
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %69: I32 trivial = load inspect %0
+  return consume %69
+
+bb30:
+  %70: I32 trivial = const -8
+  return consume %70
 }
 
 entry main

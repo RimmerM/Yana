@@ -260,6 +260,58 @@ Value* allocationRoot(OptContext& opt, Value* address);
 Value* addressStep(OptContext& opt, Value* address);
 
 /*
+ * One step of an address chain, told apart from every other step.
+ *
+ * `record`/`container` travel with the index because that is what decides what the index
+ * *means*: field 1 of two different records is two different offsets, and an element of two
+ * different containers is two different strides. The lowering asks one table for both, and a
+ * comparison here that dropped them would be a second answer to agree with.
+ */
+struct AddressStep {
+    Inst::Kind kind = Inst::Alloc;
+    DeclPtr<mir::Type> of = nullptr;
+    U16 field = 0;
+    Value* index = nullptr;
+    DeclPtr<mir::OwnershipSchema> shape = nullptr;
+    U16 property = InstFieldAddress::kNoProperty;
+};
+
+/*
+ * The step an address *is*, and - out through `base` - the address it is taken of. `Nothing` where
+ * the address is a root: an allocation, a global, a pointer this stage cannot see behind.
+ *
+ * The three below are one answer about address chains, shared rather than copied: `opt/memory.cpp`
+ * compares two whole chains to decide whether a load and a store may meet, and `opt/place.cpp`
+ * descends one chain asking the same question of every load it passes. A second copy of the rule
+ * would be a second answer to keep in step, and the one that decides which fields are separate is
+ * subtle enough - see `separateFields` - that there should be exactly one of it.
+ */
+Maybe<AddressStep> addressStepOf(OptContext& opt, Value& address, Value*& base);
+
+// Whether two steps of one shape name the same component.
+bool sameAddressStep(OptContext& opt, const AddressStep& left, const AddressStep& right);
+
+/*
+ * The same, without the interior shape - the looser of the two, and the third of the family.
+ *
+ * The shape is which ownership schema the *subject* was projected under, and two projections of one
+ * field of one record name one piece of storage whether or not they agree about it. The stricter
+ * answer is the one `mayAlias` wants, because forwarding a value needs the storage to be the same
+ * and not merely to overlap; `opt/place.cpp` compares a chain it is descending against a chain a
+ * pointer was written at, where a difference only decides whether the comparison goes a step
+ * deeper.
+ *
+ * A property address is declined on both sides for `separateFields`' reason: it names a structural
+ * requirement rather than a field, so the index means nothing to compare.
+ */
+bool sameAddressComponent(OptContext& opt, const AddressStep& left, const AddressStep& right);
+
+// Whether two steps of one shape name components that cannot overlap - deliberately not the
+// negation of `sameAddressStep`: two indices neither of which is a constant are neither the same
+// element nor two different ones.
+bool separateAddressStep(OptContext& opt, const AddressStep& left, const AddressStep& right);
+
+/*
  * Whether one instruction may write an allocation's storage, or storage reachable from it.
  *
  * The question `forwardMemory` asks of everything between a write and a read, and the one place the

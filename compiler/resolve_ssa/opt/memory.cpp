@@ -202,118 +202,6 @@ struct Forwarder {
     }
 
     /*
-     * One step of an address chain, told apart from every other step.
-     *
-     * `record`/`container` travel with the index because that is what decides what the index
-     * *means*: field 1 of two different records is two different offsets, and an element of two
-     * different containers is two different strides. The lowering asks one table for both, and a
-     * comparison here that dropped them would be a second answer to agree with.
-     */
-    struct Step {
-        Inst::Kind kind = Inst::Alloc;
-        DeclPtr<mir::Type> of = nullptr;
-        U16 field = 0;
-        Value* index = nullptr;
-        DeclPtr<mir::OwnershipSchema> shape = nullptr;
-        U16 property = InstFieldAddress::kNoProperty;
-    };
-
-    // The step an address is, and the address it is taken of. `base` is null where the address is a
-    // root - an allocation, a global, a pointer this pass cannot see behind.
-    Maybe<Step> stepOf(Value& address, Value*& base) {
-        base = nullptr;
-        if(!address.definer) return Nothing();
-
-        auto inst = opt.base[address.definer];
-        if(inst->kind == Inst::FieldAddress) {
-            auto& projection = (InstFieldAddress&)*inst;
-            base = opt.base[projection.base.value()];
-
-            return Just(Step { Inst::FieldAddress, projection.record, projection.field, nullptr,
-                               projection.shape, projection.property });
-        }
-
-        if(inst->kind == Inst::ElementAddress) {
-            auto& element = (InstElementAddress&)*inst;
-            base = opt.base[element.base.value()];
-
-            return Just(Step { Inst::ElementAddress, element.container, 0,
-                               opt.base[element.index.value()] });
-        }
-
-        return Nothing();
-    }
-
-    // Whether two steps of one shape name the same component - `simplify`'s `sameImmediates` asked
-    // of an address rather than of a computation, plus the index, which is a value there and a
-    // number here.
-    bool sameStep(const Step& left, const Step& right) {
-        if(left.kind != right.kind || left.of != right.of) return false;
-
-        if(left.kind == Inst::FieldAddress) {
-            return left.field == right.field && left.shape == right.shape &&
-                   left.property == right.property;
-        }
-
-        if(left.index == right.index) return true;
-
-        auto a = constantValueOf(opt, left.index);
-        auto b = constantValueOf(opt, right.index);
-        return a && b && a.unwrap() == b.unwrap();
-    }
-
-    /*
-     * Whether two field projections of one record name storage that cannot overlap.
-     *
-     * **Only a `RecordLayout::Single` record**, and that is the whole of the rule. A record with one
-     * constructor has one field per piece of storage and no discriminant, so two different indices
-     * are two different places. A **sum** has neither property: `resolve_mir` keeps one flat field
-     * list with a range per constructor, so two constructors' fields are different indices over the
-     * *same* payload storage, and a discriminant may be folded into a niche of that payload, which
-     * makes writing the payload the way the tag comes to say so. Neither is a question this tier may
-     * answer - which storage a constructor occupies and whether a tag is folded are `lower/repr.cpp`'s
-     * answers, a **target's**, and `optimizeProgram` runs once per program rather than once per
-     * target. `fold.cpp` makes the same refusal about a target-answered width and gives the same
-     * reason.
-     *
-     * What is *not* excluded is co-packing. Two narrow fields of a single-constructor record share a
-     * machine word on some targets and are still two fields here, because what a packed access
-     * becomes is `lower/pack.cpp`'s expansion one tier down - and that expansion masks, so the
-     * separation this states stays true underneath it. It is the shipping stage's ruling and its
-     * reason, arriving where the packing has not happened yet rather than in front of a pass that
-     * does it.
-     *
-     * A **property** address is declined on both sides: it names a structural requirement rather than
-     * a field, `record` and `field` are meaningless on one, and two requirements this stage cannot
-     * see the substitution for may well be one field.
-     */
-    bool separateFields(const Step& left, const Step& right) {
-        if(left.property != InstFieldAddress::kNoProperty) return false;
-        if(right.property != InstFieldAddress::kNoProperty) return false;
-        if(left.field == InstFieldAddress::kDiscriminant) return false;
-        if(right.field == InstFieldAddress::kDiscriminant) return false;
-        if(left.field == right.field) return false;
-
-        if(!left.of) return false;
-        auto declared = opt.decl[left.of];
-        if(declared->kind != mir::Type::Record) return false;
-
-        return ((mir::RecordType*)declared)->layout == mir::RecordLayout::Single;
-    }
-
-    // Whether two steps of one shape name components that cannot overlap - the other half of
-    // `sameStep`, and deliberately not its negation: two indices neither of which is a constant are
-    // neither the same element nor two different ones.
-    bool separateStep(const Step& left, const Step& right) {
-        if(left.kind != right.kind || left.of != right.of) return false;
-        if(left.kind == Inst::FieldAddress) return separateFields(left, right);
-
-        auto a = constantValueOf(opt, left.index);
-        auto b = constantValueOf(opt, right.index);
-        return a && b && a.unwrap() != b.unwrap();
-    }
-
-    /*
      * Whether two addresses name the same storage - the first of the two rules.
      *
      * Value identity first, which is nearly always the answer: `simplify`'s block-local CSE has
@@ -338,9 +226,9 @@ struct Forwarder {
 
             Value* leftBase = nullptr;
             Value* rightBase = nullptr;
-            auto a = stepOf(*left, leftBase);
-            auto b = stepOf(*right, rightBase);
-            if(!a || !b || !sameStep(a.unwrap(), b.unwrap())) return false;
+            auto a = addressStepOf(opt, *left, leftBase);
+            auto b = addressStepOf(opt, *right, rightBase);
+            if(!a || !b || !sameAddressStep(opt, a.unwrap(), b.unwrap())) return false;
 
             left = leftBase;
             right = rightBase;
@@ -360,13 +248,13 @@ struct Forwarder {
     bool mayAlias(Value* left, Value* right) {
         if(left == right) return true;
 
-        SmallArray<Step, 8> leftPath;
-        SmallArray<Step, 8> rightPath;
+        SmallArray<AddressStep, 8> leftPath;
+        SmallArray<AddressStep, 8> rightPath;
 
-        auto walk = [&](Value* address, SmallArray<Step, 8>& path) {
+        auto walk = [&](Value* address, SmallArray<AddressStep, 8>& path) {
             while(address) {
                 Value* base = nullptr;
-                auto step = stepOf(*address, base);
+                auto step = addressStepOf(opt, *address, base);
                 if(!step) return address;
 
                 path.push(step.unwrap());
@@ -399,8 +287,8 @@ struct Forwarder {
             auto& a = leftPath[leftPath.size() - 1 - i];
             auto& b = rightPath[rightPath.size() - 1 - i];
 
-            if(separateStep(a, b)) return false;
-            if(!sameStep(a, b)) return true;
+            if(separateAddressStep(opt, a, b)) return false;
+            if(!sameAddressStep(opt, a, b)) return true;
         }
 
         return true;
@@ -494,7 +382,7 @@ struct Forwarder {
         if(!written) return false;
 
         Value* base = nullptr;
-        auto step = stepOf(*written, base);
+        auto step = addressStepOf(opt, *written, base);
         if(!step || !base) return false;
 
         auto projection = step.unwrap();
@@ -649,7 +537,7 @@ struct Forwarder {
         if(depth > kAggregateDepth || !address) return nullptr;
 
         Value* base = nullptr;
-        auto step = stepOf(*address, base);
+        auto step = addressStepOf(opt, *address, base);
         if(!step || !base) return nullptr;
 
         auto projection = step.unwrap();

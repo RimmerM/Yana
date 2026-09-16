@@ -4,7 +4,7 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
-    store %v_1, 1, 1
+    store %v_1, 0, 1
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 7, 4
     %v_3 = load %v_1, 1: I32
@@ -14,74 +14,44 @@ main<complex>(): I32 {
 
   b_7 {
     %v_8 = add %v_9, 4: Ptr
-    %v_10 = alloca 4, 4: Ptr
-    copy %v_10, %v_8, 4
-    %v_11 = load %v_10, 4: I32
-    %v_12 = sub 0, %v_11: I32
-    jmp b_13
+    %v_10 = load %v_8, 4: I32
+    %v_11 = sub 0, %v_10: I32
+    jmp b_12
   }
 
-  b_13 {
-    %v_14 = phi [b_7, %v_12], [b_15, %v_16]: I32
-    ret %v_14
+  b_12 {
+    %v_13 = phi [b_7, %v_11], [b_14, %v_15]: I32
+    ret %v_13
   }
 
-  b_15 {
-    %v_17 = add %v_9, 4: Ptr
-    %v_16 = loads %v_17, 4: I32
-    jmp b_13
+  b_14 {
+    %v_16 = add %v_9, 4: Ptr
+    %v_15 = loads %v_16, 4: I32
+    jmp b_12
   }
 
-  b_18 {
-    %v_9 = phi [b_19, %v_20], [b_21, %v_22]: Ptr
-    %v_23 = load %v_9, 1: I32
-    %v_24 = cmp_eq %v_23, 1: I32
-    je %v_24, b_15, b_7
-  }
-
-  b_19 {
-    %v_25 = add %v_26, 4: Ptr
-    %v_27 = loads %v_25, 4: I32
-    %v_20 = alloca 8, 4: Ptr
-    store %v_20, 1, 1
-    %v_28 = add %v_20, 4: Ptr
-    store %v_28, %v_27, 4
-    jmp b_18
-  }
-
-  b_21 {
-    %v_29 = add %v_26, 4: Ptr
-    %v_30 = alloca 4, 4: Ptr
-    copy %v_30, %v_29, 4
-    %v_22 = alloca 8, 4: Ptr
-    store %v_22, 0, 1
-    %v_31 = add %v_22, 4: Ptr
-    copy %v_31, %v_30, 4
-    jmp b_18
+  b_17 {
+    %v_9 = phi [b_6, %v_18], [b_5, %v_19]: Ptr
+    %v_20 = load %v_9, 1: I32
+    %v_21 = cmp_eq %v_20, 1: I32
+    je %v_21, b_14, b_7
   }
 
   b_6 {
-    %v_32 = alloca 8, 4: Ptr
-    store %v_32, 1, 1
-    %v_33 = add %v_32, 4: Ptr
-    copy %v_33, %v_2, 4
-    jmp b_34
+    %v_22 = loads %v_2, 4: I32
+    %v_18 = alloca 8, 4: Ptr
+    store %v_18, 1, 1
+    %v_23 = add %v_18, 4: Ptr
+    store %v_23, %v_22, 4
+    jmp b_17
   }
 
   b_5 {
-    %v_35 = loads %v_2, 4: I32
-    %v_36 = alloca 8, 4: Ptr
-    store %v_36, 0, 1
-    %v_37 = add %v_36, 4: Ptr
-    store %v_37, %v_35, 4
-    jmp b_34
-  }
-
-  b_34 {
-    %v_26 = phi [b_6, %v_32], [b_5, %v_36]: Ptr
-    %v_38 = load %v_26, 1: I32
-    %v_39 = cmp_eq %v_38, 1: I32
-    je %v_39, b_21, b_19
+    %v_19 = alloca 8, 4: Ptr
+    %v_24 = add %v_19, 4: Ptr
+    copy %v_24, %v_2, 4
+    store %v_19, 0, 1
+    jmp b_17
   }
 }
 

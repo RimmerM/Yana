@@ -94,12 +94,15 @@ main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     %v_2 = alloca 4, 4: Ptr
-    %v_3 = call_complex nested, 0: I32
-    %v_4 = imul %v_3, 3: I32
-    %v_5 = add 35, %v_4: I32
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = loads @live, 4: I32
+    %v_5 = add %v_4, 1: I32
+    store @live, %v_5, 4
+    store %v_3, 0, 4
+    call_complex Held.drop, %v_3
     %v_6 = call_complex nested, 3: I32
     %v_7 = imul %v_6, 5: I32
-    %v_8 = add %v_5, %v_7: I32
+    %v_8 = add 35, %v_7: I32
     %v_9 = call_complex nested, 6: I32
     %v_10 = imul %v_9, 7: I32
     %v_11 = add %v_8, %v_10: I32

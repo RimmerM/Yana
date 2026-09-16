@@ -56,15 +56,28 @@ namespace ssa {
  *    that allocation is tainted too and everything read out of it is. A store whose root is a
  *    global, a parameter's pointer or an address loaded out of storage is an escape, which is the
  *    only sound reading of "somewhere else".
- *  - At a call argument, `Summary::retains` for a value and `Summary::escapes` for a raw pointer -
- *    the two rows the summary's own note keeps apart, and the pointer row is the one that follows
- *    "the incoming pointer of a `%T` parameter", which is exactly what the buffer is at such a
- *    position.
+ *  - At a call argument, `Summary::escapes` **for a descriptor**, which is the row that says the
+ *    callee wrote what it was handed somewhere outliving the call. A *bare address* at such a
+ *    position does not ask: see `admitsCall`, and the bullet below it shares a reason with.
  *  - A comparison is a sink and not a carrier: `runOver` tests the pointer for null and a `Bool`
  *    is not a way back to anything.
- *  - `Return` is an escape, and so is every kind not named - a `FunValue` environment, a `Native`
- *    operand, an `Atomic`. Forgetting too much costs a placement and forgetting too little is a use
- *    after free, so the default declines.
+ *  - **Anywhere the carrier is the address itself and is only handed over** - a native row's
+ *    operand, a call argument. A raw pointer carries no `ownsHeap` word, so nothing reached through
+ *    one can become a second owner of the bytes, and this body's reclaim stays where it was.
+ *  - `Return` is an escape, and so is every kind not named - a `FunValue` environment, an `Atomic`.
+ *    Forgetting too much costs a placement and forgetting too little is a use after free, so the
+ *    default declines.
+ *
+ * **And what would make it wrong is a transfer, not a read.** The bytes are handed back by the
+ * `Reclaim` this body emits, testing the `ownsHeap` the descriptor carries, so a frame answer is
+ * wrong exactly where that reclaim is *not* the last event of the bytes' life - which is where a
+ * descriptor over them was moved into something outliving the frame. Every refusal above is one of
+ * those, and a use that only reads the address is not: with the run on the heap the reclaim runs at
+ * the same instruction and frees the same bytes, so an address that outlived the frame outlives the
+ * storage under both answers. That program is wrong before this pass sees it, and the analysis that
+ * says so is the loan checker - `analyze_escape.cpp`'s seeds are its three conformance failures.
+ * Placement is not a second, weaker copy of it, and had been charging every `print` an
+ * `allocateHeap`/`freeHeap` pair for pretending to be one.
  *
  * The one route the walk does **not** follow is a callee reading the pointer back out of a slot it
  * was lent, and it does not follow it because the language does not have it: what such a callee
@@ -171,11 +184,53 @@ struct RunPlacement {
     // writes into `reloaded`. A field rather than a parameter because `reread` recurses.
     bool throughStorage = false;
 
+    /*
+     * Where in the holder the pointer went, and where the descent is standing - `overlaps`, and the
+     * offset precision J64 gave this walk.
+     *
+     * Without them a whole-record store taints every load anywhere under the holder, because "may
+     * come back out" was asked of the *allocation* rather than of the place. That is the answer for
+     * the field the pointer went into and is wrong for its siblings, and a `String`'s siblings are
+     * its `length` - a thirty-bit count that reaches a `return` in the same body the moment
+     * `appendUnits` is small enough to inline. `StringReclaim.yana` is the fixture.
+     *
+     * Fields rather than parameters for `throughStorage`'s reason, and cleared per store: one
+     * holder written twice is two walks, each with its own place, and `taint` is idempotent.
+     */
+    Array<AddressStep> target;
+    Array<AddressStep> here;
+    bool targeted = false;
+
     // The same allocations as a list, because the loop rule walks them and a set answers only
     // membership. Filled beside `within` and cleared with it.
     Array<SsaPtr<Value>> holders;
 
     Array<SsaPtr<Value>> pending;
+
+    // The stores of a carrier into a holder, kept until the worklist is empty - see the `Store` arm.
+    Array<SsaPtr<Inst>> stores;
+
+    /*
+     * Which instructions the three lists below already hold - membership beside a list, which is the
+     * arrangement `within` and `holders` make one field up and is here for the *same* reason twice
+     * over.
+     *
+     * A list needs it because the walk reaches one instruction more than once: a value whose place
+     * widens goes back on the worklist, and its whole use list is followed again. Without the set the
+     * second visit pushes the descriptor a second time, `soleDescriptor` counts two and refuses a
+     * placement it had found; a refusal test pushed twice is erased twice, which is an assertion. A
+     * scan of the list would answer as well and is what `stores` was doing - quadratic in a body's
+     * stores, for a question a bit answers.
+     */
+    IndexSet collected;
+
+    // Whether this instruction is newly collected, and a note that it is.
+    bool collect(Inst& inst) {
+        if(collected[inst.id.index]) return false;
+
+        collected.set(inst.id.index, true);
+        return true;
+    }
 
     // One allocation's two events, over instruction ids - see `classifyStorage`. Rebuilt per
     // allocation, and `live` per loop beside them.
@@ -250,12 +305,186 @@ struct RunPlacement {
         return held && held->kind == mir::Constant::Int && held->asInt() == 0;
     }
 
-    void taint(Value* value) {
-        if(!value || carries[value->id.index]) return;
+    /*
+     * Where inside a carrier the pointer sits - the second coordinate this walk carries, and what
+     * makes `reread` a question about a *place* rather than about an allocation.
+     *
+     * A carrier is not always the pointer. A `String` is a record that holds one at `.units.run
+     * .items`, and a body that stores such a record whole into a slot has put the pointer at that
+     * chain within the slot and has put nothing anywhere else in it - so a load of `.units.length`
+     * out of that slot cannot answer with the address. Without this the walk had to say it might,
+     * and the count reaching a `return` refused the placement: `StringReclaim.yana` and
+     * `Format.yana` are the two fixtures, and J64 is the account.
+     *
+     * Three states rather than two. `Unset` is a carrier nothing has said anything about yet,
+     * `Known` is a chain, and `Unknown` is a carrier reached two ways that disagree or reached a
+     * way this cannot describe. The lattice only ever moves `Unset` -> `Known` -> `Unknown`, which
+     * is what makes the rounds in `inFrame` terminate: a value is re-walked at most twice, and the
+     * answer it ends at is the widest any route gave it.
+     *
+     * Four steps deep, which is one more than the deepest chain in the library - `String` is three.
+     * A pointer buried deeper than that is `Unknown`, which is what the walk said about every
+     * carrier before this existed.
+     */
+    static constexpr U8 kPlaceUnset = 0;
+    static constexpr U8 kPlaceKnown = 1;
+    static constexpr U8 kPlaceUnknown = 2;
+    static constexpr U32 kPlaceDepth = 4;
 
-        carries.set(value->id.index, true);
-        if(throughStorage) reloaded.set(value->id.index, true);
-        pending.push(value - base());
+    struct Place {
+        AddressStep steps[kPlaceDepth];
+        U8 length = 0;
+        U8 state = kPlaceUnset;
+    };
+
+    /*
+     * The table: one word per value naming a row, and a row per carrier the walk in progress reached.
+     *
+     * **Indirect rather than a `Place` per value**, because a `Place` is a hundred and thirty bytes
+     * and the values that hold one are the tens of carriers one request reaches - a row per value
+     * would be most of a megabyte of a body this never looks at, written and never read. The rows
+     * are cleared per request and the two words per value are not: `stamp` is what tells a row of
+     * this walk from one the last walk left, which is the arrangement `Containment::visiting` makes
+     * with its set and is here for the same reason - `inFrame` runs once per request and there are
+     * tens of them in a body.
+     */
+    Array<U32> placeStamp;
+    Array<U32> placeRow;
+    Array<Place> rows;
+    U32 stamp = 0;
+
+    // The pointer itself, and anything derived from one: the carrier is the whole of the value.
+    Place whole() {
+        Place place;
+        place.state = kPlaceKnown;
+        return place;
+    }
+
+    Place nowhere() {
+        Place place;
+        place.state = kPlaceUnknown;
+        return place;
+    }
+
+    Place placeOf(Value& value) {
+        auto index = value.id.index;
+        if(index >= placeStamp.size() || placeStamp[index] != stamp) return Place();
+
+        return rows[placeRow[index]];
+    }
+
+    // Whether two chains are one chain - `widen`'s comparison, which is `overlaps`' asked of two
+    // finished places rather than of one being walked.
+    bool samePlace(const Place& left, const Place& right) {
+        if(left.length != right.length) return false;
+
+        for(U8 i = 0; i < left.length; i++) {
+            if(!sameAddressComponent(opt, left.steps[i], right.steps[i])) return false;
+        }
+
+        return true;
+    }
+
+    // One route's answer, folded into the one already recorded - and whether that moved it.
+    bool widen(Value& value, const Place& place) {
+        auto index = value.id.index;
+
+        while(placeStamp.size() <= index) { placeStamp.push(0); placeRow.push(0); }
+
+        if(placeStamp[index] != stamp) {
+            placeStamp[index] = stamp;
+            placeRow[index] = U32(rows.size());
+            rows.push(Place());
+        }
+
+        auto& held = rows[placeRow[index]];
+        if(held.state == kPlaceUnknown) return false;
+
+        if(held.state == kPlaceUnset) {
+            held = place.state == kPlaceKnown ? place : nowhere();
+            return true;
+        }
+
+        // A second route saying what the first one said moves nothing; one saying anything else
+        // leaves a carrier whose place this cannot describe.
+        if(place.state == kPlaceKnown && samePlace(held, place)) return false;
+
+        held = nowhere();
+        return true;
+    }
+
+    void taint(Value* value, const Place& place) {
+        if(!value) return;
+
+        auto index = value->id.index;
+        auto fresh = !carries[index];
+
+        if(fresh) {
+            carries.set(index, true);
+            if(throughStorage) reloaded.set(index, true);
+        }
+
+        // A value whose place widened is one everything derived from it has to be told about, so it
+        // goes back on the worklist however long it has been off it.
+        auto moved = widen(*value, place);
+        if(fresh || moved) pending.push(value - base());
+    }
+
+    /*
+     * Whether the carrier is the address itself rather than something holding it - the one reading
+     * of a `Place` two of the arms below turn on, and the distinction the pass's own note argues.
+     *
+     * Length zero is the pointer, or a projection of it, which is the same word plus a displacement.
+     * Anything longer is a record the pointer sits inside, and a record is the thing that can be
+     * moved and so the thing that can carry `ownsHeap` out of this frame.
+     */
+    bool bareAddress(Value& value) {
+        auto carried = placeOf(value);
+        return carried.state == kPlaceKnown && !carried.length;
+    }
+
+    // The place a component of a record sits at, seen from the record - `[field] ++ the component's
+    // own place`, or nothing where the record is one this stage may not index.
+    Place componentPlace(InstAggregate& aggregate, Value& value) {
+        if(!aggregate.results.size()) return nowhere();
+        if(aggregate.constructor != 0) return nowhere();
+
+        auto record = base()[aggregate.results.get(base(), 0)]->occurrence.type;
+        if(!record) return nowhere();
+
+        auto declared = opt.decl[record];
+        if(declared->kind != mir::Type::Record) return nowhere();
+        if(((mir::RecordType*)declared)->layout != mir::RecordLayout::Single) return nowhere();
+
+        U16 at = 0;
+        U16 index = 0;
+        auto found = false;
+
+        for(auto used: aggregate.components.contents(base())) {
+            if(used.isSet() && base()[used.value()] == &value) {
+                // One pointer in two fields is two places, and this carries one.
+                if(found) return nowhere();
+                found = true;
+                at = index;
+            }
+
+            index++;
+        }
+
+        if(!found) return nowhere();
+
+        auto inner = placeOf(value);
+        if(inner.state != kPlaceKnown) return nowhere();
+        if(inner.length + 1 > kPlaceDepth) return nowhere();
+
+        Place place;
+        place.state = kPlaceKnown;
+        place.length = (U8)(inner.length + 1);
+        place.steps[0] = AddressStep { Inst::FieldAddress, record, at, nullptr, nullptr,
+                                       InstFieldAddress::kNoProperty };
+        for(U8 i = 0; i < inner.length; i++) place.steps[i + 1] = inner.steps[i];
+
+        return place;
     }
 
     /*
@@ -274,13 +503,16 @@ struct RunPlacement {
              * already standing on it, and checked once at the end - a pointer reaching two of them
              * or none is a shape this pass does not recognise and does not touch.
              */
-            case Inst::Aggregate:
-                if(isDescriptor(user, value)) descriptors.push(&user - base());
+            case Inst::Aggregate: {
+                if(isDescriptor(user, value) && collect(user)) descriptors.push(&user - base());
+
+                auto inner = componentPlace((InstAggregate&)user, value);
                 for(Size i = 0; i < user.results.size(); i++) {
-                    taint(base()[user.results.get(base(), i)]);
+                    taint(base()[user.results.get(base(), i)], inner);
                 }
 
                 return true;
+            }
 
             /*
              * A projection, a choice between two values and a restatement of one - each keeps the
@@ -289,12 +521,24 @@ struct RunPlacement {
             case Inst::FieldAddress:
             case Inst::ElementAddress:
             case Inst::Select:
-            case Inst::Unary:
+            case Inst::Unary: {
+                /*
+                 * A restatement and a choice both answer with the value they were given, so the
+                 * place travels with them. A projection is taken *of an address*, so what it
+                 * answers with is a pointer and the carrier is the whole of it - which is what the
+                 * place already says where the carrier reaching here is one.
+                 */
+                auto inner = placeOf(value);
+                if(user.kind == Inst::FieldAddress || user.kind == Inst::ElementAddress) {
+                    inner = inner.state == kPlaceKnown && !inner.length ? whole() : nowhere();
+                }
+
                 for(Size i = 0; i < user.results.size(); i++) {
-                    taint(base()[user.results.get(base(), i)]);
+                    taint(base()[user.results.get(base(), i)], inner);
                 }
 
                 return true;
+            }
 
             /*
              * A comparison, which is where `runOver` asks whether the allocator refused. What comes
@@ -304,10 +548,9 @@ struct RunPlacement {
              */
             case Inst::Binary: {
                 auto& binary = (InstBinary&)user;
-                auto category = mir::binaryCategory(binary.op);
-                if(category != mir::OpCategory::Equality && category != mir::OpCategory::Order) {
+                if(!mir::isComparison(binary.op)) {
                     for(Size i = 0; i < user.results.size(); i++) {
-                        taint(base()[user.results.get(base(), i)]);
+                        taint(base()[user.results.get(base(), i)], nowhere());
                     }
 
                     return true;
@@ -322,8 +565,8 @@ struct RunPlacement {
                  * carrier that came back out of memory is a proof obligation and not a fact, so
                  * folding a comparison of one is reading the wrong set.
                  */
-                if(category == mir::OpCategory::Equality && !reloaded[value.id.index] &&
-                   isRefusalTest(binary, value)) {
+                if(mir::binaryCategory(binary.op) == mir::OpCategory::Equality &&
+                   !reloaded[value.id.index] && isRefusalTest(binary, value) && collect(user)) {
                     refusals.push(&user - base());
                 }
 
@@ -332,7 +575,8 @@ struct RunPlacement {
 
             /*
              * Into storage. The address has to root at an allocation of this body that nothing else
-             * can name; then the allocation carries the pointer and every load out of it does too.
+             * can name; then the allocation carries the pointer and every load that **may read the
+             * place it was written** does too.
              *
              * A store *through* the tainted address is the other direction and says nothing: it is
              * a write into the buffer, which is what the buffer is for.
@@ -341,15 +585,24 @@ struct RunPlacement {
                 auto& store = (InstStore&)user;
                 if(!named(store.value)) return true;
 
-                auto root = allocationRoot(opt, base()[store.address.value()]);
+                auto written = base()[store.address.value()];
+                auto root = allocationRoot(opt, written);
                 if(!root || !containedOf(opt)[root]) return false;
 
                 if(!within[root->id.index]) {
                     within.set(root->id.index, true);
                     holders.push(root - base());
-                    reread(*root);
                 }
 
+                /*
+                 * Recorded rather than walked here - `inFrame`'s rounds, and the reason is what the
+                 * walk below reads. Where in the holder the pointer went is decided by which
+                 * *components* of the stored value carry it, and the worklist is not finished
+                 * saying which do: a component reached after this store would narrow the answer
+                 * that had already been given. So every store is walked once the worklist is empty
+                 * and walked again if that taints anything, until nothing does.
+                 */
+                if(collect(user)) stores.push(&user - base());
                 return true;
             }
 
@@ -388,6 +641,45 @@ struct RunPlacement {
             case Inst::Call:
                 return admitsCall((InstCall&)user, value);
 
+            /*
+             * A native row's operand - and the arm where **taking an address is not a transfer** is
+             * written down.
+             *
+             * What this pass decides is where a run's *bytes* live, and the bytes are handed back by
+             * `Reclaim` reading `ownsHeap` out of the descriptor. So the only way the answer can be
+             * wrong is if a descriptor over these bytes comes to be owned by something that outlives
+             * the frame - because that is the one case where the reclaim is *not* emitted here. A
+             * raw address carries no `ownsHeap` word, so it is structurally incapable of being that:
+             * handing one to a native row leaves this frame's reclaim exactly where it was, and the
+             * bytes therefore die at the same instruction under either placement.
+             *
+             * Which is why refusing here bought nothing. A `write` that keeps the pointer past the
+             * call is a use-after-free with the run on the heap too - `String.reclaim` runs before
+             * the `ret` either way - so the refusal never protected a program, it only charged every
+             * `print` an `allocateHeap`/`freeHeap` pair. **A pointer outliving the local it names is
+             * the loan checker's question**, it is answered where the annotation is, and a placement
+             * that re-asks it with less information is a second, weaker copy of an analysis that
+             * already exists.
+             *
+             * The place is what says which of the two this carrier is. Length zero is the address
+             * itself - the buffer pointer, or a projection of it, which is the same word plus a
+             * displacement. Anything longer is a *record holding* the pointer, and a block move
+             * reading those bytes copies the pointer out with them, so that one still declines.
+             *
+             * Results carry with an unknown place, which is `admitsCall`'s rule and for its reason:
+             * `mremap` answers with an address, and a row whose answer nothing unsafe is done with
+             * is one the walk clears anyway.
+             */
+            case Inst::Native: {
+                if(!bareAddress(value)) return false;
+
+                for(Size i = 0; i < user.results.size(); i++) {
+                    taint(base()[user.results.get(base(), i)], nowhere());
+                }
+
+                return true;
+            }
+
             // Out of the frame, which is the question this pass is asking.
             case Inst::Return:
                 return false;
@@ -422,12 +714,39 @@ struct RunPlacement {
          */
         if(call.through != mir::CallThrough::Declaration || !call.callee) return false;
 
-        auto kept = opt.decl[call.callee]->summary.escapes().get(mir::ArgumentSet::all());
+        /*
+         * **A raw address is admitted at every position**, and the row is not consulted for one.
+         *
+         * `escapes` answers "was the address the caller handed over written somewhere outliving the
+         * call", which is `ssa::Contained`'s question and the right one for it - a second name for
+         * the storage is a second name whatever made it. It is not this pass's question. What would
+         * make a frame answer wrong is the bytes being read after this body's `Reclaim`, and the
+         * reclaim moves only when a *descriptor* is moved, because the descriptor is what carries
+         * `ownsHeap`. A callee handed a bare pointer gets no `ownsHeap` with it and can transfer
+         * nothing; this frame still reclaims at the same instruction.
+         *
+         * And a frame placement is safe for the pointer itself on the analysis that already owns
+         * that question. A `%T` into a local's storage is a loan of that local, the loan checker
+         * holds it to the local's lifetime and errors where it would outlive it - and the *frame*
+         * outlives the local, which the buffer now lives in. So the pointer cannot reach past the
+         * bytes unless a program the checker already rejected got here.
+         *
+         * `String.appendUnits(self, from, count)` is what the row was costing: `from` is a
+         * `%CodeUnit` the callee copies out of and stores nothing of, but it reads as kept for the
+         * reason `resolve_mir/summary.cpp`'s block-move arm gives, and every caller with a buffer at
+         * that position paid an `allocateHeap` for it. Six of `Format`'s were exactly this.
+         *
+         * A **descriptor** still asks. Length is what tells them apart - zero is the address itself,
+         * longer is a record holding it, and a record is the thing that can be moved.
+         */
+        if(!bareAddress(value)) {
+            auto kept = opt.decl[call.callee]->summary.escapes().get(mir::ArgumentSet::all());
 
-        Size index = 0;
-        for(auto used: call.arguments.contents(base())) {
-            if(used.isSet() && base()[used.value()] == &value && kept.has(index)) return false;
-            index++;
+            Size index = 0;
+            for(auto used: call.arguments.contents(base())) {
+                if(used.isSet() && base()[used.value()] == &value && kept.has(index)) return false;
+                index++;
+            }
         }
 
         /*
@@ -436,7 +755,9 @@ struct RunPlacement {
          * every result carries, which costs nothing where it does not: a result nothing does
          * anything unsafe with is a value this walk clears.
          */
-        for(Size i = 0; i < call.results.size(); i++) taint(base()[call.results.get(base(), i)]);
+        for(Size i = 0; i < call.results.size(); i++) {
+            taint(base()[call.results.get(base(), i)], nowhere());
+        }
         return true;
     }
 
@@ -452,7 +773,7 @@ struct RunPlacement {
             for(auto used: edge.arguments.contents(base())) {
                 if(used.isSet() && base()[used.value()] == &value) {
                     if(position >= target->argumentCount()) ok = false;
-                    else taint(base()[target->argumentAt(base(), position)]);
+                    else taint(base()[target->argumentAt(base(), position)], placeOf(value));
                 }
 
                 position++;
@@ -471,39 +792,160 @@ struct RunPlacement {
      * because it could not see the instruction that took it out - which is the direction this walk
      * may not fail in. It is `Contained`'s own recursion with the admission replaced by a taint.
      */
-    void reread(Value& address) {
+    void reread(InstStore& store) {
+        auto written = base()[store.address.value()];
+        auto root = allocationRoot(opt, written);
+        if(!root) return;
+
         // Everything this reaches is a carrier by way of memory - see `reloaded`. Saved and
         // restored rather than set, because this recurses and its caller may be following a value
         // that came through storage already.
         auto saved = throughStorage;
         throughStorage = true;
 
-        rereadFrom(address);
+        target.clear();
+        here.clear();
+        targeted = pathTo(*root, *written, target);
+
+        // And where inside the value that was stored the pointer sits - see `Place`. Where that is
+        // not known the chain stops at the slot, which is a prefix, and a prefix is an overlap.
+        if(targeted) {
+            auto inner = placeOf(*base()[store.value.value()]);
+            if(inner.state == kPlaceKnown) {
+                for(U8 i = 0; i < inner.length; i++) target.push(inner.steps[i]);
+            }
+        }
+
+        rereadFrom(*root);
         throughStorage = saved;
     }
 
+    /*
+     * The chain of steps from `root` down to the address that was written, outermost first, and
+     * whether the walk got there at all.
+     *
+     * Not `allocationRoot`'s walk: that one also steps through a `Guaranteed` load and a
+     * `represent`, which name the same storage but are no step of the projection language the
+     * comparison below speaks. So this stops where `addressStepOf` stops, and a stop short of the
+     * root is reported as "no path", which switches the filter off and leaves the old answer.
+     */
+    bool pathTo(Value& root, Value& written, Array<AddressStep>& path) {
+        auto address = &written;
+
+        while(address && address != &root) {
+            Value* above = nullptr;
+            auto step = addressStepOf(opt, *address, above);
+
+            if(step && above) {
+                path.push(step.unwrap());
+                address = above;
+                continue;
+            }
+
+            // A `Guaranteed` load and a `represent` name the same storage and are no step of the
+            // chain, which is `addressStep`'s own list and the reason it is a second walk.
+            auto through = addressStep(opt, address);
+            if(!through) return false;
+
+            address = through;
+        }
+
+        if(address != &root) return false;
+
+        // Pushed leaf-first by the walk and read root-first by `overlaps`.
+        for(Size i = 0, j = path.size(); i + 1 < j; i++, j--) {
+            auto swapped = path[i];
+            path[i] = path[j - 1];
+            path[j - 1] = swapped;
+        }
+
+        return true;
+    }
+
+    /*
+     * Whether the storage the descent is standing on may be the storage the pointer was written to.
+     *
+     * The two chains are compared from the root down, which is the direction a separation is only
+     * meaningful in - a step tells two addresses apart only if every step above it was the same
+     * step. Where one chain runs out the other is inside it, and a whole-record read of an ancestor
+     * does reach the field the pointer went into, so a prefix is an overlap. `opt/memory.cpp`'s
+     * `mayAlias` is the same comparison asked of two finished chains rather than of one being
+     * walked.
+     */
+    bool overlaps() {
+        if(!targeted) return true;
+
+        auto depth = min(here.size(), target.size());
+        for(Size i = 0; i < depth; i++) {
+            if(separateAddressStep(opt, here[i], target[i])) return false;
+            if(!sameAddressComponent(opt, here[i], target[i])) return true;
+        }
+
+        return true;
+    }
+
     void rereadFrom(Value& address) {
+        // Everything below a separated sibling is inside it, so the whole subtree goes with it.
+        if(!overlaps()) return;
+
         for(auto userPointer: address.uses(base())) {
             auto& user = *base()[userPointer];
 
             switch(user.kind) {
                 case Inst::Load:
-                case Inst::Copy:
+                case Inst::Copy: {
+                    /*
+                     * The half of the chain the descent has not walked yet is exactly where the
+                     * pointer sits inside the value that just came out of storage - which is what
+                     * lets a `String` copied from one slot to another keep its place rather than
+                     * tainting the whole of the second slot. `Format.yana`'s `main` is six of these.
+                     */
+                    auto remaining = nowhere();
+                    if(targeted && here.size() <= target.size() &&
+                       target.size() - here.size() <= kPlaceDepth) {
+                        remaining.state = kPlaceKnown;
+                        remaining.length = (U8)(target.size() - here.size());
+                        for(U8 i = 0; i < remaining.length; i++) {
+                            remaining.steps[i] = target[here.size() + i];
+                        }
+                    }
+
                     for(Size i = 0; i < user.results.size(); i++) {
-                        taint(base()[user.results.get(base(), i)]);
+                        taint(base()[user.results.get(base(), i)], remaining);
                     }
 
                     // And the borrow a `Guaranteed` load is, which names the same storage - the half
-                    // `Contained` recurses through for the same reason.
+                    // `Contained` recurses through for the same reason, and the same storage is the
+                    // same place in the chain, so the walk keeps the position it is standing at.
                     for(Size i = 0; i < user.results.size(); i++) {
                         auto result = base()[user.results.get(base(), i)];
                         if(result->convention == Convention::Guaranteed) rereadFrom(*result);
                     }
 
                     break;
+                }
 
+                /*
+                 * A projection, which is a step down the chain - so the position moves with it and
+                 * comes back afterwards. A `Unary` is the third way an address names storage another
+                 * value already names, and it is no step: `represent` restates the occurrence and a
+                 * `bitcast` of an address rereads the same bytes at another type.
+                 */
                 case Inst::FieldAddress:
                 case Inst::ElementAddress:
+                    for(Size i = 0; i < user.results.size(); i++) {
+                        auto result = base()[user.results.get(base(), i)];
+                        Value* above = nullptr;
+                        auto step = addressStepOf(opt, *result, above);
+                        if(!step) continue;
+
+                        here.push(step.unwrap());
+                        rereadFrom(*result);
+                        here.pop();
+                    }
+
+                    break;
+
                 case Inst::Unary:
                     for(Size i = 0; i < user.results.size(); i++) {
                         rereadFrom(*base()[user.results.get(base(), i)]);
@@ -528,21 +970,49 @@ struct RunPlacement {
         carries.reset(opt.body->values.size());
         within.reset(opt.body->values.size());
         reloaded.reset(opt.body->values.size());
+        collected.reset(U32(opt.body->insts.size()));
+
+        // Every list the walk fills, emptied where the walk starts rather than at its caller: the
+        // four below and the three sets above are one piece of state, and a clear that lived
+        // somewhere else is a clear that can be forgotten.
         pending.clear();
+        stores.clear();
+        rows.clear();
+        descriptors.clear();
+        refusals.clear();
+        holders.clear();
 
         throughStorage = false;
-        taint(&pointer);
+        stamp++;
+        taint(&pointer, whole());
 
-        while(pending.size()) {
-            auto value = base()[pending.pop().unwrap()];
+        /*
+         * Two nested loops and the outer one is the fixpoint - see the `Store` arm.
+         *
+         * The inner loop is the walk as it was: one carrier's use list at a time, until nothing is
+         * left to follow. The outer one re-reads every holder from the carrier set the inner loop
+         * finished with, and stops when a whole pass over them taints nothing new. `carries` only
+         * grows, so the last pass is the one that decided every narrowing, and a component that
+         * turned out to carry after all widens the chain on the pass that found it.
+         */
+        for(;;) {
+            while(pending.size()) {
+                auto value = base()[pending.pop().unwrap()];
 
-            // What this carrier is followed as - see `reloaded`. A value reached through storage
-            // hands that on to everything derived from it.
-            throughStorage = reloaded[value->id.index];
+                // What this carrier is followed as - see `reloaded`. A value reached through storage
+                // hands that on to everything derived from it.
+                throughStorage = reloaded[value->id.index];
 
-            for(auto userPointer: value->uses(base())) {
-                if(!admits(*base()[userPointer], *value)) return false;
+                for(auto userPointer: value->uses(base())) {
+                    if(!admits(*base()[userPointer], *value)) return false;
+                }
             }
+
+            auto recorded = stores.size();
+            for(Size i = 0; i < recorded; i++) reread((InstStore&)*base()[stores[i]]);
+
+            // A store found while re-reading is one nothing has walked, so the rounds go on.
+            if(!pending.size() && stores.size() == recorded) break;
         }
 
         throughStorage = false;
@@ -885,9 +1355,6 @@ struct RunPlacement {
         if(slots.placed || !slots.results.size() || !slots.element) return false;
         if(!sized(slots)) return false;
 
-        descriptors.clear();
-        refusals.clear();
-        holders.clear();
         if(!inFrame(*base()[slots.results.get(base(), 0)])) return false;
 
         // After the walk and not before it, which is the difference J46 step 5 made: the loop rule

@@ -1641,11 +1641,15 @@ namespace {
  * the result out of the loop with them, and with the loop no longer writing storage the invariant
  * lane mask leaves it as well.
  *
- * **Only a terminator's edge operands are rewritten**, which is narrower than "every use in the arm"
- * and is what makes it a rewrite rather than surgery: an edge operand is replaced by rebuilding the
- * terminator, which is the one way this directory moves an edge, and the shape that matters is
- * exactly an operand handed to a block argument. A use inside an instruction is left alone; the
- * folder reaches those from the other end when the branch itself folds.
+ * **Every use in the arm is rewritten**, which is §J63's correction of the narrower rule this was
+ * written with. The first version took a terminator's edge operands alone, on the reading that what
+ * matters is an operand handed to a block argument - and what actually matters is that the value
+ * *is* the constant everywhere the arm alone reaches, which an ordinary operand reads as much as an
+ * edge does. `Eq(String).==` is the measurement: it tests the two lengths and then hands its own to
+ * `compareMemory`, so against a string literal the count is a known number sitting in an operand
+ * slot, and nothing downstream recovers it - the slot is not a block argument, so
+ * `removeTrivialArguments` never sees it, and the folder walks from a definition rather than from a
+ * branch above a use.
  *
  * The arm's target must have **one** way in, which is what makes "dominated by the target" mean
  * "reached only through this arm". Without it a block dominated by the target could also be entered
@@ -1655,20 +1659,16 @@ struct ConditionDecider {
     OptContext& opt;
     Dominators& dominators;
 
-    Value* valueOf(Use used) { return used.isSet() ? opt.base[used.value()] : nullptr; }
-
-    /*
-     * Every edge operand this terminator hands `condition` over as, exchanged for `decided`.
-     *
-     * Through `setEdgeArgument` rather than by rebuilding the terminator, and that is a distinction
-     * `replaceTerminator` makes on purpose: it preserves the arguments of an edge present on both
-     * sides, because a folded branch has nothing at hand that knows what its target was being
-     * handed. Rebuilding here would therefore change nothing at all.
-     */
-    bool handsOver(Inst& end, Value& condition) {
+    // Whether an instruction names this value at all - either through an ordinary operand slot or as
+    // an operand one of its edges carries.
+    bool reads(Inst& inst, Value& condition) {
         auto found = false;
 
-        forEachEdge(opt.base, end, [&](Edge& edge) {
+        forEachUse(opt.base, inst, [&](Use used) {
+            if(used.isSet() && opt.base[used.value()] == &condition) found = true;
+        });
+
+        forEachEdge(opt.base, inst, [&](Edge& edge) {
             for(auto used: edge.arguments.contents(opt.base)) {
                 if(used.isSet() && opt.base[used.value()] == &condition) found = true;
             }
@@ -1677,22 +1677,23 @@ struct ConditionDecider {
         return found;
     }
 
-    void replaceEdgeOperands(Inst& end, Value& condition, Value& decided) {
-        auto editor = opt.ir();
-        Size arm = 0;
-
-        forEachEdge(opt.base, end, [&](Edge& edge) {
-            auto here = arm++;
-
-            for(Size i = 0; i < edge.arguments.size(); i++) {
-                auto used = edge.arguments.get(opt.base, i);
-                if(!used.isSet() || opt.base[used.value()] != &condition) continue;
-
-                editor.setEdgeArgument(end, here, i, editor.use(decided, used.kind()));
-            }
-        });
-    }
-
+    /*
+     * Every reader of the value in every block the arm alone reaches, pointed at the constant.
+     *
+     * **§J63 - this used to be edge operands alone**, and that was a clause about the shape the pass
+     * was first written for rather than about what it knows. What it knows is that the value *is*
+     * the constant in these blocks, and an ordinary operand reading it there is as decided as one
+     * handed over an edge. The shape that made the difference measurable is a library call whose
+     * count argument the caller has just tested: `Eq(String).==` compares the two lengths and then
+     * passes its own to `compareMemory`, so against a literal the count is known and the callee was
+     * being handed a value instead of a number. Nothing downstream could recover it - the operand is
+     * not a block argument, so `removeTrivialArguments` never sees it, and the folder reaches a use
+     * from its definition rather than from a branch above it.
+     *
+     * One constant per block rather than per reader, placed in front of the first one: the readers
+     * of a decided value cluster - a call's argument and the comparison the same arm makes of it -
+     * and `cse` would merge the copies a reader-at-a-time version made one pass later anyway.
+     */
     void decide(Block& block, Edge& arm, Value& condition, U64 answer) {
         auto target = opt.base[arm.target];
         if(!target || target->deleted || target == &block) return;
@@ -1706,16 +1707,23 @@ struct ConditionDecider {
             if(inside->deleted) continue;
             if(!dominators.dominates(target->index.index, inside->index.index)) continue;
 
-            auto end = inside->terminator(opt.base);
-            if(!end || !handsOver(*end, condition)) continue;
+            // Over a snapshot, because the rewrite below inserts the constant into this same list.
+            SmallArray<Inst*, 16> readers;
+            for(auto instPointer: inside->instructions(opt.base)) {
+                auto inst = opt.base[instPointer];
+                if(reads(*inst, condition)) readers.push(inst);
+            }
+
+            if(!readers.size()) continue;
 
             // The constant is made only once the scan above has found something to spend it on: one
             // made and left unread is dead IR every golden below this then carries, because this
             // pass runs behind the folder rather than in front of it.
-            auto decided = makeConstant(opt, *end, condition.occurrence.type, answer);
+            auto decided = makeConstant(opt, *readers[0], condition.occurrence.type, answer);
             if(!decided) continue;
 
-            replaceEdgeOperands(*end, condition, *decided);
+            auto editor = opt.ir();
+            for(auto reader: readers) editor.replaceUsesIn(*reader, condition, *decided);
         }
     }
 
@@ -1861,7 +1869,7 @@ struct ConditionDecider {
             auto end = block->terminator(opt.base);
             if(!end || end->kind != Inst::Branch) continue;
 
-            auto condition = valueOf(((InstBranch&)*end).condition);
+            auto condition = valueOf(opt, ((InstBranch&)*end).condition);
             if(!condition) continue;
 
             decideArm(*block, ((InstBranch&)*end).whenTrue, *condition, true);
@@ -1871,7 +1879,7 @@ struct ConditionDecider {
             if(!again || again->kind != Inst::Branch) continue;
 
             auto& branch = (InstBranch&)*again;
-            if(valueOf(branch.condition) != condition) continue;
+            if(valueOf(opt, branch.condition) != condition) continue;
 
             decideArm(*block, branch.whenFalse, *condition, false);
         }
@@ -1897,8 +1905,6 @@ void removeUnreachableBlocks(OptContext& opt) {
     CfgCleaner cleaner { opt };
     cleaner.removeUnreachable();
 }
-
-
 
 /*
  * A block whose last call does not come back, ended there - §10 item 2 of `test/bench/findings.md`,

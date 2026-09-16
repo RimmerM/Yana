@@ -353,29 +353,28 @@ main<complex>(): I32 {
     %v_216 = add %v_201, 1: I32
     %v_217 = select %v_215, %v_216, %v_201: I32
     call_complex Array(a).reclaim(I64), %v_1
-    %v_218 = add %v_217, 1: I32
-    %v_219 = alloca 8, 8: Ptr
-    store %v_4, %v_219, 8
-    %v_220 = add %v_4, 8: Ptr
+    %v_218 = alloca 8, 8: Ptr
+    store %v_4, %v_218, 8
+    %v_219 = add %v_4, 8: Ptr
+    store %v_219, 1, 4
+    %v_220 = add %v_4, 12: Ptr
     store %v_220, 1, 4
-    %v_221 = add %v_4, 12: Ptr
-    store %v_221, 1, 4
-    store %v_219, 9, 8
+    store %v_218, 9, 8
     call_complex Array(a).reclaim(I64), %v_4
-    %v_222 = add %v_218, 1: I32
-    ret %v_222
+    %v_221 = add %v_217, 2: I32
+    ret %v_221
   }
 
   b_213 {
-    %v_223 = cmp_ge %v_210, %v_134: I32
-    je %v_223, b_33, b_208
+    %v_222 = cmp_ge %v_210, %v_134: I32
+    je %v_222, b_33, b_208
   }
 
   b_208 {
-    %v_224 = shl %v_210, 3: I64
-    %v_225 = add %v_131, %v_224: Ptr
-    %v_226 = loads %v_225, 8: I64
-    %v_209 = add %v_207, %v_226: I64
+    %v_223 = shl %v_210, 3: I64
+    %v_224 = add %v_131, %v_223: Ptr
+    %v_225 = loads %v_224, 8: I64
+    %v_209 = add %v_207, %v_225: I64
     %v_211 = sub %v_210, 1: I64
     jmp b_203
   }

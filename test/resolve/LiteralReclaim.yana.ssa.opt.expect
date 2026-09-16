@@ -34,14 +34,8 @@ bb0(%16: %CodeUnit trivial, %17: Size trivial):
   %20: %Size address = field.addr .length inspect %18
   store inspect %20 consume %17
   %52: %CodeUnit trivial = const &string'143
-  %54: I32 trivial = const 5
-  %29: Size trivial = convert inspect %54
-  %30: StringView trivial = aggregate.StringView consume %52 consume %29
-  %31: String [shared slot 0 view] guaranteed = represent inspect %30
-  %11: %%CodeUnit address = field.addr .units inspect %31
-  %12: %CodeUnit trivial = load inspect %11
-  %13: %Size address = field.addr .length inspect %31
-  %14: Size trivial = load inspect %13
+  %55: Size trivial = const 5
+  %30: StringView trivial = aggregate.StringView consume %52 consume %55
   %33: %String address = alloc frame String [shared call view]
   %34: %%CodeUnit address = field.addr .units inspect %33
   store inspect %34 consume %16
@@ -50,11 +44,13 @@ bb0(%16: %CodeUnit trivial, %17: Size trivial):
   %36: String [shared call view] guaranteed = load inspect %33
   %37: %String address = alloc frame String [shared call view]
   %38: %%CodeUnit address = field.addr .units inspect %37
-  store inspect %38 consume %12
+  store inspect %38 consume %52
   %39: %Size address = field.addr .length inspect %37
-  store inspect %39 consume %14
+  store inspect %39 consume %55
   %40: String [shared call view] guaranteed = load inspect %37
-  %43: Bool trivial = ne inspect %17 inspect %14
+  %41: Size trivial = call String.length consume %16 consume %17
+  %42: Size trivial = call String.length consume %52 consume %55
+  %43: Bool trivial = ne inspect %41 inspect %42
   branch inspect %43 -> bb5 -> bb4
 
 bb2(%32: Bool trivial):
@@ -62,14 +58,10 @@ bb2(%32: Bool trivial):
 
 bb4:
   %44: String [shared slot 0 view] guaranteed = load inspect %36
-  %55: %%CodeUnit address = field.addr .units inspect %44
-  %56: %CodeUnit trivial = load inspect %55
-  %57: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %56
+  %45: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = call units borrow %44
   %46: String [shared slot 0 view] guaranteed = load inspect %40
-  %58: %%CodeUnit address = field.addr .units inspect %46
-  %59: %CodeUnit trivial = load inspect %58
-  %60: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %59
-  %48: Ordering trivial = call compareMemory(CodeUnit) borrow %57 borrow %60 borrow %17
+  %47: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = call units borrow %46
+  %48: Ordering trivial = call compareMemory(CodeUnit) borrow %45 borrow %47 borrow %41
   %49: Ordering trivial = const EQ
   %50: Bool trivial = eq inspect %48 inspect %49
   jump -> bb2(consume %50)
@@ -87,14 +79,8 @@ bb0(%50: %CodeUnit trivial, %51: Size trivial):
   %54: %Size address = field.addr .length inspect %52
   store inspect %54 consume %51
   %146: %CodeUnit trivial = const &string'144
-  %153: I32 trivial = const 3
-  %63: Size trivial = convert inspect %153
-  %64: StringView trivial = aggregate.StringView consume %146 consume %63
-  %65: String [shared slot 0 view] guaranteed = represent inspect %64
-  %27: %%CodeUnit address = field.addr .units inspect %65
-  %28: %CodeUnit trivial = load inspect %27
-  %29: %Size address = field.addr .length inspect %65
-  %30: Size trivial = load inspect %29
+  %154: Size trivial = const 3
+  %64: StringView trivial = aggregate.StringView consume %146 consume %154
   %67: %String address = alloc frame String [shared call view]
   %68: %%CodeUnit address = field.addr .units inspect %67
   store inspect %68 consume %50
@@ -103,23 +89,17 @@ bb0(%50: %CodeUnit trivial, %51: Size trivial):
   %70: String [shared call view] guaranteed = load inspect %67
   %71: %String address = alloc frame String [shared call view]
   %72: %%CodeUnit address = field.addr .units inspect %71
-  store inspect %72 consume %28
+  store inspect %72 consume %146
   %73: %Size address = field.addr .length inspect %71
-  store inspect %73 consume %30
+  store inspect %73 consume %154
   %74: String [shared call view] guaranteed = load inspect %71
-  %77: Bool trivial = ne inspect %51 inspect %30
+  %77: Bool trivial = ne inspect %51 inspect %154
   branch inspect %77 -> bb1 -> bb13
 
 bb1:
   %148: %CodeUnit trivial = const &string'145
-  %154: I32 trivial = const 5
-  %93: Size trivial = convert inspect %154
-  %94: StringView trivial = aggregate.StringView consume %148 consume %93
-  %95: String [shared slot 0 view] guaranteed = represent inspect %94
-  %36: %%CodeUnit address = field.addr .units inspect %95
-  %37: %CodeUnit trivial = load inspect %36
-  %38: %Size address = field.addr .length inspect %95
-  %39: Size trivial = load inspect %38
+  %156: Size trivial = const 5
+  %94: StringView trivial = aggregate.StringView consume %148 consume %156
   %97: %String address = alloc frame String [shared call view]
   %98: %%CodeUnit address = field.addr .units inspect %97
   store inspect %98 consume %50
@@ -128,11 +108,11 @@ bb1:
   %100: String [shared call view] guaranteed = load inspect %97
   %101: %String address = alloc frame String [shared call view]
   %102: %%CodeUnit address = field.addr .units inspect %101
-  store inspect %102 consume %37
+  store inspect %102 consume %148
   %103: %Size address = field.addr .length inspect %101
-  store inspect %103 consume %39
+  store inspect %103 consume %156
   %104: String [shared call view] guaranteed = load inspect %101
-  %107: Bool trivial = ne inspect %51 inspect %39
+  %107: Bool trivial = ne inspect %51 inspect %156
   branch inspect %107 -> bb4 -> bb18
 
 bb3:
@@ -141,14 +121,8 @@ bb3:
 
 bb4:
   %150: %CodeUnit trivial = const &string'146
-  %155: I32 trivial = const 4
-  %123: Size trivial = convert inspect %155
-  %124: StringView trivial = aggregate.StringView consume %150 consume %123
-  %125: String [shared slot 0 view] guaranteed = represent inspect %124
-  %45: %%CodeUnit address = field.addr .units inspect %125
-  %46: %CodeUnit trivial = load inspect %45
-  %47: %Size address = field.addr .length inspect %125
-  %48: Size trivial = load inspect %47
+  %158: Size trivial = const 4
+  %124: StringView trivial = aggregate.StringView consume %150 consume %158
   %127: %String address = alloc frame String [shared call view]
   %128: %%CodeUnit address = field.addr .units inspect %127
   store inspect %128 consume %50
@@ -157,11 +131,11 @@ bb4:
   %130: String [shared call view] guaranteed = load inspect %127
   %131: %String address = alloc frame String [shared call view]
   %132: %%CodeUnit address = field.addr .units inspect %131
-  store inspect %132 consume %46
+  store inspect %132 consume %150
   %133: %Size address = field.addr .length inspect %131
-  store inspect %133 consume %48
+  store inspect %133 consume %158
   %134: String [shared call view] guaranteed = load inspect %131
-  %137: Bool trivial = ne inspect %51 inspect %48
+  %137: Bool trivial = ne inspect %51 inspect %158
   branch inspect %137 -> bb24 -> bb23
 
 bb6:
@@ -170,28 +144,30 @@ bb6:
 
 bb13:
   %78: String [shared slot 0 view] guaranteed = load inspect %70
-  %156: %%CodeUnit address = field.addr .units inspect %78
-  %157: %CodeUnit trivial = load inspect %156
-  %158: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %157
-  %80: String [shared slot 0 view] guaranteed = load inspect %74
-  %159: %%CodeUnit address = field.addr .units inspect %80
+  %159: %%CodeUnit address = field.addr .units inspect %78
   %160: %CodeUnit trivial = load inspect %159
   %161: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %160
-  %82: Ordering trivial = call compareMemory(CodeUnit) borrow %158 borrow %161 borrow %51
+  %80: String [shared slot 0 view] guaranteed = load inspect %74
+  %162: %%CodeUnit address = field.addr .units inspect %80
+  %163: %CodeUnit trivial = load inspect %162
+  %164: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %163
+  %177: Size trivial = const 3
+  %82: Ordering trivial = call compareMemory(CodeUnit) borrow %161 borrow %164 borrow %177
   %83: Ordering trivial = const EQ
   %84: Bool trivial = eq inspect %82 inspect %83
   branch inspect %84 -> bb3 -> bb1
 
 bb18:
   %108: String [shared slot 0 view] guaranteed = load inspect %100
-  %162: %%CodeUnit address = field.addr .units inspect %108
-  %163: %CodeUnit trivial = load inspect %162
-  %164: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %163
-  %110: String [shared slot 0 view] guaranteed = load inspect %104
-  %165: %%CodeUnit address = field.addr .units inspect %110
+  %165: %%CodeUnit address = field.addr .units inspect %108
   %166: %CodeUnit trivial = load inspect %165
   %167: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %166
-  %112: Ordering trivial = call compareMemory(CodeUnit) borrow %164 borrow %167 borrow %51
+  %110: String [shared slot 0 view] guaranteed = load inspect %104
+  %168: %%CodeUnit address = field.addr .units inspect %110
+  %169: %CodeUnit trivial = load inspect %168
+  %170: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %169
+  %178: Size trivial = const 5
+  %112: Ordering trivial = call compareMemory(CodeUnit) borrow %167 borrow %170 borrow %178
   %113: Ordering trivial = const EQ
   %114: Bool trivial = eq inspect %112 inspect %113
   branch inspect %114 -> bb6 -> bb4
@@ -204,14 +180,15 @@ bb21(%126: Bool trivial):
 
 bb23:
   %138: String [shared slot 0 view] guaranteed = load inspect %130
-  %168: %%CodeUnit address = field.addr .units inspect %138
-  %169: %CodeUnit trivial = load inspect %168
-  %170: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %169
-  %140: String [shared slot 0 view] guaranteed = load inspect %134
-  %171: %%CodeUnit address = field.addr .units inspect %140
+  %171: %%CodeUnit address = field.addr .units inspect %138
   %172: %CodeUnit trivial = load inspect %171
   %173: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %172
-  %142: Ordering trivial = call compareMemory(CodeUnit) borrow %170 borrow %173 borrow %51
+  %140: String [shared slot 0 view] guaranteed = load inspect %134
+  %174: %%CodeUnit address = field.addr .units inspect %140
+  %175: %CodeUnit trivial = load inspect %174
+  %176: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %175
+  %179: Size trivial = const 4
+  %142: Ordering trivial = call compareMemory(CodeUnit) borrow %173 borrow %176 borrow %179
   %143: Ordering trivial = const EQ
   %144: Bool trivial = eq inspect %142 inspect %143
   jump -> bb21(consume %144)
@@ -224,14 +201,10 @@ bb24:
 fn width() -> I32 {
 bb0:
   %21: %CodeUnit trivial = const &string'147
-  %23: I32 trivial = const 4
-  %18: Size trivial = convert inspect %23
-  %19: StringView trivial = aggregate.StringView consume %21 consume %18
-  %20: String [shared slot 0 view] guaranteed = represent inspect %19
-  %8: %Size address = field.addr .length inspect %20
-  %9: Size trivial = load inspect %8
-  %5: I32 trivial = convert inspect %9
-  return consume %5
+  %24: Size trivial = const 4
+  %19: StringView trivial = aggregate.StringView consume %21 consume %24
+  %25: I32 trivial = const 4
+  return consume %25
 }
 
 fn grown(n: I32 [shared call]) -> I32 {
@@ -243,51 +216,18 @@ bb0(%0: I32 trivial):
   %18: %String address = alloc frame String
   store inspect %18 consume %4
   %110: %CodeUnit trivial = const &string'149
-  %112: I32 trivial = const 3
-  %49: Size trivial = convert inspect %112
-  %50: StringView trivial = aggregate.StringView consume %110 consume %49
-  %51: String [shared slot 0 view] guaranteed = represent inspect %50
-  %24: %Size address = field.addr .length inspect %51
-  %25: Size trivial = load inspect %24
+  %113: Size trivial = const 3
+  %50: StringView trivial = aggregate.StringView consume %110 consume %113
   %27: String [unique call] guaranteed from{%18} = load inspect %18
-  %60: StringView trivial = aggregate.StringView consume %110 consume %49
-  %61: String [shared slot 0 view] guaranteed = represent inspect %60
-  %62: %%CodeUnit address = field.addr .units inspect %61
-  %63: %CodeUnit trivial = load inspect %62
-  %64: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %63
-  %65: Size trivial = const 0
-  %66: Bool trivial = le inspect %25 inspect %65
-  branch inspect %66 -> bb2 -> bb4
-
-bb2:
-  %31: String owned = load inspect %18
-  store inspect %2 consume %31
-  %7: String [shared call] guaranteed from{%2} = load inspect %2
-  %32: %Array(CodeUnit) address = field.addr .units inspect %7
-  %33: %Run(CodeUnit) address = field.addr .run inspect %32
-  %34: %%CodeUnit address = field.addr .items inspect %33
-  %35: %CodeUnit trivial = load inspect %34
-  %36: %@bits(30) U32 address = field.addr .length inspect %32
-  %37: @bits(30) U32 trivial = load inspect %36
-  %38: I32 trivial = convert inspect %37
-  %39: Size trivial = convert inspect %38
-  %40: StringView trivial = aggregate.StringView consume %35 consume %39
-  %41: String [shared slot 0 view] guaranteed = represent inspect %40
-  %15: %Size address = field.addr .length inspect %41
-  %16: Size trivial = load inspect %15
-  drop String inspect %2
-  %10: I32 trivial = convert inspect %16
-  %12: I32 trivial = add inspect %10 inspect %0
-  return consume %12
-
-bb4:
+  %60: StringView trivial = aggregate.StringView consume %110 consume %113
+  %64: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %110
   %67: String [unique call] guaranteed from{%18} = load inspect %27
   %68: %Array(CodeUnit) address = field.addr .units inspect %67
   %69: %@bits(30) U32 address = field.addr .length inspect %68
   %70: @bits(30) U32 trivial = load inspect %69
   %71: Size trivial = convert inspect %70
   %72: Array(CodeUnit) [unique call] guaranteed from{%18} = load inspect %68
-  %73: Size trivial = add inspect %71 inspect %25
+  %73: Size trivial = add inspect %71 inspect %113
   %74: %Run(CodeUnit) address = field.addr .run inspect %72
   %75: %@bits(30) U32 address = field.addr .capacity inspect %74
   %76: @bits(30) U32 trivial = load inspect %75
@@ -305,7 +245,7 @@ bb6:
   %81: %@bits(30) U32 address = field.addr .length inspect %80
   %82: @bits(30) U32 trivial = load inspect %81
   %83: Size trivial = convert inspect %82
-  %84: Size trivial = add inspect %83 inspect %25
+  %84: Size trivial = add inspect %83 inspect %113
   %85: %Run(CodeUnit) address = field.addr .run inspect %80
   %86: %@bits(30) U32 address = field.addr .capacity inspect %85
   %87: @bits(30) U32 trivial = load inspect %86
@@ -322,10 +262,10 @@ bb7:
   %95: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %94
   %96: %U8 trivial = bitcast inspect %64
   %98: Size trivial = metric stride CodeUnit
-  %99: Size trivial = mul inspect %25 inspect %98
+  %99: Size trivial = mul inspect %113 inspect %98
   %100: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %64 inspect %99
-  %114: %U8 trivial = bitcast inspect %100
-  %102: Size trivial = bitcast inspect %114
+  %116: %U8 trivial = bitcast inspect %100
+  %102: Size trivial = bitcast inspect %116
   %103: Size trivial = bitcast inspect %96
   %104: Size trivial = sub inspect %102 inspect %103
   %105: Size trivial = metric stride U8
@@ -334,16 +274,31 @@ bb7:
   %107: U32 trivial = convert inspect %84
   %108: @bits(30) U32 trivial = convert inspect %107
   store inspect %81 consume %108
-  jump -> bb2
+  %31: String owned = load inspect %18
+  store inspect %2 consume %31
+  %7: String [shared call] guaranteed from{%2} = load inspect %2
+  %32: %Array(CodeUnit) address = field.addr .units inspect %7
+  %33: %Run(CodeUnit) address = field.addr .run inspect %32
+  %34: %%CodeUnit address = field.addr .items inspect %33
+  %35: %CodeUnit trivial = load inspect %34
+  %36: %@bits(30) U32 address = field.addr .length inspect %32
+  %37: @bits(30) U32 trivial = load inspect %36
+  %38: I32 trivial = convert inspect %37
+  %39: Size trivial = convert inspect %38
+  %40: StringView trivial = aggregate.StringView consume %35 consume %39
+  drop String inspect %2
+  %10: I32 trivial = convert inspect %39
+  %12: I32 trivial = add inspect %10 inspect %0
+  return consume %12
 
 bb8:
   %109: Size trivial = const 134
-  %115: Syscall trivial = const SysExit
-  %116: U16 trivial = bitcast inspect %115
-  %117: I32 trivial = convert inspect %116
-  %118: USize trivial = convert inspect %117
-  %119: USize trivial = bitcast inspect %109
-  %120: Size trivial = native syscall inspect %118 inspect %119
+  %117: Syscall trivial = const SysExit
+  %118: U16 trivial = bitcast inspect %117
+  %119: I32 trivial = convert inspect %118
+  %120: USize trivial = convert inspect %119
+  %121: USize trivial = bitcast inspect %109
+  %122: Size trivial = native syscall inspect %120 inspect %121
   unreachable
 }
 
@@ -360,13 +315,13 @@ bb0:
   %22: %U8 trivial = load inspect %21
   %23: I32 trivial = const 0
   %24: I32 trivial = const 0
-  %194: I32 trivial = const 1
-  %193: I32 trivial = const 10
+  %244: I32 trivial = const 1
+  %243: I32 trivial = const 10
   %38: I32 trivial = const 0
   jump -> bb1(inspect %23, inspect %24)
 
-bb1(%191: I32 trivial, %192: I32 trivial):
-  %28: Bool trivial = lt inspect %192 inspect %193
+bb1(%241: I32 trivial, %242: I32 trivial):
+  %28: Bool trivial = lt inspect %242 inspect %243
   branch inspect %28 -> bb4 -> bb3
 
 bb3:
@@ -379,14 +334,14 @@ bb3:
 bb4:
   %39: I32 trivial = call opaque borrow %38
   %40: I32 trivial = call grown borrow %39
-  %41: I32 trivial = add inspect %191 inspect %40
-  %30: I32 trivial = add inspect %192 inspect %194
+  %41: I32 trivial = add inspect %241 inspect %40
+  %30: I32 trivial = add inspect %242 inspect %244
   jump -> bb1(inspect %41, inspect %30)
 
 bb5:
   %44: I32 trivial = const 10
   %45: I32 trivial = mul inspect %20 inspect %44
-  %46: Bool trivial = ne inspect %191 inspect %45
+  %46: Bool trivial = ne inspect %241 inspect %45
   branch inspect %46 -> bb10 -> bb8
 
 bb7:
@@ -394,131 +349,509 @@ bb7:
   return consume %47
 
 bb8:
-  %195: %CodeUnit trivial = const &string'150
-  %207: I32 trivial = const 5
-  %128: Size trivial = convert inspect %207
-  %129: StringView trivial = aggregate.StringView consume %195 consume %128
-  %130: String [shared slot 0 view] guaranteed = represent inspect %129
-  %91: %%CodeUnit address = field.addr .units inspect %130
-  %92: %CodeUnit trivial = load inspect %91
-  %93: %Size address = field.addr .length inspect %130
-  %94: Size trivial = load inspect %93
-  %95: Bool trivial = call matches consume %92 consume %94
-  %52: Bool trivial = not inspect %95
-  branch inspect %52 -> bb13 -> bb11
+  %245: %CodeUnit trivial = const &string'150
+  %258: Size trivial = const 5
+  %129: StringView trivial = aggregate.StringView consume %245 consume %258
+  %133: %String address = alloc frame String [shared call view]
+  %134: %%CodeUnit address = field.addr .units inspect %133
+  store inspect %134 consume %245
+  %135: %Size address = field.addr .length inspect %133
+  store inspect %135 consume %258
+  %136: %CodeUnit trivial = const &string'143
+  %137: Size trivial = const 5
+  %138: StringView trivial = aggregate.StringView consume %136 consume %137
+  %139: %String address = alloc frame String [shared call view]
+  %140: %%CodeUnit address = field.addr .units inspect %139
+  store inspect %140 consume %245
+  %141: %Size address = field.addr .length inspect %139
+  store inspect %141 consume %258
+  %143: %String address = alloc frame String [shared call view]
+  %144: %%CodeUnit address = field.addr .units inspect %143
+  store inspect %144 consume %136
+  %145: %Size address = field.addr .length inspect %143
+  store inspect %145 consume %137
+  %603: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %245
+  %606: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %136
+  %968: Size trivial = const 0
+  %710: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %603 inspect %968
+  %711: %Vec(CodeUnit) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %710
+  %712: Vec(CodeUnit) trivial = load.past inspect %711
+  %969: Size trivial = const 0
+  %715: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %606 inspect %969
+  %716: %Vec(CodeUnit) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %715
+  %717: Vec(CodeUnit) trivial = load.past inspect %716
+  %718: Mask(CodeUnit) trivial = eq inspect %712 inspect %717
+  %719: Bool trivial = vec.reduce and inspect %718
+  %720: Bool trivial = not inspect %719
+  branch inspect %720 -> bb99 -> bb100
 
 bb10:
   %53: I32 trivial = const -2
   return consume %53
 
 bb11:
-  %197: %CodeUnit trivial = const &string'151
-  %208: I32 trivial = const 3
-  %138: Size trivial = convert inspect %208
-  %139: StringView trivial = aggregate.StringView consume %197 consume %138
-  %140: String [shared slot 0 view] guaranteed = represent inspect %139
-  %96: %%CodeUnit address = field.addr .units inspect %140
-  %97: %CodeUnit trivial = load inspect %96
-  %98: %Size address = field.addr .length inspect %140
-  %99: Size trivial = load inspect %98
-  %100: Bool trivial = call matches consume %97 consume %99
-  branch inspect %100 -> bb16 -> bb14
+  %247: %CodeUnit trivial = const &string'151
+  %260: Size trivial = const 3
+  %166: StringView trivial = aggregate.StringView consume %247 consume %260
+  %170: %String address = alloc frame String [shared call view]
+  %171: %%CodeUnit address = field.addr .units inspect %170
+  store inspect %171 consume %247
+  %172: %Size address = field.addr .length inspect %170
+  store inspect %172 consume %260
+  %173: %CodeUnit trivial = const &string'143
+  %174: Size trivial = const 5
+  %175: StringView trivial = aggregate.StringView consume %173 consume %174
+  %176: %String address = alloc frame String [shared call view]
+  %177: %%CodeUnit address = field.addr .units inspect %176
+  store inspect %177 consume %247
+  %178: %Size address = field.addr .length inspect %176
+  store inspect %178 consume %260
+  %180: %String address = alloc frame String [shared call view]
+  %181: %%CodeUnit address = field.addr .units inspect %180
+  store inspect %181 consume %173
+  %182: %Size address = field.addr .length inspect %180
+  store inspect %182 consume %174
+  %249: %CodeUnit trivial = const &string'152
+  %262: Size trivial = const 3
+  %203: StringView trivial = aggregate.StringView consume %249 consume %262
+  %271: %String address = alloc frame String [shared call view]
+  %272: %%CodeUnit address = field.addr .units inspect %271
+  store inspect %272 consume %249
+  %273: %Size address = field.addr .length inspect %271
+  store inspect %273 consume %262
+  %274: %CodeUnit trivial = const &string'144
+  %275: Size trivial = const 3
+  %276: StringView trivial = aggregate.StringView consume %274 consume %275
+  %277: %String address = alloc frame String [shared call view]
+  %278: %%CodeUnit address = field.addr .units inspect %277
+  store inspect %278 consume %249
+  %279: %Size address = field.addr .length inspect %277
+  store inspect %279 consume %262
+  %281: %String address = alloc frame String [shared call view]
+  %282: %%CodeUnit address = field.addr .units inspect %281
+  store inspect %282 consume %274
+  %283: %Size address = field.addr .length inspect %281
+  store inspect %283 consume %275
+  %289: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %249
+  %293: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %274
+  %294: Size trivial = const 3
+  %1654: Size trivial = const 0
+  %1073: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %289 inspect %1654
+  %1074: %Vec(CodeUnit) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1073
+  %1075: Vec(CodeUnit) trivial = load.past inspect %1074
+  %1655: Size trivial = const 0
+  %1078: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %293 inspect %1655
+  %1079: %Vec(CodeUnit) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1078
+  %1080: Vec(CodeUnit) trivial = load.past inspect %1079
+  %1081: Mask(CodeUnit) trivial = eq inspect %1075 inspect %1080
+  %1082: Bool trivial = vec.reduce and inspect %1081
+  %1083: Bool trivial = not inspect %1082
+  branch inspect %1083 -> bb143 -> bb17
 
 bb13:
   %58: I32 trivial = const -3
   return consume %58
 
-bb14:
-  %199: %CodeUnit trivial = const &string'152
-  %209: I32 trivial = const 3
-  %148: Size trivial = convert inspect %209
-  %149: StringView trivial = aggregate.StringView consume %199 consume %148
-  %150: String [shared slot 0 view] guaranteed = represent inspect %149
-  %101: %%CodeUnit address = field.addr .units inspect %150
-  %102: %CodeUnit trivial = load inspect %101
-  %103: %Size address = field.addr .length inspect %150
-  %104: Size trivial = load inspect %103
-  %105: I32 trivial = call classify consume %102 consume %104
-  %63: I32 trivial = const 1
-  %64: Bool trivial = ne inspect %105 inspect %63
-  branch inspect %64 -> bb19 -> bb17
-
-bb16:
-  %65: I32 trivial = const -4
-  return consume %65
-
 bb17:
-  %201: %CodeUnit trivial = const &string'153
-  %210: I32 trivial = const 5
-  %158: Size trivial = convert inspect %210
-  %159: StringView trivial = aggregate.StringView consume %201 consume %158
-  %160: String [shared slot 0 view] guaranteed = represent inspect %159
-  %106: %%CodeUnit address = field.addr .units inspect %160
-  %107: %CodeUnit trivial = load inspect %106
-  %108: %Size address = field.addr .length inspect %160
-  %109: Size trivial = load inspect %108
-  %110: I32 trivial = call classify consume %107 consume %109
-  %70: I32 trivial = const 2
-  %71: Bool trivial = ne inspect %110 inspect %70
-  branch inspect %71 -> bb22 -> bb20
-
-bb19:
-  %72: I32 trivial = const -5
-  return consume %72
+  %251: %CodeUnit trivial = const &string'153
+  %264: Size trivial = const 5
+  %213: StringView trivial = aggregate.StringView consume %251 consume %264
+  %354: %String address = alloc frame String [shared call view]
+  %355: %%CodeUnit address = field.addr .units inspect %354
+  store inspect %355 consume %251
+  %356: %Size address = field.addr .length inspect %354
+  store inspect %356 consume %264
+  %357: %CodeUnit trivial = const &string'144
+  %358: Size trivial = const 3
+  %359: StringView trivial = aggregate.StringView consume %357 consume %358
+  %360: %String address = alloc frame String [shared call view]
+  %361: %%CodeUnit address = field.addr .units inspect %360
+  store inspect %361 consume %251
+  %362: %Size address = field.addr .length inspect %360
+  store inspect %362 consume %264
+  %364: %String address = alloc frame String [shared call view]
+  %365: %%CodeUnit address = field.addr .units inspect %364
+  store inspect %365 consume %357
+  %366: %Size address = field.addr .length inspect %364
+  store inspect %366 consume %358
+  %382: %CodeUnit trivial = const &string'145
+  %383: Size trivial = const 5
+  %384: StringView trivial = aggregate.StringView consume %382 consume %383
+  %385: %String address = alloc frame String [shared call view]
+  %386: %%CodeUnit address = field.addr .units inspect %385
+  store inspect %386 consume %251
+  %387: %Size address = field.addr .length inspect %385
+  store inspect %387 consume %264
+  %389: %String address = alloc frame String [shared call view]
+  %390: %%CodeUnit address = field.addr .units inspect %389
+  store inspect %390 consume %382
+  %391: %Size address = field.addr .length inspect %389
+  store inspect %391 consume %383
+  %397: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %251
+  %401: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %382
+  %402: Size trivial = const 5
+  %1656: Size trivial = const 0
+  %1237: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %397 inspect %1656
+  %1238: %Vec(CodeUnit) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1237
+  %1239: Vec(CodeUnit) trivial = load.past inspect %1238
+  %1657: Size trivial = const 0
+  %1242: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %401 inspect %1657
+  %1243: %Vec(CodeUnit) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1242
+  %1244: Vec(CodeUnit) trivial = load.past inspect %1243
+  %1245: Mask(CodeUnit) trivial = eq inspect %1239 inspect %1244
+  %1246: Bool trivial = vec.reduce and inspect %1245
+  %1247: Bool trivial = not inspect %1246
+  branch inspect %1247 -> bb165 -> bb20
 
 bb20:
-  %203: %CodeUnit trivial = const &string'154
-  %211: I32 trivial = const 4
-  %168: Size trivial = convert inspect %211
-  %169: StringView trivial = aggregate.StringView consume %203 consume %168
-  %170: String [shared slot 0 view] guaranteed = represent inspect %169
-  %111: %%CodeUnit address = field.addr .units inspect %170
-  %112: %CodeUnit trivial = load inspect %111
-  %113: %Size address = field.addr .length inspect %170
-  %114: Size trivial = load inspect %113
-  %115: I32 trivial = call classify consume %112 consume %114
-  %77: I32 trivial = const 3
-  %78: Bool trivial = ne inspect %115 inspect %77
-  branch inspect %78 -> bb25 -> bb23
-
-bb22:
-  %79: I32 trivial = const -6
-  return consume %79
+  %253: %CodeUnit trivial = const &string'154
+  %266: Size trivial = const 4
+  %223: StringView trivial = aggregate.StringView consume %253 consume %266
+  %437: %String address = alloc frame String [shared call view]
+  %438: %%CodeUnit address = field.addr .units inspect %437
+  store inspect %438 consume %253
+  %439: %Size address = field.addr .length inspect %437
+  store inspect %439 consume %266
+  %440: %CodeUnit trivial = const &string'144
+  %441: Size trivial = const 3
+  %442: StringView trivial = aggregate.StringView consume %440 consume %441
+  %443: %String address = alloc frame String [shared call view]
+  %444: %%CodeUnit address = field.addr .units inspect %443
+  store inspect %444 consume %253
+  %445: %Size address = field.addr .length inspect %443
+  store inspect %445 consume %266
+  %447: %String address = alloc frame String [shared call view]
+  %448: %%CodeUnit address = field.addr .units inspect %447
+  store inspect %448 consume %440
+  %449: %Size address = field.addr .length inspect %447
+  store inspect %449 consume %441
+  %465: %CodeUnit trivial = const &string'145
+  %466: Size trivial = const 5
+  %467: StringView trivial = aggregate.StringView consume %465 consume %466
+  %468: %String address = alloc frame String [shared call view]
+  %469: %%CodeUnit address = field.addr .units inspect %468
+  store inspect %469 consume %253
+  %470: %Size address = field.addr .length inspect %468
+  store inspect %470 consume %266
+  %472: %String address = alloc frame String [shared call view]
+  %473: %%CodeUnit address = field.addr .units inspect %472
+  store inspect %473 consume %465
+  %474: %Size address = field.addr .length inspect %472
+  store inspect %474 consume %466
+  %490: %CodeUnit trivial = const &string'146
+  %491: Size trivial = const 4
+  %492: StringView trivial = aggregate.StringView consume %490 consume %491
+  %493: %String address = alloc frame String [shared call view]
+  %494: %%CodeUnit address = field.addr .units inspect %493
+  store inspect %494 consume %253
+  %495: %Size address = field.addr .length inspect %493
+  store inspect %495 consume %266
+  %497: %String address = alloc frame String [shared call view]
+  %498: %%CodeUnit address = field.addr .units inspect %497
+  store inspect %498 consume %490
+  %499: %Size address = field.addr .length inspect %497
+  store inspect %499 consume %491
+  %505: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %253
+  %509: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %490
+  %510: Size trivial = const 4
+  %1658: Size trivial = const 0
+  %1401: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %505 inspect %1658
+  %1402: %Vec(CodeUnit) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1401
+  %1403: Vec(CodeUnit) trivial = load.past inspect %1402
+  %1659: Size trivial = const 0
+  %1406: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %509 inspect %1659
+  %1407: %Vec(CodeUnit) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1406
+  %1408: Vec(CodeUnit) trivial = load.past inspect %1407
+  %1409: Mask(CodeUnit) trivial = eq inspect %1403 inspect %1408
+  %1410: Bool trivial = vec.reduce and inspect %1409
+  %1411: Bool trivial = not inspect %1410
+  branch inspect %1411 -> bb187 -> bb188
 
 bb23:
-  %205: %CodeUnit trivial = const &string'155
-  %212: I32 trivial = const 5
-  %178: Size trivial = convert inspect %212
-  %179: StringView trivial = aggregate.StringView consume %205 consume %178
-  %180: String [shared slot 0 view] guaranteed = represent inspect %179
-  %116: %%CodeUnit address = field.addr .units inspect %180
-  %117: %CodeUnit trivial = load inspect %116
-  %118: %Size address = field.addr .length inspect %180
-  %119: Size trivial = load inspect %118
-  %120: I32 trivial = call classify consume %117 consume %119
-  %84: I32 trivial = const 0
-  %85: Bool trivial = ne inspect %120 inspect %84
-  branch inspect %85 -> bb28 -> bb26
+  %255: %CodeUnit trivial = const &string'155
+  %268: Size trivial = const 5
+  %233: StringView trivial = aggregate.StringView consume %255 consume %268
+  %520: %String address = alloc frame String [shared call view]
+  %521: %%CodeUnit address = field.addr .units inspect %520
+  store inspect %521 consume %255
+  %522: %Size address = field.addr .length inspect %520
+  store inspect %522 consume %268
+  %523: %CodeUnit trivial = const &string'144
+  %524: Size trivial = const 3
+  %525: StringView trivial = aggregate.StringView consume %523 consume %524
+  %526: %String address = alloc frame String [shared call view]
+  %527: %%CodeUnit address = field.addr .units inspect %526
+  store inspect %527 consume %255
+  %528: %Size address = field.addr .length inspect %526
+  store inspect %528 consume %268
+  %530: %String address = alloc frame String [shared call view]
+  %531: %%CodeUnit address = field.addr .units inspect %530
+  store inspect %531 consume %523
+  %532: %Size address = field.addr .length inspect %530
+  store inspect %532 consume %524
+  %548: %CodeUnit trivial = const &string'145
+  %549: Size trivial = const 5
+  %550: StringView trivial = aggregate.StringView consume %548 consume %549
+  %551: %String address = alloc frame String [shared call view]
+  %552: %%CodeUnit address = field.addr .units inspect %551
+  store inspect %552 consume %255
+  %553: %Size address = field.addr .length inspect %551
+  store inspect %553 consume %268
+  %555: %String address = alloc frame String [shared call view]
+  %556: %%CodeUnit address = field.addr .units inspect %555
+  store inspect %556 consume %548
+  %557: %Size address = field.addr .length inspect %555
+  store inspect %557 consume %549
+  %563: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %255
+  %567: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = represent inspect %548
+  %568: Size trivial = const 5
+  %1660: Size trivial = const 0
+  %1565: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %563 inspect %1660
+  %1566: %Vec(CodeUnit) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1565
+  %1567: Vec(CodeUnit) trivial = load.past inspect %1566
+  %1661: Size trivial = const 0
+  %1570: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %567 inspect %1661
+  %1571: %Vec(CodeUnit) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %1570
+  %1572: Vec(CodeUnit) trivial = load.past inspect %1571
+  %1573: Mask(CodeUnit) trivial = eq inspect %1567 inspect %1572
+  %1574: Bool trivial = vec.reduce and inspect %1573
+  %1575: Bool trivial = not inspect %1574
+  branch inspect %1575 -> bb209 -> bb28
 
 bb25:
   %86: I32 trivial = const -7
   return consume %86
 
-bb26:
-  %181: %CodeUnit trivial = const &string'147
-  %182: I32 trivial = const 4
-  %183: Size trivial = convert inspect %182
-  %184: StringView trivial = aggregate.StringView consume %181 consume %183
-  %185: String [shared slot 0 view] guaranteed = represent inspect %184
-  %186: %Size address = field.addr .length inspect %185
-  %187: Size trivial = load inspect %186
-  %188: I32 trivial = convert inspect %187
-  %89: I32 trivial = add inspect %20 inspect %188
-  return consume %89
-
 bb28:
   %90: I32 trivial = const -8
   return consume %90
+
+bb46:
+  %299: %CodeUnit trivial = const &string'145
+  %300: Size trivial = const 5
+  %301: StringView trivial = aggregate.StringView consume %299 consume %300
+  %302: %String address = alloc frame String [shared call view]
+  %303: %%CodeUnit address = field.addr .units inspect %302
+  store inspect %303 consume %249
+  %304: %Size address = field.addr .length inspect %302
+  store inspect %304 consume %262
+  %306: %String address = alloc frame String [shared call view]
+  %307: %%CodeUnit address = field.addr .units inspect %306
+  store inspect %307 consume %299
+  %308: %Size address = field.addr .length inspect %306
+  store inspect %308 consume %300
+  %324: %CodeUnit trivial = const &string'146
+  %325: Size trivial = const 4
+  %326: StringView trivial = aggregate.StringView consume %324 consume %325
+  %327: %String address = alloc frame String [shared call view]
+  %328: %%CodeUnit address = field.addr .units inspect %327
+  store inspect %328 consume %249
+  %329: %Size address = field.addr .length inspect %327
+  store inspect %329 consume %262
+  %331: %String address = alloc frame String [shared call view]
+  %332: %%CodeUnit address = field.addr .units inspect %331
+  store inspect %332 consume %324
+  %333: %Size address = field.addr .length inspect %331
+  store inspect %333 consume %325
+  %72: I32 trivial = const -5
+  return consume %72
+
+bb61:
+  %407: %CodeUnit trivial = const &string'146
+  %408: Size trivial = const 4
+  %409: StringView trivial = aggregate.StringView consume %407 consume %408
+  %410: %String address = alloc frame String [shared call view]
+  %411: %%CodeUnit address = field.addr .units inspect %410
+  store inspect %411 consume %251
+  %412: %Size address = field.addr .length inspect %410
+  store inspect %412 consume %264
+  %414: %String address = alloc frame String [shared call view]
+  %415: %%CodeUnit address = field.addr .units inspect %414
+  store inspect %415 consume %407
+  %416: %Size address = field.addr .length inspect %414
+  store inspect %416 consume %408
+  %79: I32 trivial = const -6
+  return consume %79
+
+bb85:
+  %573: %CodeUnit trivial = const &string'146
+  %574: Size trivial = const 4
+  %575: StringView trivial = aggregate.StringView consume %573 consume %574
+  %576: %String address = alloc frame String [shared call view]
+  %577: %%CodeUnit address = field.addr .units inspect %576
+  store inspect %577 consume %255
+  %578: %Size address = field.addr .length inspect %576
+  store inspect %578 consume %268
+  %580: %String address = alloc frame String [shared call view]
+  %581: %%CodeUnit address = field.addr .units inspect %580
+  store inspect %581 consume %573
+  %582: %Size address = field.addr .length inspect %580
+  store inspect %582 consume %574
+  %235: %CodeUnit trivial = const &string'147
+  %236: Size trivial = const 4
+  %237: StringView trivial = aggregate.StringView consume %235 consume %236
+  %238: I32 trivial = const 4
+  %89: I32 trivial = add inspect %20 inspect %238
+  return consume %89
+
+bb90(%607: Ordering trivial):
+  %155: Ordering trivial = const EQ
+  %156: Bool trivial = eq inspect %607 inspect %155
+  %52: Bool trivial = not inspect %156
+  branch inspect %52 -> bb13 -> bb11
+
+bb99:
+  %721: Mask(CodeUnit) trivial = not inspect %718
+  %722: I32 trivial = vec.reduce firstset inspect %721
+  %723: Size trivial = convert inspect %722
+  %725: Bool trivial = lt inspect %723 inspect %258
+  branch inspect %725 -> bb101 -> bb100
+
+bb100:
+  %726: Ordering trivial = const EQ
+  jump -> bb90(consume %726)
+
+bb101:
+  %727: Size trivial = metric stride CodeUnit
+  %728: Size trivial = mul inspect %723 inspect %727
+  %729: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %603 inspect %728
+  %730: CodeUnit trivial = load inspect %729
+  %731: Size trivial = metric stride CodeUnit
+  %732: Size trivial = mul inspect %723 inspect %731
+  %733: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %606 inspect %732
+  %734: CodeUnit trivial = load inspect %733
+  %735: Bool trivial = lt inspect %730 inspect %734
+  branch inspect %735 -> bb103 -> bb102
+
+bb102:
+  %736: Bool trivial = eq inspect %730 inspect %734
+  %737: Ordering trivial = const EQ
+  %738: Ordering trivial = const GT
+  %739: Ordering trivial = select inspect %736 inspect %737 inspect %738
+  jump -> bb104(consume %739)
+
+bb103:
+  %740: Ordering trivial = const LT
+  jump -> bb104(consume %740)
+
+bb104(%610: Ordering trivial):
+  jump -> bb90(consume %610)
+
+bb143:
+  %1084: Mask(CodeUnit) trivial = not inspect %1081
+  %1085: I32 trivial = vec.reduce firstset inspect %1084
+  %1086: Size trivial = convert inspect %1085
+  %1088: Bool trivial = lt inspect %1086 inspect %294
+  branch inspect %1088 -> bb145 -> bb17
+
+bb145:
+  %1090: Size trivial = metric stride CodeUnit
+  %1091: Size trivial = mul inspect %1086 inspect %1090
+  %1092: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %289 inspect %1091
+  %1093: CodeUnit trivial = load inspect %1092
+  %1094: Size trivial = metric stride CodeUnit
+  %1095: Size trivial = mul inspect %1086 inspect %1094
+  %1096: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %293 inspect %1095
+  %1097: CodeUnit trivial = load inspect %1096
+  %1098: Bool trivial = lt inspect %1093 inspect %1097
+  branch inspect %1098 -> bb46 -> bb146
+
+bb146:
+  %1099: Bool trivial = eq inspect %1093 inspect %1097
+  branch inspect %1099 -> bb17 -> bb46
+
+bb165:
+  %1248: Mask(CodeUnit) trivial = not inspect %1245
+  %1249: I32 trivial = vec.reduce firstset inspect %1248
+  %1250: Size trivial = convert inspect %1249
+  %1252: Bool trivial = lt inspect %1250 inspect %402
+  branch inspect %1252 -> bb167 -> bb20
+
+bb167:
+  %1254: Size trivial = metric stride CodeUnit
+  %1255: Size trivial = mul inspect %1250 inspect %1254
+  %1256: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %397 inspect %1255
+  %1257: CodeUnit trivial = load inspect %1256
+  %1258: Size trivial = metric stride CodeUnit
+  %1259: Size trivial = mul inspect %1250 inspect %1258
+  %1260: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %401 inspect %1259
+  %1261: CodeUnit trivial = load inspect %1260
+  %1262: Bool trivial = lt inspect %1257 inspect %1261
+  branch inspect %1262 -> bb61 -> bb168
+
+bb168:
+  %1263: Bool trivial = eq inspect %1257 inspect %1261
+  branch inspect %1263 -> bb20 -> bb61
+
+bb178(%1298: Ordering trivial):
+  %512: Ordering trivial = const EQ
+  %513: Bool trivial = eq inspect %1298 inspect %512
+  %515: I32 trivial = const 3
+  %516: I32 trivial = const 0
+  %517: I32 trivial = select inspect %513 inspect %515 inspect %516
+  %77: I32 trivial = const 3
+  %78: Bool trivial = ne inspect %517 inspect %77
+  branch inspect %78 -> bb25 -> bb23
+
+bb187:
+  %1412: Mask(CodeUnit) trivial = not inspect %1409
+  %1413: I32 trivial = vec.reduce firstset inspect %1412
+  %1414: Size trivial = convert inspect %1413
+  %1416: Bool trivial = lt inspect %1414 inspect %510
+  branch inspect %1416 -> bb189 -> bb188
+
+bb188:
+  %1417: Ordering trivial = const EQ
+  jump -> bb178(consume %1417)
+
+bb189:
+  %1418: Size trivial = metric stride CodeUnit
+  %1419: Size trivial = mul inspect %1414 inspect %1418
+  %1420: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %505 inspect %1419
+  %1421: CodeUnit trivial = load inspect %1420
+  %1422: Size trivial = metric stride CodeUnit
+  %1423: Size trivial = mul inspect %1414 inspect %1422
+  %1424: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %509 inspect %1423
+  %1425: CodeUnit trivial = load inspect %1424
+  %1426: Bool trivial = lt inspect %1421 inspect %1425
+  branch inspect %1426 -> bb191 -> bb190
+
+bb190:
+  %1427: Bool trivial = eq inspect %1421 inspect %1425
+  %1428: Ordering trivial = const EQ
+  %1429: Ordering trivial = const GT
+  %1430: Ordering trivial = select inspect %1427 inspect %1428 inspect %1429
+  jump -> bb192(consume %1430)
+
+bb191:
+  %1431: Ordering trivial = const LT
+  jump -> bb192(consume %1431)
+
+bb192(%1301: Ordering trivial):
+  jump -> bb178(consume %1301)
+
+bb209:
+  %1576: Mask(CodeUnit) trivial = not inspect %1573
+  %1577: I32 trivial = vec.reduce firstset inspect %1576
+  %1578: Size trivial = convert inspect %1577
+  %1580: Bool trivial = lt inspect %1578 inspect %568
+  branch inspect %1580 -> bb211 -> bb28
+
+bb211:
+  %1582: Size trivial = metric stride CodeUnit
+  %1583: Size trivial = mul inspect %1578 inspect %1582
+  %1584: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %563 inspect %1583
+  %1585: CodeUnit trivial = load inspect %1584
+  %1586: Size trivial = metric stride CodeUnit
+  %1587: Size trivial = mul inspect %1578 inspect %1586
+  %1588: %CodeUnit [owned here shape6 .*=shared slot 0] trivial = add inspect %567 inspect %1587
+  %1589: CodeUnit trivial = load inspect %1588
+  %1590: Bool trivial = lt inspect %1585 inspect %1589
+  branch inspect %1590 -> bb85 -> bb212
+
+bb212:
+  %1591: Bool trivial = eq inspect %1585 inspect %1589
+  branch inspect %1591 -> bb28 -> bb85
 }
 
 entry main

@@ -11,8 +11,8 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @checkLocation(ResolveTest) = [82, 101, 115, 111, 108, 118, 101, 84, 101, 115, 116]
 @checkLocation(Core.Show) = [67, 111, 114, 101, 46, 83, 104, 111, 119]
-@checkLocation(Core.Check) = [67, 111, 114, 101, 46, 67, 104, 101, 99, 107]
 @checkLocation(Core.String) = [67, 111, 114, 101, 46, 83, 116, 114, 105, 110, 103]
+@checkLocation(Core.Check) = [67, 111, 114, 101, 46, 67, 104, 101, 99, 107]
 @checkLocation(Core.Array.native) = [67, 111, 114, 101, 46, 65, 114, 114, 97, 121, 46, 110, 97, 116, 105, 118, 101]
 
 main<complex>(): I32 {
@@ -178,59 +178,195 @@ checkFailedAt<complex>(%file: Ptr, %fileLength: I32, %line: I32, %column: I32) {
     store %v_21, %v_23, 4
     %v_24 = add %v_2, 12: Ptr
     store %v_24, 0, 4
-    call_complex String.appendUnits, %v_2, @string'109, 16
-    call_complex String.appendUnits, %v_2, %file, %v_10
-    call_complex String.reclaim, %v_1
-    call_complex String.appendUnits, %v_2, @string'110, 1
-    %v_25 = cmp_ilt %line, 0: I32
-    je %v_25, b_26, b_27
+    %v_25 = imm 16: I64
+    %v_26 = cast %v_20: I64
+    %v_27 = cmp_ile %v_25, %v_26: I32
+    je %v_27, b_28, b_29
   }
 
   b_4 {
-    %v_28 = syscall 60, 134: I64
+    %v_30 = syscall 60, 134: I64
     jmp b_5
   }
 
-  b_27 {
+  b_31 {
     call_complex pushUnsigned32, %line, %v_2
-    jmp b_29
-  }
-
-  b_26 {
-    call_complex push(CodeUnit), %v_2, 45
-    %v_30 = sub 0, %line: I32
-    call_complex pushUnsigned32, %v_30, %v_2
-    jmp b_29
-  }
-
-  b_29 {
-    call_complex String.appendUnits, %v_2, @string'111, 1
-    %v_31 = cmp_ilt %column, 0: I32
-    je %v_31, b_32, b_33
+    jmp b_32
   }
 
   b_33 {
-    call_complex pushUnsigned32, %column, %v_2
-    jmp b_34
+    call_complex push(CodeUnit), %v_2, 45
+    %v_34 = sub 0, %line: I32
+    call_complex pushUnsigned32, %v_34, %v_2
+    jmp b_32
   }
 
   b_32 {
-    call_complex push(CodeUnit), %v_2, 45
-    %v_35 = sub 0, %column: I32
-    call_complex pushUnsigned32, %v_35, %v_2
-    jmp b_34
+    %v_35 = add %v_2, 12: Ptr
+    %v_36 = load %v_35, 4: I32
+    %v_37 = cast %v_36: I64
+    %v_38 = add %v_37, 1: I64
+    %v_39 = add %v_2, 8: Ptr
+    %v_40 = load %v_39, 4: I64
+    %v_41 = and %v_40, 1073741823: I64
+    %v_42 = cast %v_41: I32
+    %v_43 = cast %v_42: I64
+    %v_44 = cmp_ile %v_38, %v_43: I32
+    je %v_44, b_45, b_46
   }
 
-  b_34 {
-    call_complex String.appendUnits, %v_2, @string'112, 1
-    %v_36 = load %v_2, 8: Ptr
-    %v_37 = add %v_2, 12: Ptr
-    %v_38 = load %v_37, 4: I32
-    %v_39 = sext %v_38: I64
-    %v_40 = bitcast %v_36: I64
-    %v_41 = syscall 1, 1, %v_40, %v_39: I64
+  b_47 {
+    call_complex pushUnsigned32, %column, %v_2
+    jmp b_48
+  }
+
+  b_49 {
+    call_complex push(CodeUnit), %v_2, 45
+    %v_50 = sub 0, %column: I32
+    call_complex pushUnsigned32, %v_50, %v_2
+    jmp b_48
+  }
+
+  b_48 {
+    %v_51 = add %v_2, 12: Ptr
+    %v_52 = load %v_51, 4: I32
+    %v_53 = cast %v_52: I64
+    %v_54 = add %v_53, 1: I64
+    %v_55 = add %v_2, 8: Ptr
+    %v_56 = load %v_55, 4: I64
+    %v_57 = and %v_56, 1073741823: I64
+    %v_58 = cast %v_57: I32
+    %v_59 = cast %v_58: I64
+    %v_60 = cmp_ile %v_54, %v_59: I32
+    je %v_60, b_61, b_62
+  }
+
+  b_29 {
+    call_complex growArray(CodeUnit), %v_2, %v_25
+    jmp b_28
+  }
+
+  b_28 {
+    %v_63 = add %v_2, 12: Ptr
+    %v_64 = load %v_63, 4: I32
+    %v_65 = cast %v_64: I64
+    %v_66 = add %v_65, 16: I64
+    %v_67 = add %v_2, 8: Ptr
+    %v_68 = load %v_67, 4: I64
+    %v_69 = and %v_68, 1073741823: I64
+    %v_70 = cast %v_69: I32
+    %v_71 = cast %v_70: I64
+    %v_72 = cmp_ilt %v_71, %v_66: I32
+    call_complex checkConditionAt, %v_72, @checkLocation(Core.String), 11, 478, 4
+    %v_73 = load %v_2, 8: Ptr
+    %v_74 = add %v_73, %v_65: Ptr
+    call_complex copyMemory, %v_74, @string'109, 16
+    %v_75 = cast %v_66: I32
+    %v_76 = and %v_75, 1073741823: I32
+    store %v_63, %v_76, 4
+    call_complex String.appendUnits, %v_2, %file, %v_10
+    call_complex String.reclaim, %v_1
+    %v_77 = add %v_2, 12: Ptr
+    %v_78 = load %v_77, 4: I32
+    %v_79 = cast %v_78: I64
+    %v_80 = add %v_79, 1: I64
+    %v_81 = add %v_2, 8: Ptr
+    %v_82 = load %v_81, 4: I64
+    %v_83 = and %v_82, 1073741823: I64
+    %v_84 = cast %v_83: I32
+    %v_85 = cast %v_84: I64
+    %v_86 = cmp_ile %v_80, %v_85: I32
+    je %v_86, b_87, b_88
+  }
+
+  b_88 {
+    call_complex growArray(CodeUnit), %v_2, %v_80
+    %v_89 = load %v_77, 4: I32
+    %v_90 = cast %v_89: I64
+    %v_91 = add %v_90, 1: I64
+    %v_92 = load %v_81, 4: I64
+    %v_93 = and %v_92, 1073741823: I64
+    %v_94 = cast %v_93: I32
+    %v_95 = cast %v_94: I64
+    jmp b_87
+  }
+
+  b_87 {
+    %v_96 = phi [b_28, %v_79], [b_88, %v_90]: I64
+    %v_97 = phi [b_28, %v_80], [b_88, %v_91]: I64
+    %v_98 = phi [b_28, %v_85], [b_88, %v_95]: I64
+    %v_99 = add %v_2, 12: Ptr
+    %v_100 = cmp_ilt %v_98, %v_97: I32
+    call_complex checkConditionAt, %v_100, @checkLocation(Core.String), 11, 478, 4
+    %v_101 = load %v_2, 8: Ptr
+    %v_102 = add %v_101, %v_96: Ptr
+    call_complex copyMemory, %v_102, @string'110, 1
+    %v_103 = cast %v_97: I32
+    %v_104 = and %v_103, 1073741823: I32
+    store %v_99, %v_104, 4
+    %v_105 = cmp_ilt %line, 0: I32
+    je %v_105, b_33, b_31
+  }
+
+  b_46 {
+    call_complex growArray(CodeUnit), %v_2, %v_38
+    %v_106 = load %v_35, 4: I32
+    %v_107 = cast %v_106: I64
+    %v_108 = add %v_107, 1: I64
+    %v_109 = load %v_39, 4: I64
+    %v_110 = and %v_109, 1073741823: I64
+    %v_111 = cast %v_110: I32
+    %v_112 = cast %v_111: I64
+    jmp b_45
+  }
+
+  b_45 {
+    %v_113 = phi [b_32, %v_37], [b_46, %v_107]: I64
+    %v_114 = phi [b_32, %v_38], [b_46, %v_108]: I64
+    %v_115 = phi [b_32, %v_43], [b_46, %v_112]: I64
+    %v_116 = add %v_2, 12: Ptr
+    %v_117 = cmp_ilt %v_115, %v_114: I32
+    call_complex checkConditionAt, %v_117, @checkLocation(Core.String), 11, 478, 4
+    %v_118 = load %v_2, 8: Ptr
+    %v_119 = add %v_118, %v_113: Ptr
+    call_complex copyMemory, %v_119, @string'111, 1
+    %v_120 = cast %v_114: I32
+    %v_121 = and %v_120, 1073741823: I32
+    store %v_116, %v_121, 4
+    %v_122 = cmp_ilt %column, 0: I32
+    je %v_122, b_49, b_47
+  }
+
+  b_62 {
+    call_complex growArray(CodeUnit), %v_2, %v_54
+    %v_123 = load %v_51, 4: I32
+    %v_124 = cast %v_123: I64
+    %v_125 = add %v_124, 1: I64
+    %v_126 = load %v_55, 4: I64
+    %v_127 = and %v_126, 1073741823: I64
+    %v_128 = cast %v_127: I32
+    %v_129 = cast %v_128: I64
+    jmp b_61
+  }
+
+  b_61 {
+    %v_130 = phi [b_48, %v_53], [b_62, %v_124]: I64
+    %v_131 = phi [b_48, %v_54], [b_62, %v_125]: I64
+    %v_132 = phi [b_48, %v_59], [b_62, %v_129]: I64
+    %v_133 = add %v_2, 12: Ptr
+    %v_134 = cmp_ilt %v_132, %v_131: I32
+    call_complex checkConditionAt, %v_134, @checkLocation(Core.String), 11, 478, 4
+    %v_135 = load %v_2, 8: Ptr
+    %v_136 = add %v_135, %v_130: Ptr
+    call_complex copyMemory, %v_136, @string'112, 1
+    %v_137 = cast %v_131: I32
+    %v_138 = and %v_137, 1073741823: I32
+    store %v_133, %v_138, 4
+    %v_139 = sext %v_138: I64
+    %v_140 = bitcast %v_135: I64
+    %v_141 = syscall 1, 1, %v_140, %v_139: I64
     call_complex String.reclaim, %v_2
-    %v_42 = syscall 60, 134: I64
+    %v_142 = syscall 60, 134: I64
     ret 
   }
 }

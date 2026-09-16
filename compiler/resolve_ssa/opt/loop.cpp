@@ -152,10 +152,6 @@ struct LoopKiller {
 
     bool inside(Loop& loop, U32 index) { return loop.contains[index]; }
 
-    Block* blockAt(U32 index) { return opt.body->block(opt.base, BlockId(index)); }
-
-    Value* valueOf(Use used) { return used.isSet() ? opt.base[used.value()] : nullptr; }
-
     // Whether a value is computed inside the loop. A constant is not, and neither is a block
     // argument of a block outside it: both are asked through the defining position rather than
     // through the kind, which is the one question `Value` answers directly.
@@ -247,7 +243,7 @@ struct LoopKiller {
      * argument is declared at and the one the proof is stated in.
      */
     bool stepsByOne(Value& counter, Use used, DeclPtr<mir::Type> type) {
-        auto value = valueOf(used);
+        auto value = valueOf(opt, used);
         if(!value || !value->definer || value->type() != type) return false;
 
         auto inst = opt.base[value->definer];
@@ -256,8 +252,8 @@ struct LoopKiller {
         auto& sum = (InstBinary&)*inst;
 
         Maybe<U64> step;
-        if(valueOf(sum.lhs) == &counter) step = literalOf(sum.rhs);
-        else if(valueOf(sum.rhs) == &counter) step = literalOf(sum.lhs);
+        if(valueOf(opt, sum.lhs) == &counter) step = literalOf(sum.rhs);
+        else if(valueOf(opt, sum.rhs) == &counter) step = literalOf(sum.lhs);
 
         return step && step.unwrap() == 1;
     }
@@ -271,7 +267,7 @@ struct LoopKiller {
         loop.contains.forEach([&](Size index) {
             if(written) return;
 
-            auto block = blockAt(U32(index));
+            auto block = blockAt(opt, U32(index));
             for(auto pointer: block->instructions(opt.base)) {
                 if(mayWriteStorage(opt, contained, *opt.base[pointer], allocation)) written = true;
             }
@@ -298,7 +294,7 @@ struct LoopKiller {
         auto inst = opt.base[bound.definer];
         if(inst->kind != Inst::Load) return false;
 
-        auto address = valueOf(((InstLoad&)*inst).address);
+        auto address = valueOf(opt, ((InstLoad&)*inst).address);
         if(!address || definedInside(loop, *address)) return false;
 
         auto root = allocationRoot(opt, address);
@@ -337,8 +333,8 @@ struct LoopKiller {
         else if(compare.op == BinaryOp::Gt) { counterUse = compare.rhs; boundUse = compare.lhs; }
         else return false;
 
-        auto counter = valueOf(counterUse);
-        auto bound = valueOf(boundUse);
+        auto counter = valueOf(opt, counterUse);
+        auto bound = valueOf(opt, boundUse);
         if(!counter || !bound) return false;
 
         auto position = argumentIndex(header, *counter);
@@ -367,7 +363,7 @@ struct LoopKiller {
         loop.contains.forEach([&](Size index) {
             if(!ok) return;
 
-            auto end = blockAt(U32(index))->terminator(opt.base);
+            auto end = blockAt(opt, U32(index))->terminator(opt.base);
             if(!end) { ok = false; return; }
 
             forEachEdge(opt.base, *end, [&](Edge& edge) {
@@ -390,7 +386,7 @@ struct LoopKiller {
      * argument above assumes and what the terminator rule below establishes.
      */
     Inst* decidedTest(Loop& loop) {
-        auto header = blockAt(loop.header);
+        auto header = blockAt(opt, loop.header);
 
         auto terminator = header->terminator(opt.base);
         if(!terminator || terminator->kind != Inst::Branch) return nullptr;
@@ -410,7 +406,7 @@ struct LoopKiller {
         loop.contains.forEach([&](Size index) {
             if(!ok) return;
 
-            auto block = blockAt(U32(index));
+            auto block = blockAt(opt, U32(index));
 
             // Condition 1 again, for every block that is not the header: one plain jump, into the
             // loop. A block that branches, returns or ends nowhere is a second way out.
@@ -487,7 +483,7 @@ struct LoopKiller {
         auto editor = opt.ir();
         auto body = opt.base[branch.whenTrue.target];
 
-        editor.replaceTerminator(*blockAt(loop.header),
+        editor.replaceTerminator(*blockAt(opt, loop.header),
                                  editor.makeBranchEdges(source,
                                                         editor.use(*never, UseKind::Inspect),
                                                         *body, whenTrue.pointer(), whenTrue.size(),
@@ -581,8 +577,6 @@ struct Hoister {
 
     bool inside(Loop& loop, U32 index) { return loop.contains[index]; }
 
-    Value* valueOf(Use used) { return used.isSet() ? opt.base[used.value()] : nullptr; }
-
     // Whether a value is computed inside the loop - the defining position rather than the kind,
     // which is the one question `Value` answers directly. A constant made by the folder inside the
     // loop is a definition there like any other and is carried out with whatever reads it.
@@ -599,7 +593,7 @@ struct Hoister {
         auto outside = true;
 
         forEachUse(opt.base, inst, [&](Use used) {
-            auto value = valueOf(used);
+            auto value = valueOf(opt, used);
             if(!value || definedInside(loop, *value)) outside = false;
         });
 
@@ -671,12 +665,12 @@ struct Hoister {
             Value* base = nullptr;
 
             if(inst->kind == Inst::FieldAddress) {
-                base = valueOf(((InstFieldAddress&)*inst).base);
+                base = valueOf(opt, ((InstFieldAddress&)*inst).base);
             } else if(inst->kind == Inst::ElementAddress) {
                 auto& element = (InstElementAddress&)*inst;
-                base = valueOf(element.base);
+                base = valueOf(opt, element.base);
 
-                auto index = valueOf(element.index);
+                auto index = valueOf(opt, element.index);
                 if(!index || definedInside(loop, *index)) return false;
             } else if(inst->kind == Inst::Load && soleResult(opt, *inst) &&
                       soleResult(opt, *inst)->convention == Convention::Guaranteed) {
@@ -693,7 +687,7 @@ struct Hoister {
                  * `loopWrites` has refused both of those for every block of the loop before this
                  * chain is ever built.
                  */
-                base = valueOf(((InstLoad&)*inst).address);
+                base = valueOf(opt, ((InstLoad&)*inst).address);
             } else {
                 return false;
             }
@@ -716,14 +710,14 @@ struct Hoister {
         auto result = soleResult(opt, inst);
         if(!result || result->convention != Convention::Trivial) return false;
 
-        auto address = valueOf(((InstLoad&)inst).address);
+        auto address = valueOf(opt, ((InstLoad&)inst).address);
         if(!address || !hoistableChain(loop, address, chain)) return false;
 
         // Whichever value the chain ended at, which is outside the loop by construction. A
         // projection of a contained allocation is inside the bytes the frame reserved, so the
         // speculation argument above covers a field exactly as it covers the whole record.
-        auto root = allocationRoot(opt, chain.size() ? valueOf(lastBaseOf(*chain[chain.size() - 1]))
-                                                     : address);
+        auto outermost = chain.size() ? valueOf(opt, lastBaseOf(*chain[chain.size() - 1])) : address;
+        auto root = allocationRoot(opt, outermost);
         if(!root || !contained[root]) return false;
 
         return !loopWrites(loop, *root);
@@ -774,7 +768,7 @@ struct Hoister {
         // that is not pure and a `Load` is deliberately not one - see `inst.def`.
         auto ok = true;
         forEachUse(opt.base, inst, [&](Use used) {
-            auto value = valueOf(used);
+            auto value = valueOf(opt, used);
             if(!value || used.kind() == UseKind::Consume || isTracked(value->convention)) ok = false;
         });
 
@@ -842,6 +836,222 @@ struct Hoister {
     }
 };
 
+/*
+ * A loop whose header test is already decided the first time it is asked - so the body never runs at
+ * all, and the header's own branch is the answer it will always have.
+ *
+ * ## What this is and what `deadLoops` above is
+ *
+ * The two look alike and prove opposite things. `deadLoops` asks whether running the body would
+ * *matter* - it may run any number of times, and what licenses the removal is that nothing outside
+ * can tell. This asks whether the body runs **at all**, and says nothing about what it does: the
+ * body may store, call, allocate and leave by six different exits, because on the execution this
+ * describes none of it happens. So a loop with a `break` in it, which condition 1 up there refuses
+ * outright, is the ordinary case down here.
+ *
+ * ## The proof, which is one induction and no lattice
+ *
+ * Let the header's branch send one arm into the loop and the other out of it, and let the loop have
+ * exactly one predecessor from outside. Then:
+ *
+ *  - the **first** time the header is reached, it is reached from that predecessor - every other
+ *    predecessor is inside the loop, and a block inside the loop is dominated by the header, so
+ *    reaching one at all means the header has already been passed;
+ *  - on that entry the header's arguments are what the entry edge hands over. Where those are
+ *    constants the test is a number, and where that number selects the arm **out** of the loop,
+ *    control leaves;
+ *  - so there is no second visit, and the test the branch performs has exactly one answer.
+ *
+ * The induction is what makes this sound in the presence of the arm it does not look at: a latch is
+ * reached only through the body arm, the body arm is taken only when the test selects it, and the
+ * test is what has just been shown never to. Nothing here rests on the body terminating, on what it
+ * writes, or on how many ways out of it there are.
+ *
+ * **The single outside predecessor is the load-bearing condition**, and it is not `Loop::preheader`.
+ * That one additionally asks that the block jumps *only* to the header, which is what an instruction
+ * hoisted into it needs and is nothing to do with this: a predecessor that decides something on the
+ * way in still hands the header one set of operands along the edge that arrives. So this counts the
+ * outside edges itself and wants one - one *edge* rather than one block, since a predecessor whose
+ * two arms both land on the header supplies two sets of operands and is two entries.
+ *
+ * ## Why it writes a constant rather than a jump
+ *
+ * Exactly `deadLoops`' reason, and it is worth stating that this one had a choice. The header could
+ * be given `jump -> exit` outright, and that would be sound - the branch has one answer. What it
+ * would also be is a second place that deletes edges, and the arm nothing then reaches, the block
+ * arguments left with one alternative and the header folded back into the block above it are all
+ * `cleanCfg`'s already. So the test is written down as the answer it has, and the pass that owns the
+ * region rule does the rest, on the round this one runs in.
+ *
+ * ## What it fires on
+ *
+ * A vectorized library ladder handed a constant count, which is the whole reason it exists.
+ * `compareMemory` opens with `while at <= count - stride` over four registers a turn and then
+ * `while at <= count - width` over one; inline it at a five-unit string literal and both bounds are
+ * negative numbers, `at` enters at zero, and neither loop runs. Without this the inliner's copy
+ * arrives with both ladders intact, folded bounds and all, and the call site is bigger and slower
+ * than the call it replaced - measured at 32.9 to 40.8 ns/token on `test/bench/lexer`, which is the
+ * cost of the bloat with none of the benefit. It is therefore what makes inlining such a callee
+ * worth doing at all, and `opt/inline.cpp`'s constant-aware estimate is written against it.
+ */
+struct LoopSkipper {
+    OptContext& opt;
+
+    /*
+     * The one edge into the header from outside the loop, and the operands it hands over - or
+     * nothing where there is more than one such edge, or none.
+     *
+     * Read as edges rather than as blocks for the reason the note above gives. `forEachEdge` over
+     * each outside predecessor's terminator is what separates the two arms of a predecessor that
+     * branches, which `incoming` alone cannot: it holds one entry per edge but names only the block.
+     */
+    Edge* entryEdge(Loop& loop, Block& header) {
+        Edge* only = nullptr;
+        auto several = false;
+
+        for(auto pointer: header.incoming(opt.base)) {
+            auto from = opt.base[pointer];
+            if(loop.contains[from->index.index]) continue;
+
+            auto end = from->terminator(opt.base);
+            if(!end) return nullptr;
+
+            forEachEdge(opt.base, *end, [&](Edge& edge) {
+                if(!edge.target || opt.base[edge.target] != &header) return;
+
+                if(only) several = true;
+                only = &edge;
+            });
+        }
+
+        return several ? nullptr : only;
+    }
+
+    /*
+     * The number the header's test comes to on the way in, over the operands that edge supplies.
+     *
+     * A walk rather than a fold in place, because nothing may be written down: what is being
+     * computed is the value the test has on **one** of the paths into the block, and the block is
+     * still reached on the others. So this reads and answers, and the only thing the pass writes is
+     * the branch's own condition.
+     *
+     * Three things answer, and between them they are every header this fires on:
+     *
+     *  - a **constant**, which is the bound - `hoist` and the folder have already moved and folded
+     *    it, so `count - stride` at a known count is a number sitting above the loop;
+     *  - a **block argument of the header**, answered by the operand the entry edge fills it with,
+     *    which is the counter;
+     *  - a **comparison the header itself holds** of two of those. Held by the header and not merely
+     *    reachable from it: a comparison defined elsewhere is one whose operands are not this
+     *    header's arguments, so there is nothing for the entry edge to decide about it, and it has
+     *    already been answered by `constantValueOf` if it can be.
+     *
+     * A condition that is the argument outright is the `Bool` case and needs no row of its own - the
+     * second rule answers it, and `compareConstants` is never asked.
+     */
+    Maybe<U64> onEntry(Block& header, Edge& entry, Value* value, U32 depth) {
+        if(!value || depth > 4) return Nothing();
+
+        if(auto number = constantValueOf(opt, value)) return number;
+
+        if(!value->definer && value->block && opt.base[value->block] == &header) {
+            for(Size i = 0; i < header.argumentCount(); i++) {
+                if(opt.base[header.argumentAt(opt.base, i)] != value) continue;
+                if(i >= entry.arguments.size()) return Nothing();
+
+                return constantValueOf(opt, valueOf(opt, entry.arguments.get(opt.base, i)));
+            }
+
+            return Nothing();
+        }
+
+        if(!value->definer) return Nothing();
+
+        auto definer = opt.base[value->definer];
+        if(definer->kind != Inst::Binary) return Nothing();
+        if(!definer->block || opt.base[definer->block] != &header) return Nothing();
+
+        auto& compare = (InstBinary&)*definer;
+        auto lhs = valueOf(opt, compare.lhs);
+        auto rhs = valueOf(opt, compare.rhs);
+        if(!lhs || !rhs) return Nothing();
+
+        auto left = onEntry(header, entry, lhs, depth + 1);
+        auto right = onEntry(header, entry, rhs, depth + 1);
+        if(!left || !right) return Nothing();
+
+        return binaryOfConstants(opt, compare, left.unwrap(), right.unwrap());
+    }
+
+    bool run(Loop& loop) {
+        auto header = blockAt(opt, loop.header);
+        if(!header || header->deleted) return false;
+
+        auto terminator = header->terminator(opt.base);
+        if(!terminator || terminator->kind != Inst::Branch) return false;
+
+        auto& branch = (InstBranch&)*terminator;
+        if(!branch.condition.isSet()) return false;
+        if(!branch.whenTrue.target || !branch.whenFalse.target) return false;
+
+        /*
+         * One arm in and one arm out, which is what "leaving the loop" means here. Both in is a
+         * header that decides between two ways round and leaves somewhere else; both out - and
+         * `branch %c, X, X` is the shape that reaches it - is a header no back edge is reachable
+         * through, which the loop being a natural one rules out anyway.
+         */
+        auto trueInside = loop.contains[opt.base[branch.whenTrue.target]->index.index];
+        auto falseInside = loop.contains[opt.base[branch.whenFalse.target]->index.index];
+        if(trueInside == falseInside) return false;
+
+        auto entry = entryEdge(loop, *header);
+        if(!entry) return false;
+
+        auto answer = onEntry(*header, *entry, valueOf(opt, branch.condition), 0);
+        if(!answer) return false;
+
+        // And the answer has to be the one that leaves. A test that holds on the way in says only
+        // that the loop runs once, which is every loop this pass is offered and is not a rewrite.
+        auto entersBody = (answer.unwrap() != 0) == trueInside;
+        if(entersBody) return false;
+
+        // Already written down, which is the state this pass leaves behind and would otherwise keep
+        // answering about until `cleanCfg` had spent it.
+        auto condition = valueOf(opt, branch.condition);
+        if(constantValueOf(opt, condition)) return false;
+
+        auto boolean = mir::booleanType(opt.program);
+        if(!boolean) return false;
+
+        auto decided = makeConstant(opt, *terminator, boolean, answer.unwrap());
+        if(!decided) return false;
+
+        /*
+         * A fresh branch on the constant, keeping both edges and the operands each already carried -
+         * `deadLoops`' rewrite exactly, and the note there is where `replaceTerminator`'s multiset
+         * rule is argued. Both targets are unchanged, so neither edge is rebuilt.
+         */
+        SmallArray<Use, 4> whenTrue;
+        SmallArray<Use, 4> whenFalse;
+        for(auto used: branch.whenTrue.arguments.contents(opt.base)) whenTrue.push(used);
+        for(auto used: branch.whenFalse.arguments.contents(opt.base)) whenFalse.push(used);
+
+        auto editor = opt.ir();
+        auto source = terminator->source;
+        auto body = opt.base[branch.whenTrue.target];
+        auto exit = opt.base[branch.whenFalse.target];
+
+        editor.replaceTerminator(*header,
+                                 editor.makeBranchEdges(source,
+                                                        editor.use(*decided, UseKind::Inspect),
+                                                        *body, whenTrue.pointer(), whenTrue.size(),
+                                                        *exit, whenFalse.pointer(),
+                                                        whenFalse.size()));
+
+        return true;
+    }
+};
+
 } // namespace
 
 void hoist(OptContext& opt) {
@@ -863,6 +1073,26 @@ void deadLoops(OptContext& opt) {
     // Innermost first, which `Loops` sorted for: an outer loop whose whole body was an inner one
     // becomes removable itself, on the round after the inner one has gone.
     for(auto& loop: loops) killer.run(loop);
+}
+
+void unenteredLoops(OptContext& opt) {
+    auto& loops = loopsOf(opt);
+    if(!loops.size()) return;
+
+    LoopSkipper skipper { opt };
+
+    /*
+     * Outermost first, which is the reverse of the order `Loops` sorted for and the reverse of what
+     * the two passes above want.
+     *
+     * A loop this removes takes every loop nested in it with it, so asking about the inner one first
+     * is asking about a body that is about to stop existing. The other direction never pays: an
+     * inner loop folding does not decide an outer header, whose argument arrives from a block the
+     * fold has not touched. `Loops` holds one array, so this walks it backwards rather than sorting
+     * it twice - and the answer is the same either way, because what is being skipped is work rather
+     * than a rewrite that would have been different.
+     */
+    for(Size i = loops.size(); i > 0; i--) skipper.run(loops[i - 1]);
 }
 
 } // namespace ssa

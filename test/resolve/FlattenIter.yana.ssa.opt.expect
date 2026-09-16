@@ -484,17 +484,12 @@ bb2:
   %62: @bits(30) U32 trivial = load inspect %61
   %63: Size trivial = convert inspect %62
   %64: ArrayView(I32) trivial = aggregate.ArrayView consume %60 consume %63
-  %65: Array(I32) [shared slot 0 view] guaranteed = represent inspect %64
   %20: I32 trivial = const 3
-  %48: %%I32 address = field.addr .items inspect %65
-  %49: %I32 trivial = load inspect %48
-  %50: %Size address = field.addr .length inspect %65
-  %51: Size trivial = load inspect %50
   %70: %Array(I32) address = alloc frame Array(I32) [shared call view]
   %71: %%I32 address = field.addr .items inspect %70
-  store inspect %71 consume %49
+  store inspect %71 consume %60
   %72: %Size address = field.addr .length inspect %70
-  store inspect %72 consume %51
+  store inspect %72 consume %63
   %73: Array(I32) [shared call view] guaranteed = load inspect %70
   %75: %chain.lambda.env address = alloc frame chain.lambda.env
   %76: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=shared call]
@@ -546,18 +541,13 @@ bb7(%67: I32 trivial, %68: I32 trivial):
 
 bb8:
   %128: ArrayView(I32) trivial = aggregate.ArrayView consume %60 consume %63
-  %129: Array(I32) [shared slot 0 view] guaranteed = represent inspect %128
   %24: I32 trivial = const 3
   %25: I32 trivial = const 5
-  %53: %%I32 address = field.addr .items inspect %129
-  %54: %I32 trivial = load inspect %53
-  %55: %Size address = field.addr .length inspect %129
-  %56: Size trivial = load inspect %55
   %137: %Array(I32) address = alloc frame Array(I32) [shared call view]
   %138: %%I32 address = field.addr .items inspect %137
-  store inspect %138 consume %54
+  store inspect %138 consume %60
   %139: %Size address = field.addr .length inspect %137
-  store inspect %139 consume %56
+  store inspect %139 consume %63
   %140: Array(I32) [shared call view] guaranteed = load inspect %137
   %143: %chainBreak.lambda.env address = alloc frame chainBreak.lambda.env
   %144: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape8 .0=shared call]

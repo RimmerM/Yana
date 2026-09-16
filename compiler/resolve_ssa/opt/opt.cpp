@@ -157,6 +157,14 @@ void optimizeBody(OptContext& opt) {
         runPass(deadLoops);
 
         /*
+         * And the other loop question, beside it: a loop whose header test the entry edge's own
+         * numbers already decide. Behind `deadLoops` rather than in front of it because the two are
+         * independent - neither makes the other answer - and behind is where a new row goes when
+         * nothing says otherwise. Both leave a constant condition for the cleanup below.
+         */
+        runPass(unenteredLoops);
+
+        /*
          * And the graph, after the folds, because most constant conditions are made rather than
          * written: a comparison the folder answered is what turns a branch into a jump, and the arm
          * that stops being reachable is what leaves a join with one way in.

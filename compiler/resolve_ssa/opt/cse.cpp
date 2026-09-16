@@ -355,8 +355,6 @@ struct Eliminator {
 
     U32 depth = 0;
 
-    Value* valueOf(Use used) { return used.isSet() ? opt.base[used.value()] : nullptr; }
-
     /*
      * Whether a computation may be answered from an earlier one in **another** block - the one cost
      * rule that survived measurement, see the file comment.
@@ -462,7 +460,7 @@ struct Eliminator {
 
         auto& a = (InstElementAddress&)left;
         auto& b = (InstElementAddress&)right;
-        return a.container == b.container && valueOf(a.index) == valueOf(b.index);
+        return a.container == b.container && valueOf(opt, a.index) == valueOf(opt, b.index);
     }
 
     bool samePlace(Value* left, Value* right) {
@@ -495,10 +493,13 @@ struct Eliminator {
             if(a->kind == Inst::Alloc || b->kind == Inst::Alloc) return false;
             if(!sameProjection(*a, *b)) return false;
 
-            left = valueOf(a->kind == Inst::FieldAddress ? ((InstFieldAddress*)a)->base
-                                                         : ((InstElementAddress*)a)->base);
-            right = valueOf(b->kind == Inst::FieldAddress ? ((InstFieldAddress*)b)->base
-                                                          : ((InstElementAddress*)b)->base);
+            auto up = [&](Inst* inst) {
+                return inst->kind == Inst::FieldAddress ? ((InstFieldAddress*)inst)->base
+                                                        : ((InstElementAddress*)inst)->base;
+            };
+
+            left = valueOf(opt, up(a));
+            right = valueOf(opt, up(b));
         }
     }
 
@@ -515,7 +516,7 @@ struct Eliminator {
         auto result = soleResult(opt, inst);
         if(!result || result->convention != Convention::Trivial) return nullptr;
 
-        auto address = valueOf(((InstLoad&)inst).address);
+        auto address = valueOf(opt, ((InstLoad&)inst).address);
         auto root = allocationRoot(opt, address);
         if(!root) return nullptr;
 
@@ -530,7 +531,7 @@ struct Eliminator {
         if(!allocation) return false;
 
         auto result = soleResult(opt, inst);
-        auto address = valueOf(((InstLoad&)inst).address);
+        auto address = valueOf(opt, ((InstLoad&)inst).address);
 
         // The newest first, so a place written and read again inside one block answers with the read
         // below the write rather than the one above it.

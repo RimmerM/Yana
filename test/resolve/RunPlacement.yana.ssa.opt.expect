@@ -24,8 +24,8 @@ bb0:
   store inspect %19 consume %4
   %21: Size trivial = const 1
   %22: I32 trivial = const 10
-  %112: Size trivial = convert inspect %12
-  %113: ArrayView(I32) trivial = aggregate.ArrayView consume %5 consume %112
+  %155: Size trivial = const 3
+  %113: ArrayView(I32) trivial = aggregate.ArrayView consume %5 consume %155
   %114: Array(I32) [unique slot 0 view] guaranteed = represent inspect %113
   %28: USize trivial = bitcast inspect %21
   %29: Array(I32) [shared slot 0 view] guaranteed from{%114} = load inspect %114
@@ -45,7 +45,7 @@ bb3:
   %41: I32 [unique slot 0 owner] guaranteed = load inspect %40
   store inspect %41 consume %22
   %42: Size trivial = const 0
-  %121: ArrayView(I32) trivial = aggregate.ArrayView consume %5 consume %112
+  %121: ArrayView(I32) trivial = aggregate.ArrayView consume %5 consume %155
   %122: Array(I32) [shared slot 0 view] guaranteed = represent inspect %121
   %48: USize trivial = bitcast inspect %42
   %49: Array(I32) [shared slot 0 view] guaranteed from{%122} = load inspect %122
@@ -69,7 +69,7 @@ bb10:
   %61: I32 [shared slot 0] guaranteed = load inspect %60
   %62: I32 trivial = load inspect %61
   %63: Size trivial = const 1
-  %132: ArrayView(I32) trivial = aggregate.ArrayView consume %5 consume %112
+  %132: ArrayView(I32) trivial = aggregate.ArrayView consume %5 consume %155
   %133: Array(I32) [shared slot 0 view] guaranteed = represent inspect %132
   %69: USize trivial = bitcast inspect %63
   %70: Array(I32) [shared slot 0 view] guaranteed from{%133} = load inspect %133
@@ -94,7 +94,7 @@ bb17:
   %83: I32 trivial = load inspect %82
   %84: I32 trivial = add inspect %62 inspect %83
   %85: Size trivial = const 2
-  %143: ArrayView(I32) trivial = aggregate.ArrayView consume %5 consume %112
+  %143: ArrayView(I32) trivial = aggregate.ArrayView consume %5 consume %155
   %144: Array(I32) [shared slot 0 view] guaranteed = represent inspect %143
   %91: USize trivial = bitcast inspect %85
   %92: Array(I32) [shared slot 0 view] guaranteed from{%144} = load inspect %144
@@ -285,7 +285,7 @@ bb0:
   store inspect %87 consume %75
   %88: Size trivial = const 1
   %89: I32 trivial = const 10
-  %90: Size trivial = convert inspect %80
+  %90: Size trivial = const 3
   %91: ArrayView(I32) trivial = aggregate.ArrayView consume %76 consume %90
   %92: Array(I32) [unique slot 0 view] guaranteed = represent inspect %91
   %93: USize trivial = bitcast inspect %88
