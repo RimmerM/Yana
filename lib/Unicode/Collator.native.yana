@@ -1,0 +1,11 @@
+{-
+   The collator natively: the portable one - `Collator.yana` has the contract, and `Collation.yana`
+   the algorithm. Natively there is no host to defer to, so `Collator` and `UnicodeCollator` give the
+   same answers, and the two names exist so that a program written against `Collator` gets the
+   host's collator on JS.
+-}
+pub data Collator {portable: UnicodeCollator}
+
+pub fn collator(options: CollatorOptions) -> Collator = Collator {portable: unicodeCollator(options)}
+
+pub fn Collator.compare(self: Collator, left: String, right: String) -> Ordering = self.portable.compare(left, right)

@@ -1,0 +1,12 @@
+-- How many clusters the text has. On JS this is the forward walk and nothing else: a register of
+-- units is not something a host string hands out.
+pub fn countClusters(text: String) -> Size:
+    let count = length(text)
+    let &clusters = 0 :: Size
+    let &at = 0 :: Size
+
+    while at < count:
+        at = clusterEnd(text, at)
+        clusters += 1
+
+    return clusters

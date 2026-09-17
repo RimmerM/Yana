@@ -1,0 +1,117 @@
+{-
+   The explicit Unicode tier - Implementation-String.md part 8.
+
+   Everything that needs the Unicode Character Database is here and nowhere in `Core`, so a program
+   that never imports this module carries none of its tables, on either target. The answers are the
+   library's own and not the host's: a JS build gets the same general category for a character that
+   a native build gets, whatever Unicode version its engine happens to ship.
+
+   **The data is generated**, by `tools/unicode/generate.py` from the version `unicodeVersion` names,
+   into `Tables.yana` and the other `*Tables.yana` files, with the conformance data the tests walk.
+   Nothing in those files is written by hand.
+
+   **Names say what they need.** A predicate named after a Unicode property is that property exactly
+   (`isAlphabetic`, `isXidStart`); one that has an ASCII-tier namesake in `Core` carries `Unicode`
+   (`isLowercaseUnicode` beside `isLower`), so that a call reads as the tier it is on.
+
+   **Every question is one lookup.** A character's category and all of its binary properties share
+   one table entry, so these are three loads and a mask each, the same for ASCII and for everything
+   else. White space is the exception, and is `Core`'s `isSpaceUnicode`: its 25 characters are a
+   pattern match rather than a table.
+
+   The rest of the module, each over tables of its own:
+
+   - `Clusters.yana` - UAX #29 extended grapheme clusters.
+   - `Case.yana` - full case mapping and folding.
+   - `Normalization.yana` - UAX #15's four forms, and the NFKC case-folded key for identifiers.
+   - `Collation.yana` - UTS #10 over CLDR's root order, as `UnicodeCollator`.
+   - `Collator.yana` - `Collator`, which is the host's `Intl.Collator` on JS and `UnicodeCollator`
+     natively.
+   - `Ascii.native.yana` - the register-at-a-time ASCII paths the others share.
+-}
+
+{-
+   The `General_Category` of a character: UAX #44's thirty values, under their long names.
+
+   **The order is the UCD's grouping and it is load-bearing:** the category is the constructor
+   number in the table (`Tables.yana`), and the group tests below are ranges over it. The generator
+   writes numbers in this order, so a constructor moved here is a table that says something else.
+-}
+pub data qualified GeneralCategory
+  = @value(0) UppercaseLetter
+  | @value(1) LowercaseLetter
+  | @value(2) TitlecaseLetter
+  | @value(3) ModifierLetter
+  | @value(4) OtherLetter
+  | @value(5) NonspacingMark
+  | @value(6) SpacingMark
+  | @value(7) EnclosingMark
+  | @value(8) DecimalNumber
+  | @value(9) LetterNumber
+  | @value(10) OtherNumber
+  | @value(11) ConnectorPunctuation
+  | @value(12) DashPunctuation
+  | @value(13) OpenPunctuation
+  | @value(14) ClosePunctuation
+  | @value(15) InitialPunctuation
+  | @value(16) FinalPunctuation
+  | @value(17) OtherPunctuation
+  | @value(18) MathSymbol
+  | @value(19) CurrencySymbol
+  | @value(20) ModifierSymbol
+  | @value(21) OtherSymbol
+  | @value(22) SpaceSeparator
+  | @value(23) LineSeparator
+  | @value(24) ParagraphSeparator
+  | @value(25) Control
+  | @value(26) Format
+  | @value(27) Surrogate
+  | @value(28) PrivateUse
+  | @value(29) Unassigned
+
+-- `c`'s general category. A value above U+10FFFF, which the `Char` constructor lets through, is
+-- `Unassigned`.
+pub fn generalCategory(c: Char) -> GeneralCategory = propertyCategories[propertyIndexAt(c) :: Size]
+
+-- The one-letter groups, `L`, `M`, `N`, `P`, `S`, `Z` and `C`: each is a run of constructors above.
+pub fn GeneralCategory.isLetter(category: GeneralCategory) -> Bool = valueOf(category) is 0..=4
+pub fn GeneralCategory.isMark(category: GeneralCategory) -> Bool = valueOf(category) is 5..=7
+pub fn GeneralCategory.isNumber(category: GeneralCategory) -> Bool = valueOf(category) is 8..=10
+pub fn GeneralCategory.isPunctuation(category: GeneralCategory) -> Bool = valueOf(category) is 11..=17
+pub fn GeneralCategory.isSymbol(category: GeneralCategory) -> Bool = valueOf(category) is 18..=21
+pub fn GeneralCategory.isSeparator(category: GeneralCategory) -> Bool = valueOf(category) is 22..=24
+pub fn GeneralCategory.isOther(category: GeneralCategory) -> Bool = valueOf(category) is 25..=29
+
+-- Whether any bit of `mask` is set in `c`'s property word.
+fn hasProperty(c: Char, mask: U16) -> Bool = (propertyWord(c) `and` mask) != 0
+
+-- The `Alphabetic` property: letters, letter numbers, and the marks and symbols that behave as
+-- letters (`Other_Alphabetic`). Wider than the `L` group, since it takes `Ⅻ` and Devanagari's vowel
+-- signs.
+pub fn isAlphabetic(c: Char) -> Bool = hasProperty(c, alphabeticBit)
+
+-- The `Lowercase` and `Uppercase` properties, which are wider than `Ll` and `Lu`: `ª` and the
+-- modifier letters are lowercase, and the circled capitals `Ⓐ` are uppercase.
+pub fn isLowercaseUnicode(c: Char) -> Bool = hasProperty(c, lowercaseBit)
+pub fn isUppercaseUnicode(c: Char) -> Bool = hasProperty(c, uppercaseBit)
+
+{-
+   Whether `c` is a number of any kind: the `N` group, so decimal digits in every script, letter
+   numbers such as `Ⅻ`, and other numbers such as `½` and `²`.
+
+   The general category and not `Numeric_Type`, which is also what Rust's `is_numeric` and .NET's
+   `IsNumber` answer. The difference is the CJK ideographs that Unihan gives a numeric value (`一`,
+   `万`): those are letters that happen to count, and a caller splitting words from numbers wants them
+   with the letters.
+-}
+pub fn isNumericUnicode(c: Char) -> Bool = generalCategoryValue(c) is 8..=10
+
+pub fn isAlphanumericUnicode(c: Char) -> Bool = isAlphabetic(c) || isNumericUnicode(c)
+
+-- `XID_Start` and `XID_Continue`, UAX #31's identifier syntax closed under NFKC: what a language
+-- accepting Unicode identifiers takes as the first character of one and as each character after it.
+pub fn isXidStart(c: Char) -> Bool = hasProperty(c, xidStartBit)
+pub fn isXidContinue(c: Char) -> Bool = hasProperty(c, xidContinueBit)
+
+-- The category's constructor number, for a range test that does not build the constructor.
+fn generalCategoryValue(c: Char) -> U16 = propertyWord(c) `and` categoryMask

@@ -1,0 +1,64 @@
+{-
+   Language-sensitive comparison - Implementation-String.md part 8.5, `localeCompare`'s equivalent.
+
+   `Ord(String)` and `compareChars` are orders of code units and code points: fast, and the same on
+   every machine, which is what a key in a map or on disk wants. A list shown to a person wants
+   `résumé` beside `resume` and `a10` after `a9`, and that is a collator:
+
+       let byName = collator(CollatorOptions {numeric: True})
+       sortBy(names, (a: String, b: String) -> byName.compare(a, b) == LT)
+
+   **On JS the collator is the host's:** one `Intl.Collator`, built once by `collator` and kept in the
+   value, with every option passed explicitly so no default of the engine's leaks in. A program that
+   sorts names in a browser does not ship a collation table the browser already has
+   (`Collator.js.yana`): nothing on that path reads one, and what is not reached is not emitted.
+   **Natively it is this library's** root collation - CLDR's, which is what ICU sorts by - through
+   `UnicodeCollator` (`Collator.native.yana`).
+
+   **In this module and not in `Core`,** which is where Implementation-String.md part 8.5 first put
+   it. The native collator needs the tables, so a `Core` collator would make `Core` import this
+   module, and then every native compilation resolves the tables whether it sorts anything or not:
+   measured, a program that prints one line went from 24 ms to 35 ms to compile.
+
+   **Ties are broken by code point order on both targets,** so `compare` answers `EQ` only for equal
+   texts and is a total order: safe to sort with, and safe to deduplicate by. Two texts a collator
+   cannot tell apart - `a` and `ａ` under `Sensitivity.Base` - still compare in a fixed order. The
+   order is of the NFD forms first and then of the texts themselves, which is ICU's identical level:
+   two texts whose combining marks are only written in a different order sort by their canonical
+   order.
+
+   **Natively, Han sorts by code point within each range, and ICU sorts it by radical and stroke** -
+   `Collation.yana` has why. It is the one difference between the two targets' answers that the root
+   order itself makes.
+
+   **The host's order must not be stored.** Engines ship different ICU, CLDR and Unicode versions,
+   and a character newer than an engine's data sorts by code point after everything else, so an
+   order a browser computed today can differ from tomorrow's. An index on disk, or a binary search
+   over saved data, orders by `Ord(String)`, `compareChars` or `UnicodeCollator`, which is the same
+   table on every target.
+-}
+
+-- How different two texts must be before a collator tells them apart, as in `Intl.Collator`.
+pub data qualified Sensitivity
+  = Base     -- letters only: `a` = `á` = `A`
+  | Accent   -- letters and accents: `a` = `A`, `a` < `á`
+  | Case     -- letters and case: `a` = `á`, `a` < `A`
+  | Variant  -- everything the root order distinguishes, which is the default
+
+-- Which case sorts first among texts that differ only in case. `Off` is the root order, which puts
+-- lowercase first too, but lets the other variant differences (width, a circled letter) decide first.
+pub data qualified CaseFirst = Off | Upper | Lower
+
+{-
+   `Intl.Collator`'s options, named as they are there.
+
+   - `locale` is a BCP 47 tag. On JS it is the host's to interpret, and the root order is `"und"`.
+     Natively only the root order exists today, so the tag does not change the answer (the plan's
+     open question on which tailorings to ship).
+   - `numeric` compares runs of decimal digits by value, so `a9` < `a10` and `a01` = `a1` apart from
+     the tie-break.
+   - `ignorePunctuation` ignores spaces and punctuation, the root order's variable characters.
+-}
+pub data CollatorOptions {locale: String = "und", sensitivity: Sensitivity = Sensitivity.Variant,
+                          numeric: Bool = False, caseFirst: CaseFirst = CaseFirst.Off,
+                          ignorePunctuation: Bool = False}

@@ -1,0 +1,141 @@
+{-
+   Normalization - Implementation-String.md part 8.4.
+
+   `normalizationConformance` is UAX #15's own test, NormalizationTest.txt, generated into
+   `NormalizationTest.test.yana`: for every case, each column normalizes to the column the file says
+   in all four forms, and that column passes its form's `isNormalized`. `unlistedAreInvariant` is the
+   file's other claim, that a character its part 1 does not list is its own normalization.
+   `nfkcCaseFold` checks every code point the UCD's `NFKC_Casefold` property changes.
+-}
+
+import Test
+
+-- The `index`th of a case's five columns.
+fn column(row: String, separator: String, index: Size) -> String:
+    let &start = 0 :: Size
+    for _ in 0 .. index:
+        if String.find(row, separator, start) is Just(at) then start = at + length(separator)
+
+    let end = if String.find(row, separator, start) is Just(at) then at else length(row)
+    return copy(String.slice(row, start, end))
+
+-- UAX #15's invariants for one case: `c2 = NFC(c1..c3)`, `c4 = NFC(c4..c5)`, `c3 = NFD(c1..c3)`,
+-- `c5 = NFD(c4..c5)`, `c4 = NFKC(c1..c5)` and `c5 = NFKD(c1..c5)`.
+fn caseHolds(c: [String]) -> Bool:
+    for i in 0 .. 5:
+        let composed = if i < 3 then 1 else 3
+        if normalizeNfc(c[i]) != c[composed] then return False
+        if normalizeNfd(c[i]) != c[composed + 1] then return False
+        if normalizeNfkc(c[i]) != c[3] then return False
+        if normalizeNfkd(c[i]) != c[4] then return False
+
+    return isNormalizedNfc(c[1]) && isNormalizedNfd(c[2]) && isNormalizedNfkc(c[3]) && isNormalizedNfkd(c[4])
+
+@test fn normalizationConformance():
+    let separator = charText(normalizationTestSeparator)
+    let &failures = 0 :: Size
+
+    for i in 0 .. length(normalizationTestCases):
+        let row = normalizationTestCases[i]
+        let columns = [column(row, separator, 0), column(row, separator, 1), column(row, separator, 2),
+                       column(row, separator, 3), column(row, separator, 4)]
+        if !caseHolds(columns):
+            if failures < 8 then check(False, note: "NormalizationTest.txt case {i + 1}")
+            failures += 1
+
+    checkEqual(failures, 0)
+
+{-
+   Every code point part 1 does not list, 0x1000 at a time and each after a space: a space composes
+   with nothing and stops reordering, so a text of them is its own normalization exactly when each
+   character is.
+-}
+@test fn unlistedAreInvariant():
+    let &listed = 0 :: Size
+    let &failures = 0 :: Size
+
+    for block in 0 .. (0x110 :: U32):
+        let &text = ""
+        for offset in 0 .. (0x1000 :: U32):
+            let point = block * 0x1000 + offset
+            if listed < length(normalizationTestListed) && normalizationTestListed[listed] == point:
+                listed += 1
+            else if point < 0xD800 || point > 0xDFFF:
+                text.push(" ")
+                text.pushChar(Char(point))
+
+        let same = normalizeNfc(text) == text && normalizeNfd(text) == text &&
+                   normalizeNfkc(text) == text && normalizeNfkd(text) == text
+        if !same:
+            if failures < 8 then check(False, note: "block {block}")
+            failures += 1
+
+    checkEqual(failures, 0)
+
+@test fn nfkcCaseFold():
+    let &failures = 0 :: Size
+
+    for i in 0 .. length(nfkcCaseFoldPoints):
+        if normalizeNfkcCaseFold(charText(Char(nfkcCaseFoldPoints[i]))) != nfkcCaseFoldValues[i]:
+            if failures < 8 then check(False, note: "U+{nfkcCaseFoldPoints[i]}")
+            failures += 1
+
+    checkEqual(failures, 0)
+
+@test fn normalizationExamples():
+    checkEqual(normalizeNfc(""), "")
+    checkEqual(normalizeNfc("plain ascii"), "plain ascii")
+    checkEqual(normalizeNfc("e\x301"), "é")
+    checkEqual(normalizeNfd("é"), "e\x301")
+    checkEqual(normalizeNfc("A\x30A"), "Å")
+    checkEqual(normalizeNfc("\x212B"), "Å")
+    checkEqual(normalizeNfkc("ﬁ"), "fi")
+    checkEqual(normalizeNfd("ﬁ"), "ﬁ")
+    checkEqual(normalizeNfkd("①"), "1")
+    checkEqual(normalizeNfc("\x1100\x1161\x11A8"), "각")
+    checkEqual(normalizeNfd("각"), "\x1100\x1161\x11A8")
+    checkEqual(normalizeNfc("x\x323\x307 and q\x307\x323"), "\x1E8B\x323 and q\x323\x307")
+    checkEqual(normalizeNfc("s\x307\x323"), "ṩ")
+
+-- The ASCII runs: a combining acute at every offset of a 100-unit ASCII run composes with the letter
+-- before it, which is the last unit of a run the walk would otherwise have written out.
+@test fn asciiRuns():
+    let &failures = 0 :: Size
+
+    for at in 1 .. 100:
+        let &text = ""
+        let &composed = ""
+        for i in 0 .. 100:
+            if i == at:
+                text.push("\x301")
+            else:
+                text.push(if i + 1 == at then "e" else "x")
+                composed.push(if i + 1 == at then "é" else "x")
+
+        if normalizeNfc(text) != composed || normalizeNfd(composed) != text || isNormalizedNfc(text):
+            failures += 1
+
+    checkEqual(failures, 0)
+
+@test fn quickCheck():
+    check(isNormalizedNfc(""))
+    check(isNormalizedNfc("already normal: é"))
+    check(!isNormalizedNfc("e\x301"))
+    check(isNormalizedNfd("e\x301"))
+    check(!isNormalizedNfd("é"))
+    check(!isNormalizedNfc("a\x301\x316"))
+    check(isNormalizedNfc("a\x316\x301") == (normalizeNfc("a\x316\x301") == "a\x316\x301"))
+    check(!isNormalizedNfkc("ﬁ"))
+    check(isNormalizedNfc("ﬁ"))
+
+@test fn comparisons():
+    check(equalsNormalized("é", "e\x301"))
+    check(equalsNormalized("\x212B", "Å"))
+    check(!equalsNormalized("ﬁ", "fi"))
+    check(!equalsNormalized("é", "e"))
+    check(equalsNfkcCaseFold("ﬁ", "FI"))
+    check(equalsNfkcCaseFold("ＡＢＣ", "abc"))
+    check(equalsNfkcCaseFold("A\xAD" ++ "BC", "abc"))
+    check(equalsNfkcCaseFold("Straße", "STRASSE"))
+    check(equalsNfkcCaseFold("É", "e\x301"))
+    check(!equalsNfkcCaseFold("abc", "abd"))

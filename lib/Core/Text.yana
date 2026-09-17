@@ -146,7 +146,8 @@ pub fn String.contains(haystack: String, needle: String) -> Bool =
    Whether a character has the Unicode `White_Space` property - the 25 code points `trimUnicode`
    takes off. Six of them are the ASCII units `isSpace` names. The set has not changed since Unicode
    6.3 took U+180E out of it, which is why it is written out here rather than read from the Unicode
-   library's generated tables (part 8).
+   library's generated tables (part 8). `tools/unicode/generate.py` exits with an error if the set
+   in the version it reads is not these 25 characters.
 -}
 pub fn isSpaceUnicode(c: Char) -> Bool
   | " "                 -> True

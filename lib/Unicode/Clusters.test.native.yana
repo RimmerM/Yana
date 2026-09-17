@@ -1,0 +1,55 @@
+{-
+   Clusters over malformed UTF-8, natively - `Clusters.yana`'s "invalid text has clusters too".
+
+   Each invalid sequence is the U+FFFD `decodeChar` answers for it, so it is `Other`: a cluster of its
+   own, which a following mark joins. The boundary functions walk backwards with `decodeCharBefore`,
+   so this also checks that the two directions cut the bytes the same way.
+-}
+
+import Test
+
+fn bytesText(bytes: [U8]) -> String:
+    let &text = String.ofCapacity(length(bytes))
+    for i in 0 .. length(bytes):
+        String.pushUnit(text, bytes[i])
+
+    return text
+
+-- The offsets at which `clusters` ends each cluster, as a list, and how many offsets the boundary
+-- functions disagree with it at.
+fn clusterEnds(text: String) -> String:
+    let &out = ""
+    let &at = 0 :: Size
+    for cluster in clusters(text):
+        at += length(cluster)
+        if length(out) > 0 then out.push(" ")
+        out.push("{at}")
+
+    return out
+
+fn boundaryMismatches(text: String) -> Size:
+    let &wrong = 0 :: Size
+    let &start = 0 :: Size
+
+    for cluster in clusters(text):
+        let end = start + length(cluster)
+        for at in start .. end:
+            if floorClusterBoundary(text, at) != start then wrong += 1
+            if ceilClusterBoundary(text, at) != (if at == start then start else end) then wrong += 1
+
+        start = end
+
+    return wrong
+
+@test fn malformed():
+    -- "a", a truncated four-byte lead with a combining acute after it, "b", and a stray continuation
+    -- byte with one after it.
+    let text = bytesText(elements([0x61 :: U8, 0xF1, 0x80, 0x80, 0xCC, 0x81, 0x62, 0x80, 0xCC, 0x81]))
+    checkEqual(clusterEnds(text), "1 6 7 10")
+    checkEqual(countClusters(text), 4)
+    checkEqual(boundaryMismatches(text), 0)
+
+    -- Stray bytes on their own are one cluster each, as they are one character each.
+    let stray = bytesText(elements([0x80 :: U8, 0xBF, 0xC2, 0x41, 0xE0, 0x80]))
+    checkEqual(clusterEnds(stray), "1 2 3 4 5 6")
+    checkEqual(boundaryMismatches(stray), 0)

@@ -1,0 +1,21 @@
+{-
+   The clusters as windows, under the ownership resolve stage - `Clusters.yana` has the contract, and
+   `Clusters.legacy.yana` is the same pair with owned results for the stage that cannot represent a
+   window. A caller that keeps a cluster past `text` writes `copy`.
+-}
+
+-- Each extended grapheme cluster of the text, in order. The clusters tile the text: every unit is in
+-- exactly one, and the empty text has none.
+pub iter fn clusters(text: source'String) -> source'String:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let end = clusterEnd(text, at)
+        yield text.slice(at, end)
+        at = end
+
+-- The longest prefix of whole clusters that is at most `maxUnits` long, which is what cutting a text
+-- to a limit without splitting a character or detaching its marks means.
+pub fn truncateClusters(text: source'String, maxUnits: Size) -> source'String =
+    text.slice(0, floorClusterBoundary(text, maxUnits))

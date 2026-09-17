@@ -1,0 +1,374 @@
+{-
+   The Unicode Collation Algorithm over CLDR's root order - Implementation-String.md part 8.5.
+
+   `UnicodeCollator` is the portable collator: the same table and the same answers on every target,
+   for code that must sort the same way everywhere and accepts the table in its JS output. `Collator`
+   (`Collator.yana`) is this natively and the host's `Intl.Collator` on JS, and both take the same
+   `CollatorOptions`.
+
+   **The order is CLDR's root collation,** `allkeys_CLDR.txt` (`CollationTables.yana`): the DUCET
+   with CLDR's changes, which is what ICU sorts by and so what the host collator answers for `und`.
+   UTS #10's steps are followed as written:
+
+   1. The text is put in NFD, so canonically equivalent texts get the same elements.
+   2. Each character, or longest sequence the table holds, gives its collation elements. A contraction
+      also takes a later non-starter that nothing blocks from it (S2.1.1-S2.1.3), which is how a
+      combining mark between a Tibetan vowel's two halves does not stop them from contracting.
+   3. A character the table does not hold gets computed implicit weights: Han by its code point in
+      three ranges of base weights, the siniform scripts by their own bases, everything else last.
+   4. The texts compare level by level over the weights that are not zero, and the first level that
+      differs decides.
+
+   **`CollatorOptions` maps onto the algorithm as ICU maps `Intl.Collator`'s options:**
+
+   - `sensitivity` is the strength - `Base` compares primary weights, `Accent` secondary as well,
+     `Variant` tertiary as well - and `Case` is primary strength with the *case level* on: a level
+     between secondary and tertiary that compares only whether each element is uppercase.
+   - `caseFirst` ranks the tertiary level by case before the tertiary weight, uppercase or lowercase
+     first. Whether an element is uppercase is read from its tertiary weight, which the UCA assigns
+     by variant: 08-0C are the capitals, 0E, 11 and 12 the full-size kana, and 1D the squared
+     capitals. Measured against Node 26's ICU, those are exactly the ones ICU counts as upper.
+   - `ignorePunctuation` is UTS #10's *shifted* variable weighting with no fourth level: the elements
+     marked variable (spaces and punctuation, in CLDR's root) are ignored, and so is any accent that
+     follows one.
+   - `numeric` turns each run of decimal digits into elements that order by the number's value: the
+     digit zero's primary weight, then the count of significant digits, then each digit. Leading zeros
+     are dropped, and every digit of every script and width is only its value, as ICU does.
+
+   **Ties are code point order,** of the NFD forms first and then of the texts, so `compare` is a
+   total order - see `Collator.yana`. The NFD forms first is ICU's identical level, and it is the
+   order CollationTest's lines of equal keys are in: `U+0591 U+0334` comes before `U+0334 U+0592`,
+   because the first is `U+0334 U+0591` once its marks are in canonical order.
+
+   **Han is in code point order within each range, which is where ICU differs.** CLDR publishes
+   two root orders for ideographs: `allkeys_CLDR.txt` and its conformance test give them implicit
+   weights from the code point, and ICU's root (`FractionalUCA.txt`) orders all ninety-eight thousand
+   by radical and stroke, so ICU sorts `U+20000` before `中`. This library follows the table and the
+   test: the radical-stroke order is a rank per ideograph, several hundred kilobytes, for an order
+   that CJK readers usually want tailored anyway (pinyin, zhuyin, stroke counts by region). Every
+   other character agrees with ICU as far as the examples in `Collator.test.yana` reach.
+
+   **Invalid text** compares by its U+FFFDs, as everywhere in this library.
+-}
+
+pub data UnicodeCollator {strength: U8, caseLevel: Bool, caseFirst: CaseFirst, shifted: Bool, numeric: Bool}
+
+pub fn unicodeCollator(options: CollatorOptions) -> UnicodeCollator =
+    UnicodeCollator {strength: strengthOf(options.sensitivity), caseLevel: options.sensitivity == Sensitivity.Case,
+                     caseFirst: options.caseFirst, shifted: options.ignorePunctuation, numeric: options.numeric}
+
+fn strengthOf(sensitivity: Sensitivity) -> U8 = match sensitivity:
+    Sensitivity.Base -> 1
+    Sensitivity.Accent -> 2
+    Sensitivity.Case -> 1
+    Sensitivity.Variant -> 3
+
+-- An element's weights, and the parts of a tagged trie value (`CollationTables.yana`).
+@inline(always)
+fn primaryOf(element: U32) -> U32 = element `shr` 16
+
+@inline(always)
+fn secondaryOf(element: U32) -> U32 = (element `shr` 7) `and` 0x1FF
+
+@inline(always)
+fn tertiaryOf(element: U32) -> U32 = (element `shr` 2) `and` 31
+
+@inline(always)
+fn isVariable(element: U32) -> Bool = (element `and` 2) != 0
+
+fn packedElement(primary: U32, secondary: U32, tertiary: U32) -> U32 =
+    (primary `shl` 16) `or` (secondary `shl` 7) `or` (tertiary `shl` 2)
+
+-- Where a run of elements is, as a tagged value or a contraction record packs it.
+@inline(always)
+fn runStart(reference: U32) -> Size = truncate(reference `shr` 5) :: Size
+
+@inline(always)
+fn runCount(reference: U32) -> Size = truncate(reference `and` 31) :: Size
+
+-- The digit zero's primary weight, which every script's zero shares: the digits are ten weights from
+-- it (`numeric`).
+let zeroPrimary = 0x21E6 :: U32
+
+-- A character a discontiguous contraction has already taken, which the walk skips.
+let takenPoint = 0xFFFFFFFF :: U32
+
+{-
+   Appends an element to what a walk has produced. An element of all-zero weights is ignorable at
+   every level, so it is dropped here rather than skipped at each level of the comparison. Under
+   `shifted`, a variable element is dropped too, and so is an element with no primary weight after
+   one, and `afterVariable` is what remembers that the last primary was variable.
+-}
+fn emit(&elements: Array(U32), shifted: Bool, &afterVariable: Bool, element: U32):
+    if shifted:
+        if isVariable(element):
+            afterVariable = True
+            return
+        if primaryOf(element) != 0:
+            afterVariable = False
+        else if afterVariable:
+            return
+
+    if element != 0 then elements.push(element)
+
+fn emitRun(&elements: Array(U32), shifted: Bool, &afterVariable: Bool, reference: U32):
+    let start = runStart(reference)
+    for at in start .. (start + runCount(reference)):
+        emit(elements, shifted, afterVariable, collationElements[at])
+
+-- UTS #10 section 10.1: two elements from the code point, for a character the table leaves out.
+fn emitImplicit(&elements: Array(U32), point: U32, payload: U32):
+    let base = payload `shr` 3
+    let range = truncate(payload `and` 7) :: Size
+
+    if range == 0:
+        elements.push(packedElement(base + (point `shr` 15), 0x20, 2))
+        elements.push(packedElement((point `and` 0x7FFF) `or` 0x8000, 0, 0))
+    else:
+        elements.push(packedElement(base, 0x20, 2))
+        elements.push(packedElement((point - collationSiniformStarts[range - 1]) `or` 0x8000, 0, 0))
+
+-- The next character at or after `at` that no contraction has taken.
+fn liveFrom(points: Array(U32), at: Size) -> Size:
+    let &position = at
+    while position < length(points) && points[position] == takenPoint:
+        position += 1
+
+    return position
+
+-- The record after `record`'s own elements whose code points after the first are `first` and then
+-- `second` (zero for a sequence of two), or -1.
+fn findSequence(record: Size, extra: U32, first: U32, second: U32) -> Size:
+    let count = truncate(collationContractions[record + 1]) :: Size
+    for k in 0 .. count:
+        let at = record + 2 + 3 * k
+        let word = collationContractions[at]
+        if (word `and` 3) == extra && collationContractions[at + 1] == first && collationContractions[at + 2] == second:
+            return at
+
+    return -1
+
+-- A contraction record's sequence entry as an element run.
+fn sequenceRun(at: Size) -> U32:
+    let word = collationContractions[at]
+    return ((word `shr` 7) `shl` 5) `or` ((word `shr` 2) `and` 31)
+
+{-
+   The elements of the longest sequence starting with the head at `at`, whose record is `record`, and
+   the offset after the characters it took in a row. A non-starter it takes further on is marked
+   taken in `points`.
+
+   First the longest contiguous match (sequences are stored longest first); then UTS #10's S2.1.1-3
+   over the run of non-starters after it: each one that nothing between it and the match blocks - no
+   character skipped over it with a combining class at least its own - extends the match when the
+   table holds the longer sequence.
+-}
+fn matchContraction(&points: Array(U32), at: Size, record: Size) -> {U32, Size}:
+    let &run = collationContractions[record]
+    let &extra = 0 :: U32
+    let &first = 0 :: U32
+    let &end = at + 1
+
+    let next = liveFrom(points, at + 1)
+    if next < length(points):
+        let afterNext = liveFrom(points, next + 1)
+        let second = if afterNext < length(points) then points[afterNext] else takenPoint
+        let longer = if second != takenPoint then findSequence(record, 2, points[next], second) else -1
+        if longer >= 0:
+            run = sequenceRun(longer)
+            extra = 2
+            end = afterNext + 1
+        else:
+            let shorter = findSequence(record, 1, points[next], 0)
+            if shorter >= 0:
+                run = sequenceRun(shorter)
+                extra = 1
+                first = points[next]
+                end = next + 1
+
+    let &skippedClass = 0 :: U32
+    let &position = liveFrom(points, end)
+    while extra < 2 && position < length(points):
+        let ccc = normalizationEntryAt(Char(points[position])) `and` 0xFF
+        if ccc == 0 then break
+
+        if skippedClass < ccc:
+            let found = if extra == 0 then findSequence(record, 1, points[position], 0)
+                        else findSequence(record, 2, first, points[position])
+            if found >= 0:
+                run = sequenceRun(found)
+                if extra == 0 then first = points[position]
+                extra += 1
+                points[position] = takenPoint
+                position = liveFrom(points, position + 1)
+                continue
+
+        skippedClass = ccc
+        position = liveFrom(points, position + 1)
+
+    return {run, end}
+
+-- The value of the decimal digit `point` whose element is `element`, or -1 when it is not one.
+fn digitValue(point: U32, element: U32) -> I32:
+    if (element `and` 1) != 0 || generalCategory(Char(point)) != GeneralCategory.DecimalNumber then return -1
+
+    let primary = primaryOf(element)
+    if primary < zeroPrimary || primary > zeroPrimary + 9 then return -1
+    return bitcast(primary - zeroPrimary) :: I32
+
+-- `numeric`'s elements for the run of digits starting at `at`, and the offset after it.
+fn emitNumber(&elements: Array(U32), points: Array(U32), at: Size) -> Size:
+    let &end = at
+    let &significant = -1 :: Size
+    while end < length(points):
+        let value = digitValue(points[end], collationValueAt(Char(points[end])))
+        if value < 0 then break
+        if significant < 0 && value != 0 then significant = end
+        end += 1
+
+    let first = if significant < 0 then end - 1 else significant
+    elements.push(packedElement(zeroPrimary, 0x20, 2))
+    elements.push(packedElement(truncate(end - first) :: U32, 0, 0))
+    for k in first .. end:
+        let value = digitValue(points[k], collationValueAt(Char(points[k])))
+        elements.push(packedElement(zeroPrimary + (bitcast(value) :: U32), 0, 0))
+
+    return end
+
+-- The elements of a text already in NFD. Its code points are copied out first, because a
+-- discontiguous contraction marks the ones it takes.
+fn elementsOf(self: UnicodeCollator, decomposed: String) -> Array(U32):
+    let &points = [] :: [U32]
+    for c in chars(decomposed):
+        points.push(c.0)
+
+    let &elements = [] :: [U32]
+    let &afterVariable = False
+    let count = length(points)
+    let &at = 0 :: Size
+
+    while at < count:
+        let point = points[at]
+        if point == takenPoint:
+            at += 1
+            continue
+
+        let value = collationValueAt(Char(point))
+        if self.numeric && digitValue(point, value) >= 0:
+            at = emitNumber(elements, points, at)
+            afterVariable = False
+            continue
+
+        let payload = value `shr` 4
+        let kind = (value `shr` 1) `and` 7
+        if (value `and` 1) == 0:
+            emit(elements, self.shifted, afterVariable, value)
+            at += 1
+        else if kind == 0:
+            emitImplicit(elements, point, payload)
+            afterVariable = False
+            at += 1
+        else if kind == 1:
+            emitRun(elements, self.shifted, afterVariable, payload)
+            at += 1
+        else:
+            let {run, end} = matchContraction(points, at, truncate(payload) :: Size)
+            emitRun(elements, self.shifted, afterVariable, run)
+            at = end
+
+    return elements
+
+-- Whether an element counts as uppercase for the case level and `caseFirst` - see the module's note.
+fn isUpperTertiary(tertiary: U32) -> Bool
+  | 0x08..=0x0C -> True
+  | 0x0E        -> True
+  | 0x11..=0x12 -> True
+  | 0x1D        -> True
+  | _           -> False
+
+-- 1 for the case that sorts first and 2 for the other. An element with no primary weight is
+-- lowercase, as ICU has it.
+fn caseRank(element: U32, upperFirst: Bool) -> U32:
+    let upper = primaryOf(element) != 0 && isUpperTertiary(tertiaryOf(element))
+    return if upper == upperFirst then 1 else 2
+
+{-
+   One level's weight of an element, zero where the element has none at that level:
+
+   1. primary, 2. secondary, 3. the case level - the case rank of an element with a primary weight -
+   and 4. tertiary, ranked by case first when `caseFirst` asks.
+-}
+fn weightAt(self: UnicodeCollator, element: U32, level: U8) -> U32:
+    let upperFirst = self.caseFirst == CaseFirst.Upper
+    if level == 1 then return primaryOf(element)
+    if level == 2 then return secondaryOf(element)
+    if level == 3 then return if primaryOf(element) == 0 then 0 else caseRank(element, upperFirst)
+
+    let tertiary = tertiaryOf(element)
+    if tertiary == 0 || self.caseFirst == CaseFirst.Off then return tertiary
+    return (caseRank(element, upperFirst) `shl` 5) `or` tertiary
+
+-- The answer is carried to the loop's condition rather than returned from inside the loop, because
+-- the JS backend cannot structure a loop left by a `return` when the IR optimizer is off.
+fn compareLevel(self: UnicodeCollator, left: Array(U32), right: Array(U32), level: U8) -> Ordering:
+    let &i = 0 :: Size
+    let &j = 0 :: Size
+    let &order = EQ
+
+    while order == EQ && (i < length(left) || j < length(right)):
+        let &a = 0 :: U32
+        while i < length(left) && a == 0:
+            a = weightAt(self, left[i], level)
+            i += 1
+
+        let &b = 0 :: U32
+        while j < length(right) && b == 0:
+            b = weightAt(self, right[j], level)
+            j += 1
+
+        if a != b then order = if a < b then LT else GT
+
+    return order
+
+-- The elements of an all-ASCII text, which is its own NFD and holds no contraction: one table load
+-- per unit.
+fn asciiElementsOf(self: UnicodeCollator, text: String) -> Array(U32):
+    let count = length(text)
+    let &elements = [] :: [U32]
+    reserve(elements, count)
+    let &afterVariable = False
+
+    for at in 0 .. count:
+        emit(elements, self.shifted, afterVariable, collationAsciiElements[text.unit(at) :: Size])
+
+    return elements
+
+-- The elements of any text: the ASCII path where it applies, and NFD and the full walk otherwise.
+-- `numeric` always takes the full walk, which is where digit runs are read.
+fn textElements(self: UnicodeCollator, text: String) -> Array(U32) =
+    if !self.numeric && isAllAscii(text) then asciiElementsOf(self, text) else elementsOf(self, normalizeNfd(text))
+
+-- The order of the two texts under the collator's options, with code point order breaking a tie.
+pub fn UnicodeCollator.compare(self: UnicodeCollator, left: String, right: String) -> Ordering:
+    if left == right then return EQ
+
+    let a = textElements(self, left)
+    let b = textElements(self, right)
+
+    let primary = compareLevel(self, a, b, 1)
+    if primary != EQ then return primary
+
+    if self.strength >= 2:
+        let secondary = compareLevel(self, a, b, 2)
+        if secondary != EQ then return secondary
+
+    if self.caseLevel:
+        let cased = compareLevel(self, a, b, 3)
+        if cased != EQ then return cased
+
+    if self.strength >= 3:
+        let tertiary = compareLevel(self, a, b, 4)
+        if tertiary != EQ then return tertiary
+
+    let decomposedOrder = compareChars(normalizeNfd(left), normalizeNfd(right))
+    return if decomposedOrder != EQ then decomposedOrder else compareChars(left, right)

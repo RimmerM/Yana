@@ -250,6 +250,24 @@ Maybe<mir::Constant> constantAt(OptContext& opt, const ConstantContents& content
 Value* allocationRoot(OptContext& opt, Value* address);
 
 /*
+ * Whether an address may name bytes of this allocation: rooted in it, or ending at a **block
+ * argument** some edge into it fills with an address that may.
+ *
+ * The second half is the one `allocationRoot`'s null hides. `Contained` admits a borrow handed over
+ * an edge as a second name for the same storage (J50), so a contained allocation *can* be named by
+ * an address with no root of this body's - one that ends at the argument. A reader that took null
+ * to mean "not this allocation" of a contained slot therefore missed every write and read through
+ * such a borrow: `text.push(if c then "e" else "x")` borrows `text` before the branch and pushes
+ * through the join's argument, and once the branch folded and the slot was merged with its
+ * destination, `ConstantContents` called the slot the empty literal for its whole life and
+ * `forwardMemory` answered the interpolation's read of it with that literal.
+ *
+ * The walk follows arguments back through every incoming edge, as far as arguments lead; an entry
+ * block's arguments have no incoming edge and so name nothing of this body's.
+ */
+bool addressMayName(OptContext& opt, Value* address, Value& allocation);
+
+/*
  * One step up an address chain, or null where the chain ends.
  *
  * The three ways an address names storage another value already names - a field or element

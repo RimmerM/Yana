@@ -1,0 +1,98 @@
+{-
+   Case mapping and folding - Implementation-String.md part 8.3.
+
+   `mappings` checks every code point whose full lowercase, uppercase or folding is not itself against
+   the UCD's own files (`CaseTest.test.yana`, generated), through the public functions over a text of
+   that one character. Every other code point maps to itself, which `Tries.test.yana` checks through
+   the trie. The rest is what a single character cannot show: final sigma, and texts that mix ASCII
+   with the rest.
+-}
+
+import Test
+
+-- A text of the one character, which the Unicode tests build from generated code points.
+fn charText(c: Char) -> String:
+    let &text = ""
+    text.pushChar(c)
+    return text
+
+@test fn mappings():
+    let &failures = 0 :: Size
+
+    for i in 0 .. length(caseTestPoints):
+        let text = charText(Char(caseTestPoints[i]))
+        let lower = toLowerUnicode(text)
+        let upper = toUpperUnicode(text)
+        let folded = caseFoldUnicode(text)
+
+        if lower != caseTestLowers[i] || upper != caseTestUppers[i] || folded != caseTestFolds[i]:
+            if failures < 8 then check(False, note: "U+{caseTestPoints[i]}")
+            failures += 1
+
+    checkEqual(failures, 0)
+
+@test fn fullMappingsChangeLength():
+    checkEqual(toUpperUnicode("straße"), "STRASSE")
+    checkEqual(toUpperUnicode("ﬃ"), "FFI")
+    checkEqual(toLowerUnicode("İ"), "i\x307")
+    checkEqual(toUpperUnicode("ŉ"), "ʼN")
+    checkEqual(caseFoldUnicode("ẞ"), "ss")
+    checkEqual(caseFoldUnicode("Ꭰ"), "Ꭰ")
+    checkEqual(caseFoldUnicode("ꭰ"), "Ꭰ")
+
+@test fn ascii():
+    checkEqual(toLowerUnicode(""), "")
+    checkEqual(toLowerUnicode("Hello, World 42!"), "hello, world 42!")
+    checkEqual(toUpperUnicode("Hello, World 42!"), "HELLO, WORLD 42!")
+    checkEqual(caseFoldUnicode("MiXeD"), "mixed")
+    checkEqual(toLowerUnicode("ÀÉÎõü and ASCII"), "àéîõü and ascii")
+
+-- The ASCII registers (`Ascii.native.yana`): an `É` at every offset of a 100-unit run of mixed-case
+-- ASCII, so that it lands inside a register, across two and in the tail, at either register width.
+@test fn asciiRegisters():
+    let &failures = 0 :: Size
+
+    for at in 0 .. 100:
+        let &text = ""
+        let &lower = ""
+        let &upper = ""
+        for i in 0 .. 100:
+            if i == at:
+                text.push("É")
+                lower.push("é")
+                upper.push("É")
+            else:
+                let letter = "a" + (truncate(i % 26) :: CodeUnit)
+                text.pushUnit(if i % 3 == 0 then toUpperUnit(letter) else letter)
+                lower.pushUnit(letter)
+                upper.pushUnit(toUpperUnit(letter))
+
+        if toLowerUnicode(text) != lower || caseFoldUnicode(text) != lower || toUpperUnicode(text) != upper:
+            failures += 1
+
+    checkEqual(failures, 0)
+
+-- `Σ` is `ς` after a cased letter when no cased letter follows, looking past case-ignorable
+-- characters both ways, and `σ` otherwise.
+@test fn finalSigma():
+    checkEqual(toLowerUnicode("ΟΔΥΣΣΕΥΣ"), "οδυσσευς")
+    checkEqual(toLowerUnicode("Σ"), "σ")
+    checkEqual(toLowerUnicode("ΑΣ ΑΣ."), "ας ας.")
+    checkEqual(toLowerUnicode("ΑΣ'Α"), "ασ'α")
+    checkEqual(toLowerUnicode("ΑΣ'"), "ας'")
+    checkEqual(toLowerUnicode("Α\x301Σ"), "α\x301ς")
+    checkEqual(toLowerUnicode("1Σ"), "1σ")
+    checkEqual(toUpperUnicode("ας"), "ΑΣ")
+    checkEqual(caseFoldUnicode("ΑΣ"), "ασ")
+
+@test fn ignoringCase():
+    check(equalsIgnoreCaseUnicode("", ""))
+    check(equalsIgnoreCaseUnicode("Hello", "hELLO"))
+    check(!equalsIgnoreCaseUnicode("Hello", "Help"))
+    check(!equalsIgnoreCaseUnicode("Hello", "Hello!"))
+    check(equalsIgnoreCaseUnicode("STRASSE", "straße"))
+    check(equalsIgnoreCaseUnicode("Straße", "STRAẞE"))
+    check(equalsIgnoreCaseUnicode("ΌΣΟΣ", "όσος"))
+    check(equalsIgnoreCaseUnicode("Kelvin", "\x212A" ++ "elvin"))
+    check(!equalsIgnoreCaseUnicode("é", "e\x301"))
+    check(!equalsIgnoreCaseUnicode("straße", "strase"))

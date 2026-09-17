@@ -209,6 +209,55 @@ Value* allocationRoot(OptContext& opt, Value* address) {
     return nullptr;
 }
 
+bool addressMayName(OptContext& opt, Value* address, Value& allocation) {
+    SmallArray<Value*, 8> pending;
+    SmallArray<Value*, 8> seen;
+    pending.push(address);
+
+    while(pending.size()) {
+        auto at = pending.pop().unwrap();
+
+        // The end of the chain rather than its root: a root is the answer, and anything that is not a
+        // block argument is a root this body cannot name, which `allocationRoot`'s null already says.
+        while(at && at->definer) {
+            if(opt.base[at->definer]->kind == Inst::Alloc) break;
+            at = addressStep(opt, at);
+        }
+
+        if(!at) continue;
+        if(at == &allocation) return true;
+        if(at->definer || !at->block) continue;
+
+        auto known = false;
+        for(auto visited: seen) known = known || visited == at;
+        if(known) continue;
+        seen.push(at);
+
+        auto block = opt.base[at->block];
+        Size position = 0;
+        while(position < block->argumentCount()) {
+            if(opt.base[block->argumentAt(opt.base, position)] == at) break;
+            position++;
+        }
+
+        // One entry per edge, so a predecessor with two edges here is walked twice; both of its
+        // edges into this block are asked each time, which repeats an answer rather than losing one.
+        for(auto predecessor: block->incoming(opt.base)) {
+            auto terminator = opt.base[predecessor]->terminator(opt.base);
+            if(!terminator) continue;
+
+            forEachEdge(opt.base, *terminator, [&](Edge& edge) {
+                if(opt.base[edge.target] != block || position >= edge.arguments.size()) return;
+
+                auto used = edge.arguments.get(opt.base, position);
+                if(used.isSet()) pending.push(opt.base[used.value()]);
+            });
+        }
+    }
+
+    return false;
+}
+
 // The step an address is, and the address it is taken of. `base` is null where the address is a
 // root - an allocation, a global, a pointer this pass cannot see behind.
 Maybe<AddressStep> addressStepOf(OptContext& opt, Value& address, Value*& base) {
@@ -864,10 +913,11 @@ namespace {
  * `Store` value, as an aggregate component, as a native operand, as a returned value, as an edge
  * operand and as a captured environment, and admitted at a call argument only where the callee
  * keeps no address of that position's storage. So no value in the body holds a pointer into it that
- * did not come from the allocation itself - and every route that does is one `allocationRoot` walks:
- * a field or element projection, a `Guaranteed` load (which is how a borrow is spelled here) and a
- * `represent`, which are exactly the kinds the containment walk admits. Pointer arithmetic is not
- * among them, so there is no fourth way in.
+ * did not come from the allocation itself - and every route that does is one `allocationRoot` walks
+ * - a field or element projection, a `Guaranteed` load (which is how a borrow is spelled here) and a
+ * `represent` - or a block argument an edge filled with one of those, which the containment walk
+ * also admits and `addressMayName` follows back. Pointer arithmetic is not among them, so there is
+ * no other way in.
  *
  * That covers three cases one predicate each used to answer separately, and the third is what a
  * string literal needed: a pointer **loaded out of storage** roots nowhere and misses (the shape
@@ -888,7 +938,8 @@ bool addressMayReach(OptContext& opt, const Contained& contained, Use address, V
     auto root = allocationRoot(opt, value);
     if(root) return root == &allocation;
 
-    return !contained[allocation];
+    // A borrow handed over an edge roots nowhere and still names the allocation - `addressMayName`.
+    return !contained[allocation] || addressMayName(opt, value, allocation);
 }
 
 } // namespace

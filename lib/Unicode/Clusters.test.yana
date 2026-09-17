@@ -1,0 +1,144 @@
+{-
+   Extended grapheme clusters - Implementation-String.md part 8.2.
+
+   `conformance` is UAX #29's own test, GraphemeBreakTest.txt, whose cases the generator writes into
+   `GraphemeBreakTest.test.yana`. Its expectations are counted in characters rather than in units, so
+   the same data checks UTF-8 natively and UTF-16 on JS. Each case is checked three ways, which are
+   three different code paths: the clusters `clusters` yields, `countClusters`, and the boundary
+   functions at every unit offset, which walk backwards before they walk forwards.
+-}
+
+import Test
+
+-- The unit offsets at which the case's clusters start, and the text's end.
+fn expectedBoundaries(text: String, first: Size, clusters: Size) -> [Size]:
+    let &out = [0] :: [Size]
+    let &at = 0 :: Size
+
+    for k in first .. (first + clusters):
+        for _ in 0 .. (graphemeBreakSizes[k] :: Size):
+            at = decodeChar(text, at).1
+
+        push(out, at)
+
+    return out
+
+@test fn conformance():
+    let &first = 0 :: Size
+    let &failures = 0 :: Size
+
+    for i in 0 .. length(graphemeBreakTexts):
+        let text = graphemeBreakTexts[i]
+        let clusterCount = graphemeBreakCounts[i] :: Size
+        let &wrong = False
+
+        let &k = first
+        for cluster in clusters(text):
+            if k >= first + clusterCount || countChars(cluster) != (graphemeBreakSizes[k] :: Size) then wrong = True
+            k += 1
+
+        if k != first + clusterCount || countClusters(text) != clusterCount then wrong = True
+
+        let boundaries = expectedBoundaries(text, first, clusterCount)
+        let &next = 0 :: Size
+        for at in 0 .. (length(text) + 1):
+            let isBoundary = boundaries[next] == at
+            let floor = if isBoundary then at else boundaries[next - 1]
+            let ceil = boundaries[next]
+
+            if isClusterBoundary(text, at) != isBoundary then wrong = True
+            if floorClusterBoundary(text, at) != floor then wrong = True
+            if ceilClusterBoundary(text, at) != ceil then wrong = True
+            if isBoundary && next + 1 < length(boundaries) then next += 1
+
+        if wrong:
+            if failures < 8 then check(False, note: "GraphemeBreakTest.txt case {i + 1}")
+            failures += 1
+
+        first += clusterCount
+
+    checkEqual(failures, 0)
+
+fn clusterList(text: String) -> String:
+    let &out = ""
+    for cluster in clusters(text):
+        if length(out) > 0 then out.push("|")
+        out.push(cluster)
+
+    return out
+
+@test fn examples():
+    checkEqual(clusterList(""), "")
+    checkEqual(clusterList("abc"), "a|b|c")
+    checkEqual(clusterList("a\r\nb\n\r"), "a|\r\n|b|\n|\r")
+    checkEqual(clusterList("e\x301x"), "e\x301|x")
+    checkEqual(clusterList("🇸🇪🇳🇴🇫"), "🇸🇪|🇳🇴|🇫")
+    checkEqual(clusterList("👩\x200D👩\x200D👧!"), "👩\x200D👩\x200D👧|!")
+    checkEqual(clusterList("👍🏽a"), "👍🏽|a")
+    checkEqual(clusterList("\x1100\x1161\x11A8한"), "\x1100\x1161\x11A8|한")
+    checkEqual(clusterList("क्षि"), "क्षि")
+    checkEqual(countClusters("🇸🇪🇳🇴🇫"), 3)
+    checkEqual(countClusters("naïve"), 5)
+    checkEqual(countClusters("nai\x308ve"), 5)
+
+-- A mark with nothing before it is a cluster of its own, and so is a control, which no mark joins.
+@test fn marksWithoutBase():
+    checkEqual(clusterList("\x301\x301z"), "\x301\x301|z")
+    checkEqual(clusterList("\n\x301"), "\n|\x301")
+
+@test fn boundariesClamp():
+    checkEqual(floorClusterBoundary("e\x301", -3), 0)
+    checkEqual(ceilClusterBoundary("e\x301", 99), length("e\x301"))
+    check(!isClusterBoundary("ab", -1))
+    check(!isClusterBoundary("ab", 3))
+    check(isClusterBoundary("ab", 2))
+
+-- A cut inside a cluster moves back to its start, so the marks stay with their base.
+@test fn truncate():
+    let text = "ze\x301z"
+    let accented = length("e\x301")
+    checkEqual(truncateClusters(text, 0), "")
+    checkEqual(truncateClusters(text, 1), "z")
+    checkEqual(truncateClusters(text, accented), "z")
+    checkEqual(truncateClusters(text, accented + 1), "ze\x301")
+    checkEqual(truncateClusters(text, 1000), text)
+    checkEqual(truncateClusters("🇸🇪🇳🇴", length("🇸🇪") + 1), "🇸🇪")
+
+-- A long run of regional indicators is the one case the boundary functions walk far back for, and
+-- the pairing has to come out the same as the forward walk from the start.
+@test fn longRegionalRun():
+    let &text = ""
+    for _ in 0 .. 101:
+        text.push("🇦")
+
+    let flag = length("🇦")
+    checkEqual(countClusters(text), 51)
+    checkEqual(floorClusterBoundary(text, 99 * flag + 1), 98 * flag)
+    checkEqual(ceilClusterBoundary(text, 99 * flag + 1), 100 * flag)
+    checkEqual(floorClusterBoundary(text, 100 * flag + 1), 100 * flag)
+
+-- `countClusters` counts ASCII a register at a time natively, so a CR LF pair and a combining mark
+-- are put at every offset of a run longer than two registers: inside a block, across two, and in the
+-- tail. The answer has to be what the clusters themselves say.
+@test fn countAcrossBlocks():
+    let &failures = 0 :: Size
+
+    for at in 0 .. 100:
+        let &paired = ""
+        let &marked = ""
+        for i in 0 .. 100:
+            if i == at:
+                paired.push("\r\n")
+                marked.push("e\x301")
+            else:
+                paired.push("x")
+                marked.push("x")
+
+        let &yielded = 0 :: Size
+        for _ in clusters(paired):
+            yielded += 1
+
+        if countClusters(paired) != 100 || yielded != 100 then failures += 1
+        if countClusters(marked) != 100 then failures += 1
+
+    checkEqual(failures, 0)

@@ -1,0 +1,200 @@
+{-
+   Full case mapping and case folding - Implementation-String.md part 8.3.
+
+   **Full and locale-independent.** A character maps to up to three: `ß` uppercases to `SS` and `ŉ`
+   to `ʼN`, so a result can hold more units than its text. The mappings are `SpecialCasing.txt`'s
+   unconditional ones over `UnicodeData.txt`'s simple ones, and folding is `CaseFolding.txt`'s `C`
+   and `F` lines. The language-specific rules - Turkish and Azeri dotted `i`, Lithuanian dot above -
+   are not here (the plan's open question on language casing).
+
+   **Final sigma is the one context rule,** because it is not language-specific: `Σ` lowercases to
+   `ς` at the end of a word and to `σ` elsewhere. Case folding does not care, and folds both to `σ`.
+
+   **ASCII costs no lookup.** A register of ASCII maps at once, by `toLowerAscii`'s select
+   (`Ascii.native.yana`); an ASCII unit in a register that is not all ASCII maps through the ASCII
+   tier's `toLowerUnit` or `toUpperUnit`; and a character that is not ASCII is one trie lookup and one
+   load (`CaseTables.yana`).
+
+   **Invalid text becomes U+FFFD.** These read characters with `decodeChar`, so each invalid sequence
+   is a replacement character in the result - the only text that changes without a mapping saying so.
+   The ASCII tier's `toLowerAscii` is the one that keeps every unit as it was.
+-}
+
+let capitalSigma = Char(0x3A3)
+
+-- Appends `c`'s mapping, given its value in one of the three delta columns: a difference to one
+-- character, or a run of `caseStrings`.
+@inline(always)
+fn pushMapped(&out: String, c: Char, value: I32):
+    if value < caseStringTag:
+        out.pushChar(Char(c.0 + (bitcast(value) :: U32)))
+        return
+
+    let packed = (value - caseStringTag) :: Size
+    let start = packed `shr` 2
+    for at in start .. (start + (packed `and` 3)):
+        out.pushChar(Char(caseStrings[at]))
+
+-- Whether the first character in the direction a walk takes that is not `Case_Ignorable` is `Cased`.
+fn casedBefore(text: String, at: Size) -> Bool:
+    let &position = at
+    while position > 0:
+        let {char, start} = decodeCharBefore(text, position)
+        let word = propertyWord(char)
+        if (word `and` caseIgnorableBit) == 0 then return (word `and` casedBit) != 0
+        position = start
+
+    return False
+
+fn casedAfter(text: String, at: Size) -> Bool:
+    let count = length(text)
+    let &position = at
+    while position < count:
+        let {char, next} = decodeChar(text, position)
+        let word = propertyWord(char)
+        if (word `and` caseIgnorableBit) == 0 then return (word `and` casedBit) != 0
+        position = next
+
+    return False
+
+{-
+   The Unicode Standard's `Final_Sigma` (table 3-17) for the sigma between `at` and `next`: a cased
+   letter comes before it, past any case-ignorable characters, and none comes after it the same way.
+   The walk is as long as the run of case-ignorable characters on each side, which in real text is
+   an apostrophe or a few marks.
+-}
+fn isFinalSigma(text: String, at: Size, next: Size) -> Bool =
+    casedBefore(text, at) && !casedAfter(text, next)
+
+{-
+   The three walks: a register of ASCII through `pushCasedAscii`, the rest of an ASCII run through
+   the ASCII tier's own mapping in a loop of its own, and each other character through its column of
+   the table.
+
+   **A register is tried again only `asciiBackOff` units after one that was not all ASCII.** Measured
+   on `test/bench/unicode` at v2, against the walk that mapped every ASCII unit on its own: all-ASCII
+   text is 16 times faster, and Latin, CJK and emoji text are within 3%, where trying at every ASCII
+   unit cost Latin and emoji 15-20%. 32 units back cost them 6%, and 96 is where it stopped mattering.
+
+   **Written out three times rather than once over a mapping argument,** because the shared walk
+   tested the mapping per unit and measured 15% slower on Latin text, and inlining it to specialize
+   the argument away was slower still.
+-}
+let asciiBackOff = 96 :: Size
+
+fn lowerFrom(&out: String, text: String, from: Size):
+    let count = length(text)
+    let &at = from
+    let &scalarUntil = from
+
+    while at < count:
+        let unit = text.unit(at)
+        if unit < 0x80:
+            if at >= scalarUntil:
+                at = pushCasedAscii(out, text, at, "A", "Z", 32)
+                scalarUntil = at + asciiBackOff
+
+            while at < count && at < scalarUntil && text.unit(at) < 0x80:
+                out.pushUnit(toLowerUnit(text.unit(at)))
+                at += 1
+        else:
+            let {char, next} = decodeChar(text, at)
+            if char == capitalSigma:
+                out.pushChar(if isFinalSigma(text, at, next) then Char(0x3C2) else Char(0x3C3))
+            else:
+                pushMapped(out, char, caseLowerDeltas[caseIndexAt(char) :: Size])
+            at = next
+
+fn upperFrom(&out: String, text: String, from: Size):
+    let count = length(text)
+    let &at = from
+    let &scalarUntil = from
+
+    while at < count:
+        let unit = text.unit(at)
+        if unit < 0x80:
+            if at >= scalarUntil:
+                at = pushCasedAscii(out, text, at, "a", "z", -32)
+                scalarUntil = at + asciiBackOff
+
+            while at < count && at < scalarUntil && text.unit(at) < 0x80:
+                out.pushUnit(toUpperUnit(text.unit(at)))
+                at += 1
+        else:
+            let {char, next} = decodeChar(text, at)
+            pushMapped(out, char, caseUpperDeltas[caseIndexAt(char) :: Size])
+            at = next
+
+fn foldFrom(&out: String, text: String, from: Size):
+    let count = length(text)
+    let &at = from
+    let &scalarUntil = from
+
+    while at < count:
+        let unit = text.unit(at)
+        if unit < 0x80:
+            if at >= scalarUntil:
+                at = pushCasedAscii(out, text, at, "A", "Z", 32)
+                scalarUntil = at + asciiBackOff
+
+            while at < count && at < scalarUntil && text.unit(at) < 0x80:
+                out.pushUnit(toLowerUnit(text.unit(at)))
+                at += 1
+        else:
+            let {char, next} = decodeChar(text, at)
+            pushMapped(out, char, caseFoldDeltas[caseIndexAt(char) :: Size])
+            at = next
+
+pub fn toLowerUnicode(text: String) -> String:
+    let &out = String.ofCapacity(length(text))
+    lowerFrom(out, text, 0)
+    return out
+
+pub fn toUpperUnicode(text: String) -> String:
+    let &out = String.ofCapacity(length(text))
+    upperFrom(out, text, 0)
+    return out
+
+{-
+   Full case folding: the form two texts are compared in when case does not matter. Close to
+   lowercase and not the same - `ß` folds to `ss`, Cherokee folds to its uppercase, and a final sigma
+   folds like any other - so a caller comparing keys writes this and not `toLowerUnicode`.
+-}
+pub fn caseFoldUnicode(text: String) -> String:
+    let &out = String.ofCapacity(length(text))
+    foldFrom(out, text, 0)
+    return out
+
+{-
+   Whether the full case folds of the two texts are the same: `"STRASSE"` equals `"straße"`.
+
+   No normalization, so a precomposed `é` and `e` with a combining acute differ here as they do under
+   `==`; `equalsNfkcCaseFold` (`Normalization.yana`) is the comparison that ignores both.
+
+   The ASCII prefix the two share, case aside, is compared in place, and only what follows it is
+   folded - so two texts that differ in an ASCII unit allocate nothing.
+-}
+pub fn equalsIgnoreCaseUnicode(left: String, right: String) -> Bool:
+    let at = asciiFoldPrefix(left, right)
+    if at < 0 then return False
+    if at == length(left) && at == length(right) then return True
+
+    let &leftFold = String.ofCapacity(length(left) - at)
+    let &rightFold = String.ofCapacity(length(right) - at)
+    foldFrom(leftFold, left, at)
+    foldFrom(rightFold, right, at)
+    return leftFold == rightFold
+
+-- How many units the two texts share as ASCII that folds equal, or -1 when an ASCII unit in both
+-- folds differently - which already decides, since ASCII folds one unit to one unit. One loop
+-- condition and a test after it, rather than a `return` inside the loop, which the JS backend cannot
+-- structure when the IR optimizer is off.
+fn asciiFoldPrefix(left: String, right: String) -> Size:
+    let shared = min(length(left), length(right))
+    let &at = 0 :: Size
+
+    while at < shared && left.unit(at) < 0x80 && right.unit(at) < 0x80 && toLowerUnit(left.unit(at)) == toLowerUnit(right.unit(at)):
+        at += 1
+
+    let differs = at < shared && left.unit(at) < 0x80 && right.unit(at) < 0x80
+    return if differs then -1 else at

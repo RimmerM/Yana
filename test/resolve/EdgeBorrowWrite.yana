@@ -1,0 +1,39 @@
+{-
+   A write through a borrow that crosses a join.
+
+   `add(x, if flag then 1 else 2)` borrows `x` before the `if` and hands the borrow to the join as a
+   block argument, so the call that writes `x` names only that argument. The SSA optimizer's
+   containment walk admits a borrow handed over an edge as a second name for the slot, and until
+   2026-09-17 the question "may this write the slot" did not follow the argument back: it saw an
+   address with no root in this body and called the contained slot unreachable from it. So
+   `ConstantContents` held the slot at its initial value for the whole body, and every read of it
+   after the call was answered with that value. The library shape that found it is
+   `out.push(if c then "y" else "x")`, which appended nothing.
+
+   Two bodies, and both lost every write: one whose branch folds once `main` inlines it, and one in a
+   loop whose condition is only known at run time and keeps its join. The answer was 50 rather than
+   82.
+-}
+
+fn add(&x: I64, n: I64):
+    x = x + n
+
+fn scalarJoin(flag: Bool) -> I64:
+    let &x = 5 :: I64
+    add(x, if flag then 1 else 2)
+    return x
+
+fn runtimeJoin(count: I64) -> I64:
+    let &total = 0 :: I64
+    let &i = 0 :: I64
+
+    while i < count:
+        add(total, if i % 2 == 0 then 1 else 10)
+        i = i + 1
+
+    return total
+
+fn main() -> Int:
+    let folded = scalarJoin(True)                       -- 6
+    let kept = runtimeJoin(4)                           -- 1 + 10 + 1 + 10
+    return truncate(folded * 10 + kept) :: Int

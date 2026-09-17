@@ -1,0 +1,75 @@
+{-
+   The portable collator - Implementation-String.md part 8.5.
+
+   `collationConformance` is CLDR's CollationTest_CLDR_NON_IGNORABLE_SHORT.txt, generated into
+   `CollationTest.test.yana`: each line compares after the one before it, at tertiary strength with no
+   variable weighting, which is `UnicodeCollator` with the default options. Lines of equal keys are in
+   code point order in the file, and that is the collator's tie-break, so every pair is `LT`.
+
+   `unicodeCollatorOptions` is `Collator.test.yana`'s check of the options against what ICU answers,
+   through the portable collator on every target.
+-}
+
+import Test
+
+@test fn collationConformance():
+    let separator = charText(collationTestSeparator)
+    let sorter = unicodeCollator(CollatorOptions {})
+    let &previous = ""
+    let &line = 0 :: Size
+    let &failures = 0 :: Size
+
+    for chunk in 0 .. length(collationTestChunks):
+        let text = collationTestChunks[chunk]
+        let &start = 0 :: Size
+        while start <= length(text):
+            let end = if String.find(text, separator, start) is Just(at) then at else length(text)
+            let current = copy(String.slice(text, start, end))
+            if line > 0 && sorter.compare(previous, current) != LT:
+                if failures < 8 then check(False, note: "CollationTest line {line + 1}")
+                failures += 1
+
+            previous = current
+            line += 1
+            start = end + length(separator)
+
+    checkEqual(failures, 0)
+    checkEqual(line, 206268)
+
+@test fn unicodeCollatorOptions():
+    for option in 0 .. length(collatorAnswers):
+        let sorter = unicodeCollator(collatorOptions(option))
+        for pair in 0 .. length(collatorLefts):
+            let left = collatorLefts[pair]
+            let right = collatorRights[pair]
+            let expected = collatorAnswers[option].unit(pair)
+            check(agrees(sorter.compare(left, right), expected, left, right), note: "options {option}, pair {pair}")
+
+@test fn numericRuns():
+    let sorter = unicodeCollator(CollatorOptions {numeric: True})
+    checkEqual(sorter.compare("file9", "file10"), LT)
+    checkEqual(sorter.compare("file10", "file9"), GT)
+    checkEqual(sorter.compare("0", "00"), compareChars("0", "00"))
+    checkEqual(sorter.compare("x100000000000000000000", "x99999999999999999999"), GT)
+    checkEqual(sorter.compare("1.5", "1.10"), LT)
+    checkEqual(sorter.compare("٢", "10"), LT)
+
+-- CLDR's table and conformance test, not ICU's radical-stroke root: see `Collation.yana`.
+@test fn hanByCodePoint():
+    let sorter = unicodeCollator(CollatorOptions {})
+    checkEqual(sorter.compare("丁", "中"), LT)
+    checkEqual(sorter.compare("\x20000", "中"), GT)
+    checkEqual(sorter.compare("\x3400", "\x4E00"), GT)
+
+@test fn tiesByCanonicalOrder():
+    let sorter = unicodeCollator(CollatorOptions {})
+    checkEqual(sorter.compare("\x591\x334", "\x334\x592"), LT)
+    checkEqual(sorter.compare("é", "e\x301"), GT)
+    checkEqual(sorter.compare("e\x301", "é"), LT)
+
+@test fn emptyText():
+    let sorter = unicodeCollator(CollatorOptions {})
+    checkEqual(sorter.compare("", ""), EQ)
+    checkEqual(sorter.compare("", "a"), LT)
+    checkEqual(sorter.compare("a", ""), GT)
+    checkEqual(sorter.compare("", "\x0"), LT)

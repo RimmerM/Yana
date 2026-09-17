@@ -1,0 +1,80 @@
+let image$base: () = <none>
+
+fn add(%x: I64, %n: I64) -> () {
+  b0:
+    %v2 = load %x : I64
+    %v3 = add %v2, %n : I64
+    assign %x, %v3
+    ret
+}
+
+fn scalarJoin(%flag: Bool) -> I64 {
+  b0:
+    %x = alloc : I64
+    init %x, 5
+    %v4 = load %x : I64
+    je %flag, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, 1], [b2, 2] : I64
+    %v11 = borrow_mut %x : &I64
+    call add, %v11, %v10
+    %v13 = load %x : I64
+    ret %v13
+}
+
+fn runtimeJoin(%count: I64) -> I64 {
+  b0:
+    %total = alloc : I64
+    init %total, 0
+    %i = alloc : I64
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : I64
+    %v9 = cmp_lt %v8, %count : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v33 = load %total : I64
+    ret %v33
+
+  b3:
+    %v11 = load %total : I64
+    %v12 = load %i : I64
+    %v15 = rem %v12, 2 : I64
+    %v18 = cmp_eq %v15, 0 : Bool
+    je %v18, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v24 = phi [b4, 1], [b5, 10] : I64
+    %v25 = borrow_mut %total : &I64
+    call add, %v25, %v24
+    %v27 = load %i : I64
+    %v30 = add %v27, 1 : I64
+    assign %i, %v30
+    jmp b1
+}
+
+fn main() -> I32 {
+  b0:
+    %folded = call scalarJoin, True : I64
+    %kept = call runtimeJoin, 4 : I64
+    %v6 = mul %folded, 10 : I64
+    %v7 = add %v6, %kept : I64
+    %v8 = cast %v7 : I32
+    ret %v8
+}

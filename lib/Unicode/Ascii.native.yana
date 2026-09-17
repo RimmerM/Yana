@@ -1,0 +1,63 @@
+import Native
+
+{-
+   The ASCII fast paths the Unicode operations share, natively - part 8's "every operation keeps an
+   ASCII fast path per vector block". `Ascii.js.yana` has the same two names.
+
+   ASCII is the one part of Unicode every table here agrees about: no case mapping but `A`-`Z` and
+   `a`-`z`, no decomposition, no combining class, and a cluster per unit but CR LF. So a register
+   that holds only ASCII is handled without decoding a character or reading a table.
+-}
+
+-- The offset of the first unit at or after `from` that is not ASCII, or the length: a sign test per
+-- register and a `firstSet` in the register that ends the run.
+fn asciiRunEnd(text: String, from: Size) -> Size:
+    let bytes = String.bytes(text)
+    let count = length(bytes)
+    let width = vectorBytes
+    let zero = zero() :: Vec(I8)
+    let &at = from
+
+    while at + width <= count:
+        let high = (bitcast(loadVector(bytes, at)) :: Vec(I8)) .< zero
+        if any(high) then return at + (firstSet(high) :: Size)
+        at += width
+
+    while at < count && bytes[at] < 0x80:
+        at += 1
+
+    return at
+
+{-
+   Appends the text's units from `from`, with the ASCII letters between `first` and `last` moved by
+   `delta`, a whole register at a time for as long as each register is all ASCII. Answers where it
+   stopped, which is `from` when the first register is not all ASCII - the caller then takes the
+   units one at a time.
+
+   `toLowerAscii`'s select (`lib/Core/Text.native.yana`), writing straight past the end of `out`:
+   the register is reserved first, and the count is set after the store.
+-}
+fn pushCasedAscii(&out: String, text: String, from: Size, first: I8, last: I8, delta: I8) -> Size:
+    let bytes = String.bytes(text)
+    let count = length(bytes)
+    let width = vectorBytes
+    let zero = zero() :: Vec(I8)
+    let below = splat(first - 1) :: Vec(I8)
+    let above = splat(last + 1) :: Vec(I8)
+    let bias = splat(delta) :: Vec(I8)
+    let &at = from
+
+    while at + width <= count:
+        let block = bitcast(loadVector(bytes, at)) :: Vec(I8)
+        if any(block .< zero) then return at
+
+        let size = length(out)
+        String.reserve(out, width)
+        checkCondition((out.units.run.capacity :: Size) < size + width)
+
+        let letters = and(block .> below, block .< above)
+        setVectorAt(out.units.run.items + size, bitcast(select(letters, block + bias, block)) :: Vec(CodeUnit))
+        out.units.length = truncate(size + width) :: Count
+        at += width
+
+    return at

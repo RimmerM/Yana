@@ -1,0 +1,49 @@
+{-
+   How many clusters the text has, with an ASCII fast path a register at a time.
+
+   **In an all-ASCII run every unit is a cluster except that CR LF is one**, since no ASCII character
+   joins anything but LF to a CR (`clusterEnd`'s fast path says why). So a block of ASCII starting at
+   a boundary holds its width in clusters less its CR LF pairs, which is two compares, an `and` and a
+   `popcnt`. The pairs are found by comparing the block for CR and the block one byte later for LF,
+   so the byte after the block has to be ASCII too.
+
+   **A pair across two blocks needs no care.** It is taken off in the block holding its CR, and the
+   next block starts at its LF and counts that LF as a cluster, so the two blocks together count the
+   pair once. That block may not start at a boundary, but nothing it does needs one: another ASCII
+   block counts units, and a walk from an LF ends right after it, since GB4 breaks after every LF.
+
+   **A block with anything else in it backs off for four registers**, walked cluster by cluster
+   before the next test. Retrying after one register cost CJK text 8% at v2 and Latin and emoji text
+   5% at v3 against the plain walk: text that is not all ASCII rarely has a whole register of it,
+   so the test fails nearly every time. With the back-off every corpus in the benchmark is within 2%
+   of the plain walk, and all-ASCII text still counts 32 times as fast at v2 and 70 times at v3. The
+   walk's end is capped at the text's, since `clusterEnd` stops there.
+-}
+pub fn countClusters(text: String) -> Size:
+    let bytes = String.bytes(text)
+    let size = length(bytes)
+    let width = vectorBytes
+    let zero = zero() :: Vec(I8)
+    let returns = splat(13 :: I8) :: Vec(I8)
+    let feeds = splat(10 :: I8) :: Vec(I8)
+    let &clusters = 0 :: Size
+    let &at = 0 :: Size
+
+    while at + width < size:
+        let block = bitcast(loadVector(bytes, at)) :: Vec(I8)
+
+        if none(block .< zero) && bytes[at + width] < 0x80:
+            let next = bitcast(loadVector(bytes, at + 1)) :: Vec(I8)
+            clusters += width - (count(and(block .== returns, next .== feeds)) :: Size)
+            at += width
+        else:
+            let stop = min(at + 4 * width, size)
+            while at < stop:
+                at = clusterEnd(text, at)
+                clusters += 1
+
+    while at < size:
+        at = clusterEnd(text, at)
+        clusters += 1
+
+    return clusters

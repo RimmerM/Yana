@@ -310,10 +310,12 @@ struct Forwarder {
         auto root = allocationRoot(opt, address);
         if(!root) return true;
 
+        // `addressMayName` rather than a root comparison, since a borrow of the allocation handed
+        // over an edge roots nowhere and reads it all the same.
         auto found = false;
         forEachUse(opt.base, inst, [&](Use used) {
-            if(!used.isSet()) return;
-            if(allocationRoot(opt, opt.base[used.value()]) == root) found = true;
+            if(!used.isSet() || found) return;
+            if(addressMayName(opt, opt.base[used.value()], *root)) found = true;
         });
 
         return found;

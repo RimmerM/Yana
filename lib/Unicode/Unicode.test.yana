@@ -1,0 +1,129 @@
+{-
+   The properties, character by character - Implementation-String.md part 8.1.
+
+   `Tables.test.yana` checks that the trie answers what the generator put in it. This file checks
+   that what the generator put in it is what the UCD says, which a test generated from the same parse
+   cannot: every expected value here was written by hand and agrees with V8's own Unicode 17 tables
+   (`\p{gc=Lu}` and friends under Node 26), which were checked against the generated ones for every
+   code point when the tables were first built.
+-}
+
+import Test
+
+@test fn version():
+    checkEqual(unicodeVersion, "17.0.0")
+
+-- One character of each of the thirty categories.
+@test fn everyCategory():
+    checkEqual(generalCategory("A"), GeneralCategory.UppercaseLetter)
+    checkEqual(generalCategory("a"), GeneralCategory.LowercaseLetter)
+    checkEqual(generalCategory("ǅ"), GeneralCategory.TitlecaseLetter)
+    checkEqual(generalCategory("ʰ"), GeneralCategory.ModifierLetter)
+    checkEqual(generalCategory("中"), GeneralCategory.OtherLetter)
+    checkEqual(generalCategory("\x301"), GeneralCategory.NonspacingMark)
+    checkEqual(generalCategory("\x903"), GeneralCategory.SpacingMark)
+    checkEqual(generalCategory("\x20DD"), GeneralCategory.EnclosingMark)
+    checkEqual(generalCategory("٣"), GeneralCategory.DecimalNumber)
+    checkEqual(generalCategory("Ⅻ"), GeneralCategory.LetterNumber)
+    checkEqual(generalCategory("½"), GeneralCategory.OtherNumber)
+    checkEqual(generalCategory("_"), GeneralCategory.ConnectorPunctuation)
+    checkEqual(generalCategory("-"), GeneralCategory.DashPunctuation)
+    checkEqual(generalCategory("("), GeneralCategory.OpenPunctuation)
+    checkEqual(generalCategory(")"), GeneralCategory.ClosePunctuation)
+    checkEqual(generalCategory("«"), GeneralCategory.InitialPunctuation)
+    checkEqual(generalCategory("»"), GeneralCategory.FinalPunctuation)
+    checkEqual(generalCategory("!"), GeneralCategory.OtherPunctuation)
+    checkEqual(generalCategory("+"), GeneralCategory.MathSymbol)
+    checkEqual(generalCategory("€"), GeneralCategory.CurrencySymbol)
+    checkEqual(generalCategory("^"), GeneralCategory.ModifierSymbol)
+    checkEqual(generalCategory("©"), GeneralCategory.OtherSymbol)
+    checkEqual(generalCategory(" "), GeneralCategory.SpaceSeparator)
+    checkEqual(generalCategory("\x2028"), GeneralCategory.LineSeparator)
+    checkEqual(generalCategory("\x2029"), GeneralCategory.ParagraphSeparator)
+    checkEqual(generalCategory("\0"), GeneralCategory.Control)
+    checkEqual(generalCategory("\xAD"), GeneralCategory.Format)
+    checkEqual(generalCategory(Char(0xD800)), GeneralCategory.Surrogate)
+    checkEqual(generalCategory("\xE000"), GeneralCategory.PrivateUse)
+    checkEqual(generalCategory("\x378"), GeneralCategory.Unassigned)
+
+-- The edges of the code space, and the two values past it that a `Char` can still hold.
+@test fn edges():
+    checkEqual(generalCategory("\x10FFFD"), GeneralCategory.PrivateUse)
+    checkEqual(generalCategory("\x10FFFF"), GeneralCategory.Unassigned)
+    checkEqual(generalCategory(Char(0x110000)), GeneralCategory.Unassigned)
+    checkEqual(generalCategory(Char(0xFFFFFFFF)), GeneralCategory.Unassigned)
+    check(!isAlphabetic(Char(0xFFFFFFFF)))
+
+-- Characters assigned in Unicode 17.0 and not before, so a table generated from an older UCD fails
+-- here rather than answering `Unassigned` quietly.
+@test fn newInSeventeen():
+    checkEqual(generalCategory("\x88F"), GeneralCategory.OtherLetter)
+    checkEqual(generalCategory("\x1ACF"), GeneralCategory.NonspacingMark)
+    check(isAlphabetic("\x88F"))
+
+@test fn groups():
+    check(GeneralCategory.isLetter(generalCategory("ǅ")))
+    check(GeneralCategory.isMark(generalCategory("\x20DD")))
+    check(GeneralCategory.isNumber(generalCategory("½")))
+    check(GeneralCategory.isPunctuation(generalCategory("»")))
+    check(GeneralCategory.isSymbol(generalCategory("€")))
+    check(GeneralCategory.isSeparator(generalCategory("\x2029")))
+    check(GeneralCategory.isOther(generalCategory("\x378")))
+    check(!GeneralCategory.isLetter(generalCategory("\x301")))
+    check(!GeneralCategory.isOther(generalCategory("Ⅻ")))
+
+-- `Alphabetic` is wider than the letters: a letter number and a spacing vowel sign are in it, and a
+-- digit is not.
+@test fn alphabetic():
+    check(isAlphabetic("A"))
+    check(isAlphabetic("中"))
+    check(isAlphabetic("Ⅻ"))
+    check(isAlphabetic("\x903"))
+    check(isAlphabetic("Ⓐ"))
+    check(!isAlphabetic("1"))
+    check(!isAlphabetic("\x301"))
+    check(!isAlphabetic("😀"))
+
+-- Wider than `Ll` and `Lu` in both directions from the letters.
+@test fn caseProperties():
+    check(isLowercaseUnicode("a"))
+    check(isLowercaseUnicode("ª"))
+    check(isLowercaseUnicode("ʰ"))
+    check(!isLowercaseUnicode("A"))
+    check(!isLowercaseUnicode("ǅ"))
+    check(isUppercaseUnicode("A"))
+    check(isUppercaseUnicode("Ⅻ"))
+    check(isUppercaseUnicode("Ⓐ"))
+    check(!isUppercaseUnicode("ǅ"))
+    check(!isUppercaseUnicode("中"))
+
+@test fn numeric():
+    check(isNumericUnicode("7"))
+    check(isNumericUnicode("٣"))
+    check(isNumericUnicode("Ⅻ"))
+    check(isNumericUnicode("½"))
+    check(isNumericUnicode("²"))
+    check(!isNumericUnicode("一"))
+    check(!isNumericUnicode("a"))
+    check(isAlphanumericUnicode("一"))
+    check(isAlphanumericUnicode("²"))
+    check(!isAlphanumericUnicode("_"))
+
+-- The XID sets differ from the ID ones exactly where NFKC would take an identifier out of them:
+-- U+309B is `ID_Start` and neither of these, and U+0E33 continues an identifier but cannot begin
+-- one.
+@test fn identifiers():
+    check(isXidStart("a"))
+    check(isXidStart("中"))
+    check(!isXidStart("_"))
+    check(!isXidStart("1"))
+    check(isXidContinue("_"))
+    check(isXidContinue("1"))
+    check(isXidContinue("\x301"))
+    check(isXidContinue("·"))
+    check(!isXidStart("\x309B"))
+    check(!isXidContinue("\x309B"))
+    check(!isXidStart("\xE33"))
+    check(isXidContinue("\xE33"))
+    check(!isXidStart("\x2E2F"))
+    check(!isXidContinue("-"))

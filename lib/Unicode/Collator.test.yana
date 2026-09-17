@@ -1,0 +1,133 @@
+{-
+   The collator - Implementation-String.md part 8.5.
+
+   The same expectations on both targets, which are two implementations: the host's `Intl.Collator` on
+   JS and the Unicode library's root collation natively. The expectations are what Node 26's ICU
+   answers, so on JS this checks the options reach the host as written, and natively that the library
+   gives ICU's answers.
+-}
+
+import Test
+
+-- The pairs, and what Node 26's `Intl.Collator("und", options)` answers for each under each of
+-- `collatorOptions`: `<`, `>`, or `=` where ICU calls them equal and the tie-break decides.
+let collatorLefts = [
+    "a",
+    "a",
+    "A",
+    "ａ",
+    "Ａ",
+    "１",
+    "a10",
+    "a01",
+    "a1b",
+    "resume",
+    "a-b",
+    "a b",
+    "a$b",
+    "x",
+    "ab",
+    "aB",
+    "ǅ",
+    "Ǆ",
+    "ア",
+    "ｱ",
+    "1",
+    "côte",
+    "Æ",
+    "ß",
+    "ﬁ",
+    "中",
+    "a\x0\x62",
+    "�",
+    "a",
+    "😀",
+    "Å",
+    "ö"
+] :: [String *32]
+
+let collatorRights = [
+    "A",
+    "á",
+    "á",
+    "A",
+    "a",
+    "1",
+    "a9",
+    "a1",
+    "a01c",
+    "résumé",
+    "ab",
+    "ab",
+    "ab",
+    "X",
+    "Ab",
+    "Ab",
+    "dž",
+    "dž",
+    "あ",
+    "ア",
+    "١",
+    "coté",
+    "AE",
+    "ss",
+    "fi",
+    "丁",
+    "ab",
+    "z",
+    "\x10FFFD",
+    "a",
+    "Å",
+    "ö"
+] :: [String *32]
+
+let collatorAnswers = [
+    "<<<<>><<><<<<<<<>>>>=>>>>>=><<==",
+    "======<<>=<<<============>=><<==",
+    "=<<===<<><<<<========>>>=>=><<==",
+    "<=><>=<<>=<<<<<<>>=======>=><<==",
+    "><<><><<><<<<>>><<>>=>>>>>=><<==",
+    "<<<<>><<><<<<<<<>>>>=>>>>>=><<==",
+    ">=<><=<<>=<<<>>><<=======>=><<==",
+    "<<<<>=>=<<<<<<<<>>>>=>>>>>=><<==",
+    "<<<<>><<><==<<<<>>>>=>>>>>=><<=="
+] :: [String *9]
+
+fn collatorOptions(index: Size) -> CollatorOptions = match index:
+    0 -> CollatorOptions {}
+    1 -> CollatorOptions {sensitivity: Sensitivity.Base}
+    2 -> CollatorOptions {sensitivity: Sensitivity.Accent}
+    3 -> CollatorOptions {sensitivity: Sensitivity.Case}
+    4 -> CollatorOptions {caseFirst: CaseFirst.Upper}
+    5 -> CollatorOptions {caseFirst: CaseFirst.Lower}
+    6 -> CollatorOptions {sensitivity: Sensitivity.Case, caseFirst: CaseFirst.Upper}
+    7 -> CollatorOptions {numeric: True}
+    _ -> CollatorOptions {ignorePunctuation: True}
+
+-- Whether `order` is the answer `expected` gives: its side, or the code point order for `=`.
+fn agrees(order: Ordering, expected: CodeUnit, left: String, right: String) -> Bool = match expected:
+    "<" -> order == LT
+    ">" -> order == GT
+    _ -> order == compareChars(left, right)
+
+fn flipped(order: Ordering) -> Ordering = match order:
+    LT -> GT
+    EQ -> EQ
+    GT -> LT
+
+@test fn collatorOptionsAgree():
+    for option in 0 .. length(collatorAnswers):
+        let sorter = collator(collatorOptions(option))
+        for pair in 0 .. length(collatorLefts):
+            let left = collatorLefts[pair]
+            let right = collatorRights[pair]
+            let expected = collatorAnswers[option].unit(pair)
+            check(agrees(sorter.compare(left, right), expected, left, right), note: "options {option}, pair {pair}")
+            check(sorter.compare(right, left) == flipped(sorter.compare(left, right)), note: "options {option}, pair {pair} reversed")
+
+@test fn collatorIsTotal():
+    let sorter = collator(CollatorOptions {sensitivity: Sensitivity.Base})
+    checkEqual(sorter.compare("a", "a"), EQ)
+    check(sorter.compare("a", "A") != EQ)
+    checkEqual(sorter.compare("a", "A"), compareChars("a", "A"))
+    checkEqual(sorter.compare("A", "a"), compareChars("A", "a"))

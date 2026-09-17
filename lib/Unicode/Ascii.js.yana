@@ -1,0 +1,15 @@
+{-
+   The ASCII fast paths on JS - `Ascii.native.yana` has the contract. There is no register to test
+   here: a host string is read a unit at a time, so the run is found by a walk and the case paths
+   take the units one at a time, which is what `pushCasedAscii` answering `from` tells them to do.
+-}
+
+fn asciiRunEnd(text: String, from: Size) -> Size:
+    let count = length(text)
+    let &at = from
+    while at < count && text.unit(at) < 0x80:
+        at += 1
+
+    return at
+
+fn pushCasedAscii(&out: String, text: String, from: Size, first: I8, last: I8, delta: I8) -> Size = from

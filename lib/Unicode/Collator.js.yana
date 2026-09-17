@@ -1,0 +1,64 @@
+import Native
+
+{-
+   The collator on JS: the host's `Intl.Collator` - `Collator.yana` has the contract. `UnicodeCollator`
+   (`Collation.yana`) is the one that reads this module's table on JS.
+
+   **Built from JSON.** The constructor's arguments are a locale and an options object, and the
+   shortest way to an object with five named properties is `JSON.parse` over its text: one host call,
+   with nothing on this target that has to know how a host object is assembled. The result is the
+   argument list itself, `[locale, {...}]`, handed to `Reflect.construct`.
+
+   **Every option is written out,** including the ones at their defaults, so what an engine would
+   choose for an unset `caseFirst` or `sensitivity` never matters.
+-}
+pub data Collator {host: %U8}
+
+fn sensitivityName(sensitivity: Sensitivity) -> String = match sensitivity:
+    Sensitivity.Base -> "base"
+    Sensitivity.Accent -> "accent"
+    Sensitivity.Case -> "case"
+    Sensitivity.Variant -> "variant"
+
+fn caseFirstName(caseFirst: CaseFirst) -> String = match caseFirst:
+    CaseFirst.Off -> "false"
+    CaseFirst.Upper -> "upper"
+    CaseFirst.Lower -> "lower"
+
+fn jsonBool(value: Bool) -> String = if value then "true" else "false"
+
+-- The units a BCP 47 tag is written in, and the underscore some callers write for its hyphen.
+fn isTagUnit(unit: CodeUnit) -> Bool
+  | "0"..="9" -> True
+  | "A"..="Z" -> True
+  | "a"..="z" -> True
+  | "-"       -> True
+  | "_"       -> True
+  | _         -> False
+
+-- The tag with anything JSON would need escaped left out. Nothing a valid tag holds is lost, and an
+-- invalid one is the host's to refuse.
+fn tagText(locale: String) -> String:
+    let &out = String.ofCapacity(length(locale))
+    for i in 0 .. length(locale):
+        if isTagUnit(locale.unit(i)) then out.pushUnit(locale.unit(i))
+
+    return out
+
+pub fn collator(options: CollatorOptions) -> Collator:
+    let json = "[\"{tagText(options.locale)}\", \{\"usage\": \"sort\", \"sensitivity\": \"{sensitivityName(options.sensitivity)}\", \"numeric\": {jsonBool(options.numeric)}, \"caseFirst\": \"{caseFirstName(options.caseFirst)}\", \"ignorePunctuation\": {jsonBool(options.ignorePunctuation)}}]"
+    let arguments = hostGlobal1("JSON.parse", json) :: %U8
+    let constructor = hostField(hostField(hostGlobalObject(), "Intl") :: %U8, "Collator") :: %U8
+    return Collator {host: hostConstruct(constructor, arguments)}
+
+-- The tie-break is `Collator.yana`'s, over the host's NFD. The engine's normalization data is only
+-- consulted for texts its collator already calls equal.
+pub fn Collator.compare(self: Collator, left: String, right: String) -> Ordering:
+    let order = hostCall2(self.host, "compare", left, right) :: Int
+    if order < 0 then return LT
+    if order > 0 then return GT
+
+    let leftDecomposed = hostCall1(left, "normalize", "NFD") :: String
+    let rightDecomposed = hostCall1(right, "normalize", "NFD") :: String
+    let decomposedOrder = compareChars(leftDecomposed, rightDecomposed)
+    return if decomposedOrder != EQ then decomposedOrder else compareChars(left, right)

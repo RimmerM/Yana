@@ -1,0 +1,196 @@
+{-
+   Extended grapheme clusters - Implementation-String.md part 8.2, and UAX #29 at the version
+   `unicodeVersion` names.
+
+   A cluster is a `String` window and has no type of its own: `clusters` yields them, and the
+   boundary functions answer offsets that compose with `String.slice`. `Clusters.ownership.yana`
+   and `Clusters.legacy.yana` hold the two functions that hand out a piece of the text, for the same
+   reason `Core`'s trims are split: a window is `source'` on the ownership stage and a copy on the
+   legacy one.
+
+   **Invalid text has clusters too.** A character is what `decodeChar` answers, so each invalid
+   sequence is a U+FFFD, which is `Other` and is a cluster of its own unless a mark follows it.
+
+   ## The break classes
+
+   Each character has one of eighteen classes, looked up by `clusterClassAt` (`Tables.yana`). They
+   are the `Grapheme_Cluster_Break` values with two of them split, so that every rule below is a test
+   on classes rather than on a second property: `Extend` by its `Indic_Conjunct_Break` value, which
+   GB9c needs, and `Other` into its `Extended_Pictographic` and `InCB=Consonant` characters, which
+   GB11 and GB9c need. The generator checks that both splits are partitions of the UCD's data.
+
+        0 Other            4 Extend           9 Prepend               13 T
+        1 CR               5 ConjunctExtend  10 Regional_Indicator    14 LV
+        2 LF               6 ConjunctLinker  11 L                     15 LVT
+        3 Control          7 ZWJ             12 V                     16 Pictographic
+                           8 SpacingMark                              17 Consonant
+
+   `tools/unicode/generate.py`'s `CLUSTER_CLASSES` is the same list, and the two move together.
+   ZWJ is `InCB=Extend` in the data and keeps its own class, which GB9c reads as a conjunct extender.
+
+   ## The rules as two functions
+
+   UAX #29's rules are ordered, and every rule from GB3 to GB9b looks at the two characters beside a
+   position and nothing else. That is `pairBreaks`. The three that look further back - GB9c, GB11 and
+   GB12/GB13 - only ever *join*, and only where `pairBreaks` would break; they are `joinedByContext`,
+   over three pieces of state that the forward walk carries. None of the three can be overridden by
+   GB4 or GB5, because the characters they join are never controls, so "the pair breaks and no
+   context joins" is the ordered list's answer.
+
+   **A position where the pair breaks and no context rule could join is a boundary whatever came
+   before it.** That is what makes the boundary functions cheap: they walk backwards to such a
+   position with no state, and then forwards from it. The walk back is as long as the run of
+   characters that can join across a position - a cluster's marks, or a run of regional indicators,
+   which is the only unbounded case in real text.
+-}
+
+let crClass = 1 :: U8
+let regionalClass = 10 :: U8
+let pictographicClass = 16 :: U8
+let consonantClass = 17 :: U8
+
+-- An ASCII unit's class, with no lookup: ASCII has no marks, pictographs or conjuncts.
+fn asciiClass(unit: CodeUnit) -> U8
+  | "\r"          -> 1
+  | "\n"          -> 2
+  | "\0"..="\x1F" -> 3
+  | "\x7F"        -> 3
+  | _             -> 0
+
+-- The class of the character at `at`, and the offset after it.
+@inline(always)
+fn classAt(text: String, at: Size) -> {U8, Size}:
+    let unit = text.unit(at)
+    if unit < 0x80 then return {asciiClass(unit), at + 1}
+
+    let {char, next} = decodeChar(text, at)
+    return {clusterClassAt(char), next}
+
+-- GB3 to GB9b: whether the pair alone breaks.
+fn pairBreaks(before: U8, after: U8) -> Bool
+  | {1, 2}             -> False  -- GB3   CR × LF
+  | {1..=3, _}         -> True   -- GB4   (Control | CR | LF) ÷
+  | {_, 1..=3}         -> True   -- GB5   ÷ (Control | CR | LF)
+  | {11, 11..=12}      -> False  -- GB6   L × (L | V | LV | LVT)
+  | {11, 14..=15}      -> False
+  | {12, 12..=13}      -> False  -- GB7   (LV | V) × (V | T)
+  | {14, 12..=13}      -> False
+  | {13, 13}           -> False  -- GB8   (LVT | T) × T
+  | {15, 13}           -> False
+  | {_, 4..=8}         -> False  -- GB9   × (Extend | ZWJ), and GB9a × SpacingMark
+  | {9, _}             -> False  -- GB9b  Prepend ×
+  | _                  -> True
+
+{-
+   GB9c, GB11 and GB12/GB13: whether what came before joins `after` to it.
+
+   - `conjunct` is GB9c's: 1 after a consonant followed only by conjunct extenders and linkers, 2 once
+     one of those was a linker. A consonant after a 2 joins.
+   - `emoji` is GB11's: 1 after a pictograph followed only by `Extend`, 2 when a ZWJ ended that run.
+     A pictograph after a 2 joins.
+   - `oddRegional` is GB12's and GB13's: whether the run of regional indicators ending just before
+     is of odd length. A regional indicator after an odd run joins, which pairs flags from the left.
+-}
+fn joinedByContext(after: U8, conjunct: U8, emoji: U8, oddRegional: Bool) -> Bool
+  | {17, 2, _, _}    -> True
+  | {16, _, 2, _}    -> True
+  | {10, _, _, True} -> True
+  | _                -> False
+
+-- Whether a pair that breaks is a boundary without knowing anything before it: the pairs a context
+-- rule could join are a conjunct extender or linker before a consonant, a ZWJ before a pictograph,
+-- and two regional indicators.
+fn contextCanJoin(before: U8, after: U8) -> Bool
+  | {5..=7, 17} -> True
+  | {7, 16}     -> True
+  | {10, 10}    -> True
+  | _           -> False
+
+@inline(always)
+fn conjunctAfter(state: U8, next: U8) -> U8
+  | {_, 17}     -> 1
+  | {0, 6}      -> 0
+  | {_, 6}      -> 2
+  | {_, 5}      -> state
+  | {_, 7}      -> state
+  | _           -> 0
+
+@inline(always)
+fn emojiAfter(state: U8, next: U8) -> U8
+  | {_, 16}     -> 1
+  | {1, 4..=6}  -> 1
+  | {1, 7}      -> 2
+  | _           -> 0
+
+{-
+   The end of the cluster that starts at `from`, which must be a boundary.
+
+   The common case never reaches the loop: an ASCII unit other than CR followed by another ASCII
+   unit (or by the end) is a cluster of one, because nothing that can join a character to the one
+   before it is ASCII.
+-}
+fn clusterEnd(text: String, from: Size) -> Size:
+    let count = length(text)
+    if from >= count then return count
+
+    let lead = text.unit(from)
+    if lead < 0x80 && lead != "\r" && (from + 1 == count || text.unit(from + 1) < 0x80) then return from + 1
+
+    let {first, second} = classAt(text, from)
+    let &before = first
+    let &at = second
+    let &conjunct = conjunctAfter(0, before)
+    let &emoji = emojiAfter(0, before)
+    let &oddRegional = before == regionalClass
+
+    while at < count:
+        let {after, next} = classAt(text, at)
+        if pairBreaks(before, after) && !joinedByContext(after, conjunct, emoji, oddRegional) then return at
+
+        conjunct = conjunctAfter(conjunct, after)
+        emoji = emojiAfter(emoji, after)
+        oddRegional = after == regionalClass && !oddRegional
+        before = after
+        at = next
+
+    return count
+
+-- A boundary at or before `at`, which is a character boundary inside the text: the nearest position
+-- whose pair breaks with no context rule able to join it, or the start.
+fn restartBefore(text: String, at: Size) -> Size:
+    let &position = at
+
+    while position > 0:
+        let {after, next} = classAt(text, position)
+        let {char, start} = decodeCharBefore(text, position)
+        let before = clusterClassAt(char)
+        if pairBreaks(before, after) && !contextCanJoin(before, after) then return position
+
+        position = start
+
+    return 0
+
+-- The start of the cluster holding the unit at `at`: `at` itself when it begins one. An offset
+-- before the text is its start and one past it is its end, as with `floorCharBoundary`.
+pub fn floorClusterBoundary(text: String, at: Size) -> Size:
+    let count = length(text)
+    if at <= 0 then return 0
+    if at >= count then return count
+
+    let &start = restartBefore(text, floorCharBoundary(text, at))
+    let &end = clusterEnd(text, start)
+    while end <= at:
+        start = end
+        end = clusterEnd(text, start)
+
+    return start
+
+-- The end of the cluster holding the unit at `at`, or `at` when a cluster begins there.
+pub fn ceilClusterBoundary(text: String, at: Size) -> Size:
+    let start = floorClusterBoundary(text, at)
+    if start >= at then return start
+
+    return clusterEnd(text, start)
+
+pub fn isClusterBoundary(text: String, at: Size) -> Bool =
+    at >= 0 && at <= length(text) && floorClusterBoundary(text, at) == at

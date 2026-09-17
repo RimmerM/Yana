@@ -1,0 +1,16 @@
+{-
+   The clusters as copies, under the legacy resolve stage, where `String.slice` is a copy and a
+   function cannot answer a window. `Clusters.ownership.yana` has the documented bodies.
+-}
+
+pub iter fn clusters(text: String) -> ->String:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let end = clusterEnd(text, at)
+        yield text.slice(at, end)
+        at = end
+
+pub fn truncateClusters(text: String, maxUnits: Size) -> String =
+    text.slice(0, floorClusterBoundary(text, maxUnits))

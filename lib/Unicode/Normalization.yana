@@ -1,0 +1,318 @@
+{-
+   Normalization - Implementation-String.md part 8.4, and UAX #15 at the version `unicodeVersion`
+   names.
+
+   `normalizeNfd`, `normalizeNfc`, `normalizeNfkd` and `normalizeNfkc` are the four forms, and
+   `isNormalizedNfc` and its three siblings answer whether a text already is one. The comparisons that
+   normalize say so in their names: `equalsNormalized` is canonical equivalence, and
+   `equalsNfkcCaseFold` is the loose match for identifiers and keys, where two spellings of one name
+   must not be two accounts.
+
+   **One walk for all four forms.** A character is fully decomposed - canonically, or with the
+   compatibility mappings too - into a *segment*, which holds the decomposed characters since the last
+   starter nothing before it could reach. A non-starter is inserted in combining-class order as it
+   arrives, which is the canonical ordering algorithm done incrementally. When a starter arrives that
+   no earlier character can compose with, the segment is finished: composed first for the C forms,
+   then written out. So the working storage is the length of the longest run of combining marks, not
+   of the text.
+
+   **Most text is already normalized, and costs a scan.** Each walk first finds how much of the text
+   passes the quick check - every character's `NF*_QC` is `Yes` and the combining classes are in
+   order - and copies that prefix up to its last starter without decomposing anything. ASCII passes
+   a register at a time (`asciiRunEnd`), since every ASCII character is a starter with no mapping.
+   The result is a new string even when nothing changed: a window of the input where it is already
+   normal and a new string where it is not would need two result types (part 4), so a caller that
+   wants to avoid the copy asks `isNormalizedNfc` first.
+
+   **Invalid text becomes U+FFFD,** as everywhere in this library: each invalid sequence is one
+   replacement character, which is a starter with no mapping. Invalid text is therefore never
+   already normalized.
+-}
+
+-- UAX #15's Hangul arithmetic: a syllable is `L V` or `L V T`, numbered from U+AC00.
+let syllableFirst = 0xAC00 :: U32
+let leadingFirst = 0x1100 :: U32
+let vowelFirst = 0x1161 :: U32
+let trailingBase = 0x11A7 :: U32
+let vowelCount = 21 :: U32
+let trailingCount = 28 :: U32
+
+-- A decomposed character in a segment: its combining class above its code point, so ordering and
+-- composing never look a character up twice.
+let classShift = 24 :: U32
+let pointMask = 0xFFFFFF :: U32
+
+@inline(always)
+fn normalizationEntryAt(c: Char) -> U32 = normalizationEntries[normalizationIndexAt(c) :: Size]
+
+@inline(always)
+fn dataOffset(entry: U32) -> Size = truncate(entry `shr` normalizationDataShift) :: Size
+
+-- The quick-check bits a form reads: those that say a character never survives it, and those that
+-- say it may compose with what came before.
+fn noBit(compose: Bool, compatible: Bool) -> U32
+  | {False, False} -> nfdNoBit
+  | {False, True}  -> nfkdNoBit
+  | {True, False}  -> nfcNoBit
+  | {True, True}   -> nfkcNoBit
+
+fn maybeBit(compose: Bool, compatible: Bool) -> U32
+  | {False, _}    -> 0
+  | {True, False} -> nfcMaybeBit
+  | {True, True}  -> nfkcMaybeBit
+
+-- Appends `packed` to the segment in combining-class order: a starter at the end, a non-starter
+-- after the last character whose class is not greater than its own.
+fn appendOrdered(&segment: Array(U32), packed: U32):
+    let &at = length(segment)
+    segment.push(packed)
+
+    let ccc = packed `shr` classShift
+    if ccc == 0 then return
+
+    while at > 0 && (segment[at - 1] `shr` classShift) > ccc:
+        segment[at] = segment[at - 1]
+        at -= 1
+
+    segment[at] = packed
+
+-- The primary composite of `first` and `second`, or zero when there is none.
+fn composePair(first: U32, second: U32) -> U32:
+    if first is 0x1100..=0x1112 && second is 0x1161..=0x1175:
+        return syllableFirst + ((first - leadingFirst) * vowelCount + (second - vowelFirst)) * trailingCount
+
+    if first is 0xAC00..=0xD7A3 && second is 0x11A8..=0x11C2 && (first - syllableFirst) % trailingCount == 0:
+        return first + (second - trailingBase)
+
+    let offset = dataOffset(normalizationEntryAt(Char(first)))
+    if offset == 0 then return 0
+
+    let header = normalizationData[offset]
+    let pairs = truncate((header `shr` 10) `and` 31) :: Size
+    let start = offset + 1 + (truncate(header `and` 31) :: Size) + (truncate((header `shr` 5) `and` 31) :: Size)
+    for i in 0 .. pairs:
+        if normalizationData[start + 2 * i] == second then return normalizationData[start + 2 * i + 1]
+
+    return 0
+
+{-
+   UAX #15's canonical composition over a segment, in place: each character composes with the last
+   starter when nothing between them blocks it - no character is kept between them, or the last one
+   kept has a lower combining class. Answers how many characters are left.
+-}
+fn composeSegment(&segment: Array(U32)) -> Size:
+    let count = length(segment)
+    let &starter = if (segment[0] `shr` classShift) == 0 then 0 else -1 :: Size
+    let &adjacent = True
+    let &lastClass = 0 :: U32
+    let &kept = 1 :: Size
+
+    for read in 1 .. count:
+        let packed = segment[read]
+        let ccc = packed `shr` classShift
+
+        if starter >= 0 && (adjacent || lastClass < ccc):
+            let composite = composePair(segment[starter] `and` pointMask, packed `and` pointMask)
+            if composite != 0:
+                segment[starter] = composite
+                continue
+
+        if ccc == 0:
+            starter = kept
+            adjacent = True
+        else:
+            adjacent = False
+            lastClass = ccc
+
+        segment[kept] = packed
+        kept += 1
+
+    return kept
+
+fn flush(&out: String, &segment: Array(U32), compose: Bool):
+    if length(segment) == 0 then return
+
+    let count = if compose then composeSegment(segment) else length(segment)
+    for i in 0 .. count:
+        out.pushChar(Char(segment[i] `and` pointMask))
+
+    segment.length = 0
+
+-- One decomposed character into the segment, finishing the segment first when the character is a
+-- starter nothing before it composes with.
+fn feed(&out: String, &segment: Array(U32), point: U32, compose: Bool, maybe: U32):
+    let entry = normalizationEntryAt(Char(point))
+    let ccc = entry `and` 0xFF
+    if ccc == 0 && (entry `and` maybe) == 0 then flush(out, segment, compose)
+
+    appendOrdered(segment, (ccc `shl` classShift) `or` point)
+
+fn decomposeInto(&out: String, &segment: Array(U32), c: Char, compose: Bool, compatible: Bool):
+    let maybe = maybeBit(compose, compatible)
+
+    if c.0 is 0xAC00..=0xD7A3:
+        let index = c.0 - syllableFirst
+        feed(out, segment, leadingFirst + index / (vowelCount * trailingCount), compose, maybe)
+        feed(out, segment, vowelFirst + (index % (vowelCount * trailingCount)) / trailingCount, compose, maybe)
+        if index % trailingCount != 0 then feed(out, segment, trailingBase + index % trailingCount, compose, maybe)
+        return
+
+    let entry = normalizationEntryAt(c)
+    let decomposes = if compatible then nfkdNoBit else nfdNoBit
+    if (entry `and` decomposes) == 0:
+        feed(out, segment, c.0, compose, maybe)
+        return
+
+    let offset = dataOffset(entry)
+    let header = normalizationData[offset]
+    let canonical = truncate(header `and` 31) :: Size
+    let compatibleCount = truncate((header `shr` 5) `and` 31) :: Size
+    let &start = offset + 1
+    let &count = canonical
+    if compatible && compatibleCount != 0:
+        start = offset + 1 + canonical
+        count = compatibleCount
+
+    for at in start .. (start + count):
+        feed(out, segment, normalizationData[at], compose, maybe)
+
+{-
+   How far the text passes the quick check, as the offset after which the walk has to work: the
+   last starter before the first character that is not `Yes` or is out of combining-class order, or
+   the whole length when there is none. Nothing before that starter can change, because nothing
+   composes or reorders across a starter that passed.
+-}
+fn stablePrefix(text: String, compose: Bool, compatible: Bool) -> Size:
+    let count = length(text)
+    let unstable = noBit(compose, compatible) `or` maybeBit(compose, compatible)
+    let &at = 0 :: Size
+    let &boundary = 0 :: Size
+    let &lastClass = 0 :: U32
+
+    while at < count:
+        if text.unit(at) < 0x80:
+            at = asciiRunEnd(text, at)
+            boundary = at - 1
+            lastClass = 0
+        else:
+            let {char, next} = decodeChar(text, at)
+            let entry = normalizationEntryAt(char)
+            let ccc = entry `and` 0xFF
+            if (entry `and` unstable) != 0 || char == replacementChar then return boundary
+            if ccc != 0 && lastClass > ccc then return boundary
+            if ccc == 0 then boundary = at
+            lastClass = ccc
+            at = next
+
+    return count
+
+fn normalizeForm(text: String, compose: Bool, compatible: Bool) -> String:
+    let count = length(text)
+    let stable = stablePrefix(text, compose, compatible)
+    if stable == count then return copy(text)
+
+    let &out = String.ofCapacity(count + count / 4)
+    out.push(String.slice(text, 0, stable))
+
+    let &segment = [] :: [U32]
+    let &at = stable
+
+    while at < count:
+        let unit = text.unit(at)
+        if unit < 0x80:
+            -- A run of ASCII is starters nothing composes with from behind, so it goes straight
+            -- out - except, in the C forms, its last unit, which a mark after it could compose with.
+            flush(out, segment, compose)
+            let end = asciiRunEnd(text, at)
+            let kept = if compose && end < count then end - 1 else end
+            out.push(String.slice(text, at, kept))
+            if kept < end then segment.push(text.unit(kept) :: U32)
+            at = end
+        else:
+            let {char, next} = decodeChar(text, at)
+            decomposeInto(out, segment, char, compose, compatible)
+            at = next
+
+    flush(out, segment, compose)
+    return out
+
+pub fn normalizeNfd(text: String) -> String = normalizeForm(text, False, False)
+pub fn normalizeNfc(text: String) -> String = normalizeForm(text, True, False)
+pub fn normalizeNfkd(text: String) -> String = normalizeForm(text, False, True)
+pub fn normalizeNfkc(text: String) -> String = normalizeForm(text, True, True)
+
+{-
+   Whether the text is already in the form, which the quick check usually answers alone: `No` for a
+   character that never survives the form or a combining class out of order, `Yes` when every
+   character is `Yes`. Only `Maybe` - a character that composes with what comes before it, in the C
+   forms - and a U+FFFD, which may stand for invalid text, normalize to find out.
+-}
+fn isNormalized(text: String, compose: Bool, compatible: Bool) -> Bool:
+    let count = length(text)
+    let no = noBit(compose, compatible)
+    let maybe = maybeBit(compose, compatible)
+    let &at = 0 :: Size
+    let &lastClass = 0 :: U32
+    let &unsure = False
+
+    while at < count:
+        if text.unit(at) < 0x80:
+            lastClass = 0
+            at = asciiRunEnd(text, at)
+        else:
+            let {char, next} = decodeChar(text, at)
+            let entry = normalizationEntryAt(char)
+            let ccc = entry `and` 0xFF
+            if (entry `and` no) != 0 then return False
+            if ccc != 0 && lastClass > ccc then return False
+            if (entry `and` maybe) != 0 || char == replacementChar then unsure = True
+            lastClass = ccc
+            at = next
+
+    return !unsure || normalizeForm(text, compose, compatible) == text
+
+pub fn isNormalizedNfd(text: String) -> Bool = isNormalized(text, False, False)
+pub fn isNormalizedNfc(text: String) -> Bool = isNormalized(text, True, False)
+pub fn isNormalizedNfkd(text: String) -> Bool = isNormalized(text, False, True)
+pub fn isNormalizedNfkc(text: String) -> Bool = isNormalized(text, True, True)
+
+-- Canonical equivalence: whether the two texts are the same text once normalized, so a precomposed
+-- `é` equals `e` followed by a combining acute. NFD rather than NFC, since composing adds nothing to
+-- the answer.
+pub fn equalsNormalized(left: String, right: String) -> Bool =
+    left == right || normalizeNfd(left) == normalizeNfd(right)
+
+fn withoutDefaultIgnorables(text: String) -> String:
+    let count = length(text)
+    let &out = String.ofCapacity(count)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        if (propertyWord(char) `and` defaultIgnorableBit) == 0 then out.pushChar(char)
+        at = next
+
+    return out
+
+{-
+   UAX #44's `toNFKC_Casefold`: compatibility decomposition, full case folding and the removal of
+   `Default_Ignorable_Code_Point` characters, repeated until the text stops changing, and then NFC.
+   This is the key for identifiers and other loose matches - `ＡＢＣ`, `abc` and `A­BC` are one.
+
+   Repeated because each step can undo another's work - a fold can produce a character with a
+   compatibility decomposition - and the Unicode definition iterates the same way. Two rounds settle
+   every character there is. ASCII text needs none of it and is lowercased.
+-}
+pub fn normalizeNfkcCaseFold(text: String) -> String:
+    if isAllAscii(text) then return toLowerAscii(text)
+
+    let &current = withoutDefaultIgnorables(caseFoldUnicode(normalizeNfkd(text)))
+    while True:
+        let next = withoutDefaultIgnorables(caseFoldUnicode(normalizeNfkd(current)))
+        if next == current then break
+        current = next
+
+    return normalizeNfc(current)
+
+pub fn equalsNfkcCaseFold(left: String, right: String) -> Bool =
+    left == right || normalizeNfkcCaseFold(left) == normalizeNfkcCaseFold(right)
