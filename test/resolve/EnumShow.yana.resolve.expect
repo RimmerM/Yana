@@ -1249,119 +1249,6 @@ fn abortProcess() -> () {
     ret
 }
 
-fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
-  b0:
-    %v2 = load %self : Run(CodeUnit)
-    %v3 = load %self@Run.capacity : @bits(30) U32
-    %room = cast %v3 : Size
-    %v5 = cmp_le %wanted, %room : Bool
-    je %v5, b1, b2
-
-  b1:
-    ret True
-
-  b2:
-    jmp b3
-
-  b3:
-    %v10 = load %self : Run(CodeUnit)
-    %v11 = load %self@Run.ownsHeap : @bits(2) U32
-    %v12 = cast %v11 : U32
-    %v14 = cast 2 : U32
-    %v15 = cmp_eq %v12, %v14 : Bool
-    je %v15, b4, b5
-
-  b4:
-    ret False
-
-  b5:
-    jmp b6
-
-  b6:
-    %v21 = cmp_gt %wanted, 1073741823 : Bool
-    je %v21, b7, b8
-
-  b7:
-    ret False
-
-  b8:
-    jmp b9
-
-  b9:
-    %v26 = load %self : Run(CodeUnit)
-    %v27 = load %self@Run.items : %CodeUnit
-    %v28 = call byteSpan(CodeUnit), %v27, %wanted : Size
-    %v29 = call allocateHeap, %v28 : %U8
-    %fresh = bitcast %v29 : %CodeUnit
-    %v31 = bitcast %fresh : Size
-    %v33 = cmp_eq %v31, 0 : Bool
-    je %v33, b10, b11
-
-  b10:
-    ret False
-
-  b11:
-    jmp b12
-
-  b12:
-    %v39 = cmp_gt %room, 0 : Bool
-    je %v39, b13, b14
-
-  b13:
-    %v41 = bitcast %fresh : %U8
-    %v42 = load %self : Run(CodeUnit)
-    %v43 = load %self@Run.items : %CodeUnit
-    %v44 = bitcast %v43 : %U8
-    %v45 = load %self : Run(CodeUnit)
-    %v46 = load %self@Run.items : %CodeUnit
-    %v47 = call byteSpan(CodeUnit), %v46, %room : Size
-    call copyMemory, %v41, %v44, %v47
-    jmp b15
-
-  b14:
-    jmp b15
-
-  b15:
-    %v51 = load %self : Run(CodeUnit)
-    %v52 = load %self@Run.ownsHeap : @bits(2) U32
-    %v53 = cast %v52 : U32
-    %v55 = cast 1 : U32
-    %v56 = cmp_eq %v53, %v55 : Bool
-    je %v56, b16, b17
-
-  b16:
-    %v58 = load %self : Run(CodeUnit)
-    %v59 = load %self@Run.items : %CodeUnit
-    %v60 = bitcast %v59 : %U8
-    call freeHeap, %v60
-    jmp b18
-
-  b17:
-    jmp b18
-
-  b18:
-    assign %self@Run.items, %fresh
-    %v65 = cast %wanted : U32
-    %v67 = and %v65, 1073741823 : U32
-    %v68 = cast %v67 : @bits(30) U32
-    assign %self@Run.capacity, %v68
-    assign %self@Run.ownsHeap, 1
-    ret True
-}
-
-fn byteSpan(CodeUnit)(%from: %CodeUnit, %count: Size) -> Size {
-  b0:
-    %v2 = bitcast %from : %U8
-    %v3 = strideof CodeUnit : Size
-    %v4 = mul %count, %v3 : Size
-    %v5 = add %from, %v4 : %CodeUnit
-    %v6 = bitcast %v5 : %U8
-    %v7 = sub %v6, %v2 : Size
-    %v8 = strideof U8 : Size
-    %v9 = div %v7, %v8 : Size
-    ret %v9
-}
-
 fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) -> Ordering {
   b0:
     %v4 = vsplat 0 : Vec(CodeUnit)
@@ -1599,6 +1486,119 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
 
   b21:
     ret EQ
+}
+
+fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
+  b0:
+    %v2 = load %self : Run(CodeUnit)
+    %v3 = load %self@Run.capacity : @bits(30) U32
+    %room = cast %v3 : Size
+    %v5 = cmp_le %wanted, %room : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret True
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load %self : Run(CodeUnit)
+    %v11 = load %self@Run.ownsHeap : @bits(2) U32
+    %v12 = cast %v11 : U32
+    %v14 = cast 2 : U32
+    %v15 = cmp_eq %v12, %v14 : Bool
+    je %v15, b4, b5
+
+  b4:
+    ret False
+
+  b5:
+    jmp b6
+
+  b6:
+    %v21 = cmp_gt %wanted, 1073741823 : Bool
+    je %v21, b7, b8
+
+  b7:
+    ret False
+
+  b8:
+    jmp b9
+
+  b9:
+    %v26 = load %self : Run(CodeUnit)
+    %v27 = load %self@Run.items : %CodeUnit
+    %v28 = call byteSpan(CodeUnit), %v27, %wanted : Size
+    %v29 = call allocateHeap, %v28 : %U8
+    %fresh = bitcast %v29 : %CodeUnit
+    %v31 = bitcast %fresh : Size
+    %v33 = cmp_eq %v31, 0 : Bool
+    je %v33, b10, b11
+
+  b10:
+    ret False
+
+  b11:
+    jmp b12
+
+  b12:
+    %v39 = cmp_gt %room, 0 : Bool
+    je %v39, b13, b14
+
+  b13:
+    %v41 = bitcast %fresh : %U8
+    %v42 = load %self : Run(CodeUnit)
+    %v43 = load %self@Run.items : %CodeUnit
+    %v44 = bitcast %v43 : %U8
+    %v45 = load %self : Run(CodeUnit)
+    %v46 = load %self@Run.items : %CodeUnit
+    %v47 = call byteSpan(CodeUnit), %v46, %room : Size
+    call copyMemory, %v41, %v44, %v47
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v51 = load %self : Run(CodeUnit)
+    %v52 = load %self@Run.ownsHeap : @bits(2) U32
+    %v53 = cast %v52 : U32
+    %v55 = cast 1 : U32
+    %v56 = cmp_eq %v53, %v55 : Bool
+    je %v56, b16, b17
+
+  b16:
+    %v58 = load %self : Run(CodeUnit)
+    %v59 = load %self@Run.items : %CodeUnit
+    %v60 = bitcast %v59 : %U8
+    call freeHeap, %v60
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    assign %self@Run.items, %fresh
+    %v65 = cast %wanted : U32
+    %v67 = and %v65, 1073741823 : U32
+    %v68 = cast %v67 : @bits(30) U32
+    assign %self@Run.capacity, %v68
+    assign %self@Run.ownsHeap, 1
+    ret True
+}
+
+fn byteSpan(CodeUnit)(%from: %CodeUnit, %count: Size) -> Size {
+  b0:
+    %v2 = bitcast %from : %U8
+    %v3 = strideof CodeUnit : Size
+    %v4 = mul %count, %v3 : Size
+    %v5 = add %from, %v4 : %CodeUnit
+    %v6 = bitcast %v5 : %U8
+    %v7 = sub %v6, %v2 : Size
+    %v8 = strideof U8 : Size
+    %v9 = div %v7, %v8 : Size
+    ret %v9
 }
 
 fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {

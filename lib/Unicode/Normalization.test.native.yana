@@ -1,0 +1,43 @@
+{-
+   Normalization over malformed UTF-8, natively - `nfcQuietRunEnd`'s registers in `Ascii.native.yana`.
+
+   NFC skips a register at a time of characters below U+0300, and every form a register at a time of
+   ideographs (`hanRunEnd`), checking the sequences in it as it goes, so the texts here are generated
+   from the pieces that decide those checks: characters below and above U+0300, a combining mark,
+   ideographs at both ends of the skipped leads and a Hangul syllable after them, and stray
+   continuations, overlong and cut-off leads, at every length up to past two registers. Each invalid sequence has to reach the walk as the
+   U+FFFD `decodeChar` answers for it, which two invariants see from outside: NFC of a text is NFC of
+   its NFD, and a text is normalized exactly when normalizing it changes nothing.
+-}
+
+import Test
+
+let malformedPieces = [
+    [0x61 :: U8], [0x41], [0x20], [0xC3, 0xA9], [0xCB, 0x86], [0xC2, 0x80], [0xCC, 0x81],
+    [0xE4, 0xB8, 0xAD], [0xF0, 0x9F, 0x98, 0x80], [0x80], [0xBF], [0xC0, 0xAF], [0xC1], [0xC3],
+    [0xCB], [0xCC], [0xE0, 0x80], [0xFF], [0xE4], [0xE4, 0xB8], [0xE9, 0xBF, 0xBF], [0xEA, 0xB0, 0x80]
+] :: [[U8]]
+
+@test fn nfcOverMalformedText():
+    let &state = 12345 :: U32
+    let &failures = 0 :: Size
+
+    for round in 0 .. 20000:
+        state = state * 1103515245 + 12345
+        let size = truncate((state `shr` 16) % 70) :: Size
+        let &text = ""
+        while length(text) < size:
+            state = state * 1103515245 + 12345
+            -- Mostly characters below U+0300, so that registers pass and the pieces land in them.
+            let pick = (state `shr` 16) % 64
+            let piece = if pick < 40 then pick % 5 else pick % 22
+            let bytes = malformedPieces[truncate(piece) :: Size]
+            for i in 0 .. length(bytes):
+                String.pushUnit(text, bytes[i])
+
+        let composed = normalizeNfc(text)
+        if composed != normalizeNfc(normalizeNfd(text)) || isNormalizedNfc(text) != (composed == text):
+            if failures < 8 then check(False, note: "round {round}")
+            failures += 1
+
+    checkEqual(failures, 0)

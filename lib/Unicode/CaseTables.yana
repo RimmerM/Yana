@@ -268,12 +268,15 @@ let caseIndexLeaves = [
 
 -- A `Char` above U+10FFFF is not a code point (the constructor does not check), and answers
 -- the entry that changes nothing rather than reading past the top level.
+-- Middle block 2 is most of the code space and holds 0 throughout, so it is answered without
+-- loading the two levels below it - `quiet_block` in tools/unicode/generate.py.
 @inline(always)
 fn caseIndexAt(c: Char) -> U16:
     if c.0 > 0x10FFFF then return 0
 
     let at = c :: Size
     let top = caseIndexTop[at `shr` 10] :: Size
+    if top == 2 then return 0
     let middle = (top `shl` 7) + ((at `shr` 3) `and` 127)
     let leaf = ((caseIndexMiddle[middle] :: Size) `shl` 3) + (at `and` 7)
     return caseIndexLeaves[leaf]

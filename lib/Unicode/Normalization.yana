@@ -189,13 +189,30 @@ fn stablePrefix(text: String, compose: Bool, compatible: Bool) -> Size:
     let &boundary = 0 :: Size
     let &lastClass = 0 :: U32
 
+    let quiet = compose && !compatible
+
     while at < count:
-        if text.unit(at) < 0x80:
+        let unit = text.unit(at)
+        let han = if unit is 0xE4..=0xE9 then hanRunEnd(text, at, 1, 0) else at
+
+        if unit < 0x80:
             at = asciiRunEnd(text, at)
             boundary = at - 1
+            if quiet && at < count && text.unit(at) < 0xCC:
+                at = nfcQuietRunEnd(text, at)
+                boundary = floorCharBoundary(text, at - 1)
+            lastClass = 0
+        else if han > at:
+            at = han
+            boundary = floorCharBoundary(text, at - 1)
             lastClass = 0
         else:
-            let {char, next} = decodeChar(text, at)
+            let lead = unit :: U32
+            let size = sequenceSize(lead)
+            let value = if at + size > count then brokenSequence
+                        else if size == 2 then twoUnitValue(text, at, lead)
+                        else if size == 3 then threeUnitValue(text, at, lead) else fourUnitValue(text, at, lead)
+            let {char, next} = if value != brokenSequence then {Char(value), at + size} else decodeChar(text, at)
             let entry = normalizationEntryAt(char)
             let ccc = entry `and` 0xFF
             if (entry `and` unstable) != 0 || char == replacementChar then return boundary
@@ -212,7 +229,7 @@ fn normalizeForm(text: String, compose: Bool, compatible: Bool) -> String:
     if stable == count then return copy(text)
 
     let &out = String.ofCapacity(count + count / 4)
-    out.push(String.slice(text, 0, stable))
+    pushSpan(out, text, 0, stable)
 
     let &segment = [] :: [U32]
     let &at = stable
@@ -225,11 +242,16 @@ fn normalizeForm(text: String, compose: Bool, compatible: Bool) -> String:
             flush(out, segment, compose)
             let end = asciiRunEnd(text, at)
             let kept = if compose && end < count then end - 1 else end
-            out.push(String.slice(text, at, kept))
+            pushSpan(out, text, at, kept)
             if kept < end then segment.push(text.unit(kept) :: U32)
             at = end
         else:
-            let {char, next} = decodeChar(text, at)
+            let lead = text.unit(at) :: U32
+            let size = sequenceSize(lead)
+            let value = if at + size > count then brokenSequence
+                        else if size == 2 then twoUnitValue(text, at, lead)
+                        else if size == 3 then threeUnitValue(text, at, lead) else fourUnitValue(text, at, lead)
+            let {char, next} = if value != brokenSequence then {Char(value), at + size} else decodeChar(text, at)
             decomposeInto(out, segment, char, compose, compatible)
             at = next
 
@@ -255,12 +277,26 @@ fn isNormalized(text: String, compose: Bool, compatible: Bool) -> Bool:
     let &lastClass = 0 :: U32
     let &unsure = False
 
+    let quiet = compose && !compatible
+
     while at < count:
-        if text.unit(at) < 0x80:
+        let unit = text.unit(at)
+        let han = if unit is 0xE4..=0xE9 then hanRunEnd(text, at, 1, 0) else at
+
+        if unit < 0x80:
             lastClass = 0
             at = asciiRunEnd(text, at)
+            if quiet && at < count && text.unit(at) < 0xCC then at = nfcQuietRunEnd(text, at)
+        else if han > at:
+            lastClass = 0
+            at = han
         else:
-            let {char, next} = decodeChar(text, at)
+            let lead = unit :: U32
+            let size = sequenceSize(lead)
+            let value = if at + size > count then brokenSequence
+                        else if size == 2 then twoUnitValue(text, at, lead)
+                        else if size == 3 then threeUnitValue(text, at, lead) else fourUnitValue(text, at, lead)
+            let {char, next} = if value != brokenSequence then {Char(value), at + size} else decodeChar(text, at)
             let entry = normalizationEntryAt(char)
             let ccc = entry `and` 0xFF
             if (entry `and` no) != 0 then return False

@@ -1,0 +1,35 @@
+{-
+   `bits` - lane `i` of a mask in bit `i`, and nothing above the lane count - at every lane width.
+
+   The x64 backend reads a mask through `pmovmskb` at 8- and 16-bit lanes and `movmskps`/`movmskpd` at
+   32 and 64, and the 16-bit one is a bit per *byte*: it answered two bits a lane until
+   `narrowWordMaskBits` in compiler/codegen/x64/transform_reduce.cpp, so `bits(m) & 15` tested the
+   first two lanes of an eight. Each width here sets every single lane in turn and one alternating
+   pattern, on vectors of written lane counts so that the answer is the same at every tier.
+-}
+
+import Test
+
+@test fn bitsIsOneBitPerLane():
+    let &wrong = 0
+
+    -- `iota` against one lane index sets that lane alone.
+    for lane in 0 .. 16:
+        if bits((iota() :: Vec(U8, 16)) .== (splat(truncate(lane) :: U8) :: Vec(U8, 16))) != (1 `shl` lane) then wrong += 1
+    for lane in 0 .. 8:
+        if bits((iota() :: Vec(U16, 8)) .== (splat(truncate(lane) :: U16) :: Vec(U16, 8))) != (1 `shl` lane) then wrong += 1
+    for lane in 0 .. 4:
+        if bits((iota() :: Vec(U32, 4)) .== (splat(truncate(lane) :: U32) :: Vec(U32, 4))) != (1 `shl` lane) then wrong += 1
+    for lane in 0 .. 2:
+        if bits((iota() :: Vec(U64, 2)) .== (splat(truncate(lane) :: U64) :: Vec(U64, 2))) != (1 `shl` lane) then wrong += 1
+
+    checkEqual(wrong, 0)
+
+    -- The odd lanes, and every lane, of eight 16-bit ones.
+    let odd = and(iota() :: Vec(U16, 8), splat(1) :: Vec(U16, 8))
+    checkEqual(bits(odd .== (splat(1) :: Vec(U16, 8))), 0b10101010)
+    checkEqual(bits(odd .< (splat(2) :: Vec(U16, 8))), 0xFF)
+
+    -- At the natural width too, which is sixteen lanes and a 32-bit movemask at v3.
+    let natural = iota() :: Vec(U16)
+    checkEqual(bits(natural .== natural), (1 `shl` lanes(natural)) - 1)

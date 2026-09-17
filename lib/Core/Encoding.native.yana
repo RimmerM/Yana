@@ -146,22 +146,21 @@ pub fn isValidUtf16(units: [U16]) -> Bool = utf16ValidFrom(units, 0)
    speed over ASCII, and a register kept only when it was all ASCII was half the speed over Latin text
    at 256 bits. Trying the next register only where the next byte is ASCII - so that CJK text skips a
    register test per character - bought CJK 3-6% and cost ASCII up to a third, so it is not done.
+   Nor are the two back-offs tried on 2026-09-17. Skipping the register test for sixteen units after
+   a register that starts with a unit that is not ASCII bought CJK a fifth on `fromUtf16` and cost
+   Latin and emoji 25-80% on both transcoders - and ASCII `appendUtf16` a third, from the one extra
+   comparison and variable in the loop. Skipping only the register right after such a failure cost
+   every corpus 6-31%.
 
    Anything else is a character at a time: the well-formed fast path in `Char.native.yana` one way,
-   and a surrogate pair test the other. `String.appendUtf16Unchecked` trusts every lead byte instead,
-   which `test/bench/utf8` measured at 1.4 to 1.5 times the checked form over Latin and CJK text; a
-   surrogate pair test is one comparison either way, so `fromUtf16` has no such form.
+   and a surrogate pair test the other. A character of three bytes or units is followed by the run of
+   them after it, without the ASCII register test and converted a register at a time where it can be
+   (`widenThreeUnitRun` and `narrowThreeByteRun`), which is what CJK text is.
+   `String.appendUtf16Unchecked` trusts every lead byte instead, which `test/bench/utf8` measured at
+   1.4 to 1.5 times the checked form over Latin and CJK text - and at 1.2 to 1.3 times once the checked
+   form took CJK a register at a time, which `utf8/findings.md` §3 records. A surrogate pair test is
+   one comparison either way, so `fromUtf16` has no such form.
 -}
-
-{-
-   A block's units narrowed to bytes and written at the end of `out`, which then keeps `run` of them.
-   The block is packed with itself, so the write is a register of bytes of which the first half is
-   the block - the room past that is reserved by `String.fromUtf16`.
--}
-@inline fn narrowBlock(&out: String, block: Vec(U16), run: Size):
-    let have = length(out)
-    setVectorAt(bitcast(out.units.run.items + have) :: %U8, packLanes(block, block) :: Vec(U8))
-    out.units.length = truncate(have + run) :: Count
 
 -- A block's bytes widened to units and written at `target`, both halves of it.
 @inline fn widenBlock(target: %U16, block: Vec(U8)):
@@ -169,18 +168,25 @@ pub fn isValidUtf16(units: [U16]) -> Bool = utf16ValidFrom(units, 0)
     setVectorAt(target + vectorBytes / 2, unpackHigh(block) :: Vec(U16))
 
 {-
-   UTF-16 to UTF-8. A lone surrogate is U+FFFD, which is what `String.pushChar` writes for a value that
-   is not a scalar value, so the unit is handed to it as it is.
+   UTF-16 to UTF-8. A lone surrogate is U+FFFD, as `String.pushChar` writes a value that is not a
+   scalar value.
 
    Three bytes per unit is the most any unit takes (a pair is two units and four bytes), and a
-   block's write is a register of bytes, half a register past the units it keeps.
+   block's write is a register of bytes, half a register past the units it keeps. So the whole result
+   is reserved once, and every write - a block's or a character's - is a store past the count, which
+   is set at the end.
 -}
 pub fn String.fromUtf16(units: [U16]) -> String:
     let count = length(units)
     let lanes = vectorBytes / 2
-    let &out = String.ofCapacity(3 * count + lanes)
+    let reserved = 3 * count + lanes
+    let &out = String.ofCapacity(reserved)
+    checkCondition((out.units.run.capacity :: Size) < reserved)
+
+    let target = out.units.run.items
     let high = splat(0xFF80) :: Vec(U16)
     let zero = zero() :: Vec(U16)
+    let &written = 0 :: Size
     let &at = 0 :: Size
 
     while at < count:
@@ -189,28 +195,199 @@ pub fn String.fromUtf16(units: [U16]) -> String:
             let wide = and(block, high) .!= zero
 
             if none(wide):
-                narrowBlock(out, block, lanes)
+                setVectorAt(bitcast(target + written) :: %U8, packLanes(block, block) :: Vec(U8))
+                written = written + lanes
                 at = at + lanes
                 continue
 
             let run = firstSet(wide) :: Size
             if run > 0:
-                narrowBlock(out, block, run)
+                setVectorAt(bitcast(target + written) :: %U8, packLanes(block, block) :: Vec(U8))
+                written = written + run
                 at = at + run
                 continue
 
         let unit = units[at] :: U32
         if unit < 0x80:
-            String.pushUnit(out, truncate(unit) :: CodeUnit)
+            store(target + written, truncate(unit) :: CodeUnit)
+            written = written + 1
+            at = at + 1
+        else if unit < 0x800:
+            store(target + written, leadUnit(unit))
+            store(target + written + 1, continuationUnit(unit, 0))
+            written = written + 2
             at = at + 1
         else if unit is 0xD800..=0xDBFF && at + 1 < count && units[at + 1] is 0xDC00..=0xDFFF:
-            String.pushChar(out, Char(0x10000 + ((unit - 0xD800) `shl` 10) + ((units[at + 1] :: U32) - 0xDC00)))
+            let value = 0x10000 + ((unit - 0xD800) `shl` 10) + ((units[at + 1] :: U32) - 0xDC00)
+            store(target + written, leadUnit(value))
+            store(target + written + 1, continuationUnit(value, 12))
+            store(target + written + 2, continuationUnit(value, 6))
+            store(target + written + 3, continuationUnit(value, 0))
+            written = written + 4
             at = at + 2
         else:
-            String.pushChar(out, Char(unit))
+            let value = if unit is 0xD800..=0xDFFF then 0xFFFD :: U32 else unit
+            store(target + written, leadUnit(value))
+            store(target + written + 1, continuationUnit(value, 6))
+            store(target + written + 2, continuationUnit(value, 0))
+            written = written + 3
             at = at + 1
 
+            let taken = narrowThreeByteRun(units, at, target + written)
+            written = written + 3 * taken
+            at = at + taken
+
+    out.units.length = truncate(written) :: Count
     return out
+
+{-
+   The run of units at `from` that take three bytes each - U+0800 to U+FFFF but the surrogates - written
+   from `target`, and how many there were: CJK text, reached from `String.fromUtf16` after one such unit.
+
+   **Eight units a step where all eight take three bytes, and four where the first four do.** Each
+   unit's lead and middle byte go into one 16-bit lane and its last byte into another, so interleaving
+   the two is four 32-bit lanes of `lead middle last 00`, and a fixed shuffle drops every fourth byte:
+   twelve bytes out of a sixteen-byte register, twice. The x64 backend emits a byte shuffle of one
+   source only, which is why the three bytes are gathered by the interleave first rather than picked out
+   of three registers. Measured on `test/bench/unicode` at v2: `fromUtf16` over CJK 2.2 times faster
+   than a unit at a time, and 1.3 times faster for the four-unit step than for eight alone, since a run
+   between two spaces is about seven characters. Every other corpus within noise. How many lanes
+   qualify is `firstSet` of the ones that do not rather than `bits` of the mask: a 16-bit lane's
+   `bits` is a gather of every other movemask bit on x64 below v3, which cost this loop 5%.
+-}
+@noinline fn narrowThreeByteRun(units: [U16], from: Size, target: %CodeUnit) -> Size:
+    let count = length(units)
+    let top = splat(0xF800) :: Vec(U16, 8)
+    let surrogates = splat(0xD800) :: Vec(U16, 8)
+    let zero = zero() :: Vec(U16, 8)
+    let six = splat(0x3F) :: Vec(U16, 8)
+    let continuation = splat(0x80) :: Vec(U16, 8)
+    let lead = splat(0xE0) :: Vec(U16, 8)
+    let &at = from
+    let &written = 0 :: Size
+
+    while at + 8 <= count:
+        let block = vectorAt(units.items + at) :: Vec(U16, 8)
+        let range = and(block, top)
+        let stop = firstSet(or(range .== zero, range .== surrogates)) :: Size
+        if stop < 4 then break
+
+        let leads = (block `shr` (splat(12) :: Vec(U16, 8))) `or` lead
+        let middles = ((block `shr` (splat(6) :: Vec(U16, 8))) `and` six) `or` continuation
+        let lasts = (block `and` six) `or` continuation
+        let firstTwo = leads `or` (middles `shl` (splat(8) :: Vec(U16, 8)))
+
+        setVectorAt(target + written, shuffle(bitcast(interleaveLow(firstTwo, lasts)) :: Vec(CodeUnit, 16), [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 15, 15, 15, 15]))
+        if stop < 8:
+            written = written + 12
+            at = at + 4
+            break
+
+        setVectorAt(target + written + 12, shuffle(bitcast(interleaveHigh(firstTwo, lasts)) :: Vec(CodeUnit, 16), [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 15, 15, 15, 15]))
+        written = written + 24
+        at = at + 8
+
+    while at < count && units[at] >= 0x800 && !(units[at] is 0xD800..=0xDFFF):
+        let next = units[at] :: U32
+        store(target + written, leadUnit(next))
+        store(target + written + 1, continuationUnit(next, 6))
+        store(target + written + 2, continuationUnit(next, 0))
+        written = written + 3
+        at = at + 1
+
+    return at - from
+
+{-
+   Registers of well-formed three-byte characters from `from`, each written as its unit from `target`,
+   and how many characters that was - the vector half of `widenThreeUnitRun` and its `Unchecked` twin.
+
+   **A register is taken when its first fifteen bytes are five characters led by `E1` to `EC`, or its
+   first nine are three**, which two masks settle: which lanes are such a lead, and which are a
+   continuation byte, against the pattern `lead cont cont` repeated. Those leads are exactly the ones
+   whose every continuation pair is well-formed (`E0` and `ED` narrow the second byte), so the pattern
+   is the whole validation. Two fixed shuffles then put each character's lead and middle byte in one
+   16-bit lane and its last byte in another, and the unit is three shifts. Eight units are written and
+   five or three kept, which the reservation of a unit per byte leaves room for: sixteen bytes are left.
+
+   Measured on `test/bench/unicode` at v2: `appendUtf16` over CJK 1.8 times faster than a character
+   at a time, of which the three-character step is a tenth - a run between two spaces is about seven
+   characters. Every other corpus within noise, since this is reached only after a three-byte character.
+-}
+@inline(always) fn widenThreeByteRegisters(text: String, from: Size, target: %U16) -> Size:
+    let count = length(text)
+    let belowLead = splat(-32 :: I8) :: Vec(I8, 16)
+    let aboveLead = splat(-19 :: I8) :: Vec(I8, 16)
+    let continuations = splat(-64 :: I8) :: Vec(I8, 16)
+    let nibble = splat(0x0F) :: Vec(U16, 8)
+    let six = splat(0x3F) :: Vec(U16, 8)
+    let &at = from
+    let &taken = 0 :: Size
+
+    while at + 16 <= count:
+        let block = vectorAt(units(text) + at) :: Vec(CodeUnit, 16)
+        let signed = bitcast(block) :: Vec(I8, 16)
+        let leads = bits(and(signed .> belowLead, signed .< aboveLead)) `and` 0x7FFF
+        let follows = bits(signed .< continuations) `and` 0x7FFF
+        let five = leads == 0x1249 && follows == 0x6DB6
+        if !five && ((leads `and` 0x1FF) != 0x49 || (follows `and` 0x1FF) != 0x1B6) then break
+
+        let heads = bitcast(shuffle(block, [0, 1, 3, 4, 6, 7, 9, 10, 12, 13, 15, 15, 15, 15, 15, 15])) :: Vec(U16, 8)
+        let lasts = bitcast(shuffle(block, [2, 2, 5, 5, 8, 8, 11, 11, 14, 14, 15, 15, 15, 15, 15, 15])) :: Vec(U16, 8)
+        let value = ((heads `and` nibble) `shl` (splat(12) :: Vec(U16, 8))) `or`
+                    (((heads `shr` (splat(8) :: Vec(U16, 8))) `and` six) `shl` (splat(6) :: Vec(U16, 8))) `or` (lasts `and` six)
+        setVectorAt(target + taken, value)
+
+        if !five:
+            taken = taken + 3
+            break
+
+        taken = taken + 5
+        at = at + 15
+
+    return taken
+
+{-
+   The run of well-formed three-byte characters at `at`, each written as its unit from `target`, and
+   how many there were: CJK text, without the ASCII register test the loop in `String.appendUtf16`
+   makes before each character. Registers first (`widenThreeByteRegisters`), then a character at a
+   time over any three-byte lead, since `wellFormedThree` is the whole check - so Korean syllables
+   from U+D000 and the scripts under `E0`, which the registers leave, are still taken here.
+
+   `@noinline`, and reached only after a character of three bytes, from the arm a four-byte character
+   does not take. Written into the loop itself, the character-at-a-time run cost all-ASCII text 41% and
+   emoji 13%, which is the backend's register allocation over a larger body rather than anything the
+   ASCII path runs; tested after every character outside that arm, it still cost emoji 9%.
+-}
+@noinline fn widenThreeUnitRun(text: String, from: Size, target: %U16) -> Size:
+    let count = length(text)
+    let &taken = widenThreeByteRegisters(text, from, target)
+    let &at = from + 3 * taken
+
+    while at + 3 <= count && String.unit(text, at) is 0xE0..=0xEF:
+        let value = wellFormedThree(text, at, unitNumber(text, at))
+        if value == notWellFormed then break
+        store(target + taken, truncate(value) :: U16)
+        taken = taken + 1
+        at = at + 3
+
+    return taken
+
+-- `widenThreeUnitRun` trusting each lead, for `String.appendUtf16Unchecked`: after the same registers,
+-- which validate because that costs nothing there, any lead from `E0` to `EF` is three bytes,
+-- assembled as they are.
+@noinline fn widenThreeUnitRunUnchecked(text: String, from: Size, target: %U16) -> Size:
+    let count = length(text)
+    let &taken = widenThreeByteRegisters(text, from, target)
+    let &at = from + 3 * taken
+
+    while at + 3 <= count && String.unit(text, at) is 0xE0..=0xEF:
+        let value = ((unitNumber(text, at) `and` 0x0F) `shl` 12) `or` ((unitNumber(text, at + 1) `and` 0x3F) `shl` 6) `or`
+                    (unitNumber(text, at + 2) `and` 0x3F)
+        store(target + taken, truncate(value) :: U16)
+        taken = taken + 1
+        at = at + 3
+
+    return taken
 
 -- UTF-8 to UTF-16, with an invalid sequence as the U+FFFD it decodes to. A byte is at most one unit,
 -- so the text's length is the reservation.
@@ -265,13 +442,18 @@ pub fn String.appendUtf16(text: String, &to: Array(U16)):
             if value < 0x10000:
                 store(to.run.items + out, truncate(value) :: U16)
                 out = out + 1
+                at = next
+
+                if size == 3:
+                    let taken = widenThreeUnitRun(text, at, to.run.items + out)
+                    out = out + taken
+                    at = at + 3 * taken
             else:
                 let offset = value - 0x10000
                 store(to.run.items + out, truncate(0xD800 + (offset `shr` 10)) :: U16)
                 store(to.run.items + out + 1, truncate(0xDC00 + (offset `and` 0x3FF)) :: U16)
                 out = out + 2
-
-            at = next
+                at = next
 
     to.length = truncate(out) :: Count
 
@@ -321,12 +503,17 @@ pub fn String.appendUtf16Unchecked(text: String, &to: Array(U16)):
             if value < 0x10000:
                 store(to.run.items + out, truncate(value) :: U16)
                 out = out + 1
+                at = end
+
+                if lead >= 0xE0:
+                    let taken = widenThreeUnitRunUnchecked(text, at, to.run.items + out)
+                    out = out + taken
+                    at = at + 3 * taken
             else:
                 let offset = value - 0x10000
                 store(to.run.items + out, truncate(0xD800 + (offset `shr` 10)) :: U16)
                 store(to.run.items + out + 1, truncate(0xDC00 + (offset `and` 0x3FF)) :: U16)
                 out = out + 2
-
-            at = end
+                at = end
 
     to.length = truncate(out) :: Count

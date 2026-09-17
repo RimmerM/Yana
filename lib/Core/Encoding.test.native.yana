@@ -89,3 +89,72 @@ fn sameUnits(left: [U16], right: [U16]) -> Bool:
         if String.fromUtf16(elements(units)) != encoded then wrong = wrong + 1
 
     checkEqual(wrong, 0)
+
+{-
+   The same agreement over text that is mostly three-byte characters, which `generatedText` rarely
+   puts five of in a row: the register steps in `widenThreeByteRegisters` and `narrowThreeByteRun`
+   take five or three characters, and eight or four units, so a run has to be that long and has to
+   end - at ASCII, a two- or four-byte character, a lead the register step leaves to the scalar walk
+   (`E0`, `ED`, `EE`, `EF`), a broken sequence, or on the UTF-16 side a surrogate - at every lane.
+-}
+let threeByteChars = [0x800 :: U32, 0xFFF, 0x1000, 0x4E00, 0x9FFF, 0xCFFF, 0xD000, 0xD7FF, 0xE000, 0xFFFD,
+                      0xFFFF, 0x4E2D, 0x6587]
+let runEnds = [0x20 :: U32, 0xE9, 0x1F600, 0x7FF, 0x10000]
+
+-- UTF-16 to UTF-8 a unit at a time: a pair is its character, and any other surrogate U+FFFD.
+fn referenceUtf8(units: [U16]) -> String:
+    let &out = String.ofCapacity(3 * length(units))
+    let &at = 0 :: Size
+
+    while at < length(units):
+        let unit = units[at] :: U32
+        if unit is 0xD800..=0xDBFF && at + 1 < length(units) && units[at + 1] is 0xDC00..=0xDFFF:
+            String.pushChar(out, Char(0x10000 + ((unit - 0xD800) `shl` 10) + ((units[at + 1] :: U32) - 0xDC00)))
+            at = at + 2
+        else:
+            String.pushChar(out, Char(unit))
+            at = at + 1
+
+    return out
+
+@test fn threeByteRunsAgreeWithWalk():
+    let &state = 4242 :: U32
+    let &wrong = 0
+
+    for round in 0 .. 6000:
+        let broken = round % 3 == 0
+        let size = below(state, 100)
+        state = nextState(state)
+
+        let &text = String.ofCapacity(3 * size)
+        let &units = [] :: [U16]
+        for _ in 0 .. size:
+            let pick = below(state, 100)
+            state = nextState(state)
+
+            if pick < 8:
+                String.pushChar(text, Char(runEnds[below(state, 5)]))
+            else if broken && pick < 12:
+                -- A lead cut short, or a continuation where a lead should be.
+                String.pushUnit(text, if pick < 10 then 0xE4 else 0x80)
+                if pick == 8 then String.pushUnit(text, 0xB8)
+            else:
+                String.pushChar(text, Char(threeByteChars[below(state, 13)]))
+            state = nextState(state)
+
+        String.appendUtf16(text, units)
+        let expected = referenceUtf16(text)
+        if !sameUnits(elements(units), elements(expected)) then wrong = wrong + 1
+
+        let &trusted = [] :: [U16]
+        String.appendUtf16Unchecked(text, trusted)
+        if !broken && !sameUnits(elements(trusted), elements(expected)) then wrong = wrong + 1
+
+        -- A lone surrogate at one unit in four rounds, anywhere in a register.
+        if round % 4 == 1 && length(units) > 0:
+            units[below(state, truncate(length(units)) :: U32)] = if round % 8 == 1 then 0xD800 else 0xDC00
+            state = nextState(state)
+
+        if String.fromUtf16(elements(units)) != referenceUtf8(elements(units)) then wrong = wrong + 1
+
+    checkEqual(wrong, 0)

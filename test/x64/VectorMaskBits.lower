@@ -34,6 +34,19 @@ firstByte(%a: i8x16, %b: i8x16): I32 {
     }
 }
 
+# `Native.bits` of a sixteen-bit lane, which is the one width where the movemask is not the answer:
+# `pmovmskb` gives two bits per lane, and the IR's `vreduce_bits` is one per lane with nothing above
+# the lane count. So the movemask's even bits are gathered down - here, with no BMI2, by the halving
+# network of `and`, `shr`, `or` and `and` whose three rounds take sixteen bits to eight. The bare
+# `pmovmskb` this used to be answered 0xFFFF for a full eight-lane mask.
+wordBits(%a: i16x8, %b: i16x8): I32 {
+    {
+        %m = cmp_eq %a, %b: m16x8
+        %r = vreduce_bits %m: I32
+        ret %r
+    }
+}
+
 # The same over a four-byte lane, which takes `movmskps` and is therefore the same three instructions
 # rather than five: one bit per lane means the scan's answer is already a lane index and there is no
 # shift behind it, and the sentinel moves down to bit 4 - the lane count, where `pmovmskb` would have

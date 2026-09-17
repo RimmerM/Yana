@@ -73,3 +73,44 @@ import Test
     checkEqual(sorter.compare("", "a"), LT)
     checkEqual(sorter.compare("a", ""), GT)
     checkEqual(sorter.compare("", "\x0"), LT)
+
+-- Whether `nextPrimary` walks the full walk's primary weights for the text, or says it is unsure.
+fn walkAgrees(sorter: UnicodeCollator, text: String) -> Bool:
+    let &walked = [] :: [U32]
+    let &walk = PrimaryWalk {}
+    let &weight = nextPrimary(sorter, text, walk)
+    while weight != walkEnd && weight != walkUnsure:
+        walked.push(weight)
+        weight = nextPrimary(sorter, text, walk)
+
+    if weight == walkUnsure then return True
+
+    let &expected = [] :: [U32]
+    let full = textElements(sorter, text)
+    for i in 0 .. length(full):
+        if primaryOf(full[i]) != 0 then expected.push(primaryOf(full[i]))
+
+    return walked == expected
+
+{-
+   `comparePrimaries` answers without the full walk, so its walk has to give the full walk's primary
+   weights wherever it does not say it is unsure. Every code point alone and followed by a letter, and
+   after `l` - one of the two contraction heads below U+0300, whose middle dot U+0387 reaches only
+   once decomposed - with no variable weighting, and every code point alone under `shifted`.
+   CollationTest's lines are the texts of more than two characters.
+-}
+@test fn primaryWalk():
+    let plain = unicodeCollator(CollatorOptions {})
+    let shifted = unicodeCollator(CollatorOptions {ignorePunctuation: True})
+    let &failures = 0 :: Size
+
+    for point in 0 .. (0x110000 :: U32):
+        if point is 0xD800..=0xDFFF then continue
+
+        let agrees = walkAgrees(plain, charText(Char(point))) && walkAgrees(plain, charText(Char(point)) ++ "a") &&
+                     walkAgrees(plain, "l" ++ charText(Char(point))) && walkAgrees(shifted, charText(Char(point)))
+        if !agrees:
+            if failures < 8 then check(False, note: "U+{point}")
+            failures += 1
+
+    checkEqual(failures, 0)

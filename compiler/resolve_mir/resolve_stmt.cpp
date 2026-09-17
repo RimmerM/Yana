@@ -2277,6 +2277,17 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
         // split only where the walk answered, since there the hint is what the split is *for*.
         if(!subscript.fixed && (steps.isEmpty() || expected)) {
             {
+                /*
+                 * The index is produced before the value and used after it, so it is held while
+                 * the value is resolved: `xs[i] = if c then a else b` builds blocks, and the index
+                 * the accessor is called with is whatever the branch threaded it into - `Held`.
+                 * Without it the call names a result of the block before the branch, which
+                 * `verify.cpp`'s `checkValueScope` rejects. The container is a place, which is
+                 * storage rather than a value and crosses nothing. A fixed array does not reach
+                 * here: its element is a `Place::Index`, which names the index by node rather than
+                 * as an operand, and the SSA conversion looks that node up across blocks.
+                 */
+                HeldValue heldIndex(*this, subscript.index);
                 ObjectScope object(*this, written.value.source);
                 value = resolveValue(builder, written.value, expected, requestOf(ownedContract()));
             }

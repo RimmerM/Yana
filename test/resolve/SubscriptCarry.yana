@@ -1,0 +1,61 @@
+{-
+   `BranchCarry.yana`'s shape at the one position it did not reach: an assignment through a
+   subscript whose value opens blocks.
+
+   `xs[i] = if c then a else b` resolves the index, then the value, then calls the accessor with
+   the index - the order `resolveAssign` argues, so the right-hand side's own reads of `xs` end
+   before the write's exclusive loan starts. So the index is produced before the branch and used
+   after it, which is §5.9's crossing, and it has to be handed over as a block argument. It was
+   not: the ownership stage stopped with "call names result N, which belongs to block M" on every
+   growable container and every field path through one. A fixed array was never affected - its
+   element is a place, and a place names its index by node rather than as an operand.
+
+   Each case writes through an index that differs per call, so a merge that handed over the wrong
+   value would write the wrong element rather than only fail to verify.
+-}
+
+data Pair {a: Int, b: Int}
+
+fn slot(n: Int) -> Size = (n * 7 % 5) :: Size
+
+-- The bare shape, over a growable array.
+fn bare(n: Int) -> Int:
+    let &xs = [0, 0, 0, 0, 0]
+    xs[slot(n)] = if n % 2 == 1 then 100 + n else 200 + n
+    return xs[slot(n)] + xs[(slot(n) + 1) % 5]
+
+-- A field of an element: the same crossing, one projection out.
+fn fieldPath(n: Int) -> Int:
+    let blank = Pair {a: 0, b: 0}
+    let &ps = [blank, blank, blank, blank, blank]
+    ps[slot(n)].a = if n % 2 == 1 then 10 + n else 20 + n
+    return ps[slot(n)].a + ps[slot(n)].b
+
+-- The value reads the element it replaces, and a `match` is a branch too - nested inside an `if`
+-- statement's arm, which was the shape the crash was first met in.
+fn nested(n: Int) -> Int:
+    let &xs = [1, 2, 3, 4, 5]
+    if n > 0:
+        xs[slot(n)] = xs[slot(n)] + (if n % 2 == 1 then 1000 else match n:
+            2 -> 2000
+            _ -> 3000)
+    return xs[slot(n)]
+
+-- The fixed array, beside the others, so the two element forms are held to the same answer.
+fn fixed(n: Int) -> Int:
+    let &xs = [0] :: [Int *5]
+    xs[slot(n)] = if n % 2 == 1 then 100 + n else 200 + n
+    return xs[slot(n)]
+
+fn main() -> Int:
+    if bare(1) != 101 then return -1
+    if bare(2) != 202 then return -2
+    if fieldPath(3) != 13 then return -3
+    if fieldPath(4) != 24 then return -4
+    if nested(1) != 1003 then return -5
+    if nested(2) != 2005 then return -6
+    if nested(4) != 3004 then return -7
+    if fixed(3) != 103 then return -8
+    if fixed(4) != 204 then return -9
+
+    return 4242

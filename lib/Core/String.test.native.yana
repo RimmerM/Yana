@@ -1,0 +1,52 @@
+module Core
+
+{-
+   String order natively at the register edges - `Ord(String)` in `String.yana` compares the first
+   register inline, reading past the shorter text's end, and hands the rest to `compareMemory`.
+
+   Every pair of lengths from 0 to 40 against each other and one longer and shorter, with one unit
+   changed at every position to one below and one above it - `7F` against `80` among them, which a
+   signed comparison orders the wrong way - checked against a unit loop. The texts are windows whose
+   units past the end differ between the two sides, so an answer that read a lane past the shared
+   length would show.
+-}
+
+import Test
+
+fn unitOrder(left: String, right: String) -> Ordering:
+    let shared = min(length(left), length(right))
+    let &at = 0 :: Size
+    while at < shared && left.unit(at) == right.unit(at):
+        at += 1
+
+    return if at < shared then compare(left.unit(at), right.unit(at)) else compare(length(left), length(right))
+
+-- 48 units of `base`, with the one at `changed` set to `unit` and every unit from `end` on set to `tail`.
+fn edgeText(changed: Size, unit: CodeUnit, end: Size, tail: CodeUnit) -> String:
+    let base = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL"
+    let &text = String.ofCapacity(length(base))
+    for at in 0 .. length(base):
+        String.pushUnit(text, if at == changed then unit else if at >= end then tail else base.unit(at))
+
+    return text
+
+let edgeUnits = [0x7F :: CodeUnit, 0x80, 0x00, 0xFF]
+
+@test fn orderAtRegisterEdges():
+    let &failures = 0 :: Size
+
+    for size in 0 .. 41:
+        for other in (if size > 0 then size - 1 else 0) .. (size + 2):
+            for changed in 0 .. (size + 2):
+                for pick in 0 .. 4:
+                    let unit = edgeUnits[pick]
+                    let left = String.slice(edgeText(changed, unit, size, "!"), 0, size)
+                    let right = String.slice(edgeText(48, 0, other, "~"), 0, other)
+                    let expected = unitOrder(left, right)
+                    let reversed = unitOrder(right, left)
+
+                    if compare(left, right) != expected || compare(right, left) != reversed || compareChars(left, right) != expected:
+                        if failures < 8 then check(False, note: "size {size}, other {other}, changed {changed}, unit {unit}")
+                        failures += 1
+
+    checkEqual(failures, 0)

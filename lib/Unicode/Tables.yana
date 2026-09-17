@@ -831,12 +831,15 @@ let propertyIndexLeaves = [
 
 -- A `Char` above U+10FFFF is not a code point (the constructor does not check), and answers
 -- the index of an unassigned word rather than reading past the top level.
+-- Middle block 58 is most of the code space and holds 16 throughout, so it is answered without
+-- loading the two levels below it - `quiet_block` in tools/unicode/generate.py.
 @inline(always)
 fn propertyIndexAt(c: Char) -> U8:
     if c.0 > 0x10FFFF then return 16
 
     let at = c :: Size
     let top = propertyIndexTop[at `shr` 9] :: Size
+    if top == 58 then return 16
     let middle = (top `shl` 5) + ((at `shr` 4) `and` 31)
     let leaf = ((propertyIndexMiddle[middle] :: Size) `shl` 4) + (at `and` 15)
     return propertyIndexLeaves[leaf]
@@ -1270,12 +1273,15 @@ let clusterClassLeaves = [
 
 -- A `Char` above U+10FFFF is not a code point (the constructor does not check), and answers
 -- `Other` rather than reading past the top level.
+-- Middle block 1 is most of the code space and holds 0 throughout, so it is answered without
+-- loading the two levels below it - `quiet_block` in tools/unicode/generate.py.
 @inline(always)
 fn clusterClassAt(c: Char) -> U8:
     if c.0 > 0x10FFFF then return 0
 
     let at = c :: Size
     let top = clusterClassTop[at `shr` 8] :: Size
+    if top == 1 then return 0
     let middle = (top `shl` 6) + ((at `shr` 2) `and` 63)
     let leaf = ((clusterClassMiddle[middle] :: Size) `shl` 2) + (at `and` 3)
     return clusterClassLeaves[leaf]

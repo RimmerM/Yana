@@ -1,0 +1,51 @@
+{-
+   Case mapping over generated text, natively - the walks in `Case.yana`, whose registers, copied
+   spans and kept ASCII lanes are only reached by text longer than the single characters
+   `CaseTest.test.yana` maps.
+
+   The texts are pieces that decide those paths - ASCII letters that change and that do not, Latin
+   letters that change and that do not, an expanding mapping, ideographs at both ends of the leads
+   `hanRunEnd` skips and a character after them, emoji, and invalid and cut-off sequences - at
+   every length up to past two registers. A text's mapping has to be its characters' mappings one
+   after another, each invalid sequence as U+FFFD, since final sigma, the one context rule, is left
+   out of the pieces.
+-}
+
+import Test
+
+let casePieces = [
+    [0x61 :: U8], [0x41], [0x20], [0x5A], [0x7A], [0xC3, 0x89], [0xC3, 0xA9], [0xC3, 0x9F],
+    [0xC4, 0xB0], [0xE4, 0xB8, 0xAD], [0xEF, 0xBC, 0xA1], [0xF0, 0x9F, 0x98, 0x80], [0x80], [0xC3],
+    [0xFF], [0xE4], [0xE4, 0xB8], [0xE9, 0xBF, 0xBF], [0xEA, 0xB0, 0x80]
+] :: [[U8]]
+
+@test fn caseMappingOverGeneratedText():
+    let &state = 67890 :: U32
+    let &failures = 0 :: Size
+
+    for round in 0 .. 20000:
+        state = state * 1103515245 + 12345
+        let size = truncate((state `shr` 16) % 70) :: Size
+        let &text = ""
+        while length(text) < size:
+            state = state * 1103515245 + 12345
+            -- Mostly ASCII, so that registers are tried and the other pieces land inside them.
+            let pick = (state `shr` 16) % 64
+            let piece = if pick < 40 then pick % 5 else pick % 19
+            let bytes = casePieces[truncate(piece) :: Size]
+            for i in 0 .. length(bytes):
+                String.pushUnit(text, bytes[i])
+
+        let &lower = ""
+        let &upper = ""
+        let &folded = ""
+        for c in chars(text):
+            lower.push(toLowerUnicode(charText(c)))
+            upper.push(toUpperUnicode(charText(c)))
+            folded.push(caseFoldUnicode(charText(c)))
+
+        if toLowerUnicode(text) != lower || toUpperUnicode(text) != upper || caseFoldUnicode(text) != folded:
+            if failures < 8 then check(False, note: "round {round}")
+            failures += 1
+
+    checkEqual(failures, 0)

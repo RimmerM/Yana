@@ -2374,12 +2374,15 @@ let normalizationIndexLeaves = [
 
 -- A `Char` above U+10FFFF is not a code point (the constructor does not check), and answers
 -- the entry of a starter with no mappings rather than reading past the top level.
+-- Middle block 13 is most of the code space and holds 0 throughout, so it is answered without
+-- loading the two levels below it - `quiet_block` in tools/unicode/generate.py.
 @inline(always)
 fn normalizationIndexAt(c: Char) -> U16:
     if c.0 > 0x10FFFF then return 0
 
     let at = c :: Size
     let top = normalizationIndexTop[at `shr` 10] :: Size
+    if top == 13 then return 0
     let middle = (top `shl` 6) + ((at `shr` 4) `and` 63)
     let leaf = ((normalizationIndexMiddle[middle] :: Size) `shl` 4) + (at `and` 15)
     return normalizationIndexLeaves[leaf]

@@ -348,9 +348,202 @@ fn asciiElementsOf(self: UnicodeCollator, text: String) -> Array(U32):
 fn textElements(self: UnicodeCollator, text: String) -> Array(U32) =
     if !self.numeric && isAllAscii(text) then asciiElementsOf(self, text) else elementsOf(self, normalizeNfd(text))
 
+{-
+   ------------------------------------------------------------------------------------------
+   The primary level without the element arrays
+   ------------------------------------------------------------------------------------------
+
+   **Most pairs a sort compares differ in their first letters**, and the answer is then the first
+   primary weight that differs. The full walk above gets there by putting both texts in NFD,
+   copying out their code points and building both element arrays - five allocations for two short
+   words - and it measured 6 to 22 times ICU per word pair in `test/bench/unicode`. So `compare` first
+   walks the two texts' primary weights side by side, straight off the text, and answers at the
+   first difference: 4 to 11 times faster over the same words, and from 0.9 to 1.8 times ICU.
+
+   **The walk only answers where it is the full walk's answer, and otherwise says it is unsure,**
+   which sends `compare` to the full walk. Each character's elements are taken in isolation, which
+   is what the full walk does too once three things hold, and the walk checks all three before a
+   character's elements are counted:
+
+   1. **The character's segment is closed:** the character after it starts, once decomposed, with a
+      starter. Otherwise NFD could reorder marks across the two, or a discontiguous contraction
+      could reach past it.
+   2. **It starts no contraction here:** a character that heads one in the table is taken alone only
+      when no sequence it heads continues with the next code point. `l` and `L` are the two below
+      U+0300, both with a middle dot.
+   3. **Its decomposition is read from the table** rather than computed, so a Hangul syllable, and
+      any character that is not a starter, is unsure.
+
+   `numeric` is never walked: a digit run's elements depend on the whole run.
+
+   So a pair that differs at the primary level after a text this rules out, or does not differ there
+   at all, is compared twice. `primaryWalk` in `Collation.test.yana` checks the walk against the full
+   walk for every code point, and the conformance test walks both over CollationTest's lines.
+-}
+data PrimaryWalk {at: Size = 0, run: Size = 0, runEnd: Size = 0, pieces: Size = 0, piecesEnd: Size = 0,
+                  implicit: U32 = 0, afterVariable: Bool = False}
+
+-- What `nextPrimary` answers besides a weight: the end of the text, and a text the walk cannot
+-- answer for. No primary weight is either.
+let walkEnd = 0 :: U32
+let walkUnsure = 0xFFFFFFFF :: U32
+let walkSearching = 0xFFFFFFFE :: U32
+
+-- The character at `at` and the offset after it.
+@inline(always)
+fn charAt(text: String, at: Size) -> {U32, Size}:
+    let lead = text.unit(at) :: U32
+    if lead < 0x80 then return {lead, at + 1}
+
+    let count = length(text)
+    let size = sequenceSize(lead)
+    let value = if at + size > count then brokenSequence
+                else if size == 2 then twoUnitValue(text, at, lead)
+                else if size == 3 then threeUnitValue(text, at, lead) else fourUnitValue(text, at, lead)
+    if value != brokenSequence then return {value, at + size}
+
+    let {char, next} = decodeChar(text, at)
+    return {char.0, next}
+
+-- The first code point of the NFD of the character at `at`.
+fn firstDecomposed(text: String, at: Size) -> U32:
+    let point = charAt(text, at).0
+    if point is 0xAC00..=0xD7A3 then return leadingFirst + (point - syllableFirst) / (vowelCount * trailingCount)
+
+    let entry = normalizationEntryAt(Char(point))
+    if (entry `and` nfdNoBit) == 0 then return point
+    return normalizationData[dataOffset(entry) + 1]
+
+-- Condition 1: whether what starts at `at` begins with a starter. Every character below U+0300 does,
+-- decomposed or not, and U+0300 is `CC 80`, so a unit below `CC` starts one of them - on JS as well,
+-- where the unit is the character.
+fn startsSegment(text: String, at: Size) -> Bool =
+    at >= length(text) || text.unit(at) < 0xCC || (normalizationEntryAt(Char(firstDecomposed(text, at))) `and` 0xFF) == 0
+
+-- Condition 2: whether a sequence in `record` continues with `point`.
+fn continuesContraction(record: Size, point: U32) -> Bool:
+    let count = truncate(collationContractions[record + 1]) :: Size
+    let &found = False
+    for k in 0 .. count:
+        if collationContractions[record + 3 + 3 * k] == point then found = True
+
+    return found
+
+{-
+   The next primary weight of the text, `walkEnd` after the last, or `walkUnsure`. One element or
+   character per turn of the loop, and the answer carried to its condition rather than returned from
+   inside it, which the JS backend needs when the IR optimizer is off (`compareLevel`).
+-}
+fn nextPrimary(self: UnicodeCollator, text: String, &walk: PrimaryWalk) -> U32:
+    let &answer = walkSearching
+
+    while answer == walkSearching:
+        if walk.implicit != 0:
+            answer = walk.implicit
+            walk.implicit = 0
+        else if walk.run < walk.runEnd:
+            let element = collationElements[walk.run]
+            walk.run += 1
+            if self.shifted && isVariable(element):
+                walk.afterVariable = True
+            else if primaryOf(element) != 0:
+                walk.afterVariable = False
+                answer = primaryOf(element)
+        else:
+            let &point = 0 :: U32
+            let &following = walkEnd
+            let &ready = True
+
+            if walk.pieces < walk.piecesEnd:
+                point = normalizationData[walk.pieces]
+                walk.pieces += 1
+                following = if walk.pieces < walk.piecesEnd then normalizationData[walk.pieces] else walkSearching
+            else if walk.at >= length(text):
+                answer = walkEnd
+                ready = False
+            else:
+                let {char, next} = charAt(text, walk.at)
+                if !startsSegment(text, next):
+                    answer = walkUnsure
+                    ready = False
+                else:
+                    walk.at = next
+                    point = char
+                    following = walkSearching
+                    if char >= 0xC0:
+                        let entry = normalizationEntryAt(Char(char))
+                        if (entry `and` 0xFF) != 0 || char is 0xAC00..=0xD7A3:
+                            answer = walkUnsure
+                            ready = False
+                        else if (entry `and` nfdNoBit) != 0:
+                            let offset = dataOffset(entry)
+                            walk.pieces = offset + 1
+                            walk.piecesEnd = offset + 1 + (truncate(normalizationData[offset] `and` 31) :: Size)
+                            ready = False
+
+            if ready:
+                let value = collationValueAt(Char(point))
+                let kind = (value `shr` 1) `and` 7
+                let payload = value `shr` 4
+
+                if (value `and` 1) == 0:
+                    if self.shifted && isVariable(value):
+                        walk.afterVariable = True
+                    else if primaryOf(value) != 0:
+                        walk.afterVariable = False
+                        answer = primaryOf(value)
+                else if kind == 0:
+                    let base = payload `shr` 3
+                    let range = truncate(payload `and` 7) :: Size
+                    walk.afterVariable = False
+                    if range == 0:
+                        answer = base + (point `shr` 15)
+                        walk.implicit = (point `and` 0x7FFF) `or` 0x8000
+                    else:
+                        answer = base
+                        walk.implicit = (point - collationSiniformStarts[range - 1]) `or` 0x8000
+                else if kind == 1:
+                    walk.run = runStart(payload)
+                    walk.runEnd = walk.run + runCount(payload)
+                else:
+                    -- The head of a contraction: taken alone when no sequence continues with the code
+                    -- point after it, which is the next piece or the start of the next character.
+                    let record = truncate(payload) :: Size
+                    let next = if following == walkSearching && walk.at < length(text) then firstDecomposed(text, walk.at) else following
+                    if next != walkEnd && next != walkSearching && continuesContraction(record, next):
+                        answer = walkUnsure
+                    else:
+                        let own = collationContractions[record]
+                        walk.run = runStart(own)
+                        walk.runEnd = walk.run + runCount(own)
+
+    return answer
+
+-- The order of the two texts' primary weights, or `EQ` when they are the same or the walk is unsure.
+fn comparePrimaries(self: UnicodeCollator, left: String, right: String) -> Ordering:
+    let &a = PrimaryWalk {}
+    let &b = PrimaryWalk {}
+    let &order = EQ
+    let &going = True
+
+    while going:
+        let x = nextPrimary(self, left, a)
+        let y = nextPrimary(self, right, b)
+        if x == walkUnsure || y == walkUnsure || x == y && x == walkEnd:
+            going = False
+        else if x != y:
+            order = if x < y then LT else GT
+            going = False
+
+    return order
+
 -- The order of the two texts under the collator's options, with code point order breaking a tie.
 pub fn UnicodeCollator.compare(self: UnicodeCollator, left: String, right: String) -> Ordering:
     if left == right then return EQ
+
+    if !self.numeric:
+        let quick = comparePrimaries(self, left, right)
+        if quick != EQ then return quick
 
     let a = textElements(self, left)
     let b = textElements(self, right)

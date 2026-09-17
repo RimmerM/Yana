@@ -10,12 +10,13 @@
    **Final sigma is the one context rule,** because it is not language-specific: `Σ` lowercases to
    `ς` at the end of a word and to `σ` elsewhere. Case folding does not care, and folds both to `σ`.
 
-   **ASCII costs no lookup.** A register of ASCII maps at once, by `toLowerAscii`'s select
-   (`Ascii.native.yana`); an ASCII unit in a register that is not all ASCII maps through the ASCII
-   tier's `toLowerUnit` or `toUpperUnit`; and a character that is not ASCII is one trie lookup and one
-   load (`CaseTables.yana`).
+   **What does not change is not written a unit at a time.** ASCII that has no letter to map, and
+   ideographs, are skipped a register at a time (`Ascii.native.yana`), and every other character whose
+   mapping is itself is one trie lookup and one load (`CaseTables.yana`); all of it is copied into the
+   result as one span when something after it changes. A letter that changes maps its ASCII run by
+   `toLowerAscii`'s select.
 
-   **Invalid text becomes U+FFFD.** These read characters with `decodeChar`, so each invalid sequence
+   **Invalid text becomes U+FFFD.** An invalid sequence is read by `decodeChar`, so each one
    is a replacement character in the result - the only text that changes without a mapping saying so.
    The ASCII tier's `toLowerAscii` is the one that keeps every unit as it was.
 -}
@@ -67,83 +68,141 @@ fn isFinalSigma(text: String, at: Size, next: Size) -> Bool =
     casedBefore(text, at) && !casedAfter(text, next)
 
 {-
-   The three walks: a register of ASCII through `pushCasedAscii`, the rest of an ASCII run through
-   the ASCII tier's own mapping in a loop of its own, and each other character through its column of
-   the table.
+   The three walks: an ASCII run that nothing in it changes is found a register at a time
+   (`asciiUnchangedEnd`) and left where it is, as is each other character whose mapping is itself;
+   what does change is written after the unchanged text before it, which goes out as one copy
+   (`pushSpan`). A letter that changes maps the ASCII run from it a register at a time
+   (`pushCasedAscii`), and each other character that changes is one trie lookup and one load.
 
-   **A register is tried again only `asciiBackOff` units after one that was not all ASCII.** Measured
-   on `test/bench/unicode` at v2, against the walk that mapped every ASCII unit on its own: all-ASCII
-   text is 16 times faster, and Latin, CJK and emoji text are within 3%, where trying at every ASCII
-   unit cost Latin and emoji 15-20%. 32 units back cost them 6%, and 96 is where it stopped mattering.
+   **Copying what does not change rather than writing every unit** is what text that is not ASCII
+   needed: measured on `test/bench/unicode` at v2, against the walk that wrote each unit and
+   re-encoded each character, Latin and emoji text lowercase 2.5 to 3 times faster and CJK 2.4
+   times, and all-ASCII text 1.4 times. Text in which most letters change - all capitals, or `upper`
+   of lowercase text - is 1.7 times faster over Latin, 2.2 over emoji and 2.8 over CJK, and 8% slower
+   when it is all ASCII, whose registers now test for a letter before mapping.
+
+   **A letter's ASCII run is mapped a register at a time wherever it ends,** not only while registers
+   are all ASCII. Taking the run's changed letters one `pushUnit` each after the first register that
+   was not all ASCII - the earlier walk's back-off - made capitals in Latin and emoji text 1.3 to 1.8
+   times slower than writing every unit had been.
 
    **Written out three times rather than once over a mapping argument,** because the shared walk
    tested the mapping per unit and measured 15% slower on Latin text, and inlining it to specialize
    the argument away was slower still.
 -}
-let asciiBackOff = 96 :: Size
-
 fn lowerFrom(&out: String, text: String, from: Size):
     let count = length(text)
     let &at = from
-    let &scalarUntil = from
+    let &copied = from
 
     while at < count:
         let unit = text.unit(at)
         if unit < 0x80:
-            if at >= scalarUntil:
-                at = pushCasedAscii(out, text, at, "A", "Z", 32)
-                scalarUntil = at + asciiBackOff
-
-            while at < count && at < scalarUntil && text.unit(at) < 0x80:
-                out.pushUnit(toLowerUnit(text.unit(at)))
-                at += 1
-        else:
-            let {char, next} = decodeChar(text, at)
-            if char == capitalSigma:
-                out.pushChar(if isFinalSigma(text, at, next) then Char(0x3C2) else Char(0x3C3))
+            if !(unit is "A"..="Z"):
+                at = asciiUnchangedEnd(text, at, "A", "Z")
             else:
-                pushMapped(out, char, caseLowerDeltas[caseIndexAt(char) :: Size])
-            at = next
+                pushSpan(out, text, copied, at)
+                at = pushCasedAscii(out, text, at, "A", "Z", 32)
+                while at < count && text.unit(at) < 0x80:
+                    out.pushUnit(toLowerUnit(text.unit(at)))
+                    at += 1
+                copied = at
+        else:
+            let han = if unit is 0xE4..=0xE9 then hanRunEnd(text, at, "A", "Z") else at
+            if han > at:
+                at = han
+            else:
+                let lead = unit :: U32
+                let size = sequenceSize(lead)
+                let value = if at + size > count then brokenSequence
+                            else if size == 2 then twoUnitValue(text, at, lead)
+                            else if size == 3 then threeUnitValue(text, at, lead) else fourUnitValue(text, at, lead)
+                let {char, next} = if value != brokenSequence then {Char(value), at + size} else decodeChar(text, at)
+                let delta = caseLowerDeltas[caseIndexAt(char) :: Size]
+                if delta != 0 || char == capitalSigma || char == replacementChar:
+                    pushSpan(out, text, copied, at)
+                    if char == capitalSigma:
+                        out.pushChar(if isFinalSigma(text, at, next) then Char(0x3C2) else Char(0x3C3))
+                    else:
+                        pushMapped(out, char, delta)
+                    copied = next
+                at = next
+
+    pushSpan(out, text, copied, count)
 
 fn upperFrom(&out: String, text: String, from: Size):
     let count = length(text)
     let &at = from
-    let &scalarUntil = from
+    let &copied = from
 
     while at < count:
         let unit = text.unit(at)
         if unit < 0x80:
-            if at >= scalarUntil:
+            if !(unit is "a"..="z"):
+                at = asciiUnchangedEnd(text, at, "a", "z")
+            else:
+                pushSpan(out, text, copied, at)
                 at = pushCasedAscii(out, text, at, "a", "z", -32)
-                scalarUntil = at + asciiBackOff
-
-            while at < count && at < scalarUntil && text.unit(at) < 0x80:
-                out.pushUnit(toUpperUnit(text.unit(at)))
-                at += 1
+                while at < count && text.unit(at) < 0x80:
+                    out.pushUnit(toUpperUnit(text.unit(at)))
+                    at += 1
+                copied = at
         else:
-            let {char, next} = decodeChar(text, at)
-            pushMapped(out, char, caseUpperDeltas[caseIndexAt(char) :: Size])
-            at = next
+            let han = if unit is 0xE4..=0xE9 then hanRunEnd(text, at, "a", "z") else at
+            if han > at:
+                at = han
+            else:
+                let lead = unit :: U32
+                let size = sequenceSize(lead)
+                let value = if at + size > count then brokenSequence
+                            else if size == 2 then twoUnitValue(text, at, lead)
+                            else if size == 3 then threeUnitValue(text, at, lead) else fourUnitValue(text, at, lead)
+                let {char, next} = if value != brokenSequence then {Char(value), at + size} else decodeChar(text, at)
+                let delta = caseUpperDeltas[caseIndexAt(char) :: Size]
+                if delta != 0 || char == replacementChar:
+                    pushSpan(out, text, copied, at)
+                    pushMapped(out, char, delta)
+                    copied = next
+                at = next
+
+    pushSpan(out, text, copied, count)
 
 fn foldFrom(&out: String, text: String, from: Size):
     let count = length(text)
     let &at = from
-    let &scalarUntil = from
+    let &copied = from
 
     while at < count:
         let unit = text.unit(at)
         if unit < 0x80:
-            if at >= scalarUntil:
+            if !(unit is "A"..="Z"):
+                at = asciiUnchangedEnd(text, at, "A", "Z")
+            else:
+                pushSpan(out, text, copied, at)
                 at = pushCasedAscii(out, text, at, "A", "Z", 32)
-                scalarUntil = at + asciiBackOff
-
-            while at < count && at < scalarUntil && text.unit(at) < 0x80:
-                out.pushUnit(toLowerUnit(text.unit(at)))
-                at += 1
+                while at < count && text.unit(at) < 0x80:
+                    out.pushUnit(toLowerUnit(text.unit(at)))
+                    at += 1
+                copied = at
         else:
-            let {char, next} = decodeChar(text, at)
-            pushMapped(out, char, caseFoldDeltas[caseIndexAt(char) :: Size])
-            at = next
+            let han = if unit is 0xE4..=0xE9 then hanRunEnd(text, at, "A", "Z") else at
+            if han > at:
+                at = han
+            else:
+                let lead = unit :: U32
+                let size = sequenceSize(lead)
+                let value = if at + size > count then brokenSequence
+                            else if size == 2 then twoUnitValue(text, at, lead)
+                            else if size == 3 then threeUnitValue(text, at, lead) else fourUnitValue(text, at, lead)
+                let {char, next} = if value != brokenSequence then {Char(value), at + size} else decodeChar(text, at)
+                let delta = caseFoldDeltas[caseIndexAt(char) :: Size]
+                if delta != 0 || char == replacementChar:
+                    pushSpan(out, text, copied, at)
+                    pushMapped(out, char, delta)
+                    copied = next
+                at = next
+
+    pushSpan(out, text, copied, count)
 
 pub fn toLowerUnicode(text: String) -> String:
     let &out = String.ofCapacity(length(text))

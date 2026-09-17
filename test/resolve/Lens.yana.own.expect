@@ -166,17 +166,6 @@ fn copyMemory {
 fn abortProcess {
 }
 
-fn resize(CodeUnit) {
-  arg self writable resizable
-  arg wanted readonly
-  %self: Run(CodeUnit) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
-}
-
-fn byteSpan(CodeUnit) {
-  arg from readonly
-  arg count readonly
-}
-
 fn compareMemory(CodeUnit) {
   arg left readonly
   arg right readonly
@@ -186,6 +175,17 @@ fn compareMemory(CodeUnit) {
   %local2: CodeUnit readonly live [146, 148)
   %local3: CodeUnit readonly live [182, 188)
   %local4: CodeUnit readonly live [186, 188)
+}
+
+fn resize(CodeUnit) {
+  arg self writable resizable
+  arg wanted readonly
+  %self: Run(CodeUnit) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
+}
+
+fn byteSpan(CodeUnit) {
+  arg from readonly
+  arg count readonly
 }
 
 fn releaseRun(CodeUnit) {

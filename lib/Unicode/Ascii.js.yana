@@ -12,4 +12,36 @@ fn asciiRunEnd(text: String, from: Size) -> Size:
 
     return at
 
+-- Below U+0300 a UTF-16 unit is a whole character, so the run is the units below it.
+fn nfcQuietRunEnd(text: String, from: Size) -> Size:
+    let count = length(text)
+    let &at = from
+    while at < count && text.unit(at) < 0x300:
+        at += 1
+
+    return at
+
+fn asciiUnchangedEnd(text: String, from: Size, first: I8, last: I8) -> Size:
+    let count = length(text)
+    let &at = from
+    while at < count && text.unit(at) < 0x80 && ((truncate(text.unit(at)) :: I8) < first || (truncate(text.unit(at)) :: I8) > last):
+        at += 1
+
+    return at
+
+-- Nothing to skip on JS, where the walks' own loop is what reads a unit: the run is empty.
+fn hanRunEnd(text: String, from: Size, first: I8, last: I8) -> Size = from
+
 fn pushCasedAscii(&out: String, text: String, from: Size, first: I8, last: I8, delta: I8) -> Size = from
+
+-- A walk's decode on JS, where a unit is UTF-16 and there is no sequence to read: every character goes
+-- to `decodeChar`, which is what `brokenSequence` tells the walk to do.
+let brokenSequence = 0xFFFFFFFF :: U32
+
+fn sequenceSize(lead: U32) -> Size = 1
+fn twoUnitValue(text: String, at: Size, lead: U32) -> U32 = brokenSequence
+fn threeUnitValue(text: String, at: Size, lead: U32) -> U32 = brokenSequence
+fn fourUnitValue(text: String, at: Size, lead: U32) -> U32 = brokenSequence
+
+fn pushSpan(&out: String, text: String, from: Size, to: Size):
+    if to > from then out.push(String.slice(text, from, to))

@@ -221,6 +221,16 @@ instance Monoid(String):
    is, with the first one vectorized. It answers the order of the first differing *unit*, so the
    native comparison agrees with `memcmp` because a unit is a byte here and not because bytes are
    what it compares.
+
+   **The first register is compared here, and only the rest in `compareMemory`.** Most orderings a
+   sort asks for are of words that differ in their first few bytes, and there the call into
+   `compareMemory`, its block-loop bounds and its general three-way `compare` were most of the cost:
+   `compareChars` per word pair in `test/bench/unicode` went from 3.9 ns to 1.4 at v2, 2.5 times ICU
+   to 0.9, and from 2.1 ns to 1.4 over CJK, whose words are longer than a register. The load reads
+   past the shorter text's end, which `compareMemory`'s tail already does on the same guarantee, and
+   the lanes past it are cut off by `limit` rather than by a branch on the length, which measured 60%
+   slower on this backend. The rest is a `@noinline` call so that this body saves no register for it.
+   `String.test.native.yana` checks every length and difference position around the register edge.
 -}
 @platform(native) instance Ord(String):
     fn compare(self: String, other: String) -> Ordering:
@@ -229,14 +239,21 @@ instance Monoid(String):
         let &shared = leftLength
         if rightLength < shared then shared = rightLength
 
-        let order = compareMemory(units(self), units(other), shared)
-        if order != EQ then return order
+        if shared > 0:
+            let same = bits(vectorPast(units(self)) .== (vectorPast(units(other)) :: Vec(CodeUnit)))
+            let differs = trailingZeros(not(same)) :: Size
+            let limit = if shared < vectorBytes then shared else vectorBytes
+            if differs < limit then return if *(units(self) + differs) < *(units(other) + differs) then LT else GT
 
-        -- Every shared unit agreed, so the shorter one is the smaller - which is what makes this
-        -- lexicographic rather than merely a prefix test.
-        if leftLength < rightLength then return LT
-        if leftLength > rightLength then return GT
-        return EQ
+            if shared > vectorBytes then return compareAfterRegister(self, other, shared)
+
+        return compare(leftLength, rightLength)
+
+-- `compare` past the first register, which every unit of agreed.
+@platform(native) @noinline
+fn compareAfterRegister(self: String, other: String, shared: Size) -> Ordering:
+    let order = compareMemory(units(self) + vectorBytes, units(other) + vectorBytes, shared - vectorBytes)
+    return if order != EQ then order else compare(length(self), length(other))
 
 @platform(js) instance Ord(String):
     fn compare(self: String, other: String) -> Ordering:

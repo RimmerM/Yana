@@ -6590,12 +6590,15 @@ let collationValueLeaves = [
 
 -- A `Char` above U+10FFFF is not a code point (the constructor does not check), and answers
 -- an unassigned code point's implicit weights rather than reading past the top level.
+-- Middle block 35 is most of the code space and holds 8249345 throughout, so it is answered without
+-- loading the two levels below it - `quiet_block` in tools/unicode/generate.py.
 @inline(always)
 fn collationValueAt(c: Char) -> U32:
     if c.0 > 0x10FFFF then return 8249345
 
     let at = c :: Size
     let top = collationValueTop[at `shr` 9] :: Size
+    if top == 35 then return 8249345
     let middle = (top `shl` 5) + ((at `shr` 4) `and` 31)
     let leaf = ((collationValueMiddle[middle] :: Size) `shl` 4) + (at `and` 15)
     return collationValueLeaves[leaf]

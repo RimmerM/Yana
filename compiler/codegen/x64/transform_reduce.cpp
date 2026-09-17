@@ -1093,7 +1093,81 @@ static void pushFusedRange(InstChain& dead, const LaneRange& range) {
     for(auto link: range.chain) dead.push(link);
 }
 
+/*
+ * `Native.bits` of a mask whose lanes are sixteen bits wide, which is the one width at which the
+ * movemask is not already the answer.
+ *
+ * `LowerReduce::Bits` as the IR states it puts lane `i` in bit `i` (lower_fold.cpp reads that bound
+ * off it), and every reduction this file expands reads the machine's movemask instead, which is a
+ * bit per *byte*. The two coincide at 8-bit lanes, and `movmskps`/`movmskpd` make them coincide at
+ * 32 and 64; at 16 there is no `movmskw`, so a `Bits` the source wrote went out as `pmovmskb` with
+ * two bits per lane - an eight-lane mask answered up to 0xFFFF, and `bits(m) & 15` tested two
+ * lanes. `Core/Encoding.native.yana`'s register step over UTF-16 units is what found it.
+ *
+ * So each one the source wrote is replaced, before the walk below places movemasks of its own, by
+ * the movemask with every other bit gathered down: `pext` where BMI2 is claimed, through
+ * `GatherBits`, and otherwise the halving network the pairs allow - both bits of a lane are equal,
+ * so or-ing each pair down and masking is exact, one round per doubling of the lane count.
+ * `packsswb` before the movemask would be one instruction at 128 bits, but it packs per 128-bit
+ * half of a `ymm` and would need the scalar repair anyway, so the two widths are one sequence here.
+ */
+static void narrowWordMaskBits(LowerBase base, LowerFunction& fun) {
+    auto haveBmi2 = (targetFeatures() & kFeatureBmi2) != 0;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); ) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::VecReduce) { i++; continue; }
+
+            auto reduce = (LowerInstVecReduce*)inst;
+            auto source = base[reduce->from];
+            if(reduce->getReduce() != LowerReduce::Bits || !source->type.isMask()
+               || maskBitsPerLane(source->type) != 2) {
+                i++;
+                continue;
+            }
+
+            auto scalar = LowerType::Int32;
+            auto width = maskBitCount(source->type);
+            auto even = width == 32 ? U64(0x55555555) : U64(0x5555);
+
+            Expansion e { base, fun, block, i };
+            auto raw = emitMaskBits(e, source);
+            LowerValue* narrowed;
+
+            if(haveBmi2) {
+                narrowed = e.binary(LowerInst::GatherBits, scalar, raw, e.integer(scalar, even));
+            } else {
+                narrowed = e.binary(LowerInst::And, scalar, raw, e.integer(scalar, even));
+                U64 shift = 1;
+                U64 keep[] = { 0x33333333, 0x0F0F0F0F, 0x00FF00FF, 0x0000FFFF };
+
+                for(Size round = 0; (U64(4) << round) <= width; round++) {
+                    auto shifted = e.binary(LowerInst::Shr, scalar, narrowed,
+                                            e.integer(scalar, shift));
+                    auto folded = e.binary(LowerInst::Or, scalar, narrowed, shifted);
+                    narrowed = e.binary(LowerInst::And, scalar, folded,
+                                        e.integer(scalar, keep[round] & ((U64(1) << width) - 1)));
+                    shift *= 2;
+                }
+            }
+
+            if(reduce->result.type != scalar) {
+                narrowed = e.convert(reduce->result.type, narrowed, false, false);
+            }
+
+            replaceAllUses(base, &reduce->result, narrowed);
+            removeInst(base, reduce);
+            i = e.at;
+        }
+    }
+}
+
 void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) {
+    narrowWordMaskBits(base, fun);
+
     // What this walk has settled, per mask - see SharedMaskBits, which the joined placement below
     // reads and writes as well.
     SharedMaskList shared;

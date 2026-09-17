@@ -4551,6 +4551,15 @@ anyway, because the day one of them can be reached is not the day to discover th
 build blocks were written to a different rule. `BranchCarry.yana` is the fixture, and it is about
 the reachable one.
 
+**A holding position is any place the walk produces a value before a sub-expression and uses it
+after**, which is not always an operand the author can see. `xs[i] = if c then a else b` resolves
+the index, then the value, then calls `getMut` with the index - the order that lets the right-hand
+side read `xs` before the write's loan starts - so the index is held across the value too.
+`resolveAssign` was missing that frame, and every growable subscript or field path through one with
+a branching value reported "call names result N, which belongs to block M" from `checkValueScope`.
+A fixed array's element never did, because a `Place::Index` names its index by node rather than as
+an operand. `SubscriptCarry.yana` is that fixture.
+
 Two things follow that are worth stating. **A branch's two edges take one argument list**, because a
 value live before a branch is live on both sides of it; what differs between the arms is what they
 *produce*, and that travels the other way. And **an owned value carried across a branch is handed

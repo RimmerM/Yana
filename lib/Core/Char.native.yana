@@ -456,24 +456,42 @@ fn leadUnit(value: U32) -> CodeUnit
   | _              -> truncate(0xF0 `or` (value `shr` 18))
 
 -- A continuation byte: the marker and the six bits of `value` that start at `shift`.
-fn pushContinuation(&text: String, value: U32, shift: U32):
-    String.pushUnit(text, truncate(0x80 `or` ((value `shr` shift) `and` 0x3F)) :: CodeUnit)
+fn continuationUnit(value: U32, shift: U32) -> CodeUnit = truncate(0x80 `or` ((value `shr` shift) `and` 0x3F))
 
--- A value that is not a scalar value is encoded as U+FFFD, which is what part 1 says encoding one does.
+{-
+   A value that is not a scalar value is encoded as U+FFFD, which is what part 1 says encoding one does.
+
+   **One reservation for the longest sequence, and the units stored past the count,** as
+   `pushCasedAscii` writes its registers. A `pushUnit` per unit was a call, a reserve and a bounds
+   check for each of them, and it was 13% of `test/bench/unicode`'s whole run - every case mapping,
+   normalization and transcode that writes a character ends here.
+-}
 pub fn String.pushChar(&text: String, c: Char):
     let value = scalarOrReplacement(c.0)
-    String.pushUnit(text, leadUnit(value))
+    let size = length(text)
+    String.reserve(text, 4)
+    checkCondition((text.units.run.capacity :: Size) < size + 4)
 
+    let at = text.units.run.items + size
+    store(at, leadUnit(value))
+
+    let &written = 1 :: Size
     match value:
         0..0x80 -> {}
-        0x80..0x800 -> pushContinuation(text, value, 0)
+        0x80..0x800:
+            store(at + 1, continuationUnit(value, 0))
+            written = 2
         0x800..0x10000:
-            pushContinuation(text, value, 6)
-            pushContinuation(text, value, 0)
+            store(at + 1, continuationUnit(value, 6))
+            store(at + 2, continuationUnit(value, 0))
+            written = 3
         _:
-            pushContinuation(text, value, 12)
-            pushContinuation(text, value, 6)
-            pushContinuation(text, value, 0)
+            store(at + 1, continuationUnit(value, 12))
+            store(at + 2, continuationUnit(value, 6))
+            store(at + 3, continuationUnit(value, 0))
+            written = 4
+
+    text.units.length = truncate(size + written) :: Count
 
 pub fn Char.encodedLength(c: Char) -> Size = match scalarOrReplacement(c.0):
     0..0x80        -> 1
