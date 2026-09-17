@@ -233,6 +233,116 @@ bool shuffleReadsOneSource(LowerInst* inst) {
     return true;
 }
 
+// Whether a shuffle stays inside each 128-bit half - see machine.h. Asked by the same two sides.
+bool shuffleStaysInLane(LowerInst* inst) {
+    auto shuffle = (LowerInstVecShuffle*)inst;
+    auto lanes = shuffle->result.type.lanes();
+    auto half = lanes / 2;
+    auto pattern = shuffle->pattern();
+
+    for(U32 k = 0; k < lanes; k++) {
+        if((pattern[k] % lanes) / half != k / half) return false;
+    }
+
+    return true;
+}
+
+// A value whose every reader is one instruction - which the middle of a lane-count conversion has
+// to be, since the half register is expanded away and nothing else could read it.
+static bool readOnlyBy(LowerBase base, LowerValue* value, LowerInst* reader) {
+    if(value->uses.size() == 0) return false;
+
+    for(auto user: value->uses.contents(base)) {
+        if(base[user] != reader) return false;
+    }
+
+    return true;
+}
+
+Maybe<LaneUnpack> laneUnpackAt(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::Cast) return {};
+
+    auto widen = (LowerInstCast*)inst;
+    auto wide = widen->result.type;
+    auto halfValue = base[widen->from];
+    auto half = halfValue->type;
+
+    if(!isIntVector(wide) || !isWholePackedRegister(wide) || !isIntVector(half)) return {};
+    if(half.lanes() != wide.lanes() || laneBytes(wide.lane) != 2 * laneBytes(half.lane)) return {};
+    if(halfValue->inst()->kind != LowerInst::VecShuffle || !readOnlyBy(base, halfValue, inst)) return {};
+
+    auto shuffle = (LowerInstVecShuffle*)halfValue->inst();
+    auto from = base[shuffle->left]->type;
+
+    if(!isIntVector(from) || from.lane != half.lane || from.lanes() != 2 * half.lanes()) return {};
+    if(base[shuffle->right]->type != from || from.byteWidth() != wide.byteWidth()) return {};
+
+    // One contiguous half of one source: the second source's lanes are numbered past the first's.
+    auto lanes = half.lanes();
+    auto pattern = shuffle->pattern();
+    auto second = pattern[0] >= 2 * lanes;
+    auto start = second ? pattern[0] - 2 * lanes : pattern[0];
+
+    if(start != 0 && start != lanes) return {};
+
+    for(U32 i = 0; i < lanes; i++) {
+        if(pattern[i] != pattern[0] + i) return {};
+    }
+
+    return Just(LaneUnpack { widen, shuffle, base[second ? shuffle->right : shuffle->left], start == lanes });
+}
+
+Maybe<LanePack> lanePackAt(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::VecShuffle) return {};
+
+    auto join = (LowerInstVecShuffle*)inst;
+    auto type = join->result.type;
+    if(!isIntVector(type) || !isWholePackedRegister(type)) return {};
+
+    auto lanes = type.lanes() / 2;
+    auto pattern = join->pattern();
+
+    for(U32 i = 0; i < type.lanes(); i++) {
+        if(pattern[i] != i) return {};
+    }
+
+    // Both halves a narrowing cast of a whole register, read by nothing but this shuffle.
+    auto narrowed = [&](LowerValue* value) -> LowerInstCast* {
+        auto half = value->type;
+        if(!isIntVector(half) || half.lane != type.lane || half.lanes() != lanes) return nullptr;
+        if(value->inst()->kind != LowerInst::Cast || !readOnlyBy(base, value, inst)) return nullptr;
+
+        auto cast = (LowerInstCast*)value->inst();
+        auto from = base[cast->from]->type;
+
+        if(!isIntVector(from) || from.lanes() != lanes || from.byteWidth() != type.byteWidth()) return nullptr;
+        if(laneBytes(from.lane) != 2 * laneBytes(type.lane)) return nullptr;
+
+        return cast;
+    };
+
+    auto left = narrowed(base[join->left]);
+    auto right = narrowed(base[join->right]);
+    if(!left || !right) return {};
+
+    return Just(LanePack { join, left, right });
+}
+
+bool isLaneCountConversionStep(LowerBase base, LowerInst* inst) {
+    if(laneUnpackAt(base, inst) || lanePackAt(base, inst)) return true;
+    if(inst->createdCount != 1) return false;
+
+    // The other half of each pair, found from its one reader.
+    auto& value = inst->created()[0];
+    if(value.uses.size() == 0) return false;
+
+    auto reader = base[value.uses.get(base, 0)];
+    if(inst->kind == LowerInst::VecShuffle) return (bool)laneUnpackAt(base, reader);
+    if(inst->kind == LowerInst::Cast) return (bool)lanePackAt(base, reader);
+
+    return false;
+}
+
 Maybe<PackedShuffleChoice> packedShuffleChoice(LowerInst* inst) {
     if(inst->kind != LowerInst::VecShuffle) return {};
 
@@ -335,9 +445,28 @@ static Maybe<PackedShuffleChoice> narrowShuffleChoice(LowerType type, Buffer<U8>
         if(window) return Just(PackedShuffleChoice { FormVAlign, U8(start * width), true });
     }
 
-    // An 8- or 16-bit lane has nothing else. `pshuflw` and `pshufhw` reach half a register each and
-    // `pshufb` is SSSE3 and takes its pattern from a *vector*, which needs the constant pool this
-    // tier has not opened to vectors yet.
+    /*
+     * An 8- or 16-bit lane has nothing else of its own - `pshuflw` and `pshufhw` reach half a register
+     * each, and `pshufb` takes its pattern from a vector (`lowerByteLaneShuffles`). But a pattern that
+     * moves its lanes in adjacent pairs, in order, moves whole lanes of twice the width, and is
+     * whatever that width's instruction is: `[0..7, 16..23]` over bytes is `punpcklqdq`. The
+     * instruction works on the register rather than on the lanes, so the reading is exact, and an
+     * integer lane is the only kind with a wider one to read as.
+     */
+    if(width == 1 || width == 2) {
+        if(type.isMask() || isFloatVector(type)) return {};
+
+        U8 pairs[kMaxVectorLanes / 2] = {};
+
+        for(U32 i = 0; i < lanes; i += 2) {
+            if(pattern[i] % 2 != 0 || pattern[i + 1] != pattern[i] + 1) return {};
+            pairs[i / 2] = U8(pattern[i] / 2);
+        }
+
+        auto wider = vectorType(width == 1 ? LowerLane::Int16 : LowerLane::Int32, lanes / 2);
+        return narrowShuffleChoice(wider, Buffer<U8>(pairs, lanes / 2), lanes / 2);
+    }
+
     if(width != 4 && width != 8) return {};
 
     // One source, in whichever operand holds it. A pattern naming only the second is a `pshufd` of
@@ -899,8 +1028,8 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              * at no other, rather than this row growing a second meaning for its indices.
              */
             if(laneBytes(type.lane) == 1) {
-                assertTrue(isWholePackedRegister(type) && !isWideVector(type));
-                return FormVByteShuffle;
+                assertTrue(isWholePackedRegister(type));
+                return widthForm(FormVByteShuffle, type);
             }
 
             assertTrue(isWideVector(type) && laneBytes(type.lane) == 4);
@@ -1306,6 +1435,10 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
     if(!packedType || !isVectorLike(packedType.unwrap())) return {};
     auto type = packedType.unwrap();
 
+    // A lane-count conversion, whose middle value is half a register and is never held - see
+    // `expandLaneCountConversions`, which rewrites the pair before anything below would read it.
+    if(isLaneCountConversionStep(base, inst)) return {};
+
     /*
      * A whole register, at one of the two widths this backend holds one at.
      *
@@ -1464,6 +1597,13 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
                      * not have it yet.
                      */
                     if(laneBytes(type.lane) == 4 && shuffleReadsOneSource(inst)) return {};
+
+                    // And a byte pattern of one source that stays inside each half, which is
+                    // `vpshufb` - `lowerByteLaneShuffles`, at this width as at the narrow one.
+                    if(laneBytes(type.lane) == 1 && !type.isMask() && shuffleReadsOneSource(inst) &&
+                       shuffleStaysInLane(inst)) {
+                        return {};
+                    }
 
                     return Just("no single instruction here expresses this lane pattern at 256 bits - every shuffle at this width works inside each 128-bit half, the only crossing is an exchange of whole halves, and the general permute reads one source where this pattern names two"_v);
                 }

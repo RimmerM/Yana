@@ -5356,6 +5356,28 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
         }
 
         /*
+         * An array literal at a fixed array whose count is the callee's own variable - `shuffle(v,
+         * [3, 2, 1, 0])` against `pattern: [Int *m]`.
+         *
+         * The hint above is null while `m` is open, and a literal with no hint is a growable array,
+         * which the parameter refuses. The count is the one part of the position the literal decides
+         * for itself, so the position is hinted with its own element and the written count, and
+         * `bind` reads `m` off what was built exactly as it does off an ascribed literal. An element
+         * that is open as well is left to an ascription: there is no type to build the elements at.
+         */
+        if(!expectedType && argument.value.kind == ast::Expr::Array) {
+            auto open = typeArguments.expected(declared);
+
+            if(decl()[open]->kind == Type::Array) {
+                auto& array = (ArrayType&)*decl()[open];
+                if(!array.hasFixedLength() && !mentionsContext(decl(), array.element, typeArguments.owner)) {
+                    auto count = U64(argument.value.arr.contents(parse).size());
+                    expectedType = program.types.arrayType(decl(), array.element, count);
+                }
+            }
+        }
+
+        /*
          * An **argument** keeps what an `iter fn` call answers - §2.1's third row.
          *
          * The token is this argument's own source, so `f(lex(s))` builds an object and hands it over

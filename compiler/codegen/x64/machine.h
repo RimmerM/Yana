@@ -1592,6 +1592,39 @@ Maybe<PackedShuffleChoice> packedShuffleChoice(LowerInst* inst);
 // `lowerWideLanePermutes`, and the refusal in `unsupportedVectorReason` that asks the same question.
 bool shuffleReadsOneSource(LowerInst* inst);
 
+// Whether every entry names a lane in the same 128-bit half of its source as the result lane it
+// fills, which is every shuffle the wide tier's in-lane instructions express.
+bool shuffleStaysInLane(LowerInst* inst);
+
+/*
+ * The two conversions that change a vector's lane count, as the resolve stages write them - see
+ * `expandLaneCountConversions` in transform_expand.cpp, which rewrites both.
+ *
+ * `unpackLow`/`unpackHigh` arrive as a shuffle taking half of one source's lanes and a `Cast`
+ * widening them, and `packLanes` as two `Cast`s narrowing and a shuffle placing the second after the
+ * first. The middle value of each is half a register, which is a vector this backend has no way to
+ * hold - so neither pair is refused as two instructions, and both are recognized here as one.
+ * Integer lanes only, and only where the source and the result fill the same register.
+ */
+struct LaneUnpack {
+    LowerInstCast* widen;
+    LowerInstVecShuffle* half;
+    LowerValue* source;
+    bool high;
+};
+
+struct LanePack {
+    LowerInstVecShuffle* join;
+    LowerInstCast* left;
+    LowerInstCast* right;
+};
+
+Maybe<LaneUnpack> laneUnpackAt(LowerBase base, LowerInst* widen);
+Maybe<LanePack> lanePackAt(LowerBase base, LowerInst* join);
+
+// Whether the instruction is either half of either shape, which is what the support check asks.
+bool isLaneCountConversionStep(LowerBase base, LowerInst* inst);
+
 /*
  * The relation a packed comparison is actually emitted at, which is not always the one it names.
  *

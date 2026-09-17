@@ -1,0 +1,332 @@
+import Native
+
+{-
+   ==========================================================================================
+   Fixed encodings, natively - Implementation-String.md part 7.
+   ==========================================================================================
+
+   `Encoding.yana` has the contracts. Here UTF-8 is the free direction - a string's units already are
+   UTF-8 bytes, so `fromUtf8`, `appendUtf8` and `String.bytes` copy or lend them - and UTF-16 is a
+   transcode each way.
+-}
+
+-- The string's units as bytes: a window over the string itself, rooted in it, with no copy.
+pub fn String.bytes(text: source'String) -> source'[U8] =
+    ArrayView {items: bitcast(units(text)) :: %U8, length: length(text)}
+
+-- The bytes as they are, invalid ones included (part 7.1): one allocation and a block copy.
+pub fn String.fromUtf8(bytes: [U8]) -> String:
+    let count = length(bytes)
+    let &out = String.ofCapacity(count)
+    String.appendUnits(out, bitcast(bytes.items) :: %CodeUnit, count)
+
+    return out
+
+pub fn String.appendUtf8(text: String, &to: Array(U8)):
+    let count = length(text)
+    if count <= 0 then return
+
+    let have = to.length :: Size
+    reserve(to, have + count)
+    checkCondition(capacity(to) < have + count)
+
+    copyMemory(to.run.items + have, bitcast(units(text)) :: %U8, count)
+    to.length = truncate(have + count) :: Count
+
+{-
+   ------------------------------------------------------------------------------------------
+   Validating UTF-8, a register at a time
+   ------------------------------------------------------------------------------------------
+
+   **Every rule of well-formed UTF-8 is a comparison of a byte with one of the three before it**, so
+   a block can be checked with no decoding and no lookup: each lane is compared against its own
+   byte and the bytes one, two and three positions earlier, which are the same memory loaded at
+   `i - 1`, `i - 2` and `i - 3`. A lane is in error when
+
+   - it is a continuation byte (`80`-`BF`) and no lead within reach wants one, or it is not one and
+     a lead does: a lead of two or more bytes one back, of three or more two back, or of four three
+     back. That one comparison is a sequence too short, too long, or a continuation with no lead.
+   - it is a byte that is never UTF-8: `C0`, `C1`, or `F5` and up.
+   - it follows one of the four leads whose second byte is narrower than a continuation: `E0` and
+     `F0` refuse overlong forms, `ED` refuses surrogates and `F4` refuses values past U+10FFFF.
+
+   That is the Unicode Standard's table 3-7 in full, which is also what `utf8SequenceEnd` walks.
+   The byte comparisons are signed, because that is the comparison the machine has: a byte read as
+   `I8` keeps ASCII non-negative and puts `80`-`BF` below -64, so "is a continuation" is one compare.
+   The three "is a lead of at least" tests are unsigned thresholds, and flipping the sign bit first
+   makes each of those one signed compare as well.
+
+   **An ASCII block with nothing pending costs one `or` of two compares.** Text that is mostly ASCII
+   spends almost all of its time there, and only a block holding - or following - a non-ASCII byte
+   pays for the thirteen operations of the full test.
+
+   The blocks start at offset 3, so that the three loads behind the first one are inside the array.
+   The walk before it is the scalar one, which settles every sequence that starts in the first three
+   bytes, and the scalar walk also takes the tail: it restarts at the last byte before the tail that
+   begins a sequence, so a sequence the last block cut off is checked whole.
+-}
+@inline fn signedBlock(bytes: [U8], at: Size) -> Vec(I8) = bitcast(loadVector(bytes, at)) :: Vec(I8)
+
+-- Whether a lane is in error, over the block at `at` and the three blocks behind it - the rules
+-- above, one line each.
+@inline fn utf8BlockErrors(bytes: [U8], at: Size) -> Mask(I8):
+    let block = signedBlock(bytes, at)
+    let sign = splat(-128 :: I8) :: Vec(I8)
+    let one = xor(signedBlock(bytes, at - 1), sign)
+    let two = xor(signedBlock(bytes, at - 2), sign)
+    let three = xor(signedBlock(bytes, at - 3), sign)
+
+    let continuation = block .< (splat(-64 :: I8) :: Vec(I8))
+    let wanted = or(or(one .> (splat(0x3F) :: Vec(I8)), two .> (splat(0x5F) :: Vec(I8))),
+                    three .> (splat(0x6F) :: Vec(I8)))
+
+    let flipped = xor(block, sign)
+    let never = or(and(flipped .> (splat(0x3F) :: Vec(I8)), flipped .< (splat(0x42) :: Vec(I8))),
+                   flipped .> (splat(0x74) :: Vec(I8)))
+
+    -- The second byte after `E0`, `ED`, `F0` and `F4`, as the lead's biased value against the
+    -- byte's signed one: `A0` is -96 and `90` is -112.
+    let low = or(and(one .== (splat(0x60) :: Vec(I8)), block .< (splat(-96 :: I8) :: Vec(I8))),
+                 and(one .== (splat(0x70) :: Vec(I8)), block .< (splat(-112 :: I8) :: Vec(I8))))
+    let high = or(and(one .== (splat(0x6D) :: Vec(I8)), block .> (splat(-97 :: I8) :: Vec(I8))),
+                  and(one .== (splat(0x74) :: Vec(I8)), block .> (splat(-113 :: I8) :: Vec(I8))))
+
+    return or(or(xor(continuation, wanted), never), or(low, high))
+
+-- The last offset before `at`, and at most three back, that is not a continuation byte - where a
+-- sequence covering `at` would have begun. `at` itself when there is none.
+fn sequenceStartBefore(bytes: [U8], at: Size) -> Size:
+    let &start = at
+    while start > 0 && start > at - 3:
+        start = start - 1
+        if !(bytes[start] is 0x80..=0xBF) then return start
+
+    return at
+
+pub fn isValidUtf8(bytes: [U8]) -> Bool:
+    let count = length(bytes)
+    let width = vectorBytes
+    let head = 3 :: Size
+    if count < head + width then return utf8ValidFrom(bytes, 0)
+
+    -- The sequences that start in the first three bytes, which have no three bytes behind them.
+    let &at = 0 :: Size
+    while at < head:
+        let end = utf8SequenceEnd(bytes, at)
+        if end == at then return False
+        at = end
+
+    let zero = zero() :: Vec(I8)
+    let last = count - width
+    let &i = head
+
+    while i <= last:
+        let nonAscii = or(signedBlock(bytes, i - 3) .< zero, signedBlock(bytes, i) .< zero)
+        if any(nonAscii) && any(utf8BlockErrors(bytes, i)) then return False
+        i = i + width
+
+    return utf8ValidFrom(bytes, sequenceStartBefore(bytes, i))
+
+pub fn isValidUtf16(units: [U16]) -> Bool = utf16ValidFrom(units, 0)
+
+{-
+   ------------------------------------------------------------------------------------------
+   The transcodes, a register at a time where the text is ASCII
+   ------------------------------------------------------------------------------------------
+
+   A register of ASCII bytes is as many UTF-16 units with a zero high byte, which is `unpackLow` and
+   `unpackHigh` of it; a register of ASCII units narrows to its low bytes, which is `packLanes`. Both
+   are at the natural width, so a 256-bit tier moves thirty-two bytes or sixteen units a step.
+
+   A register that is not all ASCII is converted whole anyway, and the loop keeps the ASCII run it
+   starts with - `firstSet` of the non-ASCII lanes - so a run shorter than a register still moves in
+   one step. Two branches rather than one `firstSet`, which would answer the lane count for an all-ASCII
+   register too: that would make the next position a value read out of this block, and every step
+   would wait for the one before it. Measured in `test/bench/utf8`: the single form was a sixth of the
+   speed over ASCII, and a register kept only when it was all ASCII was half the speed over Latin text
+   at 256 bits. Trying the next register only where the next byte is ASCII - so that CJK text skips a
+   register test per character - bought CJK 3-6% and cost ASCII up to a third, so it is not done.
+
+   Anything else is a character at a time: the well-formed fast path in `Char.native.yana` one way,
+   and a surrogate pair test the other. `String.appendUtf16Unchecked` trusts every lead byte instead,
+   which `test/bench/utf8` measured at 1.4 to 1.5 times the checked form over Latin and CJK text; a
+   surrogate pair test is one comparison either way, so `fromUtf16` has no such form.
+-}
+
+{-
+   A block's units narrowed to bytes and written at the end of `out`, which then keeps `run` of them.
+   The block is packed with itself, so the write is a register of bytes of which the first half is
+   the block - the room past that is reserved by `String.fromUtf16`.
+-}
+@inline fn narrowBlock(&out: String, block: Vec(U16), run: Size):
+    let have = length(out)
+    setVectorAt(bitcast(out.units.run.items + have) :: %U8, packLanes(block, block) :: Vec(U8))
+    out.units.length = truncate(have + run) :: Count
+
+-- A block's bytes widened to units and written at `target`, both halves of it.
+@inline fn widenBlock(target: %U16, block: Vec(U8)):
+    setVectorAt(target, unpackLow(block) :: Vec(U16))
+    setVectorAt(target + vectorBytes / 2, unpackHigh(block) :: Vec(U16))
+
+{-
+   UTF-16 to UTF-8. A lone surrogate is U+FFFD, which is what `String.pushChar` writes for a value that
+   is not a scalar value, so the unit is handed to it as it is.
+
+   Three bytes per unit is the most any unit takes (a pair is two units and four bytes), and a
+   block's write is a register of bytes, half a register past the units it keeps.
+-}
+pub fn String.fromUtf16(units: [U16]) -> String:
+    let count = length(units)
+    let lanes = vectorBytes / 2
+    let &out = String.ofCapacity(3 * count + lanes)
+    let high = splat(0xFF80) :: Vec(U16)
+    let zero = zero() :: Vec(U16)
+    let &at = 0 :: Size
+
+    while at < count:
+        if at + lanes <= count:
+            let block = loadVector(units, at)
+            let wide = and(block, high) .!= zero
+
+            if none(wide):
+                narrowBlock(out, block, lanes)
+                at = at + lanes
+                continue
+
+            let run = firstSet(wide) :: Size
+            if run > 0:
+                narrowBlock(out, block, run)
+                at = at + run
+                continue
+
+        let unit = units[at] :: U32
+        if unit < 0x80:
+            String.pushUnit(out, truncate(unit) :: CodeUnit)
+            at = at + 1
+        else if unit is 0xD800..=0xDBFF && at + 1 < count && units[at + 1] is 0xDC00..=0xDFFF:
+            String.pushChar(out, Char(0x10000 + ((unit - 0xD800) `shl` 10) + ((units[at + 1] :: U32) - 0xDC00)))
+            at = at + 2
+        else:
+            String.pushChar(out, Char(unit))
+            at = at + 1
+
+    return out
+
+-- UTF-8 to UTF-16, with an invalid sequence as the U+FFFD it decodes to. A byte is at most one unit,
+-- so the text's length is the reservation.
+pub fn String.appendUtf16(text: String, &to: Array(U16)):
+    let bytes = String.bytes(text)
+    let count = length(bytes)
+    let have = to.length :: Size
+    reserve(to, have + count)
+    checkCondition(capacity(to) < have + count)
+
+    let width = vectorBytes
+    let signedZero = zero() :: Vec(I8)
+    let &out = have
+    let &at = 0 :: Size
+
+    while at < count:
+        if at + width <= count:
+            let block = loadVector(bytes, at)
+            let high = (bitcast(block) :: Vec(I8)) .< signedZero
+
+            if none(high):
+                widenBlock(to.run.items + out, block)
+                out = out + width
+                at = at + width
+                continue
+
+            let run = firstSet(high) :: Size
+            if run > 0:
+                widenBlock(to.run.items + out, block)
+                out = out + run
+                at = at + run
+                continue
+
+        let lead = bytes[at] :: U32
+        if lead < 0x80:
+            store(to.run.items + out, truncate(lead) :: U16)
+            out = out + 1
+            at = at + 1
+        else:
+            let size = announcedLength(lead)
+            let &value = notWellFormed
+            let &next = at + size
+            if next <= count:
+                value = if size == 2 then wellFormedTwo(text, at, lead)
+                        else if size == 3 then wellFormedThree(text, at, lead) else wellFormedFour(text, at, lead)
+
+            if value == notWellFormed:
+                let {char, after} = decodeMaximalSubpart(text, at, lead)
+                value = char.0
+                next = after
+
+            if value < 0x10000:
+                store(to.run.items + out, truncate(value) :: U16)
+                out = out + 1
+            else:
+                let offset = value - 0x10000
+                store(to.run.items + out, truncate(0xD800 + (offset `shr` 10)) :: U16)
+                store(to.run.items + out + 1, truncate(0xDC00 + (offset `and` 0x3FF)) :: U16)
+                out = out + 2
+
+            at = next
+
+    to.length = truncate(out) :: Count
+
+-- The same loop trusting that every lead byte is followed by the continuations it announces - part
+-- 7.2's terms, `Char.yana` for the contract. What bounds it on text that is not valid is only that a
+-- sequence never reads past the end, and the reservation holds because a sequence of `n` bytes still
+-- writes at most two units.
+pub fn String.appendUtf16Unchecked(text: String, &to: Array(U16)):
+    let bytes = String.bytes(text)
+    let count = length(bytes)
+    let have = to.length :: Size
+    reserve(to, have + count)
+    checkCondition(capacity(to) < have + count)
+
+    let width = vectorBytes
+    let signedZero = zero() :: Vec(I8)
+    let &out = have
+    let &at = 0 :: Size
+
+    while at < count:
+        if at + width <= count:
+            let block = loadVector(bytes, at)
+            let high = (bitcast(block) :: Vec(I8)) .< signedZero
+
+            if none(high):
+                widenBlock(to.run.items + out, block)
+                out = out + width
+                at = at + width
+                continue
+
+            let run = firstSet(high) :: Size
+            if run > 0:
+                widenBlock(to.run.items + out, block)
+                out = out + run
+                at = at + run
+                continue
+
+        let lead = bytes[at] :: U32
+        if lead < 0x80:
+            store(to.run.items + out, truncate(lead) :: U16)
+            out = out + 1
+            at = at + 1
+        else:
+            let end = endUnchecked(at, count, lead)
+            let value = assembleUnchecked(text, at, end).0
+
+            if value < 0x10000:
+                store(to.run.items + out, truncate(value) :: U16)
+                out = out + 1
+            else:
+                let offset = value - 0x10000
+                store(to.run.items + out, truncate(0xD800 + (offset `shr` 10)) :: U16)
+                store(to.run.items + out + 1, truncate(0xDC00 + (offset `and` 0x3FF)) :: U16)
+                out = out + 2
+
+            at = end
+
+    to.length = truncate(out) :: Count

@@ -19,8 +19,13 @@ import Native
    `E0` takes `A0`-`BF` next, `ED` takes `80`-`9F`, `F0` takes `90`-`BF` and `F4` takes `80`-`8F`
    (`firstContinuation`).
 
-   Scalar and one unit at a time. Vectorizing the ASCII runs and the counting is build order step 5,
-   which measures each of these against its `Unchecked` candidate (part 7.2).
+   **Build order step 5 made the common case cheap and kept every answer.** A well-formed sequence
+   decodes inline and only a broken one reaches the maximal-subpart walk; the boundary functions find
+   the lead and read its range instead of decoding; `countChars` counts lead bytes a register at a
+   time over blocks the vector validator passes. `Char.test.native.yana` holds the stage-3 scalar
+   decoder as the reference and checks every one of these against it at every offset of generated
+   text, broken text included. The numbers, and the `Unchecked` forms they justified, are in
+   `test/bench/utf8/findings.md`.
 -}
 
 fn isContinuation(unit: CodeUnit) -> Bool = unit is 0x80..=0xBF
@@ -28,34 +33,57 @@ fn isContinuation(unit: CodeUnit) -> Bool = unit is 0x80..=0xBF
 -- The unit at `at`, read as a number the decode can compare against the ranges below.
 @inline fn unitNumber(text: String, at: Size) -> U32 = String.unit(text, at) :: U32
 
--- How many continuation bytes a lead byte takes, and the payload bits it carries itself. A byte that
--- cannot begin a sequence takes none - `C0`, `C1` and `F5` up are never UTF-8.
-fn leadBits(lead: U32) -> {Size, U32}
-  | 0xC2..=0xDF -> {1, lead `and` 0x1F}
-  | 0xE0..=0xEF -> {2, lead `and` 0x0F}
-  | 0xF0..=0xF4 -> {3, lead `and` 0x07}
-  | _           -> {0, 0}
+{-
+   The well-formed shapes, one test each - the fast path every decoding loop here inlines.
 
--- Whether `unit` may follow `lead` as its first continuation byte, which is the Unicode Standard's
--- table 3-7: four leads narrow the range, and every other lead takes any continuation byte.
-fn firstContinuation(lead: U32, unit: U32) -> Bool
-  | {0xE0, 0xA0..=0xBF} -> True
-  | {0xE0, _}           -> False
-  | {0xED, 0x80..=0x9F} -> True
-  | {0xED, _}           -> False
-  | {0xF0, 0x90..=0xBF} -> True
-  | {0xF0, _}           -> False
-  | {0xF4, 0x80..=0x8F} -> True
-  | {0xF4, _}           -> False
-  | {_, 0x80..=0xBF}    -> True
-  | _                   -> False
+   Each answers the value of the sequence at `at` when it is a well-formed sequence of its length,
+   and `notWellFormed` when it is not, and the caller has already checked that the units are there.
+   The continuation bytes are read with their marker flipped away, so "every one of them is a
+   continuation" is "their `or` is below 0x40"; what is left is the value range, read off the
+   assembled value rather than off the lead and the second byte - above the overlong range, and for
+   three bytes not a surrogate. A sequence that fails takes `decodeChar`'s maximal-subpart walk, so
+   these only have to be right about the sequences they accept.
 
-pub fn decodeChar(text: String, at: Size) -> {Char, Size}:
-    if !isUnitOffset(text, at) then return {replacementChar, at}
+   **Three small functions, dispatched on by each caller**, and the size is the reason. One
+   `@inline(always)` function answering the character and the offset after it - or one choosing
+   among these three - is past the size ceiling the optimizer keeps even for that attribute
+   (`worthInlining` in `compiler/opt/opt_inline.cpp`), so it stayed a call, and on CJK text the call
+   was a third of what a character cost. These three are each under it, and the choice among them is
+   the three lines each decoding loop below repeats.
+-}
+let notWellFormed = 0xFFFFFFFF :: U32
 
-    let lead = unitNumber(text, at)
-    if lead < 0x80 then return {Char(lead), at + 1}
+@inline(always) fn wellFormedTwo(text: String, at: Size, lead: U32) -> U32:
+    let b1 = unitNumber(text, at + 1) `xor` 0x80
+    return if b1 < 0x40 && lead >= 0xC2 then ((lead `and` 0x1F) `shl` 6) `or` b1 else notWellFormed
 
+@inline(always) fn wellFormedThree(text: String, at: Size, lead: U32) -> U32:
+    let b1 = unitNumber(text, at + 1) `xor` 0x80
+    let b2 = unitNumber(text, at + 2) `xor` 0x80
+    let value = ((lead `and` 0x0F) `shl` 12) `or` (b1 `shl` 6) `or` b2
+    let broken = ((b1 `or` b2) `shr` 6) `or` ((value - 0x800) `shr` 31)
+    return if broken == 0 && (value `shr` 11) != 0x1B then value else notWellFormed
+
+@inline(always) fn wellFormedFour(text: String, at: Size, lead: U32) -> U32:
+    let b1 = unitNumber(text, at + 1) `xor` 0x80
+    let b2 = unitNumber(text, at + 2) `xor` 0x80
+    let b3 = unitNumber(text, at + 3) `xor` 0x80
+    let value = ((lead `and` 0x07) `shl` 18) `or` (b1 `shl` 12) `or` (b2 `shl` 6) `or` b3
+    let fits = (b1 `or` b2 `or` b3) < 0x40 && lead < 0xF5
+    return if fits && value is 0x10000..=0x10FFFF then value else notWellFormed
+
+-- The sequence length a lead byte announces, which the well-formed test then confirms.
+@inline(always) fn announcedLength(lead: U32) -> Size
+  | _..0xE0 -> 2
+  | _..0xF0 -> 3
+  | _       -> 4
+
+{-
+   The decode of a sequence the fast path did not accept, by substitution of maximal subparts: what
+   the header describes, one unit at a time. `@noinline`, so that the loops the fast path is inlined
+   into do not carry it.
+-}
+@noinline fn decodeMaximalSubpart(text: String, at: Size, lead: U32) -> {Char, Size}:
     let {need, bits} = leadBits(lead)
     if need == 0 then return {replacementChar, at + 1}
 
@@ -78,54 +106,195 @@ pub fn decodeChar(text: String, at: Size) -> {Char, Size}:
 
     return {Char(value), end}
 
-{-
-   Where the decode that covers unit `at` begins: the nearest unit at or before it that is not a
-   continuation byte, looking back at most three units. A continuation byte with no lead within reach
-   is its own replacement, so it begins its own decode.
--}
-fn sequenceStart(text: String, at: Size) -> Size:
-    let &start = at
-    let &limit = at - 3
-    if limit < 0 then limit = 0
+pub fn decodeChar(text: String, at: Size) -> {Char, Size}:
+    if !isUnitOffset(text, at) then return {replacementChar, at}
 
+    let lead = unitNumber(text, at)
+    if lead < 0x80 then return {Char(lead), at + 1}
+
+    let size = announcedLength(lead)
+    let &value = notWellFormed
+    if at + size <= length(text):
+        value = if size == 2 then wellFormedTwo(text, at, lead)
+                else if size == 3 then wellFormedThree(text, at, lead) else wellFormedFour(text, at, lead)
+
+    if value != notWellFormed then return {Char(value), at + size}
+
+    return decodeMaximalSubpart(text, at, lead)
+
+-- Each character of the text in order, with U+FFFD for each invalid sequence. An ASCII unit is
+-- tested before anything else, and only a broken sequence is a call.
+pub iter fn chars(text: String) -> Char:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let lead = unitNumber(text, at)
+        if lead < 0x80:
+            yield Char(lead)
+            at = at + 1
+        else:
+            let size = announcedLength(lead)
+            let &value = notWellFormed
+            if at + size <= count:
+                value = if size == 2 then wellFormedTwo(text, at, lead)
+                        else if size == 3 then wellFormedThree(text, at, lead) else wellFormedFour(text, at, lead)
+
+            if value != notWellFormed:
+                yield Char(value)
+                at = at + size
+            else:
+                let {char, next} = decodeMaximalSubpart(text, at, lead)
+                yield char
+                at = next
+
+pub iter fn charOffsets(text: String) -> {Size, Char}:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let lead = unitNumber(text, at)
+        if lead < 0x80:
+            yield {at, Char(lead)}
+            at = at + 1
+        else:
+            let size = announcedLength(lead)
+            let &value = notWellFormed
+            if at + size <= count:
+                value = if size == 2 then wellFormedTwo(text, at, lead)
+                        else if size == 3 then wellFormedThree(text, at, lead) else wellFormedFour(text, at, lead)
+
+            if value != notWellFormed:
+                yield {at, Char(value)}
+                at = at + size
+            else:
+                let {char, next} = decodeMaximalSubpart(text, at, lead)
+                yield {at, char}
+                at = next
+
+{-
+   How many characters, a register at a time.
+
+   **Every byte that is not a continuation byte begins exactly one decode**, in valid text and in
+   invalid text alike - a decoder only ever consumes a continuation byte as part of what came before
+   it. So a count of the characters is a count of those bytes plus the continuation bytes that stand
+   alone as a U+FFFD. A block the validator's comparisons (`utf8BlockErrors` in
+   `Encoding.native.yana`) find nothing wrong in has no continuation byte standing alone, so its
+   count is one `pcmpgtb`, a movemask and a `popcnt`, and an ASCII block with nothing pending before it
+   is its width.
+
+   The first block that has something wrong ends the vector loop, and the rest is decoded: from the
+   last byte before that block that begins a sequence, whose decode was counted already and is taken
+   back off. The same restart takes the tail. The first three bytes are decoded before the loop, for
+   the reason `isValidUtf8` gives - the comparisons look three bytes back. They are validated as well
+   as counted, because a block's comparisons only see the rules whose *later* byte is in the block: a
+   `C1` just before the first block leaves the `8F` after it looking like its continuation.
+-}
+pub fn countChars(text: String) -> Size:
+    let bytes = String.bytes(text)
+    let size = length(bytes)
+    let width = vectorBytes
+    let head = 3 :: Size
+    if size < head + width then return countCharsFrom(text, 0)
+
+    -- The sequences that start in the first three bytes. The blocks trust that every byte before
+    -- them was checked, so these are validated rather than decoded, and text broken this early is
+    -- counted by decoding all of it.
+    let &total = 0 :: Size
+    let &at = 0 :: Size
+    while at < head:
+        let end = utf8SequenceEnd(bytes, at)
+        if end == at then return countCharsFrom(text, 0)
+        total = total + 1
+        at = end
+
+    let zero = zero() :: Vec(I8)
+    let leads = splat(-65 :: I8) :: Vec(I8)
+    let last = size - width
+    let &i = head
+
+    while i <= last:
+        let block = signedBlock(bytes, i)
+        if any(or(signedBlock(bytes, i - 3) .< zero, block .< zero)):
+            if any(utf8BlockErrors(bytes, i)) then break
+            total = total + (count(block .> leads) :: Size)
+        else:
+            total = total + width
+
+        i = i + width
+
+    let start = sequenceStartBefore(bytes, i)
+    if start < i then total = total - 1
+
+    return total + countCharsFrom(text, start)
+
+-- The characters from `from`, which has to be where a decode begins, to the end.
+fn countCharsFrom(text: String, from: Size) -> Size:
+    let count = length(text)
+    let &at = from
+    let &total = 0 :: Size
+
+    while at < count:
+        let lead = unitNumber(text, at)
+        total = total + 1
+
+        if lead < 0x80:
+            at = at + 1
+        else:
+            let {char, next} = decodeChar(text, at)
+            at = next
+
+    return total
+
+{-
+   ------------------------------------------------------------------------------------------
+   Boundaries, without decoding
+   ------------------------------------------------------------------------------------------
+
+   An offset holding a continuation byte is inside a character exactly when the nearest lead within
+   three bytes before it begins a well-formed prefix that reaches it: the lead takes at least that
+   many continuations, and its first one is in the lead's narrowed range. The bytes in between are
+   continuation bytes already, since that is how the lead was found. `sequenceReach` is the first
+   half of that, and it is all a boundary function reads - no value is assembled.
+
+   A prefix that stops short of a whole character still covers the offset: `E2 82` followed by a
+   letter is one U+FFFD over two bytes, and the offset between them is not a boundary.
+-}
+
+{-
+   How many continuation bytes a lead byte takes when `first` follows it, and zero when the pair
+   cannot begin a well-formed sequence at all.
+
+   The four narrowed second bytes of table 3-7 come first, as the pairs that are not sequences, so the
+   lead ranges after them can be whole. A failed second-byte test falls into the next arm's test of
+   the lead, which `threadImpliedBranches` (compiler/lower/lower_thread.h) moves past - without it
+   this form was 7-13% slower than a `match` on the lead in `test/bench/utf8`.
+-}
+@inline(always) fn sequenceReach(lead: U32, first: U32) -> Size
+  | {0xC2..=0xDF, _} -> 1
+  | {0xE0, _..0xA0}  -> 0
+  | {0xED, 0xA0.._}  -> 0
+  | {0xE0..=0xEF, _} -> 2
+  | {0xF0, _..0x90}  -> 0
+  | {0xF4, 0x90.._}  -> 0
+  | {0xF0..=0xF4, _} -> 3
+  | _                -> 0
+
+-- Where the lead of the character covering the continuation byte at `at` is, and how far that lead
+-- reaches - or `at` and zero when no lead within three bytes covers it. A continuation byte at the
+-- very start has nothing before it, and nothing after it to read either when it is the whole text.
+fn coveringLead(text: String, at: Size) -> {Size, Size}:
+    if at == 0 then return {at, 0}
+
+    let &start = at
+    let limit = if at >= 3 then at - 3 else 0
     while start > limit && isContinuation(String.unit(text, start)):
         start = start - 1
 
-    return if isContinuation(String.unit(text, start)) then at else start
+    let reach = sequenceReach(unitNumber(text, start), unitNumber(text, start + 1))
+    if at - start > reach then return {at, 0}
 
-{-
-   The decode that covers unit `at`, as its half-open extent. The lead `sequenceStart` finds may not
-   reach `at` - `C3 A9 80` decodes `é` and then a replacement for the last byte - and a unit a decode
-   did not reach is a replacement on its own.
--}
-fn sequenceAround(text: String, at: Size) -> {Size, Size}:
-    let start = sequenceStart(text, at)
-    let {char, end} = decodeChar(text, start)
-    if end > at then return {start, end}
-
-    return {at, at + 1}
-
-pub fn decodeCharBefore(text: String, at: Size) -> {Char, Size}:
-    if !isUnitOffset(text, at - 1) then return {replacementChar, at}
-
-    let last = unitNumber(text, at - 1)
-    if last < 0x80 then return {Char(last), at - 1}
-
-    -- The decode that covers the last unit ends exactly at `at` when it is a whole character, and
-    -- anywhere else leaves that unit as a replacement of its own.
-    let start = sequenceStart(text, at - 1)
-    let {char, end} = decodeChar(text, start)
-    if end != at then return {replacementChar, at - 1}
-
-    return {char, start}
-
-pub fn isCharBoundary(text: String, at: Size) -> Bool:
-    -- Past the last unit only the end itself is a boundary, and an empty text's end is also its start.
-    if !isUnitOffset(text, at) then return at == length(text)
-    if !isContinuation(String.unit(text, at)) then return True
-
-    let {start, end} = sequenceAround(text, at)
-    return start == at
+    return {start, reach}
 
 pub fn floorCharBoundary(text: String, at: Size) -> Size:
     let count = length(text)
@@ -133,17 +302,150 @@ pub fn floorCharBoundary(text: String, at: Size) -> Size:
     if at >= count then return count
     if !isContinuation(String.unit(text, at)) then return at
 
-    let {start, end} = sequenceAround(text, at)
+    let {start, reach} = coveringLead(text, at)
     return start
 
+-- The end of the decode covering `at`: the continuation bytes after it that the lead still reaches.
 pub fn ceilCharBoundary(text: String, at: Size) -> Size:
     let count = length(text)
     if at <= 0 then return 0
     if at >= count then return count
     if !isContinuation(String.unit(text, at)) then return at
 
-    let {start, end} = sequenceAround(text, at)
-    return if start == at then at else end
+    let {start, reach} = coveringLead(text, at)
+    if start == at then return at
+
+    let &end = at + 1
+    while end <= start + reach && end < count && isContinuation(String.unit(text, end)):
+        end = end + 1
+
+    return end
+
+pub fn isCharBoundary(text: String, at: Size) -> Bool = floorCharBoundary(text, at) == at
+
+{-
+   The character ending at `at`: the lead that covers the last byte, and a decode from it that has
+   to end exactly at `at` to be that character. Anything else leaves the last byte a replacement of
+   its own - or, where a well-formed prefix is cut off at `at`, one replacement back to the lead,
+   which is where a forward decode puts it.
+-}
+pub fn decodeCharBefore(text: String, at: Size) -> {Char, Size}:
+    if !isUnitOffset(text, at - 1) then return {replacementChar, at}
+
+    let last = unitNumber(text, at - 1)
+    if last < 0x80 then return {Char(last), at - 1}
+    if !(last is 0x80..=0xBF) then return {replacementChar, at - 1}
+
+    let {start, reach} = coveringLead(text, at - 1)
+    if start == at - 1 then return {replacementChar, at - 1}
+
+    let {char, end} = decodeChar(text, start)
+    return if end == at then {char, start} else {replacementChar, at - 1}
+
+{-
+   ------------------------------------------------------------------------------------------
+   The `Unchecked` forms - part 7.2, and `Char.yana` for the contract
+   ------------------------------------------------------------------------------------------
+
+   Each trusts that a lead byte's length is what follows it. What keeps them safe on text that is not
+   valid is only a bound: no read past `count`, no walk back past `0` or more than three bytes, and
+   every step of a loop moving at least one unit.
+-}
+
+-- The value of the sequence from `at` to `end`, with the lead's payload bits taken by the length.
+@inline(always) fn assembleUnchecked(text: String, at: Size, end: Size) -> Char:
+    let &value = unitNumber(text, at) `and` (0x7F `shr` (truncate(end - at) :: U32))
+    for i in (at + 1) .. end:
+        value = (value `shl` 6) `or` (unitNumber(text, i) `and` 0x3F)
+
+    return Char(value)
+
+-- The offset after the sequence a lead byte begins, by its length alone, and never past `count`.
+@inline(always) fn endUnchecked(at: Size, count: Size, lead: U32) -> Size:
+    let &end = at + 4
+    if lead < 0xE0 then end = at + 2 else if lead < 0xF0 then end = at + 3
+    return if end <= count then end else count
+
+pub iter fn charsUnchecked(text: String) -> Char:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let lead = unitNumber(text, at)
+        if lead < 0x80:
+            yield Char(lead)
+            at = at + 1
+        else:
+            let end = endUnchecked(at, count, lead)
+            yield assembleUnchecked(text, at, end)
+            at = end
+
+pub iter fn charOffsetsUnchecked(text: String) -> {Size, Char}:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let lead = unitNumber(text, at)
+        if lead < 0x80:
+            yield {at, Char(lead)}
+            at = at + 1
+        else:
+            let end = endUnchecked(at, count, lead)
+            yield {at, assembleUnchecked(text, at, end)}
+            at = end
+
+-- The bytes that are not continuation bytes, a register at a time - exact for valid text only.
+pub fn countCharsUnchecked(text: String) -> Size:
+    let bytes = String.bytes(text)
+    let size = length(bytes)
+    let width = vectorBytes
+    let last = size - width
+    let leads = splat(-65 :: I8) :: Vec(I8)
+    let &i = 0 :: Size
+    let &total = 0 :: Size
+
+    while i <= last:
+        total = total + (count(signedBlock(bytes, i) .> leads) :: Size)
+        i = i + width
+
+    while i < size:
+        if !(bytes[i] is 0x80..=0xBF) then total = total + 1
+        i = i + 1
+
+    return total
+
+pub fn floorCharBoundaryUnchecked(text: String, at: Size) -> Size:
+    let count = length(text)
+    if at <= 0 then return 0
+    if at >= count then return count
+
+    let &start = at
+    let limit = if at >= 3 then at - 3 else 0
+    while start > limit && isContinuation(String.unit(text, start)):
+        start = start - 1
+
+    return start
+
+pub fn ceilCharBoundaryUnchecked(text: String, at: Size) -> Size:
+    let count = length(text)
+    if at <= 0 then return 0
+    if at >= count then return count
+
+    let &end = at
+    let limit = if at + 3 < count then at + 3 else count
+    while end < limit && isContinuation(String.unit(text, end)):
+        end = end + 1
+
+    return end
+
+pub fn decodeCharBeforeUnchecked(text: String, at: Size) -> {Char, Size}:
+    if !isUnitOffset(text, at - 1) then return {replacementChar, at}
+
+    let last = unitNumber(text, at - 1)
+    if last < 0x80 then return {Char(last), at - 1}
+
+    let start = floorCharBoundaryUnchecked(text, at - 1)
+    return {assembleUnchecked(text, start, at), start}
 
 -- The first unit of a scalar value's encoding, which says how long the sequence is and carries the
 -- value's top bits.

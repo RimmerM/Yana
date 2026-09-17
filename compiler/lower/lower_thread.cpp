@@ -821,6 +821,299 @@ bool threadBlock(LowerBase base, LowerModule& module, LowerFunction& fun, LowerB
     return true;
 }
 
+/*
+ * The values of an integer a test admits, as one interval that may wrap: `start` and the `span`
+ * values above it, modulo the width. Every relation against a literal is one of these, and so is
+ * its negation - the complement of an interval that wraps is another one - which is what lets a
+ * fact and a test be compared by containment alone.
+ *
+ * `span` rather than a length, because the whole of a 64-bit range has a length that does not fit.
+ */
+struct Interval {
+    U64 start = 0;
+    U64 span = 0;
+};
+
+// The values the interval leaves out, or nothing where it admits every value.
+bool complementOf(Interval interval, U32 bits, Interval& into) {
+    auto mask = maskOf(bits);
+    if(interval.span == mask) return false;
+
+    into.start = (interval.start + interval.span + 1) & mask;
+    into.span = mask - interval.span - 1;
+    return true;
+}
+
+bool containsInterval(Interval outer, Interval inner, U32 bits) {
+    auto offset = (inner.start - outer.start) & maskOf(bits);
+    return offset <= outer.span && inner.span <= outer.span - offset;
+}
+
+// A comparison of one value against a literal, read as the interval its true arm admits.
+struct RangeTest {
+    LowerValue* subject = nullptr;
+    U32 bits = 0;
+    Interval holds;
+};
+
+/*
+ * The interval `subject op constant` admits, or nothing where it admits no value at all - `x <u 0`
+ * is a branch the fold owns, and an empty interval is not one this representation has.
+ *
+ * The signed relations are the unsigned ones on the value with its sign bit flipped, which moves
+ * the interval by half the range and nothing else.
+ */
+bool intervalOf(LowerCmp cmp, U64 constant, U32 bits, Interval& into) {
+    auto mask = maskOf(bits);
+    auto bias = U64(1) << (bits - 1);
+    auto flipped = (constant ^ bias) & mask;
+
+    switch(cmp) {
+        case LowerCmp::eq:
+            into = {constant, 0};
+            return true;
+        case LowerCmp::neq:
+            return complementOf({constant, 0}, bits, into);
+        case LowerCmp::lt:
+            if(constant == 0) return false;
+            into = {0, constant - 1};
+            return true;
+        case LowerCmp::le:
+            into = {0, constant};
+            return true;
+        case LowerCmp::gt:
+            if(constant == mask) return false;
+            into = {(constant + 1) & mask, mask - constant - 1};
+            return true;
+        case LowerCmp::ge:
+            into = {constant, mask - constant};
+            return true;
+        case LowerCmp::ilt:
+            if(flipped == 0) return false;
+            into = {bias, flipped - 1};
+            return true;
+        case LowerCmp::ile:
+            into = {bias, flipped};
+            return true;
+        case LowerCmp::igt:
+            if(flipped == mask) return false;
+            into = {(constant + 1) & mask, mask - flipped - 1};
+            return true;
+        case LowerCmp::ige:
+            into = {constant, mask - flipped};
+            return true;
+        default:
+            return false;
+    }
+}
+
+// The same relation with its operands exchanged: `5 < x` is `x > 5`.
+LowerCmp mirroredCmp(LowerCmp cmp) {
+    switch(cmp) {
+        case LowerCmp::gt:  return LowerCmp::lt;
+        case LowerCmp::ge:  return LowerCmp::le;
+        case LowerCmp::lt:  return LowerCmp::gt;
+        case LowerCmp::le:  return LowerCmp::ge;
+        case LowerCmp::igt: return LowerCmp::ilt;
+        case LowerCmp::ige: return LowerCmp::ile;
+        case LowerCmp::ilt: return LowerCmp::igt;
+        case LowerCmp::ile: return LowerCmp::ige;
+        default:            return cmp;
+    }
+}
+
+/*
+ * A branch condition read back as "this value lies in this interval".
+ *
+ * The comparison may be of the value moved by a literal first, which is what `foldRangeTest` makes of
+ * a range pattern - `sub %c, 48 ; cmp_le %v, 9` - and the move is taken off the interval rather than
+ * left on the subject, so a range test and an equality test of the same byte name the same value.
+ * The move is exact, since both the subtraction and the interval are modulo the width.
+ */
+bool readRangeTest(LowerBase base, LowerValue* cond, RangeTest& into) {
+    auto inst = cond->inst();
+    if(inst->kind != LowerInst::Cmp) return false;
+
+    auto compare = (LowerInstCmp*)inst;
+    auto lhs = base[compare->lhs];
+    auto rhs = base[compare->rhs];
+    auto cmp = compare->getCmp();
+
+    U64 left, right;
+    auto leftConstant = constantOf(base, lhs, left);
+    auto rightConstant = constantOf(base, rhs, right);
+    if(leftConstant == rightConstant) return false;
+
+    auto subject = rightConstant ? lhs : rhs;
+    auto constant = rightConstant ? right : left;
+    if(leftConstant) cmp = mirroredCmp(cmp);
+
+    if(!isInt(subject->type)) return false;
+
+    auto bits = widthOf(subject->type);
+    auto mask = maskOf(bits);
+    if(!intervalOf(cmp, constant, bits, into.holds)) return false;
+
+    auto moved = subject->inst();
+    if(moved->kind == LowerInst::Add || moved->kind == LowerInst::Sub) {
+        auto binary = (LowerInstBinary*)moved;
+        auto unmoved = base[binary->lhs];
+        U64 offset;
+
+        if(unmoved->type == subject->type && !constantOf(base, unmoved, offset) &&
+           constantOf(base, base[binary->rhs], offset)) {
+            // `x - k` in the interval is `x` in the interval moved up by `k`, and `x + k` down.
+            auto shift = moved->kind == LowerInst::Sub ? offset : (0 - offset);
+            into.holds.start = (into.holds.start + shift) & mask;
+            subject = unmoved;
+        }
+    }
+
+    into.subject = subject;
+    into.bits = bits;
+    return true;
+}
+
+/*
+ * What control arriving at `to` from `from` knows about `subject`, as an interval - the arm of
+ * `from`'s branch it took, where that branch tests the same value.
+ */
+bool edgeFact(LowerBase base, LowerBlock* from, LowerBlock* to, const RangeTest& test, Interval& into) {
+    auto terminator = base[from->terminator];
+    if(!terminator || terminator->kind != LowerInst::Je) return false;
+
+    auto je = (LowerInstJe*)terminator;
+    if(je->getEmbeddedCmp() || je->then == je->otherwise) return false;
+
+    RangeTest known;
+    if(!readRangeTest(base, base[je->cond], known)) return false;
+    if(known.subject != test.subject || known.bits != test.bits) return false;
+
+    if(base[je->then] == to) {
+        into = known.holds;
+        return true;
+    }
+
+    return complementOf(known.holds, known.bits, into);
+}
+
+/*
+ * Which arm `block`'s test takes when entered from `from`, found in the facts on the way there.
+ *
+ * The walk climbs from the edge into `block` through every block that has exactly one way in, and
+ * asks each edge it crosses. Everything on that walk runs in sequence every time the edge is taken,
+ * so a value tested anywhere on it holds the value tested here. The bound is the depth of a chain of
+ * `if`s worth reading, not a correctness limit.
+ */
+static constexpr Size kImpliedDepth = 8;
+
+bool impliedArm(LowerBase base, LowerBlock* block, LowerBlock* from, const RangeTest& test, bool& taken) {
+    auto to = block;
+
+    for(Size depth = 0; depth < kImpliedDepth; depth++) {
+        Interval known;
+
+        if(edgeFact(base, from, to, test, known)) {
+            if(containsInterval(test.holds, known, test.bits)) {
+                taken = true;
+                return true;
+            }
+
+            Interval fails;
+            if(complementOf(test.holds, test.bits, fails) && containsInterval(fails, known, test.bits)) {
+                taken = false;
+                return true;
+            }
+        }
+
+        if(from->incoming.size() != 1) return false;
+
+        to = from;
+        from = base[from->incoming.get(base, 0)];
+        if(from == block || from == to) return false;
+    }
+
+    return false;
+}
+
+/*
+ * Whether skipping the block skips nothing: no phis, and nothing but the test's own arithmetic, none
+ * of it read anywhere else. Answers the test.
+ */
+bool readSkippableTest(LowerBase base, LowerBlock* block, RangeTest& into) {
+    if(!block->phis.isEmpty()) return false;
+
+    auto terminator = base[block->terminator];
+    if(!terminator || terminator->kind != LowerInst::Je) return false;
+
+    auto je = (LowerInstJe*)terminator;
+    if(je->getEmbeddedCmp() || je->then == je->otherwise) return false;
+
+    auto cond = base[je->cond];
+    if(base[cond->inst()->block] != block) return false;
+
+    for(auto instPtr: block->instructions.contents(base)) {
+        auto inst = base[instPtr];
+        if(inst->kind != LowerInst::Imm && !isRepeatable(inst)) return false;
+        if(mayFault(inst)) return false;
+
+        auto results = inst->created();
+        for(Size i = 0; i < results.length; i++) {
+            for(auto userPtr: results.ptr[i].uses.contents(base)) {
+                if(base[base[userPtr]->block] != block) return false;
+            }
+        }
+    }
+
+    return readRangeTest(base, cond, into);
+}
+
+/*
+ * One edge moved past a test it has already answered. Answers whether one moved.
+ *
+ * A loop header is never skipped: an edge from outside past the header into the body would give the
+ * loop a second entry. Nor is an edge moved out of a predecessor whose terminator is not a plain
+ * branch or jump, since a `switch` may name the block on several cases and `redirectEdge` moves one.
+ */
+bool threadOneImplied(LowerBase base, LowerModule& module, LowerFunction& fun, LowerBlock* block,
+                      const DominatorTree& dominators)
+{
+    if(block->index == 0 || block->postIndex == kNullBlock) return false;
+
+    RangeTest test;
+    if(!readSkippableTest(base, block, test)) return false;
+
+    for(auto incoming: block->incoming.contents(base)) {
+        if(dominatesBlock(block, base[incoming], dominators)) return false;
+    }
+
+    auto then = block->successor(base, 0);
+    auto otherwise = block->successor(base, 1);
+
+    for(auto incoming: block->incoming.contents(base)) {
+        auto from = base[incoming];
+        auto kind = base[from->terminator]->kind;
+        if(kind != LowerInst::Je && kind != LowerInst::Jmp) continue;
+
+        bool taken;
+        if(!impliedArm(base, block, from, test, taken)) continue;
+
+        /*
+         * An arm with phis of its own is declined rather than given an alternative for the new edge.
+         * Both front ends put a block of its own on every edge into a join, so the arm a test leads
+         * to is that block or an arm with one way in, and a phi here is a shape neither produces -
+         * which is also why a rebuild for it could not be tested by any fixture.
+         */
+        auto to = taken ? then : otherwise;
+        if(to == block || !to->phis.isEmpty() || !canRedirect(base, from, block, to)) continue;
+
+        redirectEdge(base, module.arena, from, block, to);
+        return true;
+    }
+
+    return false;
+}
+
 } // namespace
 
 void threadDecidedBranches(LowerBase base, LowerModule& module, LowerFunction& fun) {
@@ -996,4 +1289,34 @@ bool mergeLinearBlocks(LowerBase base, LowerFunction& fun) {
     }
 
     return merged;
+}
+
+/*
+ * The edges a test on the way in already answered, moved past the test - see lower_thread.h.
+ *
+ * One edge a round with the dominator tree rebuilt between them, for the reason the threading loop
+ * above gives: the loop-header refusal is a dominance question, and a moved edge changes the answer.
+ */
+bool threadImpliedBranches(LowerBase base, LowerModule& module, LowerFunction& fun) {
+    auto changed = false;
+    auto limit = fun.blocks.size() * 4 + 16;
+
+    for(Size round = 0; round < limit; round++) {
+        auto dominators = fun.buildDominatorTree(base);
+        auto moved = false;
+
+        for(auto blockPtr: fun.blocks.contents(base)) {
+            if(!threadOneImplied(base, module, fun, base[blockPtr], dominators)) continue;
+
+            moved = true;
+            break;
+        }
+
+        if(!moved) break;
+
+        removeUnreachableBlocks(base, module.arena, fun);
+        changed = true;
+    }
+
+    return changed;
 }

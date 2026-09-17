@@ -31,56 +31,46 @@ nested<complex>(%n: I32): I32 {
 
   b_10 {
     %v_12 = cmp_igt %v_4, 2: I32
-    je %v_12, b_13, b_14
-  }
-
-  b_14 {
-    %v_15 = cmp_igt %v_4, 4: I32
-    je %v_15, b_16, b_5
+    je %v_12, b_13, b_5
   }
 
   b_13 {
     call_complex Held.drop, %n
-    %v_17 = cmp_igt %n, 4: I32
-    je %v_17, b_18, b_19
+    %v_14 = cmp_igt %n, 4: I32
+    je %v_14, b_15, b_16
   }
 
   b_11 {
-    %v_20 = phi [b_3, 1], [b_16, 0], [b_18, 0]: I32
-    %v_21 = phi [b_3, %v_7], [b_16, %v_7], [b_18, %v_22]: I32
-    je %v_20, b_23, b_24
+    %v_17 = phi [b_3, 1], [b_15, 0]: I32
+    %v_18 = phi [b_3, %v_7], [b_15, %v_19]: I32
+    je %v_17, b_20, b_21
   }
 
-  b_23 {
+  b_20 {
     call_complex Held.drop, %n
-    jmp b_24
+    jmp b_21
   }
 
-  b_24 {
-    ret %v_21
+  b_21 {
+    ret %v_18
   }
 
   b_5 {
-    %v_25 = imul %v_7, 10: I32
-    %v_8 = add %v_25, %v_4: I32
+    %v_22 = imul %v_7, 10: I32
+    %v_8 = add %v_22, %v_4: I32
     %v_6 = add %v_4, 1: I32
     jmp b_3
   }
 
+  b_15 {
+    %v_19 = phi [b_13, %v_7], [b_16, %v_23]: I32
+    jmp b_11
+  }
+
   b_16 {
-    call_complex Held.drop, %n
-    jmp b_11
-  }
-
-  b_18 {
-    %v_22 = phi [b_13, %v_7], [b_19, %v_26]: I32
-    jmp b_11
-  }
-
-  b_19 {
-    %v_27 = imul %v_7, 10: I32
-    %v_26 = add %v_27, %n: I32
-    jmp b_18
+    %v_24 = imul %v_7, 10: I32
+    %v_23 = add %v_24, %n: I32
+    jmp b_15
   }
 }
 

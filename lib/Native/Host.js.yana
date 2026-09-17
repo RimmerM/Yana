@@ -313,6 +313,24 @@
 @inline(always) pub fn hostFromCharCode(unit: CodeUnit) -> String
     = hostGlobal1("String.fromCharCode", unit)
 
+{-
+   `globalThis.valueOf()` - the global object itself, as a value (`Object.prototype.valueOf` answers
+   its receiver).
+
+   `hostGlobal0` writes a path as a callee, so it cannot name a constructor to hand on or an object to
+   call a method of. A `hostField` of this can: `hostField(hostGlobalObject(), "TextDecoder")` is the
+   constructor. The member stays a literal at that call, which is where a host name has to be.
+-}
+@inline(always) pub fn hostGlobalObject() -> %U8 = hostGlobal0("globalThis.valueOf")
+
+{-
+   `Reflect.construct(constructor, arguments)`, which is `new constructor(...arguments)` spelled as a
+   call - `Core/Encoding.js.yana`'s `TextEncoder` and `TextDecoder` are what it is for. `arguments`
+   is a host array.
+-}
+@inline(always) pub fn hostConstruct(constructor: %U8, arguments: %U8) -> %U8
+    = hostCall2(hostField(hostGlobalObject(), "Reflect") :: %U8, "construct", constructor, arguments)
+
 -- `console.log(text)` - the host's own output, which is what `print` is there. A call on a global
 -- rather than on a value, like `String.fromCharCode` above.
 @inline(always) pub fn hostLog(text: String) -> {} = hostGlobal1("console.log", text) :: {}

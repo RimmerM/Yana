@@ -1,0 +1,2048 @@
+@image$base = []
+
+widenU8<complex>(%v: i8x16): I32 {
+  b_0 {
+    %v_1 = vshuffle %v, %v, 0, 1, 2, 3, 4, 5, 6, 7: i8x8
+    %low = cast %v_1: i16x8
+    %v_2 = vshuffle %v, %v, 8, 9, 10, 11, 12, 13, 14, 15: i8x8
+    %high = cast %v_2: i16x8
+    %v_3 = vlane %low, 0: I32
+    %v_4 = vlane %v, 0: I32
+    %v_5 = cmp_neq %v_3, %v_4: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    ret 1000
+  }
+
+  b_7 {
+    %v_8 = vlane %high, 0: I32
+    %v_9 = vlane %v, 8: I32
+    %v_10 = cmp_neq %v_8, %v_9: I32
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    ret 1100
+  }
+
+  b_12 {
+    %v_13 = vlane %low, 1: I32
+    %v_14 = vlane %v, 1: I32
+    %v_15 = cmp_neq %v_13, %v_14: I32
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    ret 1001
+  }
+
+  b_17 {
+    %v_18 = vlane %high, 1: I32
+    %v_19 = vlane %v, 9: I32
+    %v_20 = cmp_neq %v_18, %v_19: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_21 {
+    ret 1101
+  }
+
+  b_22 {
+    %v_23 = vlane %low, 2: I32
+    %v_24 = vlane %v, 2: I32
+    %v_25 = cmp_neq %v_23, %v_24: I32
+    je %v_25, b_26, b_27
+  }
+
+  b_26 {
+    ret 1002
+  }
+
+  b_27 {
+    %v_28 = vlane %high, 2: I32
+    %v_29 = vlane %v, 10: I32
+    %v_30 = cmp_neq %v_28, %v_29: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
+    ret 1102
+  }
+
+  b_32 {
+    %v_33 = vlane %low, 3: I32
+    %v_34 = vlane %v, 3: I32
+    %v_35 = cmp_neq %v_33, %v_34: I32
+    je %v_35, b_36, b_37
+  }
+
+  b_36 {
+    ret 1003
+  }
+
+  b_37 {
+    %v_38 = vlane %high, 3: I32
+    %v_39 = vlane %v, 11: I32
+    %v_40 = cmp_neq %v_38, %v_39: I32
+    je %v_40, b_41, b_42
+  }
+
+  b_41 {
+    ret 1103
+  }
+
+  b_42 {
+    %v_43 = vlane %low, 4: I32
+    %v_44 = vlane %v, 4: I32
+    %v_45 = cmp_neq %v_43, %v_44: I32
+    je %v_45, b_46, b_47
+  }
+
+  b_46 {
+    ret 1004
+  }
+
+  b_47 {
+    %v_48 = vlane %high, 4: I32
+    %v_49 = vlane %v, 12: I32
+    %v_50 = cmp_neq %v_48, %v_49: I32
+    je %v_50, b_51, b_52
+  }
+
+  b_51 {
+    ret 1104
+  }
+
+  b_52 {
+    %v_53 = vlane %low, 5: I32
+    %v_54 = vlane %v, 5: I32
+    %v_55 = cmp_neq %v_53, %v_54: I32
+    je %v_55, b_56, b_57
+  }
+
+  b_56 {
+    ret 1005
+  }
+
+  b_57 {
+    %v_58 = vlane %high, 5: I32
+    %v_59 = vlane %v, 13: I32
+    %v_60 = cmp_neq %v_58, %v_59: I32
+    je %v_60, b_61, b_62
+  }
+
+  b_61 {
+    ret 1105
+  }
+
+  b_62 {
+    %v_63 = vlane %low, 6: I32
+    %v_64 = vlane %v, 6: I32
+    %v_65 = cmp_neq %v_63, %v_64: I32
+    je %v_65, b_66, b_67
+  }
+
+  b_66 {
+    ret 1006
+  }
+
+  b_67 {
+    %v_68 = vlane %high, 6: I32
+    %v_69 = vlane %v, 14: I32
+    %v_70 = cmp_neq %v_68, %v_69: I32
+    je %v_70, b_71, b_72
+  }
+
+  b_71 {
+    ret 1106
+  }
+
+  b_72 {
+    %v_73 = vlane %low, 7: I32
+    %v_74 = vlane %v, 7: I32
+    %v_75 = cmp_neq %v_73, %v_74: I32
+    je %v_75, b_76, b_77
+  }
+
+  b_76 {
+    ret 1007
+  }
+
+  b_77 {
+    %v_78 = vlane %high, 7: I32
+    %v_79 = vlane %v, 15: I32
+    %v_80 = cmp_neq %v_78, %v_79: I32
+    je %v_80, b_81, b_82
+  }
+
+  b_81 {
+    ret 1107
+  }
+
+  b_82 {
+    ret 0
+  }
+}
+
+narrowU8<complex>(%a: i16x8, %b: i16x8): I32 {
+  b_0 {
+    %v_1 = cast %a: i8x8
+    %v_2 = cast %b: i8x8
+    %packed = vshuffle %v_1, %v_2, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15: i8x16
+    %v_3 = vlane %packed, 0: I32
+    %v_4 = vlane %a, 0: I32
+    %v_5 = and %v_4, 255: I32
+    %v_6 = cmp_neq %v_3, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 1200
+  }
+
+  b_8 {
+    %v_9 = vlane %packed, 8: I32
+    %v_10 = vlane %b, 0: I32
+    %v_11 = and %v_10, 255: I32
+    %v_12 = cmp_neq %v_9, %v_11: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 1300
+  }
+
+  b_14 {
+    %v_15 = vlane %packed, 1: I32
+    %v_16 = vlane %a, 1: I32
+    %v_17 = and %v_16, 255: I32
+    %v_18 = cmp_neq %v_15, %v_17: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    ret 1201
+  }
+
+  b_20 {
+    %v_21 = vlane %packed, 9: I32
+    %v_22 = vlane %b, 1: I32
+    %v_23 = and %v_22, 255: I32
+    %v_24 = cmp_neq %v_21, %v_23: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    ret 1301
+  }
+
+  b_26 {
+    %v_27 = vlane %packed, 2: I32
+    %v_28 = vlane %a, 2: I32
+    %v_29 = and %v_28, 255: I32
+    %v_30 = cmp_neq %v_27, %v_29: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
+    ret 1202
+  }
+
+  b_32 {
+    %v_33 = vlane %packed, 10: I32
+    %v_34 = vlane %b, 2: I32
+    %v_35 = and %v_34, 255: I32
+    %v_36 = cmp_neq %v_33, %v_35: I32
+    je %v_36, b_37, b_38
+  }
+
+  b_37 {
+    ret 1302
+  }
+
+  b_38 {
+    %v_39 = vlane %packed, 3: I32
+    %v_40 = vlane %a, 3: I32
+    %v_41 = and %v_40, 255: I32
+    %v_42 = cmp_neq %v_39, %v_41: I32
+    je %v_42, b_43, b_44
+  }
+
+  b_43 {
+    ret 1203
+  }
+
+  b_44 {
+    %v_45 = vlane %packed, 11: I32
+    %v_46 = vlane %b, 3: I32
+    %v_47 = and %v_46, 255: I32
+    %v_48 = cmp_neq %v_45, %v_47: I32
+    je %v_48, b_49, b_50
+  }
+
+  b_49 {
+    ret 1303
+  }
+
+  b_50 {
+    %v_51 = vlane %packed, 4: I32
+    %v_52 = vlane %a, 4: I32
+    %v_53 = and %v_52, 255: I32
+    %v_54 = cmp_neq %v_51, %v_53: I32
+    je %v_54, b_55, b_56
+  }
+
+  b_55 {
+    ret 1204
+  }
+
+  b_56 {
+    %v_57 = vlane %packed, 12: I32
+    %v_58 = vlane %b, 4: I32
+    %v_59 = and %v_58, 255: I32
+    %v_60 = cmp_neq %v_57, %v_59: I32
+    je %v_60, b_61, b_62
+  }
+
+  b_61 {
+    ret 1304
+  }
+
+  b_62 {
+    %v_63 = vlane %packed, 5: I32
+    %v_64 = vlane %a, 5: I32
+    %v_65 = and %v_64, 255: I32
+    %v_66 = cmp_neq %v_63, %v_65: I32
+    je %v_66, b_67, b_68
+  }
+
+  b_67 {
+    ret 1205
+  }
+
+  b_68 {
+    %v_69 = vlane %packed, 13: I32
+    %v_70 = vlane %b, 5: I32
+    %v_71 = and %v_70, 255: I32
+    %v_72 = cmp_neq %v_69, %v_71: I32
+    je %v_72, b_73, b_74
+  }
+
+  b_73 {
+    ret 1305
+  }
+
+  b_74 {
+    %v_75 = vlane %packed, 6: I32
+    %v_76 = vlane %a, 6: I32
+    %v_77 = and %v_76, 255: I32
+    %v_78 = cmp_neq %v_75, %v_77: I32
+    je %v_78, b_79, b_80
+  }
+
+  b_79 {
+    ret 1206
+  }
+
+  b_80 {
+    %v_81 = vlane %packed, 14: I32
+    %v_82 = vlane %b, 6: I32
+    %v_83 = and %v_82, 255: I32
+    %v_84 = cmp_neq %v_81, %v_83: I32
+    je %v_84, b_85, b_86
+  }
+
+  b_85 {
+    ret 1306
+  }
+
+  b_86 {
+    %v_87 = vlane %packed, 7: I32
+    %v_88 = vlane %a, 7: I32
+    %v_89 = and %v_88, 255: I32
+    %v_90 = cmp_neq %v_87, %v_89: I32
+    je %v_90, b_91, b_92
+  }
+
+  b_91 {
+    ret 1207
+  }
+
+  b_92 {
+    %v_93 = vlane %packed, 15: I32
+    %v_94 = vlane %b, 7: I32
+    %v_95 = and %v_94, 255: I32
+    %v_96 = cmp_neq %v_93, %v_95: I32
+    je %v_96, b_97, b_98
+  }
+
+  b_97 {
+    ret 1307
+  }
+
+  b_98 {
+    ret 0
+  }
+}
+
+widenI8<complex>(%v: i8x16): I32 {
+  b_0 {
+    %v_1 = vshuffle %v, %v, 0, 1, 2, 3, 4, 5, 6, 7: i8x8
+    %low = cast %v_1: i16x8
+    %v_2 = vshuffle %v, %v, 8, 9, 10, 11, 12, 13, 14, 15: i8x8
+    %high = cast %v_2: i16x8
+    %v_3 = vlane %low, 0: I32
+    %v_4 = imm 16: I32
+    %v_5 = shl %v_3, %v_4: I32
+    %v_6 = sar %v_5, %v_4: I32
+    %v_7 = vlane %v, 0: I32
+    %v_8 = imm 24: I32
+    %v_9 = shl %v_7, %v_8: I32
+    %v_10 = sar %v_9, %v_8: I32
+    %v_11 = imm 16: I32
+    %v_12 = shl %v_10, %v_11: I32
+    %v_13 = sar %v_12, %v_11: I32
+    %v_14 = cmp_neq %v_6, %v_13: I32
+    %v_15 = imm 16: I32
+    %v_16 = imm 24: I32
+    %v_17 = imm 16: I32
+    %v_18 = imm 16: I32
+    %v_19 = imm 24: I32
+    %v_20 = imm 16: I32
+    %v_21 = imm 16: I32
+    %v_22 = imm 24: I32
+    %v_23 = imm 16: I32
+    %v_24 = imm 16: I32
+    %v_25 = imm 24: I32
+    %v_26 = imm 16: I32
+    %v_27 = imm 16: I32
+    %v_28 = imm 24: I32
+    %v_29 = imm 16: I32
+    %v_30 = imm 16: I32
+    %v_31 = imm 24: I32
+    %v_32 = imm 16: I32
+    %v_33 = imm 16: I32
+    %v_34 = imm 24: I32
+    %v_35 = imm 16: I32
+    %v_36 = imm 16: I32
+    %v_37 = imm 24: I32
+    %v_38 = imm 16: I32
+    %v_39 = imm 16: I32
+    %v_40 = imm 24: I32
+    %v_41 = imm 16: I32
+    %v_42 = imm 16: I32
+    %v_43 = imm 24: I32
+    %v_44 = imm 16: I32
+    %v_45 = imm 16: I32
+    %v_46 = imm 24: I32
+    %v_47 = imm 16: I32
+    %v_48 = imm 16: I32
+    %v_49 = imm 24: I32
+    %v_50 = imm 16: I32
+    %v_51 = imm 16: I32
+    %v_52 = imm 24: I32
+    %v_53 = imm 16: I32
+    %v_54 = imm 16: I32
+    %v_55 = imm 24: I32
+    %v_56 = imm 16: I32
+    %v_57 = imm 16: I32
+    %v_58 = imm 24: I32
+    %v_59 = imm 16: I32
+    je %v_14, b_60, b_61
+  }
+
+  b_60 {
+    ret 2000
+  }
+
+  b_61 {
+    %v_62 = vlane %high, 0: I32
+    %v_63 = shl %v_62, %v_15: I32
+    %v_64 = sar %v_63, %v_15: I32
+    %v_65 = vlane %v, 8: I32
+    %v_66 = shl %v_65, %v_16: I32
+    %v_67 = sar %v_66, %v_16: I32
+    %v_68 = shl %v_67, %v_17: I32
+    %v_69 = sar %v_68, %v_17: I32
+    %v_70 = cmp_neq %v_64, %v_69: I32
+    je %v_70, b_71, b_72
+  }
+
+  b_71 {
+    ret 2100
+  }
+
+  b_72 {
+    %v_73 = vlane %low, 1: I32
+    %v_74 = shl %v_73, %v_18: I32
+    %v_75 = sar %v_74, %v_18: I32
+    %v_76 = vlane %v, 1: I32
+    %v_77 = shl %v_76, %v_19: I32
+    %v_78 = sar %v_77, %v_19: I32
+    %v_79 = shl %v_78, %v_20: I32
+    %v_80 = sar %v_79, %v_20: I32
+    %v_81 = cmp_neq %v_75, %v_80: I32
+    je %v_81, b_82, b_83
+  }
+
+  b_82 {
+    ret 2001
+  }
+
+  b_83 {
+    %v_84 = vlane %high, 1: I32
+    %v_85 = shl %v_84, %v_21: I32
+    %v_86 = sar %v_85, %v_21: I32
+    %v_87 = vlane %v, 9: I32
+    %v_88 = shl %v_87, %v_22: I32
+    %v_89 = sar %v_88, %v_22: I32
+    %v_90 = shl %v_89, %v_23: I32
+    %v_91 = sar %v_90, %v_23: I32
+    %v_92 = cmp_neq %v_86, %v_91: I32
+    je %v_92, b_93, b_94
+  }
+
+  b_93 {
+    ret 2101
+  }
+
+  b_94 {
+    %v_95 = vlane %low, 2: I32
+    %v_96 = shl %v_95, %v_24: I32
+    %v_97 = sar %v_96, %v_24: I32
+    %v_98 = vlane %v, 2: I32
+    %v_99 = shl %v_98, %v_25: I32
+    %v_100 = sar %v_99, %v_25: I32
+    %v_101 = shl %v_100, %v_26: I32
+    %v_102 = sar %v_101, %v_26: I32
+    %v_103 = cmp_neq %v_97, %v_102: I32
+    je %v_103, b_104, b_105
+  }
+
+  b_104 {
+    ret 2002
+  }
+
+  b_105 {
+    %v_106 = vlane %high, 2: I32
+    %v_107 = shl %v_106, %v_27: I32
+    %v_108 = sar %v_107, %v_27: I32
+    %v_109 = vlane %v, 10: I32
+    %v_110 = shl %v_109, %v_28: I32
+    %v_111 = sar %v_110, %v_28: I32
+    %v_112 = shl %v_111, %v_29: I32
+    %v_113 = sar %v_112, %v_29: I32
+    %v_114 = cmp_neq %v_108, %v_113: I32
+    je %v_114, b_115, b_116
+  }
+
+  b_115 {
+    ret 2102
+  }
+
+  b_116 {
+    %v_117 = vlane %low, 3: I32
+    %v_118 = shl %v_117, %v_30: I32
+    %v_119 = sar %v_118, %v_30: I32
+    %v_120 = vlane %v, 3: I32
+    %v_121 = shl %v_120, %v_31: I32
+    %v_122 = sar %v_121, %v_31: I32
+    %v_123 = shl %v_122, %v_32: I32
+    %v_124 = sar %v_123, %v_32: I32
+    %v_125 = cmp_neq %v_119, %v_124: I32
+    je %v_125, b_126, b_127
+  }
+
+  b_126 {
+    ret 2003
+  }
+
+  b_127 {
+    %v_128 = vlane %high, 3: I32
+    %v_129 = shl %v_128, %v_33: I32
+    %v_130 = sar %v_129, %v_33: I32
+    %v_131 = vlane %v, 11: I32
+    %v_132 = shl %v_131, %v_34: I32
+    %v_133 = sar %v_132, %v_34: I32
+    %v_134 = shl %v_133, %v_35: I32
+    %v_135 = sar %v_134, %v_35: I32
+    %v_136 = cmp_neq %v_130, %v_135: I32
+    je %v_136, b_137, b_138
+  }
+
+  b_137 {
+    ret 2103
+  }
+
+  b_138 {
+    %v_139 = vlane %low, 4: I32
+    %v_140 = shl %v_139, %v_36: I32
+    %v_141 = sar %v_140, %v_36: I32
+    %v_142 = vlane %v, 4: I32
+    %v_143 = shl %v_142, %v_37: I32
+    %v_144 = sar %v_143, %v_37: I32
+    %v_145 = shl %v_144, %v_38: I32
+    %v_146 = sar %v_145, %v_38: I32
+    %v_147 = cmp_neq %v_141, %v_146: I32
+    je %v_147, b_148, b_149
+  }
+
+  b_148 {
+    ret 2004
+  }
+
+  b_149 {
+    %v_150 = vlane %high, 4: I32
+    %v_151 = shl %v_150, %v_39: I32
+    %v_152 = sar %v_151, %v_39: I32
+    %v_153 = vlane %v, 12: I32
+    %v_154 = shl %v_153, %v_40: I32
+    %v_155 = sar %v_154, %v_40: I32
+    %v_156 = shl %v_155, %v_41: I32
+    %v_157 = sar %v_156, %v_41: I32
+    %v_158 = cmp_neq %v_152, %v_157: I32
+    je %v_158, b_159, b_160
+  }
+
+  b_159 {
+    ret 2104
+  }
+
+  b_160 {
+    %v_161 = vlane %low, 5: I32
+    %v_162 = shl %v_161, %v_42: I32
+    %v_163 = sar %v_162, %v_42: I32
+    %v_164 = vlane %v, 5: I32
+    %v_165 = shl %v_164, %v_43: I32
+    %v_166 = sar %v_165, %v_43: I32
+    %v_167 = shl %v_166, %v_44: I32
+    %v_168 = sar %v_167, %v_44: I32
+    %v_169 = cmp_neq %v_163, %v_168: I32
+    je %v_169, b_170, b_171
+  }
+
+  b_170 {
+    ret 2005
+  }
+
+  b_171 {
+    %v_172 = vlane %high, 5: I32
+    %v_173 = shl %v_172, %v_45: I32
+    %v_174 = sar %v_173, %v_45: I32
+    %v_175 = vlane %v, 13: I32
+    %v_176 = shl %v_175, %v_46: I32
+    %v_177 = sar %v_176, %v_46: I32
+    %v_178 = shl %v_177, %v_47: I32
+    %v_179 = sar %v_178, %v_47: I32
+    %v_180 = cmp_neq %v_174, %v_179: I32
+    je %v_180, b_181, b_182
+  }
+
+  b_181 {
+    ret 2105
+  }
+
+  b_182 {
+    %v_183 = vlane %low, 6: I32
+    %v_184 = shl %v_183, %v_48: I32
+    %v_185 = sar %v_184, %v_48: I32
+    %v_186 = vlane %v, 6: I32
+    %v_187 = shl %v_186, %v_49: I32
+    %v_188 = sar %v_187, %v_49: I32
+    %v_189 = shl %v_188, %v_50: I32
+    %v_190 = sar %v_189, %v_50: I32
+    %v_191 = cmp_neq %v_185, %v_190: I32
+    je %v_191, b_192, b_193
+  }
+
+  b_192 {
+    ret 2006
+  }
+
+  b_193 {
+    %v_194 = vlane %high, 6: I32
+    %v_195 = shl %v_194, %v_51: I32
+    %v_196 = sar %v_195, %v_51: I32
+    %v_197 = vlane %v, 14: I32
+    %v_198 = shl %v_197, %v_52: I32
+    %v_199 = sar %v_198, %v_52: I32
+    %v_200 = shl %v_199, %v_53: I32
+    %v_201 = sar %v_200, %v_53: I32
+    %v_202 = cmp_neq %v_196, %v_201: I32
+    je %v_202, b_203, b_204
+  }
+
+  b_203 {
+    ret 2106
+  }
+
+  b_204 {
+    %v_205 = vlane %low, 7: I32
+    %v_206 = shl %v_205, %v_54: I32
+    %v_207 = sar %v_206, %v_54: I32
+    %v_208 = vlane %v, 7: I32
+    %v_209 = shl %v_208, %v_55: I32
+    %v_210 = sar %v_209, %v_55: I32
+    %v_211 = shl %v_210, %v_56: I32
+    %v_212 = sar %v_211, %v_56: I32
+    %v_213 = cmp_neq %v_207, %v_212: I32
+    je %v_213, b_214, b_215
+  }
+
+  b_214 {
+    ret 2007
+  }
+
+  b_215 {
+    %v_216 = vlane %high, 7: I32
+    %v_217 = shl %v_216, %v_57: I32
+    %v_218 = sar %v_217, %v_57: I32
+    %v_219 = vlane %v, 15: I32
+    %v_220 = shl %v_219, %v_58: I32
+    %v_221 = sar %v_220, %v_58: I32
+    %v_222 = shl %v_221, %v_59: I32
+    %v_223 = sar %v_222, %v_59: I32
+    %v_224 = cmp_neq %v_218, %v_223: I32
+    je %v_224, b_225, b_226
+  }
+
+  b_225 {
+    ret 2107
+  }
+
+  b_226 {
+    ret 0
+  }
+}
+
+narrowI8<complex>(%a: i16x8, %b: i16x8): I32 {
+  b_0 {
+    %v_1 = cast %a: i8x8
+    %v_2 = cast %b: i8x8
+    %packed = vshuffle %v_1, %v_2, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15: i8x16
+    %v_3 = vlane %packed, 0: I32
+    %v_4 = imm 24: I32
+    %v_5 = shl %v_3, %v_4: I32
+    %v_6 = sar %v_5, %v_4: I32
+    %v_7 = vlane %a, 0: I32
+    %v_8 = imm 16: I32
+    %v_9 = shl %v_7, %v_8: I32
+    %v_10 = sar %v_9, %v_8: I32
+    %v_11 = imm 24: I32
+    %v_12 = shl %v_10, %v_11: I32
+    %v_13 = sar %v_12, %v_11: I32
+    %v_14 = cmp_neq %v_6, %v_13: I32
+    %v_15 = imm 24: I32
+    %v_16 = imm 16: I32
+    %v_17 = imm 24: I32
+    %v_18 = imm 24: I32
+    %v_19 = imm 16: I32
+    %v_20 = imm 24: I32
+    %v_21 = imm 24: I32
+    %v_22 = imm 16: I32
+    %v_23 = imm 24: I32
+    %v_24 = imm 24: I32
+    %v_25 = imm 16: I32
+    %v_26 = imm 24: I32
+    %v_27 = imm 24: I32
+    %v_28 = imm 16: I32
+    %v_29 = imm 24: I32
+    %v_30 = imm 24: I32
+    %v_31 = imm 16: I32
+    %v_32 = imm 24: I32
+    %v_33 = imm 24: I32
+    %v_34 = imm 16: I32
+    %v_35 = imm 24: I32
+    %v_36 = imm 24: I32
+    %v_37 = imm 16: I32
+    %v_38 = imm 24: I32
+    %v_39 = imm 24: I32
+    %v_40 = imm 16: I32
+    %v_41 = imm 24: I32
+    %v_42 = imm 24: I32
+    %v_43 = imm 16: I32
+    %v_44 = imm 24: I32
+    %v_45 = imm 24: I32
+    %v_46 = imm 16: I32
+    %v_47 = imm 24: I32
+    %v_48 = imm 24: I32
+    %v_49 = imm 16: I32
+    %v_50 = imm 24: I32
+    %v_51 = imm 24: I32
+    %v_52 = imm 16: I32
+    %v_53 = imm 24: I32
+    %v_54 = imm 24: I32
+    %v_55 = imm 16: I32
+    %v_56 = imm 24: I32
+    %v_57 = imm 24: I32
+    %v_58 = imm 16: I32
+    %v_59 = imm 24: I32
+    je %v_14, b_60, b_61
+  }
+
+  b_60 {
+    ret 2200
+  }
+
+  b_61 {
+    %v_62 = vlane %packed, 8: I32
+    %v_63 = shl %v_62, %v_15: I32
+    %v_64 = sar %v_63, %v_15: I32
+    %v_65 = vlane %b, 0: I32
+    %v_66 = shl %v_65, %v_16: I32
+    %v_67 = sar %v_66, %v_16: I32
+    %v_68 = shl %v_67, %v_17: I32
+    %v_69 = sar %v_68, %v_17: I32
+    %v_70 = cmp_neq %v_64, %v_69: I32
+    je %v_70, b_71, b_72
+  }
+
+  b_71 {
+    ret 2300
+  }
+
+  b_72 {
+    %v_73 = vlane %packed, 1: I32
+    %v_74 = shl %v_73, %v_18: I32
+    %v_75 = sar %v_74, %v_18: I32
+    %v_76 = vlane %a, 1: I32
+    %v_77 = shl %v_76, %v_19: I32
+    %v_78 = sar %v_77, %v_19: I32
+    %v_79 = shl %v_78, %v_20: I32
+    %v_80 = sar %v_79, %v_20: I32
+    %v_81 = cmp_neq %v_75, %v_80: I32
+    je %v_81, b_82, b_83
+  }
+
+  b_82 {
+    ret 2201
+  }
+
+  b_83 {
+    %v_84 = vlane %packed, 9: I32
+    %v_85 = shl %v_84, %v_21: I32
+    %v_86 = sar %v_85, %v_21: I32
+    %v_87 = vlane %b, 1: I32
+    %v_88 = shl %v_87, %v_22: I32
+    %v_89 = sar %v_88, %v_22: I32
+    %v_90 = shl %v_89, %v_23: I32
+    %v_91 = sar %v_90, %v_23: I32
+    %v_92 = cmp_neq %v_86, %v_91: I32
+    je %v_92, b_93, b_94
+  }
+
+  b_93 {
+    ret 2301
+  }
+
+  b_94 {
+    %v_95 = vlane %packed, 2: I32
+    %v_96 = shl %v_95, %v_24: I32
+    %v_97 = sar %v_96, %v_24: I32
+    %v_98 = vlane %a, 2: I32
+    %v_99 = shl %v_98, %v_25: I32
+    %v_100 = sar %v_99, %v_25: I32
+    %v_101 = shl %v_100, %v_26: I32
+    %v_102 = sar %v_101, %v_26: I32
+    %v_103 = cmp_neq %v_97, %v_102: I32
+    je %v_103, b_104, b_105
+  }
+
+  b_104 {
+    ret 2202
+  }
+
+  b_105 {
+    %v_106 = vlane %packed, 10: I32
+    %v_107 = shl %v_106, %v_27: I32
+    %v_108 = sar %v_107, %v_27: I32
+    %v_109 = vlane %b, 2: I32
+    %v_110 = shl %v_109, %v_28: I32
+    %v_111 = sar %v_110, %v_28: I32
+    %v_112 = shl %v_111, %v_29: I32
+    %v_113 = sar %v_112, %v_29: I32
+    %v_114 = cmp_neq %v_108, %v_113: I32
+    je %v_114, b_115, b_116
+  }
+
+  b_115 {
+    ret 2302
+  }
+
+  b_116 {
+    %v_117 = vlane %packed, 3: I32
+    %v_118 = shl %v_117, %v_30: I32
+    %v_119 = sar %v_118, %v_30: I32
+    %v_120 = vlane %a, 3: I32
+    %v_121 = shl %v_120, %v_31: I32
+    %v_122 = sar %v_121, %v_31: I32
+    %v_123 = shl %v_122, %v_32: I32
+    %v_124 = sar %v_123, %v_32: I32
+    %v_125 = cmp_neq %v_119, %v_124: I32
+    je %v_125, b_126, b_127
+  }
+
+  b_126 {
+    ret 2203
+  }
+
+  b_127 {
+    %v_128 = vlane %packed, 11: I32
+    %v_129 = shl %v_128, %v_33: I32
+    %v_130 = sar %v_129, %v_33: I32
+    %v_131 = vlane %b, 3: I32
+    %v_132 = shl %v_131, %v_34: I32
+    %v_133 = sar %v_132, %v_34: I32
+    %v_134 = shl %v_133, %v_35: I32
+    %v_135 = sar %v_134, %v_35: I32
+    %v_136 = cmp_neq %v_130, %v_135: I32
+    je %v_136, b_137, b_138
+  }
+
+  b_137 {
+    ret 2303
+  }
+
+  b_138 {
+    %v_139 = vlane %packed, 4: I32
+    %v_140 = shl %v_139, %v_36: I32
+    %v_141 = sar %v_140, %v_36: I32
+    %v_142 = vlane %a, 4: I32
+    %v_143 = shl %v_142, %v_37: I32
+    %v_144 = sar %v_143, %v_37: I32
+    %v_145 = shl %v_144, %v_38: I32
+    %v_146 = sar %v_145, %v_38: I32
+    %v_147 = cmp_neq %v_141, %v_146: I32
+    je %v_147, b_148, b_149
+  }
+
+  b_148 {
+    ret 2204
+  }
+
+  b_149 {
+    %v_150 = vlane %packed, 12: I32
+    %v_151 = shl %v_150, %v_39: I32
+    %v_152 = sar %v_151, %v_39: I32
+    %v_153 = vlane %b, 4: I32
+    %v_154 = shl %v_153, %v_40: I32
+    %v_155 = sar %v_154, %v_40: I32
+    %v_156 = shl %v_155, %v_41: I32
+    %v_157 = sar %v_156, %v_41: I32
+    %v_158 = cmp_neq %v_152, %v_157: I32
+    je %v_158, b_159, b_160
+  }
+
+  b_159 {
+    ret 2304
+  }
+
+  b_160 {
+    %v_161 = vlane %packed, 5: I32
+    %v_162 = shl %v_161, %v_42: I32
+    %v_163 = sar %v_162, %v_42: I32
+    %v_164 = vlane %a, 5: I32
+    %v_165 = shl %v_164, %v_43: I32
+    %v_166 = sar %v_165, %v_43: I32
+    %v_167 = shl %v_166, %v_44: I32
+    %v_168 = sar %v_167, %v_44: I32
+    %v_169 = cmp_neq %v_163, %v_168: I32
+    je %v_169, b_170, b_171
+  }
+
+  b_170 {
+    ret 2205
+  }
+
+  b_171 {
+    %v_172 = vlane %packed, 13: I32
+    %v_173 = shl %v_172, %v_45: I32
+    %v_174 = sar %v_173, %v_45: I32
+    %v_175 = vlane %b, 5: I32
+    %v_176 = shl %v_175, %v_46: I32
+    %v_177 = sar %v_176, %v_46: I32
+    %v_178 = shl %v_177, %v_47: I32
+    %v_179 = sar %v_178, %v_47: I32
+    %v_180 = cmp_neq %v_174, %v_179: I32
+    je %v_180, b_181, b_182
+  }
+
+  b_181 {
+    ret 2305
+  }
+
+  b_182 {
+    %v_183 = vlane %packed, 6: I32
+    %v_184 = shl %v_183, %v_48: I32
+    %v_185 = sar %v_184, %v_48: I32
+    %v_186 = vlane %a, 6: I32
+    %v_187 = shl %v_186, %v_49: I32
+    %v_188 = sar %v_187, %v_49: I32
+    %v_189 = shl %v_188, %v_50: I32
+    %v_190 = sar %v_189, %v_50: I32
+    %v_191 = cmp_neq %v_185, %v_190: I32
+    je %v_191, b_192, b_193
+  }
+
+  b_192 {
+    ret 2206
+  }
+
+  b_193 {
+    %v_194 = vlane %packed, 14: I32
+    %v_195 = shl %v_194, %v_51: I32
+    %v_196 = sar %v_195, %v_51: I32
+    %v_197 = vlane %b, 6: I32
+    %v_198 = shl %v_197, %v_52: I32
+    %v_199 = sar %v_198, %v_52: I32
+    %v_200 = shl %v_199, %v_53: I32
+    %v_201 = sar %v_200, %v_53: I32
+    %v_202 = cmp_neq %v_196, %v_201: I32
+    je %v_202, b_203, b_204
+  }
+
+  b_203 {
+    ret 2306
+  }
+
+  b_204 {
+    %v_205 = vlane %packed, 7: I32
+    %v_206 = shl %v_205, %v_54: I32
+    %v_207 = sar %v_206, %v_54: I32
+    %v_208 = vlane %a, 7: I32
+    %v_209 = shl %v_208, %v_55: I32
+    %v_210 = sar %v_209, %v_55: I32
+    %v_211 = shl %v_210, %v_56: I32
+    %v_212 = sar %v_211, %v_56: I32
+    %v_213 = cmp_neq %v_207, %v_212: I32
+    je %v_213, b_214, b_215
+  }
+
+  b_214 {
+    ret 2207
+  }
+
+  b_215 {
+    %v_216 = vlane %packed, 15: I32
+    %v_217 = shl %v_216, %v_57: I32
+    %v_218 = sar %v_217, %v_57: I32
+    %v_219 = vlane %b, 7: I32
+    %v_220 = shl %v_219, %v_58: I32
+    %v_221 = sar %v_220, %v_58: I32
+    %v_222 = shl %v_221, %v_59: I32
+    %v_223 = sar %v_222, %v_59: I32
+    %v_224 = cmp_neq %v_218, %v_223: I32
+    je %v_224, b_225, b_226
+  }
+
+  b_225 {
+    ret 2307
+  }
+
+  b_226 {
+    ret 0
+  }
+}
+
+widenU16<complex>(%v: i16x8): I32 {
+  b_0 {
+    %v_1 = vshuffle %v, %v, 0, 1, 2, 3: i16x4
+    %low = cast %v_1: i32x4
+    %v_2 = vshuffle %v, %v, 4, 5, 6, 7: i16x4
+    %high = cast %v_2: i32x4
+    %v_3 = vlane %low, 0: I32
+    %v_4 = vlane %v, 0: I32
+    %v_5 = cmp_neq %v_3, %v_4: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    ret 3000
+  }
+
+  b_7 {
+    %v_8 = vlane %high, 0: I32
+    %v_9 = vlane %v, 4: I32
+    %v_10 = cmp_neq %v_8, %v_9: I32
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    ret 3100
+  }
+
+  b_12 {
+    %v_13 = vlane %low, 1: I32
+    %v_14 = vlane %v, 1: I32
+    %v_15 = cmp_neq %v_13, %v_14: I32
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    ret 3001
+  }
+
+  b_17 {
+    %v_18 = vlane %high, 1: I32
+    %v_19 = vlane %v, 5: I32
+    %v_20 = cmp_neq %v_18, %v_19: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_21 {
+    ret 3101
+  }
+
+  b_22 {
+    %v_23 = vlane %low, 2: I32
+    %v_24 = vlane %v, 2: I32
+    %v_25 = cmp_neq %v_23, %v_24: I32
+    je %v_25, b_26, b_27
+  }
+
+  b_26 {
+    ret 3002
+  }
+
+  b_27 {
+    %v_28 = vlane %high, 2: I32
+    %v_29 = vlane %v, 6: I32
+    %v_30 = cmp_neq %v_28, %v_29: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
+    ret 3102
+  }
+
+  b_32 {
+    %v_33 = vlane %low, 3: I32
+    %v_34 = vlane %v, 3: I32
+    %v_35 = cmp_neq %v_33, %v_34: I32
+    je %v_35, b_36, b_37
+  }
+
+  b_36 {
+    ret 3003
+  }
+
+  b_37 {
+    %v_38 = vlane %high, 3: I32
+    %v_39 = vlane %v, 7: I32
+    %v_40 = cmp_neq %v_38, %v_39: I32
+    je %v_40, b_41, b_42
+  }
+
+  b_41 {
+    ret 3103
+  }
+
+  b_42 {
+    ret 0
+  }
+}
+
+narrowU16<complex>(%a: i32x4, %b: i32x4): I32 {
+  b_0 {
+    %v_1 = cast %a: i16x4
+    %v_2 = cast %b: i16x4
+    %packed = vshuffle %v_1, %v_2, 0, 1, 2, 3, 4, 5, 6, 7: i16x8
+    %v_3 = vlane %packed, 0: I32
+    %v_4 = vlane %a, 0: I32
+    %v_5 = and %v_4, 65535: I32
+    %v_6 = cmp_neq %v_3, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 3200
+  }
+
+  b_8 {
+    %v_9 = vlane %packed, 4: I32
+    %v_10 = vlane %b, 0: I32
+    %v_11 = and %v_10, 65535: I32
+    %v_12 = cmp_neq %v_9, %v_11: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 3300
+  }
+
+  b_14 {
+    %v_15 = vlane %packed, 1: I32
+    %v_16 = vlane %a, 1: I32
+    %v_17 = and %v_16, 65535: I32
+    %v_18 = cmp_neq %v_15, %v_17: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    ret 3201
+  }
+
+  b_20 {
+    %v_21 = vlane %packed, 5: I32
+    %v_22 = vlane %b, 1: I32
+    %v_23 = and %v_22, 65535: I32
+    %v_24 = cmp_neq %v_21, %v_23: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    ret 3301
+  }
+
+  b_26 {
+    %v_27 = vlane %packed, 2: I32
+    %v_28 = vlane %a, 2: I32
+    %v_29 = and %v_28, 65535: I32
+    %v_30 = cmp_neq %v_27, %v_29: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
+    ret 3202
+  }
+
+  b_32 {
+    %v_33 = vlane %packed, 6: I32
+    %v_34 = vlane %b, 2: I32
+    %v_35 = and %v_34, 65535: I32
+    %v_36 = cmp_neq %v_33, %v_35: I32
+    je %v_36, b_37, b_38
+  }
+
+  b_37 {
+    ret 3302
+  }
+
+  b_38 {
+    %v_39 = vlane %packed, 3: I32
+    %v_40 = vlane %a, 3: I32
+    %v_41 = and %v_40, 65535: I32
+    %v_42 = cmp_neq %v_39, %v_41: I32
+    je %v_42, b_43, b_44
+  }
+
+  b_43 {
+    ret 3203
+  }
+
+  b_44 {
+    %v_45 = vlane %packed, 7: I32
+    %v_46 = vlane %b, 3: I32
+    %v_47 = and %v_46, 65535: I32
+    %v_48 = cmp_neq %v_45, %v_47: I32
+    je %v_48, b_49, b_50
+  }
+
+  b_49 {
+    ret 3303
+  }
+
+  b_50 {
+    ret 0
+  }
+}
+
+widenI16<complex>(%v: i16x8): I32 {
+  b_0 {
+    %v_1 = vshuffle %v, %v, 0, 1, 2, 3: i16x4
+    %low = cast %v_1: i32x4
+    %v_2 = vshuffle %v, %v, 4, 5, 6, 7: i16x4
+    %high = cast %v_2: i32x4
+    %v_3 = vlane %low, 0: I32
+    %v_4 = vlane %v, 0: I32
+    %v_5 = imm 16: I32
+    %v_6 = shl %v_4, %v_5: I32
+    %v_7 = sar %v_6, %v_5: I32
+    %v_8 = cmp_neq %v_3, %v_7: I32
+    %v_9 = imm 16: I32
+    %v_10 = imm 16: I32
+    %v_11 = imm 16: I32
+    %v_12 = imm 16: I32
+    %v_13 = imm 16: I32
+    %v_14 = imm 16: I32
+    %v_15 = imm 16: I32
+    je %v_8, b_16, b_17
+  }
+
+  b_16 {
+    ret 4000
+  }
+
+  b_17 {
+    %v_18 = vlane %high, 0: I32
+    %v_19 = vlane %v, 4: I32
+    %v_20 = shl %v_19, %v_9: I32
+    %v_21 = sar %v_20, %v_9: I32
+    %v_22 = cmp_neq %v_18, %v_21: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    ret 4100
+  }
+
+  b_24 {
+    %v_25 = vlane %low, 1: I32
+    %v_26 = vlane %v, 1: I32
+    %v_27 = shl %v_26, %v_10: I32
+    %v_28 = sar %v_27, %v_10: I32
+    %v_29 = cmp_neq %v_25, %v_28: I32
+    je %v_29, b_30, b_31
+  }
+
+  b_30 {
+    ret 4001
+  }
+
+  b_31 {
+    %v_32 = vlane %high, 1: I32
+    %v_33 = vlane %v, 5: I32
+    %v_34 = shl %v_33, %v_11: I32
+    %v_35 = sar %v_34, %v_11: I32
+    %v_36 = cmp_neq %v_32, %v_35: I32
+    je %v_36, b_37, b_38
+  }
+
+  b_37 {
+    ret 4101
+  }
+
+  b_38 {
+    %v_39 = vlane %low, 2: I32
+    %v_40 = vlane %v, 2: I32
+    %v_41 = shl %v_40, %v_12: I32
+    %v_42 = sar %v_41, %v_12: I32
+    %v_43 = cmp_neq %v_39, %v_42: I32
+    je %v_43, b_44, b_45
+  }
+
+  b_44 {
+    ret 4002
+  }
+
+  b_45 {
+    %v_46 = vlane %high, 2: I32
+    %v_47 = vlane %v, 6: I32
+    %v_48 = shl %v_47, %v_13: I32
+    %v_49 = sar %v_48, %v_13: I32
+    %v_50 = cmp_neq %v_46, %v_49: I32
+    je %v_50, b_51, b_52
+  }
+
+  b_51 {
+    ret 4102
+  }
+
+  b_52 {
+    %v_53 = vlane %low, 3: I32
+    %v_54 = vlane %v, 3: I32
+    %v_55 = shl %v_54, %v_14: I32
+    %v_56 = sar %v_55, %v_14: I32
+    %v_57 = cmp_neq %v_53, %v_56: I32
+    je %v_57, b_58, b_59
+  }
+
+  b_58 {
+    ret 4003
+  }
+
+  b_59 {
+    %v_60 = vlane %high, 3: I32
+    %v_61 = vlane %v, 7: I32
+    %v_62 = shl %v_61, %v_15: I32
+    %v_63 = sar %v_62, %v_15: I32
+    %v_64 = cmp_neq %v_60, %v_63: I32
+    je %v_64, b_65, b_66
+  }
+
+  b_65 {
+    ret 4103
+  }
+
+  b_66 {
+    ret 0
+  }
+}
+
+narrowI16<complex>(%a: i32x4, %b: i32x4): I32 {
+  b_0 {
+    %v_1 = cast %a: i16x4
+    %v_2 = cast %b: i16x4
+    %packed = vshuffle %v_1, %v_2, 0, 1, 2, 3, 4, 5, 6, 7: i16x8
+    %v_3 = vlane %packed, 0: I32
+    %v_4 = imm 16: I32
+    %v_5 = shl %v_3, %v_4: I32
+    %v_6 = sar %v_5, %v_4: I32
+    %v_7 = vlane %a, 0: I32
+    %v_8 = imm 16: I32
+    %v_9 = shl %v_7, %v_8: I32
+    %v_10 = sar %v_9, %v_8: I32
+    %v_11 = cmp_neq %v_6, %v_10: I32
+    %v_12 = imm 16: I32
+    %v_13 = imm 16: I32
+    %v_14 = imm 16: I32
+    %v_15 = imm 16: I32
+    %v_16 = imm 16: I32
+    %v_17 = imm 16: I32
+    %v_18 = imm 16: I32
+    %v_19 = imm 16: I32
+    %v_20 = imm 16: I32
+    %v_21 = imm 16: I32
+    %v_22 = imm 16: I32
+    %v_23 = imm 16: I32
+    %v_24 = imm 16: I32
+    %v_25 = imm 16: I32
+    je %v_11, b_26, b_27
+  }
+
+  b_26 {
+    ret 4200
+  }
+
+  b_27 {
+    %v_28 = vlane %packed, 4: I32
+    %v_29 = shl %v_28, %v_12: I32
+    %v_30 = sar %v_29, %v_12: I32
+    %v_31 = vlane %b, 0: I32
+    %v_32 = shl %v_31, %v_13: I32
+    %v_33 = sar %v_32, %v_13: I32
+    %v_34 = cmp_neq %v_30, %v_33: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_35 {
+    ret 4300
+  }
+
+  b_36 {
+    %v_37 = vlane %packed, 1: I32
+    %v_38 = shl %v_37, %v_14: I32
+    %v_39 = sar %v_38, %v_14: I32
+    %v_40 = vlane %a, 1: I32
+    %v_41 = shl %v_40, %v_15: I32
+    %v_42 = sar %v_41, %v_15: I32
+    %v_43 = cmp_neq %v_39, %v_42: I32
+    je %v_43, b_44, b_45
+  }
+
+  b_44 {
+    ret 4201
+  }
+
+  b_45 {
+    %v_46 = vlane %packed, 5: I32
+    %v_47 = shl %v_46, %v_16: I32
+    %v_48 = sar %v_47, %v_16: I32
+    %v_49 = vlane %b, 1: I32
+    %v_50 = shl %v_49, %v_17: I32
+    %v_51 = sar %v_50, %v_17: I32
+    %v_52 = cmp_neq %v_48, %v_51: I32
+    je %v_52, b_53, b_54
+  }
+
+  b_53 {
+    ret 4301
+  }
+
+  b_54 {
+    %v_55 = vlane %packed, 2: I32
+    %v_56 = shl %v_55, %v_18: I32
+    %v_57 = sar %v_56, %v_18: I32
+    %v_58 = vlane %a, 2: I32
+    %v_59 = shl %v_58, %v_19: I32
+    %v_60 = sar %v_59, %v_19: I32
+    %v_61 = cmp_neq %v_57, %v_60: I32
+    je %v_61, b_62, b_63
+  }
+
+  b_62 {
+    ret 4202
+  }
+
+  b_63 {
+    %v_64 = vlane %packed, 6: I32
+    %v_65 = shl %v_64, %v_20: I32
+    %v_66 = sar %v_65, %v_20: I32
+    %v_67 = vlane %b, 2: I32
+    %v_68 = shl %v_67, %v_21: I32
+    %v_69 = sar %v_68, %v_21: I32
+    %v_70 = cmp_neq %v_66, %v_69: I32
+    je %v_70, b_71, b_72
+  }
+
+  b_71 {
+    ret 4302
+  }
+
+  b_72 {
+    %v_73 = vlane %packed, 3: I32
+    %v_74 = shl %v_73, %v_22: I32
+    %v_75 = sar %v_74, %v_22: I32
+    %v_76 = vlane %a, 3: I32
+    %v_77 = shl %v_76, %v_23: I32
+    %v_78 = sar %v_77, %v_23: I32
+    %v_79 = cmp_neq %v_75, %v_78: I32
+    je %v_79, b_80, b_81
+  }
+
+  b_80 {
+    ret 4203
+  }
+
+  b_81 {
+    %v_82 = vlane %packed, 7: I32
+    %v_83 = shl %v_82, %v_24: I32
+    %v_84 = sar %v_83, %v_24: I32
+    %v_85 = vlane %b, 3: I32
+    %v_86 = shl %v_85, %v_25: I32
+    %v_87 = sar %v_86, %v_25: I32
+    %v_88 = cmp_neq %v_84, %v_87: I32
+    je %v_88, b_89, b_90
+  }
+
+  b_89 {
+    ret 4303
+  }
+
+  b_90 {
+    ret 0
+  }
+}
+
+widenU32<complex>(%v: i32x4): I32 {
+  b_0 {
+    %v_1 = vshuffle %v, %v, 0, 1: i32x2
+    %low = cast %v_1: i64x2
+    %v_2 = vshuffle %v, %v, 2, 3: i32x2
+    %high = cast %v_2: i64x2
+    %v_3 = vlane %low, 0: I64
+    %v_4 = vlane %v, 0: I32
+    %v_5 = cast %v_4: I64
+    %v_6 = cmp_neq %v_3, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 5000
+  }
+
+  b_8 {
+    %v_9 = vlane %high, 0: I64
+    %v_10 = vlane %v, 2: I32
+    %v_11 = cast %v_10: I64
+    %v_12 = cmp_neq %v_9, %v_11: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 5100
+  }
+
+  b_14 {
+    %v_15 = vlane %low, 1: I64
+    %v_16 = vlane %v, 1: I32
+    %v_17 = cast %v_16: I64
+    %v_18 = cmp_neq %v_15, %v_17: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    ret 5001
+  }
+
+  b_20 {
+    %v_21 = vlane %high, 1: I64
+    %v_22 = vlane %v, 3: I32
+    %v_23 = cast %v_22: I64
+    %v_24 = cmp_neq %v_21, %v_23: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    ret 5101
+  }
+
+  b_26 {
+    ret 0
+  }
+}
+
+narrowU32<complex>(%a: i64x2, %b: i64x2): I32 {
+  b_0 {
+    %v_1 = cast %a: i32x2
+    %v_2 = cast %b: i32x2
+    %packed = vshuffle %v_1, %v_2, 0, 1, 2, 3: i32x4
+    %v_3 = vlane %packed, 0: I32
+    %v_4 = vlane %a, 0: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cmp_neq %v_3, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 5200
+  }
+
+  b_8 {
+    %v_9 = vlane %packed, 2: I32
+    %v_10 = vlane %b, 0: I64
+    %v_11 = cast %v_10: I32
+    %v_12 = cmp_neq %v_9, %v_11: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 5300
+  }
+
+  b_14 {
+    %v_15 = vlane %packed, 1: I32
+    %v_16 = vlane %a, 1: I64
+    %v_17 = cast %v_16: I32
+    %v_18 = cmp_neq %v_15, %v_17: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    ret 5201
+  }
+
+  b_20 {
+    %v_21 = vlane %packed, 3: I32
+    %v_22 = vlane %b, 1: I64
+    %v_23 = cast %v_22: I32
+    %v_24 = cmp_neq %v_21, %v_23: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    ret 5301
+  }
+
+  b_26 {
+    ret 0
+  }
+}
+
+widenI32<complex>(%v: i32x4): I32 {
+  b_0 {
+    %v_1 = vshuffle %v, %v, 0, 1: i32x2
+    %low = cast %v_1: i64x2
+    %v_2 = vshuffle %v, %v, 2, 3: i32x2
+    %high = cast %v_2: i64x2
+    %v_3 = vlane %low, 0: I64
+    %v_4 = vlane %v, 0: I32
+    %v_5 = sext %v_4: I64
+    %v_6 = cmp_neq %v_3, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 6000
+  }
+
+  b_8 {
+    %v_9 = vlane %high, 0: I64
+    %v_10 = vlane %v, 2: I32
+    %v_11 = sext %v_10: I64
+    %v_12 = cmp_neq %v_9, %v_11: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 6100
+  }
+
+  b_14 {
+    %v_15 = vlane %low, 1: I64
+    %v_16 = vlane %v, 1: I32
+    %v_17 = sext %v_16: I64
+    %v_18 = cmp_neq %v_15, %v_17: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    ret 6001
+  }
+
+  b_20 {
+    %v_21 = vlane %high, 1: I64
+    %v_22 = vlane %v, 3: I32
+    %v_23 = sext %v_22: I64
+    %v_24 = cmp_neq %v_21, %v_23: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    ret 6101
+  }
+
+  b_26 {
+    ret 0
+  }
+}
+
+narrowI32<complex>(%a: i64x2, %b: i64x2): I32 {
+  b_0 {
+    %v_1 = cast %a: i32x2
+    %v_2 = cast %b: i32x2
+    %packed = vshuffle %v_1, %v_2, 0, 1, 2, 3: i32x4
+    %v_3 = vlane %packed, 0: I32
+    %v_4 = vlane %a, 0: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cmp_neq %v_3, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 6200
+  }
+
+  b_8 {
+    %v_9 = vlane %packed, 2: I32
+    %v_10 = vlane %b, 0: I64
+    %v_11 = cast %v_10: I32
+    %v_12 = cmp_neq %v_9, %v_11: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 6300
+  }
+
+  b_14 {
+    %v_15 = vlane %packed, 1: I32
+    %v_16 = vlane %a, 1: I64
+    %v_17 = cast %v_16: I32
+    %v_18 = cmp_neq %v_15, %v_17: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    ret 6201
+  }
+
+  b_20 {
+    %v_21 = vlane %packed, 3: I32
+    %v_22 = vlane %b, 1: I64
+    %v_23 = cast %v_22: I32
+    %v_24 = cmp_neq %v_21, %v_23: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    ret 6301
+  }
+
+  b_26 {
+    ret 0
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = vsplat 0: i8x16
+    %v_2 = vwithlane %v_1, 1, 1: i8x16
+    %v_3 = vwithlane %v_2, 2, 2: i8x16
+    %v_4 = vwithlane %v_3, 3, 3: i8x16
+    %v_5 = vwithlane %v_4, 4, 4: i8x16
+    %v_6 = vwithlane %v_5, 5, 5: i8x16
+    %v_7 = vwithlane %v_6, 6, 6: i8x16
+    %v_8 = vwithlane %v_7, 7, 7: i8x16
+    %v_9 = vwithlane %v_8, 8, 8: i8x16
+    %v_10 = vwithlane %v_9, 9, 9: i8x16
+    %v_11 = vwithlane %v_10, 10, 10: i8x16
+    %v_12 = vwithlane %v_11, 11, 11: i8x16
+    %v_13 = vwithlane %v_12, 12, 12: i8x16
+    %v_14 = vwithlane %v_13, 13, 13: i8x16
+    %v_15 = vwithlane %v_14, 14, 14: i8x16
+    %v_16 = vwithlane %v_15, 15, 15: i8x16
+    %v_17 = vsplat 37: i8x16
+    %v_18 = mul %v_16, %v_17: i8x16
+    %v_19 = vsplat 201: i8x16
+    %valuesU8 = add %v_18, %v_19: i8x16
+    %v_20 = call_complex widenU8, %valuesU8: I32
+    %v_21 = cmp_neq %v_20, 0: I32
+    je %v_21, b_22, b_23
+  }
+
+  b_22 {
+    %v_24 = call_complex widenU8, %valuesU8: I32
+    ret %v_24
+  }
+
+  b_23 {
+    %v_25 = vsplat 0: i16x8
+    %v_26 = vwithlane %v_25, 1, 1: i16x8
+    %v_27 = vwithlane %v_26, 2, 2: i16x8
+    %v_28 = vwithlane %v_27, 3, 3: i16x8
+    %v_29 = vwithlane %v_28, 4, 4: i16x8
+    %v_30 = vwithlane %v_29, 5, 5: i16x8
+    %v_31 = vwithlane %v_30, 6, 6: i16x8
+    %v_32 = vwithlane %v_31, 7, 7: i16x8
+    %v_33 = vsplat 37: i16x8
+    %v_34 = mul %v_32, %v_33: i16x8
+    %v_35 = vsplat 201: i16x8
+    %v_36 = vsplat 3: i16x8
+    %v_37 = mul %v_35, %v_36: i16x8
+    %wideU8 = add %v_34, %v_37: i16x8
+    %v_38 = vsplat 7: i16x8
+    %v_39 = mul %v_32, %v_38: i16x8
+    %otherU8 = sub %v_39, %v_35: i16x8
+    %v_40 = call_complex narrowU8, %wideU8, %otherU8: I32
+    %v_41 = cmp_neq %v_40, 0: I32
+    je %v_41, b_42, b_43
+  }
+
+  b_42 {
+    %v_44 = call_complex narrowU8, %wideU8, %otherU8: I32
+    ret %v_44
+  }
+
+  b_43 {
+    %v_45 = vsplat 0: i8x16
+    %v_46 = vwithlane %v_45, 1, 1: i8x16
+    %v_47 = vwithlane %v_46, 2, 2: i8x16
+    %v_48 = vwithlane %v_47, 3, 3: i8x16
+    %v_49 = vwithlane %v_48, 4, 4: i8x16
+    %v_50 = vwithlane %v_49, 5, 5: i8x16
+    %v_51 = vwithlane %v_50, 6, 6: i8x16
+    %v_52 = vwithlane %v_51, 7, 7: i8x16
+    %v_53 = vwithlane %v_52, 8, 8: i8x16
+    %v_54 = vwithlane %v_53, 9, 9: i8x16
+    %v_55 = vwithlane %v_54, 10, 10: i8x16
+    %v_56 = vwithlane %v_55, 11, 11: i8x16
+    %v_57 = vwithlane %v_56, 12, 12: i8x16
+    %v_58 = vwithlane %v_57, 13, 13: i8x16
+    %v_59 = vwithlane %v_58, 14, 14: i8x16
+    %v_60 = vwithlane %v_59, 15, 15: i8x16
+    %v_61 = vsplat 18446744073709551571: i8x16
+    %v_62 = imul %v_60, %v_61: i8x16
+    %v_63 = vsplat 77: i8x16
+    %valuesI8 = add %v_62, %v_63: i8x16
+    %v_64 = call_complex widenI8, %valuesI8: I32
+    %v_65 = cmp_neq %v_64, 0: I32
+    je %v_65, b_66, b_67
+  }
+
+  b_66 {
+    %v_68 = call_complex widenI8, %valuesI8: I32
+    ret %v_68
+  }
+
+  b_67 {
+    %v_69 = vsplat 0: i16x8
+    %v_70 = vwithlane %v_69, 1, 1: i16x8
+    %v_71 = vwithlane %v_70, 2, 2: i16x8
+    %v_72 = vwithlane %v_71, 3, 3: i16x8
+    %v_73 = vwithlane %v_72, 4, 4: i16x8
+    %v_74 = vwithlane %v_73, 5, 5: i16x8
+    %v_75 = vwithlane %v_74, 6, 6: i16x8
+    %v_76 = vwithlane %v_75, 7, 7: i16x8
+    %v_77 = vsplat 18446744073709551571: i16x8
+    %v_78 = imul %v_76, %v_77: i16x8
+    %v_79 = vsplat 77: i16x8
+    %v_80 = vsplat 3: i16x8
+    %v_81 = imul %v_79, %v_80: i16x8
+    %wideI8 = add %v_78, %v_81: i16x8
+    %v_82 = vsplat 7: i16x8
+    %v_83 = imul %v_76, %v_82: i16x8
+    %otherI8 = sub %v_83, %v_79: i16x8
+    %v_84 = call_complex narrowI8, %wideI8, %otherI8: I32
+    %v_85 = cmp_neq %v_84, 0: I32
+    je %v_85, b_86, b_87
+  }
+
+  b_86 {
+    %v_88 = call_complex narrowI8, %wideI8, %otherI8: I32
+    ret %v_88
+  }
+
+  b_87 {
+    %v_89 = vsplat 0: i16x8
+    %v_90 = vwithlane %v_89, 1, 1: i16x8
+    %v_91 = vwithlane %v_90, 2, 2: i16x8
+    %v_92 = vwithlane %v_91, 3, 3: i16x8
+    %v_93 = vwithlane %v_92, 4, 4: i16x8
+    %v_94 = vwithlane %v_93, 5, 5: i16x8
+    %v_95 = vwithlane %v_94, 6, 6: i16x8
+    %v_96 = vwithlane %v_95, 7, 7: i16x8
+    %v_97 = vsplat 4099: i16x8
+    %v_98 = mul %v_96, %v_97: i16x8
+    %v_99 = vsplat 65001: i16x8
+    %valuesU16 = add %v_98, %v_99: i16x8
+    %v_100 = call_complex widenU16, %valuesU16: I32
+    %v_101 = cmp_neq %v_100, 0: I32
+    je %v_101, b_102, b_103
+  }
+
+  b_102 {
+    %v_104 = call_complex widenU16, %valuesU16: I32
+    ret %v_104
+  }
+
+  b_103 {
+    %v_105 = vsplat 0: i32x4
+    %v_106 = vwithlane %v_105, 1, 1: i32x4
+    %v_107 = vwithlane %v_106, 2, 2: i32x4
+    %v_108 = vwithlane %v_107, 3, 3: i32x4
+    %v_109 = vsplat 4099: i32x4
+    %v_110 = mul %v_108, %v_109: i32x4
+    %v_111 = vsplat 65001: i32x4
+    %v_112 = vsplat 3: i32x4
+    %v_113 = mul %v_111, %v_112: i32x4
+    %wideU16 = add %v_110, %v_113: i32x4
+    %v_114 = vsplat 7: i32x4
+    %v_115 = mul %v_108, %v_114: i32x4
+    %otherU16 = sub %v_115, %v_111: i32x4
+    %v_116 = call_complex narrowU16, %wideU16, %otherU16: I32
+    %v_117 = cmp_neq %v_116, 0: I32
+    je %v_117, b_118, b_119
+  }
+
+  b_118 {
+    %v_120 = call_complex narrowU16, %wideU16, %otherU16: I32
+    ret %v_120
+  }
+
+  b_119 {
+    %v_121 = vsplat 0: i16x8
+    %v_122 = vwithlane %v_121, 1, 1: i16x8
+    %v_123 = vwithlane %v_122, 2, 2: i16x8
+    %v_124 = vwithlane %v_123, 3, 3: i16x8
+    %v_125 = vwithlane %v_124, 4, 4: i16x8
+    %v_126 = vwithlane %v_125, 5, 5: i16x8
+    %v_127 = vwithlane %v_126, 6, 6: i16x8
+    %v_128 = vwithlane %v_127, 7, 7: i16x8
+    %v_129 = vsplat 18446744073709539271: i16x8
+    %v_130 = imul %v_128, %v_129: i16x8
+    %v_131 = vsplat 301: i16x8
+    %valuesI16 = add %v_130, %v_131: i16x8
+    %v_132 = call_complex widenI16, %valuesI16: I32
+    %v_133 = cmp_neq %v_132, 0: I32
+    je %v_133, b_134, b_135
+  }
+
+  b_134 {
+    %v_136 = call_complex widenI16, %valuesI16: I32
+    ret %v_136
+  }
+
+  b_135 {
+    %v_137 = vsplat 0: i32x4
+    %v_138 = vwithlane %v_137, 1, 1: i32x4
+    %v_139 = vwithlane %v_138, 2, 2: i32x4
+    %v_140 = vwithlane %v_139, 3, 3: i32x4
+    %v_141 = vsplat 18446744073709539271: i32x4
+    %v_142 = imul %v_140, %v_141: i32x4
+    %v_143 = vsplat 301: i32x4
+    %v_144 = vsplat 3: i32x4
+    %v_145 = imul %v_143, %v_144: i32x4
+    %wideI16 = add %v_142, %v_145: i32x4
+    %v_146 = vsplat 7: i32x4
+    %v_147 = imul %v_140, %v_146: i32x4
+    %otherI16 = sub %v_147, %v_143: i32x4
+    %v_148 = call_complex narrowI16, %wideI16, %otherI16: I32
+    %v_149 = cmp_neq %v_148, 0: I32
+    je %v_149, b_150, b_151
+  }
+
+  b_150 {
+    %v_152 = call_complex narrowI16, %wideI16, %otherI16: I32
+    ret %v_152
+  }
+
+  b_151 {
+    %v_153 = vsplat 0: i32x4
+    %v_154 = vwithlane %v_153, 1, 1: i32x4
+    %v_155 = vwithlane %v_154, 2, 2: i32x4
+    %v_156 = vwithlane %v_155, 3, 3: i32x4
+    %v_157 = vsplat 2654435761: i32x4
+    %v_158 = mul %v_156, %v_157: i32x4
+    %v_159 = vsplat 4000000000: i32x4
+    %valuesU32 = add %v_158, %v_159: i32x4
+    %v_160 = call_complex widenU32, %valuesU32: I32
+    %v_161 = cmp_neq %v_160, 0: I32
+    je %v_161, b_162, b_163
+  }
+
+  b_162 {
+    %v_164 = call_complex widenU32, %valuesU32: I32
+    ret %v_164
+  }
+
+  b_163 {
+    %v_165 = vsplat 0: i64x2
+    %v_166 = vwithlane %v_165, 1, 1: i64x2
+    %v_167 = vsplat 2654435761: i64x2
+    %v_168 = mul %v_166, %v_167: i64x2
+    %v_169 = vsplat 4000000000: i64x2
+    %v_170 = vsplat 3: i64x2
+    %v_171 = mul %v_169, %v_170: i64x2
+    %wideU32 = add %v_168, %v_171: i64x2
+    %v_172 = vsplat 7: i64x2
+    %v_173 = mul %v_166, %v_172: i64x2
+    %otherU32 = sub %v_173, %v_169: i64x2
+    %v_174 = call_complex narrowU32, %wideU32, %otherU32: I32
+    %v_175 = cmp_neq %v_174, 0: I32
+    je %v_175, b_176, b_177
+  }
+
+  b_176 {
+    %v_178 = call_complex narrowU32, %wideU32, %otherU32: I32
+    ret %v_178
+  }
+
+  b_177 {
+    %v_179 = vsplat 0: i32x4
+    %v_180 = vwithlane %v_179, 1, 1: i32x4
+    %v_181 = vwithlane %v_180, 2, 2: i32x4
+    %v_182 = vwithlane %v_181, 3, 3: i32x4
+    %v_183 = vsplat 18446744072069020081: i32x4
+    %v_184 = imul %v_182, %v_183: i32x4
+    %v_185 = vsplat 123: i32x4
+    %valuesI32 = add %v_184, %v_185: i32x4
+    %v_186 = call_complex widenI32, %valuesI32: I32
+    %v_187 = cmp_neq %v_186, 0: I32
+    je %v_187, b_188, b_189
+  }
+
+  b_188 {
+    %v_190 = call_complex widenI32, %valuesI32: I32
+    ret %v_190
+  }
+
+  b_189 {
+    %v_191 = vsplat 0: i64x2
+    %v_192 = vwithlane %v_191, 1, 1: i64x2
+    %v_193 = vsplat 18446744072069020081: i64x2
+    %v_194 = imul %v_192, %v_193: i64x2
+    %v_195 = vsplat 123: i64x2
+    %v_196 = vsplat 3: i64x2
+    %v_197 = imul %v_195, %v_196: i64x2
+    %wideI32 = add %v_194, %v_197: i64x2
+    %v_198 = vsplat 7: i64x2
+    %v_199 = imul %v_192, %v_198: i64x2
+    %otherI32 = sub %v_199, %v_195: i64x2
+    %v_200 = call_complex narrowI32, %wideI32, %otherI32: I32
+    %v_201 = cmp_neq %v_200, 0: I32
+    je %v_201, b_202, b_203
+  }
+
+  b_202 {
+    %v_204 = call_complex narrowI32, %wideI32, %otherI32: I32
+    ret %v_204
+  }
+
+  b_203 {
+    ret 7
+  }
+}
+

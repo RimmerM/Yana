@@ -3049,7 +3049,13 @@ void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr
     Node* from = nullptr;
     Node* to = nullptr;
 
-    if(ast::isLiteral(loop.from) && !ast::isLiteral(toWritten)) {
+    // A negated literal is a literal here, as it is to `undecidedLiteral`: `for i in -1 .. n` counts
+    // at `n`'s type exactly as `0 .. n` does.
+    auto written = [&](ast::Expr& bound) {
+        return ast::isLiteral(bound) || isNegation(context, parse, bound);
+    };
+
+    if(written(loop.from) && !written(toWritten)) {
         to = resolveValue(builder, toWritten, nullptr, inspectRequest());
         if(!to) return;
 

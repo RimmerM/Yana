@@ -1,0 +1,363 @@
+{-
+   The conversions that change a vector's lane count - `unpackLow`, `unpackHigh` and `packLanes` -
+   at every integer lane width and both signednesses, at 256 bits.
+
+   # extensions: v3
+
+   The interleaves and the byte gather work inside each 128-bit half at this width, so the rewrite
+   adds an exchange of halves to the one and a `vpermd` to the other.
+
+   The x64 backend has no register for the half-width value between the two instructions each of
+   these is written as, so `expandLaneCountConversions` rewrites the pair into interleaves, gathers
+   and bitcasts. Every lane is checked against the scalar conversion of the lane it came from, so a
+   gather reading the wrong byte or an interleave reading the wrong half answers a number other than
+   zero, and the number names the pair and the lane. A lane index has to be written down, which is
+   why the checks are spelled out one lane at a time.
+-}
+
+@noinline fn widenU8(v: Vec(U8)) -> Int:
+    let low = unpackLow(v) :: Vec(U16)
+    let high = unpackHigh(v) :: Vec(U16)
+
+    if lane(low, 0) != (lane(v, 0) :: U16) then return 1000
+    if lane(high, 0) != (lane(v, 16) :: U16) then return 1100
+    if lane(low, 1) != (lane(v, 1) :: U16) then return 1001
+    if lane(high, 1) != (lane(v, 17) :: U16) then return 1101
+    if lane(low, 2) != (lane(v, 2) :: U16) then return 1002
+    if lane(high, 2) != (lane(v, 18) :: U16) then return 1102
+    if lane(low, 3) != (lane(v, 3) :: U16) then return 1003
+    if lane(high, 3) != (lane(v, 19) :: U16) then return 1103
+    if lane(low, 4) != (lane(v, 4) :: U16) then return 1004
+    if lane(high, 4) != (lane(v, 20) :: U16) then return 1104
+    if lane(low, 5) != (lane(v, 5) :: U16) then return 1005
+    if lane(high, 5) != (lane(v, 21) :: U16) then return 1105
+    if lane(low, 6) != (lane(v, 6) :: U16) then return 1006
+    if lane(high, 6) != (lane(v, 22) :: U16) then return 1106
+    if lane(low, 7) != (lane(v, 7) :: U16) then return 1007
+    if lane(high, 7) != (lane(v, 23) :: U16) then return 1107
+    if lane(low, 8) != (lane(v, 8) :: U16) then return 1008
+    if lane(high, 8) != (lane(v, 24) :: U16) then return 1108
+    if lane(low, 9) != (lane(v, 9) :: U16) then return 1009
+    if lane(high, 9) != (lane(v, 25) :: U16) then return 1109
+    if lane(low, 10) != (lane(v, 10) :: U16) then return 1010
+    if lane(high, 10) != (lane(v, 26) :: U16) then return 1110
+    if lane(low, 11) != (lane(v, 11) :: U16) then return 1011
+    if lane(high, 11) != (lane(v, 27) :: U16) then return 1111
+    if lane(low, 12) != (lane(v, 12) :: U16) then return 1012
+    if lane(high, 12) != (lane(v, 28) :: U16) then return 1112
+    if lane(low, 13) != (lane(v, 13) :: U16) then return 1013
+    if lane(high, 13) != (lane(v, 29) :: U16) then return 1113
+    if lane(low, 14) != (lane(v, 14) :: U16) then return 1014
+    if lane(high, 14) != (lane(v, 30) :: U16) then return 1114
+    if lane(low, 15) != (lane(v, 15) :: U16) then return 1015
+    if lane(high, 15) != (lane(v, 31) :: U16) then return 1115
+
+    return 0
+
+@noinline fn narrowU8(a: Vec(U16), b: Vec(U16)) -> Int:
+    let packed = packLanes(a, b) :: Vec(U8)
+
+    if lane(packed, 0) != (truncate(lane(a, 0)) :: U8) then return 1200
+    if lane(packed, 16) != (truncate(lane(b, 0)) :: U8) then return 1300
+    if lane(packed, 1) != (truncate(lane(a, 1)) :: U8) then return 1201
+    if lane(packed, 17) != (truncate(lane(b, 1)) :: U8) then return 1301
+    if lane(packed, 2) != (truncate(lane(a, 2)) :: U8) then return 1202
+    if lane(packed, 18) != (truncate(lane(b, 2)) :: U8) then return 1302
+    if lane(packed, 3) != (truncate(lane(a, 3)) :: U8) then return 1203
+    if lane(packed, 19) != (truncate(lane(b, 3)) :: U8) then return 1303
+    if lane(packed, 4) != (truncate(lane(a, 4)) :: U8) then return 1204
+    if lane(packed, 20) != (truncate(lane(b, 4)) :: U8) then return 1304
+    if lane(packed, 5) != (truncate(lane(a, 5)) :: U8) then return 1205
+    if lane(packed, 21) != (truncate(lane(b, 5)) :: U8) then return 1305
+    if lane(packed, 6) != (truncate(lane(a, 6)) :: U8) then return 1206
+    if lane(packed, 22) != (truncate(lane(b, 6)) :: U8) then return 1306
+    if lane(packed, 7) != (truncate(lane(a, 7)) :: U8) then return 1207
+    if lane(packed, 23) != (truncate(lane(b, 7)) :: U8) then return 1307
+    if lane(packed, 8) != (truncate(lane(a, 8)) :: U8) then return 1208
+    if lane(packed, 24) != (truncate(lane(b, 8)) :: U8) then return 1308
+    if lane(packed, 9) != (truncate(lane(a, 9)) :: U8) then return 1209
+    if lane(packed, 25) != (truncate(lane(b, 9)) :: U8) then return 1309
+    if lane(packed, 10) != (truncate(lane(a, 10)) :: U8) then return 1210
+    if lane(packed, 26) != (truncate(lane(b, 10)) :: U8) then return 1310
+    if lane(packed, 11) != (truncate(lane(a, 11)) :: U8) then return 1211
+    if lane(packed, 27) != (truncate(lane(b, 11)) :: U8) then return 1311
+    if lane(packed, 12) != (truncate(lane(a, 12)) :: U8) then return 1212
+    if lane(packed, 28) != (truncate(lane(b, 12)) :: U8) then return 1312
+    if lane(packed, 13) != (truncate(lane(a, 13)) :: U8) then return 1213
+    if lane(packed, 29) != (truncate(lane(b, 13)) :: U8) then return 1313
+    if lane(packed, 14) != (truncate(lane(a, 14)) :: U8) then return 1214
+    if lane(packed, 30) != (truncate(lane(b, 14)) :: U8) then return 1314
+    if lane(packed, 15) != (truncate(lane(a, 15)) :: U8) then return 1215
+    if lane(packed, 31) != (truncate(lane(b, 15)) :: U8) then return 1315
+
+    return 0
+
+@noinline fn widenI8(v: Vec(I8)) -> Int:
+    let low = unpackLow(v) :: Vec(I16)
+    let high = unpackHigh(v) :: Vec(I16)
+
+    if lane(low, 0) != (lane(v, 0) :: I16) then return 2000
+    if lane(high, 0) != (lane(v, 16) :: I16) then return 2100
+    if lane(low, 1) != (lane(v, 1) :: I16) then return 2001
+    if lane(high, 1) != (lane(v, 17) :: I16) then return 2101
+    if lane(low, 2) != (lane(v, 2) :: I16) then return 2002
+    if lane(high, 2) != (lane(v, 18) :: I16) then return 2102
+    if lane(low, 3) != (lane(v, 3) :: I16) then return 2003
+    if lane(high, 3) != (lane(v, 19) :: I16) then return 2103
+    if lane(low, 4) != (lane(v, 4) :: I16) then return 2004
+    if lane(high, 4) != (lane(v, 20) :: I16) then return 2104
+    if lane(low, 5) != (lane(v, 5) :: I16) then return 2005
+    if lane(high, 5) != (lane(v, 21) :: I16) then return 2105
+    if lane(low, 6) != (lane(v, 6) :: I16) then return 2006
+    if lane(high, 6) != (lane(v, 22) :: I16) then return 2106
+    if lane(low, 7) != (lane(v, 7) :: I16) then return 2007
+    if lane(high, 7) != (lane(v, 23) :: I16) then return 2107
+    if lane(low, 8) != (lane(v, 8) :: I16) then return 2008
+    if lane(high, 8) != (lane(v, 24) :: I16) then return 2108
+    if lane(low, 9) != (lane(v, 9) :: I16) then return 2009
+    if lane(high, 9) != (lane(v, 25) :: I16) then return 2109
+    if lane(low, 10) != (lane(v, 10) :: I16) then return 2010
+    if lane(high, 10) != (lane(v, 26) :: I16) then return 2110
+    if lane(low, 11) != (lane(v, 11) :: I16) then return 2011
+    if lane(high, 11) != (lane(v, 27) :: I16) then return 2111
+    if lane(low, 12) != (lane(v, 12) :: I16) then return 2012
+    if lane(high, 12) != (lane(v, 28) :: I16) then return 2112
+    if lane(low, 13) != (lane(v, 13) :: I16) then return 2013
+    if lane(high, 13) != (lane(v, 29) :: I16) then return 2113
+    if lane(low, 14) != (lane(v, 14) :: I16) then return 2014
+    if lane(high, 14) != (lane(v, 30) :: I16) then return 2114
+    if lane(low, 15) != (lane(v, 15) :: I16) then return 2015
+    if lane(high, 15) != (lane(v, 31) :: I16) then return 2115
+
+    return 0
+
+@noinline fn narrowI8(a: Vec(I16), b: Vec(I16)) -> Int:
+    let packed = packLanes(a, b) :: Vec(I8)
+
+    if lane(packed, 0) != (truncate(lane(a, 0)) :: I8) then return 2200
+    if lane(packed, 16) != (truncate(lane(b, 0)) :: I8) then return 2300
+    if lane(packed, 1) != (truncate(lane(a, 1)) :: I8) then return 2201
+    if lane(packed, 17) != (truncate(lane(b, 1)) :: I8) then return 2301
+    if lane(packed, 2) != (truncate(lane(a, 2)) :: I8) then return 2202
+    if lane(packed, 18) != (truncate(lane(b, 2)) :: I8) then return 2302
+    if lane(packed, 3) != (truncate(lane(a, 3)) :: I8) then return 2203
+    if lane(packed, 19) != (truncate(lane(b, 3)) :: I8) then return 2303
+    if lane(packed, 4) != (truncate(lane(a, 4)) :: I8) then return 2204
+    if lane(packed, 20) != (truncate(lane(b, 4)) :: I8) then return 2304
+    if lane(packed, 5) != (truncate(lane(a, 5)) :: I8) then return 2205
+    if lane(packed, 21) != (truncate(lane(b, 5)) :: I8) then return 2305
+    if lane(packed, 6) != (truncate(lane(a, 6)) :: I8) then return 2206
+    if lane(packed, 22) != (truncate(lane(b, 6)) :: I8) then return 2306
+    if lane(packed, 7) != (truncate(lane(a, 7)) :: I8) then return 2207
+    if lane(packed, 23) != (truncate(lane(b, 7)) :: I8) then return 2307
+    if lane(packed, 8) != (truncate(lane(a, 8)) :: I8) then return 2208
+    if lane(packed, 24) != (truncate(lane(b, 8)) :: I8) then return 2308
+    if lane(packed, 9) != (truncate(lane(a, 9)) :: I8) then return 2209
+    if lane(packed, 25) != (truncate(lane(b, 9)) :: I8) then return 2309
+    if lane(packed, 10) != (truncate(lane(a, 10)) :: I8) then return 2210
+    if lane(packed, 26) != (truncate(lane(b, 10)) :: I8) then return 2310
+    if lane(packed, 11) != (truncate(lane(a, 11)) :: I8) then return 2211
+    if lane(packed, 27) != (truncate(lane(b, 11)) :: I8) then return 2311
+    if lane(packed, 12) != (truncate(lane(a, 12)) :: I8) then return 2212
+    if lane(packed, 28) != (truncate(lane(b, 12)) :: I8) then return 2312
+    if lane(packed, 13) != (truncate(lane(a, 13)) :: I8) then return 2213
+    if lane(packed, 29) != (truncate(lane(b, 13)) :: I8) then return 2313
+    if lane(packed, 14) != (truncate(lane(a, 14)) :: I8) then return 2214
+    if lane(packed, 30) != (truncate(lane(b, 14)) :: I8) then return 2314
+    if lane(packed, 15) != (truncate(lane(a, 15)) :: I8) then return 2215
+    if lane(packed, 31) != (truncate(lane(b, 15)) :: I8) then return 2315
+
+    return 0
+
+@noinline fn widenU16(v: Vec(U16)) -> Int:
+    let low = unpackLow(v) :: Vec(U32)
+    let high = unpackHigh(v) :: Vec(U32)
+
+    if lane(low, 0) != (lane(v, 0) :: U32) then return 3000
+    if lane(high, 0) != (lane(v, 8) :: U32) then return 3100
+    if lane(low, 1) != (lane(v, 1) :: U32) then return 3001
+    if lane(high, 1) != (lane(v, 9) :: U32) then return 3101
+    if lane(low, 2) != (lane(v, 2) :: U32) then return 3002
+    if lane(high, 2) != (lane(v, 10) :: U32) then return 3102
+    if lane(low, 3) != (lane(v, 3) :: U32) then return 3003
+    if lane(high, 3) != (lane(v, 11) :: U32) then return 3103
+    if lane(low, 4) != (lane(v, 4) :: U32) then return 3004
+    if lane(high, 4) != (lane(v, 12) :: U32) then return 3104
+    if lane(low, 5) != (lane(v, 5) :: U32) then return 3005
+    if lane(high, 5) != (lane(v, 13) :: U32) then return 3105
+    if lane(low, 6) != (lane(v, 6) :: U32) then return 3006
+    if lane(high, 6) != (lane(v, 14) :: U32) then return 3106
+    if lane(low, 7) != (lane(v, 7) :: U32) then return 3007
+    if lane(high, 7) != (lane(v, 15) :: U32) then return 3107
+
+    return 0
+
+@noinline fn narrowU16(a: Vec(U32), b: Vec(U32)) -> Int:
+    let packed = packLanes(a, b) :: Vec(U16)
+
+    if lane(packed, 0) != (truncate(lane(a, 0)) :: U16) then return 3200
+    if lane(packed, 8) != (truncate(lane(b, 0)) :: U16) then return 3300
+    if lane(packed, 1) != (truncate(lane(a, 1)) :: U16) then return 3201
+    if lane(packed, 9) != (truncate(lane(b, 1)) :: U16) then return 3301
+    if lane(packed, 2) != (truncate(lane(a, 2)) :: U16) then return 3202
+    if lane(packed, 10) != (truncate(lane(b, 2)) :: U16) then return 3302
+    if lane(packed, 3) != (truncate(lane(a, 3)) :: U16) then return 3203
+    if lane(packed, 11) != (truncate(lane(b, 3)) :: U16) then return 3303
+    if lane(packed, 4) != (truncate(lane(a, 4)) :: U16) then return 3204
+    if lane(packed, 12) != (truncate(lane(b, 4)) :: U16) then return 3304
+    if lane(packed, 5) != (truncate(lane(a, 5)) :: U16) then return 3205
+    if lane(packed, 13) != (truncate(lane(b, 5)) :: U16) then return 3305
+    if lane(packed, 6) != (truncate(lane(a, 6)) :: U16) then return 3206
+    if lane(packed, 14) != (truncate(lane(b, 6)) :: U16) then return 3306
+    if lane(packed, 7) != (truncate(lane(a, 7)) :: U16) then return 3207
+    if lane(packed, 15) != (truncate(lane(b, 7)) :: U16) then return 3307
+
+    return 0
+
+@noinline fn widenI16(v: Vec(I16)) -> Int:
+    let low = unpackLow(v) :: Vec(I32)
+    let high = unpackHigh(v) :: Vec(I32)
+
+    if lane(low, 0) != (lane(v, 0) :: I32) then return 4000
+    if lane(high, 0) != (lane(v, 8) :: I32) then return 4100
+    if lane(low, 1) != (lane(v, 1) :: I32) then return 4001
+    if lane(high, 1) != (lane(v, 9) :: I32) then return 4101
+    if lane(low, 2) != (lane(v, 2) :: I32) then return 4002
+    if lane(high, 2) != (lane(v, 10) :: I32) then return 4102
+    if lane(low, 3) != (lane(v, 3) :: I32) then return 4003
+    if lane(high, 3) != (lane(v, 11) :: I32) then return 4103
+    if lane(low, 4) != (lane(v, 4) :: I32) then return 4004
+    if lane(high, 4) != (lane(v, 12) :: I32) then return 4104
+    if lane(low, 5) != (lane(v, 5) :: I32) then return 4005
+    if lane(high, 5) != (lane(v, 13) :: I32) then return 4105
+    if lane(low, 6) != (lane(v, 6) :: I32) then return 4006
+    if lane(high, 6) != (lane(v, 14) :: I32) then return 4106
+    if lane(low, 7) != (lane(v, 7) :: I32) then return 4007
+    if lane(high, 7) != (lane(v, 15) :: I32) then return 4107
+
+    return 0
+
+@noinline fn narrowI16(a: Vec(I32), b: Vec(I32)) -> Int:
+    let packed = packLanes(a, b) :: Vec(I16)
+
+    if lane(packed, 0) != (truncate(lane(a, 0)) :: I16) then return 4200
+    if lane(packed, 8) != (truncate(lane(b, 0)) :: I16) then return 4300
+    if lane(packed, 1) != (truncate(lane(a, 1)) :: I16) then return 4201
+    if lane(packed, 9) != (truncate(lane(b, 1)) :: I16) then return 4301
+    if lane(packed, 2) != (truncate(lane(a, 2)) :: I16) then return 4202
+    if lane(packed, 10) != (truncate(lane(b, 2)) :: I16) then return 4302
+    if lane(packed, 3) != (truncate(lane(a, 3)) :: I16) then return 4203
+    if lane(packed, 11) != (truncate(lane(b, 3)) :: I16) then return 4303
+    if lane(packed, 4) != (truncate(lane(a, 4)) :: I16) then return 4204
+    if lane(packed, 12) != (truncate(lane(b, 4)) :: I16) then return 4304
+    if lane(packed, 5) != (truncate(lane(a, 5)) :: I16) then return 4205
+    if lane(packed, 13) != (truncate(lane(b, 5)) :: I16) then return 4305
+    if lane(packed, 6) != (truncate(lane(a, 6)) :: I16) then return 4206
+    if lane(packed, 14) != (truncate(lane(b, 6)) :: I16) then return 4306
+    if lane(packed, 7) != (truncate(lane(a, 7)) :: I16) then return 4207
+    if lane(packed, 15) != (truncate(lane(b, 7)) :: I16) then return 4307
+
+    return 0
+
+@noinline fn widenU32(v: Vec(U32)) -> Int:
+    let low = unpackLow(v) :: Vec(U64)
+    let high = unpackHigh(v) :: Vec(U64)
+
+    if lane(low, 0) != (lane(v, 0) :: U64) then return 5000
+    if lane(high, 0) != (lane(v, 4) :: U64) then return 5100
+    if lane(low, 1) != (lane(v, 1) :: U64) then return 5001
+    if lane(high, 1) != (lane(v, 5) :: U64) then return 5101
+    if lane(low, 2) != (lane(v, 2) :: U64) then return 5002
+    if lane(high, 2) != (lane(v, 6) :: U64) then return 5102
+    if lane(low, 3) != (lane(v, 3) :: U64) then return 5003
+    if lane(high, 3) != (lane(v, 7) :: U64) then return 5103
+
+    return 0
+
+@noinline fn narrowU32(a: Vec(U64), b: Vec(U64)) -> Int:
+    let packed = packLanes(a, b) :: Vec(U32)
+
+    if lane(packed, 0) != (truncate(lane(a, 0)) :: U32) then return 5200
+    if lane(packed, 4) != (truncate(lane(b, 0)) :: U32) then return 5300
+    if lane(packed, 1) != (truncate(lane(a, 1)) :: U32) then return 5201
+    if lane(packed, 5) != (truncate(lane(b, 1)) :: U32) then return 5301
+    if lane(packed, 2) != (truncate(lane(a, 2)) :: U32) then return 5202
+    if lane(packed, 6) != (truncate(lane(b, 2)) :: U32) then return 5302
+    if lane(packed, 3) != (truncate(lane(a, 3)) :: U32) then return 5203
+    if lane(packed, 7) != (truncate(lane(b, 3)) :: U32) then return 5303
+
+    return 0
+
+@noinline fn widenI32(v: Vec(I32)) -> Int:
+    let low = unpackLow(v) :: Vec(I64)
+    let high = unpackHigh(v) :: Vec(I64)
+
+    if lane(low, 0) != (lane(v, 0) :: I64) then return 6000
+    if lane(high, 0) != (lane(v, 4) :: I64) then return 6100
+    if lane(low, 1) != (lane(v, 1) :: I64) then return 6001
+    if lane(high, 1) != (lane(v, 5) :: I64) then return 6101
+    if lane(low, 2) != (lane(v, 2) :: I64) then return 6002
+    if lane(high, 2) != (lane(v, 6) :: I64) then return 6102
+    if lane(low, 3) != (lane(v, 3) :: I64) then return 6003
+    if lane(high, 3) != (lane(v, 7) :: I64) then return 6103
+
+    return 0
+
+@noinline fn narrowI32(a: Vec(I64), b: Vec(I64)) -> Int:
+    let packed = packLanes(a, b) :: Vec(I32)
+
+    if lane(packed, 0) != (truncate(lane(a, 0)) :: I32) then return 6200
+    if lane(packed, 4) != (truncate(lane(b, 0)) :: I32) then return 6300
+    if lane(packed, 1) != (truncate(lane(a, 1)) :: I32) then return 6201
+    if lane(packed, 5) != (truncate(lane(b, 1)) :: I32) then return 6301
+    if lane(packed, 2) != (truncate(lane(a, 2)) :: I32) then return 6202
+    if lane(packed, 6) != (truncate(lane(b, 2)) :: I32) then return 6302
+    if lane(packed, 3) != (truncate(lane(a, 3)) :: I32) then return 6203
+    if lane(packed, 7) != (truncate(lane(b, 3)) :: I32) then return 6303
+
+    return 0
+
+fn main() -> Int:
+    let valuesU8 = (iota() :: Vec(U8)) * splat(37 :: U8) + splat(201 :: U8)
+    if widenU8(valuesU8) != 0 then return widenU8(valuesU8)
+
+    let wideU8 = (iota() :: Vec(U16)) * splat(37 :: U16) + splat(201 :: U16) * splat(3 :: U16)
+    let otherU8 = (iota() :: Vec(U16)) * splat(7 :: U16) - splat(201 :: U16)
+    if narrowU8(wideU8, otherU8) != 0 then return narrowU8(wideU8, otherU8)
+
+    let valuesI8 = (iota() :: Vec(I8)) * splat(-45 :: I8) + splat(77 :: I8)
+    if widenI8(valuesI8) != 0 then return widenI8(valuesI8)
+
+    let wideI8 = (iota() :: Vec(I16)) * splat(-45 :: I16) + splat(77 :: I16) * splat(3 :: I16)
+    let otherI8 = (iota() :: Vec(I16)) * splat(7 :: I16) - splat(77 :: I16)
+    if narrowI8(wideI8, otherI8) != 0 then return narrowI8(wideI8, otherI8)
+
+    let valuesU16 = (iota() :: Vec(U16)) * splat(4099 :: U16) + splat(65001 :: U16)
+    if widenU16(valuesU16) != 0 then return widenU16(valuesU16)
+
+    let wideU16 = (iota() :: Vec(U32)) * splat(4099 :: U32) + splat(65001 :: U32) * splat(3 :: U32)
+    let otherU16 = (iota() :: Vec(U32)) * splat(7 :: U32) - splat(65001 :: U32)
+    if narrowU16(wideU16, otherU16) != 0 then return narrowU16(wideU16, otherU16)
+
+    let valuesI16 = (iota() :: Vec(I16)) * splat(-12345 :: I16) + splat(301 :: I16)
+    if widenI16(valuesI16) != 0 then return widenI16(valuesI16)
+
+    let wideI16 = (iota() :: Vec(I32)) * splat(-12345 :: I32) + splat(301 :: I32) * splat(3 :: I32)
+    let otherI16 = (iota() :: Vec(I32)) * splat(7 :: I32) - splat(301 :: I32)
+    if narrowI16(wideI16, otherI16) != 0 then return narrowI16(wideI16, otherI16)
+
+    let valuesU32 = (iota() :: Vec(U32)) * splat(2654435761 :: U32) + splat(4000000000 :: U32)
+    if widenU32(valuesU32) != 0 then return widenU32(valuesU32)
+
+    let wideU32 = (iota() :: Vec(U64)) * splat(2654435761 :: U64) + splat(4000000000 :: U64) * splat(3 :: U64)
+    let otherU32 = (iota() :: Vec(U64)) * splat(7 :: U64) - splat(4000000000 :: U64)
+    if narrowU32(wideU32, otherU32) != 0 then return narrowU32(wideU32, otherU32)
+
+    let valuesI32 = (iota() :: Vec(I32)) * splat(-1640531535 :: I32) + splat(123 :: I32)
+    if widenI32(valuesI32) != 0 then return widenI32(valuesI32)
+
+    let wideI32 = (iota() :: Vec(I64)) * splat(-1640531535 :: I64) + splat(123 :: I64) * splat(3 :: I64)
+    let otherI32 = (iota() :: Vec(I64)) * splat(7 :: I64) - splat(123 :: I64)
+    if narrowI32(wideI32, otherI32) != 0 then return narrowI32(wideI32, otherI32)
+
+    return 7

@@ -1277,10 +1277,11 @@ void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
  * defines as "write zero" - and whether that is worth three instructions and two pooled constants is
  * the same question this pass declines to answer at the wide tier.
  *
- * **128 bits only.** `vpshufb ymm` permutes inside each 128-bit half independently, so a 32-lane
- * pattern that crosses halves is not this instruction at all, and one that does not is served by the
- * narrow row after the halves are split. Restricting here is what keeps that distinction out of the
- * form table.
+ * **In-lane at 256 bits.** `vpshufb ymm` permutes inside each 128-bit half independently, so a
+ * 32-lane pattern that crosses halves is not this instruction at all. One that does not is: each half
+ * of the control indexes its own half, which is why the control byte is taken modulo sixteen. The
+ * wide row arrived with `expandLaneCountConversions`, whose narrowing gathers a source's low bytes in
+ * each half; before it this pass was 128 bits only.
  */
 void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun) {
     auto& module = *fun.module;
@@ -1296,7 +1297,8 @@ void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun) {
             auto type = shuffle->result.type;
 
             if(laneBytes(type.lane) != 1 || type.isMask()) continue;
-            if(!isWholePackedRegister(type) || isWideVector(type)) continue;
+            if(!isWholePackedRegister(type)) continue;
+            if(isWideVector(type) && !shuffleStaysInLane(inst)) continue;
 
             // An instruction already expresses it, which is cheaper by a pooled constant and a
             // register - so this asks the same function the form selection will ask, rather than a
@@ -1325,12 +1327,13 @@ void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun) {
             if(!oneSource) continue;
 
             // The control, one byte per result byte, holding the source byte it takes. At a byte
-            // lane that is the pattern entry itself, relative to the source it belongs to.
+            // lane that is the pattern entry itself, relative to the source it belongs to - and at
+            // 256 bits relative to the half as well, `vpshufb` indexing each half on its own.
             U8 bytes[kMaxVectorBytes] = {};
             auto size = Size(type.byteWidth());
 
             for(U32 k = 0; k < lanes; k++) {
-                bytes[k] = U8(second ? pattern[k] - lanes : pattern[k]);
+                bytes[k] = U8((second ? pattern[k] - lanes : pattern[k]) % 16);
             }
 
             auto global = pooledBytes(ctx, module, bytes, size);

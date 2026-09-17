@@ -107,23 +107,20 @@ main<complex>(): I32 {
     %v_46 = phi [b_38, 0], [b_47, %v_48]: I32
     %v_49 = phi [b_38, 0], [b_47, %v_50]: I32
     %v_51 = cmp_ilt %v_46, 3: I32
-    je %v_51, b_52, b_53
-  }
-
-  b_53 {
-    %v_54 = loads @trace, 4: I32
-    %v_55 = add %v_54, 10000: I32
-    store @trace, %v_55, 4
-    %v_56 = alloca 8, 4: Ptr
-    store %v_56, 0, 1
-    %v_57 = add %v_56, 4: Ptr
-    store %v_57, 0, 4
-    jmp b_58
+    je %v_51, b_47, b_52
   }
 
   b_52 {
-    %v_59 = cmp_eq %v_46, 9: I32
-    je %v_59, b_60, b_47
+    %v_53 = loads @trace, 4: I32
+    %v_54 = add %v_53, 10000: I32
+    store @trace, %v_54, 4
+    %v_55 = alloca 8, 4: Ptr
+    store %v_55, 0, 1
+    %v_56 = add %v_55, 4: Ptr
+    store %v_56, 0, 4
+    %v_57 = load %v_55, 1: I32
+    %v_58 = cmp_eq %v_57, 1: I32
+    je %v_58, b_59, b_60
   }
 
   b_47 {
@@ -133,42 +130,27 @@ main<complex>(): I32 {
     jmp b_45
   }
 
+  b_59 {
+    %v_61 = add %v_55, 4: Ptr
+    %v_62 = load %v_61, 4: I32
+    call_complex Guard.drop, %v_62
+    %v_63 = add %v_49, %v_62: I32
+    jmp b_60
+  }
+
   b_60 {
-    %v_61 = alloca 8, 4: Ptr
-    %v_62 = add %v_61, 4: Ptr
-    store %v_62, 500, 4
-    store %v_61, 1, 1
-    jmp b_58
-  }
-
-  b_58 {
-    %v_63 = phi [b_53, %v_56], [b_60, %v_61]: Ptr
-    %v_64 = load %v_63, 1: I32
-    %v_65 = cmp_eq %v_64, 1: I32
-    je %v_65, b_66, b_67
-  }
-
-  b_66 {
-    %v_68 = add %v_63, 4: Ptr
-    %v_69 = load %v_68, 4: I32
-    call_complex Guard.drop, %v_69
-    %v_70 = add %v_49, %v_69: I32
-    jmp b_67
-  }
-
-  b_67 {
-    %v_71 = phi [b_58, %v_49], [b_66, %v_70]: I32
-    %v_72 = loads @trace, 4: I32
-    %v_73 = add %v_71, %v_72: I32
-    %v_74 = add %v_4, %v_6: I32
-    %v_75 = add %v_74, %v_9: I32
-    %v_76 = add %v_75, %v_11: I32
-    %v_77 = add %v_76, %v_15: I32
-    %v_78 = add %v_77, 216: I32
-    %v_79 = add %v_78, 4294967286: I32
-    %v_80 = add %v_79, %v_44: I32
-    %v_81 = add %v_80, %v_73: I32
-    ret %v_81
+    %v_64 = phi [b_52, %v_49], [b_59, %v_63]: I32
+    %v_65 = loads @trace, 4: I32
+    %v_66 = add %v_64, %v_65: I32
+    %v_67 = add %v_4, %v_6: I32
+    %v_68 = add %v_67, %v_9: I32
+    %v_69 = add %v_68, %v_11: I32
+    %v_70 = add %v_69, %v_15: I32
+    %v_71 = add %v_70, 216: I32
+    %v_72 = add %v_71, 4294967286: I32
+    %v_73 = add %v_72, %v_44: I32
+    %v_74 = add %v_73, %v_66: I32
+    ret %v_74
   }
 }
 

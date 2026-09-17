@@ -186,20 +186,37 @@ Module
 |       |-VarExpr f
 |       `-Field <anonymous>
 |         `-VarExpr i
-`-FunDecl u <implicit return> 
+|-FunDecl u <implicit return> 
+| `-Body
+|   `-ForExpr
+|     |-VarPat i
+|     |-NestedExpr 
+|     | `-InfixExpr 
+|     |   |-VarExpr +
+|     |   |-VarExpr a
+|     |   `-LitExpr 1
+|     |-NestedExpr 
+|     | `-InfixExpr 
+|     |   |-VarExpr *
+|     |   |-VarExpr b
+|     |   `-LitExpr 2
+|     `-AppExpr 
+|       |-VarExpr f
+|       `-Field <anonymous>
+|         `-VarExpr i
+`-FunDecl v <implicit return> 
   `-Body
     `-ForExpr
       |-VarPat i
-      |-NestedExpr 
-      | `-InfixExpr 
-      |   |-VarExpr +
-      |   |-VarExpr a
-      |   `-LitExpr 1
-      |-NestedExpr 
-      | `-InfixExpr 
-      |   |-VarExpr *
-      |   |-VarExpr b
-      |   `-LitExpr 2
+      |-PrefixExpr 
+      | |-VarExpr -
+      | `-LitExpr 3
+      |-PrefixExpr 
+      | |-VarExpr -
+      | `-VarExpr n
+      |-PrefixExpr 
+      | |-VarExpr -
+      | `-LitExpr 1
       `-AppExpr 
         |-VarExpr f
         `-Field <anonymous>

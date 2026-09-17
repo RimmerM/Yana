@@ -139,58 +139,52 @@ forDownInt<complex>(%xs$items: Ptr, %xs$length: I64, %n: I32): I64 {
   b_0 {
     %v_1 = imm 0: I64
     %v_2 = cmp_igt %n, 0: I32
-    %v_3 = imm 1: I32
-    je %v_2, b_4, b_5
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = sub %n, 1: I32
+    %v_6 = sext %v_5: I64
+    %v_7 = mul %v_6, 24: I64
+    %v_8 = add %xs$items, %v_7: Ptr
+    %v_9 = sext %v_5: I64
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_3, %v_1], [b_12, %v_13]: I64
+    %v_14 = phi [b_3, %v_8], [b_12, %v_15]: Ptr
+    %v_16 = phi [b_3, %v_9], [b_12, %v_17]: I64
+    %v_18 = cmp_ige %v_16, 0: I32
+    je %v_18, b_19, b_4
+  }
+
+  b_19 {
+    %v_20 = imul %v_11, 10: I64
+    %v_21 = cmp_ge %v_16, %xs$length: I32
+    je %v_21, b_22, b_23
+  }
+
+  b_23 {
+    %v_24 = loads %v_14, 8: I64
+    %v_13 = add %v_20, %v_24: I64
+    %v_25 = cmp_ilt %v_16, 1: I32
+    je %v_25, b_4, b_12
+  }
+
+  b_12 {
+    %v_15 = add %v_14, 18446744073709551592: Ptr
+    %v_17 = add %v_16, 18446744073709551615: I64
+    jmp b_10
   }
 
   b_4 {
-    %v_6 = cmp_ige %n, %v_3: I32
-    je %v_6, b_7, b_5
-  }
-
-  b_7 {
-    %v_8 = sub %n, %v_3: I32
-    %v_9 = sext %v_8: I64
-    %v_10 = mul %v_9, 24: I64
-    %v_11 = add %xs$items, %v_10: Ptr
-    %v_12 = sext %v_8: I64
-    jmp b_13
-  }
-
-  b_13 {
-    %v_14 = phi [b_7, %v_1], [b_15, %v_16]: I64
-    %v_17 = phi [b_7, %v_11], [b_15, %v_18]: Ptr
-    %v_19 = phi [b_7, %v_12], [b_15, %v_20]: I64
-    %v_21 = cmp_ige %v_19, 0: I32
-    je %v_21, b_22, b_5
+    %v_26 = phi [b_0, %v_1], [b_10, %v_11], [b_23, %v_13]: I64
+    ret %v_26
   }
 
   b_22 {
-    %v_23 = imul %v_14, 10: I64
-    %v_24 = cmp_ge %v_19, %xs$length: I32
-    je %v_24, b_25, b_26
-  }
-
-  b_26 {
-    %v_27 = loads %v_17, 8: I64
-    %v_16 = add %v_23, %v_27: I64
-    %v_28 = cmp_ilt %v_19, 1: I32
-    je %v_28, b_5, b_15
-  }
-
-  b_15 {
-    %v_18 = add %v_17, 18446744073709551592: Ptr
-    %v_20 = add %v_19, 18446744073709551615: I64
-    jmp b_13
-  }
-
-  b_5 {
-    %v_29 = phi [b_0, %v_1], [b_4, %v_1], [b_13, %v_14], [b_26, %v_16]: I64
-    ret %v_29
-  }
-
-  b_25 {
-    %v_30 = syscall 60, 134: I64
+    %v_27 = syscall 60, 134: I64
     unreachable 
   }
 }

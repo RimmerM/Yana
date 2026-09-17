@@ -498,6 +498,13 @@ static const TransformPass kTransformPipeline[] = {
     { "lowerVectorReductions"_v,       lowerVectorReductions,       0, true },
 
     /*
+     * The lane-count conversions, first among the packed expansions: what they build is interleaves,
+     * gathers, bitcasts and constant splats, so every pass below that reads one of those - the pool,
+     * the two permute lowerings - has to see it, and nothing above reads the pair they replace.
+     */
+    { "expandLaneCountConversions"_v,  expandLaneCountConversions,  0, true },
+
+    /*
      * After the reduction, which is the other producer of a defined-at-zero bit scan - `firstSet`
      * off a movemask that fills its word. That one emits `CttzWidth` only where it has asserted
      * BMI1, so this finds nothing of its there and everything of `Value::TrailingZeros`' and

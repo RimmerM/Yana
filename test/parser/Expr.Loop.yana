@@ -64,3 +64,7 @@ fn t() = for i in bounds.low..xs.length() step counts[0] -> f(i)
 -- An operator chain is still not a slot, and still needs its parentheses - which is what keeps
 -- where each slot ends readable without knowing any fixity.
 fn u() = for i in (a + 1)..(b * 2) -> f(i)
+
+-- A slot may begin with a prefix operator, which is a negative bound: the operator reads the chain
+-- after it and nothing else, so `..` still ends the slot. `..-` without the space is one operator.
+fn v() = for i in -3 .. -n step -1 -> f(i)

@@ -44,28 +44,13 @@ nested<complex>(%n: I32): I32 {
   }
 
   b_15 {
-    %v_16 = cmp_igt %v_7, 4: I32
-    je %v_16, b_17, b_18
-  }
-
-  b_18 {
-    %v_19 = imul %v_4, 10: I32
-    %v_20 = add %v_19, %v_7: I32
-    jmp b_21
-  }
-
-  b_17 {
-    jmp b_21
-  }
-
-  b_21 {
-    %v_6 = phi [b_18, %v_20], [b_17, %v_4]: I32
-    %v_22 = phi [b_18, 0], [b_17, 1]: I32
-    %v_23 = imm 24: I32
-    %v_24 = shl %v_22, %v_23: I32
-    %v_25 = sar %v_24, %v_23: I32
-    %v_26 = cmp_eq %v_25, 1: I32
-    je %v_26, b_27, b_5
+    %v_16 = imul %v_4, 10: I32
+    %v_6 = add %v_16, %v_7: I32
+    %v_17 = imm 24: I32
+    %v_18 = shl 0, %v_17: I32
+    %v_19 = sar %v_18, %v_17: I32
+    %v_20 = cmp_eq %v_19, 1: I32
+    je %v_20, b_21, b_5
   }
 
   b_5 {
@@ -73,53 +58,53 @@ nested<complex>(%n: I32): I32 {
     jmp b_3
   }
 
-  b_27 {
+  b_21 {
     call_complex Drop(Held).drop, %h
-    jmp b_28
+    jmp b_22
   }
 
   b_14 {
-    %v_29 = call_complex take, %h: I32
-    %v_30 = cmp_igt %v_29, 4: I32
-    je %v_30, b_31, b_32
+    %v_23 = call_complex take, %h: I32
+    %v_24 = cmp_igt %v_23, 4: I32
+    je %v_24, b_25, b_26
   }
 
-  b_32 {
-    %v_33 = imul %v_4, 10: I32
-    %v_34 = add %v_33, %v_29: I32
-    jmp b_35
+  b_26 {
+    %v_27 = imul %v_4, 10: I32
+    %v_28 = add %v_27, %v_23: I32
+    jmp b_29
   }
 
-  b_31 {
-    jmp b_35
+  b_25 {
+    jmp b_29
   }
 
-  b_35 {
-    %v_36 = phi [b_32, %v_34], [b_31, %v_4]: I32
-    %v_37 = phi [b_32, 0], [b_31, 1]: I32
-    %v_38 = imm 24: I32
-    %v_39 = shl %v_37, %v_38: I32
-    %v_40 = sar %v_39, %v_38: I32
-    %v_41 = cmp_eq %v_40, 1: I32
-    je %v_41, b_42, b_43
+  b_29 {
+    %v_30 = phi [b_26, %v_28], [b_25, %v_4]: I32
+    %v_31 = phi [b_26, 0], [b_25, 1]: I32
+    %v_32 = imm 24: I32
+    %v_33 = shl %v_31, %v_32: I32
+    %v_34 = sar %v_33, %v_32: I32
+    %v_35 = cmp_eq %v_34, 1: I32
+    je %v_35, b_36, b_37
   }
 
-  b_43 {
+  b_37 {
     jmp b_12
   }
 
   b_12 {
-    %v_44 = phi [b_11, %v_4], [b_43, %v_36]: I32
-    jmp b_28
+    %v_38 = phi [b_11, %v_4], [b_37, %v_30]: I32
+    jmp b_22
   }
 
-  b_42 {
-    jmp b_28
+  b_36 {
+    jmp b_22
   }
 
-  b_28 {
-    %v_45 = phi [b_27, %v_6], [b_12, %v_44], [b_42, %v_36]: I32
-    ret %v_45
+  b_22 {
+    %v_39 = phi [b_21, %v_6], [b_12, %v_38], [b_36, %v_30]: I32
+    ret %v_39
   }
 }
 

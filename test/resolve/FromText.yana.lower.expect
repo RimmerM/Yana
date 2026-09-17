@@ -17,99 +17,197 @@ firstContinuation<complex>(%lead: I32, %unit: I32): I32 {
     je %v_1, b_2, b_3
   }
 
-  b_3 {
-    %v_4 = cmp_eq %lead, 224: I32
-    je %v_4, b_5, b_6
-  }
-
   b_2 {
-    %v_7 = sub %unit, 160: I32
-    %v_8 = cmp_le %v_7, 31: I32
-    je %v_8, b_9, b_3
-  }
-
-  b_9 {
-    jmp b_10
+    %v_4 = sub %unit, 160: I32
+    %v_5 = cmp_le %v_4, 31: I32
+    je %v_5, b_6, b_7
   }
 
   b_6 {
-    %v_11 = cmp_eq %lead, 237: I32
-    je %v_11, b_12, b_13
+    jmp b_8
   }
 
-  b_5 {
-    jmp b_10
+  b_3 {
+    %v_9 = cmp_eq %lead, 237: I32
+    je %v_9, b_10, b_11
   }
 
-  b_13 {
-    %v_14 = cmp_eq %lead, 237: I32
-    je %v_14, b_15, b_16
-  }
-
-  b_12 {
-    %v_17 = sub %unit, 128: I32
-    %v_18 = cmp_le %v_17, 31: I32
-    je %v_18, b_19, b_13
-  }
-
-  b_19 {
-    jmp b_10
-  }
-
-  b_16 {
-    %v_20 = cmp_eq %lead, 240: I32
-    je %v_20, b_21, b_22
-  }
-
-  b_15 {
-    jmp b_10
-  }
-
-  b_22 {
-    %v_23 = cmp_eq %lead, 240: I32
-    je %v_23, b_24, b_25
-  }
-
-  b_21 {
-    %v_26 = sub %unit, 144: I32
-    %v_27 = cmp_le %v_26, 47: I32
-    je %v_27, b_28, b_22
-  }
-
-  b_28 {
-    jmp b_10
-  }
-
-  b_25 {
-    %v_29 = cmp_eq %lead, 244: I32
-    je %v_29, b_30, b_31
-  }
-
-  b_24 {
-    jmp b_10
-  }
-
-  b_31 {
-    %v_32 = cmp_eq %lead, 244: I32
-    %v_33 = sub %unit, 128: I32
-    %v_34 = cmp_le %v_33, 63: I32
-    %v_35 = select %v_32, 0, %v_34: I32
-    jmp b_10
-  }
-
-  b_30 {
-    %v_36 = sub %unit, 128: I32
-    %v_37 = cmp_le %v_36, 15: I32
-    je %v_37, b_38, b_31
-  }
-
-  b_38 {
-    jmp b_10
+  b_7 {
+    jmp b_8
   }
 
   b_10 {
-    %v_39 = phi [b_9, 1], [b_5, 0], [b_19, 1], [b_15, 0], [b_28, 1], [b_24, 0], [b_38, 1], [b_31, %v_35]: I32
-    ret %v_39
+    %v_12 = sub %unit, 128: I32
+    %v_13 = cmp_le %v_12, 31: I32
+    je %v_13, b_14, b_15
+  }
+
+  b_14 {
+    jmp b_8
+  }
+
+  b_11 {
+    %v_16 = cmp_eq %lead, 240: I32
+    je %v_16, b_17, b_18
+  }
+
+  b_15 {
+    jmp b_8
+  }
+
+  b_17 {
+    %v_19 = sub %unit, 144: I32
+    %v_20 = cmp_le %v_19, 47: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_21 {
+    jmp b_8
+  }
+
+  b_18 {
+    %v_23 = cmp_eq %lead, 244: I32
+    je %v_23, b_24, b_25
+  }
+
+  b_22 {
+    jmp b_8
+  }
+
+  b_25 {
+    %v_26 = cmp_eq %lead, 244: I32
+    %v_27 = sub %unit, 128: I32
+    %v_28 = cmp_le %v_27, 63: I32
+    %v_29 = select %v_26, 0, %v_28: I32
+    jmp b_8
+  }
+
+  b_24 {
+    %v_30 = sub %unit, 128: I32
+    %v_31 = cmp_le %v_30, 15: I32
+    je %v_31, b_32, b_25
+  }
+
+  b_32 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_33 = phi [b_6, 1], [b_7, 0], [b_14, 1], [b_15, 0], [b_21, 1], [b_22, 0], [b_32, 1], [b_25, %v_29]: I32
+    ret %v_33
+  }
+}
+
+decodeMaximalSubpart<complex>(%v_0: Ptr, %text: Ptr, %at: I64, %lead: I32) {
+  b_1 {
+    %v_2 = sub %lead, 194: I32
+    %v_3 = cmp_le %v_2, 29: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = sub %lead, 224: I32
+    %v_7 = cmp_le %v_6, 15: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    %v_10 = sub %lead, 240: I32
+    %v_11 = cmp_le %v_10, 4: I32
+    %v_12 = and %lead, 7: I32
+    %v_13 = select %v_11, 3, 0: I64
+    %v_14 = select %v_11, %v_12, 0: I32
+    %v_15 = cmp_eq %v_13, 0: I32
+    je %v_15, b_16, b_17
+  }
+
+  b_8 {
+    %v_18 = and %lead, 15: I32
+    jmp b_17
+  }
+
+  b_4 {
+    %v_19 = and %lead, 31: I32
+    jmp b_17
+  }
+
+  b_17 {
+    %v_20 = phi [b_9, %v_14], [b_8, %v_18], [b_4, %v_19]: I32
+    %v_21 = phi [b_9, %v_13], [b_8, 2], [b_4, 1]: I64
+    %v_22 = add %text, 12: Ptr
+    %v_23 = load %v_22, 4: I32
+    %v_24 = sext %v_23: I64
+    %v_25 = add %at, 1: I64
+    %end = add %v_25, %v_21: I64
+    jmp b_26
+  }
+
+  b_26 {
+    %v_27 = phi [b_17, %v_20], [b_28, %v_29]: I32
+    %v_30 = phi [b_17, %v_25], [b_28, %v_31]: I64
+    %v_32 = cmp_ilt %v_30, %end: I32
+    je %v_32, b_33, b_34
+  }
+
+  b_34 {
+    %v_35 = add %v_0, 8: Ptr
+    store %v_35, %v_27, 4
+    store %v_0, %end, 8
+    ret 
+  }
+
+  b_33 {
+    %v_36 = cmp_ige %v_30, %v_24: I32
+    je %v_36, b_37, b_38
+  }
+
+  b_38 {
+    %v_39 = load %text, 8: Ptr
+    %v_40 = add %v_39, %v_30: Ptr
+    %v_41 = load %v_40, 1: I32
+    %v_42 = cmp_eq %v_30, %v_25: I32
+    je %v_42, b_43, b_44
+  }
+
+  b_44 {
+    %v_45 = sub %v_41, 128: I32
+    %v_46 = cmp_le %v_45, 63: I32
+    jmp b_47
+  }
+
+  b_43 {
+    %v_48 = call_complex firstContinuation, %lead, %v_41: I32
+    jmp b_47
+  }
+
+  b_47 {
+    %continues = phi [b_43, %v_48], [b_44, %v_46]: I32
+    je %continues, b_28, b_37
+  }
+
+  b_28 {
+    %v_49 = shl %v_27, 6: I32
+    %v_50 = and %v_41, 63: I32
+    %v_29 = or %v_49, %v_50: I32
+    %v_31 = add %v_30, 1: I64
+    jmp b_26
+  }
+
+  b_37 {
+    %v_51 = load @replacementChar, 4: I32
+    store %v_0, %v_30, 8
+    %v_52 = add %v_0, 8: Ptr
+    store %v_52, %v_51, 4
+    ret 
+  }
+
+  b_16 {
+    %v_53 = add %at, 1: I64
+    %v_54 = load @replacementChar, 4: I32
+    store %v_0, %v_53, 8
+    %v_55 = add %v_0, 8: Ptr
+    store %v_55, %v_54, 4
+    ret 
   }
 }
 
@@ -122,128 +220,148 @@ decodeChar<complex>(%v_0: Ptr, %text: Ptr, %at: I64) {
     je %v_5, b_6, b_7
   }
 
-  b_6 {
-    %v_8 = load %text, 8: Ptr
-    %v_9 = add %v_8, %at: Ptr
-    %v_10 = load %v_9, 1: I32
-    %v_11 = cmp_lt %v_10, 128: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_13 {
-    %v_14 = sub %v_10, 194: I32
-    %v_15 = cmp_le %v_14, 29: I32
-    je %v_15, b_16, b_17
-  }
-
-  b_17 {
-    %v_18 = sub %v_10, 224: I32
-    %v_19 = cmp_le %v_18, 15: I32
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
-    %v_22 = sub %v_10, 240: I32
-    %v_23 = cmp_le %v_22, 4: I32
-    %v_24 = and %v_10, 7: I32
-    %v_25 = select %v_23, 3, 0: I64
-    %v_26 = select %v_23, %v_24, 0: I32
-    %v_27 = cmp_eq %v_25, 0: I32
-    je %v_27, b_28, b_29
-  }
-
-  b_20 {
-    %v_30 = and %v_10, 15: I32
-    jmp b_29
-  }
-
-  b_16 {
-    %v_31 = and %v_10, 31: I32
-    jmp b_29
-  }
-
-  b_29 {
-    %v_32 = phi [b_21, %v_26], [b_20, %v_30], [b_16, %v_31]: I32
-    %v_33 = phi [b_21, %v_25], [b_20, 2], [b_16, 1]: I64
-    %v_34 = add %at, 1: I64
-    %end = add %v_34, %v_33: I64
-    jmp b_35
-  }
-
-  b_35 {
-    %v_36 = phi [b_29, %v_32], [b_37, %v_38]: I32
-    %v_39 = phi [b_29, %v_34], [b_37, %v_40]: I64
-    %v_41 = cmp_ilt %v_39, %end: I32
-    je %v_41, b_42, b_43
-  }
-
-  b_43 {
-    %v_44 = add %v_0, 8: Ptr
-    store %v_44, %v_36, 4
-    store %v_0, %end, 8
-    ret 
-  }
-
-  b_42 {
-    %v_45 = cmp_ige %v_39, %v_4: I32
-    je %v_45, b_7, b_46
-  }
-
-  b_46 {
-    %v_47 = load %text, 8: Ptr
-    %v_48 = add %v_47, %v_39: Ptr
-    %v_49 = load %v_48, 1: I32
-    %v_50 = cmp_eq %v_39, %v_34: I32
-    je %v_50, b_51, b_52
-  }
-
-  b_52 {
-    %v_53 = sub %v_49, 128: I32
-    %v_54 = cmp_le %v_53, 63: I32
-    jmp b_55
-  }
-
-  b_51 {
-    %v_56 = call_complex firstContinuation, %v_10, %v_49: I32
-    jmp b_55
-  }
-
-  b_55 {
-    %continues = phi [b_51, %v_56], [b_52, %v_54]: I32
-    je %continues, b_37, b_7
-  }
-
-  b_37 {
-    %v_57 = shl %v_36, 6: I32
-    %v_58 = and %v_49, 63: I32
-    %v_38 = or %v_57, %v_58: I32
-    %v_40 = add %v_39, 1: I64
-    jmp b_35
-  }
-
   b_7 {
-    %v_59 = phi [b_55, %v_39], [b_42, %v_39], [b_1, %at]: I64
-    %v_60 = load @replacementChar, 4: I32
-    store %v_0, %v_59, 8
-    %v_61 = add %v_0, 8: Ptr
-    store %v_61, %v_60, 4
+    %v_8 = load @replacementChar, 4: I32
+    store %v_0, %at, 8
+    %v_9 = add %v_0, 8: Ptr
+    store %v_9, %v_8, 4
     ret 
+  }
+
+  b_6 {
+    %v_10 = load %text, 8: Ptr
+    %v_11 = add %v_10, %at: Ptr
+    %v_12 = load %v_11, 1: I32
+    %v_13 = cmp_lt %v_12, 128: I32
+    je %v_13, b_14, b_15
+  }
+
+  b_14 {
+    %v_16 = add %at, 1: I64
+    %v_17 = add %v_0, 8: Ptr
+    store %v_17, %v_12, 4
+    store %v_0, %v_16, 8
+    ret 
+  }
+
+  b_15 {
+    %v_18 = cmp_lt %v_12, 224: I32
+    %v_19 = cmp_lt %v_12, 240: I32
+    %v_20 = select %v_19, 3, 4: I64
+    %v_21 = select %v_18, 2, %v_20: I64
+    %v_22 = add %at, %v_21: I64
+    %v_23 = cmp_ile %v_22, %v_4: I32
+    je %v_23, b_24, b_25
+  }
+
+  b_24 {
+    %v_26 = cmp_eq %v_21, 2: I32
+    je %v_26, b_27, b_28
+  }
+
+  b_25 {
+    jmp b_29
+  }
+
+  b_27 {
+    %v_30 = add %at, 1: I64
+    %v_31 = add %v_10, %v_30: Ptr
+    %v_32 = load %v_31, 1: I32
+    %b1 = xor %v_32, 128: I32
+    %v_33 = cmp_lt %b1, 64: I32
+    %v_34 = cmp_ge %v_12, 194: I32
+    %v_35 = and %v_33, %v_34: I32
+    %v_36 = and %v_12, 31: I32
+    %v_37 = shl %v_36, 6: I32
+    %v_38 = or %v_37, %b1: I32
+    %v_39 = select %v_35, %v_38, 4294967295: I32
+    jmp b_40
   }
 
   b_28 {
-    %v_62 = add %at, 1: I64
-    %v_63 = load @replacementChar, 4: I32
-    store %v_0, %v_62, 8
-    %v_64 = add %v_0, 8: Ptr
-    store %v_64, %v_63, 4
+    %v_41 = cmp_eq %v_21, 3: I32
+    je %v_41, b_42, b_43
+  }
+
+  b_42 {
+    %v_44 = add %at, 1: I64
+    %v_45 = add %v_10, %v_44: Ptr
+    %v_46 = load %v_45, 1: I32
+    %b1 = xor %v_46, 128: I32
+    %v_47 = add %at, 2: I64
+    %v_48 = add %v_10, %v_47: Ptr
+    %v_49 = load %v_48, 1: I32
+    %b2 = xor %v_49, 128: I32
+    %v_50 = and %v_12, 15: I32
+    %v_51 = shl %v_50, 12: I32
+    %v_52 = shl %b1, 6: I32
+    %v_53 = or %v_51, %v_52: I32
+    %value = or %v_53, %b2: I32
+    %v_54 = or %b1, %b2: I32
+    %v_55 = shr %v_54, 6: I32
+    %v_56 = sub %value, 2048: I32
+    %v_57 = shr %v_56, 31: I32
+    %broken = or %v_55, %v_57: I32
+    %v_58 = cmp_eq %broken, 0: I32
+    %v_59 = shr %value, 11: I32
+    %v_60 = cmp_neq %v_59, 27: I32
+    %v_61 = and %v_58, %v_60: I32
+    %v_62 = select %v_61, %value, 4294967295: I32
+    jmp b_63
+  }
+
+  b_43 {
+    %v_64 = add %at, 1: I64
+    %v_65 = add %v_10, %v_64: Ptr
+    %v_66 = load %v_65, 1: I32
+    %b1 = xor %v_66, 128: I32
+    %v_67 = add %at, 2: I64
+    %v_68 = add %v_10, %v_67: Ptr
+    %v_69 = load %v_68, 1: I32
+    %b2 = xor %v_69, 128: I32
+    %v_70 = add %at, 3: I64
+    %v_71 = add %v_10, %v_70: Ptr
+    %v_72 = load %v_71, 1: I32
+    %b3 = xor %v_72, 128: I32
+    %v_73 = and %v_12, 7: I32
+    %v_74 = shl %v_73, 18: I32
+    %v_75 = shl %b1, 12: I32
+    %v_76 = or %v_74, %v_75: I32
+    %v_77 = shl %b2, 6: I32
+    %v_78 = or %v_76, %v_77: I32
+    %value = or %v_78, %b3: I32
+    %v_79 = or %b1, %b2: I32
+    %v_80 = or %v_79, %b3: I32
+    %v_81 = cmp_lt %v_80, 64: I32
+    %v_82 = cmp_lt %v_12, 245: I32
+    %fits = and %v_81, %v_82: I32
+    %v_83 = sub %value, 65536: I32
+    %v_84 = cmp_le %v_83, 1048575: I32
+    %v_85 = and %fits, %v_84: I32
+    %v_86 = select %v_85, %value, 4294967295: I32
+    jmp b_63
+  }
+
+  b_63 {
+    %v_87 = phi [b_42, %v_62], [b_43, %v_86]: I32
+    jmp b_40
+  }
+
+  b_40 {
+    %v_88 = phi [b_27, %v_39], [b_63, %v_87]: I32
+    %v_89 = cmp_neq %v_88, 4294967295: I32
+    je %v_89, b_90, b_29
+  }
+
+  b_90 {
+    %v_91 = add %v_0, 8: Ptr
+    store %v_91, %v_88, 4
+    store %v_0, %v_22, 8
     ret 
   }
 
-  b_12 {
-    %v_65 = add %at, 1: I64
-    %v_66 = add %v_0, 8: Ptr
-    store %v_66, %v_10, 4
-    store %v_0, %v_65, 8
+  b_29 {
+    call_complex decodeMaximalSubpart, %v_0, %text, %at, %v_12
     ret 
   }
 }

@@ -1,0 +1,107 @@
+import Native
+
+{-
+   ==========================================================================================
+   Fixed encodings on JS - Implementation-String.md part 7.
+   ==========================================================================================
+
+   `Encoding.yana` has the contracts. Here UTF-16 is the free direction - a host string's units are
+   UTF-16 already - and UTF-8 is the host's `TextEncoder` and `TextDecoder`. A `[U8]` on this target
+   is a `Uint8Array` and a `[U16]` a `Uint16Array` (`typedArrayFor`), so both host objects take a
+   window of one with `subarray`, which shares the buffer rather than copying it.
+
+   **A new encoder or decoder per call.** Neither can be kept: this target has no global a library
+   body can initialize once. Measured on Node 26, constructing one costs about 30 ns beside a 45 ns
+   decode of sixteen bytes, and it is a constant - the calls themselves are 30-100 times faster than
+   the `charCodeAt` loop this compiler would otherwise emit, from 1 KiB up.
+
+   The validators are `Encoding.yana`'s scalar walks. `TextDecoder` can validate, with `fatal`, but
+   it reports failure by throwing, and nothing on this target catches.
+-}
+
+-- A fresh host object of a constructor, with no arguments. The argument list is a plain host array -
+-- `%String`'s row, where `%U8` would build a `Uint8Array` to say the same nothing.
+fn hostNew(constructor: %U8) -> %U8 = hostConstruct(constructor, bitcast(hostArray() :: %String) :: %U8)
+
+-- The live units of a typed-array window, as a `subarray` of the host array beneath it.
+fn hostSubarray(return items: %a, from: Size, to: Size) -> %U8 = hostCall2(items, "subarray", from, to)
+
+pub fn isValidUtf8(bytes: [U8]) -> Bool = utf8ValidFrom(bytes, 0)
+
+pub fn isValidUtf16(units: [U16]) -> Bool = utf16ValidFrom(units, 0)
+
+{-
+   `TextDecoder.decode`, which replaces by maximal subparts exactly as `chars` does natively.
+
+   **The byte order mark is put back.** A decoder built without options removes one leading U+FEFF,
+   and this conversion does not interpret the text, so a string that began with one keeps it. The
+   decoder removes one mark and no more, which is why one is added back rather than the first three
+   bytes being skipped: skipping them would let it remove a second.
+-}
+pub fn String.fromUtf8(bytes: [U8]) -> String:
+    let count = length(bytes)
+    if count == 0 then return ""
+
+    let window = hostSubarray(bytes.items, bytes.offset, bytes.offset + count)
+    let text = hostCall1(hostNew(hostField(hostGlobalObject(), "TextDecoder")), "decode", window) :: String
+
+    let marked = count >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF
+    return if marked then "\xFEFF" ++ text else text
+
+{-
+   The units, as they are - a lone surrogate included, which a host string may hold.
+
+   `String.fromCharCode.apply` over pieces of the array, because a single `apply` spreads its
+   argument onto the stack and a long enough array overflows it. A piece is 8,192 units, far below
+   any engine's limit, and joining the pieces is the host's rope.
+-}
+pub fn String.fromUtf16(units: [U16]) -> String:
+    let count = length(units)
+    let fromCharCode = hostField(hostField(hostGlobalObject(), "String") :: %U8, "fromCharCode") :: %U8
+    let &out = ""
+    let &at = 0 :: Size
+
+    while at < count:
+        let &end = at + 8192
+        if end > count then end = count
+
+        let piece = hostSubarray(units.items, units.offset + at, units.offset + end)
+        out = hostConcat(out, hostCall2(fromCharCode, "apply", 0, piece) :: String)
+        at = end
+
+    return out
+
+{-
+   `TextEncoder.encodeInto`, straight into the room past the array's end.
+
+   One UTF-16 unit is at most three UTF-8 bytes - a surrogate pair is two units and four bytes, and
+   a lone surrogate is U+FFFD's three - so reserving three per unit means the encoder never stops
+   short, and what it reports as `written` is the whole of the text.
+-}
+pub fn String.appendUtf8(text: String, &to: Array(U8)):
+    let count = length(text)
+    if count == 0 then return
+
+    let have = to.length :: Size
+    reserve(to, have + 3 * count)
+
+    let window = hostSubarray(to.items, have, have + 3 * count)
+    let result = hostCall2(hostNew(hostField(hostGlobalObject(), "TextEncoder")), "encodeInto", text, window) :: %U8
+    let written = hostField(result, "written") :: Size
+    to.length = truncate(have + written) :: Count
+
+-- The units, copied, a lone surrogate included: one `charCodeAt` and one element write each, into
+-- room reserved once.
+pub fn String.appendUtf16(text: String, &to: Array(U16)):
+    let count = length(text)
+    let have = to.length :: Size
+    reserve(to, have + count)
+
+    for i in 0 .. count:
+        hostWrite(to.items, have + i, String.unit(text, i) :: U16)
+
+    to.length = truncate(have + count) :: Count
+
+-- On this target the copy has nothing to trust: `Char.yana` has the contract, and this is the checked
+-- form under the other name so that a program using it compiles on both targets.
+pub fn String.appendUtf16Unchecked(text: String, &to: Array(U16)): String.appendUtf16(text, to)

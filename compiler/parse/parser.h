@@ -55,6 +55,9 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::Expr parseBaseExpr();
     ast::Expr parseSelExpr(const WithLocation& location);
 
+    // One slot of a `for` header: a chain, optionally behind prefix operators.
+    ast::Expr parseRangeBound(const WithLocation& location);
+
     // A `selexpr` followed by any number of the closed suffixes `parseChain` reads - a call, a
     // subscript, a field. What a `for` header's three slots take, and what `selexpr` alone takes
     // everywhere else. See the definition for why the two are not the same production.

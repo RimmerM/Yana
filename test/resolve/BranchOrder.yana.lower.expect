@@ -679,21 +679,21 @@ withAnd<complex>(%text: Ptr, %keep: I32, %out: Ptr): I32 {
     %v_21 = add %v_12, %v_20: Ptr
     %v_22 = load %v_21, 1: I32
     %v_23 = cmp_eq %v_22, 57: I32
-    je %v_23, b_15, b_19
+    je %v_23, b_15, b_24
   }
 
   b_19 {
-    %v_24 = cmp_eq %v_14, 0: I32
-    je %v_24, b_25, b_26
+    %v_25 = cmp_eq %v_14, 0: I32
+    je %v_25, b_26, b_24
   }
 
-  b_26 {
+  b_24 {
     %v_27 = sext %keep: I64
     jmp b_28
   }
 
   b_28 {
-    %v_29 = phi [b_26, 0], [b_30, %v_31]: I64
+    %v_29 = phi [b_24, 0], [b_30, %v_31]: I64
     %v_32 = cmp_ilt %v_29, %v_27: I32
     je %v_32, b_30, b_33
   }
@@ -712,14 +712,14 @@ withAnd<complex>(%text: Ptr, %keep: I32, %out: Ptr): I32 {
     jmp b_28
   }
 
-  b_25 {
+  b_26 {
     call_complex Reclaim(String).reclaim, %kept
     call_complex push(CodeUnit), %out, 49
     jmp b_37
   }
 
   b_37 {
-    %v_38 = phi [b_25, 0], [b_39, %v_40]: I32
+    %v_38 = phi [b_26, 0], [b_39, %v_40]: I32
     %v_41 = cmp_ilt %v_38, %keep: I32
     je %v_41, b_39, b_42
   }

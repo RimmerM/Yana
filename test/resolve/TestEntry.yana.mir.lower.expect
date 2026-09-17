@@ -810,28 +810,28 @@ runMain<complex>(%cases$items: Ptr, %cases$length: I64): I32 {
     je %v_65, b_66, b_67
   }
 
-  b_68 {
-    %v_69 = cmp_igt %v_70, 0: I32
-    je %v_69, b_45, b_23
-  }
-
   b_45 {
     jmp b_43
   }
 
   b_67 {
-    %v_71 = add %cases$items, 68: Ptr
-    %v_72 = load %v_71, 4: I32
-    %v_70 = sext %v_72: I64
-    %v_73 = sext %v_70: I32
-    %v_74 = imul %v_3, %v_73: I32
-    %v_75 = cmp_eq %v_10, %v_74: I32
-    je %v_75, b_68, b_23
+    %v_68 = add %cases$items, 68: Ptr
+    %v_69 = load %v_68, 4: I32
+    %v_70 = sext %v_69: I64
+    %v_71 = sext %v_70: I32
+    %v_72 = imul %v_3, %v_71: I32
+    %v_73 = cmp_eq %v_10, %v_72: I32
+    je %v_73, b_74, b_23
   }
 
   b_66 {
-    %v_76 = syscall 60, 134: I64
+    %v_75 = syscall 60, 134: I64
     unreachable 
+  }
+
+  b_74 {
+    %v_76 = cmp_igt %v_70, 0: I32
+    je %v_76, b_45, b_23
   }
 }
 

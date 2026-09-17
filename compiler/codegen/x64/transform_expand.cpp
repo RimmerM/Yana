@@ -2290,3 +2290,158 @@ void expandAtomics(Context&, LowerBase base, LowerFunction& fun) {
         }
     }
 }
+
+/*
+ * The conversions that change a vector's lane count - `unpackLow`, `unpackHigh` and `packLanes`,
+ * recognized by `laneUnpackAt` and `lanePackAt` in machine_vector.cpp.
+ *
+ * Each arrives as a pair whose middle value is half a register: a shuffle keeping half of one
+ * vector's lanes and a `Cast` widening them, or two `Cast`s narrowing and a shuffle joining them.
+ * This backend holds a vector only in a whole register, so the pair is rewritten into instructions
+ * that never produce the half, all of them ones the machine already has.
+ *
+ * ## Widening
+ *
+ * A lane interleaved with zero *is* the lane zero-extended to twice the width - `punpcklbw x, 0` read
+ * as sixteen bits is `x`'s low eight bytes as words, which is the whole of `pmovzxbw`. The high half
+ * is the high interleave. A signed source is the same value moved by the sign bit:
+ * `(u ^ 0x80) - 0x80` at the wider lane is the byte `u` sign-extended.
+ *
+ * At 256 bits the interleaves work inside each 128-bit half, so the whole-register one is two of
+ * them and an exchange of halves: the low result is the low halves of the in-lane low and high
+ * interleaves, and the high result is their high halves.
+ *
+ * ## Narrowing
+ *
+ * `packLanes` keeps the low half of every lane, which is truncation and not the saturation `packus`
+ * performs - so it is a gather rather than a pack. Each source is read as bytes and its lanes' low
+ * bytes gathered into the low half of the register, and the two low halves are joined by the 64-bit
+ * interleave. The gather is `pshufb`, or `pshufd` where the lanes are 64 bits wide and the bytes move
+ * as whole 32-bit lanes; its unused high half repeats the low one so that it stays expressible by
+ * the wider instruction. At 256 bits the gather and the join both work per half, and one `vpermd`
+ * puts the second source's quarter after the first's.
+ */
+void expandLaneCountConversions(Context&, LowerBase base, LowerFunction& fun) {
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+
+            if(auto unpack = laneUnpackAt(base, inst)) {
+                auto u = unpack.unwrap();
+                auto wide = u.widen->result.type;
+                auto from = u.source->type;
+                auto lanes = from.lanes();
+                auto wideTier = isWideVector(wide);
+
+                Expansion e { base, fun, block, i };
+                auto zero = e.splat(from, e.integer(scalarFormOf(from), 0));
+
+                // Lane `j` of an interleave of `source` with zero, within a run of `span` lanes that
+                // starts at `start`: the source's lane on even positions and zero's on odd ones.
+                auto interleave = [&](U32 start, U32 span, bool high, Size j) {
+                    auto lane = U8(start + (high ? span / 2 : 0) + j / 2);
+                    return U8(j % 2 ? lane + lanes : lane);
+                };
+
+                LowerValue* zipped;
+
+                if(!wideTier) {
+                    zipped = e.shuffle(from, u.source, zero, [&](Size j) {
+                        return interleave(0, lanes, u.high, j);
+                    });
+                } else {
+                    auto half = lanes / 2;
+                    auto inLane = [&](bool high) {
+                        return e.shuffle(from, u.source, zero, [&](Size j) {
+                            return interleave(U32(j / half) * half, half, high, j % half);
+                        });
+                    };
+
+                    auto low = inLane(false);
+                    auto high = inLane(true);
+
+                    // The low result is both interleaves' low halves; the high one their high halves.
+                    zipped = e.shuffle(from, low, high, [&](Size j) {
+                        auto quarter = U8(u.high ? half : 0);
+                        return U8(j < half ? quarter + j : lanes + quarter + (j - half));
+                    });
+                }
+
+                LowerValue* result = e.reinterpret(wide, zipped);
+
+                if(u.widen->isSignedSource()) {
+                    auto signBit = U64(1) << (laneBytes(from.lane) * 8 - 1);
+                    auto bias = e.splat(wide, e.integer(scalarFormOf(wide), signBit));
+                    auto flipped = e.binary(LowerInst::Xor, wide, result, bias);
+                    result = e.binary(LowerInst::Sub, wide, flipped, bias);
+                }
+
+                result->name = u.widen->result.name;
+                replaceAllUses(base, &u.widen->result, result);
+                removeInst(base, (LowerInst*)u.widen);
+                removeInst(base, (LowerInst*)u.half);
+
+                // The walk resumes behind what was built, which removing the shuffle may have moved.
+                i = positionOf(base, block, result->inst()).unwrap();
+                continue;
+            }
+
+            if(auto pack = lanePackAt(base, inst)) {
+                auto p = pack.unwrap();
+                auto type = p.join->result.type;
+                auto bytes = type.byteWidth();
+                auto byteType = vectorType(LowerLane::Int8, bytes);
+                auto keep = laneBytes(type.lane);
+                auto wideTier = isWideVector(type);
+                auto half = U32(wideTier ? 16 : bytes);
+
+                Expansion e { base, fun, block, i };
+
+                // Byte `j` of a run of `half` bytes starting at `start`: the low bytes of the source
+                // lanes, packed to the front of the run, and the front repeated behind it.
+                auto gatherEntry = [&](U32 start, Size j) {
+                    auto within = U32(j % (half / 2));
+                    return U8(start + (within / keep) * 2 * keep + within % keep);
+                };
+
+                auto gather = [&](LowerInstCast* cast) {
+                    auto source = e.reinterpret(byteType, base[cast->from]);
+                    return e.shuffle(byteType, source, source, [&](Size j) {
+                        return gatherEntry(U32(j / half) * half, j % half);
+                    });
+                };
+
+                // A vector packed with itself is gathered once - `String.fromUtf16` narrows a
+                // block that way and keeps the first half.
+                auto left = gather(p.left);
+                auto right = base[p.right->from] == base[p.left->from] ? left : gather(p.right);
+
+                // The two low halves of each run, first source's before the second's.
+                LowerValue* joined = e.shuffle(byteType, left, right, [&](Size j) {
+                    auto start = U32(j / half) * half;
+                    auto within = U32(j % half);
+                    return U8(within < half / 2 ? start + within : bytes + start + within - half / 2);
+                });
+
+                if(wideTier) {
+                    // Quarters in the order left-low, right-low, left-high, right-high, and the two
+                    // middle ones exchanged - as 32-bit lanes, which is the width `vpermd` moves.
+                    auto dwords = vectorType(LowerLane::Int32, 8);
+                    auto words = e.reinterpret(dwords, joined);
+                    static const U8 kOrder[8] = { 0, 1, 4, 5, 2, 3, 6, 7 };
+                    joined = e.shuffle(dwords, words, words, [&](Size j) { return kOrder[j]; });
+                }
+
+                auto result = e.reinterpret(type, joined, p.join->result.name);
+                replaceAllUses(base, &p.join->result, result);
+                removeInst(base, (LowerInst*)p.join);
+                removeInst(base, (LowerInst*)p.left);
+                if(p.right != p.left) removeInst(base, (LowerInst*)p.right);
+
+                i = positionOf(base, block, result->inst()).unwrap();
+            }
+        }
+    }
+}

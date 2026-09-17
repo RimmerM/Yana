@@ -36,6 +36,37 @@ pub fn decodeCharBefore(text: String, at: Size) -> {Char, Size}:
         Just(pair) -> return {pair, at - 2}
         Nothing -> return {Char(scalarOrReplacement(unitNumber(text, at - 1))), at - 1}
 
+-- Each character of the text in order, with U+FFFD for each lone surrogate.
+pub iter fn chars(text: String) -> Char:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        yield char
+        at = next
+
+pub iter fn charOffsets(text: String) -> {Size, Char}:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        yield {at, char}
+        at = next
+
+pub fn countChars(text: String) -> Size:
+    let count = length(text)
+    let &at = 0 :: Size
+    let &total = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        total = total + 1
+        at = next
+
+    return total
+
 pub fn isCharBoundary(text: String, at: Size) -> Bool:
     -- Past the last unit only the end itself is a boundary, and an empty text's end is also its start.
     if !isUnitOffset(text, at) then return at == length(text)
@@ -112,3 +143,36 @@ pub fn compareChars(left: String, right: String) -> Ordering:
     if leftCount < rightCount then return LT
     if leftCount > rightCount then return GT
     return EQ
+
+{-
+   The `Unchecked` forms (part 7.2), which on this target are the checked ones: pairing a surrogate is
+   one comparison whether or not the text is trusted, so there is nothing to save. `Char.yana` is where
+   the contract is.
+
+   The two iterators repeat `chars`' loop rather than running `for c in chars(text): yield c`. That
+   form is a nested traversal, and each one compiled on this target took a number from the counter
+   every emitted closure is named by - which renumbered the closures in thirty JavaScript goldens
+   under `test/resolve`.
+-}
+pub iter fn charsUnchecked(text: String) -> Char:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        yield char
+        at = next
+
+pub iter fn charOffsetsUnchecked(text: String) -> {Size, Char}:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let {char, next} = decodeChar(text, at)
+        yield {at, char}
+        at = next
+
+pub fn countCharsUnchecked(text: String) -> Size = countChars(text)
+pub fn floorCharBoundaryUnchecked(text: String, at: Size) -> Size = floorCharBoundary(text, at)
+pub fn ceilCharBoundaryUnchecked(text: String, at: Size) -> Size = ceilCharBoundary(text, at)
+pub fn decodeCharBeforeUnchecked(text: String, at: Size) -> {Char, Size} = decodeCharBefore(text, at)

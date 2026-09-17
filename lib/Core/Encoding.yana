@@ -1,0 +1,94 @@
+{-
+   ==========================================================================================
+   Fixed encodings - Implementation-String.md part 7.
+   ==========================================================================================
+
+   A `String` is in the target's own encoding. Text in a *fixed* encoding - a file, a socket, a wire
+   format, a host API that wants bytes - is a plain array, `[U8]` for UTF-8 and `[U16]` for UTF-16,
+   and conversion is a function rather than a type:
+
+   - `String.appendUtf8(text, &to)` and `String.appendUtf16(text, &to)` encode a string onto the
+     end of an array.
+   - `String.fromUtf8(bytes)` and `String.fromUtf16(units)` decode one into a new string.
+   - `isValidUtf8(bytes)` and `isValidUtf16(units)` are the opt-in validation part 7.1 leaves to
+     the caller.
+   - `String.bytes(text)`, natively only, is a string's own units as a `[U8]` window, with no copy.
+   - `String.appendUtf16Unchecked(text, &to)` assumes the text is valid UTF-8 natively, on part 7.2's
+     terms (`Char.yana` states them). On JS it is `appendUtf16`.
+
+   **Each target gets one direction free.** Natively a string's units already are UTF-8, so
+   `fromUtf8` and `appendUtf8` are block copies and UTF-16 is a real transcode. On JS it is the other
+   way round: UTF-16 is a unit copy, and UTF-8 is the host's `TextEncoder` and `TextDecoder`, which
+   the WHATWG Encoding standard specifies exactly - replacement included - so the host is the
+   implementation rather than an approximation of it.
+
+   **Nothing here fails, and nothing here repairs what it does not have to** (part 7.1). A direction
+   that copies copies whatever is there: `fromUtf8` natively keeps invalid bytes, and `fromUtf16` on
+   JS keeps a lone surrogate, because a `String` may hold either and decoding it later yields U+FFFD.
+   A direction that transcodes has to write *something* for a sequence that is not a character, and
+   writes U+FFFD by the same rule `chars` decodes with. So `chars(String.fromUtf8(bytes))` is the same
+   sequence of `Char`s on both targets whichever of the two did the replacing - which is what
+   `Encoding.test.yana` checks against the Unicode Standard's maximal-subpart tables.
+
+   **There is no `Encoding` class.** Analysis-Library.md §2.3 proposed one, with `Utf8`, `Utf16` and
+   `Utf32` instances and a generic `transcode` over any pair, and part 7 kept it open as the device
+   behind these. Written out, it had nothing to carry: of the four conversions each target has two
+   copies and two transcodes, the transcodes are different code on the two targets (a host call on
+   one, a vector loop on the other), and a generic body over a decode-one-character class is exactly
+   the scalar loop that the vector bodies exist to avoid. It comes back if a third encoding does.
+
+   What is here is what both targets share: the scalar validators, over arrays, which JS uses whole
+   and the native vector loops use for the blocks they cannot settle in a register.
+-}
+
+{-
+   The offset after the well-formed UTF-8 sequence that starts at `at`, or `at` itself when the
+   bytes there do not begin one.
+
+   The same table the native decoder reads (`leadBits` and `firstContinuation` in `Char.yana`), so
+   "well-formed" means exactly what "decodes to something other than U+FFFD" means: no overlong
+   form, no surrogate, nothing past U+10FFFF, and no sequence cut off by the end of the array.
+-}
+fn utf8SequenceEnd(bytes: [U8], at: Size) -> Size:
+    let lead = bytes[at] :: U32
+    if lead < 0x80 then return at + 1
+
+    let {need, bits} = leadBits(lead)
+    let end = at + 1 + need
+    if need == 0 || end > length(bytes) then return at
+    if !firstContinuation(lead, bytes[at + 1] :: U32) then return at
+
+    let &next = at + 2
+    while next < end:
+        if !(bytes[next] is 0x80..=0xBF) then return at
+        next = next + 1
+
+    return end
+
+-- Whether every sequence from `from` to the end is well-formed.
+fn utf8ValidFrom(bytes: [U8], from: Size) -> Bool:
+    let count = length(bytes)
+    let &at = from
+
+    while at < count:
+        let end = utf8SequenceEnd(bytes, at)
+        if end == at then return False
+        at = end
+
+    return True
+
+-- Whether every unit from `from` to the end is a BMP character or half of a surrogate pair in the
+-- right order.
+fn utf16ValidFrom(units: [U16], from: Size) -> Bool:
+    let count = length(units)
+    let &at = from
+
+    while at < count:
+        match units[at]:
+            0xD800..=0xDBFF:
+                if at + 1 >= count || !(units[at + 1] is 0xDC00..=0xDFFF) then return False
+                at = at + 2
+            0xDC00..=0xDFFF -> return False
+            _ -> at = at + 1
+
+    return True

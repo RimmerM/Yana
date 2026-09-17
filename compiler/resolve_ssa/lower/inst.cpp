@@ -1775,9 +1775,17 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  * each side's flag is its own logical type's, and a float's is false - it has no
                  * sign bit for the instruction to extend. Narrowing reads neither flag; `cast`
                  * truncates whatever it was given.
+                 *
+                 * A vector's flags are its lane's: `Vec(I8)` to `Vec(I16)` sign-extends every lane,
+                 * as JavaScript converting one lane at a time does.
                  */
-                auto& target = *decl[result->type()];
-                auto signedSource = logical.kind == mir::Type::Int && ((mir::IntType&)logical).isSigned;
+                auto laneOf = [&](const mir::Type& type) -> const mir::Type& {
+                    return type.kind == mir::Type::Vector ? *decl[((mir::VectorType&)type).lane] : type;
+                };
+
+                auto& source = laneOf(logical);
+                auto& target = laneOf(*decl[result->type()]);
+                auto signedSource = source.kind == mir::Type::Int && ((mir::IntType&)source).isSigned;
                 auto signedResult = target.kind == mir::Type::Int && ((mir::IntType&)target).isSigned;
 
                 value = block.addInst(lower, new (to.arena) LowerInstCast(

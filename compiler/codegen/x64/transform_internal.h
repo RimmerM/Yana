@@ -293,6 +293,7 @@ void expandBankConversions(Context&, LowerBase base, LowerFunction& fun);
 void unwrapVectorShiftCounts(Context&, LowerBase base, LowerFunction& fun);
 void expandQuadwordSar(Context&, LowerBase base, LowerFunction& fun);
 void expandByteShifts(Context&, LowerBase base, LowerFunction& fun);
+void expandLaneCountConversions(Context&, LowerBase base, LowerFunction& fun);
 void expandByteMul(Context&, LowerBase base, LowerFunction& fun);
 void expandQuadwordMul(Context&, LowerBase base, LowerFunction& fun);
 void expandVectorMulHi(Context&, LowerBase base, LowerFunction& fun);

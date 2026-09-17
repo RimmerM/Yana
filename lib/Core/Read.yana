@@ -158,11 +158,12 @@ fn digitValue(unit: Int, radix: Int) -> Int:
 
    The tree is the standard one and every step halves the lane count by doubling the width.
    `interleaveLow` against zero spreads eight byte lanes into sixteen-bit ones **without leaving the
-   register**, which is what an `unpackLow` into a narrower vector would have needed a sub-register
-   transfer for and this backend has none (Implementation-Vector.md §12). Read as thirty-two-bit
-   lanes, each of the four then holds two adjacent digits - the earlier one in the low half, since the
-   units sit in the register little-endian - so one masked multiply and add turns four lanes of two
-   digits into four numbers below a hundred, and the four are weighted and summed as scalars.
+   register**. That is also what `unpackLow` becomes on x64 (`expandLaneCountConversions`), but
+   `unpackLow` takes a vector at the natural width and this reads sixteen lanes on every tier, so the
+   interleave is written out. Read as thirty-two-bit lanes, each of the four then holds two adjacent
+   digits - the earlier one in the low half, since the units sit in the register little-endian - so
+   one masked multiply and add turns four lanes of two digits into four numbers below a hundred, and
+   the four are weighted and summed as scalars.
 
    Measured 1.60x against the scalar loop over the same eight units; §62.4 of test/bench/findings.md.
 -}

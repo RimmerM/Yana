@@ -1,0 +1,23 @@
+{-
+   An array literal argument at a fixed array whose count is the callee's own variable.
+
+   `pattern: [Int *m]` names its element and leaves its count to the call, and a literal is the one
+   argument that says how long it is. The rewritten stage used to hint such a position with nothing,
+   because the count was still open when the argument was resolved - and a literal with no hint is a
+   growable array, refused as `Array(I32)`. So every shuffle wrote `:: [Int *16]` to repeat what the
+   parameter already said. It is hinted now with the element the parameter states and the count the
+   literal was written with, and the count variable is bound from what was built.
+-}
+
+@noinline fn (n: Int) total(xs: [Int *n]) -> Int:
+    let &sum = 0 :: Int
+    for i in 0 .. n:
+        sum = sum * 3 + xs[i]
+    return sum
+
+fn main() -> Int:
+    let v = iota() :: Vec(U8, 16)
+    let evens = shuffle(v, [0, 2, 4, 6, 8, 10, 12, 14, 0, 0, 0, 0, 0, 0, 0, 0])
+    let zipped = shuffle2(v, v, [0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23])
+
+    return total([4, 1, 5]) + total([2, 7]) * 100 + (lane(evens, 3) :: Int) * 10000 + (lane(zipped, 5) :: Int) * 100000

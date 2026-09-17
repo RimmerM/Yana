@@ -43,6 +43,29 @@ fn surrogatePair(high: U32, low: U32) -> Maybe(Char)
   | {0xD800..=0xDBFF, 0xDC00..=0xDFFF} -> Just(Char(0x10000 + ((high - 0xD800) `shl` 10) + (low - 0xDC00)))
   | _                                 -> Nothing
 
+-- How many continuation bytes a UTF-8 lead byte takes, and the payload bits it carries itself. A byte
+-- that cannot begin a sequence takes none - `C0`, `C1` and `F5` up are never UTF-8. Here rather than in
+-- `Char.native.yana` because validating a `[U8]` (`Encoding.yana`) needs it on JS too.
+fn leadBits(lead: U32) -> {Size, U32}
+  | 0xC2..=0xDF -> {1, lead `and` 0x1F}
+  | 0xE0..=0xEF -> {2, lead `and` 0x0F}
+  | 0xF0..=0xF4 -> {3, lead `and` 0x07}
+  | _           -> {0, 0}
+
+-- Whether `unit` may follow `lead` as its first continuation byte, which is the Unicode Standard's
+-- table 3-7: four leads narrow the range, and every other lead takes any continuation byte.
+fn firstContinuation(lead: U32, unit: U32) -> Bool
+  | {0xE0, 0xA0..=0xBF} -> True
+  | {0xE0, _}           -> False
+  | {0xED, 0x80..=0x9F} -> True
+  | {0xED, _}           -> False
+  | {0xF0, 0x90..=0xBF} -> True
+  | {0xF0, _}           -> False
+  | {0xF4, 0x80..=0x8F} -> True
+  | {0xF4, _}           -> False
+  | {_, 0x80..=0xBF}    -> True
+  | _                   -> False
+
 -- The first and the last scalar value. Every value between them is a `Char`, and the surrogates in the
 -- middle are the ones no decode produces.
 instance Bounded(Char):
@@ -118,6 +141,9 @@ instance Narrow(Char, CodeUnit):
      it, and `decodeCharBefore(text, at)` the character ending at `at` and the offset it starts at.
      Both answer U+FFFD and `at` itself for an offset with nothing on that side of it, which is what
      makes a loop over them stop.
+   - `chars(text)` yields each character in order and `charOffsets(text)` each with the offset it
+     starts at. `countChars(text)` is how many `chars` yields - the same number on every target for
+     the same content, where `length` is not. O(n) on both.
    - `isCharBoundary`, `floorCharBoundary` and `ceilCharBoundary` say whether an offset is between two
      characters and round one that is not. `0` and `length` are always boundaries, and an offset
      outside the text rounds to the nearer of those.
@@ -128,42 +154,28 @@ instance Narrow(Char, CodeUnit):
    - `compareChars(left, right)` is code-point order, the same on every target for valid text
      (part 3).
 
-   What follows is written once over those.
+   Natively `chars`, `charOffsets` and `countChars` are vectorized or given a fast path for
+   well-formed sequences, which is why they are per target too (build order step 5).
+
+   ------------------------------------------------------------------------------------------
+   The `Unchecked` forms - part 7.2
+
+   `charsUnchecked`, `charOffsetsUnchecked`, `countCharsUnchecked`, `floorCharBoundaryUnchecked`,
+   `ceilCharBoundaryUnchecked`, `decodeCharBeforeUnchecked` and `String.appendUtf16Unchecked`
+   (`Encoding.yana`) assume the text is valid - and `decodeCharBeforeUnchecked` that `at` is a
+   boundary. On valid text, from a boundary, each answers exactly what its checked form answers. On
+   invalid text the answer is unspecified - a `Char` that is not a scalar value, a different count, a
+   different rounding - but it never reads outside the text, never loops without end and never traps,
+   in any build.
+
+   Each exists because `test/bench/utf8` measured the checked form at least 1.3 times slower on some
+   non-ASCII corpus at both v2 and v3 (`test/bench/utf8/findings.md` has the table and the rule).
+   `fromUtf16` has none, since pairing a surrogate costs one comparison whether or not it is trusted.
+
+   On JS each of these is its checked form under the other name: a surrogate pair test is one
+   comparison either way, so there is nothing to save, and the names exist so that a program using
+   them compiles on both targets.
 -}
-
--- Each character of the text in order, with U+FFFD for each invalid sequence.
-pub iter fn chars(text: String) -> Char:
-    let count = length(text)
-    let &at = 0 :: Size
-
-    while at < count:
-        let {char, next} = decodeChar(text, at)
-        yield char
-        at = next
-
--- Each character with the offset it starts at, which is what a caller that slices around one needs.
-pub iter fn charOffsets(text: String) -> {Size, Char}:
-    let count = length(text)
-    let &at = 0 :: Size
-
-    while at < count:
-        let {char, next} = decodeChar(text, at)
-        yield {at, char}
-        at = next
-
--- How many characters `chars` yields - the same number on every target for the same content, where
--- `length` is not. O(n) on both.
-pub fn countChars(text: String) -> Size:
-    let count = length(text)
-    let &at = 0 :: Size
-    let &total = 0 :: Size
-
-    while at < count:
-        let {char, next} = decodeChar(text, at)
-        total = total + 1
-        at = next
-
-    return total
 
 pub fn String.containsChar(text: String, c: Char) -> Bool = String.findChar(text, c, 0) is Just(_)
 

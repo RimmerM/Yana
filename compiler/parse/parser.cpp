@@ -941,7 +941,7 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
         expect(Token::kwIn, "expected 'in'"_v);
 
         WithLocation fromLocation(*this);
-        auto from = parseChainExpr(fromLocation);
+        auto from = parseRangeBound(fromLocation);
 
         ast::ParsePtr<ast::Expr> step = nullptr, to = nullptr;
         bool reverse = false;
@@ -963,12 +963,12 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
 
         if(hasTo) {
             WithLocation toLocation(*this);
-            to = heap(parseChainExpr(toLocation));
+            to = heap(parseRangeBound(toLocation));
         }
 
         if(maybeVar(stepId)) {
             WithLocation stepLocation(*this);
-            step = heap(parseChainExpr(stepLocation));
+            step = heap(parseRangeBound(stepLocation));
         }
 
         /*
@@ -1375,6 +1375,24 @@ ast::Expr Parser::parseBaseExpr() {
     } else {
         return parseSelExpr(location);
     }
+}
+
+/*
+ * One slot of a `for` header - a chain, see below - with any prefix operators in front of it, which
+ * is `parsePrefixExpr`'s rule over a chain. A prefix operator reads only what follows it, so it can
+ * no more reach past the slot than the chain can, and `for i in -3 .. -n` needs no parentheses.
+ */
+ast::Expr Parser::parseRangeBound(const WithLocation& location) {
+    if(auto sym = maybe(Token::VarSym)) {
+        auto op = makeExpr(Var, var, sym.unwrap().id, location);
+
+        WithLocation onLocation(*this);
+        auto expr = parseRangeBound(onLocation);
+
+        return makeExpr(Prefix, prefix, heap(ast::PrefixExpr { .on = expr, .op = op }), location);
+    }
+
+    return parseChainExpr(location);
 }
 
 /*

@@ -125,6 +125,10 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     threadDecidedBranches(base, module, fun);
     foldFunctionConstants(base, module, fun);
 
+    // And the tests a test above them already answered - see lower_thread.h. Behind the pass above,
+    // whose folds are what make a condition a comparison against a literal.
+    threadImpliedBranches(base, module, fun);
+
     // And the counters a loop carries two of because two things wanted one - see lower_cse.h. In
     // front of the analysis below rather than beside the CSE, because what it leaves is one value
     // where there were two and everything computed from either of them is then a pair the CSE

@@ -234,6 +234,12 @@ void MachineFormBuilder::registerWideForms() {
     wideTwin(FormVWideUnpackHighF32, FormVUnpackHighF32, "vunpckhps ymm, ymm, ymm"_v);
     wideTwin(FormVWideUnpackHighF64, FormVUnpackHighF64, "vunpckhpd ymm, ymm, ymm"_v);
 
+    // `vpshufb ymm`, which is `pshufb` in each half with the control's matching half - so the same
+    // in-lane restriction as the rest of this group, and `lowerByteLaneShuffles` writes each half's
+    // control relative to its own half. The tie `dropTie` removes is the permuted vector's, which
+    // becomes `vvvv`; the control stays the r/m operand.
+    wideTwin(FormVWideByteShuffle, FormVByteShuffle, "vpshufb ymm, ymm, ymm/m"_v);
+
     wideTwin(FormVWideBitcast, FormVBitcast, "vmovaps ymm, ymm"_v);
     wideTwin(FormVWideMove,    FormVMove,    "vmovaps ymm, ymm"_v);
 

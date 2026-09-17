@@ -1,0 +1,24 @@
+{-
+   A counted `for` whose written bound is a negative literal.
+
+   # resolver: ownership
+
+   A literal bound takes the other bound's type, so `for i in 0 .. n` counts at `n`'s type - and a
+   negated literal is a literal to that rule as well, so `-2 .. n` does too. It used to be typed on
+   its own, answer `I32`, and disagree with a `Size` at the other end. The parser half is
+   `test/parser/Expr.Loop.yana`: a range slot may begin with a prefix operator.
+-}
+
+fn main() -> I32:
+    let count = 3 :: Size
+    let &trace = 0 :: I32
+
+    -- -2, -1, 0, 1, 2.
+    for at in -2 .. count:
+        trace = trace * 3 + (truncate(at + 2) :: I32)
+
+    -- Both ends negative: one stride below the first bound, which is -3, and nothing past -4.
+    for at in -1 downto -4 step 2:
+        trace = trace * 2 + (truncate(0 - at) :: I32)
+
+    return trace

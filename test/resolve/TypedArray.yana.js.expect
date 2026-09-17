@@ -21,16 +21,6 @@ function growJsArray_I32(self, wanted) {
   self.items = v25;
 }
 
-function push_U8(self, item) {
-  var count = self.length;
-  var v7 = count + 1;
-  if (v7 > self.items.length) {
-    growJsArray_U8(self, v7);
-  }
-  self.items[count] = item;
-  self.length = v7 & 1073741823;
-}
-
 function growJsArray_U8(self, wanted) {
   var v3 = self.items;
   var room = v3.length;
@@ -44,6 +34,16 @@ function growJsArray_U8(self, wanted) {
   }
   var v25 = $grow(v3, wide);
   self.items = v25;
+}
+
+function push_U8(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_U8(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
 }
 
 function push_I32(self, item) {

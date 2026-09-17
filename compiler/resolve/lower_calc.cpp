@@ -452,8 +452,9 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             auto integerCast = isInteger(lower.global, sourceType) &&
                                isInteger(lower.global, instruction.type);
 
-            auto sourceSigned = signedType(lower.global, sourceType);
-            auto targetSigned = signedType(lower.global, instruction.type);
+            // A vector's sign is its lane's - see `signedOperand`.
+            auto sourceSigned = signedOperand(lower.global, sourceType);
+            auto targetSigned = signedOperand(lower.global, instruction.type);
 
             /*
              * Reading a full-register signed integer as its unsigned counterpart does not convert
@@ -473,15 +474,25 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     LowerInst::Bitcast, instruction.name, targetLower, from));
             }
 
-            auto integerWiden = integerCast &&
-                                sourceLower == LowerType::Int32 &&
-                                targetLower == LowerType::Int64;
+            /*
+             * A vector crosses the way its lanes do: an integer lane widening to a wider one extends
+             * by the lane's sign, as JavaScript converting a lane at a time does, and so does one
+             * becoming a float lane.
+             */
+            auto laneWiden = isIntVector(sourceLower) && isIntVector(targetLower) &&
+                             laneBytes(targetLower.lane) > laneBytes(sourceLower.lane);
+
+            auto integerWiden = (integerCast &&
+                                 sourceLower == LowerType::Int32 &&
+                                 targetLower == LowerType::Int64) || laneWiden;
 
             auto signedSource = sourceSigned &&
-                                (integerWiden || isFloat(lower.global, instruction.type));
+                                (integerWiden || isFloat(lower.global, instruction.type) ||
+                                 isFloatVector(targetLower));
 
             auto signedResult = targetSigned &&
-                                (integerWiden || isFloat(lower.global, sourceType));
+                                (integerWiden || isFloat(lower.global, sourceType) ||
+                                 isFloatVector(sourceLower));
 
             if(!result) {
                 result = block.addInst(lower.lower, new (lower.to.arena) LowerInstCast(

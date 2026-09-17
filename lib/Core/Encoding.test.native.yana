@@ -1,0 +1,91 @@
+module Core
+
+{-
+   The native vector paths of part 7 against the scalar walks they stand in for.
+
+   The vector validator and counter settle a block with comparisons rather than by walking it, so
+   what can go wrong is a rule missed at one lane position or a sequence cut by a block boundary.
+   Neither shows up in a hand-written case unless the case happens to put the byte there, so these
+   generate thousands of texts - `generatedText` in `Char.test.native.yana`, mostly well-formed with
+   a bad byte dropped in now and then - and assert that every vector answer is the scalar one.
+-}
+
+import Test
+
+@test fn validatorAgreesWithScalar():
+    let &state = 12345 :: U32
+    let &wrong = 0
+    let &valid = 0
+
+    for round in 0 .. 20000:
+        let text = generatedText(state, 90, if round % 4 == 0 then 0 else 4)
+        let bytes = String.bytes(text)
+        let expected = utf8ValidFrom(bytes, 0)
+        if expected then valid = valid + 1
+        if isValidUtf8(bytes) != expected then wrong = wrong + 1
+
+    checkEqual(wrong, 0)
+    -- Both answers occur often enough for the agreement to mean something.
+    check(valid > 3000)
+    check(valid < 17000)
+
+-- `String.bytes` is the string's own units, not a copy of them.
+@test fn bytesIsAWindow():
+    let text = "aé€😀z"
+    let bytes = String.bytes(text)
+    checkEqual(length(bytes), length(text))
+    checkEqual(bytes[1] :: U32, 0xC3)
+    check(bytes.items == (bitcast(units(text)) :: %U8))
+
+{-
+   The vector transcoders against a character-at-a-time walk, over the same generated text - broken
+   text included, since what a transcoder writes for a broken
+   sequence is part of what it promises.
+-}
+fn referenceUtf16(text: String) -> [U16]:
+    let &out = [] :: [U16]
+    let &at = 0 :: Size
+
+    while at < length(text):
+        let {char, next} = decodeChar(text, at)
+        if char.0 < 0x10000:
+            push(out, truncate(char.0) :: U16)
+        else:
+            push(out, truncate(0xD800 + ((char.0 - 0x10000) `shr` 10)) :: U16)
+            push(out, truncate(0xDC00 + ((char.0 - 0x10000) `and` 0x3FF)) :: U16)
+        at = next
+
+    return out
+
+fn sameUnits(left: [U16], right: [U16]) -> Bool:
+    if length(left) != length(right) then return False
+    for i in 0 .. length(left):
+        if left[i] != right[i] then return False
+
+    return True
+
+@test fn transcodersAgreeWithWalk():
+    let &state = 31337 :: U32
+    let &wrong = 0
+
+    for round in 0 .. 3000:
+        let text = generatedText(state, 120, if round % 2 == 0 then 0 else 4)
+        let &units = [] :: [U16]
+        String.appendUtf16(text, units)
+
+        let expected = referenceUtf16(text)
+        if !sameUnits(elements(units), elements(expected)) then wrong = wrong + 1
+
+        -- The `Unchecked` form agrees on valid text, and on the rest only has to stay in bounds.
+        let &trusted = [] :: [U16]
+        String.appendUtf16Unchecked(text, trusted)
+        if round % 2 == 0 && !sameUnits(elements(trusted), elements(expected)) then wrong = wrong + 1
+        if length(trusted) > length(text) then wrong = wrong + 1
+
+        -- Back to UTF-8 is the text with every broken sequence as U+FFFD, which is `chars` re-encoded.
+        let &encoded = String.ofCapacity(length(text))
+        for c in chars(text):
+            String.pushChar(encoded, c)
+        if String.fromUtf16(elements(units)) != encoded then wrong = wrong + 1
+
+    checkEqual(wrong, 0)

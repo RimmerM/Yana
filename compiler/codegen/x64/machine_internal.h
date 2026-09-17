@@ -479,6 +479,7 @@ enum: MachineFormId {
     FormVWideUnpackLowF32, FormVWideUnpackLowF64,
     FormVWideUnpackHigh8, FormVWideUnpackHigh16, FormVWideUnpackHigh32, FormVWideUnpackHigh64,
     FormVWideUnpackHighF32, FormVWideUnpackHighF64,
+    FormVWideByteShuffle,
 
     FormVWideBitcast, FormVWideMove,
     FormVWideCastIToF32, FormVWideCastFToI32,

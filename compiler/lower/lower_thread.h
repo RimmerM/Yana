@@ -79,6 +79,35 @@ void threadDecidedBranches(LowerBase base, LowerModule& module, LowerFunction& f
 bool foldDecidedBranches(LowerBase base, LowerModule& module, LowerFunction& fun);
 
 /*
+ * A branch whose answer a test on the way into it already settled, with the edge moved past it.
+ *
+ * `threadDecidedBranches` reads a literal a phi carries; this reads a comparison a branch above made.
+ * The shape is a chain of tests of one value, which is what a guard with tuple patterns becomes:
+ * `| {0xE0, _..0xA0} -> 0 | {0xED, 0xA0.._} -> 0 | {0xE0..=0xEF, _} -> 2` tests the lead against
+ * `0xE0`, then the second byte, and where the second byte does not match it falls into the next arm's
+ * test of the lead - which that edge already answered. `sequenceReach` in lib/Core/Char.native.yana is the
+ * function this was written for: without the pass every fall re-tested the lead down the rest of the
+ * chain, and the layout put the rare second-byte tests between the common lead tests.
+ *
+ * A test is read as the interval of values its true arm admits, modulo the width - an equality, a
+ * relation, or a relation of the value moved by a literal, which is what a range pattern folds to -
+ * and an edge knows the interval of its own arm or the complement of it. The block is skipped when
+ * that interval lies inside the test's or outside it.
+ *
+ * What may be skipped is the same promise as the pass above, stated without phis: nothing in the
+ * block but pure arithmetic only the branch reads. An arm with phis of its own is declined, since the
+ * front ends never branch straight into a join, and a loop header is never skipped, since the edge
+ * would enter the loop below it.
+ *
+ * The facts are read from the predecessor's own branch and from the branches above it, climbing only
+ * through blocks with one way in. No block is copied, so the program never grows.
+ *
+ * Behind `threadDecidedBranches`, and in front of the loop analysis for the same reason: it changes
+ * the block set. Answers whether anything moved.
+ */
+bool threadImpliedBranches(LowerBase base, LowerModule& module, LowerFunction& fun);
+
+/*
  * A block that ends in a jump to a block nothing else enters, and the two made one.
  *
  * Nothing above builds this shape on purpose; it is what a removed branch leaves behind. A bounds

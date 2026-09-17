@@ -31,6 +31,151 @@ fn isUnitOffset(%text: String, %at: Size) -> Bool {
     ret %v5
 }
 
+fn leadBits(%lead: U32) -> {Size, U32} {
+  b0:
+    %v3 = cmp_ge %lead, 194 : Bool
+    %v4 = cmp_le %lead, 223 : Bool
+    %v5 = and %v3, %v4 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v15 = cmp_ge %lead, 224 : Bool
+    %v16 = cmp_le %lead, 239 : Bool
+    %v17 = and %v15, %v16 : Bool
+    je %v17, b4, b3
+
+  b2:
+    %v7 = alloc : {Size, U32}
+    %v11 = and %lead, 31 : U32
+    aggregate %local0.0 = 1, %local0.1 = %v11
+    jmp b7
+
+  b3:
+    %v27 = cmp_ge %lead, 240 : Bool
+    %v28 = cmp_le %lead, 244 : Bool
+    %v29 = and %v27, %v28 : Bool
+    je %v29, b6, b5
+
+  b4:
+    %v19 = alloc : {Size, U32}
+    %v23 = and %lead, 15 : U32
+    aggregate %local1.0 = 2, %local1.1 = %v23
+    jmp b7
+
+  b5:
+    %v37 = alloc : {Size, U32}
+    aggregate %local3.0 = 0, %local3.1 = 0
+    jmp b7
+
+  b6:
+    %v31 = alloc : {Size, U32}
+    %v35 = and %lead, 7 : U32
+    aggregate %local2.0 = 3, %local2.1 = %v35
+    jmp b7
+
+  b7:
+    %v45 = phi [b2, %v7], [b4, %v19], [b6, %v31], [b5, %v37] : {Size, U32}
+    ret %v45
+}
+
+fn firstContinuation(%lead: U32, %unit: U32) -> Bool {
+  b0:
+    %v3 = cmp_eq %lead, 224 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v13 = cmp_eq %lead, 224 : Bool
+    je %v13, b5, b4
+
+  b2:
+    %v7 = cmp_ge %unit, 160 : Bool
+    %v8 = cmp_le %unit, 191 : Bool
+    %v9 = and %v7, %v8 : Bool
+    je %v9, b3, b1
+
+  b3:
+    jmp b23
+
+  b4:
+    %v17 = cmp_eq %lead, 237 : Bool
+    je %v17, b7, b6
+
+  b5:
+    jmp b23
+
+  b6:
+    %v27 = cmp_eq %lead, 237 : Bool
+    je %v27, b10, b9
+
+  b7:
+    %v21 = cmp_ge %unit, 128 : Bool
+    %v22 = cmp_le %unit, 159 : Bool
+    %v23 = and %v21, %v22 : Bool
+    je %v23, b8, b6
+
+  b8:
+    jmp b23
+
+  b9:
+    %v31 = cmp_eq %lead, 240 : Bool
+    je %v31, b12, b11
+
+  b10:
+    jmp b23
+
+  b11:
+    %v41 = cmp_eq %lead, 240 : Bool
+    je %v41, b15, b14
+
+  b12:
+    %v35 = cmp_ge %unit, 144 : Bool
+    %v36 = cmp_le %unit, 191 : Bool
+    %v37 = and %v35, %v36 : Bool
+    je %v37, b13, b11
+
+  b13:
+    jmp b23
+
+  b14:
+    %v45 = cmp_eq %lead, 244 : Bool
+    je %v45, b17, b16
+
+  b15:
+    jmp b23
+
+  b16:
+    %v55 = cmp_eq %lead, 244 : Bool
+    je %v55, b20, b19
+
+  b17:
+    %v49 = cmp_ge %unit, 128 : Bool
+    %v50 = cmp_le %unit, 143 : Bool
+    %v51 = and %v49, %v50 : Bool
+    je %v51, b18, b16
+
+  b18:
+    jmp b23
+
+  b19:
+    %v60 = cmp_ge %unit, 128 : Bool
+    %v61 = cmp_le %unit, 191 : Bool
+    %v62 = and %v60, %v61 : Bool
+    je %v62, b22, b21
+
+  b20:
+    jmp b23
+
+  b21:
+    jmp b23
+
+  b22:
+    jmp b23
+
+  b23:
+    %v76 = phi [b3, True], [b5, False], [b8, True], [b10, False], [b13, True], [b15, False], [b18, True], [b20, False], [b22, True], [b21, False] : Bool
+    ret %v76
+}
+
 fn firstCharOf(%text: String) -> U32 {
   b0:
     %v2 = call decodeChar, %text, 0 : {Char, Size}
@@ -180,149 +325,284 @@ fn unitNumber(%text: String, %at: Size) -> U32 {
     ret %v3
 }
 
-fn leadBits(%lead: U32) -> {Size, U32} {
+fn wellFormedTwo(%text: String, %at: Size, %lead: U32) -> U32 {
   b0:
-    %v3 = cmp_ge %lead, 194 : Bool
-    %v4 = cmp_le %lead, 223 : Bool
-    %v5 = and %v3, %v4 : Bool
-    je %v5, b2, b1
+    %v5 = add %at, 1 : Size
+    %v6 = call unitNumber, %text, %v5 : U32
+    %b1 = xor %v6, 128 : U32
+    %v12 = cmp_lt %b1, 64 : Bool
+    je %v12, b1, b2
 
   b1:
-    %v15 = cmp_ge %lead, 224 : Bool
-    %v16 = cmp_le %lead, 239 : Bool
-    %v17 = and %v15, %v16 : Bool
-    je %v17, b4, b3
+    %v16 = cmp_ge %lead, 194 : Bool
+    jmp b3
 
   b2:
-    %v7 = alloc : {Size, U32}
-    %v11 = and %lead, 31 : U32
-    aggregate %local0.0 = 1, %local0.1 = %v11
-    jmp b7
+    jmp b3
 
   b3:
-    %v27 = cmp_ge %lead, 240 : Bool
-    %v28 = cmp_le %lead, 244 : Bool
-    %v29 = and %v27, %v28 : Bool
-    je %v29, b6, b5
+    %v20 = phi [b1, %v16], [b2, False] : Bool
+    je %v20, b4, b5
 
   b4:
-    %v19 = alloc : {Size, U32}
-    %v23 = and %lead, 15 : U32
-    aggregate %local1.0 = 2, %local1.1 = %v23
-    jmp b7
+    %v24 = and %lead, 31 : U32
+    %v27 = shl %v24, 6 : U32
+    %v28 = or %v27, %b1 : U32
+    jmp b6
 
   b5:
-    %v37 = alloc : {Size, U32}
-    aggregate %local3.0 = 0, %local3.1 = 0
-    jmp b7
+    jmp b6
 
   b6:
-    %v31 = alloc : {Size, U32}
-    %v35 = and %lead, 7 : U32
-    aggregate %local2.0 = 3, %local2.1 = %v35
-    jmp b7
-
-  b7:
-    %v45 = phi [b2, %v7], [b4, %v19], [b6, %v31], [b5, %v37] : {Size, U32}
-    ret %v45
+    %v32 = phi [b4, %v28], [b5, 4294967295] : U32
+    ret %v32
 }
 
-fn firstContinuation(%lead: U32, %unit: U32) -> Bool {
+fn wellFormedThree(%text: String, %at: Size, %lead: U32) -> U32 {
   b0:
-    %v3 = cmp_eq %lead, 224 : Bool
-    je %v3, b2, b1
+    %v5 = add %at, 1 : Size
+    %v6 = call unitNumber, %text, %v5 : U32
+    %b1 = xor %v6, 128 : U32
+    %v12 = add %at, 2 : Size
+    %v13 = call unitNumber, %text, %v12 : U32
+    %b2 = xor %v13, 128 : U32
+    %v19 = and %lead, 15 : U32
+    %v22 = shl %v19, 12 : U32
+    %v25 = shl %b1, 6 : U32
+    %v26 = or %v22, %v25 : U32
+    %value = or %v26, %b2 : U32
+    %v28 = or %b1, %b2 : U32
+    %v31 = shr %v28, 6 : U32
+    %v34 = sub %value, 2048 : U32
+    %v37 = shr %v34, 31 : U32
+    %broken = or %v31, %v37 : U32
+    %v41 = cmp_eq %broken, 0 : Bool
+    je %v41, b1, b2
 
   b1:
-    %v13 = cmp_eq %lead, 224 : Bool
-    je %v13, b5, b4
+    %v45 = shr %value, 11 : U32
+    %v48 = cmp_ne %v45, 27 : Bool
+    jmp b3
 
   b2:
-    %v7 = cmp_ge %unit, 160 : Bool
-    %v8 = cmp_le %unit, 191 : Bool
-    %v9 = and %v7, %v8 : Bool
-    je %v9, b3, b1
+    jmp b3
 
   b3:
-    jmp b23
+    %v52 = phi [b1, %v48], [b2, False] : Bool
+    je %v52, b4, b5
 
   b4:
-    %v17 = cmp_eq %lead, 237 : Bool
-    je %v17, b7, b6
+    jmp b6
 
   b5:
-    jmp b23
+    jmp b6
 
   b6:
-    %v27 = cmp_eq %lead, 237 : Bool
-    je %v27, b10, b9
+    %v57 = phi [b4, %value], [b5, 4294967295] : U32
+    ret %v57
+}
+
+fn wellFormedFour(%text: String, %at: Size, %lead: U32) -> U32 {
+  b0:
+    %v5 = add %at, 1 : Size
+    %v6 = call unitNumber, %text, %v5 : U32
+    %b1 = xor %v6, 128 : U32
+    %v12 = add %at, 2 : Size
+    %v13 = call unitNumber, %text, %v12 : U32
+    %b2 = xor %v13, 128 : U32
+    %v19 = add %at, 3 : Size
+    %v20 = call unitNumber, %text, %v19 : U32
+    %b3 = xor %v20, 128 : U32
+    %v26 = and %lead, 7 : U32
+    %v29 = shl %v26, 18 : U32
+    %v32 = shl %b1, 12 : U32
+    %v33 = or %v29, %v32 : U32
+    %v36 = shl %b2, 6 : U32
+    %v37 = or %v33, %v36 : U32
+    %value = or %v37, %b3 : U32
+    %v39 = or %b1, %b2 : U32
+    %v40 = or %v39, %b3 : U32
+    %v43 = cmp_lt %v40, 64 : Bool
+    je %v43, b1, b2
+
+  b1:
+    %v47 = cmp_lt %lead, 245 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %fits = phi [b1, %v47], [b2, False] : Bool
+    je %fits, b4, b5
+
+  b4:
+    %v55 = cmp_ge %value, 65536 : Bool
+    %v56 = cmp_le %value, 1114111 : Bool
+    %v57 = and %v55, %v56 : Bool
+    je %v57, b7, b6
+
+  b5:
+    jmp b9
+
+  b6:
+    jmp b8
 
   b7:
-    %v21 = cmp_ge %unit, 128 : Bool
-    %v22 = cmp_le %unit, 159 : Bool
-    %v23 = and %v21, %v22 : Bool
-    je %v23, b8, b6
+    jmp b8
 
   b8:
-    jmp b23
+    %v63 = phi [b7, True], [b6, False] : Bool
+    jmp b9
 
   b9:
-    %v31 = cmp_eq %lead, 240 : Bool
-    je %v31, b12, b11
+    %v67 = phi [b8, %v63], [b5, False] : Bool
+    je %v67, b10, b11
 
   b10:
-    jmp b23
+    jmp b12
 
   b11:
-    %v41 = cmp_eq %lead, 240 : Bool
-    je %v41, b15, b14
+    jmp b12
 
   b12:
-    %v35 = cmp_ge %unit, 144 : Bool
-    %v36 = cmp_le %unit, 191 : Bool
-    %v37 = and %v35, %v36 : Bool
-    je %v37, b13, b11
+    %v72 = phi [b10, %value], [b11, 4294967295] : U32
+    ret %v72
+}
+
+fn announcedLength(%lead: U32) -> Size {
+  b0:
+    %v2 = cmp_lt %lead, 224 : Bool
+    je %v2, b2, b1
+
+  b1:
+    %v6 = cmp_lt %lead, 240 : Bool
+    je %v6, b4, b3
+
+  b2:
+    jmp b5
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v13 = phi [b2, 2], [b4, 3], [b3, 4] : Size
+    ret %v13
+}
+
+fn decodeMaximalSubpart(%text: String, %at: Size, %lead: U32) -> {Char, Size} {
+  b0:
+    %v3 = call leadBits, %lead : {Size, U32}
+    %need = load %local1.0 : Size
+    %bits = load %local1.1 : U32
+    %v8 = cmp_eq %need, 0 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v10 = alloc : {Char, Size}
+    %v11 = load replacementChar : Char
+    %v14 = add %at, 1 : Size
+    aggregate %local2.0 = %v11, %local2.1 = %v14
+    ret %v10
+
+  b2:
+    jmp b3
+
+  b3:
+    %count = call Length(String).length, %text : Size
+    %v21 = add %at, 1 : Size
+    %end = add %v21, %need : Size
+    %value = alloc : U32
+    init %value, %bits
+    %v27 = add %at, 1 : Size
+    %next = alloc : Size
+    init %next, %v27
+    jmp b4
+
+  b4:
+    %v31 = load %next : Size
+    %v32 = cmp_lt %v31, %end : Bool
+    je %v32, b6, b5
+
+  b5:
+    %v90 = alloc : {Char, Size}
+    %v91 = alloc : Char
+    %v92 = load %value : U32
+    init %local8@Char, %v92
+    aggregate %local7.0 = %v91, %local7.1 = %end
+    ret %v90
+
+  b6:
+    %v34 = load %next : Size
+    %v35 = cmp_ge %v34, %count : Bool
+    je %v35, b7, b8
+
+  b7:
+    %v37 = alloc : {Char, Size}
+    %v38 = load replacementChar : Char
+    %v39 = load %next : Size
+    aggregate %local5.0 = %v38, %local5.1 = %v39
+    ret %v37
+
+  b8:
+    jmp b9
+
+  b9:
+    %v43 = load %next : Size
+    %unit = call unitNumber, %text, %v43 : U32
+    %v45 = load %next : Size
+    %v48 = add %at, 1 : Size
+    %v49 = cmp_eq %v45, %v48 : Bool
+    je %v49, b10, b11
+
+  b10:
+    %v51 = call firstContinuation, %lead, %unit : Bool
+    jmp b15
+
+  b11:
+    %v54 = cmp_ge %unit, 128 : Bool
+    %v55 = cmp_le %unit, 191 : Bool
+    %v56 = and %v54, %v55 : Bool
+    je %v56, b13, b12
+
+  b12:
+    jmp b14
 
   b13:
-    jmp b23
+    jmp b14
 
   b14:
-    %v45 = cmp_eq %lead, 244 : Bool
-    je %v45, b17, b16
+    %v62 = phi [b13, True], [b12, False] : Bool
+    jmp b15
 
   b15:
-    jmp b23
+    %continues = phi [b10, %v51], [b14, %v62] : Bool
+    %v67 = xor %continues, True : Bool
+    je %v67, b16, b17
 
   b16:
-    %v55 = cmp_eq %lead, 244 : Bool
-    je %v55, b20, b19
+    %v69 = alloc : {Char, Size}
+    %v70 = load replacementChar : Char
+    %v71 = load %next : Size
+    aggregate %local6.0 = %v70, %local6.1 = %v71
+    ret %v69
 
   b17:
-    %v49 = cmp_ge %unit, 128 : Bool
-    %v50 = cmp_le %unit, 143 : Bool
-    %v51 = and %v49, %v50 : Bool
-    je %v51, b18, b16
+    jmp b18
 
   b18:
-    jmp b23
-
-  b19:
-    %v60 = cmp_ge %unit, 128 : Bool
-    %v61 = cmp_le %unit, 191 : Bool
-    %v62 = and %v60, %v61 : Bool
-    je %v62, b22, b21
-
-  b20:
-    jmp b23
-
-  b21:
-    jmp b23
-
-  b22:
-    jmp b23
-
-  b23:
-    %v76 = phi [b3, True], [b5, False], [b8, True], [b10, False], [b13, True], [b15, False], [b18, True], [b20, False], [b22, True], [b21, False] : Bool
-    ret %v76
+    %v75 = load %value : U32
+    %v78 = shl %v75, 6 : U32
+    %v81 = and %unit, 63 : U32
+    %v82 = or %v78, %v81 : U32
+    assign %value, %v82
+    %v84 = load %next : Size
+    %v87 = add %v84, 1 : Size
+    assign %next, %v87
+    jmp b4
 }
 
 fn decodeChar(%text: String, %at: Size) -> {Char, Size} {
@@ -357,114 +637,66 @@ fn decodeChar(%text: String, %at: Size) -> {Char, Size} {
     jmp b6
 
   b6:
-    %v25 = call leadBits, %lead : {Size, U32}
-    %need = load %local4.0 : Size
-    %bits = load %local4.1 : U32
-    %v30 = cmp_eq %need, 0 : Bool
-    je %v30, b7, b8
+    %size = call announcedLength, %lead : Size
+    %value = alloc : U32
+    init %value, 4294967295
+    %v29 = add %at, %size : Size
+    %v30 = call Length(String).length, %text : Size
+    %v31 = cmp_le %v29, %v30 : Bool
+    je %v31, b7, b8
 
   b7:
-    %v32 = alloc : {Char, Size}
-    %v33 = load replacementChar : Char
-    %v36 = add %at, 1 : Size
-    aggregate %local5.0 = %v33, %local5.1 = %v36
-    ret %v32
+    %v35 = cmp_eq %size, 2 : Bool
+    je %v35, b9, b10
 
   b8:
-    jmp b9
+    jmp b15
 
   b9:
-    %count = call Length(String).length, %text : Size
-    %v43 = add %at, 1 : Size
-    %end = add %v43, %need : Size
-    %value = alloc : U32
-    init %value, %bits
-    %v49 = add %at, 1 : Size
-    %next = alloc : Size
-    init %next, %v49
-    jmp b10
+    %v37 = call wellFormedTwo, %text, %at, %lead : U32
+    jmp b14
 
   b10:
-    %v53 = load %next : Size
-    %v54 = cmp_lt %v53, %end : Bool
-    je %v54, b12, b11
+    %v40 = cmp_eq %size, 3 : Bool
+    je %v40, b11, b12
 
   b11:
-    %v112 = alloc : {Char, Size}
-    %v113 = alloc : Char
-    %v114 = load %value : U32
-    init %local11@Char, %v114
-    aggregate %local10.0 = %v113, %local10.1 = %end
-    ret %v112
+    %v42 = call wellFormedThree, %text, %at, %lead : U32
+    jmp b13
 
   b12:
-    %v56 = load %next : Size
-    %v57 = cmp_ge %v56, %count : Bool
-    je %v57, b13, b14
+    %v43 = call wellFormedFour, %text, %at, %lead : U32
+    jmp b13
 
   b13:
-    %v59 = alloc : {Char, Size}
-    %v60 = load replacementChar : Char
-    %v61 = load %next : Size
-    aggregate %local8.0 = %v60, %local8.1 = %v61
-    ret %v59
+    %v46 = phi [b11, %v42], [b12, %v43] : U32
+    jmp b14
 
   b14:
+    %v49 = phi [b9, %v37], [b13, %v46] : U32
+    assign %value, %v49
     jmp b15
 
   b15:
-    %v65 = load %next : Size
-    %unit = call unitNumber, %text, %v65 : U32
-    %v67 = load %next : Size
-    %v70 = add %at, 1 : Size
-    %v71 = cmp_eq %v67, %v70 : Bool
-    je %v71, b16, b17
+    %v53 = load %value : U32
+    %v55 = cmp_ne %v53, 4294967295 : Bool
+    je %v55, b16, b17
 
   b16:
-    %v73 = call firstContinuation, %lead, %unit : Bool
-    jmp b21
+    %v57 = alloc : {Char, Size}
+    %v58 = alloc : Char
+    %v59 = load %value : U32
+    init %local6@Char, %v59
+    %v61 = add %at, %size : Size
+    aggregate %local5.0 = %v58, %local5.1 = %v61
+    ret %v57
 
   b17:
-    %v76 = cmp_ge %unit, 128 : Bool
-    %v77 = cmp_le %unit, 191 : Bool
-    %v78 = and %v76, %v77 : Bool
-    je %v78, b19, b18
+    jmp b18
 
   b18:
-    jmp b20
-
-  b19:
-    jmp b20
-
-  b20:
-    %v84 = phi [b19, True], [b18, False] : Bool
-    jmp b21
-
-  b21:
-    %continues = phi [b16, %v73], [b20, %v84] : Bool
-    %v89 = xor %continues, True : Bool
-    je %v89, b22, b23
-
-  b22:
-    %v91 = alloc : {Char, Size}
-    %v92 = load replacementChar : Char
-    %v93 = load %next : Size
-    aggregate %local9.0 = %v92, %local9.1 = %v93
-    ret %v91
-
-  b23:
-    jmp b24
-
-  b24:
-    %v97 = load %value : U32
-    %v100 = shl %v97, 6 : U32
-    %v103 = and %unit, 63 : U32
-    %v104 = or %v100, %v103 : U32
-    assign %value, %v104
-    %v106 = load %next : Size
-    %v109 = add %v106, 1 : Size
-    assign %next, %v109
-    jmp b10
+    %v65 = call decodeMaximalSubpart, %text, %at, %lead : {Char, Size}
+    ret %v65
 }
 
 fn Ord(U32).compare(%lhs: U32, %rhs: U32) -> Ordering {

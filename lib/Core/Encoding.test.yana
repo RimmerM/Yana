@@ -1,0 +1,218 @@
+module Core
+
+{-
+   Fixed encodings - Implementation-String.md part 7.
+
+   **Every case runs on both targets and asserts the same answers.** The conversions are different
+   code on the two - a block copy natively and `TextDecoder` on JS for UTF-8, the other way round for
+   UTF-16 - so agreement here is agreement between two implementations, and the claim being checked
+   is part 7's: whichever of them replaced an invalid sequence, the `Char`s that come out are the same.
+
+   The long cases put the interesting byte at every offset of a run longer than two registers, so the
+   vector loops natively meet it in a whole block, in the tail and across a block boundary.
+-}
+
+import Test
+
+fn byteArray(bytes: [U8]) -> [U8]:
+    let &out = [] :: [U8]
+    for i in 0 .. length(bytes):
+        push(out, bytes[i])
+
+    return out
+
+fn unitArray(units: [U16]) -> [U16]:
+    let &out = [] :: [U16]
+    for i in 0 .. length(units):
+        push(out, units[i])
+
+    return out
+
+-- The bytes as decimal numbers separated by spaces.
+fn byteNumbers(bytes: [U8]) -> String:
+    let &out = ""
+    for i in 0 .. length(bytes):
+        if i > 0 then out.push(" ")
+        out.push("{bytes[i]}")
+
+    return out
+
+fn utf8Of(text: String) -> [U8]:
+    let &out = [] :: [U8]
+    String.appendUtf8(text, out)
+    return out
+
+fn utf16Of(text: String) -> [U16]:
+    let &out = [] :: [U16]
+    String.appendUtf16(text, out)
+    return out
+
+-- `count` ASCII letters, cycling so that a misplaced block is visible.
+fn asciiRun(count: Size) -> String:
+    let &out = String.ofCapacity(count)
+    for i in 0 .. count:
+        String.pushUnit(out, truncate(97 + i % 26) :: CodeUnit)
+
+    return out
+
+@test fn utf8RoundTrip():
+    let text = "aé€😀z"
+    let bytes = utf8Of(text)
+    checkEqual(byteNumbers(elements(bytes)), "97 195 169 226 130 172 240 159 152 128 122")
+    check(isValidUtf8(elements(bytes)))
+    checkEqual(String.fromUtf8(elements(bytes)), text)
+
+    checkEqual(length(utf8Of("")), 0)
+    checkEqual(String.fromUtf8(elements(utf8Of(""))), "")
+
+@test fn utf16RoundTrip():
+    let text = "aé€😀z"
+    let units = utf16Of(text)
+    checkEqual(length(units), 6)
+    checkEqual(units[3] :: U32, 0xD83D)
+    checkEqual(units[4] :: U32, 0xDE00)
+    check(isValidUtf16(elements(units)))
+    checkEqual(String.fromUtf16(elements(units)), text)
+    checkEqual(String.fromUtf16(elements(utf16Of(""))), "")
+
+    let &trusted = [] :: [U16]
+    String.appendUtf16Unchecked(text, trusted)
+    checkEqual(String.fromUtf16(elements(trusted)), text)
+
+-- An array that already holds something keeps it, and the new units go after it.
+@test fn appendKeepsContent():
+    let &bytes = byteArray(elements([1 :: U8, 2]))
+    String.appendUtf8("é", bytes)
+    String.appendUtf8("x", bytes)
+    checkEqual(byteNumbers(elements(bytes)), "1 2 195 169 120")
+
+    let &units = unitArray(elements([7 :: U16]))
+    String.appendUtf16("😀", units)
+    checkEqual(length(units), 3)
+    checkEqual(units[0] :: U32, 7)
+    checkEqual(units[2] :: U32, 0xDE00)
+
+-- The edges of every sequence length, valid and one past.
+@test fn validUtf8Edges():
+    check(isValidUtf8(elements([0x7F :: U8])))
+    check(isValidUtf8(elements([0xC2 :: U8, 0x80])))
+    check(isValidUtf8(elements([0xDF :: U8, 0xBF])))
+    check(isValidUtf8(elements([0xE0 :: U8, 0xA0, 0x80])))
+    check(isValidUtf8(elements([0xED :: U8, 0x9F, 0xBF])))
+    check(isValidUtf8(elements([0xEE :: U8, 0x80, 0x80])))
+    check(isValidUtf8(elements([0xEF :: U8, 0xBF, 0xBF])))
+    check(isValidUtf8(elements([0xF0 :: U8, 0x90, 0x80, 0x80])))
+    check(isValidUtf8(elements([0xF4 :: U8, 0x8F, 0xBF, 0xBF])))
+    check(isValidUtf8(elements([] :: [U8])))
+
+    check(!isValidUtf8(elements([0x80 :: U8])))
+    check(!isValidUtf8(elements([0xC0 :: U8, 0x80])))
+    check(!isValidUtf8(elements([0xC1 :: U8, 0xBF])))
+    check(!isValidUtf8(elements([0xC2 :: U8])))
+    check(!isValidUtf8(elements([0xC2 :: U8, 0x41])))
+    check(!isValidUtf8(elements([0xE0 :: U8, 0x9F, 0xBF])))
+    check(!isValidUtf8(elements([0xED :: U8, 0xA0, 0x80])))
+    check(!isValidUtf8(elements([0xEF :: U8, 0xBF])))
+    check(!isValidUtf8(elements([0xF0 :: U8, 0x8F, 0xBF, 0xBF])))
+    check(!isValidUtf8(elements([0xF4 :: U8, 0x90, 0x80, 0x80])))
+    check(!isValidUtf8(elements([0xF5 :: U8, 0x80, 0x80, 0x80])))
+    check(!isValidUtf8(elements([0xFF :: U8])))
+    check(!isValidUtf8(elements([0xF0 :: U8, 0x9F, 0x98, 0x80, 0x80])))
+
+@test fn validUtf16Edges():
+    check(isValidUtf16(elements([0xD7FF :: U16, 0xE000, 0xFFFF])))
+    check(isValidUtf16(elements([0xDBFF :: U16, 0xDFFF])))
+    check(isValidUtf16(elements([] :: [U16])))
+
+    check(!isValidUtf16(elements([0xD800 :: U16])))
+    check(!isValidUtf16(elements([0xDC00 :: U16, 0xD800])))
+    check(!isValidUtf16(elements([0x41 :: U16, 0xDFFF])))
+    check(!isValidUtf16(elements([0xD83D :: U16, 0xD83D, 0xDE00])))
+
+{-
+   The Unicode Standard's maximal-subpart tables (chapter 3, tables 3-8 to 3-12), decoded through
+   `fromUtf8`. Natively that keeps the bytes and `chars` replaces; on JS `TextDecoder` replaces and
+   `chars` reads a valid string - so the same numbers from both is the WHATWG decoder and this
+   library's agreeing, which part 6 promises.
+-}
+@test fn fromUtf8Replaces():
+    let table8 = String.fromUtf8(elements([0x61 :: U8, 0xF1, 0x80, 0x80, 0xE1, 0x80, 0xC2, 0x62, 0x80, 0x63, 0x80, 0xBF, 0x64]))
+    checkEqual(charNumbers(table8), "97 65533 65533 65533 98 65533 99 65533 65533 100")
+
+    let table9 = String.fromUtf8(elements([0xC0 :: U8, 0xAF, 0xE0, 0x80, 0xBF, 0xF0, 0x81, 0x82, 0x41]))
+    checkEqual(charNumbers(table9), "65533 65533 65533 65533 65533 65533 65533 65533 65")
+
+    let table10 = String.fromUtf8(elements([0xED :: U8, 0xA0, 0x80, 0xED, 0xBF, 0xBF, 0xED, 0xAF, 0x41]))
+    checkEqual(charNumbers(table10), "65533 65533 65533 65533 65533 65533 65533 65533 65")
+
+    let table11 = String.fromUtf8(elements([0xF4 :: U8, 0x91, 0x92, 0x93, 0xFF, 0x41, 0x80, 0xBF, 0x42]))
+    checkEqual(charNumbers(table11), "65533 65533 65533 65533 65533 65 65533 65533 66")
+
+    let table12 = String.fromUtf8(elements([0xE1 :: U8, 0x80, 0xE2, 0xF0, 0x91, 0x92, 0xF1, 0xBF, 0x41]))
+    checkEqual(charNumbers(table12), "65533 65533 65533 65533 65")
+
+-- A byte order mark is text like any other, and so are two of them.
+@test fn fromUtf8KeepsByteOrderMark():
+    let marked = String.fromUtf8(elements([0xEF :: U8, 0xBB, 0xBF, 0xEF, 0xBB, 0xBF, 0x61]))
+    checkEqual(charNumbers(marked), "65279 65279 97")
+
+    let late = String.fromUtf8(elements([0x61 :: U8, 0xEF, 0xBB, 0xBF]))
+    checkEqual(charNumbers(late), "97 65279")
+
+-- A lone surrogate reads as U+FFFD whether `fromUtf16` kept it (JS) or replaced it (natively), and
+-- encoding one as UTF-8 writes U+FFFD's three bytes on both.
+@test fn loneSurrogatesReplace():
+    let text = String.fromUtf16(elements([0xDC00 :: U16, 0x61, 0xD83D, 0x62, 0xD83D, 0xDE00, 0xD800]))
+    checkEqual(charNumbers(text), "65533 97 65533 98 128512 65533")
+    checkEqual(byteNumbers(elements(utf8Of(text))), "239 191 189 97 239 191 189 98 240 159 152 128 239 191 189")
+
+-- Invalid UTF-8 as UTF-16 is the U+FFFD sequence `chars` decodes, one unit each.
+@test fn invalidUtf8ToUtf16():
+    let text = String.fromUtf8(elements([0x61 :: U8, 0xF1, 0x80, 0x80, 0xE1, 0x80, 0xC2, 0x62]))
+    let units = utf16Of(text)
+    checkEqual(length(units), 5)
+    checkEqual(units[1] :: U32, 0xFFFD)
+    checkEqual(units[3] :: U32, 0xFFFD)
+    check(isValidUtf16(elements(units)))
+
+{-
+   A character, or a bad byte, at every offset of a run long enough to span blocks at every vector
+   width: the conversions round-trip, the validators notice, and the count of characters holds.
+-}
+@test fn everyOffset():
+    let &wrong = 0
+
+    for before in 0 .. 70:
+        let head = asciiRun(before)
+
+        for middle in items(elements(["é", "€", "😀", "a"])):
+            let text = copy(head) ++ copy(middle) ++ asciiRun(70 - before)
+            let bytes = utf8Of(text)
+            let units = utf16Of(text)
+
+            if !isValidUtf8(elements(bytes)) then wrong = wrong + 1
+            if !isValidUtf16(elements(units)) then wrong = wrong + 1
+            if String.fromUtf8(elements(bytes)) != text then wrong = wrong + 1
+            if String.fromUtf16(elements(units)) != text then wrong = wrong + 1
+            if countChars(text) != 71 then wrong = wrong + 1
+
+        -- A stray continuation byte, a cut-off lead and a lone surrogate at the same offset.
+        let &stray = utf8Of(head)
+        push(stray, 0x80)
+        String.appendUtf8(asciiRun(70 - before), stray)
+        if isValidUtf8(elements(stray)) then wrong = wrong + 1
+        if countChars(String.fromUtf8(elements(stray))) != 71 then wrong = wrong + 1
+
+        let &cut = utf8Of(head)
+        push(cut, 0xE2)
+        push(cut, 0x82)
+        String.appendUtf8(asciiRun(70 - before), cut)
+        if isValidUtf8(elements(cut)) then wrong = wrong + 1
+
+        let &lone = utf16Of(head)
+        push(lone, 0xD800)
+        String.appendUtf16(asciiRun(70 - before), lone)
+        if isValidUtf16(elements(lone)) then wrong = wrong + 1
+        if countChars(String.fromUtf16(elements(lone))) != 71 then wrong = wrong + 1
+
+    checkEqual(wrong, 0)

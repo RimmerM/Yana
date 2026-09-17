@@ -4,6 +4,47 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
+growArray(U8)<complex>(%self: Ptr, %wanted: I64) {
+  b_0 {
+    %v_1 = add %self, 8: Ptr
+    %v_2 = load %v_1, 4: I64
+    %v_3 = and %v_2, 1073741823: I64
+    %v_4 = cast %v_3: I32
+    %room = cast %v_4: I64
+    %v_5 = add %room, %room: I64
+    %v_6 = cmp_ilt %v_5, %wanted: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    jmp b_9
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_7, %wanted], [b_8, %v_5]: I64
+    %v_11 = cmp_ilt %v_10, 4: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_12 {
+    jmp b_14
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_12, 4], [b_13, %v_10]: I64
+    %v_16 = call_complex resize(U8), %self, %v_15: I32
+    ret 
+  }
+}
+
 push(U8)<complex>(%self: Ptr, %item: I32) {
   b_0 {
     %v_1 = add %self, 12: Ptr
@@ -52,47 +93,6 @@ push(U8)<complex>(%self: Ptr, %item: I32) {
   b_19 {
     %v_26 = syscall 60, 134: I64
     unreachable 
-  }
-}
-
-growArray(U8)<complex>(%self: Ptr, %wanted: I64) {
-  b_0 {
-    %v_1 = add %self, 8: Ptr
-    %v_2 = load %v_1, 4: I64
-    %v_3 = and %v_2, 1073741823: I64
-    %v_4 = cast %v_3: I32
-    %room = cast %v_4: I64
-    %v_5 = add %room, %room: I64
-    %v_6 = cmp_ilt %v_5, %wanted: I32
-    je %v_6, b_7, b_8
-  }
-
-  b_7 {
-    jmp b_9
-  }
-
-  b_8 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_7, %wanted], [b_8, %v_5]: I64
-    %v_11 = cmp_ilt %v_10, 4: I32
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
-    jmp b_14
-  }
-
-  b_13 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = phi [b_12, 4], [b_13, %v_10]: I64
-    %v_16 = call_complex resize(U8), %self, %v_15: I32
-    ret 
   }
 }
 
